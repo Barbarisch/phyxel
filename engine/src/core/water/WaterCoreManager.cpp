@@ -39,7 +39,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     if (transport != "eulerian" && transport != "flip") { if (err) *err = "transport must be 'eulerian' or 'flip'"; return 0; }
     if (backend != "cpu" && backend != "gpu") { if (err) *err = "backend must be 'cpu' or 'gpu'"; return 0; }
     if (backend == "gpu" && !gpuReady()) { if (err) *err = "no GPU backend: WaterCoreGpu was not initialised (no device, or a kernel failed to load) - the CPU reference is the fallback, say so"; return 0; }
-    if (backend == "gpu" && transport != "eulerian") { if (err) *err = "the GPU backend runs the fill transport only in this slice (FLIP kernels are Phase C slice 3)"; return 0; }
+
     if (transport == "flip" && cells * static_cast<size_t>(FlipTransport::kParticlesPerCell) > FlipTransport::kMaxParticlesPerVolume) {
         if (err) *err = "a FLIP volume of " + std::to_string(cells) + " cells could hold " + std::to_string(cells * FlipTransport::kParticlesPerCell) + " particles; the CPU reference caps at " + std::to_string(FlipTransport::kMaxParticlesPerVolume);
         return 0;
@@ -72,8 +72,9 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         // the grid's occupancy must hold the hold boundary the GPU reads (it is the solver's query on the CPU)
         for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
             av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
-        av->gpuVol = m_gpu->createVolume(*av->grid, err);
+        av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip");
         if (!av->gpuVol) return 0;   // the refusal carries the byte count
+        m_gpu->upload(*av->gpuVol, *av->grid);
         av->gpuDirty = false;
     }
     m_avs.push_back(std::move(av));
@@ -219,6 +220,7 @@ long WaterCoreManager::placeBox(const glm::ivec3& minVoxel, const glm::ivec3& ma
         if (av->solver->transport().ownsMass()) av->solver->transport().seed(*av->grid);
         av->solver->wake();
         av->gpuDirty = true; av->gpuLast.asleep = false;
+        if (av->gpuVol) { av->gpuVol->asleep = false; av->gpuVol->quietTicks = 0; }
     }
     if (outsideCells) *outsideCells = outside;
     return set;
@@ -284,15 +286,40 @@ void WaterCoreManager::syncFromGpu(Av& av, bool rateLimited) {
     const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     if (rateLimited && av.gpuLastDownloadSec >= 0.0 && now - av.gpuLastDownloadSec < 1.0) return;   // §15.11: realtime readers see the grid once a second
     m_gpu->download(*av.gpuVol, *av.grid);
+    if (av.solver->transport().ownsMass()) {
+        auto* flip = dynamic_cast<FlipTransport*>(&av.solver->transport());
+        if (flip) { std::vector<FlipParticle> ps; m_gpu->readParticles(*av.gpuVol, ps); flip->setParticles(std::move(ps)); }
+    }
     av.gpuStale = false; av.gpuLastDownloadSec = now;
 }
 
 void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     if (!av.gpuVol || !m_gpu) return;
-    if (av.gpuDirty) { syncFromGpu(av); m_gpu->upload(*av.gpuVol, *av.grid); av.gpuDirty = false; }
+    if (av.gpuDirty) {
+        syncFromGpu(av); m_gpu->upload(*av.gpuVol, *av.grid);
+        if (av.solver->transport().ownsMass()) {
+            const auto* flip = dynamic_cast<const FlipTransport*>(&av.solver->transport());
+            std::string perr;
+            if (flip && !m_gpu->setParticles(*av.gpuVol, flip->particles(), &perr)) { /* over capacity: the volume keeps its last state; the record's particles tells */ }
+        }
+        av.gpuDirty = false;
+    }
     const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, av.gpuSweeps);
     av.gpuStale = true;
     av.gpuLast = st;
+    if (st.asleep && av.solver->transport().ownsMass()) {   // §15.9 rest conversion on the GPU backend
+        syncFromGpu(av);
+        av.solver->transport().settle(*av.grid);
+        av.solver->setTransport(std::make_unique<EulerianTransport>());
+        av.gpuVol->particles = false; av.gpuVol->particleCount = 0;
+        m_gpu->upload(*av.gpuVol, *av.grid);
+    }
+    if (av.gpuVol->sourceCount > 0) {   // the ledger: placedTotal/pending back into the solver's list
+        std::vector<GpuSource> gs; m_gpu->readSources(*av.gpuVol, gs);
+        auto& srcs = av.solver->sourcesMutable();
+        for (size_t i = 0; i < gs.size() && i < srcs.size(); ++i) { srcs[i].placedTotal = gs[i].placedTotal; srcs[i].pending = gs[i].pending; srcs[i].unplaced = gs[i].unplaced; }
+        av.last.sourceUnplaced = 0.0; for (const auto& g : gs) av.last.sourceUnplaced += g.unplaced;
+    }
     av.last.substeps = st.substepsLast; av.last.totalMass = st.totalMass; av.last.kineticEnergy = st.kineticEnergy;
     av.last.maxDeltaF = st.maxDeltaF; av.last.quietTicks = st.quietTicks; av.last.asleep = st.asleep;
     av.last.pcgIterations = st.sweeps; av.last.pcgResidual = st.rbgsResidualMax; av.last.residueDropped = st.residueDropped;
@@ -300,17 +327,31 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
 }
 
 bool WaterCoreManager::clearSources(int id) {
-    for (auto& av : m_avs) if (av->id == id) { av->solver->clearSources(); return true; }
+    for (auto& av : m_avs) if (av->id == id) { av->solver->clearSources(); if (av->backend == "gpu") pushSourcesToGpu(*av, nullptr); return true; }
     return false;
+}
+
+// The solver's source list is the authority (cells, rates); the GPU holds a mirror whose
+// placedTotal/pending come back after every step so the ledger reads as for the CPU.
+bool WaterCoreManager::pushSourcesToGpu(Av& av, std::string* err) {
+    if (!av.gpuVol || !m_gpu) return false;
+    std::vector<GpuSource> gs;
+    for (const SourceSpec& s : av.solver->sources()) {
+        GpuSource g; g.cell = static_cast<int32_t>(av.grid->idx(s.cell.x, s.cell.y, s.cell.z)); g.rate = s.rate;
+        g.pending = static_cast<float>(s.pending); g.placedTotal = static_cast<float>(s.placedTotal); g.unplaced = static_cast<float>(s.unplaced);
+        gs.push_back(g);
+    }
+    return m_gpu->setSources(*av.gpuVol, gs, err);
 }
 
 bool WaterCoreManager::addSource(int id, const glm::vec3& world, float rate, std::string* err) {
     for (auto& av : m_avs) {
         if (av->id != id) continue;
-        if (av->backend == "gpu") { if (err) *err = "sources on a GPU volume arrive with Phase C slice 3 (the fill placement of a source is host-side); use the cpu backend"; return false; }
         const glm::ivec3 c = av->grid->worldToCell(world);
         if (!av->grid->inBounds(c.x, c.y, c.z)) { if (err) *err = "source position is outside the volume"; return false; }
         av->solver->addSource(c, rate);
+        if (av->backend == "gpu" && av->solver->transport().ownsMass()) { if (err) *err = "sources on a GPU particle volume are not built yet (particles emit on the CPU transport only)"; return false; }
+        if (av->backend == "gpu") return pushSourcesToGpu(*av, err);
         return true;
     }
     if (err) *err = "no such volume";

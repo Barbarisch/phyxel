@@ -210,6 +210,7 @@ public:
     size_t particleCount() const override { return m_particles.size(); }
     double ownedMass() const override;
     const std::vector<FlipParticle>& particles() const { return m_particles; }
+    void setParticles(std::vector<FlipParticle> ps) { m_particles = std::move(ps); m_haveOldGrid = false; }   ///< the GPU backend's mirror (sorted)
     float flipBlend() const { return m_flipBlend; }
     /// Rebuild f (mass) and the face velocities from the particles (particle -> grid).
     void particlesToGrid(WaterGrid& g);
@@ -251,6 +252,7 @@ public:
     SourceSpec& addSource(const glm::ivec3& cellLocal, float rate);
     void clearSources();
     const std::vector<SourceSpec>& sources() const { return m_sources; }
+    std::vector<SourceSpec>& sourcesMutable() { return m_sources; }   ///< the GPU backend writes placedTotal/pending back (WaterCoreManager::stepGpu)
 
     /// Add `deltaSpeed` along `dir` to every face within `radius` of `worldPos`.
     void addImpulse(const glm::vec3& worldPos, float radius, float deltaSpeed, const glm::vec3& dir);

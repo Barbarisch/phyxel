@@ -181,3 +181,173 @@ TEST_F(WaterCoreGpuParityTest, GpuRbgsConvergenceScan) {
     std::printf("  best: omega %.2f, %d sweeps, err %.4f\n", bestOmega, bestSweeps, bestErr);
     EXPECT_LT(bestErr, 0.01) << "no (omega, sweeps) in the scan reaches the CPU test's 1 % on a 10 m column";
 }
+
+// §15.11 red test: the rest decision is deterministic - two runs of the same settling pool fall
+// asleep on the same tick (fixed-tree reductions, no float atomics).
+TEST_F(WaterCoreGpuParityTest, GpuRestDecisionDeterministic) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    // (a) a still pool must sleep on exactly the same tick in two runs (restTicks = 30 quiet ticks)
+    auto stillRun = [&]() {
+        Tank t(6, 4, 3);
+        t.grid.fillBox({0, 0, 0}, {5, 1, 2}, 1.0f);
+        auto* vol = make(t);
+        SolverParams prm;
+        int sleepTick = -1;
+        for (int tick = 0; tick < 300 && sleepTick < 0; ++tick) { const auto st = gpu.step(*vol, prm, kDt, 1, 40); if (st.asleep) sleepTick = tick; }
+        gpu.destroyVolume(vol);
+        return sleepTick;
+    };
+    const int sa = stillRun(), sb = stillRun();
+    std::printf("  still pool asleep at tick %d / %d\n", sa, sb);
+    EXPECT_EQ(sa, sb);
+    EXPECT_GE(sa, 0) << "a still pool must sleep";
+    // (b) a settling pool's whole quiet-counter sequence is identical between two runs, tick by tick
+    auto settleRun = [&]() {
+        Tank t(4, 4, 2);
+        t.grid.fillBox({0, 0, 0}, {3, 0, 1}, 1.0f);
+        for (int x = 0; x < 4; ++x) for (int z = 0; z < 2; ++z) t.grid.f(x, 1, z) = 0.3f + 0.05f * x;
+        auto* vol = make(t);
+        SolverParams prm;
+        std::vector<int> quiet; std::vector<float> ke;
+        for (int tick = 0; tick < 300; ++tick) { const auto st = gpu.step(*vol, prm, kDt, 1, 40); quiet.push_back(st.quietTicks); ke.push_back(static_cast<float>(st.kineticEnergy)); }
+        gpu.destroyVolume(vol);
+        return std::make_pair(quiet, ke);
+    };
+    const auto a = settleRun(), b = settleRun();
+    EXPECT_EQ(a.first, b.first) << "the quiet-counter sequences differ";
+    EXPECT_EQ(a.second, b.second) << "the kinetic-energy sequences differ (a reduction order leak)";
+}
+
+// §15.11: a GPU volume the device cannot hold is refused at create with the byte count in the
+// message - never a failure inside a dispatch.
+TEST_F(WaterCoreGpuParityTest, GpuAllocationRefusalCarriesTheByteCount) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    GridSpec spec; spec.dims = glm::ivec3(4096, 4096, 512); spec.h = 1.0f;   // 8.6e9 cells: 34 GB per buffer
+    std::string err;
+    WaterCoreGpu::Volume* vol = gpu.createVolume(spec, &err);
+    if (vol) { gpu.destroyVolume(vol); GTEST_SKIP() << "this device allocated 34 GB buffers; the refusal path needs a larger request"; }
+    EXPECT_NE(err.find("bytes"), std::string::npos) << err;
+    std::printf("  refusal: %s\n", err.c_str());
+}
+
+// Sources on the GPU: the CPU's SubmergedPumpDelivers rig (18 m^3 box, 0.5 m^3/s two cells under
+// the surface, 8 s) must deliver its rate and keep the ledger exact.
+TEST_F(WaterCoreGpuParityTest, GpuSubmergedPumpDelivers) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    Tank t(6, 8, 1);
+    t.grid.fillBox({0, 0, 0}, {5, 2, 0}, 1.0f);
+    auto* vol = make(t); ASSERT_NE(vol, nullptr);
+    std::string err;
+    GpuSource src; src.cell = static_cast<int32_t>(t.grid.idx(3, 1, 0)); src.rate = 0.5f;
+    ASSERT_TRUE(gpu.setSources(*vol, {src}, &err)) << err;
+    SolverParams prm;
+    for (int i = 0; i < 8; ++i) gpu.step(*vol, prm, kDt, 60, 40);
+    std::vector<GpuSource> back; gpu.readSources(*vol, back);
+    gpu.download(*vol, t.grid);
+    ASSERT_EQ(back.size(), 1u);
+    std::printf("  pump on the GPU: placed %.3f m^3 of 4.0, pending %.4f, grid mass %.4f\n", back[0].placedTotal, back[0].pending, t.grid.totalMass());
+    EXPECT_NEAR(back[0].placedTotal, 4.0, 0.1);
+    EXPECT_NEAR(t.grid.totalMass(), 18.0 + back[0].placedTotal, 1e-4);
+    EXPECT_LT(back[0].pending, 0.5f);
+    gpu.destroyVolume(vol);
+}
+
+static WaterCoreGpu::Volume* makeFlip(WaterCoreGpu& gpu, Tank& t, float blend = 0.95f) {
+    t.bakeOcc();
+    std::string err;
+    WaterCoreGpu::Volume* v = gpu.createVolume(t.grid.spec(), &err, true);
+    if (!v) { ADD_FAILURE() << "createVolume(particles): " << err; return nullptr; }
+    gpu.upload(*v, t.grid);
+    FlipTransport seedT(blend); seedT.seed(t.grid);     // the CPU seeding rule, exact masses
+    if (!gpu.setParticles(*v, seedT.particles(), &err)) { ADD_FAILURE() << "setParticles: " << err; gpu.destroyVolume(v); return nullptr; }
+    gpu.setFlipBlend(blend);
+    return v;
+}
+
+TEST_F(WaterCoreGpuParityTest, GpuFlipMassExactAndDeterministic) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto run = [&]() {
+        Tank t(16, 8, 4);
+        t.grid.fillBox({0, 0, 0}, {5, 4, 3}, 1.0f);
+        auto* vol = makeFlip(gpu, t);
+        SolverParams prm;
+        gpu.step(*vol, prm, kDt, 120, 40);
+        std::vector<FlipParticle> ps; gpu.readParticles(*vol, ps);
+        gpu.download(*vol, t.grid);
+        double m = 0.0; for (const auto& p : ps) m += p.mass;
+        std::vector<float> f = t.grid.fData();
+        gpu.destroyVolume(vol);
+        return std::make_tuple(ps.size(), m, f);
+    };
+    const auto a = run(), b = run();
+    EXPECT_EQ(std::get<0>(a), 6 * 5 * 4 * 8u) << "particle count";
+    EXPECT_NEAR(std::get<1>(a), 120.0, 1e-4) << "particle mass is the ledger";
+    EXPECT_EQ(std::get<0>(a), std::get<0>(b));
+    EXPECT_EQ(std::get<1>(a), std::get<1>(b));
+    const auto& fa = std::get<2>(a); const auto& fb = std::get<2>(b);
+    ASSERT_EQ(fa.size(), fb.size());
+    for (size_t i = 0; i < fa.size(); ++i) ASSERT_EQ(fa[i], fb[i]) << "cell " << i << " differs between two runs";
+}
+
+// Phase B2 on the GPU against the CPU FLIP reference on the 20 m channel at 1/3 m. The BULK flow is
+// the parity gate: the dam-break front at 1 s within 3 cells (CPU 42 / GPU 45 measured) with mass
+// exact. The wall run-up is reported, not gated: it is the most solver-sensitive quantity on every
+// ledger so far (fills: 1.11 CPU / 1.22 GPU at 40 sweeps / 1.67 at 100), and the two particle
+// realisations (scatter + PCG on the CPU, gather + SOR on the GPU) read 1.94 h0 and a ceiling-
+// clipped 3.0 h0 at the same wall; the open row is in WaterCore.md 15.15. The GPU particles must
+// still beat the fill transport's 1.22 h0, which is what B2 exists for.
+TEST_F(WaterCoreGpuParityTest, GpuFlipBulkParityAndRunup) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 3.0f; const int per = 3;
+    Tank c(20 * per, 9 * per, per, h);
+    c.grid.fillBox({0, 0, 0}, {10 * per - 1, 3 * per - 1, per - 1}, 1.0f);
+    WaterSolver cs(c.grid, c.query());
+    cs.setTransport(std::make_unique<FlipTransport>(0.95f)); cs.transport().seed(cs.grid());
+    double cpuPeak = 0.0; int cpuFront1s = -1;
+    for (int k = 0; k < 4 * 60; ++k) {
+        cs.step(kDt);
+        if (k == 59) cpuFront1s = frontX(c.grid, 1, 0.5 * h * h);
+        for (int z = 0; z < per; ++z) for (int x = 18 * per; x < 20 * per; ++x) { const float sy = c.grid.surfaceWorldY(x, z); if (!std::isnan(sy)) cpuPeak = std::max(cpuPeak, static_cast<double>(sy)); }
+    }
+    Tank t(20 * per, 9 * per, per, h);
+    t.grid.fillBox({0, 0, 0}, {10 * per - 1, 3 * per - 1, per - 1}, 1.0f);
+    auto* vol = makeFlip(gpu, t); ASSERT_NE(vol, nullptr);
+    SolverParams prm;
+    double gpuPeak = 0.0; int gpuFront1s = -1;
+    for (int k = 0; k < 4 * 60; k += 6) {
+        gpu.step(*vol, prm, kDt, 6, 90);
+        gpu.download(*vol, t.grid);
+        if (k + 6 == 60) gpuFront1s = frontX(t.grid, 1, 0.5 * h * h);
+        for (int z = 0; z < per; ++z) for (int x = 18 * per; x < 20 * per; ++x) { const float sy = t.grid.surfaceWorldY(x, z); if (!std::isnan(sy)) gpuPeak = std::max(gpuPeak, static_cast<double>(sy)); }
+    }
+    std::vector<FlipParticle> ps; gpu.readParticles(*vol, ps);
+    double m = 0.0; for (const auto& q : ps) m += q.mass;
+    std::printf("  FLIP on the channel: front at 1 s CPU %d / GPU %d cells; run-up CPU %.2f h0 / GPU %.2f h0 (literature 2.1-2.3; the tank top is 3.0); GPU mass %.4f\n", cpuFront1s, gpuFront1s, cpuPeak / 3.0, gpuPeak / 3.0, m);
+    EXPECT_NEAR(gpuFront1s, cpuFront1s, 3) << "bulk front parity at 1 s";
+    EXPECT_NEAR(m, 30.0, 1e-4) << "particle mass is the ledger";
+    EXPECT_GT(gpuPeak / 3.0, 1.22) << "the GPU particles must beat the fill transport's run-up";
+    gpu.destroyVolume(vol);
+}
+
+// Element-wise closeness of the fill backends on the small tilted pool: the two solvers (PCG vs
+// 40 SOR sweeps) agree on every fill to 5e-3 and every face to 5e-3 m/s after 60 ticks.
+TEST_F(WaterCoreGpuParityTest, GpuFillsMatchCpuElementwise) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    Tank c(4, 4, 2), g(4, 4, 2);
+    for (Tank* t : {&c, &g}) { t->grid.fillBox({0, 0, 0}, {3, 0, 1}, 1.0f); for (int x = 0; x < 4; ++x) for (int z = 0; z < 2; ++z) t->grid.f(x, 1, z) = 0.3f + 0.05f * x; }
+    WaterSolver cpu(c.grid, c.query());
+    for (int i = 0; i < 60; ++i) cpu.step(kDt);
+    auto* vol = make(g); ASSERT_NE(vol, nullptr);
+    SolverParams prm;
+    gpu.step(*vol, prm, kDt, 60, 40);
+    gpu.download(*vol, g.grid);
+    double df = 0.0, dv = 0.0;
+    for (size_t i = 0; i < c.grid.fData().size(); ++i) df = std::max(df, static_cast<double>(std::abs(c.grid.fData()[i] - g.grid.fData()[i])));
+    for (size_t i = 0; i < c.grid.uData().size(); ++i) dv = std::max(dv, static_cast<double>(std::abs(c.grid.uData()[i] - g.grid.uData()[i])));
+    for (size_t i = 0; i < c.grid.vData().size(); ++i) dv = std::max(dv, static_cast<double>(std::abs(c.grid.vData()[i] - g.grid.vData()[i])));
+    for (size_t i = 0; i < c.grid.wData().size(); ++i) dv = std::max(dv, static_cast<double>(std::abs(c.grid.wData()[i] - g.grid.wData()[i])));
+    std::printf("  fills after 60 ticks: max|df| %.2e, max|dvel| %.2e m/s\n", df, dv);
+    EXPECT_LT(df, 5e-3);
+    EXPECT_LT(dv, 5e-3);
+    gpu.destroyVolume(vol);
+}

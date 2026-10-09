@@ -388,7 +388,7 @@
     },
     "wc_classify.comp": {
       "built": true,
-      "sources": "54d6f5e79dcc81f4e7eb350c4831ef23535147e63e02b67fe0ccc15446c0003b",
+      "sources": "c93c09522f579ba93040403317fabc46b634fbf589a834cf845a28688e22cdc3",
       "spv_present": true
     },
     "wc_column_ops.comp": {
@@ -411,6 +411,21 @@
       "sources": "cc67088eeee59b2d809f3179ac28e15a862804f2c8bbc0281353b9481e3d6235",
       "spv_present": true
     },
+    "wc_flip_g2p.comp": {
+      "built": false,
+      "sources": "f0aeb15c0e037ee99b87a345c7017bf424c901faa1caddc0d2e9958bd2fdaade",
+      "spv_present": true
+    },
+    "wc_flip_p2g.comp": {
+      "built": false,
+      "sources": "221c17a33ce5d7a965c5fe60d8797ed306a2bdf6e8d8f227bd80115bc33bb70b",
+      "spv_present": true
+    },
+    "wc_flip_sort.comp": {
+      "built": false,
+      "sources": "a4fe5781b9d8d9b882eacea070ccfe1e6a1abf7eba0f9c211b7fb62b5a84eb0c",
+      "spv_present": true
+    },
     "wc_rbgs.comp": {
       "built": true,
       "sources": "485818f3380364afaebc13d9bf47b0fa8ad60af86c7189ae7ff16963b7f96391",
@@ -419,6 +434,11 @@
     "wc_reduce.comp": {
       "built": true,
       "sources": "ce0bb94f5149eae0300ad6cd5901ecd08e457e0735b3086a25ab4497785af2ac",
+      "spv_present": true
+    },
+    "wc_sources.comp": {
+      "built": true,
+      "sources": "819b5634006014b47c563124db9bb2037306e5ac54cd018eda2c1f2761fe958b",
       "spv_present": true
     },
     "wc_vel_advect.comp": {

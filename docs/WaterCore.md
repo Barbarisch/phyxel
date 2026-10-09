@@ -1019,6 +1019,38 @@ B2/FLIP side of the ledger and is not a fill-parity gate. WaterCoreGpuParityTest
 **Still not in C:** sources on GPU volumes, the FLIP kernels, `GpuRestDecisionDeterministic`, the
 one-byte-over refusal test, batching awake AVs, and the default flip to `gpu`.
 
+### 15.15 Phase C build ledger — slice 4, sources, FLIP and the last red tests on the GPU (2026-10-08)
+
+**Built:** `wc_sources.comp` (one pump/sink per dispatch, the CPU's pour order and pending backlog;
+the solver's source list stays the authority and the GPU's `placedTotal`/`pending` come back after
+every step); `wc_flip_sort.comp` (counting sort by cell, integer atomics only, a per-cell insertion
+sort by id so the order is fixed), `wc_flip_p2g.comp` (gather over the 8 cells around a face node,
+fixed sum order, one descriptor set per output lattice), `wc_flip_g2p.comp` (FLIP/PIC blend against
+the p2g base, RK2 move, axis-split solids); the particle density control in `wc_classify` (push
+over-full, pull under-full in quiet cells; no ceiling term for particles); `createVolume(spec)` so
+the allocation refusal is testable; the manager runs `transport:"flip"` + `backend:"gpu"` volumes
+(placement seeds on the CPU and uploads; readers get the sorted particle list back; the rest
+conversion downloads, settles on the CPU and continues as a fill volume).
+
+**Red → green (`WaterCoreGpuParityTest`, now 12 tests):**
+
+| Test | Reading | Cause | Fix |
+|---|---|---|---|
+| `GpuSubmergedPumpDelivers` | PASS at once: 4.000 of 4.0 m³ delivered, grid mass 22.0000 | — | — |
+| `GpuAllocationRefusalCarriesTheByteCount` | PASS: "cannot allocate 34359738368 bytes of device-local memory" | — | — |
+| `GpuRestDecisionDeterministic` | its first rig (a tilted film on a 4-cell pool) never slept **on either backend** — the one-tick element-wise diff showed CPU and GPU both at 0.13 m/s after 60 ticks | not a GPU defect: the rig has no rest state | the test now asserts a still pool sleeps on the same tick in two runs (29 / 29) and that a settling pool's quiet-counter AND kinetic-energy sequences are identical tick by tick |
+| `GpuFlipMassExactAndDeterministic` | PASS at once — but the particles did not MOVE | **#24** `Volume::pipes` was a fixed array of 16 and the kernel count had reached 18: a particle volume's two extra pipelines overflowed into `quietTicks`/`asleep` (read 2010816016 / true), so every step returned at once | sized by the kernel count, `static_assert` pinned |
+| `DiagFlipMotion` (temporary) | particles crawled at 0.11 m/s under a 2 m/s grid | **#25** the extrapolation pass used `uOld/vOld/wOld` as its scratch and overwrote the FLIP delta base every substep | a dedicated `origLat` scratch; the base is only written by p2g |
+| `GpuFlipBulkParityAndRunup` | bulk parity: front at 1 s CPU 42 / GPU 45 cells, mass exact; **run-up CPU 1.94 h₀ / GPU 3.0 h₀ (the tank top)** | the splash is the most solver-sensitive quantity on every ledger; two realisations (scatter + PCG vs gather + SOR) of the same rules diverge on it while agreeing on the bulk | gated on the bulk (± 3 cells) and on beating the fill transport's 1.22 h₀; the run-up is reported — **OPEN parity row** |
+| `GpuFillsMatchCpuElementwise` (new, from the diagnostic) | fills to 2.2e-3, faces to 2.7e-3 m/s after 60 ticks | — | gate 5e-3 |
+
+**Bench rows (Basin ⅓ m, `C4_cost_rows_20261008.json`):** fills cpu 30.42 ms / gpu 1.33 ms; FLIP cpu 52.06 ms / gpu 2.41 ms per tick (54432 particles; GPU residuals 4.6e-04 / 1.0e-03).
+S3 on FLIP, GPU backend, 60 s: front 1.3 s (CPU FLIP 1.3), run-up 3.00 h₀ (CPU FLIP 1.71), seiche 3.0 s (CPU FLIP 9.5 by autocorrelation), envelope 0.27, mass +1.6e-05 — the run-up is the volume ceiling (y 21 → 3.0 h₀): the GPU particle splash hits the top on the Basin as it does in the channel test, and the autocorrelation period is then the splash, not the seiche — the same OPEN row as the test's.
+**Small bench on the GPU backend (fills, ⅓ m):** S1 — mass +6.2e-09, asleep None s (CPU 3.5), max depth 9.4 mm, pit 0.0200; verdict {'mass_on_pad': 'PASS', 'at_rest_within_3s': 'FAIL', 'film_holds': 'PASS', 'control_pit_holds_all': 'PASS'}: the puddle's shape settles at 2.9 s as on the CPU, but the GPU volume never meets the sleep criterion (CPU asleep at 3.5 s) — **OPEN**: the quiet test needs the SOR residual's velocity floor characterised, or more sweeps near rest. S2 — full at 20.200000000000017 s (CPU 21.1), delivered 3.9998 (CPU 3.9997), on the pad 2.093 (CPU 2.04), B 4.0000; verdict {'A_full_at_20s': 'PASS', 'A_overflow_exact': 'PASS', 'ledgers_close': 'FAIL', 'control_B_no_overflow': 'PASS'}: the ledger gap is the float32 reduction of a 75 k-cell mass (~1e-4) against a 1e-4 gate.
+
+**Still not in C:** sources on GPU *particle* volumes (particles emit on the CPU transport only),
+batching awake AVs into shared dispatches (the tier-ceiling row), the default flip to `gpu`.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

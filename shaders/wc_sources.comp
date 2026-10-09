@@ -1,0 +1,51 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel S: one pump/sink per dispatch (iparam = source index), the CPU's
+// WaterSolver::applySources for fills. A source owes what its outlet could not take (`pending`,
+// bounded to one second of rate); the outlet cell is filled first, then its six neighbours; the
+// projection's inflow term (wc_classify, binding src) is the rate plus the owed backlog, at most
+// twice the rate, so room appears for it. One thread does the whole source: sources are few and
+// the pour is sequential by design (two sources sharing a neighbour would race otherwise, so the
+// host dispatches them one at a time with a barrier between).
+#include "water_core.glsl"
+layout(local_size_x = 1) in;
+struct GpuSource { int cell; float rate; float pending; float placedTotal; float unplaced; float pad0, pad1, pad2; };
+layout(std430, set = 0, binding = 0)          buffer F   { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
+layout(std430, set = 0, binding = 2)          buffer Src { float src[]; };        // m^3/s per cell for the projection
+layout(std430, set = 0, binding = 3)          buffer Srcs { GpuSource sources[]; };
+
+bool air(int x, int y, int z) { return inBounds(x, y, z) && occ[cellIdx(x, y, z)] == 0u; }
+
+void main() {
+    if (gl_GlobalInvocationID.x != 0u) return;
+    GpuSource s = sources[pc.iparam];
+    const int cx = s.cell % pc.nx, cy = (s.cell / pc.nx) % pc.ny, cz = s.cell / (pc.nx * pc.ny);
+    if (!air(cx, cy, cz)) return;
+    const float vol = pc.h * pc.h * pc.h;
+    const float owed = min(s.pending, abs(s.rate)) / vol;                       // fill units
+    const float want = s.rate * pc.dt / vol + (s.rate >= 0.0 ? owed : -owed);
+    if (want >= 0.0) {
+        float left = want;
+        const ivec3 order[7] = ivec3[7](ivec3(0,0,0), ivec3(0,1,0), ivec3(-1,0,0), ivec3(1,0,0), ivec3(0,0,-1), ivec3(0,0,1), ivec3(0,-1,0));
+        for (int i = 0; i < 7 && left > 0.0; ++i) {
+            const int x = cx + order[i].x, y = cy + order[i].y, z = cz + order[i].z;
+            if (!air(x, y, z)) continue;
+            const uint ci = cellIdx(x, y, z);
+            const float room = max(0.0, 1.0 - f[ci]);
+            const float placed = min(left, room);
+            f[ci] += placed; left -= placed;
+        }
+        const float placed = want - left;
+        s.placedTotal += placed * vol; s.unplaced = left * vol; s.pending = left * vol;
+    } else {
+        const uint ci = cellIdx(cx, cy, cz);
+        const float take = min(-want, f[ci]);
+        f[ci] -= take;
+        s.placedTotal -= take * vol; s.pending = (-want - take) * vol; s.unplaced = s.pending;
+    }
+    sources[pc.iparam] = s;
+    // the projection's inflow: rate plus the owed backlog (at most the rate itself)
+    const float owedRate = min(s.pending / pc.dt, abs(s.rate));
+    src[cellIdx(cx, cy, cz)] = s.rate + (s.rate >= 0.0 ? owedRate : -owedRate);
+}

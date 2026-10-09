@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 namespace Phyxel { namespace Core { namespace Water {
@@ -12,8 +13,9 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_fill_advect.comp.spv", "wc_vel_advect.comp.spv", "wc_vel_advect.comp.spv", "wc_vel_advect.comp.spv",
     "wc_face_ops.comp.spv", "wc_face_ops.comp.spv", "wc_face_ops.comp.spv",
     "wc_column_ops.comp.spv", "wc_classify.comp.spv", "wc_rbgs.comp.spv",
-    "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv"};
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {6, 4, 4, 4, 5, 5, 5, 6, 10, 5, 9, 9, 9, 10};
+    "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv", "wc_sources.comp.spv",
+    "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv"};
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {6, 4, 4, 4, 5, 5, 5, 6, 10, 5, 9, 9, 9, 10, 4, 7, 6, 9};
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 } // namespace
 
@@ -76,8 +78,9 @@ void WaterCoreGpu::destroyBuffer(Buffer& b) {
 
 bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     for (int k = 0; k < KernelCount; ++k) {
+        if (!vol.particles && k >= FlipSort) break;
         auto pipe = std::make_unique<Vulkan::ComputePipeline>();
-        if (!pipe->create(m_device, m_shaderDir + "/" + kKernelFiles[k], kKernelBindings[k], sizeof(WcPush))) {
+        if (!pipe->create(m_device, m_shaderDir + "/" + kKernelFiles[k], kKernelBindings[k], sizeof(WcPush), k == FlipP2g ? 3u : 1u)) {
             if (err) *err = std::string("failed to create pipeline ") + kKernelFiles[k] + " from " + m_shaderDir; return false;
         }
         vol.pipes[k] = std::move(pipe);
@@ -95,18 +98,44 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped});
     bindAll(*vol.pipes[Classify],   {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.src, &vol.liq, &vol.diag, &vol.rhs, &vol.p});
     bindAll(*vol.pipes[Rbgs],       {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res});
-    bindAll(*vol.pipes[ExtrapU], {&vol.f, &vol.occ, &vol.valA, &vol.knownA, &vol.valB, &vol.knownB, &vol.first, &vol.keep, &vol.uOld});
-    bindAll(*vol.pipes[ExtrapV], {&vol.f, &vol.occ, &vol.valA, &vol.knownA, &vol.valB, &vol.knownB, &vol.first, &vol.keep, &vol.vOld});
-    bindAll(*vol.pipes[ExtrapW], {&vol.f, &vol.occ, &vol.valA, &vol.knownA, &vol.valB, &vol.knownB, &vol.first, &vol.keep, &vol.wOld});
+    // binding 8 = the lattice before the halo pass: a dedicated scratch, because uOld/vOld/wOld are
+    // the FLIP delta base and overwriting them here left the particles with a ~zero delta (they
+    // crawled at 0.1 m/s under a 2 m/s grid, 2026-10-08)
+    bindAll(*vol.pipes[ExtrapU], {&vol.f, &vol.occ, &vol.valA, &vol.knownA, &vol.valB, &vol.knownB, &vol.first, &vol.keep, &vol.origLat});
+    bindAll(*vol.pipes[ExtrapV], {&vol.f, &vol.occ, &vol.valA, &vol.knownA, &vol.valB, &vol.knownB, &vol.first, &vol.keep, &vol.origLat});
+    bindAll(*vol.pipes[ExtrapW], {&vol.f, &vol.occ, &vol.valA, &vol.knownA, &vol.valB, &vol.knownB, &vol.first, &vol.keep, &vol.origLat});
     bindAll(*vol.pipes[Reduce],  {&vol.f, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.part, &vol.out, &vol.part2, &vol.res, &vol.dropped});
+    bindAll(*vol.pipes[Sources], {&vol.f, &vol.occ, &vol.src, &vol.sources});
+    if (vol.particles) {
+        bindAll(*vol.pipes[FlipSort], {&vol.posA, &vol.velA, &vol.posB, &vol.velB, &vol.pcount, &vol.pstart, &vol.pcursor});
+        // p2g gathers from the SORTED list (B); it writes f and ONE lattice per dispatch (rebound per lattice below)
+        {   // p2g: three descriptor sets, one per output lattice (binding 5)
+            Vulkan::ComputePipeline& p = *vol.pipes[FlipP2g];
+            const Buffer* lat[3] = {&vol.u, &vol.v, &vol.w};
+            for (uint32_t set = 0; set < 3; ++set) {
+                p.bindBufferInSet(set, 0, vol.posB.buf, vol.posB.bytes); p.bindBufferInSet(set, 1, vol.velB.buf, vol.velB.bytes);
+                p.bindBufferInSet(set, 2, vol.pstart.buf, vol.pstart.bytes); p.bindBufferInSet(set, 3, vol.pcount.buf, vol.pcount.bytes);
+                p.bindBufferInSet(set, 4, vol.f.buf, vol.f.bytes); p.bindBufferInSet(set, 5, lat[set]->buf, lat[set]->bytes);
+            }
+            p.updateDescriptors();
+        }
+        bindAll(*vol.pipes[FlipG2p], {&vol.posB, &vol.velB, &vol.u, &vol.v, &vol.w, &vol.uOld, &vol.vOld, &vol.wOld, &vol.occ});
+    }
     return true;
 }
 
 WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const WaterGrid& g, std::string* err) {
+    Volume* vol = createVolume(g.spec(), err);
+    if (vol) upload(*vol, g);
+    return vol;
+}
+
+WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::string* err, bool particles, size_t particleCapacity) {
     if (!ready()) { if (err) *err = "WaterCoreGpu not initialised"; return nullptr; }
     auto vol = std::make_unique<Volume>();
-    vol->spec = g.spec();
-    const size_t nx = g.nx(), ny = g.ny(), nz = g.nz();
+    vol->spec = spec;
+    vol->particles = particles;
+    const size_t nx = static_cast<size_t>(spec.dims.x), ny = static_cast<size_t>(spec.dims.y), nz = static_cast<size_t>(spec.dims.z);
     vol->cells = nx * ny * nz; vol->nu = (nx + 1) * ny * nz; vol->nv = nx * (ny + 1) * nz; vol->nw = nx * ny * (nz + 1);
     vol->latticeMax = std::max({vol->nu, vol->nv, vol->nw});
     vol->columns = nx * nz;
@@ -120,17 +149,26 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const WaterGrid& g, std::string
            && createBuffer(vol->valA, vol->latticeMax * F4, false, err) && createBuffer(vol->valB, vol->latticeMax * F4, false, err)
            && createBuffer(vol->knownA, vol->latticeMax * 4, false, err) && createBuffer(vol->knownB, vol->latticeMax * 4, false, err)
            && createBuffer(vol->first, vol->latticeMax * 4, false, err) && createBuffer(vol->keep, vol->latticeMax * 4, false, err)
+           && createBuffer(vol->origLat, vol->latticeMax * F4, false, err)
            && createBuffer(vol->dropped, vol->columns * F4, false, err) && createBuffer(vol->part, vol->groups * 16, false, err) && createBuffer(vol->part2, vol->groups * 16, false, err)
-           && createBuffer(vol->out, kOutSlots * 16, false, err);
-    // staging: [f | u | v | w | occ | src | out | p]
+           && createBuffer(vol->out, kOutSlots * 16, false, err) && createBuffer(vol->sources, kMaxSources * sizeof(GpuSource), false, err);
+    // staging: [f | u | v | w | occ | src | out | p | sources]
     vol->offU = vol->cells * F4; vol->offV = vol->offU + vol->nu * F4; vol->offW = vol->offV + vol->nv * F4;
     vol->offOcc = vol->offW + vol->nw * F4; vol->offSrc = vol->offOcc + vol->cells * 4; vol->offOut = vol->offSrc + vol->cells * F4;
-    vol->offP = vol->offOut + kOutSlots * 16;
-    ok = ok && createBuffer(vol->staging, vol->offP + vol->cells * F4, true, err);
+    vol->offP = vol->offOut + kOutSlots * 16; vol->offSources = vol->offP + vol->cells * F4;
+    vol->offParticles = vol->offSources + kMaxSources * sizeof(GpuSource);
+    VkDeviceSize particleBytes = 0;
+    if (particles) {
+        vol->particleCapacity = particleCapacity > 0 ? particleCapacity : std::min<size_t>(FlipTransport::kMaxParticlesPerVolume, vol->cells * FlipTransport::kParticlesPerCell + 4096);
+        particleBytes = vol->particleCapacity * 32;
+        ok = ok && createBuffer(vol->posA, vol->particleCapacity * 16, false, err) && createBuffer(vol->velA, vol->particleCapacity * 16, false, err)
+                && createBuffer(vol->posB, vol->particleCapacity * 16, false, err) && createBuffer(vol->velB, vol->particleCapacity * 16, false, err)
+                && createBuffer(vol->pcount, vol->cells * 4, false, err) && createBuffer(vol->pstart, vol->cells * 4, false, err) && createBuffer(vol->pcursor, vol->cells * 4, false, err);
+    }
+    ok = ok && createBuffer(vol->staging, vol->offParticles + particleBytes, true, err);
     if (!ok || !createPipelines(*vol, err)) { Volume* raw = vol.release(); destroyVolume(raw); return nullptr; }
     Volume* raw = vol.release();
     m_volumes.push_back(raw);
-    upload(*raw, g);
     return raw;
 }
 
@@ -139,7 +177,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     vkDeviceWaitIdle(m_device);
     for (auto& p : vol->pipes) if (p) { p->cleanup(); p.reset(); }
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
-                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->staging})
+                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->origLat, &vol->sources, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->staging})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -158,8 +196,9 @@ void WaterCoreGpu::submitAndWait(VkCommandBuffer cmd) const {
     vkEndCommandBuffer(cmd);
     VkSubmitInfo si{}; si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; si.commandBufferCount = 1; si.pCommandBuffers = &cmd;
     vkResetFences(m_device, 1, &m_fence);
-    vkQueueSubmit(m_queue, 1, &si, m_fence);
-    vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+    const VkResult sub = vkQueueSubmit(m_queue, 1, &si, m_fence);
+    const VkResult wait = vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+    if (sub != VK_SUCCESS || wait != VK_SUCCESS) std::fprintf(stderr, "[WaterCoreGpu] submit %d wait %d (VK_ERROR_DEVICE_LOST = -4)\n", static_cast<int>(sub), static_cast<int>(wait));
     vkFreeCommandBuffers(m_device, m_pool, 1, &cmd);
 }
 
@@ -194,13 +233,26 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     submitAndWait(cmd);
 }
 
-void WaterCoreGpu::uploadSources(Volume& vol, const std::vector<float>& ratePerCell) {
-    auto* st = static_cast<char*>(vol.staging.mapped) + vol.offSrc;
-    std::memset(st, 0, vol.cells * sizeof(float));
-    std::memcpy(st, ratePerCell.data(), std::min(ratePerCell.size(), vol.cells) * sizeof(float));
+bool WaterCoreGpu::setSources(Volume& vol, const std::vector<GpuSource>& sources, std::string* err) {
+    if (sources.size() > static_cast<size_t>(kMaxSources)) { if (err) *err = "a GPU volume holds at most " + std::to_string(kMaxSources) + " sources"; return false; }
+    auto* st = static_cast<char*>(vol.staging.mapped) + vol.offSources;
+    std::memset(st, 0, kMaxSources * sizeof(GpuSource));
+    if (!sources.empty()) std::memcpy(st, sources.data(), sources.size() * sizeof(GpuSource));
+    vol.sourceCount = static_cast<int>(sources.size());
     VkCommandBuffer cmd = beginCommands();
-    copy(cmd, vol.staging, vol.src, vol.cells * sizeof(float), vol.offSrc);
+    copy(cmd, vol.staging, vol.sources, kMaxSources * sizeof(GpuSource), vol.offSources);
+    vkCmdFillBuffer(cmd, vol.src.buf, 0, vol.src.bytes, 0);   // the projection's per-cell rates are rebuilt by the kernel
     submitAndWait(cmd);
+    return true;
+}
+
+void WaterCoreGpu::readSources(Volume& vol, std::vector<GpuSource>& out) const {
+    out.resize(static_cast<size_t>(vol.sourceCount));
+    if (vol.sourceCount == 0) return;
+    VkCommandBuffer cmd = beginCommands();
+    copy(cmd, vol.sources, vol.staging, vol.sourceCount * sizeof(GpuSource), 0, vol.offSources);
+    submitAndWait(cmd);
+    std::memcpy(out.data(), static_cast<const char*>(vol.staging.mapped) + vol.offSources, vol.sourceCount * sizeof(GpuSource));
 }
 
 void WaterCoreGpu::download(Volume& vol, WaterGrid& g) const {
@@ -225,6 +277,90 @@ void WaterCoreGpu::readPressure(Volume& vol, std::vector<float>& p) const {
     std::memcpy(p.data(), static_cast<const char*>(vol.staging.mapped) + vol.offP, vol.cells * sizeof(float));
 }
 
+bool WaterCoreGpu::setParticles(Volume& vol, const std::vector<FlipParticle>& ps, std::string* err) {
+    if (!vol.particles) { if (err) *err = "not a particle volume"; return false; }
+    if (ps.size() > vol.particleCapacity) { if (err) *err = "the volume holds at most " + std::to_string(vol.particleCapacity) + " particles (" + std::to_string(ps.size()) + " requested)"; return false; }
+    auto* st = static_cast<char*>(vol.staging.mapped) + vol.offParticles;
+    auto* pos = reinterpret_cast<glm::vec4*>(st);
+    auto* vel = reinterpret_cast<glm::vec4*>(st + vol.particleCapacity * 16);
+    for (size_t i = 0; i < ps.size(); ++i) {
+        pos[i] = glm::vec4(ps[i].pos, ps[i].mass);
+        float idBits; std::memcpy(&idBits, &ps[i].id, 4);
+        vel[i] = glm::vec4(ps[i].vel, idBits);
+    }
+    vol.particleCount = ps.size();
+    vol.haveOldGrid = false;
+    VkCommandBuffer cmd = beginCommands();
+    if (!ps.empty()) {
+        copy(cmd, vol.staging, vol.posA, ps.size() * 16, vol.offParticles);
+        copy(cmd, vol.staging, vol.velA, ps.size() * 16, vol.offParticles + vol.particleCapacity * 16);
+        barrier(cmd);
+        // sort and p2g so the grid's f and faces reflect the particles (as FlipTransport::seed does)
+        WcPush push; push.nx = vol.spec.dims.x; push.ny = vol.spec.dims.y; push.nz = vol.spec.dims.z; push.h = vol.spec.h;
+        recordParticleTransport(cmd, vol, push);   // with iparam = count, mode sequence inside (no move: dt = 0)
+    } else {
+        vkCmdFillBuffer(cmd, vol.f.buf, 0, vol.f.bytes, 0);
+    }
+    submitAndWait(cmd);
+    return true;
+}
+
+void WaterCoreGpu::readParticles(Volume& vol, std::vector<FlipParticle>& out) const {
+    out.resize(vol.particleCount);
+    if (!vol.particles || vol.particleCount == 0) return;
+    VkCommandBuffer cmd = beginCommands();
+    copy(cmd, vol.posB, vol.staging, vol.particleCount * 16, 0, vol.offParticles);
+    copy(cmd, vol.velB, vol.staging, vol.particleCount * 16, 0, vol.offParticles + vol.particleCapacity * 16);
+    submitAndWait(cmd);
+    const auto* st = static_cast<const char*>(vol.staging.mapped) + vol.offParticles;
+    const auto* pos = reinterpret_cast<const glm::vec4*>(st);
+    const auto* vel = reinterpret_cast<const glm::vec4*>(st + vol.particleCapacity * 16);
+    for (size_t i = 0; i < vol.particleCount; ++i) {
+        out[i].pos = glm::vec3(pos[i]); out[i].mass = pos[i].w; out[i].vel = glm::vec3(vel[i]);
+        std::memcpy(&out[i].id, &vel[i].w, 4);
+    }
+}
+
+// Sort (A -> B, by cell then id) and gather p2g into f, u, v, w; then the base copies for the next
+// FLIP delta. The particles live in B afterwards; the next g2p/move reads and writes B in place,
+// then the sort runs B -> A -> ... : the host swaps the roles by rebinding, so a step's input list
+// is always posA/velA for the sort and posB/velB for everything else.
+void WaterCoreGpu::recordParticleTransport(VkCommandBuffer cmd, Volume& vol, WcPush push) {
+    push.iparam = static_cast<int32_t>(vol.particleCount);
+    Vulkan::ComputePipeline& sort = *vol.pipes[FlipSort];
+    push.mode = 0; dispatch(cmd, sort, push, vol.cells, 1024);
+    push.mode = 1; dispatch(cmd, sort, push, vol.particleCount, 1024);
+    push.mode = 2; dispatch(cmd, sort, push, 1024, 1024);
+    push.mode = 3; dispatch(cmd, sort, push, vol.particleCount, 1024);
+    push.mode = 4; dispatch(cmd, sort, push, vol.cells, 1024);
+    Vulkan::ComputePipeline& p2g = *vol.pipes[FlipP2g];
+    push.mode = 0; dispatch(cmd, p2g, push, vol.cells);
+    const Buffer* lat[3] = {&vol.u, &vol.v, &vol.w};
+    const size_t n[3] = {vol.nu, vol.nv, vol.nw};
+    for (int L = 0; L < 3; ++L) {
+        p2g.bind(cmd, static_cast<uint32_t>(L));   // set L binds lattice L at binding 5
+        p2g.pushConstants(cmd, &push, sizeof(push));
+        push.mode = 1 + L; p2g.pushConstants(cmd, &push, sizeof(push));
+        p2g.dispatch(cmd, static_cast<uint32_t>((n[L] + 63) / 64));
+        barrier(cmd);
+    }
+    copy(cmd, vol.u, vol.uOld, vol.nu * sizeof(float)); copy(cmd, vol.v, vol.vOld, vol.nv * sizeof(float)); copy(cmd, vol.w, vol.wOld, vol.nw * sizeof(float));
+    barrier(cmd);
+    vol.haveOldGrid = true;
+}
+
+void WaterCoreGpu::readCells(Volume& vol, const char* which, std::vector<float>& out) const {
+    const std::string w(which);
+    const Buffer* b = w == "f" ? &vol.f : w == "p" ? &vol.p : w == "liq" ? &vol.liq : w == "rhs" ? &vol.rhs : w == "diag" ? &vol.diag : w == "res" ? &vol.res : &vol.occ;
+    VkCommandBuffer cmd = beginCommands();
+    copy(cmd, *b, vol.staging, vol.cells * 4, 0, vol.offP);
+    submitAndWait(cmd);
+    out.resize(vol.cells);
+    const auto* st = static_cast<const char*>(vol.staging.mapped) + vol.offP;
+    if (w == "liq" || w == "occ") { const auto* ui = reinterpret_cast<const uint32_t*>(st); for (size_t i = 0; i < vol.cells; ++i) out[i] = static_cast<float>(ui[i]); }
+    else std::memcpy(out.data(), st, vol.cells * 4);
+}
+
 void WaterCoreGpu::barrier(VkCommandBuffer cmd) const {
     VkMemoryBarrier mb{}; mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -245,11 +381,10 @@ void WaterCoreGpu::dispatch(VkCommandBuffer cmd, Vulkan::ComputePipeline& pipe, 
 
 void WaterCoreGpu::recordExtrapolate(VkCommandBuffer cmd, Volume& vol, WcPush push, bool particles) {
     const Buffer* lat[3] = {&vol.u, &vol.v, &vol.w};
-    const Buffer* old[3] = {&vol.uOld, &vol.vOld, &vol.wOld};
     const size_t n[3] = {vol.nu, vol.nv, vol.nw};
     for (int L = 0; L < 3; ++L) {
         Vulkan::ComputePipeline& pipe = *vol.pipes[ExtrapU + L];
-        copy(cmd, *lat[L], *old[L], n[L] * sizeof(float));   // orig = the lattice before extrapolation
+        copy(cmd, *lat[L], vol.origLat, n[L] * sizeof(float));   // orig = the lattice before extrapolation
         copy(cmd, *lat[L], vol.valA, n[L] * sizeof(float));
         barrier(cmd);
         push.mode = L; push.iparam = particles ? 1 : 0;
@@ -275,19 +410,31 @@ void WaterCoreGpu::recordExtrapolate(VkCommandBuffer cmd, Volume& vol, WcPush pu
 void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, const SolverParams& params, int sweeps, bool quietBefore) {
     const size_t n[3] = {vol.nu, vol.nv, vol.nw};
     auto enforceSolids = [&]() { for (int L = 0; L < 3; ++L) { push.mode = 3 + L; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); } barrier(cmd); };
+    for (int i = 0; i < vol.sourceCount; ++i) { push.iparam = i; dispatch(cmd, *vol.pipes[Sources], push, 1, 1); }   // one source per dispatch: no shared-neighbour races
     enforceSolids();
-    // transport: fills (6 checkerboard passes, each a hazard on f), then velocities from the old copies
-    copy(cmd, vol.f, vol.fOrig, vol.cells * sizeof(float));
-    copy(cmd, vol.u, vol.uOld, vol.nu * sizeof(float)); copy(cmd, vol.v, vol.vOld, vol.nv * sizeof(float)); copy(cmd, vol.w, vol.wOld, vol.nw * sizeof(float));
-    barrier(cmd);
-    for (int dir = 0; dir < 3; ++dir) for (int parity = 0; parity < 2; ++parity) {
-        push.mode = dir; push.iparam = parity;
-        dispatch(cmd, *vol.pipes[FillAdvect], push, n[dir]);
+    if (vol.particles) {
+        // Phase B2 on the GPU: g2p + move (in the sorted list B), then B -> A, sort A -> B, gather p2g
+        push.iparam = static_cast<int32_t>(vol.particleCount); push.param0 = m_flipBlend; push.param1 = vol.haveOldGrid ? 0.0f : 1.0f;
+        dispatch(cmd, *vol.pipes[FlipG2p], push, vol.particleCount);
+        copy(cmd, vol.posB, vol.posA, vol.particleCount * 16); copy(cmd, vol.velB, vol.velA, vol.particleCount * 16);
+        barrier(cmd);
+        push.param0 = 0.0f; push.param1 = 0.0f;
+        recordParticleTransport(cmd, vol, push);
+        enforceSolids();
+    } else {
+        // transport: fills (6 checkerboard passes, each a hazard on f), then velocities from the old copies
+        copy(cmd, vol.f, vol.fOrig, vol.cells * sizeof(float));
+        copy(cmd, vol.u, vol.uOld, vol.nu * sizeof(float)); copy(cmd, vol.v, vol.vOld, vol.nv * sizeof(float)); copy(cmd, vol.w, vol.wOld, vol.nw * sizeof(float));
+        barrier(cmd);
+        for (int dir = 0; dir < 3; ++dir) for (int parity = 0; parity < 2; ++parity) {
+            push.mode = dir; push.iparam = parity;
+            dispatch(cmd, *vol.pipes[FillAdvect], push, n[dir]);
+        }
+        for (int L = 0; L < 3; ++L) { push.mode = L; dispatchNoBarrier(cmd, *vol.pipes[VelAdvectU + L], push, n[L]); }   // read old, write new: disjoint
+        barrier(cmd);
+        enforceSolids();
+        push.mode = 1; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns);                              // compaction (fills only)
     }
-    for (int L = 0; L < 3; ++L) { push.mode = L; dispatchNoBarrier(cmd, *vol.pipes[VelAdvectU + L], push, n[L]); }   // read old, write new: disjoint
-    barrier(cmd);
-    enforceSolids();
-    push.mode = 1; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns);                                  // compaction
     push.mode = 0; dispatch(cmd, *vol.pipes[FaceOpsV], push, vol.nv);                                       // gravity
     push.mode = 1; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU], push, vol.nu);                              // film slope x
     push.mode = 2; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsW], push, vol.nw);                              // film slope z (disjoint lattices)
@@ -295,14 +442,14 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     push.mode = 0; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns);                                  // settle
     enforceSolids();
     // projection
-    push.mode = 0; dispatch(cmd, *vol.pipes[Classify], push, vol.cells);
+    push.mode = 0; push.param0 = vol.particles ? 1.0f : 0.0f; dispatch(cmd, *vol.pipes[Classify], push, vol.cells); push.param0 = 0.0f;
     for (int s = 0; s < sweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
         push.mode = 0; push.iparam = colour; push.param1 = m_omega; dispatch(cmd, *vol.pipes[Rbgs], push, vol.cells);
     }
     push.mode = 1; dispatch(cmd, *vol.pipes[Rbgs], push, vol.cells);                                         // residual
     for (int L = 0; L < 3; ++L) { push.mode = 6 + L; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }   // velocity update (disjoint)
     barrier(cmd);
-    recordExtrapolate(cmd, vol, push, false);
+    recordExtrapolate(cmd, vol, push, vol.particles);
     push.mode = 0; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns);                                  // settle again
     if (quietBefore) {
         const float k = std::max(0.0f, 1.0f - params.restDamping * push.dt);
@@ -355,7 +502,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         copy(cmd, vol.f, vol.fPrev, vol.cells * sizeof(float));
         barrier(cmd);
         for (int s = 0; s < n; ++s) recordSubstep(cmd, vol, push, params, sweeps, vol.quietBefore);
-        push.mode = 2; push.param0 = 1e-6f; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns);   // sweep (dropped accumulates per column over the call)
+        if (!vol.particles) { push.mode = 2; push.param0 = 1e-6f; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns); push.param0 = 0.0f; }   // sweep (fills only)
     }
     recordReductions(cmd, vol, push);
     copy(cmd, vol.out, vol.staging, kOutSlots * 16, 0, vol.offOut);

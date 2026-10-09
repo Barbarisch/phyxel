@@ -4,6 +4,9 @@
 // diag = (sum over 6 neighbours: liquid 1, air 1/theta, solid 0) / h^2; rhs = -div(u)/dt plus the
 // pump source term (sources buffer, m^3/s per cell, 0 elsewhere) and the ceiling target for a partial
 // liquid cell under a solid; p = 0 (RBGS starts from zero, as the CPU's CG does).
+// param0 = 1: a PARTICLE transport owns the mass (Phase B2 on the GPU): no ceiling target, but the
+// symmetric density control - an over-full cell pushes, a submerged under-full cell in a QUIET cell
+// pulls (WaterCore.cpp project(), the ownsMass() branch).
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 0) readonly buffer F    { float f[]; };
@@ -51,10 +54,25 @@ void main() {
     const float q = src[id];
     if (q != 0.0) r += (q / (pc.h * pc.h * pc.h)) / pc.dt;
     const float fc = f[id];
-    if (fc < 1.0 && blocked(c.x, c.y + 1, c.z)) {   // ceiling void closes at the free-fall rate
-        const float vfall = sqrt(2.0 * pc.gravity * pc.h);
-        const float df = min(1.0 - fc, vfall * pc.dt / pc.h);
-        r -= df / (pc.dt * pc.dt);
+    const float vfall = sqrt(2.0 * pc.gravity * pc.h);
+    if (pc.param0 == 0.0) {
+        if (fc < 1.0 && blocked(c.x, c.y + 1, c.z)) {   // ceiling void closes at the free-fall rate
+            const float df = min(1.0 - fc, vfall * pc.dt / pc.h);
+            r -= df / (pc.dt * pc.dt);
+        }
+    } else {
+        if (fc > 1.0) {
+            const float df = min(fc - 1.0, vfall * pc.dt / pc.h);
+            r += df / (pc.dt * pc.dt);
+        } else if (fc < 1.0 && c.y + 1 < pc.ny && !blocked(c.x, c.y + 1, c.z) && f[cellIdx(c.x, c.y + 1, c.z)] > 0.0) {
+            const float vFace = v[vIdx(c.x, c.y + 1, c.z)];
+            const float uc = 0.5 * (u[uIdx(c.x, c.y, c.z)] + u[uIdx(c.x + 1, c.y, c.z)]);
+            const float wc = 0.5 * (w[wIdx(c.x, c.y, c.z)] + w[wIdx(c.x, c.y, c.z + 1)]);
+            if (abs(vFace) * pc.dt / pc.h < 0.1 * vfall * pc.dt / pc.h && uc * uc + wc * wc < 0.01 * vfall * vfall) {
+                const float df = min(1.0 - fc, vfall * pc.dt / pc.h);
+                r -= df / (pc.dt * pc.dt);
+            }
+        }
     }
     rhs[id] = r;
 }

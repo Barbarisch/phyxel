@@ -154,6 +154,7 @@ private:
     SolidsRevisionQuery m_revision;
     std::unique_ptr<WaterCoreGpu> m_gpu;
     void stepGpu(Av& av, int ticks, float dt);
+    bool pushSourcesToGpu(Av& av, std::string* err);
     void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)
     std::vector<std::unique_ptr<Av>> m_avs;
     int m_nextId = 1;
