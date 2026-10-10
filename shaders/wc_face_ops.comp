@@ -15,17 +15,26 @@ layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
 layout(std430, set = 0, binding = 2)          buffer Vel { float vel[]; };   // the lattice being written (u, v or w)
 layout(std430, set = 0, binding = 3) readonly buffer P   { float p[]; };
 layout(std430, set = 0, binding = 4) readonly buffer Liq { uint liq[]; };
+layout(std430, set = 0, binding = 5) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
 
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
 float fAt(int x, int y, int z) { return inBounds(x, y, z) ? f[cellIdx(x, y, z)] : 0.0; }
 bool isLiq(int x, int y, int z) { return inBounds(x, y, z) && liq[cellIdx(x, y, z)] != 0u; }
+// 20.5: a cell full of body with no real water is a wall, not air (WaterSolver::bodyWall)
+bool bodyWall(int x, int y, int z) {
+    if (!inBounds(x, y, z)) return false;
+    const float sv = solid[cellIdx(x, y, z)].x;
+    if (sv <= 0.0) return false;
+    const float fv = f[cellIdx(x, y, z)];
+    return fv < 0.001 / pc.h && fv + sv >= pc.thr;
+}
 
 // thetaToAir: dir 3 (+y) looks at the cell above; every other direction is 0.5 (WaterSolver::thetaToAir)
 float thetaToAir(int x, int y, int z, int dir) {
     if (dir == 3) {
         const float fa = inBounds(x, y + 1, z) ? min(1.0, f[cellIdx(x, y + 1, z)]) : 0.0;
         if (fa > 0.0) return 0.5 + fa;
-        return clamp(f[cellIdx(x, y, z)] - 0.5, 0.1, 0.5);
+        return clamp(f[cellIdx(x, y, z)] + solid[cellIdx(x, y, z)].x - 0.5, 0.1, 0.5);   // 20.5: a body raises the level it sits in
     }
     return 0.5;
 }
@@ -61,13 +70,13 @@ void main() {
         if (d == -1e30) vel[id] = 0.0; else vel[id] += d;
     } else if (pc.mode == 3) {
         ivec3 c = decode(id, pc.nx + 1, pc.ny); if (c.z >= pc.nz) return;
-        if (blocked(c.x - 1, c.y, c.z) || blocked(c.x, c.y, c.z)) vel[id] = 0.0;
+        if (blocked(c.x - 1, c.y, c.z) || blocked(c.x, c.y, c.z) || bodyWall(c.x - 1, c.y, c.z) || bodyWall(c.x, c.y, c.z)) vel[id] = 0.0;
     } else if (pc.mode == 4) {
         ivec3 c = decode(id, pc.nx, pc.ny + 1); if (c.z >= pc.nz) return;
-        if (blocked(c.x, c.y - 1, c.z) || blocked(c.x, c.y, c.z)) vel[id] = 0.0;
+        if (blocked(c.x, c.y - 1, c.z) || blocked(c.x, c.y, c.z) || bodyWall(c.x, c.y - 1, c.z) || bodyWall(c.x, c.y, c.z)) vel[id] = 0.0;
     } else if (pc.mode == 5) {
         ivec3 c = decode(id, pc.nx, pc.ny); if (c.z > pc.nz) return;
-        if (blocked(c.x, c.y, c.z - 1) || blocked(c.x, c.y, c.z)) vel[id] = 0.0;
+        if (blocked(c.x, c.y, c.z - 1) || blocked(c.x, c.y, c.z) || bodyWall(c.x, c.y, c.z - 1) || bodyWall(c.x, c.y, c.z)) vel[id] = 0.0;
     } else if (pc.mode == 9) {
         if (id < uint(pc.iparam)) vel[id] *= pc.param0;
     } else {
@@ -78,7 +87,7 @@ void main() {
         else                   { ivec3 c = decode(id, pc.nx, pc.ny);     if (c.z > pc.nz)  return; a = ivec3(c.x, c.y, c.z - 1); b = c; dirAB = 5; }
         const bool la = isLiq(a.x, a.y, a.z), lb = isLiq(b.x, b.y, b.z);
         if (!la && !lb) return;
-        if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z)) { vel[id] = 0.0; return; }   // no update on solid faces
+        if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z) || bodyWall(a.x, a.y, a.z) || bodyWall(b.x, b.y, b.z)) { vel[id] = 0.0; return; }   // no update on solid faces (a body wall is one, 20.5)
         const float pa = la ? p[cellIdx(a.x, a.y, a.z)] : 0.0, pb = lb ? p[cellIdx(b.x, b.y, b.z)] : 0.0;
         float dist = pc.h;
         if (la && !lb) dist = pc.h * thetaToAir(a.x, a.y, a.z, dirAB);

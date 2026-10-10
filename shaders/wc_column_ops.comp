@@ -6,6 +6,8 @@
 //   mode 0: settleThinFilmTopFaces   (writes v)
 //   mode 1: compactSubmergedPartials (writes f; reads u, v, w for the quiet gates)
 //   mode 2: sweepResidue             (writes f, v; param0 = residue threshold; drops are counted into binding 6)
+//   mode 3: resolveFreshOverflow     (20.5 ledger: a fresh / walled-in / body-filled cell's excess f + s - 1 moves
+//            UP its own column into cells with room; column-local, so no two threads touch one cell)
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 0)          buffer F   { float f[]; };
@@ -14,6 +16,7 @@ layout(std430, set = 0, binding = 2) readonly buffer U   { float u[]; };
 layout(std430, set = 0, binding = 3)          buffer V   { float v[]; };
 layout(std430, set = 0, binding = 4) readonly buffer W   { float w[]; };
 layout(std430, set = 0, binding = 5)          buffer Dropped { float dropped[]; };   // one slot per column thread
+layout(std430, set = 0, binding = 6) readonly buffer Solid { vec4 solid[]; };        // 20: (s, q, wake, ledger) per cell
 
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
 
@@ -38,7 +41,8 @@ void main() {
         const float cap = vfall * pc.dt / pc.h;
         for (int y = 0; y + 1 < pc.ny; ++y) {
             const float fb = f[cellIdx(x, y, z)];
-            if (fb < pc.thr || fb >= 1.0 || blocked(x, y, z) || blocked(x, y + 1, z)) continue;
+            const float sb = solid[cellIdx(x, y, z)].x;   // 20.5: fill up to 1 - s, never into a body's space
+            if (fb + sb < pc.thr || fb + sb >= 1.0 || (sb > 0.0 && fb < 0.001 / pc.h) || blocked(x, y, z) || blocked(x, y + 1, z)) continue;
             const float fa = f[cellIdx(x, y + 1, z)];
             if (fa <= 0.0) continue;
             const float vFace = v[vIdx(x, y + 1, z)];
@@ -47,10 +51,28 @@ void main() {
             const float uc = 0.5 * (u[uIdx(x, y, z)] + u[uIdx(x + 1, y, z)]);
             const float wc = 0.5 * (w[wIdx(x, y, z)] + w[wIdx(x, y, z + 1)]);
             if (uc * uc + wc * wc > 0.01 * vfall * vfall) continue;
-            const float moved = min(min(fa, 1.0 - fb), cap);
+            const float moved = min(min(fa, 1.0 - sb - fb), cap);
             if (moved <= 0.0) continue;
             f[cellIdx(x, y, z)] = fb + moved;
             f[cellIdx(x, y + 1, z)] = fa - moved;
+        }
+    } else if (pc.mode == 3) {
+        for (int y = 0; y < pc.ny; ++y) {
+            const uint i = cellIdx(x, y, z);
+            if (solid[i].w == 0.0) continue;
+            const float excess = f[i] + solid[i].x - 1.0;
+            if (excess <= 0.0) continue;
+            float carry = excess;
+            for (int yy = y + 1; yy < pc.ny && carry > 0.0; ++yy) {
+                if (blocked(x, yy, z)) break;
+                const uint j = cellIdx(x, yy, z);
+                const float room = 1.0 - solid[j].x - f[j];
+                if (room <= 0.0) continue;
+                const float take = min(room, carry);
+                f[j] += take;
+                f[i] -= take;
+                carry -= take;
+            }
         }
     } else {
         float drop = 0.0;

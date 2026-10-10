@@ -19,14 +19,28 @@ layout(std430, set = 0, binding = 6)          buffer Liq  { uint liq[]; };
 layout(std430, set = 0, binding = 7)          buffer Diag { float diag[]; };
 layout(std430, set = 0, binding = 8)          buffer Rhs  { float rhs[]; };
 layout(std430, set = 0, binding = 9)          buffer P    { float p[]; };
+layout(std430, set = 0, binding = 10)         buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger); mode 1 writes q and the ledger mark
 
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
-bool isLiqCell(int x, int y, int z) { return inBounds(x, y, z) && occ[cellIdx(x, y, z)] == 0u && f[cellIdx(x, y, z)] >= pc.thr; }
+bool isLiqCell(int x, int y, int z) {
+    if (!inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u) return false;
+    const float fv = f[cellIdx(x, y, z)], sv = solid[cellIdx(x, y, z)].x;
+    // 20.5: with a body, water + body past the threshold AND real water there (a body in air gets no row)
+    return sv > 0.0 ? (fv + sv >= pc.thr && fv >= 0.001 / pc.h) : fv >= pc.thr;
+}
+// 20.5: a cell full of body with no real water is a wall, not air (WaterSolver::bodyWall)
+bool bodyWall(int x, int y, int z) {
+    if (!inBounds(x, y, z)) return false;
+    const float sv = solid[cellIdx(x, y, z)].x;
+    if (sv <= 0.0) return false;
+    const float fv = f[cellIdx(x, y, z)];
+    return fv < 0.001 / pc.h && fv + sv >= pc.thr;
+}
 float thetaToAir(int x, int y, int z, int dir) {
     if (dir == 3) {
         const float fa = inBounds(x, y + 1, z) ? min(1.0, f[cellIdx(x, y + 1, z)]) : 0.0;
         // one continuous expression: (f - 0.5) above the centre plus the thin layer above (defect #28)
-        return clamp(f[cellIdx(x, y, z)] - 0.5 + fa, 0.1, 1.5);
+        return clamp(f[cellIdx(x, y, z)] + solid[cellIdx(x, y, z)].x - 0.5 + fa, 0.1, 1.5);   // 20.5: a body raises the level it sits in
     }
     return 0.5;
 }
@@ -35,6 +49,23 @@ void main() {
     const uint id = gl_GlobalInvocationID.x;
     const ivec3 c = decode(id, pc.nx, pc.ny);
     if (c.z >= pc.nz) return;
+    if (pc.mode == 1) {
+        // 20 (M1) WaterSolver::computeSolidRates: q = max(0, f + s - 1) V / T (param0 = T), clamped to (open
+        // faces) x h^2 x 20 m/s; fresh (uploaded .w), walled-in and body-filled cells to the column ledger. Reads
+        // only f and s (never written here): no thread hazards.
+        vec4 sd = solid[id];
+        sd.y = 0.0;
+        const float excess = f[id] + sd.x - 1.0;
+        if (sd.x > 0.0 && excess > 0.0 && sd.w == 0.0) {
+            const ivec3 dd[6] = ivec3[6](ivec3(-1,0,0), ivec3(1,0,0), ivec3(0,-1,0), ivec3(0,1,0), ivec3(0,0,-1), ivec3(0,0,1));
+            int open = 0;
+            for (int k = 0; k < 6; ++k) { const ivec3 n = c + dd[k]; if (!blocked(n.x, n.y, n.z) && !bodyWall(n.x, n.y, n.z)) ++open; }
+            if (open == 0 || sd.x >= 0.999) sd.w = 1.0;
+            else sd.y = min(excess * pc.h * pc.h * pc.h / pc.param0, float(open) * pc.h * pc.h * 20.0);
+        }
+        solid[id] = sd;
+        return;
+    }
     p[id] = 0.0;
     const bool liquid = isLiqCell(c.x, c.y, c.z);
     liq[id] = liquid ? 1u : 0u;
@@ -43,22 +74,42 @@ void main() {
     float dsum = 0.0;
     for (int k = 0; k < 6; ++k) {
         const ivec3 n = c + d[k];
-        if (blocked(n.x, n.y, n.z)) continue;
+        if (blocked(n.x, n.y, n.z) || bodyWall(n.x, n.y, n.z)) continue;   // Neumann (a body-full cell is a wall, 20.5)
         if (isLiqCell(n.x, n.y, n.z)) dsum += 1.0;
         else dsum += 1.0 / thetaToAir(c.x, c.y, c.z, k);
     }
     const float invh2 = 1.0 / (pc.h * pc.h);
-    diag[id] = dsum * invh2;
+    // a row with no open neighbour (walled in by rock and body cells) is decoupled: p = 0 (a zero diagonal
+    // divided by zero on the CPU and went NaN - WaterSolver::project); its water leaves by the ledger
+    const bool isolated = dsum == 0.0;
+    diag[id] = isolated ? 1.0 : dsum * invh2;
     const float div = (u[uIdx(c.x + 1, c.y, c.z)] - u[uIdx(c.x, c.y, c.z)] + v[vIdx(c.x, c.y + 1, c.z)] - v[vIdx(c.x, c.y, c.z)] + w[wIdx(c.x, c.y, c.z + 1)] - w[wIdx(c.x, c.y, c.z)]) / pc.h;
     float r = -div / pc.dt;
     const float q = src[id];
     if (q != 0.0) r += (q / (pc.h * pc.h * pc.h)) / pc.dt;
-    const float fc = f[id];
+    const vec4 sd = solid[id];
+    if (sd.y > 0.0) r += (sd.y / (pc.h * pc.h * pc.h)) / pc.dt;   // 20.2: shed the water that no longer fits
+    const float fc = f[id] + sd.x;   // 20.5: a body's volume counts as filled
     const float vfall = sqrt(2.0 * pc.gravity * pc.h);
     if (pc.param0 == 0.0) {
-        if (fc < 1.0 && blocked(c.x, c.y + 1, c.z)) {   // ceiling void closes at the free-fall rate
+        if (fc < 1.0 && (blocked(c.x, c.y + 1, c.z) || bodyWall(c.x, c.y + 1, c.z))) {   // ceiling void (rock or a body-full cell) closes at the free-fall rate
             const float df = min(1.0 - fc, vfall * pc.dt / pc.h);
             r -= df / (pc.dt * pc.dt);
+        }
+        // 20.5 / T10: air a body drags under water rises back out - in the body's WAKE (.z > 0) only, a void
+        // under a FULL cell takes an inflow at the trapped-bubble rise speed (0.25 m/s), in quiet water.
+        // Same rule as WaterSolver::project (why each limit: there).
+        if (sd.z > 0.0 && c.y + 1 < pc.ny && !blocked(c.x, c.y + 1, c.z) && fc < 1.0) {
+            const float fa = f[cellIdx(c.x, c.y + 1, c.z)], sa = solid[cellIdx(c.x, c.y + 1, c.z)].x;
+            if (fa + sa >= 0.999 && fa >= 0.001 / pc.h) {
+                const float vAbove = abs(v[vIdx(c.x, c.y + 1, c.z)]);
+                const float uc = 0.5 * (u[uIdx(c.x, c.y, c.z)] + u[uIdx(c.x + 1, c.y, c.z)]);
+                const float wc = 0.5 * (w[wIdx(c.x, c.y, c.z)] + w[wIdx(c.x, c.y, c.z + 1)]);
+                if (vAbove < 0.1 * vfall && uc * uc + wc * wc < 0.01 * vfall * vfall) {
+                    const float df = min(1.0 - fc, 0.25 * pc.dt / pc.h);
+                    r -= df / (pc.dt * pc.dt);
+                }
+            }
         }
     } else {
         if (fc > 1.0) {
@@ -74,5 +125,5 @@ void main() {
             }
         }
     }
-    rhs[id] = r;
+    rhs[id] = isolated ? 0.0 : r;
 }

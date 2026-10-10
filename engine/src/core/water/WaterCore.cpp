@@ -1103,15 +1103,15 @@ void WaterSolver::project(float dt, StepReport& r) {
         vel -= static_cast<float>(dt * (pb - pa) / dist);
     };
     for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x <= nx; ++x) {
-        if (blocked(m_grid, x - 1, y, z) || blocked(m_grid, x, y, z)) { m_grid.u(x, y, z) = 0.0f; continue; }
+        if (blocked(m_grid, x - 1, y, z) || blocked(m_grid, x, y, z) || bodyWall(x - 1, y, z) || bodyWall(x, y, z)) { m_grid.u(x, y, z) = 0.0f; continue; }   // 20.5: a body wall is a wall (the row is Neumann)
         faceUpdate(x - 1, y, z, x, y, z, 1, m_grid.u(x, y, z));
     }
     for (int z = 0; z < nz; ++z) for (int y = 0; y <= ny; ++y) for (int x = 0; x < nx; ++x) {
-        if (blocked(m_grid, x, y - 1, z) || blocked(m_grid, x, y, z)) { m_grid.v(x, y, z) = 0.0f; continue; }
+        if (blocked(m_grid, x, y - 1, z) || blocked(m_grid, x, y, z) || bodyWall(x, y - 1, z) || bodyWall(x, y, z)) { m_grid.v(x, y, z) = 0.0f; continue; }   // 20.5: a body wall is a wall (the row is Neumann)
         faceUpdate(x, y - 1, z, x, y, z, 3, m_grid.v(x, y, z));
     }
     for (int z = 0; z <= nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x) {
-        if (blocked(m_grid, x, y, z - 1) || blocked(m_grid, x, y, z)) { m_grid.w(x, y, z) = 0.0f; continue; }
+        if (blocked(m_grid, x, y, z - 1) || blocked(m_grid, x, y, z) || bodyWall(x, y, z - 1) || bodyWall(x, y, z)) { m_grid.w(x, y, z) = 0.0f; continue; }   // 20.5: a body wall is a wall (the row is Neumann)
         faceUpdate(x, y, z - 1, x, y, z, 5, m_grid.w(x, y, z));
     }
 }
@@ -1331,12 +1331,20 @@ int WaterSolver::substepsFor(float dt) const {
 }
 
 WaterSolver::SolidsReport WaterSolver::setMovingSolids(const std::vector<MovingSolid>& bodies, float frameSeconds) {
+    SolidsReport rep = updateSolidFields(bodies, frameSeconds);
+    computeSolidRates(frameSeconds, rep);
+    if (rep.rate > 0.0 || rep.sChange > 1e-6 || rep.freshCells > 0 || rep.wakeCells > 0) wake();
+    return rep;
+}
+
+// The half that does not read the water (M1: the GPU backend calls this, uploads s / wake / fresh and
+// computes the rates from its own fill - the CPU grid's f is stale for a GPU volume).
+WaterSolver::SolidsReport WaterSolver::updateSolidFields(const std::vector<MovingSolid>& bodies, float frameSeconds) {
     SolidsReport rep;
     std::vector<float> sNew;
     rep.raster = rasterizeSolids(m_grid, bodies, sNew, m_solidFresh);
     std::vector<float>& s = m_grid.sData();
-    std::vector<float>& q = m_grid.qData();
-    const float V = m_grid.cellVolume(), h = m_grid.h();
+    const float V = m_grid.cellVolume();
     const float T = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
     const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
     // the wake (see project: air a body drags under water rises back out): age it, then mark every cell
@@ -1352,12 +1360,23 @@ WaterSolver::SolidsReport WaterSolver::setMovingSolids(const std::vector<MovingS
                 for (int xx = std::max(0, x - r); xx <= std::min(nx - 1, x + r); ++xx)
                     m_solidWake[m_grid.idx(xx, yy, zz)] = solidWakeSeconds();
     }
-    for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x) {
-        const size_t i = m_grid.idx(x, y, z);
+    for (size_t i = 0; i < s.size(); ++i) {
         rep.sChange += std::abs(static_cast<double>(sNew[i]) - s[i]) * V;
         s[i] = sNew[i];
-        q[i] = 0.0f;
     }
+    for (float w : m_solidWake) if (w > 0.0f) ++rep.wakeCells;
+    return rep;
+}
+
+// The half that reads the water: q = max(0, f + s - 1) V / T per cell (20.2), clamped per open face;
+// fresh, walled-in and body-filled cells go to the column ledger instead (no rate).
+void WaterSolver::computeSolidRates(float frameSeconds, SolidsReport& rep) {
+    const std::vector<float>& s = m_grid.sData();
+    std::vector<float>& q = m_grid.qData();
+    const float V = m_grid.cellVolume(), h = m_grid.h();
+    const float T = std::max(frameSeconds, 1e-4f);
+    const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
+    std::fill(q.begin(), q.end(), 0.0f);
     for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x) {
         const size_t i = m_grid.idx(x, y, z);
         if (s[i] <= 0.0f) continue;
@@ -1378,9 +1397,6 @@ WaterSolver::SolidsReport WaterSolver::setMovingSolids(const std::vector<MovingS
         rep.rate += rate;
         ++rep.rateCells;
     }
-    for (float w : m_solidWake) if (w > 0.0f) { ++rep.wakeCells; }
-    if (rep.rate > 0.0 || rep.sChange > 1e-6 || rep.freshCells > 0 || rep.wakeCells > 0) wake();
-    return rep;
 }
 
 void WaterSolver::resolveFreshOverflow() {

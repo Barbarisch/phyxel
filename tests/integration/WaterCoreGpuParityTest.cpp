@@ -481,3 +481,152 @@ TEST_F(WaterCoreGpuParityTest, GpuKickedPondParity) {
     }
 }
 
+
+// ---- docs/WaterCore.md 20 (M1): moving solids on the GPU. The fields that do not read the water (s, the
+// wake, fresh bodies) come from WaterSolver::updateSolidFields on the host; the rates (q, the ledger marks)
+// are computed on the device from its own fill. Same predictions as WaterSolidTest (20.8).
+namespace {
+constexpr float kH3 = 1.0f / 3.0f;
+void fillPond(WaterGrid& g) { g.fillBox({0, 0, 0}, {11, 3, 11}, 1.0f); g.fillBox({0, 4, 0}, {11, 4, 11}, 0.5f); }
+float colTop(const std::vector<SurfaceColumn>& cols, int nx, int x, int z) {
+    const SurfaceColumn& c = cols[static_cast<size_t>(x) + static_cast<size_t>(nx) * z];
+    const int runs = static_cast<int>(c.runs + 0.5f);
+    return runs > 0 ? c.top[std::min(runs, kSurfaceMaxRuns) - 1] : std::numeric_limits<float>::quiet_NaN();
+}
+double depthAway(const WaterGrid& g, int lo, int hi) {   // mean water depth (sum f h) outside [lo, hi] in x and z
+    double sum = 0.0; int n = 0;
+    for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) {
+        if (x >= lo && x <= hi && z >= lo && z <= hi) continue;
+        double d = 0.0; for (int y = 0; y < g.ny(); ++y) d += g.f(x, y, z);
+        sum += d * g.h(); ++n;
+    }
+    return sum / n;
+}
+double trappedAir(const WaterGrid& g) {   // WaterSolidTest's T10 measure: (1 - f - s) V under a full cell
+    double air = 0.0;
+    for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) {
+        bool fullAbove = false;
+        for (int y = g.ny() - 1; y >= 0; --y) {
+            const float fs = g.f(x, y, z) + g.s(x, y, z);
+            if (fullAbove && fs < 0.999f) air += (1.0 - fs) * g.cellVolume();
+            if (fs >= 0.999f) fullAbove = true;
+        }
+    }
+    return air;
+}
+} // namespace
+
+// The device's rates (q and the ledger marks) equal the CPU's, cell for cell, from the same fill.
+TEST_F(WaterCoreGpuParityTest, GpuSolidRatesMatchCpu) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    Tank c(12, 9, 12, kH3), g(12, 9, 12, kH3);
+    fillPond(c.grid); fillPond(g.grid);
+    // a big body half under (overflowing cells, open faces), a small one fully inside water (a body-filled
+    // cell -> ledger), and a fresh one
+    MovingSolid a; a.centre = {2.0f, 1.45f, 2.0f}; a.halfExtents = glm::vec3(0.5f);
+    MovingSolid b; b.centre = {3.17f, 0.5f, 1.0f}; b.halfExtents = glm::vec3(kH3 / 2.0f);
+    MovingSolid fr; fr.centre = {0.8f, 0.6f, 3.2f}; fr.halfExtents = glm::vec3(0.2f); fr.fresh = true;
+    WaterSolver cpu(c.grid, c.query());
+    cpu.setMovingSolids({a, b, fr}, kDt);
+    auto* vol = make(g); ASSERT_NE(vol, nullptr);
+    WaterSolver aux(g.grid, g.query());
+    aux.updateSolidFields({a, b, fr}, kDt);
+    gpu.setSolids(*vol, g.grid.sData(), aux.solidWake(), aux.solidFresh(), kDt);
+    SolverParams prm;
+    gpu.step(*vol, prm, kDt, 1, 40);   // the rates are computed at the start of the step, before any substep
+    std::vector<float> q, ledger, sg;
+    gpu.readCells(*vol, "solid_q", q); gpu.readCells(*vol, "solid_ledger", ledger); gpu.readCells(*vol, "solid_s", sg);
+    double dq = 0.0, qmax = 0.0; long ledgerMismatch = 0, rateCells = 0;
+    for (size_t i = 0; i < q.size(); ++i) {
+        dq = std::max(dq, static_cast<double>(std::abs(q[i] - c.grid.qData()[i])));
+        qmax = std::max(qmax, static_cast<double>(c.grid.qData()[i]));
+        if ((ledger[i] > 0.5f) != (cpu.solidFresh()[i] != 0)) ++ledgerMismatch;
+        if (c.grid.qData()[i] > 0.0f) ++rateCells;
+        EXPECT_EQ(sg[i], c.grid.sData()[i]);
+    }
+    std::printf("  rates: %ld rate cells, max q %.4f m^3/s, max |dq| %.2e, ledger mismatches %ld\n", rateCells, qmax, dq, ledgerMismatch);
+    EXPECT_GT(rateCells, 0);
+    EXPECT_LT(dq, 1e-5 * std::max(qmax, 1.0));
+    EXPECT_EQ(ledgerMismatch, 0);
+    gpu.destroyVolume(vol);
+}
+
+struct GpuDrop { float entryMin = 1e9f, ring1Max = -1e9f, ring2Early = -1e9f, absMax = 0.0f; double m0 = 0, m1 = 0, air = 0; bool finite = true; };
+
+// T4 / T10 on the device: one 1/3 m stone at 6 m/s from just above the rested pond to its floor, then held.
+GpuDrop gpuDrop(WaterCoreGpu& gpu, WaterCoreGpu::Volume*& vol, Tank& g, bool solids, int holdTicks) {
+    GpuDrop r;
+    SolverParams prm;
+    gpu.step(*vol, prm, kDt, 60, 40);   // rest
+    gpu.download(*vol, g.grid); r.m0 = g.grid.totalMass();
+    WaterSolver aux(g.grid, g.query());
+    const float cx = 6.5f * kH3, he = kH3 / 2.0f;
+    MovingSolid b; b.centre = {cx, 1.5f + he + 0.02f, cx}; b.halfExtents = glm::vec3(he); b.velocity = {0.0f, -6.0f, 0.0f};
+    std::vector<SurfaceColumn> cols(static_cast<size_t>(12 * 12));
+    for (int k = 0; k < 60 + holdTicks; ++k) {
+        b.centre.y = std::max(he, b.centre.y - 6.0f * kDt);
+        if (solids) { aux.updateSolidFields({b}, kDt); gpu.setSolids(*vol, g.grid.sData(), aux.solidWake(), aux.solidFresh(), kDt); }
+        gpu.step(*vol, prm, kDt, 1, 40);
+        if (k < 60) {
+            gpu.readSurface(*vol, reinterpret_cast<float*>(cols.data()));
+            const float e = colTop(cols, 12, 6, 6), r1 = colTop(cols, 12, 7, 6), r2 = colTop(cols, 12, 8, 6);
+            if (!std::isnan(e)) r.entryMin = std::min(r.entryMin, e - 1.5f);
+            if (!std::isnan(r1)) r.ring1Max = std::max(r.ring1Max, r1 - 1.5f);
+            if (!std::isnan(r2) && k < 30) r.ring2Early = std::max(r.ring2Early, r2 - 1.5f);
+            for (int z = 0; z < 12; ++z) for (int x = 0; x < 12; ++x) { const float y = colTop(cols, 12, x, z); if (!std::isnan(y)) r.absMax = std::max(r.absMax, std::abs(y - 1.5f)); }
+        }
+    }
+    gpu.download(*vol, g.grid);
+    for (float v : g.grid.fData()) if (!std::isfinite(v)) r.finite = false;
+    r.m1 = g.grid.totalMass(); r.air = trappedAir(g.grid);
+    return r;
+}
+
+TEST_F(WaterCoreGpuParityTest, GpuStoneMakesACraterAndTheCavityCloses) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    Tank g(12, 9, 12, kH3), ctl(12, 9, 12, kH3);
+    fillPond(g.grid); fillPond(ctl.grid);
+    auto* vol = make(g); ASSERT_NE(vol, nullptr);
+    auto* vctl = make(ctl); ASSERT_NE(vctl, nullptr);
+    const GpuDrop on = gpuDrop(gpu, vol, g, true, 300), off = gpuDrop(gpu, vctl, ctl, false, 0);
+    const double stone = std::pow(kH3, 3.0);
+    std::printf("  GPU solids ON : entry %+.3f m, 0.33 m %+.3f m, 0.67 m (0.5 s) %+.3f m, mass %.7f -> %.7f, trapped air 6 s after %.5f m^3, finite %d\n",
+                on.entryMin, on.ring1Max, on.ring2Early, on.m0, on.m1, on.air, on.finite ? 1 : 0);
+    std::printf("  GPU solids OFF: largest |dev| %.4f m\n", off.absMax);
+    EXPECT_TRUE(on.finite);
+    EXPECT_LE(on.entryMin, -0.08f);
+    EXPECT_GE(on.ring1Max, 0.03f);
+    EXPECT_GE(on.ring2Early, 0.015f);
+    EXPECT_NEAR(on.m1, on.m0, 1e-4);   // float32 fills summed on the device (the GPU pump test's order)
+    EXPECT_LE(on.air, 0.1 * stone) << "the cavity's air stayed trapped on the GPU";
+    EXPECT_LT(off.absMax, 0.01f) << "control: no body, no splash";
+    gpu.destroyVolume(vol); gpu.destroyVolume(vctl);
+}
+
+// T2 on the device: a 1 m cube lowered at 0.2 m/s until fully under raises the level by 1/16 m.
+TEST_F(WaterCoreGpuParityTest, GpuLoweredCubeRaisesTheLevel) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    Tank g(12, 9, 12, kH3);
+    fillPond(g.grid);
+    auto* vol = make(g); ASSERT_NE(vol, nullptr);
+    SolverParams prm;
+    const double m0 = g.grid.totalMass();
+    WaterSolver aux(g.grid, g.query());
+    MovingSolid b; b.centre = {2.0f, 2.1f, 2.0f}; b.halfExtents = glm::vec3(0.5f);
+    for (int k = 0; k < 405 + 300; ++k) {
+        if (k < 405) b.centre.y = 2.1f - 0.2f * (k + 1) * kDt;
+        aux.updateSolidFields({b}, kDt);
+        gpu.setSolids(*vol, g.grid.sData(), aux.solidWake(), aux.solidFresh(), kDt);
+        gpu.step(*vol, prm, kDt, 1, 40);
+    }
+    gpu.download(*vol, g.grid);
+    bool finite = true; float overlap = 0.0f;
+    for (size_t i = 0; i < g.grid.cellCount(); ++i) { if (!std::isfinite(g.grid.fData()[i])) finite = false; overlap = std::max(overlap, g.grid.fData()[i] + g.grid.sData()[i]); }
+    const double level = depthAway(g.grid, 4, 7);
+    std::printf("  GPU lowered cube: level away %.4f m (predicted 1.5625), max f+s %.4f, mass %.7f -> %.7f, finite %d\n", level, overlap, m0, g.grid.totalMass(), finite ? 1 : 0);
+    EXPECT_TRUE(finite);
+    EXPECT_NEAR(level, 1.5625, 0.005);
+    EXPECT_LE(overlap, 1.0f + 1e-3f);
+    EXPECT_NEAR(g.grid.totalMass(), m0, 1e-4);
+    gpu.destroyVolume(vol);
+}

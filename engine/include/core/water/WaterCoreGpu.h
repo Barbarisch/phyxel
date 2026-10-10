@@ -75,6 +75,11 @@ public:
         VkDeviceSize offParticles = 0;   ///< staging region for pos+vel (capacity x 32 B)
         Buffer sources;                  ///< GpuSource array (device-local; kMaxSources)
         Buffer surf;                     ///< Phase F: the surface field (columns x 48 B), written by wc_surface at the end of every step
+        Buffer solid;                    ///< 20 (moving solids): vec4 per cell = (s, q m^3/s, wake seconds, ledger 0/1); all zero = no body (every rule as before)
+        VkDeviceSize offSolid = 0;       ///< staging region of the solid buffer (cells x 16 B)
+        bool  solidRatesPending = false; ///< setSolids uploaded new fields: the next step computes q and the ledger marks first (wc_classify mode 1)
+        float solidFrame = 0.0f;         ///< the frame (s) the uploaded bodies cover - q's T
+        bool  hasSolids = false;         ///< the buffer holds anything nonzero
         VkDeviceSize offSurf = 0;        ///< staging region of the surface field
         int sourceCount = 0;
         Buffer staging;                  ///< host-visible: [f | u | v | w | occ | src | out | p | sources]
@@ -108,6 +113,12 @@ public:
     Volume* createVolume(const GridSpec& spec, std::string* err, bool particles = false, size_t particleCapacity = 0);
     void destroyVolume(Volume* vol);
     void upload(Volume& vol, const WaterGrid& g);                              ///< f, u, v, w, occ -> GPU (fenced)
+    /// docs/WaterCore.md 20 (M1): the fields of the bodies in this volume for the next `frameSeconds` - s and
+    /// the wake from WaterSolver::updateSolidFields, `fresh` its fresh-body marks. The rates (q and the
+    /// walled-in / body-filled ledger marks) are computed on the device at the next step, from the GPU's own
+    /// fill (wc_classify mode 1, the same rule as WaterSolver::computeSolidRates). All-zero inputs after a
+    /// zero buffer upload nothing. Wakes the volume when anything is or was there.
+    void setSolids(Volume& vol, const std::vector<float>& s, const std::vector<float>& wake, const std::vector<uint8_t>& fresh, float frameSeconds);
     /// Replace the volume's pumps/sinks (fenced); the projection's per-cell rate buffer is reset.
     bool setSources(Volume& vol, const std::vector<GpuSource>& sources, std::string* err);
     void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending after a step (fenced)

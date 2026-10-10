@@ -2682,6 +2682,45 @@ a spawned cube leaves 0.23 m^3 of air beside it. (d) The 19.6 CPU wall chatter (
 **Next: M1 (GPU)** - the same rules in wc_classify / wc_fill_advect / wc_column_ops / wc_surface plus
 the body wall, the decoupled rows and the wake rule; parity tests.
 
+### 20.13 M1 built - moving solids on the GPU (2026-10-10) - ledger
+
+**Built:** one per-cell buffer `solid` (vec4: s, q m^3/s, wake seconds, ledger mark), all zero = no body.
+`WaterSolver::setMovingSolids` split into `updateSolidFields` (does not read the water: raster, wake,
+fresh bodies) and `computeSolidRates` (reads it: q, the walled-in / body-filled ledger marks); a GPU
+volume runs the first on the host, `WaterCoreGpu::setSolids` uploads it, and the device computes the
+second from its OWN fill (`wc_classify` mode 1) at the step's first tick - the host grid's f is stale
+for a GPU volume. Kernels, line for line with the CPU: `wc_classify` (liquid with the film gate, body
+walls Neumann, ghost fluid f + s, the source, the ceiling rule with body ceilings, the wake rule,
+decoupled rows), `wc_fill_advect` (room 1 - s - f), `wc_face_ops` (body walls zeroed and never updated),
+`wc_column_ops` (compaction capacity; mode 3 = the column ledger), `wc_surface` (levelFill).
+**Also fixed on the CPU while porting:** the velocity update treated a body-wall neighbour as AIR (ghost
+p = 0) while its matrix row treated it as a wall - now zeroed like a solid face (bit-identical without
+bodies; 307/307 then).
+
+**Results (GPU, the 1/3 m pond of WaterSolidTest):**
+
+| Test | Prediction (20.8) | GPU | CPU (M0) |
+|---|---|---|---|
+| rates match | q and ledger marks equal cell for cell | 36 rate cells, max dq 1.2e-7 m^3/s, 0 ledger mismatches, s bit-equal | - |
+| stone at 6 m/s | entry <= -8 cm, >= 3 cm at 0.33 m, >= 1.5 cm at 0.67 m in 0.5 s; control < 1 cm | -39.1 / +5.1 / +2.3 cm; control 0.32 cm | -36.3 / +8.4 / +3.3 cm |
+| cavity | trapped air <= 10 % of the stone at 6 s | 0.0011 m^3 (3 %) | 0.0000 |
+| lowered 1 m cube | level 1.5625 +- 5 mm, no overlap, finite | 1.5641 m, f + s <= 1.0000, finite | 1.5648 m |
+
+Mass on the device: 24.0000027 -> 24.0000024 (stone), -> 24.0000020 (cube) - float32 sums, inside the
+1e-4 the GPU tests use. **No red run on the GPU:** the tests passed on their first run; what shows they
+measure the bodies is the solids-off control (0.32 cm) and M0's CPU red for the same predictions.
+Existing GPU suite (16 water tests incl. every parity test) green on the new kernels - ponds without
+bodies unchanged. Unrelated integration failure seen in the same run: `SceneIntegrationTest.
+AddSceneThenTransitionToIt` (scene system; not re-checked on a clean build).
+
+**Logged, pre-existing (not changed here):** `wc_face_ops`' velocity update computes the free-surface
+distance with a DIFFERENT formula than `wc_classify`'s matrix row (0.5 + f_above, or clamp(f - 0.5, 0.1,
+0.5), vs clamp(f - 0.5 + f_above, 0.1, 1.5)); the CPU uses one function for both - a projection
+inconsistency on the GPU and a candidate for the ~35 % CPU/GPU kick-response gap (19.2).
+**Next: M2** - wet-body records from the debris solver (volume boxes in the integrator's push block,
+two-frame readback stamped with simulation time), `WaterCoreManager` -> per-volume fields and upload,
+Application wiring, `water_coupling {solids}` + echo, the live stone drop and the owner's look.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

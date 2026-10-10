@@ -379,6 +379,13 @@ public:
     float solidWakeSeconds() const { return static_cast<float>(m_grid.ny()) * m_grid.h() / kTrappedAirRiseSpeed; }
     static constexpr float kTrappedAirRiseSpeed = 0.25f;   ///< m/s - small trapped bubbles rise at 0.2-0.3 m/s (Clift, Grace & Weber)
     SolidsReport setMovingSolids(const std::vector<MovingSolid>& bodies, float frameSeconds);
+    /// The two halves of setMovingSolids (M1): the fields that do not read the water (s, the wake, fresh
+    /// bodies) and the rates that do (q, the ledger marks). A GPU volume runs the first here and the
+    /// second on the device, from its own fill.
+    SolidsReport updateSolidFields(const std::vector<MovingSolid>& bodies, float frameSeconds);
+    void computeSolidRates(float frameSeconds, SolidsReport& rep);
+    const std::vector<float>& solidWake() const { return m_solidWake; }
+    const std::vector<uint8_t>& solidFresh() const { return m_solidFresh; }
 
     /// One engine tick of `dt` seconds, substepped internally to honour the CFL fraction.
     /// A sleeping volume returns immediately (asleep = true, nothing touched).

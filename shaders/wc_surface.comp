@@ -17,6 +17,14 @@ layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
 layout(std430, set = 0, binding = 2) writeonly buffer Surf { float surf[]; };
 layout(std430, set = 0, binding = 3) readonly buffer U   { float uF[]; };
 layout(std430, set = 0, binding = 4) readonly buffer W   { float wF[]; };
+layout(std430, set = 0, binding = 5) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
+
+// WaterGrid::levelFill (20.5): water + the body volume it surrounds; a body in air (f below the film) is not water
+float levelFill(int x, int y, int z) {
+    const uint i = cellIdx(x, y, z);
+    const float fv = f[i];
+    return min(1.0, fv + (fv >= pc.param0 ? solid[i].x : 0.0));
+}
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
@@ -37,11 +45,11 @@ void main() {
         const int start = y;
         int t = y;
         float sum = 0.0;   // the height function (WaterCore.md 19.5): bottom + the water in the run
-        while (y < pc.ny && f[cellIdx(x, y, z)] >= fMin && occ[cellIdx(x, y, z)] != 1u) { t = y; sum += min(f[cellIdx(x, y, z)], 1.0); ++y; }
+        while (y < pc.ny && f[cellIdx(x, y, z)] >= fMin && occ[cellIdx(x, y, z)] != 1u) { t = y; sum += levelFill(x, y, z); ++y; }
         // + air trapped under water drawn as water, weighted by the fill of the cell above (19.7;
         // surfacePocketWeight in WaterSurfaceMesh.h: 0 below 0.2, 1 from 0.7)
         float pockets = 0.0;
-        for (int k = start; k < t; ++k) pockets += (1.0 - min(f[cellIdx(x, k, z)], 1.0)) * clamp((min(f[cellIdx(x, k + 1, z)], 1.0) - 0.2) / 0.5, 0.0, 1.0);
+        for (int k = start; k < t; ++k) pockets += (1.0 - levelFill(x, k, z)) * clamp((levelFill(x, k + 1, z) - 0.2) / 0.5, 0.0, 1.0);
         const float tTop = (oy + float(start)) * pc.h + (sum + pockets) * pc.h;
         if (runs < 4) { bottom[runs] = (oy + float(start)) * pc.h; top[runs] = tTop; ++runs; }
         else top[3] += sum * pc.h;
