@@ -2618,6 +2618,70 @@ from the cell geometry, the stone's and the cavity's volume (20.8); the picture 
 **Verdict: READY for M0** (CPU core), with T10 as the known risk that can stop M2. M1/M2 inherit the
 same rules; M4 (two-way force) and prescribed faces keep their own gates.
 
+### 20.12 M0 built - the CPU core (2026-10-09) - ledger
+
+**Built:** `MovingSolids.{h,cpp}` (the raster: exact box overlap per WORLD cell), `WaterGrid` s / q
+(+ `levelFill`), `WaterSolver::setMovingSolids` (the 20.2 rate, clamp per open face, fresh / walled-in
+cells to the column ledger), and the solver edits of 20.5 - classify (film gate), the projection's
+source, ghost fluid seeing f + s, transport room 1 - s - f, compaction capacity, `resolveFreshOverflow`,
+the drawn surface (`levelFill`). With no body every rule is bit-identical to before (the blast pond
+reproduces 1.5687 -> 0.1284 exactly; 310 water/debris/shore tests, 16 GPU tests).
+
+**Red first** (API in place, solver ignoring s and q): T2 level 1.5000 (predicted 1.5625), T3 the same,
+T4 no crater (0 / 0 / 0), T5 water overlapping the stone (f + s = 2). T6 and T10 passed vacuously
+(nothing moved) - their real verdict came after.
+
+**What the build found (each a defect the design did not foresee, fixed and pinned):**
+1. **Raster in grid-local coordinates rounded differently per volume** - T7 (the chunk-seam equality)
+   red on its first run; the raster now works in world cell indices (bit-equal across volumes).
+2. **A body-full cell with no water was treated as AIR:** a free surface at the bottom of the pond;
+   the water accelerated into it forever (a resting stone pumped KE 2.29 -> 2.63 in 10 s with no
+   rate). Such a cell is now a WALL (`bodyWall`: Neumann in the projection, faces zeroed).
+3. **A liquid cell walled in on all six sides made a zero-diagonal row** - the Jacobi preconditioner
+   divided by zero, the velocities went NaN and the next back-trace crashed (the 1 m cube going
+   under, tick 184). Such rows are decoupled (p = 0); their water, and water left in a cell the body
+   fills entirely (it circulated among the body's own cells), leaves by the column ledger.
+4. **T10 red, as 20.11 predicted:** a stone's swept cavity left 0.047 m^3 of air trapped as part-full
+   cells, every one held by compaction's rising-face gate (0.000-0.05 m/s). Three attempts, measured:
+   closing EVERY buried void in the projection broke the submerged pump (3.6 of 4 m^3) and pumped a
+   blasted pond (KE 1.5 -> 3.8); closing only voids under a FULL cell kept the pump but the blasted
+   pond rang forever (KE plateau 0.4-0.8 from 10 to 30 s, was 0.13). **Kept: air a body drags rises
+   back out** - only in the body's WAKE (3 cells round the cells it left, for the time trapped air
+   needs to rise through the volume, ny h / 0.25 m/s), a void under a full cell takes an inflow at the
+   rise speed of small trapped bubbles (0.25 m/s; Clift, Grace & Weber), in quiet water. A pond without
+   bodies is exactly as before. Debug stage bit 64 turns it off (the A/B).
+5. **T10's measure was refined:** "a not-full cell under a cell with f >= 0.5" also counted the free
+   surface straddling two cells (0.92 under a 0.54 top layer) as air; it now counts air under a FULL
+   cell, the surface split is reported beside it, and a CONTROL (stage bit 64) shows the measure sees
+   the air: without the rule 0.0153 m^3 stays trapped, with it 0.0000.
+6. **T5 was blocked by an older defect, not by bodies:** the control (`DiagPondSleeps`) shows this CPU
+   pond sleeps at once left alone but NEVER within 60 s after even a 0.05 m/s push with no body - the
+   19.6 wall chatter. T5 now places the stone before the solver starts (its water already on the top
+   layer), so it tests what it claims: a resting body leaves the pond as quiet as it was.
+
+**Results (all green):**
+
+| Test | Prediction | Measured |
+|---|---|---|
+| T1 raster | volume to 1e-5; 1 mm move <= one face's sweep | exact; continuous; NaN / flat bodies refused |
+| T7 chunk seam | identical s in both volumes | bit-identical |
+| T2 lowered 1 m cube | level 1.5625 +- 5 mm, mass exact, no overlap | 1.5648 m (drawn 1.5647), mass to 1.1e-6 m^3 (float32, the pump test's 1e-5 tolerance), no overlap |
+| T3 spawned cube | no rate, ledger exact, level 1.5625 | no rate; f never < 0; overlap gone in 30 ticks; water depth 1.5589 m (drawn 1.5733: 0.23 m^3 of air trapped beside it - the general pocket problem, item 3) |
+| T4 stone at 6 m/s | entry <= -8 cm, >= 3 cm at 0.33 m, >= 1.5 cm at 0.67 m in 0.5 s; control < 1 cm | -36.3 cm, +8.4 cm, +3.3 cm; control 0.0000 m |
+| T5 resting stone | sleeps, flat 1 cm, column above not drained, mass exact | asleep, flat 0.0 cm, f above 1.000, exact |
+| T6 floating block | drawn waterline beside it within 3 cm | 1.5 cm (level +3.25 cm; predicted +3.1) |
+| T10 cavity | trapped air <= 10 % of the stone at 6 s; control (rule off) above it | 0.0000 m^3; control 0.0153 m^3 |
+
+**Open, logged:** (a) T8 (momentum ledger) needs live debris - M2. (b) `WaterCouplingTest.
+BlastBesideThePondMovesItAndItSettles` is ORDER-DEPENDENT (E1's test, not M0): `DamageSystem::
+blastSpeed` reads Stone's toughness from the global material registry - alone (fallback) it passes
+with the original numbers, after a test that loaded materials.json the blast is ~40 % weaker and the
+near-side drop misses 0.3 m. Fix: the test must load the shipped materials and its bar be re-derived.
+(c) The general pocket / two-half-layer problem (19.7, item 3) is untouched outside a body's wake:
+a spawned cube leaves 0.23 m^3 of air beside it. (d) The 19.6 CPU wall chatter (DiagPondSleeps).
+**Next: M1 (GPU)** - the same rules in wc_classify / wc_fill_advect / wc_column_ops / wc_surface plus
+the body wall, the decoupled rows and the wake rule; parity tests.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

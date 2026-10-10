@@ -138,6 +138,8 @@ double seedGridFromRuns(WaterGrid& grid, const std::vector<ColumnRuns>& runs) {
 WaterGrid::WaterGrid(const GridSpec& spec) : m_spec(spec) {
     const size_t n = cellCount();
     m_f.assign(n, 0.0f);
+    m_s.assign(n, 0.0f);
+    m_q.assign(n, 0.0f);
     m_occ.assign(n, Occ::Air);
     m_kind.assign(n, CellKind::Empty);
     m_u.assign(static_cast<size_t>(nx() + 1) * ny() * nz(), 0.0f);
@@ -153,8 +155,14 @@ void WaterGrid::fillBox(const glm::ivec3& lo, const glm::ivec3& hi, float fill) 
 }
 
 void WaterGrid::classify(float liquidThreshold) {
-    for (size_t i = 0; i < m_f.size(); ++i)
-        m_kind[i] = m_f[i] >= liquidThreshold ? CellKind::Liquid : (m_f[i] > 0.0f ? CellKind::Surface : CellKind::Empty);
+    // 20.5: a cell holding a body is liquid when water + body fill it past the threshold AND real water
+    // is there (the 1 mm film) - a body in air must not get a pressure row (it would grow a velocity
+    // field round a stone flying over the pond). Without a body: f >= thr, exactly as before.
+    const float film = kSurfaceMinDepth / m_spec.h;
+    for (size_t i = 0; i < m_f.size(); ++i) {
+        const bool liquid = m_s[i] > 0.0f ? (m_f[i] + m_s[i] >= liquidThreshold && m_f[i] >= film) : m_f[i] >= liquidThreshold;
+        m_kind[i] = liquid ? CellKind::Liquid : (m_f[i] > 0.0f ? CellKind::Surface : CellKind::Empty);
+    }
 }
 
 double WaterGrid::totalMass() const {
@@ -184,7 +192,7 @@ float WaterGrid::surfaceWorldY(int x, int z) const {
     // 19.7: + air trapped under water drawn as water, weighted by the fill of the cell above (surfacePocketWeight)
     float sum = 0.0f, pockets = 0.0f, fAbove = 0.0f;   // fAbove 0 for the run's top cell
     while (y >= 0 && m_f[idx(x, y, z)] >= fMin && m_occ[idx(x, y, z)] != Occ::Solid) {
-        const float fv = std::min(m_f[idx(x, y, z)], 1.0f);
+        const float fv = levelFill(x, y, z);   // 20.5: water + the body it surrounds
         pockets += (1.0f - fv) * surfacePocketWeight(fAbove);
         sum += fv; fAbove = fv;
         --y;
@@ -304,12 +312,13 @@ void EulerianTransport::advect(WaterGrid& g, float dt) {
     // drops were allowed to fall at all, 2026-10-08). Lateral films keep the continuum flux
     // (depth x velocity). `thin` is evaluated on the ORIGINAL fills, like the donor fraction.
     const float thr = m_liquidThreshold;
+    const std::vector<float>& sv = g.sData();   // 20.5: a body's volume is no room for water
     auto moveFace = [&](size_t ia, size_t ib, float vel, float fDonorOrig, bool downward = false) {
         if (vel == 0.0f || fDonorOrig <= 0.0f) return;
         const size_t from = vel > 0.0f ? ia : ib, to = vel > 0.0f ? ib : ia;
         const float sweep = std::abs(vel) * dt / h;
         const float desired = (downward && fDonorOrig < thr) ? std::min(fDonorOrig, sweep) : sweep * fDonorOrig;
-        const float moved = std::min({desired, g_[from], 1.0f - g_[to]});
+        const float moved = std::min({desired, g_[from], 1.0f - sv[to] - g_[to]});
         if (moved <= 0.0f) return;
         g_[from] -= moved;
         g_[to]   += moved;
@@ -862,14 +871,27 @@ void WaterSolver::applyThinFilmGradient(float dt) {
         slope(x, y, z - 1, x, y, z, m_grid.w(x, y, z));
 }
 
+// 20.5: a cell FULL of body and holding no real water is a wall, not air. Treated as air it is a free
+// surface at the bottom of the pond: pressure 0 there, the water accelerates into it forever and the
+// transport (room 1 - s - f = 0) can never let it in - a stone resting on the floor pumped the pond's
+// kinetic energy from 2.29 to 2.63 in 10 s with no rate at all (DiagSolidOverlap, 2026-10-09).
+bool WaterSolver::bodyWall(int x, int y, int z) const {
+    if (!m_grid.inBounds(x, y, z)) return false;
+    const float sv = m_grid.s(x, y, z);
+    if (sv <= 0.0f) return false;
+    const float fv = m_grid.f(x, y, z);
+    return fv < WaterGrid::kSurfaceMinDepth / m_grid.h() && fv + sv >= m_params.liquidThreshold;
+}
+
 void WaterSolver::enforceSolidFaces() {
     const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
+    auto wall = [this](int x, int y, int z) { return blocked(m_grid, x, y, z) || bodyWall(x, y, z); };
     for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x <= nx; ++x)
-        if (blocked(m_grid, x - 1, y, z) || blocked(m_grid, x, y, z)) m_grid.u(x, y, z) = 0.0f;
+        if (wall(x - 1, y, z) || wall(x, y, z)) m_grid.u(x, y, z) = 0.0f;
     for (int z = 0; z < nz; ++z) for (int y = 0; y <= ny; ++y) for (int x = 0; x < nx; ++x)
-        if (blocked(m_grid, x, y - 1, z) || blocked(m_grid, x, y, z)) m_grid.v(x, y, z) = 0.0f;
+        if (wall(x, y - 1, z) || wall(x, y, z)) m_grid.v(x, y, z) = 0.0f;
     for (int z = 0; z <= nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x)
-        if (blocked(m_grid, x, y, z - 1) || blocked(m_grid, x, y, z)) m_grid.w(x, y, z) = 0.0f;
+        if (wall(x, y, z - 1) || wall(x, y, z)) m_grid.w(x, y, z) = 0.0f;
 }
 
 // Pressure projection on Liquid cells (f >= liquidThreshold): solve  Σ_faces (p_c − p_n)/h² = −∇·u/dt
@@ -892,7 +914,7 @@ double WaterSolver::thetaToAir(int x, int y, int z, int dir) const {
         // disagreed, and a flat pool with a 0.5-0.6 top layer never slept (defect #28, Phase D
         // write-back round trip, 2026-10-08). Clamped away from zero: theta -> 0 is the correct
         // limit (p -> 0 at the centre) but 1/theta must stay finite.
-        const double fc = static_cast<double>(m_grid.f(x, y, z));
+        const double fc = static_cast<double>(m_grid.f(x, y, z)) + m_grid.s(x, y, z);   // 20.5: a body raises the level it sits in
         return std::clamp(fc - 0.5 + fa, m_params.thetaMin, 1.5);
     }
     return 0.5;
@@ -915,6 +937,7 @@ void WaterSolver::project(float dt, StepReport& r) {
     // a Dirichlet weight added to the diagonal (air: 1/θ), or nothing (solid)
     struct Nb { int rowIdx; };
     std::vector<double> diag(m, 0.0), rhs(m, 0.0);
+    std::vector<uint8_t> isolatedRow(m, 0);
     std::vector<std::array<int, 6>> nb(m);
     const int dx[6] = {-1, 1, 0, 0, 0, 0}, dy[6] = {0, 0, -1, 1, 0, 0}, dz[6] = {0, 0, 0, 0, -1, 1};
     const double invh2 = 1.0 / (static_cast<double>(h) * h);
@@ -925,12 +948,19 @@ void WaterSolver::project(float dt, StepReport& r) {
         for (int k = 0; k < 6; ++k) {
             const int xn = x + dx[k], yn = y + dy[k], zn = z + dz[k];
             nb[i][k] = -1;
-            if (blocked(m_grid, xn, yn, zn)) continue;                                   // Neumann
+            if (blocked(m_grid, xn, yn, zn) || bodyWall(xn, yn, zn)) continue;          // Neumann (a body-full cell is a wall, 20.5)
             const int ni = static_cast<int>(m_grid.idx(xn, yn, zn));
             if (row[ni] >= 0) { nb[i][k] = row[ni]; d += 1.0; continue; }               // liquid neighbour
             d += 1.0 / thetaToAir(x, y, z, k);                                          // ghost fluid
         }
-        diag[i] = d * invh2;
+        // A liquid cell with no open neighbour (walled in by rock and body cells, 20.5) cannot move water
+        // through any face: its row is decoupled (p = 0) - a zero diagonal made the Jacobi preconditioner
+        // divide by zero, the velocities went NaN and the next back-trace read memory with a NaN index (the
+        // 1 m cube going under, WaterSolidTest.DisplacementRaisesTheLevel, 2026-10-09). Its water leaves by
+        // the column ledger instead (setMovingSolids).
+        const bool isolated = d == 0.0;
+        isolatedRow[i] = isolated ? 1 : 0;
+        diag[i] = isolated ? 1.0 : d * invh2;
         // rhs = −div(u)/dt
         const double div = (static_cast<double>(m_grid.u(x + 1, y, z)) - m_grid.u(x, y, z) + m_grid.v(x, y + 1, z) - m_grid.v(x, y, z) + m_grid.w(x, y, z + 1) - m_grid.w(x, y, z)) / h;
         rhs[i] = -div / dt;
@@ -946,6 +976,12 @@ void WaterSolver::project(float dt, StepReport& r) {
                 const double q = (static_cast<double>(src.rate) + (src.rate >= 0.0f ? owedRate : -owedRate)) / m_grid.cellVolume();
                 rhs[i] += q / dt;
             }
+        // 20.2: a body is a pump of exactly the water that no longer fits - the cell sheds q (m^3/s, set
+        // by setMovingSolids, constant over the frame) through the same divergence term a pump outlet uses.
+        {
+            const float qs = m_grid.q(x, y, z);
+            if (qs > 0.0f) rhs[i] += (static_cast<double>(qs) / m_grid.cellVolume()) / dt;
+        }
         // Particle transport only: an over-full cell (clustered particles, f > 1 after p2g) is asked
         // to push outward at no more than the one-cell free-fall rate per substep (§15.9 volume
         // control; fills never exceed 1 so this is inert for them).
@@ -970,6 +1006,35 @@ void WaterSolver::project(float dt, StepReport& r) {
                 rhs[i] -= df / (static_cast<double>(dt) * dt);
             }
         }
+        // 20.5 / T10 - AIR A BODY DRAGS UNDER WATER RISES BACK OUT. A stone's swept cavity collapses and
+        // leaves its air as part-full cells under water (DiagCavity: 0.047 m^3, 6 s after the drop);
+        // projected as full and divergence-free they can never take the water that would fill them, and
+        // compactSubmergedPartials will not move water down through a face creeping up (it guards a
+        // pump's rising surface; these creep up at 0.000-0.05 m/s). In the WAKE of a body only (cells
+        // within kSolidWakeCells of where a body just left, for solidWakeSeconds()), a buried void - a
+        // full cell directly above - takes a net inflow at the rise speed of trapped air, in quiet water.
+        // Why each limit (measured 2026-10-09, M0): applied to every buried void the rule broke the
+        // submerged pump (3.6 of 4 m^3) and pumped a blasted pond (KE 1.5 -> 3.8 at 30 s); with a FULL
+        // cell above it kept the pump but the blasted pond rang forever (KE plateau 0.4-0.8 from 10 to
+        // 30 s, was 0.13) - closing every slosh pocket releases energy faster than the pond loses it. The
+        // general pocket problem (the +-2 cm terraces) stays open (19.8 item 3); the wake limit keeps a
+        // pond without bodies EXACTLY as it was. Rate: small trapped bubbles rise at 0.2-0.3 m/s (Clift,
+        // Grace & Weber) - at the one-cell free-fall rate (2.6 m/s) the stone's air did not clear in 6 s.
+        if (!(m_params.debugDisableStages & 64u) && !m_transport->ownsMass() && !m_solidWake.empty() && m_solidWake[m_grid.idx(x, y, z)] > 0.0f && y + 1 < ny && !blocked(m_grid, x, y + 1, z)) {
+            const float fs = m_grid.f(x, y, z) + m_grid.s(x, y, z);
+            const float fa = m_grid.f(x, y + 1, z), sa = m_grid.s(x, y + 1, z);
+            const bool waterAbove = fa + sa >= 0.999f && fa >= WaterGrid::kSurfaceMinDepth / h;   // a FULL cell above: a buried void, never a free surface
+            if (fs < 1.0f && waterAbove) {
+                const double vfall = std::sqrt(2.0 * static_cast<double>(m_params.gravity) * h);
+                const double vAbove = std::abs(static_cast<double>(m_grid.v(x, y + 1, z)));
+                const double uc = 0.5 * (static_cast<double>(m_grid.u(x, y, z)) + m_grid.u(x + 1, y, z));
+                const double wc = 0.5 * (static_cast<double>(m_grid.w(x, y, z)) + m_grid.w(x, y, z + 1));
+                if (vAbove < 0.1 * vfall && uc * uc + wc * wc < 0.01 * vfall * vfall) {
+                    const double df = std::min<double>(1.0 - fs, kTrappedAirRiseSpeed * dt / h);
+                    rhs[i] -= df / (static_cast<double>(dt) * dt);
+                }
+            }
+        }
         // A partial liquid cell under a SOLID ceiling has no face its surface could rise through:
         // projected as full and divergence-free it can never take the water that would fill it, so
         // a sealed cavity filling through a hole stalled with its top layer at ~0.5 (41.9 of 48 m^3,
@@ -978,14 +1043,17 @@ void WaterSolver::project(float dt, StepReport& r) {
         // (their surface rises by transport); water-above voids are closed by
         // compactSubmergedPartials.
         {
-            const float fc = m_grid.f(x, y, z);
-            if (fc < 1.0f && blocked(m_grid, x, y + 1, z) && !m_transport->ownsMass()) {
+            // (20.5: a body's volume counts as filled, and a body-full cell above is a ceiling like rock)
+            const float fc = m_grid.f(x, y, z) + m_grid.s(x, y, z);
+            if (fc < 1.0f && (blocked(m_grid, x, y + 1, z) || bodyWall(x, y + 1, z)) && !m_transport->ownsMass()) {
                 const double vfall = std::sqrt(2.0 * static_cast<double>(m_params.gravity) * h);
                 const double df = std::min<double>(1.0 - fc, vfall * dt / h);
                 rhs[i] -= df / (static_cast<double>(dt) * dt);
             }
         }
     }
+    // decoupled rows (no open neighbour, see above): p = 0, nothing to solve
+    for (size_t i = 0; i < m; ++i) if (isolatedRow[i]) rhs[i] = 0.0;
     // CG with Jacobi preconditioner
     auto applyA = [&](const std::vector<double>& p, std::vector<double>& out) {
         for (size_t i = 0; i < m; ++i) {
@@ -1182,7 +1250,8 @@ void WaterSolver::compactSubmergedPartials(float dt) {
     const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
     for (int z = 0; z < nz; ++z) for (int y = 0; y + 1 < ny; ++y) for (int x = 0; x < nx; ++x) {
         const float fb = m_grid.f(x, y, z);
-        if (fb < thr || fb >= 1.0f || blocked(m_grid, x, y, z) || blocked(m_grid, x, y + 1, z)) continue;
+        const float sb = m_grid.s(x, y, z);   // 20.5: fill up to 1 - s, never into a body's space
+        if (fb + sb < thr || fb + sb >= 1.0f || (sb > 0.0f && fb < WaterGrid::kSurfaceMinDepth / h) || blocked(m_grid, x, y, z) || blocked(m_grid, x, y + 1, z)) continue;
         const float fa = m_grid.f(x, y + 1, z);
         if (fa <= 0.0f) continue;
         // only a QUIET face is a void under water: a draining column over a hole or a sheet
@@ -1209,7 +1278,7 @@ void WaterSolver::compactSubmergedPartials(float dt) {
         const float wc = 0.5f * (m_grid.w(x, y, z) + m_grid.w(x, y, z + 1));
         const float vFree = static_cast<float>(std::sqrt(2.0 * m_params.gravity * h));
         if (uc * uc + wc * wc > 0.01f * vFree * vFree) continue;
-        const float moved = std::min({fa, 1.0f - fb, cap});
+        const float moved = std::min({fa, 1.0f - sb - fb, cap});
         m_grid.f(x, y, z) = fb + moved;
         m_grid.f(x, y + 1, z) = fa - moved;
     }
@@ -1261,6 +1330,84 @@ int WaterSolver::substepsFor(float dt) const {
     return std::clamp(n, 1, m_params.maxSubsteps);
 }
 
+WaterSolver::SolidsReport WaterSolver::setMovingSolids(const std::vector<MovingSolid>& bodies, float frameSeconds) {
+    SolidsReport rep;
+    std::vector<float> sNew;
+    rep.raster = rasterizeSolids(m_grid, bodies, sNew, m_solidFresh);
+    std::vector<float>& s = m_grid.sData();
+    std::vector<float>& q = m_grid.qData();
+    const float V = m_grid.cellVolume(), h = m_grid.h();
+    const float T = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
+    const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
+    // the wake (see project: air a body drags under water rises back out): age it, then mark every cell
+    // within kSolidWakeCells of a cell the body is leaving (s falling)
+    if (m_solidWake.size() != m_grid.cellCount()) m_solidWake.assign(m_grid.cellCount(), 0.0f);
+    for (float& w : m_solidWake) w = std::max(0.0f, w - T);
+    for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x) {
+        const size_t i = m_grid.idx(x, y, z);
+        if (sNew[i] >= s[i]) continue;
+        const int r = kSolidWakeCells;
+        for (int zz = std::max(0, z - r); zz <= std::min(nz - 1, z + r); ++zz)
+            for (int yy = std::max(0, y - r); yy <= std::min(ny - 1, y + r); ++yy)
+                for (int xx = std::max(0, x - r); xx <= std::min(nx - 1, x + r); ++xx)
+                    m_solidWake[m_grid.idx(xx, yy, zz)] = solidWakeSeconds();
+    }
+    for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x) {
+        const size_t i = m_grid.idx(x, y, z);
+        rep.sChange += std::abs(static_cast<double>(sNew[i]) - s[i]) * V;
+        s[i] = sNew[i];
+        q[i] = 0.0f;
+    }
+    for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x) {
+        const size_t i = m_grid.idx(x, y, z);
+        if (s[i] <= 0.0f) continue;
+        const float excess = m_grid.f(x, y, z) + s[i] - 1.0f;
+        if (excess <= 0.0f) continue;
+        if (m_solidFresh[i]) { ++rep.freshCells; continue; }
+        int open = 0;   // faces water could actually leave through: not rock, not a body-full cell
+        const int dx[6] = {-1, 1, 0, 0, 0, 0}, dy[6] = {0, 0, -1, 1, 0, 0}, dz[6] = {0, 0, 0, 0, -1, 1};
+        for (int k = 0; k < 6; ++k) open += (blocked(m_grid, x + dx[k], y + dy[k], z + dz[k]) || bodyWall(x + dx[k], y + dy[k], z + dz[k])) ? 0 : 1;
+        // walled in (no open face), or a cell the body fills entirely (s ~ 1: its water is leftover overlap, and
+        // its neighbours inside the body are such cells too - the water circulated among them and never left,
+        // DisplacementRaisesTheLevel): no pressure can push it out - the column ledger moves it
+        if (open == 0 || s[i] >= 0.999f) { m_solidFresh[i] = 1; ++rep.freshCells; continue; }
+        float rate = excess * V / T;
+        const float cap = static_cast<float>(open) * h * h * kSolidMaxSpeed;
+        if (rate > cap) { rate = cap; ++rep.clamped; }
+        q[i] = rate;
+        rep.rate += rate;
+        ++rep.rateCells;
+    }
+    for (float w : m_solidWake) if (w > 0.0f) { ++rep.wakeCells; }
+    if (rep.rate > 0.0 || rep.sChange > 1e-6 || rep.freshCells > 0 || rep.wakeCells > 0) wake();
+    return rep;
+}
+
+void WaterSolver::resolveFreshOverflow() {
+    // 20.5 ledger rule (a) for FRESH bodies only (their cells carry no rate): the water that no longer
+    // fits moves straight up its own column into cells with room; what the column cannot take stays where
+    // it is and is shed by next frame's rate once the body is no longer fresh. Exactly conservative: one
+    // number subtracted and added. Column-local, so the GPU form (wc_column_ops) cannot race.
+    if (m_solidFresh.size() != m_grid.cellCount()) return;
+    const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
+    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) for (int y = 0; y < ny; ++y) {
+        const size_t i = m_grid.idx(x, y, z);
+        if (!m_solidFresh[i]) continue;
+        const float excess = m_grid.f(x, y, z) + m_grid.s(x, y, z) - 1.0f;
+        if (excess <= 0.0f) continue;
+        float carry = excess;
+        for (int yy = y + 1; yy < ny && carry > 0.0f; ++yy) {
+            if (blocked(m_grid, x, yy, z)) break;
+            const float room = 1.0f - m_grid.s(x, yy, z) - m_grid.f(x, yy, z);
+            if (room <= 0.0f) continue;
+            const float take = std::min(room, carry);
+            m_grid.f(x, yy, z) += take;
+            m_grid.f(x, y, z) -= take;
+            carry -= take;
+        }
+    }
+}
+
 StepReport WaterSolver::step(float dt) {
     StepReport r;
     if (m_asleep) { r.asleep = true; r.totalMass = m_grid.totalMass(); r.quietTicks = m_quietTicks; m_last = r; return r; }
@@ -1284,6 +1431,7 @@ StepReport WaterSolver::step(float dt) {
         applySources(ds, r);
         enforceSolidFaces();
         m_transport->advect(m_grid, ds);
+        resolveFreshOverflow();   // 20.5: a spawned body's water moves up its column (no rate, no fake splash)
         enforceSolidFaces();
         if (!(off & 1u) && !m_transport->ownsMass()) compactSubmergedPartials(ds);
         applyGravity(ds);

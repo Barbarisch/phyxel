@@ -27,9 +27,9 @@ void extractSurfaceField(const WaterGrid& g, WaterSurfaceField& out) {
                 // film crossing the 1 mm threshold in the cell above a part-full top cell used to move the
                 // surface by up to (1 - f) h in one tick (measured: 0.32 m, the flicker the owner saw)
                 float sum = 0.0f;
-                while (y < g.ny() && g.f(x, y, z) >= fMin && g.occ(x, y, z) != Occ::Solid) { top = y; sum += std::min(g.f(x, y, z), 1.0f); ++y; }
+                while (y < g.ny() && g.f(x, y, z) >= fMin && g.occ(x, y, z) != Occ::Solid) { top = y; sum += g.levelFill(x, y, z); ++y; }   // 20.5: water + the body it surrounds
                 float pockets = 0.0f;   // 19.7: air trapped under water is drawn as water
-                for (int k = start; k < top; ++k) pockets += (1.0f - std::min(g.f(x, k, z), 1.0f)) * surfacePocketWeight(std::min(g.f(x, k + 1, z), 1.0f));
+                for (int k = start; k < top; ++k) pockets += (1.0f - g.levelFill(x, k, z)) * surfacePocketWeight(g.levelFill(x, k + 1, z));
                 const float runTop = static_cast<float>(sp.origin.y + start) * h + (sum + pockets) * h;
                 if (runs < kSurfaceMaxRuns) {
                     c.bottom[runs] = static_cast<float>(sp.origin.y + start) * h;

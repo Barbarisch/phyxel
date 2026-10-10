@@ -11,6 +11,7 @@
 //   P2  still water stays still; a resting column is hydrostatic
 //   P5  no flux through a Solid or Unknown (hold) face, at every resolution
 //   P7  a quiet volume sleeps and costs nothing; results are bit-deterministic
+#include "core/water/MovingSolids.h"
 #include <glm/glm.hpp>
 #include <cmath>
 #include <cstdint>
@@ -58,6 +59,24 @@ public:
     Occ    occ(int x, int y, int z) const { return m_occ[idx(x, y, z)]; }
     Occ&   occ(int x, int y, int z)       { return m_occ[idx(x, y, z)]; }
     CellKind kind(int x, int y, int z) const { return m_kind[idx(x, y, z)]; }
+    /// docs/WaterCore.md 20: the moving-solid volume fraction of each cell (0..1; 0 = no body) and the rate
+    /// (m^3/s) at which the cell must shed the water that no longer fits - set by WaterSolver::setMovingSolids.
+    /// With no body every rule that reads them reduces to its old form exactly (1 - 0 - f == 1 - f, f + 0 == f).
+    float  s(int x, int y, int z) const { return m_s[idx(x, y, z)]; }
+    float  q(int x, int y, int z) const { return m_q[idx(x, y, z)]; }
+    /// The fill the SURFACE reads (20.5): water plus the body volume it surrounds - the level round a
+    /// submerged body is (water + body) / area - but a body in AIR (no water in its cell, f below the
+    /// 1 mm film) is not water. Clamped to 1.
+    float levelFill(int x, int y, int z) const {
+        const size_t i = idx(x, y, z);
+        const float fv = m_f[i];
+        const float v = fv + (fv >= kSurfaceMinDepth / m_spec.h ? m_s[i] : 0.0f);
+        return v < 1.0f ? v : 1.0f;
+    }
+    std::vector<float>& sData() { return m_s; }
+    const std::vector<float>& sData() const { return m_s; }
+    std::vector<float>& qData() { return m_q; }
+    const std::vector<float>& qData() const { return m_q; }
 
     size_t uIdx(int x, int y, int z) const { return static_cast<size_t>(x) + static_cast<size_t>(nx() + 1) * (static_cast<size_t>(y) + static_cast<size_t>(ny()) * z); }
     size_t vIdx(int x, int y, int z) const { return static_cast<size_t>(x) + static_cast<size_t>(nx()) * (static_cast<size_t>(y) + static_cast<size_t>(ny() + 1) * z); }
@@ -98,6 +117,7 @@ public:
 private:
     GridSpec m_spec;
     std::vector<float> m_f, m_u, m_v, m_w;
+    std::vector<float> m_s, m_q;   // 20: moving-solid fraction, shed rate (m^3/s)
     std::vector<Occ> m_occ;
     std::vector<CellKind> m_kind;
 };
@@ -122,7 +142,7 @@ struct SolverParams {
     /// DIAGNOSTIC ONLY (bisecting a measured defect, never shipped on): bits disable a stage of
     /// the substep. 1 compaction · 2 thin-film slope · 4 thin-film settle · 8 "first halo layer only"
     /// (all three layers overwrite thin faces, the pre-#11 behaviour) · 16 residue sweep · 32 rest damping.
-    uint32_t debugDisableStages = 0;
+    uint32_t debugDisableStages = 0;   // 64: the moving-solid wake rule (20.5, dragged air rising out)
     double thetaMin = 0.1;           ///< ghost-fluid clamp: the surface is never closer than this fraction of a cell to a liquid cell's centre (1/theta stays finite); see thetaToAir
     float  filmHoldDepth = 0.01f;    ///< m: a film this thin or thinner is pinned (contact-angle stand-in); only the depth above it flows under its own slope (S1: puddles hold)
     int    pcgMaxIters = 400;
@@ -338,6 +358,28 @@ public:
     /// faces touched (0 when no water is within the radius - the momentum is then not applied).
     RadialKick addMomentum(const glm::vec3& pos, float radius, const glm::vec3& momentum, float maxSpeed = 20.0f);
 
+    /// docs/WaterCore.md 20: the bodies taking up room in this volume for the next `frameSeconds` (call once
+    /// per frame, before step()). Sets every cell's solid fraction s and its shed rate
+    /// q = max(0, f + s - 1) V / T (20.2: the water that no longer fits, over the frame; no sink - the space a
+    /// body leaves is a real cavity). q per cell is clamped to (open faces) x h^2 x kSolidMaxSpeed: a source
+    /// walled in on most sides would otherwise demand an outflow speed that blows the CFL substep count and
+    /// the projection; what is not shed is still there next frame (never dropped). Cells of a FRESH body
+    /// (spawned / teleported) get no rate - a column ledger moves their excess up instead (20.7: no fake
+    /// splash). Wakes the volume when anything moved or must be shed.
+    struct SolidsReport {
+        SolidRaster raster;
+        long rateCells = 0, clamped = 0, freshCells = 0, wakeCells = 0;   ///< wakeCells: where trapped air may rise out (project)
+        double rate = 0.0;      ///< m^3/s summed over cells (after clamps)
+        double sChange = 0.0;   ///< m^3: sum |s' - s| V since the last call
+    };
+    static constexpr float kSolidMaxSpeed = 20.0f;   ///< m/s, the same bound the blast and momentum kicks use
+    static constexpr int   kSolidWakeCells = 3;      ///< cells round a body's vacated cells where its dragged air may rise out (project) - DiagCavity: a stone's air spreads up to 3 cells from its path as the cavity collapses
+    /// The wake lasts as long as trapped air needs to rise through the volume's full height: ny h / kTrappedAirRiseSpeed
+    /// (a fixed 5 s let a 1.5 m pond keep 10 % of a stone's air at 6 s, still draining - DiagCavity).
+    float solidWakeSeconds() const { return static_cast<float>(m_grid.ny()) * m_grid.h() / kTrappedAirRiseSpeed; }
+    static constexpr float kTrappedAirRiseSpeed = 0.25f;   ///< m/s - small trapped bubbles rise at 0.2-0.3 m/s (Clift, Grace & Weber)
+    SolidsReport setMovingSolids(const std::vector<MovingSolid>& bodies, float frameSeconds);
+
     /// One engine tick of `dt` seconds, substepped internally to honour the CFL fraction.
     /// A sleeping volume returns immediately (asleep = true, nothing touched).
     StepReport step(float dt);
@@ -358,9 +400,11 @@ private:
     void project(float dt, StepReport& r);
     void extrapolateVelocity();
     void enforceSolidFaces();
+    bool bodyWall(int x, int y, int z) const;   // 20.5: a cell full of body with no real water - a wall, not air
     void applyRestDamping(float dt);
     void compactSubmergedPartials(float dt);   // water above a partial liquid cell falls into it (free-fall capped)
     void sweepResidue(StepReport& r);   // merge sub-epsilon films, count what cannot be merged
+    void resolveFreshOverflow();        // 20.5 ledger (a): a fresh body's excess moves up its own column
     int  substepsFor(float dt) const;
     double thetaToAir(int x, int y, int z, int dir) const;
     double maxSpeed() const;
@@ -370,6 +414,8 @@ private:
     SolverParams m_params;
     std::unique_ptr<IWaterTransport> m_transport;
     std::vector<SourceSpec> m_sources;
+    std::vector<uint8_t> m_solidFresh;   // 20: cells of bodies that appeared this frame
+    std::vector<float> m_solidWake;      // 20: seconds left in which a body's dragged air may rise out of this cell
     std::vector<BoundarySpec> m_boundaries;   // Phase G
     std::vector<double> m_p, m_rhs, m_z, m_s, m_r, m_diag;   // projection scratch (double)
     std::vector<float> m_fPrev;
