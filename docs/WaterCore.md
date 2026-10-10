@@ -3241,7 +3241,11 @@ lattice, no chunk input, R-T6), generation (none), API (units, unchanged when om
 **READY for R0.** The set-1 bindings 2 and 3 are new descriptors on `WaterSurfaceRenderPipeline` (its layout and
 pool grow; the shore band and fine band draw through the same pipeline and bind the same atlas, sampling none).
 
-### 22.9 R0 + R1 built (2026-10-10) - ledger: the rings exist, the picture barely shows them - NOT signed off
+### 22.9 R0 + R1 built (2026-10-10) - ledger: the rings exist, the picture barely shows them - owner: acceptable for now
+
+**Owner verdict (2026-10-10), after the stone-drop frames + clip:** "i dont think it is perfect, but i can handle that
+for now". Accepted as it stands, NOT finished: the levers below (reflections on simulated water, the procedural
+shimmer turned down, sun glints on facets, a stone-entry ring source) stay open and are not to be built unasked.
 
 **Built:** `RippleLayer` (CPU, per eulerian volume, 1/9 m world-aligned lattice), driven by droplet landings
 (Cauchy-Poisson impulse, spread over a 3 x 3 tent) and wet bodies crossing the surface (every wet body, resting
