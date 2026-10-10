@@ -84,7 +84,8 @@ void main() {
     inp.screenSize   = pc.screen.xy;
     inp.fragDepthNdc = gl_FragCoord.z;
     inp.fragCoord    = gl_FragCoord.xy;
-    inp.sideFace     = fragSide;
+    inp.sideFace     = fragSide > 1.5 ? 0.0 : fragSide;   // 21: side 2 = a droplet cube
+    inp.droplet      = fragSide > 1.5 ? 1.0 : 0.0;
     inp.minThickness = fragDepth;          // the solver knows how deep this run is
     // G2: the solver's surface velocity drives the ripple advection and the whitewater streaks, its
     // foam field (bore fronts, convergence, the swash tongue) the whitewater itself.

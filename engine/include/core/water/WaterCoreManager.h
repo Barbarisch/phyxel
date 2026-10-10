@@ -10,6 +10,7 @@
 #include "core/water/WaterCoreGpu.h"   // Phase C backend (optional; CPU reference without it)
 #include "core/water/WaterBodyTable.h"   // Phase D Tier A records
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
+#include "core/water/WaterDroplets.h"      // 21: the droplet crown
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <unordered_map>
 #include <glm/glm.hpp>
@@ -211,6 +212,24 @@ public:
     /// is read back (two submit-and-waits): a debug cost, called only while `water_jet_scan` records.
     struct JetRun { glm::vec3 bottom{0.0f}; float volume = 0.0f, sumF = 0.0f; int cells = 0; bool isolated = false; };
     std::vector<JetRun> scanDetachedRuns();
+
+    // ── 21: the droplet crown (WaterDroplets.h) ─────────────────────────────────────────────────
+    /// Water the grid cannot hold (scraps, spray off a fast-rising surface) leaves as droplets every tick, flies
+    /// (gravity, air drag) and lands back - into the water or onto the ground of its own volume. Grid + pool is
+    /// conserved: a refused birth (pool full) or a deposit that does not fit goes straight back. A volume with
+    /// droplets in flight does not auto-sleep; sleep() lands them first; destroy() discards them with its water.
+    struct DropletStats {
+        bool on = true; float size = 1.0f / 9.0f; int alive = 0;
+        double bornM3 = 0.0, landedM3 = 0.0, refusedM3 = 0.0, relocatedM3 = 0.0, flushedM3 = 0.0, destroyedM3 = 0.0;
+        long births = 0, landings = 0; int scraps = 0, sprays = 0;   // scraps / sprays: CPU volumes (the GPU counts per column record)
+    };
+    void setDroplets(bool on) { m_dstats.on = on; }
+    /// Droplet edge as a fraction of the volume's cell (21.11 default 1/9); clamped [1/27, 1] where it is used (DropletPool::spawn).
+    void setDropletSize(float k) { m_dstats.size = k; }
+    const DropletStats& dropletStats() { m_dstats.alive = static_cast<int>(m_pool.droplets().size()); return m_dstats; }
+    double dropletVolume() const { return m_pool.volumeInFlight(); }
+    /// Droplet cubes for the renderer (xyz centre, w edge), rebuilt every update.
+    const std::vector<glm::vec4>& dropletDrawList() const { return m_dropletDraw; }
     /// E2 (docs/WaterCore.md 19.6): where the water is still MOVING since the last call - per volume, a
     /// sphere (world centre, radius) around the columns whose surface has moved more than `moveM` from
     /// where it last counted as moved (a held reference: sub-mm jitter never adds up, a real slosh does,
@@ -262,7 +281,18 @@ private:
         uint64_t stepCount = 0;         // steps taken (CPU ticks or GPU calls)
         double fieldStepSec = -1.0;     // wall time of that step
         bool hadSolids = false;         // 20: fed bodies (or a wake) last frame - keep feeding until it clears
+        std::vector<float> pendingDeposit;   // 21: GPU volume - landed droplets (cell fractions) for the next step
+        bool hasPendingDeposit = false;
     };
+    // 21: droplets
+    DropletPool m_pool;
+    DropletStats m_dstats;
+    uint32_t m_dropletTick = 0;
+    std::vector<glm::vec4> m_dropletDraw;
+    void collectBirths(Av& av, float dt);          // after a step: births -> the pool
+    void stepDroplets(float dt);                   // flight + landing for every volume
+    void depositDroplet(Av& av, const glm::vec3& at, double volume);
+    Av* volumeById(int id) { for (auto& a : m_avs) if (a->id == id) return a.get(); return nullptr; }
     bool isAsleep(const Av& av) const { return av.backend == "gpu" ? av.gpuLast.asleep : av.solver->asleep(); }
     void refreshOccupancy(Av& av);
     Occ sampleOccupancy(const Av& av, const glm::ivec3& cellLocal) const;

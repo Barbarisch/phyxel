@@ -95,6 +95,9 @@ struct WaterSurfaceMesh {
 void buildWaterSurfaceMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out);
 /// G3: appends the field's mesh AND a draw range carrying the field's look (empty fields add no range).
 void appendFieldToMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out);
+/// 21: the droplet crown as cubes (xyz centre, w edge) - six outward quads each, side = 2 (the shader's droplet
+/// flag: spray, its thickness its own edge), one draw range with the derived look.
+void appendDropletsToMesh(const std::vector<glm::vec4>& droplets, WaterSurfaceMesh& out);
 
 /// Phase F render mode of the simulated water (docs/WaterCore.md 17.2 key 4).
 enum class WaterCoreRenderMode : int { Off = 0, Cells = 1, Mesh = 2 };

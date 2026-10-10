@@ -575,6 +575,8 @@ public:
     double waterCoreMeshMs() const { return m_waterCoreMeshMs; }
     bool waterCoreMeshTruncated() const { return waterSurfacePipeline && waterSurfacePipeline->lastTruncated(); }
     void setWaterCoreDebugMode(int m) { if (waterSurfacePipeline) waterSurfacePipeline->setDebugMode(m); }
+    /// 21: the droplet crown's cubes (xyz centre, w edge) drawn with the water mesh; null = none.
+    void setWaterCoreDroplets(const std::vector<glm::vec4>* d) { m_waterCoreDroplets = d; }
     void setWaterCoreScatterLegacy(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setScatterLegacy(on); }
     bool waterCoreScatterLegacy() const { return waterSurfacePipeline && waterSurfacePipeline->scatterLegacy(); }
     int  waterCoreDebugMode() const { return waterSurfacePipeline ? waterSurfacePipeline->debugMode() : 0; }
@@ -1415,6 +1417,7 @@ private:
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
     const std::vector<Core::WaterSurfaceCell>* m_waterCoreCells = nullptr;   // WaterCore debug feed
     const std::vector<Core::Water::WaterSurfaceField>* m_waterCoreFields = nullptr;   // Phase F: the volumes' surface fields
+    const std::vector<glm::vec4>* m_waterCoreDroplets = nullptr;   // 21: droplet cubes
     Core::Water::WaterCoreRenderMode m_waterCoreMode = Core::Water::kWaterCoreRenderModeDefault;
     Core::Water::WaterSurfaceMesh m_waterCoreMesh;   // rebuilt every frame from the fields
     double m_waterCoreMeshMs = 0.0;

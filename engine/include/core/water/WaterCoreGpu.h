@@ -80,6 +80,11 @@ public:
         bool  solidRatesPending = false; ///< setSolids uploaded new fields: the next step computes q and the ledger marks first (wc_classify mode 1)
         float solidFrame = 0.0f;         ///< the frame (s) the uploaded bodies cover - q's T
         bool  hasSolids = false;         ///< the buffer holds anything nonzero
+        Buffer births, deposit;          ///< 21 (droplets): per column 8 floats (wc_column_ops mode 4/5); per cell fractions to add
+        VkDeviceSize offBirths = 0, offDeposit = 0;
+        bool dropletsOn = false;         ///< run the birth pass after every tick
+        bool depositPending = false;     ///< staging holds deposits for the next step
+        bool birthsFresh = false;        ///< staging holds birth records no one has read (a sleeping volume does not step: its old records must not be read twice)
         VkDeviceSize offSurf = 0;        ///< staging region of the surface field
         int sourceCount = 0;
         Buffer staging;                  ///< host-visible: [f | u | v | w | occ | src | out | p | sources]
@@ -126,6 +131,12 @@ public:
     /// `out` must hold columns * 16 floats (SurfaceColumn). Returns false when no step has run since the upload.
     bool readSurface(const Volume& vol, float* out) const;
     bool surfaceReady(const Volume& vol) const { return vol.surfaceValid; }
+    /// 21 (droplets): births on/off for the next steps.
+    void setDroplets(Volume& vol, bool on) { vol.dropletsOn = on && !vol.particles; }
+    /// 21: per-cell water (cell fractions) to add at the start of the next step (wc_column_ops mode 5); wakes the volume.
+    void setDeposits(Volume& vol, const std::vector<float>& cellFractions);
+    /// 21: the last step's birth records (columns x 8 floats, see wc_column_ops mode 4): a memcpy of the staging copy.
+    bool readBirths(Volume& vol, std::vector<float>& out) const;
     /// Phase B2: replace the volume's particles (fenced) and rebuild the grid's f and faces from them.
     bool setParticles(Volume& vol, const std::vector<FlipParticle>& ps, std::string* err);
     void readParticles(Volume& vol, std::vector<FlipParticle>& out) const;     ///< the sorted list (fenced)

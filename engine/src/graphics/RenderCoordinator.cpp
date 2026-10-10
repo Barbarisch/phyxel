@@ -4362,12 +4362,13 @@ void RenderCoordinator::drawFrame() {
     // Phase F: the mesh, rebuilt from the volumes' surface fields every frame (a pure function of them)
     bool drawCoreMesh = false;
     m_waterCoreMesh.clear(); m_waterCoreMeshMs = 0.0;
-    const bool anyField = (m_waterCoreFields && !m_waterCoreFields->empty()) || (m_waterShoreField && m_waterShoreField->nx > 0) || (m_waterFineField && m_waterFineField->nx > 0);
+    const bool anyField = (m_waterCoreDroplets && !m_waterCoreDroplets->empty()) || (m_waterCoreFields && !m_waterCoreFields->empty()) || (m_waterShoreField && m_waterShoreField->nx > 0) || (m_waterFineField && m_waterFineField->nx > 0);
     if (waterSurfacePipeline && m_waterCoreMode == WaterCoreRenderMode::Mesh && anyField) {
         const auto tm0 = std::chrono::steady_clock::now();
         if (m_waterCoreFields) for (const auto& f : *m_waterCoreFields) Core::Water::appendFieldToMesh(f, m_waterCoreMesh);   // G3: one draw range (look) per field
         if (m_waterFineField && m_waterFineField->nx > 0) Core::Water::appendFieldToMesh(*m_waterFineField, m_waterCoreMesh);   // G4: the fine band (the 1 m band hides these columns)
         if (m_waterShoreField && m_waterShoreField->nx > 0) Core::Water::appendFieldToMesh(*m_waterShoreField, m_waterCoreMesh);   // Phase G: the shore band
+        if (m_waterCoreDroplets) Core::Water::appendDropletsToMesh(*m_waterCoreDroplets, m_waterCoreMesh);   // 21: the droplet crown
         m_waterCoreMeshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tm0).count();
         drawCoreMesh = !m_waterCoreMesh.indices.empty();
     }

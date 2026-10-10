@@ -3722,6 +3722,7 @@ void Application::update(float deltaTime) {
                 renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
                 renderCoordinator->setWaterCoreSurfaceFields(waterCore->totalCells() ? &waterCore->surfaceFields() : nullptr);   // Phase F: the surface mesh feed
+                renderCoordinator->setWaterCoreDroplets(&waterCore->dropletDrawList());   // 21: the droplet crown
                 if (!m_watchPoints.empty() && m_watchRows.size() < 20000) {   // water_av_watch: every frame
                     std::vector<float> row;
                     row.push_back(static_cast<float>(std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_watchT0));
@@ -13755,9 +13756,10 @@ void Application::registerWaterCommands() {
         const double coreCells = waterCore ? waterCore->totalMass() : 0.0;
         const double bodies = waterCore ? waterCore->bodies().avMass() : 0.0;   // Phase D: av-origin records (exact); generation rows are estimates and stay out of the sum
         const double displaced = waterCore ? waterCore->bodies().displacedTotal() : 0.0;
+        const double droplets = waterCore ? waterCore->dropletVolume() : 0.0;   // 21: water in flight (left a volume's grid, lands back)
         r = {{"cells", cells}, {"core_cells", coreCells}, {"spans", spans}, {"span_count", spanCount},
-             {"bodies", bodies}, {"displaced", displaced}, {"held_edits", m_waterHeldEdits}, {"reserves", 0.0}, {"droplets", 0.0},
-             {"total", cells + coreCells + spans},
+             {"bodies", bodies}, {"displaced", displaced}, {"held_edits", m_waterHeldEdits}, {"reserves", 0.0}, {"droplets", droplets},
+             {"total", cells + coreCells + spans + droplets},
              {"units", "m^3 (voxel-volumes); cells = the CA's mass field, spans = chunk-resident span depth"},
              {"sim_region", waterManager ? nlohmann::json{{"origin", {waterManager->origin().x, waterManager->origin().y, waterManager->origin().z}},
                                                            {"dims", {waterManager->dims().x, waterManager->dims().y, waterManager->dims().z}}}
@@ -14090,6 +14092,19 @@ void Application::registerWaterCommands() {
     // 21.7 S1 measurement: {on: true} records every detached run of water (WaterDroplets.h) every frame, {on: false}
     // stops; every call returns the rows so far: t (s from the start), bottom cell centre x y z, volume m^3, sum f,
     // cells, isolated (1/0). A GPU volume is read back every recorded frame - a debug cost.
+    // 21: the droplet crown. {enabled?: bool, size?: fraction of a cell (default 1/9, clamped [1/27, 1] at the split)}
+    // - omitted = unchanged; echoes the state and the ledger: born / landed / in flight (m^3), refused (pool full ->
+    // straight back), relocated (landed outside its volume's box), flushed (landed by a sleep), destroyed (with a volume).
+    reg.on("water_droplets", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) { r = {{"error", "no water core"}}; return; }
+        if (cmd.params.contains("enabled")) waterCore->setDroplets(cmd.params.value("enabled", true));
+        if (cmd.params.contains("size")) waterCore->setDropletSize(std::clamp(cmd.params.value("size", 1.0f / 9.0f), 1.0f / 27.0f, 1.0f));
+        const auto& d = waterCore->dropletStats();
+        r = {{"enabled", d.on}, {"size", d.size}, {"alive", d.alive}, {"cap", Core::Water::DropletPool::kCap},
+             {"born_m3", d.bornM3}, {"landed_m3", d.landedM3}, {"in_flight_m3", waterCore->dropletVolume()},
+             {"refused_m3", d.refusedM3}, {"relocated_m3", d.relocatedM3}, {"flushed_m3", d.flushedM3}, {"destroyed_m3", d.destroyedM3},
+             {"births", d.births}, {"landings", d.landings}, {"cpu_scraps", d.scraps}, {"cpu_sprays", d.sprays}};
+    });
     reg.on("water_jet_scan", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("on")) {
             const bool on = cmd.params.value("on", false);

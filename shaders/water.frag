@@ -196,6 +196,7 @@ void main() {
     inp.debugMode    = 0;
     inp.shoreFoam    = 1.0;
     inp.ssr          = pc.params2.z;
+    inp.droplet      = 0.0;
     inp.scatterLit   = 0.0;   // 21.3 is scoped to simulated (small-body) water; the sea keeps its look until the owner takes up large bodies
 
     // RIM-WALL KILL (water-layer P1). Where adjacent clipmap vertices land in basins at

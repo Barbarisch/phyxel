@@ -8,6 +8,16 @@
 //   mode 2: sweepResidue             (writes f, v; param0 = residue threshold; drops are counted into binding 6)
 //   mode 3: resolveFreshOverflow     (20.5 ledger: a fresh / walled-in / body-filled cell's excess f + s - 1 moves
 //            UP its own column into cells with room; column-local, so no two threads touch one cell)
+//   mode 4: droplet BIRTH (WaterCore.md 21.2 / 21.11; WaterDroplets.cpp birthDroplets is the CPU reference, rule
+//            for rule): (1) scraps - a detached run with sum f < 1 touching no supported water sideways and
+//            nothing solid above is zeroed; (2) spray - the top cell of a supported run loses f (v_up - v_c) dt / h
+//            when its top face carries water up faster than v_c = sqrt(2 g h). param0 = the tick's dt. The water
+//            that left is accumulated into this column's birth record (binding 7, 8 floats: volume in cell
+//            fractions, sum vol * local y, sum vol * velocity xyz, scraps, sprays, unused). No race: a scrap is
+//            unsupported before and after it is zeroed, so a neighbour's decision reads the same either way.
+//   mode 5: droplet DEPOSIT (21.2 landing): the host's per-cell deposits (binding 8, cell fractions) go into f
+//            with room 1 - s - f, overflow carried up the column; what meets a solid or the grid top is written
+//            back into the birth record (it flies again - never dropped). Consumes binding 8.
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 0)          buffer F   { float f[]; };
@@ -17,6 +27,27 @@ layout(std430, set = 0, binding = 3)          buffer V   { float v[]; };
 layout(std430, set = 0, binding = 4) readonly buffer W   { float w[]; };
 layout(std430, set = 0, binding = 5)          buffer Dropped { float dropped[]; };   // one slot per column thread
 layout(std430, set = 0, binding = 6) readonly buffer Solid { vec4 solid[]; };        // 20: (s, q, wake, ledger) per cell
+layout(std430, set = 0, binding = 7)          buffer Births  { float births[]; };   // 21: 8 floats per column
+layout(std430, set = 0, binding = 8)          buffer Deposit { float deposit[]; };  // 21: cell fractions to add
+
+// 21.2 birth helpers (mirror WaterDroplets.cpp: airCell / supported / cellVelocity)
+bool airC(int x, int y, int z, float film) {
+    if (!inBounds(x, y, z)) return false;
+    const uint i = cellIdx(x, y, z);
+    return occ[i] == 0u && f[i] + solid[i].x < film;
+}
+bool supportedC(int x, int y, int z, float film) {
+    int yb = y;
+    while (yb > 0 && f[cellIdx(x, yb - 1, z)] >= film) --yb;
+    return yb == 0 || !airC(x, yb - 1, z, film);
+}
+vec3 cellVel(int x, int y, int z) {
+    return vec3(0.5 * (u[uIdx(x, y, z)] + u[uIdx(x + 1, y, z)]), 0.5 * (v[vIdx(x, y, z)] + v[vIdx(x, y + 1, z)]), 0.5 * (w[wIdx(x, y, z)] + w[wIdx(x, y, z + 1)]));
+}
+void addBirth(uint col, float vol, float yLocal, vec3 vel) {
+    births[col * 8u + 0u] += vol; births[col * 8u + 1u] += vol * yLocal;
+    births[col * 8u + 2u] += vol * vel.x; births[col * 8u + 3u] += vol * vel.y; births[col * 8u + 4u] += vol * vel.z;
+}
 
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
 
@@ -74,6 +105,66 @@ void main() {
                 carry -= take;
             }
         }
+    } else if (pc.mode == 4) {
+        const float film = 0.001 / pc.h, vc = sqrt(2.0 * pc.gravity * pc.h), dt = pc.param0;
+        const uint col = id;
+        // (1) scraps
+        for (int y = 1; y < pc.ny; ++y) {
+            if (f[cellIdx(x, y, z)] < film || !airC(x, y - 1, z, film)) continue;
+            int top = y; float sum = 0.0; bool ok = true;
+            while (top < pc.ny && f[cellIdx(x, top, z)] >= film) { sum += f[cellIdx(x, top, z)]; if (solid[cellIdx(x, top, z)].x > 0.0) ok = false; ++top; }
+            ok = ok && sum < 1.0 && top < pc.ny && occ[cellIdx(x, top, z)] == 0u && solid[cellIdx(x, top, z)].x <= 0.0;
+            for (int yy = y; yy < top && ok; ++yy) {
+                const ivec2 nb[4] = ivec2[4](ivec2(x - 1, z), ivec2(x + 1, z), ivec2(x, z - 1), ivec2(x, z + 1));
+                for (int k = 0; k < 4; ++k) {
+                    if (!inBounds(nb[k].x, yy, nb[k].y)) { ok = false; break; }
+                    const uint j = cellIdx(nb[k].x, yy, nb[k].y);
+                    if (occ[j] != 0u || solid[j].x > 0.0) { ok = false; break; }
+                    if (f[j] >= film && supportedC(nb[k].x, yy, nb[k].y, film)) { ok = false; break; }
+                }
+            }
+            if (ok) {
+                for (int yy = y; yy < top; ++yy) {
+                    const uint i = cellIdx(x, yy, z);
+                    addBirth(col, f[i], float(yy) + 0.5, cellVel(x, yy, z));
+                    f[i] = 0.0;
+                }
+                births[col * 8u + 5u] += 1.0;
+            }
+            y = top;
+        }
+        // (2) spray from the top of every supported run
+        for (int y = 0; y + 1 < pc.ny; ++y) {
+            const uint i = cellIdx(x, y, z);
+            const float ft = f[i];
+            if (ft < film || f[cellIdx(x, y + 1, z)] >= film) continue;
+            if (solid[i].x > 0.0 || !airC(x, y + 1, z, film)) continue;
+            if (!supportedC(x, y, z, film)) continue;
+            const float vUp = v[vIdx(x, y + 1, z)];
+            if (vUp <= vc) continue;
+            const float frac = min(ft * (vUp - vc) * dt / pc.h, ft - film);
+            if (frac <= 0.0) continue;
+            f[i] = ft - frac;
+            vec3 vel = cellVel(x, y, z); vel.y = vUp;
+            addBirth(col, frac, float(y) + 1.0, vel);
+            births[col * 8u + 6u] += 1.0;
+        }
+    } else if (pc.mode == 5) {
+        float carry = 0.0; int lastOpen = -1;
+        for (int y = 0; y < pc.ny; ++y) {
+            const uint i = cellIdx(x, y, z);
+            carry += deposit[i]; deposit[i] = 0.0;
+            if (carry <= 0.0) continue;
+            if (occ[i] != 0u) {   // a ceiling over carried water: it flies again (the CPU returns it to the caller)
+                if (lastOpen >= 0) { addBirth(id, carry, float(lastOpen) + 0.5, vec3(0.0)); carry = 0.0; }
+                continue;         // ground below the first open cell: the host lifted it, carry on up
+            }
+            lastOpen = y;
+            const float room = max(0.0, 1.0 - solid[i].x - f[i]);
+            const float put = min(room, carry);
+            f[i] += put; carry -= put;
+        }
+        if (carry > 0.0) addBirth(id, carry, float(max(lastOpen, 0)) + 0.5, vec3(0.0));
     } else {
         float drop = 0.0;
         const float eps = pc.param0;

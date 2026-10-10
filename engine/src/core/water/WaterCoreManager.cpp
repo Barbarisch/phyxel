@@ -88,6 +88,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
 bool WaterCoreManager::destroy(int id) {
     auto it = std::find_if(m_avs.begin(), m_avs.end(), [id](const std::unique_ptr<Av>& a) { return a->id == id; });
     if (it == m_avs.end()) return false;
+    for (const Droplet& d : m_pool.take(id)) m_dstats.destroyedM3 += d.volume;   // 21: discarded with the volume's water
     if ((*it)->gpuVol && m_gpu) m_gpu->destroyVolume((*it)->gpuVol);
     m_avs.erase(it);
     refreshBoxes();
@@ -189,9 +190,9 @@ bool WaterCoreManager::step(int id, int ticks, float dt, AvRecord* out) {
     for (auto& av : m_avs) {
         if (av->id != id) continue;
         refreshOccupancy(*av);
-        if (av->backend == "gpu") stepGpu(*av, ticks, dt);
-        else for (int i = 0; i < ticks; ++i) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; }
-        ++av->stepCount;
+        if (av->backend == "gpu") { if (av->gpuVol && m_gpu) m_gpu->setDroplets(*av->gpuVol, m_dstats.on); stepGpu(*av, ticks, dt); ++av->stepCount; collectBirths(*av, dt); }
+        else for (int i = 0; i < ticks; ++i) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; ++av->stepCount; collectBirths(*av, dt); }
+        stepDroplets(dt * static_cast<float>(ticks));
         if (out) *out = record(*av);
         return true;
     }
@@ -202,14 +203,18 @@ void WaterCoreManager::update(float dt) {
     if (!m_realtime) return;
     for (auto& av : m_avs) {
         refreshOccupancy(*av);
-        if (av->backend == "gpu") { if (!av->gpuLast.asleep) { stepGpu(*av, 1, dt); ++av->stepCount; } }
-        else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; ++av->stepCount; }
+        if (av->backend == "gpu") {
+            if (av->gpuVol && m_gpu) m_gpu->setDroplets(*av->gpuVol, m_dstats.on);
+            if (!av->gpuLast.asleep || (av->gpuVol && !av->gpuVol->asleep)) { stepGpu(*av, 1, dt); ++av->stepCount; collectBirths(*av, dt); }
+        }
+        else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; ++av->stepCount; collectBirths(*av, dt); }
     }
+    stepDroplets(dt);   // 21: flight + landing (deposits reach a GPU volume at its next step)
     // Phase D (16.2): a volume that slept this tick writes back and frees itself (auto_sleep). Ids
     // first - sleep() destroys. A refused write-back (held or non-resident columns) leaves the
     // volume alive and is reported through the drained records, never silent.
     std::vector<int> slept;
-    for (const auto& av : m_avs) if (av->autoSleep && isAsleep(*av)) slept.push_back(av->id);
+    for (const auto& av : m_avs) if (av->autoSleep && isAsleep(*av) && !m_pool.anyFor(av->id)) slept.push_back(av->id);   // 21: not with droplets in flight
     for (int id : slept) {
         WriteBackRecord rec = sleep(id, false);
         if (!rec.ok) { for (auto& av : m_avs) if (av->id == id) av->autoSleep = false; }   // once: do not retry every tick
@@ -248,6 +253,15 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     if (!m_spanWriter) { rec.error = "no span writer installed (the application owns the chunks)"; return rec; }
     refreshOccupancy(*av);
     syncFromGpu(*av, false);   // forced: never the rate-limited mirror, or the record is a second old
+    {   // 21: in-flight droplets land now, into the grid the write-back reads (sleep must not lose them)
+        const std::vector<Droplet> flying = m_pool.take(id);
+        for (const Droplet& d : flying) {
+            const double left = depositIntoGrid(*av->grid, d.pos, d.volume);
+            m_dstats.flushedM3 += d.volume - left;
+            if (left > 0.0) { DropletBirth b; b.pos = d.pos; b.volume = static_cast<float>(left); m_pool.spawn(b, id, av->h, m_dstats.size, m_dropletTick); }
+        }
+        if (!flying.empty()) { av->solver->wake(); if (av->gpuVol) av->gpuDirty = true; }
+    }
     if (!isAsleep(*av) && !force) {
         const int q = av->backend == "gpu" ? av->gpuLast.quietTicks : av->last.quietTicks;
         rec.error = "volume is awake (quiet_ticks " + std::to_string(q) + "/" + std::to_string(av->solver->params().restTicks) + "); force:true writes a snapshot";
@@ -693,6 +707,105 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
         out.push_back({c, r}); ++m_motionStats.spheres; m_motionStats.lastRadius = r;
     }
     return out;
+}
+
+void WaterCoreManager::collectBirths(Av& av, float dt) {
+    if (!m_dstats.on || av.transport != "eulerian" || av.solver->transport().ownsMass()) return;
+    std::vector<DropletBirth> births;
+    if (av.backend == "gpu") {
+        std::vector<float> rec;
+        if (!av.gpuVol || !m_gpu || !m_gpu->readBirths(*av.gpuVol, rec)) return;
+        const GridSpec& sp = av.grid->spec();
+        const double V = static_cast<double>(av.h) * av.h * av.h;
+        for (int z = 0; z < sp.dims.z; ++z) for (int x = 0; x < sp.dims.x; ++x) {
+            const size_t c = static_cast<size_t>(x + sp.dims.x * z);
+            const float vol = rec[c * 8];
+            if (vol <= 0.0f) continue;
+            DropletBirth b;
+            b.volume = static_cast<float>(vol * V);
+            b.pos = glm::vec3((sp.origin.x + x + 0.5f) * av.h, (sp.origin.y + rec[c * 8 + 1] / vol) * av.h, (sp.origin.z + z + 0.5f) * av.h);
+            b.vel = glm::vec3(rec[c * 8 + 2], rec[c * 8 + 3], rec[c * 8 + 4]) / vol;
+            b.column = static_cast<int>(c);
+            births.push_back(b);
+        }
+    } else {
+        const BirthReport r = birthDroplets(*av.grid, dt, av.solver->params().gravity, births);
+        m_dstats.scraps += r.scraps; m_dstats.sprays += r.sprays;
+    }
+    ++m_dropletTick;
+    for (const DropletBirth& b : births) {
+        m_dstats.bornM3 += b.volume; ++m_dstats.births;
+        const double refused = m_pool.spawn(b, av.id, av.h, m_dstats.size, m_dropletTick);
+        if (refused > 0.0) { m_dstats.refusedM3 += refused; depositDroplet(av, b.pos, refused); }   // pool full: straight back
+    }
+}
+
+void WaterCoreManager::depositDroplet(Av& av, const glm::vec3& at, double volume) {
+    if (volume <= 0.0) return;
+    if (av.backend == "gpu" && av.gpuVol && m_gpu) {
+        // the GPU applies it at its next step (wc_column_ops mode 5); the cell is chosen as depositIntoGrid does
+        const WaterGrid& g = *av.grid;
+        glm::ivec3 c = g.worldToCell(at);
+        c.x = std::clamp(c.x, 0, g.nx() - 1); c.z = std::clamp(c.z, 0, g.nz() - 1); c.y = std::clamp(c.y, 0, g.ny() - 1);
+        while (c.y < g.ny() - 1 && av.occCache[g.idx(c.x, c.y, c.z)] != Occ::Air) ++c.y;
+        if (av.pendingDeposit.size() != g.cellCount()) av.pendingDeposit.assign(g.cellCount(), 0.0f);
+        av.pendingDeposit[g.idx(c.x, c.y, c.z)] += static_cast<float>(volume / g.cellVolume());
+        av.hasPendingDeposit = true;
+        return;
+    }
+    const double left = depositIntoGrid(*av.grid, at, volume);
+    av.solver->wake();
+    if (left > 0.0) {   // a ceiling over it: it flies again (never dropped)
+        DropletBirth b; b.pos = at; b.volume = static_cast<float>(left);
+        const double refused = m_pool.spawn(b, av.id, av.h, m_dstats.size, m_dropletTick);
+        if (refused > 0.0) av.grid->f(0, 0, 0) += static_cast<float>(refused / av.grid->cellVolume());   // unreachable in practice (pool full AND a ceiling): kept in the grid, mass exact
+    }
+}
+
+void WaterCoreManager::stepDroplets(float dt) {
+    m_dropletDraw.clear();
+    if (m_pool.droplets().empty()) { m_dstats.alive = 0; return; }
+    surfaceFields();   // each volume's field from its last step (cached per step)
+    const float g = m_avs.empty() ? 9.81f : m_avs.front()->solver->params().gravity;
+    std::vector<Droplet> landed;
+    std::vector<glm::vec3> landAt;
+    auto land = [&](Droplet& d, const glm::vec3& prev) -> bool {
+        (void)prev;
+        Av* av = volumeById(d.volumeId);
+        if (!av) { landAt.push_back(d.pos); return true; }   // its volume is gone (destroy already discarded it; defensive)
+        const WaterSurfaceField& f = av->field;
+        if (f.nx <= 0 || f.cols.empty()) return false;
+        int cx = static_cast<int>(std::floor(d.pos.x / f.h)) - f.origin.x, cz = static_cast<int>(std::floor(d.pos.z / f.h)) - f.origin.z;
+        const bool outside = cx < 0 || cz < 0 || cx >= f.nx || cz >= f.nz;
+        cx = std::clamp(cx, 0, f.nx - 1); cz = std::clamp(cz, 0, f.nz - 1);
+        const SurfaceColumn& c = f.at(cx, cz);
+        const glm::vec3 colXZ((f.origin.x + cx + 0.5f) * f.h, 0.0f, (f.origin.z + cz + 0.5f) * f.h);
+        const int runs = std::min(static_cast<int>(c.runs + 0.5f), kSurfaceMaxRuns);
+        float top = -1e30f;
+        for (int r = 0; r < runs; ++r) if (d.pos.y >= c.bottom[r] - 0.5f * f.h && d.pos.y <= c.top[r]) top = std::max(top, c.top[r]);
+        if (outside) {   // left its volume's box: lands at the nearest column's surface (21.9 F1 - no wall in mid-air), counted
+            const float y = runs > 0 ? c.top[runs - 1] : c.solidTopY;
+            if (d.pos.y > y) return false;   // still above the water there: let it fly
+            m_dstats.relocatedM3 += d.volume;
+            landAt.push_back(glm::vec3(colXZ.x, y - 0.01f, colXZ.z));
+            return true;
+        }
+        if (d.vel.y <= 0.0f && top > -1e29f) { landAt.push_back(glm::vec3(d.pos.x, std::min(d.pos.y, top - 0.01f), d.pos.z)); return true; }   // into the water
+        if (d.pos.y <= c.solidTopY) { landAt.push_back(glm::vec3(d.pos.x, c.solidTopY + 0.01f, d.pos.z)); return true; }                     // onto the ground
+        if (d.age > 10.0f) { landAt.push_back(glm::vec3(d.pos.x, runs > 0 ? c.top[runs - 1] - 0.01f : c.solidTopY + 0.01f, d.pos.z)); return true; }   // defensive: never fly forever
+        return false;
+    };
+    m_pool.step(dt, g, land, landed);
+    for (size_t i = 0; i < landed.size(); ++i) {
+        Av* av = volumeById(landed[i].volumeId);
+        if (!av) continue;
+        m_dstats.landedM3 += landed[i].volume; ++m_dstats.landings;
+        depositDroplet(*av, landAt[i], landed[i].volume);
+    }
+    for (auto& av : m_avs)
+        if (av->hasPendingDeposit && av->gpuVol && m_gpu) { m_gpu->setDeposits(*av->gpuVol, av->pendingDeposit); std::fill(av->pendingDeposit.begin(), av->pendingDeposit.end(), 0.0f); av->hasPendingDeposit = false; av->gpuLast.asleep = false; }
+    Phyxel::Core::Water::dropletDrawList(m_pool, m_dropletDraw);
+    m_dstats.alive = static_cast<int>(m_pool.droplets().size());
 }
 
 std::vector<WaterCoreManager::JetRun> WaterCoreManager::scanDetachedRuns() {

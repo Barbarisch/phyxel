@@ -145,6 +145,7 @@ void main() {
     inp.debugMode    = 0;
     inp.shoreFoam    = 1.0;
     inp.ssr          = 0.0;
+    inp.droplet      = 0.0;
     inp.scatterLit   = 0.0;   // 21.3 is scoped to simulated (small-body) water; the sea keeps its look until the owner takes up large bodies
 
     outColor = shadeWaterSurface(inp);

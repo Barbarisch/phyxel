@@ -491,6 +491,9 @@ struct WaterSurfaceInput {
     int   debugMode;   // Phase F taps: 0 off, 2 body, 3 reflection, 4 thickness, 5 fresnel (callers set 0)
     float shoreFoam;   // 1 = the sheet's waterline rim + breaking surf model; 0 = none (simulated water: foam comes from the solver)
     float scatterLit;  // 1 = the lit in-scatter (21.3, every caller); 0 = the pre-21.3 constant glow (water_render_core A/B only)
+    float droplet;     // 21: 1 = a droplet cube - its thickness is its own edge (minThickness), never the scene behind it,
+                       // and it is drawn as SPRAY: each cube carries ~50 ml standing for a cloud of real mm drops, which
+                       // scatter like aerated water (white), not like a clear 4 cm block (invisible). Callers set 0.
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -554,6 +557,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // A vertical face (a waterfall curtain) has no meaningful "scene behind minus surface"
     // reading at grazing angles; the sim's own column depth is the better floor there.
     thickness = max(thickness, inp.minThickness);
+    if (inp.droplet > 0.5) thickness = inp.minThickness;   // 21: a drop in the air is only as thick as itself
 
     // VERTICAL water depth, which is a different quantity from `thickness` above and the right one
     // for anything shore-shaped. thickness is the path length ALONG THE VIEW RAY, so at a grazing
@@ -731,8 +735,8 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
         float fineK = smoothstep(2.5, 7.0, (1.0 / 1.55) / max(pixelWorld, 1e-4));
         float fine  = waterSimplex(fp * 1.55) * fineK;
         float n = coarse * (1.0 - 0.28 * fineK) + fine * 0.28;
-        float mask = smoothstep(0.44, 0.74, n);
-        mask *= 1.0 - abs(2.0 * fph - 1.0) * 0.5;   // fade across the wrap so the reset isn't a pop
+        float mask = inp.droplet > 0.5 ? 1.0 : smoothstep(0.44, 0.74, n);   // 21: spray is white all over
+        if (inp.droplet < 0.5) mask *= 1.0 - abs(2.0 * fph - 1.0) * 0.5;   // fade across the wrap so the reset isn't a pop
         vec3 foamCol = mix(vec3(0.35), ubo.sunColor, clamp(toSun.y * 1.5 + 0.15, 0.0, 1.0))
                      * max(ubo.ambientLight, 0.3);
         color = mix(color, foamCol, clamp(inp.foam * mask, 0.0, 0.85));

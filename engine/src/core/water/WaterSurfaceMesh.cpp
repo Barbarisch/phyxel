@@ -138,6 +138,28 @@ void buildWaterSurfaceMesh(const WaterSurfaceField& f, WaterSurfaceMesh& out) {
         }
 }
 
+void appendDropletsToMesh(const std::vector<glm::vec4>& droplets, WaterSurfaceMesh& out) {
+    if (droplets.empty()) return;
+    const uint32_t first = static_cast<uint32_t>(out.indices.size());
+    static const glm::vec3 kN[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    for (const glm::vec4& d : droplets) {
+        const glm::vec3 c(d.x, d.y, d.z);
+        const float e = 0.5f * d.w;
+        for (const glm::vec3& n : kN) {
+            // two axes spanning the face, chosen so (a, b, c, d) winds the same way for every face
+            const glm::vec3 t = std::abs(n.y) > 0.5f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+            const glm::vec3 bt = glm::cross(n, t);
+            const glm::vec3 fc = c + n * e;
+            const uint32_t base = static_cast<uint32_t>(out.vertices.size());
+            for (const glm::vec2 k : {glm::vec2(-1, -1), glm::vec2(1, -1), glm::vec2(1, 1), glm::vec2(-1, 1)})
+                out.vertices.push_back({fc + (t * k.x + bt * k.y) * e, d.w, n, 2.0f, 1.0f, glm::vec2(0.0f), 0.0f});
+            out.indices.insert(out.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+        }
+    }
+    const uint32_t count = static_cast<uint32_t>(out.indices.size()) - first;
+    if (count > 0) out.ranges.push_back({first, count, WaterLookPacked{}});
+}
+
 void appendFieldToMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out) {
     const uint32_t first = static_cast<uint32_t>(out.indices.size());
     buildWaterSurfaceMesh(field, out);
