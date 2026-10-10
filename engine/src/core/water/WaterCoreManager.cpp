@@ -1,5 +1,6 @@
 // WaterCoreManager — docs/WaterCore.md §5, §15.1 (Phase B engine integration).
 #include "core/water/WaterCoreManager.h"
+#include "core/water/WaterDroplets.h"
 #include <array>
 #include <algorithm>
 #include <chrono>
@@ -690,6 +691,26 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
         const glm::vec3 c(0.5f * (lo.x + hi.x), 0.5f * (yLo + yHi), 0.5f * (lo.y + hi.y));
         const float r = 0.5f * glm::length(glm::vec3(hi.x - lo.x, yHi - yLo, hi.y - lo.y)) + f.h;
         out.push_back({c, r}); ++m_motionStats.spheres; m_motionStats.lastRadius = r;
+    }
+    return out;
+}
+
+std::vector<WaterCoreManager::JetRun> WaterCoreManager::scanDetachedRuns() {
+    std::vector<JetRun> out;
+    std::vector<float> f, s;
+    for (auto& up : m_avs) {
+        Av& av = *up;
+        if (av.transport != "eulerian" || !av.grid) continue;
+        const glm::ivec3 dims = av.grid->spec().dims;
+        if (av.backend == "gpu" && av.gpuVol && m_gpu) { m_gpu->readCells(*av.gpuVol, "f", f); m_gpu->readCells(*av.gpuVol, "solid_s", s); }
+        else { f = av.grid->fData(); s = av.grid->sData(); }
+        if (f.size() != av.grid->cellCount()) continue;
+        const bool haveS = s.size() == f.size();
+        for (const DetachedRun& r : findDetachedRuns(dims, f.data(), haveS ? s.data() : nullptr, 0.001f / av.h)) {
+            JetRun j; j.bottom = av.grid->cellCenterWorld(r.bottom.x, r.bottom.y, r.bottom.z);
+            j.sumF = r.sumF; j.volume = r.sumF * av.h * av.h * av.h; j.cells = r.cells; j.isolated = r.isolated;
+            out.push_back(j);
+        }
     }
     return out;
 }

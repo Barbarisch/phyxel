@@ -307,6 +307,9 @@ private:
     std::vector<glm::vec2> m_watchPoints;
     std::vector<std::vector<float>> m_watchRows;   // per frame: t, then (level, top) per point (NaN = dry)
     double m_watchT0 = 0.0;
+    bool m_jetScanOn = false;                        // water_jet_scan (21.7 S1): detached runs every frame
+    std::vector<std::array<float, 8>> m_jetRows;     // t, bottom x y z, volume m^3, sum f, cells, isolated
+    long m_jetFrames = 0;
     // 20 (M2): debris displaces water WHILE IT MOVES (hysteresis kDisplaceOnSpeed / kDisplaceOffSpeed). Measured
     // 2026-10-10: with every wet piece displacing, ten floaters never settled (9-10 awake for 20 s; displacement
     // off: 1-3 by 7-10 s, the signed-off 19.6 feel) - a slow body and the water drive each other through the

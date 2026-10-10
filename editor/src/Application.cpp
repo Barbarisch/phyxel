@@ -3732,6 +3732,12 @@ void Application::update(float deltaTime) {
                     }
                     m_watchRows.push_back(std::move(row));
                 }
+                if (m_jetScanOn && m_jetRows.size() < 200000) {   // water_jet_scan (21.7 S1): every frame
+                    const float t = static_cast<float>(std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_watchT0);
+                    ++m_jetFrames;
+                    for (const auto& j : waterCore->scanDetachedRuns())
+                        m_jetRows.push_back({t, j.bottom.x, j.bottom.y, j.bottom.z, j.volume, j.sumF, static_cast<float>(j.cells), j.isolated ? 1.0f : 0.0f});
+                }
             }
             // Phase G: the shore band follows the camera along the shore and is stepped every frame at the
             // sheet's clock; its box joins the volumes' in the span-grid mask (D3) and its surface is meshed (F1)
@@ -14080,6 +14086,20 @@ void Application::registerWaterCommands() {
         nlohmann::json pts = nlohmann::json::array();
         for (const auto& pt : m_watchPoints) pts.push_back({pt.x, pt.y});
         r = {{"points", pts}, {"frames", m_watchRows.size()}, {"rows", rows}, {"columns", "t, then level and top per point (world y; null = dry)"}};
+    });
+    // 21.7 S1 measurement: {on: true} records every detached run of water (WaterDroplets.h) every frame, {on: false}
+    // stops; every call returns the rows so far: t (s from the start), bottom cell centre x y z, volume m^3, sum f,
+    // cells, isolated (1/0). A GPU volume is read back every recorded frame - a debug cost.
+    reg.on("water_jet_scan", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("on")) {
+            const bool on = cmd.params.value("on", false);
+            if (on && !m_jetScanOn) { m_jetRows.clear(); m_jetFrames = 0; m_watchT0 = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
+            m_jetScanOn = on;
+        }
+        nlohmann::json rows = nlohmann::json::array();
+        for (const auto& row : m_jetRows) rows.push_back(row);
+        r = {{"on", m_jetScanOn}, {"frames", m_jetFrames}, {"rows", rows},
+             {"columns", "t, bottom x, y, z, volume m^3, sum f, cells, isolated"}};
     });
     reg.on("water_coupling", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("enabled")) m_waterCouplingOn = cmd.params.value("enabled", true);

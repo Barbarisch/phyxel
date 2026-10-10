@@ -422,5 +422,62 @@ TEST(WaterSolidTest, DiagFloatingBodyCalm) {
     }
 }
 
+
+// Diagnostic (21.7 S1, before building the droplet crown): what water does a stone entry throw ABOVE the pond?
+// Every tick, every column: a DETACHED run = consecutive cells holding water (f >= film) whose cell below is
+// air (f + s < film; the grid floor is not air). Per run: its water sum f, its height above the rest level,
+// and whether it is ISOLATED in the 21.2 sense (every lateral neighbour of every cell, and the cell above its
+// top, is air). The 21.2 birth rule assumes the jet is made of isolated scraps with sum f < 1 - this measures it.
+// Stone: 1/3 m, entering at 6 m/s (the T4 rig) and 7.7 m/s (the live 3 m drop), held on the floor 2 s.
+TEST(WaterSolidTest, DiagJetParcels) {
+    for (float speed : {6.0f, 7.7f}) {
+        Pond p; p.fill();
+        WaterSolver s(p.grid, p.query());
+        for (int k = 0; k < 60; ++k) s.step(kDt);
+        const float film = 0.001f / kH, rest = 1.5f;
+        auto air = [&](int x, int y, int z) {
+            if (!p.grid.inBounds(x, y, z)) return false;   // the box is solid outside the grid
+            return p.grid.f(x, y, z) + p.grid.s(x, y, z) < film;
+        };
+        const float cx = 6.5f * kH, he = kH / 2.0f;
+        MovingSolid b; b.centre = {cx, 1.5f + he + 0.02f, cx}; b.halfExtents = glm::vec3(he); b.velocity = {0.0f, -speed, 0.0f};
+        int detached = 0, isolated = 0, isoSmall = 0, isoBig = 0, ticksWithDetached = 0;
+        float maxHeight = -1.0f, maxIsoSum = 0.0f, maxSum = 0.0f;
+        double isoVolume = 0.0;
+        int hist[6] = {0, 0, 0, 0, 0, 0};   // isolated runs by sum f: <0.05, <0.1, <0.25, <0.5, <1, >=1
+        for (int k = 0; k < 180; ++k) {
+            b.centre.y = std::max(he, b.centre.y - speed * kDt);
+            if (b.centre.y <= he) b.velocity = glm::vec3(0.0f);
+            s.setMovingSolids({b}, kDt);
+            s.step(kDt);
+            bool any = false;
+            for (int z = 0; z < 12; ++z) for (int x = 0; x < 12; ++x) {
+                for (int y = 1; y < p.grid.ny(); ++y) {
+                    if (p.grid.f(x, y, z) < film || !air(x, y - 1, z)) continue;
+                    int top = y; float sum = 0.0f;
+                    while (top < p.grid.ny() && p.grid.f(x, top, z) >= film) { sum += p.grid.f(x, top, z); ++top; }
+                    bool iso = top >= p.grid.ny() || air(x, top, z);
+                    for (int yy = y; yy < top && iso; ++yy)
+                        iso = air(x - 1, yy, z) && air(x + 1, yy, z) && air(x, yy, z - 1) && air(x, yy, z + 1);
+                    ++detached; any = true;
+                    maxSum = std::max(maxSum, sum);
+                    maxHeight = std::max(maxHeight, y * kH - rest);
+                    if (iso) {
+                        ++isolated; maxIsoSum = std::max(maxIsoSum, sum); isoVolume += sum * p.grid.cellVolume();
+                        (sum < 1.0f ? isoSmall : isoBig)++;
+                        hist[sum < 0.05f ? 0 : sum < 0.1f ? 1 : sum < 0.25f ? 2 : sum < 0.5f ? 3 : sum < 1.0f ? 4 : 5]++;
+                    }
+                    y = top;
+                }
+            }
+            if (any) ++ticksWithDetached;
+        }
+        std::printf("  entry %.1f m/s: detached run-ticks %d (in %d of 180 ticks), highest bottom %.2f m above rest, max sum f %.3f\n"
+                    "     isolated run-ticks %d: sum f < 1 %d, >= 1 %d, max %.3f; by sum f <.05 %d <.1 %d <.25 %d <.5 %d <1 %d >=1 %d; isolated water x ticks %.5f m^3\n",
+                    speed, detached, ticksWithDetached, maxHeight, maxSum, isolated, isoSmall, isoBig, maxIsoSum,
+                    hist[0], hist[1], hist[2], hist[3], hist[4], hist[5], isoVolume);
+    }
+}
+
 }  // namespace
 }  // namespace Phyxel::Core::Water

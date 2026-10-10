@@ -3060,6 +3060,46 @@ the droplet crown's job (S1). Frame time unchanged: 4.08 ms mean both (p99 6.82 
 **Not done in S0:** the `water_look_l4.py` pin (G3) runs on the Coast - deferred with the sea (its look
 is unchanged, so its pin is unaffected).
 
+### 21.11 S1's first measurement - the jet is scraps, and there is almost nothing in it - design revised
+
+**Measured live** (`tools/water_jet_probe.py`, `s1_jet.json`; the 20.14 rig, 3 stone drops from 3 m, every
+frame for 2 s, every detached run via `/api/debug/water_jet_scan`): runs above the rest level appear in
+11 / 33 / 53 of ~390 frames, up to 2.0 m above the pond; **every one holds less than one cell of water**
+(largest sum f 0.105 = 3.9 litres; typically 0.006-0.03 = 0.2-1 litre); a third to two thirds of the
+run-frames are NOT isolated (thin sheets touching each other sideways). The CPU T4 rig throws almost none
+(`DiagJetParcels`: 3 run-ticks, sum f <= 0.063, 17 cm up - its stone is kinematic at a constant speed; the
+live stone decelerates and tumbles).
+
+**What it means.** 21.2's assumption holds (the slab is scraps) - but the scraps hold 1-4 litres per entry.
+As 1/9 m droplets that is ~3 cubes: the floating slab would go, and still no splash you can see. The
+1/3 m grid cannot hold a crown: a real entry throws a thin sheet at many times its own speed (the sheet
+separates near the body's equator; crown and Worthington-jet size grow with Fr = V / sqrt(g D) - Truscott
+et al., *Water entry of projectiles*, Annu. Rev. Fluid Mech. 46 (2014); the spinning-sphere and mass-ratio
+entry papers found with it). In the grid that water exists only as a fast-RISING SURFACE, never as
+separate scraps.
+
+**Revision of 21.2 (birth), before building:**
+1. **Scraps, wider rule.** A detached run is born when it holds sum f < 1 and none of its cells touches,
+   sideways, water that is SUPPORTED (a run resting on water, a solid or a body). Sheets of scraps touching
+   each other are born together; the 19.7 pocket roofs (beside supported pond water) and crown rims (water
+   below) still never are. Determinism: a cell's "supported" is decided by its own column's run bottom;
+   a run being born is unsupported both before and after it is zeroed, so parallel births do not race.
+2. **Spray from a fast-rising surface (new).** At the top cell of a supported run, if the water leaves
+   upward faster than v_c = sqrt(2 g h) (2.56 m/s at 1/3 m: fast enough to rise more than one cell above
+   the surface, which the grid can only carry as a slab), the flux beyond v_c leaves as droplets:
+   volume f x h^2 x (v_up - v_c) x dt per tick, at most the cell's water above the film; velocity = the
+   cell's velocity. No tuning factor: v_c and the flux are the grid's own resolution limit. Mass-exact.
+3. **Droplet size.** Default edge = h/9 (3.7 cm at 1/3 m; 51 ml), so a litre is ~20 drops: the
+   `size` knob's default becomes 1/9, clamped to [1/27, 1] (below 1/27 one cell is ~20 000 drops - the
+   whole pool).
+**Predictions for L4-1 (revised):** per stone drop (3 m, 1/3 m stone) droplets alive peak >= 50, the
+highest droplet >= 0.5 m above the pond, born = landed + in flight to 1e-6 m^3 every frame, no detached
+drawn run of sum f < 1 in any frame; the floaters scenario (bobbing at <= 0.2 m/s) births none.
+**New red test D-T9** (CPU): a column of water launched upward at 4 m/s through the surface emits; at
+2 m/s (below v_c) it does not.
+Re-gated against 21.9's checks: no new chunk input (both rules are per world cell), API unchanged except the
+size default, the cost bounds (pool cap, per-frame record cap) unchanged. READY to build S1 with this rule.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

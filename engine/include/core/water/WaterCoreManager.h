@@ -206,6 +206,11 @@ public:
     /// surfaceFields(): `level` = the top of the run that starts lowest (the pond itself), `top` = the highest
     /// run's top (a splash thrown above it). False when no volume owns the column or it is dry.
     bool surfaceAtWorld(float x, float z, float& level, float& top) const;
+    /// Measurement (21.7 S1): every DETACHED run of water in every fill volume now (WaterDroplets.h) - world
+    /// position of its bottom cell's centre, its water (m^3), length and whether it is isolated. A GPU volume
+    /// is read back (two submit-and-waits): a debug cost, called only while `water_jet_scan` records.
+    struct JetRun { glm::vec3 bottom{0.0f}; float volume = 0.0f, sumF = 0.0f; int cells = 0; bool isolated = false; };
+    std::vector<JetRun> scanDetachedRuns();
     /// E2 (docs/WaterCore.md 19.6): where the water is still MOVING since the last call - per volume, a
     /// sphere (world centre, radius) around the columns whose surface has moved more than `moveM` from
     /// where it last counted as moved (a held reference: sub-mm jitter never adds up, a real slosh does,
