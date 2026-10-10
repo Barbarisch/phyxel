@@ -22,6 +22,8 @@ ap.add_argument("--seconds", type=float, default=10.0)
 ap.add_argument("--tag", default=None)
 ap.add_argument("--cell", type=float, default=1.0 / 3.0, help="the pond's cell size in voxels (1/3 shipped; 1/9 finer)")
 ap.add_argument("--solids", choices=["on", "off"], default="on", help="debris displaces water (WaterCore.md 20); off = the A/B control")
+ap.add_argument("--ripples", choices=["on", "off"], default="on", help="the ripple layer (WaterCore.md 22); off = the A/B control")
+ap.add_argument("--pose", default=None, help="x,y,z,yaw,pitch (default: the high pose over the pond)")
 args = ap.parse_args()
 tag = args.tag or f"motion_{args.scenario}"
 EV.mkdir(parents=True, exist_ok=True)
@@ -30,6 +32,9 @@ ffmpeg = shutil.which("ffmpeg")
 if not ffmpeg:
     raise SystemExit("ffmpeg not on PATH")
 POSE = {"x": 109.5, "y": 20.5, "z": 13.5, "yaw": 180, "pitch": -38}
+if args.pose:
+    _p = [float(v) for v in args.pose.split(",")]
+    POSE = {"x": _p[0], "y": _p[1], "z": _p[2], "yaw": _p[3], "pitch": _p[4]}
 REST = 16.5
 
 def make_pond():
@@ -57,6 +62,7 @@ def stimulus():
             api.debug("spawn_gpu_particle", {"x": x, "y": 19.5, "z": z, "material": "Stone", "scale": 1.0 / 3.0, "lifetime": 30.0})
             api.debug("spawn_gpu_particle", {"x": x + 2.0, "y": 19.5, "z": z, "material": "Wood", "scale": 1.0 / 3.0, "lifetime": 30.0})
 
+api.debug("water_ripples", {"enabled": args.ripples == "on"})
 camera_set(api, POSE)
 make_pond()
 time.sleep(8)

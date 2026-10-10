@@ -2200,6 +2200,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_watch",       waterEndpoint("water_av_watch"));       // 20: per-frame surface recorder
     srv.Post("/api/debug/water_jet_scan",       waterEndpoint("water_jet_scan"));       // 21.7 S1: per-frame detached-run recorder
     srv.Post("/api/debug/water_droplets",       waterEndpoint("water_droplets"));       // 21: droplet crown state + ledger
+    srv.Post("/api/debug/water_ripples",        waterEndpoint("water_ripples"));        // 22: ripple layer state
     srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));

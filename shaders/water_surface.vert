@@ -11,6 +11,7 @@ layout(location = 2) in vec3  inNormal;   // world
 layout(location = 3) in float inSide;     // 0 = top face, 1 = lateral face
 layout(location = 4) in float inFoam;     // G2: 0..1 whitewater from the solver
 layout(location = 5) in vec2  inFlow;     // G2: surface velocity x, z (m/s) from the solver
+layout(location = 6) in float inRipple;   // 22: the field's ripple layer + 1 (0 = none)
 
 // Must match water_surface.frag's block exactly (one push-constant range, both stages). 128 bytes.
 layout(push_constant) uniform PushConstants {
@@ -27,6 +28,7 @@ layout(location = 2) out float fragSide;
 layout(location = 3) out vec3  fragNormal;
 layout(location = 4) out float fragFoam;
 layout(location = 5) out vec2  fragFlow;
+layout(location = 6) flat out float fragRipple;
 
 void main() {
     fragWorldPos = inPos;
@@ -35,5 +37,6 @@ void main() {
     fragNormal   = inNormal;
     fragFoam     = inFoam;
     fragFlow     = inFlow;
+    fragRipple   = inRipple;
     gl_Position  = pc.viewProj * vec4(inPos, 1.0);
 }

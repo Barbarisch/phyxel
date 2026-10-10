@@ -94,7 +94,8 @@ void buildWaterSurfaceMesh(const WaterSurfaceField& f, WaterSurfaceMesh& out) {
         const float len = glm::length(nrm);
         nrm = len > 1e-12f ? nrm / len : outward;
         const uint32_t base = static_cast<uint32_t>(out.vertices.size());
-        for (const glm::vec3& p : {a, b, c, d}) out.vertices.push_back({p, depth, nrm, side, foam, flow, 0.0f});
+        // 22 (22.8 F1): the spare float carries the ripple layer as index + 1 - 0 keeps meaning "none"
+        for (const glm::vec3& p : {a, b, c, d}) out.vertices.push_back({p, depth, nrm, side, foam, flow, static_cast<float>(f.rippleLayer + 1)});
         out.indices.insert(out.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
     };
     for (int z = 0; z < f.nz; ++z)

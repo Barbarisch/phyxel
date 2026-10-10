@@ -11,6 +11,7 @@
 #include "core/water/WaterBodyTable.h"   // Phase D Tier A records
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
 #include "core/water/WaterDroplets.h"      // 21: the droplet crown
+#include "core/water/RippleLayer.h"        // 22: ripples
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <unordered_map>
 #include <glm/glm.hpp>
@@ -230,6 +231,19 @@ public:
     double dropletVolume() const { return m_pool.volumeInFlight(); }
     /// Droplet cubes for the renderer (xyz centre, w edge), rebuilt every update.
     const std::vector<glm::vec4>& dropletDrawList() const { return m_dropletDraw; }
+
+    // ── 22: ripples (RippleLayer) ─────────────────────────────────────────────────────────────────
+    /// Every wet body this frame (moving or resting) - the bodies crossing the surface drive the ripple layer with
+    /// the sharp-edge remainder of their footprint (22.3.2), floaters bobbing included (they do not displace: M2's gate).
+    void setRippleBodies(std::vector<MovingSolid> bodies) { m_rippleBodies = std::move(bodies); }
+    struct RippleStats { bool on = true, smooth = false; int layers = 0, awake = 0, refused = 0; long cells = 0, kinematicCells = 0, impulses = 0; double ms = 0.0; float maxAbs = 0.0f; };
+    void setRipples(bool on) { m_rstats.on = on; }
+    void setRippleSmooth(bool on) { m_rstats.smooth = on; }
+    const RippleStats& rippleStats() const { return m_rstats; }
+    static constexpr int kRippleMaxCells = 512;   ///< per axis (a 57 m pond); a larger volume gets no layer - refused, counted (22.5)
+    static constexpr int kRippleMaxLayers = 4;    ///< the renderer's atlas holds four 512 x 512 layers
+    /// The layers, parallel to the fields surfaceFields() returns (null = none).
+    std::vector<const RippleLayer*> rippleLayers() const;
     /// E2 (docs/WaterCore.md 19.6): where the water is still MOVING since the last call - per volume, a
     /// sphere (world centre, radius) around the columns whose surface has moved more than `moveM` from
     /// where it last counted as moved (a held reference: sub-mm jitter never adds up, a real slosh does,
@@ -282,6 +296,8 @@ private:
         double fieldStepSec = -1.0;     // wall time of that step
         bool hadSolids = false;         // 20: fed bodies (or a wake) last frame - keep feeding until it clears
         std::vector<float> pendingDeposit;   // 21: GPU volume - landed droplets (cell fractions) for the next step
+        std::unique_ptr<RippleLayer> ripple;  // 22: the sub-cell wave layer (null = none / refused)
+        bool rippleRefused = false;
         bool hasPendingDeposit = false;
     };
     // 21: droplets
@@ -289,6 +305,10 @@ private:
     DropletStats m_dstats;
     uint32_t m_dropletTick = 0;
     std::vector<glm::vec4> m_dropletDraw;
+    // 22: ripples
+    std::vector<MovingSolid> m_rippleBodies;
+    RippleStats m_rstats;
+    void stepRipples(float dt);
     void collectBirths(Av& av, float dt);          // after a step: births -> the pool
     void stepDroplets(float dt);                   // flight + landing for every volume
     void depositDroplet(Av& av, const glm::vec3& at, double volume);

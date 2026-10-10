@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/water/RippleLayer.h"
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <chrono>
@@ -41,6 +42,10 @@ public:
     int  debugMode() const { return m_debugMode; }
     /// WaterCore 21.3 A/B: true draws the pre-21.3 constant (unlit) in-scatter. Default false (lit).
     void setScatterLegacy(bool on) { m_scatterLegacy = on; }
+    /// 22: the ripple layers, indexed as the fields' `rippleLayer` (null entries = none); `smooth` = the bilinear A/B.
+    void setRipples(const std::vector<const Core::Water::RippleLayer*>* layers, bool smooth) { m_ripples = layers; m_rippleSmooth = smooth; }
+    static constexpr int    kRippleIndices = 8;                      ///< header entries (field rippleLayer 0..7)
+    static constexpr size_t kRippleFloats = 4u * 512u * 512u;        ///< heights per frame slot (4 layers of 512 x 512, the manager's budget)
     bool scatterLegacy() const { return m_scatterLegacy; }
     uint32_t lastVertices() const { return m_lastVertices; }
     static constexpr uint32_t kFrames = 2;
@@ -71,6 +76,11 @@ private:
     bool     m_lastTruncated = false;
     int      m_debugMode = 0;
     bool     m_scatterLegacy = false;
+    // 22: ripple heights, one host-coherent buffer of kFrames slots, bound as a dynamic storage buffer (set 1 binding 2)
+    VkBuffer m_rippleBuffer = VK_NULL_HANDLE; VkDeviceMemory m_rippleMemory = VK_NULL_HANDLE; void* m_rippleMapped = nullptr;
+    VkDeviceSize m_rippleSlotBytes = 0;
+    const std::vector<const Core::Water::RippleLayer*>* m_ripples = nullptr;
+    bool m_rippleSmooth = false;
     uint32_t m_lastVertices = 0;
     std::chrono::high_resolution_clock::time_point m_startTime;
 };

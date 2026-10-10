@@ -3700,6 +3700,14 @@ void Application::update(float deltaTime) {
                     for (const auto& [lo, hi] : waterCore->volumeBoxes()) boxes.push_back({glm::vec3(lo), glm::vec3(hi) + glm::vec3(1.0f)});
                 debrisRuntime->gpu()->setWaterVolumeBoxes(boxes);
                 std::vector<Core::Water::MovingSolid> solids;
+                std::vector<Core::Water::MovingSolid> rippleBodies;   // 22: every wet body, resting and bobbing ones too
+                if (!boxes.empty())
+                    for (const auto& w : debrisRuntime->gpu()->wetBodies()) {
+                        Core::Water::MovingSolid m;
+                        m.centre = w.centre + w.velocity * w.ageSeconds; m.halfExtents = w.halfExtents; m.velocity = w.velocity;
+                        rippleBodies.push_back(m);
+                    }
+                waterCore->setRippleBodies(std::move(rippleBodies));
                 std::unordered_map<uint64_t, bool> displacing;
                 if (!boxes.empty())
                     for (const auto& w : debrisRuntime->gpu()->wetBodies()) {
@@ -3723,6 +3731,8 @@ void Application::update(float deltaTime) {
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
                 renderCoordinator->setWaterCoreSurfaceFields(waterCore->totalCells() ? &waterCore->surfaceFields() : nullptr);   // Phase F: the surface mesh feed
                 renderCoordinator->setWaterCoreDroplets(&waterCore->dropletDrawList());   // 21: the droplet crown
+                m_rippleLayers = waterCore->rippleLayers();   // 22
+                renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
                 if (!m_watchPoints.empty() && m_watchRows.size() < 20000) {   // water_av_watch: every frame
                     std::vector<float> row;
                     row.push_back(static_cast<float>(std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_watchT0));
@@ -14095,6 +14105,18 @@ void Application::registerWaterCommands() {
     // 21: the droplet crown. {enabled?: bool, size?: fraction of a cell (default 1/9, clamped [1/27, 1] at the split)}
     // - omitted = unchanged; echoes the state and the ledger: born / landed / in flight (m^3), refused (pool full ->
     // straight back), relocated (landed outside its volume's box), flushed (landed by a sleep), destroyed (with a volume).
+    // 22: ripples. {enabled?: bool, smooth?: bool (the bilinear A/B; default false = microcube facets)} - omitted = unchanged;
+    // echoes the state: layers, awake, lattice cells, refused (over the 512 x 512 / 4-layer budget), kinematic cells and
+    // droplet impulses applied this frame / so far, the layer cost (ms) and the largest |height| (m).
+    reg.on("water_ripples", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) { r = {{"error", "no water core"}}; return; }
+        if (cmd.params.contains("enabled")) waterCore->setRipples(cmd.params.value("enabled", true));
+        if (cmd.params.contains("smooth")) waterCore->setRippleSmooth(cmd.params.value("smooth", false));
+        const auto& s = waterCore->rippleStats();
+        r = {{"enabled", s.on}, {"smooth", s.smooth}, {"layers", s.layers}, {"awake", s.awake}, {"cells", s.cells}, {"refused", s.refused},
+             {"kinematic_cells", s.kinematicCells}, {"impulses", s.impulses}, {"ms", s.ms}, {"max_abs_m", s.maxAbs},
+             {"pitch_m", Core::Water::RippleLayer::kPitch}};
+    });
     reg.on("water_droplets", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setDroplets(cmd.params.value("enabled", true));
@@ -14156,7 +14178,7 @@ void Application::registerWaterCommands() {
         }
         if (cmd.params.contains("debug")) {   // 0 off, 1 normals, 2 body, 3 reflection, 4 thickness, 5 fresnel (water_common.glsl taps), 6 foam/flow (G2)
             const auto& d = cmd.params["debug"];
-            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 6));
+            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 7));   // 7: the ripple height (22)
         }
         if (cmd.params.contains("scatter")) {   // WaterCore 21.3 A/B: "lit" (default) or "legacy" (the pre-21.3 constant glow)
             const std::string sc = cmd.params.value("scatter", std::string("lit"));

@@ -3241,6 +3241,40 @@ lattice, no chunk input, R-T6), generation (none), API (units, unchanged when om
 **READY for R0.** The set-1 bindings 2 and 3 are new descriptors on `WaterSurfaceRenderPipeline` (its layout and
 pool grow; the shore band and fine band draw through the same pipeline and bind the same atlas, sampling none).
 
+### 22.9 R0 + R1 built (2026-10-10) - ledger: the rings exist, the picture barely shows them - NOT signed off
+
+**Built:** `RippleLayer` (CPU, per eulerian volume, 1/9 m world-aligned lattice), driven by droplet landings
+(Cauchy-Poisson impulse, spread over a 3 x 3 tent) and wet bodies crossing the surface (every wet body, resting
+ones too - `setRippleBodies`), masked by the volume's surface field, zero mean per connected body of water;
+drawn through `water_surface.frag` set 1 binding 2 (a dynamic storage buffer, per frame slot) as microcube
+facets (default) or smooth (`water_ripples {smooth}`); `water_render_core {debug: 7}` = the height.
+
+**Found and fixed while building (each measured):**
+1. The kernel as a truncated inverse transform ran waves 9-30 % slow (L ~ |k| has a long tail) -> fitted by
+   least squares on the band; fitted on the band ALONE its response went negative near Nyquist and the field
+   blew up -> the fit covers the whole lattice spectrum at a lower weight; `KernelIsStableEverywhere` pins
+   response > 0 and < the leapfrog bound (measured 0.065 .. 39.4, bound 367).
+2. The damping written from memory of iWave's form - (2 - a dt)/(1 + a dt), 1/(1 + a dt) - carried a hidden
+   stiffness 2a/dt: every wave 8-10 % fast at 240 Hz -> the centred damped step (frequency untouched).
+3. A one-cell kick holds 2-cell waves the kernel only approximates; they ran ahead as lattice junk -> the 3 x 3 tent.
+4. The mean drifted (+5 mm over the pond live: masked walls cut the kernel) -> zero mean per connected body (one
+   global mean linked the two sides of a wall - `AVoxelWallReflects` caught it).
+Unit (WaterRippleTest, 7): dispersion within 2.6 % (0.44-1.33 m), plane waves within 1.3 %, a ring train, exact
+reflection at a voxel wall, a droplet's ring asleep in 1.7 s, chunk seam bit-equal.
+
+**Live (Small bench, stone drop, `water_ripples`):** droplet landings drive it (16-40 impulses per drop; 2-4 cm
+peaks near the entry, 3-5 mm still running 3 s later); the STONE'S own crossing gives almost nothing (9
+kinematic cells in one frame - it crosses the waterline in a frame; 22.8 F3's risk, reported, no source invented).
+Layer cost 0.18 ms/frame (gate 0.3) after skipping masked cells. The height tap shows rings round the entry.
+**R-L1 MISSED:** pond-region change after entry with the layer on vs off (mid pose 105.2/18.6/13.5, pitch -24):
+1.52 vs 1.31, 0.76 vs 0.53 grey levels/frame (prediction >= 3) - in the frames the rings show only as faint
+warping of the floor. Two shader experiments, measured and REVERTED (owner's call): screen-space reflections on
+simulated water (+34 % in the second half-second: 1.03 vs 0.77) and the fixed procedural ripple texture turned
+down 0.35 -> 0.05 (with it, 0.35-0.39 vs 0.14 at 2-3 s) - neither makes a ring you would notice. **Why:** a ring
+tilts the normal, and at these view angles the pond's colour hardly depends on the normal - it shows the floor
+through clear water and reflects a near-uniform sky (17.3, 21.10); a real pond's rings read through reflections
+of bright sky and dark banks (and sun glints) bending across them.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

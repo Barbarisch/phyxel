@@ -310,6 +310,7 @@ private:
     bool m_jetScanOn = false;                        // water_jet_scan (21.7 S1): detached runs every frame
     std::vector<std::array<float, 8>> m_jetRows;     // t, bottom x y z, volume m^3, sum f, cells, isolated
     long m_jetFrames = 0;
+    std::vector<const Core::Water::RippleLayer*> m_rippleLayers;   // 22: this frame's layers, fed to the renderer
     // 20 (M2): debris displaces water WHILE IT MOVES (hysteresis kDisplaceOnSpeed / kDisplaceOffSpeed). Measured
     // 2026-10-10: with every wet piece displacing, ten floaters never settled (9-10 awake for 20 s; displacement
     // off: 1-3 by 7-10 s, the signed-off 19.6 feel) - a slow body and the water drive each other through the

@@ -56,6 +56,9 @@ void WaterSurfaceRenderPipeline::cleanup() {
         vkDestroyBuffer(m_device, m_indexBuffer[i], nullptr);  vkFreeMemory(m_device, m_indexMemory[i], nullptr);
         m_vertexMapped[i] = m_indexMapped[i] = nullptr;
     }
+    if (m_rippleMapped) vkUnmapMemory(m_device, m_rippleMemory);
+    vkDestroyBuffer(m_device, m_rippleBuffer, nullptr); vkFreeMemory(m_device, m_rippleMemory, nullptr);
+    m_rippleMapped = nullptr; m_rippleBuffer = VK_NULL_HANDLE; m_rippleMemory = VK_NULL_HANDLE;
     vkDestroyPipeline(m_device, m_pipeline, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
     vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
@@ -105,14 +108,30 @@ void WaterSurfaceRenderPipeline::createBuffers() {
         make(m_vertexBuffer[i], m_vertexMemory[i], m_vertexMapped[i], sizeof(Core::Water::WaterSurfaceVertex) * kMaxVertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
         make(m_indexBuffer[i], m_indexMemory[i], m_indexMapped[i], sizeof(uint32_t) * kMaxIndices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
     }
+    {   // 22: the ripple buffer - kFrames slots of [vec4 geo[8], ivec4 meta[8], float heights[]], each slot aligned for a dynamic offset
+        VkPhysicalDeviceProperties props; vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
+        const VkDeviceSize align = std::max<VkDeviceSize>(props.limits.minStorageBufferOffsetAlignment, 16);
+        const VkDeviceSize raw = static_cast<VkDeviceSize>(kRippleIndices) * 32 + kRippleFloats * sizeof(float);
+        m_rippleSlotBytes = (raw + align - 1) / align * align;
+        VkBufferCreateInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO; bi.size = m_rippleSlotBytes * kFrames; bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_rippleBuffer) != VK_SUCCESS) throw std::runtime_error("failed to create water-surface ripple buffer");
+        VkMemoryRequirements mr; vkGetBufferMemoryRequirements(m_device, m_rippleBuffer, &mr);
+        VkMemoryAllocateInfo ai{}; ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO; ai.allocationSize = mr.size;
+        ai.memoryTypeIndex = findMemoryType(m_physicalDevice, mr.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        if (vkAllocateMemory(m_device, &ai, nullptr, &m_rippleMemory) != VK_SUCCESS) throw std::runtime_error("failed to allocate water-surface ripple memory");
+        vkBindBufferMemory(m_device, m_rippleBuffer, m_rippleMemory, 0);
+        vkMapMemory(m_device, m_rippleMemory, 0, bi.size, 0, &m_rippleMapped);
+        for (uint32_t i = 0; i < kFrames; ++i) std::memset(static_cast<char*>(m_rippleMapped) + i * m_rippleSlotBytes, 0, static_cast<size_t>(kRippleIndices) * 32);   // no layers
+    }
 }
 
 void WaterSurfaceRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLayout) {
     VkPushConstantRange pc{}; pc.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT; pc.offset = 0; pc.size = sizeof(WaterSurfacePush);
-    std::array<VkDescriptorSetLayoutBinding, 2> binds{};
+    std::array<VkDescriptorSetLayoutBinding, 3> binds{};
     binds[0].binding = 0; binds[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; binds[0].descriptorCount = 1; binds[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     binds[1] = binds[0]; binds[1].binding = 1;
-    VkDescriptorSetLayoutCreateInfo li{}; li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO; li.bindingCount = 2; li.pBindings = binds.data();
+    binds[2] = binds[0]; binds[2].binding = 2; binds[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;   // 22: ripples
+    VkDescriptorSetLayoutCreateInfo li{}; li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO; li.bindingCount = 3; li.pBindings = binds.data();
     if (vkCreateDescriptorSetLayout(m_device, &li, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) throw std::runtime_error("water-surface descriptor set layout");
     std::array<VkDescriptorSetLayout, 2> sets = {uboLayout, m_descriptorSetLayout};
     VkPipelineLayoutCreateInfo pli{}; pli.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; pli.setLayoutCount = 2; pli.pSetLayouts = sets.data(); pli.pushConstantRangeCount = 1; pli.pPushConstantRanges = &pc;
@@ -120,11 +139,17 @@ void WaterSurfaceRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout
 }
 
 void WaterSurfaceRenderPipeline::createDescriptorPool() {
-    VkDescriptorPoolSize size{}; size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; size.descriptorCount = 2;
-    VkDescriptorPoolCreateInfo pi{}; pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; pi.poolSizeCount = 1; pi.pPoolSizes = &size; pi.maxSets = 1;
+    VkDescriptorPoolSize sizes[2]{};
+    sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; sizes[0].descriptorCount = 2;
+    sizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC; sizes[1].descriptorCount = 1;   // 22
+    VkDescriptorPoolCreateInfo pi{}; pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; pi.poolSizeCount = 2; pi.pPoolSizes = sizes; pi.maxSets = 1;
     if (vkCreateDescriptorPool(m_device, &pi, nullptr, &m_descriptorPool) != VK_SUCCESS) throw std::runtime_error("water-surface descriptor pool");
     VkDescriptorSetAllocateInfo ai{}; ai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; ai.descriptorPool = m_descriptorPool; ai.descriptorSetCount = 1; ai.pSetLayouts = &m_descriptorSetLayout;
     if (vkAllocateDescriptorSets(m_device, &ai, &m_descriptorSet) != VK_SUCCESS) throw std::runtime_error("water-surface descriptor set");
+    VkDescriptorBufferInfo rb{}; rb.buffer = m_rippleBuffer; rb.offset = 0; rb.range = m_rippleSlotBytes;   // 22: one slot; the dynamic offset picks it
+    VkWriteDescriptorSet w{}; w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; w.dstSet = m_descriptorSet; w.dstBinding = 2; w.descriptorCount = 1;
+    w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC; w.pBufferInfo = &rb;
+    vkUpdateDescriptorSets(m_device, 1, &w, 0, nullptr);
 }
 
 void WaterSurfaceRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent) {
@@ -140,15 +165,16 @@ void WaterSurfaceRenderPipeline::createPipeline(VkRenderPass renderPass, VkExten
     VkPipelineShaderStageCreateInfo stages[] = {vss, fss};
 
     VkVertexInputBindingDescription bind{}; bind.binding = 0; bind.stride = sizeof(Core::Water::WaterSurfaceVertex); bind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    VkVertexInputAttributeDescription attrs[6];
+    VkVertexInputAttributeDescription attrs[7];
     attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Core::Water::WaterSurfaceVertex, pos)};
     attrs[1] = {1, 0, VK_FORMAT_R32_SFLOAT,       offsetof(Core::Water::WaterSurfaceVertex, depth)};
     attrs[2] = {2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Core::Water::WaterSurfaceVertex, normal)};
     attrs[3] = {3, 0, VK_FORMAT_R32_SFLOAT,       offsetof(Core::Water::WaterSurfaceVertex, side)};
     attrs[4] = {4, 0, VK_FORMAT_R32_SFLOAT,       offsetof(Core::Water::WaterSurfaceVertex, foam)};   // G2
     attrs[5] = {5, 0, VK_FORMAT_R32G32_SFLOAT,    offsetof(Core::Water::WaterSurfaceVertex, flow)};   // G2
+    attrs[6] = {6, 0, VK_FORMAT_R32_SFLOAT,       offsetof(Core::Water::WaterSurfaceVertex, pad)};    // 22: ripple layer + 1 (0 = none)
     VkPipelineVertexInputStateCreateInfo vi{}; vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vi.vertexBindingDescriptionCount = 1; vi.pVertexBindingDescriptions = &bind; vi.vertexAttributeDescriptionCount = 6; vi.pVertexAttributeDescriptions = attrs;
+    vi.vertexBindingDescriptionCount = 1; vi.pVertexBindingDescriptions = &bind; vi.vertexAttributeDescriptionCount = 7; vi.pVertexAttributeDescriptions = attrs;
     VkPipelineInputAssemblyStateCreateInfo ia{}; ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     VkViewport vp{}; vp.width = (float)swapChainExtent.width; vp.height = (float)swapChainExtent.height; vp.minDepth = 0.0f; vp.maxDepth = 1.0f;
     VkRect2D sc{}; sc.extent = swapChainExtent;
@@ -189,9 +215,29 @@ void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescrip
     std::memcpy(m_indexMapped[slot], mesh.indices.data(), ni * sizeof(uint32_t));
     m_lastVertices = static_cast<uint32_t>(nv);
 
+    {   // 22: this frame's ripple heights into the slot (header: geo = world origin xz + 1/pitch; meta = offset, nx, nz, smooth)
+        char* base = static_cast<char*>(m_rippleMapped) + slot * m_rippleSlotBytes;
+        auto* geo = reinterpret_cast<float*>(base); auto* meta = reinterpret_cast<int32_t*>(base + kRippleIndices * 16);
+        auto* heights = reinterpret_cast<float*>(base + kRippleIndices * 32);
+        std::memset(base, 0, static_cast<size_t>(kRippleIndices) * 32);
+        size_t used = 0;
+        if (m_ripples)
+            for (size_t li = 0; li < m_ripples->size() && li < static_cast<size_t>(kRippleIndices); ++li) {
+                const Core::Water::RippleLayer* L = (*m_ripples)[li];
+                if (!L) continue;
+                const size_t n = static_cast<size_t>(L->nx()) * L->nz();
+                if (used + n > kRippleFloats) break;   // over the slot: the rest draw without ripples (the manager's budget prevents it)
+                std::memcpy(heights + used, L->heights().data(), n * sizeof(float));
+                geo[li * 4 + 0] = L->origin().x * Core::Water::RippleLayer::kPitch; geo[li * 4 + 1] = L->origin().y * Core::Water::RippleLayer::kPitch;
+                geo[li * 4 + 2] = 1.0f / Core::Water::RippleLayer::kPitch;
+                meta[li * 4 + 0] = static_cast<int32_t>(used); meta[li * 4 + 1] = L->nx(); meta[li * 4 + 2] = L->nz(); meta[li * 4 + 3] = m_rippleSmooth ? 1 : 0;
+                used += n;
+            }
+    }
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
     VkDescriptorSet sets[] = {uboSet, m_descriptorSet};
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 2, sets, 0, nullptr);
+    const uint32_t dynOff = static_cast<uint32_t>(slot * m_rippleSlotBytes);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 2, sets, 1, &dynOff);
     VkDeviceSize off = 0;
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBuffer[slot], &off);
     vkCmdBindIndexBuffer(commandBuffer, m_indexBuffer[slot], 0, VK_INDEX_TYPE_UINT32);

@@ -61,6 +61,7 @@ struct WaterSurfaceField {
     float h = 1.0f;
     std::vector<SurfaceColumn> cols;   ///< nx * nz, index x + nx * z
     WaterLookPacked look;              ///< G3: the body's look, resolved at the field's centre by its producer
+    int rippleLayer = -1;              ///< 22: the ripple layer drawn on this field (an index the renderer's atlas uses); -1 = none
     const SurfaceColumn& at(int x, int z) const { return cols[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]; }
 };
 

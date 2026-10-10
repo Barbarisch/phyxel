@@ -577,6 +577,8 @@ public:
     void setWaterCoreDebugMode(int m) { if (waterSurfacePipeline) waterSurfacePipeline->setDebugMode(m); }
     /// 21: the droplet crown's cubes (xyz centre, w edge) drawn with the water mesh; null = none.
     void setWaterCoreDroplets(const std::vector<glm::vec4>* d) { m_waterCoreDroplets = d; }
+    /// 22: the ripple layers, parallel to the surface fields (null entries = none); smooth = the bilinear A/B.
+    void setWaterCoreRipples(const std::vector<const Core::Water::RippleLayer*>* r, bool smooth) { if (waterSurfacePipeline) waterSurfacePipeline->setRipples(r, smooth); }
     void setWaterCoreScatterLegacy(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setScatterLegacy(on); }
     bool waterCoreScatterLegacy() const { return waterSurfacePipeline && waterSurfacePipeline->scatterLegacy(); }
     int  waterCoreDebugMode() const { return waterSurfacePipeline ? waterSurfacePipeline->debugMode() : 0; }
