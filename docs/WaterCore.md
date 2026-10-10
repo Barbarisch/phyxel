@@ -415,7 +415,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
-| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3) — NOT SIGNED OFF: the owner ran it and saw bad frame pacing, no ripples, surface flicker, endlessly bobbing debris (§19.4)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
+| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3). First look not signed off (§19.4); after the flicker fix, floaters that follow the water and the pocket fix (§19.5-19.7) the OWNER SIGNED OFF the small-pond feel 2026-10-09 ("looks really good", §19.8). Open: impact ripples/splash, the look of moving water, sub-cell surface pressure, E3/E4 (re-gate)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
@@ -2193,7 +2193,7 @@ Measured afterwards on the Small bench (Release, GPU volume, nothing changed in 
 - **Proposed order:** the surface flicker (it causes the popping and hides any splash), then a finer,
   damped water reading for floating debris, then impacts that make visible ripples.
 
-### 19.5 The surface flicker fixed: the height function (2026-10-09) - not signed off
+### 19.5 The surface flicker fixed: the height function (2026-10-09) - signed off with 19.6-19.7 (19.8)
 
 **Cause (proven):** the drawn surface (and the probe) was "the fill line of the highest cell holding
 >= 1 mm". With a part-full top cell (f 0.3) and a few mm of film in the cell above, the surface sat at
@@ -2221,7 +2221,7 @@ the pond region consecutive frames differ by under 1.2 grey levels (of 255) on a
 almost no visual cue that it moved. The look of moving water is its own problem (logged, next to the
 ripples).
 
-### 19.6 Floaters follow moving water, then rest (2026-10-09) - built, not signed off
+### 19.6 Floaters follow moving water, then rest (2026-10-09) - owner signed off (19.8)
 
 **Defect (measured):** resting wood is put to sleep by the debris solver; pushing ONLY the water
 (`water_av_impulse` 3 m/s beside the pond) swung the surface +-40 cm while **0 of 10 floaters woke** -
@@ -2255,7 +2255,7 @@ Still open from this run: some pieces sit 10-20 cm above the surface (stacked on
 known floats-high bounding-sphere law); the fixed-point probe saw a splash run 1.2 m above the pond
 (the probe reports the top run - not a drawn flicker, but unverified in the video).
 
-### 19.7 Edge dips after a slosh: air pockets drawn as holes (2026-10-09) - built, not signed off
+### 19.7 Edge dips after a slosh: air pockets drawn as holes (2026-10-09) - owner signed off (19.8)
 
 **Owner's look (19.6 recording):** "really close" - but the water does not settle flat afterwards; dips
 near the edges look off.
@@ -2291,6 +2291,28 @@ nothing drives them level. That leaves +-2 cm terraces (on the rested pond too),
 the remaining -6..-8 cm dips (pockets of 0.50 under a 0.51 top cell, half forgiven). The standard
 remedy is a sub-cell free-surface (ghost-fluid) pressure condition: p = 0 at the interface height
 inside the top cell, not at its face. Next step; CPU + GPU, with the drain/weir/dam/pump regressions.
+
+### 19.8 Owner sign-off on the small-pond feel (2026-10-09) and the queue after it
+
+**Signed off by the owner, in motion, on the Small bench:** the drawn surface no longer flickers (19.5),
+resting floaters wake when the water moves under them, ride it and come back to rest (19.6), and a
+pushed pond no longer shows deep dips afterwards (19.7) - "really close" after 19.6, "looks really good"
+after 19.7. What that sign-off covers: a 4 x 4 m pond, wood floaters, water-only pushes and blasts,
+GPU backend. It does not cover splashes, ripples, the look of moving water, or large bodies.
+
+**Known, open, not visible enough to block the sign-off:**
+- +-2 cm terraces and cells stuck at f = 0.500: the projection treats any cell >= 0.5 as full, so it
+  cannot see sub-cell level differences (19.7) - fix: a ghost-fluid free-surface pressure condition.
+- Phantom surface current: a still GPU pond's top-cell velocity reads 0.08-0.10 m/s (19.6); debris
+  reads it as current.
+- A small CPU pond never fully calms (wall columns trade 2-4 cm per tick at 10 s, 19.6).
+- CPU vs GPU kick response differs ~35 % (19.2); wood floats higher than its draft (bounding-sphere law).
+
+**Queue (owner to choose the order):** (1) impacts that make ripples and splashes you can see - water
+entry drag + displacement, and ripples below the 1/3 m cell size in the shading, driven by solver
+events; (2) the look of moving water - the slosh barely changes the picture (< 1.2 grey levels a
+frame, 19.5); (3) sub-cell surface pressure (the terraces and stuck pockets); (4) the phantom current;
+(5) E3 bodies as moving solids and E4 wading - re-gate with /design-check first.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
