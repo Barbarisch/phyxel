@@ -415,7 +415,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
-| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3). First look not signed off (§19.4); after the flicker fix, floaters that follow the water and the pocket fix (§19.5-19.7) the OWNER SIGNED OFF the small-pond feel 2026-10-09 ("looks really good", §19.8). Open: impact ripples/splash, the look of moving water, sub-cell surface pressure, E3/E4 (re-gate)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
+| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3). First look not signed off (§19.4); after the flicker fix, floaters that follow the water and the pocket fix (§19.5-19.7) the OWNER SIGNED OFF the small-pond feel 2026-10-09 ("looks really good", §19.8). Open: impact splashes need displacement - moving solids DESIGNED in §20 (E3's core, awaiting the owner's review; 19.9 drag premise withdrawn), the look of moving water, the terrace cause (unestablished, §20 correction), E4** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
@@ -2361,6 +2361,196 @@ body's velocity on their faces, so the projection pushes the water out), applied
 therefore E3's re-gate: (a) a ledger-exact rule for the water in a cell that becomes solid, (b) moving
 solid face velocities on the GPU solver, (c) the pressure over the body as its force (or the table law
 kept for the body side in v1 without counting the reaction twice), and bodies smaller than a cell.
+
+---
+
+## 20. Moving solids - displacement (E3's core; item 1 "splashes") - DESIGN, 2026-10-09
+
+**Status: design written for the owner's review; nothing built.** Supersedes 19.9 (a) (withdrawn) and
+is the E3 re-gate 19.1 asked for. One mechanism, three payoffs: debris splashes (item 1), crates and
+furniture that float by displacing water (E3), characters that wade with a bow wave and a wake (E4).
+
+### 20.1 The problem, measured
+
+- One 1/3 m stone dropped 3 m into the rested 1/3 m pond: the surface moves 0.3 cm (19.9); the picture
+  does not change after entry. With 1/9 m cells: an 11 cm crater, no visible ring, +50 % frame time.
+- The water already receives ~60 % of the stone's momentum in 0.23 s (`entry_baseline.json`). The
+  momentum arrives; the splash does not. **To the solver a body is a ghost:** it never takes up room,
+  so it never pushes water out of its way. A real splash is displacement - the body is solid, the water
+  must leave the space it moves into (the crown), and refill the space it leaves (the cavity closing,
+  the Worthington jet).
+
+### 20.2 The physics, in one line
+
+**A body moving into a cell is a pump of its own volume; a body moving out of it is a sink.** If the
+body's volume inside cell i changes from S_i to S_i' over a frame of length T, the water in that cell
+must flow out at q_i = (S_i' - S_i) / T (m^3/s). The projection enforces div(u) = q_i / V_cell in the
+cell - exactly the term a pump outlet uses today (CPU `WaterSolver::project`, GPU `wc_classify`
+`src[id]`), so the water flows away from the leading face and towards the trailing face: the
+potential flow round a moving body, to leading order. Volume is conserved by construction: what the
+body takes, the pond gains elsewhere (the level rises by the submerged volume / area).
+
+### 20.3 Representation - and the alternatives rejected
+
+| Option | What it is | Verdict |
+|---|---|---|
+| **Volume fraction + displacement source (chosen)** | per cell the body's volume fraction s (0..1, exact box overlap), its rate q; water capacity of the cell = 1 - s | Smooth in time (s is piecewise-linear in the body's position, so no popping); bodies smaller than a cell work (a 1/9 m pebble is s = 1/27); the pressure MATRIX is unchanged (only its right-hand side), so both backends change in a handful of places |
+| Binary moving-solid cells | a cell is solid when the body covers its centre | REJECTED: at 1/3 m a 1/3 m stone flips whole cells - 37 litres displaced in one tick, a pop per cell crossed; small debris never registers |
+| Variational face fractions (Batty, Bertails & Bridson 2007) | open-area weights on every face in the pressure matrix | The accurate answer for no-slip/no-penetration and for two-way force; REJECTED for v1: every face kernel and the RBGS matrix change on CPU and GPU, and nothing measured needs tangential blocking yet. Revisit if E3's crate in a current shows water flowing through it |
+| Splash particles only | spawn droplets at entry, no grid change | REJECTED as the mechanism: no crater, no level rise, no cavity; droplets stay the crown's detail (the 20 k pool, its own gate) |
+
+**What the chosen model does not do (stated, measured later):** water can flow tangentially THROUGH
+a body that is not moving (no no-penetration wall); a body is porous to a current. Two ways it is
+bounded: inside cells mostly filled by the body (s >= 0.5) the face velocities are set to the body's
+velocity before the projection (Brinkman-style forcing: the water there moves with the body), and
+E3's acceptance test is a crate in a current (20.8 T9) - if water visibly passes through, the
+face-fraction option comes back.
+
+### 20.4 Data flow (per frame)
+
+1. **Who is a moving solid:** any body overlapping an awake volume's box. Source 1 (v1): GPU debris -
+   `solver_integrate.comp` appends a **wet-body record** {centre, half extents, rotation, linear and
+   angular velocity, slot} for every body whose box touches a water tile (the same per-slot
+   host-visible buffer pattern as the E2 exchange; cap 2048, overflow counted). Source 2 (E3): CPU rigid
+   bodies (`VoxelDynamicsWorld`). Source 3 (E4): the character capsule. All three become one
+   `MovingSolid` list.
+2. **Lag:** debris records are one frame old (slot readback). The manager predicts each body forward
+   by its velocity x the frame age before rasterizing (a 7 m/s stone moves 12 cm a frame).
+3. **Rasterize (CPU, `WaterCoreManager`):** per volume, the overlap of each body's equal-volume
+   axis-aligned box (centred on the body, its own half extents - rotation ignored in v1, volume exact)
+   with every cell box: s_i = overlap / V_cell, summed over bodies, clipped to 1 and to non-static
+   cells. Cells under a static solid get nothing. Output: a sparse list {cell, s, q}.
+4. **Upload:** the sparse list to the volume (GPU: a small scatter kernel writes two dense per-cell
+   buffers `solid` and `solidRate`, and zeroes last frame's cells; CPU: the same arrays on WaterGrid).
+5. **Step:** the solver's substeps all see the same s and q (q is per second, so substeps sum to the
+   frame's displacement).
+
+### 20.5 Solver changes (CPU `WaterSolver` and GPU kernels, line for line the same rule)
+
+| Where | Change | Why |
+|---|---|---|
+| classify (`WaterGrid::classify`, `wc_classify.isLiqCell`) | a cell is liquid when f + s >= thr | a cell full of body and water must have a pressure row, or its displacement source has nowhere to act |
+| pressure rhs (`project`, `wc_classify`) | rhs += q / V / dt beside the pump term (new `solidRate` buffer, not `src` - pumps own `src`) | the displacement itself |
+| face forcing (`extrapolateVelocity`/`enforceSolidFaces` neighbourhood; `wc_face_ops`) | faces between two cells with s >= 0.5 take the body's velocity (v + w x r at the face) before the projection | the water inside a big body moves with it; bounds 20.3's porosity |
+| transport (Eulerian fill advect) | unchanged - the divergent velocity carries the water out | conservative flux form already |
+| **capacity + overflow - ledger rule (a)** (new `resolveSolidOverflow`, `wc_column_ops` mode 3) | after transport, any f > 1 - s is moved to the nearest cell above with room, else the lateral neighbour with the most room; what cannot be placed is owed (carried, like a pump's pending) and counted; never deleted | the "water in a cell that becomes solid" rule 19.1 required; covers a body spawned or teleported into water (no rate, so no flow - the ledger pushes the water out) |
+| compaction (`compactSubmergedPartials`, `wc_column_ops` mode 1) | fills up to 1 - s, not 1 | otherwise it pours water into the body's space every tick (a resting body would drain the column above it) |
+| residue sweep, sleep | sleep only when no body in the volume moved more than 1 mm this frame | a resting body must let the pond sleep; a moving one must not be frozen |
+| drawn surface (`extractSurfaceField`, `wc_surface`, `surfaceWorldY`) | cells count f + s where the cell holds water (f >= the 1 mm film), f alone where it does not | the water level round a floating body is (water + submerged volume) / area; a body in air is not water. Open sub-question, measured by T6 |
+
+**Not in v1:** FLIP-transport volumes (`ownsMass`) refuse moving solids (counted, logged) - their
+particles need their own displacement rule; Eulerian is the default for every pond.
+
+### 20.6 Force on the body (two-way) - phased
+
+- **v1 (one-way):** bodies keep the table law (buoyancy, linear drag, current) for their own motion;
+  the water is pushed by displacement. The E2 exchange (drag reaction) stays on, and the momentum
+  ledger is MEASURED (20.8 T8): water momentum gained vs body momentum lost per drop. Acceptance band
+  0.5-1.5x; outside it, the exchange is switched off for bodies the volume rasterizes (displacement then
+  is the only reaction).
+- **v2 (two-way, its own gate):** the force on a body = the pressure integral over its volume,
+  F = -rho_w sum_i s_i V grad p_i (Gauss: over a submerged body this is the surface pressure integral)
+  - buoyancy AND form drag from one source, momentum conserved by construction, the table law retired
+  inside awake volumes (and the "wood floats high" bounding-sphere defect with it). Needs a per-body
+  force buffer the debris integrator reads, one frame late - the stability of a floater under a
+  one-frame-late buoyancy is the gate's red test.
+
+### 20.7 API
+
+- `POST /api/debug/water_coupling {solids: bool}` - moving solids on/off (omitted = unchanged; default
+  ON once accepted, OFF is the A/B control). Echo `moving_solids: {bodies, records_dropped, cells,
+  body_volume_m3, displaced_m3_frame, displaced_m3_total, overflow_m3, owed_m3, flip_refused,
+  oversize_clipped}` - enough to assert a body was seen, rasterized and displaced.
+- `water_av_probe` adds `solid_fraction` and `solid_rate_m3s` at the probed cell.
+- **Clamps, with the failure written at the site:** |q| per cell <= one cell volume per substep x the
+  CFL fraction (a 100 m/s or teleporting body would otherwise demand a velocity that blows the CFL
+  count and the projection; the excess goes through the overflow ledger instead); a body whose s jumps
+  by more than 0.5 in a cell in one frame without having been present (spawn, teleport) gets NO rate
+  (no fake splash) - the ledger moves the water; NaN/zero-size bodies refused and counted; records
+  over the cap dropped and counted.
+- Defaults: no change to any existing default until M2 acceptance; then `solids` defaults ON and the
+  pinned tests in 20.8 move in the same commit.
+
+### 20.8 Test plan (red first; predictions written before building)
+
+Unit (L2, CPU solver, `WaterSolidTest`):
+- **T1 raster is exact and continuous:** a box at random sub-cell offsets: sum s V = the body volume
+  inside the grid to 1e-5 m^3; moving it by 1 mm changes every s by <= 1 mm x face area / V.
+- **T2 displacement raises the level:** a 1 x 1 x 1 m box lowered at 0.2 m/s into a 4 x 4 m pond 1.5 m
+  deep, fully submerged: level rises 1/16 m = 6.25 cm +- 5 mm; mass exact (double). Red today: 0.
+- **T3 ledger exact under overflow:** a body spawned inside full water: no rate, overflow moves the
+  water up, total mass exact, owed -> 0 within 30 ticks, never negative fill.
+- **T4 fast entry makes a crater and a crown:** a 1/3 m cube (density 2.6) at 7 m/s into the CPU pond.
+  Prediction: entry column dips >= 10 cm; >= 5 cm rise within 0.7 m inside 0.3 s; a wave >= 2 cm at
+  1.4 m inside 0.8 s. **Control:** the same with solids off -> < 1 cm everywhere (the A/B).
+- **T5 a resting body is quiet:** a body on the floor of a still pond for 60 s: the volume sleeps,
+  mass exact, the column above it does not drain into it (compaction capacity), drawn surface flat to
+  1 cm.
+- **T6 drawn waterline at a floating body:** a wood block held at its draft: the drawn surface beside it
+  within 3 cm of the solver's level.
+- **T7 world-aligned, chunk-independent:** the same body rasterized into two volumes whose boxes differ
+  (one straddling a chunk seam at x = 96) gives identical s and q for every shared world cell
+  (`FloraMarginTest` shape: the union of pieces equals the whole).
+- **T8 momentum ledger (diagnostic, then band):** water momentum gained vs body momentum lost, 0.5-1.5x.
+- **T9 (E3 acceptance, later):** a crate held still in a 0.5 m/s current: the water behind it slows by
+  >= 50 % (if not, the body is too porous -> face fractions).
+GPU parity (integration, `WaterCoreGpuParityTest`): s, q, overflow ledger and T2/T4 outcomes match the
+CPU within the existing parity tolerances.
+
+Live (L4, Small bench, shipped 1/3 m pond, pose 109.5 / 20.5 / 13.5, recorded with
+`tools/water_motion_check.py --scenario stone` - no screenshot stalls):
+- **Stone drop:** surface at the drop point dips >= 10 cm then rebounds >= 5 cm; >= 3 cm at 0.7 m within
+  0.5 s; pond-region frame change >= 0.5 grey levels for >= 1 s (baseline 0.3 cm / 0.5 cm / 0.04).
+  **Control:** `solids:false` -> the baseline numbers.
+- **Big block:** a 1 m wood block dropped in: level rises by its submerged volume / pond area +- 1 cm;
+  it floats; the crown is visible in the recording.
+- **Regression:** the signed-off floaters scenario (19.6) - wake, ride, rest by ~5 s; frame time.
+- **Gate:** `tools/debris_settle_bench.py` on DebrisLab (the wet-body record touches
+  `solver_integrate.comp`; DebrisLab has no water, so the change must be inert there).
+
+**Stress phase (before "done"):** count - 1, 10, 100, 1000 bodies in one pond (records cap honoured,
+dropped counted, frame time <= +0.5 ms at 100); size - a 1/9 m pebble (s = 1/27, small but nonzero
+splash), a 1 m block, a body larger than the volume (clipped, counted); boundary - a body crossing the
+volume's edge and a chunk seam; churn - spawn/despawn 1000 cycles: no displacement left behind (the
+failure: a despawned body leaves a hole); rest - 10 min of a resting body: mass exact, no drift;
+degenerate - zero size, NaN pose, 100 m/s.
+
+**The rig vs the game:** the Small bench pond is shipped content at the shipped cell size; the drop
+height (3 m, ~7.7 m/s entry) is the rig's choice. The stress rows run in the same pond.
+
+### 20.9 Feature Design Keys gate
+
+- **Voxel look:** the splash is the simulated water at the volume's cells, drawn by the existing mesh;
+  bodies are the existing debris. No smooth idiom, no visual-only field (7). Unconditional once on.
+- **Chunks:** the inputs are body poses (world space) and volume grids (world-aligned lattices: origin
+  in cells, world = origin x h). No chunk quantity enters; T7 pins it. The debris record buffer is
+  per frame slot, not per chunk.
+- **Generation:** none - runtime coupling. No world-recipe state.
+- **API:** 20.7 - units stated, omitted = unchanged, full echo, clamps with reasons, defaults pinned.
+- **Visual test:** 20.8 - measurable predictions, L2 + L4, red first, controls, small rig, stress.
+
+### 20.10 Build order (each step ends red-before-green; the owner looks after M2)
+
+| Step | Scope | Done when |
+|---|---|---|
+| **M0** CPU core | rasterizer, s/q on WaterGrid, classify + rhs + face forcing, overflow ledger, compaction cap, sleep rule, drawn surface | T1-T7 green (red shown first) |
+| **M1** GPU | `solid`/`solidRate` buffers + scatter kernel, wc_classify / wc_face_ops / wc_column_ops / wc_surface | parity tests green; `shader_manifest --check` |
+| **M2** wiring | wet-body records in `solver_integrate.comp` + readback, Application -> manager, API toggle + echo | live stone drop meets 20.8 with its control; floaters unchanged; settle bench in noise; recorded in motion -> **owner's look** |
+| **M3** stress | 20.8 stress rows | every row's invariant at every step |
+| **M4** two-way force | pressure integral replaces the table law in volumes | its own gate (one-frame-late buoyancy stability) |
+| then E3 / E4 | CPU rigid bodies, then the character capsule, as `MovingSolid` sources | crate floats by displacement, T9; a wading wake |
+
+**Risks, named:** large q can raise velocities and with them the CFL substep count (cost) - the clamp
+bounds it, the stress rows measure it; the one-frame debris lag (prediction mitigates; visible as the
+crater trailing a very fast body); the drawn waterline at bodies (T6); interplay with compaction and
+the residue sweep (T5); FLIP volumes excluded in v1.
+
+**Correction to 19.7:** the projection DOES carry a sub-cell free surface vertically (ghost fluid,
+`thetaToAir`: theta = f - 0.5 + f_above, clamped 0.1-1.5; lateral faces use 0.5). So 19.7's "the
+projection treats every cell >= 0.5 as full with the surface at its top face" was wrong for the
+vertical direction; the cause of the +-2 cm terraces and the cells stuck at 0.500 is NOT established
+(suspects: the theta clamp at f ~ 0.5, the rest damping / settle band). Item 3 of the 19.8 queue
+needs a measurement before a fix.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
