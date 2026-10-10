@@ -313,6 +313,19 @@ const vec3 WATER_SCATTER = vec3(0.04, 0.18, 0.24);
 // here. Skewed green to match the transmission window named above. Artistic magnitude — do not cite.
 const vec3 WATER_SCATTER_TURBID = vec3(0.20, 0.26, 0.18);
 
+// LIT IN-SCATTER (WaterCore.md 21.3, 2026-10-10). The two constants above are an UNLIT radiance: they
+// predate the x8-exposure physical lighting (2026-08) and, measured on the Small bench, made a clear
+// pond glow ~3x brighter than its own floor (body 0.039 vs floor 0.0095 linear: the floor was 21 % of
+// what the pond showed - the stone on the bottom vanished, the floor's refraction wobble was washed out).
+// Deep water returns a fraction R of the light falling on it - the irradiance reflectance:
+// âš‘GROUND - Mobley, Ocean Optics Web Book, "Reflectances" (oceanopticsbook.info/view/inherent-and-
+// apparent-optical-properties/reflectances): "in most clear natural hydrosols ... in the neighborhood of
+// 0.02, give or take 0.01, for mid-spectrum wavelengths"; "turbid, near shore or inland waters ... 0.08 or
+// more". So R_G = 0.020 clear, 0.080 turbid. âš‘The per-channel SHAPE is the shipped artistic one above
+// (unsourced, kept), scaled so G hits the sourced value.
+const vec3 WATER_REFLECTANCE        = WATER_SCATTER        * (0.020 / 0.18);   // (0.0044, 0.020, 0.027)
+const vec3 WATER_REFLECTANCE_TURBID = WATER_SCATTER_TURBID * (0.080 / 0.26);   // (0.062, 0.080, 0.055)
+
 // Path length (world units) over which a shoreline fades from invisible to fully water.
 // ⚑GROUND: 0.4 voxel ≈ 40 cm of water — about where a real shore stops reading as wet ground and
 // starts reading as water.
@@ -477,7 +490,36 @@ struct WaterSurfaceInput {
     float ssr;         // 0 = sky reflection only (the pre-W4 look), 1 = march the depth buffer
     int   debugMode;   // Phase F taps: 0 off, 2 body, 3 reflection, 4 thickness, 5 fresnel (callers set 0)
     float shoreFoam;   // 1 = the sheet's waterline rim + breaking surf model; 0 = none (simulated water: foam comes from the solver)
+    float scatterLit;  // 1 = the lit in-scatter (21.3, every caller); 0 = the pre-21.3 constant glow (water_render_core A/B only)
 };
+
+// ---------------------------------------------------------------------------------------------
+// The light the water body receives (21.3) - THE SHARED MODEL, never a second one (LightingPipeline.md
+// rules R1/R2/R9): ambient = phxAmbient (the probe field) at the surface point facing up; direct sun =
+// the cascade shadow maps (near min mid, as foliage.frag) x phxSunGate, Lambert 1/pi as voxel.frag's
+// pbrBRDF diffuse. Returned in the units where `albedo x result` is a Lambertian surface's radiance, so
+// `R x result` is deep water's upwelling radiance under the same light as its floor. Unshadowed, a pond
+// under a roof or in a cave would glow over its dark floor - the defect again (21.9 F5).
+// The water pipelines' set 0 IS the scene's global layout (RenderCoordinator passes
+// vulkanDevice->getDescriptorSetLayout()), so these bindings are already bound.
+// ---------------------------------------------------------------------------------------------
+layout(set = 0, binding = 2) uniform sampler2D shadowMap;       // mid cascade
+layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;   // near cascade
+#include "occupancy.glsl"
+#include "gi_field.glsl"
+
+vec3 waterLightAt(vec3 worldPos) {
+    const vec3 up = vec3(0.0, 1.0, 0.0);
+    vec3 rel = worldPos - ubo.cameraWorld;   // the biased light-space matrices take camera-relative positions
+    vec4 sc  = ubo.biasedLightSpace * vec4(rel, 1.0);
+    float shadow = phxShadowFast(shadowMap, sc, ubo.shadowDepthRange);
+    if (ubo.shadowCascadeNear.x > 0.0)
+        shadow = min(shadow, phxShadowFast(shadowMapNear, ubo.biasedLightSpaceNear * vec4(rel, 1.0), ubo.shadowCascadeNear.y));
+    vec3  amb    = phxAmbient(worldPos, up, ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
+    float skyAcc = phxSkyAccessOf(amb, up, ubo.ambientColor);
+    float cosSun = max(normalize(-ubo.sunDirection).y, 0.0);
+    return amb + ubo.sunColor * (cosSun * shadow * phxSunGate(skyAcc, sc) * 0.31830989);
+}
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // DETAIL LOD. The fine octaves are sub-metre; past a few tens of metres they are smaller than a
@@ -565,6 +607,14 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     }
     if (inp.clarity > 0.0) extinction *= (1.7 / inp.clarity) / max(dot(extinction, WATER_LUM), 1e-4);
     vec3 transmit = exp(-extinction * thickness);
+    // 21.3: the in-scatter is R x the light received. `scatter` carries the hue (turbidity mix + G3 tint)
+    // in WATER_SCATTER's units; the ratio maps its brightness onto the sourced reflectance at the same
+    // turbidity (exactly WATER_REFLECTANCE at turbidity 0 untinted, WATER_REFLECTANCE_TURBID at 1).
+    if (inp.scatterLit > 0.5) {
+        float toR = dot(mix(WATER_REFLECTANCE, WATER_REFLECTANCE_TURBID, inp.turbidity), WATER_LUM)
+                  / dot(mix(WATER_SCATTER, WATER_SCATTER_TURBID, inp.turbidity), WATER_LUM);
+        scatter *= toR * waterLightAt(inp.worldPos);
+    }
     vec3 body = behind * transmit + scatter * (1.0 - transmit);
 
     // --- Reflection ------------------------------------------------------------------------

@@ -3022,6 +3022,44 @@ clamps commented, defaults and the one pinned check named), test plan (red rows,
 chunk, deltas from defaults: the realtime toggle only) - all answered. **READY for S0.** S1-S4 each re-read
 this section before building; S1 stops at its measurement if the slab is not a scrap.
 
+### 21.10 S0 built - clear water on simulated water (2026-10-10) - ledger, NOT signed off
+
+**Scope cut by the owner, before building:** small bodies only. The lit in-scatter applies to
+`water_surface.frag` (simulated water). The sea sheet (`water.frag`) and `water_cell.frag` compile the same
+code with `scatterLit = 0` - their look is unchanged and was not measured (the Coast "before" capture
+taken while scoping this was large-body drift and is not part of the evidence).
+
+**Built:** `water_common.glsl` `waterLightAt` (phxAmbient up + sun x near ∪ mid fast shadow x phxSunGate,
+Lambert 1/pi) x `WATER_REFLECTANCE` (0.0044, 0.020, 0.027) / `_TURBID` (0.062, 0.080, 0.055); the G3 tint
+keeps its hue and is mapped onto R at the same turbidity. Each water includer's std140 prefix extended to
+`giProbeGrid`; shadow maps and the probe field come from set 0 (no new descriptors).
+`water_render_core {scatter: "lit"|"legacy"}` (echoed). `LightingPipeline.md` §0.2 new row + §9 entry.
+
+**Results (Small bench, pose 109.5/20.5/13.5 yaw 180 pitch -38, `tools/water_clarity_probe.py`,
+`s0_clarity.json`; legacy = the control, same frame):**
+
+| | legacy (control) | lit | prediction (21.6 C-T1) |
+|---|---|---|---|
+| body tap G, linear | 0.0400 | 0.0105 | legacy ~0.039: **met**; lit 0.83 x floor = 0.0092 +- 10 %: **MISSED** (0.94 x floor) |
+| floor detail surviving the water (std ratio, G) | 0.349 | **0.775** | >= 0.7: **met** |
+| pond mean sRGB vs dry floor (86, 84, 79) | (134, 149, 138) - brighter, milky | (61, 85, 86) - darker in red, blue-green | - |
+
+The miss: the pond is 94 % of its floor's brightness, not 83 %. The prediction assumed the floor reflects
+far more than the water's 2 %; this rig's floor is a dark stone, so the water's own in-scatter is not
+negligible beside it - a likely cause, **not yet established** (it needs the floor's albedo and the path
+length measured, not inferred). Recorded as missed, not re-fitted.
+
+**Seen in motion** (`s0_stone_on.mp4`, same stone drop as 20.14, the pond region, every frame): the
+falling stone, its shadow on the water and the stone resting on the floor are now visible (20.14's "stone
+absent on the floor" was the glow hiding it - closed). Pond change per frame after entry: 0.49 (first
+0.5 s) / 0.28 / 0.22 grey levels vs 0.14 / 0.08 / 0.07 before - ~3.5x; the still pond also changes more
+(0.08 vs 0.02: the ripple refraction now shows). Still below 21.6 L4-2's >= 1.0 for 1 s - that row is for
+all of item 2 (droplets + whitewater). The jet's detached run now reads as a thin dark line mid-pond -
+the droplet crown's job (S1). Frame time unchanged: 4.08 ms mean both (p99 6.82 vs 7.01).
+
+**Not done in S0:** the `water_look_l4.py` pin (G3) runs on the Coast - deferred with the sea (its look
+is unchanged, so its pin is unaffected).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

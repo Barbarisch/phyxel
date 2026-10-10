@@ -39,6 +39,9 @@ public:
     bool lastTruncated() const { return m_lastTruncated; }
     void setDebugMode(int m) { m_debugMode = m; }
     int  debugMode() const { return m_debugMode; }
+    /// WaterCore 21.3 A/B: true draws the pre-21.3 constant (unlit) in-scatter. Default false (lit).
+    void setScatterLegacy(bool on) { m_scatterLegacy = on; }
+    bool scatterLegacy() const { return m_scatterLegacy; }
     uint32_t lastVertices() const { return m_lastVertices; }
     static constexpr uint32_t kFrames = 2;
     static constexpr size_t   kMaxVertices = 1u << 19;   ///< 512 k vertices x 48 B = 24 MB per slot (a 96 x 96 band is ~17 k)
@@ -67,6 +70,7 @@ private:
     void*          m_indexMapped[kFrames] = {};
     bool     m_lastTruncated = false;
     int      m_debugMode = 0;
+    bool     m_scatterLegacy = false;
     uint32_t m_lastVertices = 0;
     std::chrono::high_resolution_clock::time_point m_startTime;
 };

@@ -16,7 +16,7 @@ layout(location = 5) in vec2  inFlow;     // G2: surface velocity x, z (m/s) fro
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
-    vec4 screen;     // xy = screen size (px), z = debug tap, w unused
+    vec4 screen;     // xy = screen size (px), z = debug tap, w = 1 for the pre-21.3 constant in-scatter (A/B only)
     vec4 look0;      // G3: tint.rgb (x < 0 = unset), clarity m (0 = derived)
     vec4 look1;      // G3: turbidity (< 0 = derived), roughness (< 0 = derived)
 } pc;

@@ -575,6 +575,8 @@ public:
     double waterCoreMeshMs() const { return m_waterCoreMeshMs; }
     bool waterCoreMeshTruncated() const { return waterSurfacePipeline && waterSurfacePipeline->lastTruncated(); }
     void setWaterCoreDebugMode(int m) { if (waterSurfacePipeline) waterSurfacePipeline->setDebugMode(m); }
+    void setWaterCoreScatterLegacy(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setScatterLegacy(on); }
+    bool waterCoreScatterLegacy() const { return waterSurfacePipeline && waterSurfacePipeline->scatterLegacy(); }
     int  waterCoreDebugMode() const { return waterSurfacePipeline ? waterSurfacePipeline->debugMode() : 0; }
     /// Phase D (16.4): the live volumes' world boxes + their revision; the span grid masks those columns.
     void setWaterCoreVolumeBoxes(const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, uint64_t revision) { m_waterCoreBoxes = boxes; m_waterCoreBoxRevision = revision; }

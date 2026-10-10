@@ -52,6 +52,14 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3  moonColor;
     float exposure;
     int   tonemapCurve;
+    // 21.3: std140 is positional - the lit in-scatter needs occupancyBox / giProbeGrid (gi_field.glsl)
+    vec4  skyBodyDirRadius[4];
+    vec4  skyBodyDisc[4];
+    vec4  skyBodyLitDir[4];
+    vec4  skyBodyLight[4];
+    int   skyBodyCount;
+    ivec4 occupancyBox;
+    vec4  giProbeGrid;
 } ubo;
 
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
@@ -105,6 +113,7 @@ void main() {
     inp.ssr          = 0.0;
     inp.debugMode    = dbg;
     inp.shoreFoam    = 0.0;                 // no shoreline model on simulated water: its edge IS the mesh; foam comes from the solver (F2)
+    inp.scatterLit   = pc.screen.w > 0.5 ? 0.0 : 1.0;   // 21.3: water_render_core {scatter: "legacy"} sets w = 1 (A/B only)
 
     outColor = shadeWaterSurface(inp);
 }

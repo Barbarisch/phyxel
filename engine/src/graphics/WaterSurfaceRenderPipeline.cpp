@@ -199,7 +199,7 @@ void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescrip
     pc.viewProj = projectionMatrix * camera.getViewMatrix();   // absolute world space, like the sheet and the cells
     const float t = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_startTime).count();
     pc.camPosTime = glm::vec4(camera.getPosition(), t);
-    pc.screen = glm::vec4(static_cast<float>(screenExtent.width), static_cast<float>(screenExtent.height), static_cast<float>(m_debugMode), 0.0f);
+    pc.screen = glm::vec4(static_cast<float>(screenExtent.width), static_cast<float>(screenExtent.height), static_cast<float>(m_debugMode), m_scatterLegacy ? 1.0f : 0.0f);
     { const Core::Water::WaterLookPacked neutral; pc.look0 = neutral.look0; pc.look1 = neutral.look1; }
     // G3: one draw per field so each body's look reaches the shader; a mesh without ranges (older
     // callers) draws once with the neutral look. Ranges past a truncation are clipped.

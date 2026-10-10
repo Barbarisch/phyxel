@@ -58,6 +58,14 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3  moonColor;
     float exposure;
     int   tonemapCurve;
+    // 21.3: std140 is positional - the lit in-scatter needs occupancyBox / giProbeGrid (gi_field.glsl)
+    vec4  skyBodyDirRadius[4];
+    vec4  skyBodyDisc[4];
+    vec4  skyBodyLitDir[4];
+    vec4  skyBodyLight[4];
+    int   skyBodyCount;
+    ivec4 occupancyBox;
+    vec4  giProbeGrid;
 } ubo;
 
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
@@ -137,6 +145,7 @@ void main() {
     inp.debugMode    = 0;
     inp.shoreFoam    = 1.0;
     inp.ssr          = 0.0;
+    inp.scatterLit   = 0.0;   // 21.3 is scoped to simulated (small-body) water; the sea keeps its look until the owner takes up large bodies
 
     outColor = shadeWaterSurface(inp);
     outColor.rgb = outColor.rgb;

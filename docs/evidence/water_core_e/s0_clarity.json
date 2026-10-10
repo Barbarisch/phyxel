@@ -1,0 +1,47 @@
+{
+ "pose": {
+  "x": 109.5,
+  "y": 20.5,
+  "z": 13.5,
+  "yaw": 180,
+  "pitch": -38
+ },
+ "legacy": {
+  "echo_scatter": "legacy",
+  "shaded": [
+   134.0,
+   149.3000030517578,
+   137.89999389648438
+  ],
+  "floor": [
+   86.4000015258789,
+   84.30000305175781,
+   79.0999984741211
+  ],
+  "body_lin_g": 0.03997,
+  "floor_lin_g": 0.01114,
+  "detail_ratio": 0.349
+ },
+ "lit": {
+  "echo_scatter": "lit",
+  "shaded": [
+   60.900001525878906,
+   84.5,
+   85.9000015258789
+  ],
+  "floor": [
+   86.4000015258789,
+   84.30000305175781,
+   79.0999984741211
+  ],
+  "body_lin_g": 0.01047,
+  "floor_lin_g": 0.01114,
+  "detail_ratio": 0.775
+ },
+ "pond_pixels": 40990,
+ "verdict": {
+  "lit_body_within_10pct_of_0.83_floor": false,
+  "lit_detail_ratio_ge_0.7": true,
+  "legacy_reproduces_0.039": true
+ }
+}

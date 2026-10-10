@@ -14123,10 +14123,16 @@ void Application::registerWaterCommands() {
             const auto& d = cmd.params["debug"];
             renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 6));
         }
+        if (cmd.params.contains("scatter")) {   // WaterCore 21.3 A/B: "lit" (default) or "legacy" (the pre-21.3 constant glow)
+            const std::string sc = cmd.params.value("scatter", std::string("lit"));
+            if (sc != "lit" && sc != "legacy") { r = {{"error", "scatter must be lit or legacy"}}; return; }
+            renderCoordinator->setWaterCoreScatterLegacy(sc == "legacy");
+        }
         r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())},
              {"mesh_vertices", renderCoordinator->waterCoreMeshVertices()}, {"top_quads", renderCoordinator->waterCoreMeshTopQuads()},
              {"side_quads", renderCoordinator->waterCoreMeshSideQuads()}, {"mesh_build_ms", renderCoordinator->waterCoreMeshMs()},
-             {"truncated", renderCoordinator->waterCoreMeshTruncated()}, {"debug", renderCoordinator->waterCoreDebugMode()}};
+             {"truncated", renderCoordinator->waterCoreMeshTruncated()}, {"debug", renderCoordinator->waterCoreDebugMode()},
+             {"scatter", renderCoordinator->waterCoreScatterLegacy() ? "legacy" : "lit"}};
     });
     reg.on("water_av_realtime", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
