@@ -2314,6 +2314,54 @@ events; (2) the look of moving water - the slosh barely changes the picture (< 1
 frame, 19.5); (3) sub-cell surface pressure (the terraces and stuck pockets); (4) the phantom current;
 (5) E3 bodies as moving solids and E4 wading - re-gate with /design-check first.
 
+### 19.9 Item 1 - impacts that splash: design-check (2026-10-09)
+
+**Baseline (red), one 1/3 m stone dropped 3 m into the rested pond** (`tools/water_motion_check.py
+--scenario stone`): 1/3 m cells - surface at the drop point -0.2/+0.3 cm, +0.5 cm at 0.7 m, picture
+unchanged after entry (0.04 grey levels a frame, same as still water); 1/9 m cells - an 11 cm crater,
++1.6 cm at 0.7 m, still no visible ring, frame 4.3 -> 6.6 ms (p99 13.8). Finer cells alone do not do it.
+**Cause:** the debris water law has only a linear drag (0.9/s), so the stone reaches the floor ~0.2 s
+after entry having handed the water almost none of its momentum. Real entry drag goes with speed^2.
+
+**Design (a):** form drag k = Cd A f b / (2V) per metre, relative to the water's flow (Cd 1.05 blunt
+cube; A projected area along the velocity; f wet fraction; b the material buoyancy = rho_w/rho_body;
+k ~ 0.58/m for a 1/3 m stone, ~2.1/m for wood), applied as the exact quadratic decay v / (1 + k|v|dt)
+(never reverses, any dt). Added to the linear term, not replacing it: at bob speeds (~0.1 m/s) it is
+~0.06/s against ~2.3/s, so the signed-off floaters (19.6) should not change. Same law in
+`solver_integrate.comp` and `VoxelDynamicsWorld` (one water law for both worlds, constants in
+`solver_shared.h`). The momentum reaches the volume through the E2 exchange unchanged. No new API knob.
+
+**Gate answers:** voxel look - the splash is the 1/3 m simulated surface, no separate ripple field (7).
+Chunks - the only chunk-shaped input is the debris water-tile directory, a pure function of world column
+(pinned by `DebrisWaterTilesTest`); the drag adds no spatial input; new unit test: the same body at a
+chunk-seam column and at an interior column decelerates identically. Generation - none. API - none new;
+`water_coupling` echoes the exchange totals; defaults change for FAST wet debris only (WaterBuoyancyTest,
+the coupling tests and the DebrisLab settle bench must hold).
+
+**Predictions (written before building), Small pond, 1/3 m:** the stone keeps 40-55 % of its entry speed
+at 1.5 m depth; >= 50 % of its entry momentum handed to the water in the first 0.3 s; the surface at the
+drop point dips >= 10 cm and rebounds >= 5 cm; a >= 3 cm wave at 0.7 m within 0.5 s; pond-region frame
+change >= 0.5 grey levels for >= 1 s after entry (baseline 0.04). Controls: the same drop with the
+exchange off (surface <= 0.5 cm); the signed-off floaters scenario unchanged; the DebrisLab settle bench
+within noise. Red: the CPU law unit test (today the stone keeps ~100 % at 1.5 m).
+
+**Verdict: (a) READY. (b) droplet crown NEEDS WORK** - pool sizing in the 20 k budget, birth from the
+volume, ledger-exact landing, render; its own gate if (a)'s splash is not enough at 1/3 m.
+
+**(a) WITHDRAWN the same day - its premise was measured false before building** (`measure_entry`,
+`docs/evidence/water_core_e/entry_baseline.json`): the stone enters at 6.8 m/s and still has 5.0 m/s at
+the floor 1.33 m down (keeps 73 %), and the exchange handed the water 0.39 m^3 m/s of the stone's ~0.65 -
+**~60 % of its momentum in 0.23 s already reaches the pond**, and the 1/3 m surface still moved 0.3 cm.
+Missing drag is not why there is no splash; the speed^2 law would change the picture little.
+**The real cause:** to the solver the stone is a ghost - it pushes the water with a spread body force,
+and incompressible water pushed down into a floor only redistributes pressure. A splash is
+DISPLACEMENT: the body is solid, the water must get out of its way, a cavity opens behind it and a crown
+rises round it. That is E3's moving-solid mechanism (19 table: cells under a body's box solid with the
+body's velocity on their faces, so the projection pushes the water out), applied to debris. Item 1 is
+therefore E3's re-gate: (a) a ledger-exact rule for the water in a cell that becomes solid, (b) moving
+solid face velocities on the GPU solver, (c) the pressure over the body as its force (or the table law
+kept for the body side in v1 without counting the reaction twice), and bodies smaller than a cell.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

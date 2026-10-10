@@ -17,9 +17,10 @@ EV = ROOT / "docs" / "evidence" / "water_core_e"
 ap = argparse.ArgumentParser()
 ap.add_argument("--url", default="http://127.0.0.1:8111")
 ap.add_argument("--window", default="WaterBench_Small")
-ap.add_argument("--scenario", default="blast", choices=["blast", "debris", "rest", "floaters"])
+ap.add_argument("--scenario", default="blast", choices=["blast", "debris", "rest", "floaters", "stone", "stone_big"])
 ap.add_argument("--seconds", type=float, default=10.0)
 ap.add_argument("--tag", default=None)
+ap.add_argument("--cell", type=float, default=1.0 / 3.0, help="the pond's cell size in voxels (1/3 shipped; 1/9 finer)")
 args = ap.parse_args()
 tag = args.tag or f"motion_{args.scenario}"
 EV.mkdir(parents=True, exist_ok=True)
@@ -33,7 +34,7 @@ REST = 16.5
 def make_pond():
     for v in api.debug("water_av_list").get("volumes", []):
         api.debug("water_av_destroy", {"id": v["id"]})
-    cr = api.debug("water_av_create", {"x1": 99, "y1": 14, "z1": 11, "x2": 104, "y2": 19, "z2": 16, "cellSize": 1.0 / 3.0,
+    cr = api.debug("water_av_create", {"x1": 99, "y1": 14, "z1": 11, "x2": 104, "y2": 19, "z2": 16, "cellSize": args.cell,
                                        "transport": "eulerian", "backend": "auto", "auto_sleep": False})
     if "error" in cr: raise SystemExit(f"create: {cr}")
     api.debug("place_water_box", {"x1": 100, "y1": 15, "z1": 12, "x2": 103, "y2": 15, "z2": 15, "mass": 1.0, "target": "core"})
@@ -46,6 +47,9 @@ def stimulus():
         api.post("/api/damage/apply", {"x": 106, "y": 17, "z": 13.5, "radius": 4.0, "energy": 62.0})
     elif args.scenario == "floaters":   # push only the water
         api.debug("water_av_impulse", {"x": 103, "y": 16, "z": 13.5, "radius": 1.5, "strength": 3, "dx": -1, "dy": 0.3})
+    elif args.scenario in ("stone", "stone_big"):   # ONE stone dropped 3 m into the pond centre (item 1: impacts, WaterCore.md 19.9)
+        api.debug("spawn_gpu_particle", {"x": 101.5, "y": 19.5, "z": 13.5, "material": "Stone",
+                                         "scale": (1.0 if args.scenario == "stone_big" else 1.0 / 3.0), "lifetime": 30.0})
     elif args.scenario == "debris":
         for i in range(10):   # one call per piece: 20 calls in a burst (~20-40 ms), then nothing
             x, z = 100.35 + (i % 2) * 0.9, 12.4 + (i // 2) * 0.7
@@ -75,10 +79,14 @@ subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-ss", "1.3", "-t", "3.0", "
 time.sleep(4)
 stimulus()
 ys = []
+ring = {d: [] for d in (0.0, 0.7, 1.4)}   # the surface at the drop point and 0.7 / 1.4 m from it (east)
 t0 = time.time()
 while time.time() - t0 < 3.0:
     ys.append(api.debug("water_av_probe", {"x": 101.5, "y": 16.0, "z": 13.5}).get("surface_y"))
-    time.sleep(0.03)
+    for d in ring:
+        y = api.debug("water_av_probe", {"x": 101.5 + d, "y": 16.0, "z": 13.5}).get("surface_y")
+        if y is not None: ring[d].append(y)
+    time.sleep(0.02)
 vals = [y for y in ys if y is not None]
 jumps = [abs(b - a) for a, b in zip(vals, vals[1:])]
 # frame pacing summary (whatever shape the route returns)
@@ -86,6 +94,8 @@ summary = {k: v for k, v in pacing.items() if k not in ("series", "frames", "raw
 out = {"scenario": args.scenario, "pose": POSE, "video": str(mp4), "frames_dir": str(fdir),
        "frame_pacing": summary,
        "flicker": {"samples": len(vals), "largest_jump_m": round(max(jumps), 4) if jumps else None,
-                   "jumps_over_5cm": sum(1 for j in jumps if j > 0.05), "surface_range": [round(min(vals), 4), round(max(vals), 4)] if vals else None}}
+                   "jumps_over_5cm": sum(1 for j in jumps if j > 0.05), "surface_range": [round(min(vals), 4), round(max(vals), 4)] if vals else None},
+       "cell": args.cell,
+       "ring_m_from_drop": {str(d): {"min": round(min(v) - REST, 4), "max": round(max(v) - REST, 4)} for d, v in ring.items() if v}}
 (EV / f"{tag}.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
 print(json.dumps(out, indent=1)[:3000])
