@@ -415,7 +415,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
-| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3). First look not signed off (§19.4); after the flicker fix, floaters that follow the water and the pocket fix (§19.5-19.7) the OWNER SIGNED OFF the small-pond feel 2026-10-09 ("looks really good", §19.8). Open: impact splashes need displacement - moving solids DESIGNED in §20 (E3's core, awaiting the owner's review; 19.9 drag premise withdrawn), the look of moving water - DESIGNED in §21 (droplet crown, clear water, whitewater; design-check READY for S0, 21.9), the terrace cause (unestablished, §20 correction), E4** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
+| **E. Coupling** — **IN PROGRESS (ripples DESIGNED §22, READY for R0): design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3). First look not signed off (§19.4); after the flicker fix, floaters that follow the water and the pocket fix (§19.5-19.7) the OWNER SIGNED OFF the small-pond feel 2026-10-09 ("looks really good", §19.8). Open: impact splashes need displacement - moving solids DESIGNED in §20 (E3's core, awaiting the owner's review; 19.9 drag premise withdrawn), the look of moving water - DESIGNED in §21 (droplet crown, clear water, whitewater; design-check READY for S0, 21.9), the terrace cause (unestablished, §20 correction), E4** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
@@ -3099,6 +3099,147 @@ drawn run of sum f < 1 in any frame; the floaters scenario (bobbing at <= 0.2 m/
 2 m/s (below v_c) it does not.
 Re-gated against 21.9's checks: no new chunk input (both rules are per world cell), API unchanged except the
 size default, the cost bounds (pool cap, per-frame record cap) unchanged. READY to build S1 with this rule.
+
+## 22. Ripples you can see - a sub-cell wave layer on every small body (owner, 2026-10-10) - DESIGN - design-check READY for R0 after one fold-in (22.8)
+
+The owner, after the first droplet cut (21, `6a2b79f8`): "honestly doesnt look bad. maybe more particles would
+be nice, but really what i think will bring the appearance home, is for there to be visible ripples." Then:
+"a slightly voxelated appearance to water for ripples seems ok to me. at 1/9 size units ... at least worth checking".
+
+**Checked first - the whole pond at 1/9 m cells** (`s1_stone_ninth`, same stone drop, droplets + clear water on):
+no ring train in the picture (faint marks at the entry; 2.3 cm at 0.7 m, 1.6 cm at 1.4 m - the same as 1/3 m),
+the droplets nearly vanish (the finer grid holds the spray itself), and the frame costs 11.8 ms mean / 25.7 ms
+p99 against 4.2 / 9.3 at 1/3 m. Finer water is not the lever; a ripple layer at the microcube pitch is.
+
+### 22.1 Why there are none, and the decision this reverses
+
+- **The grid cannot carry them.** A 1/3 m cell holds waves no shorter than ~2/3 m (19.4, measured). The rings
+  a stone or a drop makes on a pond are ~5-20 cm: below the grid, so the pond shows a slow swell and a crater
+  and never a ring.
+- **§7 said "disturbance visuals ARE the simulation ... no separate ripple field (`RippleField` retires)".**
+  That was decided before 19.4 measured the grid's limit. **This section reverses it for the band the grid
+  cannot hold**: wavelengths from 2h down to ~2 lattice cells of a finer layer. Everything longer stays the
+  grid's (no double counting - 22.3). The old `RippleField` is NOT revived: a 0.5 m lattice, one wave speed
+  for every wavelength (a single expanding circle, never a ring train), player-following, wired to the old
+  water. It still retires with `WaterManager` (§9).
+- **What a ripple layer is and is not:** surface DISPLACEMENT with zero mean, no mass. It moves no water, so
+  it cannot create water, raise a level or be a source (the owner's rules hold); it changes how the surface
+  looks, as the grid's own waves do, at the scale the grid cannot.
+
+### 22.2 The physics - iWave (Tessendorf)
+
+One layer per eulerian volume: a height field r(x, z) on a world-aligned lattice of pitch d = 1/9 m - the
+microcube (owner, 2026-10-10; 36 x 36 for the 4 x 4 m Small pond: ~0.1 ms a tick on the CPU, no GPU phase
+needed). It holds wavelengths from 2d = 22 cm (accurate from ~4 cells, 44 cm) up to the grid's 2/3 m; the
+5-20 cm ripples of a real pond are below it - the owner judged the microcube scale "good enough, worth checking", evolved by Tessendorf's iWave (*Interactive Water
+Surfaces*, J. Tessendorf, Game Programming Gems 4, 2004; jtessen.people.clemson.edu):
+
+    r(t+dt) = r(t) (2 - a dt)/(1 + a dt) - r(t-dt)/(1 + a dt) - g dt^2/(1 + a dt) * (G ⊛ r)(t) + sources
+
+G is the vertical-derivative kernel (13 x 13, radius 6 cells): the convolution form of sqrt(-laplacian), so every
+wavelength runs at its own speed - omega^2 = g k (deep water; a 10 cm ripple at 0.40 m/s, a 60 cm wave at 0.97
+m/s): a disturbance spreads into a TRAIN of rings, longest first. Capillarity is folded into the kernel
+(omega^2 = g k (1 + sigma k^2 / (rho g)), sigma 0.0728 N/m: +0.6 % at the lattice's shortest wave -
+included because it is free). Obstacles by Tessendorf's masking: solid columns and dry columns are masked (r = 0), so rings reflect off the
+pond walls. **Bodies are NOT masked** (22.8 F2): in iWave a moving mask itself makes waves, so masking a body
+AND giving it a source (22.3) would drive it twice; a body is a source only - rings pass under a floating crate,
+which hides its own footprint. The
+volume's open boundary (water continuing past the box) is an absorbing rim (2 cells, as the old field's).
+**Damping a.** Clean water's viscous rate (2 nu k^2: 127 s for a 10 cm ripple) is far too slow for real
+ponds, whose surfaces carry films; an inextensible film damps at ~ k sqrt(nu omega / 8) (Lamb, *Hydrodynamics*,
+§351; the film limit) - ~0.11 /s at 10 cm, ripples visible for several seconds. One constant a evaluated at
+the 20 cm band centre (the kernel cannot vary a per k); **the formula is to be confirmed by the grounding
+auditor at build**. The layer sleeps (exact zero) when its energy falls below a threshold. **Time step** (22.8 F4): leapfrog is
+stable for omega_max dt < 2; at d = 1/9 m omega_max = sqrt(g pi / d) = 16.6 rad/s, so dt <= 0.1 s - a frame
+longer than 1/30 s is split into equal substeps (at most 4; a longer stall drops time - a visual field owes none).
+**Lifetime** (22.8 F5): a volume does not auto-sleep while its layer is awake (bounded: R-T4, <= 30 s), so its
+rings never vanish mid-flight when the volume writes back.
+
+### 22.3 What drives it - only what the grid cannot hold
+
+The layer is one-way and sub-grid: it never feeds the grid, and it receives only the part of a disturbance
+the grid cannot represent.
+1. **Droplets landing (21)** - each landing hands the surface its downward momentum: the surface velocity over
+   its lattice cell is kicked by w = m v_y / (rho d^2) (m = rho x its volume; momentum conservation, no factor).
+   A 20 ml drop at 3 m/s on an 11 cm cell: w ~ 5 mm/s - a faint ring each; the crown's ~50 drops together ring
+   the pond where they fall.
+2. **A body crossing the surface** (20's moving solids, every frame its box spans the waterline): the water
+   under it moves with it (the kinematic condition), w = the body's vertical velocity over its footprint. The
+   grid already moves the cell-averaged part; the layer receives the remainder - w x (footprint on the fine
+   lattice - the footprint box-filtered over the h x h cell around each point): the sharp edges of the body
+   the 1/3 m grid smooths away. A bobbing floater at 0.2 m/s rings gently and forever-ish (a real floater does).
+3. Nothing else in v1 (no wind, no rain, no character wading - E4).
+
+### 22.4 How it is drawn
+
+The layer's heights upload each frame (only while awake) into one R16F atlas texture (all volumes' layers packed;
+a 36 x 36 pond is 2.6 KB), bound to `water_surface.frag` at set 1 binding 2, with a small table (binding 3:
+per layer world origin, 1/d, atlas rect). **Voxelated, as the owner asked:** each 1/9 m
+lattice square is one flat facet - the fragment takes the gradient of the square it lies in (central
+difference of the square's neighbours, nearest sampling) and tilts the mesh normal by it: N' = normalize(N +
+(-dr/dx, 0, -dr/dz)). A ring reads as a band of microcube facets catching the light. Bilinear (smooth) is a
+debug A/B (water_ripples {smooth: true}) for the owner's look, not a default. The tilt reaches refraction (the
+floor wobbles through the ring), the sky reflection and the sun glint - a ring reads as a moving band of
+distortion and glints, as it does on a real pond. No vertex displacement (mm-cm heights are below what a
+1/3 m mesh vertex can show). Droplet cubes and side faces sample nothing. Each vertex carries its layer index
+in the vertex's spare float **as index + 1** (22.8 F1): that float is 0 on every vertex today (the shore band,
+the fine band, droplet cubes), and 0 must keep meaning "no layer" - a shore vertex reading layer 0 would wear
+the pond's rings.
+
+### 22.5 Feature Design Keys
+
+- **Voxel aesthetic.** Ripples are drawn on the microcube lattice, one facet per 1/9 m square - the engine's
+  smallest static voxel, as the owner asked. Unconditional: no quality tier. The cost bound REFUSES (a volume over the budget gets no layer,
+  counted and logged) - it never coarsens a layer, so a ripple never looks different because of cost.
+- **Chunks.** The lattice is world-aligned (pitch 1/9 m from world 0), per volume; no chunk input. A pond
+  split over two volumes would see its rings stop at the volume seam - volumes are whole ponds today (16); logged.
+  Equality test **R-T6**: the same droplet landing at a chunk-seam position and an interior position gives the
+  same ring (bit-equal after translation).
+- **Generation.** None - runtime.
+- **API.** `water_ripples {enabled?, debug?}` (omitted = unchanged; echoes enabled, layers, awake layers, cells,
+  refused (over budget), cost ms, max |r|). `water_render_core {debug: 7}` = the ripple height as grey (a tap; the route's debug clamp rises from 6 to 7
+in the same commit). `water_ripples {smooth: bool}` = the bilinear A/B (default false: facets).
+  Budget: 512 x 512 lattice cells per layer (a 57 m pond), 4 layers - refused beyond, said so.
+- **Visual test plan** (22.6).
+
+### 22.6 Tests (red first; predictions written now)
+
+| # | Layer | Test | Prediction | Control |
+|---|---|---|---|---|
+| R-T1 | unit | a point kick in a 4 x 4 m layer: ring speeds | the leading crest's speed matches the group speed of the kernel's dispersion within 10 % at 3 radii; short waves trail long ones | a non-dispersive wave equation (the old field's) shows one ring at one speed |
+| R-T2 | unit | the kernel's dispersion: a plane wave of each lattice wavelength | omega within 5 % of sqrt(g k (1 + sigma k^2 / rho g)) down to 4 cells (44 cm) | - |
+| R-T3 | unit | masked wall: a ring hits a solid column line | reflects (energy behind the wall 0) | - |
+| R-T4 | unit | sleep | the layer reaches exact zero within 30 s of one kick; a still pond never wakes | - |
+| R-T5 | unit | no double counting: a body footprint aligned to the 1/3 m cells, moving at constant speed | the high-pass source is zero where the footprint fills whole cells, non-zero only along its edges | - |
+| R-T6 | unit | chunk seam (22.5) | bit-equal ring | - |
+| R-L1 | live | stone drop (20.14 rig), every frame (22.8 F3: if the ring is not visible, STOP and report - do not
+add a source the physics does not give; the stone's ring energy is mostly in the grid's long waves) | a ring visible: pond-region frame change >= 3 grey levels/frame for >= 0.5 s after entry (S1 cut: 1.95 for 0.5 s), then decaying over >= 2 s; layer cost <= 0.3 ms/frame on the CPU (else R2) | `water_ripples {enabled:false}`: S1 numbers |
+| R-L2 | live | floaters scenario (19.6) | they still settle (0-3 awake by 12 s); gentle rings round bobbing pieces | layer off |
+| R-L3 | live | recordings, stone + floaters -> **owner's look** | - | - |
+
+### 22.7 Build order
+
+- **R0** CPU reference: the layer (kernel, masking, sleep, sources from droplets + bodies), R-T1..R-T6.
+- **R1** render: atlas upload, binding, normal tilt, the debug tap; R-L1..R-L3, recordings -> owner.
+- **R2** (only if R-L1's cost gate fails) the layer on the GPU (a compute pass beside the solver's).
+
+### 22.8 Design-check (2026-10-10) - round 1 NEEDS WORK, folded in, round 2 READY for R0
+
+Checked against the code (`WaterSurfaceVertex`'s spare float, the `water_surface` set-1 layout, the auto-sleep
+path in `WaterCoreManager::update`, iWave's masking):
+- **F1** the layer index rides the vertex's spare float, which is 0 on the shore band, the fine band and the
+  droplet cubes - they would read layer 0 -> stored as index + 1, 0 = none.
+- **F2** bodies were both masked and sources; in iWave a moving mask makes waves itself -> bodies are sources only.
+- **F3** the stone's entry may hand the 22 cm-67 cm band little energy (its crater is the grid's long waves; the
+  layer gets only the footprint's sharp-edge remainder and the droplets' kicks) -> R-L1 is a stop condition, not
+  a tuning target: if no ring shows, report it before inventing a source.
+- **F4** the leapfrog step's stability bound was unstated -> omega_max dt < 2, substeps for long frames.
+- **F5** a volume could auto-sleep with rings in flight and drop them -> no auto-sleep while the layer is awake.
+Round 2: voxel look (microcube facets, unconditional, the budget refuses never coarsens), chunks (world-aligned
+lattice, no chunk input, R-T6), generation (none), API (units, unchanged when omitted, echoes, clamps), tests
+(red rows, predictions, controls, one-chunk rig, rig = shipped defaults + the realtime toggle) - answered.
+**READY for R0.** The set-1 bindings 2 and 3 are new descriptors on `WaterSurfaceRenderPipeline` (its layout and
+pool grow; the shore band and fine band draw through the same pipeline and bind the same atlas, sampling none).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
