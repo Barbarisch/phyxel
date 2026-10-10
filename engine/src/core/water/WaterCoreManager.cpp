@@ -464,6 +464,44 @@ bool WaterCoreManager::addSource(int id, const glm::vec3& world, float rate, std
     return false;
 }
 
+WaterCoreManager::SolidsFeed WaterCoreManager::setMovingSolids(const std::vector<MovingSolid>& bodiesIn, float frameSeconds) {
+    SolidsFeed out;
+    // the held poses (kSolidHoldDistance): a body is rasterized where it was until it has moved further than that
+    std::vector<MovingSolid> bodies = bodiesIn;
+    std::unordered_map<uint64_t, glm::vec3> hold;
+    for (MovingSolid& b : bodies) {
+        if (b.id == 0) continue;
+        auto it = m_solidHold.find(b.id);
+        if (it != m_solidHold.end() && glm::length(b.centre - it->second) <= kSolidHoldDistance) b.centre = it->second;
+        hold[b.id] = b.centre;
+    }
+    m_solidHold.swap(hold);   // bodies that left are forgotten
+    for (auto& avp : m_avs) {
+        Av& av = *avp;
+        const glm::vec3 lo(av.minVoxel), hi = glm::vec3(av.maxVoxel) + glm::vec3(1.0f);
+        std::vector<MovingSolid> mine;
+        for (const MovingSolid& b : bodies)
+            if (glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi))) mine.push_back(b);
+        if (mine.empty() && !av.hadSolids) continue;
+        if (av.solver->transport().ownsMass()) { out.flipRefused += static_cast<long>(mine.size()); continue; }
+        refreshOccupancy(av);
+        ++out.volumes;
+        WaterSolver::SolidsReport rep;
+        if (av.backend == "gpu" && av.gpuVol && m_gpu) {
+            rep = av.solver->updateSolidFields(mine, frameSeconds);
+            static const std::vector<float> kNoWake;
+            m_gpu->setSolids(*av.gpuVol, av.grid->sData(), m_solidWakeRule ? av.solver->solidWake() : kNoWake, av.solver->solidFresh(), frameSeconds);
+            if (rep.raster.cells > 0 || rep.wakeCells > 0 || rep.sChange > 0.0) av.gpuLast.asleep = false;   // setSolids woke the device volume
+        } else {
+            rep = av.solver->setMovingSolids(mine, frameSeconds);
+        }
+        out.bodies += rep.raster.bodies; out.rasterCells += rep.raster.cells; out.bodyVolume += rep.raster.volumeInside;
+        out.freshCells += rep.freshCells; out.rateCells += rep.rateCells; out.clamped += rep.clamped; out.wakeCells += rep.wakeCells; out.rate += rep.rate;
+        av.hadSolids = !mine.empty() || rep.wakeCells > 0;
+    }
+    return out;
+}
+
 void WaterCoreManager::markWritten(Av& av) {
     av.solver->wake();
     av.gpuDirty = true; av.gpuLast.asleep = false;
@@ -546,6 +584,7 @@ ProbeResult WaterCoreManager::probe(const glm::vec3& world) {
     r.surfaceY = av->grid->surfaceWorldY(c.x, c.z);
     r.pressure = av->solver->pressure(c.x, c.y, c.z);
     r.occupancy = static_cast<int>(av->grid->occ(c.x, c.y, c.z));
+    r.solidFraction = av->grid->s(c.x, c.y, c.z);
     return r;
 }
 
@@ -630,6 +669,10 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
             const SurfaceColumn& c = f.cols[i];
             const int runs = static_cast<int>(c.runs + 0.5f);
             if (runs <= 0) continue;
+            // 20 (M2): a body at the top of the column - its drawn level is the body's (it flips ~25 cm as a floater
+            // shifts across the cell), not water motion; counted, it woke every floater every frame (10 floaters
+            // never settled). No reference is kept, so the column leaving the body does not read as motion either.
+            if (c.bodyAtSurface > 0.0f) continue;
             const float top = c.top[std::min(runs, kSurfaceMaxRuns) - 1];
             const bool haveRef = havePrev && !std::isnan(prev[i]);
             const float dTop = haveRef ? std::abs(top - prev[i]) : 0.0f;
@@ -651,16 +694,36 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
     return out;
 }
 
+bool WaterCoreManager::surfaceAtWorld(float x, float z, float& level, float& top) const {
+    for (const auto& f : m_fields) {
+        const int cx = static_cast<int>(std::floor(x / f.h)) - f.origin.x, cz = static_cast<int>(std::floor(z / f.h)) - f.origin.z;
+        if (cx < 0 || cz < 0 || cx >= f.nx || cz >= f.nz) continue;
+        const SurfaceColumn& c = f.at(cx, cz);
+        const int runs = std::min(static_cast<int>(c.runs + 0.5f), kSurfaceMaxRuns);
+        if (runs <= 0) return false;
+        level = c.top[0]; top = c.top[runs - 1];
+        return true;
+    }
+    return false;
+}
+
 bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const {
     for (const auto& f : m_fields) {
         const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
         const int bx = wx * per - f.origin.x, bz = wz * per - f.origin.z;
         if (bx < 0 || bz < 0 || bx + per > f.nx || bz + per > f.nz) continue;
+        // 20 (M2): skip sub-columns whose top holds a moving solid - the level there is the body's own, and a
+        // floater reading it is a feedback loop (its displacement moved the surface it reads two frames later:
+        // one wood piece bobbed forever, 16.33 <-> 16.58 m at its own column). Buoyancy refers to the water
+        // AROUND it; only when every sub-column holds a body are they used.
+        bool anyClear = false;
+        for (int k = 0; k < per && !anyClear; ++k) for (int i = 0; i < per; ++i) { const SurfaceColumn& c = f.at(bx + i, bz + k); if (c.runs >= 0.5f && c.bodyAtSurface <= 0.0f) { anyClear = true; break; } }
         float top = -1e30f; glm::vec2 sum(0.0f); int wet = 0;
         for (int k = 0; k < per; ++k) for (int i = 0; i < per; ++i) {
             const SurfaceColumn& c = f.at(bx + i, bz + k);
             const int runs = static_cast<int>(c.runs + 0.5f);
             if (runs <= 0) continue;
+            if (anyClear && c.bodyAtSurface > 0.0f) continue;
             top = std::max(top, c.top[std::min(runs, kSurfaceMaxRuns) - 1]);
             sum += glm::vec2(c.u, c.w); ++wet;
         }

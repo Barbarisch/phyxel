@@ -302,6 +302,22 @@ private:
     // Phase E (docs/WaterCore.md 19): coupling - small bodies that respond. ON by default; the route's
     // {enabled:false} is the A/B control.
     bool m_waterCouplingOn = true;
+    // 20 (M2) measurement: the drawn surface at a few world points every frame (water_av_watch) - no HTTP
+    // sampling jitter (a 25 Hz API poll missed the splash peaks)
+    std::vector<glm::vec2> m_watchPoints;
+    std::vector<std::vector<float>> m_watchRows;   // per frame: t, then (level, top) per point (NaN = dry)
+    double m_watchT0 = 0.0;
+    // 20 (M2): debris displaces water WHILE IT MOVES (hysteresis kDisplaceOnSpeed / kDisplaceOffSpeed). Measured
+    // 2026-10-10: with every wet piece displacing, ten floaters never settled (9-10 awake for 20 s; displacement
+    // off: 1-3 by 7-10 s, the signed-off 19.6 feel) - a slow body and the water drive each other through the
+    // two-frame readback (one-way coupling with a delay); a hold of 3 or 11 cm, skipping the body's own
+    // columns in the debris reading and in the motion signal, and the wake rule off each did NOT stop it. The
+    // cure is the two-way pressure force (20.6 v2, M4); until then a resting / bobbing body is carried by the
+    // table law only, and a resting body does not raise the level (~2 mm per 1/3 m stone in a 4 x 4 m pond).
+    static constexpr float kDisplaceOnSpeed = 0.6f, kDisplaceOffSpeed = 0.3f;   // m/s
+    std::unordered_map<uint64_t, bool> m_displacing;   // body id -> displacing now
+    bool m_waterSolidsOn = true;     // 20 (M2): debris inside a volume's box displaces water (moving solids)
+    Core::Water::WaterCoreManager::SolidsFeed m_solidsFeed;   // the last frame's feed (water_coupling echo)
     bool m_waterExchangeOn = true;   // E2: debris -> water momentum only (the tiles stay) - a diagnostic split
     struct WaterKickStats { long blasts = 0; int volumes = 0; long faces = 0; long clamped = 0; float speed = 0.0f, reach = 0.0f; glm::vec3 centre{0.0f}; };
     WaterKickStats m_lastKick;

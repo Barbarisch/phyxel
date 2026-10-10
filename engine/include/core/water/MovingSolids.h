@@ -21,6 +21,7 @@ struct MovingSolid {
     glm::vec3 halfExtents{0.0f};   ///< world units; rotation is ignored in v1 - the equal-volume axis-aligned box (volume exact)
     glm::vec3 velocity{0.0f};      ///< m/s (reported only: the rate comes from the fill, 20.2)
     bool fresh = false;            ///< appeared this frame (spawn, teleport): NO rate - a column ledger moves the water instead (20.7: no fake splash)
+    uint64_t id = 0;               ///< identity across frames (0 = none): lets WaterCoreManager hold a near-still body's pose (kSolidHoldDistance)
 };
 
 struct SolidRaster {

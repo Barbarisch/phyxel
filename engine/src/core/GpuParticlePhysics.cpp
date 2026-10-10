@@ -5,6 +5,8 @@
 #include "physics/Material.h"
 #include "utils/Logger.h"
 #include "utils/GpuProfiler.h"
+#include <chrono>
+#include <unordered_map>
 #include <glm/gtc/quaternion.hpp>
 #include <cstring>
 #include <cmath>
@@ -292,6 +294,13 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
                                 static_cast<VkDeviceSize>(DebrisShared::MAX_WATER_EXCHANGE) * sizeof(DebrisShared::WaterExchangeGpu);
         if (!createHostBuffer(xs, m_exchangeBuffer[slot], m_exchangeMem[slot], m_exchangeMapped[slot], "water exchange")) return false;
         std::memset(m_exchangeMapped[slot], 0, static_cast<size_t>(xs));
+    }
+    // 6f. WaterCore 20: water-volume boxes + wet-body records (host-coherent, persistent map, one per frame slot)
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize ws = static_cast<VkDeviceSize>(DebrisShared::WET_HEADER_BYTES) +
+                                static_cast<VkDeviceSize>(DebrisShared::MAX_WET_BODIES) * sizeof(DebrisShared::WetBodyGpu);
+        if (!createHostBuffer(ws, m_wetBuffer[slot], m_wetMem[slot], m_wetMapped[slot], "wet bodies")) return false;
+        std::memset(m_wetMapped[slot], 0, static_cast<size_t>(ws));
     }
 
     // 7. Material physics properties (host-coherent SSBO, 32 bytes × material count)
@@ -681,7 +690,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
 
     // solver_integrate: bodies, materials, particles, character collider, state (wake bits)
     // + bindings 3/4: this frame slot's water directory + tiles (Phase 6c).
-    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 6, sizeof(IntegratePC),
+    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 7, sizeof(IntegratePC),
                                       OCC_FRAME_SLOTS)) return false;
     m_solverIntegratePass.bindBuffer(0, m_solverBodyBuffer,   bodySize);
     m_solverIntegratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
@@ -693,6 +702,8 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
             static_cast<VkDeviceSize>(WATER_MAX_TILES) * WATER_TILE_CELLS * WATER_TILE_CELLS * 2u * sizeof(uint32_t));
         m_solverIntegratePass.bindBufferInSet(slot, 5, m_exchangeBuffer[slot],   // WaterCore E2
             static_cast<VkDeviceSize>(EVENT_HEADER_UINTS) * 4u + static_cast<VkDeviceSize>(MAX_WATER_EXCHANGE) * sizeof(WaterExchangeGpu));
+        m_solverIntegratePass.bindBufferInSet(slot, 6, m_wetBuffer[slot],        // WaterCore 20
+            static_cast<VkDeviceSize>(WET_HEADER_BYTES) + static_cast<VkDeviceSize>(MAX_WET_BODIES) * sizeof(WetBodyGpu));
     }
     m_solverIntegratePass.updateDescriptors();
 
@@ -1345,6 +1356,20 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     m_frameSlot = frameIndex % OCC_FRAME_SLOTS;
     // Phase 6: events this slot's ticks wrote two frames ago are readable now (its fence retired).
     if (m_initialized) consumeEventSlot(m_frameSlot);
+    if (m_initialized && m_wetMapped[m_frameSlot]) {   // WaterCore 20: this frame's water-volume boxes (the slot's fence has retired)
+        auto* w = static_cast<uint32_t*>(m_wetMapped[m_frameSlot]);
+        const uint32_t nb = static_cast<uint32_t>(std::min<size_t>(m_waterBoxes.size(), DebrisShared::MAX_WATER_BOXES));
+        w[4] = nb;
+        auto* bmin = reinterpret_cast<float*>(w + 8);
+        auto* bmax = bmin + 4 * DebrisShared::MAX_WATER_BOXES;
+        for (uint32_t k = 0; k < nb; ++k) {
+            bmin[4 * k + 0] = m_waterBoxes[k].first.x;  bmin[4 * k + 1] = m_waterBoxes[k].first.y;  bmin[4 * k + 2] = m_waterBoxes[k].first.z;  bmin[4 * k + 3] = 0.0f;
+            bmax[4 * k + 0] = m_waterBoxes[k].second.x; bmax[4 * k + 1] = m_waterBoxes[k].second.y; bmax[4 * k + 2] = m_waterBoxes[k].second.z; bmax[4 * k + 3] = 0.0f;
+        }
+        m_wetStats.boxes = nb;
+        m_wetStats.boxesDropped = static_cast<uint32_t>(m_waterBoxes.size() - nb);
+        m_wetStampSec[m_frameSlot] = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
     // Position log: its single buffer was copied by THIS slot; readable now, never earlier.
     if (m_readbackPending && m_readbackSlot == m_frameSlot) m_readbackReady = true;
     // Movers for this frame's ticks into THIS slot's buffer: its fence has retired, so no
@@ -1446,6 +1471,13 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     if (m_physicsTicks > 0 && m_eventBuffer[m_frameSlot] != VK_NULL_HANDLE) {
         // Phase 6: this frame's ticks append to this slot's event buffer from count 0.
         vkCmdFillBuffer(cmd, m_eventBuffer[m_frameSlot], 0, DebrisShared::EVENT_HEADER_UINTS * 4u, 0u);
+        if (m_wetBuffer[m_frameSlot] != VK_NULL_HANDLE) {   // WaterCore 20: this frame's wet bodies append from 0 (the boxes stay)
+            vkCmdFillBuffer(cmd, m_wetBuffer[m_frameSlot], 0, 16u, 0u);
+            insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                          m_wetBuffer[m_frameSlot]);
+        }
+        m_wetWritten[m_frameSlot] = true;
         if (m_exchangeBuffer[m_frameSlot] != VK_NULL_HANDLE) {   // WaterCore E2: this frame's exchange appends from 0
             vkCmdFillBuffer(cmd, m_exchangeBuffer[m_frameSlot], 0, DebrisShared::EVENT_HEADER_UINTS * 4u, 0u);
             insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -1476,6 +1508,9 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     if (m_physicsTicks > 0 && m_pushBuffer[m_frameSlot] != VK_NULL_HANDLE)
         insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
                       VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_pushBuffer[m_frameSlot]);
+    if (m_physicsTicks > 0 && m_wetBuffer[m_frameSlot] != VK_NULL_HANDLE)   // WaterCore 20
+        insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                      VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_wetBuffer[m_frameSlot]);
     if (m_physicsTicks > 0 && m_exchangeBuffer[m_frameSlot] != VK_NULL_HANDLE)   // WaterCore E2
         insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
                       VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_exchangeBuffer[m_frameSlot]);
@@ -1544,6 +1579,11 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     }
 }
 
+void GpuParticlePhysics::setWaterVolumeBoxes(const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes) {
+    m_waterBoxes = boxes;
+    if (boxes.empty()) m_wetBodies.clear();   // no volume, no wet body (else the last list would linger)
+}
+
 void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
     if (slot >= OCC_FRAME_SLOTS || !m_eventsWritten[slot] || !m_eventMapped[slot]) return;
     m_eventsWritten[slot] = false;
@@ -1557,6 +1597,31 @@ void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
             const glm::vec3 f(fp[k * 4 + 0], fp[k * 4 + 1], fp[k * 4 + 2]);
             m_moverImpulses[owners[k]] += f * (FIXED_DT / DebrisShared::MOVER_PUSH_SCALE);
         }
+    }
+    if (m_wetMapped[slot] && m_wetWritten[slot]) {   // WaterCore 20: same slot, same fence; a slot without ticks keeps the old list
+        m_wetWritten[slot] = false;
+        const auto* ww = static_cast<const uint32_t*>(m_wetMapped[slot]);
+        const uint32_t wc = ww[0], wsN = std::min(wc, DebrisShared::MAX_WET_BODIES);
+        m_wetStats.recordsTotal += wc; m_wetStats.recordsDropped += wc - wsN;
+        const auto* wr = reinterpret_cast<const DebrisShared::WetBodyGpu*>(reinterpret_cast<const char*>(ww) + DebrisShared::WET_HEADER_BYTES);
+        const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        const float age = static_cast<float>(std::max(0.0, now - m_wetStampSec[slot]));
+        std::vector<WetBody> latest;
+        std::unordered_map<uint32_t, size_t> at;   // slot -> index: a body's LAST tick wins (records are in tick order)
+        for (uint32_t k = 0; k < wsN; ++k) {
+            uint32_t bslot; std::memcpy(&bslot, &wr[k].posSlot.w, sizeof(uint32_t));
+            WetBody b;
+            b.centre = glm::vec3(wr[k].posSlot.x, wr[k].posSlot.y, wr[k].posSlot.z);
+            b.halfExtents = glm::vec3(wr[k].halfExt.x, wr[k].halfExt.y, wr[k].halfExt.z);
+            b.velocity = glm::vec3(wr[k].vel.x, wr[k].vel.y, wr[k].vel.z);
+            b.slot = bslot; b.serial = slotSerial(bslot); b.ageSeconds = age;
+            auto it = at.find(bslot);
+            if (it == at.end()) { at.emplace(bslot, latest.size()); latest.push_back(b); } else latest[it->second] = b;
+        }
+        std::unordered_map<uint64_t, bool> before;
+        for (const WetBody& b : m_wetBodies) before[(static_cast<uint64_t>(b.slot) << 32) | b.serial] = true;
+        for (WetBody& b : latest) b.fresh = before.find((static_cast<uint64_t>(b.slot) << 32) | b.serial) == before.end();
+        m_wetBodies.swap(latest);
     }
     if (m_exchangeMapped[slot]) {   // WaterCore E2: same slot, same fence
         const auto* xw = static_cast<const uint32_t*>(m_exchangeMapped[slot]);
@@ -2045,6 +2110,10 @@ void GpuParticlePhysics::cleanup() {
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_impulseBuffer[slot], m_impulseMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_eventBuffer[slot], m_eventMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {   // WaterCore 20
+        if (m_wetMapped[slot]) { vkUnmapMemory(m_device, m_wetMem[slot]); m_wetMapped[slot] = nullptr; }
+        destroyBuf(m_wetBuffer[slot], m_wetMem[slot]);
+    }
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {   // WaterCore E2
         if (m_exchangeMapped[slot]) { vkUnmapMemory(m_device, m_exchangeMem[slot]); m_exchangeMapped[slot] = nullptr; }
         destroyBuf(m_exchangeBuffer[slot], m_exchangeMem[slot]);

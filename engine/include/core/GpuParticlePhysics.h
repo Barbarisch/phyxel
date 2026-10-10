@@ -205,6 +205,17 @@ public:
     std::vector<WaterExchange> takeWaterExchange() { std::vector<WaterExchange> out; out.swap(m_waterExchange); return out; }
     uint64_t waterExchangeTotal() const { return m_exchangeTotal; }
     uint64_t waterExchangeDropped() const { return m_exchangeDropped; }
+    /// WaterCore 20 (moving solids, docs/WaterCore.md 20.4): the water volumes' world boxes (min, max). Up to
+    /// MAX_WATER_BOXES are passed to the integrator; more are counted (their bodies displace nothing).
+    void setWaterVolumeBoxes(const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes);
+    /// The bodies inside those boxes, one per body (its last tick), as of the frame whose slot was last read -
+    /// `ageSeconds` old (two frames: MAX_FRAMES_IN_FLIGHT). A frame with no physics tick keeps the previous
+    /// list (no records is not "no bodies" - read naively, every body would vanish for a frame). `fresh` = the
+    /// body (slot + serial) was not in the previous list.
+    struct WetBody { glm::vec3 centre{0.0f}, halfExtents{0.0f}, velocity{0.0f}; uint32_t slot = 0; uint32_t serial = 0; float ageSeconds = 0.0f; bool fresh = false; };
+    const std::vector<WetBody>& wetBodies() const { return m_wetBodies; }
+    struct WetStats { uint64_t recordsTotal = 0, recordsDropped = 0; uint32_t boxes = 0, boxesDropped = 0; };
+    const WetStats& wetStats() const { return m_wetStats; }
     /** Phase 6a: per owner tag, the impulse (N*s) debris contacts put on its mover boxes, summed
      *  over the frames read back since the last call (two frames late). Normal force only. */
     std::unordered_map<uint32_t, glm::vec3> takeMoverImpulses() {
@@ -412,6 +423,14 @@ private:
     VkDeviceMemory   m_exchangeMem[OCC_FRAME_SLOTS]    = {};
     void*            m_exchangeMapped[OCC_FRAME_SLOTS] = {};
     std::vector<WaterExchange> m_waterExchange;
+    VkBuffer         m_wetBuffer[OCC_FRAME_SLOTS] = {};   // WaterCore 20: boxes + wet-body records, per frame slot
+    VkDeviceMemory   m_wetMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_wetMapped[OCC_FRAME_SLOTS] = {};
+    bool             m_wetWritten[OCC_FRAME_SLOTS] = {};
+    double           m_wetStampSec[OCC_FRAME_SLOTS] = {};
+    std::vector<std::pair<glm::vec3, glm::vec3>> m_waterBoxes;
+    std::vector<WetBody> m_wetBodies;
+    WetStats         m_wetStats;
     uint64_t         m_exchangeTotal = 0, m_exchangeDropped = 0;
     // Phase 6a push-back readback: per frame slot, with the owner tag of every kinematic body as
     // staged for that slot (the order changes every frame).

@@ -42,6 +42,10 @@ void extractSurfaceField(const WaterGrid& g, WaterSurfaceField& out) {
                 topCell = top;
             }
             c.runs = static_cast<float>(runs);
+            if (topCell >= 0) {   // 20: a body at the surface (mirrors wc_surface.comp)
+                c.bodyAtSurface = g.s(x, topCell, z);
+                if (topCell + 1 < g.ny()) c.bodyAtSurface = std::max(c.bodyAtSurface, g.s(x, topCell + 1, z));
+            }
             if (topCell >= 0) {   // E2: the surface velocity (mirrors wc_surface.comp)
                 WaterGrid& gm = const_cast<WaterGrid&>(g);
                 c.u = 0.5f * (gm.u(x, topCell, z) + gm.u(x + 1, topCell, z));

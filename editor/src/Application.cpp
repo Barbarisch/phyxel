@@ -8,6 +8,7 @@
 // Shell ID headers when included this early in the TU.
 extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(void);
 #else
+#include <unordered_map>
 #include <unistd.h>
 #endif
 #include "Application.h"
@@ -3691,11 +3692,46 @@ void Application::update(float deltaTime) {
         // WaterCore active volumes: realtime stepping is opt-in (water_av_realtime); the harness
         // steps explicitly. The debug feed is rebuilt every frame while any volume exists.
         if (waterCore) {
+            // 20 (M2): debris inside a volume's box is a moving solid - it displaces water. The integrator
+            // reports the bodies inside the boxes two frames late; predict each forward by its own age.
+            if (debrisRuntime && debrisRuntime->gpu()) {
+                std::vector<std::pair<glm::vec3, glm::vec3>> boxes;
+                if (m_waterCouplingOn && m_waterSolidsOn)
+                    for (const auto& [lo, hi] : waterCore->volumeBoxes()) boxes.push_back({glm::vec3(lo), glm::vec3(hi) + glm::vec3(1.0f)});
+                debrisRuntime->gpu()->setWaterVolumeBoxes(boxes);
+                std::vector<Core::Water::MovingSolid> solids;
+                std::unordered_map<uint64_t, bool> displacing;
+                if (!boxes.empty())
+                    for (const auto& w : debrisRuntime->gpu()->wetBodies()) {
+                        const uint64_t id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);
+                        const float speed = glm::length(w.velocity);
+                        const auto prev = m_displacing.find(id);
+                        const bool on = speed > kDisplaceOnSpeed || (prev != m_displacing.end() && prev->second && speed > kDisplaceOffSpeed);
+                        displacing[id] = on;
+                        if (!on) continue;   // at rest / bobbing: the table law carries it (see kDisplaceOnSpeed)
+                        Core::Water::MovingSolid m;
+                        m.centre = w.centre + w.velocity * w.ageSeconds; m.halfExtents = w.halfExtents; m.velocity = w.velocity; m.fresh = w.fresh;
+                        m.id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);   // never 0
+                        solids.push_back(m);
+                    }
+                m_displacing.swap(displacing);
+                m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f));
+            }
             waterCore->update(std::min(deltaTime, 0.05f));
             if (renderCoordinator) {
                 renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
                 renderCoordinator->setWaterCoreSurfaceFields(waterCore->totalCells() ? &waterCore->surfaceFields() : nullptr);   // Phase F: the surface mesh feed
+                if (!m_watchPoints.empty() && m_watchRows.size() < 20000) {   // water_av_watch: every frame
+                    std::vector<float> row;
+                    row.push_back(static_cast<float>(std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_watchT0));
+                    for (const glm::vec2& pt : m_watchPoints) {
+                        float lv = std::numeric_limits<float>::quiet_NaN(), tp = lv;
+                        waterCore->surfaceAtWorld(pt.x, pt.y, lv, tp);
+                        row.push_back(lv); row.push_back(tp);
+                    }
+                    m_watchRows.push_back(std::move(row));
+                }
             }
             // Phase G: the shore band follows the camera along the shore and is stepped every frame at the
             // sheet's clock; its box joins the volumes' in the span-grid mask (D3) and its surface is meshed (F1)
@@ -13934,7 +13970,7 @@ void Application::registerWaterCommands() {
     reg.on("water_av_probe", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         const auto p = waterCore->probe(glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f)));
-        r = {{"in_volume", p.inVolume}, {"volume_id", p.avId}, {"fill", p.fill},
+        r = {{"in_volume", p.inVolume}, {"volume_id", p.avId}, {"fill", p.fill}, {"solid_fraction", p.solidFraction},
              {"velocity", {p.velocity.x, p.velocity.y, p.velocity.z}},
              {"surface_y", std::isnan(p.surfaceY) ? nlohmann::json(nullptr) : nlohmann::json(p.surfaceY)},
              {"pressure", p.pressure}, {"occupancy", p.occupancy}};
@@ -14026,11 +14062,40 @@ void Application::registerWaterCommands() {
         }
     });
     // Phase E (docs/WaterCore.md 19): coupling status + the A/B control. {enabled?} -> the echo.
+    // 20 (M2) measurement: {points: [[x, z], ...]} starts recording the drawn surface (pond level + highest run)
+    // at those world points every frame (up to 8 points, 20000 frames); {} returns the rows; {stop: true} ends it.
+    reg.on("water_av_watch", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("points")) {
+            m_watchPoints.clear(); m_watchRows.clear();
+            for (const auto& pt : cmd.params["points"]) if (pt.is_array() && pt.size() >= 2 && m_watchPoints.size() < 8) m_watchPoints.push_back({pt[0].get<float>(), pt[1].get<float>()});
+            m_watchT0 = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
+        if (cmd.params.value("stop", false)) m_watchPoints.clear();
+        nlohmann::json rows = nlohmann::json::array();
+        for (const auto& row : m_watchRows) {
+            nlohmann::json jr = nlohmann::json::array();
+            for (float v : row) jr.push_back(std::isnan(v) ? nlohmann::json() : nlohmann::json(v));
+            rows.push_back(jr);
+        }
+        nlohmann::json pts = nlohmann::json::array();
+        for (const auto& pt : m_watchPoints) pts.push_back({pt.x, pt.y});
+        r = {{"points", pts}, {"frames", m_watchRows.size()}, {"rows", rows}, {"columns", "t, then level and top per point (world y; null = dry)"}};
+    });
     reg.on("water_coupling", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("enabled")) m_waterCouplingOn = cmd.params.value("enabled", true);
         if (cmd.params.contains("exchange")) m_waterExchangeOn = cmd.params.value("exchange", true);   // debris -> water only
+        if (cmd.params.contains("solids")) m_waterSolidsOn = cmd.params.value("solids", true);         // 20: debris displaces water
+        if (cmd.params.contains("wake_rule") && waterCore) waterCore->setSolidWakeRule(cmd.params.value("wake_rule", true));   // 20.5 A/B (GPU volumes)
         const auto& k = m_lastKick;
-        r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn},
+        const auto& sf = m_solidsFeed;
+        const auto* gp = debrisRuntime ? debrisRuntime->gpu() : nullptr;
+        r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn}, {"solids", m_waterSolidsOn}, {"wake_rule", waterCore ? waterCore->solidWakeRule() : true},
+             {"moving_solids", {{"volumes", sf.volumes}, {"bodies", sf.bodies}, {"cells", sf.rasterCells}, {"body_volume_m3", sf.bodyVolume},
+                                {"fresh_cells", sf.freshCells}, {"wake_cells", sf.wakeCells}, {"cpu_rate_cells", sf.rateCells}, {"cpu_rate_m3s", sf.rate},
+                                {"clamped", sf.clamped}, {"flip_refused", sf.flipRefused},
+                                {"wet_bodies", gp ? gp->wetBodies().size() : 0}, {"boxes", gp ? gp->wetStats().boxes : 0u},
+                                {"boxes_dropped", gp ? gp->wetStats().boxesDropped : 0u}, {"records_total", gp ? gp->wetStats().recordsTotal : 0ull},
+                                {"records_dropped", gp ? gp->wetStats().recordsDropped : 0ull}}},
              {"debris_exchange", {{"frames", m_exchangeStats.frames}, {"records", m_exchangeStats.records}, {"applied", m_exchangeStats.applied},
                                   {"outside_volumes", m_exchangeStats.outside}, {"dry", m_exchangeStats.dry}, {"clamped", m_exchangeStats.clamped},
                                   {"momentum_to_water_total", m_exchangeStats.totalMagnitude},

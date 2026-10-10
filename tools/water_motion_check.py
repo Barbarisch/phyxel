@@ -21,6 +21,7 @@ ap.add_argument("--scenario", default="blast", choices=["blast", "debris", "rest
 ap.add_argument("--seconds", type=float, default=10.0)
 ap.add_argument("--tag", default=None)
 ap.add_argument("--cell", type=float, default=1.0 / 3.0, help="the pond's cell size in voxels (1/3 shipped; 1/9 finer)")
+ap.add_argument("--solids", choices=["on", "off"], default="on", help="debris displaces water (WaterCore.md 20); off = the A/B control")
 args = ap.parse_args()
 tag = args.tag or f"motion_{args.scenario}"
 EV.mkdir(parents=True, exist_ok=True)
@@ -40,7 +41,7 @@ def make_pond():
     api.debug("place_water_box", {"x1": 100, "y1": 15, "z1": 12, "x2": 103, "y2": 15, "z2": 15, "mass": 1.0, "target": "core"})
     api.debug("place_water_box", {"x1": 100, "y1": 16, "z1": 12, "x2": 103, "y2": 16, "z2": 15, "mass": 0.5, "target": "core"})
     api.debug("water_av_realtime", {"on": True})
-    api.debug("water_coupling", {"enabled": True})
+    api.debug("water_coupling", {"enabled": True, "solids": args.solids == "on"})
 
 def stimulus():
     if args.scenario == "blast":
@@ -95,7 +96,7 @@ out = {"scenario": args.scenario, "pose": POSE, "video": str(mp4), "frames_dir":
        "frame_pacing": summary,
        "flicker": {"samples": len(vals), "largest_jump_m": round(max(jumps), 4) if jumps else None,
                    "jumps_over_5cm": sum(1 for j in jumps if j > 0.05), "surface_range": [round(min(vals), 4), round(max(vals), 4)] if vals else None},
-       "cell": args.cell,
+       "cell": args.cell, "solids": args.solids, "moving_solids": api.debug("water_coupling", {}).get("moving_solids"),
        "ring_m_from_drop": {str(d): {"min": round(min(v) - REST, 4), "max": round(max(v) - REST, 4)} for d, v in ring.items() if v}}
 (EV / f"{tag}.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
 print(json.dumps(out, indent=1)[:3000])

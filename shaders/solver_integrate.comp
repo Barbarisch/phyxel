@@ -17,6 +17,10 @@ layout(std430, set=0, binding=4) readonly buffer WaterTileBuffer { uvec2 waterCe
 // per frame slot, read back after its fence - the event-buffer pattern).
 struct WaterExchange { PHX_WATER_EXCHANGE };
 layout(std430, set=0, binding=5) buffer WaterExchangeBuffer { uint exchangeCount; uint xPad0, xPad1, xPad2; WaterExchange exchanges[]; };
+// WaterCore 20 (moving solids): the water-volume boxes (written by the host) and the wet-body records
+struct WetBody { PHX_WET_BODY };
+layout(std430, set=0, binding=6) buffer WetBodyBuffer { uint wetCount; uint wPad0, wPad1, wPad2; uint boxCount; uint bPad0, bPad1, bPad2;
+                                                        vec4 boxMin[MAX_WATER_BOXES]; vec4 boxMax[MAX_WATER_BOXES]; WetBody wetBodies[]; };
 
 
 // Movers (the player, scripted boxes, later every character) are AVBD bodies since Phase 2:
@@ -60,6 +64,24 @@ void main() {
 
     GpuParticle     p   = particles[b.particleIdx];
     MaterialPhysics mat = materials[p.materialIndex & MATERIAL_MASK];
+
+    // WaterCore 20: a body inside a water volume's box reports its box - the volume treats it as a moving
+    // solid (docs/WaterCore.md 20.4). Before any force: the pose the tick starts from.
+    {
+        const uint nb = min(boxCount, MAX_WATER_BOXES);
+        const vec3 r3 = vec3(max(b.radius, 1e-3));
+        for (uint k = 0u; k < nb; ++k) {
+            if (all(greaterThanEqual(b.pos + r3, boxMin[k].xyz)) && all(lessThanEqual(b.pos - r3, boxMax[k].xyz))) {
+                const uint s = atomicAdd(wetCount, 1u);
+                if (s < MAX_WET_BODIES) {
+                    wetBodies[s].posSlot = vec4(b.pos, uintBitsToFloat(i));
+                    wetBodies[s].halfExt = vec4(b.halfExt, 0.0);
+                    wetBodies[s].vel     = vec4(b.vel, 0.0);
+                }
+                break;
+            }
+        }
+    }
 
     // Save state before any forces (these are the "initial" AVBD reference values)
     b.prevVel     = b.vel;

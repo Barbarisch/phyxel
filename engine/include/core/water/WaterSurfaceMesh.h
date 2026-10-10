@@ -49,7 +49,9 @@ struct SurfaceColumn {
     float runs = 0.0f;                               ///< run count (float for the GPU layout)
     float foam = 0.0f;                               ///< 0..1 whitewater on the top run (G2)
     float u = 0.0f, w = 0.0f;                        ///< surface velocity, x and z (m/s) (G2)
-    float pad0 = 0.0f, pad1 = 0.0f, pad2 = 0.0f;
+    float bodyAtSurface = 0.0f;                      ///< 20: a moving solid's fraction at the top run's top cell or the cell above it (max) -
+                                                     ///< the level here is the body's, not the water's: a floater must not read it (columnWater skips it)
+    float pad1 = 0.0f, pad2 = 0.0f;
 };
 static_assert(sizeof(SurfaceColumn) == 64, "wc_surface.comp writes 16 floats per column");
 

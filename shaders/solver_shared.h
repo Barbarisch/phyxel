@@ -133,6 +133,14 @@ PHX_CONST float IMPACT_EVENT_DV     = 1.5f;
 // the cap; [1..3] pad; then the records). Per frame (all its ticks); more are counted, not stored.
 PHX_CONST uint  MAX_WATER_EXCHANGE  = 4096u;
 PHX_CONST float WATER_EXCHANGE_MIN_DV = 1.0e-4f;   // m/s: smaller changes are not worth a record
+// WaterCore 20 (moving solids, docs/WaterCore.md 20.4): every active body whose box overlaps one of up to
+// MAX_WATER_BOXES water-volume boxes appends a WET-BODY record per tick (sleeping bodies too - a stone resting
+// on a pond floor still takes up room). Buffer: [0] = count (atomic, may exceed the cap), [1..3] pad, [4] =
+// box count (written by the host), [5..7] pad, boxMin[8], boxMax[8] (world units), then the records. The
+// boxes travel in this buffer, not the push block: 8 boxes are 256 B, more than a push block may hold.
+PHX_CONST uint  MAX_WET_BODIES      = 2048u;
+PHX_CONST uint  MAX_WATER_BOXES     = 8u;
+PHX_CONST uint  WET_HEADER_BYTES    = 32u + 2u * MAX_WATER_BOXES * 16u;   // 288
 // Linear falloff: full impulse at the centre, none at the radius.
 PHX_FN float phxImpulseWeight(float d, float radius) {
     return (radius <= 0.0f || d >= radius) ? 0.0f : 1.0f - d / radius;
@@ -223,6 +231,7 @@ PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetCol
 // and current gave the body this tick (buoyancy excluded: a floater's weight is static pressure, not
 // a current), w = the body's bounding radius. The water receives -mass * dv (Newton's third law).
 #define PHX_WATER_EXCHANGE vec4 posMass; vec4 dvRadius;
+#define PHX_WET_BODY vec4 posSlot; vec4 halfExt; vec4 vel;   /* posSlot.w = the body's slot (uint bits); halfExt local (rotation ignored, v1) */
 
 // One debris event (Phase 6). info: x = body slot, y = DEBRIS_EVENT_*, z = materialIndex (incl.
 // the texture-slice bits), w = floatBitsToUint(impact |dv| in m/s, 0 otherwise).
@@ -249,6 +258,7 @@ struct KinematicBoxGpu  { PHX_KINEMATIC_BOX };
 struct ImpulseGpu       { PHX_IMPULSE };
 struct DebrisEventGpu   { PHX_DEBRIS_EVENT };
 struct WaterExchangeGpu { PHX_WATER_EXCHANGE };
+struct WetBodyGpu       { PHX_WET_BODY };
 
 // Sizes as the shaders see them (std430 push-constant packing of 4-byte scalars).
 static_assert(sizeof(GridCountPC)   == 4,  "PHX_PC_COUNT");
@@ -269,6 +279,7 @@ static_assert(sizeof(KinematicPC)   == 16, "PHX_PC_KINEMATIC");
 static_assert(sizeof(KinematicBoxGpu) == 64, "PHX_KINEMATIC_BOX");
 static_assert(sizeof(ImpulseGpu)    == 48, "PHX_IMPULSE");
 static_assert(sizeof(WaterExchangeGpu) == 32, "PHX_WATER_EXCHANGE");
+static_assert(sizeof(WetBodyGpu) == 48, "PHX_WET_BODY");
 static_assert(sizeof(DebrisEventGpu) == 32, "PHX_DEBRIS_EVENT");
 static_assert(EVENT_HEADER_UINTS * 4u == 16u, "event records start 16-byte aligned (std430 uvec4)");
 

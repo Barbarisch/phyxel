@@ -60,6 +60,11 @@ void main() {
     surf[base + 8u] = solidTop;
     surf[base + 9u] = float(runs);
     for (uint k = 10u; k < 16u; ++k) surf[base + k] = 0.0;
+    if (topCell >= 0) {   // 20: a body at the surface - the level here is the body's (SurfaceColumn::bodyAtSurface, slot 13)
+        float b = solid[cellIdx(x, topCell, z)].x;
+        if (topCell + 1 < pc.ny) b = max(b, solid[cellIdx(x, topCell + 1, z)].x);
+        surf[base + 13u] = b;
+    }
     if (topCell >= 0) {
         surf[base + 11u] = 0.5 * (uF[uIdx(x, topCell, z)] + uF[uIdx(x + 1, topCell, z)]);
         surf[base + 12u] = 0.5 * (wF[wIdx(x, topCell, z)] + wF[wIdx(x, topCell, z + 1)]);

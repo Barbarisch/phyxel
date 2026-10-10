@@ -2721,6 +2721,57 @@ inconsistency on the GPU and a candidate for the ~35 % CPU/GPU kick-response gap
 two-frame readback stamped with simulation time), `WaterCoreManager` -> per-volume fields and upload,
 Application wiring, `water_coupling {solids}` + echo, the live stone drop and the owner's look.
 
+### 20.14 M2 built - live debris displaces water (2026-10-10) - ledger, NOT signed off
+
+**Built:** the debris integrator (`solver_integrate.comp`) appends a wet-body record (centre, half extents,
+velocity, slot) for every active body overlapping one of up to 8 water-volume boxes, every tick, into a
+per-frame-slot host buffer that also carries the boxes (8 boxes are 256 B - more than a push block may
+hold, so not the push block as 20.4 said); read two frames late, one record per body (its last tick),
+stamped with its real age, `fresh` = not in the previous list; a slot with no physics tick keeps the
+previous list. `WaterCoreManager::setMovingSolids` feeds each volume its bodies (CPU: the whole solver
+path; GPU: the host half + `setSolids`), keeps feeding until a body's fields and wake clear, refuses FLIP
+volumes. Application predicts each body forward by velocity x age. API: `water_coupling {solids,
+wake_rule}` + `moving_solids` echo; `water_av_probe` `solid_fraction`; `water_av_watch` (the drawn
+surface at up to 8 points EVERY FRAME - pond level and highest run separately; a 25 Hz HTTP poll missed
+the peaks). Tools: `tools/water_solids_probe.py`, `water_motion_check.py --solids on|off`.
+
+**Found live, fixed (each measured):**
+1. **The bodies drove the water and the water drove the bodies.** With every wet piece displacing, ten
+   floaters never settled (9-10 awake for 20 s; displacement off: 1-3 by 7-10 s). One floater alone bobbed
+   +-2.5 cm at 0.2 m/s forever. Kept fixes: a body is rasterized at a HELD centre until it moves 3 cm
+   (`kSolidHoldDistance`); the per-voxel water reading the debris uses and the 19.6 motion signal both
+   skip sub-columns whose top holds a body (`SurfaceColumn::bodyAtSurface` - the level there is the
+   body's: it flips 16.33 <-> 16.58 m as a floater shifts) - one floater then rests (16.440-16.445 m,
+   asleep). Ten still did not: a hold of 11 cm and the wake rule off each changed nothing; a CPU pond with a
+   still surface-piercing body sleeps at once (`DiagFloatingBodyCalm`) - it is the DELAYED one-way loop.
+   **v1 decision: debris displaces water while it MOVES** (on above 0.6 m/s, off below 0.3 m/s): entries,
+   sinking stones, thrown pieces splash; a resting or bobbing floater is carried by the table law, exactly
+   the signed-off 19.6 feel. Cost: a resting body does not raise the level (~2 mm per 1/3 m stone in this
+   pond). The cure is the two-way pressure force (20.6 v2 / M4).
+
+**Results, live (Small pond, GPU, stone dropped 3 m, `water_solids_probe` - every frame):**
+
+| | entry column (pond level) | 0.33 m | 0.67 m | splash thrown above |
+|---|---|---|---|---|
+| prediction (20.8) | <= -8 cm | >= +3 cm | >= +1.5 cm (0.5 s) | - |
+| displacement ON (3 drops) | -29.9 / -30.3 / -25.5 cm | +4.4 / +1.2 / +7.1 cm | +4.7 / +2.7 / +0.6 cm | +0.84 m, 3 of 3 |
+| OFF (control) | -0.2 / -0.3 / -1.3 cm | <= +2.8 cm | <= +1.0 cm | none |
+
+The crater: 3 of 3. The ring: 2 of 3 at each distance. **Floaters** (19.6 scenario): 0-3 awake by 7-12 s
+after the push (control 1-3 by 7-10 s); recorded: pond-region change 0.07 -> 2.7 -> 0.03 grey levels by
+14 s - they ride and rest. **Debris settle bench** (DebrisLab, `m2_solids`): verdicts identical to E2
+(drop_layer, packed, crater, crater_subcube, box_single_straddle SETTLE; drop_pile, blast,
+box_through_pile FAIL as before; blast forced sleeps 4, in its 3-6 spread). 311 water/debris/shore unit
+tests, 19 GPU water tests.
+
+**Seen in motion, honestly:** after entry the pond region changes 0.09-0.15 grey levels a frame with
+displacement against 0.03-0.05 without (`m2_stone_on/off.mp4`) - 2-3x, but a 25-30 cm crater and an 0.8 m
+splash barely register in the picture. **The look of moving water (19.8 item 2) is now what stands
+between this and a splash you can see.** Also visible / open: the drawn surface at a floating body's own
+column flips (16.33 <-> 16.58 m); the stone looked absent on the floor after landing in one recording
+(not explained); +0.5 ms frame (4.08 vs 3.60 ms with two bodies) - `setSolids` submits and waits on its
+own each frame, fold it into the step's submission; momentum ledger (T8) not measured yet.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

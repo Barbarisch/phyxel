@@ -11,6 +11,7 @@
 #include "core/water/WaterBodyTable.h"   // Phase D Tier A records
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
+#include <unordered_map>
 #include <glm/glm.hpp>
 #include <array>
 #include <climits>
@@ -76,6 +77,7 @@ struct ProbeResult {
     float surfaceY = 0.0f;                 ///< NaN when the column is dry
     double pressure = 0.0;
     int occupancy = 0;                     ///< Occ of the cell (0 air, 1 solid, 2 unknown)
+    float solidFraction = 0.0f;            ///< 20: the moving-solid fraction s of the cell (0 = no body)
 };
 
 struct ColumnSample {
@@ -165,6 +167,23 @@ public:
     struct MomentumRecord { glm::vec3 pos{0.0f}; float radius = 0.0f; glm::vec3 momentum{0.0f}; };
     struct MomentumReport { long records = 0, applied = 0, outside = 0, dry = 0, clamped = 0; int volumes = 0; glm::vec3 total{0.0f}; };
     MomentumReport applyMomentum(const std::vector<MomentumRecord>& records);
+    /// docs/WaterCore.md 20 (M2): the bodies taking up room this frame (world space; T = the frame). Each volume
+    /// gets the bodies inside its box; a CPU volume runs WaterSolver::setMovingSolids, a GPU volume the host half
+    /// (updateSolidFields) + WaterCoreGpu::setSolids (the device computes the rates from its own fill). A volume
+    /// keeps being fed while its fields or wake are non-zero, so a body leaving clears them. FLIP volumes refuse
+    /// (their particles need their own displacement rule - counted, 20.5).
+    struct SolidsFeed { int volumes = 0; long bodies = 0, rasterCells = 0, freshCells = 0, rateCells = 0, clamped = 0, wakeCells = 0, flipRefused = 0; double bodyVolume = 0.0, rate = 0.0; };
+    SolidsFeed setMovingSolids(const std::vector<MovingSolid>& bodies, float frameSeconds);
+    /// A body (with an id) is rasterized at a HELD centre that moves only when the body has moved more than
+    /// this from it. Measured 2026-10-10 (M2): with every pose rasterized, a single floating wood piece never
+    /// rested - it bobbed +-2.5 cm at up to 0.2 m/s forever (without solids it sleeps): its displacement moved
+    /// the surface it reads two frames later (a delayed one-way loop is an oscillator). A tenth of a 1/3 m
+    /// cell is below what the grid resolves; entries and real motion still displace in full. The cure for the
+    /// loop itself is the two-way pressure force (20.6 v2, M4).
+    static constexpr float kSolidHoldDistance = 0.03f;   // m
+    /// The wake rule (air a body drags rises back out, 20.5) on GPU volumes: off uploads a zero wake (A/B).
+    void setSolidWakeRule(bool on) { m_solidWakeRule = on; }
+    bool solidWakeRule() const { return m_solidWakeRule; }
 
     ProbeResult probe(const glm::vec3& world);   // refreshes the solids cache first
     /// Per world column (x, z): the highest surface and the mass over cells whose world y lies in
@@ -183,6 +202,10 @@ public:
     /// E2: one world voxel column's water from the last surface fields - the highest top over the
     /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
     bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
+    /// Measurement (20, M2): the drawn surface of the volume sub-column under world (x, z) from the last
+    /// surfaceFields(): `level` = the top of the run that starts lowest (the pond itself), `top` = the highest
+    /// run's top (a splash thrown above it). False when no volume owns the column or it is dry.
+    bool surfaceAtWorld(float x, float z, float& level, float& top) const;
     /// E2 (docs/WaterCore.md 19.6): where the water is still MOVING since the last call - per volume, a
     /// sphere (world centre, radius) around the columns whose surface has moved more than `moveM` from
     /// where it last counted as moved (a held reference: sub-mm jitter never adds up, a real slosh does,
@@ -233,6 +256,7 @@ private:
         uint64_t fieldStep = ~0ull;     // the step counter the field was built from
         uint64_t stepCount = 0;         // steps taken (CPU ticks or GPU calls)
         double fieldStepSec = -1.0;     // wall time of that step
+        bool hadSolids = false;         // 20: fed bodies (or a wake) last frame - keep feeding until it clears
     };
     bool isAsleep(const Av& av) const { return av.backend == "gpu" ? av.gpuLast.asleep : av.solver->asleep(); }
     void refreshOccupancy(Av& av);
@@ -258,6 +282,8 @@ private:
     bool m_realtime = false;
     std::vector<WaterSurfaceCell> m_surface;
     std::vector<WaterSurfaceField> m_fields;   // Phase F, parallel to m_avs
+    std::unordered_map<uint64_t, glm::vec3> m_solidHold;   // 20: body id -> the centre it is rasterized at
+    bool m_solidWakeRule = true;
     MotionStats m_motionStats;
     std::vector<std::vector<float>> m_motionPrevTops;   // E2: per field, the held reference top per column (NaN = dry)
     std::vector<glm::vec4> m_particleDraw;

@@ -389,5 +389,38 @@ TEST(WaterSolidTest, DiagPondSleeps) {
     }
 }
 
+
+// Diagnostic (M2): does a pond with a body PIERCING the surface, held perfectly still, come to rest? (T5
+// covered a submerged body; T6 only the waterline height.) Its water is pre-placed (no disturbance), the
+// block a 1/3 m cube centred on the waterline cell and a 1 m block, each for 60 s.
+TEST(WaterSolidTest, DiagFloatingBodyCalm) {
+    for (int variant = 0; variant < 2; ++variant) {
+        Pond p; p.fill();
+        const float he = variant == 0 ? kH / 2.0f : 0.5f;
+        MovingSolid b; b.centre = {6.5f * kH, 1.5f, 6.5f * kH}; b.halfExtents = glm::vec3(he);
+        // pre-place: take the body's submerged volume out of its cells, spread it on the top layer
+        {
+            std::vector<float> sv; std::vector<uint8_t> fr;
+            rasterizeSolids(p.grid, {b}, sv, fr);
+            double moved = 0.0;
+            for (size_t i = 0; i < sv.size(); ++i) { const float ex = std::max(0.0f, p.grid.fData()[i] + sv[i] - 1.0f); p.grid.fData()[i] -= ex; moved += ex; }
+            for (int z = 0; z < 12; ++z) for (int x = 0; x < 12; ++x) if (sv[p.grid.idx(x, 4, z)] == 0.0f) p.grid.f(x, 4, z) += 0.0f;
+            // put it in the top layer outside the body's footprint
+            int n = 0; for (int z = 0; z < 12; ++z) for (int x = 0; x < 12; ++x) if (sv[p.grid.idx(x, 4, z)] == 0.0f) ++n;
+            for (int z = 0; z < 12; ++z) for (int x = 0; x < 12; ++x) if (sv[p.grid.idx(x, 4, z)] == 0.0f) p.grid.f(x, 4, z) += static_cast<float>(moved / n);
+        }
+        WaterSolver s(p.grid, p.query());
+        double keMax5 = 0.0; int sleptAt = -1;
+        for (int k = 0; k < 3600; ++k) {
+            s.setMovingSolids({b}, kDt);
+            const StepReport r = s.step(kDt);
+            if (k >= 300) keMax5 = std::max(keMax5, r.kineticEnergy);
+            if (s.asleep() && sleptAt < 0) sleptAt = k;
+            if (k % 600 == 599) std::printf("  %s t %4.0f s: ke %.3e, maxDf %.2e, quiet %d, asleep %d, max speed %.3f\n", variant == 0 ? "1/3 m" : "1 m  ", (k + 1) * kDt, r.kineticEnergy, r.maxDeltaF, r.quietTicks, s.asleep() ? 1 : 0, 0.0);
+        }
+        std::printf("  %s: slept at %.1f s (-1 = never), KE max after 5 s %.3e\n", variant == 0 ? "1/3 m" : "1 m  ", sleptAt >= 0 ? (sleptAt + 1) * kDt : -1.0f, keMax5);
+    }
+}
+
 }  // namespace
 }  // namespace Phyxel::Core::Water
