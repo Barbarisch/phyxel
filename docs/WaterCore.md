@@ -415,7 +415,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
-| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3). First look not signed off (§19.4); after the flicker fix, floaters that follow the water and the pocket fix (§19.5-19.7) the OWNER SIGNED OFF the small-pond feel 2026-10-09 ("looks really good", §19.8). Open: impact splashes need displacement - moving solids DESIGNED in §20 (E3's core, awaiting the owner's review; 19.9 drag premise withdrawn), the look of moving water, the terrace cause (unestablished, §20 correction), E4** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
+| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3). First look not signed off (§19.4); after the flicker fix, floaters that follow the water and the pocket fix (§19.5-19.7) the OWNER SIGNED OFF the small-pond feel 2026-10-09 ("looks really good", §19.8). Open: impact splashes need displacement - moving solids DESIGNED in §20 (E3's core, awaiting the owner's review; 19.9 drag premise withdrawn), the look of moving water - DESIGNED in §21 (droplet crown, clear water, whitewater; design-check READY for S0, 21.9), the terrace cause (unestablished, §20 correction), E4** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
@@ -2771,6 +2771,256 @@ between this and a splash you can see.** Also visible / open: the drawn surface 
 column flips (16.33 <-> 16.58 m); the stone looked absent on the floor after landing in one recording
 (not explained); +0.5 ms frame (4.08 vs 3.60 ms with two bodies) - `setSolids` submits and waits on its
 own each frame, fold it into the step's submission; momentum ledger (T8) not measured yet.
+
+## 21. A splash you can see - droplets, whitewater, clear water (item 2) - DESIGN, 2026-10-10 - design-check READY for S0 after one fold-in (21.9)
+
+M2 (20.14) put the physics of a splash into the pond: a 25-30 cm crater and water thrown 0.8 m. The owner
+watched it: "i can barely see the splash", and "some water is way above the stone ... it looks weird". This
+section is the design for making it read. Nothing here is built. Three parts, each with its own measured
+cause; the build order is at 21.6.
+
+### 21.1 The three causes, measured (2026-10-10, Small bench, GPU, 1/3 m cells)
+
+**(A) The floating slab is the jet, drawn as a pancake.** The entry column, every frame
+(`solids_probe_m2.json`, run 1): at entry the column rises +0.34 m (the column ledger pushes the displaced
+water up), the crater opens to -27 cm, and 0.25 s later - as the cavity closes - DETACHED runs appear 0.5 to
+1.17 m above the pond (17.01, 17.34, 17.67 m), each for 2-3 frames, jumping between cells. That is the
+Worthington jet, real physics; but at 1/3 m a jet is a scrap of fill in one cell, and the surface mesh draws
+a scrap as a flat 1/3 x 1/3 m slab with a top and a bottom, hanging in the air, then gone. The recorded
+frame `m2_stone_on_frames/f_13.png` shows it as a grey rectangle above the far bank. The design already
+named the cure (4.7: "thin sheets and droplets smear"; §7 droplets; §12 decision 5 "separate pool,
+20 k, ledger-exact re-absorption"; 14.1 "water-shaded microcubes") - and 19.9(b) gated it NEEDS WORK. It was
+never built: `droplets` in `water_ledger` is a hard-coded 0.
+
+**(B) The pond is milky: its in-scatter is a constant that ignores the light.** Debug taps, rested pond with a
+stone on its floor, pose (109.5, 20.5, 13.5) yaw 180 pitch -38, tone map off and exposure 1 for the taps
+(`tools/water_clarity_probe.py`): turbidity 0 (the clear endpoint); the floor seen with the water off reads 78 (sRGB
+grey, G) = 0.0095 linear before exposure; the water body tap reads 0.039 linear (G); the path length tap
+saturates (>= 1.7 m). Beer-Lambert in `shadeWaterSurface`: body = behind x T + WATER_SCATTER x (1 - T), T_G =
+exp(-0.09 x 2) = 0.835 -> 0.0095 x 0.835 + 0.18 x 0.165 = **0.038 predicted, 0.039 measured**. The floor is
+21 % of what the pond shows; 79 % is `WATER_SCATTER` = (0.04, 0.18, 0.24), an UNLIT radiance constant (the
+code flags it "unsourced ... artistic", from before the 2026-08 x8-exposure lighting revamp - the same class of
+defect as the hardcoded sky gradient F2 replaced, 17.3). So the water glows ~3x brighter than its own floor:
+the stone "vanished" on the floor in 20.14 (it was there, hidden), and the floor's refraction wobble - the
+main cue that water is moving - is suppressed 5x.
+
+**(C) Nothing on the pond ever turns white.** `SurfaceColumn::foam` is filled only by the shore band (G2,
+`ShoreSolver`); `wc_surface.comp` writes 0, the CPU extractor likewise. The foam shading path exists and is
+fed 0. Also seen in the code: at the steep pond view Fresnel is 0.02-0.07, so the surface's SHAPE changes the
+colour only through the refraction offset (0.035 x N.xz) - which (B) then washes out.
+
+### 21.2 Part A - the droplet crown (the §12 pool, to build)
+
+**Birth - water the grid cannot hold.** A *parcel* is a vertical run of liquid cells in one column that is
+**isolated**: the cell below its bottom, the cell above its top and the four lateral neighbours of each of its
+cells are air (f + s < film, not solid, not a body cell), and its total fill Σf < 1 (less than one full cell -
+a scrap). A parcel becomes droplets in the tick it is found: its cells' f go to 0, its volume Σf x h^3 goes to
+the pool with the parcel's velocity (the mean of its cells' face velocities). Why each condition:
+- *isolated laterally and below* - the 19.7 pockets (water over a buried air void) and the stuck f = 0.5
+  cells are connected sideways to the pond: never born. A film on a wall or a floor has a solid neighbour:
+  never born (films are §4's job). A crown rim rising out of the surface has water below it: stays mesh.
+- *Σf < 1* - a parcel holding a full cell or more is resolved by the grid and stays grid water (a falling
+  1/3 m lump draws as one; refined later if the owner sees lumps).
+- *no speed condition* - an isolated scrap is unresolved whatever its speed; still ponds have none (control).
+Cost: one pass over columns in the existing column kernel (`wc_column_ops`, a new mode), CPU mirror in
+`WaterSolver`. Born after transport, before the surface field is built - so a scrap is never drawn.
+
+**The pool.** Owned by `WaterCoreManager`, CPU, 20 000 droplets total (§12 decision 5; separate from the
+debris and VFX pools). A droplet: position, velocity, volume, volume id. Split: a parcel of volume Vp spawns
+n = ceil(Vp / v_d) droplets of equal volume, v_d = (k h)^3, k = the droplet size knob, default 1/3 (a
+microcube at h = 1/3, 14.1's idiom; clamped to [1/9, 1] where it enters - below 1/9 one full cell would be 729+
+droplets and a jet would exhaust the 20 k pool; above 1 a droplet is bigger than the cell it left; the edge
+is drawn at the droplet's own volume^(1/3), so drawn volume = carried mass), placed at deterministic hashed
+points inside the parcel's cells (hash of world cell + tick: no RNG state, chunk-blind) with the parcel's
+velocity +- 15 % deterministic spread (a breaking jet fans; the mass and the mean momentum are kept exactly:
+the spread is zero-sum per parcel). **If the pool is full the parcel is NOT born** - it stays grid water,
+counted in `refused`. Never a dropped gram.
+
+**Flight.** Ballistic with gravity and quadratic air drag (Cd 0.47 sphere-equivalent, rho_air 1.2:
+terminal ~ 4-5 m/s for a 3.7 cm drop - grounded at build by the grounding auditor), integrated on the CPU each
+frame. **Free flight - no box walls** (21.9 F1: a reflecting box wall is an invisible wall in mid-air, and
+the box can be clipped by residency, 14.2). A droplet that lands OUTSIDE its home volume's box is deposited at
+the nearest in-box column's surface and counted in `relocated_m3` (asserted 0 on the bench rigs: a 0.8 m jet
+with +-15 % spread travels <= 0.4 m sideways, the box margin is >= 1 m). Water leaving a volume for real is
+E4/G work (logged, 21.8).
+
+**Landing - ledger-exact.** The host has no f field for a GPU volume (21.9 F3) - it has the SURFACE FIELD,
+read back every frame for the mesh (`WaterCoreGpu` `offSurf`). So both backends land a droplet the same way:
+against its sub-column's drawn top (the top run's top; `bodyAtSurface` columns use the same top - water lands
+on a floater and runs off it) or, in a dry column, `solidTopY`. One frame stale on the GPU: at <= 5 m/s that is
+<= 8 cm at 60 Hz, inside one cell. The deposit is {world x, y, z, volume}: the backend puts it in the cell
+containing (x, y, z) - lifted to the first non-solid cell at or above it - f += v / h^3, overflow above 1
+carried up the column (the 20.5 ledger rule). CPU: direct. GPU: a deposit list (cap 8192 per frame; beyond
+it the deposits wait for the next frame, never dropped) applied by a `wc_column_ops` mode at the start of the
+step, uploaded in the step's own submission - `setSolids`' separate submit-and-wait is folded in at the same
+time (the 20.14 +0.5 ms item).
+**Sleep, destroy, save** (21.9 F4): a volume with droplets in flight does not auto-sleep; a forced sleep, a
+destroy or a `save_world` first lands every droplet it owns at its column's surface (counted
+`flushed_m3`), so spans and the world DB never miss in-flight water.
+**Ledger:** grid + pool (born - landed in flight) is conserved to 1e-6 m^3 per tick on the CPU, per frame on
+the GPU; `water_ledger.droplets` = the pool's volume (no longer 0).
+
+**GPU birth, exactly.** The kernel zeroes the parcel's cells and appends {world cell, Σf, velocity} to a
+per-frame-slot host-visible buffer (the 20.4 wet-body pattern: header + records, cap 4096 parcels per frame,
+read two frames late, each slot consumed before it is rewritten). **The pool cap is enforced IN the kernel**
+(21.9 F2 - the host learns of a birth two frames after the water left the grid, too late to refuse it): each
+frame the host uploads a droplet budget = cap - alive - droplets reserved by the two unread slots; the kernel
+computes the parcel's n = ceil(Vp / v_d) and reserves it with one atomic; no budget (or a full record buffer)
+-> the parcel keeps its fill, counted `refused`. So the mass removed on the GPU is exactly the mass the host
+reads back, and the pool never exceeds its cap. A droplet appears two frames after birth, advanced by
+velocity x age (the 20.14 prediction pattern).
+**Determinism** (21.9 F7): parallel births do not race - a parcel is born only if every neighbour cell is
+air in the pre-state, so no born cell is a neighbour of another column's liquid, and zeroing it cannot change
+another column's decision. Record ORDER is atomic-order (not part of the contract: droplets are placed by the
+world-cell hash, not by index); which parcels are refused when the budget runs out is order-dependent - a cost
+bound, counted, never on the bench rigs.
+
+**Render - water-shaded microcubes.** One instanced cube draw in the water pass after the surface mesh
+(depth test on, depth write off, alpha blended, unsorted - drops are small; sort errors are not visible at
+this size, re-check in the recording). Each face shaded with `water_common.glsl`'s pieces: Fresnel sky
+reflection by the face normal + sun specular + the lit body colour of 21.3 over the refracted scene, alpha
+0.85. Not the VFX pipeline: `vfx.frag` is additive emissive - water drops would glow.
+
+### 21.3 Part B - clear water: lit in-scatter
+
+Replace the constant radiance by the light the water actually receives. Deep water seen from above returns a
+fraction R of the downwelling irradiance - the *irradiance reflectance* - "in most clear natural hydrosols
+... in the neighborhood of 0.02, give or take 0.01, for mid-spectrum wavelengths"; "turbid, near shore or
+inland waters ... 0.08 or more" (Mobley, Ocean Optics Web Book, *Reflectances*,
+oceanopticsbook.info/view/inherent-and-apparent-optical-properties/reflectances). So:
+
+    scatter = R(turbidity) x ( ubo.ambientColor  +  the sun's diffuse term at N = +Y )
+
+- the ambient and sun terms in the SAME normalisation `voxel.frag` uses for a Lambertian surface of albedo R
+  (ambient x albedo; `pbrBRDF`'s diffuse lobe for the sun - read at build, not guessed), so a pond and its
+  floor are lit by one light. **Shadowed, through the shared model** (21.9 F5: an unshadowed lit term would
+  make a pond under a roof or in a cave glow over its dark floor - the same defect again): the sun term takes
+  the shared cascade shadow lookup at the surface point, the ambient is `phxAmbient` (the probe field) at the
+  surface point with N = +Y. Both are already reachable: the water pipelines' set 0 IS the scene's global layout
+  (`RenderCoordinator.cpp:318` passes `vulkanDevice->getDescriptorSetLayout()`; `shadowMap` binding 2,
+  `shadowMapNear` 9, `GiProbes` 13) - no new descriptors (confirm for `water.frag` / `water_cell.frag` at
+  build). This makes water a RECEIVER of the shared model for its in-scatter: the `LightingPipeline.md` §0 row
+  changes (shadow: the cascades; ambient: the probe field) in the same commit, R8/R9 hold (no own trace).
+  The reflection keeps the atmosphere (17.3).
+- R_G = 0.02 clear, 0.08 turbid (the sourced values). The per-channel SHAPE is the shipped artistic one
+  (WATER_SCATTER 0.04 : 0.18 : 0.24, turbid 0.20 : 0.26 : 0.18), scaled so G hits the sourced value:
+  clear R = (0.0044, 0.020, 0.027), turbid R = (0.062, 0.080, 0.055). The shape stays labelled unsourced.
+- the `tint` knob (G3) keeps its meaning (the glow colour), rescaled to the same units.
+**It changes every water in the engine** (the sea sheet shares `water_common.glsl`): the owner decides with
+before/after captures of the Small pond and the Coast sea at fixed poses. A debug switch
+`water_render_core {scatter: "lit"|"legacy"}` exists for that A/B only.
+**Pinned check at risk** (21.9 F6): `tools/water_look_l4.py` (G3, Coast) asserts a 2 m clarity + brown tint
+moves the band and the sheet by > 0.05 in mean colour. With the in-scatter now a few % of the light, the tint
+moves the picture less: S0 re-runs it; if it drops below 0.05 the threshold is re-derived from the new model
+in the same commit, with the reason - never loosened silently.
+**Clarity answered:** how clear a given body is stays the per-body `water_look` knob (turbidity / clarity /
+tint, G3); this fixes only that "clear" was not clear. Predicted for the bench pond (clear, 1.7-2.4 m path):
+the floor is ~95 % of what the pond shows in G (from 21 %), the pond reads DARKER and greener than its dry
+floor (G ~0.8x), the stone on the floor is visible.
+
+### 21.4 Part C - whitewater from the solver
+
+A per-column foam value f_w in [0, 1] in every volume (CPU array; GPU buffer nx x nz, persistent). Each tick:
+decay x (1 - 1.5 dt) (G2's 0.46 s half-life - the same water, the same rate), then add rate x dt from:
+1. **Body entry** - a moving solid at the column's surface (`bodyAtSurface` > 0) faster than 1 m/s:
+   2 x min(1, (speed - 1) / 4) per second.
+2. **A breaking surface** - the drawn surface moving faster than 0.5 m/s vertically (the crown, the cavity
+   collapse): (|d eta/dt| - 0.5) / 1.0 per second. 0.5 m/s is above everything the signed-off slosh and
+   floaters produce (to be confirmed on the floaters scenario before building - a control row).
+3. **Converging flow** - surface divergence < -0.3 / s, G2's rule (b) unchanged; the 0.08-0.10 m/s phantom
+   current is spatially smooth and diverges by < 0.05 / s (to measure on the still pond: control).
+4. **Droplet landings** - each landing adds v / h^3 x min(1, speed / 3) to its column (a shower of drops
+   whitens the water where it falls).
+Fed through the existing `SurfaceColumn::foam` slot (`wc_surface.comp` writes it, the CPU extractor mirrors it)
+into the existing foam shading. **One shading change:** the foam pattern's patch size is ~3 world units
+(`waterFbm(fp * 0.32)`) - bigger than the whole splash; on simulated water the patch scale follows the cell
+(patch ~ 3 cells), a per-draw constant in the push block, world-position noise unchanged (no tiling, no seams).
+
+### 21.5 Feature Design Keys
+
+- **Voxel aesthetic.** Droplets are cubes (microcube at the default cell), the engine's particle idiom, like
+  debris; never sprites. Detail unconditional: the pool cap (20 k) is a cost bound that REFUSES births (the
+  water stays grid water) - it never changes how a born droplet looks.
+- **Chunks.** No chunk-derived input. Birth is per world-aligned cell (the 20 world-index rule), the spread
+  hash is world cell + tick, foam is per volume column, droplets live in world space. The only boundary is the
+  volume box (world-derived, camera-independent, §14.2). Equality test: **D-T7** - the same scripted parcel
+  at a chunk-seam column and an interior column births the same droplet count, volume and velocities (bit
+  equal after translation); and two volumes splitting one pond at a seam (the 20 T7 rig) birth the same set.
+- **Procedural generation.** None - runtime only; consumes nothing from generation; no recipe field.
+- **API.** `water_coupling {droplets: bool, foam: bool}` (unchanged when omitted; echoes both);
+  `water_droplets {size}` (fraction of a cell, default 1/3, clamped [1/9, 1], omitted = unchanged; the
+  response echoes it) -> {alive, cap, size, born_m3, landed_m3, in_flight_m3, refused, relocated_m3,
+  flushed_m3}; `water_ledger.droplets` real. `water_render_core {scatter: "lit"|"legacy"}` (A/B; echoes).
+  Clamps: cap fixed at 20 000 (§12; a game knob later); the size clamp above, commented at the split site. Defaults: droplets ON, foam ON, scatter lit - pinned tests updated in the
+  same commits: `WaterLookTest` (it does not pin the scatter constant - checked), the floaters/blast coupling tests (unchanged
+  expected; they must still pass).
+- **Visual test plan.** Below.
+
+### 21.6 Test plan (red first; predictions written now)
+
+Rigs: the Small pond (one chunk, 4 x 4 m, 1/3 m cells, shipped default cell size), the 20.8 CPU pond, the
+DebrisLab settle bench is NOT required (no `solver_*.comp` change). Shipped defaults except the realtime toggle.
+
+| # | Layer | Test | Prediction | Control | Red today |
+|---|---|---|---|---|---|
+| D-T1 | unit CPU | a 0.2-cell scrap launched upward 3 m/s in a closed box | born on its first isolated tick; all lands within the flight time +0.1 s; grid + pool conserved <= 1e-6 m^3 EVERY tick | the same box, rested water: 0 births in 60 s | no pool: the scrap is grid water |
+| D-T2 | unit CPU | the T4 stone entry | >= 1 parcel born during the cavity collapse; no isolated run with Σf < 1 exists after any tick's birth pass | births off: isolated scraps present (the slab) | slab present |
+| D-T3 | unit CPU | 19.7 pocket pond (`DiagPockets` rig) + a slosh at 3 m/s | 0 births (pockets are connected) | - | - |
+| D-T4 | unit CPU | pool full (cap forced to 10) | births refused, refused > 0, ledger still exact | - | - |
+| D-T5 | GPU parity | scripted scraps | GPU births = CPU births (cells, volume to 1e-6) | - | - |
+| D-T7 | unit CPU | seam vs interior; split volumes | identical births (21.5) | - | - |
+| C-T1 | shader probe | the clarity probe (21.1 B) | body G within 10 % of 0.83 x floor (from 4.1x); stone-vs-floor contrast through water >= 70 % of dry | `scatter: legacy` reproduces 0.039 | 21 % floor share |
+| W-T1 | unit CPU | T4 entry | foam >= 0.5 within 0.2 s on >= 4 columns round the entry; < 0.05 everywhere by 3 s | still pond 60 s: foam == 0; floaters scenario: max foam < 0.1 | foam 0 |
+| L4-1 | live | stone drop, every frame (`water_solids_probe`), 3 drops | frames with a detached drawn run of Σf < 1: 0 (today ~6 of 400; runs of Σf >= 1 counted separately - the owner judges them); droplets alive peak >= 50; landed = born +- 1e-6 within 2 s; crater/ring unchanged within 20.14's spread | droplets off: the slab returns | slab |
+| L4-2 | live | recordings `water_motion_check --scenario stone`, solids on/off | pond-region frame change after entry >= 1.0 grey levels/frame for 1 s (today 0.09-0.15) ; frame time <= 20.14's 4.08 ms + 0.3 ms | solids off | 0.09-0.15 |
+| L4-3 | live | floaters scenario | settle unchanged (0-3 awake by 12 s); no foam on bobbing floaters | - | - |
+
+Then the owner's look (stone drop + Coast before/after for 21.3). Status wording: built, not signed off.
+
+### 21.7 Build order
+
+- **S0 clear water** (21.3): shader only + `LightingPipeline.md` §9 entry + `lighting_doc_check --update`;
+  `build_shaders.bat`, commit the `.spv`. C-T1 red -> green; before/after captures Small + Coast -> owner.
+- **S1 droplets, CPU core** (21.2): FIRST measure the jet's detached runs (Σf per run, on the CPU T4 rig and
+  live via `readCells`) - the 21.2 Σf < 1 rule and L4-1 assume the slab is a scrap; if the jet's runs hold a
+  cell or more, stop and re-decide the rule with the owner. Then: parcel finder, pool, flight, landing,
+  sleep/destroy/save flush, ledger; D-T1..T4, D-T7, D-T8 (sleep / destroy / save with droplets in flight:
+  ledger exact, `flushed_m3` = the in-flight volume).
+- **S2 droplets, GPU**: birth mode in `wc_column_ops`, record buffer, deposit delta upload folded into the
+  step; D-T5; the +0.5 ms item closed.
+- **S3 droplet render + live**: pipeline, L4-1, recording.
+- **S4 whitewater** (21.4): CPU + GPU foam, patch scale; W-T1, L4-2, L4-3; recordings -> **owner's look**.
+
+### 21.8 Not in this design (logged)
+Droplets leaving a volume (E4/G); droplets hitting debris or characters; mist/spray below a microcube;
+sound; ripples below the cell size (19.8 item 1's shading half); sub-cell surface pressure (item 3); lumps of
+>= one full cell flying (stay grid water - judge in the recording).
+
+### 21.9 Design-check (2026-10-10) - round 1 NEEDS WORK, folded in, round 2 READY for S0
+
+Round 1 checked the draft against the code; nine gaps, all folded into 21.2-21.7 above:
+- **F1** box walls reflected droplets: an invisible wall in mid-air (the box can be residency-clipped,
+  14.2) -> free flight, out-of-box landings relocated + counted, 0 on the rigs.
+- **F2** the pool cap was enforced on the host, but a GPU birth is known two frames late -> the budget is
+  uploaded and reserved in the kernel.
+- **F3** landing tested "f + s >= thr" - the host has no f field for a GPU volume -> land against the
+  read-back surface field; deposits as world points.
+- **F4** in-flight water was lost on auto-sleep, destroy and save -> no sleep with droplets in flight;
+  destroy / sleep / save flush first; D-T8.
+- **F5** the lit in-scatter was unshadowed -> shadowed + probe ambient through the shared model (set 0 already
+  bound), `LightingPipeline.md` §0 row changes.
+- **F6** `water_look_l4.py` pins a tint shift > 0.05 that the new model may shrink -> re-run in S0,
+  re-derive with the reason if needed.
+- **F7** GPU determinism was unstated -> the no-race argument and what is order-dependent, written down.
+- **F8** the droplet-size clamp named a value no caller could set -> the `size` knob, clamped and echoed.
+- **F9** L4-1 assumed the slab is under one cell of water, unmeasured -> S1 measures it first; L4-1 counts
+  Σf < 1 runs, larger ones separately.
+
+Round 2: voxel aesthetic (cubes, unconditional, cap refuses never reshapes), chunk independence (world-cell
+births and hashes, no box walls, D-T7), generation (none), API (units, unchanged-when-omitted, echoes,
+clamps commented, defaults and the one pinned check named), test plan (red rows, predictions, controls, one
+chunk, deltas from defaults: the realtime toggle only) - all answered. **READY for S0.** S1-S4 each re-read
+this section before building; S1 stops at its measurement if the slab is not a scrap.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
