@@ -458,7 +458,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **E. Coupling** — **MOSTLY BUILT; small-pond feel SIGNED OFF 2026-10-09 (§19.8).** E1 blasts + E2 debris both ways (§19.2–19.3); moving solids M0–M2 (§20.12–20.14, not signed off); clear water S0 (§21.10) and the droplet pool (§21.12); ripples R0+R1 (§22.9, accepted) + the black/white fix B1/B2 (§22.12, signed off 2026-10-11); waves keep their energy, pond friction, stone drag, the level-jerk fix (§24, not signed off). Open: M3/M4, E4 wading, pond whitewater, containers/pipes/scoop (§0a)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (§17.3), sign-off pending; F3 deletions open** (droplets were built under E, §21; the old RippleField's replacement is `RippleLayer`, §22)** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
-| **H. The world water system** — **DESIGN §25 (2026-10-11), design-check READY for H0 (§25.15)** | Sources and sinks with a ledger; three tiers (3-D windows, columns, far network) of one water; paths and currents simulated from the ground as it is; settling by Priority-Flood + Fill-Spill-Merge; underground drainage limit and water table; floating items in every tier | /design-check per step (H0 measurement first) | WS-1..WS-11 (§25.12); owner's look in motion |
+| **H. The world water system** — **DESIGN §25 (2026-10-11), H0 MEASURED (§25.16-25.17); H1 design next** | Sources and sinks with a ledger; three tiers (3-D windows, columns, far network) of one water; paths and currents simulated from the ground as it is; settling by Priority-Flood + Fill-Spill-Merge; underground drainage limit and water table; floating items in every tier | /design-check per step (H0 measurement first) | WS-1..WS-11 (§25.12); owner's look in motion |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -4169,6 +4169,54 @@ flora / WorldForge / render, recipe persistence); API (units, clamps with reason
 move); tests (WS-1..12 with predictions and controls, one-chunk rigs where possible, `WaterBench_Creek` where not, CA
 off). **READY for H0** (a measurement: `ShoreSolver` on a sloped channel - flow, dam, redirect, cost - and the 3-D core
 on 30 m). H1-H6 each get their own detailed design and check before building, as 25.13 says.
+
+### 25.16 H0 measured (2026-10-11) - the column solver carries a creek; the voxel staircase bed is the open question
+
+`tests/core/WaterCreekH0Test.cpp` (CPU, printed; the harness supplies a spring and an outfall and keeps its own ledger -
+`ShoreSolver` has neither yet). Rig: a straight channel 30 m x 2 m, 1/3 m columns, slope 1:50, Manning n 0.035 (a clean
+stony stream, Chow 1959). Ledger closes to ~1e-6 m^3 in every run.
+
+**WS-1 steady flow - smooth bed: exact.** 20 L/s: out/in 1.000, mid depth 2.73 cm vs Manning 2.73 cm, speed 0.363 vs
+0.366 m/s. 100 L/s: 1.000, 7.17 vs 7.17 cm, 0.694 vs 0.697 m/s.
+**Stepped beds (what voxel terrain gives): not a creek, a staircase of pools.** 1/9 m steps: depth x2.06 / x1.58 of
+Manning, speed 0.22 / 0.50 m/s; at 20 L/s only 65 % had reached the end after 180 s. 1/3 m steps: at 20 L/s NOTHING
+reached the end in 180 s (each 1/3 m step on a 1:50 slope is a 16.7 m pool that must fill before it spills); at
+100 L/s, out/in 1.01 and depth x2.25. The physics is right for a staircase - **the bed is wrong for a creek.** This is
+the first design question of H1 (25.17).
+
+**WS-2 a dam (0.6 m across the channel, Q 0.1):** storage behind it = Q t exactly (2.000 m^3 at 20 s, 12.000 at 120 s);
+outflow falls 0.1 -> 0.0154 (20 s) -> 0.0001 m^3/s; the pool rises to the crest and spills from ~130 s; outflow back to
+0.013 m^3/s at 240 s and rising. **WS-3 a redirect** (a wall opened into a parallel channel, the old one blocked below
+it): within 60 s the new channel carries 0.0986 of 0.1 m^3/s and the old one 0.005, then 0.0003. Both as predicted.
+
+**Front speed on a dry bed:** 30 m in 78.9 s (20 L/s) and 40.8 s (100 L/s) against 49.1 / 25.8 s for the kinematic
+estimate 5/3 u_n - 1.6x slower, independent of `dryDepth` (1 mm or 0.1 mm). Plausibly physical (the thin leading edge
+feels Manning friction as d^(-4/3)), not yet checked against a dam-break-on-a-dry-slope reference - an H1 test.
+
+**The 3-D core on the same creek** (1/3 m cells; its bed is necessarily the 1/3 m staircase): 1.75-1.85 ms per tick
+(4,320 cells) - **11x the column solver** - and no better: 20 L/s delivers 0.86 of the inflow with friction off (depth
+4.4 cm vs 2.7) and 0.035 with the 5 s pond friction on; 100 L/s 0.99 / 0.79, depth 10.1 / 19.1 cm vs 7.2. A 3-7 cm deep
+creek is a fraction of one 1/3 m cell - the 3-D core cannot resolve it. **Confirmed: creeks are columns (T2); the 3-D
+core only in windows (T1).**
+
+**Cost, CPU, one thread, 30 Hz, smooth bed:** 30 m (540 columns) 0.154 ms per tick, 285 ns per column-tick; 100 m (1,800)
+0.383 ms, 213 ns; 300 m (5,400) 0.826 ms, 153 ns. One CPU thread fits ~200 m of moving 2 m creek inside T2's 0.6 ms;
+the 512 m radius needs the GPU (or threads, or a slower step away from the view) - an H1 decision with its own measure.
+
+### 25.17 What H0 decides for H1 (to design and check next)
+
+1. **T2 is `ShoreSolver`, extended** - Manning-exact on a smooth bed, dams and redirects right, ledger exact, 11x cheaper
+   than the 3-D core. Extensions: sources and sinks (springs, outfalls) inside the solver with the ledger; multi-run
+   columns; a sparse wet set instead of a dense box; beds from the world.
+2. **The bed a creek flows over** (the open question). Voxel tops make a staircase of pools; real creek beds slope.
+   Options to weigh in H1's design: (a) for UNEDITED ground, the generator's continuous height (the terrain is a pure
+   function of world position - the bed a creek "really" has), voxel tops only where the player edited; (b) a hydraulic
+   bed: within a run of equal voxel tops, the bed ramps toward the next step, so a staircase reads as the slope it
+   approximates (the water's surface then sits within a step's height of the drawn voxels - a look check); (c) the
+   microcube-resolution bed (1/9 m steps) - measured here: still 1.6-2x too deep. A staircase built ON PURPOSE (a
+   player's terraces) must still pool - the design has to tell intent from quantisation without guessing.
+3. **The dry-bed front speed** against a reference (a dam break on a dry slope).
+4. **Cost** - GPU port vs threads vs a slower step away from the view, measured against the 0.6 ms allotment.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
