@@ -217,6 +217,9 @@ void RippleLayer::step(float dt) {
                 m_next[i] -= static_cast<float>(sum[c] / cnt[c]); m_r[i] -= static_cast<float>(sumPrev[c] / cnt[c]);
             }
         }
+        // 22.12 B1: the breaking limit on the new level AND the one becoming the previous (the breaking crest loses its
+        // height and the motion that carries it). Pairwise and equal-and-opposite: each body's mean is untouched.
+        if (m_breakSlope > 0.0f) m_broken += (limitSlope(m_next) + limitSlope(m_r)) * static_cast<double>(kPitch) * kPitch;
         m_prev.swap(m_r);
         m_r.swap(m_next);
     }
@@ -253,6 +256,50 @@ int RippleLayer::labelComponents() {
         ++m_nComp;
     }
     return m_nComp;
+}
+
+double RippleLayer::limitSlope(std::vector<float>& r) {
+    // Jacobi passes over a snapshot (order-independent): an edge steeper than the limit moves both ends toward each
+    // other by its excess / 2, weighted 1/8 (a cell has 8 edges, so a pass never overshoots). Axis edges hold
+    // |dr| <= s d, diagonal edges <= s d sqrt 2: together they bound the facet gradient within 8 % in every direction
+    // (sec 22.5 deg), so a diagonal ring breaks like an axis one. Edges across the mask or between bodies are skipped.
+    const float lim[2] = {m_breakSlope * kPitch, m_breakSlope * kPitch * 1.41421356f};
+    constexpr float kTol = 1e-4f;   // m: an edge this close to the limit counts as at it
+    constexpr int kMaxPasses = 16;
+    const int dirs[4][3] = {{1, 0, 0}, {0, 1, 0}, {1, 1, 1}, {1, -1, 1}};   // dx, dz, diagonal?
+    double moved = 0.0;
+    for (int pass = 0; pass < kMaxPasses; ++pass) {
+        bool any = false;
+        for (int z = 0; z < m_nz && !any; ++z) for (int x = 0; x < m_nx && !any; ++x) {
+            const size_t i = idx(x, z);
+            if (m_label[i] < 0) continue;
+            for (const auto& d : dirs) {
+                const int xx = x + d[0], zz = z + d[1];
+                if (!inBounds(xx, zz)) continue;
+                const size_t j = idx(xx, zz);
+                if (m_label[j] != m_label[i]) continue;
+                if (std::abs(r[i] - r[j]) > lim[d[2]] + kTol) { any = true; break; }
+            }
+        }
+        if (!any) break;   // a field gentler than the limit is untouched bit for bit
+        m_delta.assign(r.size(), 0.0f);
+        for (int z = 0; z < m_nz; ++z) for (int x = 0; x < m_nx; ++x) {
+            const size_t i = idx(x, z);
+            if (m_label[i] < 0) continue;
+            for (const auto& d : dirs) {
+                const int xx = x + d[0], zz = z + d[1];
+                if (!inBounds(xx, zz)) continue;
+                const size_t j = idx(xx, zz);
+                if (m_label[j] != m_label[i]) continue;
+                const float diff = r[i] - r[j], ex = std::abs(diff) - lim[d[2]];
+                if (ex <= 0.0f) continue;
+                const float t = (diff > 0.0f ? 1.0f : -1.0f) * 0.5f * ex * 0.125f;
+                m_delta[i] -= t; m_delta[j] += t;
+            }
+        }
+        for (size_t i = 0; i < r.size(); ++i) { r[i] += m_delta[i]; moved += std::abs(m_delta[i]); }
+    }
+    return moved;
 }
 
 float RippleLayer::maxAbs() const {

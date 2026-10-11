@@ -14112,6 +14112,11 @@ void Application::registerWaterCommands() {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setRipples(cmd.params.value("enabled", true));
         if (cmd.params.contains("smooth")) waterCore->setRippleSmooth(cmd.params.value("smooth", false));
+        if (cmd.params.contains("break_slope")) {   // 22.12 B1: rise per run; 0 = off (the A/B control)
+            const float b = cmd.params.value("break_slope", Core::Water::RippleLayer::kBreakSlope);
+            // below 0.05 every ring the droplets make would be flattened; above 5 is no limit at the 1/9 m lattice
+            waterCore->setRippleBreakSlope(b <= 0.0f ? 0.0f : std::clamp(b, 0.05f, 5.0f));
+        }
         if (cmd.params.contains("pattern")) {   // 22.11 measurement: {slope, azimuth_deg} pins a uniform tilt; false / null = off
             const auto& p = cmd.params["pattern"];
             Core::Water::WaterCoreManager::RipplePattern rp;
@@ -14126,6 +14131,7 @@ void Application::registerWaterCommands() {
         r = {{"enabled", s.on}, {"smooth", s.smooth}, {"layers", s.layers}, {"awake", s.awake}, {"cells", s.cells}, {"refused", s.refused},
              {"kinematic_cells", s.kinematicCells}, {"impulses", s.impulses}, {"ms", s.ms}, {"max_abs_m", s.maxAbs},
              {"max_slope", s.maxSlope}, {"slope_edges", edges}, {"slope_hist", hist},
+             {"break_slope", s.breakSlope}, {"broken_m3", s.brokenM3},
              {"pattern", rp.slope >= 0.0f ? nlohmann::json{{"slope", rp.slope}, {"azimuth_deg", rp.azimuthDeg}} : nlohmann::json(false)},
              {"pitch_m", Core::Water::RippleLayer::kPitch}};
     });
@@ -14205,11 +14211,13 @@ void Application::registerWaterCommands() {
             if (sc != "lit" && sc != "legacy") { r = {{"error", "scatter must be lit or legacy"}}; return; }
             renderCoordinator->setWaterCoreScatterLegacy(sc == "legacy");
         }
+        if (cmd.params.contains("horizon_guard")) renderCoordinator->setWaterCoreHorizonGuard(cmd.params.value("horizon_guard", true));   // 22.12 B2 A/B
         r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())},
              {"mesh_vertices", renderCoordinator->waterCoreMeshVertices()}, {"top_quads", renderCoordinator->waterCoreMeshTopQuads()},
              {"side_quads", renderCoordinator->waterCoreMeshSideQuads()}, {"mesh_build_ms", renderCoordinator->waterCoreMeshMs()},
              {"truncated", renderCoordinator->waterCoreMeshTruncated()}, {"debug", renderCoordinator->waterCoreDebugMode()},
-             {"scatter", renderCoordinator->waterCoreScatterLegacy() ? "legacy" : "lit"}};
+             {"scatter", renderCoordinator->waterCoreScatterLegacy() ? "legacy" : "lit"},
+             {"horizon_guard", renderCoordinator->waterCoreHorizonGuard()}};
     });
     reg.on("water_av_realtime", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

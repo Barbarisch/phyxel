@@ -143,6 +143,7 @@ void main() {
     // the sky reflection until there is a reason and a measurement to change it.
     inp.viewProj     = pc.viewProj;
     inp.debugMode    = 0;
+    inp.horizonGuard = 0.0;   // WaterCore 22.12 B2 is scoped to simulated small-body water
     inp.shoreFoam    = 1.0;
     inp.ssr          = 0.0;
     inp.droplet      = 0.0;

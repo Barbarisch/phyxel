@@ -3403,7 +3403,7 @@ bool}` - default on; off = the A/B control; echoed.
 
 The rig is the shipped defaults (Small bench, 22.11's poses); B-L1 pins the layer (`pattern`), so B1 does not act
 there - B-L1 measures B2 alone, B-L2 both. Cost: one scan per step while awake (54 x 54 cells); passes only where
-something breaks. Status: designed, not built.
+something breaks. Status: built, not signed off (22.12.2).
 
 **22.12.1 Design-check (2026-10-11) - round 1 NEEDS WORK, folded in, round 2 READY for B1 + B2.** Checked against
 `WaterRippleTest`, the `water_ripples` / `water_render_core` routes and `water_surface.frag`'s push constants:
@@ -3426,6 +3426,43 @@ measurement control); chunks (world-aligned lattice, neighbours only, no chunk i
 the route with the failure they prevent; defaults: limit on at 0.44 and guard on - new, no earlier pin); tests (red
 rows with predictions and controls on the Small bench, one pond inside one chunk, rig = shipped defaults; B-L1 pins
 the layer so measures B2 alone). **READY for B1 + B2.**
+
+**22.12.2 B1 + B2 built (2026-10-11) - ledger. Status: built, not signed off.** `RippleLayer::limitSlope` (B1, default
+0.44, `water_ripples {break_slope}`), the `horizonGuard` branch in `shadeWaterSurface` (B2, `water_surface.frag` only,
+`water_render_core {horizon_guard}`). `tools/water_facet_extremes.py --fix on|off` runs the A/B on one binary.
+
+Unit (WaterRippleTest, 11, all pass; the 62 water-core / droplet / coupling / ripple tests pass): B-T1 - every edge
+within the limit after 0.1 s (worst 6e-4 m UNDER), the water's sum kept (-4.3e-6 -> 2.0e-6 m over 2916 cells);
+**its control missed my guess**: without the limit the worst edge is 0.061 m past it (slope ~1.0), not > 0.1 m -
+still 2x the limit, the threshold is now > 0.01 m. B-T3 the other body exactly 0; B-T4 bit-equal across the seam.
+F1 measured: the existing tests peak at slope 0.066 (ring train), 0.008 (plane wave), 0.006 (droplet) - the limit
+would not have touched them; the linear and stability tests keep it off anyway.
+
+**B-L1 (tilt sweep, B2 alone, 4 poses x 8 directions x 11 slopes; `facet_extremes_pixels_fix_{on,off}.json`):**
+
+| reflected elevation | black, off | black, on | luma, off | luma, on |
+|---|---|---|---|---|
+| -60 .. -36 deg | 76.5 % | 2.3 % | 17.6 | 74.3 |
+| -35 .. -26 | 49.2 % | 2.3 % | 35.3 | 70.1 |
+| -25 .. -16 | 25.6 % | 1.5 % | 52.5 | 74.4 |
+| -15 .. -6 | 12.5 % | 0.4 % | 63.1 | 80.9 |
+| -5 .. -1 | 7.8 % | 0.2 % | 68.3 | 88.6 |
+| 0 .. 4 (above, unchanged) | 0.2 % | 0.1 % | 88.6 | 89.0 |
+
+The jump at the horizon is gone (88.6 -> 89.0) and no guarded band is brighter than the sky above it. **Prediction
+<= 0.5 % MISSED below -16 deg** (1.5-2.3 %). The same sweep holds 1.5 % black at reflected elevations 41-90 deg with
+the guard on or off, so a second, smaller cause sits outside B2 - not investigated (22.11's "<= 0.2 % above the
+horizon" held only near the horizon). Glint unchanged (white at <= 8 deg from the sun 99.5-99.9 %).
+
+**B-L2 (five 1/3 m stones, demo camera, droplets off; `facet_extremes_fix_{on,off}.json`):** black at most 0.91 %
+(ripples-off control on the same binary 1.08 %; fix off 8.0 %, as 22.11) - the ripples add no black now; white 0 %
+(fix off 0.56 %). Water cells steeper than 0.3 at 10 s: **0 %** (fix off 45 %). **max_slope 0.523 MISSED** the
+predicted 0.48: the edge bound holds per edge, but the shader's central difference across a curved field can reach
+s sqrt 2 = 0.62 - the 8 % figure is true for plane waves only.
+
+**B-L3 (rings still there):** pond change per frame, ripples on vs off, fix on: 3.4 vs 1.7 (1-2 s), 2.7 vs 0.3
+(2-3 s), 2.0 vs 0.1 (5-10 s) grey levels/frame - above 22.9's 1.52 bar; fix off 8-10 (the flicker of the squares).
+Clip for the owner: `facet_fix_before_after.mp4` (left before, right after, same drop, same pose).
 
 ## 23. Other liquids - a slime experiment (owner, 2026-10-11) - PLAN, not designed in detail, not built
 

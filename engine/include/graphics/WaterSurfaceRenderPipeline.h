@@ -42,6 +42,8 @@ public:
     int  debugMode() const { return m_debugMode; }
     /// WaterCore 21.3 A/B: true draws the pre-21.3 constant (unlit) in-scatter. Default false (lit).
     void setScatterLegacy(bool on) { m_scatterLegacy = on; }
+    void setHorizonGuard(bool on) { m_horizonGuard = on; }   ///< WaterCore 22.12 B2 (default on; off = the A/B control)
+    bool horizonGuard() const { return m_horizonGuard; }
     /// 22: the ripple layers, indexed as the fields' `rippleLayer` (null entries = none); `smooth` = the bilinear A/B.
     void setRipples(const std::vector<const Core::Water::RippleLayer*>* layers, bool smooth) { m_ripples = layers; m_rippleSmooth = smooth; }
     static constexpr int    kRippleIndices = 8;                      ///< header entries (field rippleLayer 0..7)
@@ -76,6 +78,7 @@ private:
     bool     m_lastTruncated = false;
     int      m_debugMode = 0;
     bool     m_scatterLegacy = false;
+    bool     m_horizonGuard = true;
     // 22: ripple heights, one host-coherent buffer of kFrames slots, bound as a dynamic storage buffer (set 1 binding 2)
     VkBuffer m_rippleBuffer = VK_NULL_HANDLE; VkDeviceMemory m_rippleMemory = VK_NULL_HANDLE; void* m_rippleMapped = nullptr;
     VkDeviceSize m_rippleSlotBytes = 0;

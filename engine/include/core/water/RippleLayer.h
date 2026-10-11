@@ -13,6 +13,7 @@
 // must follow this frame (a body's sharp-edge remainder, 22.3.2).
 
 #include <glm/glm.hpp>
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -29,6 +30,9 @@ public:
     /// accumulated and spent in whole steps.
     static constexpr float kStep = 1.0f / 120.0f;
     static constexpr int kMaxSubsteps = 4;                  ///< per call: a longer stall drops time - a visual field owes none
+    /// 22.12 B1: the breaking slope. Water holds no wave steeper than the Stokes limit H/L = 0.142 (Michell 1893); as the
+    /// sinusoid's steepest slope that is pi x 0.142 = 0.446. Steeper, the crest breaks and the excess leaves the wave.
+    static constexpr float kBreakSlope = 0.44f;
 
     /// `origin` = the lattice cell (world / kPitch, integer) of cell (0, 0); nx x nz cells.
     RippleLayer(const glm::ivec2& origin, int nx, int nz, float gravity = 9.81f);
@@ -52,6 +56,12 @@ public:
     void setKinematic(int x, int z, float velocity);
 
     void step(float dt);
+    /// 22.12 B1: no lattice edge steeper than `s` (axis |dr| <= s d, diagonal <= s d sqrt 2) after a step; 0 = off (the
+    /// A/B control, and the tests of linear propagation / stepping stability - a limit would hide an instability).
+    void setBreakSlope(float s) { m_breakSlope = std::max(0.0f, s); }
+    float breakSlope() const { return m_breakSlope; }
+    /// m^3 of surface height the limit has removed since the last call (sum |moved| x d^2) - the whitewater hook (S4).
+    double takeBroken() { const double b = m_broken; m_broken = 0.0; return b; }
     bool asleep() const { return m_asleep; }
     void wake() { m_asleep = false; }
     const std::vector<float>& heights() const { return m_r; }
@@ -74,6 +84,7 @@ private:
     void buildKernel();
     void convolve(const std::vector<float>& in, std::vector<float>& out) const;
     int labelComponents();                 ///< 4-connected bodies of water in the mask (cached until the mask changes)
+    double limitSlope(std::vector<float>& r);   ///< 22.12 B1 on one leapfrog level; returns the height moved (m, sum |delta|)
     std::vector<int> m_label;              ///< per cell: its body, -1 = masked
     std::vector<uint8_t> m_maskSeen;
     int m_nComp = 0;
@@ -86,6 +97,9 @@ private:
     bool m_openBorder = true, m_asleep = true, m_anyImpulse = false, m_anyKin = false;
     int m_quietSteps = 0;
     float m_accum = 0.0f;   ///< frame time not yet spent in whole kStep steps
+    float m_breakSlope = kBreakSlope;
+    double m_broken = 0.0;
+    std::vector<float> m_delta;
 };
 
 }  // namespace Phyxel::Core::Water

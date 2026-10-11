@@ -243,7 +243,9 @@ public:
     static constexpr int kSlopeBins = 12;
     static constexpr float kSlopeEdges[kSlopeBins - 1] = {0.05f, 0.1f, 0.2f, 0.3f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 5.0f};
     struct RippleStats { bool on = true, smooth = false; int layers = 0, awake = 0, refused = 0; long cells = 0, kinematicCells = 0, impulses = 0; double ms = 0.0; float maxAbs = 0.0f;
-                         float maxSlope = 0.0f; long slopeHist[kSlopeBins] = {}; };
+                         float maxSlope = 0.0f; long slopeHist[kSlopeBins] = {};
+                         float breakSlope = RippleLayer::kBreakSlope;   ///< 22.12 B1 (0 = off, the A/B control)
+                         double brokenM3 = 0.0; };                      ///< height the limit removed, summed over the run (m^3)
     /// Measurement only (22.11): pin every layer to a uniform tilt - slope (rise per run) toward azimuth (degrees,
     /// 0 = +x, 90 = +z) - instead of stepping it, so one frame shows exactly one facet tilt. slope < 0 = off.
     struct RipplePattern { float slope = -1.0f, azimuthDeg = 0.0f; };
@@ -251,6 +253,7 @@ public:
     const RipplePattern& ripplePattern() const { return m_rpattern; }
     void setRipples(bool on) { m_rstats.on = on; }
     void setRippleSmooth(bool on) { m_rstats.smooth = on; }
+    void setRippleBreakSlope(float s) { m_rstats.breakSlope = s; }
     const RippleStats& rippleStats() const { return m_rstats; }
     static constexpr int kRippleMaxCells = 512;   ///< per axis (a 57 m pond); a larger volume gets no layer - refused, counted (22.5)
     static constexpr int kRippleMaxLayers = 4;    ///< the renderer's atlas holds four 512 x 512 layers

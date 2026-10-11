@@ -149,7 +149,7 @@ def part_p(api, quick):
     grade = api.post("/api/debug/tonemap", {})
     print("grade", grade)
     slopes = [0.2, 0.5, 1.0] if quick else [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 1.0, 1.25, 1.5, 2.0]
-    elev_bins = np.zeros((181, 3)); sun_bins = np.zeros((181, 3))   # per degree: pixels, black, white
+    elev_bins = np.zeros((181, 4)); sun_bins = np.zeros((181, 4))   # per degree: pixels, black, white, sum of luma
     enc = []
     for pname in (["mid"] if quick else ["low", "mid", "high", "top"]):
         camera_set(api, ALL_POSES[pname])
@@ -175,21 +175,23 @@ def part_p(api, quick):
                 blk = fin.max(axis=1) < BLACK; wht = fin.min(axis=1) > WHITE
                 for bins, idx in ((elev_bins, elev), (sun_bins, to_sun)):
                     np.add.at(bins[:, 0], idx, 1); np.add.at(bins[:, 1], idx, blk); np.add.at(bins[:, 2], idx, wht)
+                    np.add.at(bins[:, 3], idx, fin.astype(np.float64) @ np.array([0.2126, 0.7152, 0.0722]))
             print(f"  {pname} {AZ[az]} done")
     api.debug("water_render_core", {"debug": 0})
     api.debug("water_ripples", {"pattern": False})
     def table(bins, lo):
-        return [{"deg": i + lo, "pixels": int(b[0]), "black": round(b[1] / b[0], 4), "white": round(b[2] / b[0], 4)}
+        return [{"deg": i + lo, "pixels": int(b[0]), "black": round(b[1] / b[0], 4), "white": round(b[2] / b[0], 4),
+                 "luma": round(b[3] / b[0], 1)}
                 for i, b in enumerate(bins) if b[0] > 0]
     return {"encoding_check_blue_mean": round(float(np.mean(enc)), 1) if enc else None,
             "note": "tap 8 blue = 0.5 reads ~188: the frame is sRGB-encoded; angles are decoded through sRGB -> linear (8-bit: ~0.3 deg steps near 90, ~2-4 deg near 0)",
             "by_reflect_elevation": table(elev_bins, -90), "by_angle_to_sun": table(sun_bins, 0)}
 
 
-def part_b(api, ripples, seconds=12.0):
+def part_b(api, ripples, seconds=12.0, suffix=""):
     ff = shutil.which("ffmpeg")
     if not ff: raise SystemExit("ffmpeg not on PATH")
-    tag = "facet_extremes_live" + ("" if ripples else "_noripple")
+    tag = "facet_extremes_live" + ("" if ripples else "_noripple") + suffix
     build_pond(api)
     api.debug("water_droplets", {"enabled": False})
     api.debug("water_ripples", {"enabled": ripples, "pattern": False})
@@ -228,7 +230,7 @@ def part_b(api, ripples, seconds=12.0):
     while rec.poll() is None:
         r = api.debug("water_ripples", {})
         polls.append({"t": round(time.time() - t_rec, 3), "max_abs_m": r.get("max_abs_m"), "max_slope": r.get("max_slope"),
-                      "hist": r.get("slope_hist")})
+                      "hist": r.get("slope_hist"), "broken_m3": r.get("broken_m3")})
         time.sleep(0.05)
     edges = r.get("slope_edges")
     per = []
@@ -244,15 +246,25 @@ def main():
     ap.add_argument("--url", default="http://127.0.0.1:8111")
     ap.add_argument("--part", default="AB")
     ap.add_argument("--quick", action="store_true")
+    # 22.12: on = the shipped fix (breaking limit 0.44 + horizon guard), off = both disabled (the A/B control); omitted =
+    # leave the engine as it is (the 22.11 runs predate both switches)
+    ap.add_argument("--fix", choices=["on", "off"])
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(60)
     out = {"captured": time.strftime("%Y-%m-%d %H:%M:%S")}
+    suffix = ""
+    if args.fix:
+        on = args.fix == "on"
+        out["fix"] = {"ripples": api.debug("water_ripples", {"break_slope": 0.44 if on else 0.0}).get("break_slope"),
+                      "horizon_guard": api.debug("water_render_core", {"horizon_guard": on}).get("horizon_guard")}
+        print("fix", out["fix"])
+        suffix = "_fix_" + args.fix
     if "A" in args.part: out["A"] = part_a(api, args.quick)
     if "P" in args.part: out["P"] = part_p(api, args.quick)
     if "B" in args.part:
-        out["B_ripples"] = part_b(api, True)
-        out["B_control"] = part_b(api, False)
-    p = EV / ("facet_extremes_quick.json" if args.quick else ("facet_extremes_pixels.json" if args.part == "P" else "facet_extremes.json"))
+        out["B_ripples"] = part_b(api, True, suffix=suffix)
+        out["B_control"] = part_b(api, False, suffix=suffix)
+    p = EV / (("facet_extremes_quick" if args.quick else ("facet_extremes_pixels" if args.part == "P" else "facet_extremes")) + suffix + ".json")
     p.write_text(json.dumps(out, indent=1))
     print("wrote", p)
 

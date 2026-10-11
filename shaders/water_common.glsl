@@ -489,6 +489,7 @@ struct WaterSurfaceInput {
     mat4  viewProj;
     float ssr;         // 0 = sky reflection only (the pre-W4 look), 1 = march the depth buffer
     int   debugMode;   // Phase F taps: 0 off, 2 body, 3 reflection, 4 thickness, 5 fresnel (callers set 0)
+    float horizonGuard; // WaterCore 22.12 B2: 1 = a reflection below the horizon meets the water again (water_surface.frag only; others 0)
     float shoreFoam;   // 1 = the sheet's waterline rim + breaking surf model; 0 = none (simulated water: foam comes from the solver)
     float scatterLit;  // 1 = the lit in-scatter (21.3, every caller); 0 = the pre-21.3 constant glow (water_render_core A/B only)
     float droplet;     // 21: 1 = a droplet cube - its thickness is its own edge (minThickness), never the scene behind it,
@@ -626,6 +627,15 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     float fres = clamp(0.02 + 0.98 * pow(1.0 - ndv, 5.0), 0.0, 1.0);
     vec3  R    = reflect(-V, N);
     vec3  refl = waterSkyReflection(R, toSun, ubo.sunColor, ubo.ambientLight, max(inp.worldPos.y, 1.0));
+    // WaterCore 22.12 B2: a ray reflected DOWNWARD (a facet tilted away from the eye) does not reach the ground - it
+    // meets the next stretch of water. Taken as the mean surface (+Y), it reflects once more (R2, Schlick at that
+    // incidence) and the rest enters the water and returns its body colour. Continuous at the horizon (F2 -> 1); the
+    // sky model's below-horizon branch returned near-black there (22.11: 6-68 % of such pixels black).
+    if (inp.horizonGuard > 0.5 && R.y < 0.0) {
+        float F2 = 0.02 + 0.98 * pow(1.0 - min(-R.y, 1.0), 5.0);
+        vec3  R2 = vec3(R.x, -R.y, R.z);
+        refl = F2 * waterSkyReflection(R2, toSun, ubo.sunColor, ubo.ambientLight, max(inp.worldPos.y, 1.0)) + (1.0 - F2) * body;
+    }
 
     // SCREEN-SPACE REFLECTION (v4 W4). The sky stays the FALLBACK, never the loser: where the ray
     // leaves the screen, finds no geometry, or lands on a surface too far behind, the water keeps

@@ -581,6 +581,8 @@ public:
     void setWaterCoreRipples(const std::vector<const Core::Water::RippleLayer*>* r, bool smooth) { if (waterSurfacePipeline) waterSurfacePipeline->setRipples(r, smooth); }
     void setWaterCoreScatterLegacy(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setScatterLegacy(on); }
     bool waterCoreScatterLegacy() const { return waterSurfacePipeline && waterSurfacePipeline->scatterLegacy(); }
+    void setWaterCoreHorizonGuard(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setHorizonGuard(on); }
+    bool waterCoreHorizonGuard() const { return waterSurfacePipeline && waterSurfacePipeline->horizonGuard(); }
     int  waterCoreDebugMode() const { return waterSurfacePipeline ? waterSurfacePipeline->debugMode() : 0; }
     /// Phase D (16.4): the live volumes' world boxes + their revision; the span grid masks those columns.
     void setWaterCoreVolumeBoxes(const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, uint64_t revision) { m_waterCoreBoxes = boxes; m_waterCoreBoxRevision = revision; }

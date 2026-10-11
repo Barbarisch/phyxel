@@ -98,7 +98,7 @@ layout(push_constant) uniform PushConstants {
     vec4 camPosTime;
     vec4 screen;
     vec4 look0;      // G3: tint.rgb (x < 0 = unset), clarity m (0 = derived)
-    vec4 look1;      // G3: turbidity (< 0 = derived), roughness (< 0 = derived)
+    vec4 look1;      // G3: turbidity (< 0 = derived), roughness (< 0 = derived); z: 1 = 22.12 horizon guard OFF
 } pc;
 
 #include "water_common.glsl"
@@ -148,6 +148,7 @@ void main() {
     inp.viewProj     = pc.viewProj;
     inp.ssr          = 0.0;
     inp.debugMode    = dbg;
+    inp.horizonGuard = pc.look1.z > 0.5 ? 0.0 : 1.0;   // 22.12 B2: water_render_core {horizon_guard: false} sets look1.z = 1 (A/B only)
     inp.shoreFoam    = 0.0;                 // no shoreline model on simulated water: its edge IS the mesh; foam comes from the solver (F2)
     inp.scatterLit   = pc.screen.w > 0.5 ? 0.0 : 1.0;   // 21.3: water_render_core {scatter: "legacy"} sets w = 1 (A/B only)
 

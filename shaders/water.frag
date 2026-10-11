@@ -194,6 +194,7 @@ void main() {
     // camera-relative and would march the ray in the wrong frame).
     inp.viewProj     = pc.viewProj;
     inp.debugMode    = 0;
+    inp.horizonGuard = 0.0;   // WaterCore 22.12 B2 is scoped to simulated small-body water
     inp.shoreFoam    = 1.0;
     inp.ssr          = pc.params2.z;
     inp.droplet      = 0.0;

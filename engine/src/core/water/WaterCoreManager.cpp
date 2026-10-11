@@ -889,7 +889,9 @@ void WaterCoreManager::stepRipples(float dt) {
                 }
             }
         }
+        L.setBreakSlope(m_rstats.breakSlope);
         if (m_rpattern.slope < 0.0f) L.step(dt);
+        m_rstats.brokenM3 += L.takeBroken();
         ++m_rstats.layers; m_rstats.cells += static_cast<long>(L.nx()) * L.nz();
         if (!L.asleep()) {
             ++m_rstats.awake; m_rstats.maxAbs = std::max(m_rstats.maxAbs, L.maxAbs());

@@ -246,7 +246,8 @@ void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescrip
     const float t = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_startTime).count();
     pc.camPosTime = glm::vec4(camera.getPosition(), t);
     pc.screen = glm::vec4(static_cast<float>(screenExtent.width), static_cast<float>(screenExtent.height), static_cast<float>(m_debugMode), m_scatterLegacy ? 1.0f : 0.0f);
-    { const Core::Water::WaterLookPacked neutral; pc.look0 = neutral.look0; pc.look1 = neutral.look1; }
+    const float guardOff = m_horizonGuard ? 0.0f : 1.0f;   // 22.12 B2 rides look1.z (unused by the look: 0 = guard on)
+    { const Core::Water::WaterLookPacked neutral; pc.look0 = neutral.look0; pc.look1 = neutral.look1; pc.look1.z = guardOff; }
     // G3: one draw per field so each body's look reaches the shader; a mesh without ranges (older
     // callers) draws once with the neutral look. Ranges past a truncation are clipped.
     if (mesh.ranges.empty()) {
@@ -256,7 +257,7 @@ void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescrip
         for (const auto& rg : mesh.ranges) {
             if (rg.firstIndex >= ni) break;
             const uint32_t cnt = static_cast<uint32_t>(std::min<size_t>(rg.indexCount, ni - rg.firstIndex));
-            pc.look0 = rg.look.look0; pc.look1 = rg.look.look1;
+            pc.look0 = rg.look.look0; pc.look1 = rg.look.look1; pc.look1.z = guardOff;
             vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(WaterSurfacePush), &pc);
             vkCmdDrawIndexed(commandBuffer, cnt, 1, rg.firstIndex, 0, 0);
         }
