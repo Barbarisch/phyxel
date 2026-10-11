@@ -227,6 +227,8 @@ public:
     void setDroplets(bool on) { m_dstats.on = on; }
     /// Droplet edge as a fraction of the volume's cell (21.11 default 1/9); clamped [1/27, 1] where it is used (DropletPool::spawn).
     void setDropletSize(float k) { m_dstats.size = k; }
+    /// Test hook (D-T4): lower the pool cap; a refused birth goes straight back into the grid.
+    void setDropletCap(size_t c) { m_pool.setCap(c); }
     const DropletStats& dropletStats() { m_dstats.alive = static_cast<int>(m_pool.droplets().size()); return m_dstats; }
     double dropletVolume() const { return m_pool.volumeInFlight(); }
     /// Droplet cubes for the renderer (xyz centre, w edge), rebuilt every update.

@@ -3100,6 +3100,24 @@ drawn run of sum f < 1 in any frame; the floaters scenario (bobbing at <= 0.2 m/
 Re-gated against 21.9's checks: no new chunk input (both rules are per world cell), API unchanged except the
 size default, the cost bounds (pool cap, per-frame record cap) unchanged. READY to build S1 with this rule.
 
+### 21.12 The droplet unit tests (2026-10-10) - D-T1..D-T4, D-T7, D-T9 written; two defects found red and fixed
+
+`tests/core/WaterDropletTest.cpp` (6 tests, all green after the fixes; 313 water/debris/shore tests green):
+
+| # | Result | Numbers |
+|---|---|---|
+| D-T1 | **RED first, fixed** | a 0.2 m^3 scrap thrown up at 3 m/s in a closed CPU box: all of it born on tick 1, but **it never landed** - the landing read "ground" only from solid cells INSIDE the volume's box, and a box whose bottom is the floor has none (the solver treats outside-the-grid as solid; the droplets did not). They fell to the 10 s age cap, and one that left the box over a dry column fell forever (the age cap sat behind the relocation branch). Fix: ground = max(highest solid cell, the box floor). After: last landing 1.100 s vs 1.111 s predicted (apex + free fall), born = landed = 0.200000 m^3, worst ledger drift 1.0e-7 m^3. Control: rested pond 60 s, 0 births. Live the Small pond's box holds its stone floor, which is why S1's live run never showed it. |
+| D-T2 | green, prediction revised | the CPU T4 entry throws no scraps at 6 m/s and one spray cell (1 ml) at 7.7 m/s - 21.11 had already measured this, so 21.6's "slab as control" is blind on the CPU rig. Control instead: one scripted scrap cell 0.8 m above the pond 20 ticks in - seen floating for 8 ticks with births off, 0 ticks with births on. No floating scrap survives any birth pass; drift <= 4.9e-7 m^3. |
+| D-T3 | green | the DiagPockets rig (446 pockets after the blast) then a 3 m/s slosh: 0 scraps, 0 sprays in 5 s. |
+| D-T4 | green | pool capped at 10: never more than 10 alive, 35.6 m^3 refused over 3 s (the refused scrap goes back, is reborn, refused again), ledger drift 2.6e-7 m^3. Also fixed: a part-refused birth's odd last droplet broke the zero-sum spread (`fit`, not `n`). |
+| D-T5 | not written | GPU parity needs a device - belongs in `tests/integration/WaterCoreGpuParityTest.cpp`. Open. |
+| D-T7 | **RED first, fixed** | the same parcel in two volumes whose boxes differ (both across the world-cell-288 seam): **401 of 401 droplets differed** - the spread hash keyed on the GRID-LOCAL column, so a splash's droplets depended on where its volume's box started (a 21.5 violation). Fix: the hash keys on the world cell column. After: 0 differ; seam column vs interior column: same count, volume and mean velocity. |
+| D-T9 | green | top face at 4 m/s: one spray of exactly f (v - v_c) dt / h of a cell (1.336e-3 m^3), what the grid lost; at 2 m/s none. |
+
+Live after both fixes (Small bench, stone drop): 12 births, peak 22 droplets alive (S1's run peaked at 53 - the
+tumbling stone varies), born = landed = 0.534 litres, pond ledger -2e-6 m^3 over 24 m^3 (float). Not new looks:
+the hash change only moves where each droplet starts inside its cell.
+
 ## 22. Ripples you can see - a sub-cell wave layer on every small body (owner, 2026-10-10) - DESIGN - design-check READY for R0 after one fold-in (22.8)
 
 The owner, after the first droplet cut (21, `6a2b79f8`): "honestly doesnt look bad. maybe more particles would

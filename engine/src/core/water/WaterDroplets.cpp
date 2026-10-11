@@ -147,19 +147,24 @@ double DropletPool::spawn(const DropletBirth& b, int volumeId, float h, float si
     size_t n = static_cast<size_t>(std::ceil(static_cast<double>(b.volume) / vd - 1e-9));
     n = std::max<size_t>(n, 1);
     const double each = static_cast<double>(b.volume) / static_cast<double>(n);
-    const size_t room = m_d.size() < kCap ? kCap - m_d.size() : 0;
+    const size_t room = m_d.size() < m_cap ? m_cap - m_d.size() : 0;
     const size_t fit = std::min(n, room);
     const float edge = static_cast<float>(std::cbrt(each));
     const float spread = 0.15f * glm::length(b.vel);
+    // the hash keys on the WORLD cell column the water left (21.5) - a grid-local column made one parcel's droplets
+    // depend on which volume's box held it (D-T7)
+    const uint32_t wx = static_cast<uint32_t>(static_cast<int32_t>(std::floor(b.pos.x / h)));
+    const uint32_t wz = static_cast<uint32_t>(static_cast<int32_t>(std::floor(b.pos.z / h)));
+    const uint32_t col = hash3(wx, wz, 0x5EEDu);
     for (size_t i = 0; i < fit; ++i) {
-        const uint32_t hh = hash3(static_cast<uint32_t>(b.column), tick, static_cast<uint32_t>(i / 2));
+        const uint32_t hh = hash3(col, tick, static_cast<uint32_t>(i / 2));
         Droplet d;
         d.pos = b.pos + glm::vec3((unit(hash3(hh, 1, 0)) - 0.5f) * h, (unit(hash3(hh, 2, 0)) - 0.5f) * 0.5f * h, (unit(hash3(hh, 3, 0)) - 0.5f) * h);
         // zero-sum spread: drops 2j and 2j + 1 get +J and -J (an odd last drop gets none), so the mean is b.vel
         glm::vec3 J(unit(hash3(hh, 4, 0)) - 0.5f, unit(hash3(hh, 5, 0)) - 0.5f, unit(hash3(hh, 6, 0)) - 0.5f);
         const float jl = glm::length(J);
         J = jl > 1e-6f ? J / jl * spread : glm::vec3(0.0f);
-        const bool lastOdd = (n % 2 == 1) && i == n - 1;
+        const bool lastOdd = (fit % 2 == 1) && i == fit - 1;   // fit, not n: a part-refused birth keeps its mean too
         d.vel = b.vel + (lastOdd ? glm::vec3(0.0f) : ((i % 2 == 0) ? J : -J));
         d.volume = static_cast<float>(each); d.edge = edge; d.volumeId = volumeId;
         m_d.push_back(d);

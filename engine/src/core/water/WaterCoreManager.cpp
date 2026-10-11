@@ -786,16 +786,19 @@ void WaterCoreManager::stepDroplets(float dt) {
         const int runs = std::min(static_cast<int>(c.runs + 0.5f), kSurfaceMaxRuns);
         float top = -1e30f;
         for (int r = 0; r < runs; ++r) if (d.pos.y >= c.bottom[r] - 0.5f * f.h && d.pos.y <= c.top[r]) top = std::max(top, c.top[r]);
+        // the ground: the highest solid cell in the column, or the box's floor - the solver treats everything outside the
+        // grid as solid, so a box whose bottom IS the floor has no solid cell inside it (D-T1: its droplets fell forever)
+        const float ground = std::max(c.solidTopY, static_cast<float>(f.origin.y) * f.h);
         if (outside) {   // left its volume's box: lands at the nearest column's surface (21.9 F1 - no wall in mid-air), counted
-            const float y = runs > 0 ? c.top[runs - 1] : c.solidTopY;
+            const float y = runs > 0 ? c.top[runs - 1] : ground;
             if (d.pos.y > y) return false;   // still above the water there: let it fly
             m_dstats.relocatedM3 += d.volume;
             landAt.push_back(glm::vec3(colXZ.x, y - 0.01f, colXZ.z));
             return true;
         }
         if (d.vel.y <= 0.0f && top > -1e29f) { landAt.push_back(glm::vec3(d.pos.x, std::min(d.pos.y, top - 0.01f), d.pos.z)); return true; }   // into the water
-        if (d.pos.y <= c.solidTopY) { landAt.push_back(glm::vec3(d.pos.x, c.solidTopY + 0.01f, d.pos.z)); return true; }                     // onto the ground
-        if (d.age > 10.0f) { landAt.push_back(glm::vec3(d.pos.x, runs > 0 ? c.top[runs - 1] - 0.01f : c.solidTopY + 0.01f, d.pos.z)); return true; }   // defensive: never fly forever
+        if (d.pos.y <= ground) { landAt.push_back(glm::vec3(d.pos.x, ground + 0.01f, d.pos.z)); return true; }                                 // onto the ground
+        if (d.age > 10.0f) { landAt.push_back(glm::vec3(d.pos.x, runs > 0 ? c.top[runs - 1] - 0.01f : ground + 0.01f, d.pos.z)); return true; }   // defensive: never fly forever
         return false;
     };
     m_pool.step(dt, g, land, landed);

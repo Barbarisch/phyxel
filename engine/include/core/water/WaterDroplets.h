@@ -59,6 +59,9 @@ struct Droplet {
 class DropletPool {
 public:
     static constexpr size_t kCap = 20000;
+    /// Lower the cap (tests: D-T4 forces it to 10). Never above kCap - the cost bound (§12 decision 5).
+    void setCap(size_t c) { m_cap = c < kCap ? c : kCap; }
+    size_t cap() const { return m_cap; }
     /// Split a birth into droplets of (k h)^3 each (k = the size knob, clamped [1/27, 1]) at hashed points inside the
     /// cell around `b.pos`, velocity +-15 % zero-sum per birth. Returns the volume that did NOT fit the pool (the
     /// caller puts it straight back - never dropped).
@@ -74,6 +77,7 @@ public:
     bool anyFor(int volumeId) const { for (const Droplet& d : m_d) if (d.volumeId == volumeId) return true; return false; }
 private:
     std::vector<Droplet> m_d;
+    size_t m_cap = kCap;
 };
 
 /// Quadratic air drag on a water cube of edge e: a = 0.5 rho_air Cd e^2 |v| v / (rho_w e^3) (rho_air 1.2,
