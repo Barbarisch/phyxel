@@ -36,14 +36,7 @@ bool bodyWall(int x, int y, int z) {
     const float fv = f[cellIdx(x, y, z)];
     return fv < 0.001 / pc.h && fv + sv >= pc.thr;
 }
-float thetaToAir(int x, int y, int z, int dir) {
-    if (dir == 3) {
-        const float fa = inBounds(x, y + 1, z) ? min(1.0, f[cellIdx(x, y + 1, z)]) : 0.0;
-        // one continuous expression: (f - 0.5) above the centre plus the thin layer above (defect #28)
-        return clamp(f[cellIdx(x, y, z)] + solid[cellIdx(x, y, z)].x - 0.5 + fa, 0.1, 1.5);   // 20.5: a body raises the level it sits in
-    }
-    return 0.5;
-}
+#include "wc_theta.glsl"   // 24.5 F2: the one surface distance (matrix and velocity update)
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
@@ -76,7 +69,7 @@ void main() {
         const ivec3 n = c + d[k];
         if (blocked(n.x, n.y, n.z) || bodyWall(n.x, n.y, n.z)) continue;   // Neumann (a body-full cell is a wall, 20.5)
         if (isLiqCell(n.x, n.y, n.z)) dsum += 1.0;
-        else dsum += 1.0 / thetaToAir(c.x, c.y, c.z, k);
+        else dsum += 1.0 / wcThetaToAir(c.x, c.y, c.z, k);
     }
     const float invh2 = 1.0 / (pc.h * pc.h);
     // a row with no open neighbour (walled in by rock and body cells) is decoupled: p = 0 (a zero diagonal

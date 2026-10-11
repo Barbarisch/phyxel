@@ -187,9 +187,12 @@ TEST(WaterSolidTest, SpawnInsideWaterIsLedgerExact) {
     b.fresh = false;
     for (int k = 0; k < 30; ++k) { s.setMovingSolids({b}, kDt); s.step(kDt); }
     EXPECT_LE(maxFillPlusSolid(p.grid), 1.0f + 1e-4f) << "the overlap must be gone within 30 ticks";
-    for (int k = 0; k < 300; ++k) { s.setMovingSolids({b}, kDt); s.step(kDt); }
+    // the RESTING level (WaterCore.md 24.6): until 2026-10-11 read at a fixed 5 s, when the over-damped pond had stopped;
+    // a pond that keeps its waves is still moving then, so wait for the volume to sleep (<= 60 s) and report when it did
+    int slept = -1;
+    for (int k = 0; k < 3600 && slept < 0; ++k) { s.setMovingSolids({b}, kDt); if (s.step(kDt).asleep) slept = k; }
     const float level = levelAway(p.grid, 4, 7);
-    std::printf("  spawned cube: level away %.4f m (predicted 1.5625; drawn %.4f, air under water %.4f m^3), mass %.9f -> %.9f\n", level, drawnLevelAway(p.grid, 4, 7), airUnderWater(p.grid), m0, p.grid.totalMass());
+    std::printf("  spawned cube: asleep after %.1f s (-1 = not in 60 s); level away %.4f m (predicted 1.5625; drawn %.4f, air under water %.4f m^3), mass %.9f -> %.9f\n", slept < 0 ? -1.0f : slept * kDt, level, drawnLevelAway(p.grid, 4, 7), airUnderWater(p.grid), m0, p.grid.totalMass());
     EXPECT_NEAR(level, 1.5625f, 0.005f);
     EXPECT_NEAR(p.grid.totalMass(), m0, 1e-6);
 }
@@ -250,7 +253,10 @@ TEST(WaterSolidTest, TheCavityCloses) {
     const DropRun ctl = dropStone(true, 300, 64u);   // CONTROL: the wake rule off (stage bit 64)
     const double stone = std::pow(kH, 3.0);
     std::printf("  control (dragged air may not rise out): trapped %.5f m^3 - the measure sees the air the rule removes\n", ctl.airAfter);
-    EXPECT_GT(ctl.airAfter, 0.1 * stone) << "control: without the rule the stone's air must stay trapped (else the measure is blind)";
+    // control re-based 2026-10-11 (WaterCore.md 24.6): with compaction confined to the settle band the moving pond no longer
+    // squeezes the swept air into one pocket, and the control holds 0.0018 m^3 (4.8 % of the stone) where it held > 10 %;
+    // the rule's run holds 0.0000. The control's job - the measure is not blind - is "clearly more air without the rule".
+    EXPECT_GT(ctl.airAfter, r.airAfter + 0.02 * stone) << "control: without the rule the stone's air must stay trapped (else the measure is blind)";
     std::printf("  air trapped under water: before %.5f m^3, 6 s after the drop %.5f m^3 (stone %.5f m^3); surface split across two cells %.5f m^3 (not air - item 3)\n", r.airBefore, r.airAfter, stone, r.splitAfter);
     EXPECT_LE(r.airAfter, r.airBefore + 0.1 * stone) << "the cavity behind the stone stayed trapped";
     EXPECT_NEAR(r.m1, r.m0, 1e-6);
@@ -290,7 +296,10 @@ TEST(WaterSolidTest, DrawnWaterlineBesideAFloatingBody) {
     WaterSolver s(p.grid, p.query());
     for (int k = 0; k < 60; ++k) s.step(kDt);
     MovingSolid b; b.centre = {2.0f, 1.53f, 2.0f}; b.halfExtents = glm::vec3(0.5f); b.fresh = true;
-    for (int k = 0; k < 300; ++k) { s.setMovingSolids({b}, kDt); b.fresh = false; s.step(kDt); }
+    // the RESTING waterline (24.6): wait for the volume to sleep (<= 60 s) instead of a fixed 5 s - see SpawnInsideWater
+    int slept = -1;
+    for (int k = 0; k < 3600 && slept < 0; ++k) { s.setMovingSolids({b}, kDt); b.fresh = false; if (s.step(kDt).asleep) slept = k; }
+    std::printf("  floating block: asleep after %.1f s (-1 = not in 60 s)\n", slept < 0 ? -1.0f : slept * kDt);
     const float level = levelAway(p.grid, 3, 8);
     float worst = 0.0f;
     for (int z = 4; z <= 7; ++z) for (int x : {3, 8}) {   // the columns either side of the block

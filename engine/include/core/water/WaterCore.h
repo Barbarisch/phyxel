@@ -138,12 +138,23 @@ struct SolverParams {
     double maxDeltaFQuiet = 1e-5;    ///< ... and when max |delta f| per tick is below this
     int    restTicks = 30;           ///< consecutive quiet ticks before sleeping
     float  restDamping = 1.0f;       ///< 1/s, applied to velocity while the volume is in the SETTLE band (below keSettle), never to moving water. 0.5 took a poured column from the band edge to sleep in 16 s (KE decays at the velocity rate, half the energy is potential); 1.0 is the S11 budget (Phase D, 2026-10-08)
-    double keSettle = 1e-3;          ///< m^2/s^2 (|v| ~ 3 cm/s rms): below this the volume is settling and restDamping stands in for the viscous + bottom-friction dissipation the inviscid solver lacks. Measured need (Phase D, 2026-10-08): with damping only under keWake, a poured column, a bumped pool and a dam break in a sealed 3 m tank at 1/3 m all sloshed at 1e-4..1e-3 for 100 s and never slept; real basins still within seconds to tens of seconds. From 3 cm/s to the 1.4 mm/s sleep line takes ln(23)/0.5 = 6 s: "asleep within 10 s of the last motion" (S11).
+    /// m^2/s^2: below this the volume is SETTLING - restDamping stands in for the dissipation the inviscid solver lacks, and
+    /// compaction closes voids (24.6). 1e-3 until 2026-10-11 (Phase D's S11 budget, "|v| ~ 3 cm/s rms"): in the Small pond
+    /// that band held every wave under ~1.6 cm, so visible waves were braked as if settling - the owner's "thicker than
+    /// water" (WaterCore.md 24.1). 2e-4 is just above the small-wave floor measured in WaterWaveTest.WavesKeepTheirEnergy
+    /// (2-5 mm waves read ~1e-4, 6-10x their linear energy; a still pond 1e-16): the band now starts at ~7 mm waves.
+    /// Why a band at all (Phase D, 2026-10-08): with damping only under keWake a poured column, a bumped pool and a dam break
+    /// in a sealed 3 m tank sloshed for 100 s and never slept; S11 wants asleep within 10 s of the last motion.
+    double keSettle = 2e-4;
     /// DIAGNOSTIC ONLY (bisecting a measured defect, never shipped on): bits disable a stage of
     /// the substep. 1 compaction · 2 thin-film slope · 4 thin-film settle · 8 "first halo layer only"
     /// (all three layers overwrite thin faces, the pre-#11 behaviour) · 16 residue sweep · 32 rest damping.
     uint32_t debugDisableStages = 0;   // 64: the moving-solid wake rule (20.5, dragged air rising out)
-    double thetaMin = 0.1;           ///< ghost-fluid clamp: the surface is never closer than this fraction of a cell to a liquid cell's centre (1/theta stays finite); see thetaToAir
+    /// Ghost-fluid clamp: the surface is never closer than this fraction of a cell to a liquid cell's centre (1/theta
+    /// stays finite); see thetaToAir. 0.1 until 2026-10-11: as a cell crosses the 0.5 cutoff the true theta passes
+    /// through 0, so the surface the solver projected against jumped a tenth of a cell at every crossing and a pond
+    /// resting half-way up a cell kept 28 % of a wave per swing (WaterCore.md 24.1). 0.01 keeps 1/theta <= 100.
+    double thetaMin = 0.01;
     float  filmHoldDepth = 0.01f;    ///< m: a film this thin or thinner is pinned (contact-angle stand-in); only the depth above it flows under its own slope (S1: puddles hold)
     int    pcgMaxIters = 400;
     double pcgTolerance = 1e-6;      ///< relative residual

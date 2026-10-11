@@ -504,7 +504,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
         barrier(cmd);
         if (vol.hasSolids) { push.mode = 3; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns); }   // 20.5 ledger: fresh / walled-in water up its column
         enforceSolids();
-        push.mode = 1; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns);                              // compaction (fills only)
+        if (quietBefore) { push.mode = 1; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns); }         // compaction (fills only) - settle band only (24.6, as WaterSolver::step)
     }
     push.mode = 0; dispatch(cmd, *vol.pipes[FaceOpsV], push, vol.nv);                                       // gravity
     push.mode = 1; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU], push, vol.nu);                              // film slope x
@@ -555,7 +555,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     GpuStepStats st; st.ticks = ticks; st.sweeps = sweeps;
     if (vol.asleep || ticks <= 0) { st.asleep = vol.asleep; st.quietTicks = vol.quietTicks; return st; }
     WcPush push; push.nx = vol.spec.dims.x; push.ny = vol.spec.dims.y; push.nz = vol.spec.dims.z;
-    push.h = vol.spec.h; push.thr = params.liquidThreshold; push.gravity = params.gravity; push.filmHold = params.filmHoldDepth / vol.spec.h;
+    push.h = vol.spec.h; push.thr = params.liquidThreshold; push.gravity = params.gravity; push.filmHold = params.filmHoldDepth / vol.spec.h; push.thetaMin = static_cast<float>(params.thetaMin);
     // CFL from the last known max speed plus the gravity a few ticks can add. The margin is capped at
     // six ticks' worth: a 60-tick benchmark call otherwise carried +9.8 m/s and doubled its substeps
     // (2.39 ms at 1/3 m with 2 substeps, 2026-10-08). The fill move is bounded (min of donor, room)
@@ -610,7 +610,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const double specificKE = st.kineticEnergy / std::max(static_cast<double>(out[2]), 1e-9);
     const bool quiet = specificKE < params.keWake && st.maxDeltaF < params.maxDeltaFQuiet;
     vol.quietTicks = quiet ? vol.quietTicks + ticks : 0;
-    vol.quietBefore = specificKE < params.keSettle;   // the settle band (SolverParams::keSettle), as on the CPU: damping below 3 cm/s rms, never above
+    vol.quietBefore = specificKE < params.keSettle;   // the settle band (SolverParams::keSettle), as on the CPU: rest damping + compaction only below it
     if (vol.quietTicks >= params.restTicks) vol.asleep = true;
     st.quietTicks = vol.quietTicks; st.asleep = vol.asleep;
     return st;

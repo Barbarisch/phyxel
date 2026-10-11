@@ -24,8 +24,9 @@ struct WcPush {
     float dt = 0.0f, h = 1.0f, thr = 0.5f, gravity = 9.81f;
     float filmHold = 0.01f, param0 = 0.0f, param1 = 0.0f;
     int32_t iparam = 0;
+    float thetaMin = 0.01f;   ///< SolverParams::thetaMin (WaterCore.md 24.1)
 };
-static_assert(sizeof(WcPush) == 48, "WcPush must match the GLSL push block");
+static_assert(sizeof(WcPush) == 52, "WcPush must match the GLSL push block");
 
 /// A pump or sink on the device (shaders/wc_sources.comp GpuSource, 32 bytes).
 struct GpuSource {

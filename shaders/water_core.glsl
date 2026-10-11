@@ -18,6 +18,7 @@ layout(push_constant) uniform WcPush {
     float param0;        // kernel-specific
     float param1;
     int   iparam;
+    float thetaMin;      // SolverParams::thetaMin - the ghost-fluid clamp (wc_theta.glsl; 24.1)
 } pc;
 
 uint cellIdx(int x, int y, int z) { return uint(x) + uint(pc.nx) * (uint(y) + uint(pc.ny) * uint(z)); }

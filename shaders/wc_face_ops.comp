@@ -29,15 +29,7 @@ bool bodyWall(int x, int y, int z) {
     return fv < 0.001 / pc.h && fv + sv >= pc.thr;
 }
 
-// thetaToAir: dir 3 (+y) looks at the cell above; every other direction is 0.5 (WaterSolver::thetaToAir)
-float thetaToAir(int x, int y, int z, int dir) {
-    if (dir == 3) {
-        const float fa = inBounds(x, y + 1, z) ? min(1.0, f[cellIdx(x, y + 1, z)]) : 0.0;
-        if (fa > 0.0) return 0.5 + fa;
-        return clamp(f[cellIdx(x, y, z)] + solid[cellIdx(x, y, z)].x - 0.5, 0.1, 0.5);   // 20.5: a body raises the level it sits in
-    }
-    return 0.5;
-}
+#include "wc_theta.glsl"   // 24.5 F2: the one surface distance (matrix and velocity update)
 
 // explicit slope on a pair of cells (a, b) with the hold depth; returns the velocity delta
 float slopeDelta(ivec3 a, ivec3 b) {
@@ -90,8 +82,8 @@ void main() {
         if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z) || bodyWall(a.x, a.y, a.z) || bodyWall(b.x, b.y, b.z)) { vel[id] = 0.0; return; }   // no update on solid faces (a body wall is one, 20.5)
         const float pa = la ? p[cellIdx(a.x, a.y, a.z)] : 0.0, pb = lb ? p[cellIdx(b.x, b.y, b.z)] : 0.0;
         float dist = pc.h;
-        if (la && !lb) dist = pc.h * thetaToAir(a.x, a.y, a.z, dirAB);
-        else if (lb && !la) dist = pc.h * thetaToAir(b.x, b.y, b.z, dirAB ^ 1);
+        if (la && !lb) dist = pc.h * wcThetaToAir(a.x, a.y, a.z, dirAB);
+        else if (lb && !la) dist = pc.h * wcThetaToAir(b.x, b.y, b.z, dirAB ^ 1);
         vel[id] -= pc.dt * (pb - pa) / dist;
     }
 }

@@ -1449,7 +1449,10 @@ StepReport WaterSolver::step(float dt) {
         m_transport->advect(m_grid, ds);
         resolveFreshOverflow();   // 20.5: a spawned body's water moves up its column (no rate, no fake splash)
         enforceSolidFaces();
-        if (!(off & 1u) && !m_transport->ownsMass()) compactSubmergedPartials(ds);
+        // compaction closes a SETTLING pool's voids (the frozen half layers it was written for are at rest); in moving water
+        // it pulled the transport's film back down at every turning point of a wave - the pond kept 0.74-0.90 of a wave
+        // per swing with it, 0.92-1.0 without (WaterCore.md 24.6). Settle band only, like the rest damping.
+        if (settleBefore && !(off & 1u) && !m_transport->ownsMass()) compactSubmergedPartials(ds);
         applyGravity(ds);
         if (!(off & 2u)) applyThinFilmGradient(ds);
         if (!(off & 4u)) settleThinFilmTopFaces();
