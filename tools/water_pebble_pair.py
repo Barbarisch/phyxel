@@ -17,6 +17,7 @@ PAIR = [((100.7, 13.5), 1.0 / 3.0), ((102.3, 13.5), 1.0 / 9.0)]
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://127.0.0.1:8111")
+    ap.add_argument("--no-droplets", action="store_true", help="splash droplets off (a measurement control; the engine default is on)")
     ap.add_argument("--tag", default="now")
     ap.add_argument("--seconds", type=float, default=6.0)
     args = ap.parse_args()
@@ -24,7 +25,7 @@ def main():
     if not ff: raise SystemExit("ffmpeg not on PATH")
     api = Api(args.url); api.wait_status(60)
     build_pond(api)
-    api.debug("water_droplets", {"enabled": False})
+    api.debug("water_droplets", {"enabled": not args.no_droplets})   # on unless asked: the shipped look
     camera_set(api, POSES["low"]); time.sleep(6)
     mp4 = EV / f"pebble_pair_{args.tag}.mp4"
     rec = subprocess.Popen([ff, "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-t", str(args.seconds),
