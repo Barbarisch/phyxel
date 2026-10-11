@@ -648,6 +648,10 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     if (inp.debugMode == 3) return vec4(refl, 1.0);
     if (inp.debugMode == 4) return vec4(vec3(clamp(thickness / 2.0, 0.0, 1.0)), 1.0);
     if (inp.debugMode == 5) return vec4(vec3(fres), 1.0);
+    // 22.11 measurement tap (read with POST /api/debug/tonemap {curve 0, exposure 1}): R = the reflected ray's angle to
+    // the sun / 180 deg, G = its elevation, (deg + 90) / 180, B = 0.5 (the encoding check: 128 linear, 188 sRGB)
+    if (inp.debugMode == 8) return vec4(acos(clamp(dot(normalize(R), toSun), -1.0, 1.0)) / 3.14159265,
+                                        asin(clamp(normalize(R).y, -1.0, 1.0)) / 3.14159265 + 0.5, 0.5, 1.0);
 
     // Specular glint off the ripples, using the LIVE sun (gone at night, warm at sunset).
     vec3  H = normalize(toSun + V);

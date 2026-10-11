@@ -828,6 +828,7 @@ std::vector<const RippleLayer*> WaterCoreManager::rippleLayers() const {
 void WaterCoreManager::stepRipples(float dt) {
     const auto t0 = std::chrono::steady_clock::now();
     m_rstats.layers = 0; m_rstats.awake = 0; m_rstats.cells = 0; m_rstats.kinematicCells = 0; m_rstats.maxAbs = 0.0f;
+    m_rstats.maxSlope = 0.0f; for (long& b : m_rstats.slopeHist) b = 0;
     if (!m_rstats.on) { m_rstats.ms = 0.0; return; }
     surfaceFields();   // masks and body waterlines read each volume's field (cached per step)
     const float d = RippleLayer::kPitch;
@@ -853,6 +854,12 @@ void WaterCoreManager::stepRipples(float dt) {
         for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) {
             const SurfaceColumn* c = column((L.origin().x + x + 0.5f) * d, (L.origin().y + z + 0.5f) * d);
             mask[L.idx(x, z)] = (c && c->runs >= 0.5f) ? 1 : 0;
+        }
+        if (m_rpattern.slope >= 0.0f) {   // 22.11 measurement: a uniform tilt, held (no bodies, no step)
+            const float a = glm::radians(m_rpattern.azimuthDeg), gx = m_rpattern.slope * std::cos(a) * d, gz = m_rpattern.slope * std::sin(a) * d;
+            std::vector<float> hp(static_cast<size_t>(L.nx()) * L.nz());
+            for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) hp[L.idx(x, z)] = gx * (x - 0.5f * L.nx()) + gz * (z - 0.5f * L.nz());
+            L.pin(hp);
         }
         // 22.3.2: bodies crossing the surface - the remainder of the kinematic condition the grid cannot hold
         const int per = std::max(1, static_cast<int>(std::lround(f.h / d)));   // lattice cells per grid column (3 at 1/3 m)
@@ -882,9 +889,21 @@ void WaterCoreManager::stepRipples(float dt) {
                 }
             }
         }
-        L.step(dt);
+        if (m_rpattern.slope < 0.0f) L.step(dt);
         ++m_rstats.layers; m_rstats.cells += static_cast<long>(L.nx()) * L.nz();
-        if (!L.asleep()) { ++m_rstats.awake; m_rstats.maxAbs = std::max(m_rstats.maxAbs, L.maxAbs()); }
+        if (!L.asleep()) {
+            ++m_rstats.awake; m_rstats.maxAbs = std::max(m_rstats.maxAbs, L.maxAbs());
+            // 22.11: the facet slopes the shader draws (central difference, clamped at the layer edge), water cells only
+            const auto hh = [&](int x, int z) { return L.heights()[L.idx(std::clamp(x, 0, L.nx() - 1), std::clamp(z, 0, L.nz() - 1))]; };
+            for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) {
+                if (!mask[L.idx(x, z)]) continue;
+                const float sx = (hh(x + 1, z) - hh(x - 1, z)) * 0.5f / d, sz = (hh(x, z + 1) - hh(x, z - 1)) * 0.5f / d;
+                const float sl = std::sqrt(sx * sx + sz * sz);
+                m_rstats.maxSlope = std::max(m_rstats.maxSlope, sl);
+                int b = 0; while (b < kSlopeBins - 1 && sl >= kSlopeEdges[b]) ++b;
+                ++m_rstats.slopeHist[b];
+            }
+        }
     }
     m_rstats.ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }

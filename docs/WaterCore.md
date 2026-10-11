@@ -3319,6 +3319,40 @@ FIXED kStep = 1/120 s, accumulating frame time (a stall beyond 4 steps is droppe
 4. **The shader has no guard for a facet tilted away from the eye** - whatever the layer holds, water should never
    show the ground below the horizon.
 
+### 22.11 When a facet renders black or white - measured (owner, 2026-10-11)
+
+The owner asked for the exact trigger of the black / white squares. Tool: `tools/water_facet_extremes.py` (Small
+bench). Two measurement hooks were added, both off unless asked for: `water_ripples {pattern: {slope, azimuth_deg}}`
+pins every ripple layer to ONE uniform facet tilt (no stepping), and `water_render_core {debug: 8}` draws, per pixel,
+the shader's reflected ray (R = angle to the sun / 180, G = elevation; read with tonemap curve 0, exposure 1, bloom
+off; the frame is sRGB - the tap's 0.5 reads 188). `water_ripples` also reports `max_slope` and `slope_hist`: water
+cells by facet slope, the shader's own central difference. Black = every channel below 30 / 255 in the owner's
+frame (exposure x8 + AgX); white = every channel above 225.
+
+**What (per pixel, 4 camera pitches -12 / -24 / -38 / -62 deg x 8 tilt directions x 11 slopes 0.1-2,
+`facet_extremes_pixels.json`):**
+- **White = the sun glint.** A pixel is white when its reflected ray points within ~11 deg of the sun: 100 % at
+  <= 8 deg, 83 % at 10, 53 % at 11, 13 % at 12, none past 14. That is the `pow(N.H, 220)` glint (x 0.8 sun, x 8
+  exposure) saturating; a FLAT 1/9 m facet carries it whole, so the glint is a square, not a sparkle.
+- **Black = the reflection below the horizon.** Above the horizon black is <= 0.2 % of pixels at any tilt; below it
+  black grows with depth: 6 % at -2 deg, 13 % at -10, 23 % at -20, 49 % at -30, 68 % at -40. The sky model has
+  nothing below the horizon but the short near-ground scatter, and at grazing view the Fresnel term sends nearly
+  all of the pixel to that reflection.
+- In facet terms (the reflected elevation is the view elevation minus twice the tilt away from the eye): the
+  demo camera sees the pond at ~30 deg, so a facet tilted ~15 deg away (slope 0.27) already reflects below the
+  horizon; seen from the low pose (pond at ~10 deg), 5 deg (slope 0.1) does. A sideways tilt needs 45 deg or more.
+
+**When (five 1/3 m stones, demo camera, droplets off, `facet_extremes.json` B):** black peaks at 6-8 % of pond
+pixels 0.5-1.5 s after entry and is still 3 % at 11 s; white peaks at 0.5 % (this sun is behind-left of the camera).
+Control (ripples off, same drop): 0.4 % black, 0 % white throughout - the squares are all the ripple layer. The
+cause is the field's roughness, not just the entry: 10 s after the drop **66 % of water cells are steeper than 0.3
+and 8 % steeper than 0.5** (max |r| 0.11-0.14 m). Five pebbles on a real pond leave slopes of a few hundredths.
+
+**So the levers, in order of effect:** (1) the field is far too rough for far too long - the body forcing puts
+0.5-0.6 m in (22.10 item 2), nothing limits steepness (item 3), and 0.047 /s film damping keeps it; (2) the shader
+returns near-black for a reflection below the horizon, where real water shows the far bank or the next wave
+(item 4); (3) the glint is a whole flat facet. Status: measured; no fix built.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

@@ -55,6 +55,9 @@ public:
     bool asleep() const { return m_asleep; }
     void wake() { m_asleep = false; }
     const std::vector<float>& heights() const { return m_r; }
+    /// Measurement only (water_ripples {pattern}): hold the field at `h` (both leapfrog levels), awake. The caller
+    /// skips step() while pinned, so the field does not move.
+    void pin(const std::vector<float>& h) { if (h.size() != m_r.size()) return; m_r = h; m_prev = h; m_asleep = false; m_quietSteps = 0; }
     float height(int x, int z) const { return inBounds(x, z) ? m_r[idx(x, z)] : 0.0f; }
     float maxAbs() const;
     double energyProxy() const;   ///< sum r^2 + (dr)^2 (for sleep and the tests)

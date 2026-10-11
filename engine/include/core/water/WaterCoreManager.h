@@ -238,7 +238,17 @@ public:
     /// Every wet body this frame (moving or resting) - the bodies crossing the surface drive the ripple layer with
     /// the sharp-edge remainder of their footprint (22.3.2), floaters bobbing included (they do not displace: M2's gate).
     void setRippleBodies(std::vector<MovingSolid> bodies) { m_rippleBodies = std::move(bodies); }
-    struct RippleStats { bool on = true, smooth = false; int layers = 0, awake = 0, refused = 0; long cells = 0, kinematicCells = 0, impulses = 0; double ms = 0.0; float maxAbs = 0.0f; };
+    /// slopeHist: water cells by facet slope |grad r| (the shader's central difference, 22.4), bin edges kSlopeEdges -
+    /// bin i counts slopes in [edge[i-1], edge[i]), the last bin everything from the top edge up (22.11).
+    static constexpr int kSlopeBins = 12;
+    static constexpr float kSlopeEdges[kSlopeBins - 1] = {0.05f, 0.1f, 0.2f, 0.3f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 5.0f};
+    struct RippleStats { bool on = true, smooth = false; int layers = 0, awake = 0, refused = 0; long cells = 0, kinematicCells = 0, impulses = 0; double ms = 0.0; float maxAbs = 0.0f;
+                         float maxSlope = 0.0f; long slopeHist[kSlopeBins] = {}; };
+    /// Measurement only (22.11): pin every layer to a uniform tilt - slope (rise per run) toward azimuth (degrees,
+    /// 0 = +x, 90 = +z) - instead of stepping it, so one frame shows exactly one facet tilt. slope < 0 = off.
+    struct RipplePattern { float slope = -1.0f, azimuthDeg = 0.0f; };
+    void setRipplePattern(const RipplePattern& p) { m_rpattern = p; }
+    const RipplePattern& ripplePattern() const { return m_rpattern; }
     void setRipples(bool on) { m_rstats.on = on; }
     void setRippleSmooth(bool on) { m_rstats.smooth = on; }
     const RippleStats& rippleStats() const { return m_rstats; }
@@ -310,6 +320,7 @@ private:
     // 22: ripples
     std::vector<MovingSolid> m_rippleBodies;
     RippleStats m_rstats;
+    RipplePattern m_rpattern;
     void stepRipples(float dt);
     void collectBirths(Av& av, float dt);          // after a step: births -> the pool
     void stepDroplets(float dt);                   // flight + landing for every volume

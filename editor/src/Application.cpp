@@ -14112,9 +14112,21 @@ void Application::registerWaterCommands() {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setRipples(cmd.params.value("enabled", true));
         if (cmd.params.contains("smooth")) waterCore->setRippleSmooth(cmd.params.value("smooth", false));
+        if (cmd.params.contains("pattern")) {   // 22.11 measurement: {slope, azimuth_deg} pins a uniform tilt; false / null = off
+            const auto& p = cmd.params["pattern"];
+            Core::Water::WaterCoreManager::RipplePattern rp;
+            if (p.is_object()) { rp.slope = std::clamp(p.value("slope", 0.0f), 0.0f, 20.0f); rp.azimuthDeg = p.value("azimuth_deg", 0.0f); }
+            waterCore->setRipplePattern(rp);
+        }
         const auto& s = waterCore->rippleStats();
+        const auto& rp = waterCore->ripplePattern();
+        nlohmann::json edges = nlohmann::json::array(), hist = nlohmann::json::array();
+        for (float e : Core::Water::WaterCoreManager::kSlopeEdges) edges.push_back(e);
+        for (long b : s.slopeHist) hist.push_back(b);
         r = {{"enabled", s.on}, {"smooth", s.smooth}, {"layers", s.layers}, {"awake", s.awake}, {"cells", s.cells}, {"refused", s.refused},
              {"kinematic_cells", s.kinematicCells}, {"impulses", s.impulses}, {"ms", s.ms}, {"max_abs_m", s.maxAbs},
+             {"max_slope", s.maxSlope}, {"slope_edges", edges}, {"slope_hist", hist},
+             {"pattern", rp.slope >= 0.0f ? nlohmann::json{{"slope", rp.slope}, {"azimuth_deg", rp.azimuthDeg}} : nlohmann::json(false)},
              {"pitch_m", Core::Water::RippleLayer::kPitch}};
     });
     reg.on("water_droplets", [this](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -14186,7 +14198,7 @@ void Application::registerWaterCommands() {
         }
         if (cmd.params.contains("debug")) {   // 0 off, 1 normals, 2 body, 3 reflection, 4 thickness, 5 fresnel (water_common.glsl taps), 6 foam/flow (G2)
             const auto& d = cmd.params["debug"];
-            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 7));   // 7: the ripple height (22)
+            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 8));   // 7: the ripple height (22); 8: reflected ray vs sun / horizon (22.11)
         }
         if (cmd.params.contains("scatter")) {   // WaterCore 21.3 A/B: "lit" (default) or "legacy" (the pre-21.3 constant glow)
             const std::string sc = cmd.params.value("scatter", std::string("lit"));
