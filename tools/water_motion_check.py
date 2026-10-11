@@ -23,6 +23,7 @@ ap.add_argument("--tag", default=None)
 ap.add_argument("--cell", type=float, default=1.0 / 3.0, help="the pond's cell size in voxels (1/3 shipped; 1/9 finer)")
 ap.add_argument("--solids", choices=["on", "off"], default="on", help="debris displaces water (WaterCore.md 20); off = the A/B control")
 ap.add_argument("--ripples", choices=["on", "off"], default="on", help="the ripple layer (WaterCore.md 22); off = the A/B control")
+ap.add_argument("--droplet-size", type=float, default=None, help="droplet edge as a fraction of a cell (21.11 default 1/9; clamped [1/27, 1])")
 ap.add_argument("--pose", default=None, help="x,y,z,yaw,pitch (default: the high pose over the pond)")
 args = ap.parse_args()
 tag = args.tag or f"motion_{args.scenario}"
@@ -63,6 +64,7 @@ def stimulus():
             api.debug("spawn_gpu_particle", {"x": x + 2.0, "y": 19.5, "z": z, "material": "Wood", "scale": 1.0 / 3.0, "lifetime": 30.0})
 
 api.debug("water_ripples", {"enabled": args.ripples == "on"})
+print("droplets", api.debug("water_droplets", {"enabled": True, **({"size": args.droplet_size} if args.droplet_size else {})}))
 camera_set(api, POSE)
 make_pond()
 time.sleep(8)
@@ -76,7 +78,13 @@ rec = subprocess.Popen([ffmpeg, "-y", "-loglevel", "error", "-f", "gdigrab", "-f
 time.sleep(1.5)
 t_stim = time.time()
 stimulus()
-rec.wait()
+drop_peak = 0   # 21: droplets in the air during the recording
+while rec.poll() is None:
+    d = api.debug("water_droplets", {})
+    drop_peak = max(drop_peak, d.get("alive", 0))
+    time.sleep(0.05)
+drops_end = api.debug("water_droplets", {})
+print("droplets: peak alive", drop_peak, "born", drops_end.get("born_m3"), "landed", drops_end.get("landed_m3"))
 pacing = api.get(f"/api/debug/frame_pacing?frames={int(args.seconds * 400)}")
 # the frames of the action, 10 per second for 3 s from the stimulus
 fdir = EV / f"{tag}_frames"; fdir.mkdir(exist_ok=True)
@@ -99,6 +107,7 @@ jumps = [abs(b - a) for a, b in zip(vals, vals[1:])]
 # frame pacing summary (whatever shape the route returns)
 summary = {k: v for k, v in pacing.items() if k not in ("series", "frames", "raw")} if isinstance(pacing, dict) else pacing
 out = {"scenario": args.scenario, "pose": POSE, "video": str(mp4), "frames_dir": str(fdir),
+       "droplets": {"size": args.droplet_size, "peak_alive": drop_peak, "end": drops_end},
        "frame_pacing": summary,
        "flicker": {"samples": len(vals), "largest_jump_m": round(max(jumps), 4) if jumps else None,
                    "jumps_over_5cm": sum(1 for j in jumps if j > 0.05), "surface_range": [round(min(vals), 4), round(max(vals), 4)] if vals else None},
