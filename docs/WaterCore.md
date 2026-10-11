@@ -3353,6 +3353,124 @@ and 8 % steeper than 0.5** (max |r| 0.11-0.14 m). Five pebbles on a real pond le
 returns near-black for a reflection below the horizon, where real water shows the far bank or the next wave
 (item 4); (3) the glint is a whole flat facet. Status: measured; no fix built.
 
+### 22.12 Fewer black and white squares - DESIGN (owner, 2026-10-11: "lets try it out")
+
+Two of 22.11's levers, both physical. The glint (22.11 lever 3) is NOT in this round: white is <= 0.5 % live.
+
+**B1 - the breaking limit (22.10 items 2 + 3).** Water holds no wave steeper than the Stokes limit, H/L = 0.142
+(Michell 1893); steeper, it breaks and the excess leaves the wave (as whitewater and turbulence). As a slope that
+is s_b = pi x 0.142 = **0.44** (the sinusoid's steepest slope at that height; the limiting crest itself is 30 deg,
+0.58, over a span far below the lattice). After every layer step, both leapfrog levels (r and the previous r - the
+breaking crest loses its height AND the motion that carries it) are limited so that no lattice edge is steeper than
+s_b: axis neighbours |r_i - r_j| <= s_b d, diagonal neighbours <= s_b d sqrt 2 - with the diagonals the bound on the
+facet gradient holds in every direction within 8 % (sec 22.5 deg), so a diagonal ring breaks like an axis one.
+- **How:** Jacobi passes over a snapshot: each over-steep edge moves both cells toward each other by its excess / 2,
+  weighted 1/8 (a cell has 8 edges, so no pass overshoots), repeated until no edge exceeds s_b by more than 1e-4 m
+  or 16 passes. Pairwise and equal-and-opposite: the sum of r over each body of water is EXACT (the zero-mean rule
+  is untouched); edges across a mask (wall, dry) or between different bodies are skipped. Order-independent (a
+  snapshot per pass). A field already gentler than s_b is untouched bit for bit - one scan, no pass.
+- **What it replaces:** nothing. The forcing keeps its physics (22.3); the limit bounds what any source leaves -
+  a 7 m/s stone entry DOES break the surface. The film damping (0.047 /s) is unchanged.
+- **Ledger:** the height removed per step (sum |moved| x d^2, m^3) is reported as `broken_m3` - the hook for the
+  whitewater pass (S4), not wired to it now.
+- **What it cannot do:** from the demo camera a facet goes black at slope ~0.27 and from the low pose at ~0.1
+  (22.11) - below s_b. B1 alone shrinks the black (less of the pond that steep, for less time); B2 removes it.
+
+**B2 - below the horizon, the ray meets the water again.** A ray reflected downward from a facet tilted away from
+the eye does not reach the ground: it hits the next stretch of water. Model that stretch as the mean surface (flat,
++Y): the ray reflects once more, R2 = (R.x, -R.y, R.z), with Schlick reflectance F2 = 0.02 + 0.98 (1 - |R.y|)^5 at
+that incidence, and the rest (1 - F2) enters the water and returns its body colour:
+    refl = F2 x sky(R2) + (1 - F2) x body        (R.y < 0)
+Continuous at the horizon (R.y -> 0: F2 -> 1 and sky(R2) -> the sky at the horizon - today it JUMPS there to the
+near-ground scatter); never brighter than the sky above it. Only WaterCore's surface (`water_surface.frag`) sets
+the new `horizonGuard` input; the old water, the cell renderer and the sea keep their look bit for bit (small
+bodies first - no sea work). SSR, off on this path, is unchanged.
+
+**API:** `water_ripples {break_slope}` - 0 = off (the A/B control), else clamped 0.05..5 (below 0.05 would flatten
+every ring the droplets make; above 5 is no limit) - echoed with `broken_m3`. `water_render_core {horizon_guard:
+bool}` - default on; off = the A/B control; echoed.
+
+**Tests (red first; predictions written now):**
+
+| # | Layer | Test | Prediction | Control |
+|---|---|---|---|---|
+| B-T1 | unit | a field with one 0.6 m spike and a 0.3 m step | after one step no edge exceeds s_b (+1e-4 m); the sum over the body unchanged to 1e-6 relative | `break_slope 0`: the edges stay steep |
+| B-T2 | unit | the existing ripple tests (dispersion, ring train, reflection, sleep, seam, uneven frames) | all pass unchanged: their fields are gentler than s_b, untouched bit for bit | - |
+| B-T3 | unit | a wall between two bodies, one steep | the other body is not touched (no edge across the mask) | - |
+| B-L1 | live | `water_facet_extremes.py --part P` (tilt sweep, 4 poses) | black where the reflection is below the horizon: from 6-68 % to <= 0.5 % (the above-horizon level); the guarded pixels no brighter than the sky band above them | `horizon_guard false`: 22.11's numbers |
+| B-L2 | live | `--part B` (five stones, demo camera) | black <= 1 % at every sample (from 6-8 %); `max_slope` <= 0.48 (s_b x 1.08); water cells steeper than 0.3 at 10 s below 10 % (from 66 %) | both off: 22.11's numbers |
+| B-L3 | live | clip, five stones, demo + low pose -> **owner's look** | rings still visible (pond change after entry >= 22.9's 1.52 grey levels/frame) | - |
+
+The rig is the shipped defaults (Small bench, 22.11's poses); B-L1 pins the layer (`pattern`), so B1 does not act
+there - B-L1 measures B2 alone, B-L2 both. Cost: one scan per step while awake (54 x 54 cells); passes only where
+something breaks. Status: designed, not built.
+
+**22.12.1 Design-check (2026-10-11) - round 1 NEEDS WORK, folded in, round 2 READY for B1 + B2.** Checked against
+`WaterRippleTest`, the `water_ripples` / `water_render_core` routes and `water_surface.frag`'s push constants:
+- **F1** B-T2 claimed the existing tests are "gentler than s_b, untouched" - not measured: `AKickSpreadsIntoARingTrain`
+  kicks 50 and `UnevenFramesStayBounded` 200 on one cell. Worse, the second exists to catch the stepping instability,
+  and a slope limit would hide that instability (a growing checkerboard breaks forever, bounded). -> The tests that
+  measure LINEAR propagation or the stepping's stability (dispersion, plane wave, ring train, reflection,
+  uneven frames) run with the limit OFF, said in each; the sleep and seam tests run it on. Each test prints its peak
+  facet slope so the split is measured, not assumed.
+- **F2** the guard's switch needs a push-constant slot: `look1.z` is unused (0 in the neutral `WaterLookPacked`) ->
+  `look1.z = 1` means guard OFF, so 0 - every existing pack - is ON with no other change. `water.frag` and
+  `water_cell.frag` set `inp.horizonGuard = 0` (a struct member left unset is undefined in GLSL).
+- **F3** the new code acts across lattice neighbours, so R-T6's seam test (a gentle ring) does not cover it -> **B-T4**:
+  a steep spike (the limit acting) at a chunk-seam and an interior position, bit-equal after translation.
+- **F4** where in the step: after the zero-mean pass, on the new r and on the level becoming the previous one,
+  before the swap - so the next step starts from a limited field at both levels.
+Round 2: voxel look (the 1/9 m facets unchanged, the limit is unconditional with a default, the A/B switch is a
+measurement control); chunks (world-aligned lattice, neighbours only, no chunk input; R-T6 + B-T4); generation (none
+- runtime); API (units: slope = height / run, dimensionless; m^3; omitted = unchanged; echoed; clamps written at
+the route with the failure they prevent; defaults: limit on at 0.44 and guard on - new, no earlier pin); tests (red
+rows with predictions and controls on the Small bench, one pond inside one chunk, rig = shipped defaults; B-L1 pins
+the layer so measures B2 alone). **READY for B1 + B2.**
+
+## 23. Other liquids - a slime experiment (owner, 2026-10-11) - PLAN, not designed in detail, not built
+
+The owner: "obviously water has its defaults to get that specific look and feel, but we can presumably create
+slimes of various viscosity and thickness". An EXPERIMENT, after 22.12 is signed off: can the same core carry a
+liquid whose look and feel come from a few physical numbers? Water stays the default and does not change.
+
+**What makes a slime a slime** (each a property, each with the water value it replaces):
+- **Viscosity nu** (kinematic, m^2/s): water 1.0e-6; olive oil ~1e-4; honey ~1e-2 - 1e-1 (temperature-dependent);
+  a slime ~1e-2 - 1. The solver is inviscid today (4.2: water's viscosity is negligible at 1/3 m) - this is the new
+  physics: a viscous diffusion of velocity each substep.
+- **Yield stress tau_y** (Pa): water 0. Slimes, mud and toothpaste are Bingham-like - below tau_y they do not flow,
+  which is why a slime heap STANDS and a slime film stops on a slope: it stops at depth h = tau_y / (rho g sin theta).
+- **Density rho**: water 1000 kg/m^3; slimes ~1000-1300 (what a stone floats on, 19/20's coupling).
+- **Surface tension sigma**: water 0.0728 N/m; matters for droplets and the ripple layer's capillary term only.
+- **Look**: colour, clarity (Secchi depth) and gloss - the per-body profile already carries tint, clarity and
+  turbidity (G3); slime adds nothing new to the shader in v1.
+
+**What each property already reaches** (why this is an experiment, not a rewrite):
+- the ripple layer: its damping becomes the liquid's - 2 nu k^2 at nu = 1e-2 is ~16 /s at 22 cm: a viscous pond
+  shows rings for a fraction of a second, which is the right look and needs no new code beyond reading nu;
+- the droplets (21): a viscous liquid barely splashes - the Ohnesorge number Oh = mu / sqrt(rho sigma L) decides
+  whether a crown breaks into drops; high Oh -> no droplets (a gate, not a new model);
+- the coupling (19, 20): a stone sinks slowly through honey - the drag the grid already applies grows with the
+  viscous stress the new term carries.
+
+**Phases (each red-before-green, each its own design-check before building):**
+- **L0 - a liquid table.** `LiquidProperties {rho, nu, tau_y, sigma, look}` per active volume; water is the row
+  holding today's numbers, and with it every solver output is bit-identical (the gate: the existing water tests and
+  benches unchanged). API: `water_liquid {volume, preset | properties}` (echoed; presets `water`, `oil`, `honey`,
+  `slime`). One liquid per volume in v1 - no mixing of two liquids.
+- **L1 - viscosity.** Explicit velocity diffusion with stability substeps (dt <= h^2 / (6 nu): 0.19 s at nu = 0.1,
+  h = 1/3 m; 2 ms at nu = 1, h = 1/9 m) and a stress-free free surface; refused (said so) above the cost bound;
+  the implicit solve (Batty & Bridson 2008, *Accurate viscous free surfaces*) only if the explicit cost fails.
+  Tests: a shear wave decays at nu k^2 within 5 %; a viscous slump spreads like Huppert's gravity current (1982:
+  radius ~ t^(1/8)) where a water column dam-breaks.
+- **L2 - yield stress.** Bingham (regularised): a slime heap stands at h = tau_y / (rho g sin theta) on a slope
+  within 10 %; a water control flows flat.
+- **L3 - the look and the feel, live.** A small slime pool beside the Small pond on one bench: a stone dropped in
+  each, a pour onto a slope, a heap pushed; recordings -> **owner's look**. The ripple and droplet gates read nu.
+
+**Open before L0's design:** CPU first, the GPU backend's parity after (D-T5 pattern); whether the yield surface
+needs the implicit solve; whether "thickness" in the owner's sense means viscosity, yield stress, or both - the
+L3 presets will show each alone.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
