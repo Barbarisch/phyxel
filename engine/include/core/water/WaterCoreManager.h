@@ -254,6 +254,9 @@ public:
     void setRipples(bool on) { m_rstats.on = on; }
     void setRippleSmooth(bool on) { m_rstats.smooth = on; }
     void setRippleBreakSlope(float s) { m_rstats.breakSlope = s; }
+    /// 24.7 pond friction (1/s) for every volume, now and created later.
+    void setPondFriction(float perSecond) { m_pondFriction = std::max(0.0f, perSecond); for (auto& av : m_avs) av->solver->setPondFriction(m_pondFriction); }
+    float pondFriction() const { return m_pondFriction; }
     const RippleStats& rippleStats() const { return m_rstats; }
     static constexpr int kRippleMaxCells = 512;   ///< per axis (a 57 m pond); a larger volume gets no layer - refused, counted (22.5)
     static constexpr int kRippleMaxLayers = 4;    ///< the renderer's atlas holds four 512 x 512 layers
@@ -324,6 +327,7 @@ private:
     std::vector<MovingSolid> m_rippleBodies;
     RippleStats m_rstats;
     RipplePattern m_rpattern;
+    float m_pondFriction = SolverParams{}.pondFriction;   // 24.7
     void stepRipples(float dt);
     void collectBirths(Av& av, float dt);          // after a step: births -> the pool
     void stepDroplets(float dt);                   // flight + landing for every volume

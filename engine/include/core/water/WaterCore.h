@@ -11,6 +11,7 @@
 //   P2  still water stays still; a resting column is hydrostatic
 //   P5  no flux through a Solid or Unknown (hold) face, at every resolution
 //   P7  a quiet volume sleeps and costs nothing; results are bit-deterministic
+#include <algorithm>
 #include "core/water/MovingSolids.h"
 #include <glm/glm.hpp>
 #include <cmath>
@@ -146,6 +147,13 @@ struct SolverParams {
     /// Why a band at all (Phase D, 2026-10-08): with damping only under keWake a poured column, a bumped pool and a dam break
     /// in a sealed 3 m tank sloshed for 100 s and never slept; S11 wants asleep within 10 s of the last motion.
     double keSettle = 2e-4;
+    /// 1/s - pond friction (WaterCore.md 24.7, owner 2026-10-11 "option 2"): every substep all face velocities are scaled
+    /// by (1 - a ds), so an undriven slosh halves its height every 2 ln 2 / a seconds (a velocity drag a damps an oscillator's
+    /// amplitude at a / 2 - the first cut used ln 2 / N and measured a 20-40 s half-life, WaterWaveTest W-T6). The stated stand-in for what a
+    /// smooth voxel box lacks (irregular banks, plants, films, rough beds): without it the box is a laboratory tank and a
+    /// disturbed pond sloshes for minutes (24.6). Default 2 ln 2 / 5 s; `water_pond_friction {half_life_s}`. 0 = off.
+    float  pondFriction = 0.27726f;
+    static float pondFrictionForHalfLife(float seconds) { return seconds > 0.0f ? 1.38629436f / seconds : 0.0f; }
     /// DIAGNOSTIC ONLY (bisecting a measured defect, never shipped on): bits disable a stage of
     /// the substep. 1 compaction · 2 thin-film slope · 4 thin-film settle · 8 "first halo layer only"
     /// (all three layers overwrite thin faces, the pre-#11 behaviour) · 16 residue sweep · 32 rest damping.
@@ -337,6 +345,7 @@ public:
     IWaterTransport& transport() { return *m_transport; }
     WaterGrid& grid() { return m_grid; }
     const SolverParams& params() const { return m_params; }
+    void setPondFriction(float perSecond) { m_params.pondFriction = std::max(0.0f, perSecond); }   ///< 24.7 (the GPU backend reads params() each step)
 
     /// Re-query every cell's occupancy (Unknown -> hold). Called by step(); call after the world
     /// changed to apply it before the next tick.
@@ -420,6 +429,7 @@ private:
     void enforceSolidFaces();
     bool bodyWall(int x, int y, int z) const;   // 20.5: a cell full of body with no real water - a wall, not air
     void applyRestDamping(float dt);
+    void applyPondFriction(float dt);
     void compactSubmergedPartials(float dt);   // water above a partial liquid cell falls into it (free-fall capped)
     void sweepResidue(StepReport& r);   // merge sub-epsilon films, count what cannot be merged
     void resolveFreshOverflow();        // 20.5 ledger (a): a fresh body's excess moves up its own column

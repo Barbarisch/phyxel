@@ -15,6 +15,11 @@ using namespace Phyxel::Core::Water;
 
 namespace {
 
+// WaterCore.md 24.7: these rows check the solver's NUMERICS against frictionless references (Ritter, Torricelli, the
+// broad-crested weir, run-up) - pond friction is a deliberate physical model on top, so it is off here, as in the
+// wave test's W-T1. (With it on: weir discharge 17 % low, dam-break front 2 % short, wall crest 11 % low.)
+SolverParams numerics() { SolverParams p; p.pondFriction = 0.0f; return p; }
+
 constexpr float kDt = 1.0f / 60.0f;
 constexpr double kG = 9.81;
 
@@ -68,7 +73,7 @@ TEST(WaterCoreTest, ConservationUnderArbitraryVelocity) {
     for (float& x : t.grid.uData()) x = U(rng);
     for (float& x : t.grid.vData()) x = U(rng);
     for (float& x : t.grid.wData()) x = U(rng);
-    SolverParams p; p.gravity = 0.0f;
+    SolverParams p = numerics(); p.gravity = 0.0f;
     WaterSolver s(t.grid, t.query(), p);
     const double m0 = t.grid.totalMass();
     runTicks(s, 1000);
@@ -81,7 +86,7 @@ TEST(WaterCoreTest, ConservationUnderArbitraryVelocity) {
 TEST(WaterCoreTest, StillWaterStaysStill) {
     Tank t(8, 8, 8);
     t.grid.fillBox({0, 0, 0}, {7, 3, 7}, 1.0f);
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     runTicks(s, 100);
     // Prediction: max |v| < 1e-6 m/s and every column surface exactly 4.0 after 100 ticks.
     EXPECT_LT(maxSpeedOnGrid(t.grid), 1e-6f) << "still water acquired velocity";
@@ -103,7 +108,7 @@ TEST(WaterCoreTest, StillWaterStaysStillWhateverTheTopFill) {
             Tank t(9, 9, 9, h);
             t.grid.fillBox({0, 0, 0}, {8, 4, 8}, 1.0f);
             t.grid.fillBox({0, 5, 0}, {8, 5, 8}, top);
-            WaterSolver s(t.grid, t.query());
+            WaterSolver s(t.grid, t.query(), numerics());
             runTicks(s, 100);
             EXPECT_LT(maxSpeedOnGrid(t.grid), 1e-4f) << "h " << h << " top " << top << ": still water acquired velocity";
             EXPECT_TRUE(s.asleep()) << "h " << h << " top " << top << ": not asleep after 100 ticks";
@@ -118,7 +123,7 @@ TEST(WaterCoreTest, StillWaterStaysStillWhateverTheTopFill) {
 TEST(WaterCoreTest, HydrostaticPressure) {
     Tank t(4, 12, 4);
     t.grid.fillBox({0, 0, 0}, {3, 9, 3}, 1.0f);          // 10 deep, surface at y = 10
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     runTicks(s, 5);
     // Prediction: at cell y (centre depth 10 - y - 0.5) p = g * depth within 1 %.
     for (int y = 0; y < 9; ++y) {
@@ -132,7 +137,7 @@ TEST(WaterCoreTest, SealedCavityGainsNothing) {
     Tank t(8, 10, 8);
     t.extra = [](const glm::ivec3& c) { return c.y == 4 ? Occ::Solid : Occ::Air; };   // full slab at y = 4
     t.grid.fillBox({0, 5, 0}, {7, 8, 7}, 1.0f);           // water above the slab
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     const double m0 = t.grid.totalMass();
     runTicks(s, 300);
     double below = 0.0;
@@ -148,7 +153,7 @@ TEST(WaterCoreTest, OpenHoleDrainsAtTorricelli) {
     // floor slab at y = 5 with one hole at (4,5,4); the region below is a sink that empties itself
     t.extra = [](const glm::ivec3& c) { return (c.y == 5 && !(c.x == 4 && c.z == 4)) ? Occ::Solid : Occ::Air; };
     t.grid.fillBox({0, 6, 0}, {9, 15, 9}, 1.0f);          // head h0 = 10 over the floor
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     s.addSource({4, 0, 4}, -1000.0f);                     // bottomless sink under the hole
     const double area = 100.0, hole = 1.0, h0 = 10.0;
     // Prediction (Torricelli): dh/dt = -(cd*A_h/A_t) sqrt(2 g h); time for h to fall from 10 to 5:
@@ -173,7 +178,7 @@ TEST(WaterCoreTest, SolidFacesCarryNoFlux) {
         t.extra = [](const glm::ivec3& c) { return (c.x >= 3 && c.x <= 5 && c.z >= 3 && c.z <= 5 && c.y <= 6) ? Occ::Solid : Occ::Air; }; // pillar
         t.grid.fillBox({0, 0, 0}, {8, 4, 8}, 1.0f);
         for (float& x : t.grid.uData()) x = 1.0f;         // push everything +x into the pillar
-        WaterSolver s(t.grid, t.query());
+        WaterSolver s(t.grid, t.query(), numerics());
         runTicks(s, 60);
         double inPillar = 0.0;
         for (int z = 3; z <= 5; ++z) for (int y = 0; y <= 6; ++y) for (int x = 3; x <= 5; ++x) inPillar += t.grid.f(x, y, z);
@@ -189,7 +194,7 @@ TEST(WaterCoreTest, HoldFacesCarryNoFluxAndRelease) {
     bool known = false;
     t.extra = [&known](const glm::ivec3& c) { return (!known && c.x >= 8) ? Occ::Unknown : Occ::Air; };
     t.grid.fillBox({0, 0, 0}, {5, 3, 3}, 1.0f);
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     const double m0 = t.grid.totalMass();
     runTicks(s, 120);
     double beyond = 0.0;
@@ -211,7 +216,7 @@ TEST(WaterCoreTest, SubstepCountMatchesCFL) {
         Tank t(6, 6, 6, h);
         t.grid.fillBox({0, 0, 0}, {5, 2, 5}, 1.0f);
         for (float& x : t.grid.uData()) x = 5.0f;
-        SolverParams p; p.gravity = 0.0f;
+        SolverParams p = numerics(); p.gravity = 0.0f;
         WaterSolver s(t.grid, t.query(), p);
         const StepReport r = s.step(kDt);
         const int expected = std::max(1, static_cast<int>(std::ceil(5.0 * kDt / (p.cflFraction * h))));
@@ -224,7 +229,7 @@ TEST(WaterCoreTest, Deterministic) {
     auto run = [] {
         Tank t(12, 8, 12);
         t.grid.fillBox({0, 0, 0}, {5, 5, 11}, 1.0f);
-        WaterSolver s(t.grid, t.query());
+        WaterSolver s(t.grid, t.query(), numerics());
         runTicks(s, 120);
         return t.grid.fData();
     };
@@ -260,7 +265,7 @@ TEST(WaterCoreTest, SubBoxIdenticalToWholeBox) {
             const bool inRoom = c.x >= margin && c.x < nx - margin && c.z >= margin && c.z < nz - margin && c.y < ny - margin;
             return inRoom ? Occ::Air : Occ::Solid; };
         t.grid.fillBox({margin, 0, margin}, {margin + 5, 2, nz - margin - 1}, 1.0f);
-        WaterSolver s(t.grid, t.query());
+        WaterSolver s(t.grid, t.query(), numerics());
         runTicks(s, 90);
         std::vector<float> room;
         for (int z = margin; z < nz - margin; ++z) for (int y = 0; y < ny - margin; ++y) for (int x = margin; x < nx - margin; ++x) room.push_back(t.grid.f(x, y, z));
@@ -279,7 +284,7 @@ TEST(WaterCoreTest, SubBoxIdenticalToWholeBox) {
 TEST(WaterCoreTest, SubmergedPumpDelivers) {
     Tank t(6, 8, 1);
     t.grid.fillBox({0, 0, 0}, {5, 2, 0}, 1.0f);            // 18 m^3, surface at y = 3
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     s.addSource({3, 1, 0}, 0.5f);                           // 0.5 m^3/s two cells under the surface
     runTicks(s, 8 * 60);
     const auto& src = s.sources()[0];
@@ -304,7 +309,7 @@ static double weirReservoirLoss(float h) {
     t.extra = [per](const glm::ivec3& c) {   // the sill block x 15..19 m, y 0..2 m
         return (c.x >= 15 * per && c.x < 20 * per && c.y < 3 * per) ? Occ::Solid : Occ::Air; };
     t.grid.fillBox({0, 0, 0}, {15 * per - 1, 4 * per - 1, nz - 1}, 1.0f);   // 15 x 4 x 3 = 180 m^3
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     runTicks(s, 8 * 60);
     double m = 0.0;
     for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < 15 * per; ++x) m += t.grid.f(x, y, z);
@@ -326,7 +331,7 @@ TEST(WaterCoreTest, WeirDischargeMatchesAtBothResolutions) {
 TEST(WaterCoreTest, DamBreakFrontWithinRitter) {
     Tank t(60, 6, 3);
     t.grid.fillBox({0, 0, 0}, {9, 2, 2}, 1.0f);           // block x 0..9, h0 = 3
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     const double tRun = 2.0;
     runTicks(s, static_cast<int>(tRun / kDt));
     // Prediction (Ritter 1892, dry bed): the depth profile is h(x,t) = (2 sqrt(g h0) - x/t)^2 / 9g,
@@ -352,7 +357,7 @@ TEST(WaterCoreTest, DamBreakFrontConvergesWithResolution) {
     t.grid.fillBox({0, 0, 0}, {29, 8, 2}, 1.0f);           // block 10 m long, h0 = 3 m
     // A 120-cell-long domain needs more Jacobi-CG iterations than a 60-cell one (condition number
     // grows with L^2); the default cap must not silently under-solve the pressure.
-    SolverParams p; p.pcgMaxIters = 4000;
+    SolverParams p = numerics(); p.pcgMaxIters = 4000;
     WaterSolver s(t.grid, t.query(), p);
     const double tRun = 1.0;
     int maxIters = 0; double worstResidual = 0.0;
@@ -386,7 +391,7 @@ TEST(WaterCoreTest, DamBreakFrontConvergesWithResolution) {
 TEST(WaterCoreTest, WallCrestReflects) {
     Tank t(40, 8, 3);
     t.grid.fillBox({0, 0, 0}, {9, 2, 2}, 1.0f);
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     const double still = 10.0 * 3.0 / 40.0;               // 0.75 m when flat
     double wallPeak = 0.0, frontDepthAtArrival = 0.0;
     bool arrived = false;
@@ -421,7 +426,7 @@ TEST(WaterCoreTest, FlipSeedingMatchesFills) {
     std::vector<double> before;
     for (int z = 0; z < 4; ++z) for (int x = 0; x < 6; ++x) before.push_back(t.grid.columnMass(x, z));
     const double total = t.grid.totalMass();
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     useFlip(s);
     EXPECT_NEAR(flipOf(s).ownedMass(), total, 1e-6) << "particles carry exactly the seeded mass";
     size_t i = 0;
@@ -435,7 +440,7 @@ TEST(WaterCoreTest, FlipRestConversionLossless) {
     t.grid.fillBox({0, 3, 0}, {7, 3, 2}, 0.4f);   // a FLAT partial top layer (a lump would spread, correctly)
     std::vector<double> ref;
     for (int z = 0; z < 3; ++z) for (int x = 0; x < 8; ++x) ref.push_back(t.grid.columnMass(x, z));
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     useFlip(s);
     s.transport().settle(t.grid);
     EXPECT_EQ(flipOf(s).particleCount(), 0u);
@@ -455,7 +460,7 @@ TEST(WaterCoreTest, FlipMassExactUnderArbitraryVelocity) {
     Tank t(12, 10, 6);
     t.extra = [](const glm::ivec3& c) { return (c.x == 5 && c.y < 6 && c.z >= 2 && c.z <= 3) ? Occ::Solid : Occ::Air; };   // a pillar
     t.grid.fillBox({0, 0, 0}, {11, 4, 5}, 1.0f);
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     useFlip(s);
     const double m0 = flipOf(s).ownedMass();
     const size_t n0 = flipOf(s).particleCount();
@@ -481,7 +486,7 @@ TEST(WaterCoreTest, FlipSolidsHold) {
     Tank t(10, 8, 3);
     t.extra = [](const glm::ivec3& c) { return (c.x >= 7) ? Occ::Unknown : Occ::Air; };   // the east third is unknown ground
     t.grid.fillBox({0, 0, 0}, {5, 3, 2}, 1.0f);
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     useFlip(s);
     const double m0 = flipOf(s).ownedMass();
     runTicks(s, 180);
@@ -496,7 +501,7 @@ TEST(WaterCoreTest, FlipDeterministic) {
     auto run = [] {
         Tank t(16, 8, 4);
         t.grid.fillBox({0, 0, 0}, {5, 4, 3}, 1.0f);
-        WaterSolver s(t.grid, t.query());
+        WaterSolver s(t.grid, t.query(), numerics());
         useFlip(s);
         runTicks(s, 120);
         std::vector<float> out;
@@ -516,7 +521,7 @@ TEST(WaterCoreTest, FlipSubBoxIdenticalToWholeBox) {
             const bool inRoom = c.x >= margin && c.x < nx - margin && c.z >= margin && c.z < nz - margin && c.y < ny - margin;
             return inRoom ? Occ::Air : Occ::Solid; };
         t.grid.fillBox({margin, 0, margin}, {margin + 5, 2, nz - margin - 1}, 1.0f);
-        WaterSolver s(t.grid, t.query());
+        WaterSolver s(t.grid, t.query(), numerics());
         useFlip(s);
         runTicks(s, 90);
         // the answer that must not depend on the box is the WATER: particle count, mass, and the
@@ -544,7 +549,7 @@ TEST(WaterCoreTest, FlipDamBreakFrontWithinRitter) {
         const int per = static_cast<int>(std::lround(1.0f / h));
         Tank t(60 * per, 6 * per, 3 * per, h);
         t.grid.fillBox({0, 0, 0}, {10 * per - 1, 3 * per - 1, 3 * per - 1}, 1.0f);
-        WaterSolver s(t.grid, t.query());
+        WaterSolver s(t.grid, t.query(), numerics());
         useFlip(s);
         runTicks(s, static_cast<int>(2.0 / kDt));
         const double dth = 0.5 * h;
@@ -563,7 +568,7 @@ static double wallRunup(float h, bool flip) {
     const int per = static_cast<int>(std::lround(1.0f / h));
     Tank t(20 * per, 9 * per, per, h);
     t.grid.fillBox({0, 0, 0}, {10 * per - 1, 3 * per - 1, per - 1}, 1.0f);
-    WaterSolver s(t.grid, t.query());
+    WaterSolver s(t.grid, t.query(), numerics());
     if (flip) useFlip(s);
     double peak = 0.0;
     for (int k = 0; k < 4 * 60; ++k) {

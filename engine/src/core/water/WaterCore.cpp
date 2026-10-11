@@ -1226,6 +1226,14 @@ void WaterSolver::extrapolateVelocity() {
     enforceSolidFaces();   // extrapolation must not write into solid faces
 }
 
+// 24.7 pond friction: velocities only (mass untouched), all water, every substep.
+void WaterSolver::applyPondFriction(float dt) {
+    const float k = std::max(0.0f, 1.0f - m_params.pondFriction * dt);
+    for (float& x : m_grid.uData()) x *= k;
+    for (float& x : m_grid.vData()) x *= k;
+    for (float& x : m_grid.wData()) x *= k;
+}
+
 void WaterSolver::applyRestDamping(float dt) {
     const float k = std::max(0.0f, 1.0f - m_params.restDamping * dt);
     for (float& x : m_grid.uData()) x *= k;
@@ -1461,6 +1469,7 @@ StepReport WaterSolver::step(float dt) {
         extrapolateVelocity();
         if (!(off & 4u)) settleThinFilmTopFaces();
         if (settleBefore && !(off & 32u)) applyRestDamping(ds);
+        if (m_params.pondFriction > 0.0f) applyPondFriction(ds);   // 24.7: all motion, every substep
     }
     if (!(off & 16u) && !m_transport->ownsMass()) sweepResidue(r);
     r.substeps = n;

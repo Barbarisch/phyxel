@@ -194,7 +194,7 @@ TEST(WaterSolidTest, SpawnInsideWaterIsLedgerExact) {
     const float level = levelAway(p.grid, 4, 7);
     std::printf("  spawned cube: asleep after %.1f s (-1 = not in 60 s); level away %.4f m (predicted 1.5625; drawn %.4f, air under water %.4f m^3), mass %.9f -> %.9f\n", slept < 0 ? -1.0f : slept * kDt, level, drawnLevelAway(p.grid, 4, 7), airUnderWater(p.grid), m0, p.grid.totalMass());
     EXPECT_NEAR(level, 1.5625f, 0.005f);
-    EXPECT_NEAR(p.grid.totalMass(), m0, 1e-6);
+    EXPECT_NEAR(p.grid.totalMass(), m0, 1e-7 * m0) << "relative since 24.7: the run is ~34 s to sleep (was a fixed 5 s); float rounding over 2000 ticks is 1.6e-6 m^3 of 24";
 }
 
 struct DropRun { float entryMin = 1e9f, ring1Max = -1e9f, ring2Max = -1e9f, ring2MaxEarly = -1e9f, ringAbs = 0.0f; double m0 = 0, m1 = 0, airBefore = 0, airAfter = 0, splitAfter = 0; };
@@ -204,6 +204,7 @@ struct DropRun { float entryMin = 1e9f, ring1Max = -1e9f, ring2Max = -1e9f, ring
 DropRun dropStone(bool solids, int holdTicks, uint32_t disableStages = 0) {
     Pond p; p.fill();
     SolverParams prm; prm.debugDisableStages = disableStages;
+    prm.pondFriction = 0.0f;   // 24.7: the drop rows measure entry, crown and the escape rule, not settling - friction off
     WaterSolver s(p.grid, p.query(), prm);
     for (int k = 0; k < 60; ++k) s.step(kDt);   // let it rest
     DropRun r; r.m0 = p.grid.totalMass(); r.airBefore = airUnderWater(p.grid);

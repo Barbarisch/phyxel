@@ -522,6 +522,11 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     barrier(cmd);
     recordExtrapolate(cmd, vol, push, vol.particles);
     push.mode = 0; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns);                                  // settle again
+    if (params.pondFriction > 0.0f) {   // 24.7 pond friction: all motion, every substep (WaterSolver::applyPondFriction)
+        push.mode = 9; push.param0 = std::max(0.0f, 1.0f - params.pondFriction * push.dt);
+        for (int L = 0; L < 3; ++L) { push.iparam = static_cast<int32_t>(n[L]); dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }
+        barrier(cmd);
+    }
     if (quietBefore) {
         const float k = std::max(0.0f, 1.0f - params.restDamping * push.dt);
         push.mode = 9; push.param0 = k;

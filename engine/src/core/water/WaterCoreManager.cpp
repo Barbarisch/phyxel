@@ -60,6 +60,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         return raw->occCache[raw->grid->idx(c.x, c.y, c.z)];
     };
     av->solver = std::make_unique<WaterSolver>(*av->grid, q);
+    av->solver->setPondFriction(m_pondFriction);   // 24.7: the session's setting, not just the default
     if (transport == "flip") av->solver->setTransport(std::make_unique<FlipTransport>());   // empty until water is placed
     av->occDirty = true;
     av->backend = be;

@@ -14135,6 +14135,19 @@ void Application::registerWaterCommands() {
              {"pattern", rp.slope >= 0.0f ? nlohmann::json{{"slope", rp.slope}, {"azimuth_deg", rp.azimuthDeg}} : nlohmann::json(false)},
              {"pitch_m", Core::Water::RippleLayer::kPitch}};
     });
+    reg.on("water_pond_friction", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 24.7
+        if (!waterCore) { r = {{"error", "no water core"}}; return; }
+        if (cmd.params.contains("half_life_s")) {
+            const float hl = cmd.params.value("half_life_s", 5.0f);
+            // 0 = off (the A/B control). Below 0.5 s a slosh dies inside one swing - syrup, which is the liquid table's job
+            // (WaterCore.md 23), not pond friction's; above 120 s it is the laboratory tank of 24.6 (no friction to speak of).
+            waterCore->setPondFriction(hl <= 0.0f ? 0.0f : Core::Water::SolverParams::pondFrictionForHalfLife(std::clamp(hl, 0.5f, 120.0f)));
+        }
+        const float a = waterCore->pondFriction();
+        // half_life_s is NOMINAL (the damped-oscillator rate): the 20.8 test pond measures 6.6-9.5 s at a nominal 5 (24.7)
+        r = {{"rate_per_s", a}, {"half_life_s", a > 0.0f ? 1.38629436f / a : 0.0f}, {"enabled", a > 0.0f},
+             {"note", "half_life_s is nominal; the test pond measures 1.3-1.9x longer (WaterCore.md 24.7)"}};
+    });
     reg.on("water_droplets", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setDroplets(cmd.params.value("enabled", true));

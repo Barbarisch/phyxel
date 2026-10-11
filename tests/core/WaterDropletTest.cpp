@@ -189,7 +189,10 @@ TEST(WaterDropletTest, PocketsAndASloshAreNotScraps) {
         return (c.x < 0 || c.y < 0 || c.z < 0 || c.x >= sp.dims.x || c.y >= sp.dims.y || c.z >= sp.dims.z) ? Occ::Solid : Occ::Air;
     };
     g.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f);
-    WaterSolver s(g, q);
+    // pond friction off (WaterCore.md 24.7): this rig needs the blast's slosh to still hold pockets at 30 s so the
+    // detector's control can see them; with friction the pond is calm by then (0 pockets)
+    SolverParams noFriction; noFriction.pondFriction = 0.0f;
+    WaterSolver s(g, q, noFriction);
     s.addRadialImpulse(glm::vec3(7.0f, 2.0f, 2.0f), 6.0f, DamageSystem::blastSpeed(62.0f), 0.3f);
     for (int k = 0; k < 1800; ++k) s.step(kDt);
     // the rig must hold pockets (19.7's measure: a part-full cell under a wet one), or a pocket's birth is unseeable
