@@ -1,0 +1,265 @@
+{
+ "scenario": "stone",
+ "pose": {
+  "x": 106.5,
+  "y": 17.4,
+  "z": 13.5,
+  "yaw": 180.0,
+  "pitch": -10.0
+ },
+ "video": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\dark_check_low.mp4",
+ "frames_dir": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\dark_check_low_frames",
+ "droplets": {
+  "size": null,
+  "peak_alive": 56,
+  "end": {
+   "alive": 0,
+   "births": 1904,
+   "born_m3": 0.26728541026330266,
+   "cap": 20000,
+   "cpu_scraps": 0,
+   "cpu_sprays": 0,
+   "destroyed_m3": 0.0,
+   "enabled": true,
+   "flushed_m3": 0.0,
+   "in_flight_m3": 0.0,
+   "landed_m3": 0.2672854102232849,
+   "landings": 6710,
+   "refused_m3": 0.0,
+   "relocated_m3": 0.027404682909036637,
+   "size": 0.1111111119389534
+  }
+ },
+ "frame_pacing": {
+  "clock": "steady_clock (CPU wall time on the main thread)",
+  "frames_accepted": 318205,
+  "frames_held": 240,
+  "frames_requested": 240,
+  "frames_used": 240,
+  "scopes": [
+   {
+    "depth": 0,
+    "key": "Frame",
+    "last_ms": 4.1683,
+    "max_ms": 9.7928,
+    "mean_ms": 4.385889583333335,
+    "median_ms": 4.22925,
+    "n": 240,
+    "name": "Frame",
+    "p90_ms": 5.1717,
+    "p99_ms": 7.45
+   },
+   {
+    "depth": 1,
+    "key": "Frame/API Drain",
+    "last_ms": 0.0343,
+    "max_ms": 0.0343,
+    "mean_ms": 0.003854583333333334,
+    "median_ms": 0.0019,
+    "n": 240,
+    "name": "API Drain",
+    "p90_ms": 0.0036,
+    "p99_ms": 0.0326
+   },
+   {
+    "depth": 1,
+    "key": "Frame/input",
+    "last_ms": 0.0097,
+    "max_ms": 0.0286,
+    "mean_ms": 0.006271250000000002,
+    "median_ms": 0.0056,
+    "n": 240,
+    "name": "input",
+    "p90_ms": 0.0086,
+    "p99_ms": 0.0153
+   },
+   {
+    "depth": 1,
+    "key": "Frame/update",
+    "last_ms": 2.7345,
+    "max_ms": 4.7697,
+    "mean_ms": 2.591255416666668,
+    "median_ms": 2.4985999999999997,
+    "n": 240,
+    "name": "update",
+    "p90_ms": 3.1003,
+    "p99_ms": 4.0668
+   },
+   {
+    "depth": 2,
+    "key": "Frame/update/Update",
+    "last_ms": 2.7326,
+    "max_ms": 4.7677,
+    "mean_ms": 2.590069583333333,
+    "median_ms": 2.49755,
+    "n": 240,
+    "name": "Update",
+    "p90_ms": 3.0995,
+    "p99_ms": 4.0645
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Water",
+    "last_ms": 1.8269,
+    "max_ms": 3.0553,
+    "mean_ms": 1.6838229166666658,
+    "median_ms": 1.6062500000000002,
+    "n": 240,
+    "name": "Water",
+    "p90_ms": 2.1808,
+    "p99_ms": 2.8118
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Scripting",
+    "last_ms": 0.0012,
+    "max_ms": 0.0056,
+    "mean_ms": 0.0015720833333333353,
+    "median_ms": 0.0015,
+    "n": 240,
+    "name": "Scripting",
+    "p90_ms": 0.0024,
+    "p99_ms": 0.0041
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/AI",
+    "last_ms": 0.002,
+    "max_ms": 0.0085,
+    "mean_ms": 0.0021958333333333335,
+    "median_ms": 0.0021,
+    "n": 240,
+    "name": "AI",
+    "p90_ms": 0.003,
+    "p99_ms": 0.0056
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/NPCs",
+    "last_ms": 0.0022,
+    "max_ms": 0.0128,
+    "mean_ms": 0.0024749999999999998,
+    "median_ms": 0.0023,
+    "n": 240,
+    "name": "NPCs",
+    "p90_ms": 0.0034,
+    "p99_ms": 0.0065
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Entities",
+    "last_ms": 0.0048,
+    "max_ms": 0.0261,
+    "mean_ms": 0.005217916666666666,
+    "median_ms": 0.0049,
+    "n": 240,
+    "name": "Entities",
+    "p90_ms": 0.0073,
+    "p99_ms": 0.0132
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Camera Sync",
+    "last_ms": 0.0014,
+    "max_ms": 0.1088,
+    "mean_ms": 0.0030879166666666685,
+    "median_ms": 0.00165,
+    "n": 240,
+    "name": "Camera Sync",
+    "p90_ms": 0.0027,
+    "p99_ms": 0.0623
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Input Controller",
+    "last_ms": 0.0019,
+    "max_ms": 0.0076,
+    "mean_ms": 0.0017124999999999998,
+    "median_ms": 0.0016,
+    "n": 240,
+    "name": "Input Controller",
+    "p90_ms": 0.0025,
+    "p99_ms": 0.0058
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Voxel Interaction",
+    "last_ms": 0.0189,
+    "max_ms": 0.0662,
+    "mean_ms": 0.023190000000000023,
+    "median_ms": 0.0217,
+    "n": 240,
+    "name": "Voxel Interaction",
+    "p90_ms": 0.0311,
+    "p99_ms": 0.0563
+   },
+   {
+    "depth": 1,
+    "key": "Frame/render",
+    "last_ms": 0.9761,
+    "max_ms": 3.7381,
+    "mean_ms": 1.2760887499999995,
+    "median_ms": 1.13045,
+    "n": 240,
+    "name": "render",
+    "p90_ms": 1.7298,
+    "p99_ms": 3.1432
+   },
+   {
+    "depth": 0,
+    "key": "Frame Interval",
+    "last_ms": 4.1887,
+    "max_ms": 9.8191,
+    "mean_ms": 4.399692500000001,
+    "median_ms": 4.241199999999999,
+    "n": 240,
+    "name": "Frame Interval",
+    "p90_ms": 5.1827,
+    "p99_ms": 7.4682
+   }
+  ],
+  "success": true
+ },
+ "flicker": {
+  "samples": 41,
+  "largest_jump_m": 0.4092,
+  "jumps_over_5cm": 7,
+  "surface_range": [
+   16.0973,
+   16.8067
+  ]
+ },
+ "cell": 0.3333333333333333,
+ "solids": "on",
+ "moving_solids": {
+  "bodies": 0,
+  "body_volume_m3": 0.0,
+  "boxes": 1,
+  "boxes_dropped": 0,
+  "cells": 0,
+  "clamped": 0,
+  "cpu_rate_cells": 0,
+  "cpu_rate_m3s": 0.0,
+  "flip_refused": 0,
+  "fresh_cells": 0,
+  "records_dropped": 0,
+  "records_total": 4850,
+  "volumes": 1,
+  "wake_cells": 1280,
+  "wet_bodies": 0
+ },
+ "ring_m_from_drop": {
+  "0.0": {
+   "min": -0.3667,
+   "max": 0.2121
+  },
+  "0.7": {
+   "min": -0.0236,
+   "max": 0.0195
+  },
+  "1.4": {
+   "min": -0.0004,
+   "max": 0.0288
+  }
+ }
+}
