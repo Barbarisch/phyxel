@@ -458,7 +458,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **E. Coupling** — **MOSTLY BUILT; small-pond feel SIGNED OFF 2026-10-09 (§19.8).** E1 blasts + E2 debris both ways (§19.2–19.3); moving solids M0–M2 (§20.12–20.14, not signed off); clear water S0 (§21.10) and the droplet pool (§21.12); ripples R0+R1 (§22.9, accepted) + the black/white fix B1/B2 (§22.12, signed off 2026-10-11); waves keep their energy, pond friction, stone drag, the level-jerk fix (§24, not signed off). Open: M3/M4, E4 wading, pond whitewater, containers/pipes/scoop (§0a)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (§17.3), sign-off pending; F3 deletions open** (droplets were built under E, §21; the old RippleField's replacement is `RippleLayer`, §22)** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
-| **H. The world water system** — **DESIGN §25 (2026-10-11), H0 MEASURED (§25.16-25.17); H1 design next** | Sources and sinks with a ledger; three tiers (3-D windows, columns, far network) of one water; paths and currents simulated from the ground as it is; settling by Priority-Flood + Fill-Spill-Merge; underground drainage limit and water table; floating items in every tier | /design-check per step (H0 measurement first) | WS-1..WS-11 (§25.12); owner's look in motion |
+| **H. The world water system** — **DESIGN §25 (2026-10-11), H0 MEASURED (§25.16-25.17); H1 DESIGNED + checked, READY for (a)/(b) (§25.18)** | Sources and sinks with a ledger; three tiers (3-D windows, columns, far network) of one water; paths and currents simulated from the ground as it is; settling by Priority-Flood + Fill-Spill-Merge; underground drainage limit and water table; floating items in every tier | /design-check per step (H0 measurement first) | WS-1..WS-11 (§25.12); owner's look in motion |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -4217,6 +4217,70 @@ the 512 m radius needs the GPU (or threads, or a slower step away from the view)
    player's terraces) must still pool - the design has to tell intent from quantisation without guessing.
 3. **The dry-bed front speed** against a reference (a dam break on a dry slope).
 4. **Cost** - GPU port vs threads vs a slower step away from the view, measured against the 0.6 ms allotment.
+
+### 25.18 H1 design - the column tier on real terrain, and the bed comparison (2026-10-11)
+
+**The owner (2026-10-11), on the bed question:** "i think so [(a)]. would be nice to compare both to see what is better
+though". **A fact that sharpens it:** natural terrain is FULL 1 m cubes - `WorldGenerator::ColumnSample::surfaceY` is an
+integer (the top solid voxel); the generator's height itself is continuous (`HydrologyMap::HeightFunc`, a float of world
+position). A natural creek bed is therefore a staircase of 1 m steps - coarser than H0's 1/3 m case, where a 20 L/s creek
+did not reach the end of 30 m in three minutes.
+
+**The candidates, compared live (not chosen on paper):**
+- **(a) generator bed** - unedited columns use the continuous generator height; a column is "unedited" when its top solid
+  voxel equals the generator's quantised surface there (a pure function, nothing stored); edited columns use their
+  voxels. Flows like H0's smooth bed. **Risk:** the water sits on a surface up to 1 m BELOW the drawn cube tops - a 3 cm
+  creek hidden inside the ground the player sees.
+- **(b) hydraulic bed** - along the flow, each flat run of equal tops ramps from the top of the step above it down to its
+  own top, so the bed is never below the drawn ground and never above the step it comes from. Flows like a slope; the
+  water is always on or above the drawn voxels, and on a long flat run it reads as a pool behind the step. **Risk:** a
+  terrace built on purpose (a player's paddies) would not pool - it must be told from quantisation (the rule:
+  only runs the generator made, i.e. unedited columns, are ramped).
+- **(c) shaped bed** - the generator carves creek beds in SUBCUBES / MICROCUBES (the engine's detail sizes) along the
+  channel, so the drawn bed is a 1/3 m or 1/9 m staircase approximating the slope and the water follows real geometry
+  (H0: 1/9 m steps ran 1.6-2x Manning's depth - measured again on the real channel). Voxel-honest and in the design keys
+  ("detail in subcubes/microcubes"); costs generator work (a hydrology-stage carve) and more static faces near water.
+
+**Measured for each, on the same generated creek and the same authored channel:** steady out/in, depth and speed vs
+Manning (25.16's method), **the hidden fraction** (wet columns whose water surface is below the drawn top of the column's
+solid voxels - the look-breaker for (a)), the largest gap between the water surface and the drawn ground, and a clip
+from the same camera for each -> **the owner chooses**. The losing candidates stay behind the switch only until then.
+
+**H1 builds (CPU first; the GPU port is H1b, 25.17 item 4):**
+1. **`ColumnWater`** - a T2 region on the world: a `ShoreSolver` lattice (1/3 m columns) placed over a creek, beds from the
+   selected rule, walls from solid voxels above the water range, sources (springs) and sinks (outfalls) inside the solver
+   with its ledger (`exchanged` extended to in/out per object), Manning n per bed material (stony 0.035, sand 0.025,
+   grass 0.035, wood 0.012 - Chow 1959; confirmed at build).
+2. **Drawn through the existing surface pipeline**: T2 publishes a `WaterSurfaceField` (25.15 F1) - one mesher, one shader.
+3. **API** `water_columns {create {box, h}, destroy, list, bed: generator|hydraulic|voxel, spring {x,z,rate}, outfall {x,z}}`
+   - units m and m^3/s, omitted = unchanged, echoes the region, its ledger (in / out / stored) and the bed rule; rate clamped
+   (0, 10] m^3/s (as `water_av_source`, the failure written at the site); `bed` default `voxel` until the owner chooses.
+4. **Rigs:** (i) the authored 30 m channel of H0 rebuilt in voxels on `WaterBench_Small` (1 m, 1/3 m and 1/9 m stepped
+   beds - one chunk); (ii) a generated creek: `WaterBench_River` (Mountains, streaming, seed 20260729) - a stretch of
+   an order-1/2 channel picked once and written into the rig spec; (c) needs the generator change, so its row is built
+   after (a)/(b) and runs on a regenerated copy of the River bench (the original stays untouched).
+
+**Tests (red first; predictions now):** C-T1 the column region's ledger exact over 10 min with springs and outfalls;
+C-T2 on the authored 1/9 m channel, voxel bed: depth within the H0 numbers (x1.6-2.1) - the harness and the world agree;
+C-T3 (b) on the 1 m staircase: out/in = 1 within 2 % at steady state, depth within 25 % of Manning; C-T4 (a) on the
+generated creek: depth within 15 % of Manning AND the hidden fraction reported (prediction: > 50 % of wet columns hidden -
+the reason to compare); C-T5 the dry-bed front against a dam-break-on-a-slope reference (25.17 item 3); C-T6 cost per
+column on the world lattice vs H0's 150-285 ns. Controls: bed `voxel` (the staircase) for C-T3/C-T4; Q = 0 (still water
+stays still) for all.
+
+**Not in H1:** multi-run columns, the sparse wet set, edits waking columns, sources as saved world objects, the GPU, the
+T1 hand-off (H1b-H2); generation of springs (H3).
+
+**Design-check (2026-10-11):** voxel look - the comparison exists BECAUSE of it: (a) risks water hidden in drawn ground
+(measured, C-T4), (b) keeps water on the voxels, (c) is the design keys' own answer (detail in subcubes/microcubes); detail
+unconditional - the bed rule is a single world-wide choice, not a quality tier. Chunks - the bed rules are pure functions
+of world position ((a) generator height; (b) a run of tops along the flow, which may cross a chunk seam: the run is read
+from the column record's beds, not from neighbour chunks; red test C-T7: the hydraulic bed of a run straddling a chunk seam
+equals the same run mid-chunk); (c) is a generator carve keyed on world position and the channel, chunk-independent by the
+hydrology stage's existing contract. Generation - only (c) touches it (hydrology stage, after the bake, before flora - flora
+reads the carved surface as it does today). API - units, clamps with reasons, echoes, the default stated; no existing
+default moves. Tests - C-T1..C-T7 with predictions and controls, one-chunk authored rig + the River bench, rig = shipped
+defaults except the bed switch. **READY for H1 (a) and (b); (c) gets its own check when its generator carve is designed.**
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
