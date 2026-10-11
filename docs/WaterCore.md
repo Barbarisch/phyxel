@@ -3504,9 +3504,147 @@ liquid whose look and feel come from a few physical numbers? Water stays the def
 - **L3 - the look and the feel, live.** A small slime pool beside the Small pond on one bench: a stone dropped in
   each, a pour onto a slope, a heap pushed; recordings -> **owner's look**. The ripple and droplet gates read nu.
 
+**Owner, 2026-10-11:** "by thickness i mean slow flowing and holding shape" - BOTH: viscosity (L1) and yield
+stress (L2) are the first experiment, not a later one. Order: 24 first, then L0.
+
+**The far end of the scale - a gelatinous cube (owner, 2026-10-11: "in a perfect world our system would scale all
+the way into being to make a gelatinous cube (or at least get the look right)").** Honest placement: past the
+yield stress, a gel is an ELASTIC solid - it springs back and wobbles, it does not just stop. That is a third
+property, a shear modulus G (gelatin ~1-10 kPa), which a liquid solver does not carry. Two routes, neither chosen:
+- **L4a, the look first:** a dynamic voxel body (it already moves, collides and floats) drawn with this liquid's
+  body optics - translucent, tinted, things suspended inside it seen through refraction - and a jiggle from shape
+  matching (Mueller et al. 2005, *Meshless deformations based on shape matching*) on its voxels. Cheap, fits the
+  dynamic-voxel key, gets the look; the cube does not flow or split.
+- **L4b, the physics:** an elastic-plastic material in the grid (stress carried per cell, as MPM does - Stomakhin
+  et al. 2013's snow is the reference shape). It would flow, split, heal and wobble, but it is a new solver stage,
+  costly per cell, and not to be started before L1-L3 have shown what the liquid path can carry.
+L1-L3 come first either way; they decide whether L4 is a shader-and-body job or a solver one.
+
 **Open before L0's design:** CPU first, the GPU backend's parity after (D-T5 pattern); whether the yield surface
-needs the implicit solve; whether "thickness" in the owner's sense means viscosity, yield stress, or both - the
-L3 presets will show each alone.
+needs the implicit solve.
+
+## 24. Water that is not thick, stones that slow down (owner, 2026-10-10) - DESIGN, 2026-10-11
+
+The owner (2026-10-10): "1. stone seems to sink too fast and not slowed by the water. 2. water surface deforms a
+little slow making it look a thicker than water". Measured then (`c776889e`, `tools/water_entry_probe.py`,
+`WaterWaveTest`): the 1/3 m stone's descent is within ~10 % of a quadratic-drag reference, but debris water drag
+is one linear rate (0.9 /s) for every size, so a 4 cm pebble would fall at ~2.7 m/s where it should settle at
+~1 m/s; and the pond's waves lose most of their energy per swing, worst with the rest level half-way up a cell.
+The owner chose (2026-10-11) this first, then slime (23).
+
+### 24.1 Where a wave's energy goes - measured (2026-10-11)
+
+`WaterWaveTest.DiagWaveLossBisect`: the 20.8 pond (4 x 4 m, 1.5 m deep, 1/3 m cells, CPU), a 4 m standing wave of
+5 cm; the whole surface projected onto cos(k x) (the wave's own amplitude - ripples do not count), envelope per
+theoretical period, amplitude kept per period over 4 periods. Real water keeps ~100 % (viscous decay ~1e-5 /s).
+
+| | rest level 0.25 of the top cell | 0.5 | 0.75 |
+|---|---|---|---|
+| shipped | 0.90 | 0.28 | 0.74 |
+| liquidThreshold 0.3 / 0.7 | 0.34 / 0.93 | 0.85 / 0.89 | 0.77 / 0.58 |
+| thetaMin 0.1 -> 0.01 | 0.92 | 0.61 | 0.76 |
+| + compaction off | 0.92 | 0.91 | 0.84 |
+| + rest damping off | **0.99** | **0.95** | **0.96** |
+| all optional stages off, thetaMin 0.1 | 0.98 | 0.61 | 0.96 |
+
+Three drains, each named:
+1. **The ghost-fluid clamp.** The surface sits theta = f - 0.5 (+ the fill above) of a cell over a liquid cell's
+   centre, clamped to >= `thetaMin` = 0.1. As a cell crosses the 0.5 cutoff, the true theta passes through 0, but
+   the solver sees >= 0.1: the surface it projects against jumps by a tenth of a cell at every crossing - the
+   worst case is the rest level sitting on the cutoff (the table: the bad level follows the threshold). Unclamped,
+   the two sides of the cutoff agree (theta -> 0 above it, 1 - epsilon from the cell below).
+2. **The transport smears water upward; compaction drags it back.** `DiagFilmAboveTheWave`: with the top cell
+   0.54-0.64 full and a 5 cm wave (it never reaches the cell above), the cell above holds up to 0.14. The donor-
+   cell flux moves `sweep x f_donor` up through a cell's ceiling whatever its fill - water leaves the top of a
+   half-full cell whose surface is flat in its middle. `compactSubmergedPartials` (closing real voids, 15.x S3)
+   then pulls that film back down at every turning point of the wave, where the face is quiet. The round trip
+   lifts water and drops it: energy lost per swing.
+3. **Rest damping acts on visible waves.** `restDamping` (1 /s) applies whenever the volume's specific kinetic
+   energy is under `keSettle` = 1e-3 m^2/s^2 (~3 cm/s rms) - a 5 cm wave in this pond sits in that band, so it is
+   braked as if it were settling.
+
+### 24.2 The fix (W1-W3), CPU and GPU together
+
+- **W1 - donor-acceptor upward flux** (Hirt & Nichols 1981, *Volume of fluid (VOF) method for the dynamics of free
+  boundaries*, J. Comp. Phys. 39: the donor-acceptor rule for an interface normal to the flux). Upward through a
+  cell's ceiling, a PARTIAL donor (0 < f < 1) whose ceiling neighbour is emptier first fills itself:
+  moved = clamp(sweep - (1 - f_donor), 0, f_donor) - the surface rises inside the cell and crosses only once the
+  cell is full. Lateral and downward fluxes unchanged (they carry the dam-break, weir and drain fronts the S-rows
+  pin). CPU `EulerianTransport::advect` `moveFace`, GPU `wc_fill_advect.comp`.
+- **W2 - the clamp to 0.01** (`thetaMin` 0.1 -> 0.01; the GPU's two hardcoded 0.1s in `wc_classify.comp` and
+  `wc_face_ops.comp` read the parameter). 1/theta <= 100 on a row's diagonal; PCG iterations reported before and
+  after (StepReport), the GPU's RBGS residual too. **Grounding auditor at build:** the 0.01 floor is the value the
+  ghost-fluid literature clamps to (Gibou et al. 2002; Bridson 2015 s5) - to be confirmed, not assumed.
+- **W3 - rest damping only below what the eye sees.** `keSettle` drops from 1e-3 to the specific kinetic energy of
+  a 2 mm wave in the test pond (measured in the test, then written as the constant with its derivation) - a 2 mm
+  wave on 1/3 m cells is below a grey level in the frame (22.9). Above it, the water keeps its energy; below it,
+  the settle damping still brings the volume to sleep (S11).
+- **W4 (only if 24.4 shows it is still needed)** - compaction gated to real voids: a partial cell under a LIQUID
+  cell (f_above >= the threshold), not under a thin film. Built only if W1 leaves compaction costing > 5 % per
+  period; the S3 two-half-layers case (15.x) is its red test.
+
+**Not changed:** the 0.5 cutoff itself (the ghost-fluid choice, 15.x: a 0.999 cutoff stalled the dam-break front)
+- with W1 and W2 the crossing is continuous, so it no longer needs to be gradual, which was 22.10's first guess.
+
+**What sleep then costs.** With the numerical losses gone, a pond loses energy only in the settle band. Real
+small ponds still slosh for tens of seconds (laminar wall/floor layers damp a metre wave at ~1e-2 /s); the live
+measurement (24.4 W-L2) reports the time from a stone's entry to sleep. If it is far longer than the owner wants,
+the next lever is a stated physical wall-friction term - not a return of the blanket damping. Logged, not built.
+
+### 24.3 Pebbles - drag that depends on size (P1)
+
+19.9's design (a), measured unnecessary for the 1/3 m stone and never built, is right for small ones: form drag
+k = Cd A f b / (2 V) per metre (Cd 1.05 blunt cube, A the projected area, f the wet fraction, b = rho_w / rho_body),
+applied as the exact quadratic decay v / (1 + k |v| dt) (never reverses, any dt), ADDED to the linear 0.9 /s (at
+bob speeds ~0.1 m/s it is ~0.06 /s against 2.3 /s: the signed-off floaters (19.6) should not move). A / V = 1 / side
+for a cube: a 1/27 m pebble gets 9x the 1/3 m stone's k - small stones settle slowly, big ones barely change. Same
+law in `solver_integrate.comp` (GPU debris) and `VoxelDynamicsWorld` (one water law, constants in
+`solver_shared.h`); the momentum reaches the water through the E2 exchange unchanged. No new API knob.
+
+### 24.4 Tests (red first; predictions written now)
+
+| # | Layer | Test | Prediction | Control |
+|---|---|---|---|---|
+| W-T1 | unit | `WaterWaveTest` standing waves, modes 1-4, rest levels 0.1 / 0.25 / 0.5 / 0.75 / 0.9 | amplitude kept per period >= 0.90 at every level and mode (shipped: 0.28-0.90) | shipped params: the 24.1 numbers |
+| W-T2 | unit | the period, same runs | within 10 % of omega^2 = g k tanh(k d) | - |
+| W-T3 | unit | every existing water-core test (S1-S5 rows, dam break, weir, drain, pump, rest / sleep, solids, coupling, droplets, ripples) | all pass unchanged; any that moves is reported with its numbers before anything is re-based | - |
+| W-T4 | unit | the film smear: `DiagFilmAboveTheWave` | the cell above holds < 0.01 (from 0.14) | W1 off |
+| W-T5 | unit | PCG iterations, the 20.8 pond and the S3 dam break | reported; <= 2x shipped | - |
+| P-T1 | unit | terminal velocity in still water of a stone cube of side 1/3, 1/9, 1/27 m | within 15 % of the quadratic reference (Cd 1.05, buoyancy, linear 0.9 /s) at every size | shipped: one linear law, the small one ~2-3x fast |
+| W-L1 | live | GPU, Small bench: a sloshed pond (the 20.8 shape) - the surface tap over time | kept per period >= 0.85 (GPU) | `thetaMin 0.1` + W1 off |
+| W-L2 | live | five 1/3 m stones, the demo camera | time from entry to sleep reported; ripples (22) unchanged | shipped |
+| W-L3 | live | clips: stones, a 1/9 m pebble beside a 1/3 m stone, the pond sloshing -> **owner's look** | - | - |
+
+The rig is the shipped Small bench (one pond, one chunk); the unit rig is the 20.8 pond at 1/3 m cells. No new API:
+`thetaMin` and `keSettle` are solver params (the bisection sets them directly); W1 is unconditional (a debug stage
+bit, 128, turns it off for the A/B). Status: designed, not built.
+
+### 24.5 Design-check (2026-10-11) - round 1 NEEDS WORK, folded in, round 2 READY
+
+Checked against `EulerianTransport::advect`, `WaterSolver::thetaToAir` / `project`, `wc_fill_advect.comp`,
+`wc_classify.comp`, `wc_face_ops.comp` and `WaterCoreGpu.cpp`'s settle band:
+- **F1** W1 as written would also stop a THIN sheet climbing a wall or a jet's partial cells from rising - their
+  water is not a flat layer on the cell's floor (S3 run-up, the splash crown on the grid). -> W1 applies only where
+  the donor sits on a FULL cell (f + s >= 0.999) or on solid: there the interface is the column's top surface.
+  Everywhere else the donor-cell flux stands.
+- **F2 (a GPU defect, found reading the kernels)** the GPU's velocity update and its pressure matrix use DIFFERENT
+  surface distances: `wc_classify.comp` (matrix) has the CPU's continuous f + s - 0.5 + f_above in [0.1, 1.5];
+  `wc_face_ops.comp` (face update) still has the pre-#28 form - 0.5 + f_above whenever there is water above, else
+  f + s - 0.5 in [0.1, 0.5]. The CPU's own comment records what that mismatch does ("still water kept g dt of
+  velocity, hydrostatic pressure carried a +4.5 Pa offset"). The live pond runs on the GPU, so it carries a drain
+  the CPU tests cannot see. -> W2 puts ONE `wcThetaToAir` in a shared include used by both kernels, the CPU's
+  expression with `thetaMin` from the push block; W-L1 measures the GPU with the shipped kernels as its control.
+- **F3** W3's threshold is a volume-wide specific kinetic energy, so the same surface wave reads smaller in a deeper
+  pond. -> stated: derived for the Small bench's depth (1.5 m); a deeper pond enters the settle band at a smaller
+  wave (it keeps its energy longer - the safe direction), a shallower one at a larger. Per-surface settling is a
+  later refinement, logged.
+- **F4** W-T3 runs on the CPU only (D-T5, GPU parity, is still unwritten). -> W-L1 / W-L2 are the GPU's evidence;
+  the GPU parity test stays the logged open item, not silently assumed.
+Round 2: voxel look (no render change - the water's own surface moves more); chunks (per active volume, no chunk
+input, unchanged by this); generation (none); API (no new knobs: `thetaMin`, `keSettle` are solver params, W1 has
+the stage bit 128 for the A/B; defaults change - `thetaMin` 0.1 -> 0.01, `keSettle` 1e-3 -> the derived value -
+with the tests that pin them updated in the same commit, named); tests (red rows with predictions and controls,
+the 20.8 pond for units, the Small bench live, rig = shipped). **READY for W1-W3 and P1.**
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
