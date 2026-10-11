@@ -72,7 +72,12 @@ PHX_CONST float IMPULSE_WAKE_SCALE = 2.0f;
 //   v.y -= g * f * b * dt                 anti-gravity: b > 1 floats, b < 1 sinks slower
 //   v   *= (1 - WATER_LINEAR_DRAG)^(f dt),  w *= (1 - WATER_ANGULAR_DRAG)^(f dt)
 //   v.xz += (flow - v.xz) * min(1, WATER_CURRENT_COUPLE * f * dt)
-PHX_CONST float WATER_LINEAR_DRAG    = 0.90f;   // strong - water is thick (kills the bob into rest)
+//   (WaterCore.md 24.9) the linear term acts only while the body CROSSES the surface (0 < f < 1) - it stands for the
+//   waves a bobbing body radiates; any wet body also feels FORM drag, v /= 1 + k |v| dt, k = Cd (A / V) b f / 2
+//   (A the box's area across v, V its volume): size-dependent, so a 4 cm pebble settles at ~1 m/s and a 1/3 m stone at
+//   ~3.2 m/s. One linear rate for every size sank all granite at 2.6 m/s (WaterBuoyancy.SmallStonesSinkSlowerThanBigOnes).
+PHX_CONST float WATER_LINEAR_DRAG    = 0.90f;   // strong - kills a floater's bob into rest (waterline only, 24.9)
+PHX_CONST float WATER_FORM_CD        = 1.05f;   // face-on cube drag coefficient (Hoerner, Fluid-Dynamic Drag); a tumbling cube ~0.8-1.05
 PHX_CONST float WATER_ANGULAR_DRAG   = 0.85f;
 PHX_CONST float WATER_CURRENT_COUPLE = 3.0f;    // drift converges to ~ the current's own speed
 // GPU water: a sparse table of per-chunk-column TILES over the same XZ window as the static

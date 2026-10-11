@@ -3748,6 +3748,59 @@ friction 0.042) and 1e-5 at 28 s; frame change on the pond nearly unchanged from
 slosh. GPU solver 0.6-0.8 ms/call (1.7 once). Clip for the owner: `slosh_before_after.mp4` (left before 24, right
 after: waves keep energy + 5 s friction; same drop, same pose). P1 (pebble drag) not built yet.
 
+### 24.9 P1 amended - pebbles: form drag below the surface, the linear term only at the waterline - DESIGN + check
+
+**Why 24.3 changes.** The one water law (`solver_shared.h`; GPU `solver_integrate.comp`, CPU `VoxelDynamicsWorld`) has a
+linear drag (1 - 0.9)^(f dt) - a rate of 2.3 /s - for every body. Granite (b = 0.385) then sinks at g(1 - b) / 2.3 =
+2.6 m/s whatever its size. Real terminal speeds (form drag only, v^2 = 2 g (1 - b) s / (Cd b), Cd 1.05 face-on cube):
+1/3 m **3.15 m/s**, 1/9 m **1.82**, 1/27 m (4 cm) **1.05**. 24.3 ADDED the quadratic term to the linear one: the 1/3 m
+stone would then settle at 1.8 m/s - 43 % slow. The linear term is there to kill a floater's bob (19.6, signed off),
+and physically a bob is damped by the WAVES the body radiates at the waterline - a term that exists only while the
+body crosses the surface.
+
+**The law:** with f the wet fraction, b the buoyancy ratio, A / V from the body's box along its velocity
+(A = 4 (hy hz |vx| + hx hz |vy| + hx hy |vz|) / |v|, V = 8 hx hy hz):
+- **form drag, whenever wet:** v <- v / (1 + k |v| dt), k = Cd (A / V) b f / 2, Cd = 1.05 (the exact quadratic decay:
+  never reverses, any dt);
+- **the linear (radiation) term only at the waterline:** applied as today but with weight f only while 0 < f < 1 -
+  fully under (f = 1) it is off;
+- angular drag and the current coupling unchanged. Added mass (Ca ~0.5) is NOT modelled - it shapes the entry
+  transient, not the terminal speed; logged.
+
+**Tests:** **P-T1** (CPU `WaterBuoyancyTest`, flat water): a stone cube (b 0.385) of side 1/3, 1/9, 1/27 m released
+deep: speed after 4 s within 15 % of 3.15 / 1.82 / 1.05 m/s - RED today (2.6 for all three); the existing floater
+tests (rise, settle at the line, drift with the current, bit-identical dry) unchanged. **P-L1** live: the entry probe
+(`tools/water_entry_probe.py`, its quadratic + added-mass reference) for the 1/3 m stone - within 15 % at 1 m depth;
+a 1/9 m and a 1/3 m stone dropped side by side -> **owner's look**.
+
+**Design-check:** voxel look (none); chunks (the water tile lookup is world-column keyed, unchanged); generation
+(none); API (none - constants in `solver_shared.h`, one law for both worlds); defaults change - the sinking speed of
+every submerged body; the floater tests and P-T1 pin it; tests above (red first, predictions written, control = the
+floaters). **READY.**
+
+### 24.10 P1 built (2026-10-11) - ledger. Status: built, not signed off
+
+**Built:** `solver_shared.h` `WATER_FORM_CD` 1.05; the GPU integrator (`solver_integrate.comp`) and `VoxelDynamicsWorld`
+apply form drag v_rel / (1 + k |v_rel| dt), k = Cd (A / V) b f / 2, to the velocity RELATIVE TO THE WATER (the first cut
+used the ground velocity and braked a floater riding a current to 0.78 of 1.6 m/s - `FloaterDrifts...` caught it), and
+the linear term only while 0 < f < 1. A / V from the GPU body's local box / the CPU body's world AABB (rotation ignored).
+
+**P-T1 (CPU, flat water, granite b 0.385, after 4 s):** 1/3 m **3.06 m/s** (terminal 3.15), 1/9 m **1.76** (1.82), 1/27 m
+**1.00** (1.05) - within 3-5 %; red before (2.51 for all three). The six floater tests unchanged; 321 water /
+buoyancy / debris unit tests pass. **Debris settle bench** (DebrisLab, run on port 8112 - 8090 is held by another
+program): same verdicts as the 2026-10-09 and 2026-10-10 baselines (drop_pile, blast, box_through_pile FAIL there too;
+the water path is off in DebrisLab) - `docs/evidence/debris_settle/water24_p1`.
+
+**P-L1 (live entry probe, 1/3 m stone at 7.2 m/s; `entry_probe_p1.json`):** at 0.5 / 1.0 / 1.25 m depth the engine reads
+5.96 / 4.65 / 4.05 m/s against the quadratic + added-mass reference's 6.41 / 5.41 / 5.02 - **14 % slow at 1 m (prediction
+<= 15 % - met), 19 % at 1.25 m (missed)**. Before P1 the engine was 9 % FAST. The gap is the added mass (Ca 0.5) the
+law leaves out: done properly it divides gravity and buoyancy too and would slow every floater's (signed-off) bob;
+dividing the drag alone would raise the terminal speed 9 % - so it stays out, logged. It errs the way the owner
+asked ("not slowed by the water").
+
+**P-L3 (live pair, `tools/water_pebble_pair.py`, `pebble_pair_p1.{json,mp4}`, low pose):** the 1/3 m stone 4.7 m/s at
+0.2 m -> 3.3 m/s at 1.4 m; the 1/9 m stone 3.5 m/s at 0.3 m -> 1.7-1.8 m/s from 1 m down - the small one visibly lags.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

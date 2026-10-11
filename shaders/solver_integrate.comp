@@ -123,7 +123,19 @@ void main() {
             buoyAccY = -pc.gravity * f * mat.buoyancy;
             b.vel.y  += buoyAccY * pc.dt;
             const vec3 vBeforeWater = b.vel;   // E2: the exchange is drag + current only (buoyancy is static pressure)
-            b.vel    *= pow(1.0 - WATER_LINEAR_DRAG,  pc.dt * f);
+            if (f < 1.0) b.vel *= pow(1.0 - WATER_LINEAR_DRAG, pc.dt * f);   // 24.9: the waterline's radiation damping only
+            {   // 24.9: form drag on the velocity RELATIVE TO THE WATER, k = Cd (A / V) b f / 2 (its box, unrotated)
+                const vec3 water = vec3(flow.x, 0.0, flow.y);
+                const vec3 rel = b.vel - water;
+                const float sp = length(rel);
+                if (sp > 1e-4) {
+                    const vec3 u = abs(rel) / sp;
+                    const vec3 he = max(b.halfExt, vec3(1e-4));
+                    const float areaOverVol = 4.0 * (he.y * he.z * u.x + he.x * he.z * u.y + he.x * he.y * u.z) / (8.0 * he.x * he.y * he.z);
+                    const float k = WATER_FORM_CD * areaOverVol * mat.buoyancy * f * 0.5;
+                    b.vel = water + rel / (1.0 + k * sp * pc.dt);
+                }
+            }
             b.angVel *= pow(1.0 - WATER_ANGULAR_DRAG, pc.dt * f);
             const float k = min(1.0, WATER_CURRENT_COUPLE * f * pc.dt);
             b.vel.xz += (flow - b.vel.xz) * k;

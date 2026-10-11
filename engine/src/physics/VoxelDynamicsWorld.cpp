@@ -394,7 +394,21 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
                     // One water law for both worlds (solver_shared.h, Phase 6c).
                     constexpr float kWaterLinearDrag  = Phyxel::DebrisShared::WATER_LINEAR_DRAG;
                     constexpr float kWaterAngularDrag = Phyxel::DebrisShared::WATER_ANGULAR_DRAG;
-                    body->linearVelocity  *= std::pow(1.0f - kWaterLinearDrag,  dt * wet);
+                    if (wet < 1.0f) body->linearVelocity *= std::pow(1.0f - kWaterLinearDrag, dt * wet);   // 24.9: waterline only
+                    {   // 24.9: form drag on the velocity RELATIVE TO THE WATER, k = Cd (A / V) b f / 2 (solver_shared.h) - against
+                        // the ground it braked a floater riding a current (FloaterDrifts...: 0.78 of 1.6 m/s)
+                        glm::vec3 water(0.0f);
+                        if (m_waterFlowQuery) { const glm::vec3 fl = m_waterFlowQuery(0.5f * (mn + mx)); water = glm::vec3(fl.x, 0.0f, fl.z); }
+                        const glm::vec3 rel = body->linearVelocity - water;
+                        const float sp = glm::length(rel);
+                        if (sp > 1e-4f) {
+                            const glm::vec3 u = glm::abs(rel) / sp;
+                            const glm::vec3 he = glm::max(0.5f * (mx - mn), glm::vec3(1e-4f));   // the world AABB (the GPU uses its local box)
+                            const float areaOverVol = 4.0f * (he.y * he.z * u.x + he.x * he.z * u.y + he.x * he.y * u.z) / (8.0f * he.x * he.y * he.z);
+                            const float k = Phyxel::DebrisShared::WATER_FORM_CD * areaOverVol * body->buoyancy * wet * 0.5f;
+                            body->linearVelocity = water + rel / (1.0f + k * sp * dt);
+                        }
+                    }
                     body->angularVelocity *= std::pow(1.0f - kWaterAngularDrag, dt * wet);
                     // Current force (tangible-water Phase E): moving water carries what floats
                     // in it — a relative drag pulling the body's horizontal velocity toward the

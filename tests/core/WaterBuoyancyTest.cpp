@@ -4,6 +4,9 @@
 
 #include <glm/glm.hpp>
 
+#include <cmath>
+#include <cstdio>
+
 // L1/L2 validation for buoyancy + water drag on the CPU rigid-body world (small-scale water
 // plan Phase 4.2). The water arrives through the injected submerged-fraction query, so these
 // tests drive the physics in isolation with a synthetic flat water level — no WaterManager.
@@ -35,6 +38,24 @@ TEST(WaterBuoyancy, DenseBodySinksThroughWater) {
     for (int i = 0; i < 120; ++i) w.stepSimulation(1.0f / 60.0f, 1);
     EXPECT_LT(b->position.y, 39.0f) << "a dense body must keep sinking";
     EXPECT_LT(b->linearVelocity.y, 0.0f);
+}
+
+// P-T1 (WaterCore.md 24.9) - small stones sink slower than big ones. A granite cube (b = 0.385) released deep in still
+// water reaches its form-drag terminal speed, v^2 = 2 g (1 - b) s / (Cd b), Cd 1.05: side 1/3 m 3.15 m/s, 1/9 m 1.82,
+// 1/27 m (4 cm) 1.05 - within 15 % after 4 s. RED before 24.9: one linear drag for every size, 2.6 m/s for all three.
+TEST(WaterBuoyancy, SmallStonesSinkSlowerThanBigOnes) {
+    for (float side : {1.0f / 3.0f, 1.0f / 9.0f, 1.0f / 27.0f}) {
+        VoxelDynamicsWorld w;
+        w.setThreadCount(1);
+        w.setFallThreshold(-1000.0f);
+        w.setWaterQuery(flatWater(100.0f));
+        VoxelRigidBody* b = w.createVoxelBody(glm::vec3(0.0f, 90.0f, 0.0f), glm::vec3(0.5f * side), 2600.0f * side * side * side);
+        b->buoyancy = 0.385f;
+        for (int i = 0; i < 240; ++i) w.stepSimulation(1.0f / 60.0f, 1);
+        const float expected = std::sqrt(2.0f * 9.81f * (1.0f - 0.385f) * side / (1.05f * 0.385f));
+        std::printf("  stone cube %.3f m: sinking at %.2f m/s after 4 s (form-drag terminal %.2f)\n", side, -b->linearVelocity.y, expected);
+        EXPECT_NEAR(-b->linearVelocity.y, expected, 0.15f * expected) << "side " << side;
+    }
 }
 
 TEST(WaterBuoyancy, BuoyantBodyRisesBreaksSurfaceAndComesToRest) {
