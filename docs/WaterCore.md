@@ -3403,7 +3403,7 @@ bool}` - default on; off = the A/B control; echoed.
 
 The rig is the shipped defaults (Small bench, 22.11's poses); B-L1 pins the layer (`pattern`), so B1 does not act
 there - B-L1 measures B2 alone, B-L2 both. Cost: one scan per step while awake (54 x 54 cells); passes only where
-something breaks. Status: built, not signed off (22.12.2).
+something breaks. Status: signed off (22.12.2).
 
 **22.12.1 Design-check (2026-10-11) - round 1 NEEDS WORK, folded in, round 2 READY for B1 + B2.** Checked against
 `WaterRippleTest`, the `water_ripples` / `water_render_core` routes and `water_surface.frag`'s push constants:
@@ -3427,7 +3427,7 @@ the route with the failure they prevent; defaults: limit on at 0.44 and guard on
 rows with predictions and controls on the Small bench, one pond inside one chunk, rig = shipped defaults; B-L1 pins
 the layer so measures B2 alone). **READY for B1 + B2.**
 
-**22.12.2 B1 + B2 built (2026-10-11) - ledger. Status: built, not signed off.** `RippleLayer::limitSlope` (B1, default
+**22.12.2 B1 + B2 built (2026-10-11) - ledger. Status: SIGNED OFF by the owner 2026-10-11 ("new ripples look really great").** `RippleLayer::limitSlope` (B1, default
 0.44, `water_ripples {break_slope}`), the `horizonGuard` branch in `shadeWaterSurface` (B2, `water_surface.frag` only,
 `water_render_core {horizon_guard}`). `tools/water_facet_extremes.py --fix on|off` runs the A/B on one binary.
 
