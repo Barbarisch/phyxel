@@ -63,8 +63,9 @@ containers.
 **Is the still pond ready to build on? Yes, for flowing water.** The owner signed off its feel; what remains open is
 polish (look, short-wave loss, terraces) or features that do not gate a stream (wading, containers, pipes, other
 liquids). What DOES gate a stream is listed in §25 and is the first part of it: pond friction brakes flows (the weir
-reads 17 % low with it on, §24.8), and nothing has ever measured water that keeps moving. **Next: §25 - a small
-flowing body (a creek in a channel), then creeks in the world, then rivers, then shorelines.** The §23 slime
+reads 17 % low with it on, §24.8), and nothing has ever measured water that keeps moving. **Next: §25 - the world water system** (owner, 2026-10-11: sources, simulated paths and currents, a
+2 ms budget, settling without filling, underground limits) - design-checked READY for H0 (§25.15); H0 measures the
+column solver on a creek before anything is built. The §23 slime
 experiment stays queued (owner, 2026-10-11: "24 first, then L0") - to be ordered against §25 by the owner.
 
 ## 1. Principles (the invariants every later decision must satisfy)
@@ -457,7 +458,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **E. Coupling** — **MOSTLY BUILT; small-pond feel SIGNED OFF 2026-10-09 (§19.8).** E1 blasts + E2 debris both ways (§19.2–19.3); moving solids M0–M2 (§20.12–20.14, not signed off); clear water S0 (§21.10) and the droplet pool (§21.12); ripples R0+R1 (§22.9, accepted) + the black/white fix B1/B2 (§22.12, signed off 2026-10-11); waves keep their energy, pond friction, stone drag, the level-jerk fix (§24, not signed off). Open: M3/M4, E4 wading, pond whitewater, containers/pipes/scoop (§0a)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (§17.3), sign-off pending; F3 deletions open** (droplets were built under E, §21; the old RippleField's replacement is `RippleLayer`, §22)** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
-| **H. Small flowing water** — **PLAN §25 (2026-10-11), next after the owner's go** | A creek in a bench channel: steady flow (S10), bed friction replacing pond friction, open inlet/outlet, the look of moving water, things carried | /design-check per step (H0 rig + red baseline first) | S10 within its gates; the 24.8 slosh still settles; owner's look in motion |
+| **H. The world water system** — **DESIGN §25 (2026-10-11), design-check READY for H0 (§25.15)** | Sources and sinks with a ledger; three tiers (3-D windows, columns, far network) of one water; paths and currents simulated from the ground as it is; settling by Priority-Flood + Fill-Spill-Merge; underground drainage limit and water table; floating items in every tier | /design-check per step (H0 measurement first) | WS-1..WS-11 (§25.12); owner's look in motion |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -3875,50 +3876,299 @@ liquid cell pulled back over ~1 s) - is the next lever, not built.
 **Live (`pebble_pair_p1fix.mp4`):** largest frame-to-frame change of visible water 404 px (the old clip: 3,004 in one
 frame); the stones sink as before (1/9 m 1.8-1.9 m/s, 1/3 m ~3.5 m/s). 283 water / buoyancy tests pass.
 
-## 25. Phase H - small flowing water: a creek in a channel (PLAN, 2026-10-11; not designed in detail, not built)
+## 25. The world water system - sources, paths, settling, underground (DESIGN, 2026-10-11; replaces the creek-only plan)
 
-The owner (2026-10-11): "small body is foundation so we can move up to larger bodies until that is fully figured out.
-if you think we are ready then maybe we move up to small creaks or small flowing body type things. then eventualy
-shorelines." The order of record becomes: still pond (done, §0a) -> **a creek in a bench channel (this)** -> creeks in
-the generated world -> rivers -> shorelines (G, resumed last). Each step is designed and design-checked before it is
-built, and signed off by the owner in motion before the next starts.
+### 25.1 The brief (owner, 2026-10-11, in order)
 
-**What a creek needs that a pond did not** (from the stock-take, §0a, and §3 S10):
-1. **Water that keeps moving at a steady state** - inflow at the top equals outflow at the bottom (S10: within 2 %),
-   depth and speed set by slope and bed roughness (Manning), standing waves and riffles at rocks. Nothing has measured
-   this; the closest are the weir (S4) and the drain (S5).
-2. **Friction of the right shape.** Pond friction (§24.7) is a uniform drag - it brakes a flow as much as a slosh (the
-   weir reads 17 % low with it on, §24.8). Real streams lose energy to the BED: a quadratic stress on the wetted
-   perimeter (Manning / Chezy). That law also damps a pond's slosh, so it can REPLACE pond friction: one physical law
-   for both, measured against a stream's depth and against the 24.8 slosh numbers.
-3. **Open ends** - water entering and leaving the active volume without a wall: the pumps/sinks exist (§15.15) and
-   the prescribed-column `BoundarySpec` "stays as a pump/inlet primitive" (§18.4); an outflow that does not reflect is
-   new.
-4. **A sloped bed.** S10's v1 rig is flat with full-cube rocks, waiting on sub-voxel edits (§3). A 1:20 slope at 1/3 m
-   cells can be built from subcube steps (one 1/3 m step per 6.7 m of channel is too coarse; 1/9 m microcube steps
-   every 2.2 m) - the rig design decides, the generator's carving later.
-5. **The look of moving water** - flow streaks exist (§19.3, `water_surface.frag`); whitewater at rocks needs the S4
-   pond-whitewater hook (§21.4, §22.12 `broken_m3`); ripples on a moving surface should travel with it (the layer is
-   still-water today, §22.2).
-6. **Things carried along** - debris already reads the surface current (§19.3); the 0.08-0.10 m/s phantom current on a
-   still pond (§19.6) must be gone first, or a still pond and a slow creek look the same to a floating leaf.
+- Cost: "i am worried that 'moving' water will have a serious engine cost... i dont want to create a situation where a
+  single creak tanks performance". Budget: **2 ms** of frame time, worst case ("2ms seems fine me").
+- Physical: "the important thing is a physically realized water system. I want to be able to redirect creaks, i want to
+  be able to damn flowing water and watch levels change. there has to be some respect to volume... water has to come
+  from somewhere and end up somewhere". "current has to be a object of the simulation not set."
+- Far away: "drop a floating item into a moving body of water and have it float down the body of water for a long time
+  even when it is out of site of player or outside the window".
+- Terrain: "the entire foundation of the engine is a destructable and changeable terrain... potentially massive
+  construction efforts to shape land and creat water features... there needs to be 'water sources', and then the engine
+  needs to be abel to handle the paths that the water will take".
+- Players: "the engine should be able to handle the idea of players adding water sources". Evaporation: "just be
+  background balance for now".
+- Settling: "it cant be a situation where water sources are defined then the world has to 'fill up'... we need a way of
+  either speeding it up or figuring out where things settle quickly."
+- Underground: "i dont want a water source on teh service from a creek resulting in the underground world slowing
+  filling up... a large mineshaft should not be floodable by a small creek... i expect a small underground cave to be
+  floodable, but i want that limit to be for very small caves... i can picture a situation were it becomes impossible
+  to remove the water of flooded underground openenings, and i want to reduce that risk from a game play perspective."
 
-**Proposed steps (each its own design + check):**
-- **H0 - the rig and the measurement.** A one-chunk sloped channel on the Small bench (subcube-step bed, a few rocks,
-  an inlet pump at the top, a non-reflecting outlet at the bottom), and a harness that measures S10: steady-state
-  inflow = outflow, depth and mean speed against Manning for the rig's slope, the standing wave at a rock, mass ledger.
-  Run on today's solver, friction off and on - the red baseline. Also re-measure the phantom current (6).
-- **H1 - bed friction replaces pond friction** (2): the law, its constant grounded (Manning n for a stony bed), tests:
-  S10 depth/speed within the gate AND the 24.8 slosh still settles (half-life measured), the S-rows that run
-  friction-off unchanged.
-- **H2 - the outlet and the inlet** (3) as world-usable primitives (a creek enters and leaves a volume).
-- **H3 - the look** (5): whitewater at rocks from the solver, ripples carried by the flow; owner's look in motion.
-- **H4 - things carried** (6): a leaf, a stick, a stone rolling in the current; owner's look.
-- **Then:** creeks in the generated world (the D4 river spans, the float-bottom span creeks need, §16.9), rivers, and
-  shorelines (G resumes).
+### 25.2 The principles (each a rule the build is checked against)
 
-**Not in H:** wading (E4), containers and pipes, the §23 liquids (queued; the owner orders them against H), splashes
-as cosmetic particles (owner preference, §0a - designed when asked).
+- **P-W1 One water.** Every litre is in exactly one place: a column, a 3-D window, a far body, a droplet, a container.
+  Moving between them is a transfer counted in the ledger, never a copy.
+- **P-W2 Sources in, sinks out, ledger always.** Water enters only from a SOURCE and leaves only into a SINK (25.4);
+  edits never create or destroy water (rule 3 stands). The ledger answers "where did this water come from" at any time.
+- **P-W3 Paths are computed, never stored as truth.** Where water goes is the result of the ground as it is now plus
+  the sources; the generator's hydrology bake is an INITIAL CONDITION and a source placer, no longer an authority.
+- **P-W4 The current is simulated.** Velocity is a state of the simulation at every tier; it changes when the ground or
+  the sources change.
+- **P-W5 Cost follows activity, never extent.** Still water sleeps (free); flowing water costs per wet moving column;
+  3-D detail only in capped windows. No quantity in the cost grows with the length of a creek or the size of a lake.
+- **P-W6 Drawing is separate from simulating.** What is in view is drawn; what is simulated runs whether seen or not.
+- **P-W7 Chunks are invisible.** No result depends on chunk identity or load order (Feature Design Keys); the
+  non-local computations (settling, the far tier) run on the hydrology region grid.
+
+### 25.3 What the world stores (the water record)
+
+| Stored | Where | Content | Authority |
+|---|---|---|---|
+| Sources | world DB, new `water_sources` table | id, world position, rate (m^3/s), kind (spring / player / tributary-in / rain later), enabled, created-by | **truth** |
+| Water columns | per chunk, alongside today's `WaterSpanLocal` runs (D1) | per wet column: its BED (so T2 runs without voxel chunks, 25.15 F2), its runs (bottom, top - several per column: a canal over a creek, a pool under an overhang; `kSurfaceMaxRuns` = 4), and for flowing runs a depth-averaged velocity (2 floats) | **truth** (the water itself) |
+| Far bodies | per hydrology region, a cache table | basins (spill level, volume curve, current level, outlet), channel reaches (discharge, mean speed, length, slope, endpoints), their links | **cache** - rebuilt from terrain + sources + columns whenever a region's terrain changes; a stale cache is detected by a terrain hash |
+| Water table | per hydrology region, a cache grid | groundwater elevation (25.8) | cache |
+| Ledger | world DB | cumulative in (per source) / out (per sink kind), and the current total per tier | **truth** (audit) |
+| Carried items | world DB (the existing entity/prop records) | an item's tier and, in the far tier, its reach + distance along it | truth |
+| 3-D windows | never | written back to columns before any save (as D1 does for ponds today) | - |
+
+Recipe (`world_meta`, so editing global JSON never changes an existing world): the underground drainage rate (25.8),
+the evaporation scale, the column tier's radius and rate, the window budget.
+
+### 25.4 Sources and sinks
+
+**Sources.** A spring is a world object with a rate; its water enters the column under it each tick (an existing pump
+primitive, §15.15, promoted to a world object). Generation places springs where the terrain gathers water: at creek
+heads and lake feeds, with the rate the hydrology bake's flow accumulation gives (catchment area x runoff - the bake
+already computes discharge per channel, `docs/TerrainGenerationV2.md` P2). Tributaries are just more springs upstream; there is
+no separate "river" object. **Players add sources** through the same object (API 25.11): the engine treats them exactly
+like springs; what a GAME allows (a spring block, a pump from a lake, an aqueduct) is a game-design layer on top.
+
+**Sinks.** (1) The sea - a prescribed boundary (Phase G, §18.2); (2) the edge of the world / a region with no further
+simulation (a counted outflow); (3) evaporation from open surfaces - background, rate x surface area, the rate from the
+world's climate (Penman-class values, a few mm/day; grounding at build); (4) seepage into the ground (25.8). A pump
+that removes water into a container is a transfer, not a sink.
+
+**The ledger.** Per tick: sum(sources) - sum(sinks) = change in total water, to float rounding, at every tier and across
+every hand-off. A creek in steady flow shows in = out; a dam shows in - out accumulating as a rising level.
+
+### 25.5 Three tiers of one water
+
+| Tier | Where | Model | Cost driver |
+|---|---|---|---|
+| **T1 live 3-D windows** | around disturbances near the player (a stone, a wader, a blast, a breach, a waterfall) | today's WaterCore (§15-§24): 3-D, splashes, droplets, ripples, bodies | cells in awake windows - capped by the budget |
+| **T2 columns** | every wet column inside a simulation radius (recipe; first target ~500 m), whether rendered or not | the §18 conservative shallow-water solver (`ShoreSolver`: hydrostatic reconstruction, HLL, Manning bed friction, exact ledger), extended to MULTI-RUN columns and to a sparse wet set | wet AND moving columns (still columns sleep) |
+| **T3 far network** | beyond the radius, and unloaded regions | basins + reaches (25.3) stepped as a graph: reaches carry discharge at their Manning speed, basins fill and spill (25.7) | number of reaches/basins, per region, at a low rate |
+
+**Hand-offs.** T1<->T2: a window is seeded from the columns it covers (depth -> fills, depth-averaged velocity -> face
+velocities with a log profile), takes T2's water in at its upstream faces and hands it back downstream, and on sleep
+writes its fills back as column runs + velocity (mass-exact, D1's rule). The window's edge must not be seen: the same
+surface height and velocity on both sides of the seam (red test 25.12). T2<->T3: when a region leaves the radius its
+columns are summarised into basins (volume, level) and reaches (discharge) - exact volume; when it re-enters, the
+columns are re-seeded from the basins (level) and reaches (normal depth from Manning at their discharge), then T2 runs.
+**Current** exists at every tier: 3-D velocity in T1, depth-averaged velocity in T2, reach speed in T3.
+
+**What replaces pond friction.** T2's bed friction is Manning's law on the wetted bed - physical, and it acts on a
+flow exactly as a stream needs. Inside T1 windows the 3-D core gets the same law at its wet solid faces, replacing the
+uniform pond friction of §24.7 (measured: it brakes flows, §24.8) - with the 24.8 slosh numbers as the regression.
+
+### 25.6 Terrain edits
+
+An edit changes the bed (or opens/closes a path) of the columns it touches: those columns' beds update, they wake, and
+T2 moves the water - a dam is just bed raised across a channel, and the level rises behind it at the rate the inflow
+fills it; a dug channel is bed lowered, and water takes it. Near the edit a T1 window wakes (water pouring into a hole,
+a breach). Edits only happen near the player, so T3 never sees an edit live: a region's T3 cache is rebuilt from its
+final terrain when it leaves the radius (and on load if its terrain hash differs). Massive earthworks are just many
+edits; a large reservoir at rest sleeps like any pond.
+
+### 25.7 Settling fast: generation, catch-up, player sources far away
+
+Never simulate filling to reach a resting state. Compute it:
+1. **Basins.** Priority-Flood (Barnes et al. 2014; already in the engine, `PriorityFlood.h`) over the region's bed
+   gives every depression, its spill level and outlet, nested into a depression hierarchy.
+2. **Water through the hierarchy.** Fill-Spill-Merge (Barnes, Callaghan & Wickert 2021, *Earth Surface Dynamics* - "Computing
+   water flow through complex landscapes, Part 3: Fill-Spill-Merge"; grounding auditor to confirm the citation) routes
+   the sources' discharge through it: a basin whose inflow exceeds its evaporation + seepage at spill fills to its spill
+   and passes the remainder on; one that cannot settles where evaporation + seepage over its surface equal its inflow
+   (a terminal lake).
+3. **Reaches.** Discharge along each channel = what its sources and upstream basins pass, minus losses; depth and
+   speed from Manning's normal depth on the channel's actual cross-section and slope.
+4. **Polish.** T2 runs a few seconds of simulated time from that state (close to the answer, so it converges fast) -
+   only inside the radius.
+
+Uses: **generation** (a new world starts with lakes at level and creeks running); **catch-up** in T3 (a basin fed by a
+source fills in TIME at its net inflow, so a reservoir filling far away for an hour is exactly an hour fuller - an
+event step on the graph, not a simulation); **player sources far away** (the same); **a region re-entering the
+radius** (T2 seeded from it). Near the player nothing is computed this way: a new spring there fills its hollow live.
+
+### 25.8 Underground water
+
+**Openings only.** Water reaches a cave only through real openings in the voxels; T2's multi-run columns and the 3-D
+basin analysis (below) see a cave as its own basin, linked to the surface only where an opening exists.
+
+**The drainage limit (owner's rule: small caves flood, large mines do not, nothing becomes undrainable).** Above the
+water table, every wetted underground floor and wall drains at a rate k per square metre (m^3/s per m^2 = m/s). A source
+pouring into a space spreads until its wetted area drains what it brings: **steady wetted area A = Q / k**. With the
+default k = 1e-4 m/s, a 20 L/s creek can keep ~200 m^2 wet: a cave smaller than that fills completely; a large mine
+gets a pool of ~200 m^2 in its lowest part and no more, however long the creek runs; a bigger river floods
+proportionally more. **k is a gameplay value, not real rock** (real conductivities: gravel ~1e-3-1, sand ~1e-5-1e-2,
+clay ~1e-11-1e-8, unfractured granite ~1e-14-1e-10 m/s - Freeze & Cherry, *Groundwater*, 1979; to be confirmed at
+build): it is a world-recipe setting, and the ledger books it as water returning to the ground (a sink). Per-material
+multipliers keep the physical ORDER (gravel drains fastest, clay slowest) without letting any common rock seal a mine.
+
+**Always drainable.** (1) Cut the inflow and the space drains by itself at k x wetted area (a 1,000 m^3 flooded cave at
+200 m^2: ~14 game-hours; small caves minutes); (2) pumps and buckets (the §4.6a containers) remove water faster than
+any source refills a cave of the limit's size - a design inequality checked in the tests; (3) a drain tunnel to lower
+ground empties it physically; (4) gravel or sand placed as a floor drains at its higher multiplier.
+
+**The water table.** Each hydrology region carries a groundwater surface: equal to the surface-water levels (rivers,
+lakes, the sea) where they exist, and between them a subdued copy of the topography (the standard approximation:
+Haitjema & Mitchell-Bruker 2005, "Are water tables a subdued replica of the topography?", *Ground Water* 43). **At
+generation**, a cave below the table is filled up to the table: underground lakes appear with no filling time. **At
+runtime**, a dug space below the table takes groundwater seepage only through permeable layers (sand, gravel), never
+through stone, and always slower than a pump - mining below the table is a manageable leak, never an unwinnable
+flood. Springs are, physically, where the table meets the surface - the generator places them there.
+
+**Generation keeps the natural world consistent.** A generated creek crossing a cave above the table either gets a
+sealed bed or becomes a sinking stream (its water a counted seepage sink) - no accidental floods at world creation.
+
+**3-D basins.** Steps 25.7 1-2 work on a height field; caves need them on the voxel volume (stacked basins linked by
+openings). This is the hardest new piece: a design and a red test of its own before it is built (H5).
+
+### 25.9 Floating items in every tier
+
+T1: a full physics body (today). T2: a lightweight floater moved by the column velocity at its position each tick -
+snagging on banks (dry neighbour), wedging on rocks (bed above the surface), stopping in still pools; a few lookups per
+item, thousands cost nothing. T3: an item becomes (reach, distance along it) moving at the reach's mean speed, through
+basins (a residence time from basin volume / outflow) and over spills; a dammed reach (its basin not spilling) holds it.
+An item crossing into a nearer tier is placed at its position and handed the local velocity. T3 is coarse by design: a
+far item follows a channel's main line at its average speed, not its eddies.
+
+### 25.10 The budget (2 ms worst case)
+
+| Part | Allotment | Enforcement |
+|---|---|---|
+| T1 windows | <= 1.2 ms | a cap on awake window cells and count; beyond it a new disturbance gets a smaller window or waits - refused or shrunk, counted, logged (the §22 rule: never silently slow) |
+| T2 columns | <= 0.6 ms | runs only wet, moving columns; still columns sleep; the rate drops where nobody looks (a slower step for columns outside the view, never below the stability bound) |
+| T3 + items | <= 0.2 ms | graph steps at a low rate, amortised across frames |
+| Settling (25.7) | off-frame | a worker job; generation and region entry wait on it, play does not |
+
+The allotments are a plan; H0 measures the real numbers before they are fixed.
+
+### 25.11 API (debug routes first, as everywhere in WaterCore)
+
+`water_sources {add | remove | list}` (position, rate, kind; echoes the ledger effect); `water_network` (per tier:
+wet / moving columns, windows, items, ms, budget refusals); `water_ledger` (extended: per source and per sink kind);
+`water_settle {region}` (run 25.7 now, report the time and the result); `water_ground {drainage_k}` (the recipe value,
+clamped and echoed; 0 = no underground drainage, the A/B control). Units in m, m^3/s, m/s; omitted = unchanged.
+
+### 25.12 Tests (each phase red first; the rigs are WaterBench projects, one chunk where the scenario allows)
+
+| # | Test | Prediction | Control |
+|---|---|---|---|
+| WS-1 | T2 on a sloped test creek: steady flow | inflow = outflow within 2 % after settling; depth within 15 % of Manning normal depth | the same rig with no slope: no flow |
+| WS-2 | a dam built across it | the level behind rises at (inflow - spill) / pool area within 10 %; downstream discharge drops, then recovers when it spills | no dam |
+| WS-3 | a channel dug to redirect it | the water takes the new channel; the old one drains | - |
+| WS-4 | a T1 window inside a flowing creek | no visible seam: surface height and velocity continuous across the window edge within 1 cm and 5 % | window off |
+| WS-5 | the ledger | over every test, sources - sinks = change in total, to float rounding | - |
+| WS-6 | settling (25.7) on a generated region | lakes at spill or terminal level; creeks at Manning depth; a short T2 run moves the levels < 2 cm | simulated filling from dry: the same end state, hours of sim time |
+| WS-7 | chunk independence | the settled state and the T3 cache are identical whatever the chunk load order (FloraMarginTest shape) | - |
+| WS-8 | drainage limit | a 20 L/s source into a sealed 100 m^2 cave fills it; into a 2,000 m^2 mine wets 200 m^2 +- 15 % and stops; cut the source and both drain | k = 0: both fill |
+| WS-9 | a pump beats refilling | a pump empties a limit-size flooded cave while its source runs | - |
+| WS-10 | a floating item | travels 500 m down a T2 creek and on into T3 and back; arrives where and when the water speed says (+- 15 %) | still water: it stays |
+| WS-11 | cost | the 2 ms budget held with N disturbances at once; a 1 km creek costs the same as a 100 m one when nothing is disturbed (P-W5) | - |
+| WS-12 | the T2/T3 boundary is not chunk-shaped (25.15 F2) | an item and the water crossing the boundary at a chunk seam and mid-chunk follow the same trajectory within 15 % | - |
+
+### 25.13 Build order (each step designed in detail and design-checked before building; owner looks in motion)
+
+- **H0 - measure first.** `ShoreSolver` as a creek solver on a sloped bench channel (WS-1..3 on today's code: does it
+  flow, dam and redirect correctly, and what does it cost); the 3-D core on a 30 m creek for comparison. Decides
+  whether T2 is the shore solver extended or something new.
+- **H1 - T2 as a world service.** Multi-run columns over the wet set, beds from voxels, edits waking columns, sources and
+  sinks as objects, the ledger, Manning bed friction (and §24.7's replacement in T1). WS-1..3, 5, 11.
+- **H2 - T1<->T2 hand-off.** Windows seeded from and written back to columns, no seam. WS-4.
+- **H3 - settling and the record.** Priority-Flood + Fill-Spill-Merge inside the hydrology bake (generation) and on
+  edited regions (runtime), the settled levels as the ONE authority flora / WorldForge / render read (25.15 F3, F4), the
+  save format of 25.3, generation starting full. WS-6, 7.
+- **H4 - T3 and carried items.** Basins + reaches stepped as a graph, item hand-off across tiers. WS-10.
+- **H5 - underground.** 3-D basins, the drainage limit, the water table, generated underground lakes, sinking streams.
+  WS-8, 9.
+- **H6 - the look of moving water** (whitewater at rocks from the solver, ripples carried by the flow) - alongside, as
+  the owner's look demands.
+
+### 25.14 Risks and open questions, stated
+
+- **Multi-run columns** (water above water) are new for the shallow-water scheme; H0/H1 decide whether stacked runs
+  are separate solves linked at openings or one scheme.
+- **3-D basins** (25.8) have no ready algorithm in the engine; their red test comes first in H5.
+- **Big events** (a reservoir released): many moving columns at once - T2's cost under a flood wave is WS-11's stress row.
+- **The seam** between T1 and T2 (WS-4) is where past attempts failed visibly (G's sheet/band seam, §18.5).
+- **Accuracy of T3:** coarse by design (main line, average speed); the owner accepted the trade for far items.
+- **The old CA and `WaterManager`** keep running until the delete ledger (§9) retires them against these tests; nothing
+  is removed before its replacement passes.
+
+### 25.15 Design-check (2026-10-11) - round 1 NEEDS WORK (seven findings), folded in below; round 2 READY for H0 only
+
+Checked against `docs/FeatureDesignKeys.md`, `ShoreSolver.h`, `WaterSurfaceMesh.h` (`WaterSurfaceField` /
+`SurfaceColumn`, up to `kSurfaceMaxRuns` = 4 runs per column), `Chunk::WaterSpanLocal`, `HydrologyMap` / `FlowField` /
+`WaterBodyIndex` and their consumers (`WorldGenerator.cpp` flora gating at :1296 and :1402, `WorldForgePlan.cpp`
+settlement siting, `WaterProfile.cpp` render upload).
+
+**1. Voxel aesthetic.** No assets. The risk is how T2 water LOOKS: §25 said drawing is separate but never how T2 is
+drawn. **F1 (fold-in):** T2 publishes the same `WaterSurfaceField` the 3-D core publishes today (columns of runs with
+bottom/top; `kSurfaceMaxRuns` = 4 already allows stacked water), so ONE surface mesher and ONE shader draw T1 and T2 -
+the seam (WS-4) is then a data question, not two renderers meeting. T3 is never drawn up close (it exists only where
+nothing is rendered at water detail); at distance, the existing far water draw stays until its own design. Detail is
+unconditional: T2 is not a quality tier, it is where water is simulated at column resolution.
+
+**2. Chunk independence.**
+- *Storage per chunk* (column runs + velocity next to `WaterSpanLocal`): cost/persistence only - fine.
+- **F2 - the T2/T3 boundary.** T2 needs beds; if "inside the radius" meant "chunk resident", the boundary would be
+  chunk-shaped and an item's behaviour (column-carried vs main-line) would change at a chunk edge - a defect.
+  **Fold-in:** the wet-column record stores each column's BED (25.3), so T2 runs without voxel chunks; the T2 set is
+  chosen on the WATER GRAPH - whole reaches and basins whose nearest point is within the radius, with hysteresis - so
+  the boundary falls inside a reach or at a basin outlet, never at a chunk edge. Red test **WS-12**: an item and the
+  water state crossing the T2/T3 boundary at a chunk seam and mid-chunk give the same trajectory within 15 %.
+- **F3 - resolution of settling.** Fill-Spill-Merge over a whole region at 1/3 m columns is not affordable, and unloaded
+  regions have no fine beds. **Fold-in:** two resolutions. (a) GENERATION: the settle runs INSIDE the hydrology bake, at
+  the bake's resolution, as a pure function of the bake's inputs (the bake is already "a PURE function of (generationType,
+  seed, climateFrequency...)", `WorldGenerator.cpp:251`) - order-independent by construction, since it reads no chunk;
+  fine water is then placed per chunk from the settled levels, as D4 places river spans today. (b) RUNTIME: the fine
+  settle (Priority-Flood + FSM on the 1/3 m beds) runs only on the T2 set and on regions whose terrain was EDITED, at
+  unload, from their own saved beds. WS-7 is the chunked-vs-whole test for (a): the settled levels per column are
+  identical whether the region is evaluated whole or chunk by chunk in any order.
+- No new cross-chunk lookups: T2 reads its own column record, not neighbour chunks.
+
+**3. Procedural generation.** Stage: **hydrology** (consumes terrain heights, climate; produces sources, settled water
+levels, the water table). **F4 - the later stages read the bake's lake levels**: flora is gated "under lake/sea"
+(`WorldGenerator.cpp:1296`, :1402), WorldForge sites settlements from `WaterBodyIndex`, the render upload reads the same
+levels. If the settle produced different levels (a terminal lake below its spill), trees would stand in water and
+towns would sit on the wrong shore. **Fold-in:** the settled levels REPLACE the bake's lake levels as the one
+authority every later stage reads (one field, `HydrologyMap` levels after settling) - no second water-level source. The
+water table (25.8) is computed in the same stage. Per-world tuning in `world_meta` (25.3): drainage k, evaporation
+scale, T2 radius, budget - and the hydrology version, so an existing world never changes when the code's defaults do.
+
+**4. API.** **F5 - clamps and defaults were unstated.** Fold-in: `water_sources add` rate clamped to (0, 10] m^3/s
+(the existing `water_av_source` bound - above it one cell cannot accept the inflow per tick at 1/9), position must be
+in a loaded column or it is refused with the reason; `water_ground {drainage_k}` clamped [0, 1e-2] m/s (0 = off, the
+control; above 1e-2 a creek could not wet a 1 m^2 floor - water would vanish at the cave mouth), default 1e-4; T2
+radius [64, 2048] m, default 512; budget [0.5, 8] ms, default 2. Every route echoes the resulting state; omitted =
+unchanged; each clamp states its failure at the site. Defaults are new (no earlier pin); WS-8 pins k, WS-11 the budget.
+§24.7's pond friction default changes when H1 replaces it - `PondFrictionHalvesASloshEveryFiveSeconds` and the S8 test
+are updated in that commit.
+
+**5. Visual test plan.** "Works" is WS-1..WS-12, each a number with a control (25.12). Depth: L2 for the ledger and
+settling (WS-5, 6, 7), L3 for flow, dams, redirects, drainage and items (WS-1..3, 8..10, 12), L4 + the owner's look in
+motion for every phase. **F6 - rigs.** WS-1..4, 8, 9 fit one chunk (a 30 m sloped channel and a cave on WaterBench_Small,
+both authored like the §11 A rigs); **WS-10 (500 m travel), WS-11 (a 1 km creek) and WS-12 cannot** - they need a long
+creek: a new bench, `WaterBench_Creek` (a generated or authored 1 km sloped channel with a pond, a cave and a dam site),
+stated as a multi-chunk rig by necessity. **F7 - two waters in one place.** The old CA (`WaterManager`) still pins lakes
+and rivers from the bake (Water.md); on a bench where both run, the measurements mix. Fold-in: §25 benches run with the
+CA disabled (`water.enabled` false, the core only), and the delete ledger (§9) retires the CA per region only after the
+WS tests pass there. Rig vs shipped: benches use shipped §25 defaults; H0 additionally runs friction-off and k = 0
+controls.
+
+**Round 2:** voxel look (one surface pipeline for T1 + T2, unconditional); chunks (bed in the record, T2 set on the water
+graph, settle inside the pure bake, WS-7 + WS-12); generation (hydrology stage, settled levels the single authority for
+flora / WorldForge / render, recipe persistence); API (units, clamps with reasons, echoes, defaults and the pins they
+move); tests (WS-1..12 with predictions and controls, one-chunk rigs where possible, `WaterBench_Creek` where not, CA
+off). **READY for H0** (a measurement: `ShoreSolver` on a sloped channel - flow, dam, redirect, cost - and the 3-D core
+on 30 m). H1-H6 each get their own detailed design and check before building, as 25.13 says.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
