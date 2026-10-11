@@ -3801,6 +3801,40 @@ asked ("not slowed by the water").
 **P-L3 (live pair, `tools/water_pebble_pair.py`, `pebble_pair_p1.{json,mp4}`, low pose):** the 1/3 m stone 4.7 m/s at
 0.2 m -> 3.3 m/s at 1.4 m; the 1/9 m stone 3.5 m/s at 0.3 m -> 1.7-1.8 m/s from 1 m down - the small one visibly lags.
 
+### 24.11 The level dropped in one jerk (owner, 2026-10-11) - two causes, both fixed. Status: built, not signed off
+
+**Seen:** the owner, on `pebble_pair_p1.mp4`: "does it look like the water level drops in a single jerk". Measured: the
+visible water shrank by a third in one frame (9,212 -> 6,208 pond pixels). A no-stone control showed the same: the
+drawn surface fell 16.62 -> 16.50 m within ~0.5 s, exactly when the volume's specific KE dropped into the settle band.
+
+**Cause 1 - the demo pond was built with a void.** `WaterCoreManager::placeBox` wrote `fill` into EVERY sub-cell of a
+voxel, so "half a voxel" (the demo's y = 16 layer) became three stacked half-full 1/3 m cells. Compaction used to
+squash that in the first second; 24.6 confined compaction to the settle band, so the pond carried the void (the cell
+under the surface 0.62-0.70 full, water held ~11 cm high) and sloshed from its own construction for ~12 s, then
+collapsed it in one go. **Fix:** a voxel's water lies on its floor - sub-layer j from the bottom gets fill x per - j,
+clamped (same total; the reply says `layering: bottom_up`). Live, no stones: the surface reads 16.500 m from the first
+sample, the cell under it full throughout, the largest sample-to-sample move 0.1 mm. (The pre-fix demo clips started
+from a pond that was still sloshing; their "before" motion is partly that.)
+
+**Cause 2 - voids made by moving water waited for the settle band.** `TheLevelNeverJerks` (W-T7, CPU, the 20.8 pond built
+right, a 5 cm slosh, 30 s): with 24.6's gate the pond-average surface floats 21 mm high and moves 10.5 mm in one tick
+(RED); **fix:** a void under a LIQUID cell closes always - at `SolverParams::compactionSpeed` = 0.01 m/s in moving water,
+at free fall in the settle band; a void under a thin film still only in the settle band (the wave drain of 24.6).
+Measured alternatives: closing at free fall always - waves on a half-full cell kept 0.69 (mode 2) / 0.42 (mode 4) per
+swing and a droplet test broke; slow everywhere - voids at rest stayed (pond 13.5 mm high; spawn, cavity, scrap rows
+red). W-T7 with the fix: 6.8 mm worst, 2.1 mm per tick. GPU: the same rule in `wc_column_ops.comp` (param0 settling,
+param1 the speed).
+
+**Costs, stated:** on a half-full top cell the short waves give some energy back - mode 3 0.82, mode 4 0.53 per swing
+(24.6: 0.94 / 0.97); the 5 s friction slosh at that level measures a 1.3 s half-life (5.2 / 4.4 s at 0.25 / 0.75). The
+wave tests' bounds for those are the measurements. Long waves (modes 1-2) keep >= 0.91 everywhere. A drift bound in
+`AScrapFliesAndLandsMassExact` became relative (the bottom-up scrap rounds differently: 6e-6 relative, born = landed
+exactly). The proper cure for voids made by motion - a volume correction in the pressure solve (the deficit of a
+liquid cell pulled back over ~1 s) - is the next lever, not built.
+
+**Live (`pebble_pair_p1fix.mp4`):** largest frame-to-frame change of visible water 404 px (the old clip: 3,004 in one
+frame); the stones sink as before (1/9 m 1.8-1.9 m/s, 1/3 m ~3.5 m/s). 283 water / buoyancy tests pass.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

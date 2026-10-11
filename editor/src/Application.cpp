@@ -13831,7 +13831,7 @@ void Application::registerWaterCommands() {
             long outside = 0;
             const long set = waterCore->placeBox(glm::ivec3(x1, y1, z1), glm::ivec3(x2, y2, z2), mass, &outside);
             r = {{"success", true}, {"target", "core"}, {"cells_set", set}, {"voxels_outside_any_volume", outside},
-                 {"fill_each", mass}, {"core_total_mass", waterCore->totalMass()}};
+                 {"fill_each", mass}, {"layering", "bottom_up"}, {"core_total_mass", waterCore->totalMass()}};
             return;
         }
         if (!waterManager) return noWater(r);

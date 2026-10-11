@@ -1251,7 +1251,7 @@ void WaterSolver::applyRestDamping(float dt) {
 // is left to the projection. A first attempt did this through the pressure solve as a divergence
 // target; the 1/dt^2 right-hand side perturbed every transient partial cell in a collapsing dam
 // (fine front 15.3 m vs 16.0 m, Torricelli drain 30 % fast) and was replaced by this transport.
-void WaterSolver::compactSubmergedPartials(float dt) {
+void WaterSolver::compactSubmergedPartials(float dt, bool settling) {
     const float thr = m_params.liquidThreshold;
     const float h = m_grid.h();
     const float cap = static_cast<float>(std::sqrt(2.0 * m_params.gravity * h) * dt / h);   // cell fraction per substep
@@ -1262,6 +1262,7 @@ void WaterSolver::compactSubmergedPartials(float dt) {
         if (fb + sb < thr || fb + sb >= 1.0f || (sb > 0.0f && fb < WaterGrid::kSurfaceMinDepth / h) || blocked(m_grid, x, y, z) || blocked(m_grid, x, y + 1, z)) continue;
         const float fa = m_grid.f(x, y + 1, z);
         if (fa <= 0.0f) continue;
+        if (!settling && fa + m_grid.s(x, y + 1, z) < thr) continue;   // 24.11: under a thin film only while settling
         // only a QUIET face is a void under water: a draining column over a hole or a sheet
         // climbing a wall is moving water through this face already (Torricelli drain ran 28 %
         // fast and the wall crest fell 0.4 % short with the cap added on top of the flow), and
@@ -1286,7 +1287,7 @@ void WaterSolver::compactSubmergedPartials(float dt) {
         const float wc = 0.5f * (m_grid.w(x, y, z) + m_grid.w(x, y, z + 1));
         const float vFree = static_cast<float>(std::sqrt(2.0 * m_params.gravity * h));
         if (uc * uc + wc * wc > 0.01f * vFree * vFree) continue;
-        const float moved = std::min({fa, 1.0f - sb - fb, cap});
+        const float moved = std::min({fa, 1.0f - sb - fb, settling ? cap : std::min(cap, m_params.compactionSpeed * dt / h)});   // 24.11: slowly in moving water, at free fall while settling
         m_grid.f(x, y, z) = fb + moved;
         m_grid.f(x, y + 1, z) = fa - moved;
     }
@@ -1457,10 +1458,12 @@ StepReport WaterSolver::step(float dt) {
         m_transport->advect(m_grid, ds);
         resolveFreshOverflow();   // 20.5: a spawned body's water moves up its column (no rate, no fake splash)
         enforceSolidFaces();
-        // compaction closes a SETTLING pool's voids (the frozen half layers it was written for are at rest); in moving water
-        // it pulled the transport's film back down at every turning point of a wave - the pond kept 0.74-0.90 of a wave
-        // per swing with it, 0.92-1.0 without (WaterCore.md 24.6). Settle band only, like the rest damping.
-        if (settleBefore && !(off & 1u) && !m_transport->ownsMass()) compactSubmergedPartials(ds);
+        // compaction (WaterCore.md 24.11): a void under a LIQUID cell closes always; under a thin film only while settling.
+        // Under a thin film in moving water it pulled the transport's film back down at every turning point of a wave (the
+        // pond kept 0.74-0.90 of a wave per swing, 24.6); confining ALL of it to the settle band let real voids build
+        // under the surface (a 30 % pocket, the water above it 11 cm high) and collapse in one jerk when the band switched
+        // on (owner, 2026-10-11: "does the water level drop in a single jerk?").
+        if (!(off & 1u) && !m_transport->ownsMass()) compactSubmergedPartials(ds, settleBefore);
         applyGravity(ds);
         if (!(off & 2u)) applyThinFilmGradient(ds);
         if (!(off & 4u)) settleThinFilmTopFaces();

@@ -336,7 +336,11 @@ long WaterCoreManager::placeBox(const glm::ivec3& minVoxel, const glm::ivec3& ma
             const int cx = base.x + i, cy = base.y + j, cz = base.z + k;
             if (!av->grid->inBounds(cx, cy, cz)) continue;
             if (av->occCache[av->grid->idx(cx, cy, cz)] != Occ::Air) continue;   // never put water in rock
-            av->grid->f(cx, cy, cz) = std::clamp(fill, 0.0f, 1.0f);
+            // the voxel's water lies on its FLOOR (WaterCore.md 24.11): sub-layer j from the bottom holds fill x per - j,
+            // clamped - the same total. Writing `fill` into every sub-cell stacked half-full cells (0.5 / 0.5 / 0.5 for a
+            // half voxel), a void under water the solver then had to collapse; once compaction stopped acting on moving
+            // water (24.6) the demo pond carried it until it settled and dropped 11 cm in one jerk (owner, 2026-10-11).
+            av->grid->f(cx, cy, cz) = std::clamp(std::clamp(fill, 0.0f, 1.0f) * static_cast<float>(av->per) - static_cast<float>(j), 0.0f, 1.0f);
             ++set;
         }
         // Phase B2: a particle volume is re-seeded from the fills it now shows (its own p2g field

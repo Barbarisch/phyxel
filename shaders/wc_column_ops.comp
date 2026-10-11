@@ -76,13 +76,14 @@ void main() {
             if (fb + sb < pc.thr || fb + sb >= 1.0 || (sb > 0.0 && fb < 0.001 / pc.h) || blocked(x, y, z) || blocked(x, y + 1, z)) continue;
             const float fa = f[cellIdx(x, y + 1, z)];
             if (fa <= 0.0) continue;
+            if (pc.param0 == 0.0 && fa + solid[cellIdx(x, y + 1, z)].x < pc.thr) continue;   // 24.11: under a thin film only while settling (param0 = 1)
             const float vFace = v[vIdx(x, y + 1, z)];
             const float already = abs(vFace) * pc.dt / pc.h;
             if (vFace > 0.0 || already > 0.1 * cap) continue;
             const float uc = 0.5 * (u[uIdx(x, y, z)] + u[uIdx(x + 1, y, z)]);
             const float wc = 0.5 * (w[wIdx(x, y, z)] + w[wIdx(x, y, z + 1)]);
             if (uc * uc + wc * wc > 0.01 * vfall * vfall) continue;
-            const float moved = min(min(fa, 1.0 - sb - fb), cap);
+            const float moved = min(min(fa, 1.0 - sb - fb), pc.param0 == 1.0 ? cap : min(cap, pc.param1 * pc.dt / pc.h));   // 24.11: slowly in moving water (param1 m/s)
             if (moved <= 0.0) continue;
             f[cellIdx(x, y, z)] = fb + moved;
             f[cellIdx(x, y + 1, z)] = fa - moved;

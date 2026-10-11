@@ -90,8 +90,10 @@ TEST(WaterDropletTest, AScrapFliesAndLandsMassExact) {
     EXPECT_LE(r.lastLandT, predicted + 0.1f) << "landing later than the flight time";
     EXPECT_GE(r.lastLandT, predicted - 0.1f) << "landing earlier than the flight time (a droplet stopped in mid-air)";
     EXPECT_NEAR(r.landed, r.born, 1e-6);
-    EXPECT_NEAR(r.gridEnd, r.m0, 1e-6) << "all of it back in the grid";
-    EXPECT_LE(r.worstDrift, 1e-6) << "grid + pool must be conserved every tick";
+    // relative since 2026-10-11 (WaterCore.md 24.11): the scrap is placed bottom-up now (one 0.6 cell, not three 0.2 cells)
+    // and its float32 rounding path read 1.22e-6 m^3 on 0.2 (6e-6 relative) - born = landed exactly; the drift does not grow
+    EXPECT_NEAR(r.gridEnd, r.m0, 1e-5 * r.m0) << "all of it back in the grid";
+    EXPECT_LE(r.worstDrift, 1e-5 * r.m0) << "grid + pool must be conserved every tick";
 
     // control: rested water is never born
     WaterCoreManager mgr(stoneBox({0, 0, 0}, {3, 3, 3}));

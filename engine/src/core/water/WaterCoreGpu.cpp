@@ -504,7 +504,13 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
         barrier(cmd);
         if (vol.hasSolids) { push.mode = 3; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns); }   // 20.5 ledger: fresh / walled-in water up its column
         enforceSolids();
-        if (quietBefore) { push.mode = 1; dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns); }         // compaction (fills only) - settle band only (24.6, as WaterSolver::step)
+        {   // compaction (fills only, 24.11): voids under liquid always - slowly (param1 m/s) in moving water, at free fall while
+            // settling; under a thin film only while settling (param0 = 1)
+            const float p0 = push.param0, p1 = push.param1;
+            push.mode = 1; push.param0 = quietBefore ? 1.0f : 0.0f; push.param1 = params.compactionSpeed;
+            dispatch(cmd, *vol.pipes[ColumnOps], push, vol.columns);
+            push.param0 = p0; push.param1 = p1;
+        }
     }
     push.mode = 0; dispatch(cmd, *vol.pipes[FaceOpsV], push, vol.nv);                                       // gravity
     push.mode = 1; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU], push, vol.nu);                              // film slope x

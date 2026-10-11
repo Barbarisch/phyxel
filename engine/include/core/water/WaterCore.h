@@ -153,6 +153,12 @@ struct SolverParams {
     /// smooth voxel box lacks (irregular banks, plants, films, rough beds): without it the box is a laboratory tank and a
     /// disturbed pond sloshes for minutes (24.6). Default 2 ln 2 / 5 s; `water_pond_friction {half_life_s}`. 0 = off.
     float  pondFriction = 0.27726f;
+    /// m/s - compaction's closing speed in MOVING water (WaterCore.md 24.11): a void under a liquid cell closes always, at this
+    /// speed, so pockets never build up under a moving surface and collapse in one jerk when the volume settles (live: 30 %
+    /// pocket, the surface 11 cm high, an 11 cm drop at the switch). At free fall (2.6 m/s at 1/3 m) the closing drained
+    /// waves at their turning points (a 4 m wave kept 0.69 of itself per swing on a half-full cell); 0.01 kept 0.91. In the
+    /// settle band compaction runs at free fall (slow closing at rest left the S3 / spawn / cavity rows unsettled).
+    float  compactionSpeed = 0.01f;
     static float pondFrictionForHalfLife(float seconds) { return seconds > 0.0f ? 1.38629436f / seconds : 0.0f; }
     /// DIAGNOSTIC ONLY (bisecting a measured defect, never shipped on): bits disable a stage of
     /// the substep. 1 compaction · 2 thin-film slope · 4 thin-film settle · 8 "first halo layer only"
@@ -430,7 +436,7 @@ private:
     bool bodyWall(int x, int y, int z) const;   // 20.5: a cell full of body with no real water - a wall, not air
     void applyRestDamping(float dt);
     void applyPondFriction(float dt);
-    void compactSubmergedPartials(float dt);   // water above a partial liquid cell falls into it (free-fall capped)
+    void compactSubmergedPartials(float dt, bool settling);   // water above a partial liquid cell falls into it (free-fall capped)
     void sweepResidue(StepReport& r);   // merge sub-epsilon films, count what cannot be merged
     void resolveFreshOverflow();        // 20.5 ledger (a): a fresh body's excess moves up its own column
     int  substepsFor(float dt) const;
