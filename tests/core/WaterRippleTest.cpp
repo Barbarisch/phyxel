@@ -147,4 +147,35 @@ TEST(WaterRippleTest, ChunkSeamIsInvisible) {
 }
 
 }  // namespace
+
+// R-T7 (owner's screenshot 2026-10-10: the whole Small pond a black/white checkerboard, the layer at 0.8-1.4 m with
+// nothing driving it). The live layer: a 54 x 54 lattice (the 6-voxel box) whose water is the inner 36 x 36 (walls
+// masked), stepped once per frame with the frame's dt. RED before the fixed step: even 1/60 s steps decayed (0.9 mm
+// after 60 s, walls or not); jittered 4-25 ms frames grew without bound (1.7e6 m open, 2.9e6 m walled) - the
+// leapfrog keeps the previous height, so a step of a different length rescales the implied velocity.
+// Prediction: with every frame-time pattern the field 55-60 s after five kicks is below its first-second peak.
+TEST(WaterRippleTest, UnevenFramesStayBounded) {
+    auto run = [](bool walls, bool jitter, float seconds) -> void {
+        RippleLayer layer({0, 0}, 54, 54);
+        if (walls) for (int z = 0; z < 54; ++z) for (int x = 0; x < 54; ++x)
+            layer.mask()[layer.idx(x, z)] = (x >= 9 && x < 45 && z >= 9 && z < 45) ? 1 : 0;
+        for (int k = 0; k < 5; ++k) layer.addImpulse((15.5f + 6 * k) * kD, (20.5f + 3 * k) * kD, 200.0f);
+        uint32_t h = 12345u;
+        float t = 0.0f, peakLate = 0.0f, peakEarly = 0.0f;
+        std::printf("  walls %d, dt %s:", walls ? 1 : 0, jitter ? "jittered 4-25 ms" : "1/60");
+        int printed = 0;
+        while (t < seconds) {
+            float dt = 1.0f / 60.0f;
+            if (jitter) { h = h * 1664525u + 1013904223u; dt = 0.004f + 0.021f * static_cast<float>(h >> 8) / 16777216.0f; }
+            layer.step(dt); t += dt;
+            if (t > printed * 5.0f) { std::printf(" t%.0f %.1fmm", t, layer.maxAbs() * 1000.0f); ++printed; }
+            if (t < 1.0f) peakEarly = std::max(peakEarly, layer.maxAbs());
+            if (t > seconds - 5.0f) peakLate = std::max(peakLate, layer.maxAbs());
+        }
+        std::printf(" | first second peak %.1f mm, last 5 s peak %.1f mm\n", peakEarly * 1000.0f, peakLate * 1000.0f);
+        EXPECT_LT(peakLate, peakEarly) << "the field grew with nothing driving it (walls " << walls << ", jitter " << jitter << ")";
+    };
+    run(false, false, 60.0f); run(true, false, 60.0f); run(false, true, 60.0f); run(true, true, 60.0f);
+}
+
 }  // namespace Phyxel::Core::Water

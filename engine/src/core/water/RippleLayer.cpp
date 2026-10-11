@@ -168,10 +168,13 @@ void RippleLayer::convolve(const std::vector<float>& in, std::vector<float>& out
 }
 
 void RippleLayer::step(float dt) {
-    if (dt <= 0.0f || (m_asleep && !m_anyImpulse && !m_anyKin)) return;
-    int n = static_cast<int>(std::ceil(dt / kMaxStep - 1e-6f));
-    n = std::clamp(n, 1, kMaxSubsteps);
-    const float ds = std::min(dt / static_cast<float>(n), kMaxStep);
+    if (dt <= 0.0f || (m_asleep && !m_anyImpulse && !m_anyKin)) { m_accum = 0.0f; return; }
+    // fixed steps (kStep): frame time accumulates, a stall beyond kMaxSubsteps steps is dropped
+    m_accum = std::min(m_accum + dt, kStep * static_cast<float>(kMaxSubsteps));
+    const int n = static_cast<int>(m_accum / kStep + 1e-4f);
+    if (n <= 0) return;   // impulses and this frame's kinematic cells wait for the next whole step
+    m_accum = std::max(0.0f, m_accum - static_cast<float>(n) * kStep);
+    const float ds = kStep;
     const float a = m_a;
     for (int s = 0; s < n; ++s) {
         if (m_anyImpulse) {   // Cauchy-Poisson: dr/dt += -(K * I) / rho

@@ -3297,6 +3297,28 @@ tilts the normal, and at these view angles the pond's colour hardly depends on t
 through clear water and reflects a near-uniform sky (17.3, 21.10); a real pond's rings read through reflections
 of bright sky and dark banks (and sun glints) bending across them.
 
+### 22.10 The black checkerboard (owner, 2026-10-10) - the layer was unstable under real frame times; fixed. Two defects open
+
+**Seen:** the owner's screenshot (`Downloads/blackspots.png`) - the whole Small pond a checkerboard of black and white
+1/9 m facets; five 1/3 m stones (`five_stones.mp4`) - black/white facet rings from every entry; ripples off
+(`five_stones_noripple.mp4`) - none. Live, the layer read **0.8-1.4 m** with no body, droplet or impulse feeding it.
+
+**Cause 1 (fixed): instability under uneven frames.** The centred leapfrog stores the previous height; `step(dt)` used
+the frame's dt as its step, so every change of frame time rescaled the implied velocity. `UnevenFramesStayBounded`
+(R-T7, red first): even 1/60 s steps decay (0.9 mm 60 s after five kicks, walls or not); jittered 4-25 ms frames grew
+without bound (1.7e6 m open water, 2.9e6 m walled). Every earlier test stepped evenly. **Fix:** the layer steps a
+FIXED kStep = 1/120 s, accumulating frame time (a stall beyond 4 steps is dropped). After: jittered = even (0.9 /
+1.1 mm). Live five stones: 0.62 m at entry, then down to 0.06-0.08 m by 28 s (it grew to 1.4 m before).
+
+**Still open (not fixed - next):**
+2. **The body forcing has no bound.** Five stones crossing the surface put 0.57-0.62 m into the layer in a frame (the
+   high-pass of a 7 m/s entry, 22.3.2); on a 1/9 m facet that is a slope of several to one - black where the facet
+   faces away (the reflected ray points below the horizon), white where it catches the sun.
+3. **No breaking limit.** Real water holds no wave steeper than ~1/7 (height / length; Stokes) - it breaks. The linear
+   layer has no such limit, and its film damping (0.047 /s) keeps an oversized field for tens of seconds.
+4. **The shader has no guard for a facet tilted away from the eye** - whatever the layer holds, water should never
+   show the ground below the horizon.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

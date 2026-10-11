@@ -22,8 +22,13 @@ class RippleLayer {
 public:
     static constexpr int kRadius = 6;                       ///< kernel half-width (13 x 13), Tessendorf's
     static constexpr float kPitch = 1.0f / 9.0f;            ///< m - the microcube (owner, 2026-10-10)
-    static constexpr float kMaxStep = 1.0f / 30.0f;         ///< s - substep (stable while omega_max dt < 2: 0.12 s at this pitch)
-    static constexpr int kMaxSubsteps = 4;                  ///< a longer stall drops time - a visual field owes none
+    static constexpr float kMaxStep = 1.0f / 30.0f;         ///< s - the stability bound's step (omega_max dt < 2: 0.12 s at this pitch); the layer steps at kStep
+    /// s - the FIXED substep. The centred leapfrog stores the previous height, so a step whose length differs from the
+    /// last one rescales the implied velocity; stepping the frame's dt (4-25 ms jitter) pumped energy in until the pond
+    /// was a 1 m checkerboard (owner's screenshot 2026-10-10; WaterRippleTest.UnevenFramesStayBounded). Frame time is
+    /// accumulated and spent in whole steps.
+    static constexpr float kStep = 1.0f / 120.0f;
+    static constexpr int kMaxSubsteps = 4;                  ///< per call: a longer stall drops time - a visual field owes none
 
     /// `origin` = the lattice cell (world / kPitch, integer) of cell (0, 0); nx x nz cells.
     RippleLayer(const glm::ivec2& origin, int nx, int nz, float gravity = 9.81f);
@@ -77,6 +82,7 @@ private:
     std::vector<uint8_t> m_mask, m_kinSet;
     bool m_openBorder = true, m_asleep = true, m_anyImpulse = false, m_anyKin = false;
     int m_quietSteps = 0;
+    float m_accum = 0.0f;   ///< frame time not yet spent in whole kStep steps
 };
 
 }  // namespace Phyxel::Core::Water
