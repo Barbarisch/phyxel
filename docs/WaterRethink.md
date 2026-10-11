@@ -9,7 +9,8 @@
 > design-keys gates already run — the WP1 1b gate stays valid for WaterCore Phase D) and the WP0
 > ledger (benches, tooling, baselines, findings). Nothing starts until WaterCore §12 is settled.
 >
-> **Status: PLAN, nothing built.** `docs/Water.md` remains the current-state reference for the
+> **Status (2026-10-11): HISTORY + EVIDENCE.** Its ordering and architecture were replaced by [`WaterCore.md`](WaterCore.md)
+> (status: its §0a); the stock-take (§1-§2), gates (§8) and WP0 ledger stay as evidence. (Was: "PLAN, nothing built.") `docs/Water.md` remains the current-state reference for the
 > code as it exists today (layers, constants, traps, history). This document is the honest audit of
 > that code against the goal, the diagnosis of why four months of work did not hit the mark, and the
 > work-package plan that replaces Water.md §6 "Open work" as the ordering of record.

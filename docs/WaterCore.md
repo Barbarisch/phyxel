@@ -1,12 +1,13 @@
 # Water Core — the foundation for all future water work
 
-> **Status: DESIGN OF RECORD, not yet started (2026-10-08).** This document replaces the ordering
-> and the architecture sections of [`WaterRethink.md`](WaterRethink.md) (§3–§6 there are now
-> history; its §1–§2 stock-take, §8 gates and WP0 ledger remain the evidence base). `Water.md`
-> stays the current-state reference for the code as it exists today. Nothing in this document is
-> built; **nothing starts until the decisions in §12 are settled.** Every previous attempt at water
-> in this engine was judged unsatisfying by the user. This one is designed slower, from the small
-> scale up, and it is written so that each claim can be falsified before the next one is built on it.
+> **Status (2026-10-11): DESIGN OF RECORD and BUILD LEDGER, branch `feat/water-rethink`.** Phases A-F are built
+> (G built and paused); the small still pond is the working foundation - its feel was signed off by the owner
+> 2026-10-09 (§19.8), its ripples 2026-10-11 (§22.12.2). **Where things stand and what is next: §0a** (read it first).
+> The design sections (§1-§13) are the original plan; where a later ledger changed it, §0a and the ledger win.
+> `Water.md` stays the reference for the OLD CA water that still ships beside this; `WaterRethink.md` is the
+> 2026-10-07 stock-take. Standing rules: small bodies first; no universal water level, edits never create water;
+> nothing is done until the owner sees it in motion and signs off; every design here is design-checked before it is
+> built.
 
 ---
 
@@ -27,6 +28,44 @@
    water work.
 
 ---
+
+## 0a. Where things stand, and what is next (2026-10-11)
+
+**Signed off by the owner:** the small-pond feel - blasts, debris both ways, floaters, the drawn surface (2026-10-09,
+§19.8); the ripple layer's black/white-square fix (2026-10-11, "new ripples look really great", §22.12.2). Accepted for
+now: the ripple layer itself (§22.9); the first droplet cut ("honestly doesnt look bad. maybe more particles would be
+nice", §22).
+
+**Built, not signed off:** moving solids M0-M2 (§20.12-20.14); clear water S0 (§21.10); the droplet pool (§21.12);
+waves that keep their energy, pond friction, size-dependent stone drag, the level-jerk fix (§24.6-24.11).
+
+**The scenarios (§3), latest ledger:** S2 pump/overflow, S4 breach, S5 drain, S11 rest/reload PASS; S3 dam break front
+and seiche PASS, run-up at 1 m FAIL; S1 pour rests in 3.4-3.6 s against a 3 s gate; S8 push built and signed off
+(near-side 0.286 m against 0.3); S6 only partly (no crate; debris yes); S12 shore PASS on the column solver (look not
+signed off, G paused). **Never run:** S7 wading, S9 waterfall, S10 stream over rocks, S13 scoop, S14 pipe, C1-C5
+containers.
+
+**Open small-body items, by weight** (each with its section):
+- *Feel and correctness:* voids made by moving water are closed by compaction, not prevented - the cure is a volume
+  correction in the pressure solve (§24.11); short waves on a half-full cell keep 0.53-0.82 per swing (§24.11); the
+  ±2 cm terraces / cells stuck at f = 0.5 (§19.8, cause unestablished); a 0.08-0.10 m/s phantom current on a still GPU
+  pond (§19.6); wood floats high and a floating block's pond never sleeps (§19.3, §24.8; cure M4 two-way force, §20.6);
+  added mass not modelled (§24.10).
+- *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater S4 not wired to the breaking ledger (§21.4, §22.12);
+  1.5-2.3 % black facets at steep tilts from a second cause (§22.12.2).
+- *Parity and tests:* the CPU-GPU kick gap was not re-measured after the theta fix (§19.2, §24.5 F2); D-T5 droplet GPU
+  parity not written (§21.12); FLIP run-up parity (§15.15).
+- *Not started:* wading (E4), containers, pipes, scoop, AV merge/split, the §23 liquids.
+- **Owner preference, 2026-10-11 (not designed):** "ideally splash particles would not 'take' from the volume of the
+  pond. it should jsut be a few splash particles for affect." - today every droplet is pond water, ledger-exact (§12
+  #5, §21.2). Making splashes cosmetic is a design change to write and check when the owner asks for it.
+
+**Is the still pond ready to build on? Yes, for flowing water.** The owner signed off its feel; what remains open is
+polish (look, short-wave loss, terraces) or features that do not gate a stream (wading, containers, pipes, other
+liquids). What DOES gate a stream is listed in §25 and is the first part of it: pond friction brakes flows (the weir
+reads 17 % low with it on, §24.8), and nothing has ever measured water that keeps moving. **Next: §25 - a small
+flowing body (a creek in a channel), then creeks in the world, then rivers, then shorelines.** The §23 slime
+experiment stays queued (owner, 2026-10-11: "24 first, then L0") - to be ordered against §25 by the owner.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -411,13 +450,14 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | Phase | Deliverable | Gate before | Gate after (red first) |
 |---|---|---|---|
 | **A. Spec & rigs** — **DONE 2026-10-08** | §12 settled; `WaterBench_Small` (port 8111) with 7 one-chunk rigs (pad S1 · trough S2/C4 · channel S7+S10-v1 · pond S8/S13 · ledge S9 · pipes S14 · bucket C1–C5) authored from a generic rigs spec, verified by layer scans (7/7, dry), reference captures in `docs/evidence/water_v4_refs/small_*.png`; routes `water_ledger`, `water_probe_rect`, `place_water_box`; harness `tools/water_feel.py` (S3 implemented; the others are added as the core makes them runnable) | — | **RED recorded:** `docs/evidence/water_feel/S3_basin_ca_20261008_121725.json` — the CA's front reaches the wall in 6.26 s vs Ritter 0.92 s (ratio 0.147), wall crest 13.91 vs still level 14.24 (no reflection at all), surface spread 0.42 after 15 s (not flat), mass drift −6e-5 (conserved). The first run's crest metric read the draining block as a crest (false pass) and was fixed before the row was kept. |
-| **B. The core, CPU reference** — **BUILT + IN THE ENGINE 2026-10-08** (ledgers §15.7–15.8; S5 4/4, S2 4/4, S1 3/4, S4 1 m PASS / ⅓ OPEN, S3 front PASS / run-up + rest gates to re-base) | `WaterCore` library: MAC grid, `SurfaceTransport::Eulerian` (VOF), projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅓ (default), ⅑ and 1 | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
-| **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
-| **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
+| **B. The core, CPU reference** — **BUILT 2026-10-08** (§15.7–15.8; S2 4/4, S5 4/4, S4 PASS at 1 and ⅓, S3 front + seiche PASS; open: S1 rest 3.4–3.6 s vs 3 s, S3 run-up at 1 m — §0a)** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
+| **B2. FLIP transport** — **BUILT 2026-10-08, opt-in** (§15.10: 24/24 tests, S3 run-up PASS; fails S1/S2/S4/S5, so fills stay the default; the comparison for the owner not yet read)** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
+| **C. GPU core** — **BUILT 2026-10-08/09, the default for fills** (§15.12–15.16; `backend:"auto"`; open: batching of awake volumes, the 2 M-cell tier ceiling, FLIP on the GPU)** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
-| **E. Coupling** — **IN PROGRESS (ripples DESIGNED §22, READY for R0): design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3). First look not signed off (§19.4); after the flicker fix, floaters that follow the water and the pocket fix (§19.5-19.7) the OWNER SIGNED OFF the small-pond feel 2026-10-09 ("looks really good", §19.8). Open: impact splashes need displacement - moving solids DESIGNED in §20 (E3's core, awaiting the owner's review; 19.9 drag premise withdrawn), the look of moving water - DESIGNED in §21 (droplet crown, clear water, whitewater; design-check READY for S0, 21.9), the terrace cause (unestablished, §20 correction), E4** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
-| **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
+| **E. Coupling** — **MOSTLY BUILT; small-pond feel SIGNED OFF 2026-10-09 (§19.8).** E1 blasts + E2 debris both ways (§19.2–19.3); moving solids M0–M2 (§20.12–20.14, not signed off); clear water S0 (§21.10) and the droplet pool (§21.12); ripples R0+R1 (§22.9, accepted) + the black/white fix B1/B2 (§22.12, signed off 2026-10-11); waves keep their energy, pond friction, stone drag, the level-jerk fix (§24, not signed off). Open: M3/M4, E4 wading, pond whitewater, containers/pipes/scoop (§0a)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
+| **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (§17.3), sign-off pending; F3 deletions open** (droplets were built under E, §21; the old RippleField's replacement is `RippleLayer`, §22)** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
+| **H. Small flowing water** — **PLAN §25 (2026-10-11), next after the owner's go** | A creek in a bench channel: steady flow (S10), bed friction replacing pond friction, open inlet/outlet, the look of moving water, things carried | /design-check per step (H0 rig + red baseline first) | S10 within its gates; the 24.8 slosh still settles; owner's look in motion |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -3834,6 +3874,51 @@ liquid cell pulled back over ~1 s) - is the next lever, not built.
 
 **Live (`pebble_pair_p1fix.mp4`):** largest frame-to-frame change of visible water 404 px (the old clip: 3,004 in one
 frame); the stones sink as before (1/9 m 1.8-1.9 m/s, 1/3 m ~3.5 m/s). 283 water / buoyancy tests pass.
+
+## 25. Phase H - small flowing water: a creek in a channel (PLAN, 2026-10-11; not designed in detail, not built)
+
+The owner (2026-10-11): "small body is foundation so we can move up to larger bodies until that is fully figured out.
+if you think we are ready then maybe we move up to small creaks or small flowing body type things. then eventualy
+shorelines." The order of record becomes: still pond (done, §0a) -> **a creek in a bench channel (this)** -> creeks in
+the generated world -> rivers -> shorelines (G, resumed last). Each step is designed and design-checked before it is
+built, and signed off by the owner in motion before the next starts.
+
+**What a creek needs that a pond did not** (from the stock-take, §0a, and §3 S10):
+1. **Water that keeps moving at a steady state** - inflow at the top equals outflow at the bottom (S10: within 2 %),
+   depth and speed set by slope and bed roughness (Manning), standing waves and riffles at rocks. Nothing has measured
+   this; the closest are the weir (S4) and the drain (S5).
+2. **Friction of the right shape.** Pond friction (§24.7) is a uniform drag - it brakes a flow as much as a slosh (the
+   weir reads 17 % low with it on, §24.8). Real streams lose energy to the BED: a quadratic stress on the wetted
+   perimeter (Manning / Chezy). That law also damps a pond's slosh, so it can REPLACE pond friction: one physical law
+   for both, measured against a stream's depth and against the 24.8 slosh numbers.
+3. **Open ends** - water entering and leaving the active volume without a wall: the pumps/sinks exist (§15.15) and
+   the prescribed-column `BoundarySpec` "stays as a pump/inlet primitive" (§18.4); an outflow that does not reflect is
+   new.
+4. **A sloped bed.** S10's v1 rig is flat with full-cube rocks, waiting on sub-voxel edits (§3). A 1:20 slope at 1/3 m
+   cells can be built from subcube steps (one 1/3 m step per 6.7 m of channel is too coarse; 1/9 m microcube steps
+   every 2.2 m) - the rig design decides, the generator's carving later.
+5. **The look of moving water** - flow streaks exist (§19.3, `water_surface.frag`); whitewater at rocks needs the S4
+   pond-whitewater hook (§21.4, §22.12 `broken_m3`); ripples on a moving surface should travel with it (the layer is
+   still-water today, §22.2).
+6. **Things carried along** - debris already reads the surface current (§19.3); the 0.08-0.10 m/s phantom current on a
+   still pond (§19.6) must be gone first, or a still pond and a slow creek look the same to a floating leaf.
+
+**Proposed steps (each its own design + check):**
+- **H0 - the rig and the measurement.** A one-chunk sloped channel on the Small bench (subcube-step bed, a few rocks,
+  an inlet pump at the top, a non-reflecting outlet at the bottom), and a harness that measures S10: steady-state
+  inflow = outflow, depth and mean speed against Manning for the rig's slope, the standing wave at a rock, mass ledger.
+  Run on today's solver, friction off and on - the red baseline. Also re-measure the phantom current (6).
+- **H1 - bed friction replaces pond friction** (2): the law, its constant grounded (Manning n for a stony bed), tests:
+  S10 depth/speed within the gate AND the 24.8 slosh still settles (half-life measured), the S-rows that run
+  friction-off unchanged.
+- **H2 - the outlet and the inlet** (3) as world-usable primitives (a creek enters and leaves a volume).
+- **H3 - the look** (5): whitewater at rocks from the solver, ripples carried by the flow; owner's look in motion.
+- **H4 - things carried** (6): a leaf, a stick, a stone rolling in the current; owner's look.
+- **Then:** creeks in the generated world (the D4 river spans, the float-bottom span creeks need, §16.9), rivers, and
+  shorelines (G resumes).
+
+**Not in H:** wading (E4), containers and pipes, the §23 liquids (queued; the owner orders them against H), splashes
+as cosmetic particles (owner preference, §0a - designed when asked).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

@@ -1,5 +1,10 @@
 # Water — the single defining document
 
+> **2026-10-11 — current status of the new water is [`WaterCore.md`](WaterCore.md) §0a** (phases A-F built on
+> `feat/water-rethink`; the small still pond is signed off; next is small flowing water, §25). The test worlds are
+> the WaterBench projects (`Documents/PhyxelProjects/WaterBench_{Small,Basin,Coast,River}`, ports 8111/8108/8109/8110)
+> - the "NO water test world" note below is history. What follows the 2026-10-08 note describes the OLD CA water,
+> which still ships beside the new core until the WaterCore.md §9 delete ledger retires it.
 > **2026-10-08 — [`WaterCore.md`](WaterCore.md) is the DESIGN OF RECORD** (small-scale function and
 > feel as the core; large bodies on top). Its §12 decisions are settled and **Phase B is live on
 > `feat/water-rethink`**: the `WaterCore` CPU reference (`engine/{include,src}/core/water/`, 15 unit
