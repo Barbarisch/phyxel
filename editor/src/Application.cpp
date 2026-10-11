@@ -14153,6 +14153,14 @@ void Application::registerWaterCommands() {
                                 {"wet_bodies", gp ? gp->wetBodies().size() : 0}, {"boxes", gp ? gp->wetStats().boxes : 0u},
                                 {"boxes_dropped", gp ? gp->wetStats().boxesDropped : 0u}, {"records_total", gp ? gp->wetStats().recordsTotal : 0ull},
                                 {"records_dropped", gp ? gp->wetStats().recordsDropped : 0ull}}},
+             {"wet_body_list", [gp] {   // measurement: this frame's bodies inside a water box (centre, velocity), at most 16
+                 nlohmann::json a = nlohmann::json::array();
+                 if (gp) for (const auto& w : gp->wetBodies()) {
+                     if (a.size() >= 16) break;
+                     const glm::vec3 c = w.centre + w.velocity * w.ageSeconds;
+                     a.push_back({{"centre", {c.x, c.y, c.z}}, {"velocity", {w.velocity.x, w.velocity.y, w.velocity.z}}, {"half", w.halfExtents.y}});
+                 }
+                 return a; }()},
              {"debris_exchange", {{"frames", m_exchangeStats.frames}, {"records", m_exchangeStats.records}, {"applied", m_exchangeStats.applied},
                                   {"outside_volumes", m_exchangeStats.outside}, {"dry", m_exchangeStats.dry}, {"clamped", m_exchangeStats.clamped},
                                   {"momentum_to_water_total", m_exchangeStats.totalMagnitude},
