@@ -259,7 +259,9 @@ void ColumnWater::publish(WaterSurfaceField& out) const {
         // the water body reaches down to the DRAWN ground: under a hydraulic or plane bed above the voxels the water
         // fills the step's corner, so the drawn run spans the voxel top to the surface (no gap of air under water)
         sc.bottom[0] = std::min(c.bed, m_tops[i]);
-        sc.top[0] = static_cast<float>(c.eta);
+        const float s = m_solver.load(x, z);
+        sc.top[0] = static_cast<float>(c.eta) + s;   // 25.30 SC: the free surface (the water under a body stands s lower)
+        sc.bodyAtSurface = s > 1e-4f ? 1.0f : 0.0f;
         sc.u = c.u; sc.w = c.w; sc.foam = c.foam;
     }
 }

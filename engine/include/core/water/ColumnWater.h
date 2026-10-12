@@ -67,6 +67,9 @@ public:
     void setSpringTotal(double total);
     double springTotal() const { double t = 0.0; for (const auto& s : m_springs) t += s.rate; return t; }
     void setManningN(float n) { m_solver.setManningN(n); }
+    /// 25.30 SC: the bodies' load per column (m; ShoreSolver::setSurfaceLoad). Published as the free surface eta + s, the
+    /// column flagged bodyAtSurface (buoyancy reads the water AROUND a body, as on the pond).
+    void setLoad(std::vector<float> s) { m_solver.setSurfaceLoad(std::move(s)); }
     float manningN() const { return m_solver.params().manningN; }
     /// 25.26 K - measuring: the column at world (x, z). `slope` = the bed's fall along the flow (central difference over
     /// +-1 column, along the velocity; along x when still); the Manning prediction for the column's own unit discharge q =

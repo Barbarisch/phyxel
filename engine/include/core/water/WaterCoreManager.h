@@ -204,7 +204,20 @@ public:
     const std::vector<WaterSurfaceField>& surfaceFields();
     // ---- 25.18 H1: column-water regions ----
     struct ColumnRegion { std::unique_ptr<ColumnWater> cw; uint64_t occRevision = ~0ull; WaterSurfaceField field;
-                          std::unique_ptr<RippleLayer> ripple; uint32_t rippleFrame = 0; };   // 25.26 RC: the region's ripple window
+                          std::unique_ptr<RippleLayer> ripple; uint32_t rippleFrame = 0;     // 25.26 RC: the region's ripple window
+                          std::vector<float> load; };                                         // 25.30 SC: the bodies' load per column (m)
+    /// 25.30 SC: the column regions' boxes (voxels, inclusive) - the debris integrator reports the bodies inside them as wet.
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> columnBoxes() const;
+    /// 25.30 SC: a body leaving (or coming to rest - it stops displacing, M2's gate) releases its load over this time, so a
+    /// stone settling on the bed does not throw the water it held back as a wave.
+    static constexpr float kLoadReleaseSeconds = 0.3f;
+    /// 25.30 SC cosmetic splash (owner, 0a: "a few splash particles for affect", not taken from the water): a body crossing a
+    /// creek's surface downward faster than kSplashMinSpeed throws `creekSplash` x its displaced volume rate as droplets from
+    /// its waterline (up at 0.8 of its entry speed, out at 0.4 - look parameters). Their landings ripple the creek; they carry
+    /// no water. `water_droplets {creek_splash}` (0 = off).
+    static constexpr float kSplashMinSpeed = 0.5f;   // m/s
+    void setCreekSplash(float f) { m_creekSplash = f < 0.0f ? 0.0f : f; }
+    float creekSplash() const { return m_creekSplash; }
     /// A region over voxels [minVoxel, maxVoxel]; beds and walls read from the world's solids. Returns its id (0 = refused, `err`).
     int createColumns(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float manningN, std::string* err);
     bool destroyColumns(int id);
@@ -247,6 +260,7 @@ public:
         bool on = true; float size = 1.0f / 9.0f; int alive = 0;
         double bornM3 = 0.0, landedM3 = 0.0, refusedM3 = 0.0, relocatedM3 = 0.0, flushedM3 = 0.0, destroyedM3 = 0.0;
         long births = 0, landings = 0; int scraps = 0, sprays = 0;   // scraps / sprays: CPU volumes (the GPU counts per column record)
+        double cosmeticM3 = 0.0; long cosmeticBirths = 0, cosmeticLandings = 0;   // 25.30 SC: creek splash droplets (no water, no ledger)
     };
     void setDroplets(bool on) { m_dstats.on = on; }
     /// Droplet edge as a fraction of the volume's cell (21.11 default 1/9); clamped [1/27, 1] where it is used (DropletPool::spawn).
@@ -254,7 +268,7 @@ public:
     /// Test hook (D-T4): lower the pool cap; a refused birth goes straight back into the grid.
     void setDropletCap(size_t c) { m_pool.setCap(c); }
     const DropletStats& dropletStats() { m_dstats.alive = static_cast<int>(m_pool.droplets().size()); return m_dstats; }
-    double dropletVolume() const { return m_pool.volumeInFlight(); }
+    double dropletVolume() const { double v = 0.0; for (const Droplet& d : m_pool.droplets()) if (d.volumeId > 0) v += d.volume; return v; }   ///< water in flight (cosmetic creek droplets excluded)
     /// Droplet cubes for the renderer (xyz centre, w edge), rebuilt every update.
     const std::vector<glm::vec4>& dropletDrawList() const { return m_dropletDraw; }
 
@@ -357,6 +371,9 @@ private:
     void stepDroplets(float dt);                   // flight + landing for every volume
     void depositDroplet(Av& av, const glm::vec3& at, double volume);
     Av* volumeById(int id) { for (auto& a : m_avs) if (a->id == id) return a.get(); return nullptr; }
+    ColumnRegion* regionById(int id) { for (auto& r : m_columns) if (r.cw->id() == id) return &r; return nullptr; }
+    void stepColumnSplashes(float dt);   // 25.30 SC: the cosmetic entry crown
+    float m_creekSplash = 0.05f;         // 25.30 SC
     bool isAsleep(const Av& av) const { return av.backend == "gpu" ? av.gpuLast.asleep : av.solver->asleep(); }
     void refreshOccupancy(Av& av);
     Occ sampleOccupancy(const Av& av, const glm::ivec3& cellLocal) const;

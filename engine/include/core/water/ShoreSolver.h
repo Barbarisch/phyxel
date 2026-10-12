@@ -67,6 +67,18 @@ public:
     /// relaxation weight (1 = set exactly; a relaxation zone ramps it toward 0 inward, absorbing).
     void prescribe(int x, int z, double eta, const glm::vec2& velocity, float weight = 1.0f);
     void clearPrescriptions();
+    /// WaterCore.md 25.30 SC - bodies in the water: a per-column LOAD s (m, the bodies' submerged thickness spread over the
+    /// column, row-major x + nx z; empty = none). In the shallow-water momentum balance a load pressing on the surface enters
+    /// exactly as a bed bump does (-g d d(b + s)/dx), so the fluxes see bed + s and eta + s while the mass stays the water's
+    /// own depth: at rest the WATER's surface stands s lower under a body and the free surface eta + s is level - the body's
+    /// volume pushed aside, held while it stays (and the ledger never sees it).
+    void setSurfaceLoad(std::vector<float> s) { m_load = std::move(s); if (!m_load.empty() && m_load.size() != m_cols.size()) m_load.clear(); }
+    float load(int x, int z) const { return m_load.empty() ? 0.0f : m_load[idx(x, z)]; }
+    /// 25.30 SC: no foam is MADE within one column of where a body pressed in the last kLoadFoamQuietSeconds - a stone's
+    /// crater refilling tripped the surf rules (converging / fast flow) and drew a flat white 1/3 m square beside it for a
+    /// second (live, 2026-10-12). The pond makes no whitewater on an entry either (its S4 whitewater is not wired, 21.4);
+    /// splash whitewater, when wanted, is designed for both.
+    static constexpr float kLoadFoamQuietSeconds = 3.0f;
 
     ShoreStepReport step(float dt);
     double totalMass() const;    ///< m^3 (sum of depth x h^2)
@@ -84,6 +96,8 @@ private:
     ShoreParams m_params;
     std::vector<ShoreColumn> m_cols;
     std::vector<glm::vec2> m_prescribedVel;   // per column, valid where prescribed
+    std::vector<float> m_load;                // 25.30 SC: per-column body load (m), empty = none
+    std::vector<float> m_sinceLoad;           // 25.30 SC: seconds since each column last held a load (foam quiet zone)
     std::vector<double> m_prescribedEta;      // per column, valid where prescribed
     std::vector<double> m_etaPrev;
     // scratch (kept to avoid per-step allocation)

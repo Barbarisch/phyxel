@@ -93,6 +93,8 @@ ShoreStepReport ShoreSolver::step(float dt) {
     const int n = std::clamp(static_cast<int>(std::ceil(cmax * dt / (m_params.cflFraction * m_h))), 1, m_params.maxSubsteps);
     const float ds = dt / static_cast<float>(n);
     for (size_t i = 0; i < m_cols.size(); ++i) m_etaPrev[i] = m_cols[i].eta;
+    if (m_sinceLoad.size() != m_cols.size()) m_sinceLoad.assign(m_cols.size(), 1e9f);
+    for (size_t i = 0; i < m_cols.size(); ++i) m_sinceLoad[i] = (!m_load.empty() && m_load[i] > 0.0f) ? 0.0f : m_sinceLoad[i] + dt;
     for (int s = 0; s < n; ++s) substep(ds, r);
     r.substeps = n;
     r.mass = totalMass();
@@ -114,6 +116,8 @@ void ShoreSolver::rates(const std::vector<double>& eta, const std::vector<float>
     std::fill(dEta.begin(), dEta.end(), 0.0);
     std::fill(dQx.begin(), dQx.end(), 0.0);
     std::fill(dQz.begin(), dQz.end(), 0.0);
+    // 25.30 SC: a body's load acts as a bed bump on the pressure surface - eta and bed both carry it, the depth does not
+    auto Ld = [&](size_t i) { return m_load.empty() ? 0.0 : static_cast<double>(m_load[i]); };
 
     // One direction at a time (unsplit: both accumulate into the same rates). `dir` 0 = x, 1 = z;
     // the normal velocity is u for x and w for z, the transverse the other.
@@ -130,7 +134,7 @@ void ShoreSolver::rates(const std::vector<double>& eta, const std::vector<float>
             for (int k = 0; k < nAlong; ++k) {
                 const size_t i = cellIdx(line, k);
                 const ShoreColumn& c = m_cols[i];
-                const double etaC = eta[i], dC = std::max(eta[i] - c.bed, 0.0);
+                const double etaC = eta[i] + Ld(i), dC = std::max(eta[i] - c.bed, 0.0);
                 const double unC = dir == 0 ? u[i] : w[i], utC = dir == 0 ? w[i] : u[i];
                 wetc[k] = !c.wall && dC > dry;
                 double sEta = 0.0, sD = 0.0, sUn = 0.0, sUt = 0.0;
@@ -138,7 +142,7 @@ void ShoreSolver::rates(const std::vector<double>& eta, const std::vector<float>
                     auto nb = [&](int kk, double& e, double& d, double& un, double& ut) {
                         if (blocked(line, kk)) { e = etaC; d = dC; un = -unC; ut = utC; return; }
                         const size_t j = cellIdx(line, kk);
-                        e = eta[j]; d = std::max(eta[j] - m_cols[j].bed, 0.0);
+                        e = eta[j] + Ld(j); d = std::max(eta[j] - m_cols[j].bed, 0.0);
                         un = dir == 0 ? u[j] : w[j]; ut = dir == 0 ? w[j] : u[j];
                     };
                     double eM, dM, unM, utM, eP, dP, unP, utP;
@@ -263,7 +267,9 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
         float slope = 0.0f;
         // the surface step beyond what the bed explains: a bore on a flat bed foams, water pouring
         // over a voxel step (the Coast's 1 m risers) does not - that is a fall, not a breaker
-        auto rise = [&](int xx, int zz) { return std::max(0.0f, static_cast<float>(std::abs(c.eta - col(xx, zz).eta)) - std::abs(c.bed - col(xx, zz).bed)) / m_h; };
+        // 25.30 SC: on the FREE surface (water + a body's load) - the water under a body stands the load lower by design,
+        // which read as a 10 cm bore step and foamed a white cross around a stone that stayed (live, 2026-10-12)
+        auto rise = [&](int xx, int zz) { return std::max(0.0f, static_cast<float>(std::abs(c.eta + load(x, z) - col(xx, zz).eta - load(xx, zz))) - std::abs(c.bed - col(xx, zz).bed)) / m_h; };
         if (x > 0 && wetN(x - 1, z)) slope = std::max(slope, rise(x - 1, z));
         if (x + 1 < m_nx && wetN(x + 1, z)) slope = std::max(slope, rise(x + 1, z));
         if (z > 0 && wetN(x, z - 1)) slope = std::max(slope, rise(x, z - 1));
@@ -282,6 +288,11 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
             //     wave speed (Froude > 0.8) - the continuous white front of a surf zone
             const float froude = std::sqrt(c.u * c.u + c.w * c.w) / std::sqrt(g * d);
             if (d >= 0.08f && froude > 0.8f) src += (froude - 0.8f) / 0.4f;   // a draining film is supercritical too; a bore is deeper than 8 cm
+        }
+        if (src > 0.0f && !m_sinceLoad.empty()) {   // 25.30 SC: the quiet zone around a body's recent load (kLoadFoamQuietSeconds)
+            for (int zz = std::max(0, z - 1); zz <= std::min(m_nz - 1, z + 1) && src > 0.0f; ++zz)
+                for (int xx = std::max(0, x - 1); xx <= std::min(m_nx - 1, x + 1); ++xx)
+                    if (m_sinceLoad[idx(xx, zz)] < kLoadFoamQuietSeconds) { src = 0.0f; break; }
         }
         if (src > 0.0f) c.foam = std::min(1.0f, c.foam + 2.0f * dt * src);
     }

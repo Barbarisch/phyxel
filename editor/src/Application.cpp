@@ -3706,6 +3706,8 @@ void Application::update(float deltaTime) {
                 std::vector<std::pair<glm::vec3, glm::vec3>> boxes;
                 if (m_waterCouplingOn && m_waterSolidsOn)
                     for (const auto& [lo, hi] : waterCore->volumeBoxes()) boxes.push_back({glm::vec3(lo), glm::vec3(hi) + glm::vec3(1.0f)});
+                if (m_waterCouplingOn && m_waterSolidsOn)   // 25.30 SC: creek regions - their bodies displace, ripple and splash
+                    for (const auto& [lo, hi] : waterCore->columnBoxes()) boxes.push_back({glm::vec3(lo), glm::vec3(hi) + glm::vec3(1.0f)});
                 debrisRuntime->gpu()->setWaterVolumeBoxes(boxes);
                 std::vector<Core::Water::MovingSolid> solids;
                 std::vector<Core::Water::MovingSolid> rippleBodies;   // 22: every wet body, resting and bobbing ones too
@@ -14253,14 +14255,14 @@ void Application::registerWaterCommands() {
             const auto st = c.stats();
             regions.back()["stats"] = {{"mid_depth_m", st.midDepth}, {"mid_speed_ms", st.midSpeed}, {"wet", st.wet},
                                        {"hidden", st.hidden}, {"worst_hidden_m", st.worstHidden}};
-            if (p.value("wet_list", false) && (!id || c.id() == id)) {   // measurement: every wet column (world x, z of its centre, depth, bed)
+            if (p.value("wet_list", false) && (!id || c.id() == id)) {   // measurement: every wet column (world x, z of its centre, depth, bed, load, foam)
                 nlohmann::json wl = nlohmann::json::array();
                 const auto& sv = c.solver();
                 for (int z = 0; z < c.nz(); ++z) for (int x = 0; x < c.nx(); ++x) {
                     const double d = sv.depth(x, z);
                     if (sv.col(x, z).wall || d <= sv.params().dryDepth) continue;
                     const glm::vec2 cc = c.columnCentre(x, z);
-                    wl.push_back({cc.x, cc.y, d, sv.col(x, z).bed});
+                    wl.push_back({cc.x, cc.y, d, sv.col(x, z).bed, sv.load(x, z), sv.col(x, z).foam});   // 25.30 SC: + the bodies' load (m), foam (0-1)
                 }
                 regions.back()["wet_list"] = wl;
             }
@@ -14285,11 +14287,14 @@ void Application::registerWaterCommands() {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setDroplets(cmd.params.value("enabled", true));
         if (cmd.params.contains("size")) waterCore->setDropletSize(std::clamp(cmd.params.value("size", 1.0f / 9.0f), 1.0f / 27.0f, 1.0f));
+        // 25.30 SC: creek splash, as a fraction of a body's displaced volume rate (look only - no water); 0 = off, 1 = a guard
+        if (cmd.params.contains("creek_splash")) waterCore->setCreekSplash(std::clamp(cmd.params.value("creek_splash", 0.05f), 0.0f, 1.0f));
         const auto& d = waterCore->dropletStats();
         r = {{"enabled", d.on}, {"size", d.size}, {"alive", d.alive}, {"cap", Core::Water::DropletPool::kCap},
              {"born_m3", d.bornM3}, {"landed_m3", d.landedM3}, {"in_flight_m3", waterCore->dropletVolume()},
              {"refused_m3", d.refusedM3}, {"relocated_m3", d.relocatedM3}, {"flushed_m3", d.flushedM3}, {"destroyed_m3", d.destroyedM3},
-             {"births", d.births}, {"landings", d.landings}, {"cpu_scraps", d.scraps}, {"cpu_sprays", d.sprays}};
+             {"births", d.births}, {"landings", d.landings}, {"cpu_scraps", d.scraps}, {"cpu_sprays", d.sprays},
+             {"creek_splash", waterCore->creekSplash()}, {"cosmetic_m3", d.cosmeticM3}, {"cosmetic_births", d.cosmeticBirths}, {"cosmetic_landings", d.cosmeticLandings}};
     });
     reg.on("water_jet_scan", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("on")) {

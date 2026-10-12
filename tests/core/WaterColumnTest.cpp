@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <tuple>
 
 namespace Phyxel::Core::Water {
 namespace {
@@ -115,6 +116,50 @@ TEST(WaterColumnTest, ProbeMatchesManningAndRoughnessTunes) {
     EXPECT_NEAR(a.speed / a.manningSpeed, 1.0, 0.05);
     EXPECT_NEAR(a.depth / a.manningDepth, 1.0, 0.05);
     EXPECT_NEAR(b.speed / a.speed, std::pow(0.035 / 0.050, 0.6), 0.1 * std::pow(0.035 / 0.050, 0.6));
+}
+
+// 25.30 SC-T1: a body pressed into still column water - a 1 x 1 m load 10 cm thick (0.1 m^3), pressed in over 10 s, in a
+// closed 10 x 2 m channel of 20 cm still water. The body does not reach the bed (water runs under it), so at rest the free
+// surface is level everywhere - over the body too (water surface + load) - and has risen by V / A_total = 0.1 / 20 = 5.00 mm
+// (within 5 %). (The design's V / A_free is a body standing on the bed; the first run of this test used it and was the
+// wrong prediction - 2026-10-12.) The water's volume is unchanged to float rounding (the body is not water). Control: the
+// same channel, no load - no rise. Settles 600 s: Manning friction is weak at mm/s speeds - the slosh the pressing starts
+// shrinks from a 2.4 mm range to 0.2 mm over ten minutes (measured; the level checks are read at the end).
+TEST(WaterColumnTest, APressedBodyRaisesTheLevelByItsVolume) {
+    auto run = [](float load) {
+        ShoreParams p; p.manningN = 0.035f;
+        ColumnWater cw(1, glm::ivec3(0, 16, 0), glm::ivec3(9, 21, 3), p);
+        const int nx = cw.nx(), nz = cw.nz();   // 30 x 12 columns; walls z < 3 and z >= 9 -> 30 x 6 interior (10 x 2 m)
+        std::vector<float> tops(static_cast<size_t>(nx) * nz, 16.0f); std::vector<uint8_t> walls(tops.size(), 0);
+        for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) walls[x + nx * z] = (z < 3 || z >= 9) ? 1 : 0;
+        cw.setSolids(tops, walls);
+        for (int z = 3; z < 9; ++z) for (int x = 0; x < nx; ++x) cw.solver().col(x, z).eta = 16.2;
+        const double v0 = cw.stored();
+        std::vector<float> s(tops.size(), 0.0f);
+        for (int z = 3; z < 6; ++z) for (int x = 3; x < 6; ++x) s[x + nx * z] = load;   // 3 x 3 columns = 1 m^2, near one end
+        for (int k = 0; k < 600 * 30; ++k) {
+            if (k <= 10 * 30) { std::vector<float> sk = s; for (float& v : sk) v *= k / 300.0f; cw.setLoad(sk); }   // pressed in over 10 s
+            cw.step(1.0f / 30.0f);
+            if (load > 0.0f && k % 1800 == 1799) {
+                double lo = 1e9, hi = -1e9;
+                for (int z = 3; z < 9; ++z) for (int x = 8; x < nx; ++x) { lo = std::min(lo, cw.solver().col(x, z).eta); hi = std::max(hi, cw.solver().col(x, z).eta); }
+                std::printf("    t %3d s: free surface %.5f .. %.5f, over the body %.5f\n", (k + 1) / 30, lo, hi, cw.solver().col(4, 4).eta + load);
+            }
+        }
+        double far = 0.0; int n = 0;   // the free surface away from the body: every column not under it
+        for (int z = 3; z < 9; ++z) for (int x = 0; x < nx; ++x) if (!(x >= 3 && x < 6 && z < 6)) { far += cw.solver().col(x, z).eta; ++n; }
+        return std::make_tuple(far / n - 16.2, cw.solver().col(4, 4).eta, cw.stored() - v0);
+    };
+    const auto [rise, under, dv] = run(0.1f);
+    const auto [rise0, under0, dv0] = run(0.0f);
+    const double predicted = 0.1 / 20.0;
+    std::printf("  rise away from the body %.5f m (V / A_total %.5f); water surface under it %.4f (around %.4f); volume change %.2e m^3; control rise %.2e\n",
+                rise, predicted, under, 16.2 + rise, dv, rise0);
+    EXPECT_NEAR(rise, predicted, 0.05 * predicted);
+    EXPECT_NEAR(under + 0.1, 16.2 + rise, 0.0005) << "level: the water under the body stands the load lower than around it";
+    EXPECT_NEAR(dv, 0.0, 1e-6) << "the body is not water: the volume is unchanged";
+    EXPECT_NEAR(rise0, 0.0, 1e-6);
+    (void)under0; (void)dv0;
 }
 
 }  // namespace Phyxel::Core::Water

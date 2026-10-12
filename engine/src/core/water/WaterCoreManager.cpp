@@ -212,6 +212,7 @@ void WaterCoreManager::update(float dt) {
         }
         else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; ++av->stepCount; collectBirths(*av, dt); }
     }
+    stepColumnSplashes(dt);   // 25.30 SC: the creek's cosmetic entry crown
     stepDroplets(dt);   // 21: flight + landing (deposits reach a GPU volume at its next step)
     stepRipples(dt);    // 22: the sub-cell wave layer
     stepColumns(dt);    // 25.18 H1: column-water regions
@@ -523,7 +524,110 @@ WaterCoreManager::SolidsFeed WaterCoreManager::setMovingSolids(const std::vector
         out.freshCells += rep.freshCells; out.rateCells += rep.rateCells; out.clamped += rep.clamped; out.wakeCells += rep.wakeCells; out.rate += rep.rate;
         av.hadSolids = !mine.empty() || rep.wakeCells > 0;
     }
+    // 25.30 SC - column regions: each displacing body's submerged thickness over the columns it covers is the region's LOAD
+    // (ShoreSolver::setSurfaceLoad - it presses the water aside and holds it there). Submerged = the body's span between the
+    // bed and the free surface AROUND it (its footprint's ring, last step). Entering applies at once (the crater); a body leaving or coming
+    // to rest releases over kLoadReleaseSeconds.
+    const float H = ColumnWater::kH;
+    for (ColumnRegion& reg : m_columns) {
+        ColumnWater& cw = *reg.cw;
+        const ShoreSolver& sv = cw.solver();
+        const int nx = cw.nx(), nz = cw.nz();
+        const glm::vec3 lo(cw.minVoxel()), hi = glm::vec3(cw.maxVoxel()) + glm::vec3(1.0f);
+        const glm::vec2 org = sv.origin();
+        std::vector<float> target(static_cast<size_t>(nx) * nz, 0.0f);
+        int mine = 0;
+        for (const MovingSolid& b : bodies) {
+            const glm::vec3 bl = b.centre - b.halfExtents, bh = b.centre + b.halfExtents;
+            if (!glm::all(glm::greaterThanEqual(bh, lo)) || !glm::all(glm::lessThanEqual(bl, hi))) continue;
+            ++mine;
+            const int x0 = std::max(0, static_cast<int>(std::floor((bl.x - org.x) / H))), x1 = std::min(nx - 1, static_cast<int>(std::floor((bh.x - org.x) / H)));
+            const int z0 = std::max(0, static_cast<int>(std::floor((bl.z - org.y) / H))), z1 = std::min(nz - 1, static_cast<int>(std::floor((bh.z - org.y) / H)));
+            // the free surface the body is measured against: the mean over the RING of wet columns around its footprint. Its
+            // own columns' free surface (water + load) includes the load it is setting - read there, each frame's load lifted
+            // the surface it was measured against and it ratcheted up to the body's top: water drawn 23 cm up a stone in an
+            // 11 cm creek (live, 2026-10-12)
+            double ringSum = 0.0; int ringN = 0;
+            for (int z = z0 - 1; z <= z1 + 1; ++z) for (int x = x0 - 1; x <= x1 + 1; ++x) {
+                if (x >= x0 && x <= x1 && z >= z0 && z <= z1) continue;
+                if (x < 0 || z < 0 || x >= nx || z >= nz) continue;
+                const ShoreColumn& c = sv.col(x, z);
+                if (c.wall || c.eta - c.bed <= sv.params().dryDepth) continue;
+                ringSum += c.eta + sv.load(x, z); ++ringN;
+            }
+            if (ringN == 0) continue;
+            const double S = ringSum / ringN;
+            for (int z = z0; z <= z1; ++z) for (int x = x0; x <= x1; ++x) {
+                const ShoreColumn& c = sv.col(x, z);
+                if (c.wall) continue;
+                const float cx0 = org.x + x * H, cz0 = org.y + z * H;
+                const float ox = std::max(0.0f, std::min(cx0 + H, bh.x) - std::max(cx0, bl.x)), oz = std::max(0.0f, std::min(cz0 + H, bh.z) - std::max(cz0, bl.z));
+                const double subm = std::max(0.0, std::min(static_cast<double>(bh.y), S) - std::max(static_cast<double>(bl.y), static_cast<double>(c.bed)));
+                target[x + static_cast<size_t>(nx) * z] += static_cast<float>(ox * oz / (H * H) * subm);
+            }
+        }
+        if (reg.load.empty() && mine == 0) continue;
+        reg.load.resize(target.size(), 0.0f);
+        const float rel = std::min(1.0f, std::max(0.0f, frameSeconds) / kLoadReleaseSeconds);
+        bool any = false;
+        for (size_t i = 0; i < target.size(); ++i) {
+            float& s = reg.load[i];
+            s = target[i] >= s ? target[i] : s + (target[i] - s) * rel;
+            if (s < 1e-5f) s = 0.0f;
+            any = any || s > 0.0f;
+        }
+        if (!any) reg.load.clear();
+        cw.setLoad(reg.load);
+    }
     return out;
+}
+
+std::vector<std::pair<glm::ivec3, glm::ivec3>> WaterCoreManager::columnBoxes() const {
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> out;
+    for (const auto& r : m_columns) out.push_back({r.cw->minVoxel(), r.cw->maxVoxel()});
+    return out;
+}
+
+void WaterCoreManager::stepColumnSplashes(float dt) {
+    if (!m_dstats.on || m_creekSplash <= 0.0f || dt <= 0.0f) return;
+    bool any = false;
+    for (ColumnRegion& reg : m_columns) {
+        ColumnWater& cw = *reg.cw;
+        const ShoreSolver& sv = cw.solver();
+        for (const MovingSolid& b : m_rippleBodies) {
+            const float speed = -b.velocity.y;
+            if (speed < kSplashMinSpeed) continue;
+            int cx, cz;
+            if (!cw.columnAt(b.centre.x, b.centre.z, cx, cz)) continue;
+            const ShoreColumn& c = sv.col(cx, cz);
+            if (c.wall || c.eta - c.bed <= sv.params().dryDepth) continue;
+            const float S = static_cast<float>(c.eta) + sv.load(cx, cz);
+            if (!(b.centre.y - b.halfExtents.y < S && b.centre.y + b.halfExtents.y > S)) continue;   // not crossing the surface
+            const float V = m_creekSplash * 4.0f * b.halfExtents.x * b.halfExtents.z * speed * dt;
+            // COUNT from the volume: one droplet per droplet volume (the pool's size knob x the column pitch), the remainder by a
+            // deterministic hash - the first cut threw 8 directions every frame whatever the volume, ~60 droplets per stone and
+            // as many for a 1/9 m pebble as for a 1/3 m stone (20-stone stress, 2026-10-12)
+            const float edge = std::clamp(m_dstats.size, 1.0f / 27.0f, 1.0f) * ColumnWater::kH;
+            const float vd = edge * edge * edge;
+            if (!any) { ++m_dropletTick; any = true; }
+            uint32_t h = static_cast<uint32_t>(std::floor(b.centre.x * 9.0f)) * 73856093u ^ static_cast<uint32_t>(std::floor(b.centre.z * 9.0f)) * 19349663u ^ m_dropletTick * 83492791u;
+            h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+            const float frac = (h & 0xFFFFu) / 65536.0f, turn = ((h >> 16) & 0xFFFFu) / 65536.0f;
+            const int K = std::min(16, static_cast<int>(std::floor(V / vd + frac)));
+            for (int k = 0; k < K; ++k) {
+                const float a = 6.2831853f * (k + turn) / K;
+                const glm::vec2 dir(std::cos(a), std::sin(a));
+                DropletBirth bb;
+                bb.pos = glm::vec3(b.centre.x + dir.x * (b.halfExtents.x + 0.02f), S + 0.01f, b.centre.z + dir.y * (b.halfExtents.z + 0.02f));
+                bb.vel = glm::vec3(dir.x * 0.4f * speed + c.u, 0.8f * speed, dir.y * 0.4f * speed + c.w);
+                bb.volume = 0.999f * vd;   // ONE droplet: the pool splits ceil(V / vd), and vd's own float rounding gave 2 (706 for 353)
+                bb.column = k + 16 * static_cast<int>(m_dropletTick & 0xFFFFu);
+                const size_t before = m_pool.droplets().size();
+                m_pool.spawn(bb, -cw.id(), ColumnWater::kH, m_dstats.size, m_dropletTick);   // a refused share is simply not drawn (no water)
+                m_dstats.cosmeticM3 += bb.volume; m_dstats.cosmeticBirths += static_cast<long>(m_pool.droplets().size() - before);   // droplets, as landed
+            }
+        }
+    }
 }
 
 void WaterCoreManager::markWritten(Av& av) {
@@ -870,6 +974,24 @@ void WaterCoreManager::stepDroplets(float dt) {
     std::vector<glm::vec3> landAt;
     auto land = [&](Droplet& d, const glm::vec3& prev) -> bool {
         (void)prev;
+        if (d.volumeId < 0) {   // 25.30 SC: a creek's cosmetic droplet - lands on its region's free surface or ground
+            ColumnRegion* reg = regionById(-d.volumeId);
+            if (!reg) { landAt.push_back(d.pos); return true; }
+            const ColumnWater& cw = *reg->cw;
+            int cx, cz;
+            if (!cw.columnAt(d.pos.x, d.pos.z, cx, cz)) {   // flew off the region: gone at its floor (no water to put back)
+                if (d.pos.y < static_cast<float>(cw.minVoxel().y) || d.age > 10.0f) { landAt.push_back(d.pos); return true; }
+                return false;
+            }
+            const ShoreSolver& sv = cw.solver();
+            const ShoreColumn& c = sv.col(cx, cz);
+            const float ground = cw.voxelTops()[static_cast<size_t>(cx) + static_cast<size_t>(cw.nx()) * cz];
+            const bool wet = !c.wall && c.eta - c.bed > sv.params().dryDepth;
+            const float S = static_cast<float>(c.eta) + sv.load(cx, cz);
+            if (wet && d.vel.y <= 0.0f && d.pos.y <= S) { landAt.push_back(glm::vec3(d.pos.x, S - 0.01f, d.pos.z)); return true; }
+            if (d.pos.y <= std::max(ground, wet ? -1e30f : static_cast<float>(c.bed)) || d.age > 10.0f) { landAt.push_back(d.pos); return true; }
+            return false;
+        }
         Av* av = volumeById(d.volumeId);
         if (!av) { landAt.push_back(d.pos); return true; }   // its volume is gone (destroy already discarded it; defensive)
         const WaterSurfaceField& f = av->field;
@@ -899,6 +1021,16 @@ void WaterCoreManager::stepDroplets(float dt) {
     };
     m_pool.step(dt, g, land, landed);
     for (size_t i = 0; i < landed.size(); ++i) {
+        if (landed[i].volumeId < 0) {   // 25.30 SC: no water lands - only its momentum, into the creek's ripple window
+            ++m_dstats.cosmeticLandings;
+            ColumnRegion* reg = regionById(-landed[i].volumeId);
+            if (reg && reg->ripple && m_rstats.on && landed[i].vel.y < 0.0f) {
+                const float d = RippleLayer::kPitch;
+                reg->ripple->addImpulse(landAt[i].x, landAt[i].z, 1000.0f * landed[i].volume * -landed[i].vel.y / (d * d));
+                ++m_rstats.impulses;
+            }
+            continue;
+        }
         Av* av = volumeById(landed[i].volumeId);
         if (!av) continue;
         m_dstats.landedM3 += landed[i].volume; ++m_dstats.landings;
@@ -1047,6 +1179,37 @@ void WaterCoreManager::stepRipples(float dt) {
             const float xi = (h & 0xFFFFu) / 32767.5f - 1.0f;
             L.addImpulse(wx, wz, m_flowForcing * 1000.0f * ustar * ustar * dt * xi * fade);
             ++forced;
+        }
+        // 25.30 SC: bodies crossing the region's surface - the pond's sharp-edge remainder (22.3.2) at the column pitch
+        // (3 lattice cells per 1/3 m column, world-aligned as on the pond)
+        for (const MovingSolid& b : m_rippleBodies) {
+            if (std::abs(b.velocity.y) < 0.01f || m_rpattern.slope >= 0.0f) continue;
+            int bx, bz;
+            if (!cw.columnAt(b.centre.x, b.centre.z, bx, bz)) continue;
+            const ShoreColumn& bc = sv.col(bx, bz);
+            if (bc.wall || bc.eta - bc.bed <= dry) continue;
+            const float S = static_cast<float>(bc.eta) + sv.load(bx, bz);
+            if (!(b.centre.y - b.halfExtents.y < S && b.centre.y + b.halfExtents.y > S)) continue;
+            const float Hc = ColumnWater::kH;
+            const int per = 3;
+            const glm::vec2 blo(b.centre.x - b.halfExtents.x, b.centre.z - b.halfExtents.z), bhi(b.centre.x + b.halfExtents.x, b.centre.z + b.halfExtents.z);
+            const int gx0 = static_cast<int>(std::floor(blo.x / Hc)), gx1 = static_cast<int>(std::floor(bhi.x / Hc));
+            const int gz0 = static_cast<int>(std::floor(blo.y / Hc)), gz1 = static_cast<int>(std::floor(bhi.y / Hc));
+            for (int gz = gz0; gz <= gz1; ++gz) for (int gx = gx0; gx <= gx1; ++gx) {
+                float fine[9]; float sum = 0.0f;
+                for (int j = 0; j < per; ++j) for (int i = 0; i < per; ++i) {
+                    const float x0 = (gx * per + i) * d, z0 = (gz * per + j) * d;
+                    const float ox = std::max(0.0f, std::min(x0 + d, bhi.x) - std::max(x0, blo.x)), oz = std::max(0.0f, std::min(z0 + d, bhi.y) - std::max(z0, blo.y));
+                    fine[j * per + i] = ox * oz / (d * d); sum += fine[j * per + i];
+                }
+                const float coarse = sum / static_cast<float>(per * per);
+                for (int j = 0; j < per; ++j) for (int i = 0; i < per; ++i) {
+                    const float vhp = b.velocity.y * (fine[j * per + i] - coarse);
+                    if (std::abs(vhp) < 1e-5f) continue;
+                    L.setKinematic(gx * per + i - L.origin().x, gz * per + j - L.origin().y, vhp);
+                    ++m_rstats.kinematicCells;
+                }
+            }
         }
         L.setBreakSlope(m_rstats.breakSlope);
         if (m_rpattern.slope < 0.0f) { L.advect(vel, dt); L.step(dt); }

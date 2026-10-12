@@ -67,9 +67,8 @@ reads 17 % low with it on, §24.8), and nothing has ever measured water that kee
 settling without filling, underground limits; design-checked READY, §25.15). Built, not signed off (2026-10-12): H0
 (the column solver measured on a creek, §25.16-25.17), H1 column-water regions on the simple creek bench (WaterBench_Creek,
 §25.18-25.25), slightly murky water by default (M, §25.27), the current measured and tuned (K, §25.28), ripples on the
-creek carried by the current and driven by the flow (RC, §25.29 - over its 0.3 ms cost target, ~0.9 ms). **Next, in the
-owner's order:** SC - splashes and displacement on the creek, cosmetic droplets, and the body / droplet ripple sources RC
-left (§25.26); then H1b - the column tier (and its ripple step) on the GPU, for the budget. The §23 slime experiment stays
+creek carried by the current and driven by the flow (RC, §25.29 - over its 0.3 ms cost target, ~0.9 ms), stones in the
+creek - displacement, rings, a cosmetic splash (SC, §25.30). **Next, in the owner's order:** H1b - the column tier (and its ripple step) on the GPU, for the budget. The §23 slime experiment stays
 queued behind §25.
 
 ## 1. Principles (the invariants every later decision must satisfy)
@@ -4670,6 +4669,67 @@ sources into region layers), and the forcing's "stronger where the flow accelera
 reads a near-side drop of 0.287 m (passes >= 0.28); after `DamageSystemBreakProfileTest` loads `resources/materials.json`
 (Stone's real toughness 110) it reads 0.222 m and fails. Its threshold was set on the empty material registry; the test
 should load the registry itself and re-derive its prediction.
+
+### 25.30 SC built - stones in the creek: displacement, rings, a cosmetic splash (2026-10-12). Status: built, not signed off
+
+**Displacement - realised as a LOAD, not the design's sink-and-ring move.** The design (25.26) moved each step's change of
+submerged volume from the footprint to its ring. That shoves water once and lets it flow straight back; a body that stays
+would hold no level. In the shallow-water momentum balance a load s pressing on the surface enters exactly as a bed bump
+does (-g d d(b + s)/dx), so `ShoreSolver::setSurfaceLoad` hands the fluxes bed + s and eta + s while the mass stays the
+water's own depth: hydrostatic reconstruction keeps it exactly balanced at rest, the water under a body stands s lower and
+the free surface eta + s is level - held while the body stays, the ledger never sees it. Same contract (SC-T1), mass exact.
+- `WaterCoreManager::setMovingSolids` rasterizes each DISPLACING body (the pond's M2 gate: moving > 0.6 m/s, hysteresis
+  0.3) onto the region's columns: load = overlap fraction x the body's span between the bed and the free surface of the
+  RING of wet columns around its footprint. Entering applies at once (the crater); leaving or coming to rest releases over
+  `kLoadReleaseSeconds` 0.3 s (a stone settling on the bed does not throw back the water it held as a wave).
+- `ColumnWater::publish` draws the free surface eta + s and flags the column `bodyAtSurface` (buoyancy reads the water
+  around a body, as on the pond). The creek regions' boxes join the pond boxes for the debris integrator's wet-body report.
+
+**Rings:** a body crossing a region's surface drives its ripple window with the pond's sharp-edge rule (22.3.2), 3
+lattice cells per 1/3 m column. **Splash (cosmetic, the owner's 0a preference):** a body crossing downward faster than
+0.5 m/s throws `creek_splash` (default 0.05) x its displaced volume rate as droplets from its waterline - up at 0.8 x its
+speed, out at 0.4, plus the current (look parameters, not measured); the count follows the volume (one droplet per
+droplet volume, the remainder by a hash). They fly in the shared pool with a negative volume id, land on the region's free
+surface or ground, put their momentum into the creek's ripple window and carry NO water: `water_droplets` reports them as
+`cosmetic_*`, and its `in_flight_m3` (the ponds' ledger) excludes them. Knob: `water_droplets {creek_splash}` (0 = off).
+
+**Tests and results:**
+- **SC-T1** `WaterColumnTest.APressedBodyRaisesTheLevelByItsVolume` - a 1 x 1 m load 10 cm thick pressed over 10 s into a
+  closed 10 x 2 m channel of 20 cm water: rise **5.01 mm** against V / A_total = 5.00 (the body does not reach the bed, so
+  the whole area counts - the first prediction, V / A_free = 5.26, was mine and wrong); the free surface over the body
+  level with its surroundings to 0.1 mm; water volume change 2e-13 m^3; control (no load) 0. Settles 600 s: Manning
+  friction is weak at mm/s, the slosh shrinks from 2.4 to 0.2 mm over ten minutes (measured).
+- **SC-T2** live, WaterBench_Creek at 100 L/s, a 1/3 m Stone dropped 1.5 m (`tools/water_creek_splash.py`; flow forcing 0 so
+  the rings are the stone's, after 40 s of quiet): **31** droplets (prediction 5-30 - the crossing lasts longer than one or
+  two frames), all landed within **0.91 s** (<= 1.5); kinematic ripple cells 36 during the crossing only; crater - the
+  water depth at the stone's column 9.7 -> 7.8 cm, refilled by ~1.9 s; load peak 7 cm, gone by 2.7 s; ledger error
+  unchanged (6.0e-8 -> 6.7e-8 m^3, the run's own float drift). Clips: `splash_stone_ff0.mp4`, `splash_stone_ff200.mp4`
+  (the shipped default forcing).
+- **Stress** - 20 stones (1/3 and 1/9 m, 1-3 m drops, along 57 m of creek) at once: load cleared everywhere (0 at the end),
+  worst load 8-15 cm (no runaway), ledger error drift 2e-8 m^3, 317 droplets born = 317 landed, ponds' water in flight 0.
+
+**Four defects found on the way, each fixed:**
+1. **The load ratcheted up to the stone's top.** Measured against its own column's free surface (water + load), each
+   frame's load lifted the surface it was read against: water drawn 23 cm up a stone in 11 cm of water (flat white sheets
+   around it). Now read against the footprint's ring.
+2. **Foam squares.** The solver's surf foam (built for the shore, G - not signed off) read the water's own surface, so a
+   loaded column was a 10 cm bore step - and, once fixed to the free surface, the crater's refill still tripped the
+   converging / fast-flow rules: a flat white 1/3 m square beside the stone for a second. No foam is now MADE within one
+   column of where a body pressed in the last 3 s - the pond makes no whitewater on an entry either (its S4 whitewater is
+   not wired, 21.4); splash whitewater, when wanted, gets designed for both.
+3. **Droplet count blind to volume** - 8 directions every frame: ~60 per stone, as many for a 1/9 m pebble as for a 1/3 m
+   stone. Now one per droplet volume.
+4. **Two droplets per birth** - the pool splits ceil(V / v_d) and v_d's own float rounding gave 2 (706 landed for 353
+   born). A birth now carries 0.999 v_d; births are counted as the droplets the pool actually spawned.
+
+**Cost (logged, over budget like RC):** the ripple step peaked at **4.2 ms** during the 20-stone impact (kinematic cells and
+the breaking limiter on many steep cells at once); ~1 ms otherwise. The fix is H1b's GPU step.
+
+**Found, not this work:** a standing foam spot on the bench creek at x 76.5 (foam 1.0 in steady flow, before any body) -
+the shore foam rules firing on the creek; whether the creek should foam at all is for the owner (not changed).
+**Not built:** a body that enters FRESH inside a creek (spawned there) presses its load at once - the pond's no-rate rule
+for fresh bodies (20.7) is not mirrored on columns. Resting bodies do not obstruct the flow (they stop displacing - M2's
+gate - and the beds are static occupancy only).
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
