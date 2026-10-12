@@ -347,6 +347,9 @@ public:
 private:
     // The single meander displacement every channel-line consumer shares (see channelHitAt).
     glm::vec2 meanderedChannelPos(float wx, float wz) const;
+    /// WaterCore.md 25.22: is world column (wx, wz) inside an order 1-2 channel band (the carve's band)? Pure - the warp and
+    /// the channel query only, never another column's sample.
+    bool inCreekBand(int wx, int wz) const;
 
     GenerationType generationType;
     uint32_t seed;

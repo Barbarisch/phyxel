@@ -984,6 +984,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // displacement of up to ~kMeanderAmp; smooth, so the meandered channel is continuous (no seam).
         float mwx = static_cast<float>(wx), mwz = static_cast<float>(wz);
         float creekSwale = 0.0f;   // bounded creek dip (water-as-terrain-stage P2), voxels
+        bool nearCreek = false;    // 25.22: within the swale - the only columns the carve's corner fill looks at
         if (m_flow) {
             const glm::vec2 m = meanderedChannelPos(static_cast<float>(wx), static_cast<float>(wz));
             mwx = m.x;
@@ -1013,6 +1014,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 constexpr float kCreekSwaleDepth = 1.6f;
                 const float t = cs.dist / creekSwaleHalf;
                 creekSwale = kCreekSwaleDepth * (1.0f - t * t);
+                nearCreek = true;
             }
         }
         col.bedHeight = coarse.baseHeight + relief * blendScale + blendOffset - creekSwale;   // 25.22: the continuous height
@@ -1039,7 +1041,21 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 // applyRiverInflows), so every pinned ribbon cell gets a recess and the parabolic
                 // band edges get neither. generateChunk emits the surface voxel as a 2-layer
                 // subcube shelf (floor 2/3): the ribbon rests 1/3 voxel below its banks.
-                col.creekBed = (ch.order <= 2 && ch.depth >= 0.15f);
+                // WaterCore.md 25.22: with the 1/3 m carve on, the WHOLE channel width is bed - the 0.15 band (the old CA ribbon's
+                // pin threshold) is ~0.74 voxel either side of a warped, meandering centreline: a 1-voxel line that steps
+                // DIAGONALLY, and water, which crosses faces not corners, pooled at the first step (C-T10, 2026-10-11)
+                col.creekBed = (ch.order <= 2 && ch.depth >= (m_creekCarve ? 1e-4f : 0.15f));
+            }
+            // 25.22 CORNER FILL: a band around a warped, meandering centreline still pinches to a diagonal step in places (40
+            // corner-only joins in 8 test windows with the full-width band), and water crosses faces, not corners. A column is
+            // also bed when it is a face shared by two diagonal band columns that share no other face. Pure: four channel
+            // queries of neighbouring POSITIONS, no neighbour's sample - a chunk and a whole region agree by construction.
+            if (m_creekCarve && nearCreek && !col.creekBed) {
+                bool fill = false;
+                for (int sx = -1; sx <= 1 && !fill; sx += 2)
+                    for (int dz = -1; dz <= 1 && !fill; dz += 2)
+                        fill = inCreekBand(wx + sx, wz) && inCreekBand(wx, wz + dz) && !inCreekBand(wx + sx, wz + dz);
+                if (fill) { col.creekBed = true; if (col.riverOrder == 0) col.riverOrder = 1; }
             }
         }
 
@@ -1506,6 +1522,13 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     r.worldforge = m_worldForgeParams;
     r.creekCarve = true;   // 25.22: new worlds carve creek beds to 1/3 m
     return r;
+}
+
+bool WorldGenerator::inCreekBand(int wx, int wz) const {
+    if (!m_flow) return false;
+    const glm::vec2 m = meanderedChannelPos(static_cast<float>(wx), static_cast<float>(wz));
+    const FlowField::ChannelHit ch = m_flow->channelAt(m.x, m.y);
+    return ch.hit && ch.order <= 2 && ch.depth >= 1e-4f;
 }
 
 int WorldGenerator::creekLayers(const ColumnSample& c) {

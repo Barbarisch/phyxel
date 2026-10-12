@@ -13562,6 +13562,21 @@ void Application::registerWaterCommands() {
     //
     // Reports the reason for an empty result rather than just returning nothing, because "no
     // rivers" and "no bake" and "no streaming generator" are three very different problems.
+    // WaterCore.md 25.22: one column of the streaming generator, as generated (measurement): x,z (voxel) or points:[[x,z],...]
+    reg.on("terrain_column", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        if (!g) { r = {{"error", "no streaming generator"}}; return; }
+        auto one = [&](int x, int z) {
+            const WorldGenerator::ColumnSample c = g->sampleSurface(x, z);
+            return nlohmann::json{{"x", x}, {"z", z}, {"surface_y", c.surfaceY}, {"bed_height", c.bedHeight}, {"drawn_top", g->drawnTop(c)},
+                                  {"creek_bed", c.creekBed}, {"river_order", c.riverOrder}, {"channel_depth", c.channelDepth}};
+        };
+        if (cmd.params.contains("points")) {
+            nlohmann::json a = nlohmann::json::array();
+            for (const auto& p : cmd.params["points"]) if (p.is_array() && p.size() >= 2) a.push_back(one(p[0].get<int>(), p[1].get<int>()));
+            r = {{"columns", a}, {"creek_carve", g->creekCarve()}};
+        } else { r = one(cmd.params.value("x", 0), cmd.params.value("z", 0)); r["creek_carve"] = g->creekCarve(); }
+    });
     reg.on("water_find_river", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
         if (!g) {
@@ -14194,6 +14209,17 @@ void Application::registerWaterCommands() {
             const auto st = c.stats();
             regions.back()["stats"] = {{"mid_depth_m", st.midDepth}, {"mid_speed_ms", st.midSpeed}, {"wet", st.wet},
                                        {"hidden", st.hidden}, {"worst_hidden_m", st.worstHidden}};
+            if (p.value("wet_list", false) && (!id || c.id() == id)) {   // measurement: every wet column (world x, z of its centre, depth, bed)
+                nlohmann::json wl = nlohmann::json::array();
+                const auto& sv = c.solver();
+                for (int z = 0; z < c.nz(); ++z) for (int x = 0; x < c.nx(); ++x) {
+                    const double d = sv.depth(x, z);
+                    if (sv.col(x, z).wall || d <= sv.params().dryDepth) continue;
+                    const glm::vec2 cc = c.columnCentre(x, z);
+                    wl.push_back({cc.x, cc.y, d, sv.col(x, z).bed});
+                }
+                regions.back()["wet_list"] = wl;
+            }
         }
         r = {{"regions", regions}, {"realtime", waterCore->realtime()}};
         if (id) r["id"] = id;

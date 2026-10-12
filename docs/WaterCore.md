@@ -4410,6 +4410,46 @@ columns (prediction 0), against `voxel` as the control; the owner's look in moti
 **Design-check (2026-10-11): READY**, with the recipe flag (`creekCarve`) and C-T8 as the two conditions the build must
 meet; rivers deferred with their own check.
 
+### 25.23 H1c built and measured on a generated creek (2026-10-11). Status: built, not signed off
+
+**Built (commits `9b92ea61` + this one):** `WorldRecipe::creekCarve` (written only when true; new worlds on via
+`makeRecipe()`, old worlds off); `ColumnSample::bedHeight` (the continuous height, the river carve as a continuous depth);
+`WorldGenerator::creekLayers` / `drawnTop` / `inCreekBand`; in a creek-bed column the surface voxel holds
+floor(3 (bedHeight - surfaceY)) subcube layers (0-2); `ColumnWater` bed rule `generator` fed by
+`WaterCoreManager::setGeneratorBedQuery` (the editor wires the streaming generator) - per 1/3 m column, bilinear between
+voxel centres and never below the drawn top, on unedited columns; edited columns keep their voxels; new regions default to
+`generator` where the query exists. Debug route `terrain_column` (one generated column: bed height, drawn top, creek flag,
+order). Bench: `WaterBench_RiverCarve` (port 8113) - a copy of the River bench with a fresh world (carve on) and the old
+CA water off; the original River bench is untouched.
+
+**Two findings on the way, both fixed and pinned:**
+1. **The creek band stepped DIAGONALLY.** The live creek's water pooled 40 cm deep beside the spring and never reached the
+   outfall: the band (columns at least 0.15 deep - the old CA ribbon's threshold) is ~0.74 voxel either side of a warped
+   centreline, a one-voxel line that joins at CORNERS, and water crosses faces. Under the carve flag the band is the whole
+   channel width AND a corner fill: a column is bed when it is the face shared by two diagonal band columns that share no
+   other face (`inCreekBand` of four neighbouring POSITIONS - pure, no neighbour's sample). Measured in 8 complete 24 x 24
+   windows: corner-only joins 57 with the old band (the control), 40 with the full width alone, **0 with the corner fill**.
+2. **The first live map was misleading** (a camera over the hillside, grass over the slot): the tool now takes `--cam`.
+
+**C-T9 / C-T8 (`TerrainRiverTest.CreekBedCarvedToAThirdByRoundingDown`):** 300 creek-bed columns (162 on chunk seams): drawn
+top <= bedHeight < top + 1/3 m and = `drawnTop()` in every one; layers 0/1/2: 98 / 94 / 108. 386 water / terrain / recipe /
+flora / WorldForge / fauna tests pass.
+
+**C-T10 live (`tools/water_creek_live.py`, a generated order-1 creek near (-2140, -1740): 19 m, slope 0.047, 20 L/s, 150 s):**
+
+| bed | first water at the outfall | out/in, last 20 s | mid depth | mid speed | hidden |
+|---|---|---|---|---|---|
+| **generator (option a)** | 49 s | **0.999** | 5.9 cm | 0.38 m/s | 0 |
+| voxel (control) | 143 s | 0.09 | 8.3 cm (spread over 321 columns) | 0.17 m/s | 0 |
+
+The depth is above the wide-channel Manning estimate (1.4 cm for the 4.2 m band) because the water runs in a narrower,
+meandering line with pools; the solver itself was Manning-exact on the straight channel (25.16, 25.20). Ledger 3e-8 m^3.
+Clip for the owner: `gencreek_generator_look.mp4` (90 s, a low view downstream along the creek's slot).
+
+**Open, logged:** a corner-fill column takes its OWN continuous height (between the two band columns' - it can sit a few cm
+above both; not measured as a barrier yet); rivers (order >= 3) keep their whole-voxel carve until the same rule is designed
+for them; the region step reaches 3.4 ms on this 1,400-column box on the CPU (the GPU port, H1b).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
