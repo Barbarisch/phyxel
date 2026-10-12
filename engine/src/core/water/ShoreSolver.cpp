@@ -223,6 +223,24 @@ void ShoreSolver::rates(const std::vector<double>& eta, const std::vector<float>
                 minus[k] = Side{etaC - 0.5 * sEta, dC - 0.5 * sD, 0.0, unUse - 0.5 * sUn, utUse - 0.5 * sUt};
                 plus[k].b = plus[k].eta - plus[k].d;
                 minus[k].b = minus[k].eta - minus[k].d;
+                // 25.37: a face's reconstructed bed stays between the two cells' own beds. Depth and surface are extrapolated
+                // with separate slopes, so beside a bed STEP (a pond's 1.1 m drop) the depth slope - mostly the step - put the
+                // outflow face's bed 0.36 m above both cells': the face passed a 5 mm film, a 0.38 m deep column stood still
+                // beside a dry one on the same bed for 90 s and the pond overtopped its crest by 0.41 m before anything left
+                // (ShoreSolverTest.APondSpillsWhenItTopsItsCrest). On a smooth bed the reconstruction is already inside these
+                // bounds (untouched); clamped, the depth follows from the surface (never negative).
+                {
+                    const double bC = c.bed + Ld(i);
+                    auto bedOf = [&](int kk) { if (blocked(line, kk)) return bC; const size_t j = cellIdx(line, kk); return static_cast<double>(m_cols[j].bed) + Ld(j); };
+                    auto clampSide = [&](Side& sd, double bNb) {
+                        const double lo = std::min(bC, bNb), hi = std::max(bC, bNb);
+                        const double b = std::clamp(sd.b, lo, hi);
+                        if (b == sd.b) return;
+                        sd.d = std::max(sd.eta - b, 0.0); sd.b = sd.eta - sd.d;
+                    };
+                    clampSide(plus[k], bedOf(k + 1));
+                    clampSide(minus[k], bedOf(k - 1));
+                }
                 // in-cell bed slope source (the second-order balance term)
                 dQn[i] += -g * 0.5 * (minus[k].d + plus[k].d) * (plus[k].b - minus[k].b) / h;
             }

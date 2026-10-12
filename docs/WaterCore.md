@@ -68,7 +68,7 @@ settling without filling, underground limits; design-checked READY, §25.15). Bu
 (the column solver measured on a creek, §25.16-25.17), H1 column-water regions on the simple creek bench (WaterBench_Creek,
 §25.18-25.25), slightly murky water by default (M, §25.27), the current measured and tuned (K, §25.28), ripples on the
 creek carried by the current and driven by the flow (RC, §25.29 - over its 0.3 ms cost target, ~0.9 ms), stones in the
-creek - displacement, rings, a cosmetic splash (SC, §25.30). H1b part 1 - the column tier works where the water is (§25.33: 2.7-11x cheaper, bit-identical). H1b part 2 - the ripple step on the GPU (§25.35: the creek window 0.35 ms live, was ~1 ms). **Next:** H2 - the T1-T2 hand-off (§25.13): water passing between the 3-D pond tier and the creek tier. The §23 slime experiment stays
+creek - displacement, rings, a cosmetic splash (SC, §25.30). H1b part 1 - the column tier works where the water is (§25.33: 2.7-11x cheaper, bit-identical). H1b part 2 - the ripple step on the GPU (§25.35: the creek window 0.35 ms live, was ~1 ms). the dam & pond bench (§25.36-25.38; a pond-spill defect in the column solver found and fixed, §25.37). **Next:** H2 - the T1-T2 hand-off (§25.13): water passing between the 3-D pond tier and the creek tier. The §23 slime experiment stays
 queued behind §25.
 
 ## 1. Principles (the invariants every later decision must satisfy)
@@ -4944,6 +4944,86 @@ mask / forcing loop (moving the forcing's hash and spread onto the GPU would tak
 
 **Found, not this work:** `WaterCoreGpuParityTest.GpuFlipBulkParityAndRunup` - the GPU FLIP run-up reads 1.18 h0 against
 its 1.22 gate (the open parity row of 15.15; the FLIP path is untouched here).
+
+### 25.36 The dam & pond bench - DESIGN (owner, 2026-10-12: chosen over H2 for now)
+
+**Why before H2.** Measured against H2 (25.13): the bench creek is ~10 cm deep - at the 3-D core's 1/3 or 1/9 m cells less
+than one cell of water (1/27 m: 3 cells, ~5-10 ms per window on the CPU); the creek tier flows on the generator's bed line
+(25.21) while a window sees the 1/3 m voxel staircase (it pools: the window's level would not match the creek's at its
+edge - the WS-4 seam - unless the window's floor is built from the bed line); the GPU 3-D core has no open boundary to feed
+a window (the CPU core has prescribed columns, 18.2). And what the owner's brief asks first - a creek filling a pond,
+damming, levels rising and spilling - is the column tier alone when the basin is inside the region. H2 stays for local
+3-D detail (waterfalls, wading, a dam bursting), with these three findings as its starting point.
+
+**The bench (WaterBench_Creek, extended - `tools/water_dam_pond.py`).** The creek (25.24) carved on through x 110-111 into a
+6 x 6 m pond (x 112-117, z 29-34) with its floor at y 14.0; a spill channel on the far side (x 118-127, z 31-32, floor y
+15.0 - the pond holds 1 m before it spills) to an outfall at the slab's edge (x 127). One column region over x 10-127, z
+27-36, y 13-17 (the sparse tier, 25.33, pays for the dry ground). Spring 0.2 m^3/s at the head (normal depth ~16 cm: inside
+the banks). The DAM is a world edit through the world API (subcubes, Stone) across the creek at x 60, its crest 1/3 m above
+the bed and below the banks - the column region re-reads its beds when the solids change (`occRevision`), and the bed rule
+puts the bed on the dam's top there (25.22: the line is the bed only where the column is the carve).
+
+**Contract and tests (predictions written before the first run).**
+- **DP-T1 fill:** once the creek delivers (out of the creek = in), the pond level rises at Q / A = 0.2 / 36 = 5.6 mm/s
+  within 10 % (from 0.2 to 0.8 m of depth); it reaches the spill (15.0) in ~3 min; then the outfall carries the inflow -
+  out/in 1.00 +- 0.02 over the last 30 s.
+- **DP-T2 dam:** placed at steady state: the inflow to the pond falls below 10 % of Q within 20 s; the pond drains to its
+  spill level and the outfall falls toward 0; the pool behind the dam rises to the crest and overtops; at no time does the
+  column ledger move (|error| < 1e-5 m^3).
+- **DP-T3 break:** the dam removed: the pond's inflow rises ABOVE Q for a while (the pool's water released - a surge); the
+  ledger unchanged.
+- **Edits never create water:** the stored volume immediately before and after each edit equal within 1e-6 m^3 (water on a
+  dam's columns is lifted onto its crest, not deleted; on removal it drops with the bed).
+- **Visual (L4):** a clip from a camera over the pond and the dam: the pond filling, the dam pool rising and spilling, the
+  break's surge. The owner's look.
+**Design keys.** Look: unchanged (the creek's water as signed off so far, built not signed off). Chunks: the region is
+world-aligned; edits reach it by the solids revision, not by chunk. Generation: none (a bench). API: existing routes only
+(`/api/world/*` for the dam, `water_columns`). Test world: the existing flat creek bench, one region; the variable per test
+is the one edit; controls - the ledger and the stored volume across each edit. **Design-check: READY** (no engine change
+is planned; any change the runs force is designed and checked on its own).
+
+### 25.37 Found by the dam & pond bench: a pond overtopped its crest by 0.41 m before it spilled - fixed (2026-10-12)
+
+**What the first run showed.** The pond rose to 15.5 - 0.4 m over its spill crest (15.13) - before any water left; the
+spill channel stayed dry for ~60 s with a 0.37 m head behind it. Reproduced offline on the bench's geometry
+(`ShoreSolverTest.APondSpillsWhenItTopsItsCrest`), sparse and dense identical (so not 25.33): the channel's FIRST column
+filled to 0.38 m and stood still (u 0.01 m/s) beside a dry column on the same bed for 90 s.
+**Cause.** `ShoreSolver::rates` extrapolates depth and surface to a face with SEPARATE limited slopes and takes the face's
+bed as their difference. Beside a bed step (the pond's 1.1 m drop) the depth slope is mostly the step: at the column's
+outflow face it gave a bed of 15.49 - 0.36 m above both cells' beds (15.13) - and the face passed a 5 mm film.
+**Fix.** A face's reconstructed bed is clamped between the two cells' own beds (the depth then follows from the surface,
+never negative). On a smooth bed the reconstruction is already inside those bounds, so nothing else moves: all 303 Shore* /
+Water* tests pass unchanged (Manning 0.0717 m / 0.694 m/s as before; sparse = dense bit for bit).
+**Red -> green** (water past the crest column, 1 cm deep): without the clamp the pond was **0.382 m** over the crest; with it
+**0.015 m** (prediction <= 0.05). (The test's first metric - water at the outfall 10 m on - also counted the front's trip
+over the dry channel while the pond kept rising: 0.12 m; changed before it was used as a gate.)
+**Where else it mattered:** every place the column tier meets a bed step - a pond's rim, the creek's 1/3 m risers off the
+carve, the voxel staircase (25.16's pools), shoreline steps. The H0 staircase numbers predate this fix.
+
+### 25.38 The dam & pond bench built and run (2026-10-12). Status: built, not signed off
+
+`tools/water_dam_pond.py --build` / `--run --record` on WaterBench_Creek (25.36's world and region, 0.2 m^3/s, the shipped
+defaults otherwise). Two runs after 25.37's fix, the same numbers to the third digit; `dam_pond.json`, clip `dam_pond.mp4`
+(the pond filling and spilling, the dam's pool, the break - the owner's look).
+
+| | prediction (25.36) | measured |
+|---|---|---|
+| DP-T1 pond rise (0.2 - 0.8 m of depth) | Q / A = 5.56 mm/s +- 10 % | **5.43 mm/s**; the flow arriving at the pond 0.193 m^3/s (its own Q/A 5.36 - mass consistent) |
+| spill | at the crest | water past the crest column with the pond **1.8 cm** over the crest (15.128) |
+| DP-T1 spilling | out/in 1.00 +- 0.02 | **0.980** over the last 30 s (still settling) |
+| DP-T2 dam | the pond's inflow < 10 % of Q within 20 s | **missed - the prediction was wrong**: 100 % at 20 s, a dip to **46 %** at 78 s, back to 82-94 % as the pool overtops |
+| the dam's pool | to the crest and over | 15.83 = the crest (15.67) + 0.16 m - the weir head of 0.2 m^3/s over 2 m (~0.15 m) |
+| DP-T3 break | the inflow above Q | **0.34-0.35 m^3/s** (1.7-1.75 Q), decaying over ~2 min |
+| ledger | never moves (< 1e-5 m^3) | max **1.6e-6** m^3; unchanged across both edits |
+
+**Why the dam prediction was wrong (the physics, not the solver):** the 50 m of creek below the dam keeps draining, and
+the dam's effect travels down it as a kinematic wave at ~5/3 of the flow speed (~0.8 m/s): the pond feels it after ~60 s
+(the minimum came at 78 s); the dam is LOW (1/3 m), so its pool (~20 m^3 along a ~60 m backwater) fills in about two
+minutes and overtops. A 20 s cut-off needs a short reach below the dam or a dam that is not overtopped - the bench shows a
+creek's real response instead. **The first run's 7.9 mm/s rise** came with the 25.37 defect (the pond overshot its crest,
+so the creek's own storage drained into it on the way); after the fix the rise matches Q/A within 2.3 %.
+**The tool's own defect:** the first recording was killed rather than closed - an mp4 without its index (64 MB unreadable);
+ffmpeg is now stopped with 'q'.
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
