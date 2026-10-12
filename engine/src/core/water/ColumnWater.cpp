@@ -184,6 +184,38 @@ void ColumnWater::step(float dt) {
     m_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }
 
+void ColumnWater::setSpringTotal(double total) {
+    const double now = springTotal();
+    if (m_springs.empty()) return;
+    for (auto& s : m_springs) s.rate = now > 0.0 ? s.rate * total / now : total / static_cast<double>(m_springs.size());
+}
+
+ColumnWater::Probe ColumnWater::probe(float wx, float wz) const {
+    Probe p;
+    int x, z;
+    if (!columnAt(wx, wz, x, z)) return p;
+    p.inside = true;
+    const ShoreColumn& c = m_solver.col(x, z);
+    p.bed = c.bed; p.surface = static_cast<float>(c.eta);
+    p.depth = c.wall ? 0.0f : static_cast<float>(std::max(0.0, c.eta - c.bed));
+    p.wet = !c.wall && p.depth > m_solver.params().dryDepth;
+    p.u = c.u; p.w = c.w; p.speed = std::sqrt(c.u * c.u + c.w * c.w);
+    // the bed's fall along the flow: central difference over +-1 column along the velocity (x when still)
+    glm::vec2 dir = p.speed > 1e-4f ? glm::vec2(c.u, c.w) / p.speed : glm::vec2(1.0f, 0.0f);
+    auto bedAt = [&](int xx, int zz) { xx = std::clamp(xx, 0, nx() - 1); zz = std::clamp(zz, 0, nz() - 1); const ShoreColumn& k = m_solver.col(xx, zz); return k.wall ? c.bed : k.bed; };
+    const int sx = std::abs(dir.x) >= std::abs(dir.y) ? (dir.x >= 0 ? 1 : -1) : 0, sz = sx == 0 ? (dir.y >= 0 ? 1 : -1) : 0;
+    p.slope = (bedAt(x - sx, z - sz) - bedAt(x + sx, z + sz)) / (2.0f * kH);
+    if (p.wet) {
+        p.froude = p.speed / std::sqrt(9.81f * p.depth);
+        const float q = p.depth * p.speed;
+        if (p.slope > 1e-5f && q > 0.0f) {
+            p.manningDepth = std::pow(q * manningN() / std::sqrt(p.slope), 0.6f);
+            p.manningSpeed = q / p.manningDepth;
+        }
+    }
+    return p;
+}
+
 int ColumnWater::wetColumns() const {
     int n = 0;
     const float dry = m_solver.params().dryDepth;

@@ -71,6 +71,7 @@ public:
     ShoreStepReport step(float dt);
     double totalMass() const;    ///< m^3 (sum of depth x h^2)
     const ShoreParams& params() const { return m_params; }
+    void setManningN(float n) { m_params.manningN = n; }   ///< WaterCore 25.26 K: bed roughness, tuned live
 
 private:
     void substep(float dt, ShoreStepReport& r);

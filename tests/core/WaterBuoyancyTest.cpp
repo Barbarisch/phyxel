@@ -96,6 +96,21 @@ TEST(WaterBuoyancy, FloaterDriftsWithTheCurrentToBoundedTerminalSpeed) {
     EXPECT_NEAR(b->linearVelocity.z, 0.0f, 0.05f) << "current is +x only";
 }
 
+// WaterCore.md 25.28 (K-T2's finding): a float carried by a current drifts AT the current. The waterline drag acted on the
+// ground velocity and held a float at 3 / (3 + 2.3) ~ 0.57 of the current (measured live: 0.24 of 0.50 m/s). Prediction:
+// within 10 % of a 0.5 m/s current after 20 s. RED with the old law (~0.57).
+TEST(WaterBuoyancy, FloatDriftsAtTheCurrentsSpeed) {
+    VoxelDynamicsWorld w;
+    w.setThreadCount(1);
+    w.setFallThreshold(-1000.0f);
+    w.setWaterQuery(flatWater(50.0f));
+    w.setWaterFlowQuery([](const glm::vec3&) { return glm::vec3(0.5f, 0.0f, 0.0f); });
+    VoxelRigidBody* b = unitBody(w, glm::vec3(0.0f, 49.5f, 0.0f), 2.0f);
+    for (int i = 0; i < 1200; ++i) w.stepSimulation(1.0f / 60.0f, 1);
+    std::printf("  drift %.3f m/s in a 0.500 m/s current\n", b->linearVelocity.x);
+    EXPECT_NEAR(b->linearVelocity.x, 0.5f, 0.05f);
+}
+
 TEST(WaterBuoyancy, NullFlowQueryChangesNothing) {
     VoxelDynamicsWorld a, b;
     for (VoxelDynamicsWorld* w : {&a, &b}) {

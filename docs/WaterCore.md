@@ -4582,6 +4582,34 @@ and bodies:
 - Test RC-T4: still column water + forcing -> exactly zero (no flow, no ripples); RC-T5: at the creek's flow the slope
   histogram's 95th percentile <= 0.3 (inside 22.11's black onset at the demo view) and the frame change > the still case.
 
+### 25.28 K built - the current measured and tuned on the creek bench (2026-10-12). Status: built, not signed off
+
+**Built:** `water_columns {probe: {x, z}}` and `{profile: {x0, z0, x1, z1, n}}` (depth, velocity, speed, surface, bed, bed slope
+along the flow, Froude, and each point's Manning prediction for its own unit discharge); live tuning `{id, manning_n}`
+(0.01-0.15) and `{id, spring_rate}` (the springs' total, 0-10 m^3/s, proportions kept); the reply carries each region's
+`manning_n` and `spring_total_m3s`. `debris_position_log {path | stop}` (paths under docs/evidence or the temp directory
+only) drives the GPU debris position log; `tools/water_creek_current.py` (profile / floats / tune).
+
+**Results (WaterBench_Creek, 100 L/s, steady flow):**
+- **K-T1** mid-reach (x 25-85): speed 0.452 m/s against Manning's 0.456, depth 10.86 cm against 10.73, Froude 0.44. Unit
+  (`WaterColumnTest.ProbeMatchesManningAndRoughnessTunes`, the straight 1:50 channel): 0.694 vs 0.696 m/s, 7.17 vs 7.15 cm.
+- **K-T3** roughness 0.035 -> 0.050 live: speed ratio 0.821 against Manning's 0.807 (unit: 0.806 vs 0.807).
+- **K-T2** four 1/9 m wood floats: 0.396 / 0.398 / 0.401 / 0.403 m/s over x 25-65 m, against the water's 0.452 - **88 %**
+  (prediction within 15 %); steady, no float stopped. The gap is plausibly the float reading its voxel's 3 x 3 sub-columns,
+  the slower edge water included.
+
+**Three things found on the way, each fixed:**
+1. **A 1/3 m float grounds in an 11 cm creek** (wood draws ~0.6 of its size: 20 cm) - it was shoved along the gravel, not
+   carried; the tool's default float is 1/9 m (7 cm draft). Physics, not a defect.
+2. **The position log's time base:** it writes a frame only when its GPU readback is ready (about one in three), so its
+   frames' dt sum to a third of the run; the tool maps logged frames evenly onto the run's wall time.
+3. **A defect in the debris water law: floats drifted at ~0.57 of the current.** The waterline (radiation) drag acted on the
+   GROUND velocity, so a float riding a current was braked toward rest while the current coupling pulled it toward the
+   flow: steady drift 3 / (3 + 2.3) = 0.57 of the current (live: 0.24 of 0.50 m/s). Now relative to the water, GPU
+   (`solver_integrate.comp`) and CPU (`VoxelDynamicsWorld`) - the same correction 24.10 made for form drag. Pinned by
+   `WaterBuoyancy.FloatDriftsAtTheCurrentsSpeed` (0.490 in a 0.500 m/s current; the old law's 0.57 is the computed red,
+   not run). 333 water / buoyancy / debris / dynamics tests pass; the debris settle bench: the same verdicts as its baselines.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

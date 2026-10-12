@@ -394,7 +394,13 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
                     // One water law for both worlds (solver_shared.h, Phase 6c).
                     constexpr float kWaterLinearDrag  = Phyxel::DebrisShared::WATER_LINEAR_DRAG;
                     constexpr float kWaterAngularDrag = Phyxel::DebrisShared::WATER_ANGULAR_DRAG;
-                    if (wet < 1.0f) body->linearVelocity *= std::pow(1.0f - kWaterLinearDrag, dt * wet);   // 24.9: waterline only
+                    // 24.9: the waterline's radiation damping only - relative to the water (25.28: against the ground it braked a
+                    // float riding a current to ~0.57 of it)
+                    if (wet < 1.0f) {
+                        glm::vec3 wv(0.0f);
+                        if (m_waterFlowQuery) { const glm::vec3 fl = m_waterFlowQuery(0.5f * (mn + mx)); wv = glm::vec3(fl.x, 0.0f, fl.z); }
+                        body->linearVelocity = wv + (body->linearVelocity - wv) * std::pow(1.0f - kWaterLinearDrag, dt * wet);
+                    }
                     {   // 24.9: form drag on the velocity RELATIVE TO THE WATER, k = Cd (A / V) b f / 2 (solver_shared.h) - against
                         // the ground it braked a floater riding a current (FloaterDrifts...: 0.78 of 1.6 m/s)
                         glm::vec3 water(0.0f);

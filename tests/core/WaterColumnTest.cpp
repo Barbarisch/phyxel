@@ -96,4 +96,25 @@ TEST(WaterColumnTest, BedRulesOnAThirdMetreStaircase) {
     }
 }
 
+// 25.26 K-T1 (unit) + K-T3: the probe on the straight 1:50 channel at steady flow (plane bed - Manning-exact, 25.20) reports
+// the speed and depth Manning gives for its own unit discharge (within 5 %); raising the roughness n 0.035 -> 0.050 slows the
+// flow by the Manning ratio for a fixed discharge, (0.035 / 0.050)^(3/5) = 0.807, within 10 %.
+TEST(WaterColumnTest, ProbeMatchesManningAndRoughnessTunes) {
+    auto run = [](float n) {
+        Channel ch(1.0f / 3.0f);
+        ch.cw.setManningN(n);
+        ch.cw.setBedRule(ColumnBedRule::Plane);
+        ch.setFlow(0.1);
+        for (int k = 0; k < 240 * 30; ++k) ch.cw.step(1.0f / 30.0f);
+        return ch.cw.probe(15.0f, 1.0f + 0.5f / 3.0f + 1.0f);   // mid-reach, an interior column
+    };
+    const auto a = run(0.035f), b = run(0.050f);
+    std::printf("  n 0.035: depth %.4f m (Manning %.4f), speed %.3f m/s (Manning %.3f), slope %.4f, Froude %.2f\n", a.depth, a.manningDepth, a.speed, a.manningSpeed, a.slope, a.froude);
+    std::printf("  n 0.050: depth %.4f m, speed %.3f m/s; speed ratio %.3f (Manning 0.807)\n", b.depth, b.speed, b.speed / a.speed);
+    ASSERT_TRUE(a.wet && b.wet);
+    EXPECT_NEAR(a.speed / a.manningSpeed, 1.0, 0.05);
+    EXPECT_NEAR(a.depth / a.manningDepth, 1.0, 0.05);
+    EXPECT_NEAR(b.speed / a.speed, std::pow(0.035 / 0.050, 0.6), 0.1 * std::pow(0.035 / 0.050, 0.6));
+}
+
 }  // namespace Phyxel::Core::Water

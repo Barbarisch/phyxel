@@ -63,6 +63,17 @@ public:
     /// water above the bed each step (a free overfall out of the region). Both counted in the ledger.
     void addSpring(int x, int z, double rate);
     void addOutfall(int x, int z);
+    /// 25.26 K - tuning: the springs' TOTAL rate (m^3/s) kept in their present proportions; the bed roughness (Manning n).
+    void setSpringTotal(double total);
+    double springTotal() const { double t = 0.0; for (const auto& s : m_springs) t += s.rate; return t; }
+    void setManningN(float n) { m_solver.setManningN(n); }
+    float manningN() const { return m_solver.params().manningN; }
+    /// 25.26 K - measuring: the column at world (x, z). `slope` = the bed's fall along the flow (central difference over
+    /// +-1 column, along the velocity; along x when still); the Manning prediction for the column's own unit discharge q =
+    /// depth x speed: normal depth (q n / sqrt S)^(3/5) and speed q / depth_n (a wide channel).
+    struct Probe { bool inside = false, wet = false; float depth = 0, u = 0, w = 0, speed = 0, surface = 0, bed = 0, slope = 0,
+                   froude = 0, manningDepth = 0, manningSpeed = 0; };
+    Probe probe(float wx, float wz) const;
     void clearSpringsAndOutfalls() { m_springs.clear(); m_outfalls.clear(); if (m_rule == ColumnBedRule::Hydraulic) applyBeds(); }
 
     void step(float dt);

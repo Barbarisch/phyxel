@@ -13577,6 +13577,21 @@ void Application::registerWaterCommands() {
             r = {{"columns", a}, {"creek_carve", g->creekCarve()}};
         } else { r = one(cmd.params.value("x", 0), cmd.params.value("z", 0)); r["creek_carve"] = g->creekCarve(); }
     });
+    // WaterCore 25.26 K: the GPU debris position log (CSV - P rows: frame, slot, pos, prev pos) for drift measurements.
+    // {path} starts (only under docs/evidence or the OS temp dir - a debug route must not write anywhere), {stop:true} stops.
+    reg.on("debris_position_log", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        auto* gp = debrisRuntime ? debrisRuntime->gpu() : nullptr;
+        if (!gp) { r = {{"error", "no GPU debris"}}; return; }
+        if (cmd.params.value("stop", false)) { gp->stopPositionLog(); r = {{"logging", gp->isPositionLogging()}}; return; }
+        if (cmd.params.contains("path")) {
+            const std::string path = cmd.params.value("path", std::string());
+            std::string norm = path; for (char& ch : norm) if (ch == '\\') ch = '/';
+            const bool ok = norm.find("docs/evidence/") != std::string::npos || norm.find("/Temp/") != std::string::npos || norm.find("/tmp/") != std::string::npos;
+            if (!ok) { r = {{"error", "path must be under docs/evidence/ or the temp directory"}}; return; }
+            r = {{"started", gp->startPositionLog(path)}, {"path", path}};
+        }
+        r["logging"] = gp->isPositionLogging();
+    });
     reg.on("water_find_river", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
         if (!g) {
@@ -14187,6 +14202,31 @@ void Application::registerWaterCommands() {
                 cw->setBedRule(rule);
             }
             if (p.value("clear_flows", false)) cw->clearSpringsAndOutfalls();
+            // 25.26 K - tuning, live: bed roughness (Manning n of a natural channel 0.01-0.15, as at create) and the springs'
+            // total rate (0-10 m^3/s, as one spring - above it a column cannot take the inflow in a step)
+            if (p.contains("manning_n") && !p.contains("create")) cw->setManningN(std::clamp(p.value("manning_n", 0.035f), 0.01f, 0.15f));
+            if (p.contains("spring_rate")) cw->setSpringTotal(std::clamp(p.value("spring_rate", 0.0), 0.0, 10.0));
+            // 25.26 K - measuring: one point, or n stations along a line (world m); points outside the region are refused
+            auto probeJson = [&](float x, float z) {
+                const auto pr = cw->probe(x, z);
+                return nlohmann::json{{"x", x}, {"z", z}, {"inside", pr.inside}, {"wet", pr.wet}, {"depth_m", pr.depth}, {"u", pr.u}, {"w", pr.w},
+                                      {"speed_ms", pr.speed}, {"surface_y", pr.surface}, {"bed_y", pr.bed}, {"bed_slope", pr.slope}, {"froude", pr.froude},
+                                      {"manning_depth_m", pr.manningDepth}, {"manning_speed_ms", pr.manningSpeed}};
+            };
+            if (p.contains("probe")) {
+                const auto& q = p["probe"];
+                const auto j = probeJson(q.value("x", 0.0f), q.value("z", 0.0f));
+                if (!j["inside"].get<bool>()) { r = {{"error", "probe outside the region"}}; return; }
+                r["probe"] = j;
+            }
+            if (p.contains("profile")) {
+                const auto& q = p["profile"];
+                const int n = std::clamp(q.value("n", 10), 2, 512);   // 512 stations: a 170 m line at the 1/3 m column pitch
+                const float x0 = q.value("x0", 0.0f), z0 = q.value("z0", 0.0f), x1 = q.value("x1", 0.0f), z1 = q.value("z1", 0.0f);
+                nlohmann::json st = nlohmann::json::array();
+                for (int i = 0; i < n; ++i) { const float t = static_cast<float>(i) / static_cast<float>(n - 1); st.push_back(probeJson(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t)); }
+                r["profile"] = st;
+            }
             if (p.contains("spring")) {
                 const auto& s = p["spring"]; int x, z;
                 // |rate| <= 10 m^3/s, as water_av_source: above it one column cannot take the inflow in a step
@@ -14205,7 +14245,7 @@ void Application::registerWaterCommands() {
             regions.push_back({{"id", c.id()}, {"min", {c.minVoxel().x, c.minVoxel().y, c.minVoxel().z}}, {"max", {c.maxVoxel().x, c.maxVoxel().y, c.maxVoxel().z}},
                                {"bed", Core::Water::columnBedRuleName(c.bedRule())}, {"columns", c.nx() * c.nz()}, {"wet_columns", c.wetColumns()},
                                {"in_m3", c.inflow()}, {"out_m3", c.outflow()}, {"stored_m3", c.stored()}, {"ledger_error_m3", c.ledgerError()},
-                               {"step_ms", c.lastStepMs()}});
+                               {"step_ms", c.lastStepMs()}, {"manning_n", c.manningN()}, {"spring_total_m3s", c.springTotal()}});
             const auto st = c.stats();
             regions.back()["stats"] = {{"mid_depth_m", st.midDepth}, {"mid_speed_ms", st.midSpeed}, {"wet", st.wet},
                                        {"hidden", st.hidden}, {"worst_hidden_m", st.worstHidden}};
@@ -14221,7 +14261,7 @@ void Application::registerWaterCommands() {
                 regions.back()["wet_list"] = wl;
             }
         }
-        r = {{"regions", regions}, {"realtime", waterCore->realtime()}};
+        r["regions"] = regions; r["realtime"] = waterCore->realtime();
         if (id) r["id"] = id;
     });
     reg.on("water_pond_friction", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 24.7
