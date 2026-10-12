@@ -4476,6 +4476,22 @@ state: the front had not reached the foot of the 100 m creek in 90 s; ledger 1.3
 a little deep at many parts"; the creek shape (meander) is good. To revisit when water goes back into the generated world
 (`WaterBench_RiverCarve`, 25.23).
 
+### 25.25 What the creek has of the pond work, and the current in action (owner, 2026-10-12)
+
+**The owner:** "first, i want to know that the water rippling and physics are staying true to the pond work. next i want to
+'see' current in action". **Measured on the creek bench** (the creek at steady flow, 429 m^3 in / 408 out;
+`tools/water_creek_current.py`, `creek_current.{json,mp4}`, `creek_current_frames.png`):
+
+- **The pond's small-scale physics is NOT on the creek yet.** A 1/3 m stone dropped mid-reach: ripple layers 0, droplet births
+  0, moving-solid bodies 0, before and after. The ripple layer (22), the droplet crown (21) and displacement (20) are built
+  for 3-D volumes only; the creek is a column region (T2). They reach a creek through the T1<->T2 hand-off - a 3-D window
+  waking where something disturbs the creek (H2, 25.13) - which is not built.
+- **The current works through the shared surface.** Floating debris reads `WaterCoreManager::columnWater` - the same field
+  list the renderer draws - so a column region's depth-averaged velocity is the debris current with no new code. Four 1/3 m
+  wood blocks dropped at the head drift steadily downstream (frames at 5 / 30 / 58 s). Two caveats: they ride high on the
+  water (the known bounding-sphere buoyancy law, 19.3 / cure M4), and `wet_body_list` lists only bodies inside 3-D volumes,
+  so their speed was not measured numerically (a debris position route is the missing measurement).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
