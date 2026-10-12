@@ -458,7 +458,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **E. Coupling** — **MOSTLY BUILT; small-pond feel SIGNED OFF 2026-10-09 (§19.8).** E1 blasts + E2 debris both ways (§19.2–19.3); moving solids M0–M2 (§20.12–20.14, not signed off); clear water S0 (§21.10) and the droplet pool (§21.12); ripples R0+R1 (§22.9, accepted) + the black/white fix B1/B2 (§22.12, signed off 2026-10-11); waves keep their energy, pond friction, stone drag, the level-jerk fix (§24, not signed off). Open: M3/M4, E4 wading, pond whitewater, containers/pipes/scoop (§0a)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (§17.3), sign-off pending; F3 deletions open** (droplets were built under E, §21; the old RippleField's replacement is `RippleLayer`, §22)** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
-| **H. The world water system** — **DESIGN §25 (2026-10-11), H0 MEASURED (§25.16-25.17); H1 DESIGNED + checked, READY for (a)/(b) (§25.18); creek beds generated in 1/3 m subcubes - owner's rule (§25.19)** | Sources and sinks with a ledger; three tiers (3-D windows, columns, far network) of one water; paths and currents simulated from the ground as it is; settling by Priority-Flood + Fill-Spill-Merge; underground drainage limit and water table; floating items in every tier | /design-check per step (H0 measurement first) | WS-1..WS-11 (§25.12); owner's look in motion |
+| **H. The world water system** — **DESIGN §25 (2026-10-11), H0 MEASURED (§25.16-25.17); H1 DESIGNED + checked, READY for (a)/(b) (§25.18); creek beds in 1/3 m subcubes (§25.19); bed option (a) CHOSEN, others recorded (§25.21); H1c designed + checked (§25.22)** | Sources and sinks with a ledger; three tiers (3-D windows, columns, far network) of one water; paths and currents simulated from the ground as it is; settling by Priority-Flood + Fill-Spill-Merge; underground drainage limit and water table; floating items in every tier | /design-check per step (H0 measurement first) | WS-1..WS-11 (§25.12); owner's look in motion |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -4343,6 +4343,72 @@ clip; the generated-creek comparison (H1c then step iii) follows.
 **A process failure, recorded:** the first three live runs measured an EMPTY chunk - the rig had been built in memory, the
 engine was restarted, and nothing checked the world. `water_creek_rig.py` now verifies the walls and bed through
 `/api/world/terrain_height` and refuses to run without them (shown refusing, then passing after `--build`).
+
+### 25.21 Owner decision (2026-10-11): option (a) - the water flows on the generator's continuous height. The other options, recorded for a future switch
+
+**The owner:** "lets get it done. go with option a, but make sure to record details of other options so we can maybe
+switch to it in the future". **Decided:** creek water (T2) flows on the generator's CONTINUOUS ground height where the
+ground is as generated; where the player edited, on the voxels. The drawn creek bed is carved to the 1/3 m grid by
+ROUNDING DOWN (25.22), so the continuous height is always on or above the drawn bed - water can never hide in it (25.20).
+
+**The options not chosen - each kept as a working bed rule in `ColumnWater` (`water_columns {bed}`), so a switch is a
+setting, not a rebuild:**
+
+| Rule | How the bed is made | Measured (25.20: 30 m, 1:50, 1/3 m steps, 20 L/s) | When it would be the better choice |
+|---|---|---|---|
+| **(a) generator** - CHOSEN | the generator's continuous height (`ColumnSample::bedHeight`, 25.22) on unedited columns; voxel tops on edited ones | plane stand-in: Manning-exact (2.73 cm, 0.366 m/s), through in 80 s, nothing hidden | whenever the drawn bed is carved by rounding down - the generated world |
+| **(b) hydraulic** | `hydraulicBed()` - per run of equal voxel tops, a ramp from the step above to the run's own top; outfalls count as a lower exit; walls are banks, never steps; a run with no lower exit stays flat (a pool) | 4.2 cm (1.5x), 0.26 m/s, 91 % through, first water at 118 s; nothing hidden | ground with NO generator height behind it (fully player-built terrain, imported maps) where a staircase should still read as a slope; known limits: few steps on gentle slopes -> long flat ramps; ramps toward non-wall higher banks too (a cross-channel ramp) - needs a flow-direction rule before it is used on natural ground |
+| **(c) voxel** | the top of the highest solid micro cell under the column | pools: 7.3 cm, 0.03 m/s, nothing through in 180 s | player TERRACES that must pool (paddies, weirs) - it is what (a) already uses on edited columns |
+| **plane** (test only) | `y0 - slope x distance` along a direction | as (a) | authored rigs with no generator surface - the stand-in that measured (a) |
+
+**What a future switch would need:** (b) - its two known limits fixed (a flow-direction rule for which higher neighbours
+count as "the step above"; a slope estimate for the head run), then the 25.20 rig and a generated creek re-run; (c) - nothing
+(it exists); changing the default is one line in `WaterCoreManager::createColumns` plus the pinned test (25.22 C-T9).
+### 25.22 H1c design - creek beds carved to the 1/3 m grid, and the water's generator bed (2026-10-11)
+
+**What the generator does today** (`WorldGenerator::sampleColumn` / `generateChunk`): a column's continuous height H
+(`coarse.baseHeight + relief * blendScale + blendOffset - creekSwale`) is floored to a VOXEL INDEX, `surfaceY = floor(H)`,
+and that voxel is solid - so the drawn top, surfaceY + 1, is ABOVE H by up to 1 m (a full-cube rounding UP of the
+surface). Rivers of order >= 3 lower surfaceY by `lround(channel depth)` whole voxels. Creeks (order 1-2) are not carved;
+the inner band (`creekBed`: channel depth >= 0.15) gets a fixed 2-layer subcube shelf in its surface voxel - a 1/3 m
+recess below the banks, the same everywhere, not following the slope.
+
+**The change (creeks, orders 1-2, the `creekBed` band - the owner's rule 25.19 says creek beds):**
+1. `ColumnSample` gains `bedHeight` - the continuous H of the column after every terrain term (swale; the river carve as a
+   continuous depth, not `lround`) - a pure function of world position, like `surfaceY`.
+2. In a `creekBed` column the surface is carved by ROUNDING DOWN to the 1/3 m grid: L = floor(3 (H - floor(H))) subcube
+   layers (0, 1 or 2) in voxel floor(H); L = 0 makes that voxel air and the surface voxel the one below (full, top =
+   floor(H)). So the drawn bed top = floor(H) + L/3, always <= H and within 1/3 m of it. This REPLACES the fixed 2/3 shelf.
+   Banks (non-creek columns) keep today's rounding - the creek therefore sits 0-1 m below its banks, following its own
+   slope (today: a constant 1/3 m).
+3. Rivers (order >= 3) unchanged in this step - the same rule applies to them later (logged), with their own check.
+
+**The water side (T2):** `ColumnWater` gets the bed rule `generator` - for each column, a `bedHeight(x, z)` query (the
+editor wires the streaming generator's sampler); a column is UNEDITED when its drawn top (from the micro occupancy) equals
+the top the generator's carve would draw there (step 2's formula; equality within 1e-3 m); unedited -> bed = bedHeight,
+edited -> bed = the voxel top. Default bed rule: `generator` where a height query exists, `voxel` otherwise (the authored
+bench has none - its rigs keep `plane` / `voxel`).
+
+**Design keys.** *Voxel look:* the carve is in SUBCUBES - the engine's detail size - and unconditional in creek columns;
+more static faces near creeks (each carved column emits up to 18 subcubes instead of 1 cube): measured on the River bench
+(render face count before/after in a fixed view). *Chunks:* `bedHeight` and the carve are pure functions of world
+position (as `surfaceY` and `creekBed` are today - streamed chunks and a whole-region pass agree by construction); red test
+**C-T8**: for a stretch of creek straddling a chunk seam, the per-column drawn top and `bedHeight` from a chunk-by-chunk
+pass equal a whole-region pass. *Generation:* hydrology stage output consumed by the terrain stage, as today; later
+stages - flora is gated on `riverOrder` (unchanged), WorldForge bridges set piers "from the carved bed" (reads the new,
+lower bed: a pier is 0-1 m taller - correct), the old CA's creek ribbon reads `Chunk::subVoxelFloor` (it was 2/3; now 0,
+1/3 or 2/3 - the OLD water's ribbon follows the new bed; it is retired by §9 anyway, its creek rows to be re-measured
+on the River bench before/after). World recipe (`WorldRecipe`, `world_meta`): the carve is a code rule - existing worlds keep their saved chunks, but
+their UNSAVED chunks would regenerate with the new carve -> a recipe flag `creekCarve` (`fromJson` default false, so an
+old world's recipe without the key stays off; `WorldGenerator::makeRecipe()` sets it true for new worlds; written only
+when true, so legacy recipe JSON stays byte-identical, the WorldForge-block pattern) so editing code never re-shapes a saved world's unsaved chunks differently from its
+saved ones. *API:* `water_columns {bed: "generator"}` (echoed); the generator has no new route. *Tests:* **C-T8** (seam);
+**C-T9** - per creek column: drawn top <= bedHeight < drawn top + 1/3 m (every column of a generated stretch); **C-T10** - the
+River bench, a generated creek stretch: (a) on the new carve - out/in, depth vs Manning on the stretch's own slope, hidden
+columns (prediction 0), against `voxel` as the control; the owner's look in motion.
+
+**Design-check (2026-10-11): READY**, with the recipe flag (`creekCarve`) and C-T8 as the two conditions the build must
+meet; rivers deferred with their own check.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
