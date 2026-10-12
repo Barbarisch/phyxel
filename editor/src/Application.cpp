@@ -14135,6 +14135,58 @@ void Application::registerWaterCommands() {
              {"pattern", rp.slope >= 0.0f ? nlohmann::json{{"slope", rp.slope}, {"azimuth_deg", rp.azimuthDeg}} : nlohmann::json(false)},
              {"pitch_m", Core::Water::RippleLayer::kPitch}};
     });
+    // WaterCore 25.18 H1 - column-water regions (the T2 tier, step 1). Every field optional; omitted = unchanged.
+    //   create {x1,y1,z1,x2,y2,z2} (voxels) [manning_n]   -> a new region, beds/walls read from the world's solids
+    //   id + destroy:true | bed:"voxel|hydraulic|plane" | plane:{y0,slope,dir_deg} | spring:{x,z,rate} (world m, m^3/s)
+    //        | outfall:{x,z} (world m) | clear_flows:true | refresh:true (re-read the solids now)
+    // Reply: every region with its box, bed rule, columns, wet columns, ledger (in / out / stored / error, m^3), step ms.
+    reg.on("water_columns", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        using Core::Water::ColumnWater; using Core::Water::ColumnBedRule;
+        if (!waterCore) { r = {{"error", "no water core"}}; return; }
+        auto& p = cmd.params;
+        int id = p.value("id", 0);
+        if (p.contains("create")) {
+            const auto& c = p["create"];
+            // Manning n of a natural channel: 0.01 (smooth wood/concrete) .. 0.15 (heavy brush); outside it is not a bed
+            const float n = std::clamp(p.value("manning_n", 0.035f), 0.01f, 0.15f);
+            std::string err;
+            id = waterCore->createColumns(glm::ivec3(c.value("x1", 0), c.value("y1", 0), c.value("z1", 0)),
+                                          glm::ivec3(c.value("x2", 0), c.value("y2", 0), c.value("z2", 0)), n, &err);
+            if (!id) { r = {{"error", err}}; return; }
+        }
+        if (id && p.value("destroy", false)) { waterCore->destroyColumns(id); id = 0; }
+        if (ColumnWater* cw = id ? waterCore->columns(id) : nullptr) {
+            if (p.value("refresh", false)) waterCore->markSolidsDirty();
+            if (p.contains("plane")) { const auto& pl = p["plane"]; cw->setPlane(pl.value("y0", 0.0f), std::clamp(pl.value("slope", 0.0f), -1.0f, 1.0f), pl.value("dir_deg", 0.0f)); }
+            if (p.contains("bed")) {
+                ColumnBedRule rule;
+                if (!Core::Water::parseColumnBedRule(p.value("bed", std::string("voxel")), rule)) { r = {{"error", "bed must be voxel, hydraulic or plane"}}; return; }
+                cw->setBedRule(rule);
+            }
+            if (p.value("clear_flows", false)) cw->clearSpringsAndOutfalls();
+            if (p.contains("spring")) {
+                const auto& s = p["spring"]; int x, z;
+                // |rate| <= 10 m^3/s, as water_av_source: above it one column cannot take the inflow in a step
+                if (!cw->columnAt(s.value("x", 0.0f), s.value("z", 0.0f), x, z)) { r = {{"error", "spring outside the region"}}; return; }
+                cw->addSpring(x, z, std::clamp(s.value("rate", 0.0), 0.0, 10.0));
+            }
+            if (p.contains("outfall")) {
+                const auto& o = p["outfall"]; int x, z;
+                if (!cw->columnAt(o.value("x", 0.0f), o.value("z", 0.0f), x, z)) { r = {{"error", "outfall outside the region"}}; return; }
+                cw->addOutfall(x, z);
+            }
+        }
+        nlohmann::json regions = nlohmann::json::array();
+        for (const auto& reg_ : waterCore->columnRegions()) {
+            const ColumnWater& c = *reg_.cw;
+            regions.push_back({{"id", c.id()}, {"min", {c.minVoxel().x, c.minVoxel().y, c.minVoxel().z}}, {"max", {c.maxVoxel().x, c.maxVoxel().y, c.maxVoxel().z}},
+                               {"bed", Core::Water::columnBedRuleName(c.bedRule())}, {"columns", c.nx() * c.nz()}, {"wet_columns", c.wetColumns()},
+                               {"in_m3", c.inflow()}, {"out_m3", c.outflow()}, {"stored_m3", c.stored()}, {"ledger_error_m3", c.ledgerError()},
+                               {"step_ms", c.lastStepMs()}});
+        }
+        r = {{"regions", regions}, {"realtime", waterCore->realtime()}};
+        if (id) r["id"] = id;
+    });
     reg.on("water_pond_friction", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 24.7
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("half_life_s")) {

@@ -2202,6 +2202,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_droplets",       waterEndpoint("water_droplets"));       // 21: droplet crown state + ledger
     srv.Post("/api/debug/water_ripples",        waterEndpoint("water_ripples"));        // 22: ripple layer state
     srv.Post("/api/debug/water_pond_friction",  waterEndpoint("water_pond_friction"));  // 24.7: pond friction half-life
+    srv.Post("/api/debug/water_columns",        waterEndpoint("water_columns"));        // 25.18 H1: column-water regions
     srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));

@@ -185,6 +185,7 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
 
 void WaterCoreManager::markSolidsDirty() {
     for (auto& av : m_avs) { av->occDirty = true; av->solver->wake(); }
+    for (auto& r : m_columns) r.occRevision = ~0ull;   // 25.18: column regions re-read their beds next step
 }
 
 bool WaterCoreManager::step(int id, int ticks, float dt, AvRecord* out) {
@@ -213,6 +214,7 @@ void WaterCoreManager::update(float dt) {
     }
     stepDroplets(dt);   // 21: flight + landing (deposits reach a GPU volume at its next step)
     stepRipples(dt);    // 22: the sub-cell wave layer
+    stepColumns(dt);    // 25.18 H1: column-water regions
     // Phase D (16.2): a volume that slept this tick writes back and frees itself (auto_sleep). Ids
     // first - sleep() destroys. A refused write-back (held or non-resident columns) leaves the
     // volume alive and is reported through the drained records, never silent.
@@ -674,7 +676,63 @@ const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
         av->field.rippleLayer = (av->ripple && m_rstats.on) ? static_cast<int>(m_fields.size()) : -1;   // 22: parallel to rippleLayers()
         m_fields.push_back(av->field);
     }
+    for (ColumnRegion& r : m_columns) {   // 25.18 H1 (25.15 F1): the column tier drawn by the same mesher and shader
+        r.cw->publish(r.field);
+        const glm::ivec3 c = (r.cw->minVoxel() + r.cw->maxVoxel()) / 2;
+        r.field.look = packLook(lookAt(c.x, c.z));
+        m_fields.push_back(r.field);
+    }
     return m_fields;
+}
+
+// ---- 25.18 H1: column-water regions ----
+void WaterCoreManager::refreshColumnSolids(ColumnRegion& r, bool force) {
+    const uint64_t rev = m_revision ? m_revision() : 0;
+    if (!force && rev == r.occRevision) return;
+    r.occRevision = rev;
+    ColumnWater& cw = *r.cw;
+    const int nx = cw.nx(), nz = cw.nz();
+    const int yLo = cw.minVoxel().y * kMicroPerVoxel, yHi = (cw.maxVoxel().y + 1) * kMicroPerVoxel - 1;
+    std::vector<float> tops(static_cast<size_t>(nx) * nz, static_cast<float>(cw.minVoxel().y));
+    std::vector<uint8_t> walls(tops.size(), 0);
+    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+        // the column's centre micro column (1/9 m) - the bed is the top of the highest solid micro cell in the box's range
+        const glm::vec2 cc = cw.columnCentre(x, z);
+        const int mx = static_cast<int>(std::floor(cc.x * kMicroPerVoxel)), mz = static_cast<int>(std::floor(cc.y * kMicroPerVoxel));
+        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(nx) * z;
+        if (m_state && m_state(glm::ivec3(mx, yHi, mz)) == 1) { walls[i] = 1; continue; }   // solid to the box top: a bank
+        for (int my = yHi; my >= yLo; --my) {
+            if (m_state && m_state(glm::ivec3(mx, my, mz)) == 1) { tops[i] = static_cast<float>(my + 1) / kMicroPerVoxel; break; }
+        }
+    }
+    cw.setSolids(tops, walls);
+}
+
+int WaterCoreManager::createColumns(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float manningN, std::string* err) {
+    const glm::ivec3 lo = glm::min(minVoxel, maxVoxel), hi = glm::max(minVoxel, maxVoxel);
+    const glm::ivec3 span = hi - lo + 1;
+    // 600 x 600 columns (200 m square at 1/3 m) is the CPU step's ceiling here (H0: ~150-285 ns per column-tick)
+    if (span.x * 3 > 600 || span.z * 3 > 600 || span.y > 64) { if (err) *err = "box too large (max 200 x 64 x 200 voxels)"; return 0; }
+    ShoreParams p; p.manningN = manningN;
+    ColumnRegion r;
+    r.cw = std::make_unique<ColumnWater>(m_nextColumnId++, lo, hi, p);
+    refreshColumnSolids(r, true);
+    m_columns.push_back(std::move(r));
+    return m_columns.back().cw->id();
+}
+
+bool WaterCoreManager::destroyColumns(int id) {
+    for (size_t i = 0; i < m_columns.size(); ++i) if (m_columns[i].cw->id() == id) { m_columns.erase(m_columns.begin() + static_cast<long>(i)); return true; }
+    return false;
+}
+
+ColumnWater* WaterCoreManager::columns(int id) {
+    for (ColumnRegion& r : m_columns) if (r.cw->id() == id) return r.cw.get();
+    return nullptr;
+}
+
+void WaterCoreManager::stepColumns(float dt) {
+    for (ColumnRegion& r : m_columns) { refreshColumnSolids(r); r.cw->step(dt); }
 }
 
 std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float moveM) {

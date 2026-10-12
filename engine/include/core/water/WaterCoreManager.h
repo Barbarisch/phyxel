@@ -12,6 +12,7 @@
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
 #include "core/water/WaterDroplets.h"      // 21: the droplet crown
 #include "core/water/RippleLayer.h"        // 22: ripples
+#include "core/water/ColumnWater.h"        // 25.18 H1: the column tier
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <unordered_map>
 #include <glm/glm.hpp>
@@ -201,6 +202,14 @@ public:
     /// wrote into its staging ring, a memcpy; CPU: extracted from the grid). Rebuilt on every call
     /// that follows a step; a volume that did not step since the last call keeps its field.
     const std::vector<WaterSurfaceField>& surfaceFields();
+    // ---- 25.18 H1: column-water regions ----
+    struct ColumnRegion { std::unique_ptr<ColumnWater> cw; uint64_t occRevision = ~0ull; WaterSurfaceField field; };
+    /// A region over voxels [minVoxel, maxVoxel]; beds and walls read from the world's solids. Returns its id (0 = refused, `err`).
+    int createColumns(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float manningN, std::string* err);
+    bool destroyColumns(int id);
+    ColumnWater* columns(int id);
+    const std::vector<ColumnRegion>& columnRegions() const { return m_columns; }
+    void stepColumns(float dt);
     /// E2: one world voxel column's water from the last surface fields - the highest top over the
     /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
     bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
@@ -347,6 +356,10 @@ private:
     void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)
     void markWritten(Av& av);   // Phase E1: a CPU-side write to a volume's grid: upload it, wake it
     std::vector<std::unique_ptr<Av>> m_avs;
+    // 25.18 H1: column-water regions (the T2 tier, step 1 - placed by hand over a creek)
+    std::vector<ColumnRegion> m_columns;
+    int m_nextColumnId = 1;
+    void refreshColumnSolids(ColumnRegion& r, bool force = false);
     SpanWriter m_spanWriter; SpanReader m_spanReader; BakeBodyQuery m_bakeBodyAt;
     WaterBodyTable m_bodies;
     std::vector<WriteBackRecord> m_autoSlept;
