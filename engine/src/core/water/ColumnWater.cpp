@@ -133,8 +133,14 @@ void ColumnWater::applyBeds() {
     if (m_rule == ColumnBedRule::Plane) {
         const float a = m_planeDir * 3.14159265f / 180.0f;
         const glm::vec2 dir(std::cos(a), std::sin(a));
-        for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x)
-            beds[x + nx * z] = m_planeY0 - m_planeSlope * glm::dot(columnCentre(x, z), dir);
+        // the authored analogue of option (a): the line the creek was carved along, where the column IS that carve (its drawn
+        // top within one 1/3 m step below the line - the rounding-down relation, 25.22); anywhere else (a bank above the line)
+        // the voxel top - else a bank's water would sit below its own ground (25.24)
+        for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+            const float line = m_planeY0 - m_planeSlope * glm::dot(columnCentre(x, z), dir);
+            const float top = m_tops[x + nx * z];
+            beds[x + nx * z] = (line >= top - 1e-4f && line < top + 1.0f / 3.0f + 1e-4f) ? line : top;
+        }
     }
     const float boxTop = static_cast<float>(m_max.y + 1);
     for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {

@@ -4450,6 +4450,32 @@ Clip for the owner: `gencreek_generator_look.mp4` (90 s, a low view downstream a
 above both; not measured as a barrier yet); rivers (order >= 3) keep their whole-voxel carve until the same rule is designed
 for them; the region step reaches 3.4 ms on this 1,400-column box on the CPU (the GPU port, H1b).
 
+### 25.24 The simple creek bench (owner, 2026-10-12) - water first, generator integration later
+
+**The owner, on the generated creek:** "the meandering shape of the creak is pretty good... but yeah we are adding depth on
+top of the generator depth which is make it worse... i feel like we should start much much much more simple. a mostly flat
+world without flora or fauna. you just carve out a simple mostly straight creak so we have a much more simple testing
+point. we can work on integration with the engines world forge after. we need to focus on water for now".
+
+**Decision:** water development runs on `WaterBench_Creek` (port 8114, `Documents/PhyxelProjects/WaterBench_Creek`): an
+empty world, a flat 128 x 64 m slab (dirt, a grass top layer, the ground's top at y 16), no flora, no fauna, no generator
+terrain, the old CA water off, and ONE straight creek carved by `tools/water_creek_bench.py --build` - x 10-109 (100 m), z
+31-32 (2 m wide), its bed a 1:200 line from 15.67 m rounded DOWN to the 1/3 m grid in gravel subcubes (1,224), so it
+starts 1/3 m below the grass and ends 1 m below. Saved, and verified after a restart. The creek's water is a column-water
+region on the carve's line (`plane`, now with the option-(a) rule on authored ground: the line where the column IS the
+carve - drawn top within one 1/3 m step below it - and the voxel top elsewhere, so a bank's water never sits under its own
+ground; the 25.20 channel's numbers are unchanged by it), a spring at the head, an outfall at the foot.
+`--run [--q]` starts it and leaves it running; `--record S` adds a clip and the numbers.
+
+**First run (100 L/s, 90 s, `creekbench_q0.1.{json,mp4}`):** the water is visible - clear over the gravel between the grass
+banks; mid speed 0.46 m/s (Manning 0.46), mid depth 7 cm and rising (Manning normal depth 10.9 cm) - not yet at steady
+state: the front had not reached the foot of the 100 m creek in 90 s; ledger 1.3e-7 m^3; region step <= 1.2 ms (CPU).
+
+**Logged for the generator integration (later, not now):** the generator's creek SWALE (up to 1.6 m at the centreline,
+`kCreekSwaleDepth`) plus the 1/3 m carve plus 1 m banks rounding up read as a trench beside 1 m terrain - the owner: "it looks
+a little deep at many parts"; the creek shape (meander) is good. To revisit when water goes back into the generated world
+(`WaterBench_RiverCarve`, 25.23).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
