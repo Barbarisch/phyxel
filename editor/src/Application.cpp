@@ -446,6 +446,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
             return occ ? occ->packRevision() : 0;
         });
+    // WaterCore.md 25.22 option (a): column regions flow on the generator's continuous height where the ground is as generated
+    waterCore->setGeneratorBedQuery([this](int wx, int wz, float& bedHeight, float& drawnTop) -> bool {
+        WorldGenerator* sg = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        if (!sg) return false;
+        const WorldGenerator::ColumnSample c = sg->sampleSurface(wx, wz);
+        bedHeight = c.bedHeight; drawnTop = sg->drawnTop(c);
+        return true;
+    });
     // Phase D (docs/WaterCore.md 16.2): the chunk I/O of the write-back. A column's water is ONE
     // world-space object stored as clips in every vertical chunk it crosses: the writer assembles
     // the chunk column, merges the volume's runs in world space, clips back, marks dirty, bumps the

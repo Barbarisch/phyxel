@@ -706,6 +706,37 @@ void WaterCoreManager::refreshColumnSolids(ColumnRegion& r, bool force) {
         }
     }
     cw.setSolids(tops, walls);
+    // 25.22 option (a): the generator's continuous height where the ground is as generated (its drawn top matches what the
+    // generator draws there), bilinear between voxel centres so a 1/3 m column is not a 1 m staircase sideways, and never
+    // below the drawn top (a neighbour's lower height must not sink the bed under this voxel's subcubes). Edited ground:
+    // the voxel top.
+    if (!m_genBed) return;
+    const glm::ivec3 lo = cw.minVoxel() - glm::ivec3(1, 0, 1), hi = cw.maxVoxel() + glm::ivec3(1, 0, 1);
+    const int vx = hi.x - lo.x + 1, vz = hi.z - lo.z + 1;
+    std::vector<float> H(static_cast<size_t>(vx) * vz, 0.0f), drawn(H.size(), 0.0f);
+    std::vector<uint8_t> known(H.size(), 0);
+    for (int z = 0; z < vz; ++z) for (int x = 0; x < vx; ++x) {
+        float bh = 0.0f, dt = 0.0f;
+        const size_t k = static_cast<size_t>(x) + static_cast<size_t>(vx) * z;
+        if (m_genBed(lo.x + x, lo.z + z, bh, dt)) { H[k] = bh; drawn[k] = dt; known[k] = 1; }
+    }
+    std::vector<float> beds(tops.size());
+    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(nx) * z;
+        beds[i] = tops[i];
+        if (walls[i]) continue;
+        const glm::vec2 c = cw.columnCentre(x, z);
+        const int ox = static_cast<int>(std::floor(c.x)) - lo.x, oz = static_cast<int>(std::floor(c.y)) - lo.z;
+        const size_t own = static_cast<size_t>(ox) + static_cast<size_t>(vx) * oz;
+        if (!known[own] || std::abs(drawn[own] - tops[i]) > 1e-3f) continue;   // edited (or unknown): the voxels
+        const float fx = c.x - 0.5f - lo.x, fz = c.y - 0.5f - lo.z;           // in voxel-centre coordinates
+        const int x0 = std::clamp(static_cast<int>(std::floor(fx)), 0, vx - 2), z0 = std::clamp(static_cast<int>(std::floor(fz)), 0, vz - 2);
+        const float tx = std::clamp(fx - x0, 0.0f, 1.0f), tz = std::clamp(fz - z0, 0.0f, 1.0f);
+        auto at = [&](int xx, int zz) { const size_t k = static_cast<size_t>(xx) + static_cast<size_t>(vx) * zz; return known[k] ? H[k] : H[own]; };
+        const float h = (at(x0, z0) * (1 - tx) + at(x0 + 1, z0) * tx) * (1 - tz) + (at(x0, z0 + 1) * (1 - tx) + at(x0 + 1, z0 + 1) * tx) * tz;
+        beds[i] = std::max(h, tops[i]);
+    }
+    cw.setGeneratorBeds(std::move(beds));
 }
 
 int WaterCoreManager::createColumns(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float manningN, std::string* err) {
@@ -717,6 +748,7 @@ int WaterCoreManager::createColumns(const glm::ivec3& minVoxel, const glm::ivec3
     ColumnRegion r;
     r.cw = std::make_unique<ColumnWater>(m_nextColumnId++, lo, hi, p);
     refreshColumnSolids(r, true);
+    if (r.cw->hasGeneratorBeds()) r.cw->setBedRule(ColumnBedRule::Generator);   // 25.21: option (a) is the default where it exists
     m_columns.push_back(std::move(r));
     return m_columns.back().cw->id();
 }

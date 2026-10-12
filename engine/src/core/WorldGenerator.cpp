@@ -589,6 +589,17 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                 // creek column is a 2-layer subcube shelf, not a full cube — the bed sits 1/3 voxel
                 // below the banks, and the runtime's fractional ribbon pin rests IN the recess
                 // (Chunk::subVoxelFloor reads 2/3; the water sim floors the cell accordingly).
+                if (col.creekBed && wy == col.surfaceY && m_creekCarve) {
+                    // WaterCore.md 25.22: the bed carved to the 1/3 m grid by ROUNDING DOWN the continuous height - the
+                    // drawn top is <= bedHeight and within 1/3 m of it, so water flowing on bedHeight never hides in it
+                    const int layers = creekLayers(col);
+                    const std::string& bedMat = materialForColumn(wy, col);
+                    for (int sy = 0; sy < layers; ++sy)
+                        for (int sx = 0; sx < 3; ++sx)
+                            for (int sz = 0; sz < 3; ++sz)
+                                chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz), bedMat);
+                    continue;   // layers == 0: the voxel is air, the bed is the voxel below
+                }
                 if (col.creekBed && wy == col.surfaceY) {
                     const std::string& shelfMat = materialForColumn(wy, col);
                     for (int sy = 0; sy < 2; ++sy)
@@ -1004,7 +1015,8 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 creekSwale = kCreekSwaleDepth * (1.0f - t * t);
             }
         }
-        col.surfaceY = static_cast<int>(std::floor(coarse.baseHeight + relief * blendScale + blendOffset - creekSwale));
+        col.bedHeight = coarse.baseHeight + relief * blendScale + blendOffset - creekSwale;   // 25.22: the continuous height
+        col.surfaceY = static_cast<int>(std::floor(col.bedHeight));
 
         // P2 river carve: lower the smooth valley floor further where the network runs a channel
         // (order ≥ 3; orders 1-2 are sub-voxel → no bed), a parabolic bed (deepest at the centreline).
@@ -1019,7 +1031,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 // to a full-voxel trench here, which is exactly the wrong outcome for a sub-voxel
                 // creek. riverOrder is still recorded for every order: the water runtime and the
                 // flora gate both consume it (no trees standing in the creek line).
-                if (ch.order >= 3) col.surfaceY -= static_cast<int>(std::lround(ch.depth));
+                if (ch.order >= 3) { col.surfaceY -= static_cast<int>(std::lround(ch.depth)); col.bedHeight -= ch.depth; }
                 col.riverOrder = ch.order;
                 col.channelDepth = ch.depth;
                 // Creek BED RECESS (water-as-terrain-stage P2): the inner band of an order 1-2
@@ -1492,7 +1504,19 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     for (const auto& p : m_continentalHeightSpline.points())
         r.heightSpline.push_back({p.x, p.y});
     r.worldforge = m_worldForgeParams;
+    r.creekCarve = true;   // 25.22: new worlds carve creek beds to 1/3 m
     return r;
+}
+
+int WorldGenerator::creekLayers(const ColumnSample& c) {
+    const float frac = c.bedHeight - static_cast<float>(c.surfaceY);
+    return std::clamp(static_cast<int>(std::floor(3.0f * frac + 1e-5f)), 0, 2);
+}
+
+float WorldGenerator::drawnTop(const ColumnSample& c) const {
+    if (c.creekBed && m_creekCarve) return static_cast<float>(c.surfaceY) + creekLayers(c) / 3.0f;
+    if (c.creekBed) return static_cast<float>(c.surfaceY) + 2.0f / 3.0f;
+    return static_cast<float>(c.surfaceY + 1);
 }
 
 void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
@@ -1503,6 +1527,7 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     // Pinned by WorldForgeRecipeTest.RecipeSeedAuthority (shown red first).
     if (recipe.seed != 0) seed = recipe.seed;
     m_worldForgeParams = recipe.worldforge;
+    m_creekCarve = recipe.creekCarve;   // 25.22
     terrainParams.climateFrequency = recipe.climateFrequency;
     terrainParams.seaLevelY = recipe.seaLevelY;   // rebake below re-floods against this outlet
     // Override per-biome tuning by name; biome category fields (materials, climate) untouched.

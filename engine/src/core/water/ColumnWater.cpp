@@ -12,6 +12,7 @@ const char* columnBedRuleName(ColumnBedRule r) {
         case ColumnBedRule::Voxel: return "voxel";
         case ColumnBedRule::Hydraulic: return "hydraulic";
         case ColumnBedRule::Plane: return "plane";
+        case ColumnBedRule::Generator: return "generator";
     }
     return "voxel";
 }
@@ -20,6 +21,7 @@ bool parseColumnBedRule(const std::string& s, ColumnBedRule& out) {
     if (s == "voxel") { out = ColumnBedRule::Voxel; return true; }
     if (s == "hydraulic") { out = ColumnBedRule::Hydraulic; return true; }
     if (s == "plane") { out = ColumnBedRule::Plane; return true; }
+    if (s == "generator") { out = ColumnBedRule::Generator; return true; }
     return false;
 }
 
@@ -126,6 +128,7 @@ void ColumnWater::applyBeds() {
         for (int i : m_outfalls) exits[static_cast<size_t>(i)] = 1;
         beds = hydraulicBed(m_tops, m_walls, nx, nz, &exits);
     }
+    else if (m_rule == ColumnBedRule::Generator && m_genBeds.size() == m_tops.size()) beds = m_genBeds;
     else beds = m_tops;
     if (m_rule == ColumnBedRule::Plane) {
         const float a = m_planeDir * 3.14159265f / 180.0f;

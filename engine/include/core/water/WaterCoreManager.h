@@ -210,6 +210,10 @@ public:
     ColumnWater* columns(int id);
     const std::vector<ColumnRegion>& columnRegions() const { return m_columns; }
     void stepColumns(float dt);
+    /// 25.22: the generator's continuous bed height and its DRAWN top for a voxel column (world x, z); false = unknown
+    /// (no generator - an authored or flat world). With it, new regions default to the `generator` bed (option (a)).
+    using GeneratorBedQuery = std::function<bool(int wx, int wz, float& bedHeight, float& drawnTop)>;
+    void setGeneratorBedQuery(GeneratorBedQuery q) { m_genBed = std::move(q); }
     /// E2: one world voxel column's water from the last surface fields - the highest top over the
     /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
     bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
@@ -359,6 +363,7 @@ private:
     // 25.18 H1: column-water regions (the T2 tier, step 1 - placed by hand over a creek)
     std::vector<ColumnRegion> m_columns;
     int m_nextColumnId = 1;
+    GeneratorBedQuery m_genBed;   // 25.22
     void refreshColumnSolids(ColumnRegion& r, bool force = false);
     SpanWriter m_spanWriter; SpanReader m_spanReader; BakeBodyQuery m_bakeBodyAt;
     WaterBodyTable m_bodies;

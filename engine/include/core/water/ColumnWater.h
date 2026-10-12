@@ -8,6 +8,8 @@
 //               drawn ground, a staircase flows like the slope it approximates; a run with no lower exit stays flat (a pool);
 //   Plane     - a rig-only stand-in for the generator's continuous height (candidate (a)) on an authored channel that has
 //               no generator surface: y0 - slope x distance along a direction.
+//   Generator - OPTION (a), CHOSEN (25.21): per column, the generator's continuous height where the ground is as generated,
+//               the voxel top where it was edited (the manager supplies the beds, 25.22). The others stay for a future switch.
 // Changing the bed keeps each column's DEPTH (its water moves with it): no water is created or destroyed by a rule switch.
 
 #include "core/water/ShoreSolver.h"
@@ -20,7 +22,7 @@
 
 namespace Phyxel::Core::Water {
 
-enum class ColumnBedRule { Voxel, Hydraulic, Plane };
+enum class ColumnBedRule { Voxel, Hydraulic, Plane, Generator };   // Generator = option (a), the owner's choice (25.21)
 const char* columnBedRuleName(ColumnBedRule r);
 bool parseColumnBedRule(const std::string& s, ColumnBedRule& out);
 
@@ -51,6 +53,9 @@ public:
     /// (or the box floor when none), `walls` = 1 where the column is solid up to the box's top. Re-applies the bed rule.
     void setSolids(const std::vector<float>& tops, const std::vector<uint8_t>& walls);
     void setBedRule(ColumnBedRule r);
+    /// 25.22: per-column generator beds (row-major, as the tops) - the manager builds them; empty = none (Generator then reads as Voxel).
+    void setGeneratorBeds(std::vector<float> beds) { m_genBeds = std::move(beds); if (m_rule == ColumnBedRule::Generator) applyBeds(); }
+    bool hasGeneratorBeds() const { return !m_genBeds.empty(); }
     ColumnBedRule bedRule() const { return m_rule; }
     void setPlane(float y0, float slope, float dirDeg) { m_planeY0 = y0; m_planeSlope = slope; m_planeDir = dirDeg; applyBeds(); }
 
@@ -89,6 +94,7 @@ private:
     ColumnBedRule m_rule = ColumnBedRule::Voxel;
     float m_planeY0 = 0.0f, m_planeSlope = 0.0f, m_planeDir = 0.0f;
     std::vector<float> m_tops;
+    std::vector<float> m_genBeds;   // 25.22
     std::vector<uint8_t> m_walls;
     struct Spring { int x, z; double rate; };
     std::vector<Spring> m_springs;
