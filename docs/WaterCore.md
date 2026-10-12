@@ -4730,6 +4730,40 @@ the shore foam rules firing on the creek; whether the creek should foam at all i
 **Not built:** a body that enters FRESH inside a creek (spawned there) presses its load at once - the pond's no-rate rule
 for fresh bodies (20.7) is not mirrored on columns. Resting bodies do not obstruct the flow (they stop displacing - M2's
 gate - and the beds are static occupancy only).
+
+### 25.31 H1b-M0 measured - where the creek's time goes (2026-10-12)
+
+Offline, Release, engine stopped; diagnostics `WaterColumnTest.DISABLED_CostColumnTier` and
+`WaterRippleTest.DISABLED_CostRippleWindow` (run with `--gtest_also_run_disabled_tests`).
+
+**The column tier costs the BOX, not the water** - ~180-200 ns per column per step, wet or dry (a 1:200 creek 2 m wide,
+100 L/s, banks dry, 120 s of run-up - the flow had reached ~66 m, 1200 wet columns, in every case):
+
+| Region box | Columns | Wet | ms / step | ns / column | ns / wet column |
+|---|---|---|---|---|---|
+| bench, 100 x 6 m | 5,400 | 22 % | 1.10 | 203 | 913 |
+| wide, 100 x 24 m | 21,600 | 5.6 % | 3.91 | 181 | 3,257 |
+| long, 200 x 6 m | 10,800 | 11 % | 2.07 | 192 | 1,725 |
+| long + wide, 200 x 24 m | 43,200 | 2.8 % | 7.66 | 177 | 6,379 |
+
+A meandering creek needs a wide box, so the dense box alone overruns the tier's 0.6 ms (25.10). Stepping only the wet
+columns and their neighbours (H0's planned "sparse wet set", 25.17 item 1) projects to ~1200 x ~200 ns = **~0.24 ms** for
+the bench creek - a CPU change, before any other optimisation (the solver also allocates its per-line work arrays on every
+line of every direction of every stage).
+
+**The ripple window costs ~160-210 ns per WATER cell per 60 Hz frame, and its dry cells are not free either:**
+
+| Window | Cells | Water | ms / 60 Hz frame | ns / water cell |
+|---|---|---|---|---|
+| bench creek 384 x 54 | 20,736 | 33 % | 1.47 | 213 |
+| creek meandering across 384 x 384 | 147,456 | 4.7 % | 7.71 | 1,115 |
+| full 384 x 384 (pond-sized) | 147,456 | 100 % | 24.1 | 163 |
+
+Even with dry cells skipped perfectly, one creek's 6,912 water cells cost ~1.1 ms on the CPU - over its 0.3 ms target -
+and the work is a 13 x 13 convolution, the GPU's kind of work (the pond's ripple layers would gain the same).
+
+**What this says for H1b (to be designed and checked before building):** the column tier's fix is SPARSITY on the CPU
+first (cost follows the water); the ripple step's fix is the GPU. The original plan ported both to the GPU.
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

@@ -162,4 +162,35 @@ TEST(WaterColumnTest, APressedBodyRaisesTheLevelByItsVolume) {
     (void)under0; (void)dv0;
 }
 
+// H1b-M0 COST (diagnostic, run with --gtest_also_run_disabled_tests): what one creek costs the column tier on the CPU, and
+// how it scales with the region box (dry bank columns) and the creek's length. A straight 1:200 creek 2 m wide (6 columns),
+// plane bed, 100 L/s, banks dry 0.6 m above the bed line (not walls - as on the bench), the box `wide` voxels across.
+// Steady flow first (120 s), then 600 steps at 60 Hz timed. Printed: ms per step, per column, per WET column.
+TEST(WaterColumnTest, DISABLED_CostColumnTier) {
+    struct Case { const char* name; int len, wide; };
+    for (const Case cs : {Case{"bench 100 x 6 m", 100, 6}, Case{"wide box 100 x 24 m", 100, 24}, Case{"long 200 x 6 m", 200, 6}, Case{"long+wide 200 x 24 m", 200, 24}}) {
+        ShoreParams p; p.manningN = 0.035f;
+        ColumnWater cw(1, glm::ivec3(0, 14, 0), glm::ivec3(cs.len - 1, 17, cs.wide - 1), p);
+        const int nx = cw.nx(), nz = cw.nz();
+        const int c0 = nz / 2 - 3, c1 = nz / 2 + 3;   // the creek: 6 columns = 2 m
+        std::vector<float> tops(static_cast<size_t>(nx) * nz); std::vector<uint8_t> walls(tops.size(), 0);
+        const float slope = 1.0f / 200.0f;
+        for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+            const float line = 15.5f - slope * cw.columnCentre(x, z).x;
+            tops[x + static_cast<size_t>(nx) * z] = (z >= c0 && z < c1) ? std::floor(line * 3.0f) / 3.0f : line + 0.6f;
+        }
+        cw.setSolids(tops, walls);
+        cw.setPlane(15.5f, slope, 0.0f);
+        cw.setBedRule(ColumnBedRule::Plane);
+        for (int z = c0; z < c1; ++z) { cw.addSpring(0, z, 0.1 / 6.0); cw.addOutfall(nx - 1, z); }
+        for (int k = 0; k < 120 * 60; ++k) cw.step(1.0f / 60.0f);
+        double ms = 0.0;
+        for (int k = 0; k < 600; ++k) { cw.step(1.0f / 60.0f); ms += cw.lastStepMs(); }
+        ms /= 600.0;
+        const int wet = cw.wetColumns(), cols = nx * nz;
+        std::printf("  %-22s %6d columns, %5d wet (%4.1f %%): %.3f ms/step, %.1f ns/column, %.1f ns/wet column\n",
+                    cs.name, cols, wet, 100.0 * wet / cols, ms, 1e6 * ms / cols, 1e6 * ms / std::max(1, wet));
+    }
+}
+
 }  // namespace Phyxel::Core::Water

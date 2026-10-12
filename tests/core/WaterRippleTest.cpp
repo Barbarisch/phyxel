@@ -1,6 +1,7 @@
 // docs/WaterCore.md 22 - the ripple layer (RippleLayer): R-T1..R-T4, R-T6 (R-T5, the body source, lives with the
 // manager's feed). Predictions are the design's (22.6), written before the build.
 #include <gtest/gtest.h>
+#include <chrono>
 #include "core/water/RippleLayer.h"
 #include <cmath>
 #include <cstdio>
@@ -293,6 +294,40 @@ TEST(WaterRippleTest, BreakingIsChunkBlind) {
     for (int s = 0; s < 30; ++s) { a.step(RippleLayer::kStep); b.step(RippleLayer::kStep); }
     EXPECT_GT(a.takeBroken(), 0.0) << "the limit acted";
     EXPECT_EQ(a.heights(), b.heights());
+}
+
+// H1b-M0 COST (diagnostic): one ripple window per 60 Hz frame - flow forcing impulses on every water cell, advection on a
+// sheared current, the step (2 substeps at 120 Hz). Masks: the bench creek (384 x 54, a 2 m band), a creek meandering across a
+// full window (384 x 384, a 2 m band on a sine), and a full window of water (a pond-sized region).
+TEST(WaterRippleTest, DISABLED_CostRippleWindow) {
+    struct Case { const char* name; int nx, nz; int mode; };
+    for (const Case cs : {Case{"bench creek 384 x 54", 384, 54, 0}, Case{"meander 384 x 384", 384, 384, 1}, Case{"full 384 x 384", 384, 384, 2}}) {
+        RippleLayer L({0, 0}, cs.nx, cs.nz, 9.81f); L.setOpenBorder(true);
+        std::vector<glm::vec2> vel(static_cast<size_t>(cs.nx) * cs.nz, glm::vec2(0.0f));
+        long wet = 0;
+        for (int z = 0; z < cs.nz; ++z) for (int x = 0; x < cs.nx; ++x) {
+            const float centre = cs.mode == 0 ? cs.nz * 0.5f : cs.nz * 0.5f + 0.35f * cs.nz * std::sin(x * 6.2831853f / 300.0f);
+            const bool w = cs.mode == 2 || std::abs(z + 0.5f - centre) < 9.0f;
+            L.mask()[L.idx(x, z)] = w ? 1 : 0; wet += w;
+            const float e = (z + 0.5f - centre) / 9.0f;
+            vel[L.idx(x, z)] = glm::vec2(w ? 0.45f * std::max(0.0f, 1.0f - e * e) : 0.0f, 0.0f);
+        }
+        double ms = 0.0; int timed = 0;
+        for (int k = 0; k < 60 * 12; ++k) {
+            const auto c0 = std::chrono::steady_clock::now();
+            for (int z = 0; z < cs.nz; ++z) for (int x = 0; x < cs.nx; ++x) {
+                if (!L.mask()[L.idx(x, z)]) continue;
+                uint32_t h = static_cast<uint32_t>(x) * 73856093u ^ static_cast<uint32_t>(z) * 19349663u ^ static_cast<uint32_t>(k) * 83492791u;
+                h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+                L.addImpulse((x + 0.5f) * kD, (z + 0.5f) * kD, 0.2f * ((h & 0xFFFFu) / 32767.5f - 1.0f));
+            }
+            L.advect(vel, 1.0f / 60.0f); L.step(1.0f / 60.0f);
+            if (k >= 120) { ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - c0).count(); ++timed; }
+        }
+        ms /= timed;
+        std::printf("  %-22s %7d cells, %6ld water (%4.1f %%): %.3f ms per 60 Hz frame, %.1f ns per water cell\n",
+                    cs.name, cs.nx * cs.nz, wet, 100.0 * wet / (cs.nx * cs.nz), ms, 1e6 * ms / std::max(1L, wet));
+    }
 }
 
 }  // namespace Phyxel::Core::Water
