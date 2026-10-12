@@ -3729,7 +3729,7 @@ void Application::update(float deltaTime) {
             if (renderCoordinator) {
                 renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
-                renderCoordinator->setWaterCoreSurfaceFields(waterCore->totalCells() ? &waterCore->surfaceFields() : nullptr);   // Phase F: the surface mesh feed
+                renderCoordinator->setWaterCoreSurfaceFields((waterCore->totalCells() || !waterCore->columnRegions().empty()) ? &waterCore->surfaceFields() : nullptr);   // 25.18: column regions draw too   // Phase F: the surface mesh feed
                 renderCoordinator->setWaterCoreDroplets(&waterCore->dropletDrawList());   // 21: the droplet crown
                 m_rippleLayers = waterCore->rippleLayers();   // 22
                 renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
@@ -14183,6 +14183,9 @@ void Application::registerWaterCommands() {
                                {"bed", Core::Water::columnBedRuleName(c.bedRule())}, {"columns", c.nx() * c.nz()}, {"wet_columns", c.wetColumns()},
                                {"in_m3", c.inflow()}, {"out_m3", c.outflow()}, {"stored_m3", c.stored()}, {"ledger_error_m3", c.ledgerError()},
                                {"step_ms", c.lastStepMs()}});
+            const auto st = c.stats();
+            regions.back()["stats"] = {{"mid_depth_m", st.midDepth}, {"mid_speed_ms", st.midSpeed}, {"wet", st.wet},
+                                       {"hidden", st.hidden}, {"worst_hidden_m", st.worstHidden}};
         }
         r = {{"regions", regions}, {"realtime", waterCore->realtime()}};
         if (id) r["id"] = id;

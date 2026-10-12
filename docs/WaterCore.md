@@ -4303,6 +4303,47 @@ and voxel compared there first (one chunk); (ii) H1c, the generator's 1/3 m cree
 the comparison repeated on a generated creek of a regenerated copy of the River bench; (iv) clips -> the owner chooses
 the bed rule.
 
+### 25.20 H1 step 1 built and measured (2026-10-11) - the bed comparison on a 1/3 m staircase. Status: built, not signed off
+
+**Built:** `ColumnWater` (`engine/{include,src}/core/water/ColumnWater.*`) - a `ShoreSolver` region over a box of the world
+with springs, outfalls and a ledger; beds and walls read from the micro occupancy (the top of the highest solid micro
+cell under each 1/3 m column's centre; a column solid to the box top is a wall); bed rules `voxel` / `hydraulic` / `plane`
+(a rule switch keeps every column's depth); drawn by publishing a `WaterSurfaceField` to the existing mesher and shader
+(the run spans the DRAWN ground to the surface). `WaterCoreManager` steps the regions in real time and appends their
+fields after the volumes'; the render feed's gate (`Application.cpp`, "totalCells() ?") also opens for column regions -
+without it nothing drew. Route `water_columns` (create / destroy / bed / plane / spring / outfall / clear_flows / refresh;
+reply: ledger, `stats` = mid depth and speed, wet and hidden columns). Fix found by the unit test: the hydraulic ramp
+counts an OUTFALL as a lower exit - without it the last run of a channel (its next step outside the region) never ramped.
+
+**Unit (`WaterColumnTest`, 3 tests):** C-T1 ledger -2.2e-7 m^3 after 600 s with springs, outfalls and a rule switch (the
+switch keeps the stored volume to 1e-9); C-T7 the hydraulic bed of a staircase at two placements identical (0.0 m); the
+three rules on a 30 m 1:50 channel floored to 1/3 m steps (100 L/s: plane 7.17 cm = Manning, hydraulic 9.59, voxel 16.1;
+20 L/s: plane 2.73 = Manning, hydraulic 4.13 and 98 % through, voxel nothing through yet).
+
+**Live (`tools/water_creek_rig.py`, WaterBench_Small chunk 7: a 30 m x 2 m stone channel, walls to y 21, its bed a 1:50 line
+from 19.0 floored to 1/3 m subcube steps - 846 subcubes; 20 L/s, 180 s per rule; `docs/evidence/water_core_h1/`):**
+
+| bed rule | water reaches the end | out/in, last 20 s | mid depth (Manning 2.73 cm) | mid speed (Manning 0.366 m/s) | hidden columns |
+|---|---|---|---|---|---|
+| voxel (the staircase) | not in 180 s | 0 | 7.3 cm (pooled) | 0.03 m/s | 0 |
+| hydraulic | 118 s | 0.91 | 4.2 cm | 0.26 m/s | 0 |
+| plane (the smooth line) | 80 s | 1.000 | 2.73 cm | 0.366 m/s | 0 |
+
+Ledger -5e-8 m^3 every run; region step 0.3-0.74 ms (CPU, 1,080 columns - the whole box, walls included). Clip:
+`creek_beds_compare_x3speed.mp4` (the three runs side by side at 3x).
+
+**What it shows.** (1) The plane rule - the stand-in for the generator's continuous height, candidate (a) - is Manning-exact
+here AND hides nothing: the drawn bed was made by FLOORING the line to 1/3 m, so the line is always on or above the drawn
+subcubes (up to 1/3 m above - the water fills each step's corner). **Design consequence for H1c:** carve creek beds by
+flooring the continuous height to the 1/3 m grid; then (a) can never hide water. (2) Hydraulic flows but is 1.5x deep and
+slow on a gentle slope: with a step only every 16.7 m it ramps over long runs and keeps the head run flat. (3) The raw
+staircase pools - as H0 measured. **First impression: (a), with the floor rule.** Not decided - the owner looks at the
+clip; the generated-creek comparison (H1c then step iii) follows.
+
+**A process failure, recorded:** the first three live runs measured an EMPTY chunk - the rig had been built in memory, the
+engine was restarted, and nothing checked the world. `water_creek_rig.py` now verifies the walls and bed through
+`/api/world/terrain_height` and refuses to run without them (shown refusing, then passing after `--build`).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

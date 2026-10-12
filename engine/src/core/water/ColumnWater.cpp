@@ -183,6 +183,24 @@ int ColumnWater::wetColumns() const {
     return n;
 }
 
+ColumnWater::Stats ColumnWater::stats() const {
+    Stats st;
+    const int nx = m_solver.nx(), nz = m_solver.nz();
+    const float dry = m_solver.params().dryDepth;
+    double dSum = 0.0, uSum = 0.0; int n = 0;
+    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+        const ShoreColumn& c = m_solver.col(x, z);
+        const double d = c.eta - c.bed;
+        if (c.wall || d <= dry) continue;
+        ++st.wet;
+        const double hide = m_tops[x + nx * z] - c.eta;
+        if (hide > 0.0) { ++st.hidden; st.worstHidden = std::max(st.worstHidden, hide); }
+        if (x >= nx / 3 && x < 2 * nx / 3) { dSum += d; uSum += std::sqrt(c.u * c.u + c.w * c.w); ++n; }
+    }
+    if (n) { st.midDepth = dSum / n; st.midSpeed = uSum / n; }
+    return st;
+}
+
 void ColumnWater::publish(WaterSurfaceField& out) const {
     const int nx = m_solver.nx(), nz = m_solver.nz();
     out.origin = glm::ivec3(m_min.x * 3, m_min.y * 3, m_min.z * 3);

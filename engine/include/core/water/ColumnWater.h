@@ -69,6 +69,10 @@ public:
     double ledgerError() const { return stored() - (m_base + m_in - m_out); }
     double lastStepMs() const { return m_ms; }
     int wetColumns() const;
+    /// Measurement (25.18): mean depth and speed over the wet columns of the middle third along x; how many wet columns
+    /// have their surface BELOW the drawn voxel top (hidden water - candidate (a)'s risk) and the worst such gap.
+    struct Stats { double midDepth = 0.0, midSpeed = 0.0, worstHidden = 0.0; int wet = 0, hidden = 0; };
+    Stats stats() const;
 
     /// Phase F's surface (one run per wet column: bed -> surface), drawn by the existing mesher and shader (25.15 F1).
     void publish(WaterSurfaceField& out) const;
