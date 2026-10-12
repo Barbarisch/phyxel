@@ -84,12 +84,24 @@ public:
     double totalMass() const;    ///< m^3 (sum of depth x h^2)
     const ShoreParams& params() const { return m_params; }
     void setManningN(float n) { m_params.manningN = n; }   ///< WaterCore 25.26 K: bed roughness, tuned live
+    /// WaterCore 25.32 test hooks: `dense` = compute every face and cell (the reference the sparse rates must equal bit for
+    /// bit); `threshold` = the depth above which a cell "holds water" for the sparse flags (0 = correct; the 1 mm dry
+    /// threshold is the known-wrong rule the equality test must catch - a thinner film still sends flux).
+    void setDenseRatesForTest(bool dense) { m_denseRates = dense; }
+    void setWaterFlagThresholdForTest(double threshold) { m_waterFlag = threshold; }
+    size_t activeColumns() const { return m_active.size(); }   ///< 25.32: columns the last step worked on
 
 private:
     void substep(float dt, ShoreStepReport& r);
     /// Rates of change of (eta, qx, qz) for the state (eta, u, w): flux divergence + bed source.
     void rates(const std::vector<double>& eta, const std::vector<float>& u, const std::vector<float>& w,
                std::vector<double>& dEta, std::vector<double>& dQx, std::vector<double>& dQz) const;
+    struct Side { double eta, d, b, u, v; };   // a cell's reconstructed values on one of its faces
+    bool m_denseRates = false;                  // 25.32 test hook
+    double m_waterFlag = 0.0;                   // 25.32 test hook
+    // 25.32: per-line work arrays, kept (they were allocated on every line of every direction of every stage)
+    mutable std::vector<Side> m_plus, m_minus;
+    mutable std::vector<char> m_wetc, m_has;
     glm::vec2 m_origin;
     int m_nx, m_nz;
     float m_h;
@@ -97,7 +109,15 @@ private:
     std::vector<ShoreColumn> m_cols;
     std::vector<glm::vec2> m_prescribedVel;   // per column, valid where prescribed
     std::vector<float> m_load;                // 25.30 SC: per-column body load (m), empty = none
-    std::vector<float> m_sinceLoad;           // 25.30 SC: seconds since each column last held a load (foam quiet zone)
+    std::vector<double> m_lastLoadT;          // 25.30 SC: m_clock when each column last held a load (foam quiet zone)
+    double m_clock = 0.0;                     // seconds stepped (25.32: stamps, so idle columns need no update)
+    // 25.32: the ACTIVE set - kTile x kTile-column tiles holding water / a load / a prescription, dilated so the water cannot
+    // leave it within a step; every loop runs over these columns only (index order - sums stay bit-identical)
+    static constexpr int kTile = 4;   // measured 2026-10-12: 4 beat 8 and 16 (a 2 m creek: 16-column tiles + a tile margin woke 60 % of a wide box)
+    std::vector<uint8_t> m_tileWater, m_tileActive;
+    std::vector<size_t> m_active;                                     // active columns, ascending index
+    std::vector<std::vector<std::pair<int, int>>> m_segRow, m_segCol;   // per tile row / tile column: active cell ranges
+    void buildActive(int substeps, bool rescan);
     std::vector<double> m_prescribedEta;      // per column, valid where prescribed
     std::vector<double> m_etaPrev;
     // scratch (kept to avoid per-step allocation)

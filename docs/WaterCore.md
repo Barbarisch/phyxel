@@ -68,7 +68,7 @@ settling without filling, underground limits; design-checked READY, §25.15). Bu
 (the column solver measured on a creek, §25.16-25.17), H1 column-water regions on the simple creek bench (WaterBench_Creek,
 §25.18-25.25), slightly murky water by default (M, §25.27), the current measured and tuned (K, §25.28), ripples on the
 creek carried by the current and driven by the flow (RC, §25.29 - over its 0.3 ms cost target, ~0.9 ms), stones in the
-creek - displacement, rings, a cosmetic splash (SC, §25.30). **Next, in the owner's order:** H1b - the column tier (and its ripple step) on the GPU, for the budget. The §23 slime experiment stays
+creek - displacement, rings, a cosmetic splash (SC, §25.30). H1b part 1 - the column tier works where the water is (§25.33: 2.7-11x cheaper, bit-identical). **Next, in the owner's order:** H1b part 2 - the ripple step on the GPU (§25.31). The §23 slime experiment stays
 queued behind §25.
 
 ## 1. Principles (the invariants every later decision must satisfy)
@@ -4764,6 +4764,82 @@ and the work is a 13 x 13 convolution, the GPU's kind of work (the pond's ripple
 
 **What this says for H1b (to be designed and checked before building):** the column tier's fix is SPARSITY on the CPU
 first (cost follows the water); the ripple step's fix is the GPU. The original plan ported both to the GPU.
+
+### 25.32 H1b part 1 design - the column tier costs its water, not its box (owner, 2026-10-12: "ok" to the split of 25.31)
+
+**The change.** `ShoreSolver::rates` - the reconstruction, the HLL faces and the bed-slope source, nearly all of a step's
+work - is computed only where it can be non-zero. Per line (x lines, then z lines) a cheap scan flags the cells that HOLD
+water (depth > 0 - not the 1 mm dry threshold: a film below it still has mass and its face fluxes are not zero). A face is
+computed when either side holds water; a cell is reconstructed when it or a line neighbour holds water. Everything skipped
+would have added exactly zero: a face between two empty cells has both hydrostatic depths 0 (HLL returns 0 and the
+pressure terms are 0), and an empty cell's bed-slope source is multiplied by its depth 0. The flags are taken per CALL of
+`rates` (each Heun stage): a dry cell beside water can wet in stage 1 and must have its faces in stage 2. The stage
+updates, friction, prescriptions and foam stay dense (a few ns per column - measured after, not assumed). The per-line work
+arrays (`plus`, `minus`, `wetc`), allocated today on every line of every direction of every stage, become member scratch.
+
+**Why not a persistent active list:** the per-call scan costs ~1 ns per column, is exact by construction and has no state to
+go stale when beds change (`setSolids`, edits) or water is placed directly (tests, springs); a list would add all three
+failure modes for a saving the measurement will show is not needed (if it is, it is logged with the number).
+
+**Contract and tests.**
+- **H1b-T1 (red-before-green: equality).** `ShoreSolverTest.SparseRatesEqualDense`: the bench creek's geometry (25.31's
+  case, a 4x wide box) run 60 s with the sparse rates and with a forced-dense reference (`setDenseRatesForTest(true)`):
+  every column's eta, u, w, foam BIT-identical (the skipped terms are exact zeros; IEEE signed zeros cannot change a sum
+  that is then added to a depth). Also a wet/dry swash case on the beach run-up geometry of
+  `ShoreSolverTest.RunUpOnTheBeachVsHunt` - the flags' worst case, water advancing onto dry ground every substep, and the
+  shore tier's (`ShoreBand`) solver. **The red:** the equality passes trivially before a sparse path exists, so the red is
+  a known-wrong flag rule - "holds water" = depth > the 1 mm dry threshold - which MUST fail the swash equality (a film
+  below 1 mm still sends flux), shown failing before the correct rule (depth > 0) is shown passing.
+- **H1b-T2 (cost).** The 25.31 diagnostic rerun: prediction - the bench creek <= 0.35 ms per step, and the wide and long
+  boxes within 1.5x of the bench (cost follows the water); the dense reference reproduces 25.31's numbers (the control).
+- All existing ShoreSolver / ShoreBand / WaterColumn / creek tests unchanged; live: the creek bench's `step_ms` falls and
+  its K-T1 profile (speed and depth vs Manning) is unchanged to the printed digits.
+
+**Design keys.** *Voxel look:* no change (bit-identical). *Chunks:* none - a region is world-aligned and its lines are its
+own; no chunk input. *Generation:* none. *API:* no new route; `setDenseRatesForTest` is a test hook, not exposed. *Defaults:*
+none change. *Test world:* the unit rigs above (one variable: sparse vs dense; control: dense reproduces 25.31), then the
+creek bench (shipped defaults except the creek's spring and outfall). **Design-check 2026-10-12: NEEDS WORK (the red was
+not red; the shore tier's solver was not in the equality) -> both folded in above -> READY.**
+
+### 25.33 H1b part 1 built - the column tier works where the water is (2026-10-12). Status: built, not signed off
+
+**Built, in two steps (both measured, the second because the first missed its prediction):**
+1. **Sparse rates** (25.32 as designed): per line, a cell holding water (depth > 0) or beside it is reconstructed and a
+   face with water on a side is computed; per-line work arrays kept as members. Cost 1.10 -> 0.41 ms on the bench creek -
+   but the wide box still 3.91 -> 1.16 ms: ~50 ns per box column remained in the DENSE loops (stage updates, CFL,
+   prescriptions, foam, the flag scans).
+2. **An active set of tiles** (`ShoreSolver::buildActive`): 4 x 4-column tiles holding water, a body load or a
+   prescription, dilated by ceil((2 n + 1) / 4) tiles for n substeps (water moves at most two columns per substep: stage 1
+   wets a dry neighbour, stage 2 that one's) - no water can reach an inactive column within a step, so every term there is
+   an exact zero. Every loop of the step runs over the active columns in ascending index (the sums stay bit-identical);
+   the per-line work over the active tile runs. The foam quiet zone (25.30) is now stamped (`m_lastLoadT` vs a clock) so
+   idle columns need no update. Tile size MEASURED: 16-column tiles plus their margin woke 60 % of a wide box around a 2 m
+   creek (1.12 ms); 8 -> 0.65; **4 -> 0.55 ms** (kept).
+
+**Results.**
+- **H1b-T1** `ShoreSolverTest.SparseRatesEqualDense`: swash 0 of 360 columns differ, creek (100 x 24 m box) 0 of 21,600 -
+  bit-identical; **the red**: the 1 mm flag rule changes 10 swash columns (caught). All 301 Shore* / Water* tests pass.
+- **H1b-T2** (`WaterColumnTest.DISABLED_CostColumnTier`, the same 1,200 wet columns in every box):
+
+| Region box | before (25.31) | after | active columns |
+|---|---|---|---|
+| bench 100 x 6 m | 1.10 ms | **0.40** | 3,328 |
+| wide 100 x 24 m | 3.91 | **0.55-0.65** | 3,328 |
+| long 200 x 6 m | 2.07 | **0.52-0.60** | 3,328 |
+| long + wide 200 x 24 m | 7.66 | **0.65-0.70** | 3,328 |
+
+  Against the prediction (bench <= 0.35 ms; every box within 1.5x of the bench): **missed** - bench 0.40, the big boxes
+  1.3-1.75x. Profiled: the active-set scan is the box-proportional part as designed (0.02 ms bench -> 0.12 ms on 43,200
+  columns); the rest is MEMORY - the z lines stride a whole box row per cell, so the same 3,328 active columns cost 0.37
+  ms of substeps in the bench box and 0.51-0.55 ms in the wide ones. Packing the active columns into a compact local
+  grid would remove it (a larger change - logged, not done).
+- **Live** (WaterBench_Creek, 100 L/s, 150 s after the start - still filling): `step_ms` **0.52-0.61** (was 0.88-1.1 on this
+  creek), ledger exact; the profile against Manning on the same run: speed 0.436 vs 0.432 m/s, depth 10.10 vs 9.96 cm.
+  (K's 0.452 m/s / 10.86 cm were at steady flow; this run had not reached it - the unit equality is the proof the physics
+  did not change.)
+
+**Where the tier stands against 25.10's 0.6 ms:** one bench creek fits (0.4-0.6 ms); several creeks do not yet - the
+compact layout, or the GPU after the ripple port, is the next lever, decided on measurements then.
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

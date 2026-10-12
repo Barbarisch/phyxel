@@ -2,6 +2,7 @@
 
 #include "core/water/SeaSwell.h"
 #include "core/water/ShoreSolver.h"
+#include "core/water/ColumnWater.h"
 
 #include <cmath>
 #include <cstdio>
@@ -153,6 +154,69 @@ TEST(ShoreSolverTest, RunUpOnTheBeachVsHunt) {
     RecordProperty("runup_m", runUp); RecordProperty("hunt_m", hunt);
     EXPECT_GT(runUp, 0.0f) << "water must climb the beach above the still line";
     EXPECT_NEAR(runUp, hunt, 0.2f * hunt + 0.02f) << "Hunt +-20 % (plus a 2 cm floor for the 1 cm wet threshold)";
+}
+
+// WaterCore 25.32 H1b-T1: the sparse rates (work only where a face has water on a side) equal the dense reference BIT FOR
+// BIT - eta, u, w and foam of every column. Two rigs: (1) the swash of RunUpOnTheBeachVsHunt (a front advancing onto dry
+// ground every substep - the flags' worst case; the prescribed ocean columns of the shore tier), 20 s; (2) a creek in a
+// 100 x 24 m region box (25.31's wide case: 94 % of it dry banks), 60 s. RED: the known-wrong flag rule - "holds water" =
+// deeper than the 1 mm dry threshold - must DIFFER on the swash (a thinner film still sends flux).
+namespace {
+struct ColState { std::vector<double> eta; std::vector<float> u, w, foam; };
+ColState snapshot(const ShoreSolver& s) {
+    ColState c;
+    for (int z = 0; z < s.nz(); ++z) for (int x = 0; x < s.nx(); ++x) {
+        const ShoreColumn& k = s.col(x, z);
+        c.eta.push_back(k.eta); c.u.push_back(k.u); c.w.push_back(k.w); c.foam.push_back(k.foam);
+    }
+    return c;
+}
+long differing(const ColState& a, const ColState& b) {
+    long n = 0;
+    for (size_t i = 0; i < a.eta.size(); ++i)
+        if (a.eta[i] != b.eta[i] || a.u[i] != b.u[i] || a.w[i] != b.w[i] || a.foam[i] != b.foam[i]) ++n;
+    return n;
+}
+ColState runSwash(bool dense, double flag) {
+    const float h = 1.0f / 3.0f;
+    const int nx = 360;
+    ShoreSolver s(glm::vec2(0.0f), nx, 1, h);
+    s.setDenseRatesForTest(dense); s.setWaterFlagThresholdForTest(flag);
+    for (int x = 0; x < nx; ++x) { const float wx = (x + 0.5f) * h; s.col(x, 0).bed = wx < 20.0f ? -3.0f : -3.0f + (wx - 20.0f) / 20.0f; s.col(x, 0).eta = std::max(0.0f, s.col(x, 0).bed); }
+    const Airy w{0.3f, 14.0f, 3.0f};
+    for (int k = 1; k <= 1200; ++k) {
+        const float tt = k * kDt;
+        for (int x = 0; x < 36; ++x) { const float wx = (x + 0.5f) * h; s.prescribe(x, 0, w.eta(wx, tt), glm::vec2(w.uAvg(wx, tt), 0.0f)); }
+        s.step(kDt);
+    }
+    return snapshot(s);
+}
+ColState runCreek(bool dense) {
+    ShoreParams p; p.manningN = 0.035f;
+    ColumnWater cw(1, glm::ivec3(0, 14, 0), glm::ivec3(99, 17, 23), p);
+    cw.solver().setDenseRatesForTest(dense);
+    const int nx = cw.nx(), nz = cw.nz(), c0 = nz / 2 - 3, c1 = nz / 2 + 3;
+    std::vector<float> tops(static_cast<size_t>(nx) * nz); std::vector<uint8_t> walls(tops.size(), 0);
+    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+        const float line = 15.5f - cw.columnCentre(x, z).x / 200.0f;
+        tops[x + static_cast<size_t>(nx) * z] = (z >= c0 && z < c1) ? std::floor(line * 3.0f) / 3.0f : line + 0.6f;
+    }
+    cw.setSolids(tops, walls); cw.setPlane(15.5f, 1.0f / 200.0f, 0.0f); cw.setBedRule(ColumnBedRule::Plane);
+    for (int z = c0; z < c1; ++z) { cw.addSpring(0, z, 0.1 / 6.0); cw.addOutfall(nx - 1, z); }
+    for (int k = 0; k < 60 * 60; ++k) cw.step(1.0f / 60.0f);
+    return snapshot(cw.solver());
+}
+}  // namespace
+
+TEST(ShoreSolverTest, SparseRatesEqualDense) {
+    const ColState swDense = runSwash(true, 0.0), swSparse = runSwash(false, 0.0), swWrong = runSwash(false, 0.001);
+    const ColState crDense = runCreek(true), crSparse = runCreek(false);
+    const long dSw = differing(swDense, swSparse), dWrong = differing(swDense, swWrong), dCr = differing(crDense, crSparse);
+    std::printf("  swash: %ld of %zu columns differ (sparse), %ld with the 1 mm flag rule (the red); creek: %ld of %zu differ\n",
+                dSw, swDense.eta.size(), dWrong, dCr, crDense.eta.size());
+    EXPECT_EQ(dSw, 0) << "sparse rates must equal dense bit for bit (swash)";
+    EXPECT_EQ(dCr, 0) << "sparse rates must equal dense bit for bit (creek)";
+    EXPECT_GT(dWrong, 0) << "the red: flags at the 1 mm dry threshold drop a film's flux - the test must see it";
 }
 
 }  // namespace

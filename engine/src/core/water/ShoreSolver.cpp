@@ -47,9 +47,6 @@ inline Flux hll(const State& L, const State& R, double g) {
     return f;
 }
 
-// A cell's reconstructed values on one of its faces.
-struct Side { double eta, d, b, u, v; };
-
 }  // namespace
 
 ShoreSolver::ShoreSolver(const glm::vec2& originXZ, int nx, int nz, float h, ShoreParams params)
@@ -82,24 +79,75 @@ double ShoreSolver::totalMass() const {
     return m * m_h * m_h;
 }
 
+void ShoreSolver::buildActive(int substeps, bool rescan) {
+    // WaterCore 25.32: tiles of kTile x kTile columns. A tile holds water when a column in it has depth > 0, a body load or a
+    // prescription. Water moves at most two columns per substep (stage 1 wets a dry neighbour, stage 2 that one's), so the
+    // active set is the water tiles dilated by ceil((2 n + 1) / kTile) tiles: no water can reach an inactive column within
+    // the step - whose every term is then an exact zero (25.32's equality test: bit-identical to the dense reference).
+    const int tx = (m_nx + kTile - 1) / kTile, tz = (m_nz + kTile - 1) / kTile;
+    if (rescan) { m_tileWater.resize(static_cast<size_t>(tx) * tz); std::fill(m_tileWater.begin(), m_tileWater.end(), 0); }
+    m_tileActive.resize(static_cast<size_t>(tx) * tz); std::fill(m_tileActive.begin(), m_tileActive.end(), 0);
+    if (rescan) for (int z = 0; z < m_nz; ++z) {
+        const size_t row = static_cast<size_t>(z / kTile) * tx;
+        for (int x = 0; x < m_nx; ++x) {
+            const size_t i = idx(x, z);
+            const ShoreColumn& c = m_cols[i];
+            if (m_denseRates || (!c.wall && c.eta - c.bed > 0.0) || c.prescribed || (!m_load.empty() && m_load[i] > 0.0f)) m_tileWater[row + x / kTile] = 1;
+        }
+    }
+    const int r = std::max(1, (2 * substeps + 1 + kTile - 1) / kTile);
+    for (int b = 0; b < tz; ++b) for (int a = 0; a < tx; ++a) {
+        if (!m_tileWater[static_cast<size_t>(b) * tx + a]) continue;
+        for (int bb = std::max(0, b - r); bb <= std::min(tz - 1, b + r); ++bb)
+            for (int aa = std::max(0, a - r); aa <= std::min(tx - 1, a + r); ++aa) m_tileActive[static_cast<size_t>(bb) * tx + aa] = 1;
+    }
+    m_active.clear();
+    m_segRow.resize(tz); m_segCol.resize(tx);   // kept: clear() keeps each list's storage
+    for (auto& v : m_segRow) v.clear();
+    for (auto& v : m_segCol) v.clear();
+    for (int b = 0; b < tz; ++b)
+        for (int a = 0; a < tx; ) {
+            if (!m_tileActive[static_cast<size_t>(b) * tx + a]) { ++a; continue; }
+            int e = a; while (e + 1 < tx && m_tileActive[static_cast<size_t>(b) * tx + e + 1]) ++e;
+            m_segRow[b].push_back({a * kTile, std::min(m_nx - 1, (e + 1) * kTile - 1)});
+            a = e + 1;
+        }
+    for (int a = 0; a < tx; ++a)
+        for (int b = 0; b < tz; ) {
+            if (!m_tileActive[static_cast<size_t>(b) * tx + a]) { ++b; continue; }
+            int e = b; while (e + 1 < tz && m_tileActive[static_cast<size_t>(e + 1) * tx + a]) ++e;
+            m_segCol[a].push_back({b * kTile, std::min(m_nz - 1, (e + 1) * kTile - 1)});
+            b = e + 1;
+        }
+    for (int z = 0; z < m_nz; ++z)
+        for (const auto& sg : m_segRow[z / kTile]) for (int x = sg.first; x <= sg.second; ++x) m_active.push_back(idx(x, z));
+}
+
 ShoreStepReport ShoreSolver::step(float dt) {
     ShoreStepReport r;
-    // CFL from the fastest signal: |u| + |w| + sqrt(g d)
+    // CFL from the fastest signal: |u| + |w| + sqrt(g d) - over the water tiles (an empty column is still: 0); the active
+    // set needs the substep count and the count needs the water, so: water tiles -> CFL -> the dilated active set
+    buildActive(0, true);
     float cmax = 0.0f;
-    for (const ShoreColumn& c : m_cols) {
+    for (size_t i : m_active) {
+        const ShoreColumn& c = m_cols[i];
         const float d = static_cast<float>(std::max(c.eta - c.bed, 0.0));
         cmax = std::max(cmax, std::abs(c.u) + std::abs(c.w) + std::sqrt(m_params.gravity * d));
     }
     const int n = std::clamp(static_cast<int>(std::ceil(cmax * dt / (m_params.cflFraction * m_h))), 1, m_params.maxSubsteps);
     const float ds = dt / static_cast<float>(n);
-    for (size_t i = 0; i < m_cols.size(); ++i) m_etaPrev[i] = m_cols[i].eta;
-    if (m_sinceLoad.size() != m_cols.size()) m_sinceLoad.assign(m_cols.size(), 1e9f);
-    for (size_t i = 0; i < m_cols.size(); ++i) m_sinceLoad[i] = (!m_load.empty() && m_load[i] > 0.0f) ? 0.0f : m_sinceLoad[i] + dt;
+    buildActive(n, false);   // the same water tiles, dilated for n substeps
+    m_clock += dt;
+    if (m_lastLoadT.size() != m_cols.size()) m_lastLoadT.assign(m_cols.size(), -1e30);
+    if (!m_load.empty()) for (size_t i : m_active) if (m_load[i] > 0.0f) m_lastLoadT[i] = m_clock;
+    for (size_t i : m_active) m_etaPrev[i] = m_cols[i].eta;
     for (int s = 0; s < n; ++s) substep(ds, r);
     r.substeps = n;
-    r.mass = totalMass();
+    double mass = 0.0;   // totalMass() over the active columns in index order: the skipped terms are exact zeros
+    for (size_t i : m_active) mass += std::max(m_cols[i].eta - m_cols[i].bed, 0.0);
+    r.mass = mass * m_h * m_h;
     float mx = 0.0f, de = 0.0f;
-    for (size_t i = 0; i < m_cols.size(); ++i) {
+    for (size_t i : m_active) {
         mx = std::max(mx, std::max(std::abs(m_cols[i].u), std::abs(m_cols[i].w)));
         de = std::max(de, static_cast<float>(std::abs(m_cols[i].eta - m_etaPrev[i])));
     }
@@ -113,9 +161,7 @@ void ShoreSolver::rates(const std::vector<double>& eta, const std::vector<float>
     const double g = m_params.gravity;
     const double h = m_h;
     const double dry = m_params.dryDepth;
-    std::fill(dEta.begin(), dEta.end(), 0.0);
-    std::fill(dQx.begin(), dQx.end(), 0.0);
-    std::fill(dQz.begin(), dQz.end(), 0.0);
+    for (size_t i : m_active) { dEta[i] = 0.0; dQx[i] = 0.0; dQz[i] = 0.0; }   // 25.32: only the active set is read
     // 25.30 SC: a body's load acts as a bed bump on the pressure surface - eta and bed both carry it, the depth does not
     auto Ld = [&](size_t i) { return m_load.empty() ? 0.0 : static_cast<double>(m_load[i]); };
 
@@ -127,11 +173,30 @@ void ShoreSolver::rates(const std::vector<double>& eta, const std::vector<float>
         std::vector<double>& dQt = dir == 0 ? dQz : dQx;
         auto cellIdx = [&](int line, int k) { return dir == 0 ? idx(k, line) : idx(line, k); };
         auto blocked = [&](int line, int k) { return k < 0 || k >= nAlong || m_cols[cellIdx(line, k)].wall; };
-        std::vector<Side> plus(nAlong), minus(nAlong);   // reconstruction per cell on its +/- face
-        std::vector<char> wetc(nAlong);
+        // reconstruction per cell on its +/- face (member scratch, 25.32)
+        if (static_cast<int>(m_plus.size()) < nAlong) { m_plus.resize(nAlong); m_minus.resize(nAlong); m_wetc.resize(nAlong); m_has.resize(nAlong); }
+        std::vector<Side>& plus = m_plus; std::vector<Side>& minus = m_minus;
+        std::vector<char>& wetc = m_wetc; std::vector<char>& has = m_has;
         for (int line = 0; line < nLines; ++line) {
+          // 25.32 - the line's active ranges (tile runs); outside them every column is empty and stays empty this step
+          for (const auto& seg : (dir == 0 ? m_segRow : m_segCol)[line / kTile]) {
+            const int a = seg.first, b = seg.second;
+            // the work only where it can be non-zero: a cell HOLDS water when its depth > 0 (not the dry threshold - a
+            // thinner film still sends flux). A face is computed when either side holds water, a cell is reconstructed when
+            // it or a line neighbour does; every skipped term is an exact zero (two empty sides: both hydrostatic depths 0,
+            // HLL 0, pressure terms 0; an empty cell's bed-slope source is times its depth 0). Taken per call - a dry cell
+            // beside water can wet in stage 1 and needs its faces in stage 2.
+            bool any = false;
+            for (int k = a; k <= b; ++k) {
+                const size_t i = cellIdx(line, k);
+                has[k] = m_denseRates || (!m_cols[i].wall && eta[i] - m_cols[i].bed > m_waterFlag);
+                any = any || has[k];
+            }
+            if (!any) continue;
+            auto H = [&](int k) { return k >= a && k <= b && has[k]; };
             // reconstruct each cell: minmod slopes on eta, d, u_n, u_t; neighbours mirrored at walls
-            for (int k = 0; k < nAlong; ++k) {
+            for (int k = a; k <= b; ++k) {
+                if (!H(k) && !H(k - 1) && !H(k + 1)) continue;
                 const size_t i = cellIdx(line, k);
                 const ShoreColumn& c = m_cols[i];
                 const double etaC = eta[i] + Ld(i), dC = std::max(eta[i] - c.bed, 0.0);
@@ -162,7 +227,8 @@ void ShoreSolver::rates(const std::vector<double>& eta, const std::vector<float>
                 dQn[i] += -g * 0.5 * (minus[k].d + plus[k].d) * (plus[k].b - minus[k].b) / h;
             }
             // faces k+1/2 for k = -1 .. nAlong-1 (the two domain edges reflect)
-            for (int k = -1; k < nAlong; ++k) {
+            for (int k = a - 1; k <= b; ++k) {
+                if (!H(k) && !H(k + 1)) continue;   // 25.32: no water either side
                 const bool bl = blocked(line, k), br = blocked(line, k + 1);
                 if (bl && br) continue;
                 const Side L = bl ? Side{minus[k + 1].eta, minus[k + 1].d, minus[k + 1].b, -minus[k + 1].u, minus[k + 1].v} : plus[k];
@@ -184,19 +250,19 @@ void ShoreSolver::rates(const std::vector<double>& eta, const std::vector<float>
                     dQt[j] += f.t / h;
                 }
             }
+          }
         }
     }
 }
 
 void ShoreSolver::substep(float dt, ShoreStepReport& r) {
-    const size_t n = m_cols.size();
     const double dry = m_params.dryDepth;
     const double g = m_params.gravity;
-    for (size_t i = 0; i < n; ++i) { m_eta0[i] = m_cols[i].eta; m_u0[i] = m_cols[i].u; m_w0[i] = m_cols[i].w; }
+    for (size_t i : m_active) { m_eta0[i] = m_cols[i].eta; m_u0[i] = m_cols[i].u; m_w0[i] = m_cols[i].w; }   // 25.32: the active set only
 
     // Heun (RK2): stage 1 into (eta1, u1, w1), stage 2 from it, the two averaged in (d, q)
     rates(m_eta0, m_u0, m_w0, m_dEta, m_dQx, m_dQz);
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i : m_active) {
         const ShoreColumn& c = m_cols[i];
         if (c.wall) { m_eta1[i] = m_eta0[i]; m_u1[i] = 0.0f; m_w1[i] = 0.0f; continue; }
         const double d0 = std::max(m_eta0[i] - c.bed, 0.0);
@@ -208,7 +274,7 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
         else { m_u1[i] = 0.0f; m_w1[i] = 0.0f; }
     }
     rates(m_eta1, m_u1, m_w1, m_dEta, m_dQx, m_dQz);
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i : m_active) {
         ShoreColumn& c = m_cols[i];
         if (c.wall) { c.u = 0.0f; c.w = 0.0f; continue; }
         const double dA = std::max(m_eta0[i] - c.bed, 0.0);
@@ -234,7 +300,7 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
     // prescription; the difference is the ocean's supply (the flux ledger closes: fluxes are
     // conservative, relaxations are counted). weight 1 = set exactly (the edge).
     double exch = 0.0;
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i : m_active) {   // prescribed columns are always in the active set (their tile holds a prescription)
         ShoreColumn& c = m_cols[i];
         if (!c.prescribed) continue;
         const double target = std::max(m_prescribedEta[i], static_cast<double>(c.bed));
@@ -253,7 +319,8 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
     //    substep and is wet now, foaming with its speed (0.3..1 m/s; a creeping film does not foam);
     //    (d) supercritical flow (Froude > 0.8: the uprush, the bore). Decays with a 0.46 s half-life.
     //    No motion, no foam (still water: 0); films under 2 cm make none.
-    for (int z = 0; z < m_nz; ++z) for (int x = 0; x < m_nx; ++x) {
+    for (size_t ai : m_active) {   // 25.32: an inactive column is empty - its foam was zeroed when it last ran dry
+        const int x = static_cast<int>(ai % m_nx), z = static_cast<int>(ai / m_nx);
         ShoreColumn& c = col(x, z);
         c.foam *= std::max(0.0f, 1.0f - 1.5f * dt);
         const float d = static_cast<float>(c.eta - c.bed);
@@ -289,10 +356,10 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
             const float froude = std::sqrt(c.u * c.u + c.w * c.w) / std::sqrt(g * d);
             if (d >= 0.08f && froude > 0.8f) src += (froude - 0.8f) / 0.4f;   // a draining film is supercritical too; a bore is deeper than 8 cm
         }
-        if (src > 0.0f && !m_sinceLoad.empty()) {   // 25.30 SC: the quiet zone around a body's recent load (kLoadFoamQuietSeconds)
+        if (src > 0.0f && !m_lastLoadT.empty()) {   // 25.30 SC: the quiet zone around a body's recent load (kLoadFoamQuietSeconds)
             for (int zz = std::max(0, z - 1); zz <= std::min(m_nz - 1, z + 1) && src > 0.0f; ++zz)
                 for (int xx = std::max(0, x - 1); xx <= std::min(m_nx - 1, x + 1); ++xx)
-                    if (m_sinceLoad[idx(xx, zz)] < kLoadFoamQuietSeconds) { src = 0.0f; break; }
+                    if (m_clock - m_lastLoadT[idx(xx, zz)] < kLoadFoamQuietSeconds) { src = 0.0f; break; }
         }
         if (src > 0.0f) c.foam = std::min(1.0f, c.foam + 2.0f * dt * src);
     }

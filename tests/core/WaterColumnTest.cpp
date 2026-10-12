@@ -188,8 +188,8 @@ TEST(WaterColumnTest, DISABLED_CostColumnTier) {
         for (int k = 0; k < 600; ++k) { cw.step(1.0f / 60.0f); ms += cw.lastStepMs(); }
         ms /= 600.0;
         const int wet = cw.wetColumns(), cols = nx * nz;
-        std::printf("  %-22s %6d columns, %5d wet (%4.1f %%): %.3f ms/step, %.1f ns/column, %.1f ns/wet column\n",
-                    cs.name, cols, wet, 100.0 * wet / cols, ms, 1e6 * ms / cols, 1e6 * ms / std::max(1, wet));
+        std::printf("  %-22s %6d columns, %5d wet (%4.1f %%), %6zu active: %.3f ms/step, %.1f ns/column, %.1f ns/wet column, %.1f ns/active column" "\n",
+                    cs.name, cols, wet, 100.0 * wet / cols, cw.solver().activeColumns(), ms, 1e6 * ms / cols, 1e6 * ms / std::max(1, wet), 1e6 * ms / std::max<size_t>(1, cw.solver().activeColumns()));
     }
 }
 
