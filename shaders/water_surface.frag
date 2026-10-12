@@ -98,7 +98,7 @@ layout(push_constant) uniform PushConstants {
     vec4 camPosTime;
     vec4 screen;
     vec4 look0;      // G3: tint.rgb (x < 0 = unset), clarity m (0 = derived)
-    vec4 look1;      // G3: turbidity (< 0 = derived), roughness (< 0 = derived); z: 1 = 22.12 horizon guard OFF
+    vec4 look1;      // G3: turbidity (< 0 = derived), roughness (< 0 = derived); z: 1 = 22.12 horizon guard OFF; w: default clarity m (25.26)
 } pc;
 
 #include "water_common.glsl"
@@ -144,7 +144,9 @@ void main() {
     inp.roughness    = (pc.look1.y >= 0.0 ? pc.look1.y : 0.35) + 0.45 * inp.flowStrength;   // base: a pond is calmer than the sea's shipped detail (17.3); moving water is choppier (G2)
     inp.tint         = max(pc.look0.rgb, vec3(0.0));
     inp.tintSet      = pc.look0.r >= 0.0 ? 1.0 : 0.0;
-    inp.clarity      = max(pc.look0.a, 0.0);
+    // 25.26 M: a body's own clarity wins; else the simulated water's DEFAULT (look1.w, `water_render_core {default_clarity}`,
+    // 5 m Secchi - slightly murky, the owner 2026-10-12); 0 there = the derived Pope & Fry clear water (~10.8 m), the old look
+    inp.clarity      = pc.look0.a > 0.0 ? pc.look0.a : max(pc.look1.w, 0.0);
     inp.viewProj     = pc.viewProj;
     inp.ssr          = 0.0;
     inp.debugMode    = dbg;

@@ -14314,12 +14314,15 @@ void Application::registerWaterCommands() {
             renderCoordinator->setWaterCoreScatterLegacy(sc == "legacy");
         }
         if (cmd.params.contains("horizon_guard")) renderCoordinator->setWaterCoreHorizonGuard(cmd.params.value("horizon_guard", true));   // 22.12 B2 A/B
+        // 25.26 M: the default Secchi depth (m) of simulated water without its own clarity; 0 = the derived clear water (the old look).
+        // Clamped to 100 m: past it the water is as clear as the derived default anyway.
+        if (cmd.params.contains("default_clarity")) renderCoordinator->setWaterCoreDefaultClarity(std::clamp(cmd.params.value("default_clarity", 5.0f), 0.0f, 100.0f));
         r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())},
              {"mesh_vertices", renderCoordinator->waterCoreMeshVertices()}, {"top_quads", renderCoordinator->waterCoreMeshTopQuads()},
              {"side_quads", renderCoordinator->waterCoreMeshSideQuads()}, {"mesh_build_ms", renderCoordinator->waterCoreMeshMs()},
              {"truncated", renderCoordinator->waterCoreMeshTruncated()}, {"debug", renderCoordinator->waterCoreDebugMode()},
              {"scatter", renderCoordinator->waterCoreScatterLegacy() ? "legacy" : "lit"},
-             {"horizon_guard", renderCoordinator->waterCoreHorizonGuard()}};
+             {"horizon_guard", renderCoordinator->waterCoreHorizonGuard()}, {"default_clarity", renderCoordinator->waterCoreDefaultClarity()}};
     });
     reg.on("water_av_realtime", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

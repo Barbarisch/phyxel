@@ -4556,6 +4556,32 @@ reads it (the W1 no-regression capture pins the sea's `water.frag`, not `water_s
 *Tests:* as listed, on the creek bench (flat, empty, one creek - the owner's test world) and unit rigs; the rig is shipped
 defaults except the creek's spring and outfall. **READY for M, K and RC; SC READY with the cosmetic-droplet rule stated.**
 
+### 25.27 M built; RC amended - flowing water drives its own ripples (owner, 2026-10-12)
+
+**M built (default murkiness).** `water_surface.frag`: a body's own clarity wins, else the simulated water's default Secchi
+depth from the push block (`look1.w`), set by `water_render_core {default_clarity}` (0 = the old derived ~10.8 m; clamped
+100 m; echoed). A/B sheets at the same poses, the creek running and the pond: `murk_creek.png`, `murk_pond.png` (old / 5 m /
+3 m / 1.5 m). 3 m (the design's proposal) read clearly blue-green on the 7-11 cm creek at a low view - more than "a slight
+murkiness... not much"; **5 m is the built default** (the gravel stays plain, the water tinted). The owner picks from the
+sheets; the knob makes any value a one-line change.
+
+**RC amended - the owner (2026-10-12):** "i would think that ripples should be default on for 'flowing' water. that would help
+with appearance and function in one go right? like flow speed/rate is just a function that feeds into the already established
+ripple feature?" **Yes.** Moving water roughens its own surface (bed-generated turbulence; standing waves where it speeds up
+over steps and stones), so on column water the ripple layer is ON by default and gets a third source beside droplet landings
+and bodies:
+- **Flow forcing:** each step, a small impulse field over the wet columns - a deterministic hash of the world lattice cell and
+  time (no chunk input, no randomness that differs between runs) - with amplitude set by the local turbulence: the bed shear
+  velocity u* = u n sqrt(g) / d^(1/6) (Manning's friction, which the column solver already applies), stronger where the flow
+  accelerates (the velocity's gradient along the stream - steps, stones). Still water gets none; a pond is unchanged.
+- **Advection** (as designed): the field rides the current, so the texture's drift IS the surface speed - a visual current
+  gauge, and the float tool (K) can read it.
+- **Calibration, measured not guessed:** the forcing's constant is set so the facet slopes on the creek at its design flow
+  stay inside the pond's signed-off range (22.11 / 22.12: slopes below the breaking limit, no black/white squares) and the
+  texture is visible (frame change above the still creek's); recorded with the owner's look.
+- Test RC-T4: still column water + forcing -> exactly zero (no flow, no ripples); RC-T5: at the creek's flow the slope
+  histogram's 95th percentile <= 0.3 (inside 22.11's black onset at the demo view) and the frame change > the still case.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
