@@ -458,7 +458,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **E. Coupling** — **MOSTLY BUILT; small-pond feel SIGNED OFF 2026-10-09 (§19.8).** E1 blasts + E2 debris both ways (§19.2–19.3); moving solids M0–M2 (§20.12–20.14, not signed off); clear water S0 (§21.10) and the droplet pool (§21.12); ripples R0+R1 (§22.9, accepted) + the black/white fix B1/B2 (§22.12, signed off 2026-10-11); waves keep their energy, pond friction, stone drag, the level-jerk fix (§24, not signed off). Open: M3/M4, E4 wading, pond whitewater, containers/pipes/scoop (§0a)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (§17.3), sign-off pending; F3 deletions open** (droplets were built under E, §21; the old RippleField's replacement is `RippleLayer`, §22)** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
-| **H. The world water system** — **DESIGN §25 (2026-10-11), H0 MEASURED (§25.16-25.17); H1 DESIGNED + checked, READY for (a)/(b) (§25.18)** | Sources and sinks with a ledger; three tiers (3-D windows, columns, far network) of one water; paths and currents simulated from the ground as it is; settling by Priority-Flood + Fill-Spill-Merge; underground drainage limit and water table; floating items in every tier | /design-check per step (H0 measurement first) | WS-1..WS-11 (§25.12); owner's look in motion |
+| **H. The world water system** — **DESIGN §25 (2026-10-11), H0 MEASURED (§25.16-25.17); H1 DESIGNED + checked, READY for (a)/(b) (§25.18); creek beds generated in 1/3 m subcubes - owner's rule (§25.19)** | Sources and sinks with a ledger; three tiers (3-D windows, columns, far network) of one water; paths and currents simulated from the ground as it is; settling by Priority-Flood + Fill-Spill-Merge; underground drainage limit and water table; floating items in every tier | /design-check per step (H0 measurement first) | WS-1..WS-11 (§25.12); owner's look in motion |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -4281,6 +4281,27 @@ hydrology stage's existing contract. Generation - only (c) touches it (hydrology
 reads the carved surface as it does today). API - units, clamps with reasons, echoes, the default stated; no existing
 default moves. Tests - C-T1..C-T7 with predictions and controls, one-chunk authored rig + the River bench, rig = shipped
 defaults except the bed switch. **READY for H1 (a) and (b); (c) gets its own check when its generator carve is designed.**
+
+### 25.19 Owner decision (2026-10-11): creek beds are generated in 1/3 m subcubes
+
+**The owner:** "terrain can be better than 1m voxels, it just standardizes to that. we can add to the plan that the
+terrain generation for creak beds has to be 1/3". **Rule:** the generator carves every creek bed (and its banks to the
+water line) in SUBCUBES - 1/3 m - not full cubes. This is candidate (c) of 25.18 at 1/3 m, now a requirement, not an
+option. It belongs to the hydrology stage (after the bake, before flora; flora reads the carved surface as today) and
+gets its own design and check before it is built (H1c).
+
+**What it does and does not settle.** It shrinks the gap between the drawn bed and the slope it approximates from 1 m to
+1/3 m - water can hide at most 1/3 m below the drawn ground instead of 1 m. It does not by itself make water flow like a
+creek on a gentle slope: at 1:50 a 1/3 m bed still steps only every 16.7 m, and H0 measured exactly that bed pooling (a
+20 L/s creek did not reach the end of 30 m in 180 s, 25.16). **So the comparison stands, on 1/3 m beds:** (a) the
+generator's continuous height (hidden fraction now bounded by 1/3 m - still enough to hide a 3 cm creek) against (b) the
+hydraulic bed ramped between 1/3 m steps (never below the drawn subcubes), with the raw voxel staircase as the control.
+On steep reaches (a 1/3 m step every few metres) the three converge; the gentle reaches decide it.
+
+**H1 order, amended:** (i) the authored 30 m channel rebuilt with a 1/3 m stepped bed on `WaterBench_Small` - (a), (b)
+and voxel compared there first (one chunk); (ii) H1c, the generator's 1/3 m creek-bed carve, designed and checked; (iii)
+the comparison repeated on a generated creek of a regenerated copy of the River bench; (iv) clips -> the owner chooses
+the bed rule.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
