@@ -330,4 +330,26 @@ TEST(WaterRippleTest, DISABLED_CostRippleWindow) {
     }
 }
 
+// 25.34: addImpulseField (two separable 1 2 1 / 4 passes) equals one addImpulse per cell (the 3 x 3 binomial tent) away from
+// the layer's edges - a random field of impulses on the interior, both layers stepped once: max difference ~ float rounding.
+TEST(WaterRippleTest, ImpulseFieldEqualsPerCellImpulses) {
+    RippleLayer a({0, 0}, 40, 30), b({0, 0}, 40, 30);
+    a.setOpenBorder(false); b.setOpenBorder(false);
+    std::vector<float> raw(40 * 30, 0.0f);
+    for (int z = 2; z < 28; ++z) for (int x = 2; x < 38; ++x) {
+        uint32_t h = static_cast<uint32_t>(x) * 73856093u ^ static_cast<uint32_t>(z) * 19349663u;
+        h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+        const float v = (h & 0xFFFFu) / 32767.5f - 1.0f;
+        raw[a.idx(x, z)] = v;
+        b.addImpulse((x + 0.5f) * kD, (z + 0.5f) * kD, v);
+    }
+    a.addImpulseField(raw);
+    a.step(RippleLayer::kStep); b.step(RippleLayer::kStep);
+    float worst = 0.0f, peak = 0.0f;
+    for (int z = 0; z < 30; ++z) for (int x = 0; x < 40; ++x) { worst = std::max(worst, std::abs(a.height(x, z) - b.height(x, z))); peak = std::max(peak, std::abs(b.height(x, z))); }
+    std::printf("  field vs per-cell impulses: max difference %.3e m of peak %.3e m\n", worst, peak);
+    ASSERT_GT(peak, 0.0f);
+    EXPECT_LE(worst, 1e-5f * peak);
+}
+
 }  // namespace Phyxel::Core::Water

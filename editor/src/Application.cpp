@@ -14155,6 +14155,7 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("smooth")) waterCore->setRippleSmooth(cmd.params.value("smooth", false));
         // 25.26 RC: the flow forcing's constant C_f (impulse per area per step = C_f rho u*^2 dt xi); 0 = off. Clamped to 20: past
         // it the ripples of a 0.5 m/s creek exceed the breaking limit everywhere (all forcing, no water)
+        if (cmd.params.contains("gpu")) waterCore->setRippleGpu(cmd.params.value("gpu", true));   // 25.34: the A/B switch
         if (cmd.params.contains("flow_forcing")) waterCore->setRippleFlowForcing(std::clamp(cmd.params.value("flow_forcing", 200.0f), 0.0f, 2000.0f));   // C_f; an upper bound only against a typo (25.29 calibration ran 2.5-400)
         if (cmd.params.contains("break_slope")) {   // 22.12 B1: rise per run; 0 = off (the A/B control)
             const float b = cmd.params.value("break_slope", Core::Water::RippleLayer::kBreakSlope);
@@ -14167,6 +14168,7 @@ void Application::registerWaterCommands() {
             if (p.is_object()) { rp.slope = std::clamp(p.value("slope", 0.0f), 0.0f, 20.0f); rp.azimuthDeg = p.value("azimuth_deg", 0.0f); }
             waterCore->setRipplePattern(rp);
         }
+        waterCore->refreshRippleShapeStats();   // 25.34: the shape stats are computed when asked
         const auto& s = waterCore->rippleStats();
         const auto& rp = waterCore->ripplePattern();
         nlohmann::json edges = nlohmann::json::array(), hist = nlohmann::json::array();
@@ -14175,7 +14177,7 @@ void Application::registerWaterCommands() {
         r = {{"enabled", s.on}, {"smooth", s.smooth}, {"layers", s.layers}, {"awake", s.awake}, {"cells", s.cells}, {"refused", s.refused},
              {"kinematic_cells", s.kinematicCells}, {"impulses", s.impulses}, {"ms", s.ms}, {"max_abs_m", s.maxAbs},
              {"max_slope", s.maxSlope}, {"slope_edges", edges}, {"slope_hist", hist},
-             {"break_slope", s.breakSlope}, {"broken_m3", s.brokenM3}, {"flow_forcing", waterCore->rippleFlowForcing()},
+             {"break_slope", s.breakSlope}, {"broken_m3", s.brokenM3}, {"flow_forcing", waterCore->rippleFlowForcing()}, {"backend", waterCore->rippleGpuOn() ? "gpu" : "cpu"}, {"gpu_available", waterCore->rippleGpuAvailable()}, {"gpu_error", waterCore->rippleGpuError()}, {"gpu_ms", s.gpuMs}, {"gpu_wait_ms", s.gpuWaitMs}, {"gpu_record_ms", s.gpuRecordMs}, {"gpu_collect_ms", s.gpuCollectMs}, {"gpu_dispatches", s.gpuDispatches}, {"gpu_layers", s.gpuLayers}, {"gpu_min_cells", Core::Water::WaterCoreManager::kRippleGpuMinCells},
              {"pattern", rp.slope >= 0.0f ? nlohmann::json{{"slope", rp.slope}, {"azimuth_deg", rp.azimuthDeg}} : nlohmann::json(false)},
              {"pitch_m", Core::Water::RippleLayer::kPitch}};
     });

@@ -406,7 +406,65 @@ bool WaterCoreManager::initGpu(VkDevice device, VkPhysicalDevice physical, VkQue
     auto gpu = std::make_unique<WaterCoreGpu>();
     if (!gpu->init(device, physical, queue, queueFamily, shaderDir, err)) return false;
     m_gpu = std::move(gpu);
+    auto rg = std::make_unique<RippleGpu>();   // 25.34: the ripple step; without it the layers step on the CPU (said in water_ripples)
+    if (rg->init(device, physical, queue, queueFamily, shaderDir, &m_rgpuErr)) m_rgpu = std::move(rg);
     return true;
+}
+
+void WaterCoreManager::refreshRippleShapeStats() {
+    m_rstats.maxAbs = 0.0f; m_rstats.maxSlope = 0.0f;
+    for (long& b : m_rstats.slopeHist) b = 0;
+    const float d = RippleLayer::kPitch;
+    for (RippleLayer* Lp : liveRippleLayers()) {
+        RippleLayer& L = *Lp;
+        if (L.asleep()) continue;
+        m_rstats.maxAbs = std::max(m_rstats.maxAbs, L.maxAbs());
+        // 22.11: the facet slopes the shader draws (central difference, clamped at the layer edge), water cells only
+        const auto& mask = L.mask();
+        const auto hh = [&](int x, int z) { return L.heights()[L.idx(std::clamp(x, 0, L.nx() - 1), std::clamp(z, 0, L.nz() - 1))]; };
+        for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) {
+            if (!mask[L.idx(x, z)]) continue;
+            const float sx = (hh(x + 1, z) - hh(x - 1, z)) * 0.5f / d, sz = (hh(x, z + 1) - hh(x, z - 1)) * 0.5f / d;
+            const float sl = std::sqrt(sx * sx + sz * sz);
+            m_rstats.maxSlope = std::max(m_rstats.maxSlope, sl);
+            int b = 0; while (b < kSlopeBins - 1 && sl >= kSlopeEdges[b]) ++b;
+            ++m_rstats.slopeHist[b];
+        }
+    }
+}
+
+std::vector<RippleLayer*> WaterCoreManager::liveRippleLayers() {
+    std::vector<RippleLayer*> out;
+    for (auto& av : m_avs) if (av->ripple) out.push_back(av->ripple.get());
+    for (auto& r : m_columns) if (r.ripple) out.push_back(r.ripple.get());
+    return out;
+}
+
+void WaterCoreManager::setRippleGpu(bool on) {
+    if (on == m_rgpuOn) return;
+    if (m_rgpu && m_rgpu->ready()) {
+        const auto live = liveRippleLayers();
+        if (!on) {   // the CPU continues where the GPU was: everything in flight in, both levels
+            m_rgpu->drain(live);
+            for (RippleLayer* L : live) m_rgpu->syncPrev(*L, live);
+        } else {
+            for (RippleLayer* L : live) m_rgpu->markDirty(*L);   // the CPU stepped meanwhile: its levels go up first
+        }
+    }
+    m_rgpuOn = on;
+}
+
+void WaterCoreManager::stepLayer(RippleLayer& L, float dt, const std::vector<glm::vec2>* vel) {
+    if (rippleGpuOn() && L.nx() * L.nz() >= kRippleGpuMinCells) {
+        std::string err;
+        if (m_rgpu->record(L, dt, vel, &err) || err.empty()) return;
+        m_rgpuErr = err; m_rgpuOn = false;   // refused (device memory): the CPU from here on - said in water_ripples, never silent
+        const auto live = liveRippleLayers();
+        for (RippleLayer* l : live) m_rgpu->syncPrev(*l, live);
+        return;   // this layer's frame is spent (its accumulators ran); it steps on the CPU next frame
+    }
+    if (vel) L.advect(*vel, dt);
+    L.step(dt);
 }
 
 // Phase C slice 2: the grid is the interface. Upload when it is newer than the GPU copy, run the
@@ -1056,10 +1114,11 @@ std::vector<const RippleLayer*> WaterCoreManager::rippleLayers() const {
 
 void WaterCoreManager::stepRipples(float dt) {
     const auto t0 = std::chrono::steady_clock::now();
-    m_rstats.layers = 0; m_rstats.awake = 0; m_rstats.cells = 0; m_rstats.kinematicCells = 0; m_rstats.maxAbs = 0.0f;
-    m_rstats.maxSlope = 0.0f; for (long& b : m_rstats.slopeHist) b = 0;
+    m_rstats.layers = 0; m_rstats.awake = 0; m_rstats.cells = 0; m_rstats.kinematicCells = 0;
     if (!m_rstats.on) { m_rstats.ms = 0.0; return; }
     surfaceFields();   // masks and body waterlines read each volume's field (cached per step)
+    const bool gpu = rippleGpuOn();
+    if (gpu) m_rgpu->collect(liveRippleLayers());   // 25.34: last frame's GPU step into the layers (heights, sleep)
     const float d = RippleLayer::kPitch;
     for (auto& up : m_avs) {
         Av& av = *up;
@@ -1089,6 +1148,7 @@ void WaterCoreManager::stepRipples(float dt) {
             std::vector<float> hp(static_cast<size_t>(L.nx()) * L.nz());
             for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) hp[L.idx(x, z)] = gx * (x - 0.5f * L.nx()) + gz * (z - 0.5f * L.nz());
             L.pin(hp);
+            if (gpu) m_rgpu->markDirty(L);   // 25.34: the pinned levels go up before any GPU step
         }
         // 22.3.2: bodies crossing the surface - the remainder of the kinematic condition the grid cannot hold
         const int per = std::max(1, static_cast<int>(std::lround(f.h / d)));   // lattice cells per grid column (3 at 1/3 m)
@@ -1119,22 +1179,10 @@ void WaterCoreManager::stepRipples(float dt) {
             }
         }
         L.setBreakSlope(m_rstats.breakSlope);
-        if (m_rpattern.slope < 0.0f) L.step(dt);
+        if (m_rpattern.slope < 0.0f) stepLayer(L, dt, nullptr);
         m_rstats.brokenM3 += L.takeBroken();
         ++m_rstats.layers; m_rstats.cells += static_cast<long>(L.nx()) * L.nz();
-        if (!L.asleep()) {
-            ++m_rstats.awake; m_rstats.maxAbs = std::max(m_rstats.maxAbs, L.maxAbs());
-            // 22.11: the facet slopes the shader draws (central difference, clamped at the layer edge), water cells only
-            const auto hh = [&](int x, int z) { return L.heights()[L.idx(std::clamp(x, 0, L.nx() - 1), std::clamp(z, 0, L.nz() - 1))]; };
-            for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) {
-                if (!mask[L.idx(x, z)]) continue;
-                const float sx = (hh(x + 1, z) - hh(x - 1, z)) * 0.5f / d, sz = (hh(x, z + 1) - hh(x, z - 1)) * 0.5f / d;
-                const float sl = std::sqrt(sx * sx + sz * sz);
-                m_rstats.maxSlope = std::max(m_rstats.maxSlope, sl);
-                int b = 0; while (b < kSlopeBins - 1 && sl >= kSlopeEdges[b]) ++b;
-                ++m_rstats.slopeHist[b];
-            }
-        }
+        if (!L.asleep()) ++m_rstats.awake;   // the shape stats: refreshRippleShapeStats (on demand)
     }
     // ---- 25.26 RC: column regions - a ripple window following the camera, carried by the current, forced by the flow ----
     for (ColumnRegion& reg : m_columns) {
@@ -1148,38 +1196,66 @@ void WaterCoreManager::stepRipples(float dt) {
         if (!reg.ripple) { reg.ripple = std::make_unique<RippleLayer>(want, lnx, lnz, 9.81f); reg.ripple->setOpenBorder(true); }
         RippleLayer& L = *reg.ripple;
         // the window moves in 4 m steps (36 cells) - not every frame; the field keeps its world position across a move
-        if (std::abs(want.x - L.origin().x) > 36 || std::abs(want.y - L.origin().y) > 36) L.shiftOrigin(want);
+        if (std::abs(want.x - L.origin().x) > 36 || std::abs(want.y - L.origin().y) > 36) {
+            if (gpu) m_rgpu->syncPrev(L, liveRippleLayers());   // 25.34: the shift moves BOTH levels - the ring drained, the previous one back
+            L.shiftOrigin(want);
+            if (gpu) m_rgpu->markDirty(L);
+        }
         const int nx = L.nx(), nz = L.nz();
         std::vector<glm::vec2> vel(static_cast<size_t>(nx) * nz, glm::vec2(0.0f));
         auto& mask = L.mask();
         const float dry = sv.params().dryDepth, n = sv.params().manningN;
         const uint32_t frame = ++reg.rippleFrame;
         int forced = 0;
-        for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
-            const size_t i = L.idx(x, z);
-            const float wx = (L.origin().x + x + 0.5f) * d, wz = (L.origin().y + z + 0.5f) * d;
-            int cx, cz;
-            mask[i] = 0;
-            if (!cw.columnAt(wx, wz, cx, cz)) continue;
+        // per COLUMN first (9 lattice cells share one 1/3 m column): wet, velocity, the forcing's amplitude
+        // C_f rho u*^2 dt (-1 = no water) - then the lattice from integer column indices (25.34: the per-cell float lookup
+        // and pow were 0.49 ms per frame of the creek window, measured)
+        auto fdiv3 = [](int a) { return a >= 0 ? a / 3 : -((-a + 2) / 3); };
+        const int colX0 = cw.minVoxel().x * 3, colZ0 = cw.minVoxel().z * 3;
+        const int cxa = fdiv3(L.origin().x) - colX0, cza = fdiv3(L.origin().y) - colZ0;
+        const int ncx = fdiv3(L.origin().x + nx - 1) - colX0 - cxa + 1, ncz = fdiv3(L.origin().y + nz - 1) - colZ0 - cza + 1;
+        std::vector<float> colAmp(static_cast<size_t>(ncx) * ncz, -1.0f);
+        std::vector<glm::vec2> colVel(colAmp.size(), glm::vec2(0.0f));
+        const bool forcing = m_flowForcing > 0.0f && m_rpattern.slope < 0.0f;
+        for (int k = 0; k < ncz; ++k) for (int j2 = 0; j2 < ncx; ++j2) {
+            const int cx = cxa + j2, cz = cza + k;
+            if (cx < 0 || cz < 0 || cx >= cw.nx() || cz >= cw.nz()) continue;
             const ShoreColumn& col = sv.col(cx, cz);
             const double depth = col.eta - col.bed;
             if (col.wall || depth <= dry) continue;
-            mask[i] = 1;
-            vel[i] = glm::vec2(col.u, col.w);
-            if (m_flowForcing <= 0.0f || m_rpattern.slope >= 0.0f) continue;
+            const size_t ci = static_cast<size_t>(j2) + static_cast<size_t>(ncx) * k;
+            colVel[ci] = glm::vec2(col.u, col.w);
+            colAmp[ci] = 0.0f;
+            if (!forcing) continue;
             const float speed = std::sqrt(col.u * col.u + col.w * col.w);
             if (speed < 1e-3f) continue;
             const float ustar = speed * n * std::sqrt(9.81f) / std::pow(static_cast<float>(std::max(depth, 1e-3)), 1.0f / 6.0f);
-            // fade over the window's outer 8 m so its edge is never seen (the ripples die away before the absorbing rim)
-            const float edge = static_cast<float>(std::min(std::min(x, z), std::min(nx - 1 - x, nz - 1 - z)));
-            const float fade = std::clamp(edge / 72.0f, 0.0f, 1.0f);
-            if (fade <= 0.0f) continue;
-            uint32_t h = static_cast<uint32_t>(L.origin().x + x) * 73856093u ^ static_cast<uint32_t>(L.origin().y + z) * 19349663u ^ frame * 83492791u;
-            h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
-            const float xi = (h & 0xFFFFu) / 32767.5f - 1.0f;
-            L.addImpulse(wx, wz, m_flowForcing * 1000.0f * ustar * ustar * dt * xi * fade);
-            ++forced;
+            colAmp[ci] = m_flowForcing * 1000.0f * ustar * ustar * dt;
         }
+        std::vector<float> raw;
+        for (int z = 0; z < nz; ++z) {
+            const int k = fdiv3(L.origin().y + z) - colZ0 - cza;
+            for (int x = 0; x < nx; ++x) {
+                const size_t i = L.idx(x, z);
+                const size_t ci = static_cast<size_t>(fdiv3(L.origin().x + x) - colX0 - cxa) + static_cast<size_t>(ncx) * k;
+                const float a = colAmp[ci];
+                if (a < 0.0f) { mask[i] = 0; continue; }
+                mask[i] = 1;
+                vel[i] = colVel[ci];
+                if (a <= 0.0f) continue;
+                // fade over the window's outer 8 m so its edge is never seen (the ripples die away before the absorbing rim)
+                const float edge = static_cast<float>(std::min(std::min(x, z), std::min(nx - 1 - x, nz - 1 - z)));
+                const float fade = std::clamp(edge / 72.0f, 0.0f, 1.0f);
+                if (fade <= 0.0f) continue;
+                uint32_t h = static_cast<uint32_t>(L.origin().x + x) * 73856093u ^ static_cast<uint32_t>(L.origin().y + z) * 19349663u ^ frame * 83492791u;
+                h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+                const float xi = (h & 0xFFFFu) / 32767.5f - 1.0f;
+                if (raw.empty()) raw.assign(static_cast<size_t>(nx) * nz, 0.0f);
+                raw[i] = a * xi * fade;
+                ++forced;
+            }
+        }
+        if (!raw.empty()) L.addImpulseField(raw);
         // 25.30 SC: bodies crossing the region's surface - the pond's sharp-edge remainder (22.3.2) at the column pitch
         // (3 lattice cells per 1/3 m column, world-aligned as on the pond)
         for (const MovingSolid& b : m_rippleBodies) {
@@ -1212,22 +1288,17 @@ void WaterCoreManager::stepRipples(float dt) {
             }
         }
         L.setBreakSlope(m_rstats.breakSlope);
-        if (m_rpattern.slope < 0.0f) { L.advect(vel, dt); L.step(dt); }
+        if (m_rpattern.slope < 0.0f) stepLayer(L, dt, &vel);
         ++m_rstats.layers; m_rstats.cells += static_cast<long>(nx) * nz;
-        if (!L.asleep()) {
-            ++m_rstats.awake; m_rstats.maxAbs = std::max(m_rstats.maxAbs, L.maxAbs());
-            const auto hh = [&](int x, int z) { return L.heights()[L.idx(std::clamp(x, 0, nx - 1), std::clamp(z, 0, nz - 1))]; };
-            for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
-                if (!mask[L.idx(x, z)]) continue;
-                const float sx = (hh(x + 1, z) - hh(x - 1, z)) * 0.5f / d, sz = (hh(x, z + 1) - hh(x, z - 1)) * 0.5f / d;
-                const float sl = std::sqrt(sx * sx + sz * sz);
-                m_rstats.maxSlope = std::max(m_rstats.maxSlope, sl);
-                int b = 0; while (b < kSlopeBins - 1 && sl >= kSlopeEdges[b]) ++b;
-                ++m_rstats.slopeHist[b];
-            }
-        }
+        if (!L.asleep()) ++m_rstats.awake;
         m_rstats.brokenM3 += L.takeBroken();
         (void)forced;
+    }
+    m_rstats.gpu = gpu;
+    if (gpu) {
+        m_rgpu->submit();   // 25.34: no wait - the next frame collects it
+        const auto& g = m_rgpu->stats();
+        m_rstats.gpuMs = g.gpuMs; m_rstats.gpuWaitMs = g.waitMs; m_rstats.gpuRecordMs = g.recordMs; m_rstats.gpuCollectMs = g.collectMs; m_rstats.gpuDispatches = g.dispatches; m_rstats.gpuLayers = g.layers;
     }
     m_rstats.ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }

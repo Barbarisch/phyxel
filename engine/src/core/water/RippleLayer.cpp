@@ -32,6 +32,8 @@ RippleLayer::RippleLayer(const glm::ivec2& origin, int nx, int nz, float gravity
     const size_t n = static_cast<size_t>(m_nx) * m_nz;
     m_r.assign(n, 0.0f); m_prev.assign(n, 0.0f); m_next.assign(n, 0.0f); m_tmp.assign(n, 0.0f);
     m_impulse.assign(n, 0.0f); m_kin.assign(n, 0.0f); m_kinSet.assign(n, 0); m_mask.assign(n, 1);
+    static uint64_t s_nextUid = 1;
+    m_uid = s_nextUid++;
     buildKernel();
     // convolve() folds the kernel (25.29): it must be symmetric in dx and in dz - it is by construction (one weight per class)
     for (int dz = -kRadius; dz <= kRadius; ++dz) for (int dx = -kRadius; dx <= kRadius; ++dx)
@@ -146,6 +148,29 @@ void RippleLayer::addImpulse(float wx, float wz, float impulsePerArea) {
     m_anyImpulse = true; m_asleep = false; m_quietSteps = 0;
 }
 
+void RippleLayer::addImpulseField(const std::vector<float>& raw) {
+    if (raw.size() != m_impulse.size()) return;
+    std::vector<float> t(raw.size(), 0.0f);
+    bool any = false;
+    for (int z = 0; z < m_nz; ++z) for (int x = 0; x < m_nx; ++x) {   // x: 1 2 1 / 4
+        const float v = raw[idx(x, z)];
+        if (v == 0.0f) continue;
+        any = true;
+        t[idx(x, z)] += 0.5f * v;
+        t[idx(x > 0 ? x - 1 : x, z)] += 0.25f * v;
+        t[idx(x + 1 < m_nx ? x + 1 : x, z)] += 0.25f * v;
+    }
+    if (!any) return;
+    for (int z = 0; z < m_nz; ++z) for (int x = 0; x < m_nx; ++x) {   // z: 1 2 1 / 4
+        const float v = t[idx(x, z)];
+        if (v == 0.0f) continue;
+        m_impulse[idx(x, z)] += 0.5f * v;
+        m_impulse[idx(x, z > 0 ? z - 1 : z)] += 0.25f * v;
+        m_impulse[idx(x, z + 1 < m_nz ? z + 1 : z)] += 0.25f * v;
+    }
+    m_anyImpulse = true; m_asleep = false; m_quietSteps = 0;
+}
+
 void RippleLayer::setKinematic(int x, int z, float velocity) {
     if (!inBounds(x, z)) return;
     m_kin[idx(x, z)] = velocity; m_kinSet[idx(x, z)] = 1;
@@ -198,13 +223,35 @@ float RippleLayer::convolveAt(const std::vector<float>& in, int x, int z) const 
     return acc;
 }
 
-void RippleLayer::step(float dt) {
-    if (dt <= 0.0f || (m_asleep && !m_anyImpulse && !m_anyKin)) { m_accum = 0.0f; return; }
+int RippleLayer::planStep(float dt) {
+    if (dt <= 0.0f || (m_asleep && !m_anyImpulse && !m_anyKin)) { m_accum = 0.0f; return 0; }
     // fixed steps (kStep): frame time accumulates, a stall beyond kMaxSubsteps steps is dropped
     m_accum = std::min(m_accum + dt, kStep * static_cast<float>(kMaxSubsteps));
     const int n = static_cast<int>(m_accum / kStep + 1e-4f);
-    if (n <= 0) return;   // impulses and this frame's kinematic cells wait for the next whole step
+    if (n <= 0) return 0;   // impulses and this frame's kinematic cells wait for the next whole step
     m_accum = std::max(0.0f, m_accum - static_cast<float>(n) * kStep);
+    return n;
+}
+
+void RippleLayer::finishStep() {
+    if (m_anyKin) { std::fill(m_kinSet.begin(), m_kinSet.end(), 0); m_anyKin = false; }
+    sleepRule();
+}
+
+void RippleLayer::sleepRule() {
+    // sleep: exact zero once the field has stayed below 0.2 mm for 30 steps
+    float mx = 0.0f;
+    for (float v : m_r) mx = std::max(mx, std::abs(v));
+    m_quietSteps = mx < kSleepHeight ? m_quietSteps + 1 : 0;
+    if (m_quietSteps >= kSleepSteps) {
+        std::fill(m_r.begin(), m_r.end(), 0.0f); std::fill(m_prev.begin(), m_prev.end(), 0.0f);
+        m_asleep = true; m_quietSteps = 0;
+    }
+}
+
+void RippleLayer::step(float dt) {
+    const int n = planStep(dt);
+    if (n <= 0) return;
     const float ds = kStep;
     const float a = m_a;
     for (int s = 0; s < n; ++s) {
@@ -257,25 +304,23 @@ void RippleLayer::step(float dt) {
         m_prev.swap(m_r);
         m_r.swap(m_next);
     }
-    if (m_anyKin) { std::fill(m_kinSet.begin(), m_kinSet.end(), 0); m_anyKin = false; }
-    // sleep: exact zero once the field has stayed below 0.2 mm for 30 steps
-    float mx = 0.0f;
-    for (float v : m_r) mx = std::max(mx, std::abs(v));
-    m_quietSteps = mx < kSleepHeight ? m_quietSteps + 1 : 0;
-    if (m_quietSteps >= kSleepSteps) {
-        std::fill(m_r.begin(), m_r.end(), 0.0f); std::fill(m_prev.begin(), m_prev.end(), 0.0f);
-        m_asleep = true; m_quietSteps = 0;
-    }
+    finishStep();
 }
 
-void RippleLayer::advect(const std::vector<glm::vec2>& vel, float dt) {
-    if (dt <= 0.0f || vel.size() != m_r.size()) return;
-    if (m_asleep) { m_advT = 0.0f; return; }
+float RippleLayer::planAdvect(const std::vector<glm::vec2>& vel, float dt) {
+    if (dt <= 0.0f || vel.size() != m_r.size()) return 0.0f;
+    if (m_asleep) { m_advT = 0.0f; return 0.0f; }
     m_advT += dt;
     float vmax = 0.0f;
     for (size_t i = 0; i < vel.size(); ++i) if (m_mask[i]) vmax = std::max(vmax, std::max(std::abs(vel[i].x), std::abs(vel[i].y)));
-    if (vmax * m_advT < kPitch && m_advT < 0.5f) return;
-    dt = m_advT; m_advT = 0.0f;
+    if (vmax * m_advT < kPitch && m_advT < 0.5f) return 0.0f;
+    const float t = m_advT; m_advT = 0.0f;
+    return t;
+}
+
+void RippleLayer::advect(const std::vector<glm::vec2>& vel, float dtFrame) {
+    const float dt = planAdvect(vel, dtFrame);
+    if (dt <= 0.0f) return;
     // CUBIC (Catmull-Rom) sampling: the back-trace moves a field by a fraction of a cell every frame (0.5 m/s at 60 Hz: 0.075
     // cell), and bilinear sampling of that fraction smeared the short ripples away - a ring kept 0.17 of its energy over 2 s
     // (WaterRippleTest.ARingRidesTheCurrent, 2026-10-12). Catmull-Rom's error is fourth order in the wave number.
@@ -322,6 +367,7 @@ void RippleLayer::shiftOrigin(const glm::ivec2& newOrigin) {
 int RippleLayer::labelComponents() {
     if (m_maskSeen == m_mask && m_label.size() == m_mask.size()) return m_nComp;
     m_maskSeen = m_mask;
+    ++m_labelRev;
     m_label.assign(m_mask.size(), -1);
     m_nComp = 0;
     std::vector<size_t> stack;

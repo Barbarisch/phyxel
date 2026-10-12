@@ -19,6 +19,8 @@
 
 namespace Phyxel::Core::Water {
 
+class RippleGpu;
+
 class RippleLayer {
 public:
     static constexpr int kRadius = 6;                       ///< kernel half-width (13 x 13), Tessendorf's
@@ -52,10 +54,25 @@ public:
 
     /// A downward impulse per unit area I (kg m/s / m^2) on one cell, applied at the next step.
     void addImpulse(float wx, float wz, float impulsePerArea);
+    /// 25.34: a whole field of impulses at once (one value per lattice cell, row-major) - the same 3 x 3 binomial tent as
+    /// addImpulse, applied as two separable passes (a cell's share past the layer's edge stays on it, per axis). Equal to
+    /// one addImpulse per cell away from the edges; the flow forcing (the caller) fades to zero there anyway.
+    void addImpulseField(const std::vector<float>& raw);
     /// The surface over this cell moves at `velocity` (m/s, up positive) during the next step.
     void setKinematic(int x, int z, float velocity);
 
     void step(float dt);
+    /// WaterCore.md 25.34 - step() split so the GPU step (RippleGpu) shares the bookkeeping word for word: planStep spends
+    /// frame time in whole kStep substeps (0 = nothing to do this call: asleep, or not a whole step yet - impulses and
+    /// kinematic cells wait), finishStep is the sleep rule after the substeps. step() = planStep + the CPU math + finishStep.
+    int planStep(float dt);
+    void finishStep();
+    /// 25.34: the sleep half of finishStep (the GPU step clears the kinematic cells when it consumes them, at record).
+    void sleepRule();
+    /// 25.34: advect()'s accumulator - the time to advect by NOW (0 = keep accumulating).
+    float planAdvect(const std::vector<glm::vec2>& vel, float dt);
+    /// A unique id per layer object (25.34: RippleGpu keys its device state by it - an address can be reused).
+    uint64_t uid() const { return m_uid; }
     /// WaterCore.md 25.26 RC - moving water: carry the field WITH the water. Both leapfrog levels are back-traced along `vel`
     /// (m/s, one per lattice cell, row-major) by dt and sampled bilinearly; a masked neighbour reads as 0 (the wall). A ring
     /// on a current drifts downstream at the current's speed and keeps its shape (WaterRippleTest RC-T2).
@@ -91,6 +108,9 @@ public:
     const std::vector<float>& kernel() const { return m_kernel; }   ///< (2R+1)^2, row-major (dz, dx)
 
 private:
+    friend class RippleGpu;   // 25.34: the GPU step reads and writes the levels and the sources
+    uint64_t m_uid = 0;
+    uint32_t m_labelRev = 0;   ///< 25.34: bumped when the labels are recomputed (the GPU re-uploads them)
     void buildKernel();
     void convolve(const std::vector<float>& in, std::vector<float>& out) const;
     float convolveAt(const std::vector<float>& in, int x, int z) const;   ///< one cell of convolve (kinematic cells)

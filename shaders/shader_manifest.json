@@ -446,6 +446,16 @@
       "sources": "81db230b6b975f6343f51360f50dea34aec23c6d6d9fed675434ae4b630ebeee",
       "spv_present": true
     },
+    "wc_ripple.comp": {
+      "built": true,
+      "sources": "1bb61dcb702895adcf5413590f4e1438154433632973074695a4ce13256979fb",
+      "spv_present": true
+    },
+    "wc_ripple_limit.comp": {
+      "built": true,
+      "sources": "f22a10f5f76443dc3fefd89b9a58a2d3db8149a6b8eef52f75705deb58f4688a",
+      "spv_present": true
+    },
     "wc_sources.comp": {
       "built": true,
       "sources": "947ded8d811e7b4e45915536be20d424b307bf1a6be2ffdf343853db6922ea97",

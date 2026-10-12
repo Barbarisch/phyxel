@@ -12,6 +12,7 @@
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
 #include "core/water/WaterDroplets.h"      // 21: the droplet crown
 #include "core/water/RippleLayer.h"        // 22: ripples
+#include "core/water/RippleGpu.h"          // 25.34: the ripple step on the GPU
 #include "core/water/ColumnWater.h"        // 25.18 H1: the column tier
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <unordered_map>
@@ -283,7 +284,9 @@ public:
     struct RippleStats { bool on = true, smooth = false; int layers = 0, awake = 0, refused = 0; long cells = 0, kinematicCells = 0, impulses = 0; double ms = 0.0; float maxAbs = 0.0f;
                          float maxSlope = 0.0f; long slopeHist[kSlopeBins] = {};
                          float breakSlope = RippleLayer::kBreakSlope;   ///< 22.12 B1 (0 = off, the A/B control)
-                         double brokenM3 = 0.0; };                      ///< height the limit removed, summed over the run (m^3)
+                         double brokenM3 = 0.0;                         ///< height the limit removed, summed over the run (m^3)
+                         bool gpu = false;                              ///< 25.34: the layers stepped on the GPU this frame
+                         double gpuMs = 0.0, gpuWaitMs = 0.0, gpuRecordMs = 0.0, gpuCollectMs = 0.0; int gpuDispatches = 0, gpuLayers = 0; };
     /// Measurement only (22.11): pin every layer to a uniform tilt - slope (rise per run) toward azimuth (degrees,
     /// 0 = +x, 90 = +z) - instead of stepping it, so one frame shows exactly one facet tilt. slope < 0 = off.
     struct RipplePattern { float slope = -1.0f, azimuthDeg = 0.0f; };
@@ -292,10 +295,23 @@ public:
     void setRipples(bool on) { m_rstats.on = on; }
     void setRippleSmooth(bool on) { m_rstats.smooth = on; }
     void setRippleBreakSlope(float s) { m_rstats.breakSlope = s; }
+    /// 25.34: step the ripple layers on the GPU (asynchronous, one frame late) or the CPU. On by default when initGpu made
+    /// the device; turning it off pulls every layer's levels back first, so the CPU continues exactly where the GPU was.
+    void setRippleGpu(bool on);
+    bool rippleGpuOn() const { return m_rgpuOn && m_rgpu && m_rgpu->ready(); }
+    /// 25.34: a layer steps on the GPU only from this many lattice cells - below it the GPU's fixed cost per frame (record,
+    /// uploads, readback) outweighs the arithmetic. Measured 2026-10-12: the pond bench's layer 0.137 ms CPU vs 0.238 ms
+    /// GPU; the creek's 384 x 54 window (20,736 cells) 0.57 ms CPU vs 0.35 ms GPU.
+    static constexpr int kRippleGpuMinCells = 8192;
+    bool rippleGpuAvailable() const { return m_rgpu && m_rgpu->ready(); }
+    const std::string& rippleGpuError() const { return m_rgpuErr; }
     /// 24.7 pond friction (1/s) for every volume, now and created later.
     void setPondFriction(float perSecond) { m_pondFriction = std::max(0.0f, perSecond); for (auto& av : m_avs) av->solver->setPondFriction(m_pondFriction); }
     float pondFriction() const { return m_pondFriction; }
     const RippleStats& rippleStats() const { return m_rstats; }
+    /// 25.34: the SHAPE stats (max |r|, max slope, the slope histogram) are measurement only - computed when asked (the
+    /// water_ripples route), not every frame (0.15 ms per frame on the creek window, measured).
+    void refreshRippleShapeStats();
     static constexpr int kRippleMaxCells = 512;   ///< per axis (a 57 m pond); a larger volume gets no layer - refused, counted (22.5)
     static constexpr int kRippleMaxLayers = 4;    ///< the renderer's atlas holds four 512 x 512 layers
     /// The layers, parallel to the fields surfaceFields() returns (null = none).
@@ -383,6 +399,11 @@ private:
     MicroStateQuery m_state;
     SolidsRevisionQuery m_revision;
     std::unique_ptr<WaterCoreGpu> m_gpu;
+    std::unique_ptr<RippleGpu> m_rgpu;   // 25.34 (declared after m_gpu: torn down first)
+    bool m_rgpuOn = true;
+    std::string m_rgpuErr;
+    std::vector<RippleLayer*> liveRippleLayers();
+    void stepLayer(RippleLayer& L, float dt, const std::vector<glm::vec2>* vel);
     void stepGpu(Av& av, int ticks, float dt);
     bool pushSourcesToGpu(Av& av, std::string* err);
     void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)

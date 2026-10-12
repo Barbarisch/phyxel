@@ -68,7 +68,7 @@ settling without filling, underground limits; design-checked READY, §25.15). Bu
 (the column solver measured on a creek, §25.16-25.17), H1 column-water regions on the simple creek bench (WaterBench_Creek,
 §25.18-25.25), slightly murky water by default (M, §25.27), the current measured and tuned (K, §25.28), ripples on the
 creek carried by the current and driven by the flow (RC, §25.29 - over its 0.3 ms cost target, ~0.9 ms), stones in the
-creek - displacement, rings, a cosmetic splash (SC, §25.30). H1b part 1 - the column tier works where the water is (§25.33: 2.7-11x cheaper, bit-identical). **Next, in the owner's order:** H1b part 2 - the ripple step on the GPU (§25.31). The §23 slime experiment stays
+creek - displacement, rings, a cosmetic splash (SC, §25.30). H1b part 1 - the column tier works where the water is (§25.33: 2.7-11x cheaper, bit-identical). H1b part 2 - the ripple step on the GPU (§25.35: the creek window 0.35 ms live, was ~1 ms). **Next:** H2 - the T1-T2 hand-off (§25.13): water passing between the 3-D pond tier and the creek tier. The §23 slime experiment stays
 queued behind §25.
 
 ## 1. Principles (the invariants every later decision must satisfy)
@@ -4840,6 +4840,110 @@ not red; the shore tier's solver was not in the equality) -> both folded in abov
 
 **Where the tier stands against 25.10's 0.6 ms:** one bench creek fits (0.4-0.6 ms); several creeks do not yet - the
 compact layout, or the GPU after the ripple port, is the next lever, decided on measurements then.
+
+### 25.34 H1b part 2 design - the ripple step on the GPU (owner, 2026-10-12: "get it done")
+
+**What moves.** `RippleLayer`'s per-substep math - advection (Catmull-Rom gather), the combined field c2 r + c1 ds / rho I, the
+13 x 13 convolution, the leapfrog update (rim absorption; kinematic cells with their own K * r), the zero mean per connected
+body, and the breaking limiter on both levels - runs as one compute shader with modes (`shaders/wc_ripple.comp`), every
+layer of a frame in ONE submission (`RippleGpu`, owned by `WaterCoreManager`, created by `initGpu`). **What stays on the
+CPU:** the bookkeeping - the fixed-step accumulator, the advection accumulator, the mask and component labels (recomputed
+only when the mask changes), sleep, impulses and kinematic cells as the sources write them, every stat. `RippleLayer` is
+split into `planStep` / `planAdvect` / `finishStep` so the CPU step and the GPU step share that bookkeeping word for word.
+
+**Asynchronous, one frame late.** The water core's queue is the GRAPHICS queue (`Application.cpp` `initGpu`): a fenced wait
+there would block the CPU behind the previous frame's rendering every frame. So frame N records and submits without waiting;
+frame N+1 first collects N (its fence has had a whole frame), copies each layer's new heights into the layer, then runs
+its sources and submits again. Staging is double-buffered (inputs and the readback per slot). The drawn heights are one
+frame (16 ms at 60 Hz) behind the sources - below what the eye resolves on a ripple. Only r is read back each frame;
+the previous level is downloaded on demand (blocking, rare) before a CPU-side mutation that needs it (`shiftOrigin` of a
+creek window, `pin`); after any CPU mutation the layer is marked dirty and its levels re-uploaded before the next step.
+
+**Exactness of each rule on the device.**
+- State: four level slots in one buffer, rotated by push-constant offsets (no copies).
+- Zero mean per body: cells sorted by label on the CPU when the labels change; one workgroup per 256-cell chunk sums both
+  levels (shared-memory tree), one thread per body sums its chunks in order, then every cell subtracts its body's mean -
+  deterministic (no float atomics), summed from the same pre-state as the CPU.
+- The limiter's gate is exact: a pass runs only if some edge exceeds the limit + 0.1 mm (the CPU's `any`), then moves every
+  edge past the limit; delta is GATHERED per cell from its 8 edges (Jacobi on a snapshot, as on the CPU). 16 passes per
+  level are recorded as INDIRECT dispatches: each pass writes the next pass's group count (0 once a pass finds nothing), so
+  a gentle field costs one detection pass. The broken height is summed per workgroup and folded on the CPU.
+- Parity, not bit-equality: the device sums in another order (float). Tolerance below.
+
+**Tests.**
+- **H1b-T3 parity** (`tests/integration/WaterRippleGpuParityTest.cpp`, Vulkan fixture, SKIP without a device - never a
+  pass): the same layer stepped on the CPU and the GPU through the shared bookkeeping; max |r_gpu - r_cpu| <= 1 % of max
+  |r_cpu| after: (1) a kick's ring in a still 6 x 6 m pond, 2 s; (2) a wall between two bodies (labels + zero mean); (3)
+  the breaking limiter's spike-and-step rig (B-T1's) - the gate in action; (4) a ring on a 0.5 m/s current (advection);
+  (5) a body crossing the surface (kinematic cells); plus the broken height within 1 %. **Red:** the parity run with the
+  limiter's gate removed (all 16 passes applied) must FAIL case (3) - the test can see a wrong limiter.
+- **H1b-T4 cost** (diagnostic in the parity file): the three 25.31 windows (bench creek 384 x 54, meander 384 x 384, full
+  384 x 384) - CPU wall per frame (record + upload + collect) and GPU time (timestamps). Prediction: CPU <= 0.3 ms for the
+  bench creek window and <= 1 ms for the full one; GPU time <= 0.3 ms for the full window.
+- **Live (L4):** the creek bench and the pond bench - `water_ripples` `ms` before/after, the RC / SC clips re-shot at the same
+  pose; `water_ripples {gpu: bool}` is the A/B switch (reply echoes `backend`).
+
+**Design keys.** *Voxel look:* unchanged (parity); 1/9 m facets as signed off. *Chunks:* none - layers are world-aligned
+lattices (22.5); the GPU sees the same lattice. *Generation:* none. *API:* `water_ripples {gpu}` (bool; omitted =
+unchanged; the reply echoes `backend: "gpu" | "cpu"` and why the GPU is off when it is - no device, init failed); default
+GPU when the device initialised, CPU otherwise - no pinned test reads the backend (the unit tests construct layers
+directly: CPU). *Test world:* unit-scale layers in the parity test (one variable: the backend; control: CPU vs CPU is
+exact), then the existing benches at shipped defaults. **Design-check 2026-10-12: READY** (the gate questions answered
+above; the queue stall was the one design risk and is the reason the step is asynchronous).
+
+### 25.35 H1b part 2 built - the ripple step on the GPU (2026-10-12). Status: built, not signed off
+
+**Built.** `RippleGpu` (engine/{include,src}/core/water/RippleGpu.*) + `shaders/wc_ripple.comp` (advect, combine, the 13 x 13
+convolution, update with kinematic cells, the zero mean per body) + `shaders/wc_ripple_limit.comp` (the breaking limit).
+`RippleLayer::step` / `advect` are split into `planStep` / `planAdvect` / `finishStep` (+ `sleepRule`), so both backends run
+the same bookkeeping. `WaterCoreManager::stepLayer` picks the backend per layer; `water_ripples {gpu}` is the A/B switch
+(the reply echoes `backend`, `gpu_layers`, `gpu_min_cells`, `gpu_ms`, `gpu_wait_ms`, `gpu_record_ms`, `gpu_error`).
+
+**Three things the measurements changed against the design (25.34):**
+1. **The limiter as 16 indirect passes cost the GPU 0.69 ms** on the bench window (128 mostly-empty dispatches with a barrier
+   each). Now ONE dispatch per level: 16 x 16 core tiles with a 16-cell halo in shared memory run all 16 Jacobi passes - an
+   edge's correction moves one cell per pass, so the core sees exactly the global passes; the pass gate is the tile's
+   (measured: the gate spares only edges within 0.1 mm of the limit, a 1e-6 m difference).
+2. **One frame of slack was not enough.** The queue is the graphics queue: collecting last frame's submission waited 0.8-1.7
+   ms live behind the rendering. The device state chains on the device, so up to THREE submissions are now in flight (a
+   ring with per-slot staging and readback); collect consumes whatever has signalled and waits only when the ring is full
+   (measured wait 0.000 ms live). Results of a layer the CPU changed meanwhile (pin, window shift, sleep) are dropped.
+3. **Small layers are cheaper on the CPU** - the pond bench's layer: 0.137 ms CPU vs 0.238 ms GPU (the GPU's fixed per-frame
+   cost); the creek's window: 0.57 vs 0.35. A layer steps on the GPU from 8,192 cells (`kRippleGpuMinCells`); the pond's
+   signed-off layers stay on the CPU path unchanged.
+Plus two CPU-side cuts the live profile found once the step itself was on the GPU (mask + forcing 0.49 ms, slope stats
+0.15 ms per frame): the creek's mask, velocity and forcing amplitude are computed per 1/3 m COLUMN and spread to the lattice
+by integer index, the impulses go in as one field (`RippleLayer::addImpulseField`, two separable 1 2 1 / 4 passes = the
+per-cell tent away from the edges - `WaterRippleTest.ImpulseFieldEqualsPerCellImpulses`, 1.8e-11 m), and the shape stats
+(max |r|, slope histogram) are computed when the route asks (`refreshRippleShapeStats`), not every frame.
+
+**H1b-T3 parity** (`WaterRippleGpuParityTest`, Vulkan; max |r_gpu - r_cpu| against max |r_cpu|): ring in a still pond
+0.002 %; a wall between two bodies 0.001 %; the breaking limit 0.000 % with the broken height 0.90613 vs 0.90613 m^3; a
+ring on a 0.5 m/s current 0.002 %; a body crossing the surface 0.001 %. **Red:** the limiter's gather dropping the
+backward edges leaves parity by 37.9 % (broken 1.450 m^3). (The first red tried - the gate removed - moved the field 1e-6 m:
+below the test's 1 %, so not a red; recorded so it is not tried again.)
+
+**H1b-T4 cost** (`DISABLED_CostRippleWindowGpu`, offline, per 60 Hz frame; CPU wall = record + collect, the wait apart):
+
+| Window | CPU step | GPU path: CPU wall | device |
+|---|---|---|---|
+| bench creek 384 x 54 (6,912 water) | 0.87-0.90 ms | **0.12** | 0.15-0.21 |
+| meander 384 x 384 (6,912 water) | 5.5-7.0 | **0.56-0.64** | 0.38-0.50 |
+| full 384 x 384 (147,456 water) | 21.4-22.2 | **0.71** | 0.94-1.78 |
+
+Against the predictions (CPU <= 0.3 ms bench, <= 1 ms full; device <= 0.3 ms full): CPU met both; device met on the bench and
+MISSED on the full window (0.9-1.8 ms - the timestamps also count queue time ahead of the submission; a 147k-cell window is
+a pond far larger than any built). **Live** (WaterBench_Creek, 100 L/s, forcing 200): ripple step **0.35-0.37 ms** per frame on
+the GPU (device 0.10-0.15 ms, wait 0) against 0.57 ms on the CPU after the same CPU-side cuts (1.0-1.2 ms before them); the
+same field statistics (peak 47-48 mm, max slope 0.33-0.36, the same histogram within noise). The SC stone on the GPU: 43
+droplets, kinematic cells 36, ripple peak 74 mm (CPU runs 72-77), ledger unchanged; clip `splash_stone_gpu_ff0.mp4` clean.
+The pond bench's pebble pair (now CPU by the size rule) - GPU forced: 0.24 ms, peak 18.7 mm; CPU: 0.14 ms, 18.9 mm.
+
+**Against the 0.3 ms per region target (25.26):** 0.35-0.37 ms live - close, not met; the remainder is the creek's per-cell
+mask / forcing loop (moving the forcing's hash and spread onto the GPU would take it, logged).
+
+**Found, not this work:** `WaterCoreGpuParityTest.GpuFlipBulkParityAndRunup` - the GPU FLIP run-up reads 1.18 h0 against
+its 1.22 gate (the open parity row of 15.15; the FLIP path is untouched here).
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
