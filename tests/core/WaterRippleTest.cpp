@@ -218,6 +218,27 @@ double bodySum(const RippleLayer& L, int x0, int x1) {
 }
 }  // namespace
 
+// RC-T2 (WaterCore.md 25.26) - a ring on a current is carried by it: the same kick on still water (control) and on a uniform
+// 0.5 m/s current along +x; after 2 s the ring's energy centroid sits u t = 1.0 m further downstream, within 10 %, and the
+// ring keeps its energy within 15 % (advection moves it, it does not eat it).
+TEST(WaterRippleTest, ARingRidesTheCurrent) {
+    auto run = [](float u) {
+        RippleLayer L({0, 0}, 160, 60);
+        L.setOpenBorder(false);
+        L.setBreakSlope(0.0f);
+        L.addImpulse(50.5f * kD, 30.5f * kD, 50.0f);
+        std::vector<glm::vec2> vel(static_cast<size_t>(160) * 60, glm::vec2(u, 0.0f));
+        for (int k = 0; k < 120; ++k) { L.advect(vel, 1.0f / 60.0f); L.step(1.0f / 60.0f); }
+        double e = 0.0, ex = 0.0;
+        for (int z = 0; z < 60; ++z) for (int x = 0; x < 160; ++x) { const double h = L.height(x, z); e += h * h; ex += h * h * (x + 0.5) * kD; }
+        return std::make_pair(ex / e, e);
+    };
+    const auto still = run(0.0f), moving = run(0.5f);
+    std::printf("  centroid still %.3f m, on 0.5 m/s %.3f m: moved %.3f m (u t = 1.000); energy ratio %.3f\n", still.first, moving.first, moving.first - still.first, moving.second / still.second);
+    EXPECT_NEAR(moving.first - still.first, 1.0, 0.1);
+    EXPECT_NEAR(moving.second / still.second, 1.0, 0.15);
+}
+
 // B-T1 (22.12) - the breaking limit: a 0.6 m spike and a 0.3 m step (a stone entry's leftovers, 22.10) in a walled
 // 6 x 6 m pond. Prediction: within 0.1 s (12 steps) no edge exceeds the limit by more than 1e-4 m, and the water's
 // sum of r is unchanged (pairwise moves). Control: limit off - the edges stay steep.

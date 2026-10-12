@@ -56,6 +56,16 @@ public:
     void setKinematic(int x, int z, float velocity);
 
     void step(float dt);
+    /// WaterCore.md 25.26 RC - moving water: carry the field WITH the water. Both leapfrog levels are back-traced along `vel`
+    /// (m/s, one per lattice cell, row-major) by dt and sampled bilinearly; a masked neighbour reads as 0 (the wall). A ring
+    /// on a current drifts downstream at the current's speed and keeps its shape (WaterRippleTest RC-T2).
+    /// Resampling is deferred: dt accumulates until the fastest cell has moved a whole lattice cell (or 0.5 s), then the
+    /// field is moved once by the accumulated time - a uniform current becomes an exact one-cell shift, and the per-frame
+    /// fractional resample (0.075 cell at 0.5 m/s, 60 Hz) that smeared short ripples away is gone.
+    void advect(const std::vector<glm::vec2>& vel, float dt);
+    /// 25.26 RC - a window that follows the camera along a creek: move the lattice to `newOrigin` (lattice cells). The field
+    /// stays put in the WORLD (cells keep their world position); cells entering the window start at rest.
+    void shiftOrigin(const glm::ivec2& newOrigin);
     /// 22.12 B1: no lattice edge steeper than `s` (axis |dr| <= s d, diagonal <= s d sqrt 2) after a step; 0 = off (the
     /// A/B control, and the tests of linear propagation / stepping stability - a limit would hide an instability).
     void setBreakSlope(float s) { m_breakSlope = std::max(0.0f, s); }
@@ -83,6 +93,7 @@ public:
 private:
     void buildKernel();
     void convolve(const std::vector<float>& in, std::vector<float>& out) const;
+    float convolveAt(const std::vector<float>& in, int x, int z) const;   ///< one cell of convolve (kinematic cells)
     int labelComponents();                 ///< 4-connected bodies of water in the mask (cached until the mask changes)
     double limitSlope(std::vector<float>& r);   ///< 22.12 B1 on one leapfrog level; returns the height moved (m, sum |delta|)
     std::vector<int> m_label;              ///< per cell: its body, -1 = masked
@@ -92,6 +103,7 @@ private:
     glm::ivec2 m_origin;
     float m_g, m_a;
     std::vector<float> m_kernel;
+    float m_advT = 0.0f;   // RC: advection time accumulated since the last resample
     std::vector<float> m_r, m_prev, m_next, m_tmp, m_impulse, m_kin;
     std::vector<uint8_t> m_mask, m_kinSet;
     bool m_openBorder = true, m_asleep = true, m_anyImpulse = false, m_anyKin = false;

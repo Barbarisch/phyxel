@@ -3733,6 +3733,7 @@ void Application::update(float deltaTime) {
                 m_displacing.swap(displacing);
                 m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f));
             }
+            if (camera) waterCore->setViewPoint(camera->getPosition());   // 25.26 RC: ripple windows follow the camera
             waterCore->update(std::min(deltaTime, 0.05f));
             if (renderCoordinator) {
                 renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
@@ -14150,6 +14151,9 @@ void Application::registerWaterCommands() {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setRipples(cmd.params.value("enabled", true));
         if (cmd.params.contains("smooth")) waterCore->setRippleSmooth(cmd.params.value("smooth", false));
+        // 25.26 RC: the flow forcing's constant C_f (impulse per area per step = C_f rho u*^2 dt xi); 0 = off. Clamped to 20: past
+        // it the ripples of a 0.5 m/s creek exceed the breaking limit everywhere (all forcing, no water)
+        if (cmd.params.contains("flow_forcing")) waterCore->setRippleFlowForcing(std::clamp(cmd.params.value("flow_forcing", 200.0f), 0.0f, 2000.0f));   // C_f; an upper bound only against a typo (25.29 calibration ran 2.5-400)
         if (cmd.params.contains("break_slope")) {   // 22.12 B1: rise per run; 0 = off (the A/B control)
             const float b = cmd.params.value("break_slope", Core::Water::RippleLayer::kBreakSlope);
             // below 0.05 every ring the droplets make would be flattened; above 5 is no limit at the 1/9 m lattice
@@ -14169,7 +14173,7 @@ void Application::registerWaterCommands() {
         r = {{"enabled", s.on}, {"smooth", s.smooth}, {"layers", s.layers}, {"awake", s.awake}, {"cells", s.cells}, {"refused", s.refused},
              {"kinematic_cells", s.kinematicCells}, {"impulses", s.impulses}, {"ms", s.ms}, {"max_abs_m", s.maxAbs},
              {"max_slope", s.maxSlope}, {"slope_edges", edges}, {"slope_hist", hist},
-             {"break_slope", s.breakSlope}, {"broken_m3", s.brokenM3},
+             {"break_slope", s.breakSlope}, {"broken_m3", s.brokenM3}, {"flow_forcing", waterCore->rippleFlowForcing()},
              {"pattern", rp.slope >= 0.0f ? nlohmann::json{{"slope", rp.slope}, {"azimuth_deg", rp.azimuthDeg}} : nlohmann::json(false)},
              {"pitch_m", Core::Water::RippleLayer::kPitch}};
     });

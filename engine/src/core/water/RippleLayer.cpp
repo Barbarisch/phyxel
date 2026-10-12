@@ -1,5 +1,6 @@
 #include "core/water/RippleLayer.h"
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 
 namespace Phyxel::Core::Water {
@@ -32,6 +33,9 @@ RippleLayer::RippleLayer(const glm::ivec2& origin, int nx, int nz, float gravity
     m_r.assign(n, 0.0f); m_prev.assign(n, 0.0f); m_next.assign(n, 0.0f); m_tmp.assign(n, 0.0f);
     m_impulse.assign(n, 0.0f); m_kin.assign(n, 0.0f); m_kinSet.assign(n, 0); m_mask.assign(n, 1);
     buildKernel();
+    // convolve() folds the kernel (25.29): it must be symmetric in dx and in dz - it is by construction (one weight per class)
+    for (int dz = -kRadius; dz <= kRadius; ++dz) for (int dx = -kRadius; dx <= kRadius; ++dx)
+        assert(m_kernel[static_cast<size_t>(2 * kRadius + 1) * (dz + kRadius) + dx + kRadius] == m_kernel[static_cast<size_t>(2 * kRadius + 1) * (-dz + kRadius) - dx + kRadius]);
 }
 
 void RippleLayer::buildKernel() {
@@ -149,22 +153,49 @@ void RippleLayer::setKinematic(int x, int z, float velocity) {
 }
 
 void RippleLayer::convolve(const std::vector<float>& in, std::vector<float>& out) const {
+    // Row-wise and FOLDED (25.29 RC cost). The fitted kernel is symmetric in dx and in dz (buildKernel fits one weight per
+    // offset class), so for each output row the two input rows z +- dz are summed once into a zero-padded buffer, and that
+    // sum is convolved with the 1 + R folded taps w (s[x + dx] + s[x - dx]) - 7 row passes of 7 taps instead of 13 x 13,
+    // tight loops the compiler vectorises. Only each row's masked x-span is computed; outside the layer reads as 0 and
+    // masked output is 0 (the per-cell form's rules). Measured on the creek window: WaterCore.md 25.29.
     const int R = kRadius, W = 2 * R + 1;
-    for (int z = 0; z < m_nz; ++z) for (int x = 0; x < m_nx; ++x) {
-        if (!m_mask[idx(x, z)]) { out[idx(x, z)] = 0.0f; continue; }   // masked: held at 0 anyway (walls and dry ground are most of a pond's box)
-        float acc = 0.0f;
-        for (int dz = -R; dz <= R; ++dz) {
-            const int zz = z + dz;
-            if (zz < 0 || zz >= m_nz) continue;   // outside the layer: r = 0 (masked)
+    std::fill(out.begin(), out.end(), 0.0f);
+    std::vector<float> pad(static_cast<size_t>(m_nx + 2 * R), 0.0f);
+    float* rs = pad.data() + R;   // rs[-R .. nx-1+R], zero outside the layer
+    for (int z = 0; z < m_nz; ++z) {
+        const uint8_t* mrow = &m_mask[idx(0, z)];
+        int x0 = 0, x1 = m_nx - 1;
+        while (x0 < m_nx && !mrow[x0]) ++x0;
+        if (x0 >= m_nx) continue;
+        while (!mrow[x1]) --x1;
+        const int a = std::max(0, x0 - R), b = std::min(m_nx - 1, x1 + R);   // input span this row's outputs read
+        float* orow = &out[idx(0, z)];
+        for (int dz = 0; dz <= R; ++dz) {
+            const int zp = z + dz, zm = z - dz;
+            const bool hp = zp < m_nz, hm = dz > 0 && zm >= 0;
+            if (!hp && !hm) continue;
+            const float* ip = hp ? &in[idx(0, zp)] : nullptr;
+            const float* im = hm ? &in[idx(0, zm)] : nullptr;
+            for (int x = a; x <= b; ++x) rs[x] = (hp ? ip[x] : 0.0f) + (hm ? im[x] : 0.0f);
             const float* krow = &m_kernel[static_cast<size_t>(W) * (dz + R) + R];
-            for (int dx = -R; dx <= R; ++dx) {
-                const int xx = x + dx;
-                if (xx < 0 || xx >= m_nx) continue;
-                acc += krow[dx] * in[idx(xx, zz)];
+            const float w0 = krow[0];
+            for (int x = x0; x <= x1; ++x) orow[x] += w0 * rs[x];
+            for (int dx = 1; dx <= R; ++dx) {
+                const float w = krow[dx];
+                for (int x = x0; x <= x1; ++x) orow[x] += w * (rs[x + dx] + rs[x - dx]);
             }
+            for (int x = a; x <= b; ++x) rs[x] = 0.0f;   // keep the padding zero for the next row's span
         }
-        out[idx(x, z)] = acc;
+        for (int x = x0; x <= x1; ++x) if (!mrow[x]) orow[x] = 0.0f;   // masked: held at 0
     }
+}
+
+float RippleLayer::convolveAt(const std::vector<float>& in, int x, int z) const {
+    const int R = kRadius, W = 2 * R + 1;
+    float acc = 0.0f;
+    for (int dz = -R; dz <= R; ++dz) for (int dx = -R; dx <= R; ++dx)
+        if (inBounds(x + dx, z + dz)) acc += m_kernel[static_cast<size_t>(W) * (dz + R) + dx + R] * in[idx(x + dx, z + dz)];
+    return acc;
 }
 
 void RippleLayer::step(float dt) {
@@ -177,25 +208,28 @@ void RippleLayer::step(float dt) {
     const float ds = kStep;
     const float a = m_a;
     for (int s = 0; s < n; ++s) {
-        if (m_anyImpulse) {   // Cauchy-Poisson: dr/dt += -(K * I) / rho
-            convolve(m_impulse, m_tmp);
-            for (size_t i = 0; i < m_r.size(); ++i) if (m_mask[i]) m_prev[i] += m_tmp[i] / kRho * ds;
-            std::fill(m_impulse.begin(), m_impulse.end(), 0.0f);
-            m_anyImpulse = false;
-        }
-        if (m_anyKin)   // the surface follows the body's sharp-edge remainder this frame
-            for (size_t i = 0; i < m_r.size(); ++i) if (m_kinSet[i] && m_mask[i]) m_prev[i] = m_r[i] - m_kin[i] * ds;
-        convolve(m_r, m_tmp);
         // r'' + 2 a r' + g (K * r) = 0, centred: the amplitude decays at a and the frequency is untouched. (The
         // first cut used (2 - a dt)/(1 + a dt) and 1/(1 + a dt), written from memory of iWave's form: its
         // second difference carried an extra -2 a dt r, a hidden stiffness of 2 a / dt that ran every wave
         // 8-10 % fast at 240 Hz - WaterRippleTest.PlaneWaveRunsAtItsOwnSpeed, 2026-10-10.)
         const float damp = a * ds;
         const float c0 = 2.0f / (1.0f + damp), c1 = (1.0f - damp) / (1.0f + damp), c2 = m_g * ds * ds / (1.0f + damp);
+        // Cauchy-Poisson impulses (dr/dt += -(K * I) / rho, i.e. prev += (K * I) ds / rho) and the wave term share ONE
+        // convolution - K is linear (25.29 RC cost: the separate impulse pass doubled the step's price under flow forcing):
+        //   next = c0 r - c1 (prev + (K * I) ds / rho) - c2 (K * r) = c0 r - c1 prev - K * (c2 r + c1 ds / rho I)
+        // A kinematic cell sets its prev outright (the surface follows the body's sharp-edge remainder this frame), so its
+        // impulse share is dropped there - as before - and its K * r is summed directly (a few cells).
+        const bool imp = m_anyImpulse;
+        const float ci = c1 * ds / kRho;
+        for (size_t i = 0; i < m_r.size(); ++i) m_next[i] = c2 * m_r[i] + (imp ? ci * m_impulse[i] : 0.0f);
+        convolve(m_next, m_tmp);
+        if (imp) { std::fill(m_impulse.begin(), m_impulse.end(), 0.0f); m_anyImpulse = false; }
         for (int z = 0; z < m_nz; ++z) for (int x = 0; x < m_nx; ++x) {
             const size_t i = idx(x, z);
             if (!m_mask[i]) { m_next[i] = 0.0f; continue; }
-            float v = m_r[i] * c0 - m_prev[i] * c1 - c2 * m_tmp[i];
+            float v;
+            if (m_anyKin && m_kinSet[i]) v = m_r[i] * c0 - (m_r[i] - m_kin[i] * ds) * c1 - c2 * convolveAt(m_r, x, z);
+            else v = m_r[i] * c0 - m_prev[i] * c1 - m_tmp[i];
             if (m_openBorder) {   // water continuing past the volume: absorbed, never a reflecting edge
                 const int rim = std::min(std::min(x, z), std::min(m_nx - 1 - x, m_nz - 1 - z));
                 if (rim < 2) v *= 0.5f * static_cast<float>(rim);
@@ -232,6 +266,57 @@ void RippleLayer::step(float dt) {
         std::fill(m_r.begin(), m_r.end(), 0.0f); std::fill(m_prev.begin(), m_prev.end(), 0.0f);
         m_asleep = true; m_quietSteps = 0;
     }
+}
+
+void RippleLayer::advect(const std::vector<glm::vec2>& vel, float dt) {
+    if (dt <= 0.0f || vel.size() != m_r.size()) return;
+    if (m_asleep) { m_advT = 0.0f; return; }
+    m_advT += dt;
+    float vmax = 0.0f;
+    for (size_t i = 0; i < vel.size(); ++i) if (m_mask[i]) vmax = std::max(vmax, std::max(std::abs(vel[i].x), std::abs(vel[i].y)));
+    if (vmax * m_advT < kPitch && m_advT < 0.5f) return;
+    dt = m_advT; m_advT = 0.0f;
+    // CUBIC (Catmull-Rom) sampling: the back-trace moves a field by a fraction of a cell every frame (0.5 m/s at 60 Hz: 0.075
+    // cell), and bilinear sampling of that fraction smeared the short ripples away - a ring kept 0.17 of its energy over 2 s
+    // (WaterRippleTest.ARingRidesTheCurrent, 2026-10-12). Catmull-Rom's error is fourth order in the wave number.
+    auto cr = [](float p0, float p1, float p2, float p3, float t) {
+        return p1 + 0.5f * t * (p2 - p0 + t * (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3 + t * (3.0f * (p1 - p2) + p3 - p0)));
+    };
+    auto sample = [&](const std::vector<float>& f, float fx, float fz) {
+        const int x1 = static_cast<int>(std::floor(fx)), z1 = static_cast<int>(std::floor(fz));
+        const float tx = fx - x1, tz = fz - z1;
+        auto at = [&](int x, int z) { return (inBounds(x, z) && m_mask[idx(x, z)]) ? f[idx(x, z)] : 0.0f; };
+        float row[4];
+        for (int j = 0; j < 4; ++j) { const int z = z1 - 1 + j; row[j] = cr(at(x1 - 1, z), at(x1, z), at(x1 + 1, z), at(x1 + 2, z), tx); }
+        return cr(row[0], row[1], row[2], row[3], tz);
+    };
+    m_next.assign(m_r.size(), 0.0f); m_tmp.assign(m_r.size(), 0.0f);
+    for (int z = 0; z < m_nz; ++z) for (int x = 0; x < m_nx; ++x) {
+        const size_t i = idx(x, z);
+        if (!m_mask[i]) continue;
+        const float sx = x - vel[i].x * dt / kPitch, sz = z - vel[i].y * dt / kPitch;
+        m_next[i] = sample(m_r, sx, sz);
+        m_tmp[i] = sample(m_prev, sx, sz);
+    }
+    m_r.swap(m_next); m_prev.swap(m_tmp);
+}
+
+void RippleLayer::shiftOrigin(const glm::ivec2& newOrigin) {
+    if (newOrigin == m_origin) return;
+    const glm::ivec2 d = newOrigin - m_origin;
+    auto move = [&](std::vector<float>& f) {
+        std::vector<float> g(f.size(), 0.0f);
+        for (int z = 0; z < m_nz; ++z) for (int x = 0; x < m_nx; ++x) {
+            const int ox = x + d.x, oz = z + d.y;   // the old cell at this world position
+            if (inBounds(ox, oz)) g[idx(x, z)] = f[idx(ox, oz)];
+        }
+        f.swap(g);
+    };
+    move(m_r); move(m_prev);
+    std::fill(m_impulse.begin(), m_impulse.end(), 0.0f); m_anyImpulse = false;
+    std::fill(m_kinSet.begin(), m_kinSet.end(), 0); m_anyKin = false;
+    m_origin = newOrigin;
+    m_maskSeen.clear();   // the mask is re-set by the caller; the body labels are recomputed
 }
 
 int RippleLayer::labelComponents() {

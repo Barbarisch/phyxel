@@ -203,7 +203,8 @@ public:
     /// that follows a step; a volume that did not step since the last call keeps its field.
     const std::vector<WaterSurfaceField>& surfaceFields();
     // ---- 25.18 H1: column-water regions ----
-    struct ColumnRegion { std::unique_ptr<ColumnWater> cw; uint64_t occRevision = ~0ull; WaterSurfaceField field; };
+    struct ColumnRegion { std::unique_ptr<ColumnWater> cw; uint64_t occRevision = ~0ull; WaterSurfaceField field;
+                          std::unique_ptr<RippleLayer> ripple; uint32_t rippleFrame = 0; };   // 25.26 RC: the region's ripple window
     /// A region over voxels [minVoxel, maxVoxel]; beds and walls read from the world's solids. Returns its id (0 = refused, `err`).
     int createColumns(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float manningN, std::string* err);
     bool destroyColumns(int id);
@@ -214,6 +215,16 @@ public:
     /// (no generator - an authored or flat world). With it, new regions default to the `generator` bed (option (a)).
     using GeneratorBedQuery = std::function<bool(int wx, int wz, float& bedHeight, float& drawnTop)>;
     void setGeneratorBedQuery(GeneratorBedQuery q) { m_genBed = std::move(q); }
+    /// 25.26 RC: where the camera is - a column region's ripple window (kColumnRippleWindow lattice cells square) follows it.
+    void setViewPoint(const glm::vec3& p) { m_view = p; }
+    static constexpr int kColumnRippleWindow = 384;   ///< 42.7 m at 1/9 m: the renderer's atlas holds <= 512 per axis; 1/9 m facets
+                                                      ///< are sub-pixel well before 40 m, so a window - not the whole creek - is drawn
+    /// 25.26 RC flow forcing: the turbulence moving water feeds into its own ripple layer - an impulse per unit area per step
+    /// C_f rho u*^2 dt xi (xi a deterministic hash in [-1, 1] of the world lattice cell and the step; u* the bed shear velocity
+    /// u n sqrt(g) / d^(1/6), Manning's friction the column solver applies). Still water: u* = 0, nothing. `water_ripples
+    /// {flow_forcing}` tunes C_f live (0 = off, the A/B control).
+    void setRippleFlowForcing(float c) { m_flowForcing = c < 0.0f ? 0.0f : c; }
+    float rippleFlowForcing() const { return m_flowForcing; }
     /// E2: one world voxel column's water from the last surface fields - the highest top over the
     /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
     bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
@@ -364,6 +375,8 @@ private:
     std::vector<ColumnRegion> m_columns;
     int m_nextColumnId = 1;
     GeneratorBedQuery m_genBed;   // 25.22
+    glm::vec3 m_view{0.0f};       // 25.26 RC
+    float m_flowForcing = 200.0f; // 25.26 RC: C_f - calibrated live 2026-10-12 (25.29): facet slope p95 0.1-0.2 on the 100 L/s bench creek
     void refreshColumnSolids(ColumnRegion& r, bool force = false);
     SpanWriter m_spanWriter; SpanReader m_spanReader; BakeBodyQuery m_bakeBodyAt;
     WaterBodyTable m_bodies;

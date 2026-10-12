@@ -678,6 +678,7 @@ const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
     }
     for (ColumnRegion& r : m_columns) {   // 25.18 H1 (25.15 F1): the column tier drawn by the same mesher and shader
         r.cw->publish(r.field);
+        r.field.rippleLayer = (r.ripple && m_rstats.on) ? static_cast<int>(m_fields.size()) : -1;   // 25.26 RC (publish resets it)
         const glm::ivec3 c = (r.cw->minVoxel() + r.cw->maxVoxel()) / 2;
         r.field.look = packLook(lookAt(c.x, c.z));
         m_fields.push_back(r.field);
@@ -917,6 +918,7 @@ void WaterCoreManager::stepDroplets(float dt) {
 std::vector<const RippleLayer*> WaterCoreManager::rippleLayers() const {
     std::vector<const RippleLayer*> out;
     for (const auto& av : m_avs) out.push_back(m_rstats.on ? av->ripple.get() : nullptr);
+    for (const auto& r : m_columns) out.push_back(m_rstats.on ? r.ripple.get() : nullptr);   // 25.26 RC: parallel to the regions' fields
     return out;
 }
 
@@ -1001,6 +1003,68 @@ void WaterCoreManager::stepRipples(float dt) {
                 ++m_rstats.slopeHist[b];
             }
         }
+    }
+    // ---- 25.26 RC: column regions - a ripple window following the camera, carried by the current, forced by the flow ----
+    for (ColumnRegion& reg : m_columns) {
+        ColumnWater& cw = *reg.cw;
+        const ShoreSolver& sv = cw.solver();
+        const int lnx = std::min(kColumnRippleWindow, cw.nx() * 3), lnz = std::min(kColumnRippleWindow, cw.nz() * 3);
+        const glm::ivec2 lo(cw.minVoxel().x * 9, cw.minVoxel().z * 9);
+        const glm::ivec2 hi((cw.maxVoxel().x + 1) * 9 - lnx, (cw.maxVoxel().z + 1) * 9 - lnz);
+        glm::ivec2 want(static_cast<int>(std::floor(m_view.x * 9.0f)) - lnx / 2, static_cast<int>(std::floor(m_view.z * 9.0f)) - lnz / 2);
+        want = glm::clamp(want, lo, glm::max(lo, hi));
+        if (!reg.ripple) { reg.ripple = std::make_unique<RippleLayer>(want, lnx, lnz, 9.81f); reg.ripple->setOpenBorder(true); }
+        RippleLayer& L = *reg.ripple;
+        // the window moves in 4 m steps (36 cells) - not every frame; the field keeps its world position across a move
+        if (std::abs(want.x - L.origin().x) > 36 || std::abs(want.y - L.origin().y) > 36) L.shiftOrigin(want);
+        const int nx = L.nx(), nz = L.nz();
+        std::vector<glm::vec2> vel(static_cast<size_t>(nx) * nz, glm::vec2(0.0f));
+        auto& mask = L.mask();
+        const float dry = sv.params().dryDepth, n = sv.params().manningN;
+        const uint32_t frame = ++reg.rippleFrame;
+        int forced = 0;
+        for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+            const size_t i = L.idx(x, z);
+            const float wx = (L.origin().x + x + 0.5f) * d, wz = (L.origin().y + z + 0.5f) * d;
+            int cx, cz;
+            mask[i] = 0;
+            if (!cw.columnAt(wx, wz, cx, cz)) continue;
+            const ShoreColumn& col = sv.col(cx, cz);
+            const double depth = col.eta - col.bed;
+            if (col.wall || depth <= dry) continue;
+            mask[i] = 1;
+            vel[i] = glm::vec2(col.u, col.w);
+            if (m_flowForcing <= 0.0f || m_rpattern.slope >= 0.0f) continue;
+            const float speed = std::sqrt(col.u * col.u + col.w * col.w);
+            if (speed < 1e-3f) continue;
+            const float ustar = speed * n * std::sqrt(9.81f) / std::pow(static_cast<float>(std::max(depth, 1e-3)), 1.0f / 6.0f);
+            // fade over the window's outer 8 m so its edge is never seen (the ripples die away before the absorbing rim)
+            const float edge = static_cast<float>(std::min(std::min(x, z), std::min(nx - 1 - x, nz - 1 - z)));
+            const float fade = std::clamp(edge / 72.0f, 0.0f, 1.0f);
+            if (fade <= 0.0f) continue;
+            uint32_t h = static_cast<uint32_t>(L.origin().x + x) * 73856093u ^ static_cast<uint32_t>(L.origin().y + z) * 19349663u ^ frame * 83492791u;
+            h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+            const float xi = (h & 0xFFFFu) / 32767.5f - 1.0f;
+            L.addImpulse(wx, wz, m_flowForcing * 1000.0f * ustar * ustar * dt * xi * fade);
+            ++forced;
+        }
+        L.setBreakSlope(m_rstats.breakSlope);
+        if (m_rpattern.slope < 0.0f) { L.advect(vel, dt); L.step(dt); }
+        ++m_rstats.layers; m_rstats.cells += static_cast<long>(nx) * nz;
+        if (!L.asleep()) {
+            ++m_rstats.awake; m_rstats.maxAbs = std::max(m_rstats.maxAbs, L.maxAbs());
+            const auto hh = [&](int x, int z) { return L.heights()[L.idx(std::clamp(x, 0, nx - 1), std::clamp(z, 0, nz - 1))]; };
+            for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+                if (!mask[L.idx(x, z)]) continue;
+                const float sx = (hh(x + 1, z) - hh(x - 1, z)) * 0.5f / d, sz = (hh(x, z + 1) - hh(x, z - 1)) * 0.5f / d;
+                const float sl = std::sqrt(sx * sx + sz * sz);
+                m_rstats.maxSlope = std::max(m_rstats.maxSlope, sl);
+                int b = 0; while (b < kSlopeBins - 1 && sl >= kSlopeEdges[b]) ++b;
+                ++m_rstats.slopeHist[b];
+            }
+        }
+        m_rstats.brokenM3 += L.takeBroken();
+        (void)forced;
     }
     m_rstats.ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }

@@ -63,10 +63,14 @@ containers.
 **Is the still pond ready to build on? Yes, for flowing water.** The owner signed off its feel; what remains open is
 polish (look, short-wave loss, terraces) or features that do not gate a stream (wading, containers, pipes, other
 liquids). What DOES gate a stream is listed in §25 and is the first part of it: pond friction brakes flows (the weir
-reads 17 % low with it on, §24.8), and nothing has ever measured water that keeps moving. **Next: §25 - the world water system** (owner, 2026-10-11: sources, simulated paths and currents, a
-2 ms budget, settling without filling, underground limits) - design-checked READY for H0 (§25.15); H0 measures the
-column solver on a creek before anything is built. The §23 slime
-experiment stays queued (owner, 2026-10-11: "24 first, then L0") - to be ordered against §25 by the owner.
+reads 17 % low with it on, §24.8), and nothing has ever measured water that keeps moving. **Now: §25 - the world water system** (owner, 2026-10-11: sources, simulated paths and currents, a 2 ms budget,
+settling without filling, underground limits; design-checked READY, §25.15). Built, not signed off (2026-10-12): H0
+(the column solver measured on a creek, §25.16-25.17), H1 column-water regions on the simple creek bench (WaterBench_Creek,
+§25.18-25.25), slightly murky water by default (M, §25.27), the current measured and tuned (K, §25.28), ripples on the
+creek carried by the current and driven by the flow (RC, §25.29 - over its 0.3 ms cost target, ~0.9 ms). **Next, in the
+owner's order:** SC - splashes and displacement on the creek, cosmetic droplets, and the body / droplet ripple sources RC
+left (§25.26); then H1b - the column tier (and its ripple step) on the GPU, for the budget. The §23 slime experiment stays
+queued behind §25.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -4610,6 +4614,62 @@ only) drives the GPU debris position log; `tools/water_creek_current.py` (profil
    `WaterBuoyancy.FloatDriftsAtTheCurrentsSpeed` (0.490 in a 0.500 m/s current; the old law's 0.57 is the computed red,
    not run). 333 water / buoyancy / debris / dynamics tests pass; the debris settle bench: the same verdicts as its baselines.
 
+
+### 25.29 RC built - ripples on the creek, carried by the current and driven by the flow (2026-10-12). Status: built, not signed off
+
+**Built:** every column region carries a `RippleLayer` window (384 x 384 lattice cells max = 42.7 m, clipped to the region,
+following the camera in 4 m steps - `WaterCoreManager::setViewPoint`; `RippleLayer::shiftOrigin` keeps the field at its
+world position across a move). Each frame: mask = the region's wet columns, velocity = the column velocity under each cell,
+flow forcing (25.27) into the layer, then `RippleLayer::advect` and `step`. Drawn through the same atlas as the pond's
+(`rippleLayers()` appends the regions' layers, `surfaceFields()` points each region field at its layer). Knob:
+`water_ripples {flow_forcing}` (C_f, 0 = off, default **200**); the reply echoes it.
+
+**Advection - two defects found by the red test (RC-T2, `WaterRippleTest.ARingRidesTheCurrent`), each fixed:**
+1. Bilinear semi-Lagrangian sampling every frame (as designed) smeared the short ripples away: a ring on 0.5 m/s kept
+   **0.17** of its energy over 2 s. Catmull-Rom sampling: 0.68.
+2. Still a fractional resample every frame (0.075 cell at 0.5 m/s, 60 Hz). Now dt ACCUMULATES until the fastest wet cell
+   has moved a whole cell (or 0.5 s) and the field moves once by the total - a uniform current is an exact cell shift.
+   Result: moved **0.915 m** (u t = 1.000, inside 10 %; up to one cell of lag is the pending time), energy **0.979**
+   (prediction 1 +- 0.15). A sheared current (0 at the banks, 0.45 m/s centre) costs ~20 % of the forced field's RMS
+   against still water (scratch run).
+
+**Calibration (WaterBench_Creek, 100 L/s, steady; `tools/water_creek_ripples.py`, `water_creek_bench.py --run`):**
+
+| flow_forcing | peak height | facet slope p50 / p95 (bin upper edge) | max slope | ripple ms / frame |
+|---|---|---|---|---|
+| 0 (from rest) | 0 - layer asleep | - | 0 | 0.24 |
+| 120 | 24 mm | < 0.05 / < 0.10 | 0.20 | 0.91 |
+| 200 | 42-50 mm | < 0.10 / < 0.20 | 0.31 | 0.87-0.94 |
+
+- **RC-T4 (still water -> zero):** forcing off, the layer sleeps to exact zero; forcing is u*^2-weighted, so a still region
+  gets none (by construction, not yet a unit test of its own).
+- **RC-T5 (p95 <= 0.3):** PASS at 200 (p95 bin < 0.20). Clips for the owner's look: `docs/evidence/water_core_h1/
+  ripples_ff0.mp4` / `ripples_ff200.mp4` (bench camera; the ff0 clip starts 40 s after the 200 run, so it shows the field
+  still decaying - 5 mm - not flat water). Frame-change metric not run; the visual verdict is the owner's.
+- **Found:** the API clamped `flow_forcing` to 0-20 - every value above 20 in the first sweep ran at 20 and read as
+  "saturation". Clamp now 0-2000 (a typo guard).
+- **The heights are tall for the depth** (42-50 mm peaks on 11 cm water) because on the 1/9 m lattice the visible slope and
+  the height are tied (rms slope / rms height ~ 9 /m at every forcing - measured; high-pass forcing and an extra long-wave
+  damping were both tried offline and changed it by < 25 %, so neither shipped). Whether that reads as heave is for the
+  owner's look.
+
+**Cost - over the 0.3 ms target (logged, not hidden).** Offline (no engine running), per 60 Hz frame on the bench's window
+(384 x 54 cells, 6912 wet): 3.2 ms as first built. Three exact rewrites of `RippleLayer::step` (same numbers - all 44
+ripple / wave / coupling / droplet / buoyancy tests pass unchanged): row-wise tap loops the compiler vectorises; ONE
+convolution per substep for the field and the impulses (K is linear - `next = c0 r - c1 prev - K * (c2 r + c1 ds / rho I)`;
+kinematic cells keep their exact form via `convolveAt`); and the kernel's dx / dz symmetry folded (7 row passes of 7 taps
+instead of 13 x 13). Now: convolution 0.39 ms, breaking limiter 0.21, zero-mean 0.12, the rest ~0.25 -> **~0.9 ms per frame
+live**. The plan's fix is H1b (the column tier on the GPU): the ripple step goes with it. No SIMD flags in the build (SSE2
+only); /arch:AVX2 is a project-wide decision, not taken here.
+
+**Not built yet (RC remainder, moves to SC):** RC-T3 - a stone's entry rings on the creek (body-crossing and droplet-landing
+sources into region layers), and the forcing's "stronger where the flow accelerates" term. RC-T1 holds by construction
+(the same class and lattice), no separate test.
+
+**Open, not from this work:** `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles` is ORDER-DEPENDENT - alone it
+reads a near-side drop of 0.287 m (passes >= 0.28); after `DamageSystemBreakProfileTest` loads `resources/materials.json`
+(Stone's real toughness 110) it reads 0.222 m and fails. Its threshold was set on the empty material registry; the test
+should load the registry itself and re-derive its prediction.
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
