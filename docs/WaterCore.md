@@ -4492,6 +4492,70 @@ a little deep at many parts"; the creek shape (meander) is good. To revisit when
   water (the known bounding-sphere buoyancy law, 19.3 / cure M4), and `wet_body_list` lists only bodies inside 3-D volumes,
   so their speed was not measured numerically (a debris position route is the missing measurement).
 
+### 25.26 The pond's features on the creek, current you can measure and tune, slightly murky water - DESIGN (owner, 2026-10-12)
+
+**The owner:** "the directive is to focus on small bodies first and to use what we are building as foundation for all the
+work following... if we have features that we have worked so hard to get right on ponds, then that work should be reflected
+in the creeks. ripples and splashing are foundational work... drift speed will be important. we need to have solid methods
+for tuning and measuring current speed. it will play a big role in appearance and function. I also think for testing
+purposes water is too transparent... by default water should have a slight murkiness to it, not much though."
+
+**Order of build:** M (murk) -> K (current: measure + tune) -> RC (ripples on column water) -> SC (splashes + displacement on
+column water). Each red-before-green, each shown to the owner in motion.
+
+**M - a slight murkiness by default.** Simulated water (`water_surface.frag` - ponds and creeks; the sea and the old CA keep
+their look) with no per-body clarity gets a default Secchi depth of **3 m** instead of the derived ~10.8 m (a clear lake
+reads 5-10 m, a typical creek or pond 1-4 m - Secchi depths, Carlson 1977 trophic index ranges; grounding at build). The
+existing `water_look {clarity, turbidity, tint}` route stays the per-body tuning knob. Test M-T1: captures of the pond and
+the creek at the default, 1.5 m and the old derived clarity, same poses -> the owner picks the default (3 m is the proposal,
+not the decision).
+
+**K - measuring and tuning the current.**
+- *Measure:* `water_columns {probe: {x, z}}` -> depth, depth-averaged velocity (vector, speed), surface and bed at a point;
+  `{profile: {x0, z0, x1, z1, n}}` -> n stations along a line: depth, speed, Froude number. Floats: a debug route
+  `debris_position_log {path | stop}` drives the GPU solver's existing position readback (CSV); `tools/water_creek_current.py`
+  turns it into each float's drift speed over fixed stretches and compares it with the column velocity along its path.
+- *Tune:* the inputs Manning's law gives - flow Q (`spring` rate), roughness n (`water_columns {id, manning_n}`, live,
+  clamped 0.01-0.15 as at create), slope and width (the bed). The probe echoes the predicted normal depth/speed beside the
+  measured, so a tuning change is read as a number, not a guess.
+- *Tests:* K-T1 on the creek bench at steady flow: the profile's mid-reach speed within 10 % of Manning (the solver was
+  exact on the straight channel, 25.16/25.20); K-T2 floats' drift speed within 15 % of the depth-averaged velocity along
+  their path (the debris law couples to that velocity); K-T3 changing n from 0.035 to 0.025 raises the speed by the
+  Manning ratio within 10 % (the tuning knob does what the formula says).
+
+**RC - ripples on column water.** Each column region carries a `RippleLayer` (the same class, the same 1/9 m world-aligned
+lattice, film damping and breaking limit - 22, 22.12): mask = the region's wet columns; sources as on the pond - droplet
+landings (the droplet pool's landing routes into a column region's layer when it lands there) and bodies crossing the
+surface (22.3.2's high-pass, the column pitch 1/3 m as the grid's). **New, because the water moves:** before each layer
+step the ripple field (both leapfrog levels) is ADVECTED by the column velocity under it (semi-Lagrangian, bilinear) -
+waves ride the current, a ring drifts downstream at the water's speed. Drawn through the same atlas: `rippleLayers()`
+returns the volumes' layers then the regions', parallel to `surfaceFields()`. Tests: RC-T1 on still column water a kick's
+ring equals the pond layer's (the same class, bit-equal for the same lattice and kick); RC-T2 on a uniform current u the
+ring's centre moves at u within 10 % and its shape is kept (the ring of RC-T1, translated); RC-T3 live on the creek bench: a
+stone's entry rings visible (frame change >= the pond's 22.9 numbers) and drifting downstream; cost <= 0.3 ms per region.
+
+**SC - splashes and displacement on column water.** A body crossing a region's surface: (1) DISPLACEMENT - the change of
+its submerged volume each step becomes a column sink under its footprint and an equal source in the footprint's ring (water
+pushed aside, mass-exact - the column form of 20's moving solids); (2) SPLASH - droplets born at the waterline from 21's
+crown rule (speed from the entry velocity, count and size from the displaced volume, 21.2 / 21.11) into the SAME droplet
+pool and renderer; per the owner's preference (0a: "splash particles would not 'take' from the volume of the pond. it should
+jsut be a few splash particles for affect") creek droplets are COSMETIC - not taken from the column water, landing adds
+nothing back (their landings still drive the ripple layer). The pond's droplets stay ledger-exact until the owner decides to
+make them cosmetic too (logged). Tests: SC-T1 unit: a body pressed into column water raises the surrounding level by its
+submerged volume / free area within 5 %, ledger exact; SC-T2 live: a stone into the creek - droplets born (> 0, in flight
+<= 1.5 s), a crater and rings visible, the column ledger unchanged by the droplets.
+
+**Design-check (2026-10-12).** *Voxel look:* M changes only a default of simulated water, captured A/B; RC draws 1/9 m
+facets as on the pond (the owner signed those off, 22.12.2); SC uses the pond's droplets. *Chunks:* the ripple lattice is
+world-aligned per region (as per volume, 22.5 - R-T6 / B-T4 cover it); advection reads the region's own column velocity,
+no chunk input; probes and profiles read the region, not chunks. *Generation:* none (runtime). *API:* `probe` / `profile`
+clamp n stations to [2, 512] and refuse points outside the region (said); `manning_n` live clamp [0.01, 0.15] with its
+reason (as at create); `debris_position_log` writes only under the scratch / evidence directory it is given, refuses
+otherwise; every route echoes its result. Defaults changing: the simulated water's default clarity (M) - no pinned test
+reads it (the W1 no-regression capture pins the sea's `water.frag`, not `water_surface.frag`); verified by M-T1's captures.
+*Tests:* as listed, on the creek bench (flat, empty, one creek - the owner's test world) and unit rigs; the rig is shipped
+defaults except the creek's spring and outfall. **READY for M, K and RC; SC READY with the cosmetic-droplet rule stated.**
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
