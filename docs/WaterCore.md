@@ -5240,6 +5240,55 @@ is unknown until P2 measures cells/ms; P5 exists for that.
 
 **Verdict: NEEDS WORK -> the three gaps folded in above -> READY for P1** (every key answered; its rigs, gate, controls and
 regression named). P2-P5 are READY in outline and each gets its own detailed design and check before it is built.
+
+### 26.5 P1 measured - why the pond model ran a creek deep and slow, and the fix (2026-10-13). Status: built (opt-in), not signed off
+
+**The rig** (`tests/core/WaterShallowFlowTest.cpp`): the pond solver ALONE (`WaterSolver`, CPU reference) in a 48 m x 1 m
+channel at 1/9 m cells; the slope as a TILTED FRAME (`SolverParams::gravityX` = g S - no 1/9 m staircase); pumps across the
+inlet; the outlet a FREE OVERFALL (the floor ends 2 m before the box's end, the water drops into a pit and is drained);
+Manning at the bed (`setBedManning`, n 0.035, S 0.01); measured over the middle third at 60 s. The rig needed two fixes of
+its own before its numbers meant anything: a 16 m channel held at normal depth against the box's END WALL backed water up
+over the whole measured reach (the surface rose toward the outlet), which was most of the "145 %" of 25.40; the free overfall
+removed it (surface slope over the third 0.0000 in every run below).
+
+**Bisected, one variable at a time** (`DiagWhatSlowsAShallowCreek`, `DiagMomentumBudget`, `DiagMassByStage`): compaction, the
+thin-film stages, rest damping, the residue sweep and a halved substep change nothing (<= 4 %); flowing the other way changes
+nothing (`DiagDirection`). What did: the FLUX the velocity field implies (velocity x the donor's fill) exceeded what the pumps
+put in - 0.188 against 0.150 m^2/s at steady state: **the water lagged its own velocity field.**
+
+**Cause - the fill transport.** `EulerianTransport::advect` moved water face by face in a fixed order and capped each move at
+the room the RECEIVING cell had at that moment. A full cell receives only what it has already passed on, so in full water
+the faces visited before their receiver's own outflow moved little or nothing; only the partly filled surface row carried
+the flow, and the creek deepened until it could. The GPU kernel (`wc_fill_advect.comp`) has the same rule (checkerboard
+passes, running limits).
+
+**Fix - all faces at once** (`EulerianTransport::s_allFacesAtOnce`): every face's flux from the fills at the start of the
+advect; a donor's total outflow capped at its fill (scaled, never clamped after); all moves applied together, summed in
+DOUBLE and rounded to float once per cell (six float adds per cell drifted 2.7e-6 m^3 in a 10 s slosh, the double sum
++1e-7, the old rule 2e-8 - `DiagMassByStage`); a cell left over full carries the excess UP its column (21.2's deposit
+rule), under a ceiling it stays in the last open cell for a substep (counted). Exact by construction.
+
+| 48 m rig, middle third | depth vs Manning | speed vs Manning | flux the field implies / pumped |
+|---|---|---|---|
+| q 0.15 m^2/s (1.5 cells), face by face | 104 % | 102 % | 0.158 / 0.150 |
+| q 0.15, **all faces at once** | **100.0 %** | **100.0 %** | 0.150 / 0.150 |
+| q 0.40 (2.8 cells), face by face | 113 % | 108 % | 0.490 / 0.375 (the pumps could not place 0.400) |
+| q 0.40, **all faces at once** | **100.0 %** | **100.0 %** | 0.400 / 0.400 |
+
+Gate (`WaterShallowFlowTest.APondModelCarriesACreek`, in the suite): q 0.40 within 5 % - **100.0 / 100.0 %, flat**.
+
+**Why it is OFF by default - the signed-off pond changes (owner's call).** With the new transport on, five pond tests fail
+against gates tuned to the old rule (run with it on, 2026-10-13):
+- *Waves* (`WavesKeepTheirEnergy`): mixed, not worse overall - per swing, half-full tank: mode 1 0.98 -> 0.86, mode 2
+  0.91 -> 0.87 (worse), mode 3 0.82 -> 0.92, mode 4 0.53 -> 0.65 (better); the old rule also GREW some modes (1.03-1.07 per
+  swing - energy from nowhere), the new one grows two (1.05-1.11).
+- *The stone-entry splash* (`TheStoneEntryLeavesNoFloatingScraps`): at 7.7 m/s the old rule threw 8 spray cells (0.29 L) of
+  droplets, the new none - plausibly the old rule's own blockage squeezed water UP into the spray (the defect made part of
+  the splash). Its injected-scrap control also changed.
+- *Smaller:* the blast's near-side drop 0.275 m vs its 0.28 floor; the air-pocket test's control comparison; one mass row
+  1.5e-6 vs 1e-6.
+**Not done yet:** the GPU kernel (`wc_fill_advect.comp`) - the engine's ponds run on the GPU, so the owner cannot see either
+rule's look in the engine until the kernel is ported; the creek and dam benches on the pond model (P3).
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

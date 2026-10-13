@@ -323,6 +323,56 @@ void EulerianTransport::advect(WaterGrid& g, float dt) {
         g_[from] -= moved;
         g_[to]   += moved;
     };
+    if (s_allFacesAtOnce) {
+        // 26 P1 - ALL FACES AT ONCE. Every face's flux comes from the fills at the start of the advect; a donor's total
+        // outflow is capped at its fill (scaled, never clamped after the fact); the moves apply together. The face-by-face
+        // rule this replaces capped each move at the room the RECEIVER had at that moment - a full cell receives only what it
+        // has already passed on, so in full water the faces visited before their receiver's outflow moved nothing: flowing
+        // water lagged its own velocity field (a creek ran 114 % of Manning's depth on the 48 m rig, the field implying
+        // 0.185 m^2/s where 0.150 moved; WaterShallowFlowTest). Exact by construction: every amount leaves one cell and
+        // enters another.
+        m_faces.clear(); m_out.assign(f.size(), 0.0);
+        auto add = [&](size_t ia, size_t ib, float vel, bool downward) {
+            if (vel == 0.0f) return;
+            const size_t from = vel > 0.0f ? ia : ib, to = vel > 0.0f ? ib : ia;
+            const float fd = f[from];
+            if (fd <= 0.0f) return;
+            const float sweep = std::abs(vel) * dt / h;
+            const float desired = (downward && fd < thr) ? std::min(fd, sweep) : sweep * fd;
+            m_faces.push_back({from, to, desired}); m_out[from] += static_cast<double>(desired);
+        };
+        for (int y = 0; y < ny; ++y) for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+            if (x >= 1 && !blocked(g, x - 1, y, z) && !blocked(g, x, y, z)) add(g.idx(x - 1, y, z), g.idx(x, y, z), g.u(x, y, z), false);
+            if (z >= 1 && !blocked(g, x, y, z - 1) && !blocked(g, x, y, z)) add(g.idx(x, y, z - 1), g.idx(x, y, z), g.w(x, y, z), false);
+            if (y >= 1 && !blocked(g, x, y - 1, z) && !blocked(g, x, y, z)) add(g.idx(x, y - 1, z), g.idx(x, y, z), g.v(x, y, z), g.v(x, y, z) < 0.0f);
+        }
+        // the sums in DOUBLE, rounded to float once per cell: six float adds per cell drifted 2.7e-6 m^3 in a 10 s slosh where
+        // the face-by-face rule drifted 2e-8 (WaterShallowFlowTest.DiagMassByStage)
+        m_acc.assign(g_.begin(), g_.end());
+        for (const FaceMove& fc : m_faces) {
+            const double scale = m_out[fc.from] > f[fc.from] ? static_cast<double>(f[fc.from]) / m_out[fc.from] : 1.0;
+            const double a = static_cast<double>(fc.amt) * scale;
+            m_acc[fc.from] -= a; m_acc[fc.to] += a;
+        }
+        for (size_t i = 0; i < g_.size(); ++i) g_[i] = static_cast<float>(m_acc[i]);
+        // a cell left over full (1 - s: a body's volume is no room) carries the excess UP its column - the deposit rule (21.2),
+        // mass exact; under a ceiling (or at the box top) the excess stays in the last open cell (over full for a substep:
+        // the next transport moves it on - counted, never dropped)
+        for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+            float carry = 0.0f; long last = -1;
+            for (int y = 0; y < ny; ++y) {
+                const size_t i = g.idx(x, y, z);
+                if (blocked(g, x, y, z)) {
+                    if (carry > 0.0f && last >= 0) { g_[static_cast<size_t>(last)] += carry; s_overfullForTest += carry; }
+                    carry = 0.0f; last = -1; continue;
+                }
+                g_[i] += carry; carry = 0.0f; last = static_cast<long>(i);
+                const float room = 1.0f - sv[i];
+                if (g_[i] > room) { carry = g_[i] - room; g_[i] = room; }
+            }
+            if (carry > 0.0f && last >= 0) { g_[static_cast<size_t>(last)] += carry; s_overfullForTest += carry; }
+        }
+    } else
     for (int y = 0; y < ny; ++y) {
         for (int z = 0; z < nz; ++z) for (int x = 1; x < nx; ++x) {
             if (blocked(g, x - 1, y, z) || blocked(g, x, y, z)) continue;
@@ -805,6 +855,11 @@ void WaterSolver::applyGravity(float dt) {
                 const bool above = y < m_grid.ny() && m_grid.f(x, y, z) > 0.0f;
                 if (below || above) m_grid.v(x, y, z) -= m_params.gravity * dt;
             }
+    if (m_params.gravityX != 0.0f)   // 26 P1: the tilted frame - the along-channel component, on every face with water beside it
+        for (int z = 0; z < m_grid.nz(); ++z) for (int y = 0; y < m_grid.ny(); ++y) for (int x = 0; x <= m_grid.nx(); ++x) {
+            const bool left = x > 0 && m_grid.f(x - 1, y, z) > 0.0f, right = x < m_grid.nx() && m_grid.f(x, y, z) > 0.0f;
+            if (left || right) m_grid.u(x, y, z) += m_params.gravityX * dt;
+        }
 }
 
 // A thin cell (0 < f < liquidThreshold) is outside the pressure projection, so its TOP face would
@@ -1471,28 +1526,40 @@ StepReport WaterSolver::step(float dt) {
     // trough (S2 Small and the DiagSubmergedPump reference, 2026-10-08). Thin films keep their
     // own faces between substeps, so a falling drop still integrates gravity across substeps.
     const uint32_t off = m_params.debugDisableStages;
+    auto probe = [&](const char* stage) { if (stageProbeForTest) stageProbeForTest(stage); };
     for (int s = 0; s < n; ++s) {
+        probe("start");
         applySources(ds, r);
         enforceSolidFaces();
+        probe("sources");
         m_transport->advect(m_grid, ds);
+        probe("advect");
         resolveFreshOverflow();   // 20.5: a spawned body's water moves up its column (no rate, no fake splash)
         enforceSolidFaces();
+        probe("solid faces");
         // compaction (WaterCore.md 24.11): a void under a LIQUID cell closes always; under a thin film only while settling.
         // Under a thin film in moving water it pulled the transport's film back down at every turning point of a wave (the
         // pond kept 0.74-0.90 of a wave per swing, 24.6); confining ALL of it to the settle band let real voids build
         // under the surface (a 30 % pocket, the water above it 11 cm high) and collapse in one jerk when the band switched
         // on (owner, 2026-10-11: "does the water level drop in a single jerk?").
         if (!(off & 1u) && !m_transport->ownsMass()) compactSubmergedPartials(ds, settleBefore);
+        probe("compaction");
         applyGravity(ds);
+        probe("gravity");
         if (!(off & 2u)) applyThinFilmGradient(ds);
         if (!(off & 4u)) settleThinFilmTopFaces();
         enforceSolidFaces();
+        probe("thin films");
         project(ds, r);
+        probe("projection");
         extrapolateVelocity();
+        probe("extrapolation");
         if (!(off & 4u)) settleThinFilmTopFaces();
         if (settleBefore && !(off & 32u)) applyRestDamping(ds);
+        probe("settle + rest");
         if (m_params.bedManning > 0.0f) applyBedManning(ds);              // 25.39 H2: a creek window - Manning at the bed
         else if (m_params.pondFriction > 0.0f) applyPondFriction(ds);   // 24.7: all motion, every substep
+        probe("friction");
     }
     if (!(off & 16u) && !m_transport->ownsMass()) sweepResidue(r);
     r.substeps = n;

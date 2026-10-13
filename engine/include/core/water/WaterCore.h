@@ -154,6 +154,10 @@ struct SolverParams {
     /// disturbed pond sloshes for minutes (24.6). Default 2 ln 2 / 5 s; `water_pond_friction {half_life_s}`. 0 = off.
     float  pondFriction = 0.27726f;
     float  bedManning = 0.0f;   ///< 25.39 H2: Manning n at the bed (creek windows); > 0 replaces pond friction (applyBedManning)
+    /// m/s^2 along +x - a TILTED FRAME (WaterCore.md 26 P1 rig): gravity's component along a channel of slope S is g S, so a flat
+    /// box with gravityX = g S carries the flow of a sloped bed without the 1/9 m staircase a sloped bed of cells would be. 0 in
+    /// the engine; the P1 rigs only.
+    float  gravityX = 0.0f;
     /// m/s - compaction's closing speed in MOVING water (WaterCore.md 24.11): a void under a liquid cell closes always, at this
     /// speed, so pockets never build up under a moving surface and collapse in one jerk when the volume settles (live: 30 %
     /// pocket, the surface 11 cm high, an 11 cm drop at the switch). At free fall (2.6 m/s at 1/3 m) the closing drained
@@ -292,8 +296,17 @@ class EulerianTransport final : public IWaterTransport {
 public:
     const char* name() const override { return "eulerian"; }
     void advect(WaterGrid& g, float dt) override;
+    /// WaterCore.md 26.5 (P1): the ALL-FACES-AT-ONCE fill transport - the cause of the pond model's slow creek fixed (100 % of
+    /// Manning's depth and speed vs 114 % with the face-by-face rule). OFF by default pending the owner: it changes the
+    /// signed-off pond (wave energy per swing mixed, the stone-entry spray gone - 26.5). Tests switch it on.
+    static inline bool s_allFacesAtOnce = false;
+    /// 26 P1: fill parked over full under a ceiling or at the box top since start (cell fills) - reported by the tests.
+    static inline double s_overfullForTest = 0.0;
     void setLiquidThreshold(float thr) override { m_liquidThreshold = thr; }
 private:
+    struct FaceMove { size_t from, to; float amt; };
+    std::vector<FaceMove> m_faces;   // 26 P1 scratch
+    std::vector<double> m_out, m_acc;
     float m_liquidThreshold = 0.5f;   // a donor below it is a thin film: falls as a block through its floor face
     std::vector<float> m_scratch;
     std::vector<float> m_uNew, m_vNew, m_wNew;
@@ -454,6 +467,10 @@ private:
     SolverParams m_params;
     std::unique_ptr<IWaterTransport> m_transport;
     std::vector<SourceSpec> m_sources;
+public:
+    /// DIAGNOSTIC (26 P1): called after each stage of a substep with the stage's name - the momentum budget's probe. Unset in the engine.
+    std::function<void(const char*)> stageProbeForTest;
+private:
     std::vector<uint8_t> m_solidFresh;   // 20: cells of bodies that appeared this frame
     std::vector<float> m_solidWake;      // 20: seconds left in which a body's dragged air may rise out of this cell
     std::vector<BoundarySpec> m_boundaries;   // Phase G
