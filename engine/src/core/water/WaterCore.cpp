@@ -1227,6 +1227,25 @@ void WaterSolver::extrapolateVelocity() {
 }
 
 // 24.7 pond friction: velocities only (mass untouched), all water, every substep.
+void WaterSolver::applyBedManning(float dt) {
+    const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
+    const float h = m_grid.h(), g = m_params.gravity, n2 = m_params.bedManning * m_params.bedManning;
+    std::vector<float> depth(static_cast<size_t>(nx) * nz, 0.0f);   // the water over each sub-column (m)
+    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+        float d = 0.0f;
+        for (int y = 0; y < ny; ++y) d += m_grid.f(x, y, z);
+        depth[static_cast<size_t>(x) + static_cast<size_t>(nx) * z] = d * h;
+    }
+    auto damp = [&](float& v, float d) {
+        if (d < 1e-3f) return;
+        v /= 1.0f + dt * g * n2 * std::abs(v) / std::pow(d, 4.0f / 3.0f);
+    };
+    for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 1; x < nx; ++x)
+        damp(m_grid.u(x, y, z), 0.5f * (depth[static_cast<size_t>(x - 1) + static_cast<size_t>(nx) * z] + depth[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]));
+    for (int z = 1; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x)
+        damp(m_grid.w(x, y, z), 0.5f * (depth[static_cast<size_t>(x) + static_cast<size_t>(nx) * (z - 1)] + depth[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]));
+}
+
 void WaterSolver::applyPondFriction(float dt) {
     const float k = std::max(0.0f, 1.0f - m_params.pondFriction * dt);
     for (float& x : m_grid.uData()) x *= k;
@@ -1472,7 +1491,8 @@ StepReport WaterSolver::step(float dt) {
         extrapolateVelocity();
         if (!(off & 4u)) settleThinFilmTopFaces();
         if (settleBefore && !(off & 32u)) applyRestDamping(ds);
-        if (m_params.pondFriction > 0.0f) applyPondFriction(ds);   // 24.7: all motion, every substep
+        if (m_params.bedManning > 0.0f) applyBedManning(ds);              // 25.39 H2: a creek window - Manning at the bed
+        else if (m_params.pondFriction > 0.0f) applyPondFriction(ds);   // 24.7: all motion, every substep
     }
     if (!(off & 16u) && !m_transport->ownsMass()) sweepResidue(r);
     r.substeps = n;

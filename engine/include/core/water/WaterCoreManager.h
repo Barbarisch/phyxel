@@ -206,9 +206,25 @@ public:
     // ---- 25.18 H1: column-water regions ----
     struct ColumnRegion { std::unique_ptr<ColumnWater> cw; uint64_t occRevision = ~0ull; WaterSurfaceField field;
                           std::unique_ptr<RippleLayer> ripple; uint32_t rippleFrame = 0;     // 25.26 RC: the region's ripple window
-                          std::vector<float> load; };                                         // 25.30 SC: the bodies' load per column (m)
+                          std::vector<float> load;                                            // 25.30 SC: the bodies' load per column (m)
+                          int windowAv = 0; glm::ivec2 wLo{0}, wHi{0};                        // 25.39 H2: the 3-D window (voxel xz box)
+                          double windowShortfall = 0.0, windowIn = 0.0, windowOut = 0.0; };
     /// 25.30 SC: the column regions' boxes (voxels, inclusive) - the debris integrator reports the bodies inside them as wet.
     std::vector<std::pair<glm::ivec3, glm::ivec3>> columnBoxes() const;
+    /// 25.39 H2a - a 3-D window inside a column region over the voxel box [lo, hi] (x, z; clipped to the region): a CPU 1/9 m
+    /// volume whose floor is the region's bed, seeded from the columns, holding them (the hand-off of 25.39). Returns the
+    /// window's volume id, 0 = refused (err: outside the region, over a spring or an outfall, a second window).
+    int openWindow(int regionId, const glm::ivec2& lo, const glm::ivec2& hi, std::string* err);
+    /// Write the window's water back into its columns (exact) and remove it. False = the region has none.
+    bool closeWindow(int regionId);
+    struct WindowInfo { int av = 0; glm::ivec2 lo{0}, hi{0}; long cells = 0; int held = 0; double mass = 0.0, in = 0.0, out = 0.0, shortfall = 0.0, residue = 0.0, droplets = 0.0; };
+    bool windowInfo(int regionId, WindowInfo& out) const;
+    /// TEST ONLY (25.39 H2-T3's control): the window's bed Manning n (0 = pond friction at the session's rate instead).
+    void windowSolverForTest(int regionId, float bedManning) {
+        ColumnRegion* r = regionById(regionId); if (!r || !r->windowAv) return;
+        Av* av = volumeById(r->windowAv); if (!av) return;
+        av->solver->setBedManning(bedManning); av->solver->setPondFriction(bedManning > 0.0f ? 0.0f : m_pondFriction);
+    }
     /// 25.30 SC: a body leaving (or coming to rest - it stops displacing, M2's gate) releases its load over this time, so a
     /// stone settling on the bed does not throw the water it held back as a wave.
     static constexpr float kLoadReleaseSeconds = 0.3f;
@@ -361,6 +377,8 @@ private:
         double gpuLastDownloadSec = -1.0;
         bool autoSleep = true;         // Phase D
         double seededMass = 0.0;
+        std::vector<float> floorY;     ///< 25.39 H2: a creek window's floor per cell column (world y; empty = none): cells below are solid
+        bool window = false;           ///< 25.39 H2: a creek window (never written back to spans; its region owns its lifecycle)
         std::vector<WaterBodyTable::ColumnMass> seededColumns;   // per-column seed for the body credit
         WaterSurfaceField field;        // Phase F: the last surface field
         uint64_t fieldStep = ~0ull;     // the step counter the field was built from
@@ -388,6 +406,8 @@ private:
     void depositDroplet(Av& av, const glm::vec3& at, double volume);
     Av* volumeById(int id) { for (auto& a : m_avs) if (a->id == id) return a.get(); return nullptr; }
     ColumnRegion* regionById(int id) { for (auto& r : m_columns) if (r.cw->id() == id) return &r; return nullptr; }
+    void windowGhosts(ColumnRegion& r, Av& av);           // 25.39: the window's water -> its held columns
+    void windowTransfers(ColumnRegion& r, Av& av);        // 25.39: what crossed the edge -> the window
     void stepColumnSplashes(float dt);   // 25.30 SC: the cosmetic entry crown
     float m_creekSplash = 0.05f;         // 25.30 SC
     bool isAsleep(const Av& av) const { return av.backend == "gpu" ? av.gpuLast.asleep : av.solver->asleep(); }

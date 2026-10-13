@@ -166,6 +166,31 @@ void ColumnWater::addOutfall(int x, int z) {
     if (m_rule == ColumnBedRule::Hydraulic) applyBeds();   // an outfall is a lower exit for the ramp
 }
 
+double ColumnWater::heldMass() const {
+    if (m_held.empty()) return 0.0;
+    double m = 0.0;
+    for (int z = 0; z < nz(); ++z) for (int x = 0; x < nx(); ++x)
+        if (m_held[static_cast<size_t>(x) + static_cast<size_t>(nx()) * z]) m += std::max(m_solver.depth(x, z), 0.0);
+    return m * kH * kH;
+}
+
+void ColumnWater::setHeld(const std::vector<uint8_t>& mask) {
+    const double before = heldMass();
+    m_held = mask;
+    if (!m_held.empty() && m_held.size() != static_cast<size_t>(nx()) * nz()) m_held.clear();
+    m_solver.setHeld(m_held);
+    // the ledger: stored() changes by (held before - held after); the base moves with it so the error does not
+    m_base += before - heldMass();
+    m_transfer.assign(static_cast<size_t>(nx()) * nz(), 0.0);
+}
+
+void ColumnWater::setGhost(int x, int z, double depth, const glm::vec2& vel) {
+    ShoreColumn& c = m_solver.col(x, z);
+    if (c.wall) return;
+    c.eta = static_cast<double>(c.bed) + std::max(depth, 0.0);
+    c.u = vel.x; c.w = vel.y;
+}
+
 void ColumnWater::step(float dt) {
     if (dt <= 0.0f) return;
     const auto t0 = std::chrono::steady_clock::now();
@@ -175,7 +200,23 @@ void ColumnWater::step(float dt) {
         c.eta += s.rate * dt / (kH * kH);
         m_in += s.rate * dt;
     }
+    // 25.39 H2: each held column's depth before the step - its change IS what crossed the window's edge there
+    std::vector<double> before;
+    if (!m_held.empty()) {
+        before.resize(m_held.size(), 0.0);
+        for (size_t i = 0; i < m_held.size(); ++i) if (m_held[i]) before[i] = m_solver.depth(static_cast<int>(i % nx()), static_cast<int>(i / nx()));
+    }
     m_solver.step(dt);
+    if (!m_held.empty()) {
+        m_transfer.assign(m_held.size(), 0.0);
+        double sum = 0.0;
+        for (size_t i = 0; i < m_held.size(); ++i) {
+            if (!m_held[i]) continue;
+            m_transfer[i] = (std::max(m_solver.depth(static_cast<int>(i % nx()), static_cast<int>(i / nx())), 0.0) - std::max(before[i], 0.0)) * kH * kH;
+            sum += m_transfer[i];
+        }
+        m_toWindow += sum;
+    }
     for (int i : m_outfalls) {
         ShoreColumn& c = m_solver.col(i % m_solver.nx(), i / m_solver.nx());
         const double d = c.eta - c.bed;
@@ -255,6 +296,7 @@ void ColumnWater::publish(WaterSurfaceField& out) const {
         SurfaceColumn& sc = out.cols[i];
         sc.solidTopY = m_walls[i] ? static_cast<float>(m_max.y + 1) : m_tops[i];
         if (c.wall || c.eta - c.bed <= dry) continue;
+        if (!m_held.empty() && m_held[i]) continue;   // 25.39 H2: the window draws its own water
         sc.runs = 1.0f;
         // the water body reaches down to the DRAWN ground: under a hydraulic or plane bed above the voxels the water
         // fills the step's corner, so the drawn run spans the voxel top to the surface (no gap of air under water)

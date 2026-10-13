@@ -3,6 +3,7 @@
 // staircase (the owner's 1/3 m creek-bed rule, 25.19) - the comparison's first numbers, before the bench.
 #include <gtest/gtest.h>
 #include "core/water/ColumnWater.h"
+#include "core/water/WaterCoreManager.h"
 
 #include <cmath>
 #include <cstdio>
@@ -190,6 +191,133 @@ TEST(WaterColumnTest, DISABLED_CostColumnTier) {
         const int wet = cw.wetColumns(), cols = nx * nz;
         std::printf("  %-22s %6d columns, %5d wet (%4.1f %%), %6zu active: %.3f ms/step, %.1f ns/column, %.1f ns/wet column, %.1f ns/active column" "\n",
                     cs.name, cols, wet, 100.0 * wet / cols, cw.solver().activeColumns(), ms, 1e6 * ms / cols, 1e6 * ms / std::max(1, wet), 1e6 * ms / std::max<size_t>(1, cw.solver().activeColumns()));
+    }
+}
+
+// ---- 25.39 H2a: a 3-D window inside a column region ----
+namespace {
+// A 24 m x 2 m channel along x (voxels z 2-3), floor y 15, banks to y 16 (micro units: 9 per voxel). The region spans
+// x 0-23, z 0-5, y 14-17 with a plane bed 15.30 -> 15.06 over the carve (1:100).
+int channelState(const glm::ivec3& m) {
+    const int x = m.x, y = m.y, z = m.z;
+    if (x < 0 || x >= 24 * 9 || z < 0 || z >= 6 * 9) return 1;
+    if (y < 15 * 9) return 1;
+    if (y < 16 * 9 && (z < 2 * 9 || z >= 4 * 9)) return 1;
+    return 0;
+}
+struct WindowRig {
+    WaterCoreManager mgr{channelState};
+    int rid = 0;
+    ColumnWater* cw = nullptr;
+    explicit WindowRig(double q) {
+        std::string err;
+        rid = mgr.createColumns(glm::ivec3(0, 14, 0), glm::ivec3(23, 17, 5), 0.035f, &err);
+        cw = mgr.columns(rid);
+        cw->setPlane(15.30f, 0.01f, 0.0f);
+        cw->setBedRule(ColumnBedRule::Plane);
+        mgr.setRealtime(true);
+        if (q > 0.0) for (int k = 0; k < 6; ++k) { cw->addSpring(0, 6 + k, q / 6.0); cw->addOutfall(cw->nx() - 1, 6 + k); }
+    }
+    double windowMass() { WaterCoreManager::WindowInfo w; return mgr.windowInfo(rid, w) ? w.mass : 0.0; }
+    void run(int frames) { for (int k = 0; k < frames; ++k) mgr.update(1.0f / 60.0f); }
+};
+}  // namespace
+
+// H2-T2: the hold is exact - still water 20 cm deep in the closed channel, a window over x 8-11: region + window constant
+// every frame (to float rounding of the window's fills), no shortfall, for 4 s.
+TEST(WaterColumnTest, AWindowHoldsItsWaterExactly) {
+    WindowRig rig(0.0);
+    for (int z = 0; z < rig.cw->nz(); ++z) for (int x = 0; x < rig.cw->nx(); ++x) {
+        ShoreColumn& c = rig.cw->solver().col(x, z);
+        if (!c.wall && c.bed < 15.5f) c.eta = 15.45;
+    }
+    const double total0 = rig.cw->stored();
+    std::string err;
+    ASSERT_NE(rig.mgr.openWindow(rig.rid, glm::ivec2(8, 0), glm::ivec2(11, 5), &err), 0) << err;
+    double worst = std::abs(rig.cw->stored() + rig.windowMass() - total0);
+    for (int k = 0; k < 240; ++k) { rig.run(1); worst = std::max(worst, std::abs(rig.cw->stored() + rig.windowMass() - total0)); }
+    WaterCoreManager::WindowInfo w; ASSERT_TRUE(rig.mgr.windowInfo(rig.rid, w));
+    std::printf("  still water: region + window drift %.2e m^3 of %.3f; shortfall %.2e; window %ld cells, %d held columns\n", worst, total0, w.shortfall, w.cells, w.held);
+    std::printf("    residue dropped %.2e m^3, droplets in flight %.2e m^3\n", w.residue, w.droplets);
+    EXPECT_LT(worst, 1e-5 * total0);
+    EXPECT_EQ(w.shortfall, 0.0);
+}
+
+// H2-T1: mass with flow - 0.5 m^3/s down the channel; a window opened at 20 s, closed at 50 s, run to 60 s: region + window =
+// start + in - out every frame (1e-6 of the inflow), the region's ledger closes after the write-back, no shortfall.
+TEST(WaterColumnTest, AWindowInAFlowingCreekKeepsTheLedger) {
+    WindowRig rig(0.5);
+    const double s0 = rig.cw->stored();
+    rig.run(20 * 60);
+    std::string err;
+    ASSERT_NE(rig.mgr.openWindow(rig.rid, glm::ivec2(8, 0), glm::ivec2(11, 5), &err), 0) << err;
+    double worst = 0.0;
+    for (int k = 0; k < 30 * 60; ++k) {
+        rig.run(1);
+        worst = std::max(worst, std::abs(rig.cw->stored() + rig.windowMass() - (s0 + rig.cw->inflow() - rig.cw->outflow())));
+    }
+    WaterCoreManager::WindowInfo w; ASSERT_TRUE(rig.mgr.windowInfo(rig.rid, w));
+    const double shortfall = w.shortfall, wIn = w.in, wOut = w.out;
+    ASSERT_TRUE(rig.mgr.closeWindow(rig.rid));
+    rig.run(10 * 60);
+    std::printf("  flowing: in %.2f m^3, out %.2f; window took %.2f, gave %.2f; worst |region + window - ledger| %.2e m^3; after close ledger %.2e; shortfall %.2e\n",
+                rig.cw->inflow(), rig.cw->outflow(), wIn, wOut, worst, rig.cw->ledgerError(), shortfall);
+    EXPECT_LT(worst, 1e-6 * rig.cw->inflow() + 1e-6);
+    EXPECT_NEAR(rig.cw->ledgerError(), 0.0, 1e-6 * rig.cw->inflow() + 1e-6);
+    EXPECT_EQ(shortfall, 0.0);
+    EXPECT_GT(wIn, 1.0) << "the creek ran through the window";
+}
+
+// H2-T3 + the seam (unit form of WS-4): steady 0.5 m^3/s, a window over x 8-11. The columns either side of the window's
+// upstream edge (x 7.83 outside, 8.17 inside) and its mid-reach against the column tier's own mid-reach without a window.
+// Prediction: surface within 1 cm and speed within 5 % across the edge; the window's mid depth within 10 % of the column
+// tier's. Control: the same window with pond friction instead of Manning - prediction: its mid depth off by > 20 %.
+// MEASURED 2026-10-12 (25.40) - FAILS, parked: window mid depth 177 % of the column tier's, surface 4 cm low across the edge,
+// speed 20 % low; the control (pond friction) 192 %. DiagWindowCarriesTheCreekAlone shows why: the 3-D core at 1/9 m carries
+// this creek 145 % deep and slow on its own (no hand-off involved). Re-enabled when the window's physics changes (25.40).
+TEST(WaterColumnTest, DISABLED_AWindowInAFlowingCreekShowsNoSeam) {
+    auto measure = [](bool manning, bool window) {
+        WindowRig rig(0.5);
+        rig.run(40 * 60);
+        std::string err;
+        if (window) {
+            const int id = rig.mgr.openWindow(rig.rid, glm::ivec2(8, 0), glm::ivec2(11, 5), &err);
+            EXPECT_NE(id, 0) << err;
+            if (!manning) rig.mgr.windowSolverForTest(rig.rid, 0.0f);
+        }
+        rig.run(40 * 60);
+        const int z = 8;   // a column in the channel's middle (z 2.67-3.0 m)
+        const ShoreColumn& out = rig.cw->solver().col(8 * 3 - 1, z), &in = rig.cw->solver().col(8 * 3, z), &mid = rig.cw->solver().col(10 * 3, z);
+        struct M { double outEta, inEta, outU, inU, midD, midU; };
+        return M{out.eta, in.eta, out.u, in.u, mid.eta - mid.bed, mid.u};
+    };
+    const auto base = measure(true, false), win = measure(true, true), ctl = measure(false, true);
+    std::printf("  no window: mid depth %.4f m, speed %.3f m/s\n", base.midD, base.midU);
+    std::printf("  window (Manning): edge surface out %.4f in %.4f (diff %.4f m), speed out %.3f in %.3f; mid depth %.4f (%.1f %% of the column tier), speed %.3f\n",
+                win.outEta, win.inEta, win.inEta - win.outEta, win.outU, win.inU, win.midD, 100.0 * win.midD / base.midD, win.midU);
+    std::printf("  control (pond friction): mid depth %.4f (%.1f %%), speed %.3f\n", ctl.midD, 100.0 * ctl.midD / base.midD, ctl.midU);
+    EXPECT_NEAR(win.inEta, win.outEta, 0.01) << "the surface across the window's edge";
+    EXPECT_NEAR(win.inU, win.outU, 0.05 * std::abs(win.outU)) << "the speed across the window's edge";
+    EXPECT_NEAR(win.midD, base.midD, 0.10 * base.midD) << "the window carries the creek as the column tier does";
+    EXPECT_GT(std::abs(ctl.midD - base.midD), 0.20 * base.midD) << "control: pond friction instead of Manning must show";
+}
+
+// DIAGNOSTIC (25.40): is the deep, slow window the 3-D core at 1/9 m or the hand-off? A window over x 1-22 (the whole
+// channel but the spring and outfall columns): the 3-D core carries the creek alone. Measured 2026-10-12: 0.335 m deep at
+// 0.78 m/s after 110 s and still rising (the column tier: 0.23 m, 1.08 m/s); with pond friction 0.43 m. ~44 min CPU.
+TEST(WaterColumnTest, DISABLED_DiagWindowCarriesTheCreekAlone) {
+    for (float n : {0.035f, 0.0f}) {
+        WindowRig rig(0.5);
+        rig.run(20 * 60);
+        std::string err;
+        ASSERT_NE(rig.mgr.openWindow(rig.rid, glm::ivec2(1, 0), glm::ivec2(22, 5), &err), 0) << err;
+        if (n == 0.0f) rig.mgr.windowSolverForTest(rig.rid, 0.0f);
+        for (int k = 0; k < 6; ++k) {
+            rig.run(15 * 60);
+            const ShoreColumn& mid = rig.cw->solver().col(12 * 3, 8);
+            WaterCoreManager::WindowInfo w; rig.mgr.windowInfo(rig.rid, w);
+            std::printf("  n %.3f t %3d s: window mid depth %.4f m speed %.3f; out %.2f of in %.2f\n", n, 20 + 15 * (k + 1), mid.eta - mid.bed, mid.u, rig.cw->outflow(), rig.cw->inflow());
+        }
     }
 }
 

@@ -70,6 +70,23 @@ public:
     /// 25.30 SC: the bodies' load per column (m; ShoreSolver::setSurfaceLoad). Published as the free surface eta + s, the
     /// column flagged bodyAtSurface (buoyancy reads the water AROUND a body, as on the pond).
     void setLoad(std::vector<float> s) { m_solver.setSurfaceLoad(std::move(s)); }
+    /// WaterCore.md 25.39 H2 - a 3-D window holds these columns (row-major, 1 = held). Held water is the window's: stored()
+    /// leaves it out, and the ledger moves with the mask (newly held water leaves the region's count, released water joins it).
+    void setHeld(const std::vector<uint8_t>& mask);
+    const std::vector<uint8_t>& heldMask() const { return m_held; }
+    bool isHeld(int x, int z) const { return !m_held.empty() && m_held[static_cast<size_t>(x) + static_cast<size_t>(nx()) * z] != 0; }
+    /// A held column's state from the window this frame (its GHOST): depth over the bed (m) and depth-averaged velocity.
+    void setGhost(int x, int z, double depth, const glm::vec2& vel);
+    /// After step(): what crossed the window's edge into each held column (m^3, + = into the window), row-major; 0 elsewhere.
+    const std::vector<double>& transfers() const { return m_transfer; }
+    double toWindow() const { return m_toWindow; }   ///< m^3 handed to the window over the region's life (net)
+    double heldMass() const;                          ///< m^3 in the held columns (their ghosts)
+    /// 25.39: does a hold mask cover a spring or an outfall (they belong to the column tier - a window over one is refused)?
+    bool overlapsSpringOrOutfall(const std::vector<uint8_t>& mask) const {
+        for (const auto& s : m_springs) if (mask[static_cast<size_t>(s.x) + static_cast<size_t>(nx()) * s.z]) return true;
+        for (int i : m_outfalls) if (mask[static_cast<size_t>(i)]) return true;
+        return false;
+    }
     float manningN() const { return m_solver.params().manningN; }
     /// 25.26 K - measuring: the column at world (x, z). `slope` = the bed's fall along the flow (central difference over
     /// +-1 column, along the velocity; along x when still); the Manning prediction for the column's own unit discharge q =
@@ -84,8 +101,8 @@ public:
     // ledger (m^3): stored = in - out + the region's water when the ledger started
     double inflow() const { return m_in; }
     double outflow() const { return m_out; }
-    double stored() const { return m_solver.totalMass(); }
-    double ledgerError() const { return stored() - (m_base + m_in - m_out); }
+    double stored() const { return m_solver.totalMass() - heldMass(); }   ///< the region's own water (held columns are the window's)
+    double ledgerError() const { return stored() - (m_base + m_in - m_out - m_toWindow); }
     double lastStepMs() const { return m_ms; }
     int wetColumns() const;
     /// Measurement (25.18): mean depth and speed over the wet columns of the middle third along x; how many wet columns
@@ -110,6 +127,9 @@ private:
     std::vector<float> m_tops;
     std::vector<float> m_genBeds;   // 25.22
     std::vector<uint8_t> m_walls;
+    std::vector<uint8_t> m_held;          // 25.39 H2
+    std::vector<double> m_transfer;       // 25.39 H2: per column, the last step
+    double m_toWindow = 0.0;
     struct Spring { int x, z; double rate; };
     std::vector<Spring> m_springs;
     std::vector<int> m_outfalls;   // column indices

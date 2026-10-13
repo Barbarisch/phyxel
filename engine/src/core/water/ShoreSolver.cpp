@@ -249,6 +249,7 @@ void ShoreSolver::rates(const std::vector<double>& eta, const std::vector<float>
                 if (!H(k) && !H(k + 1)) continue;   // 25.32: no water either side
                 const bool bl = blocked(line, k), br = blocked(line, k + 1);
                 if (bl && br) continue;
+                if (!m_held.empty() && !bl && !br && m_held[cellIdx(line, k)] && m_held[cellIdx(line, k + 1)]) continue;   // 25.39: inside a window
                 const Side L = bl ? Side{minus[k + 1].eta, minus[k + 1].d, minus[k + 1].b, -minus[k + 1].u, minus[k + 1].v} : plus[k];
                 const Side R = br ? Side{plus[k].eta, plus[k].d, plus[k].b, -plus[k].u, plus[k].v} : minus[k + 1];
                 // hydrostatic reconstruction: both sides stand on the higher bed

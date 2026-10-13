@@ -68,7 +68,7 @@ settling without filling, underground limits; design-checked READY, §25.15). Bu
 (the column solver measured on a creek, §25.16-25.17), H1 column-water regions on the simple creek bench (WaterBench_Creek,
 §25.18-25.25), slightly murky water by default (M, §25.27), the current measured and tuned (K, §25.28), ripples on the
 creek carried by the current and driven by the flow (RC, §25.29 - over its 0.3 ms cost target, ~0.9 ms), stones in the
-creek - displacement, rings, a cosmetic splash (SC, §25.30). H1b part 1 - the column tier works where the water is (§25.33: 2.7-11x cheaper, bit-identical). H1b part 2 - the ripple step on the GPU (§25.35: the creek window 0.35 ms live, was ~1 ms). the dam & pond bench (§25.36-25.38; a pond-spill defect in the column solver found and fixed, §25.37). **Next:** H2 - the T1-T2 hand-off (§25.13): water passing between the 3-D pond tier and the creek tier. The §23 slime experiment stays
+creek - displacement, rings, a cosmetic splash (SC, §25.30). H1b part 1 - the column tier works where the water is (§25.33: 2.7-11x cheaper, bit-identical). H1b part 2 - the ripple step on the GPU (§25.35: the creek window 0.35 ms live, was ~1 ms). the dam & pond bench (§25.36-25.38; a pond-spill defect in the column solver found and fixed, §25.37). H2a - the window hand-off (§25.39-25.40: mass-exact; a seam in creek flow from the 3-D core's own shallow-flow physics - an owner decision). **Next:** decided by the owner; the original H2 note: the T1-T2 hand-off (§25.13): water passing between the 3-D pond tier and the creek tier. The §23 slime experiment stays
 queued behind §25.
 
 ## 1. Principles (the invariants every later decision must satisfy)
@@ -5024,6 +5024,105 @@ creek's real response instead. **The first run's 7.9 mm/s rise** came with the 2
 so the creek's own storage drained into it on the way); after the fix the rise matches Q/A within 2.3 %.
 **The tool's own defect:** the first recording was killed rather than closed - an mp4 without its index (64 MB unreadable);
 ffmpeg is now stopped with 'q'.
+
+### 25.39 H2 design - a 3-D window inside a creek (owner, 2026-10-12: "lets get to h2")
+
+**Scope - H2a, the hand-off done right on the CPU.** A T1 window (a CPU 3-D volume, 1/9 m cells) placed over a box of a
+creek region's columns: seeded from them, exchanging water with the creek through its edge MASS-EXACTLY, no visible seam,
+written back when it ends. **H2b, later and separately designed:** the window on the GPU (its hand-off ported to the
+kernels - the GPU core has no open boundary today), finer cells for shallow water, the log velocity profile, windows opened
+automatically around disturbances (a stone, a wader, a breach, a fall). The 25.36 findings decide the shape below.
+
+**1. Who owns the water (exact by construction).** The region marks the window's columns HELD. Outside them T2 is the truth;
+inside, T1. Each frame, in order:
+1. *Ghosts:* each held column's state is set from T1 - depth = the window's water over that column (its 3 x 3 sub-columns'
+   fills x cell volume / column area), velocity = the fill-weighted mean of the cells' horizontal velocity; surface =
+   the column's bed + depth.
+2. *T2 steps* with the held columns frozen INSIDE: a face between two held columns carries nothing (`ShoreSolver` skips
+   it); a face between a held and a free column is computed as any other. So a held column's change of mass over the step
+   is EXACTLY what crossed the window's edge there - `transfer_c` (+ into the window).
+3. *T1 receives it:* `transfer_c` > 0 is added to the window at that column (into its topmost water, upward, at the column's
+   cells); < 0 is taken from that column's water, topmost first. The ghost's depth is the window's own water at the same
+   instant and T2's fluxes are positive-preserving, so a column can never be asked for more than it holds (asserted;
+   any shortfall is counted, never silent). Then the held columns' T2 state is discarded (step 1 resets it).
+4. *T1 steps.* The window's box faces stay walls: water crosses the edge only as these transfers.
+The world's water = T2's free columns + T1: the region's ledger counts held columns out (`stored()` excludes them) and the
+window in, so in - out = stored + window, exactly, every frame.
+
+**2. The window's floor is the creek's bed, not the voxels.** The 3-D core sees the 1/3 m voxel staircase, which pools; the
+creek flows on the generator's line (25.21). A window's cell is SOLID when its centre is below the T2 bed of its column (the
+bed the region uses - the line on the carve, the voxel top elsewhere), or when the real occupancy is solid above it (a dam,
+a stone, a bank). So T1 and T2 stand on the same bed to within one cell (1/9 m), and a real obstacle is still an obstacle.
+**3. Bed friction in the window.** The 3-D core's uniform pond friction (24.7) brakes flowing water (24.8); a window in a
+creek with it would slow the flow and DIP the surface at the seam. Inside a window, pond friction is replaced by Manning's
+law at the bottom: each wet cell resting on a solid cell loses momentum at g n^2 |u| / d^(4/3) (d = the water's depth over
+that sub-column, n = the region's roughness) - the same law, same n, as T2. (The pond's own friction is unchanged elsewhere;
+replacing it in every volume is 25.5's later step, with 24.8's slosh numbers as its regression.)
+**4. Lifecycle.** `water_columns {id, window: {x1, z1, x2, z2}}` opens one (columns of the region, voxel box, its y range
+from the lowest bed to the region's top): the window is created, seeded (fills from each held column's depth above the
+window's floor, mass-exact - the surface may differ from T2's by the floor's rounding, < 1/9 m, and settles; velocities
+uniform with depth = the column's), its columns held. `{window_close}` writes it back: each held column gets the window's
+water over it and its velocity, unheld - exact. One window per region in H2a.
+
+**Contract and tests (predictions before the first run).**
+- **H2-T1 unit, mass:** a window opened on a flowing channel (the 25.33 creek rig, CPU), run 60 s, closed: the region's
+  ledger + window over the whole run closes to 1e-6 m^3 of the inflow; the transfer shortfall 0.
+- **H2-T2 unit, the hold is exact:** with a window over still water in a closed tank, T2 + T1 total constant to 1e-9 m^3 per
+  frame; a held column's T2 depth after a step differs from its ghost by exactly its transfer.
+- **H2-T3 unit, Manning in the window:** on the straight 1:50 rig at steady flow, a window's mid-reach depth and speed within
+  10 % of the column tier's (and of Manning); the control - the same window with pond friction instead - visibly off (the
+  first-cut prediction: deeper and slower by > 20 %).
+- **WS-4 (live, the seam):** the creek bench at 0.5 m^3/s (normal depth ~0.3 m: three cells of the window at 1/9 m) with a
+  window 3 m long across the creek at x 55-57: the surface and the depth-averaged speed just inside and just outside the
+  window's edge within 1 cm and 5 % at steady flow; control - no window: the same probe points; the window's cost (ms)
+  reported against 25.10's 1.2 ms T1 allotment (prediction: ~1-2 ms on the CPU for ~4,000 cells - the GPU is H2b).
+- **Visual:** a clip over the window, the seam in frame; the owner's look.
+
+**Design keys.** *Look:* the window draws through the same surface path as every 3-D volume; the seam is the test. *Chunks:*
+the window is a world-aligned box; its floor is a pure function of the T2 bed (world position) and the occupancy; no chunk
+input. *Generation:* none. *API:* `water_columns {id, window: {x1, z1, x2, z2}}` - voxel box, clipped to the region,
+refused (said) if it covers a spring or an outfall or a second window; `{id, window_close: true}`; the reply echoes the
+window (box, cells, held columns, transfer in/out m^3, shortfall m^3, ms). *Defaults:* none change (no window = today).
+*Test world:* the creek bench (flat, one creek), one window; the variable is the window, the control is the same probes
+without it. **Design-check 2026-10-12: READY for H2a** - the one open risk stated: a 0.3 m deep flow is only three cells of
+the 3-D core at 1/9 m; if WS-4 fails on resolution rather than on the hand-off, the next step is H2b's finer cells on the
+GPU, not tuning the seam.
+
+### 25.40 H2a built - the hand-off is exact; the window's own physics is the seam (2026-10-12). Status: built, not signed off
+
+**Built (25.39 as designed).** `ShoreSolver::setHeld` (faces between held columns carry nothing); `ColumnWater::setHeld /
+setGhost / transfers()` with the ledger moving with the mask (`stored()` leaves held water out, `toWindow` counted);
+`WaterSolver::setBedManning` (Manning at every horizontal face, replacing pond friction in a window - CPU); the manager's
+`openWindow / closeWindow / windowInfo` - a CPU 1/9 m volume whose floor is the region's bed (`Av::floorY`), seeded
+mass-exactly, and the frame order ghosts -> T2 -> transfers in `stepColumns`; the window's mass counts its droplets in flight.
+
+**What holds (unit tests, in the suite):**
+- `WaterColumnTest.AWindowHoldsItsWaterExactly` - still water, a 4 x 6 m window: region + window constant to **1.6e-8 m^3**
+  of 12.96 m^3 over 4 s, no shortfall. (Its first run read 1.5e-3: the window's droplets in flight were not counted as its
+  water - they are now.)
+- `WaterColumnTest.AWindowInAFlowingCreekKeepsTheLedger` - 0.5 m^3/s, a window opened at 20 s and closed at 50 s: 30 m^3 in,
+  12.0 m^3 into the window and 10.7 out of it, region + window = start + in - out to **3.7e-7 m^3** every frame; after the
+  write-back the region's ledger **4.5e-7**; shortfall 0. **The hand-off is mass-exact.**
+
+**What does not - the seam (WS-4's unit form), parked as `DISABLED_AWindowInAFlowingCreekShowsNoSeam`:** at steady flow the
+window's mid-reach is **177 %** of the column tier's depth (0.41 vs 0.23 m) and slower (0.64 vs 1.08 m/s); across its
+upstream edge the surface is 4 cm lower inside and the speed 20 % lower. Control (pond friction instead of Manning): 192 %.
+**Why - measured, not guessed** (`DISABLED_DiagWindowCarriesTheCreekAlone`): with the window over the whole channel (the
+column tier only feeding and draining it), the 3-D core ALONE carries this creek 0.335 m deep at 0.78 m/s after 110 s and
+still rising - 145 % of Manning's depth; with pond friction 0.43 m. So the seam is the 3-D core's own shallow-flow physics
+at 1/9 m (two to three cells of water at Froude ~0.7), not the hand-off - the risk 25.39 named. H0 saw the same at 1/3 m.
+**Cost:** a 4 x 6 m window (the region's full width, banks included) is ~70,000 cells - ~40 ms per frame on the CPU.
+
+**Decision for the owner (open):** the hand-off works; a window in a CREEK shows a seam because the 3-D core does not carry
+shallow fast water as the column tier does. Ways forward, each its own design:
+(a) **Windows where the column tier's assumptions break** - falls, plunge pools, breaches, deep water - and not in uniform
+    creek flow; the seam there is where the physics genuinely changes. Smallest step; WS-4 restated for those places.
+(b) **Make the 3-D core carry shallow flow** - the dissipation in its velocity advection and fill transport at a few cells
+    of depth; the largest, riskiest and most valuable (it is also why 3-D ponds' currents read slow).
+(c) **The window as a detail layer** - the column tier stays the truth everywhere; the window's column-integrated state is
+    relaxed toward it, the 3-D detail rides on top. A seam by construction-free, but the window's water is no longer its own.
+(d) **H2b first** (the window on the GPU, 1/27 m cells) - the cost problem; resolution alone is unlikely to fix the depth
+    (1/3 m and 1/9 m both read 140-180 %).
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

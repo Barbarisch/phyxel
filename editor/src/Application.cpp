@@ -14246,6 +14246,12 @@ void Application::registerWaterCommands() {
                 if (!cw->columnAt(o.value("x", 0.0f), o.value("z", 0.0f), x, z)) { r = {{"error", "outfall outside the region"}}; return; }
                 cw->addOutfall(x, z);
             }
+            // 25.39 H2a: a 3-D window over a voxel box of the region (x, z; clipped to it), or closing it (written back, exact)
+            if (p.contains("window")) {
+                const auto& wd = p["window"]; std::string werr;
+                if (!waterCore->openWindow(id, glm::ivec2(wd.value("x1", 0), wd.value("z1", 0)), glm::ivec2(wd.value("x2", 0), wd.value("z2", 0)), &werr)) { r = {{"error", werr}}; return; }
+            }
+            if (p.value("window_close", false) && !waterCore->closeWindow(id)) { r = {{"error", "the region has no window"}}; return; }
         }
         nlohmann::json regions = nlohmann::json::array();
         for (const auto& reg_ : waterCore->columnRegions()) {
@@ -14257,6 +14263,10 @@ void Application::registerWaterCommands() {
             const auto st = c.stats();
             regions.back()["stats"] = {{"mid_depth_m", st.midDepth}, {"mid_speed_ms", st.midSpeed}, {"wet", st.wet},
                                        {"hidden", st.hidden}, {"worst_hidden_m", st.worstHidden}};
+            Core::Water::WaterCoreManager::WindowInfo wi;
+            if (waterCore->windowInfo(c.id(), wi))   // 25.39: the window echoed - box, cells, held columns, its water and what crossed its edge
+                regions.back()["window"] = {{"volume", wi.av}, {"min", {wi.lo.x, wi.lo.y}}, {"max", {wi.hi.x, wi.hi.y}}, {"cells", wi.cells}, {"held_columns", wi.held},
+                                            {"mass_m3", wi.mass}, {"in_m3", wi.in}, {"out_m3", wi.out}, {"shortfall_m3", wi.shortfall}, {"droplets_m3", wi.droplets}};
             if (p.value("wet_list", false) && (!id || c.id() == id)) {   // measurement: every wet column (world x, z of its centre, depth, bed, load, foam)
                 nlohmann::json wl = nlohmann::json::array();
                 const auto& sv = c.solver();

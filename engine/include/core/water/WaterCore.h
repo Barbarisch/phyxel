@@ -153,6 +153,7 @@ struct SolverParams {
     /// smooth voxel box lacks (irregular banks, plants, films, rough beds): without it the box is a laboratory tank and a
     /// disturbed pond sloshes for minutes (24.6). Default 2 ln 2 / 5 s; `water_pond_friction {half_life_s}`. 0 = off.
     float  pondFriction = 0.27726f;
+    float  bedManning = 0.0f;   ///< 25.39 H2: Manning n at the bed (creek windows); > 0 replaces pond friction (applyBedManning)
     /// m/s - compaction's closing speed in MOVING water (WaterCore.md 24.11): a void under a liquid cell closes always, at this
     /// speed, so pockets never build up under a moving surface and collapse in one jerk when the volume settles (live: 30 %
     /// pocket, the surface 11 cm high, an 11 cm drop at the switch). At free fall (2.6 m/s at 1/3 m) the closing drained
@@ -352,6 +353,10 @@ public:
     WaterGrid& grid() { return m_grid; }
     const SolverParams& params() const { return m_params; }
     void setPondFriction(float perSecond) { m_params.pondFriction = std::max(0.0f, perSecond); }   ///< 24.7 (the GPU backend reads params() each step)
+    /// 25.39 H2: a creek window's bed friction - Manning's law, the column tier's, on every horizontal face: u /= 1 + dt g n^2
+    /// |u| / d^(4/3), d the water's depth over the face (the mean of the two sub-columns). Replaces pond friction when > 0.
+    /// CPU only in H2a (the GPU core does not read it - a window is a CPU volume).
+    void setBedManning(float n) { m_params.bedManning = std::max(0.0f, n); }
 
     /// Re-query every cell's occupancy (Unknown -> hold). Called by step(); call after the world
     /// changed to apply it before the next tick.
@@ -436,6 +441,7 @@ private:
     bool bodyWall(int x, int y, int z) const;   // 20.5: a cell full of body with no real water - a wall, not air
     void applyRestDamping(float dt);
     void applyPondFriction(float dt);
+    void applyBedManning(float dt);
     void compactSubmergedPartials(float dt, bool settling);   // water above a partial liquid cell falls into it (free-fall capped)
     void sweepResidue(StepReport& r);   // merge sub-epsilon films, count what cannot be merged
     void resolveFreshOverflow();        // 20.5 ledger (a): a fresh body's excess moves up its own column

@@ -74,6 +74,10 @@ public:
     /// volume pushed aside, held while it stays (and the ledger never sees it).
     void setSurfaceLoad(std::vector<float> s) { m_load = std::move(s); if (!m_load.empty() && m_load.size() != m_cols.size()) m_load.clear(); }
     float load(int x, int z) const { return m_load.empty() ? 0.0f : m_load[idx(x, z)]; }
+    /// WaterCore.md 25.39 H2: columns HELD by a 3-D window (row-major, 1 = held; empty = none). A face between two held
+    /// columns carries nothing, so over a step a held column's mass changes by exactly what crossed the window's edge there.
+    void setHeld(std::vector<uint8_t> h) { m_held = std::move(h); if (!m_held.empty() && m_held.size() != m_cols.size()) m_held.clear(); }
+    bool held(int x, int z) const { return !m_held.empty() && m_held[idx(x, z)] != 0; }
     /// 25.30 SC: no foam is MADE within one column of where a body pressed in the last kLoadFoamQuietSeconds - a stone's
     /// crater refilling tripped the surf rules (converging / fast flow) and drew a flat white 1/3 m square beside it for a
     /// second (live, 2026-10-12). The pond makes no whitewater on an entry either (its S4 whitewater is not wired, 21.4);
@@ -109,6 +113,7 @@ private:
     std::vector<ShoreColumn> m_cols;
     std::vector<glm::vec2> m_prescribedVel;   // per column, valid where prescribed
     std::vector<float> m_load;                // 25.30 SC: per-column body load (m), empty = none
+    std::vector<uint8_t> m_held;              // 25.39 H2: columns a 3-D window holds
     std::vector<double> m_lastLoadT;          // 25.30 SC: m_clock when each column last held a load (foam quiet zone)
     double m_clock = 0.0;                     // seconds stepped (25.32: stamps, so idle columns need no update)
     // 25.32: the ACTIVE set - kTile x kTile-column tiles holding water / a load / a prescription, dilated so the water cannot
