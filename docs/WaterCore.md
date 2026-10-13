@@ -63,13 +63,13 @@ containers.
 **Is the still pond ready to build on? Yes, for flowing water.** The owner signed off its feel; what remains open is
 polish (look, short-wave loss, terraces) or features that do not gate a stream (wading, containers, pipes, other
 liquids). What DOES gate a stream is listed in §25 and is the first part of it: pond friction brakes flows (the weir
-reads 17 % low with it on, §24.8), and nothing has ever measured water that keeps moving. **Now: §25 - the world water system** (owner, 2026-10-11: sources, simulated paths and currents, a 2 ms budget,
-settling without filling, underground limits; design-checked READY, §25.15). Built, not signed off (2026-10-12): H0
-(the column solver measured on a creek, §25.16-25.17), H1 column-water regions on the simple creek bench (WaterBench_Creek,
-§25.18-25.25), slightly murky water by default (M, §25.27), the current measured and tuned (K, §25.28), ripples on the
-creek carried by the current and driven by the flow (RC, §25.29 - over its 0.3 ms cost target, ~0.9 ms), stones in the
-creek - displacement, rings, a cosmetic splash (SC, §25.30). H1b part 1 - the column tier works where the water is (§25.33: 2.7-11x cheaper, bit-identical). H1b part 2 - the ripple step on the GPU (§25.35: the creek window 0.35 ms live, was ~1 ms). the dam & pond bench (§25.36-25.38; a pond-spill defect in the column solver found and fixed, §25.37). H2a - the window hand-off (§25.39-25.40: mass-exact; a seam in creek flow from the 3-D core's own shallow-flow physics - an owner decision). **Next:** decided by the owner; the original H2 note: the T1-T2 hand-off (§25.13): water passing between the 3-D pond tier and the creek tier. The §23 slime experiment stays
-queued behind §25.
+reads 17 % low with it on, §24.8), and nothing has ever measured water that keeps moving. **Now: §26 - one water model, the pond's, everywhere** (owner, 2026-10-13: "ponds need to be the foundation ... is there
+water at that voxel?"). §25's tiers built the creek on a second kind of water (the column solver) and needed "windows" to
+stitch it to the pond's; §26 replaces that: water is cell fills on the 1/9 m lattice everywhere, stored only where it is
+(and its neighbours), on the GPU. Built under §25 and kept as targets or parts: the creek bench and the dam & pond bench and
+their numbers (§25.24-25.38), Manning at the bed and the generator-line floor (25.39), the GPU ripple step (25.35), the
+measuring tools. **Next: §26 P1** - the pond model carries a creek (fix why it runs shallow fast water 45 % deep, measured
+in 25.40), then P2 sparse bricks on the GPU, P3 creeks and ponds on one model. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5123,6 +5123,123 @@ shallow fast water as the column tier does. Ways forward, each its own design:
     relaxed toward it, the 3-D detail rides on top. A seam by construction-free, but the window's water is no longer its own.
 (d) **H2b first** (the window on the GPU, 1/27 m cells) - the cost problem; resolution alone is unlikely to fix the depth
     (1/3 m and 1/9 m both read 140-180 %).
+
+## 26. One water model - the pond's, everywhere (owner, 2026-10-13) - DESIGN; supersedes §25.5's tiers
+
+### 26.1 The decision, and why the plan changes
+
+The owner, 2026-10-13: *"i recall saying that ponds need to be the foundation. i have no idea why a 'window' needs to be
+used. either there is water there or not, and since the engine works on voxels, it should be: is there water at that
+voxel? ... why would the engine ever use an area without water in it to track water."*
+
+**What went wrong.** §25.5 split water into three models: 3-D "windows" (the pond's simulation), "columns" (the shoreline
+solver - one depth and one velocity per 1/3 m patch), and a far network. H0 (25.16) measured the pond's simulation as 11x
+costlier and too deep on a creek, and the creek was then built on the COLUMN model - a second kind of water - with the
+pond's features ported onto it (ripples, splashes, displacement) and a "window" to stitch the two back together (H2,
+25.39-25.40). That contradicted the owner's standing rule that small bodies are the foundation and later work builds on
+them; the plan said "tiers" without making clear it meant separate kinds of water. The owner approved a plan whose meaning
+was not stated plainly. Recorded so it is not repeated.
+
+**The decision.** ONE water model: the pond's - water as cell fills on the world's 1/9 m lattice (the microcube), with the
+pond's velocities, pressure, splashes, droplets, ripples, displacement and bodies. A creek, a pond, a dam, a puddle are all
+the same water. Nothing is tracked where there is no water: the stored set is every cell that holds water and its
+immediate neighbours (where water can move next) - never a box of dry banks and air.
+
+**What the measurements say this needs (not guessed):**
+1. **The pond simulation carries shallow, fast water too deep and too slow** - the one real blocker. Alone on the bench
+   channel at 1/9 m it ran 145 % of Manning's depth and still rising (`WaterColumnTest.DISABLED_DiagWindowCarriesTheCreek-
+   Alone`, 25.40); H0 saw 140-265 % at 1/3 m. This is a defect in the foundation itself - it is also why currents in 3-D
+   ponds read slow (24.8's weir at 17 % low) - so it is fixed FIRST, before anything is built on it.
+2. **Storage that follows the water.** Today a volume is a dense box (25.40's window: ~70,000 cells for a 4 x 6 m box over a
+   2 m creek). A 100 m x 2 m creek 15 cm deep is ~30 m^3 = ~22,000 water cells at 1/9 m - small on the GPU, if only the
+   water and its neighbours are stored and stepped.
+3. **The GPU.** The CPU pond core costs ~400 ns per cell-tick (H0); the 2 ms budget (25.10) needs the GPU core, sparse.
+
+### 26.2 What stays, what goes
+
+| Built | Fate | Why |
+|---|---|---|
+| The pond core (§15-§24): fills, MAC velocities, projection, splashes, droplets (§21), ripples (§22, the GPU step 25.34), displacement (§20), bodies, buoyancy, Tier B rest + write-back (§16) | **THE model** | the foundation, signed off on ponds |
+| `WaterSolver::setBedManning` (25.39) - Manning at the bed | **kept, becomes the bed law** in the pond core (25.5's "what replaces pond friction"); ported to the GPU in P1 | physical, measured on the columns |
+| A volume's floor from the generator's bed line (`Av::floorY`, 25.39) and 25.21's option (a) | **kept**: water stands on the generator's continuous height on the carve, the voxels elsewhere | the owner's decision (25.21) |
+| Creek beds carved to 1/3 m (25.19/25.22), the benches (WaterBench_Creek, the dam & pond, WaterBench_Small), the measuring tools (probe/profile, floats, ripples, splash, dam_pond) | **kept** - retargeted at the one model | the rigs and their numbers are the gates |
+| The column solver (`ShoreSolver`, `ColumnWater`, regions, sparse tiles 25.32-25.33, the load 25.30, the step clamp 25.37) | **reference only** until P3 passes: the creek benches' numbers it produced are the targets the pond model must meet; then removed from near water (P5 decides if a far stand-in remains) | a second kind of water |
+| H2 windows (`openWindow`, held columns, ghosts, transfers - 25.39/25.40) | **removed** in P3 with the column regions | they only stitched the two models |
+| Creek-only features on the columns (RC flow forcing, SC load and cosmetic crown) | **re-derived on the pond model** in P3 (the pond already has displacement and a splash crown; flow-driven ripples read the 3-D surface velocity) | features carry forward on ONE model |
+
+### 26.3 Phases (each designed in detail and design-checked before it is built; the owner looks in motion)
+
+- **P1 - the pond model carries a creek.** Find, by measurement, why the pond core runs shallow fast water deep and slow,
+  and fix it in the core (CPU reference first, then the GPU kernels - one law, both backends). Rig: the straight 1:100
+  channel of 25.39 (`WindowRig`'s world) run by the pond core ALONE - a dense box is acceptable here, it is a unit rig - at
+  1/9 m, 0.2 and 0.5 m^3/s (normal depth ~0.12 and ~0.23 m: one and two to three cells). Candidates, each measured by
+  switching it alone (one variable, a control each): the bed law (pond friction vs Manning - done: both deep), velocity
+  advection's numerical dissipation, the fill transport (compaction, the film threshold, thetaMin), the pressure
+  projection's convergence, the bed as cells (the 1/9 m staircase vs the line), sources and sinks at the ends. **Gate:**
+  mid-reach depth and speed within 5 % of Manning at two to three cells deep (and the one-cell case reported); the
+  column solver's numbers on the same rig as the cross-check; the still-pond suite (§19-§24: slosh, waves, pebble pair,
+  W-T tests) unchanged - the fix must not break the signed-off pond.
+- **P2 - storage that follows the water.** The pond core on the GPU stores and steps BRICKS of 8 x 8 x 8 cells (8/9 m) that
+  hold water or touch a brick that does; empty bricks are freed. Bricks are world-aligned (36 per 32 m chunk side), so a
+  body of water is one set of bricks wherever it lies. **Gates:** a sparse run equals the dense run of the same water
+  (the 25.32 equality shape: bit-identical on the CPU reference, parity on the GPU); cost per water cell measured; the
+  100 m bench creek (~22,000 cells) inside 25.10's budget.
+- **P3 - creeks and ponds on one model.** The creek bench, the dam & pond bench and the pond benches all run as pond water;
+  springs and outfalls are the pond core's sources and sinks; the bed is the generator line (option a). **Gates:** the
+  numbers the column solver met (25.28 K: speed vs Manning, roughness tuning; 25.38 DP: fill rate Q/A, spill at the crest,
+  the dam's dip and the break's surge, the ledger exact across edits) met by the pond model; ripples and splashes as on
+  the pond (no ported copies); then the column regions and windows removed from near water.
+- **P4 - rest and the world record.** Still water sleeps into spans and wakes where disturbed or flowing (§16, as today);
+  flowing water never sleeps; 25.3's world record (saved water, springs as world objects) on the one model.
+- **P5 - far away.** Measured against the budget: either the pond model within the whole simulation radius, or a cheap
+  summary far from the player (25.5's T3, basins and reaches) with its hand-off placed where no seam can be seen. Decided
+  by numbers from P2/P3, not now.
+H3-H5 of 25.13 (settling, the far network, underground) are re-designed on the one model when they are reached; their
+§25 requirements (sources and sinks, the drainage limit, never undrainable, evaporation as background) stand.
+
+### 26.4 Design-check (Feature Design Keys, 2026-10-13)
+
+**Voxel look.** The one model is the pond's - its surface at 1/9 m, droplets as microcubes, ripples on the 1/9 m lattice -
+already signed off on ponds. No smooth idiom imported. Detail is unconditional: 1/9 m everywhere water is; cost is bounded
+by the budget (bricks resident near the player), never by a coarser look.
+**Chunks.** Every quantity is world-derived: cell fills on the world lattice, bricks world-aligned (8/9 m, 36 per chunk),
+the bed from the generator line or the occupancy. The brick set is a COST structure - a water cell's evolution never
+depends on which brick holds it. **Equality test (P2):** the same water simulated as one dense box and as bricks - straddling
+a chunk seam and a brick seam on purpose - bit-identical on the CPU reference (`WaterBrickTest.SparseEqualsDenseAcross-
+Seams`, the 25.32 shape), parity on the GPU. No cross-chunk lookups: the occupancy pool is world-addressed already.
+**Generation.** None in P1-P3 (runtime). The creek bed rule (25.22, generator line on the carve) is consumed, not changed.
+P4 touches the world record (save format) - designed then; per-world tuning (roughness, the radius) belongs in the world
+recipe when it exists.
+**API.** P1 adds no route (unit rigs). P2/P3: the existing `water_core_*` routes (create, place, sources, stats) keep their
+units; bricks are reported (`bricks`, `cells`, `ms`); `water_columns` is retired in P3 with the column regions (said in its
+reply until then). Defaults: P1 changes the pond core's friction law (pond friction -> Manning at the bed) - the pinned
+pond tests that read pond friction (24.7's half-life, the 24.8 slosh numbers, W-T) are re-run and updated in the same
+commit with the reason, or the change is gated to flowing water if a pond test shows the still pond's feel changed.
+**Visual test plan.** P1: unit rigs only (depth and speed against Manning, one variable per run, the column solver as the
+cross-check, the pond suite as the regression). P2: the equality test + cost rows. P3: the creek bench, the dam & pond bench
+and the pebble pair re-shot at the same poses as their column-era clips (`creekbench_*`, `dam_pond.mp4`, `pebble_pair_*`)
+for the owner's look; the test worlds are the existing small benches (flat, one creek / one pond, shipped defaults except
+the springs and outfalls).
+**Risks, stated.** (1) P1 may find the dissipation is the core's advection scheme - a deep change touching every pond test;
+the gate keeps the pond suite green. (2) A creek one cell deep (a trickle) is at the lattice's limit at 1/9 m - reported,
+not hidden; 1/27 m is the answer only if the owner wants trickles resolved, at 27x the cells. (3) The budget at world scale
+is unknown until P2 measures cells/ms; P5 exists for that.
+
+**Checked against the code (2026-10-13) - three gaps found, folded in:**
+1. *Ripples and the drawn surface for sparse water.* A volume's ripple layer is capped at 512 cells per axis (57 m,
+   `kRippleMaxCells`) and four layers (`kRippleMaxLayers`): a 100 m creek as one body would get NO ripples; the surface
+   mesh is extracted from a dense box per volume (`WaterSurfaceMesh`). **P2 states both:** the ripple layer becomes a
+   camera-following window over the water (RC's design, 25.26/25.29, already built for the columns) and the surface is
+   extracted per brick column.
+2. *Unloaded ground.* Volumes today treat non-resident ground as a HOLD boundary (`Occ::Unknown`, §14.2/§5.1). **Bricks keep
+   the rule:** a brick never extends over a non-resident chunk; unknown ground holds water, never drains it.
+3. *The pinned pond tests P1 may move.* Five files read pond friction - `WaterCoreTest`, `WaterCreekH0Test`,
+   `WaterDropletTest`, `WaterSolidTest`, `WaterWaveTest` (24.7's half-life, 24.8's slosh) - and the GPU applies it
+   (`WaterCoreGpu` mode 9). **P1's regression set is these five plus `WaterCoreGpuParityTest`;** any of them that changes
+   is updated in the same commit with its reason, or the new law is limited to flowing water.
+
+**Verdict: NEEDS WORK -> the three gaps folded in above -> READY for P1** (every key answered; its rigs, gate, controls and
+regression named). P2-P5 are READY in outline and each gets its own detailed design and check before it is built.
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
