@@ -721,28 +721,44 @@ gains the generator source. New: `sheet`, `site/{id}/map`, `site/{id}/ledger`, `
 
 ---
 
-## 14. Reference and asset sourcing for eras and cultures (owner suggestion, 2026-10-14)
+## 14. Meshy AI — the reference and model source for voxelized assets (owner, 2026-10-14)
 
-The owner has a **Meshy AI** account (text-to-3D / image-to-3D; outputs textured GLB/FBX/OBJ/USDZ/STL
-meshes with low-poly and quad-topology options, per its docs) and proposed it as a source "when
-developing assets or outlines or floorplans for different architectural buildings" to flesh out eras
-and cultural architectures (D9, M5). Where it fits, and where it must not:
+The owner has a paid **Meshy AI** account (text-to-3D / image-to-3D; textured GLB/FBX/OBJ/USDZ/STL
+meshes, low-poly and quad-topology options) with commercial rights, and has ruled: **when something
+needs to be voxelized — an asset, an outline, a floorplan reference, an era or cultural building
+form — Meshy generates the 3D reference model for it.** This is the sanctioned source; it is not
+optional and it is not a fallback.
 
-| Use | Fit | How |
-|---|---|---|
-| **Era / culture reference** (massing, roof forms, ornament, street furniture for a Roman, Edo, adobe or Norse pack) | GOOD | Generate reference meshes/renders, study them, write the era data pack from them + grounded sources. The reference is an input to a human/agent author, never shipped. |
-| **Props and furniture** (braziers, shrines, statues, market goods, lanterns, signs per era) | GOOD, gated | New `tools/meshy_import.py`: mesh (GLB) → voxelize with `trimesh` (installed, 4.10.1) at the fine-item grid (`# grid: 81`) or furniture micro grid → material map from texture colour clusters → `lint_voxel_detail.py` → `asset_index.py --validate` → spawn + screenshot in hand/at scale (the existing `vox_import.py --scale fine` route is the template; `docs/AssetLibrary.md` aesthetic contract applies). |
-| **Building shells** | NO as generator output | A Meshy building voxelized and placed is exactly the hand-assembled lookalike the provenance rule forbids. Shells come from the structure forge (program → rooms → realizer) so they stay walkable, furnished and validated. A Meshy shell may be a REFERENCE for the realizer's roof/ornament rules. |
-| **Floorplans / room programs** | NO | Meshy makes meshes, not plans. Room programs need grounded sources (historical plans, surveys, vernacular-architecture references via the grounding-auditor). An LLM research pass (EthosLM stage 3 shape; D8 flavor pass) is the better fit for drafting a room program, which the auditor then grounds. |
-| **Materials / textures** | MAYBE | Meshy PBR textures could seed era palettes, but the engine's textures are per-face CC0 sources with provenance (`CC0_SOURCES.json`); a Meshy texture needs the same provenance row and licence check. |
+**What it is used for**
 
-**Gates:** every imported asset passes the fine-voxel/furniture conformance checks and a visual
-in-engine check before it enters `template_catalog.json`; the catalog records `source: meshy` +
-prompt + date (provenance). **Licence:** Meshy's commercial-use terms were not verified in this
-pass — check the account's plan/ToS before any Meshy output ships in a packaged game. **Relation
-to BlockSmith:** `tools/blocksmith_generate.py` (LLM → .bbmodel → .voxel) already covers prompt-to-
-voxel furniture; Meshy adds image-to-3D and higher-fidelity organic forms. Pick per asset; both land
-in the same catalog with the same gates.
+- **Era and culture packs (D9, M5):** generate reference models of the building forms, roofs,
+  ornament, street furniture and props of each era (Roman, Edo, adobe, Norse, …). Massing and
+  outlines from the model inform the era's realizer rules (roof forms, bays, ornament) and its
+  room program; the grounding-auditor still attaches a source to each dimension typed into data.
+- **Props and furniture:** every new prop, furniture piece or item for a pack is generated in Meshy,
+  voxelized, and shipped as a template.
+- **Reference for anything the structure forge must learn to build:** a Meshy model of a feature
+  (an arcade, a torii, a hypocaust floor, a minaret) is the visual spec the realizer rule is
+  written against.
 
-**Where in the plan:** M5 (second era data pack: reference pass + era props) and M8 (flavor passes).
-Nothing in M0–M4 depends on it.
+**The import tool — `tools/meshy_import.py` (build early; independent of M0–M4):**
+
+1. Call the Meshy API (text-to-3D or image-to-3D; the key from the environment like the other
+   tools) or take a downloaded GLB.
+2. Voxelize with `trimesh` (installed, 4.10.1) at the chosen tier: fine-voxel item grid
+   (`# grid: 81`) for hand-held/tableware, furniture micro grid for furniture, subcube/micro for
+   architectural reference stamps.
+3. Map materials from the mesh's texture colour clusters to `materials.json` names (a per-asset
+   override table for the cases the clustering gets wrong).
+4. Run the existing gates unchanged: `lint_voxel_detail.py`, `asset_index.py --validate`, spawn +
+   screenshot in-engine at true scale.
+5. Write provenance into `template_catalog.json`: `source: meshy`, prompt or image, date.
+
+**One rule, unchanged (repo hard rule, not a caveat):** buildings in the world are produced by the
+structure forge from a program, so they stay walkable, furnished and validated; Meshy models are the
+reference those programs and rules are built from, and the direct source of the props that dress
+them. That is exactly the owner's stated use.
+
+Note: the BlockSmith submodule (`external/blocksmith`) and `tools/blocksmith_generate.py` are
+still in the tree (only its `build_building` path was removed 2026-07-08); it is not part of this
+plan. Meshy is the model source going forward.
