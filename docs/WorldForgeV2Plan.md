@@ -254,6 +254,25 @@ M 2–3 weeks, L 4+ weeks, for one agent-session cadence.
 
 ### M0 — Cleanup + doc consolidation (S) — *stops the bleeding, no new design*
 
+> **Design-check 2026-10-14: NEEDS WORK** (14 of 19 rows READY). Unresolved, each with its fix:
+> (1) the two generator rows (bounded earthworks, creek ford) wait on F4 grounded caps + F8 water
+> merge and must sit behind `WorldForgeParams.version = 2` (legacy recipes keep today's drape —
+> pristine chunks are never saved, so an unversioned generator change rewrites every existing
+> world's unvisited roads; the `creekCarve` flag is the precedent) with the seam test
+> `RoadFieldSeamTest.EarthworkFieldsIdenticalPerChunkAndWholeRegion` named now; (2) forge-side
+> residue: reorder `StructureForge` so the read-only gates (grounding, vegetation presence) run
+> before `stageFootprint` mutates (`StructureForge.cpp:439-487` precedes `:571-645` today) — a
+> reorder, not a rollback; (3) settlement-side residue: street grading stays before buildings,
+> but **spurs, fences and yard props move after the building unit**, skip `lotFailures`, and use
+> the realized door from `recordDoor` (today's anchor is the footprint centre, `:462`); (4)
+> blocking walkability gate = result `success:false, error:"unwalkable"`, nav/residents skipped,
+> WorldForge site `refused` and NOT checkpointed (retried after a generator fix), no teardown —
+> needs the owner's yes; (5) BlockSmith removal needs a local `.voxel` metadata parser specified
+> first (`phyxel_mcp_server.py:7110-7148` imports BlockSmith's). API additions: `allow_unwalkable`
+> (bool, default false, echoed as `walkability.gate`), `terrain_height?source=chunks|generator`
+> (default chunks, echoed), four pinned tests updated in the same commit (listed in the check).
+> Full report in the session transcript 2026-10-14; re-run the check after these are folded in.
+
 Contract: today's code-level immersion breaks are each pinned red → green; the docs state one
 roadmap.
 
