@@ -275,7 +275,8 @@ roadmap.
 | `worldforge_build` owns a `shared_ptr<const WorldForgePlan>`; raised load radii restored by RAII on any exit | `WorldForgeBuildFlowTest.RadiiRestoredOnAbort` |
 | One truth for "surface": `terrain_height` gains `source:"generator"` and the resident-chunk scan is labelled | route test in the L4 rig |
 | MCP mirrors for `build_settlement`, `world/validate`, `walk/probe`, `navgrid/navgraph`, `water_validate`; stale V1 text in `worldforge_*` descriptions removed | `scripts/mcp` tool list diff |
-| Owner action: wire `solution-audit-gate.sh` as a Stop hook in `.claude/settings.json` (today `{"hooks": {}}`) | the gate blocks a turn ending on an unaudited "fixed" |
+| Owner action: wire `solution-audit-gate.sh` as a Stop hook in `.claude/settings.json` — **DONE 2026-10-14** (local file, tested: blocks an unaudited "works", allows a VERDICT) | the gate blocks a turn ending on an unaudited "fixed" |
+| **Remove BlockSmith** (owner, 2026-10-14: "not adequate for our uses"). Inventory of what goes: the `external/blocksmith` submodule + its `.gitmodules` entry; `tools/blocksmith_generate.py`, `tools/building_prompts.py`, `tools/asset_pipeline/prompt_enhancer.py`, `tools/generate_furniture_library.py` (all import or shell out to it); the six MCP tools that route to it — `generate_template`, `search_templates`, `list_generated_templates`, `critique_template`, `refine_template`, `generate_asset` (`phyxel_mcp_server.py:1671-2864`) — plus its `_run_blocksmith_native` (`:7234-7276`) and the `PHYXEL_AI_API_KEY → ANTHROPIC_API_KEY` alias (`:6580`); the hidden dependency at `:7110-7148` where the MCP server imports `blocksmith.generators.phyxel_parser.read_voxel_metadata` to read `.voxel` metadata — replaced by a small local parser in `scripts/mcp` (the fine-grid fallback already exists there); the skills `.claude/commands/asset.md`, `.claude/commands/generate.md` and `tools/phyxel-gamedev/skills/phyxel-assets/SKILL.md` (rewritten for the Meshy route, §14); docs: the CLAUDE.md "BlockSmith AI Model Generation" section (replaced by a Meshy section), `AssetLibrary.md`, `GameDevWorkflow.md`, `game-production/README.md` + `recipes/farming-survival-loop.md`, `WantedAssetsBacklog.md`, `CharacterLibraryPlan.md`, `ForgePattern.md`, `VoxelAppearanceModel.md`, the structure-generation docs that cite it. History comments in `ItemPropManager.cpp:231` and `ItemPropPhysicsTest.cpp:261` stay (they record a past defect). No shipped template depends on it (`resources/templates/generated/` is empty; the catalog carries no `source: blocksmith`). | red: `grep -rniI blocksmith --exclude-dir=external --exclude-dir=.git` lists 29 files today; green: only the two history comments + this plan; the MCP server imports with the submodule absent; `asset_index.py --validate` still passes |
 
 Docs: fold `WorldForge.md` "Known gaps" into its resolved sections; fix `WorldModel.md` §2;
 retire StructureGenerationV2 P8–P10 with a pointer here; one "next" (this file §5).
@@ -759,6 +760,29 @@ structure forge from a program, so they stay walkable, furnished and validated; 
 reference those programs and rules are built from, and the direct source of the props that dress
 them. That is exactly the owner's stated use.
 
-Note: the BlockSmith submodule (`external/blocksmith`) and `tools/blocksmith_generate.py` are
-still in the tree (only its `build_building` path was removed 2026-07-08); it is not part of this
-plan. Meshy is the model source going forward.
+**BlockSmith is REMOVED in M0** (owner, 2026-10-14: it was not adequate for our uses). The full
+removal inventory is the M0 table row; its MCP tools and skills are replaced by the Meshy route
+above. Meshy is the only model source going forward.
+
+---
+
+## 15. Finalization checklist — nothing is built until every row is green
+
+The owner's instruction (2026-10-14): *"we are finalizing a plan. we still need to do design checks
+and whatnot."* This section is the gate between the plan and the first commit of code.
+
+| # | Item | Owner | Status |
+|---|---|---|---|
+| F1 | Decisions D1–D9 settled | owner | **DONE 2026-10-14** (§3.1) |
+| F2 | Stop-hook wired and tested | owner (approved) | **DONE 2026-10-14** |
+| F3 | `/design-check` run on **each** milestone M0–M8 and on `meshy_import.py`, verdict (NEEDS WORK / READY) recorded under that milestone in §5, findings folded in — the WaterCore.md §25.15 / §26.4 pattern | agent, per milestone, before it starts | NOT DONE |
+| F4 | grounding-auditor on every §10 number; each gets a source row or is struck | agent | NOT DONE |
+| F5 | solution-auditor reads this plan's §1 and §13 claims against the code and confirms the file:line facts the plan builds on (an audit of the audit) | agent | NOT DONE |
+| F6 | Lab worlds specified (`WorldSheetLab`, `RiverLab`, `CivLab`, `RouteLab`, `CityLab`): one tile each, poses, predictions written before any run | agent | NOT DONE (named only) |
+| F7 | Baselines measured and archived in `docs/evidence/worldforge_v2/` before M0 changes anything: `WorldForgeStressTest` numbers, column cost, chunks/s in forest (Release, named GPU), test count (`tools/test_count_check.sh`), the C-25…C-100 city ladder | agent | NOT DONE |
+| F8 | `feat/water-rethink` merged into `main` by the owner; `feat/worldforge-v2` rebased or merged onto it before M1 | owner | NOT DONE (M0 may proceed before this) |
+| F9 | Doc consolidation list (§1 "doc rot") confirmed complete as part of M0's definition of done | agent | NOT DONE |
+| F10 | Owner sign-off on this plan as a whole (after F3–F7 are folded in) | owner | NOT DONE |
+
+Order: F3 (M0 first) → F4 → F5 → F6 → F7 → F10, then M0 begins. F3 for M1–M8 is run when each
+milestone is next, not all up front, so each design-check sees the code as it then is.
