@@ -1,0 +1,28 @@
+{
+  "name": "WorldForgeBaseline",
+  "description": "WorldForge v2 plan section 16 'WorldForgeBaseline' lab: the canonical 8-site region (the WorldForgeStressTest fixture seed + params) as a live world, for the F7 baselines and the M0 L4 run. Mountains variant: seed 424242, type Mountains.",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 20260816,
+    "streaming": true,
+    "loadRadius": 8,
+    "unloadRadius": 11,
+    "from": { "x": -1, "y": 0, "z": -1 },
+    "to": { "x": 1, "y": 0, "z": 1 },
+    "worldforge": {
+      "siteCount": 8,
+      "regionRadius": 2048,
+      "minSpacing": 400
+    }
+  },
+  "camera": {
+    "position": { "x": 16, "y": 80, "z": 80 },
+    "yaw": -90,
+    "pitch": -30
+  },
+  "player": {
+    "type": "animated",
+    "position": { "x": 16, "y": 40, "z": 16 }
+  }
+}

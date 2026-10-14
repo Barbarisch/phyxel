@@ -1,0 +1,47 @@
+{
+  "what": "WorldForge v2 plan section 15 row F7 - LIVE (L4) baseline on the WorldForgeBaseline lab (plan section 16), Release, BEFORE M0",
+  "date": "2026-10-14",
+  "status": "PARTIAL - the engine process was killed by the Claude Code harness for low system memory at 14:38 (site 0 of 8, during 'nav rebuild', 139 s into the job). Nothing was checkpointed (the checkpoint runs after nav rebuild + residents), so the world DB holds no realized site. Not restarted without the owner's say-so.",
+  "machine": "NVIDIA RTX 1000 Ada Generation Laptop GPU (laptop, not the 4090)",
+  "binary": "build/editor/Release/phyxel.exe built 2026-10-14 14:15",
+  "project": "C:/Users/bpete/Documents/PhyxelProjects/WorldForgeBaseline (samples/game_definitions/worldforge_baseline.json)",
+  "commands": [
+    "phyxel.exe --project <WorldForgeBaseline> --port 8090",
+    "GET /api/worldforge/status -> {applied:true, enabled:true, plan_hash:9693137997320541182, roads:18, sites:8}",
+    "POST /api/worldforge/plan {} -> sites [(0,town,-1096,-1064),(1,hamlet,-888,-1416),(2,hamlet,-1432,-1288),(3,hamlet,-760,-760),(4,hamlet,-1224,648),(5,village,-1480,1400),(6,village,-1016,1400),(7,hamlet,-632,1256)], roads 18, bridges 0, crossings 40",
+    "POST /api/worldforge/build {residency_timeout_s:600} -> {job_id:1000000, sites_queued:8}",
+    "GET /api/jobs polled every 10 s (log: wfb_job_progress, reproduced below)"
+  ],
+  "live_plan_vs_unit_fixture": "same seed 20260816 and worldforge params, but the live plan hash (9693137997320541182; 18 roads, 0 bridges, 1923 segments) differs from the unit fixture's (18197215997962677593; 10 roads, 3 bridges, 432 segments). The live recipe comes from game.json defaults (climateFrequency, spline, sea level) and differs from the test fixture's recipe; the plan is a function of both. Logged as an observation for M3/M4, not a defect: determinism per recipe is pinned by PlanDeterminism.",
+  "observation_crossings_without_bridges": "40 river crossings, 0 bridges in the live plan. Either every crossing is an order 1-2 creek (no bridge by design -> the 'creek notch' M0 row) or wider spans were refused (>96 u). The log carries no bridge-refusal WARN, so these read as creek crossings. UNVERIFIED which; the M0 ford row's L4 check must classify them.",
+  "site_0_town_measured_before_kill": {
+    "terracing": "8 parcels graded (e.g. cut 85/fill 44, cut 47/fill 46)",
+    "streets": "paved 134393 micros over 84153 columns (73745 level, 5211 fill, 5197 cut, 116 cubes removed, 8432 corridor cells band-cleared), spurs 8 ok / 0 too steep, Cobblestone, 23301 ms",
+    "fences": "2 parcels fenced, 6 unfenced by policy, 1 run dropped (alley < 2 cells)",
+    "yard_props": "13 placed, 0 skipped",
+    "buildings": "8/8 built, 0 refusals, 0 re-rolls (house_1..house_8; fixtures 20/20/9/27/27/6/8/10)",
+    "street_sweep": "3123 cells cleared over 3123 band cells, 134393 paving micros re-stamped (what, if anything, legitimately placed was erased is UNMEASURED - the M0 sweep row's red state)",
+    "orphaned_canopy": "205 cells found, 205 cleared",
+    "square_dressing": "5 placed",
+    "doorsteps": "5 of 8 front doors stooped (11 steps, 4455 micros), approach band cleared 435 micros",
+    "walkability_gate": "27 walkable, 1 BLOCKED over 28 routes: hall_house @(-1084,-1090) street->door pinch gap 1 micro (reached 43136/47501). THE GATE REPORTED AND THE BUILD CONTINUED INTO NAV REBUILD - this is the live red state for the M0 'blocking gate' row (the UNVERIFIABLE item from F5 is now VERIFIED LIVE).",
+    "residue_on_refused_lots": "not measurable at site 0 (no refusals); needs a site with a lotFailure (the M0 residue row's red state stays UNVERIFIED live)"
+  },
+  "job_progress_log": [
+    "14:35:55 running | site 0: terracing parcel 1/8 | 2262/2289 | 13s",
+    "14:36:05 running | site 0: grading + paving streets | 2271/2289 | 23s",
+    "14:36:26 running | site 0: building 1/8 | 2274/2289 | 44s",
+    "14:37:40 running | site 0: building 8/8 | 2281/2289 | 118s",
+    "14:37:50 running | site 0: street sweep | 2282/2289 | 129s",
+    "14:38:01 running | site 0: nav rebuild | 2287/2289 | 139s",
+    "14:38:02 engine process killed by the harness (low memory)"
+  ],
+  "engine_log": "f7_l4_site0_engine.txt (ANSI stripped)",
+  "still_owed_for_F7": [
+    "sites 1-7 (ledger: built/refused per site, lotFailures)",
+    "a residue census on at least one refused lot",
+    "classification of the 40 crossings (creek vs refused span)",
+    "chunks/s in forest (no instrument yet)",
+    "the full-suite test count (tools/test_count_check.sh was also killed)"
+  ]
+}

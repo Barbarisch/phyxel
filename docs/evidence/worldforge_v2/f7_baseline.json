@@ -1,0 +1,39 @@
+{
+  "what": "WorldForge v2 plan section 15 row F7 - baselines measured BEFORE M0 changes anything",
+  "date": "2026-10-14",
+  "branch": "feat/worldforge-v2",
+  "commit_plan": "8d84cfac",
+  "binary": {
+    "tests": "build/tests/Release/phyxel_tests.exe built 2026-10-14 14:26 (mcp_build.log, 0 errors)",
+    "editor": "build/editor/Release/phyxel.exe built 2026-10-14 14:15"
+  },
+  "machine": {
+    "gpu": "NVIDIA RTX 1000 Ada Generation Laptop GPU",
+    "note": "this is the LAPTOP, not the 4090 desktop (memory: dev-hardware-laptop-rtx1000); GPU-bound numbers are not comparable to PerfProgram2026-09 figures"
+  },
+  "unit_suites_release": {
+    "filter": "WorldForge*:RoadFieldSeam*:Settlement*:TerrainRiver*:TerrainRelief*:FlowField*:HydrologyMap*:PriorityFlood*:CoarseWorldModel*:StreetPaver*:MainStreetLayout*:StructureBuildService*:StructureGrounding*",
+    "result": "176 tests from 24 suites, 176 PASSED, 28388 ms",
+    "log": "f7_baseline_release_tests.log",
+    "xml": "f7_baseline_release_tests.xml"
+  },
+  "worldforge_stress_measured": {
+    "canonical_seed_20260816_perlin": {
+      "plan": "8 sites, 10 roads, 3 bridges, 432 segments, bake 58-60 ms, hash 18197215997962677593",
+      "road_steep_step_fraction": "0.000694444 (1/1440)"
+    },
+    "mountains_seed_424242": {
+      "road_steep_step_fraction": "0.00461172 (31/6722)",
+      "sites": "fewer than 8, honestly (MountainWorldDegradesHonestly PASSED; exact count not logged by the test)"
+    },
+    "three_site_fixture": "3 sites, 3 roads, 1 bridge, 183 segments, bake 363-383 ms, hash 8898297598189654879",
+    "discrepancy_vs_docs": "docs/WorldForge.md:190 records the M3 result (2026-08-17) as canonical 0/1320 (0.0%) and mountains 45/6496 (0.69%). Today's step COUNTS differ (1440 / 6722), so the road profile changed after M3 - road grading shipped 2026-08-20. Today's numbers are the post-grading baseline; the CLAUDE.md '0% canonical / 0.69% mountains' line is stale."
+  },
+  "test_count": "see f7_test_count.txt (tools/test_count_check.sh)",
+  "not_measured_here": {
+    "column_cost_noise_evals": "no ColumnCostBench exists yet; the ~140 figure is from reading sampleColumn (plan section 1). M1 adds the bench and records red first.",
+    "chunks_per_second_forest": "no streaming-throughput instrument exists (no API route); the only number on file is 'Debug ~7 chunks/min in forest' (CLAUDE.md). M1 adds the instrument.",
+    "city_ladder_C25_C100": "not re-run; cited from docs/PerfProgram2026-09.md section 16 (4090 desktop numbers)."
+  },
+  "l4_baseline": "see f7_l4_baseline.json (WorldForgeBaseline project, 8-site worldforge_build on Release)"
+}

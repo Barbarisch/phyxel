@@ -1,0 +1,838 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = WorldForge*:RoadFieldSeam*:Settlement*:TerrainRiver*:TerrainRelief*:FlowField*:HydrologyMap*:PriorityFlood*:CoarseWorldModel*:StreetPaver*:MainStreetLayout*:StructureBuildService*:StructureGrounding*
+[==========] Running 176 tests from 24 test suites.
+[----------] Global test environment set-up.
+[----------] 7 tests from CoarseWorldModelTest
+[ RUN      ] CoarseWorldModelTest.ReturnsSourceExactlyAtCorners
+[       OK ] CoarseWorldModelTest.ReturnsSourceExactlyAtCorners (0 ms)
+[ RUN      ] CoarseWorldModelTest.ReproducesLinearFieldBetweenCorners
+[       OK ] CoarseWorldModelTest.ReproducesLinearFieldBetweenCorners (0 ms)
+[ RUN      ] CoarseWorldModelTest.ConstantFieldsPassThrough
+[       OK ] CoarseWorldModelTest.ConstantFieldsPassThrough (0 ms)
+[ RUN      ] CoarseWorldModelTest.IsContinuousAcrossCellBorders
+[       OK ] CoarseWorldModelTest.IsContinuousAcrossCellBorders (0 ms)
+[ RUN      ] CoarseWorldModelTest.IsDeterministicAndOrderIndependent
+[       OK ] CoarseWorldModelTest.IsDeterministicAndOrderIndependent (0 ms)
+[ RUN      ] CoarseWorldModelTest.NaiveNearestSamplerFailsTheInvariants_soTheyAreMeaningful
+[       OK ] CoarseWorldModelTest.NaiveNearestSamplerFailsTheInvariants_soTheyAreMeaningful (0 ms)
+[ RUN      ] CoarseWorldModelTest.BilinearMidpointAveragesFourCorners
+[       OK ] CoarseWorldModelTest.BilinearMidpointAveragesFourCorners (0 ms)
+[----------] 7 tests from CoarseWorldModelTest (0 ms total)
+
+[----------] 13 tests from FlowFieldTest
+[ RUN      ] FlowFieldTest.ValleyFunnelsAccumulationToItsMouth
+[flow] maxAccum=325/400 mouth=325 ridge=1
+[       OK ] FlowFieldTest.ValleyFunnelsAccumulationToItsMouth (0 ms)
+[ RUN      ] FlowFieldTest.EveryInteriorCellHasAtLeastOneUpstream
+[       OK ] FlowFieldTest.EveryInteriorCellHasAtLeastOneUpstream (0 ms)
+[ RUN      ] FlowFieldTest.DrainageGraphIsAcyclic_AllCellsReleased
+[       OK ] FlowFieldTest.DrainageGraphIsAcyclic_AllCellsReleased (0 ms)
+[ RUN      ] FlowFieldTest.StrahlerTwoEqualTributariesMakeNextOrder
+[       OK ] FlowFieldTest.StrahlerTwoEqualTributariesMakeNextOrder (0 ms)
+[ RUN      ] FlowFieldTest.StrahlerSmallTributaryDoesNotBumpTrunk
+[       OK ] FlowFieldTest.StrahlerSmallTributaryDoesNotBumpTrunk (0 ms)
+[ RUN      ] FlowFieldTest.StrahlerThresholdDemotesSubThresholdTributaries
+[       OK ] FlowFieldTest.StrahlerThresholdDemotesSubThresholdTributaries (0 ms)
+[ RUN      ] FlowFieldTest.OrderIsARiverOnTheValleyFloorNotTheRidge
+[       OK ] FlowFieldTest.OrderIsARiverOnTheValleyFloorNotTheRidge (0 ms)
+[ RUN      ] FlowFieldTest.ChannelGeometryTablesAreGrounded
+[       OK ] FlowFieldTest.ChannelGeometryTablesAreGrounded (0 ms)
+[ RUN      ] FlowFieldTest.SegmentChannelGeometryAndOrderGate
+[       OK ] FlowFieldTest.SegmentChannelGeometryAndOrderGate (0 ms)
+[ RUN      ] FlowFieldTest.ChannelAtCarvesAnOrder3RiverAtItsCentreline
+[       OK ] FlowFieldTest.ChannelAtCarvesAnOrder3RiverAtItsCentreline (0 ms)
+[ RUN      ] FlowFieldTest.NearestChannelMinOrderSeesCreeks
+[       OK ] FlowFieldTest.NearestChannelMinOrderSeesCreeks (0 ms)
+[ RUN      ] FlowFieldTest.ChannelAtReportsFractionalCreeksAtOrder1And2
+[       OK ] FlowFieldTest.ChannelAtReportsFractionalCreeksAtOrder1And2 (0 ms)
+[ RUN      ] FlowFieldTest.Deterministic
+[       OK ] FlowFieldTest.Deterministic (0 ms)
+[----------] 13 tests from FlowFieldTest (0 ms total)
+
+[----------] 6 tests from HydrologyMapTest
+[ RUN      ] HydrologyMapTest.OceanFillsSubSeaColumnsToSeaLevel
+[       OK ] HydrologyMapTest.OceanFillsSubSeaColumnsToSeaLevel (0 ms)
+[ RUN      ] HydrologyMapTest.InlandLakeIsFlatAndContained
+[       OK ] HydrologyMapTest.InlandLakeIsFlatAndContained (0 ms)
+[ RUN      ] HydrologyMapTest.InlandBasinBehindSubSeaOutletDrainsToSeaNotBorder
+[       OK ] HydrologyMapTest.InlandBasinBehindSubSeaOutletDrainsToSeaNotBorder (0 ms)
+[ RUN      ] HydrologyMapTest.DrainingSlopeHasNoSpuriousLakes
+[       OK ] HydrologyMapTest.DrainingSlopeHasNoSpuriousLakes (0 ms)
+[ RUN      ] HydrologyMapTest.ReportsOutletAndMinTerrain
+[       OK ] HydrologyMapTest.ReportsOutletAndMinTerrain (0 ms)
+[ RUN      ] HydrologyMapTest.Deterministic
+[       OK ] HydrologyMapTest.Deterministic (0 ms)
+[----------] 6 tests from HydrologyMapTest (0 ms total)
+
+[----------] 12 tests from MainStreetLayoutTest
+[ RUN      ] MainStreetLayoutTest.PlotsOnBothSidesAndAbutTheSpine
+[32m[14:27:22.755] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:22.756] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.PlotsOnBothSidesAndAbutTheSpine (1 ms)
+[ RUN      ] MainStreetLayoutTest.NoPlotOverlapsAStreetOrAnotherPlot
+[32m[14:27:22.756] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:22.756] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.NoPlotOverlapsAStreetOrAnotherPlot (0 ms)
+[ RUN      ] MainStreetLayoutTest.PlotFrontageIsSizedFromItsTypology
+[32m[14:27:22.756] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:22.757] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.PlotFrontageIsSizedFromItsTypology (0 ms)
+[ RUN      ] MainStreetLayoutTest.BuildingOrientationAndNaturalSizeFollowTheTypology
+[32m[14:27:22.757] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:22.757] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.BuildingOrientationAndNaturalSizeFollowTheTypology (0 ms)
+[ RUN      ] MainStreetLayoutTest.WeightedDrawCoversThePaletteAndIsDeterministic
+[32m[14:27:22.758] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:22.758] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.WeightedDrawCoversThePaletteAndIsDeterministic (0 ms)
+[ RUN      ] MainStreetLayoutTest.DeterministicInSeedAndRespectsBuildingCap
+[32m[14:27:22.758] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:22.758] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.DeterministicInSeedAndRespectsBuildingCap (0 ms)
+[ RUN      ] MainStreetLayoutTest.TooSmallFootprintReturnsNotOk
+[32m[14:27:22.759] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:22.759] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] MainStreetLayoutTest.TooSmallFootprintReturnsNotOk (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisFindsTheFlatValley
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisFindsTheFlatValley (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisHonorsRoadPreference
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisHonorsRoadPreference (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisHonorsArrivalOffset
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisHonorsArrivalOffset (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisIsNotBiasedTowardTheShortAxis
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisIsNotBiasedTowardTheShortAxis (0 ms)
+[ RUN      ] MainStreetLayoutTest.ChooseStreetAxisLeavesPlotRoomOnBothSides
+[       OK ] MainStreetLayoutTest.ChooseStreetAxisLeavesPlotRoomOnBothSides (0 ms)
+[----------] 12 tests from MainStreetLayoutTest (5 ms total)
+
+[----------] 7 tests from PriorityFloodTest
+[ RUN      ] PriorityFloodTest.FlatFieldIsUnchanged
+[       OK ] PriorityFloodTest.FlatFieldIsUnchanged (0 ms)
+[ RUN      ] PriorityFloodTest.MonotonicSlopeDrainsWithoutFilling
+[       OK ] PriorityFloodTest.MonotonicSlopeDrainsWithoutFilling (0 ms)
+[ RUN      ] PriorityFloodTest.PitFillsExactlyToItsRim
+[       OK ] PriorityFloodTest.PitFillsExactlyToItsRim (0 ms)
+[ RUN      ] PriorityFloodTest.LakeSurfaceIsFlat
+[       OK ] PriorityFloodTest.LakeSurfaceIsFlat (0 ms)
+[ RUN      ] PriorityFloodTest.SeaOutletDrainsSubSeaCellsInsteadOfBrimming
+[       OK ] PriorityFloodTest.SeaOutletDrainsSubSeaCellsInsteadOfBrimming (0 ms)
+[ RUN      ] PriorityFloodTest.FilledNeverBelowElevationAndDrains
+[       OK ] PriorityFloodTest.FilledNeverBelowElevationAndDrains (0 ms)
+[ RUN      ] PriorityFloodTest.FillWithFlowGivesValidDownstream
+[       OK ] PriorityFloodTest.FillWithFlowGivesValidDownstream (0 ms)
+[----------] 7 tests from PriorityFloodTest (0 ms total)
+
+[----------] 11 tests from RoadFieldSeamTest
+[ RUN      ] RoadFieldSeamTest.TestWorldHasRoads
+[32m[14:27:22.760] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:23.000] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[14:27:23.000] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[14:27:23.010] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 9 ms (hash 390629209938214499)[0m
+[32m[14:27:23.010] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.TestWorldHasRoads (250 ms)
+[ RUN      ] RoadFieldSeamTest.RoadColumnsStampedWithRoadMaterial
+[32m[14:27:23.010] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:23.020] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 9 ms (hash 390629209938214499)[0m
+[32m[14:27:23.020] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.RoadColumnsStampedWithRoadMaterial (10 ms)
+[ RUN      ] RoadFieldSeamTest.RoadNeverOverridesRiverOrSea
+[32m[14:27:23.020] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:23.030] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 9 ms (hash 390629209938214499)[0m
+[32m[14:27:23.030] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.RoadNeverOverridesRiverOrSea (10 ms)
+[ RUN      ] RoadFieldSeamTest.GeneratorCopyStampsIdenticalRoadColumns
+[32m[14:27:23.031] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:23.041] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 9 ms (hash 390629209938214499)[0m
+[32m[14:27:23.041] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.GeneratorCopyStampsIdenticalRoadColumns (11 ms)
+[ RUN      ] RoadFieldSeamTest.FloraKeepsOffTheRoadCorridor
+[32m[14:27:23.042] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:23.053] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 10 ms (hash 390629209938214499)[0m
+[32m[14:27:23.053] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.FloraKeepsOffTheRoadCorridor (50 ms)
+[ RUN      ] RoadFieldSeamTest.BridgeDeckEmittedOverOrder3Channel
+[32m[14:27:23.092] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:23.459] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 1 bridges, 183 segments in 366 ms (hash 8898297598189654879)[0m
+[32m[14:27:23.459] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.BridgeDeckEmittedOverOrder3Channel (1726 ms)
+[ RUN      ] RoadFieldSeamTest.BridgeRailsGuardDeckEdgesAndPiersReachTheBed
+[32m[14:27:24.819] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:25.203] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 1 bridges, 183 segments in 383 ms (hash 8898297598189654879)[0m
+[32m[14:27:25.203] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.BridgeRailsGuardDeckEdgesAndPiersReachTheBed (1749 ms)
+[ RUN      ] RoadFieldSeamTest.BridgePiersStandSolidOnALongSpan
+[32m[14:27:26.569] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:26.809] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[14:27:26.809] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[32m[14:27:26.869] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 60 ms (hash 18197215997962677593)[0m
+[32m[14:27:26.869] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.BridgePiersStandSolidOnALongSpan (1660 ms)
+[ RUN      ] RoadFieldSeamTest.OffRoadColumnsIdenticalToDisabledWorld
+[32m[14:27:28.229] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:28.240] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 10 ms (hash 390629209938214499)[0m
+[32m[14:27:28.240] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[14:27:28.241] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:28.241] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.OffRoadColumnsIdenticalToDisabledWorld (12 ms)
+[ RUN      ] RoadFieldSeamTest.BridgeCrossingIsAgentWalkable
+[32m[14:27:28.242] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:28.605] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 1 bridges, 183 segments in 363 ms (hash 8898297598189654879)[0m
+[32m[14:27:28.605] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[BRIDGE-WALK] deckY=65 bankA.surfaceY=65 bankB.surfaceY=65 approachA.surfaceY=67 approachB.surfaceY=68 len=13
+[       OK ] RoadFieldSeamTest.BridgeCrossingIsAgentWalkable (2528 ms)
+[ RUN      ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains
+[32m[14:27:30.771] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:30.830] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 58 ms (hash 18197215997962677593)[0m
+[32m[14:27:30.830] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains (93 ms)
+[----------] 11 tests from RoadFieldSeamTest (8104 ms total)
+
+[----------] 10 tests from SettlementBuildServiceTest
+[ RUN      ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan
+[32m[14:27:30.864] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.864] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.865] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)[0m
+[32m[14:27:30.865] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.865] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.865] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[14:27:30.866] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.866] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.866] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (8 streets)[0m
+[32m[14:27:30.866] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.867] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.867] [INFO] [Settlement] build_settlement: 12 plots, 12 buildings queued (3 streets)[0m
+[       OK ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan (3 ms)
+[ RUN      ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans
+[32m[14:27:30.867] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.867] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)[0m
+[       OK ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans (0 ms)
+[ RUN      ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist
+[32m[14:27:30.868] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.868] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.868] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist (0 ms)
+[ RUN      ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped
+[32m[14:27:30.868] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.869] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.869] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped (0 ms)
+[ RUN      ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty
+[32m[14:27:30.869] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.869] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.869] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty (0 ms)
+[ RUN      ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted
+[32m[14:27:30.870] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.870] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted (0 ms)
+[ RUN      ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused
+[32m[14:27:30.870] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.870] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused (0 ms)
+[ RUN      ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused
+[32m[14:27:30.871] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.871] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused (0 ms)
+[ RUN      ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed
+[32m[14:27:30.871] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.871] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.872] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[14:27:30.872] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.872] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.872] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[14:27:30.872] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.873] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.873] [INFO] [Settlement] build_settlement: 11 plots, 11 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed (2 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav
+[32m[14:27:30.873] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.874] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.874] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav (0 ms)
+[----------] 10 tests from SettlementBuildServiceTest (10 ms total)
+
+[----------] 16 tests from SettlementLayoutTest
+[ RUN      ] SettlementLayoutTest.AdjacentPlotsSeparatedByStreet
+[       OK ] SettlementLayoutTest.AdjacentPlotsSeparatedByStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.EveryPlotMeetsMinSize
+[       OK ] SettlementLayoutTest.EveryPlotMeetsMinSize (0 ms)
+[ RUN      ] SettlementLayoutTest.PlotsFitTheFootprint
+[       OK ] SettlementLayoutTest.PlotsFitTheFootprint (0 ms)
+[ RUN      ] SettlementLayoutTest.StreetsCoverTheGapsAndDontOverlapPlots
+[       OK ] SettlementLayoutTest.StreetsCoverTheGapsAndDontOverlapPlots (0 ms)
+[ RUN      ] SettlementLayoutTest.TooDenseReturnsEmpty
+[       OK ] SettlementLayoutTest.TooDenseReturnsEmpty (0 ms)
+[ RUN      ] SettlementLayoutTest.BuildingInsetFromPlotByYard
+[       OK ] SettlementLayoutTest.BuildingInsetFromPlotByYard (0 ms)
+[ RUN      ] SettlementLayoutTest.BuildingsFitDontOverlapAndCarryTypology
+[       OK ] SettlementLayoutTest.BuildingsFitDontOverlapAndCarryTypology (0 ms)
+[ RUN      ] SettlementLayoutTest.TinyPlotSkipped
+[       OK ] SettlementLayoutTest.TinyPlotSkipped (0 ms)
+[ RUN      ] SettlementLayoutTest.TerrainPlotsLandOnlyOnBuildable
+[       OK ] SettlementLayoutTest.TerrainPlotsLandOnlyOnBuildable (0 ms)
+[ RUN      ] SettlementLayoutTest.SteepMountainYieldsNoPlots
+[       OK ] SettlementLayoutTest.SteepMountainYieldsNoPlots (0 ms)
+[ RUN      ] SettlementLayoutTest.TerrainPlotsDontOverlapAndAreSpaced
+[       OK ] SettlementLayoutTest.TerrainPlotsDontOverlapAndAreSpaced (0 ms)
+[ RUN      ] SettlementLayoutTest.ScaleSixBySixAllInvariantsHold
+[       OK ] SettlementLayoutTest.ScaleSixBySixAllInvariantsHold (0 ms)
+[ RUN      ] SettlementLayoutTest.ZeroSetbackFlushButClearOfStreet
+[       OK ] SettlementLayoutTest.ZeroSetbackFlushButClearOfStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.ComposedWorldFootprintsDontOverlap
+[       OK ] SettlementLayoutTest.ComposedWorldFootprintsDontOverlap (0 ms)
+[ RUN      ] SettlementLayoutTest.EveryGridPlotFrontsAStreet
+[       OK ] SettlementLayoutTest.EveryGridPlotFrontsAStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.PlotsFrontTheSharedStreetFacingEachOther
+[       OK ] SettlementLayoutTest.PlotsFrontTheSharedStreetFacingEachOther (0 ms)
+[----------] 16 tests from SettlementLayoutTest (0 ms total)
+
+[----------] 4 tests from SettlementPathsTest
+[ RUN      ] SettlementPathsTest.NetworkConnectsBuildingsAcrossTerraces
+[       OK ] SettlementPathsTest.NetworkConnectsBuildingsAcrossTerraces (16 ms)
+[ RUN      ] SettlementPathsTest.EveryEdgeRouteWithinStepUp
+[       OK ] SettlementPathsTest.EveryEdgeRouteWithinStepUp (0 ms)
+[ RUN      ] SettlementPathsTest.SteepEdgeReportedNotDropped
+[       OK ] SettlementPathsTest.SteepEdgeReportedNotDropped (0 ms)
+[ RUN      ] SettlementPathsTest.DegenerateInputsYieldEmptyNetwork
+[       OK ] SettlementPathsTest.DegenerateInputsYieldEmptyNetwork (0 ms)
+[----------] 4 tests from SettlementPathsTest (16 ms total)
+
+[----------] 6 tests from SettlementProgramTest
+[ RUN      ] SettlementProgramTest.ShippedFileLoadsAllMedievalTiers
+[32m[14:27:30.891] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementProgramTest.ShippedFileLoadsAllMedievalTiers (0 ms)
+[ RUN      ] SettlementProgramTest.UnknownEraOrTierRejected
+[32m[14:27:30.891] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementProgramTest.UnknownEraOrTierRejected (0 ms)
+[ RUN      ] SettlementProgramTest.EveryTierTypologyExistsInRoomProgram
+[32m[14:27:30.892] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.892] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementProgramTest.EveryTierTypologyExistsInRoomProgram (0 ms)
+[ RUN      ] SettlementProgramTest.EveryTierIsSourced
+[32m[14:27:30.892] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementProgramTest.EveryTierIsSourced (0 ms)
+[ RUN      ] SettlementProgramTest.MalformedJsonRejected
+[       OK ] SettlementProgramTest.MalformedJsonRejected (0 ms)
+[ RUN      ] SettlementProgramTest.DensityScalesThePreset
+[32m[14:27:30.893] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementProgramTest.DensityScalesThePreset (0 ms)
+[----------] 6 tests from SettlementProgramTest (1 ms total)
+
+[----------] 7 tests from SettlementTerrainPlanTest
+[ RUN      ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused
+[       OK ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused (1 ms)
+[ RUN      ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured
+[32m[14:27:30.896] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.896] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.896] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)[0m
+[       OK ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured (1 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement
+[32m[14:27:30.898] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.899] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.900] [INFO] [Settlement] main_street terrain: axis X offset 11, 4 plots (0 dropped unbuildable)[0m
+[32m[14:27:30.900] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)[0m
+[       OK ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement (4 ms)
+[ RUN      ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt
+[32m[14:27:30.903] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.903] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.904] [INFO] [Settlement] main_street terrain: axis X offset 11, 0 plots (4 dropped unbuildable)[0m
+[       OK ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt (4 ms)
+[ RUN      ] SettlementTerrainPlanTest.PartlyBuildableTerrainSurfacesTheDroppedPlotCount
+[32m[14:27:30.907] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.907] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.908] [INFO] [Settlement] main_street terrain: axis Z offset 12, 1 plots (1 dropped unbuildable)[0m
+[32m[14:27:30.908] [INFO] [Settlement] build_settlement: 1 plots, 1 buildings queued (1 streets)[0m
+[       OK ] SettlementTerrainPlanTest.PartlyBuildableTerrainSurfacesTheDroppedPlotCount (4 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed
+[32m[14:27:30.911] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.911] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.912] [INFO] [Settlement] main_street terrain: axis Z offset 21, 2 plots (0 dropped unbuildable)[0m
+[32m[14:27:30.912] [INFO] [Settlement] build_settlement: 2 plots, 2 buildings queued (1 streets)[0m
+[32m[14:27:30.914] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.915] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.916] [INFO] [Settlement] main_street terrain: axis Z offset 21, 2 plots (0 dropped unbuildable)[0m
+[32m[14:27:30.916] [INFO] [Settlement] build_settlement: 2 plots, 2 buildings queued (1 streets)[0m
+[32m[14:27:30.918] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.919] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.920] [INFO] [Settlement] main_street terrain: axis Z offset 21, 3 plots (0 dropped unbuildable)[0m
+[32m[14:27:30.920] [INFO] [Settlement] build_settlement: 3 plots, 3 buildings queued (1 streets)[0m
+[       OK ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed (11 ms)
+[ RUN      ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned
+[32m[14:27:30.922] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:30.923] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:30.923] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)[0m
+[       OK ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned (2 ms)
+[----------] 7 tests from SettlementTerrainPlanTest (30 ms total)
+
+[----------] 3 tests from SettlementTraversalTest
+[ RUN      ] SettlementTraversalTest.StreetReachesEveryBuildingInterior
+[       OK ] SettlementTraversalTest.StreetReachesEveryBuildingInterior (290 ms)
+[ RUN      ] SettlementTraversalTest.RealizerStaysWithinPlotFootprint
+[       OK ] SettlementTraversalTest.RealizerStaysWithinPlotFootprint (94 ms)
+[ RUN      ] SettlementTraversalTest.SealedBuildingIsUnreachable
+[       OK ] SettlementTraversalTest.SealedBuildingIsUnreachable (295 ms)
+[----------] 3 tests from SettlementTraversalTest (680 ms total)
+
+[----------] 6 tests from SettlementWalkabilityTest
+[ RUN      ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage
+[32m[14:27:31.604] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:31.604] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:31.605] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage (461 ms)
+[ RUN      ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed
+[32m[14:27:32.066] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:32.066] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:32.066] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed (587 ms)
+[ RUN      ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding
+[32m[14:27:32.653] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:32.654] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:32.654] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[14:27:33.084] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:33.085] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:33.085] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding (1157 ms)
+[ RUN      ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze
+[       OK ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze (0 ms)
+[ RUN      ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn
+[32m[14:27:33.812] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:33.813] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:33.813] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn (823 ms)
+[ RUN      ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell
+[32m[14:27:34.636] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:27:34.636] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:34.636] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[       OK ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell (684 ms)
+[----------] 6 tests from SettlementWalkabilityTest (3716 ms total)
+
+[----------] 7 tests from StreetPaverTest
+[ RUN      ] StreetPaverTest.PlanCoversEveryStreetColumnIncludingCuts
+[       OK ] StreetPaverTest.PlanCoversEveryStreetColumnIncludingCuts (1 ms)
+[ RUN      ] StreetPaverTest.AdjacentPavedColumnsStayWithinStepUp
+[       OK ] StreetPaverTest.AdjacentPavedColumnsStayWithinStepUp (1 ms)
+[ RUN      ] StreetPaverTest.BuildingInteriorIsNeverPaved
+[       OK ] StreetPaverTest.BuildingInteriorIsNeverPaved (0 ms)
+[ RUN      ] StreetPaverTest.DoorSpurReachesTheStreetAtItsSurface
+[       OK ] StreetPaverTest.DoorSpurReachesTheStreetAtItsSurface (1 ms)
+[ RUN      ] StreetPaverTest.ProbeWalksThePavedStreetEndToEnd
+[       OK ] StreetPaverTest.ProbeWalksThePavedStreetEndToEnd (24 ms)
+[ RUN      ] StreetPaverTest.DoorOnTheStreetEdgeCountsAsConnected
+[       OK ] StreetPaverTest.DoorOnTheStreetEdgeCountsAsConnected (0 ms)
+[ RUN      ] StreetPaverTest.EmptyStreetsReturnNotOk
+[       OK ] StreetPaverTest.EmptyStreetsReturnNotOk (0 ms)
+[----------] 7 tests from StreetPaverTest (30 ms total)
+
+[----------] 5 tests from StructureBuildServiceTest
+[ RUN      ] StructureBuildServiceTest.AliasHouseSmallFootprintIsCroft
+[       OK ] StructureBuildServiceTest.AliasHouseSmallFootprintIsCroft (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasHouseLargeFootprintIsHallHouse
+[       OK ] StructureBuildServiceTest.AliasHouseLargeFootprintIsHallHouse (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasTavernKeepsTypologyAndStoriesCount
+[       OK ] StructureBuildServiceTest.AliasTavernKeepsTypologyAndStoriesCount (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasRespectsExplicitTypologyAndStyle
+[       OK ] StructureBuildServiceTest.AliasRespectsExplicitTypologyAndStyle (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasUnknownTypeIsNull
+[       OK ] StructureBuildServiceTest.AliasUnknownTypeIsNull (0 ms)
+[----------] 5 tests from StructureBuildServiceTest (0 ms total)
+
+[----------] 1 test from StructureGroundingTest
+[ RUN      ] StructureGroundingTest.RefusesAirBuildsByDefault
+[32m[14:27:35.351] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:35.351] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[14:27:35.351] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[14:27:35.352] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[14:27:35.352] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[14:27:35.361] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)[0m
+[33m[14:27:35.363] [WARN] [StructureBuild] REFUSING ungrounded build at (500,500): 48/48 footprint columns have no terrain (allow_ungrounded overrides)[0m
+[32m[14:27:35.365] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:27:35.365] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[14:27:35.365] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[14:27:35.366] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[14:27:35.366] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[14:27:35.374] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)[0m
+[33m[14:27:35.375] [WARN] [StructureBuild] REFUSING ungrounded build at (106,200): 12/48 footprint columns have no terrain (allow_ungrounded overrides)[0m
+[       OK ] StructureGroundingTest.RefusesAirBuildsByDefault (26 ms)
+[----------] 1 test from StructureGroundingTest (26 ms total)
+
+[----------] 3 tests from TerrainReliefTest
+[ RUN      ] TerrainReliefTest.MeasureAndValidateDrama
+[32m[14:27:35.377] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:35.613] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[14:27:35.613] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[32m[14:27:35.614] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:35.850] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[14:27:35.850] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[14:27:35.851] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[relief] fine window Y[140,304] mSteep=0.310 pSteep=0.000 | continental Y[-15,458] peakRelief=442
+[       OK ] TerrainReliefTest.MeasureAndValidateDrama (4708 ms)
+[ RUN      ] TerrainReliefTest.MountainsSlopeGraduallyNotSheerColumns
+[32m[14:27:40.086] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:40.322] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2836 bodies[0m
+[32m[14:27:40.322] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5797 maxOrder=5 drainageComplete=1[0m
+[slope] worst single step over 97240 mountain columns = 3 at (-213,-118)
+[       OK ] TerrainReliefTest.MountainsSlopeGraduallyNotSheerColumns (1501 ms)
+[ RUN      ] TerrainReliefTest.DeterministicAcrossInstances
+[32m[14:27:41.588] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:41.824] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[14:27:41.824] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[32m[14:27:41.824] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] TerrainReliefTest.DeterministicAcrossInstances (239 ms)
+[----------] 3 tests from TerrainReliefTest (6449 ms total)
+
+[----------] 12 tests from TerrainRiverTest
+[ RUN      ] TerrainRiverTest.HigherOrderRiversExist
+[32m[14:27:41.827] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=7 region=256x256 maxAccum=7834 maxOrder=6
+[32m[14:27:41.828] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=99 region=256x256 maxAccum=5797 maxOrder=5
+[32m[14:27:41.828] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=4242 region=256x256 maxAccum=4932 maxOrder=5
+[32m[14:27:41.829] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:42.073] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[14:27:42.073] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[river] seed=1234 region=256x256 maxAccum=4932 maxOrder=5
+[32m[14:27:42.073] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:42.310] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2721 bodies[0m
+[32m[14:27:42.310] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5631 maxOrder=6 drainageComplete=1[0m
+[river] seed=2026 region=256x256 maxAccum=5631 maxOrder=6
+[       OK ] TerrainRiverTest.HigherOrderRiversExist (482 ms)
+[ RUN      ] TerrainRiverTest.CarvingIsNonVacuous
+[32m[14:27:42.310] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=7 anchor box: 8 river cells, 2819 carved channel columns
+[       OK ] TerrainRiverTest.CarvingIsNonVacuous (74 ms)
+[ RUN      ] TerrainRiverTest.RiversMeander
+[32m[14:27:42.385] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] river-cell centres still on the carved channel = 0.50 (4/8) — low ⇒ meandered
+[       OK ] TerrainRiverTest.RiversMeander (0 ms)
+[ RUN      ] TerrainRiverTest.RiversAreSinuous
+[32m[14:27:42.386] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] channel sinuosity (arc/straight) = 1.197 over 921 centreline points
+[       OK ] TerrainRiverTest.RiversAreSinuous (1011 ms)
+[ RUN      ] TerrainRiverTest.BedsSitInValleysNotOnRidges
+[32m[14:27:43.398] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] beds in a cross-channel trough: 2339/2819 (0.83)
+[       OK ] TerrainRiverTest.BedsSitInValleysNotOnRidges (138 ms)
+[ RUN      ] TerrainRiverTest.DrainageIsAcyclicFlowsToSinks
+[32m[14:27:43.537] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:43.537] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:43.538] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] TerrainRiverTest.DrainageIsAcyclicFlowsToSinks (1 ms)
+[ RUN      ] TerrainRiverTest.DeterministicCarve
+[32m[14:27:43.538] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:43.617] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:43.854] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[14:27:43.854] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[river] deterministic over 2819 carved columns
+[       OK ] TerrainRiverTest.DeterministicCarve (342 ms)
+[ RUN      ] TerrainRiverTest.HydroBakeCacheKeyDiscriminates
+[32m[14:27:43.880] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:43.881] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:43.881] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:44.123] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2876 bodies[0m
+[32m[14:27:44.123] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5108 maxOrder=5 drainageComplete=1[0m
+[32m[14:27:44.123] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:44.361] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 874 bodies[0m
+[32m[14:27:44.361] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2263 maxOrder=5 drainageComplete=1[0m
+[       OK ] TerrainRiverTest.HydroBakeCacheKeyDiscriminates (481 ms)
+[ RUN      ] TerrainRiverTest.PrintRiverCellsSeed7
+[32m[14:27:44.361] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed7 has 2739 order>=3 cells; nearest-to-origin + highest-order:
+[river]   near #0 (832,64) order=4 accum=812
+[river]   near #1 (832,-64) order=4 accum=797
+[river]   near #2 (832,-192) order=4 accum=782
+[river]   near #3 (832,192) order=4 accum=826
+[river]   near #4 (832,-320) order=4 accum=767
+[river]   near #5 (832,320) order=4 accum=847
+[river]   TRUNK (-5184,-5696) order=6 accum=4716
+[       OK ] TerrainRiverTest.PrintRiverCellsSeed7 (0 ms)
+[ RUN      ] TerrainRiverTest.CreeksSitInASwale
+[32m[14:27:44.362] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[creek] swale: mean(bank - creek) = 1.503 voxels over 291 columns
+[       OK ] TerrainRiverTest.CreeksSitInASwale (27 ms)
+[ RUN      ] TerrainRiverTest.RuntimeChannelQueryFollowsTheMeanderedCarve
+[32m[14:27:44.389] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] carved columns: 2819; warped-query hits 100.0%, raw-query hits 33.4%
+[       OK ] TerrainRiverTest.RuntimeChannelQueryFollowsTheMeanderedCarve (73 ms)
+[ RUN      ] TerrainRiverTest.CreekBedIsARecessedSubcubeShelf
+[32m[14:27:44.463] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] TerrainRiverTest.CreekBedIsARecessedSubcubeShelf (1338 ms)
+[----------] 12 tests from TerrainRiverTest (3974 ms total)
+
+[----------] 8 tests from WorldForgeBuildFlowTest
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite
+[32m[14:27:45.804] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 1 ms (hash 17580432909071824106)[0m
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite (2 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis
+[32m[14:27:45.806] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 1 ms (hash 17580432909071824106)[0m
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis (1 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RealizationOrderTownFirst
+[32m[14:27:45.808] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 1 ms (hash 17580432909071824106)[0m
+[       OK ] WorldForgeBuildFlowTest.RealizationOrderTownFirst (2 ms)
+[ RUN      ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger
+[32m[14:27:45.810] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 2 ms (hash 17580432909071824106)[0m
+[32m[14:27:45.810] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[32m[14:27:45.810] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[14:27:45.810] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[14:27:45.811] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[14:27:45.811] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)[0m
+[       OK ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger (2 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues
+[32m[14:27:45.813] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 1 ms (hash 17580432909071824106)[0m
+[32m[14:27:45.813] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[33m[14:27:45.813] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: terrain too steep - no buildable plot[0m
+[33m[14:27:45.813] [WARN] [WorldForge] [WORLDFORGE] site 1 (village) REFUSED: terrain too steep - no buildable plot[0m
+[33m[14:27:45.813] [WARN] [WorldForge] [WORLDFORGE] site 2 (village) REFUSED: terrain too steep - no buildable plot[0m
+[32m[14:27:45.813] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (7 units)[0m
+[       OK ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues (2 ms)
+[ RUN      ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite
+[32m[14:27:45.815] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 1 ms (hash 17580432909071824106)[0m
+[32m[14:27:45.815] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[33m[14:27:45.815] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: residency_timeout[0m
+[33m[14:27:45.815] [WARN] [WorldForge] [WORLDFORGE] site 1 (village) REFUSED: residency_timeout[0m
+[33m[14:27:45.815] [WARN] [WorldForge] [WORLDFORGE] site 2 (village) REFUSED: residency_timeout[0m
+[32m[14:27:45.815] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (16 units)[0m
+[       OK ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite (2 ms)
+[ RUN      ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun
+[32m[14:27:45.817] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 1 ms (hash 17580432909071824106)[0m
+[32m[14:27:45.817] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[32m[14:27:45.817] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[14:27:45.817] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[14:27:45.817] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[14:27:45.817] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)[0m
+[32m[14:27:45.817] [INFO] [MainThreadJobs] job 1000001 started: worldforge: 0 sites[0m
+[32m[14:27:45.817] [INFO] [MainThreadJobs] job 1000001 complete: worldforge: 0 sites (1 units)[0m
+[       OK ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun (2 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun
+[32m[14:27:45.819] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 1 ms (hash 17580432909071824106)[0m
+[32m[14:27:45.819] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 1 sites[0m
+[32m[14:27:45.819] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[14:27:45.819] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 1 sites (5 units)[0m
+[       OK ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun (1 ms)
+[----------] 8 tests from WorldForgeBuildFlowTest (17 ms total)
+
+[----------] 2 tests from WorldForgeLedgerTest
+[ RUN      ] WorldForgeLedgerTest.RoundTrip
+[       OK ] WorldForgeLedgerTest.RoundTrip (0 ms)
+[ RUN      ] WorldForgeLedgerTest.StaleDetection
+[       OK ] WorldForgeLedgerTest.StaleDetection (0 ms)
+[----------] 2 tests from WorldForgeLedgerTest (0 ms total)
+
+[----------] 1 test from WorldForgeLiveApplyTest
+[ RUN      ] WorldForgeLiveApplyTest.BareApplyIsStaleAndRestreamFixesIt
+[32m[14:27:45.820] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\worldforge_live_apply_test.db[0m
+[32m[14:27:45.826] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[14:27:45.826] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\worldforge_live_apply_test.db[0m
+[32m[14:27:45.826] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:46.069] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[14:27:46.069] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[14:27:46.069] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)[0m
+[32m[14:27:46.069] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:46.080] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 10 ms (hash 390629209938214499)[0m
+[32m[14:27:46.080] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[14:27:46.080] [INFO] [ChunkStreaming] Async chunk-generation (3 worker(s)) + disposal workers started[0m
+[32m[14:27:46.082] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,18)[0m
+[32m[14:27:46.082] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,18)[0m
+[32m[14:27:46.082] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,18)[0m
+[32m[14:27:46.082] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,18)[0m
+[32m[14:27:46.084] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,17)[0m
+[32m[14:27:46.084] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,17)[0m
+[32m[14:27:47.339] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,17)[0m
+[32m[14:27:47.339] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,17)[0m
+[32m[14:27:47.344] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,1,18)[0m
+[32m[14:27:47.344] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,1,18)[0m
+[32m[14:27:47.397] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,1,17)[0m
+[32m[14:27:47.397] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,1,17)[0m
+[32m[14:27:47.426] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,1,17)[0m
+[32m[14:27:47.426] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,1,17)[0m
+[32m[14:27:47.426] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,1,18)[0m
+[32m[14:27:47.426] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,1,18)[0m
+[32m[14:27:47.426] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,16)[0m
+[32m[14:27:47.426] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,16)[0m
+[32m[14:27:47.428] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,-1,17)[0m
+[32m[14:27:47.428] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,-1,17)[0m
+[32m[14:27:47.428] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,16)[0m
+[32m[14:27:47.428] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,16)[0m
+[32m[14:27:47.456] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 9 ms (hash 390629209938214499)[0m
+[32m[14:27:47.456] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[14:27:47.480] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,-1,17)[0m
+[32m[14:27:47.480] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,-1,17)[0m
+[32m[14:27:47.480] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,-1,18)[0m
+[32m[14:27:47.480] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,-1,18)[0m
+[32m[14:27:47.481] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,1,16)[0m
+[32m[14:27:47.481] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,1,16)[0m
+[32m[14:27:47.562] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (3,0,17)[0m
+[32m[14:27:47.562] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (3,0,17)[0m
+[32m[14:27:47.572] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,-1,18)[0m
+[32m[14:27:47.572] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,-1,18)[0m
+[32m[14:27:47.573] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,1,16)[0m
+[32m[14:27:47.573] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,1,16)[0m
+[32m[14:27:47.580] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,-1,16)[0m
+[32m[14:27:47.580] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,-1,16)[0m
+[32m[14:27:47.581] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,19)[0m
+[32m[14:27:47.581] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,19)[0m
+[32m[14:27:47.589] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (3,0,18)[0m
+[32m[14:27:47.589] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (3,0,18)[0m
+[32m[14:27:47.640] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (0,0,17)[0m
+[32m[14:27:47.640] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (0,0,17)[0m
+[32m[14:27:47.665] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,-1,16)[0m
+[32m[14:27:47.665] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,-1,16)[0m
+[32m[14:27:47.665] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (3,1,17)[0m
+[32m[14:27:47.665] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (3,1,17)[0m
+[32m[14:27:47.668] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (3,0,16)[0m
+[32m[14:27:47.668] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (3,0,16)[0m
+[32m[14:27:47.674] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,19)[0m
+[32m[14:27:47.674] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,19)[0m
+[32m[14:27:47.745] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,15)[0m
+[32m[14:27:47.745] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,15)[0m
+[32m[14:27:47.841] [INFO] [ChunkStreaming] Evicted ALL 22 resident chunks (live re-stream, 0 dirty discarded); deletion deferred to the next pump[0m
+[32m[14:27:47.841] [INFO] [ChunkStreaming] Async chunk-generation (3 worker(s)) + disposal workers started[0m
+[32m[14:27:47.843] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,18)[0m
+[32m[14:27:47.843] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,18)[0m
+[32m[14:27:47.843] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,18)[0m
+[32m[14:27:47.843] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,18)[0m
+[32m[14:27:47.844] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,17)[0m
+[32m[14:27:47.844] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,17)[0m
+[32m[14:27:49.091] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,17)[0m
+[32m[14:27:49.091] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,17)[0m
+[32m[14:27:49.101] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,1,18)[0m
+[32m[14:27:49.101] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,1,18)[0m
+[32m[14:27:49.101] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,1,17)[0m
+[32m[14:27:49.101] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,1,17)[0m
+[32m[14:27:49.126] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,1,17)[0m
+[32m[14:27:49.126] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,1,17)[0m
+[32m[14:27:49.218] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[       OK ] WorldForgeLiveApplyTest.BareApplyIsStaleAndRestreamFixesIt (3399 ms)
+[----------] 1 test from WorldForgeLiveApplyTest (3399 ms total)
+
+[----------] 19 tests from WorldForgePlanTest
+[ RUN      ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable
+[       OK ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable (1 ms)
+[ RUN      ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount
+[32m[14:27:49.237] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount (16 ms)
+[ RUN      ] WorldForgePlanTest.TierMixIsOneTownTwoVillages
+[32m[14:27:49.253] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.TierMixIsOneTownTwoVillages (16 ms)
+[ RUN      ] WorldForgePlanTest.SitesNotInWater
+[32m[14:27:49.269] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.SitesNotInWater (16 ms)
+[ RUN      ] WorldForgePlanTest.SitesRespectMinSpacing
+[32m[14:27:49.286] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.SitesRespectMinSpacing (16 ms)
+[ RUN      ] WorldForgePlanTest.SitesWithinRegion
+[32m[14:27:49.304] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 16 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.SitesWithinRegion (18 ms)
+[ RUN      ] WorldForgePlanTest.SiteCountClamped
+[32m[14:27:49.324] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 15 roads, 2 bridges, 681 segments in 17 ms (hash 9087854481993593608)[0m
+[       OK ] WorldForgePlanTest.SiteCountClamped (19 ms)
+[ RUN      ] WorldForgePlanTest.RoadsConnectAllSites
+[32m[14:27:49.340] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.RoadsConnectAllSites (16 ms)
+[ RUN      ] WorldForgePlanTest.RoadsAvoidStandingWater
+[32m[14:27:49.357] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.RoadsAvoidStandingWater (16 ms)
+[ RUN      ] WorldForgePlanTest.RoadCenterlinesContinuous
+[32m[14:27:49.373] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.RoadCenterlinesContinuous (16 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsMarkedWhereOrder3
+[32m[14:27:49.388] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 1 bridges, 52 segments in 13 ms (hash 10696269276559264202)[0m
+[       OK ] WorldForgePlanTest.CrossingsMarkedWhereOrder3 (14 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsGetBridgeSpans
+[32m[14:27:49.403] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 1 bridges, 52 segments in 13 ms (hash 10696269276559264202)[0m
+[       OK ] WorldForgePlanTest.CrossingsGetBridgeSpans (14 ms)
+[ RUN      ] WorldForgePlanTest.SitePinsSeatedVerbatim
+[32m[14:27:49.419] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 3 roads, 1 bridges, 132 segments in 13 ms (hash 16487454871437280339)[0m
+[       OK ] WorldForgePlanTest.SitePinsSeatedVerbatim (15 ms)
+[ RUN      ] WorldForgePlanTest.RoadsReachTheFootprintEdge
+[32m[14:27:49.435] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.RoadsReachTheFootprintEdge (16 ms)
+[ RUN      ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar
+[32m[14:27:49.452] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 15 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar (16 ms)
+[ RUN      ] WorldForgePlanTest.RoadQueryPerf
+[32m[14:27:49.469] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.RoadQueryPerf (20 ms)
+[ RUN      ] WorldForgePlanTest.PlanDeterminism
+[32m[14:27:49.490] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[32m[14:27:49.505] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[       OK ] WorldForgePlanTest.PlanDeterminism (33 ms)
+[ RUN      ] WorldForgePlanTest.SiteSeedDerivation
+[32m[14:27:49.522] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 14 ms (hash 14223618455714071673)[0m
+[32m[14:27:49.538] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 16 ms (hash 14223618455714071673)[0m
+[32m[14:27:49.554] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 15 ms (hash 18206298669951534089)[0m
+[       OK ] WorldForgePlanTest.SiteSeedDerivation (48 ms)
+[ RUN      ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly
+[       OK ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly (0 ms)
+[----------] 19 tests from WorldForgePlanTest (335 ms total)
+
+[----------] 5 tests from WorldForgeRecipeTest
+[ RUN      ] WorldForgeRecipeTest.RecipeSeedAuthority
+[32m[14:27:49.554] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:49.789] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 963 bodies[0m
+[32m[14:27:49.789] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2771 maxOrder=4 drainageComplete=1[0m
+[32m[14:27:50.027] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1014 bodies[0m
+[32m[14:27:50.027] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1247 maxOrder=4 drainageComplete=1[0m
+[32m[14:27:50.027] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] WorldForgeRecipeTest.RecipeSeedAuthority (472 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeSeedZeroKeepsConstructorSeed
+[32m[14:27:50.027] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:50.027] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] WorldForgeRecipeTest.RecipeSeedZeroKeepsConstructorSeed (0 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeWorldForgeRoundTrip
+[       OK ] WorldForgeRecipeTest.RecipeWorldForgeRoundTrip (0 ms)
+[ RUN      ] WorldForgeRecipeTest.LegacyRecipeDisabledAndKeyless
+[       OK ] WorldForgeRecipeTest.LegacyRecipeDisabledAndKeyless (0 ms)
+[ RUN      ] WorldForgeRecipeTest.GeneratorBakesPlanOnlyWhenEnabled
+[32m[14:27:50.029] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:50.271] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[14:27:50.271] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+[32m[14:27:50.272] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:50.294] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 56 segments in 22 ms (hash 7247371439836729452)[0m
+[32m[14:27:50.294] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[14:27:50.294] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:50.317] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 56 segments in 22 ms (hash 7247371439836729452)[0m
+[32m[14:27:50.317] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] WorldForgeRecipeTest.GeneratorBakesPlanOnlyWhenEnabled (289 ms)
+[----------] 5 tests from WorldForgeRecipeTest (762 ms total)
+
+[----------] 5 tests from WorldForgeStressTest
+[ RUN      ] WorldForgeStressTest.EightSitesOverFullRegion
+[32m[14:27:50.317] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:50.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[14:27:50.556] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[14:27:50.612] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 55 ms (hash 9693137997320541182)[0m
+[32m[14:27:50.612] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] WorldForgeStressTest.EightSitesOverFullRegion (295 ms)
+[ RUN      ] WorldForgeStressTest.MountainWorldDegradesHonestly
+[32m[14:27:50.613] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:50.854] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[14:27:50.854] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[32m[14:27:50.914] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 59 ms (hash 18197215997962677593)[0m
+[32m[14:27:50.914] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] WorldForgeStressTest.MountainWorldDegradesHonestly (301 ms)
+[ RUN      ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators
+[32m[14:27:50.914] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:50.969] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 53 ms (hash 9693137997320541182)[0m
+[32m[14:27:50.969] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[14:27:50.969] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:51.027] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 57 ms (hash 9693137997320541182)[0m
+[32m[14:27:51.027] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[       OK ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators (116 ms)
+[ RUN      ] WorldForgeStressTest.RoadStepProfileMostlyWalkable
+[32m[14:27:51.031] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:51.041] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 9 ms (hash 390629209938214499)[0m
+[32m[14:27:51.041] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[WORLDFORGE] canonical road steep-step fraction: 0.000694444 (1/1440)
+[       OK ] WorldForgeStressTest.RoadStepProfileMostlyWalkable (17 ms)
+[ RUN      ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains
+[32m[14:27:51.048] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:27:51.110] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 61 ms (hash 18197215997962677593)[0m
+[32m[14:27:51.110] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[WORLDFORGE] mountain road steep-step fraction: 0.00461172 (31/6722)
+[       OK ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains (94 ms)
+[----------] 5 tests from WorldForgeStressTest (825 ms total)
+
+[----------] Global test environment tear-down
+[==========] 176 tests from 24 test suites ran. (28388 ms total)
+[  PASSED  ] 176 tests.
