@@ -1033,3 +1033,147 @@ TEST(VoxelLightOccupancy, ReadsDoNotBumpTheRevision) {
     EXPECT_EQ(g.revision(), before)
         << "a read changed revision(); the mirror would repack every frame";
 }
+
+// 2026-09-25 (docs/PerfProgram2026-09.md section 16.9): a streaming world lost the GPU device ~30 s
+// after every launch. The CPU rewrote the ONE shared occupancy directory/pool while another in-flight
+// frame read it; a torn read handed phxOccupancySolid a garbage mixed-cube count, and its binary
+// search ((lo + hi) >> 1 over a count near 2^32) never converged. The upload now goes to one copy per
+// frame in flight, and the search is hardened. These pin the hardening (CPU mirror of the shader):
+// corrupt data must cost a wrong answer, never a hang or a read past the pool.
+TEST(VoxelLightOccupancy, CorruptMixedCountIsAnsweredNotSolidNeverReadPastThePool) {
+    VoxelOccupancyGrid g;
+    g.setChunkOrigin({0, 0, 0});
+    addMicrocube(g, {3, 3, 3}, {0, 0, 0}, {0, 0, 0});        // cube (3,3,3) is MIXED
+    const glm::ivec3 micro{3 * 9, 3 * 9, 3 * 9};                // its first micro cell: solid
+    auto packed = packOccupancyPool({{glm::ivec3(0), buildLightOccupancy(g)}},
+                                    PackedOccupancyPool::boxMinChunkFor(glm::vec3(16.0f)));
+    ASSERT_TRUE(packedPoolSolidAt(packed, micro));             // control: valid data reads solid
+
+    const int slot = PackedOccupancyPool::directoryIndexForMicro(micro, packed.boxMinChunk);
+    ASSERT_GE(slot, 0);
+    const uint32_t base = packed.directory[static_cast<size_t>(slot)];
+    for (uint32_t garbage : {0xFFFFFFFFu, 0x80000000u, 40000u}) {
+        auto torn = packed;
+        torn.pool[base] = garbage;                              // the torn-read count
+        EXPECT_FALSE(packedPoolSolidAt(torn, micro)) << "count " << garbage;   // terminates, in bounds
+    }
+}
+
+TEST(VoxelLightOccupancy, EveryPackIsOwedToEveryFrameSlot) {
+    // No initialize(): flushIfDirty packs on the CPU only and writes no GPU memory (that is
+    // uploadToSlot's job, after the slot's fence), so the bookkeeping is testable without a device.
+    Phyxel::Graphics::VoxelLightOccupancyGpu occ;
+    using Occ = Phyxel::Graphics::VoxelLightOccupancyGpu;
+    VoxelOccupancyGrid g;
+    addSolidCube(g, {1, 1, 1});
+    occ.setViewCentre(glm::vec3(16.0f));
+    EXPECT_EQ(occ.packRevision(), 0u);
+    for (uint32_t s = 0; s < Occ::kSlots; ++s) EXPECT_FALSE(occ.slotNeedsUpload(s));
+
+    ASSERT_TRUE(occ.setChunk({0, 0, 0}, buildLightOccupancy(g)));
+    occ.flushIfDirty();
+    EXPECT_EQ(occ.packRevision(), 1u);
+    for (uint32_t s = 0; s < Occ::kSlots; ++s) EXPECT_TRUE(occ.slotNeedsUpload(s)) << "slot " << s;
+
+    occ.flushIfDirty();                                         // clean: no new pack
+    EXPECT_EQ(occ.packRevision(), 1u);
+    occ.removeChunk({0, 0, 0});
+    occ.flushIfDirty();                                         // two packs before a slot's turn coalesce
+    EXPECT_EQ(occ.packRevision(), 2u);
+    EXPECT_FALSE(occ.slotNeedsUpload(Occ::kSlots));             // out-of-range slot: never "needed"
+}
+
+// ---------------------------------------------------------------------------------------------
+// DebrisInteractionPlan 1c: the THREE-STATE query. "Not solid" is the right answer for light
+// (no occlusion) and the wrong one for debris (it falls through the world). Debris needs to tell
+// "known empty" from "nothing is known here": outside the box, a chunk that is not resident, or a
+// pool that was never packed. Known cells must agree with packedPoolSolidAt exactly.
+// ---------------------------------------------------------------------------------------------
+TEST(VoxelLightOccupancy, OccupancyStateIsSolidOrEmptyWhereKnownAndUnknownElsewhere) {
+    using Phyxel::Graphics::OccupancyState;
+    using Phyxel::Graphics::packedPoolOccupancyState;
+
+    const glm::ivec3 originA{0, 0, 0};
+    const glm::ivec3 originB{-32, 0, 64};   // negative origin: floor division must hold
+    VoxelOccupancyGrid a, b;
+    a.setChunkOrigin(originA);
+    b.setChunkOrigin(originB);
+    addSolidCube(a, {1, 2, 3});
+    addMicrocube(a, {5, 5, 5}, {0, 0, 0}, {0, 0, 0});   // a mixed cube: one micro solid, rest empty
+    addSubcube(b, {0, 0, 0}, {2, 2, 2});
+    const auto packed = packOccupancyPool({{originA, buildLightOccupancy(a)},
+                                           {originB, buildLightOccupancy(b)}}, kOriginBox);
+
+    // Every micro cell of the loaded cubes we touched, plus empty cubes beside them: KNOWN, and
+    // exactly the solid/empty answer packedPoolSolidAt gives.
+    auto checkKnown = [&](const glm::ivec3& origin, const glm::ivec3& lp) {
+        for (int mx = 0; mx < 9; ++mx)
+        for (int my = 0; my < 9; ++my)
+        for (int mz = 0; mz < 9; ++mz) {
+            const glm::ivec3 wm{(origin.x + lp.x) * 9 + mx, (origin.y + lp.y) * 9 + my,
+                                (origin.z + lp.z) * 9 + mz};
+            const OccupancyState s = packedPoolOccupancyState(packed, wm);
+            ASSERT_NE(s, OccupancyState::Unknown) << "loaded chunk read as unknown";
+            EXPECT_EQ(s == OccupancyState::Solid, packedPoolSolidAt(packed, wm));
+        }
+    };
+    checkKnown(originA, {1, 2, 3});    // solid cube
+    checkKnown(originA, {5, 5, 5});    // mixed cube
+    checkKnown(originA, {9, 9, 9});    // empty cube in a loaded chunk = known EMPTY
+    checkKnown(originB, {0, 0, 0});    // negative-origin chunk
+    EXPECT_EQ(packedPoolOccupancyState(packed, {9 * 9, 9 * 9, 9 * 9}), OccupancyState::Empty);
+
+    // UNKNOWN: an in-box chunk that was never uploaded, every direction outside the box, and a pool
+    // that was never packed.
+    EXPECT_EQ(packedPoolOccupancyState(packed, {100 * 9, 0, 100 * 9}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {-99999, 0, 0}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {99999, 0, 0}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {0, -99999, 0}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {0, 99999, 0}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {0, 0, 99999}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(Phyxel::Graphics::PackedOccupancyPool{}, {0, 0, 0}),
+              OccupancyState::Unknown);
+}
+
+// ---------------------------------------------------------------------------------------------
+// DebrisInteractionPlan 1c step 2: EDITS are repacked before first-time residency. The repack
+// budget (24 chunks/frame) used to walk chunks in hash-map order, so under streaming load a chunk
+// that was just blasted could wait frames behind newly streamed chunks, and GPU debris spawned
+// into cells the pool still called solid would be shoved out of them.
+// ---------------------------------------------------------------------------------------------
+TEST(VoxelLightOccupancy, RepackOrderTakesEditsBeforeFirstTimeResidency) {
+    using Phyxel::Graphics::RepackCandidate;
+    using Phyxel::Graphics::chooseRepackOrder;
+
+    // 30 streamed-in chunks listed FIRST (the worst case for the old order), then 3 edits.
+    std::vector<RepackCandidate> changed;
+    for (int i = 0; i < 30; ++i) changed.push_back({glm::ivec3(32 * i, 0, 0), false});
+    for (int i = 0; i < 3; ++i)  changed.push_back({glm::ivec3(0, 0, 32 * (i + 1)), true});
+
+    const auto plan = chooseRepackOrder(changed, 24);
+    ASSERT_EQ(plan.order.size(), 24u);
+    EXPECT_EQ(plan.order[0], 30u);
+    EXPECT_EQ(plan.order[1], 31u);
+    EXPECT_EQ(plan.order[2], 32u) << "all three edits go first";
+    for (size_t k = 3; k < plan.order.size(); ++k)
+        EXPECT_EQ(plan.order[k], k - 3) << "then first-time residency, in the order given";
+    EXPECT_EQ(plan.editBacklog, 0u);
+    EXPECT_EQ(plan.residencyBacklog, 9u);
+
+    // More edits than budget: edits still win, and the backlog says how many wait.
+    const auto tight = chooseRepackOrder(changed, 2);
+    ASSERT_EQ(tight.order.size(), 2u);
+    EXPECT_EQ(tight.order[0], 30u);
+    EXPECT_EQ(tight.order[1], 31u);
+    EXPECT_EQ(tight.editBacklog, 1u);
+    EXPECT_EQ(tight.residencyBacklog, 30u);
+
+    // Degenerate budgets pack nothing and report everything as backlog.
+    for (int b : {0, -5}) {
+        const auto none = chooseRepackOrder(changed, b);
+        EXPECT_TRUE(none.order.empty());
+        EXPECT_EQ(none.editBacklog, 3u);
+        EXPECT_EQ(none.residencyBacklog, 30u);
+    }
+    EXPECT_TRUE(chooseRepackOrder({}, 24).order.empty());
+}

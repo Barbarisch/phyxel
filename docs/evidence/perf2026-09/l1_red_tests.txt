@@ -1,0 +1,33 @@
+[ RUN      ] EmitterMergeTest.CoincidentMicrosInOneCellBecomeOneLight
+G:\Github\phyxel\tests\graphics\EmitterMergeTest.cpp(83): error: Expected equality of these values:
+    Which is: 8
+    Which is: 1
+8 glow micros in one cube cell must register ONE light, not 8
+[  FAILED  ] EmitterMergeTest.CoincidentMicrosInOneCellBecomeOneLight (4 ms)
+[ RUN      ] EmitterMergeTest.MergedLightShadesAsTheSumOfItsMembers
+G:\Github\phyxel\tests\graphics\EmitterMergeTest.cpp(106): error: Expected equality of these values:
+    Which is: 8
+    Which is: 1
+[  FAILED  ] EmitterMergeTest.MergedLightShadesAsTheSumOfItsMembers (4 ms)
+[ RUN      ] EmitterMergeTest.DifferentRadiiInOneCellStaySeparate
+G:\Github\phyxel\tests\graphics\EmitterMergeTest.cpp(121): error: Expected equality of these values:
+    Which is: 4
+    Which is: 2
+[  FAILED  ] EmitterMergeTest.DifferentRadiiInOneCellStaySeparate (2 ms)
+[ RUN      ] EmitterMergeTest.OrderIndependent
+G:\Github\phyxel\tests\graphics\EmitterMergeTest.cpp(140): error: Expected equality of these values:
+    Which is: 13
+    Which is: 6
+[  FAILED  ] EmitterMergeTest.OrderIndependent (3 ms)
+[ RUN      ] EmitterMergeTest.ChunkSplitInvariant
+G:\Github\phyxel\tests\graphics\EmitterMergeTest.cpp(158): error: Expected equality of these values:
+    Which is: 5
+    Which is: 1
+[  FAILED  ] EmitterMergeTest.ChunkSplitInvariant (3 ms)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 5 tests, listed below:
+[  FAILED  ] EmitterMergeTest.CoincidentMicrosInOneCellBecomeOneLight
+[  FAILED  ] EmitterMergeTest.MergedLightShadesAsTheSumOfItsMembers
+[  FAILED  ] EmitterMergeTest.DifferentRadiiInOneCellStaySeparate
+[  FAILED  ] EmitterMergeTest.OrderIndependent
+[  FAILED  ] EmitterMergeTest.ChunkSplitInvariant

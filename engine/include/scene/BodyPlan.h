@@ -16,11 +16,13 @@ namespace Scene {
 /// runtime consumes plan data instead of hardcoded mixamorig:* / humanoid
 /// clip names.
 ///
-/// NEUTRALITY CONTRACT: the humanoid plan must reproduce the legacy hardcodes
-/// EXACTLY — same bone-name strings, same segment order, and an EMPTY
-/// clipDefaults map (humanoid clip selection stays on the legacy FSM switch,
-/// which owns sprint variants and multi-candidate fallbacks). Pinned by
-/// CharacterGoldenPoseTest + BodyPlanTest.
+/// CONTRACT (A3 item 2, 2026-09-30 — supersedes the A2-era NEUTRALITY rule): the humanoid
+/// plan reproduces the legacy hardcodes EXACTLY — same bone-name strings, same segment
+/// order — and now CARRIES the humanoid clip table (clipDefaults + clipSprint +
+/// clipFallbacks, transcribed from the pre-refactor FSM switch). The legacy switch in
+/// AnimatedVoxelCharacter::clipForState is only the guard for a plan that resolves
+/// nothing; ClipSelectionTest pins that it is never reached on the humanoid. Pinned by
+/// CharacterGoldenPoseTest (poses) + BodyPlanTest + ClipSelectionTest (names).
 struct BodyPlan {
     std::string id;                       // "humanoid", "quadruped_wolf", ...
     MorphologyType morphology = MorphologyType::Humanoid;
@@ -28,6 +30,7 @@ struct BodyPlan {
     std::string rootBone;                 // exact name; also the sit/IK hip bone
     std::vector<std::string> hipAliases;  // lowercase substring fallbacks
     std::string gripBone;                 // default held-item attachment bone
+    std::string headBone;                 // A4: eye/seated-height measurements ("" = none)
 
     struct LegChain {
         std::string id;                   // "left", "front_left", ...
@@ -44,7 +47,38 @@ struct BodyPlan {
 
     /// FSM state key ("Walk", "SittingIdle", ...) -> exact clip name. Layered
     /// BELOW per-character animationMapping and ABOVE the legacy defaults.
+    /// JSON value is a string or {"clip": "run", "sprint": "fast_run"}.
     std::map<std::string, std::string> clipDefaults;
+    /// Sprint / fast-gait variant per state (from the {clip, sprint} object form). The RULE
+    /// for when "fast" applies (sprint key, or |strafe| > 0.6 on the strafe states) stays in
+    /// clipForState; only the NAMES live here.
+    std::map<std::string, std::string> clipSprint;
+    /// Fallback clip for the member-driven states (Block/Dodge/HitReact/Death/Celebrate/Cast)
+    /// when the member is empty. The member itself is runtime state, never plan data.
+    std::map<std::string, std::string> clipFallbacks;
+
+    /// A3 modifiers: the trunk bones a posture lean is distributed across, root side first
+    /// (exact names). Undeclared → the plan's non-arm, non-leg trunk segments minus the root.
+    std::vector<std::string> spineChain;
+
+    /// A3 composition masks: name -> subtree ROOT bone names ("upper", "arms", "head", "legs").
+    /// Optional; an undeclared mask derives from roles (legs = leg upper subtrees, arms = topmost
+    /// isArm segments' subtrees, upper = everything but the skeleton root and the legs).
+    std::map<std::string, std::vector<std::string>> masks;
+
+    /// A3 transition graph: per-edge crossfade seconds and foot-phase sync. `from`/`to` are
+    /// FSM state keys; "*" is a wildcard source. An exact edge beats a wildcard; an undeclared
+    /// edge uses defaultBlend (seconds, 0 = hard cut; negative is spelled 0 — a negative blend
+    /// would divide by zero in the blend advance).
+    struct TransitionEdge {
+        std::string from = "*", to;
+        float blend = -1.0f;              // seconds; < 0 = use defaultBlend
+        bool  phaseSync = false;          // enter `to` at the same gait phase (stanceL markers)
+    };
+    std::vector<TransitionEdge> transitions;
+    float defaultBlend = 0.2f;
+    /// nullptr when no edge (exact or wildcard) matches.
+    const TransitionEdge* findTransition(const std::string& from, const std::string& to) const;
 
     struct Capsule {
         enum class Mode { Legacy, XZExtent };

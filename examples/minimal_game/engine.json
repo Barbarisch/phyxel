@@ -1,0 +1,11 @@
+{
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "title": "Phyxel Minimal Game"
+  },
+  "rendering": {
+    "max_chunk_render_distance": 96.0,
+    "chunk_inclusion_distance": 128.0
+  }
+}

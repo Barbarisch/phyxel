@@ -3915,8 +3915,79 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="animation_record",
+            description="Arm the MotionOracle ring buffer on an animated entity: the next N frames of its full skeleton (local rotations, world joint positions, capsule + root velocity, segment boxes) are captured on the main thread. Follow with animation_validate. (A1, docs/AnimationSystemV3Plan.md)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID (e.g. 'npc_Guard', 'player')"},
+                    "frames": {"type": "integer", "description": "Minimum frames to capture (default 120, cap 1800)"},
+                    "seconds": {"type": "number", "description": "Minimum window length in frame time (default 2.0). A frame count is not a duration: at 270 fps 120 frames is 0.44 s, shorter than one stride, and world_skate reads SHORT_WINDOW. Recording stops when both minimums are met."}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="animation_validate",
+            description="Evaluate the frames captured by animation_record with the MotionOracle: stance-feet body speed vs the clip's Speed (skate), stance residual, foot penetration/float vs the real ground, knee inversion, chain-length drift, pose pops, segment-box overlap. Returns metrics + thresholds + per-metric verdicts + frames sampled.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "authored_speed": {"type": "number", "description": "Override the Speed line the estimate is compared with (default: current clip's Speed)"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
             name="get_animation_state",
             description="Get the current animation state of an entity: FSM state, current clip, progress, duration, and blend duration.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="set_animation_factors",
+            description="A3 composition factors for an animated entity: grip (empty|1h|1h_shield|2h_light|2h_heavy|bow|staff|torch), load (none|light|heavy|bulky), condition (fresh|tired|limp|encumbered), mood (neutral|alert|hostile|sneak). Omitted = unchanged. Matching role=layer clips compose over the base pose on their mask; the response echoes the factors and the active layers.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "grip": {"type": "string"}, "load": {"type": "string"},
+                    "condition": {"type": "string"}, "mood": {"type": "string"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="set_foot_ik",
+            description="A5 grounding (terrain foot IK) knobs for an animated entity. enabled toggles the solve; max_corr_u (<= step height), probe_half_width_u (0.02-0.15), body_range_u (<= 0.4 x leg) in world units. Omitted = unchanged; the response echoes the knobs in force and the per-frame grounding readback (corrections, pelvis shift, locks, probe_ok, ankle pitch).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "enabled": {"type": "boolean"},
+                    "max_corr_u": {"type": "number"}, "probe_half_width_u": {"type": "number"}, "body_range_u": {"type": "number"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="get_animation_grounding",
+            description="A5 grounding readback for an animated entity: blend, per-foot corrections and pelvis shift (world units), foot locks, probe_ok per foot, ankle pitch (deg), and the knobs in force.",
+            inputSchema={
+                "type": "object",
+                "properties": {"id": {"type": "string", "description": "Entity ID"}},
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="get_animation_transitions",
+            description="A3 transition graph readback for an animated entity: the body plan's edges (from, to, blend seconds, phase_sync), the default blend, the character's blend override, and the crossfade in flight (from_state, clip, blend_seconds).",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -6061,8 +6132,33 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "animation": args["animation"]
         })
 
+    elif name == "animation_record":
+        return await api_post("/api/animation/record", {
+            "id": args["id"],
+            "frames": args.get("frames", 120),
+            "seconds": args.get("seconds", 2.0)
+        })
+
+    elif name == "animation_validate":
+        body = {"id": args["id"]}
+        if "authored_speed" in args:
+            body["authored_speed"] = args["authored_speed"]
+        return await api_post("/api/animation/validate", body)
+
     elif name == "get_animation_state":
         return await api_get("/api/animation/state", {"id": args["id"]})
+
+    elif name == "get_animation_transitions":
+        return await api_get("/api/animation/transitions", {"id": args["id"]})
+
+    elif name == "set_foot_ik":
+        return await api_post("/api/debug/foot_ik", {k: v for k, v in args.items() if k in ("id", "enabled", "max_corr_u", "probe_half_width_u", "body_range_u")})
+
+    elif name == "get_animation_grounding":
+        return await api_get(f"/api/animation/grounding?id={args['id']}")
+
+    elif name == "set_animation_factors":
+        return await api_post("/api/animation/factors", {k: v for k, v in args.items() if k in ("id", "grip", "load", "condition", "mood")})
 
     elif name == "set_animation_state":
         return await api_post("/api/animation/state", {

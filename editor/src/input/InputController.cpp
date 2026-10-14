@@ -136,6 +136,11 @@ void InputController::setupKeyboardBindings() {
         m_app->derezCharacter();
     });
 
+    // G - Gather settled rubble (GPU debris) around the player into the inventory (6b)
+    m_inputManager->registerAction(GLFW_KEY_G, "Gather Rubble", [this]() {
+        m_app->gatherRubble();
+    });
+
     // ` (Grave Accent) - Toggle Scripting Console
     m_inputManager->registerAction(GLFW_KEY_GRAVE_ACCENT, "Toggle Scripting Console", [this]() {
         m_app->toggleScriptingConsole();
@@ -144,13 +149,6 @@ void InputController::setupKeyboardBindings() {
     // F2 - Save world (placeholder)
     m_inputManager->registerAction(GLFW_KEY_F2, "Save World", []() {
         LOG_INFO("InputController", "World save functionality not yet implemented in refactored code");
-    });
-    
-    // F3 - Toggle force debug visualization
-    m_inputManager->registerAction(GLFW_KEY_F3, "Toggle Force Debug", [this]() {
-        m_debugFlags.showForceSystemDebug = !m_debugFlags.showForceSystemDebug;
-        LOG_INFO("InputController", std::string("Force debug visualization: ") + 
-                 (m_debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED"));
     });
     
     // F4 - Toggle debug rendering mode
@@ -259,13 +257,6 @@ void InputController::setupKeyboardBindings() {
             ds->selectChoice(3);
     });
     
-    // G - Spawn dynamic subcube (placeholder)
-    m_inputManager->registerAction(GLFW_KEY_G, "Spawn Dynamic Subcube", [this]() {
-        glm::vec3 spawnPos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
-        LOG_INFO_FMT("InputController", "Dynamic spawn at " << spawnPos.x 
-                     << ", " << spawnPos.y << ", " << spawnPos.z << " not yet implemented");
-    });
-
     // - - Decrease Ambient Light
     m_inputManager->registerAction(GLFW_KEY_MINUS, "Decrease Ambient Light", [this]() {
         m_app->adjustAmbientLight(-0.1f);
@@ -318,13 +309,6 @@ void InputController::setupKeyboardBindings() {
                 m_interactionSystem->breakHoveredCube(m_inputManager->getCameraPosition());
             }
         }
-    });
-
-    // O - Toggle breaking forces
-    m_inputManager->registerAction(GLFW_KEY_O, "Toggle Breaking Forces", [this]() {
-        m_debugFlags.disableBreakingForces = !m_debugFlags.disableBreakingForces;
-        LOG_INFO("InputController", std::string("Breaking forces: ") + 
-                 (m_debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED"));
     });
 
     // [ - Decrease Spawn Speed

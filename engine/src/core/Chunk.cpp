@@ -110,18 +110,6 @@ void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     physicsManager.initialize(nullptr, worldOrigin); // physicsWorld set separately via setPhysicsWorld
     physicsManager.setVoxelStore(&voxelManager.getVoxelStore());   // 4.2b: occupancy reads the store
     
-    // Initialize voxelBreaker with callbacks
-    voxelBreaker.setCallbacks(
-        [this]() -> std::vector<std::unique_ptr<Subcube>>& { return staticSubcubes; },
-        [this](const glm::ivec3& parent, const glm::ivec3& sub) { return removeSubcube(parent, sub); },
-        [this]() { rebuildFaces(); },
-        [this]() { batchUpdateCollisions(); },
-        [this](const glm::ivec3& p, const glm::ivec3& s) { return getMicrocubesAt(p, s); },
-        [this](const glm::ivec3& p) { return getSubcubesAt(p); },
-        [this](bool v) { renderManager.setNeedsUpdate(v); },
-        [this]() -> const glm::ivec3& { return worldOrigin; }
-    );
-
     // Initialize voxelManager with callbacks (stored once, not per-call)
     wireVoxelManagerCallbacks();
 }
@@ -220,6 +208,10 @@ void Chunk::clearAll() {
 void Chunk::fillAllCubes(const std::string& material) {
     unsealForEdit();
     voxelManager.fillAllVoxels(material);
+    // The grid must follow the store (1c step 5, OccupancyCoverageTest): this wrote only the store,
+    // so outside bulk mode (/api generate_world's deep chunks) a solid chunk was air to collision,
+    // lighting and debris. In bulk mode the owed rebuild covers it.
+    if (!physicsManager.isInBulkOperation()) physicsManager.getOccupancyGrid().fillSolid();
 }
 
 // ── Phase 4.4 seal state ──
@@ -877,11 +869,6 @@ bool Chunk::isValidLocalPosition(const glm::ivec3& localPos) const {
 // =============================================================================
 // PHYSICS-RELATED METHODS
 // =============================================================================
-
-bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, 
-                        Physics::PhysicsWorld* physicsWorld, ChunkManager* chunkManager, const glm::vec3& impulseForce) {
-    return voxelBreaker.breakSubcube(parentPos, subcubePos, physicsWorld, chunkManager, impulseForce);
-}
 
 // =============================================================================
 // Physics Management - Delegated to ChunkPhysicsManager

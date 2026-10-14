@@ -175,7 +175,7 @@ struct Town {
     NPCManager npcs;
     Graphics::DayNightCycle cycle;
     KinematicVoxelManager kin;
-    ObjectTemplateManager templates{nullptr, nullptr};
+    ObjectTemplateManager templates{nullptr};
     ItemEffectSystem effects;
     std::map<int, glm::vec3> lights;
     int nextLight = 1;

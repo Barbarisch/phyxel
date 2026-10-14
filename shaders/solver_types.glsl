@@ -59,33 +59,34 @@ struct WarmstartEntry {
     vec3  rB;         float pad1;          // 48 .. 63
 };
 
+#include "solver_shared.h"   // MAX_COLORS, HASH_*, WAKE_WORDS, SS_*, SOLVER_FLAG_*, SOLVER_ALPHA (1b)
+
+// One CPU-uploaded mover box (Phase 2); layout shared with C++ via PHX_KINEMATIC_BOX.
+struct KinematicBox { PHX_KINEMATIC_BOX };
+
+
 const uint SOLVER_STATIC    = 0xFFFFFFFFu;
 const uint UNCOLORED        = 0xFFFFFFFFu;
-const uint MAX_COLORS       = 12u;
 const uint HASH_EMPTY       = 0xFFFFFFFFu;
 const uint FEATURE_KEY_NONE = 0xFFFFFFFFu;
 const uint MAX_PROBE        = 128u;
+// A mover body (Phase 2): never solved or coloured, read only as constraint body B.
+bool isKinematicBody(uint idx) { return idx >= KINEMATIC_BASE && idx != SOLVER_STATIC; }
 
 // Solver state buffer layout:
 //   [0]              SS_CONSTRAINT_COUNT
 //   [1..3]           (counters: WARMSTART_HITS, WARMSTART_LOADED, WARMSTART_NAN)
 //   [HASH_BASE..]    open-addressed hash table of wsKey (size = HASH_CAP, pow2)
-const uint SS_CONSTRAINT_COUNT  = 0u;
-const uint SS_WARMSTART_HITS    = 1u;
-const uint SS_WARMSTART_LOADED  = 2u;
-const uint SS_WARMSTART_NAN     = 3u;
-const uint HASH_BASE            = 8u;
-const uint HASH_CAP             = 131072u;  // 60000 * 2 rounded up to pow2
+// SS_* slots, HASH_BASE and HASH_CAP are in solver_shared.h (the settle probe reads the
+// header back on the CPU).
 const uint HASH_MASK            = HASH_CAP - 1u;
 
 // ---- Sleep system (docs/PhysicsRestOverhaul.md Phase 2) ----
 // Wake bits: one bit per body, appended to the solver state buffer AFTER the warmstart
 // hash. Set by narrowphase (fast awake body touches a sleeper) and integrate (character
 // shove); consumed + cleared by sync_in on the NEXT tick. Deliberately outside the
-// per-frame counter fill so bits survive tick boundaries. Must match the C++
-// WAKE_WORDS / SOLVER_STATE_UINTS in GpuParticlePhysics.h.
+// per-frame counter fill so bits survive tick boundaries. WAKE_WORDS: solver_shared.h.
 const uint WAKE_BITS_BASE       = HASH_BASE + HASH_CAP;
-const uint WAKE_WORDS           = 320u;      // covers 10240 bodies (MAX_PARTICLES = 10000)
 const uint SOLVER_STATE_SIZE    = WAKE_BITS_BASE + WAKE_WORDS;
 
 // A body freezes after SLEEP_TICKS consecutive slow ticks (past the spawn grace):
@@ -107,15 +108,31 @@ const uint  SLEEP_CTR_SHIFT   = 8u;     // particle flags bits [15:8] = sleep co
 const uint  SLEEP_CTR_MASK    = 0x0000FF00u;
 
 // AVBD constants (match Shallot)
-const float ALPHA            = 0.99;     // Shallot canonical. (1-ALPHA) is the fraction of penetration driven per iter; lower values inject too much energy → popcorn.
+const float ALPHA            = SOLVER_ALPHA;  // 0.99, solver_shared.h. Shallot canonical. (1-ALPHA) is the fraction of penetration driven per iter; lower values inject too much energy → popcorn.
 const float BETA             = 100000.0;
 const float PENALTY_MIN      = 1.0;       // Shallot default; warm-start drives to M/dt² in 1-2 frames
 const float PENALTY_MAX      = 1e10;
+const float KINEMATIC_COLD_PENALTY_SCALE = 100.0;   // cold mover contacts start this much stiffer (Phase 2)
 const float STICK_THRESH     = 1e-5;
-const float COLLISION_MARGIN = 0.005;
+const float COLLISION_MARGIN = 0.02;     // speculative band: contacts persist this far apart (rest is FLUSH, C = 0 at touching)
 const float GAMMA            = 0.999;
 
-#define WORKGROUP_SOLVER 256
+// Runtime switches for the debris-settling fixes (docs/DebrisSettlingPlan.md §5), passed in
+// push constants so each fix can be A/B'd with tools/debris_settle_bench.py without a rebuild.
+// GpuParticlePhysics::m_solverFlags holds the shipped default. SOLVER_FLAG_*: solver_shared.h.
+const float COLD_PENALTY_DT2_INV    = 3600.0;  // 1/dt² at the fixed 60 Hz tick
+
+#define WORKGROUP_SOLVER PHX_WORKGROUP   // solver_shared.h
+
+// Constraint value C_n = -C0 + J·Δq, with Δq measured from the tick-start state (`initial`).
+// C_init_n is the penetration AT TICK START (contacts are detected at the predicted iterate,
+// then converted back with + J·Δq_pred — see contactPenAtTickStart). Error correction
+// (alpha, AVBD Eq. 18) applies to PENETRATION only: a speculative contact's gap counts in
+// full. (Scaling the gap by 1-alpha = 0.01 made a contact 2 cm away act as touching — bodies
+// stopped short and hovered at the margin.)
+float stabilizedC0(float C_init_n, float alpha) {
+    return (C_init_n > 0.0) ? (1.0 - alpha) * C_init_n : C_init_n;
+}
 
 // ---- Quaternion helpers ----
 vec3 quatRotate(vec4 q, vec3 v) {

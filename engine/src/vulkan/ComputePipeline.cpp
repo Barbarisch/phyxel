@@ -1,6 +1,7 @@
 #include "vulkan/ComputePipeline.h"
 #include "utils/Logger.h"
 #include <fstream>
+#include <algorithm>
 #include <stdexcept>
 
 namespace Phyxel {
@@ -19,11 +20,12 @@ std::vector<char> ComputePipeline::loadSpv(const std::string& path) {
 }
 
 bool ComputePipeline::create(VkDevice device, const std::string& spvPath,
-                              uint32_t bindingCount, uint32_t pushConstSize) {
+                              uint32_t bindingCount, uint32_t pushConstSize, uint32_t setCount) {
     m_device        = device;
     m_bindingCount  = bindingCount;
     m_pushConstSize = pushConstSize;
-    m_bindings.resize(bindingCount);
+    setCount        = std::max(setCount, 1u);
+    m_bindings.assign(setCount, std::vector<BufferBinding>(bindingCount));
 
     // --- Descriptor set layout: one STORAGE_BUFFER binding per slot ---
     std::vector<VkDescriptorSetLayoutBinding> layoutBindings(bindingCount);
@@ -48,11 +50,11 @@ bool ComputePipeline::create(VkDevice device, const std::string& spvPath,
     // --- Descriptor pool ---
     VkDescriptorPoolSize poolSize{};
     poolSize.type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSize.descriptorCount = std::max(bindingCount, 1u); // must be > 0
+    poolSize.descriptorCount = std::max(bindingCount, 1u) * setCount; // must be > 0
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.maxSets       = 1;
+    poolInfo.maxSets       = setCount;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes    = &poolSize;
 
@@ -61,15 +63,17 @@ bool ComputePipeline::create(VkDevice device, const std::string& spvPath,
         return false;
     }
 
-    // --- Allocate descriptor set ---
+    // --- Allocate descriptor sets (one per frame slot) ---
+    std::vector<VkDescriptorSetLayout> layouts(setCount, m_dsLayout);
+    m_sets.assign(setCount, VK_NULL_HANDLE);
     VkDescriptorSetAllocateInfo dsAllocInfo{};
     dsAllocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     dsAllocInfo.descriptorPool     = m_dsPool;
-    dsAllocInfo.descriptorSetCount = 1;
-    dsAllocInfo.pSetLayouts        = &m_dsLayout;
+    dsAllocInfo.descriptorSetCount = setCount;
+    dsAllocInfo.pSetLayouts        = layouts.data();
 
-    if (vkAllocateDescriptorSets(device, &dsAllocInfo, &m_ds) != VK_SUCCESS) {
-        LOG_ERROR("ComputePipeline", "Failed to allocate descriptor set");
+    if (vkAllocateDescriptorSets(device, &dsAllocInfo, m_sets.data()) != VK_SUCCESS) {
+        LOG_ERROR("ComputePipeline", "Failed to allocate descriptor sets");
         return false;
     }
 
@@ -146,9 +150,9 @@ void ComputePipeline::cleanup() {
         m_pipelineLayout = VK_NULL_HANDLE;
     }
     if (m_dsPool != VK_NULL_HANDLE) {
-        vkDestroyDescriptorPool(m_device, m_dsPool, nullptr); // also frees m_ds
+        vkDestroyDescriptorPool(m_device, m_dsPool, nullptr); // also frees the sets
         m_dsPool = VK_NULL_HANDLE;
-        m_ds     = VK_NULL_HANDLE;
+        m_sets.clear();
     }
     if (m_dsLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(m_device, m_dsLayout, nullptr);
@@ -158,28 +162,38 @@ void ComputePipeline::cleanup() {
 }
 
 void ComputePipeline::bindBuffer(uint32_t binding, VkBuffer buffer, VkDeviceSize size, VkDeviceSize offset) {
-    if (binding < m_bindings.size()) {
-        m_bindings[binding] = { binding, buffer, size, offset };
+    for (uint32_t set = 0; set < m_bindings.size(); ++set) bindBufferInSet(set, binding, buffer, size, offset);
+}
+
+void ComputePipeline::bindBufferInSet(uint32_t set, uint32_t binding, VkBuffer buffer, VkDeviceSize size,
+                                      VkDeviceSize offset) {
+    if (set < m_bindings.size() && binding < m_bindings[set].size()) {
+        m_bindings[set][binding] = { binding, buffer, size, offset };
     }
 }
 
 void ComputePipeline::updateDescriptors() {
-    std::vector<VkDescriptorBufferInfo> bufInfos(m_bindingCount);
-    std::vector<VkWriteDescriptorSet>   writes(m_bindingCount);
+    const size_t total = m_sets.size() * m_bindingCount;
+    std::vector<VkDescriptorBufferInfo> bufInfos(total);
+    std::vector<VkWriteDescriptorSet>   writes(total);
 
-    for (uint32_t i = 0; i < m_bindingCount; ++i) {
-        bufInfos[i].buffer = m_bindings[i].buffer;
-        bufInfos[i].offset = m_bindings[i].offset;
-        bufInfos[i].range  = m_bindings[i].size > 0 ? m_bindings[i].size : VK_WHOLE_SIZE;
+    for (uint32_t set = 0; set < m_sets.size(); ++set) {
+        for (uint32_t i = 0; i < m_bindingCount; ++i) {
+            const size_t w = set * m_bindingCount + i;
+            const BufferBinding& b = m_bindings[set][i];
+            bufInfos[w].buffer = b.buffer;
+            bufInfos[w].offset = b.offset;
+            bufInfos[w].range  = b.size > 0 ? b.size : VK_WHOLE_SIZE;
 
-        writes[i].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes[i].pNext           = nullptr;
-        writes[i].dstSet          = m_ds;
-        writes[i].dstBinding      = i;
-        writes[i].dstArrayElement = 0;
-        writes[i].descriptorCount = 1;
-        writes[i].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        writes[i].pBufferInfo     = &bufInfos[i];
+            writes[w].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[w].pNext           = nullptr;
+            writes[w].dstSet          = m_sets[set];
+            writes[w].dstBinding      = i;
+            writes[w].dstArrayElement = 0;
+            writes[w].descriptorCount = 1;
+            writes[w].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            writes[w].pBufferInfo     = &bufInfos[w];
+        }
     }
 
     if (!writes.empty()) {
@@ -187,10 +201,11 @@ void ComputePipeline::updateDescriptors() {
     }
 }
 
-void ComputePipeline::bind(VkCommandBuffer cmd) const {
+void ComputePipeline::bind(VkCommandBuffer cmd, uint32_t set) const {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
+    const VkDescriptorSet ds = m_sets[set < m_sets.size() ? set : 0];
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            m_pipelineLayout, 0, 1, &m_ds, 0, nullptr);
+                            m_pipelineLayout, 0, 1, &ds, 0, nullptr);
 }
 
 void ComputePipeline::pushConstants(VkCommandBuffer cmd, const void* data, uint32_t size) const {

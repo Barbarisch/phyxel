@@ -56,30 +56,37 @@ bool VoxelLightOccupancyGpu::initialize(VkDevice device, VkPhysicalDevice physic
     m_device = device;
     m_poolBytes = poolBytes;
 
-    if (!createHostBuffer(physicalDevice, directoryBytes(), m_dirBuffer, m_dirMemory,
-                          m_dirMapped, "directory")) return false;
-    if (!createHostBuffer(physicalDevice, poolBytes, m_poolBuffer, m_poolMemory,
-                          m_poolMapped, "pool")) return false;
+    for (uint32_t s = 0; s < kSlots; ++s) {
+        if (!createHostBuffer(physicalDevice, directoryBytes(), m_dirBuffer[s], m_dirMemory[s],
+                              m_dirMapped[s], "directory")) return false;
+        if (!createHostBuffer(physicalDevice, poolBytes, m_poolBuffer[s], m_poolMemory[s],
+                              m_poolMapped[s], "pool")) return false;
 
-    // An empty directory must read as "no chunk", not as offset 0 — otherwise every unmapped
-    // chunk would sample whatever blob happens to sit at the start of the pool.
-    auto* dir = static_cast<uint32_t*>(m_dirMapped);
-    for (int i = 0; i < PackedOccupancyPool::kDirEntries; ++i)
-        dir[i] = PackedOccupancyPool::kNoChunk;
+        // An empty directory must read as "no chunk", not as offset 0 — otherwise every unmapped
+        // chunk would sample whatever blob happens to sit at the start of the pool.
+        auto* dir = static_cast<uint32_t*>(m_dirMapped[s]);
+        for (int i = 0; i < PackedOccupancyPool::kDirEntries; ++i)
+            dir[i] = PackedOccupancyPool::kNoChunk;
+        m_slotRevision[s] = m_packRevision;   // both hold "nothing", which is pack revision 0
+    }
 
     m_stats.poolCapacityWords = static_cast<size_t>(poolBytes / sizeof(uint32_t));
     LOG_INFO_FMT("VoxelLightOcc", "ready: directory " << (directoryBytes() / 1024) << " KB, pool "
-                 << (poolBytes / (1024 * 1024)) << " MB");
+                 << (poolBytes / (1024 * 1024)) << " MB, x" << kSlots << " (one per frame in flight)");
     return true;
 }
 
 void VoxelLightOccupancyGpu::cleanup() {
-    if (m_dirMapped)  { vkUnmapMemory(m_device, m_dirMemory);  m_dirMapped  = nullptr; }
-    if (m_poolMapped) { vkUnmapMemory(m_device, m_poolMemory); m_poolMapped = nullptr; }
-    if (m_dirBuffer)  { vkDestroyBuffer(m_device, m_dirBuffer, nullptr);  m_dirBuffer  = VK_NULL_HANDLE; }
-    if (m_poolBuffer) { vkDestroyBuffer(m_device, m_poolBuffer, nullptr); m_poolBuffer = VK_NULL_HANDLE; }
-    if (m_dirMemory)  { vkFreeMemory(m_device, m_dirMemory, nullptr);  m_dirMemory  = VK_NULL_HANDLE; }
-    if (m_poolMemory) { vkFreeMemory(m_device, m_poolMemory, nullptr); m_poolMemory = VK_NULL_HANDLE; }
+    for (uint32_t s = 0; s < kSlots; ++s) {
+        if (m_dirMapped[s])  { vkUnmapMemory(m_device, m_dirMemory[s]);  m_dirMapped[s]  = nullptr; }
+        if (m_poolMapped[s]) { vkUnmapMemory(m_device, m_poolMemory[s]); m_poolMapped[s] = nullptr; }
+        if (m_dirBuffer[s])  { vkDestroyBuffer(m_device, m_dirBuffer[s], nullptr);  m_dirBuffer[s]  = VK_NULL_HANDLE; }
+        if (m_poolBuffer[s]) { vkDestroyBuffer(m_device, m_poolBuffer[s], nullptr); m_poolBuffer[s] = VK_NULL_HANDLE; }
+        if (m_dirMemory[s])  { vkFreeMemory(m_device, m_dirMemory[s], nullptr);  m_dirMemory[s]  = VK_NULL_HANDLE; }
+        if (m_poolMemory[s]) { vkFreeMemory(m_device, m_poolMemory[s], nullptr); m_poolMemory[s] = VK_NULL_HANDLE; }
+        m_slotRevision[s] = 0;
+    }
+    m_packRevision = 0;
     m_chunks.clear();
     m_packed = {};
     m_dirty = false;
@@ -136,7 +143,7 @@ void VoxelLightOccupancyGpu::clear() {
 }
 
 void VoxelLightOccupancyGpu::flushIfDirty() {
-    if (!m_dirty || !m_poolMapped) return;
+    if (!m_dirty) return;
     const auto t0 = std::chrono::steady_clock::now();
 
     std::vector<std::pair<glm::ivec3, ChunkLightOccupancy>> list;
@@ -154,10 +161,7 @@ void VoxelLightOccupancyGpu::flushIfDirty() {
                      << "their lighting degrades to no-occlusion. Raise the pool size.");
     }
 
-    std::memcpy(m_dirMapped, m_packed.directory.data(),
-                m_packed.directory.size() * sizeof(uint32_t));
-    if (!m_packed.pool.empty())
-        std::memcpy(m_poolMapped, m_packed.pool.data(), m_packed.pool.size() * sizeof(uint32_t));
+    ++m_packRevision;   // uploaded to each slot after that slot's fence (uploadToSlot)
 
     size_t mixed = 0;
     for (const auto& [origin, blob] : m_chunks) mixed += blob.mixedCubeIdx.size();
@@ -170,6 +174,16 @@ void VoxelLightOccupancyGpu::flushIfDirty() {
     m_stats.lastPackMs = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - t0).count();
     m_dirty = false;
+}
+
+void VoxelLightOccupancyGpu::uploadToSlot(uint32_t slot) {
+    if (slot >= kSlots || !m_dirMapped[slot] || !m_poolMapped[slot]) return;
+    if (m_slotRevision[slot] == m_packRevision) return;   // already holds the latest pack
+    std::memcpy(m_dirMapped[slot], m_packed.directory.data(),
+                m_packed.directory.size() * sizeof(uint32_t));
+    if (!m_packed.pool.empty())
+        std::memcpy(m_poolMapped[slot], m_packed.pool.data(), m_packed.pool.size() * sizeof(uint32_t));
+    m_slotRevision[slot] = m_packRevision;
 }
 
 }  // namespace Graphics

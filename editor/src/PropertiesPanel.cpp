@@ -19,6 +19,10 @@
 #include <glm/gtc/quaternion.hpp>
 #include <cmath>
 #include <algorithm>
+#include <chrono>
+#include <ctime>
+#include <fstream>
+#include <vector>
 
 namespace Phyxel::Editor {
 
@@ -288,6 +292,168 @@ void PropertiesPanel::renderEntityInspector(const std::string& id) {
 }
 
 // ============================================================================
+// Clip review — generated-clip verdicts (docs/UniMateIntegrationPlan.md M1b)
+// ============================================================================
+
+namespace {
+std::string utcNowIso() {
+    const std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::tm tm{};
+#ifdef _WIN32
+    gmtime_s(&tm, &t);
+#else
+    gmtime_r(&t, &tm);
+#endif
+    char buf[32];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S+00:00", &tm);
+    return buf;
+}
+
+void evalLine(const nlohmann::json& ev, const char* label, const char* key, const char* fmt) {
+    if (!ev.contains(key) || ev[key].is_null()) { ImGui::Text("%s: -", label); return; }
+    if (ev[key].is_number()) ImGui::Text(fmt, label, ev[key].get<double>());
+    else ImGui::Text("%s: %s", label, ev[key].dump().c_str());
+}
+} // namespace
+
+void PropertiesPanel::loadReviewLedger() {
+    m_reviewLedgerLoaded = true;
+    m_reviewLedger = nlohmann::json{{"version", 1}, {"clips", nlohmann::json::object()}};
+    std::ifstream in(kReviewLedgerPath);
+    if (!in.is_open()) { m_reviewLedgerStatus = "no ledger file yet (import a clip first)"; return; }
+    try {
+        in >> m_reviewLedger;
+        if (!m_reviewLedger.contains("clips") || !m_reviewLedger["clips"].is_object())
+            throw std::runtime_error("missing 'clips' object");
+        m_reviewLedgerStatus = "ledger loaded: " +
+            std::to_string(m_reviewLedger["clips"].size()) + " clips";
+    } catch (const std::exception& e) {
+        m_reviewLedgerStatus = std::string("ledger unreadable: ") + e.what();
+        m_reviewLedger = nlohmann::json{{"version", 1}, {"clips", nlohmann::json::object()}};
+    }
+}
+
+bool PropertiesPanel::saveReviewLedger() {
+    // Whole-file rewrite, sorted keys, 2-space indent, trailing newline — the same shape
+    // tools/anim_pipeline/unimate_ledger.py writes, so the two writers converge.
+    std::ofstream out(kReviewLedgerPath, std::ios::trunc);
+    if (!out.is_open()) { m_reviewLedgerStatus = "ledger NOT saved: cannot open file"; return false; }
+    out << m_reviewLedger.dump(2) << "\n";
+    m_reviewLedgerStatus = "ledger saved " + utcNowIso();
+    return true;
+}
+
+void PropertiesPanel::setReviewVerdict(const std::string& clip, const char* verdict) {
+    auto& clips = m_reviewLedger["clips"];
+    if (!clips.contains(clip)) return;   // only ledgered (imported) clips take verdicts
+    clips[clip]["verdict"] = verdict;
+    clips[clip]["reviewed_at"] = utcNowIso();
+    clips[clip]["notes"] = std::string(m_reviewNote);
+    saveReviewLedger();
+}
+
+void PropertiesPanel::renderClipReview(Scene::AnimatedVoxelCharacter* ch) {
+    if (!ImGui::CollapsingHeader("Clip review", ImGuiTreeNodeFlags_DefaultOpen)) return;
+    if (!m_reviewLedgerLoaded) loadReviewLedger();
+
+    const auto& clips = ch->getAnimationClips();
+    ImGui::SetNextItemWidth(160.0f);
+    ImGui::InputText("Filter##clipreview", m_clipFilter, sizeof(m_clipFilter));
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Reload ledger")) loadReviewLedger();
+
+    // Filtered index list (substring match; empty filter = every clip).
+    std::vector<int> shown;
+    const std::string filter = m_clipFilter;
+    for (int i = 0; i < (int)clips.size(); ++i)
+        if (filter.empty() || clips[i].name.find(filter) != std::string::npos) shown.push_back(i);
+    if (shown.empty()) { ImGui::TextDisabled("no clips match '%s'", m_clipFilter); return; }
+    if (m_reviewIndex >= (int)shown.size()) m_reviewIndex = (int)shown.size() - 1;
+
+    auto play = [&](int shownIdx) {
+        m_reviewIndex = shownIdx;
+        // Same two calls as the play_animation API command (Application.cpp): Preview
+        // FIRST, or the FSM (an NPC's Idle) maps its state back to "idle" and the clip
+        // never shows — that was the 2026-09-29 "clicking does nothing" report.
+        ch->setAnimationState(Scene::AnimatedCharacterState::Preview);
+        ch->playAnimation(clips[shown[shownIdx]].name);
+    };
+    if (ImGui::Button("Prev##clipreview")) play(m_reviewIndex <= 0 ? (int)shown.size() - 1 : m_reviewIndex - 1);
+    ImGui::SameLine();
+    if (ImGui::Button("Next##clipreview")) play(m_reviewIndex < 0 ? 0 : (m_reviewIndex + 1) % (int)shown.size());
+    ImGui::SameLine();
+    ImGui::Text("%d / %d", m_reviewIndex < 0 ? 0 : m_reviewIndex + 1, (int)shown.size());
+
+    const std::string playing = ch->getCurrentClipName();
+    ImGui::BeginChild("clipreview_list", ImVec2(0, 170), true);
+    for (int s = 0; s < (int)shown.size(); ++s) {
+        const auto& clip = clips[shown[s]];
+        char label[160];
+        const char* verdict = "";
+        const auto& lc = m_reviewLedger["clips"];
+        if (lc.contains(clip.name) && lc[clip.name].contains("verdict") && lc[clip.name]["verdict"].is_string())
+            verdict = lc[clip.name]["verdict"].get_ref<const std::string&>().c_str();
+        snprintf(label, sizeof(label), "%s%s  %.2fs  spd %.2f  %s##%d",
+                 clip.name == playing ? "> " : "  ", clip.name.c_str(), clip.duration, clip.speed,
+                 verdict, s);
+        if (ImGui::Selectable(label, s == m_reviewIndex)) play(s);
+    }
+    ImGui::EndChild();
+
+    if (m_reviewIndex < 0) { ImGui::TextDisabled("select a clip to review it"); return; }
+    const std::string& name = clips[shown[m_reviewIndex]].name;
+    if (m_reviewNoteClip != name) {   // selection changed: load that clip's note
+        m_reviewNoteClip = name;
+        m_reviewNote[0] = '\0';
+        const auto& lc = m_reviewLedger["clips"];
+        if (lc.contains(name) && lc[name].contains("notes") && lc[name]["notes"].is_string())
+            snprintf(m_reviewNote, sizeof(m_reviewNote), "%s", lc[name]["notes"].get<std::string>().c_str());
+    }
+
+    const auto& lc = m_reviewLedger["clips"];
+    if (!lc.contains(name)) {
+        ImGui::TextDisabled("%s is not in the review ledger (not a generated clip, or imported before the ledger existed)", name.c_str());
+        ImGui::TextDisabled("%s", m_reviewLedgerStatus.c_str());
+        return;
+    }
+    const auto& e = lc[name];
+    const std::string v = e.value("verdict", "pending");
+    const ImVec4 col = v == "accept" ? ImVec4(0.4f, 1.0f, 0.4f, 1.0f)
+                     : v == "reject" ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
+                                     : ImVec4(1.0f, 0.85f, 0.3f, 1.0f);
+    ImGui::TextColored(col, "Verdict: %s", v.c_str());
+    if (e.contains("prompt") && e["prompt"].is_string())
+        ImGui::TextWrapped("Prompt: %s", e["prompt"].get<std::string>().c_str());
+    ImGui::Text("seed %s  cfg %s  ckpt %s  rep %s",
+                e.value("seed", nlohmann::json()).dump().c_str(), e.value("cfg", nlohmann::json()).dump().c_str(),
+                e.value("ckpt", nlohmann::json()).dump().c_str(), e.value("rep", nlohmann::json()).dump().c_str());
+    if (e.contains("eval") && e["eval"].is_object()) {
+        const auto& ev = e["eval"];
+        evalLine(ev, "root travel u/s", "root_speed", "%s: %.3f");
+        evalLine(ev, "stance feet u/s", "feet_speed", "%s: %.3f");
+        if (ev.contains("root_vs_feet") && ev["root_vs_feet"].is_number())
+            ImGui::Text("root vs feet off: %.0f%%", ev["root_vs_feet"].get<double>() * 100.0);
+        else
+            ImGui::Text("root vs feet off: -");
+        evalLine(ev, "stance residual u/s", "residual", "%s: %.3f");
+        evalLine(ev, "lint errors", "lint_errors", "%s: %.0f");
+        evalLine(ev, "lint warns", "lint_warns", "%s: %.0f");
+    }
+    ImGui::InputTextMultiline("Notes##clipreview", m_reviewNote, sizeof(m_reviewNote), ImVec2(-1, 60));
+    if (ImGui::Button("Accept##clipreview"))  setReviewVerdict(name, "accept");
+    ImGui::SameLine();
+    if (ImGui::Button("Reject##clipreview"))  setReviewVerdict(name, "reject");
+    ImGui::SameLine();
+    if (ImGui::Button("Pending##clipreview")) setReviewVerdict(name, "pending");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Save note##clipreview")) {
+        m_reviewLedger["clips"][name]["notes"] = std::string(m_reviewNote);
+        saveReviewLedger();
+    }
+    ImGui::TextDisabled("%s", m_reviewLedgerStatus.c_str());
+}
+
+// ============================================================================
 // Animated character inspector (moved from Application::renderAnimatedCharPanel)
 // ============================================================================
 
@@ -331,6 +497,9 @@ void PropertiesPanel::renderAnimatedCharInspector(Scene::AnimatedVoxelCharacter*
             ImGui::TreePop();
         }
     }
+
+    // --- Clip review (generated clips; docs/UniMateIntegrationPlan.md M1b) ---
+    renderClipReview(ch);
 
     // --- Voxel Model Stats ---
     if (ImGui::CollapsingHeader("Voxel Model", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -800,6 +969,20 @@ void PropertiesPanel::renderNearestEntitySection() {
 
         if (!health->isAlive()) ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "DEAD");
         if (health->isInvulnerable()) ImGui::TextColored(ImVec4(0.5f, 0.8f, 1, 1), "Invulnerable");
+    }
+
+    // Looking at an animated character is enough to inspect/review it — no outliner
+    // selection needed (the clip-review workflow, docs/UniMateIntegrationPlan.md M1b).
+    {
+        auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(bestEntity);
+        if (!animChar)   // an NPC wraps its character rather than being one
+            if (auto* n = dynamic_cast<Scene::NPCEntity*>(bestEntity)) animChar = n->getAnimatedCharacter();
+        if (animChar) {
+            ImGui::Separator();
+            ImGui::PushID(bestId.c_str());
+            renderAnimatedCharInspector(animChar);
+            ImGui::PopID();
+        }
     }
 
     auto* npc = dynamic_cast<Scene::NPCEntity*>(bestEntity);

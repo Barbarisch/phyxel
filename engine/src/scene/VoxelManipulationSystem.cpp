@@ -1,3 +1,4 @@
+#include "core/DamageSystem.h"
 #include "scene/VoxelManipulationSystem.h"
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
@@ -19,81 +20,6 @@ void VoxelManipulationSystem::setCallbacks(
     
     getChunkManager = chunkManagerFunc;
     getPhysicsWorld = physicsWorldFunc;
-}
-
-// =============================================================================
-// VOXEL REMOVAL OPERATIONS
-// =============================================================================
-
-bool VoxelManipulationSystem::removeVoxel(const CubeLocation& location) {
-    if (!location.isValid()) {
-        LOG_DEBUG("VoxelManipulation", "[REMOVAL] Invalid location provided");
-        return false;
-    }
-    
-    Chunk* chunk = location.chunk;
-    if (!chunk) {
-        LOG_ERROR("VoxelManipulation", "[REMOVAL] ERROR: Invalid chunk pointer");
-        return false;
-    }
-    
-    bool removed = false;
-    
-    if (location.isSubcube) {
-        // VALIDATION: Verify subcube actually exists before trying to remove
-        Subcube* subcube = chunk->getSubcubeAt(location.localPos, location.subcubePos);
-        if (!subcube) {
-            LOG_ERROR("VoxelManipulation", "[SUBCUBE REMOVAL] *** BUG *** Subcube not found at hover location!");
-            
-            // Debug what actually exists
-            auto allSubcubes = chunk->getSubcubesAt(location.localPos);
-            LOG_ERROR_FMT("VoxelManipulation", "[DEBUG] Found " << allSubcubes.size() << " subcubes at this cube position");
-            auto voxelType = chunk->getVoxelType(location.localPos);
-            LOG_ERROR_FMT("VoxelManipulation", "[DEBUG] VoxelTypeMap: " << (int)voxelType);
-            
-            return false;
-        }
-        
-        // Remove a specific subcube
-        removed = chunk->removeSubcube(location.localPos, location.subcubePos);
-        if (removed) {
-            LOG_DEBUG_FMT("VoxelManipulation", "[SUBCUBE REMOVAL] Successfully removed subcube at world pos: (" 
-                      << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-                      << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")");
-                      
-            // Check if this was the last subcube - if so, restore the parent cube
-            auto remainingSubcubes = chunk->getSubcubesAt(location.localPos);
-            if (remainingSubcubes.empty()) {
-                // No more subcubes left, restore the parent cube
-                Cube* parentCube = chunk->getCubeAt(location.localPos);
-                if (parentCube) {
-                    parentCube->show(); // Make parent cube visible again
-                    LOG_DEBUG("VoxelManipulation", "[CUBE RESTORATION] Restored parent cube as no subcubes remain");
-                }
-            }
-        }
-    } else {
-        // Remove a regular cube (this will also remove all its subcubes if subdivided)
-        std::vector<Subcube*> subcubes = chunk->getSubcubesAt(location.localPos);
-        if (!subcubes.empty()) {
-            // First clear all subcubes
-            chunk->clearSubdivisionAt(location.localPos);
-            LOG_DEBUG("VoxelManipulation", "[SUBDIVISION REMOVAL] Cleared all subcubes for cube removal");
-        }
-        
-        // Remove the cube itself
-        removed = chunk->removeCube(location.localPos);
-        if (removed) {
-            LOG_DEBUG_FMT("VoxelManipulation", "[CUBE REMOVAL] Successfully removed cube at world pos: (" 
-                      << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")");
-        }
-    }
-    
-    if (!removed) {
-        LOG_WARN("VoxelManipulation", "[REMOVAL] WARNING: Failed to remove object - it may not exist");
-    }
-    
-    return removed;
 }
 
 // =============================================================================
@@ -233,36 +159,13 @@ bool VoxelManipulationSystem::breakCube(const CubeLocation& location, const glm:
         return false;
     }
 
-    // Create a dynamic cube at the position
-    glm::vec3 cubeCornerPos = cubeWorldPos;
-    glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f);
-    
-    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, selectedMaterial);
-    
-    // Create physics body
-    Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
-    if (physicsWorld) {
-        if (auto* voxelWorld = physicsWorld->getVoxelWorld()) {
-            Physics::VoxelRigidBody* voxelBody = voxelWorld->createVoxelBody(
-                physicsCenterPos, glm::vec3(0.5f), 1.0f);
-            dynamicCube->setVoxelBody(voxelBody);
-            dynamicCube->setPhysicsPosition(physicsCenterPos);
-        }
-        (void)applyForce;
-    }
+    // The piece becomes GPU debris (1d: the CPU single-box debris path is gone).
+    (void)applyForce;
+    spawnPiece(cubeWorldPos + glm::vec3(0.5f), 1.0f, selectedMaterial);
 
-    // Mark as broken
-    dynamicCube->breakApart();
-    
-    // Add to global dynamic cubes system
-    ChunkManager* chunkManager = getChunkManager();
-    if (chunkManager) {
-        chunkManager->addGlobalDynamicCube(std::move(dynamicCube));
-        
-        // Update affected chunks
+    if (ChunkManager* chunkManager = getChunkManager())
         chunkManager->updateAfterCubeBreak(location.worldPos);
-    }
-    
+
     LOG_INFO_FMT("VoxelManipulation", "[CUBE BREAKING] Successfully broke cube at world pos: (" 
               << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")");
     
@@ -287,29 +190,24 @@ bool VoxelManipulationSystem::breakSubcube(const CubeLocation& location, bool ap
         return false;
     }
     
-    LOG_DEBUG("VoxelManipulation", "[SUBCUBE BREAKING] Breaking subcube without forces (gentle removal)");
-    
-    // Break subcube WITHOUT any impulse forces (as requested)
-    glm::vec3 noForce(0.0f, 0.0f, 0.0f); // No forces applied
-    
-    Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
-    ChunkManager* chunkManager = getChunkManager();
-    
-    bool broken = chunk->breakSubcube(location.localPos, location.subcubePos, 
-                                     physicsWorld, chunkManager, noForce);
-    if (broken) {
-        LOG_INFO_FMT("VoxelManipulation", "[SUBCUBE BREAKING] Successfully broke subcube (no forces) and transferred to global system at world pos: (" 
-                  << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-                  << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")");
-                  
-        // Use efficient selective update for subcube breaking
-        if (chunkManager) {
-            chunkManager->updateAfterSubcubeBreak(location.worldPos, location.subcubePos);
-        }
-    } else {
-        LOG_WARN("VoxelManipulation", "[SUBCUBE BREAKING] WARNING: Failed to break subcube");
+    (void)applyForce;
+    const Subcube* sc = chunk->getSubcubeAt(location.localPos, location.subcubePos);
+    if (!sc) {
+        LOG_DEBUG("VoxelManipulation", "[SUBCUBE BREAKING] No subcube at this location");
+        return false;
     }
-    
+    const std::string material = sc->getMaterialName();
+    const bool broken = chunk->removeSubcube(location.localPos, location.subcubePos);
+    if (broken) {
+        // Centre of the 1/3 cell inside its parent cube.
+        const glm::vec3 centre = glm::vec3(location.worldPos) +
+                                 (glm::vec3(location.subcubePos) + 0.5f) / 3.0f;
+        spawnPiece(centre, 1.0f / 3.0f, material);
+        if (ChunkManager* chunkManager = getChunkManager())
+            chunkManager->updateAfterSubcubeBreak(location.worldPos, location.subcubePos);
+    } else {
+        LOG_WARN("VoxelManipulation", "[SUBCUBE BREAKING] WARNING: Failed to remove subcube");
+    }
     return broken;
 }
 
@@ -390,45 +288,13 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
         return false;
     }
     
-    // Create new dynamic microcube for physics
-    auto dynamicMicrocube = std::make_unique<Microcube>(parentCubePos, subcubePos, microcubePos, materialName);
-    dynamicMicrocube->setVisible(isVisible);
-    dynamicMicrocube->setLifetime(lifetime);
-    dynamicMicrocube->breakApart(); // Mark as broken
-    
-    // Create physics body for dynamic microcube
-    Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
-    if (physicsWorld) {
-        // Microcube is 1/9 scale, so size is 1/9 of a regular cube
-        glm::vec3 microcubeCornerPos = worldPos; // Corner position
-        glm::vec3 microcubeSize(1.0f / 9.0f);    // Match visual microcube size
-        glm::vec3 physicsCenterPos = microcubeCornerPos + (microcubeSize * 0.5f); // Physics center position
-        
-        LOG_INFO_FMT("VoxelManipulation", "[MICROCUBE PHYSICS DEBUG] Corner pos: (" << microcubeCornerPos.x << "," << microcubeCornerPos.y << "," << microcubeCornerPos.z << ")");
-        LOG_INFO_FMT("VoxelManipulation", "[MICROCUBE PHYSICS DEBUG] Center pos: (" << physicsCenterPos.x << "," << physicsCenterPos.y << "," << physicsCenterPos.z << ")");
-        LOG_INFO_FMT("VoxelManipulation", "[MICROCUBE PHYSICS DEBUG] Size: " << microcubeSize.x);
-        
-        if (auto* voxelWorld = physicsWorld->getVoxelWorld()) {
-            Physics::VoxelRigidBody* voxelBody = voxelWorld->createVoxelBody(
-                physicsCenterPos, microcubeSize * 0.5f, 0.1f);
-            dynamicMicrocube->setVoxelBody(voxelBody);
-            dynamicMicrocube->setPhysicsPosition(physicsCenterPos);
-            LOG_DEBUG("VoxelManipulation", "[MICROCUBE PHYSICS] Created VoxelRigidBody for microcube");
-        }
-    }
-    
-    // Transfer the dynamic microcube to global system
-    ChunkManager* chunkManager = getChunkManager();
-    if (chunkManager) {
-        chunkManager->addGlobalDynamicMicrocube(std::move(dynamicMicrocube));
-        LOG_DEBUG("VoxelManipulation", "[GLOBAL TRANSFER] Moved broken microcube to global dynamic system");
-        
-        // Rebuild faces for this chunk
+    (void)applyForce; (void)isVisible; (void)lifetime; (void)parentCubePos;
+    // worldPos is the microcube's min corner; the piece is 1/9 on a side.
+    spawnPiece(worldPos + glm::vec3(0.5f / 9.0f), 1.0f / 9.0f, materialName);
+
+    if (ChunkManager* chunkManager = getChunkManager())
         chunkManager->updateAfterCubeSubdivision(location.worldPos);
-    } else {
-        LOG_ERROR("VoxelManipulation", "[ERROR] No ChunkManager provided - cannot transfer to global system");
-    }
-    
+
     LOG_INFO_FMT("VoxelManipulation", "[MICROCUBE BREAKING] Successfully broke microcube at world pos: (" 
               << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
               << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z 
@@ -437,73 +303,9 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
     return true;
 }
 
-bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bool disableForces) {
-    ChunkManager* chunkManager = getChunkManager();
-    if (!chunkManager) {
-        LOG_ERROR("VoxelManipulation", "[BREAK AT POSITION] No ChunkManager available");
-        return false;
-    }
-    
-    // Find the chunk containing this world position
-    Chunk* chunk = chunkManager->getChunkAtFast(glm::vec3(worldPos));
-    if (!chunk) {
-        LOG_DEBUG_FMT("VoxelManipulation", "[BREAK AT POSITION] No chunk found at world pos (" 
-                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
-        return false;
-    }
-    
-    // Convert world position to local position within chunk
-    glm::ivec3 localPos = worldPos - chunk->getWorldOrigin();
-    
-    // Get the cube
-    const Cube* originalCube = chunk->getCubeAt(localPos);
-    if (!originalCube) {
-        LOG_DEBUG("VoxelManipulation", "[BREAK AT POSITION] No cube exists at this location");
-        return false;
-    }
-    
-    glm::vec3 cubeWorldPos = glm::vec3(worldPos);
-    
-    // Save material before removal (pointer becomes dangling after removeCube)
-    std::string selectedMaterial = originalCube->getMaterialName();
-
-    // Remove cube from chunk
-    bool removed = chunk->removeCube(localPos);
-    if (!removed) {
-        LOG_WARN("VoxelManipulation", "[BREAK AT POSITION] Failed to remove cube");
-        return false;
-    }
-    
-    // Create dynamic cube
-    glm::vec3 cubeCornerPos = cubeWorldPos;
-    glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f);
-
-    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, selectedMaterial);
-    
-    // Create physics body
-    Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
-    if (physicsWorld) {
-        glm::vec3 cubeSize(1.0f);
-        if (auto* voxelWorld = physicsWorld->getVoxelWorld()) {
-            Physics::VoxelRigidBody* voxelBody = voxelWorld->createVoxelBody(
-                physicsCenterPos, glm::vec3(0.5f), 1.0f);
-            if (!disableForces)
-                voxelBody->applyCentralImpulse(glm::vec3(0.0f, 2.0f, 0.0f));
-            dynamicCube->setVoxelBody(voxelBody);
-            dynamicCube->setPhysicsPosition(physicsCenterPos);
-        }
-    }
-
-    dynamicCube->breakApart();
-    
-    // Add to global system
-    chunkManager->addGlobalDynamicCube(std::move(dynamicCube));
-    chunkManager->updateAfterCubeBreak(worldPos);
-    
-    LOG_DEBUG_FMT("VoxelManipulation", "[BREAK AT POSITION] Broke cube at (" 
-              << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
-    
-    return true;
+bool VoxelManipulationSystem::spawnPiece(const glm::vec3& centre, float edge, const std::string& material) {
+    GpuParticlePhysics* gpu = m_gpuDebris ? m_gpuDebris() : nullptr;
+    return DamageSystem::spawnBreakDebris(gpu, centre, glm::vec3(0.0f), edge, material, glm::vec3(0.0f));
 }
 
 // =============================================================================

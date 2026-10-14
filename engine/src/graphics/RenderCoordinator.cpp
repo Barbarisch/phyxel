@@ -16,7 +16,6 @@
 #include "graphics/ShadowMap.h"
 #include "graphics/PostProcessor.h"
 #include "graphics/Camera.h"
-#include "graphics/DebrisRenderPipeline.h"
 #include "graphics/VfxRenderPipeline.h"
 #include "graphics/WaterRenderPipeline.h"
 #include "graphics/WaterCellRenderPipeline.h"
@@ -155,8 +154,9 @@ RenderCoordinator::RenderCoordinator(
     // that in-flight frames may be using.
     m_lightOccupancy = std::make_unique<VoxelLightOccupancyGpu>();
     if (m_lightOccupancy->initialize(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice())) {
-        vulkanDevice->setLightOccupancyResources(m_lightOccupancy->directoryBuffer(),
-                                                 m_lightOccupancy->poolBuffer());
+        for (uint32_t slot = 0; slot < VoxelLightOccupancyGpu::kSlots; ++slot)
+            vulkanDevice->setLightOccupancyResources(slot, m_lightOccupancy->directoryBuffer(slot),
+                                                     m_lightOccupancy->poolBuffer(slot));
     } else {
         LOG_ERROR("RenderCoordinator", "light occupancy init failed — lighting will see no "
                                        "occluders (bindings fall back to an inert buffer)");
@@ -250,39 +250,12 @@ RenderCoordinator::RenderCoordinator(
     gpuProfiler = std::make_unique<GpuProfiler>();
     gpuProfiler->init(vulkanDevice);
 
-    // Initialize Debris Pipeline
-    debrisPipeline = std::make_unique<DebrisRenderPipeline>();
-    debrisPipeline->initialize(
-        vulkanDevice->getDevice(),
-        vulkanDevice->getPhysicalDevice(),
-        postProcessor->getSceneRenderPass(),
-        vulkanDevice->getSwapChainExtent()
-    );
-    // U1 (docs/UnifiedLightingPlan.md): debris is lit by the SAME sun and atmosphere as the rest
-    // of the world. It previously sampled only the baked light field, which M0 pinned to a
-    // constant — so debris looked identical at noon and at midnight, and `debris.frag`'s small
-    // fixed directional term was the only thing giving it any form.
-    //
-    // No normal is available here (this shades a whole particle, not a face), so the sun is
-    // applied as an unlit-hemisphere average rather than N·L; `debris.frag` still supplies the
-    // directional form term on top. Sky access still gates the sun, so debris in a sealed room
-    // stays dark.
-    debrisPipeline->setLightSampler([this, cm = chunkManager](const glm::vec3& wp) -> glm::vec4 {
-        float sky = 1.0f;
-        if (cm) sky = glm::clamp(cm->sampleBakedLight(glm::ivec3(glm::floor(wp))).sky / 15.0f,
-                                 0.0f, 1.0f);
-        const float skyGate = sky * sky;                   // matches lighting.glsl's phxSkyGate
-        const glm::vec3 ambient = m_lastAmbientColor;      // atmosphere sky irradiance
-        const glm::vec3 sun     = m_lastSunColor * (0.5f * skyGate);   // hemisphere-averaged
-        return glm::vec4(ambient + sun, 1.0f);
-    });
-
     // Initialize VFX particle system + its additive instanced-cube renderer.
     vfxSystem = std::make_unique<VfxSystem>();
     // Let projectiles carry transient point lights via the LightManager.
     vfxSystem->setLightCallbacks(
         [this](const glm::vec3& pos, const glm::vec3& color, float intensity, float radius) {
-            return lightManager.addPointLight(pos, color, intensity, radius);
+            return lightManager.addPointLight(LightSource::Vfx, pos, color, intensity, radius);
         },
         [this](int id, const glm::vec3& pos) { lightManager.updatePointLightPosition(id, pos); },
         [this](int id) { lightManager.removeLight(id); },
@@ -481,6 +454,30 @@ void RenderCoordinator::setFarTreesEnabled(bool on) {
     if (farTreePipeline) farTreePipeline->params().enabled = on;
 }
 
+bool RenderCoordinator::farTreesEnabled() const {
+    return treeLodPipeline ? treeLodPipeline->params().enabled : false;
+}
+
+bool RenderCoordinator::structureProxyFullyDiscarded(const glm::vec3& base,
+                                                     const glm::vec3& cameraPos,
+                                                     float fadeNear0, float minFade) {
+    if (minFade != 0.0f || fadeNear0 <= 0.0f) return false;
+    return glm::length(base - cameraPos) < fadeNear0 - 1.0f;
+}
+
+void RenderCoordinator::rebuildAllStructureLod() {
+    // Same path a moved structure takes in setStructureLodTargets: the old entry goes to the retiring
+    // list (running build jobs are waited out there, then its buffers enter the frame-deferred
+    // graveyard), and a fresh entry with the same AABB re-extracts and rebuilds.
+    for (auto& [uuid, e] : structureLod) {
+        StructureLod fresh;
+        fresh.mn = e.mn;
+        fresh.mx = e.mx;
+        structureLodRetiring.push_back(std::move(e));
+        e = std::move(fresh);
+    }
+}
+
 void RenderCoordinator::setStructureLodTargets(
     const std::vector<std::tuple<std::string, glm::ivec3, glm::ivec3>>& targets) {
     // RECONCILING, not insert-only (the original insert-only version kept a demolished or
@@ -636,7 +633,10 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
             if (allResident && !soup.micros.empty()) {
                 extractedThisFrame = true;
                 e.state = 1;
-                e.job = std::async(std::launch::async, [soup = std::move(soup)]() {
+                e.merged = s_proxyMeshMerge;   // snapshot: the build thread never reads the static
+                TreeLodMeshRegistry::MeshOptions meshOpt;
+                meshOpt.merge = e.merged;
+                e.job = std::async(std::launch::async, [soup = std::move(soup), meshOpt]() {
                     const auto levels = Core::TemplateLodChain::buildFromSoup(
                         soup, Core::TemplateLodChain::structureConfig());
                     std::array<TreeLodMeshRegistry::CpuMesh,
@@ -646,7 +646,7 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
                     };
                     for (size_t i = 0; i < out.size() && i < levels.size(); ++i)
                         out[i] = TreeLodMeshRegistry::buildLevelMesh(
-                            levels[i], resolve, glm::vec3(-0.5f, 0.0f, -0.5f));
+                            levels[i], resolve, glm::vec3(-0.5f, 0.0f, -0.5f), meshOpt);
                     return out;
                 });
             }
@@ -658,6 +658,7 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
             bool any = false;
             for (size_t i = 0; i < cpu.size(); ++i)
                 any |= treeLodMeshes->uploadLevel(cpu[i], e.lv[i]);
+            e.trisL0 = cpu.empty() ? 0u : uint32_t(cpu[0].indices.size() / 3);
             FarTreeInstance inst{};
             inst.localX = 0.5f;
             inst.localZ = 0.5f;
@@ -686,6 +687,8 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
         // 2026-08-05 stale-proxy bug — same defect class the tree gate fixed twice).
         const float fadeGateEnd =
             treeLodPipeline ? treeLodPipeline->params().fadeNear1 : 260.0f;
+        // The shader's smoothstep edge0 (pc.fadeIn.x); 0 = no pipeline = never skip.
+        const float fadeGateEnd0 = treeLodPipeline ? treeLodPipeline->params().fadeNear0 : 0.0f;
         const auto gate = structureGateProbe(
             e.mn, e.mx, cameraPos, fadeGateEnd, [this](const glm::ivec3& wp) {
                 const auto* c = chunkManager->getChunkAtFast(wp);
@@ -698,9 +701,9 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
         // then the nearest finer, if the requested one is empty (tiny structures can
         // produce empty coarse levels).
         constexpr int kStructLevels = int(Core::TemplateLodChain::kLevelCount);
-        int li = int(std::size(kStructureLevelDist));
-        for (int i = 0; i < int(std::size(kStructureLevelDist)); ++i)
-            if (dist < kStructureLevelDist[i]) { li = i; break; }
+        int li = int(std::size(s_structureLevelDist));
+        for (int i = 0; i < int(std::size(s_structureLevelDist)); ++i)
+            if (dist < s_structureLevelDist[i]) { li = i; break; }
         int chosen = -1;
         for (int c = li; c < kStructLevels && chosen < 0; ++c)
             if (e.lv[size_t(c)].indexCount) chosen = c;
@@ -711,9 +714,24 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
         if (gl.vertexBuffer == VK_NULL_HANDLE) continue;
         e.lastLevel = chosen;
         e.lastMinFade = 1.0f - e.readiness;
-        meshDraws.push_back({gl.vertexBuffer, gl.indexBuffer, gl.indexCount, e.inst, 0, 1,
-                             glm::vec2(float(e.mn.x), float(e.mn.z)), 8.0f,
-                             e.lastMinFade});
+        // far_tree_mesh.vert: vFade = max(smoothstep(fadeNear0, fadeNear1, dist), minFade), with
+        // dist measured from the instance base = (mn.x + 0.5, mn.y, mn.z + 0.5); the fragment
+        // discards when vFade < its Bayer threshold (>= 1/32). With minFade 0 and dist at or
+        // inside fadeNear0 every fragment is discarded, so the draw is pure wasted vertex and
+        // raster work: a city at street level drew ALL its proxies this way at the finest level
+        // (C-100: 104 proxies at L0). 1 u of margin covers CPU-vs-GPU float differences.
+        const bool mainDrawInvisible =
+            s_structureLodSkipInvisible &&
+            structureProxyFullyDiscarded(
+                glm::vec3(float(e.mn.x) + 0.5f, float(e.mn.y), float(e.mn.z) + 0.5f), cameraPos,
+                fadeGateEnd0, e.lastMinFade);
+        if (s_structureLodEnabled && !mainDrawInvisible)
+            meshDraws.push_back({gl.vertexBuffer, gl.indexBuffer, gl.indexCount, e.inst, 0, 1,
+                                 glm::vec2(float(e.mn.x), float(e.mn.z)), 8.0f,
+                                 e.lastMinFade});
+        else if (mainDrawInvisible)
+            ++lastFrameStats.structureLodSkippedInvisible;
+        if (!s_structureLodEnabled) continue;   // attribution: no casters either
         // Far-cascade caster: this structure at its coarsest BUILT level (single instance,
         // cheap) so distant settlements shade the terrain around them.
         for (int c = kStructLevels - 1; c >= 0; --c) {
@@ -742,6 +760,8 @@ std::vector<RenderCoordinator::StructureLodInfo> RenderCoordinator::structureLod
         info.lastDist = e.lastDist;
         info.lastLevel = e.lastLevel;
         info.lastMinFade = e.lastMinFade;
+        info.trisL0 = e.trisL0;
+        info.merged = e.merged;
         out.push_back(std::move(info));
     }
     return out;
@@ -793,8 +813,35 @@ RenderCoordinator::~RenderCoordinator() {
 // grid is the source rather than the mesher (the mesher builds sub-voxel occupancy AFTER it bakes
 // faces — defect D5 — so anything sourced from it sees stale sub-voxel geometry).
 // ---------------------------------------------------------------------------------------------
+void RenderCoordinator::setGpuParticlePhysics(GpuParticlePhysics* gpp) {
+    m_gpuParticles = gpp;
+    // DebrisInteractionPlan 1c: debris collides against THIS occupancy (the one CPU physics and
+    // lighting already share), not a private bitfield. Wired once; the box goes every frame.
+    if (!m_gpuParticles || !m_gpuParticles->isInitialized()) return;
+    if (!m_lightOccupancy || !m_lightOccupancy->ready()) {
+        LOG_ERROR("RenderCoordinator", "shared occupancy pool unavailable: GPU debris will be HELD "
+                                       "everywhere (frozen_unknown) instead of colliding");
+        return;
+    }
+    VkBuffer dir[GpuParticlePhysics::OCC_FRAME_SLOTS];
+    VkBuffer pool[GpuParticlePhysics::OCC_FRAME_SLOTS];
+    for (uint32_t s = 0; s < GpuParticlePhysics::OCC_FRAME_SLOTS; ++s) {
+        dir[s]  = m_lightOccupancy->directoryBuffer(s);
+        pool[s] = m_lightOccupancy->poolBuffer(s);
+    }
+    m_gpuParticles->setStaticOccupancyBuffers(dir, m_lightOccupancy->directoryBytes(),
+                                              pool, m_lightOccupancy->poolBytes());
+}
+
 void RenderCoordinator::updateLightOccupancy() {
     if (!chunkManager || !vulkanDevice || !m_lightOccupancy) return;
+
+    // Async fill/clear/generate jobs write chunk grids off the main thread under the chunk WRITE
+    // lock; this pass read them with no lock and could pack a grid mid-write (1c step 5, GAP 6).
+    // Skip the whole pass while a job holds it: nothing is lost, because every grid the job
+    // touched carries a new revision and is repacked on the first frame after the job finishes.
+    std::shared_lock<std::shared_mutex> jobGuard(chunkManager->chunkAccessMutex(), std::try_to_lock);
+    if (!jobGuard.owns_lock()) { ++m_lightOccJobSkips; return; }
 
     // The covered box follows the viewer. Chunk-quantised, so this is a no-op until the camera
     // crosses a chunk boundary. Done BEFORE the residency scan so this frame's scan is measured
@@ -821,6 +868,12 @@ void RenderCoordinator::updateLightOccupancy() {
     m_lightOccLoadedChunks = chunkManager->chunkMap.size();
     m_lightOccOutOfBox = 0;
 
+    // Collect every changed chunk first, then let chooseRepackOrder spend the budget: EDITS to
+    // resident chunks before first-time residency (DebrisInteractionPlan 1c). Walking the map and
+    // packing as we went served chunks in hash order, so a just-blasted chunk could wait frames
+    // behind newly streamed ones while GPU debris collided with its stale, still-solid cells.
+    std::vector<RepackCandidate> changed;
+    std::vector<std::pair<Chunk*, uint32_t>> changedChunks;   // parallel to `changed`
     for (auto& [coord, chunk] : chunkManager->chunkMap) {
         if (!chunk) continue;
         const glm::ivec3 origin = chunk->getWorldOrigin();
@@ -836,11 +889,17 @@ void RenderCoordinator::updateLightOccupancy() {
         const uint32_t rev = chunk->getOccupancyGrid().revision();
         const auto it = m_lightOccRevisions.find(origin);
         if (it != m_lightOccRevisions.end() && it->second == rev) continue;   // unchanged
-
-        if (budget-- <= 0) continue;            // next frame
-        m_lightOccupancy->setChunk(origin, buildLightOccupancy(chunk->getOccupancyGrid()));
-        m_lightOccRevisions[origin] = rev;
+        changed.push_back({origin, it != m_lightOccRevisions.end()});
+        changedChunks.push_back({chunk, rev});
     }
+    const RepackPlan plan = chooseRepackOrder(changed, budget);
+    for (const size_t i : plan.order) {
+        m_lightOccupancy->setChunk(changed[i].origin,
+                                   buildLightOccupancy(changedChunks[i].first->getOccupancyGrid()));
+        m_lightOccRevisions[changed[i].origin] = changedChunks[i].second;
+    }
+    m_lightOccEditBacklog      = plan.editBacklog;
+    m_lightOccResidencyBacklog = plan.residencyBacklog;
 
     // Drop chunks that have unloaded. Without this their geometry would keep occluding light in
     // air the player can now walk through.
@@ -850,20 +909,15 @@ void RenderCoordinator::updateLightOccupancy() {
         it = m_lightOccRevisions.erase(it);
     }
 
-    // DEVICE-LOST GUARD (2026-09-23, Ravenmere G-177 / G-127). The directory and pool are ONE
-    // host-mapped copy, and this flush ran before the frame fence: a frame still executing on
-    // the GPU could read a torn directory/pool mid-repack, and occupancy.glsl's binary search
-    // trusts the count it reads - a garbage count loops for ever -> TDR -> VK_ERROR_DEVICE_LOST.
-    // Streaming repacks every frame chunks land, which is why the surround killed the shipped
-    // town within a second (and the editor within a minute). Draining the GPU before a repack
-    // makes the write race-free at the cost of one pipeline drain per repack frame; the proper
-    // fix is a per-frame-in-flight directory/pool (or append-only blobs) - logged on the row.
-    if (m_lightOccupancy->dirty()) vulkanDevice->deviceWaitIdle();
+    // Repack on the CPU only. The copy into GPU-visible memory happens after this frame slot's
+    // fence (uploadToSlot, below the Fence Wait in drawFrame): this point runs BEFORE that wait,
+    // while the other in-flight frame may still be reading, and rewriting here tore its reads.
     m_lightOccupancy->flushIfDirty();
 
-    // Tell the shaders where the box sits and that the buffers are real. Done AFTER the flush so
-    // the box the shader addresses against is the one the pool was actually packed with — a frame
-    // where those disagree would read every chunk at the wrong offset.
+    // Tell the shaders where the box sits and that the buffers are real. The box is the one the
+    // LATEST pack was built with, and this frame's slot receives exactly that pack before its
+    // command buffer is recorded -- a frame where the two disagreed would read every chunk at the
+    // wrong offset.
     vulkanDevice->setLightOccupancyBox(m_lightOccupancy->stats().boxMinChunk,
                                        m_lightOccupancy->ready());
 }
@@ -1216,6 +1270,7 @@ void RenderCoordinator::updateVfx(float dt) {
     // defeat the id tie-break that keeps U3.1's selection stable frame to frame. The hash is over
     // position/colour/radius, so a chunk remesh that does not move an emitter costs nothing.
     if (chunkManager) {
+        const auto reconcileStart = std::chrono::steady_clock::now();   // I3: census cpu_ms
         size_t h = 1469598103934665603ull;
         auto mix = [&h](float f) {
             uint32_t b; std::memcpy(&b, &f, 4);
@@ -1231,6 +1286,9 @@ void RenderCoordinator::updateVfx(float dt) {
                 ++count;
             }
         }
+        const auto hashEnd = std::chrono::steady_clock::now();
+        m_emitterStats.hashMs = std::chrono::duration<double, std::milli>(hashEnd - reconcileStart).count();
+        m_emitterStats.emitters = count;
         if (h != m_emissiveLightHash || count != m_emissiveLightIds.size()) {
             for (int id : m_emissiveLightIds) lightManager.removeLight(id);
             m_emissiveLightIds.clear();
@@ -1238,42 +1296,60 @@ void RenderCoordinator::updateVfx(float dt) {
             for (const auto& ch : chunkManager->chunks) {
                 if (!ch) continue;
                 for (const auto& e : ch->getEmissiveLights()) {
-                    const int id = lightManager.addPointLight(e.worldPos, e.color,
-                                                               e.intensity, e.radius, e.extent);
+                    const int id = lightManager.addPointLight(LightSource::EmissiveVoxel, e.worldPos,
+                                                               e.color, e.intensity, e.radius, e.extent);
                     if (id >= 0) m_emissiveLightIds.push_back(id);
                 }
             }
             m_emissiveLightHash = h;
+            m_emitterStats.lastRebuildMs = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - hashEnd).count();
+            ++m_emitterStats.rebuilds;
             LOG_INFO_FMT("Lighting", "U3.2: " << m_emissiveLightIds.size()
                          << " emissive voxel lights registered (" << count << " emitters found)");
         }
     }
 
-    if (vfxSystem) vfxSystem->update(dt);
+    // Effect-time hold: VFX (fire/field light pulse) ticks with dt 0; the emissive reconcile
+    // above still ran with the real frame.
+    if (vfxSystem) vfxSystem->update(s_effectTimeFrozen ? 0.0f : dt);
 }
 
-size_t RenderCoordinator::renderStaticGeometry() {
+size_t RenderCoordinator::renderStaticGeometry(StaticDrawPass pass) {
     // Render static cubes and static subcubes using the standard pipeline
     // Note: Pipeline is already bound in drawFrame() - don't rebind here
     // as it would overwrite the debug pipeline if debug mode is enabled
-    
+    //
+    // P-DP (docs/PerfProgram2026-09.md): with the depth prepass ON this runs TWICE per frame -
+    // DepthPrepass (culls + draws depth-only) then ShadeAfterPrepass (reuses the SAME culled list,
+    // so the two passes draw identical instance ranges and write/test identical depth). Only the
+    // shading pass counts toward the per-view tier census.
+    const TierDrawStats tierStatsBefore = m_tierDrawStats;
+    struct TierStatsRestore {
+        RenderCoordinator* rc; const TierDrawStats* snap; bool active;
+        ~TierStatsRestore() { if (active) rc->m_tierDrawStats = *snap; }
+    } tierRestore{this, &tierStatsBefore, pass == StaticDrawPass::DepthPrepass};
+
     size_t renderedChunks = 0;
-    
+
     // Draw indexed cubes using chunk manager with proper culling
     if (chunkManager && !chunkManager->chunks.empty()) {
-        
-        // LEVEL 1: Distance-based culling (sphere of influence)
-        // LEVEL 2: Frustum culling (camera view)
-        visibleChunkIndices.clear();  // Reuse preallocated member vector
-        
-        // Compute camera position and frustum ONCE per frame (invariant across chunks)
+
+        // Compute camera position and frustum ONCE per frame (invariant across chunks). Needed by
+        // every pass: the draw loop's face-direction culling reads cameraPos.
         glm::vec3 cameraPos = camera->getPosition();
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + camera->getFront(), camera->getUp());
         glm::mat4 viewProjection = cachedProjectionMatrix * view;
-        
+
         Utils::Frustum cameraFrustum;
         cameraFrustum.extractFromMatrix(viewProjection, Utils::Frustum::ClipConvention::ReverseZeroToOne);
-        
+
+      // The shading pass after a prepass reuses the prepass's culled list verbatim.
+      if (pass != StaticDrawPass::ShadeAfterPrepass) {
+        // LEVEL 1: Distance-based culling (sphere of influence)
+        // LEVEL 2: Frustum culling (camera view)
+        visibleChunkIndices.clear();  // Reuse preallocated member vector
+
         for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
             const Chunk* chunk = chunkManager->chunks[i].get();
             
@@ -1308,8 +1384,10 @@ size_t RenderCoordinator::renderStaticGeometry() {
         // frustum-visible chunks that are hidden behind solid chunks. ON by default
         // (docs/LargeWorldScalePlan.md Phase 3); conservative, so no false holes.
         if (m_occlusionCullingEnabled) {
+            CPU_PROFILE_SCOPE(&m_cpuTiming, "Occlusion BFS");
             applyOcclusionCulling(cameraPos, cameraFrustum);
         }
+      }   // culling (skipped by ShadeAfterPrepass)
 
         // Render only the visible chunks
         for (size_t chunkIndex : visibleChunkIndices) {
@@ -1339,11 +1417,13 @@ size_t RenderCoordinator::renderStaticGeometry() {
             // rasterizer anyway (a +X face is never visible from its -X side). Falls
             // back to a full draw if the ranges are stale (chunk mid-remesh) or the
             // debug view wants everything (debug pipeline may render two-sided).
+            namespace TR = TierRanges;
             const auto& dirRanges = chunk->getFaceDirRanges();
-            if (!s_faceDirCull || debugModeEnabled ||
-                dirRanges[6] != chunk->getNumInstances()) {
-                vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
-            } else {
+            const auto& tierOff = chunk->getDirTierOffsets();
+            const bool tiersValid = tierOff[TR::kBuckets] == chunk->getNumInstances();
+            const uint32_t tierMask = (s_tierMaskMain & 0x7u) | (1u << TR::kLodCell);
+            const bool dirCullOk = s_faceDirCull && !debugModeEnabled && dirRanges[6] == chunk->getNumInstances();
+            auto cameraFacingDirs = [&]() {
                 const glm::vec3 mn = chunk->getMinBounds();
                 const glm::vec3 mx = chunk->getMaxBounds();
                 uint32_t mask = 0;  // faceID order: 0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y
@@ -1353,6 +1433,40 @@ size_t RenderCoordinator::renderStaticGeometry() {
                 if (cameraPos.x < mx.x + 0.5f) mask |= 1u << 3;
                 if (cameraPos.y > mn.y - 0.5f) mask |= 1u << 4;
                 if (cameraPos.y < mx.y + 0.5f) mask |= 1u << 5;
+                return mask;
+            };
+            // I5 per-view census: instances this pass submits, by tier.
+            auto tally = [&](uint32_t dirMask) {
+                for (uint32_t d = 0; d < 6; ++d)
+                    if ((dirMask >> d) & 1u)
+                        for (uint32_t t = 0; t < TR::kTiers; ++t)
+                            m_tierDrawStats.mainFaces[t] += tierOff[d * TR::kTiers + t + 1] - tierOff[d * TR::kTiers + t];
+            };
+
+            if (tierMask != TR::kAllTiers) {
+                // I6 attribution draw: only the unmasked tiers' runs. A chunk whose tier ranges are
+                // invalid (mid-remesh, LOD mesh) is SKIPPED, never drawn whole, so a masked tier
+                // can't leak into the measurement; the skip is counted.
+                if (!tiersValid) {
+                    ++m_tierDrawStats.maskedChunksSkipped;
+                } else {
+                    const uint32_t dirMask = dirCullOk ? cameraFacingDirs() : 0x3Fu;
+                    std::vector<TR::Run>& runs = m_tierRunScratch;
+                    TR::buildRuns(tierOff, dirMask, tierMask, runs);
+                    for (const auto& r : runs)
+                        vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), r.count, r.first);
+                    for (uint32_t d = 0; d < 6; ++d)
+                        if ((dirMask >> d) & 1u)
+                            for (uint32_t t = 0; t < TR::kTiers; ++t)
+                                if ((tierMask >> t) & 1u)
+                                    m_tierDrawStats.mainFaces[t] +=
+                                        tierOff[d * TR::kTiers + t + 1] - tierOff[d * TR::kTiers + t];
+                }
+            } else if (!dirCullOk) {
+                vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
+                if (tiersValid) tally(0x3Fu); else ++m_tierDrawStats.mainChunksUnattributed;
+            } else {
+                const uint32_t mask = cameraFacingDirs();
                 int d = 0;
                 while (d < 6) {
                     if (!(mask & (1u << d))) { ++d; continue; }
@@ -1363,6 +1477,7 @@ size_t RenderCoordinator::renderStaticGeometry() {
                     if (count) vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), count, first);
                     d = e + 1;
                 }
+                if (tiersValid) tally(mask); else ++m_tierDrawStats.mainChunksUnattributed;
             }
             renderedChunks++;
         }
@@ -1439,6 +1554,15 @@ void RenderCoordinator::renderFarTerrain() {
     // C1: keep the far-terrain horizon on the shared screen-space metric (no-op at the
     // reference config). Must be set before update()/computeRings() runs this frame.
     if (farTerrainManager) farTerrainManager->params().viewScale = screenSpaceLodScale();
+
+    // The FAR shadow cascade replays these caches next frame. Empty them BEFORE any early
+    // return: they hold raw tile/tree buffer handles, and a stale cache outlives the
+    // 4-frame graveyard that frees those buffers. setTreeExclusions() retires every tile
+    // at once (settlement worlds, at load), tileDraws() goes empty, the `tiles.empty()`
+    // return below used to skip the refresh, and the shadow pass drew freed buffers ->
+    // VK_ERROR_DEVICE_LOST ~seconds after launch in CityBench (2026-09-26).
+    m_cachedFarTileDraws.clear();
+    m_cachedTreeMeshDraws.clear();
 
     // Far-terrain LOD tiles. Drawn AFTER static geometry so near chunks fill depth
     // first and far-tile pixels behind them are z-rejected. Excluded from the shadow
@@ -1537,7 +1661,7 @@ void RenderCoordinator::renderFarTerrain() {
     // Far-cascade caster list rebuilt per frame — at COARSEST chain level only. A shadow
     // caster at 0.9 u/texel needs blob-shape depth, not L1 detail; replaying the visible
     // draws as casters made every cadence frame's shadow pass spike ~+10 ms (measured).
-    m_cachedTreeMeshDraws.clear();
+    // (Both caches were emptied at the top of this function.)
     lastFrameStats.farTrees = 0;
     std::fill(std::begin(lastFrameStats.farTreeMeshAnnuli),
               std::end(lastFrameStats.farTreeMeshAnnuli), 0);
@@ -1546,6 +1670,7 @@ void RenderCoordinator::renderFarTerrain() {
     std::fill(std::begin(lastFrameStats.farTreeMeshDrawsByLevel),
               std::end(lastFrameStats.farTreeMeshDrawsByLevel), 0);
     lastFrameStats.farTreeCardDraws = 0;
+    lastFrameStats.structureLodSkippedInvisible = 0;
     // Residency-gated handoff (user: "lower detail trees fade out before the detailed trees
     // render... for a bit of time there is nothing there"). The distance fade assumes chunks
     // at fade range are loaded, but streaming is ASYNC — flying in, the LOD tree dissolved on
@@ -2228,35 +2353,6 @@ void RenderCoordinator::renderDynamicSubcubes() {
         vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
 
         vkCmdDrawIndirect(cmd, m_gpuParticles->getIndirectDrawBuffer(), 0, 1, 16);
-        // Fall through to also render Bullet dynamic objects (hybrid mode)
-    }
-
-    // ---------------------------------------------------------------------------
-    // CPU Bullet path: dynamic cubes managed by DynamicObjectManager.
-    // In hybrid mode this renders alongside the GPU path above.
-    // ---------------------------------------------------------------------------
-    const auto& allDynamicSubcubeFaces = chunkManager->getGlobalDynamicSubcubeFaces();
-    if (!allDynamicSubcubeFaces.empty()) {
-        vulkanDevice->updateDynamicSubcubeBuffer(allDynamicSubcubeFaces);
-
-        VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
-
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                         dynamicRenderPipeline->getGraphicsPipeline());
-
-        vulkanDevice->bindDynamicSubcubeBuffer(currentFrame);
-        vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
-
-        // Non-indexed draw: vertexID 0-5 procedurally, matching GPU path and
-        // dynamic_voxel.vert's cornerRemap[6] expectations.
-        // Clamp instance count to the buffer capacity: if face data exceeds the buffer,
-        // updateDynamicSubcubeBuffer silently truncates the write, and drawing more
-        // instances than were written causes the GPU to read stale buffer data,
-        // producing ghost voxels at expired cube positions.
-        uint32_t drawCount = static_cast<uint32_t>(
-            std::min(allDynamicSubcubeFaces.size(),
-                     static_cast<size_t>(vulkanDevice->getMaxDynamicSubcubes())));
-        vkCmdDraw(cmd, 6, drawCount, 0, 0);
     }
 }
 
@@ -2392,6 +2488,12 @@ bool RenderCoordinator::s_shadowFrustumCull = false;
 
 // Phase 3 face-direction bucketing: ON by default; /api/debug/face_dir_cull for A/B.
 bool RenderCoordinator::s_faceDirCull = true;
+bool RenderCoordinator::s_depthPrepass = true;    // P-DP: ON since 2026-09-27 (PerfProgram 16.13)
+bool  RenderCoordinator::s_effectTimeFrozen = false;
+float RenderCoordinator::s_effectTimeHeldAt = 0.0f;
+float RenderCoordinator::s_effectTimeLast = 0.0f;         // P-DP: OFF until its A/B + pixel gates pass
+uint32_t RenderCoordinator::s_tierMaskMain = 0x7u;     // I6: all tiers drawn (the normal paths)
+uint32_t RenderCoordinator::s_tierMaskShadow = 0x7u;
 // C1 (docs/ContinuousLodPlan.md): screen-space correction for the character LOD/cull
 // thresholds. ON by default -- it is EXACTLY a no-op at the reference config (1600x900,
 // fovY 45) that the 35/80/400 numbers were tuned at, and a correction elsewhere.
@@ -2430,6 +2532,10 @@ bool  RenderCoordinator::s_distanceDrivenLod = false;
 bool  RenderCoordinator::s_farLodChunks = true;
 int   RenderCoordinator::s_farLodBudgetPerFrame = 4;
 bool  RenderCoordinator::s_treePerInstanceLevels = true;
+bool  RenderCoordinator::s_structureLodEnabled = true;
+float RenderCoordinator::s_structureLevelDist[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
+bool  RenderCoordinator::s_structureLodSkipInvisible = true;
+bool  RenderCoordinator::s_proxyMeshMerge = false;   // A/B until gated (PerfProgram 17.2 step 3)
 // Tree mesh ladder (level i+1 below entry i; L5 beyond) — runtime-tunable, see the header.
 float RenderCoordinator::s_treeMeshLevelDist[4] = {360.0f, 560.0f, 820.0f, 1150.0f};
 float RenderCoordinator::s_lodTargetPixels = 8.0f;
@@ -2662,23 +2768,52 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
       if (!strideMisaligned) {
         struct Batch { VkBuffer buf; uint32_t first; uint32_t count; };
         std::vector<Batch> batches;
+        namespace TR = TierRanges;
+        const uint32_t shadowTierMask = (s_tierMaskShadow & 0x7u) | (1u << TR::kLodCell);
+        uint64_t* tierTally = m_tierDrawStats.shadowFaces[cascade];
         for (auto& kv : byBuffer) {
             const uint32_t firstCmd = cmdCursor;
             uint32_t n = 0;
             for (const Chunk* ch : kv.second) {
                 if (cmdCursor >= ShadowMap::kMaxIndirectCommands ||
                     origins.size() >= ShadowMap::kMaxChunkDataEntries) break;
-                VkDrawIndexedIndirectCommand& c = cmds[cmdCursor];
-                c.indexCount    = s_shadowQuadDraw ? 6u : 36u;   // M5 A/B (see the note above)
-                c.instanceCount = ch->getNumInstances();
-                c.firstIndex    = 0;
-                c.vertexOffset  = 0;
-                c.firstInstance = static_cast<uint32_t>(ch->getInstanceBindOffset() / stride);
+                const auto& tierOff = ch->getDirTierOffsets();
+                const bool tiersValid = tierOff[TR::kBuckets] == ch->getNumInstances();
+                const uint32_t base = static_cast<uint32_t>(ch->getInstanceBindOffset() / stride);
                 glm::ivec3 wo = ch->getWorldOrigin();
                 glm::vec3 rel = camera->relativeTo(glm::dvec3(wo));
-                origins.emplace_back(rel.x, rel.y, rel.z, 0.0f);
-                gpuInstances += c.instanceCount;
-                ++cmdCursor; ++n;
+                auto emit = [&](uint32_t first, uint32_t count) {
+                    VkDrawIndexedIndirectCommand& c = cmds[cmdCursor];
+                    c.indexCount    = s_shadowQuadDraw ? 6u : 36u;   // M5 A/B (see the note above)
+                    c.instanceCount = count;
+                    c.firstIndex    = 0;
+                    c.vertexOffset  = 0;
+                    c.firstInstance = base + first;
+                    origins.emplace_back(rel.x, rel.y, rel.z, 0.0f);   // one origin per command (gl_DrawID)
+                    gpuInstances += count;
+                    ++cmdCursor; ++n;
+                };
+                if (shadowTierMask == TR::kAllTiers) {
+                    emit(0, ch->getNumInstances());
+                    if (tiersValid)
+                        for (uint32_t t = 0; t < TR::kTiers; ++t) tierTally[t] += ch->getTierFaces()[t];
+                } else if (!tiersValid) {
+                    ++m_tierDrawStats.maskedChunksSkipped;   // never drawn whole under a mask
+                } else {
+                    // I6: one indirect command per kept (direction, tier) run, so a masked tier's
+                    // vertex work disappears from the shadow pass too.
+                    TR::buildRuns(tierOff, 0x3Fu, shadowTierMask, m_tierRunScratch);
+                    for (const auto& r : m_tierRunScratch) {
+                        if (cmdCursor >= ShadowMap::kMaxIndirectCommands ||
+                            origins.size() >= ShadowMap::kMaxChunkDataEntries) {
+                            ++m_tierDrawStats.shadowCmdOverflow;   // reported: a masked run was dropped
+                            continue;
+                        }
+                        emit(r.first, r.count);
+                    }
+                    for (uint32_t t = 0; t < TR::kTiers; ++t)
+                        if ((shadowTierMask >> t) & 1u) tierTally[t] += ch->getTierFaces()[t];
+                }
             }
             if (n) batches.push_back({kv.first, firstCmd, n});
         }
@@ -2787,10 +2922,30 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
              // leaks). 36 stays REQUIRED under back-cull. Possible future experiment: 6-index
              // + CULL_NONE pipeline (would need its own acne/bias re-tune + pixel gate).
              // (And do NOT direction-bucket here — see the note at the top of this function.)
-             vkCmdDrawIndexed(commandBuffer, s_shadowQuadDraw ? 6u : 36u,
-                              chunk->getNumInstances(), 0, 0, 0);
+             namespace TR = TierRanges;
+             const uint32_t shadowTierMask = (s_tierMaskShadow & 0x7u) | (1u << TR::kLodCell);
+             const auto& tierOff = chunk->getDirTierOffsets();
+             const bool tiersValid = tierOff[TR::kBuckets] == chunk->getNumInstances();
+             uint64_t* tierTally = m_tierDrawStats.shadowFaces[cascade];
+             if (shadowTierMask == TR::kAllTiers) {
+                 vkCmdDrawIndexed(commandBuffer, s_shadowQuadDraw ? 6u : 36u,
+                                  chunk->getNumInstances(), 0, 0, 0);
+                 shadowInstances += chunk->getNumInstances();
+                 if (tiersValid)
+                     for (uint32_t t = 0; t < TR::kTiers; ++t) tierTally[t] += chunk->getTierFaces()[t];
+             } else if (!tiersValid) {
+                 ++m_tierDrawStats.maskedChunksSkipped;   // never drawn whole under a mask
+             } else {
+                 // I6: kept tiers only, ALL directions (tier runs, not direction culling).
+                 TR::buildRuns(tierOff, 0x3Fu, shadowTierMask, m_tierRunScratch);
+                 for (const auto& r : m_tierRunScratch) {
+                     vkCmdDrawIndexed(commandBuffer, s_shadowQuadDraw ? 6u : 36u, r.count, 0, 0, r.first);
+                     shadowInstances += r.count;
+                 }
+                 for (uint32_t t = 0; t < TR::kTiers; ++t)
+                     if ((shadowTierMask >> t) & 1u) tierTally[t] += chunk->getTierFaces()[t];
+             }
              ++shadowChunks;
-             shadowInstances += chunk->getNumInstances();
         }
     }
     if (cascade == kCascadeMid && !chunksDrawnViaMultidraw) {
@@ -3138,10 +3293,20 @@ void RenderCoordinator::drawFarLodChunks(uint32_t currentFrame) {
 }
 
 void RenderCoordinator::drawFrame() {
+    // I7 (docs/PerfProgram2026-09.md): CPU scopes for this frame. The guard closes every open
+    // scope and commits the frame on EVERY exit path (minimised window, failed acquire/submit).
+    m_cpuTiming.beginFrame();
+    m_cpuTiming.push("drawFrame");
+    struct CpuFrameGuard {
+        RenderCoordinator* rc;
+        ~CpuFrameGuard() { rc->m_cpuTiming.endFrame(++rc->m_cpuFrameSerial); }
+    } cpuFrameGuard{this};
+
     // C1 (docs/ContinuousLodPlan.md): refresh the shared screen-space LOD scale ONCE, before
     // any consumer runs. It previously lived in buildCharacterFrameData, which runs after
     // renderGrass/renderFoliage in the scene pass — those would have read a one-frame-stale
     // scale (and the default 1.0 on frame 0). Exactly 1.0 at the reference config either way.
+    m_cpuTiming.push("LOD Update");
     if (vulkanDevice) {
         // Pass the camera's REAL vertical FOV rather than letting it default to the reference
         // constant — otherwise the correction is resolution-only and silently stops tracking
@@ -3153,6 +3318,7 @@ void RenderCoordinator::drawFrame() {
     // C5: pick each chunk's LOD level from the shared metric before culling/drawing.
     updateChunkLod();
     updateFarLodChunks();   // C3.3: serve non-resident chunks from the persisted pyramid
+    m_cpuTiming.pop();   // LOD Update
 
     // Skip rendering when window is minimized (0x0 extent is invalid in Vulkan)
     if (windowManager->getWidth() == 0 || windowManager->getHeight() == 0) {
@@ -3176,10 +3342,14 @@ void RenderCoordinator::drawFrame() {
         // bake as if the world were empty and read fully sky-lit indoors. Occupancy comes from the
         // physics grid, which is populated at chunk LOAD and does not depend on meshing, so this
         // ordering is safe in the other direction.
-        updateLightOccupancy();
+        {
+            CPU_PROFILE_SCOPE(&m_cpuTiming, "Light Occupancy");
+            updateLightOccupancy();
+        }
         // Nearest-to-camera first (G-181): the chunks the player is looking at mesh before the
         // streamed surround that queued ahead of them.
         if (camera) chunkManager->dirtyTracker().setFocus(camera->getPosition());
+        CPU_PROFILE_SCOPE(&m_cpuTiming, "Dirty Chunk Flush");   // includes the chunk re-meshing
         chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
     }
 
@@ -3280,12 +3450,22 @@ void RenderCoordinator::drawFrame() {
     updateSpanWaterGrid();
 
     // Wait for previous frame
-    vulkanDevice->waitForFence(currentFrame);
+    {
+        CPU_PROFILE_SCOPE(&m_cpuTiming, "Fence Wait");   // time the CPU spends waiting on the GPU
+        vulkanDevice->waitForFence(currentFrame);
+    }
+    // The GPU is now done with this slot's occupancy copy (its last reader was the frame that
+    // signalled this fence), so it is safe to rewrite it with the latest pack. The OTHER slot may
+    // still be in flight and is left alone until its own fence.
+    if (m_lightOccupancy) m_lightOccupancy->uploadToSlot(static_cast<uint32_t>(currentFrame));
 
     // Acquire next image (don't reset fence yet — if acquire fails, the still-signaled
     // fence lets the next frame's waitForFence pass instead of deadlocking)
     uint32_t imageIndex;
+    m_cpuTiming.push("Acquire");
     VkResult result = vulkanDevice->acquireNextImage(currentFrame, &imageIndex);
+    m_cpuTiming.pop();
+    m_cpuTiming.push("Frame Setup");   // everything between acquire and command recording
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         // Swapchain is out of date — recreate FIRST (calls vkDeviceWaitIdle)
@@ -3534,8 +3714,8 @@ void RenderCoordinator::drawFrame() {
                 a.bodyLight[i]     = glm::vec4(m_skyBodies.lightColors[i], 0.0f);
             }
             if (vulkanDevice) vulkanDevice->setAtmosphereUniforms(a);
-            // U1: cache what the shaders were just given, so CPU-side shading (debris particles)
-            // uses the SAME values rather than deriving its own.
+            // U1: cache what the shaders were just given, so CPU-side consumers use the SAME
+            // values rather than deriving their own.
             m_lastAmbientColor = a.ambientColor;
 
             // The sun's own colour comes from the same transmittance as its rendered disc, so the
@@ -3654,7 +3834,10 @@ void RenderCoordinator::drawFrame() {
     // Seconds since first frame — drives grass wind + growth in the shaders (UBO.elapsedTime).
     static const auto renderStartTime = std::chrono::high_resolution_clock::now();
     float elapsedTime = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - renderStartTime).count();
-    m_lastSunColor = sunColor;   // U1: same value the shaders get, for the debris CPU sampler
+    // Effect-time hold (debug): every time-driven visual below reads this one value.
+    if (s_effectTimeFrozen) elapsedTime = s_effectTimeHeldAt;
+    else s_effectTimeLast = elapsedTime;
+    m_lastSunColor = sunColor;   // U1: same value the shaders get, for CPU-side consumers
     vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier, cameraPos, elapsedTime);
 
     // Camera-relative rendering: hand the true camera position to pipelines that push their
@@ -3757,19 +3940,24 @@ void RenderCoordinator::drawFrame() {
     // Upload light data to GPU SSBO
     // Light positions must be expressed in the same camera-relative space as the fragment
     // positions they are subtracted from. See LightManager::setViewerWorld.
+    m_cpuTiming.push("Light Select+Upload");
     lightManager.setViewerWorld(camera ? camera->getPosition() : glm::vec3(0.0f));
     auto gpuLightData = lightManager.getGPUData();
     vulkanDevice->updateLightBuffer(currentFrame, gpuLightData);
-    
+    m_cpuTiming.pop();
+
     auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
+    m_cpuTiming.pop();   // Frame Setup
 
     // Record command buffer
+    m_cpuTiming.push("Record");
     auto recordStart = std::chrono::high_resolution_clock::now();
     vulkanDevice->resetCommandBuffer(currentFrame);
     vulkanDevice->beginCommandBuffer(currentFrame);
     
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
     gpuProfiler->startFrame(currentFrame, cmd);
+    m_tierDrawStats = {};   // I5 per-view tier census, accumulated by this frame's passes
     
     // Cull, sort and batch every character ONCE for the whole frame — the shadow pass,
     // the main pass and the mirror pass all consume this (docs/CharacterPipelineScaling.md).
@@ -3783,18 +3971,26 @@ void RenderCoordinator::drawFrame() {
 
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
+        CPU_PROFILE_SCOPE(&m_cpuTiming, "Shadow Pass");
         // Mid cascade (the original single map), then the near cascade (tight map whose
         // texels resolve blade-scale casters — docs/NearShadowCascade.md).
-        renderShadowPass(cmd, *shadowMap, lightSpaceMatrix, shadowCullCenter,
-                         shadowCullRadius, kCascadeMid);
-        if (shadowMapNear && s_nearShadowEnabled)
+        // One scope per cascade so each one's cost is attributable (I1).
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Mid");
+            renderShadowPass(cmd, *shadowMap, lightSpaceMatrix, shadowCullCenter,
+                             shadowCullRadius, kCascadeMid);
+        }
+        if (shadowMapNear && s_nearShadowEnabled) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Near");
             renderShadowPass(cmd, *shadowMapNear, m_nearLightSpaceMatrix,
                              m_nearShadowCullCenter, m_nearShadowCullRadius, kCascadeNear);
+        }
         // FAR cascade on a cadence: skipping a frame skips the CLEAR too, so the map
         // simply persists. The counter + fit are latched together in the fit block above;
         // recording ONLY on latch frames keeps the map and its sampling matrix in
         // lockstep (the flicker fix depends on this pairing).
         if (shadowMapFar && s_farShadowEnabled && m_farRenderThisFrame) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Far");
             renderShadowPass(cmd, *shadowMapFar, m_farLightSpaceMatrix,
                              m_farShadowCullCenter, m_farShadowCullRadius, kCascadeFar);
         }
@@ -3804,6 +4000,11 @@ void RenderCoordinator::drawFrame() {
     // Must run before the render pass because it writes the face vertex buffer
     if (m_gpuParticles && m_gpuParticles->isInitialized()) {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "GPU Particles");
+        // The box this frame slot's occupancy pack was built with (uploaded after the fence,
+        // above) -- the debris contact passes read that slot (DebrisInteractionPlan 1c).
+        if (m_lightOccupancy)
+            m_gpuParticles->setStaticOccupancyBox(m_lightOccupancy->stats().boxMinChunk,
+                                                  m_lightOccupancy->ready());
         m_gpuParticles->recordComputeCommands(cmd, currentFrame, gpuProfiler.get());
     }
 
@@ -3873,16 +4074,26 @@ void RenderCoordinator::drawFrame() {
     
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Scene Pass");
+        CPU_PROFILE_SCOPE(&m_cpuTiming, "Scene Pass");
 
         // ---- Atmospheric sky + sun + moon, FIRST in the pass ------------------------------------
         // Depth test and write are off, so this simply fills the frame and every later draw covers
         // it. That ordering is what lets the pass replace the flat clear colour outright, and it
         // keeps the sky independent of the scene's reverse-Z depth convention.
-        drawSky(cmd);
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Sky");
+            drawSky(cmd);
+        }
 
         // Bind graphics pipeline (debug or normal based on debug mode)
+    // P-DP: with the depth prepass on, the depth-only pipeline goes first; the shading pipeline
+    // (depth writes OFF, or-equal test) is bound just before the shading draw below.
+    const bool useDepthPrepass = s_depthPrepass && !debugModeEnabled && renderPipeline->hasDepthPrepass();
+    m_depthPrepassRan = useDepthPrepass;
     if (debugModeEnabled) {
         renderPipeline->bindDebugGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
+    } else if (useDepthPrepass) {
+        renderPipeline->bindDepthPrepassPipeline(vulkanDevice->getCommandBuffer(currentFrame));
     } else {
         renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
     }
@@ -3914,8 +4125,25 @@ void RenderCoordinator::drawFrame() {
     if (chunkManager && !chunkManager->chunks.empty()) {
         // Render static geometry first and capture how many chunks were actually rendered
         size_t actuallyRenderedChunks = 0;
-        {
+        if (useDepthPrepass) {
+            // P-DP: depth-only pass over the culled chunks, then shade the SAME list with depth
+            // writes off and an or-equal test. Descriptor sets, vertex/index buffers and the dynamic
+            // viewport/scissor stay bound across the pipeline switch (same layout, same dynamic state).
+            {
+                GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Depth Prepass");
+                CPU_PROFILE_SCOPE(&m_cpuTiming, "Depth Prepass");
+                renderStaticGeometry(StaticDrawPass::DepthPrepass);
+            }
+            renderPipeline->bindGraphicsPipelineAfterPrepass(cmd);
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Static Geometry");
+            CPU_PROFILE_SCOPE(&m_cpuTiming, "Static Geometry");
+            // D0: fragment invocations of the SHADING pass (the overdraw counter P-DP targets).
+            gpuProfiler->beginPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
+            actuallyRenderedChunks = renderStaticGeometry(StaticDrawPass::ShadeAfterPrepass);
+            gpuProfiler->endPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
+        } else {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Static Geometry");
+            CPU_PROFILE_SCOPE(&m_cpuTiming, "Static Geometry");
             // D0: count fragment invocations + primitives for the chunk pass (overdraw counter).
             gpuProfiler->beginPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
             actuallyRenderedChunks = renderStaticGeometry();
@@ -3997,22 +4225,7 @@ void RenderCoordinator::drawFrame() {
     // Clear transient lines once they are on screen; the next frame queues its own.
     if (raycastVisualizer) raycastVisualizer->beginFrame();
 
-    // Render Debris
-    if (debrisPipeline && chunkManager) {
-        auto* debrisSystem = chunkManager->m_dynamicObjectManager.getDebrisSystem();
-        if (debrisSystem && debrisSystem->getActiveParticleCount() > 0) {
-            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Debris");
-            debrisPipeline->render(
-                vulkanDevice->getCommandBuffer(currentFrame),
-                *camera,
-                cachedProjectionMatrix,
-                debrisSystem->getParticles(),
-                debrisSystem->getActiveParticleCount()
-            );
-        }
-    }
-
-    // Render VFX particles (additive glow — after opaque/debris geometry)
+    // Render VFX particles (additive glow — after opaque geometry)
     if (vfxPipeline && vfxSystem && vfxSystem->getActiveCount() > 0) {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VFX");
         vfxPipeline->render(
@@ -4231,12 +4444,19 @@ void RenderCoordinator::drawFrame() {
 
     // End Post Process Render Pass
     postProcessor->endPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
+    // Last command in the buffer: closes the whole-frame GPU timestamp bracket (I1).
+    gpuProfiler->finishFrame(vulkanDevice->getCommandBuffer(currentFrame));
+    m_tierDrawStatsLast = m_tierDrawStats;   // publish the complete frame's tier census
     vulkanDevice->endCommandBuffer(currentFrame);
     auto recordEnd = std::chrono::high_resolution_clock::now();
+    m_cpuTiming.pop();   // Record
 
     // Submit command buffer
     auto submitStart = std::chrono::high_resolution_clock::now();
-    if (!vulkanDevice->submitCommandBuffer(currentFrame)) {
+    m_cpuTiming.push("Submit");
+    const bool submitted = vulkanDevice->submitCommandBuffer(currentFrame);
+    m_cpuTiming.pop();
+    if (!submitted) {
         LOG_ERROR("RenderCoordinator", "Failed to submit command buffer!");
         // Recovery: fence was reset but submit didn't signal it.
         // Wait for device idle, recreate sync objects (fences start signaled),
@@ -4250,7 +4470,9 @@ void RenderCoordinator::drawFrame() {
 
     // Present frame
     auto presentStart = std::chrono::high_resolution_clock::now();
+    m_cpuTiming.push("Present");
     VkResult presentResult = vulkanDevice->presentFrame(imageIndex, currentFrame);
+    m_cpuTiming.pop();
     m_lastImageIndex = imageIndex;  // Track for screenshot capture
 
     // Multi-viewport: update and render secondary platform windows (after main present)
@@ -4968,7 +5190,7 @@ void RenderCoordinator::wireItemEffects(Core::ItemEffectSystem& fx) {
             pl.color = color;
             pl.intensity = intensity;
             pl.radius = radius;
-            return lightManager.addPointLight(pl);
+            return lightManager.addPointLight(LightSource::ItemEffect, pl);
         },
         [this](int lightId, const glm::vec3& pos) { lightManager.updatePointLightPosition(lightId, pos); },
         [this](int lightId) { lightManager.removeLight(lightId); });

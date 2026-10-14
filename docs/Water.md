@@ -124,7 +124,10 @@ What the CA has (all shipped, commits in git history; compressed from the small-
 - **RippleField** — 128×128 half-voxel damped wave heightfield, player-following;
   displaces per-cell water; `addRipple` on disturbances.
 - **Entity coupling** — `sampleWater`/`submergedFraction` (the one shared query),
-  buoyancy + drag on rigid bodies (wet bodies never sleep; slept bodies re-check ~1 Hz),
+  buoyancy + drag on rigid bodies (wet bodies never sleep; slept bodies re-check ~1 Hz).
+  GPU debris gets the same coupling on the GPU (DebrisInteractionPlan 6c): per-material
+  `physics.buoyancy` in materials.json, plus drag and current from `WaterManager::columnWater`
+  through a sparse per-chunk-column tile upload, solver flag 64;
   wading slowdown + stride rings + entry splash, currents push entities (`flowAtWorld`).
 - **Persistence of deviations** — poured ponds survive recenter + restart
   (`world_meta["water_overrides"]`); edge-outflow banks (window edge is not a wall).
@@ -216,7 +219,7 @@ they cannot drift apart).
 ⚑Every earlier water testbed is DELETED (2026-08-04, user decision — they predated
 water-as-world-data and carried stale engine state): WaterTableTest, WaterBasinTest, WaterLab,
 CreekLab, RiverLab, RiverDemo. Numbers measured in them remain in this doc as history; the
-reference screenshots in `docs/water-refs/` are historical evidence. Recreating a small bounded
+reference screenshots (`docs/water-refs/`) were retired 2026-10-07; they are in git history. Recreating a small bounded
 basin world takes two commands (generate Flat 4×4 + carve — see the WaterBasinTest recipe in
 git history) and should be done fresh when needed rather than kept.
 

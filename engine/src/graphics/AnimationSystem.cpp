@@ -8,6 +8,22 @@
 
 namespace Phyxel {
 
+    // Parse cache shared by loadFromFile / prewarm / invalidateCache. Keyed by the
+    // exact path string; the parse is a pure function of the file contents, so a
+    // cached entry is valid until the file changes — which only invalidateCache()
+    // knows about (hot reload, A0 #7).
+    namespace {
+        struct CachedAnim { Skeleton skeleton; std::vector<AnimationClip> clips; VoxelModel model; };
+        std::mutex s_animCacheMutex;
+        std::unordered_map<std::string, CachedAnim> s_animCache;
+    }
+
+    void AnimationSystem::invalidateCache(const std::string& filePath) {
+        std::lock_guard<std::mutex> lock(s_animCacheMutex);
+        if (filePath.empty()) s_animCache.clear();
+        else s_animCache.erase(filePath);
+    }
+
     bool AnimationSystem::loadFromFile(const std::string& filePath, Skeleton& outSkeleton, std::vector<AnimationClip>& outClips, VoxelModel& outModel) {
         // Parse cache: the .anim text parser below is O(lines) but pays heavy
         // per-line std::stringstream cost — parsing humanoid.anim (76 clips of
@@ -15,9 +31,6 @@ namespace Phyxel {
         // file contents, so cache it by path and clone on subsequent loads.
         // Without this, every character spawn re-parsed from disk on the main
         // thread → a ~5s whole-app freeze per spawn.
-        struct CachedAnim { Skeleton skeleton; std::vector<AnimationClip> clips; VoxelModel model; };
-        static std::mutex s_animCacheMutex;
-        static std::unordered_map<std::string, CachedAnim> s_animCache;
         {
             std::lock_guard<std::mutex> lock(s_animCacheMutex);
             auto it = s_animCache.find(filePath);
@@ -220,6 +233,17 @@ namespace Phyxel {
         if (idx < 0) idx = 0;
         if (idx > static_cast<int>(keys.size()) - 1) idx = static_cast<int>(keys.size()) - 1;
         return idx;
+    }
+
+    glm::vec3 AnimationSystem::sampleBonePosition(const AnimationClip& clip, int boneId, float time, bool loop,
+                                                  const glm::vec3& fallback) {
+        float t = time;
+        if (loop && clip.duration > 0.0f) t = fmod(time, clip.duration);
+        else if (clip.duration > 0.0f) t = std::min(time, clip.duration);
+        for (const auto& channel : clip.channels)
+            if (channel.boneId == boneId)
+                return channel.positionKeys.empty() ? fallback : interpolatePosition(channel.positionKeys, t);
+        return fallback;
     }
 
     glm::vec3 AnimationSystem::interpolatePosition(const std::vector<PositionKeyframe>& keys, float time) {

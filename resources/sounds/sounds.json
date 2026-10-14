@@ -513,6 +513,42 @@
       "channel": "SFX",
       "spatial": true,
       "minDistance": 3.0
+    },
+    "debris.impact": {
+      "files": [
+        "sfx/debris/impact_1.wav",
+        "sfx/debris/impact_2.wav",
+        "sfx/debris/impact_3.wav",
+        "sfx/debris/impact_4.wav"
+      ],
+      "volume": [
+        0.75,
+        0.95
+      ],
+      "pitch": [
+        0.9,
+        1.12
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 2.0
+    },
+    "debris.settle": {
+      "files": [
+        "sfx/debris/settle_1.wav",
+        "sfx/debris/settle_2.wav"
+      ],
+      "volume": [
+        0.35,
+        0.5
+      ],
+      "pitch": [
+        0.92,
+        1.1
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 1.5
     }
   }
 }

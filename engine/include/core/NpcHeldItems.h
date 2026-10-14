@@ -25,12 +25,16 @@ struct ItemDefinition;
 // One engine class for the editor and the shipped game (both used to keep their own
 // combat-weapon-only copy: Application::updateNpcHeldItems and the scaffold's
 // equipNpcWeapons/updateHeldWeapons, with DIFFERENT grip-rotation math). Per frame it
-// reconciles each NPC's DESIRED item (desiredItem: the combat weapon, else the item the
-// NPC is carrying - a torch at night, NPCEntity::setCarriedItem) with what is drawn:
-// builds the item's kinematic voxel mesh from its template, attaches it to the grip
-// bone, follows the bone, and registers the item's EFFECTS with ItemEffectSystem so a
-// torch's flame and light ride the hand (neither old copy registered effects - an NPC
-// torch would have been a dark stick). Ravenmere T-73 / the torch feature, 2026-09-26.
+// reconciles each NPC's DESIRED item (desiredItem: the combat weapon, else the EQUIPPED
+// main-hand item (equip_item), else the item the NPC is carrying - a torch at night,
+// NPCEntity::setCarriedItem) with what is drawn: builds the item's kinematic voxel mesh from
+// its template, attaches it to the grip bone, follows the bone, and registers the item's
+// EFFECTS with ItemEffectSystem so a torch's flame and light ride the hand (neither old copy
+// registered effects - an NPC torch would have been a dark stick). The mesh pushes GPU debris
+// (DebrisInteractionPlan 3b), and the item sets the character's A3 composition factors
+// (grip class + load band, MeleeAnimMapper) and pins the off-hand to a two-handed item's
+// second grip. Ravenmere T-73 / the torch feature, 2026-09-26; merged with upstream's
+// 2026-09-29 / 10-0x editor additions on 2026-10-14.
 // ============================================================================
 class NpcHeldItems {
 public:
@@ -47,8 +51,9 @@ public:
     /// Per frame: rebuild changed items, follow the grip bones, drop NPCs that are gone.
     void update(NPCManager& npcs);
 
-    /// The item an NPC should be holding: its combat weapon if it has one, otherwise its
-    /// carried item. "" = empty hands. Unknown / unholdable / template-less items read "".
+    /// The item an NPC should be holding: its combat weapon if it has one, else its equipped
+    /// main-hand item, else its carried item. "" = empty hands. Unknown / unholdable /
+    /// template-less items read "".
     static std::string desiredItem(const Scene::NPCEntity& npc);
 
     /// The item currently DRAWN in an NPC's hand ("" = none) - for tests and the test API.

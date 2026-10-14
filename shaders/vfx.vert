@@ -1,8 +1,8 @@
 #version 450
 
 // Lightweight VFX particle vertex shader (spell bursts, etc.).
-// Mirrors debris.vert but carries a full RGBA color so the fragment
-// shader can fade emissive particles via the alpha channel.
+// Instanced cubes carrying a full RGBA color so the fragment shader
+// can fade emissive particles via the alpha channel.
 
 layout(push_constant) uniform PushConstants {
     mat4 view;

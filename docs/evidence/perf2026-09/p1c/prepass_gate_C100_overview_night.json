@@ -1,0 +1,71 @@
+{
+ "pose": [
+  0,
+  190,
+  172.8,
+  -90,
+  -45
+ ],
+ "frozen": false,
+ "night_freeze": true,
+ "time_of_day": 22.0,
+ "route": "/api/debug/depth_prepass",
+ "key": "enabled",
+ "curves": {
+  "linear": {
+   "control_A1_C": {
+    "max": 0,
+    "p999": 0.0,
+    "over8": 0,
+    "mean": 0.0
+   },
+   "test_A1_B": {
+    "max": 14,
+    "p999": 0.0,
+    "over8": 3,
+    "mean": 6.326005710052522e-05
+   },
+   "pass": false,
+   "void": false,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260927_092305_784.png",
+    "screenshots/screenshot_20260927_092312_585.png",
+    "screenshots/screenshot_20260927_092309_186.png"
+   ]
+  },
+  "shipping": {
+   "control_A1_C": {
+    "max": 0,
+    "p999": 0.0,
+    "over8": 0,
+    "mean": 0.0
+   },
+   "test_A1_B": {
+    "max": 19,
+    "p999": 0.0,
+    "over8": 3,
+    "mean": 8.989587061653585e-05
+   },
+   "pass": false,
+   "void": false,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260927_092316_077.png",
+    "screenshots/screenshot_20260927_092322_932.png",
+    "screenshots/screenshot_20260927_092319_501.png"
+   ]
+  }
+ },
+ "npcs_at_start": 0,
+ "converge_s": 12.0,
+ "converge_last_drift": 0,
+ "player_parked_from": {
+  "x": 8.0,
+  "y": 52.0,
+  "z": 8.0
+ },
+ "npcs_at_end": 0
+}

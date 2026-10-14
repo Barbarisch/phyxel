@@ -1,0 +1,445 @@
+{
+  "awake_bodies": [
+    {
+      "age": 255,
+      "ang_speed": 1.7287554740905762,
+      "color": 0,
+      "constraints": 1,
+      "kicks": 1,
+      "pos": [
+        75.56078338623047,
+        16.783498764038086,
+        16.891380310058594
+      ],
+      "rebounds": 2,
+      "sleep_ctr": 0,
+      "slot": 205,
+      "speed": 1.6847692728042603,
+      "tilt_deg": 32.292205810546875,
+      "vel": [
+        -1.6799925565719604,
+        0.1062011644244194,
+        0.06923675537109375
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 2.414053440093994,
+      "color": 0,
+      "constraints": 1,
+      "kicks": 5,
+      "pos": [
+        78.05683135986328,
+        16.657522201538086,
+        16.555416107177734
+      ],
+      "rebounds": 9,
+      "sleep_ctr": 0,
+      "slot": 135,
+      "speed": 1.6291993856430054,
+      "tilt_deg": 17.663305282592773,
+      "vel": [
+        -1.4323424100875854,
+        -0.6088256239891052,
+        0.48168179392814636
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 1.5127906799316406,
+      "color": 0,
+      "constraints": 1,
+      "kicks": 0,
+      "pos": [
+        72.75582122802734,
+        17.213298797607422,
+        11.479351997375488
+      ],
+      "rebounds": 16,
+      "sleep_ctr": 0,
+      "slot": 107,
+      "speed": 1.4676693677902222,
+      "tilt_deg": 30.773195266723633,
+      "vel": [
+        0.1716613620519638,
+        -1.4089964628219604,
+        -0.37324902415275574
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 1.4045233726501465,
+      "color": 1,
+      "constraints": 2,
+      "kicks": 1,
+      "pos": [
+        81.61012268066406,
+        17.045480728149414,
+        11.914133071899414
+      ],
+      "rebounds": 9,
+      "sleep_ctr": 0,
+      "slot": 146,
+      "speed": 1.3925609588623047,
+      "tilt_deg": 43.839107513427734,
+      "vel": [
+        0.0036621091421693563,
+        -1.3287733793258667,
+        0.416622132062912
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 1.3807662725448608,
+      "color": 0,
+      "constraints": 4,
+      "kicks": 4,
+      "pos": [
+        76.9178237915039,
+        16.634458541870117,
+        16.94694709777832
+      ],
+      "rebounds": 6,
+      "sleep_ctr": 0,
+      "slot": 136,
+      "speed": 1.371467113494873,
+      "tilt_deg": 10.78986930847168,
+      "vel": [
+        -0.518646240234375,
+        -1.2005995512008667,
+        0.4129028022289276
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.30454978346824646,
+      "color": 1,
+      "constraints": 5,
+      "kicks": 7,
+      "pos": [
+        77.33916473388672,
+        16.6404972076416,
+        16.713035583496094
+      ],
+      "rebounds": 7,
+      "sleep_ctr": 0,
+      "slot": 131,
+      "speed": 1.2540802955627441,
+      "tilt_deg": 13.59116268157959,
+      "vel": [
+        1.2011717557907104,
+        0.1723480075597763,
+        -0.3165435492992401
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.7352016568183899,
+      "color": 1,
+      "constraints": 6,
+      "kicks": 0,
+      "pos": [
+        71.29420471191406,
+        16.80490493774414,
+        15.961699485778809
+      ],
+      "rebounds": 3,
+      "sleep_ctr": 0,
+      "slot": 192,
+      "speed": 1.249067783355713,
+      "tilt_deg": 36.69588088989258,
+      "vel": [
+        -1.000213623046875,
+        -0.0698089599609375,
+        0.744895875453949
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.5243780016899109,
+      "color": 1,
+      "constraints": 6,
+      "kicks": 0,
+      "pos": [
+        78.75980377197266,
+        16.51342010498047,
+        21.868059158325195
+      ],
+      "rebounds": 16,
+      "sleep_ctr": 0,
+      "slot": 87,
+      "speed": 1.1874860525131226,
+      "tilt_deg": 1.1800172328948975,
+      "vel": [
+        0.3044128119945526,
+        -0.04772185906767845,
+        1.1468123197555542
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 2.472343683242798,
+      "color": 0,
+      "constraints": 2,
+      "kicks": 0,
+      "pos": [
+        80.22224426269531,
+        16.66801643371582,
+        11.853398323059082
+      ],
+      "rebounds": 3,
+      "sleep_ctr": 0,
+      "slot": 154,
+      "speed": 1.1170192956924438,
+      "tilt_deg": 19.159774780273438,
+      "vel": [
+        -0.3236388862133026,
+        0.9773253798484802,
+        -0.43338772654533386
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.7888784408569336,
+      "color": 0,
+      "constraints": 4,
+      "kicks": 1,
+      "pos": [
+        82.14021301269531,
+        17.192781448364258,
+        22.796663284301758
+      ],
+      "rebounds": 8,
+      "sleep_ctr": 0,
+      "slot": 79,
+      "speed": 1.103467345237732,
+      "tilt_deg": 23.865720748901367,
+      "vel": [
+        0.8857726454734802,
+        0.6580352187156677,
+        -0.006065368186682463
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.5026105046272278,
+      "color": 0,
+      "constraints": 5,
+      "kicks": 3,
+      "pos": [
+        82.43794250488281,
+        17.214656829833984,
+        17.291872024536133
+      ],
+      "rebounds": 19,
+      "sleep_ctr": 0,
+      "slot": 98,
+      "speed": 1.0962309837341309,
+      "tilt_deg": 32.703792572021484,
+      "vel": [
+        0.8248900771141052,
+        -0.6471633315086365,
+        0.32009121775627136
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.22319255769252777,
+      "color": 1,
+      "constraints": 4,
+      "kicks": 1,
+      "pos": [
+        81.4527816772461,
+        16.805034637451172,
+        18.890771865844727
+      ],
+      "rebounds": 6,
+      "sleep_ctr": 0,
+      "slot": 178,
+      "speed": 1.0706390142440796,
+      "tilt_deg": 39.44585418701172,
+      "vel": [
+        -1.045989990234375,
+        -0.18756864964962006,
+        0.13034820556640625
+      ]
+    }
+  ],
+  "csv": "G:\\github\\phyxel\\docs\\evidence\\debris_settle\\lab-baseline\\packed.csv",
+  "csv_written": true,
+  "running": false,
+  "success": true,
+  "summary": {
+    "bodies": 216,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 4.0,
+        "pass": false,
+        "value": null
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": false,
+        "value": 1
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": false,
+        "value": 20
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": false,
+        "value": 51567
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": false,
+        "value": 0.05239532191041537
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": false,
+        "value": 3.9027777777777777
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "settle_window_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 212368.71964478784,
+      "initial_J": 241570.91586800487,
+      "injected_after_window_J": 666.1415763855564,
+      "injected_after_window_lift_m": 0.05239532191041537,
+      "injected_total_J": 1956.16204713668,
+      "injected_total_lift_m": 0.153861797254554
+    },
+    "kicks_after_settle_window": 205,
+    "rebounds": {
+      "after_settle_window": 843,
+      "bodies_over_3": 167,
+      "per_body_after_mean": 3.9027777777777777,
+      "per_body_max": 31,
+      "per_body_mean": 7.4907407407407405,
+      "total": 1618
+    },
+    "sleep": {
+      "awake_at_end": 204,
+      "clean": 12,
+      "forced": 20,
+      "forced_fraction": 0.625,
+      "woke": 20
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 51567,
+      "hardcontact_max_depth_m": 0.09166300296783447,
+      "hardcontact_max_depth_tick": 44,
+      "max_color_skipped": 1,
+      "max_constraints": 3630,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": null,
+    "time_all_asleep_s": null,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 16.0,
+      "lowest_y": 16.49002456665039,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "FAILS",
+    "windows": [
+      {
+        "awake_at_end": 216,
+        "from_s": 0.0,
+        "hardcontact_fires": 727,
+        "injected_J": 1269.9213834098382,
+        "injected_lift_m": 0.09988558295026308,
+        "kicks": 61,
+        "max_churning": 216,
+        "max_color_skipped": 1,
+        "max_speed": 4.592568397521973,
+        "rebounds": 418,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 216,
+        "from_s": 0.5,
+        "hardcontact_fires": 597,
+        "injected_J": 20.09908734128544,
+        "injected_lift_m": 0.0015808923938755658,
+        "kicks": 20,
+        "max_churning": 216,
+        "max_color_skipped": 0,
+        "max_speed": 7.210268020629883,
+        "rebounds": 357,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 216,
+        "from_s": 1.0,
+        "hardcontact_fires": 2305,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 22,
+        "max_churning": 216,
+        "max_color_skipped": 0,
+        "max_speed": 7.771849155426025,
+        "rebounds": 259,
+        "to_s": 2.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 214,
+        "from_s": 2.0,
+        "hardcontact_fires": 13241,
+        "injected_J": 62.678229470996484,
+        "injected_lift_m": 0.004929952019699443,
+        "kicks": 52,
+        "max_churning": 214,
+        "max_color_skipped": 0,
+        "max_speed": 7.8755106925964355,
+        "rebounds": 304,
+        "to_s": 4.0,
+        "woke": 2
+      },
+      {
+        "awake_at_end": 204,
+        "from_s": 4.0,
+        "hardcontact_fires": 36021,
+        "injected_J": 603.4633469145599,
+        "injected_lift_m": 0.04746536989071593,
+        "kicks": 131,
+        "max_churning": 194,
+        "max_color_skipped": 0,
+        "max_speed": 3.850713014602661,
+        "rebounds": 280,
+        "to_s": 8.0,
+        "woke": 18
+      }
+    ],
+    "scenario": "packed",
+    "setup": "6x6x6 cubes touching, zero velocity, resting on flat ground",
+    "site": {
+      "x": 77,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0
+  },
+  "ticks": 480
+}

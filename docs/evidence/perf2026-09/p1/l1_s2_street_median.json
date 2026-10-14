@@ -1,0 +1,22 @@
+{
+ "pose": [
+  23,
+  53,
+  24,
+  -90,
+  -6
+ ],
+ "n_per_condition": 7,
+ "lights": {
+  "on": 36,
+  "off": 119,
+  "on2": 36
+ },
+ "control_px_over8": 12643,
+ "test_px_over8": 18919,
+ "beyond_control_px": 11078,
+ "beyond_control_frac": 0.018441971383147855,
+ "beyond_brighter_px": 4761,
+ "beyond_darker_px": 6281,
+ "beyond_mean_lum_change_merged_minus_unmerged": -3.7875969409942627
+}

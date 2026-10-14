@@ -11,6 +11,32 @@ static constexpr uint32_t MAX_POINT_LIGHTS = 32;
 /// Maximum number of spot lights supported simultaneously
 static constexpr uint32_t MAX_SPOT_LIGHTS = 16;
 
+/// Who registered a light. Required when a light is added (LightManager::addPointLight /
+/// addSpotLight take it as their FIRST parameter, with no default), so an untagged creation site
+/// does not compile. CPU-only: it is never uploaded, and PointLightGPU/SpotLightGPU are unchanged.
+/// Feeds GET /api/debug/light_stats by_source (docs/PerfProgram2026-09.md, I3).
+enum class LightSource : uint8_t {
+    EmissiveVoxel = 0,  ///< emissive/burning voxels, registered by the chunk emitter reconcile
+    Fixture,            ///< structure-generation fixtures (StructureForge place_lights)
+    ItemEffect,         ///< declarative item effects (torch flame, hearth fire, auras)
+    Vfx,                ///< transient VFX lights (projectiles, beams, fields, bursts)
+    Api,                ///< HTTP/MCP add_point_light / add_spot_light, and tests
+    Editor,             ///< the editor's lighting panel
+    Count
+};
+
+inline const char* lightSourceName(LightSource s) {
+    switch (s) {
+        case LightSource::EmissiveVoxel: return "emissive_voxel";
+        case LightSource::Fixture: return "fixture";
+        case LightSource::ItemEffect: return "item_effect";
+        case LightSource::Vfx: return "vfx";
+        case LightSource::Api: return "api";
+        case LightSource::Editor: return "editor";
+        default: return "invalid";
+    }
+}
+
 struct PointLight {
     int id = -1;  // Assigned by LightManager
     glm::vec3 position = glm::vec3(0.0f);

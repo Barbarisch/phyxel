@@ -45,6 +45,21 @@ public:
     /// Family for a held item (nullptr = unarmed).
     std::string resolveFamily(const ItemDefinition* item) const;
 
+    /// A3 composition factors DERIVED from the equipment — never hand-authored per item
+    /// (docs/AnimationSystemV3Plan.md §4 A3 item 3). Values are clip_meta schema enums:
+    ///   grip: empty | 1h | 1h_shield | 2h_light | 2h_heavy | bow | staff | torch
+    ///         torch = held light or id contains "torch"; bow = Ammunition; staff = id contains "staff";
+    ///         Heavy+TwoHanded → 2h_heavy, TwoHanded → 2h_light, Heavy alone → 2h_heavy;
+    ///         else 1h, and 1h_shield when the off-hand holds a Shield (RpgArmorType::Shield).
+    ///   load: none | light | heavy | bulky from the main hand's D&D weightLbs:
+    ///         < 2 none, < 6 light, < 15 heavy, else bulky (no RPG entry → none).
+    struct GripFactors {
+        std::string grip = "empty";
+        std::string load = "none";
+    };
+    GripFactors resolveGripFactors(const ItemDefinition* mainHand,
+                                   const ItemDefinition* offHand = nullptr) const;
+
     /// Attack clip cycle for a family (empty if unknown family/config).
     std::vector<std::string> familyAttacks(const std::string& family) const;
 

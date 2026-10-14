@@ -19,6 +19,20 @@ knowing where state lives and who mutates it, not from generic interfaces.
 - `EngineAPIServer.cpp`: **233** `queueAndWait` handlers + **272** route registrations in one file.
 - **~30+ distinct `*Manager` classes**, wired together by hand.
 
+### Metric refresh (2026-08-29)
+
+- First-party engine/editor C++ surface: **664** `.cpp`/`.h` files (293 engine source files,
+  341 public engine headers; remaining files are editor source/headers).
+- The original god-files have grown rather than contracted:
+  `editor/src/Application.cpp` **20,516 lines**, `engine/src/scene/AnimatedVoxelCharacter.cpp`
+  **4,713**, `engine/src/core/EngineAPIServer.cpp` **4,646**, and
+  `engine/src/graphics/RenderCoordinator.cpp` **4,239**.
+- `Application.cpp` grew by roughly **34%** since the May measurement. The Phase-0 size guard
+  described below is still absent from CI, so the stated “stop the bleeding” rule is not enforced.
+- The next extraction should be vertical and behavior-preserving: move one already-grouped
+  `registerXCommands()` domain and its handlers into its own translation unit, with no new feature
+  framework. Repeat until `Application` is primarily lifecycle/composition code.
+
 ---
 
 ## Structural problems
@@ -287,3 +301,23 @@ Convert one domain at a time; `Application` thins as each manager becomes a feat
 - The hot loop, GPU, and chunk store stay a **shared substrate**, not features — don't
   decompose the performance path chasing purity.
 - Prefer compile-time wiring (the explicit list) over runtime magic.
+
+## Folded from the 2026-08-29 health audit (that doc was retired 2026-10-07)
+
+**Public dependency surface.** `phyxel_core` exposes Vulkan, GLFW, ImGui, pybind11, JSON, HTTP, and
+multiple include directories as PUBLIC dependencies. This makes standalone consumers inherit
+editor-adjacent and implementation dependencies, slows rebuilds, and weakens the claimed
+engine/editor boundary. Audit every PUBLIC link/include and make it PRIVATE where public headers do
+not require it. A clean minimal-game build is the acceptance test.
+
+**Dead-code policy — classify before deleting:**
+- **Proven orphan:** no build rule, runtime load, include, generated binary, or documented future
+  owner. Delete source plus manifest/docs in one change.
+- **Test-only legacy twin:** production has a replacement but the old API exists solely for its own
+  tests. Migrate/remove together after confirming no external API promise. Open candidate:
+  `planParcelFence` (`SettlementLayout.h`) — production uses `planParcelFenceRuns`/`fenceGateWindowAt`.
+- **Dormant capability:** tested public API awaiting integration. Track as a feature gap; do not
+  call it dead.
+- **Conditional backend:** compiled only without an optional dependency. Keep and test that build.
+
+Wiring gaps from that audit live in `FunctionalWiringBacklog.md`.

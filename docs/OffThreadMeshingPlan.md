@@ -1,5 +1,8 @@
 # Off-Thread Chunk Meshing — Implementation Plan
 
+> **PARKED** (header added 2026-10-07): resumes as `PerfProgram2026-09.md` item S4. Re-audit §2's
+> thread hazards first — the BFS light bake it worries about was deleted by UnifiedLighting M0.
+
 > **⚠️ T0 RED MEASUREMENT INVALIDATES THE PREMISE (2026-07-08 — read before proceeding to T1).**
 > Direct instrumentation of `rebuildAllFaces` (Release, greedy-merge ON) measures **2–4.4 ms per
 > call** on a furnished-tavern chunk — NOT the ~40–50 ms this plan assumes. The "40–50 ms/chunk"

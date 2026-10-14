@@ -36,6 +36,10 @@ struct TownWallSpec {
     int         heightCubes = 7;      ///< wall height above grade
     int         thicknessCubes = 2;   ///< band thickness (>=2 gives a walkable top)
     int         gateWidthCubes = 5;   ///< minimum gate opening; widened to the street
+    /// Clear height under the gate lintel. Part of the SPEC, not a constant buried in the
+    /// stamper, so the plan and the world agree on it and a test can walk an agent through
+    /// the same opening the settlement builds (the agent needs 16 micro; 4 cubes = 36).
+    int         gateClearCubes = 4;
     int         marginCubes = 2;      ///< clear gap between the built site and the band
     bool        towers = true;        ///< corner towers
     int         towerSize = 4;

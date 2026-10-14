@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 create_project.py — Scaffold a new Phyxel game project.
 
@@ -24,6 +26,14 @@ import re
 import sys
 import textwrap
 from pathlib import Path
+
+
+# Test seam for the optional CLI integration. Keeping discovery injectable also
+# prevents a broken executable found on PATH from making project generation
+# itself untestable.
+def shutil_which_for_link(name: str):
+    import shutil
+    return shutil.which(name)
 
 
 def create_project(
@@ -89,6 +99,13 @@ def create_project(
         )
 
         target_link_libraries(${{PROJECT_NAME}} PRIVATE phyxel_core)
+
+        # The generated shell is intentionally feature-complete and template
+        # heavy. MSVC /O2 can spend tens of minutes optimizing this single TU;
+        # /O1 keeps a real optimized Release while making agent iteration sane.
+        if(MSVC)
+            target_compile_options(${{PROJECT_NAME}} PRIVATE $<$<CONFIG:Release>:/O1>)
+        endif()
         target_include_directories(${{PROJECT_NAME}} PRIVATE ${{CMAKE_CURRENT_SOURCE_DIR}})
 
         if(MSVC)
@@ -221,7 +238,7 @@ def create_project(
     extra_members.append("    std::string preCombatRig_;      // rig to restore when the encounter ends")
     extra_members.append("    bool wasInCombat_ = false;      // combat camera edge detection")
     # menuWorld: menu scenes with an authored world get a looping CameraPath
-    # orbit behind their UI (PresentationPolish.md §3 Tier 1).
+    # orbit behind their UI (docs/game-production/recipes/menus-and-style.md).
     extra_includes.append('#include "graphics/CameraManager.h"')
     extra_includes.append('#include "graphics/CameraRig.h"')  # TacticalRig focus framing
     extra_members.append("    Phyxel::Graphics::CameraPath menuCamPath_;  // drives the menuWorld orbit while a menu scene is up")
@@ -255,6 +272,10 @@ def create_project(
     extra_members.append('    std::string armedSpell_;        // spellbar-armed spell; empty = melee/move clicks')
     extra_members.append('    Phyxel::Core::EncounterInitiator encounterInitiator_;   // G-137: fights from clicks, sight and opening spells')
     extra_members.append('    std::string pendingOpeningCast_;                        // spell armed out of combat; cast on the first turn')
+    # GPU debris in the SHIPPED game (DebrisInteractionPlan Phase 5): the engine's shared
+    # DebrisRuntime (GameShell::debris()), configured from game.json "debris".
+    extra_members.append('    Phyxel::DebrisRuntime::Config debrisConfig_;   // game.json debris.enabled (default true)')
+    extra_members.append('    bool debrisSpellsBreak_ = true;                 // game.json debris.spellsBreakVoxels: damaging spells blast voxels')
     extra_members.append('    std::vector<std::string> encounterHostiles_;            // the enemy side of the running encounter')
     extra_members.append('    float aggroClock_ = 0.0f;                               // throttle for the sight scan')
     extra_members.append('    std::unordered_set<std::string> authoredHostiles_;      // enemy-side ids of every authored start_combat (G-137)')
@@ -460,6 +481,7 @@ def create_project(
                     config.testApiEnabled = true;
                     if (i + 1 < argc && argv[i + 1][0] != '-') config.apiPort = std::atoi(argv[++i]);
                 }}
+                Phyxel::DebrisRuntime::handleArg(a);   // --disable-gpu-debris (tests the loud-off path)
             }}
 
             Phyxel::Core::EngineRuntime engine;
@@ -512,9 +534,9 @@ def create_project(
     # Wire the Claude game-dev workflow (per-project port + .mcp.json + CLAUDE.md) via
     # the canonical `phyxel link` — single source of truth, path-free/portable (see
     # docs/GameDevWorkflow.md). Degrades to an instruction if the CLI isn't installed.
-    import shutil, subprocess
+    import subprocess
     linked = False
-    phyxel_exe = shutil.which("phyxel")
+    phyxel_exe = shutil_which_for_link("phyxel")
     if phyxel_exe:
         try:
             r = subprocess.run([phyxel_exe, "link", str(output_dir)],
@@ -1114,13 +1136,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // weapon models must come from somewhere. Templates load on demand
             // (one .voxel per distinct weapon) rather than scanning the whole
             // library at boot.
-            weaponTemplates_ = std::make_unique<Phyxel::ObjectTemplateManager>(
-                engine.getChunkManager(), nullptr);
+            // (One argument since DebrisInteractionPlan 1d deleted DynamicObjectManager; the
+            // scaffold kept passing nullptr for it and every scaffolded game failed to build.)
+            weaponTemplates_ = std::make_unique<Phyxel::ObjectTemplateManager>(engine.getChunkManager());
             // The full template library + a placed-object registry: without them the
             // GameDefinitionLoader silently skipped every game.json template, item prop
             // and transition marker in a SHIPPED build (Ravenmere G-65 / G-87 root - the
             // editor had them, the standalone never did).
-            templates_ = std::make_unique<Phyxel::ObjectTemplateManager>(engine.getChunkManager(), nullptr);
+            templates_ = std::make_unique<Phyxel::ObjectTemplateManager>(engine.getChunkManager());
             templates_->loadTemplates("resources/templates");
             placedObjects_ = std::make_unique<Phyxel::Core::PlacedObjectManager>(
                 engine.getChunkManager(), templates_.get(), nullptr);
@@ -1346,6 +1369,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (!loadGameDefinition(engine)) {{
                 LOG_WARN("{class_name}", "No game.json found — starting with empty world");
             }}
+            // GPU debris: the same runtime the editor uses (solver, mover feeds, voxel breaks).
+            // Off via game.json debris.enabled=false or --disable-gpu-debris; when off it logs
+            // one ERROR and every break refuses its pieces (counted), never a silent half-state.
+            initDebris(engine, renderCoordinator_.get(), debrisConfig_);
 
             // Wire NPC interaction callback — priority: AI conversation > tree dialogue
             interactionManager_->setInteractCallback([this](Phyxel::Scene::NPCEntity* npc) {{
@@ -1871,6 +1898,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         if (cameraHasMode(sc.value("definition", nlohmann::json::object())))
                             authoredCameraMode_ = true;
                     }}
+                }}
+
+                // GPU debris (DebrisInteractionPlan Phase 5): "debris": {{"enabled": true,
+                // "spellsBreakVoxels": true}}. Both default true - breaks, blasts and spells
+                // make physical debris in the shipped game exactly as in the editor.
+                if (gameDef.contains("debris") && gameDef["debris"].is_object()) {{
+                    debrisConfig_.enabled = gameDef["debris"].value("enabled", true);
+                    debrisSpellsBreak_    = gameDef["debris"].value("spellsBreakVoxels", true);
                 }}
 
                 // Top-level "objectives" array -> the quest log. Authorable in
@@ -2502,8 +2537,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         LOG_INFO("{class_name}", "Loaded multi-scene game ({{}} scenes)", manifest.scenes.size());
                     }}
                 }} else {{
-                    // Single-scene: strip world key (pre-baked) and load directly
-                    gameDef.erase("world");
+            // A pre-baked package already has resident chunks; skip generation
+            // in that case. A fresh package has an empty DB and must retain the
+            // world section or it boots into an invisible empty world forever.
+            if (subsystems.chunkManager && !subsystems.chunkManager->chunks.empty())
+                gameDef.erase("world");
                     auto result = Phyxel::Core::GameDefinitionLoader::load(gameDef, subsystems);
                     if (result.success) {{
                         LOG_INFO("{class_name}", "Loaded game: {{}} chunks, {{}} NPCs",
@@ -2682,6 +2720,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 if (dialogueSystem_ && dialogueSystem_->isActive()) {{
                     dialogueSystem_->advanceDialogue();
                 }} else {{
+                    // Nothing interactable in range (no prompt showing): the press gathers
+                    // settled rubble around the player instead (DebrisInteractionPlan 6b) -
+                    // credited by volume, so a shattered cube is still one cube of material.
+                    const bool somethingInRange = interactionManager_ && interactionManager_->shouldShowPrompt();
+                    if (!somethingInRange && playerCharacter_) {{
+                        const auto g = debris().gather(playerCharacter_->getPosition(), 2.5f, 64);
+                        for (const auto& [mat, n] : g.items) inventory_.addItem(mat, n);
+                        if (g.pieces > 0)
+                            LOG_INFO("{class_name}", "Gathered {{}} rubble piece(s)", g.pieces);
+                    }}
                     if (interactionManager_) interactionManager_->tryInteract(playerCharacter_);
                     // Interact-gated scene transitions (TransitionMarkers.h): the E press at
                     // a trapdoor/ladder/waystone site fires its trigger.
@@ -3335,6 +3383,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
             elapsed_ += dt;
 
+            debris().beginFrame(dt);   // GPU debris CPU-side work (slot tracking, staging)
             auto* physics = engine.getPhysicsWorld();
             if (physics) physics->stepSimulation(dt);
 
@@ -3634,6 +3683,22 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }}
 
             if (dialogueSystem_) dialogueSystem_->update(dt);
+
+            // GPU debris movers (DebrisInteractionPlan Phase 3 via DebrisRuntime): every
+            // animated character, doors/held weapons, and CPU bodies push debris. Fed after
+            // every owner updated this frame; the CPU step already ran above, so bodies are at
+            // their post-step pose (their obstacles reach the CPU world on the next step).
+            {{
+                const glm::vec3 eye = engine.getCamera() ? engine.getCamera()->getPosition() : glm::vec3(0.0f);
+                std::vector<Phyxel::Scene::AnimatedVoxelCharacter*> chars;
+                chars.push_back(playerCharacter_);
+                for (auto& e : entities_) chars.push_back(dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(e.get()));
+                if (npcManager_)
+                    npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& n) {{ chars.push_back(n.getAnimatedCharacter()); }});
+                debris().feedCharacters(chars, eye);
+                debris().feedKinematicObjects(kinematicVoxelManager_.get(), dt, eye);
+                debris().feedRigidBodies(eye);
+            }}
         }}
 
         void {class_name}::onRender(Phyxel::Core::EngineRuntime& engine) {{
@@ -4622,9 +4687,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             Phyxel::VfxCastContext ctx;
             ctx.caster = origin;
             ctx.targets.push_back(targetPos);
-            auto fire = [this, spellId, mods, ctx, onRelease]() {{
+            auto fire = [this, spellId, mods, ctx, onRelease, targetPos]() {{
                 auto* d = renderCoordinator_ ? renderCoordinator_->getVfxDirector() : nullptr;
                 if (d) d->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
+                // Spell impact on the WORLD (DebrisInteractionPlan Phase 5): a damaging spell
+                // blasts the voxels it lands on into GPU debris and pushes debris already lying
+                // there - the same DamageSystem the editor's spells use. Size/energy from the
+                // spell (DebrisRuntime::spellBlast); game.json debris.spellsBreakVoxels=false
+                // turns it off.
+                if (debrisSpellsBreak_) {{
+                    if (const auto* sd = Phyxel::Core::SpellRegistry::instance().getSpell(spellId)) {{
+                        const auto b = Phyxel::DebrisRuntime::spellBlast(*sd);
+                        if (b.blast) debris().applyDamage(targetPos, b.radius, b.energy);
+                    }}
+                }}
                 if (onRelease) onRelease();
             }};
             bool animated = false;
@@ -4821,6 +4897,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
         void {class_name}::onShutdown() {{
             LOG_INFO("{class_name}", "Shutting down...");
+            // GPU debris first: the solver's buffers must go while the Vulkan device lives.
+            debris().shutdown();
             endSettleHold();
             if (animWarmThread_.joinable()) animWarmThread_.join();   // never leave a parser running into static teardown
             // Release any cursor grab FIRST — quitting from Playing otherwise

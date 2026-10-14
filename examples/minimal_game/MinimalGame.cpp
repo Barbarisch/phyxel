@@ -80,6 +80,9 @@ bool MinimalGame::onInitialize(Phyxel::Core::EngineRuntime& engine) {
         nullptr,  // No raycast visualizer
         nullptr   // No scripting system
     );
+    // GPU debris (DebrisInteractionPlan Phase 5): the engine's shared DebrisRuntime - breaks and
+    // blasts (debris().applyDamage) make physical debris. Off: Config{false} / --disable-gpu-debris.
+    initDebris(engine, renderCoordinator.get());
 
     // Populate inventory with some starter items
     inventory_.addItem("Stone", 32);
@@ -96,6 +99,12 @@ bool MinimalGame::onInitialize(Phyxel::Core::EngineRuntime& engine) {
         settings_.keybindings = Phyxel::Core::GameSettings::defaultKeybindings();
     }
     applySettings(engine);
+
+    // Opt-in only: main.cpp enables this for `--test` / `--api`. Normal player
+    // launches do not bind an HTTP port.
+    if (engine.getConfig().testApiEnabled) {
+        startTestApi(engine, engine.getConfig().apiPort, "Phyxel Minimal Game");
+    }
 
     initialized_ = true;
     LOG_INFO("MinimalGame", "Minimal game initialized");
@@ -133,19 +142,35 @@ void MinimalGame::onHandleInput(Phyxel::Core::EngineRuntime& engine) {
     // Only process camera/movement input when actually playing
     if (Phyxel::UI::isGameRunning(screen_.getState())) {
         input->processInput(0.016f);
+        // InputManager owns free-camera integration; publish its result to the
+        // renderer-facing Camera just like the editor host does. Without this,
+        // keyboard input was accepted but a standalone camera never moved.
+        if (auto* cam = engine.getCamera()) {
+            cam->setPosition(input->getCameraPosition());
+            cam->setYaw(input->getYaw());
+            cam->setPitch(input->getPitch());
+        }
     }
 }
 
 void MinimalGame::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {
+    // API mutations are queued onto the game thread; drain them even while a
+    // menu is open so an automated run can press Start.
+    if (testApiRunning()) pumpTestApi();
+
     if (!Phyxel::UI::isGameRunning(screen_.getState())) return;
 
     elapsed_ += dt;
+
+    debris().beginFrame(dt);   // GPU debris CPU-side work
 
     // Update physics at fixed step
     auto* physics = engine.getPhysicsWorld();
     if (physics) {
         physics->stepSimulation(dt);
     }
+    // CPU bodies push debris (this game has no characters or kinematic objects to feed).
+    debris().feedRigidBodies(engine.getCamera() ? engine.getCamera()->getPosition() : glm::vec3(0.0f));
 }
 
 void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
@@ -271,9 +296,15 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
 
 void MinimalGame::onShutdown() {
     LOG_INFO("MinimalGame", "Shutting down minimal game...");
+    debris().shutdown();   // while the Vulkan device is alive
+    stopTestApi();
     settings_.saveToFile("settings.json");
     renderCoordinator.reset();
     initialized_ = false;
+}
+
+Phyxel::Graphics::RenderCoordinator* MinimalGame::apiRenderCoordinator() {
+    return renderCoordinator.get();
 }
 
 // ============================================================================

@@ -1,0 +1,101 @@
+{
+ "A": [
+  [
+   "GET",
+   "/api/debug/light_occupancy?trace=1",
+   null
+  ],
+  [
+   "POST",
+   "/api/debug/tier_mask",
+   {
+    "main": [
+     true,
+     true,
+     true
+    ],
+    "shadow": [
+     true,
+     true,
+     true
+    ]
+   }
+  ],
+  [
+   "POST",
+   "/api/debug/foliage",
+   {
+    "enabled": true
+   }
+  ],
+  [
+   "POST",
+   "/api/debug/shadow",
+   {
+    "mode": 0
+   }
+  ],
+  [
+   "POST",
+   "/api/debug/shadow",
+   {
+    "mode": 11
+   }
+  ]
+ ],
+ "B": [
+  [
+   "GET",
+   "/api/debug/light_occupancy?trace=1",
+   null
+  ],
+  [
+   "POST",
+   "/api/debug/tier_mask",
+   {
+    "main": [
+     true,
+     true,
+     true
+    ],
+    "shadow": [
+     true,
+     true,
+     true
+    ]
+   }
+  ],
+  [
+   "POST",
+   "/api/debug/foliage",
+   {
+    "enabled": true
+   }
+  ],
+  [
+   "POST",
+   "/api/debug/shadow",
+   {
+    "mode": 0
+   }
+  ],
+  [
+   "POST",
+   "/api/debug/shadow",
+   {
+    "mode": 11
+   }
+  ],
+  [
+   "POST",
+   "/api/debug/tier_mask",
+   {
+    "main": [
+     true,
+     true,
+     false
+    ]
+   }
+  ]
+ ]
+}

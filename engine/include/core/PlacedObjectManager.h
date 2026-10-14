@@ -391,8 +391,10 @@ public:
     /// Callback fired for each object id about to be removed (before its voxels
     /// are cleared and its entry erased). Subsystems that hold derived state for
     /// an object (e.g. DynamicFurnitureManager) hook this to tear that state
-    /// down. The callback MUST NOT call back into PlacedObjectManager.
-    using PreRemoveCallback = std::function<void(const std::string& id)>;
+    /// down. The callback MUST NOT call back into PlacedObjectManager (it runs under
+    /// the registry lock) -- which is why the object itself is passed: a structure's
+    /// recorded point lights (metadata "lights") are torn down from it.
+    using PreRemoveCallback = std::function<void(const std::string& id, const PlacedObject& obj)>;
     void setPreRemoveCallback(PreRemoveCallback cb) { m_preRemove = std::move(cb); }
 
 private:
@@ -435,6 +437,11 @@ private:
     static std::vector<InteractionPoint> computeInteractionPoints(
         const std::vector<InteractionPointDef>& defs,
         const glm::ivec3& position, int rotation);
+    /// A4 / W1: the same transform anchored at a WORLD-UNIT origin — the template's min corner
+    /// for a micro placement is `microAnchor / 9`, not the floored cube. Cube placements are the
+    /// special case anchorWorld = position (exactly what the cube overload computes).
+    static std::vector<InteractionPoint> computeInteractionPointsAt(
+        const std::vector<InteractionPointDef>& defs, const glm::vec3& anchorWorld, int rotation);
 };
 
 } // namespace Core

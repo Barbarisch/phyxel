@@ -1,4 +1,6 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_shared.h"
 //
 // particle_scan_add.comp — Parallel exclusive prefix sum, Pass 3 of 3.
 //
@@ -7,12 +9,12 @@
 // the final exclusive prefix sum over all GRID_CELLS.
 //
 
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = PHX_SCAN_BLOCK, local_size_y = 1, local_size_z = 1) in;
 
 layout(std430, set = 0, binding = 0)          buffer GridCellOffset { uint gridCellOffset[]; };
 layout(std430, set = 0, binding = 1) readonly buffer BlockSums      { uint blockSums[]; };
 
-layout(push_constant) uniform PC { uint cellCount; } pc;
+layout(push_constant) uniform PC { PHX_PC_CELLS } pc;  // shaders/solver_shared.h
 
 void main() {
     uint gid = gl_GlobalInvocationID.x;

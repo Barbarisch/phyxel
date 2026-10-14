@@ -1,0 +1,1 @@
+{"prepass_off": [["POST", "/api/daynight/set", {"timeOfDay": 12.0, "paused": true}], ["POST", "/api/debug/depth_prepass", {"enabled": false}]], "prepass_on": [["POST", "/api/daynight/set", {"timeOfDay": 12.0, "paused": true}], ["POST", "/api/debug/depth_prepass", {"enabled": true}]]}

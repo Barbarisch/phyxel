@@ -1,0 +1,1342 @@
+[
+  {
+    "bodies": 36,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 4.0,
+        "pass": true,
+        "value": 1.2666667699813843
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "held_unknown_occupancy": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 1.0358956495204623e-05
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "impact_phase_end_s": 0.6500000357627869,
+      "judged_from_s": 1.1500000953674316,
+      "settle_window_min_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 34961.191850896845,
+      "initial_J": 39197.874699725595,
+      "injected_after_window_J": 0.021950215393985673,
+      "injected_after_window_lift_m": 1.0358956495204623e-05,
+      "injected_total_J": 0.37546526125652235,
+      "injected_total_lift_m": 0.0001771931726867086
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 0,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 0,
+      "per_body_mean": 0.0,
+      "total": 0
+    },
+    "sleep": {
+      "awake_at_end": 0,
+      "clean": 36,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 1.559649109840393,
+          "median": 0.392913818359375,
+          "n": 36,
+          "p90": 1.5528820753097534
+        },
+        "forced": null
+      },
+      "forced": 0,
+      "forced_fraction": 0.0,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 2.373192071914673,
+          "median": 2.359313726425171,
+          "n": 36,
+          "p90": 2.3731913566589355
+        },
+        "forced": null
+      },
+      "woke": 0
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.01119999960064888,
+      "hardcontact_max_depth_tick": 39,
+      "max_color_skipped": 0,
+      "max_constraints": 216,
+      "max_uncolored_jacobi": 0,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 1.2666667699813843,
+    "time_all_asleep_s": 1.2666667699813843,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 16.0,
+      "lowest_y": 16.497800827026367,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "SETTLES",
+    "windows": [
+      {
+        "awake_at_end": 36,
+        "from_s": 0.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 36,
+        "max_color_skipped": 0,
+        "max_speed": 4.4744110107421875,
+        "rebounds": 0,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 36,
+        "from_s": 0.5,
+        "hardcontact_fires": 4,
+        "injected_J": 0.19736792160472305,
+        "injected_lift_m": 9.314376541436946e-05,
+        "kicks": 0,
+        "max_churning": 36,
+        "max_color_skipped": 0,
+        "max_speed": 5.667113780975342,
+        "rebounds": 0,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 1.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.1780973396517993,
+        "injected_lift_m": 8.404940727233915e-05,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0015095792477950454,
+        "rebounds": 0,
+        "to_s": 2.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 2.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 4.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 8.0,
+        "woke": 0
+      }
+    ],
+    "scenario": "drop_layer",
+    "setup": "6x1x6 cubes, gap 0.6, dropped 2 m onto flat ground",
+    "site": {
+      "x": 13,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0,
+    "occupancy_diff": {
+      "agrees": true,
+      "cell_mismatches": 0,
+      "cells_checked": 32768,
+      "cells_no_chunk": 0,
+      "cells_pool_unknown": 0,
+      "first_mismatches": [],
+      "grid_mismatches": 0,
+      "region": {
+        "max": [
+          31,
+          31,
+          31
+        ],
+        "min": [
+          0,
+          0,
+          0
+        ]
+      },
+      "subcube_mismatches": 0
+    }
+  },
+  {
+    "bodies": 150,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 7.850000381469727,
+        "pass": false,
+        "value": null
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": false,
+        "value": 10
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "held_unknown_occupancy": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 9.018897000260547e-05
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "impact_phase_end_s": 4.850000381469727,
+      "judged_from_s": 5.350000381469727,
+      "settle_window_min_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 160385.3977935355,
+      "initial_J": 196817.39124418897,
+      "injected_after_window_J": 0.7962784502133218,
+      "injected_after_window_lift_m": 9.018897000260547e-05,
+      "injected_total_J": 0.8173915664611968,
+      "injected_total_lift_m": 9.258030711267168e-05
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 0,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 3,
+      "per_body_mean": 0.56,
+      "total": 84
+    },
+    "sleep": {
+      "awake_at_end": 1,
+      "clean": 162,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 35.74228286743164,
+          "median": 4.753274917602539,
+          "n": 162,
+          "p90": 16.3321475982666
+        },
+        "forced": {
+          "max": 30.421852111816406,
+          "median": 7.753546237945557,
+          "n": 10,
+          "p90": 25.570880889892578
+        }
+      },
+      "forced": 10,
+      "forced_fraction": 0.05813953488372093,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 0.41537466645240784,
+          "median": 0.16786499321460724,
+          "n": 162,
+          "p90": 0.22551670670509338
+        },
+        "forced": {
+          "max": 0.25098997354507446,
+          "median": 0.12369474023580551,
+          "n": 10,
+          "p90": 0.18006597459316254
+        }
+      },
+      "woke": 23
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.02616100013256073,
+      "hardcontact_max_depth_tick": 48,
+      "max_color_skipped": 0,
+      "max_constraints": 852,
+      "max_uncolored_jacobi": 0,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 5.333333492279053,
+    "time_all_asleep_s": null,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 16.0,
+      "lowest_y": 16.496667861938477,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "FAILS",
+    "windows": [
+      {
+        "awake_at_end": 150,
+        "from_s": 0.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 150,
+        "max_color_skipped": 0,
+        "max_speed": 4.742013454437256,
+        "rebounds": 0,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 150,
+        "from_s": 0.5,
+        "hardcontact_fires": 16,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 5,
+        "max_churning": 150,
+        "max_color_skipped": 0,
+        "max_speed": 7.296014785766602,
+        "rebounds": 73,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 94,
+        "from_s": 1.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 1,
+        "max_churning": 140,
+        "max_color_skipped": 0,
+        "max_speed": 5.686681747436523,
+        "rebounds": 0,
+        "to_s": 2.0,
+        "woke": 1
+      },
+      {
+        "awake_at_end": 40,
+        "from_s": 2.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 1,
+        "max_churning": 46,
+        "max_color_skipped": 0,
+        "max_speed": 9.147957801818848,
+        "rebounds": 6,
+        "to_s": 4.0,
+        "woke": 20
+      },
+      {
+        "awake_at_end": 1,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.8173915664611968,
+        "injected_lift_m": 9.258030711267168e-05,
+        "kicks": 2,
+        "max_churning": 26,
+        "max_color_skipped": 0,
+        "max_speed": 9.156184196472168,
+        "rebounds": 5,
+        "to_s": 8.0,
+        "woke": 2
+      }
+    ],
+    "scenario": "drop_pile",
+    "setup": "5x6x5 cubes, gap 0.1, spin<=3 rad/s, dropped 3 m",
+    "site": {
+      "x": 45,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0,
+    "occupancy_diff": {
+      "agrees": true,
+      "cell_mismatches": 0,
+      "cells_checked": 32768,
+      "cells_no_chunk": 0,
+      "cells_pool_unknown": 0,
+      "first_mismatches": [],
+      "grid_mismatches": 0,
+      "region": {
+        "max": [
+          63,
+          31,
+          31
+        ],
+        "min": [
+          32,
+          0,
+          0
+        ]
+      },
+      "subcube_mismatches": 0
+    }
+  },
+  {
+    "bodies": 216,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 4.0,
+        "pass": true,
+        "value": 0.98333340883255
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "held_unknown_occupancy": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 0.0
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "impact_phase_end_s": 0.0,
+      "judged_from_s": 1.0,
+      "settle_window_min_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 241494.37893046532,
+      "initial_J": 241581.82323944778,
+      "injected_after_window_J": 0.0,
+      "injected_after_window_lift_m": 0.0,
+      "injected_total_J": 0.0,
+      "injected_total_lift_m": 0.0
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 0,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 0,
+      "per_body_mean": 0.0,
+      "total": 0
+    },
+    "sleep": {
+      "awake_at_end": 0,
+      "clean": 216,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 9.856375694274902,
+          "median": 0.9103189706802368,
+          "n": 216,
+          "p90": 4.648403167724609
+        },
+        "forced": null
+      },
+      "forced": 0,
+      "forced_fraction": 0.0,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 0.040472134947776794,
+          "median": 0.01128331571817398,
+          "n": 216,
+          "p90": 0.026924094185233116
+        },
+        "forced": null
+      },
+      "woke": 0
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.0,
+      "hardcontact_max_depth_tick": 0,
+      "max_color_skipped": 0,
+      "max_constraints": 6476,
+      "max_uncolored_jacobi": 0,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 0.98333340883255,
+    "time_all_asleep_s": 0.98333340883255,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 16.0,
+      "lowest_y": 16.49773597717285,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "SETTLES",
+    "windows": [
+      {
+        "awake_at_end": 216,
+        "from_s": 0.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0739937275648117,
+        "rebounds": 0,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 0.5,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.040472134947776794,
+        "rebounds": 0,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 1.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 2.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 2.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 4.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 8.0,
+        "woke": 0
+      }
+    ],
+    "scenario": "packed",
+    "setup": "6x6x6 cubes touching, zero velocity, resting on flat ground",
+    "site": {
+      "x": 77,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0,
+    "occupancy_diff": {
+      "agrees": true,
+      "cell_mismatches": 0,
+      "cells_checked": 32768,
+      "cells_no_chunk": 0,
+      "cells_pool_unknown": 0,
+      "first_mismatches": [],
+      "grid_mismatches": 0,
+      "region": {
+        "max": [
+          95,
+          31,
+          31
+        ],
+        "min": [
+          64,
+          0,
+          0
+        ]
+      },
+      "subcube_mismatches": 0
+    }
+  },
+  {
+    "bodies": 144,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 4.0,
+        "pass": true,
+        "value": 0.98333340883255
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "held_unknown_occupancy": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 0.0
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "impact_phase_end_s": 0.0,
+      "judged_from_s": 1.0,
+      "settle_window_min_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 118652.22500146116,
+      "initial_J": 118675.53472254622,
+      "injected_after_window_J": 0.0,
+      "injected_after_window_lift_m": 0.0,
+      "injected_total_J": 1.7534109102513185,
+      "injected_total_lift_m": 0.00020687162986208463
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 0,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 0,
+      "per_body_mean": 0.0,
+      "total": 0
+    },
+    "sleep": {
+      "awake_at_end": 0,
+      "clean": 144,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 0.8956336975097656,
+          "median": 0.17680051922798157,
+          "n": 144,
+          "p90": 0.24324491620063782
+        },
+        "forced": null
+      },
+      "forced": 0,
+      "forced_fraction": 0.0,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 0.011978771537542343,
+          "median": 0.0008092194329947233,
+          "n": 144,
+          "p90": 0.002114061499014497
+        },
+        "forced": null
+      },
+      "woke": 0
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.0,
+      "hardcontact_max_depth_tick": 0,
+      "max_color_skipped": 0,
+      "max_constraints": 4886,
+      "max_uncolored_jacobi": 0,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 0.98333340883255,
+    "time_all_asleep_s": 0.98333340883255,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 12.0,
+      "lowest_y": 12.498595237731934,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "SETTLES",
+    "windows": [
+      {
+        "awake_at_end": 144,
+        "from_s": 0.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.43417569071414164,
+        "injected_lift_m": 5.122509062730597e-05,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.047793641686439514,
+        "rebounds": 0,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 0.5,
+        "hardcontact_fires": 0,
+        "injected_J": 1.3192352195371768,
+        "injected_lift_m": 0.00015564653923477866,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.011978771537542343,
+        "rebounds": 0,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 1.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 2.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 2.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 4.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 8.0,
+        "woke": 0
+      }
+    ],
+    "scenario": "crater",
+    "setup": "6x4x6 pit filled with touching cubes at rest",
+    "site": {
+      "x": 109,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0,
+    "occupancy_diff": {
+      "agrees": true,
+      "cell_mismatches": 0,
+      "cells_checked": 32768,
+      "cells_no_chunk": 0,
+      "cells_pool_unknown": 0,
+      "first_mismatches": [],
+      "grid_mismatches": 0,
+      "region": {
+        "max": [
+          127,
+          31,
+          31
+        ],
+        "min": [
+          96,
+          0,
+          0
+        ]
+      },
+      "subcube_mismatches": 0
+    }
+  },
+  {
+    "bodies": 1296,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 4.0,
+        "pass": true,
+        "value": 0.98333340883255
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "held_unknown_occupancy": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 0.0
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "impact_phase_end_s": 0.0,
+      "judged_from_s": 1.0,
+      "settle_window_min_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 1105433.7207534055,
+      "initial_J": 1106227.5959594839,
+      "injected_after_window_J": 0.0,
+      "injected_after_window_lift_m": 0.0,
+      "injected_total_J": 0.0,
+      "injected_total_lift_m": 0.0
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 0,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 0,
+      "per_body_mean": 0.0,
+      "total": 0
+    },
+    "sleep": {
+      "awake_at_end": 0,
+      "clean": 1296,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 8.429073333740234,
+          "median": 4.237712860107422,
+          "n": 1296,
+          "p90": 6.343949794769287
+        },
+        "forced": null
+      },
+      "forced": 0,
+      "forced_fraction": 0.0,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 0.02673395723104477,
+          "median": 0.014194825664162636,
+          "n": 1296,
+          "p90": 0.017629845067858696
+        },
+        "forced": null
+      },
+      "woke": 0
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.0,
+      "hardcontact_max_depth_tick": 0,
+      "max_color_skipped": 0,
+      "max_constraints": 54996,
+      "max_uncolored_jacobi": 0,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 0.98333340883255,
+    "time_all_asleep_s": 0.98333340883255,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 13.0,
+      "lowest_y": 13.162631034851074,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "SETTLES",
+    "windows": [
+      {
+        "awake_at_end": 1296,
+        "from_s": 0.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.054582104086875916,
+        "rebounds": 0,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 0.5,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.02673395723104477,
+        "rebounds": 0,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 1.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 2.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 2.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 4.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 8.0,
+        "woke": 0
+      }
+    ],
+    "scenario": "crater_subcube",
+    "setup": "4x3x4 pit filled with touching 1/3-scale debris at rest",
+    "site": {
+      "x": 141,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0,
+    "occupancy_diff": {
+      "agrees": true,
+      "cell_mismatches": 0,
+      "cells_checked": 32768,
+      "cells_no_chunk": 0,
+      "cells_pool_unknown": 0,
+      "first_mismatches": [],
+      "grid_mismatches": 0,
+      "region": {
+        "max": [
+          159,
+          31,
+          31
+        ],
+        "min": [
+          128,
+          0,
+          0
+        ]
+      },
+      "subcube_mismatches": 0
+    }
+  },
+  {
+    "bodies": 59,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 5.683333396911621,
+        "pass": true,
+        "value": 3.8500001430511475
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": false,
+        "value": 3
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "held_unknown_occupancy": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 9.032765970760326e-07
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "impact_phase_end_s": 2.683333396911621,
+      "judged_from_s": 3.183333396911621,
+      "settle_window_min_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 53977.110416041935,
+      "initial_J": 64524.092026326056,
+      "injected_after_window_J": 0.0031368449039064217,
+      "injected_after_window_lift_m": 9.032765970760326e-07,
+      "injected_total_J": 0.0031368449039064217,
+      "injected_total_lift_m": 9.032765970760326e-07
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 1,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 5,
+      "per_body_mean": 0.6779661016949152,
+      "total": 40
+    },
+    "sleep": {
+      "awake_at_end": 0,
+      "clean": 62,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 26.763160705566406,
+          "median": 2.174553155899048,
+          "n": 62,
+          "p90": 8.562323570251465
+        },
+        "forced": {
+          "max": 32.85770797729492,
+          "median": 24.7819881439209,
+          "n": 3,
+          "p90": 24.7819881439209
+        }
+      },
+      "forced": 3,
+      "forced_fraction": 0.046153846153846156,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 4.005914688110352,
+          "median": 0.09401590377092361,
+          "n": 62,
+          "p90": 0.2471093237400055
+        },
+        "forced": {
+          "max": 0.12468652427196503,
+          "median": 0.10659114271402359,
+          "n": 3,
+          "p90": 0.10659114271402359
+        }
+      },
+      "woke": 6
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.0861779972910881,
+      "hardcontact_max_depth_tick": 148,
+      "max_color_skipped": 0,
+      "max_constraints": 450,
+      "max_uncolored_jacobi": 0,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 3.4666669368743896,
+    "time_all_asleep_s": 3.8500001430511475,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 11.0,
+      "lowest_y": 14.492696762084961,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "FAILS",
+    "windows": [
+      {
+        "awake_at_end": 59,
+        "from_s": 0.0,
+        "hardcontact_fires": 26,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 5,
+        "max_churning": 57,
+        "max_color_skipped": 0,
+        "max_speed": 17.257728576660156,
+        "rebounds": 11,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 30,
+        "from_s": 0.5,
+        "hardcontact_fires": 4,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 28,
+        "max_color_skipped": 0,
+        "max_speed": 8.968300819396973,
+        "rebounds": 1,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 21,
+        "from_s": 1.0,
+        "hardcontact_fires": 13,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 22,
+        "max_color_skipped": 0,
+        "max_speed": 8.578770637512207,
+        "rebounds": 15,
+        "to_s": 2.0,
+        "woke": 6
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 2.0,
+        "hardcontact_fires": 9,
+        "injected_J": 0.0031368449039064217,
+        "injected_lift_m": 9.032765970760326e-07,
+        "kicks": 0,
+        "max_churning": 15,
+        "max_color_skipped": 0,
+        "max_speed": 10.879049301147461,
+        "rebounds": 13,
+        "to_s": 4.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 8.0,
+        "woke": 0
+      }
+    ],
+    "scenario": "blast",
+    "setup": "/api/damage/apply r=3.5 e=600 at ground -> {\"broken\": 14, \"coherent_bodies\": 0, \"debris\": 59, \"debris_refused\": 0, \"grazed\": 94, \"stage_changed\": 33, \"success\": true}",
+    "site": {
+      "x": 173,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0,
+    "occupancy_diff": {
+      "agrees": true,
+      "cell_mismatches": 0,
+      "cells_checked": 32768,
+      "cells_no_chunk": 0,
+      "cells_pool_unknown": 0,
+      "first_mismatches": [],
+      "grid_mismatches": 0,
+      "region": {
+        "max": [
+          191,
+          31,
+          31
+        ],
+        "min": [
+          160,
+          0,
+          0
+        ]
+      },
+      "subcube_mismatches": 0
+    }
+  }
+]

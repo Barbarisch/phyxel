@@ -3,7 +3,6 @@
 #include "core/Types.h"
 #include "scene/CubeLocation.h"
 #include "scene/VoxelRaycaster.h"
-#include "scene/VoxelForceApplicator.h"
 #include "scene/VoxelManipulationSystem.h"
 #include "scene/interaction/PlacementTool.h"
 #include "scene/interaction/DestructionTool.h"
@@ -21,11 +20,9 @@ class ChunkManager;
 namespace Physics {
     class PhysicsWorld;
 }
-class MouseVelocityTracker;
 namespace UI {
     class WindowManager;
 }
-class ForceSystem;
 namespace Core {
     class PlacedObjectManager;
     class DynamicFurnitureManager;
@@ -43,13 +40,9 @@ namespace Core {
  *   - Subcube/microcube intersection testing  
  *   - Ray-AABB intersection calculations
  *   - Screen-to-world ray conversion
- * ✓ Phase 2 Complete: Force application extracted to VoxelForceApplicator (~140 lines)
- *   - Force-based breaking with mouse velocity
- *   - Direct position-based breaking
- *   - Force propagation system integration
- *   - Dynamic physics body creation
+ * (Phase 2's VoxelForceApplicator + ForceSystem were deleted 2026-10-04 —
+ *  never called; docs/DebrisInteractionPlan.md D3.)
  * ✓ Phase 3 Complete: Manipulation extracted to VoxelManipulationSystem (~480 lines)
- *   - Voxel removal (cubes, subcubes, microcubes)
  *   - Voxel subdivision (cubes → subcubes, subcubes → microcubes)
  *   - Voxel breaking with physics (static → dynamic conversion)
  *   - Material selection and physics body creation
@@ -57,21 +50,18 @@ namespace Core {
  * Size Reduction:
  * - Original: 1,275 lines
  * - After VoxelRaycaster: 985 lines (-290 lines, -23%)
- * - After VoxelForceApplicator: ~850 lines (-425 cumulative, -33%)
  * - After VoxelManipulationSystem: ~370 lines (-905 cumulative, -71%)
  * 
  * Current responsibilities:
  * - Hover state management and visual feedback
  * - Integration with ChunkManager and PhysicsWorld
- * - Coordination of raycasting, manipulation, and force subsystems
+ * - Coordination of raycasting and manipulation subsystems
  */
 class VoxelInteractionSystem {
 public:
     VoxelInteractionSystem(ChunkManager* chunkManager, 
                           Physics::PhysicsWorld* physicsWorld,
-                          MouseVelocityTracker* mouseVelocityTracker,
                           UI::WindowManager* windowManager,
-                          ForceSystem* forceSystem,
                           Core::AudioSystem* audioSystem = nullptr);
     ~VoxelInteractionSystem() = default;
 
@@ -81,14 +71,11 @@ public:
                          bool isMouseCaptured);
     
     // Cube manipulation functions
-    void removeHoveredCube();           // Remove the currently hovered cube
-    void subdivideHoveredCube();        // Subdivide the currently hovered cube into 27 subcubes
+    void subdivideHoveredCube();       // Subdivide the currently hovered cube into 27 subcubes
     void subdivideHoveredSubcube();     // Subdivide the currently hovered subcube into 27 microcubes
     void breakHoveredCube(const glm::vec3& cameraPos);            // Break the currently hovered cube into a dynamic cube with physics
     void breakHoveredSubcube();         // Break the currently hovered subcube into a dynamic subcube with physics
     void breakHoveredMicrocube();       // Break the currently hovered microcube (simple removal for now)
-    void breakHoveredCubeWithForce(const glm::vec3& cameraPos, double mouseX, double mouseY);   // Break cube(s) using force propagation system
-    void breakCubeAtPosition(const glm::ivec3& worldPos); // Helper: Break a single cube at world position
     
     // Placement functions
     void placeVoxelAtHover();           // Place a voxel adjacent to the currently hovered face
@@ -108,6 +95,13 @@ public:
     void setMaterialProvider(std::function<std::string()> provider) {
         m_manipulator.setMaterialProvider(std::move(provider));
     }
+    /// The break/place logic itself — for /api/debug/break_voxel, which drives the B-key path
+    /// at a given cell without cursor hover.
+    VoxelManipulationSystem& manipulator() { return m_manipulator; }
+    /// Where broken pieces go (GPU debris, DebrisInteractionPlan 1d).
+    void setGpuDebrisProvider(std::function<GpuParticlePhysics*()> provider) {
+        m_manipulator.setGpuDebrisProvider(std::move(provider));
+    }
 
     // Hover state accessors
     bool hasHoveredCube() const { return m_hasHoveredCube; }
@@ -120,12 +114,8 @@ public:
     double getAvgHoverDetectionTimeMs() const { return m_avgHoverDetectionTimeMs; }
     
     // Debug flags access
-    void setDebugFlags(bool hoverDetection, bool disableBreakingForces, 
-                      bool showForceSystemDebug, float manualForceValue) {
+    void setDebugFlags(bool hoverDetection) {
         m_debugFlags.hoverDetection = hoverDetection;
-        m_debugFlags.disableBreakingForces = disableBreakingForces;
-        m_debugFlags.showForceSystemDebug = showForceSystemDebug;
-        m_debugFlags.manualForceValue = manualForceValue;
     }
 
     // Raycast debug data access
@@ -170,13 +160,10 @@ private:
     // Dependencies
     ChunkManager* m_chunkManager;
     Physics::PhysicsWorld* m_physicsWorld;
-    MouseVelocityTracker* m_mouseVelocityTracker;
     UI::WindowManager* m_windowManager;
-    ForceSystem* m_forceSystem;
     
     // Subsystems
     VoxelRaycaster m_raycaster;             // Handles all raycasting operations
-    VoxelForceApplicator m_forceApplicator; // Handles force-based breaking and propagation
     VoxelManipulationSystem m_manipulator;  // Handles voxel removal, subdivision, and breaking
     
     // Interaction Tools
@@ -207,9 +194,6 @@ private:
     // Debug flags (passed from Application)
     struct DebugFlags {
         bool hoverDetection = false;
-        bool disableBreakingForces = false;
-        bool showForceSystemDebug = false;
-        float manualForceValue = 500.0f;
     } m_debugFlags;
     
     TargetMode m_targetMode = TargetMode::Cube;

@@ -108,7 +108,8 @@ public:
 
     // --- Creative mode ---
 
-    /// In creative mode, items are never consumed and all materials are available.
+    /// Creative mode is OPT-IN (off by default): items are never consumed, so using or
+    /// throwing an item hands out a copy. Finite items are the engine default.
     bool isCreativeMode() const { return m_creative; }
     void setCreativeMode(bool creative) { m_creative = creative; }
 
@@ -119,7 +120,7 @@ public:
 private:
     std::vector<std::optional<ItemStack>> m_slots;
     int m_selectedSlot = 0;
-    bool m_creative = true;  // Default creative mode (infinite items)
+    bool m_creative = false;  // Items are finite by default; creative (infinite supply) is opt-in
 };
 
 } // namespace Core

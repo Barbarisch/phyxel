@@ -91,34 +91,56 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   approved; adoption is not. See `docs/MotionBricksIntegrationPlan.md` for the locked architecture,
   M0 first slice, quality/performance gates, and permanent clip fallback.
 
+- **World-setup gotchas (folded from the retired ProvingGrounds.md, 2026-10-07):**
+  - The recipe is persisted into `world.db` on FIRST boot and then WINS over `game.json`. To
+    change seed/params/sea level, delete `default.db` AND its `-wal` AND `-shm` siblings — a `.db`
+    removed without its WAL leaves a valid-looking, stale database.
+  - Measure sea level; don't assume it (`seaLevel: 62` over a y=51 surface drowned a whole region).
+  - The legacy Perlin knobs (`heightScale`/`octaves`/`persistence`) fight terrain-v2's relief;
+    leave them out. `climateFrequency` is the biome-size knob (0.004 ≈ 250 u biomes reads varied;
+    0.0022 put one biome in the whole view). `type: "Mountains"` spawns in the alpine band.
+  - Route names: `/api/render/stats` (not `render_stats`), `/api/world/terrain_height`,
+    `/api/screenshot` is a GET. A wrong path returns an empty body that reads as "no geometry".
+    Far-CHUNK counters are on `/api/debug/far_lod`, not in render stats.
+  - A high camera reads as an empty world: streaming clamps to ±2 chunk bands around the camera.
+- **A timed-out background build KEEPS RUNNING** and holds file locks: stop it and kill orphaned
+  `cl.exe` before regenerating, or the regen silently leaves stale files.
+
 ---
 
 ## Engine ground truth (supersedes older docs/comments)
 
 - **Physics is HYBRID, and Bullet is removed** (the `external/bullet3` submodule was dropped
-  entirely; `stb_image`/`stb_truetype` are now vendored at `external/stb`;
-  `getActiveBulletCount()` is hardcoded 0). Two live in-house backends:
+  entirely; `stb_image`/`stb_truetype` are now vendored at `external/stb`). Two live
+  in-house backends:
   - **`GpuParticlePhysics`** (Vulkan compute, warm-started) — the stable,
     count-scalable path; **destruction (`DamageSystem`) always routes here** via
     `queueSpawn`. Any doc/comment calling GPU/AVBD "broken/experimental" is STALE.
-    - **TWO pipelines exist; only ONE is live.** The default is the **AVBD constraint
-      solver** (`solver_*.comp`), selected by `m_useNewPipeline` — hardcoded `true`,
-      never toggled off. The older **XPBD pipeline** (`particle_integrate.comp` /
-      `particle_collide.comp`, the `m_integratePass`/`m_collidePass` dispatch in the
-      legacy branch of `recordComputeCommands`) is **dead code** kept for reference.
-      `particle_expand.comp` and the grid-sort passes are **shared** (NOT legacy).
-      **All particle physics changes go in the `solver_*.comp` shaders.** Trap that
-      already bit once: the character-vs-debris push lived only in the legacy
-      `particle_collide.comp`, so the player passed straight through GPU debris until
-      it was ported to `solver_integrate.comp`. Character collision now works in the
-      live solver (debris inherits character velocity on AABB overlap).
-  - **`VoxelDynamicsWorld`** (custom CPU sequential-impulse rigid-body world) — furniture,
-    the **static-terrain occupancy grids characters ground against**, and the **left-click
-    break-debris path** (`breakCube` → `addGlobalDynamicCube` → `DynamicObjectManager`).
-  - **Break routing** (`VoxelManipulationSystem`, see `docs/DynamicVoxelPhysics.md`): a
-    left-click break PREFERS CPU `VoxelDynamicsWorld` and only falls back to GPU particles
-    when smoothed FPS drops below a threshold. So "GPU is primary" is true for
-    destruction/scale, NOT for every single break — it's genuinely hybrid. Don't overstate it.
+    - **ONE pipeline: the AVBD constraint solver** (`solver_*.comp` + `voxel_contact.glsl`).
+      The legacy XPBD pipeline (`particle_integrate/collide/sort_scan.comp`) and the
+      orphaned `solver_jacobi/graph_color/apply.comp` were DELETED 2026-10-04
+      (`docs/DebrisInteractionPlan.md` Phase 0). `particle_expand.comp` and the grid-sort
+      passes feed the solver. Any change here must pass `tools/debris_settle_bench.py`
+      on DebrisLab. Movers (characters, CPU bodies, doors, held items) are kinematic AVBD
+      bodies since Plan Phase 2; the old shove in `solver_integrate.comp` is deleted.
+    - **All debris is GPU debris** (the CPU `DebrisSystem` was deleted in Phase 0 D2). A
+      missing GPU solver is LOUD: one ERROR, `gpu_physics` echoes `disabled_reason`,
+      refused pieces are counted (`tools/gpu_debris_disabled_check.py`).
+  - **`VoxelDynamicsWorld`** (custom CPU sequential-impulse rigid-body world) holds furniture,
+    fragments, trees and item props, plus the **static-terrain occupancy grids characters
+    ground against**. It has NO break debris any more.
+  - **Break routing: there is none.** Every break goes through
+    `DamageSystem::spawnBreakDebris` to the GPU (B key, Python, blasts, spells, derez). The
+    CPU single-box path (`addGlobalDynamicCube` → `DynamicObjectManager`) and the FPS-based
+    CPU/GPU routing were DELETED in DebrisInteractionPlan 1d (2026-10-06).
+  - **Debris interaction (DebrisInteractionPlan, all phases done 2026-10-07)** — see
+    `docs/DynamicVoxelPhysics.md` §Interaction:
+    - everything that moves pushes debris;
+    - blasts and spells push existing debris (`/api/physics/impulse`);
+    - debris pushes characters back;
+    - debris floats or sinks per material;
+    - sleep/impact events drive audio and gatherable rubble (G key);
+    - `DebrisRuntime` runs it in shipped games too (on by default).
   - Each GPU particle is one independent body; constraints are contacts only (no welds → no
     coherent rigid multi-voxel fragments yet — that's the destruction P5 idea).
 - **Static collision = per-chunk `VoxelOccupancyGrid`** (sub-voxel: cube→subcube→microcube,
@@ -145,6 +167,16 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 ---
 
 ## Current workstreams & roadmap (update me at session end)
+
+- **▶ PERFORMANCE PROGRAM 2026-09 — ACTIVE (branch `perf/lights-microvoxel-program`).** User goal:
+  as fast as possible **without visual loss**, measured at real load (~100-building cities). **The
+  forward guide is [`docs/PerfProgram2026-09.md`](PerfProgram2026-09.md) §17** (operating point,
+  ordered next steps with how to measure each, correctness debts, and the city-benchmark runbook);
+  the status header at the top of that doc says where things stand. As of 2026-09-26: the engine
+  generates C-25…C-100 cities (25/59/72/104 buildings, projects `Documents/PhyxelProjects/CityBench_*`),
+  the growth table exists, and the first city fix shipped (structure proxies the shader discards are no
+  longer drawn: C-100 street 75.8 → 49.8 ms GPU, pixel-identical). Next in order: re-baseline, re-verify
+  P-DP at C-100, visible proxy LOD (look change → user sign-off), shadows, walk-route hitches.
 
 - **✓ VOXEL CRACKS + GLASS TRANSPARENCY — SHIPPED on `main` (2026-09-24), reviewer-signed-off.**
   Two current-state references, **read them instead of re-deriving**:
@@ -682,8 +714,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     survives. Open, likely a transient/race. (2) **Blocker D is DISPROVEN on this GPU**
     (`maxMemoryAllocationCount=4294967295`; ran to 5,888 live allocations, zero failures) — but it
     is REAL on AMD/Intel where 4096 is common: 3 allocations/chunk ⇒ a ~1,365-chunk ceiling that
-    bites BEFORE C. (3) **Bonds are NOT dead** — only the bulk `getBonds()` accessor is unused;
-    `ForceSystem` uses the per-direction API. They are physics-only ⇒ materialize-on-demand.
+    bites BEFORE C. (3) **Bonds are gone** — their only reader, `ForceSystem`, had no live callers; both were
+    deleted 2026-10-04 (DebrisInteractionPlan D3), taking 72 B off every heap `Cube`.
     (4) Runtime render distance defaults to **192** (`Application.h`); far chunks are frustum-culled
     until raised via `POST /api/debug/render_distance`.
 - **TERRAIN rivers + WATER runtime (2026-07-10) — branch `terrain-gen-v2-p0` (LOCAL,
@@ -1029,7 +1061,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   coherent breakable fragments; bedrock/anchor pin flags.
 - **Character grounding robustness:** fall-through root cause fixed (DB-load paths now build
   + register physics) with fail-loud + auto-register invariant. Done + committed.
-- **Character ↔ debris interaction:** the character now PUSHES GPU debris (one-way). The push
+- **Character ↔ debris interaction** *(HISTORICAL: superseded by DebrisInteractionPlan 2/3a/6a.
+  The shove and `MAX_CHAR_SEGMENTS` below are deleted; read the last sub-bullet)*: the
+  character PUSHED GPU debris (one-way). The push
   lives in the live AVBD `solver_integrate.comp` (NOT the dead legacy `particle_collide.comp`).
   It uses the character's **12 per-limb segment boxes** (4 torso + 4 arm + 4 leg) uploaded each
   frame via `setCharacterColliders` (same boxes fed to the CPU `setKinematicObstacles` path),
@@ -1044,7 +1078,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   - **Known gap:** the lowest boxes are the shins (`mixamorig:LeftLeg`/`RightLeg`) — there is
     NO dedicated foot box, so debris directly under the foot tip can slip the shin box. Fix if
     it matters: also upload the controller capsule (reaches the floor) as an extra collider.
-  - GPU debris does NOT push the character back (would need a GPU→CPU readback) — out of scope.
+  - *Superseded 2026-10-06/07:*
+    - The per-limb shove is deleted; every limb box is now a kinematic AVBD body
+      (DebrisInteractionPlan 2/3a).
+    - The live feed is `DebrisRuntime::feedCharacters` → `GpuParticlePhysics::setMoverBoxes`
+      (oriented boxes, every character, ≤ 512 nearest the camera).
+    - `setCharacterColliders` survives only as a legacy single-character entry point, and it also
+      creates mover bodies.
+    - Debris DOES push the character back since 6a (`AnimatedVoxelCharacter::applyDebrisPush`).
 - **Spell VFX system:** 3-layer architecture (dumb archetypes → per-spell composition →
   gameplay modifiers) implemented. `VfxSystem`/`VfxDirector`/`SpellVfxMapper` +
   `VfxRenderPipeline`. Done + committed.
@@ -1521,7 +1562,22 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     back to 1 tick/frame (the low-FPS→more-ticks spiral stops). Lesson: a `dispatch(cmd, 1)`
     over a large buffer is a serial-scan trap — check dispatch sizes.
   - **Next targets** (per the per-pass breakdown): NarrowVoxel (~5ms) and Solve (~3ms).
-  - **Settling "popcorn" (PARKED — don't reopen without a plan):** debris stays too
+  - **Settling "popcorn": SOLVED 2026-10-03, read [DebrisSettlingPlan.md §R](DebrisSettlingPlan.md).**
+    The causes were in GPU contact GENERATION, not solver tuning or sleep:
+    - voxel contact point at the face centre;
+    - normals from internal faces;
+    - predicted motion counted twice;
+    - α applied to speculative gaps;
+    - dyn-dyn manifold built on A's far face with inverted clip planes;
+    - hard-contact push became velocity;
+    - no static friction;
+    - colour-skipped bodies.
+
+    Gate for any solver change: `tools/debris_settle_bench.py` on the DebrisLab project.
+    **The historical note below is SUPERSEDED.** Its "root cause" was only a symptom (it is
+    correct that position deltas become velocity, but the overlaps came from the defects
+    above), and its proposed "fix" (sleep) is exactly what hid the problem.
+    *Historical (2026-06):* debris stays too
     energetic, esp. in concave/bowl piles. Root cause: it's a pure position-based solver
     (NO restitution term anywhere — confirmed; so it's not "bounciness" to tune down) —
     resolving penetration moves position, and position deltas become velocity, so overlap
@@ -1947,5 +2003,5 @@ the real blocker for 100s on screen. Earlier: full water system merged to `main`
 2026-06-06; CPU CA sim + per-cell render + mist/ocean/springs/channels/flood, opt-in GPU port,
 default-OFF). NOTE: `main` has 9 PRE-EXISTING failing unit tests (material/atlas counts,
 inventory, skeleton hinge, nav StepUp) unrelated to this work — flag for separate triage.
-Debris settling/"popcorn" + no sleep system still PARKED. Fresh session? Skim this, then
+Debris settling/"popcorn": SOLVED 2026-10-03 (DebrisSettlingPlan.md §R). Fresh session? Skim this, then
 `git log --oneline -15`.*

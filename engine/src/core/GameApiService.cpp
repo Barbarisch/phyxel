@@ -1,4 +1,5 @@
 #include "core/GameApiService.h"
+#include "core/PerfApi.h"
 #include "ui/DialogueSystem.h"
 
 #include "core/APICommandQueue.h"
@@ -173,6 +174,9 @@ bool GameApiService::start(int port) {
 
 void GameApiService::registerCommands() {
     auto& reg = *registry_;
+
+    // GPU debris: the editor's handlers, shared (Phase 5b). Resolved per command.
+    registerDebrisCommands(reg, [this]() { return debrisContext ? debrisContext() : DebrisApiContext{}; });
 
     reg.on("get_render_stats", [this](const APICommand&, json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
@@ -965,6 +969,39 @@ void GameApiService::registerCommands() {
              {"transitioning", transitioning}, {"visible_menus", menus}, {"source", "shell"}};
     });
 
+    // Semantic shell navigation for automation. Coordinate clicks are useful
+    // for authored UISystem layouts, but the built-in GameScreen menus render
+    // through ImGui and therefore cannot consume UISystem::injectClick.
+    reg.on("screen_action", [this](const APICommand& cmd, json& r) {
+        if (!screen) { r = {{"error", "GameScreen not available"}}; return; }
+        const std::string action = cmd.params.value("action", "");
+        if      (action == "start") {
+            // "Start" is semantic automation, not a literal single click.
+            // A normal shipped game opens on Intro, whose first click only
+            // advances to MainMenu; drive the complete intent to Playing.
+            if (screen->getState() == UI::ScreenState::Intro)
+                screen->returnToMainMenu();
+            screen->startGame();
+        }
+        else if (action == "pause") {
+            if (screen->getState() != UI::ScreenState::Playing) {
+                r = {{"success", false}, {"error", "pause requires playing state"}};
+                return;
+            }
+            screen->togglePause();
+        }
+        else if (action == "resume")    screen->resume();
+        else if (action == "menu")      screen->returnToMainMenu();
+        else if (action == "settings")  screen->toggleSettings();
+        else if (action == "inventory") screen->toggleInventory();
+        else {
+            r = {{"success", false}, {"error", "Unknown screen action"}, {"action", action}};
+            return;
+        }
+        r = {{"success", true}, {"action", action},
+             {"screen", screenStateStr(screen->getState())}};
+    });
+
     reg.on("ui_click", [this](const APICommand& cmd, json& r) {
         auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
         if (!ui) { r = {{"error", "UISystem not available"}}; return; }
@@ -1064,9 +1101,62 @@ void GameApiService::registerCommands() {
             r = {{"error", "GpuProfiler not available"}};
             return;
         }
-        auto* prof = renderCoordinator->getGpuProfiler();
-        if (cmd.params.contains("on")) prof->setPipelineStatsActive(cmd.params.value("on", false));
-        r = {{"success", true}, {"active", prof->getPipelineStatsActive()}};
+        // Shared with the editor host: accepts "on" or "enabled", omitted = unchanged.
+        r = PerfApi::setPipelineStats(renderCoordinator->getGpuProfiler(), cmd.params);
+        r["active"] = r.value("pipeline_stats_active", false);   // the field this route always returned
+    });
+
+    // P-DP static depth prepass A/B, same JSON as the editor's route.
+    // City benchmark tooling (docs/PerfProgram2026-09.md section 16), same PerfApi as the editor.
+    reg.on("get_frame_pacing", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::framePacing(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("record_control", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::recordControl(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("record_dump", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::recordDump(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("camera_path", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::cameraPath(runtime ? runtime->getPerfCapture() : nullptr,
+                                runtime ? runtime->getCameraManager() : nullptr,
+                                runtime ? runtime->getChunkManager() : nullptr,
+                                runtime ? runtime->getCamera() : nullptr, cmd.params);
+    });
+    reg.on("set_gi_probe_options", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::setGiProbeOptions(renderCoordinator, cmd.params);
+    });
+    reg.on("set_effect_time", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::setEffectTime(renderCoordinator, cmd.params);
+    });
+    reg.on("set_depth_prepass", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::setDepthPrepass(renderCoordinator, cmd.params);
+    });
+
+    // I7: CPU render-path scopes + mesh phase timing, same JSON as the editor's routes.
+    reg.on("get_cpu_timing", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::cpuTiming(renderCoordinator, cmd.params);
+    });
+    reg.on("get_mesh_timing", [](const APICommand& cmd, json& r) {
+        r = PerfApi::meshTiming(cmd.params);
+    });
+
+    // I5/I6: voxel tier census + per-tier draw masks, same JSON as the editor's routes.
+    reg.on("get_voxel_tiers", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::voxelTiers(renderCoordinator, runtime ? runtime->getChunkManager() : nullptr, cmd.params);
+    });
+    reg.on("set_tier_mask", [](const APICommand& cmd, json& r) {
+        r = PerfApi::setTierMask(cmd.params);
+    });
+
+    // I3: light census, same JSON as the editor's /api/debug/light_stats.
+    reg.on("get_light_stats", [this](const APICommand&, json& r) {
+        r = PerfApi::lightStats(renderCoordinator);
+    });
+
+    // I1: GPU scope timing history, same JSON as the editor's /api/debug/gpu_timing.
+    reg.on("get_gpu_timing", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::gpuTiming(renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr, cmd.params);
     });
 
     reg.on("get_gpu_scopes", [this](const APICommand&, json& r) {
@@ -1094,6 +1184,7 @@ void GameApiService::registerCommands() {
             if (cpuMs > 0.0) fps = 1000.0 / cpuMs;
         }
         r = {{"scopes", arr},
+             {"serial", prof->getLastResultSerial()},
              {"pipeline_stats_active", prof->getPipelineStatsActive()},
              {"cpu_frame_ms", cpuMs},
              {"fps", fps},

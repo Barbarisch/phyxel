@@ -12,6 +12,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 import create_project  # noqa: E402
 
 
+def setup_module():
+    # Project generation is the unit under test. The separately tested `phyxel
+    # link` integration may be installed on a developer machine and must not
+    # turn these hermetic tests into five 30-second subprocess calls.
+    create_project.shutil_which_for_link = lambda _name: None
+
+
 def test_create_project_generates_all_files():
     """Verify that create_project generates the expected file set."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -36,15 +43,15 @@ def test_cmake_references_phyxel_core():
         assert "project(MyProj" in cmake
 
 
-def test_header_includes_game_callbacks():
-    """Verify generated header includes GameCallbacks."""
+def test_header_includes_game_shell():
+    """Verify generated header exposes the standalone GameShell contract."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output = Path(tmpdir) / "FooGame"
         phyxel_root = Path(__file__).resolve().parent.parent
         create_project.create_project("FooGame", output, phyxel_root)
 
         header = (output / "FooGame.h").read_text()
-        assert "GameCallbacks" in header
+        assert "GameShell" in header
         assert "EngineRuntime" in header
         assert "class FooGame" in header
 
@@ -61,6 +68,9 @@ def test_main_creates_engine_and_runs():
         assert "EngineConfig" in main
         assert "engine.run(game)" in main
         assert "BarGame game" in main
+
+        source = (output / "BarGame.cpp").read_text()
+        assert "!subsystems.chunkManager->chunks.empty()" in source
 
 
 def test_engine_json_has_project_name():

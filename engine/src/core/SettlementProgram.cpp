@@ -39,6 +39,17 @@ SettlementTierPreset applyDensity(const SettlementTierPreset& t, double density)
     return out;
 }
 
+SettlementTierPreset scaleForSite(const SettlementTierPreset& t, int siteW, int siteD) {
+    if (t.referenceSiteW <= 0 || t.referenceSiteD <= 0 || siteW <= 0 || siteD <= 0) return t;
+    const double ratio = (static_cast<double>(siteW) * siteD) /
+                         (static_cast<double>(t.referenceSiteW) * t.referenceSiteD);
+    if (ratio <= 1.0) return t;                        // at/below the reference: as tuned
+    SettlementTierPreset out = t;
+    out.buildingsMax = std::min(400, static_cast<int>(std::lround(t.buildingsMax * ratio)));
+    out.buildingsMax = std::max(out.buildingsMax, out.buildingsMin);
+    return out;
+}
+
 SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
                                                       const std::string& tier,
                                                       const nlohmann::json& rec) {
@@ -53,6 +64,10 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
     if (rec.contains("buildings") && rec["buildings"].is_object()) {
         t.buildingsMin = rec["buildings"].value("min", t.buildingsMin);
         t.buildingsMax = rec["buildings"].value("max", t.buildingsMax);
+    }
+    if (rec.contains("reference_site") && rec["reference_site"].is_object()) {
+        t.referenceSiteW = std::max(0, rec["reference_site"].value("w", 0));
+        t.referenceSiteD = std::max(0, rec["reference_site"].value("d", 0));
     }
     if (rec.contains("street") && rec["street"].is_object()) {
         const auto& s = rec["street"];

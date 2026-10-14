@@ -22,8 +22,6 @@ namespace Phyxel {
     }
     class Timer;
     class ChunkManager;
-    class ForceSystem;
-    class MouseVelocityTracker;
     class PerformanceProfiler;
     namespace Core { struct EngineConfig; }
 }
@@ -53,8 +51,6 @@ public:
         Physics::PhysicsWorld* physicsWorld,
         Timer* timer,
         ChunkManager* chunkManager,
-        ForceSystem* forceSystem,
-        MouseVelocityTracker* mouseVelocityTracker,
         PerformanceProfiler* performanceProfiler,
         Utils::PerformanceMonitor* performanceMonitor,
         UI::ImGuiRenderer* imguiRenderer,
@@ -87,8 +83,6 @@ private:
     Physics::PhysicsWorld* physicsWorld;
     Timer* timer;
     ChunkManager* chunkManager;
-    ForceSystem* forceSystem;
-    MouseVelocityTracker* mouseVelocityTracker;
     PerformanceProfiler* performanceProfiler;
     Utils::PerformanceMonitor* performanceMonitor;
     UI::ImGuiRenderer* imguiRenderer;

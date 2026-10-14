@@ -11,7 +11,7 @@ layout(std430, set=0, binding=0) readonly buffer CountBuffer  { uint bodyConstra
 layout(std430, set=0, binding=1) buffer OffsetBuffer          { uint bodyConstraintOffset[]; };
 layout(std430, set=0, binding=2) buffer CursorBuffer          { uint bodyConstraintCursor[]; };
 
-layout(push_constant) uniform PC { uint bodyCount; } pc;
+layout(push_constant) uniform PC { PHX_PC_BODIES } pc;  // shaders/solver_shared.h
 
 void main() {
     uint sum = 0u;

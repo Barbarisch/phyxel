@@ -5,6 +5,8 @@
 #include "core/WorldConstants.h"
 #include "utils/Frustum.h"
 #include "graphics/LightManager.h"
+#include "graphics/TierRanges.h"
+#include "utils/CpuTimingRecorder.h"
 #include "graphics/DayNightCycle.h"
 #include "graphics/CelestialBody.h"
 #include "graphics/WindSystem.h"
@@ -38,6 +40,7 @@ namespace Phyxel {
         class UISystem;
     }
     namespace Input { class InputManager; }
+    namespace Scene { class RagdollCharacter; }   // was reached only transitively (via the deleted DynamicObjectManager.h)
     namespace Vulkan { 
         class VulkanDevice;
         class RenderPipeline;
@@ -53,7 +56,6 @@ namespace Phyxel {
     class VfxSystem;
     class VfxDirector;
     namespace Graphics {
-        class DebrisRenderPipeline;
         class KinematicVoxelPipeline;
         class GrassRenderPipeline;
         class FoliageRenderPipeline;
@@ -82,7 +84,6 @@ namespace Graphics {
 class ShadowMap;
 class PostProcessor;
 class Camera;
-class DebrisRenderPipeline;
 
 /**
  * @brief Manages the rendering pipeline and frame rendering
@@ -204,6 +205,22 @@ public:
     /// committing to the M6 binning build (POST /api/debug/far_terrain
     /// {"per_instance_levels": bool}).
     static bool s_treePerInstanceLevels;
+    /// Structure LOD proxies (distant settlements). A/B attribution knob, measurement-only:
+    /// {"structures": bool} on POST /api/debug/far_terrain. The far-trees knob turns off the
+    /// whole tree-LOD pipeline, which also draws these proxies, so it cannot separate them.
+    static bool s_structureLodEnabled;
+    /// Skip a proxy's MAIN-VIEW draw when the shader would discard every fragment of it (its
+    /// real building is resident: minFade 0; and it is inside the fade start: smoothstep 0).
+    /// Pixel-identical by construction; {"structures_skip_invisible": bool} for the A/B.
+    static bool s_structureLodSkipInvisible;
+    /// Build structure-proxy meshes MERGED (TreeLodMeshRegistry::MeshOptions::merge, watertight). Read
+    /// ONCE per build job when it is queued (the snapshot travels with the job; build threads never read
+    /// it). Changing it goes through rebuildAllStructureLod(). PerfProgram 17.2 step 3; trees are NOT
+    /// merged (measured 1.0-1.2x on forge_oak_m, not worth a species rebuild path).
+    static bool s_proxyMeshMerge;
+    /// Retire every structure proxy through the frame-deferred graveyard path and re-queue it for
+    /// extraction (the proxy_mesh_merge A/B). Proxies stay invisible until rebuilt (a debug action).
+    void rebuildAllStructureLod();
     // NOTE: there is deliberately no reach cap any more. The candidate set comes from
     // storage (chunks that actually HAVE pyramids), so coverage is bounded by the world's
     // real contents rather than by a constant somebody guessed.
@@ -355,9 +372,21 @@ public:
         return m_lightOccupancy ? m_lightOccupancy->boxMinChunk() : glm::ivec3(0);
     }
     size_t lightOccupancyOutOfBoxChunks() const { return m_lightOccOutOfBox; }
+    /// Repack backlog after the last update (DebrisInteractionPlan 1c): edits wait only when more
+    /// chunks were edited in one frame than the per-frame budget.
+    size_t lightOccupancyEditBacklog() const { return m_lightOccEditBacklog; }
+    size_t lightOccupancyResidencyBacklog() const { return m_lightOccResidencyBacklog; }
+    uint64_t lightOccupancyJobSkips() const { return m_lightOccJobSkips; }
     /// Query the LAST FLUSHED pool with the shader's own addressing. `worldMicro` = world unit * 9.
     bool lightOccupancySolidAt(const glm::ivec3& worldMicro) const {
         return m_lightOccupancy && m_lightOccupancy->solidAtMicro(worldMicro);
+    }
+    /// For /api/debug/occupancy_diff: residency and cube-level state of the last flushed pool.
+    bool lightOccupancyKnownAt(const glm::ivec3& worldMicro) const {
+        return m_lightOccupancy && m_lightOccupancy->stateAtMicro(worldMicro) != OccupancyState::Unknown;
+    }
+    CubeOccupancy lightOccupancyCubeAt(const glm::ivec3& worldCube) const {
+        return m_lightOccupancy ? m_lightOccupancy->cubeOccupancy(worldCube) : CubeOccupancy::Empty;
     }
 
     // Render distance management
@@ -400,6 +429,7 @@ public:
         int    farTreeMeshDrawsByLevel[kTreeChainLevels] = {};
         int    farTreeCardDraws       = 0;
         int    farTreeMaskResidentColumns = 0;   ///< G-178: columns in the 22x22 residency mask that render
+        int    structureLodSkippedInvisible = 0;   ///< proxies whose main draw was provably all-discard
         // D1 shadow-pass diagnosis (docs/RenderDensityPlan.md): the shadow pass distance-culls only
         // (no frustum), so it may draw far more than visibleChunkCount. These count what it drew.
         int    shadowChunksDrawn     = 0;
@@ -422,6 +452,46 @@ public:
     // buffers are direction-major; main + shadow passes submit only ranges the GPU
     // wouldn't cull. Default ON; POST /api/debug/face_dir_cull toggles for A/B.
     static bool s_faceDirCull;
+
+    // I6 (docs/PerfProgram2026-09.md): per-tier draw masks, for attributing GPU cost to cubes /
+    // subcubes / microcubes by subtraction. Bit t = draw tier t (0 cube, 1 subcube, 2 microcube);
+    // LOD cells always draw. 0x7 (the default) takes the normal draw paths untouched. A masked tier
+    // is NOT DRAWN AT ALL (its vertex work disappears too), in the main pass and in both chunk
+    // shadow paths. POST /api/debug/tier_mask.
+    static uint32_t s_tierMaskMain;
+    static uint32_t s_tierMaskShadow;
+    // P-DP depth prepass (docs/PerfProgram2026-09.md 14, 16.13). DEFAULT ON since 2026-09-27: C-100
+    // city -7..-8 ms GPU at eye level, 0..+2 ms from above, 0-3 changed pixels per frame (frozen
+    // gates), user-approved after a live look. When ON (and not in the debug pipeline, and only if the
+    // prepass pipelines exist -- otherwise the normal path runs): static geometry is drawn depth-only
+    // first, then shaded with depth writes OFF and an or-equal test, so each pixel is shaded once by its
+    // front-most fragment. POST /api/debug/depth_prepass. Pinned: RenderDefaultsTest.DepthPrepassDefault.
+    static bool s_depthPrepass;
+    /// Effect-time hold (PerfProgram 17.2 step 2, the night pixel gate). When true the GPU time
+    /// (UBO elapsedTime: wind, grass, far-tree sway, sky, emissive pulse in ~20 shaders, plus the
+    /// CPU wind system and grass displacers) stays at the value it had when the hold began, and
+    /// VfxSystem ticks with dt = 0 (fire/VFX light pulse). NOTHING else changes: the game, the
+    /// emissive reconcile, streaming and the day/night clock keep their own clocks. Debug-only;
+    /// POST /api/debug/effect_time {"frozen": bool}.
+    static bool  s_effectTimeFrozen;
+    static float s_effectTimeHeldAt;     ///< seconds since first frame at which time is held
+    static float s_effectTimeLast;       ///< last live elapsedTime (captured when a hold starts)
+    /// Whether the prepass actually ran in the last frame (false if disabled, if the debug pipeline was
+    /// active, or if its pipelines are unavailable).
+    bool depthPrepassRanLastFrame() const { return m_depthPrepassRan; }
+    /// Per-frame instance counts by tier (I5 per-view census): what the main pass and each shadow
+    /// cascade actually submitted, last complete frame.
+    struct TierDrawStats {
+        uint64_t mainFaces[4] = {};              // tier 0 cube, 1 sub, 2 micro, 3 LOD cell
+        uint64_t shadowFaces[3][4] = {};         // cascade 0 mid, 1 near, 2 far
+        uint64_t mainChunksUnattributed = 0;     // drawn whole: tier ranges were invalid (stale/LOD)
+        uint64_t maskedChunksSkipped = 0;        // not drawn under a tier mask: ranges invalid
+        uint64_t shadowCmdOverflow = 0;          // masked shadow runs dropped at the indirect cap
+    };
+    const TierDrawStats& getTierDrawStats() const { return m_tierDrawStatsLast; }
+
+    /// I7: CPU scope timing history of drawFrame (GET /api/debug/cpu_timing).
+    const CpuTimingRecorder& getCpuTiming() const { return m_cpuTiming; }
 
     // Raycast visualization
     void toggleRaycastVisualization() { raycastVisualizationEnabled = !raycastVisualizationEnabled; }
@@ -450,6 +520,7 @@ public:
     const DayNightCycle& getDayNightCycle() const { return m_dayNightCycle; }
 
     GpuProfiler* getGpuProfiler() { return gpuProfiler.get(); }
+    Vulkan::RenderPipeline* getRenderPipeline() { return renderPipeline; }
     
     // Lighting Controls UI
     void toggleLightingControls() { showLightingControls = !showLightingControls; }
@@ -464,7 +535,8 @@ public:
     void setNPCManager(Core::NPCManager* npcManager) { m_npcManager = npcManager; }
 
     // GPU particle physics — must be set before the first drawFrame()
-    void setGpuParticlePhysics(GpuParticlePhysics* gpp) { m_gpuParticles = gpp; }
+    /// Also hands the debris solver the SHARED occupancy pool's per-slot buffers (1c).
+    void setGpuParticlePhysics(GpuParticlePhysics* gpp);
 
     // Kinematic voxel objects (doors, platforms, etc.)
     void setKinematicVoxelManager(Core::KinematicVoxelManager* mgr) { m_kinematicObjects = mgr; }
@@ -721,9 +793,31 @@ private:
 
     std::vector<int> m_emissiveLightIds;
     size_t           m_emissiveLightHash = 0;
+public:
+    /// CPU cost of the emissive-voxel light reconcile in updateVfx (I3, light_stats cpu_ms). The
+    /// hash walks every chunk's emitter list EVERY frame; the rebuild re-registers all emissive
+    /// lights whenever any emitter changed.
+    struct EmitterReconcileStats {
+        double hashMs = 0.0;          // last frame's hash pass
+        double lastRebuildMs = 0.0;   // the most recent remove-all + re-add
+        uint64_t rebuilds = 0;
+        size_t emitters = 0;          // emitters found by the last hash pass
+    };
+    const EmitterReconcileStats& getEmitterReconcileStats() const { return m_emitterStats; }
+private:
+    EmitterReconcileStats m_emitterStats;
+    TierDrawStats m_tierDrawStats;       // accumulating this frame
+    TierDrawStats m_tierDrawStatsLast;   // published at the end of drawFrame
+    std::vector<TierRanges::Run> m_tierRunScratch;   // reused by masked draws (no per-chunk alloc)
+    CpuTimingRecorder m_cpuTiming{240};              // I7 CPU scopes of drawFrame
+    uint64_t m_cpuFrameSerial = 0;
+    bool m_depthPrepassRan = false;                  // P-DP: did the prepass run last frame
 
     // Rendering subsystems
-    size_t renderStaticGeometry();
+    // P-DP (docs/PerfProgram2026-09.md): the static pass can run as a depth prepass followed by a
+    // shading pass that reuses the SAME culled chunk list. Normal = the original single pass.
+    enum class StaticDrawPass { Normal, DepthPrepass, ShadeAfterPrepass };
+    size_t renderStaticGeometry(StaticDrawPass pass = StaticDrawPass::Normal);
     void renderTransparentGeometryOIT(uint32_t frameIndex);
     void renderMirrorGeometry(uint32_t frameIndex);
     void renderReflectionPass(uint32_t frameIndex);
@@ -951,6 +1045,9 @@ private:
     std::unordered_map<glm::ivec3, uint32_t, LightOccOriginHash> m_lightOccRevisions;
     size_t m_lightOccLoadedChunks = 0;   ///< chunks resident in ChunkManager last scan
     size_t m_lightOccOutOfBox = 0;       ///< loaded but outside the directory box -> NOT occluding
+    size_t m_lightOccEditBacklog = 0;      ///< edited resident chunks still waiting for a repack
+    size_t m_lightOccResidencyBacklog = 0; ///< newly loaded chunks still waiting for first residency
+    uint64_t m_lightOccJobSkips = 0;       ///< repack passes skipped while an async job held the chunk write lock
     glm::vec3 m_lightOccCentreSource{0.0f};   ///< what was fed to setViewCentre last frame
     // U1: the frame's sun and atmosphere-ambient colours, cached for CPU-side consumers that shade
     // outside a scene shader (currently the debris particle sampler). Kept here rather than
@@ -1058,9 +1155,6 @@ private:
     // Light management
     LightManager lightManager;
 
-    // Debris Rendering
-    std::unique_ptr<DebrisRenderPipeline> debrisPipeline;
-
     // Lightweight VFX particle system + its instanced-cube renderer + composition runtime.
     std::unique_ptr<VfxSystem> vfxSystem;
     std::unique_ptr<VfxDirector> vfxDirector;
@@ -1120,6 +1214,8 @@ private:
         float lastDist    = -1.0f;  ///< camera distance last frame (-1 = beyond bandEnd/not ticked)
         int   lastLevel   = -1;     ///< chain level drawn last frame (-1 = not drawn)
         float lastMinFade = 0.0f;   ///< residency floor pushed to the shader last frame
+        uint32_t trisL0 = 0;        ///< triangles in the uploaded L0 mesh (0 until built)
+        bool merged = false;        ///< built with s_proxyMeshMerge (snapshot at queue time)
     };
     std::unordered_map<std::string, StructureLod> structureLod;   // key: structure UUID
     /// Frame-deferred GPU destruction for removed/edited structure entries (a buffer may be
@@ -1147,14 +1243,18 @@ public:
     /// report cannot disagree — and densifying a ladder is a one-line change here.
     /// Tree mesh tier: chain level i+1 is used below kTreeMeshLevelDist[i]; L5 beyond the
     /// last entry, cards past bandEnd. Structures: chain level i (0-based — L0's ⅓-voxel
-    /// cells ARE selected, right at the handoff) below kStructureLevelDist[i]; L5 beyond.
+    /// cells ARE selected, right at the handoff) below s_structureLevelDist[i]; L5 beyond.
     /// Densified 2026-08-05 with the full 6-level structure chain (was 3 levels of 4).
     /// RUNTIME-TUNABLE (2026-08-06) so ladder sweeps need no rebuild — the remaining
     /// dense-world tree cost (~8 ms of vertex volume) trades against how long fine levels
     /// hold, and that is a LOOK decision to sweep live: POST /api/debug/far_terrain
     /// {"tree_ladder": [d1, d2, d3, d4]} (ascending; level i+1 below entry i, L5 beyond).
     static float s_treeMeshLevelDist[4];
-    static constexpr float kStructureLevelDist[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
+    /// Structure-proxy chain ladder: level i below entry i, L5 beyond. Runtime (was constexpr) so a
+    /// LOOK A/B can sweep it back-to-back (PerfProgram 17.2 step 3): POST /api/debug/far_terrain
+    /// {"structure_ladder": [d0..d4]}. Default unchanged, see kStructureLevelDistDefault.
+    static constexpr float kStructureLevelDistDefault[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
+    static float s_structureLevelDist[5];
 
     /// Pure residency-gate probe for a structure proxy — decides whether the REAL chunks own
     /// this structure's ground (ready → the proxy may dissolve) and how many probe columns
@@ -1166,6 +1266,15 @@ public:
         bool ready = true;   ///< every voting column has rendered geometry
         int  votes = 0;      ///< columns close enough to the camera to vote
     };
+    /// True when far_tree_mesh would discard EVERY fragment of a structure proxy, so its main-view
+    /// draw can be skipped with no pixel change (PerfProgram 16.12). Shader: vFade =
+    /// max(smoothstep(fadeNear0, fadeNear1, |base - camera|), minFade); a fragment is discarded when
+    /// vFade < its Bayer threshold (smallest 1/32). This predicate is deliberately STRICTER than that
+    /// bound: minFade exactly 0 and the base at least 1 u inside fadeNear0 (the margin covers
+    /// CPU-vs-GPU float differences, which no CPU test can reproduce). Pure + static so
+    /// StructureLodSkipTest pins it headlessly.
+    static bool structureProxyFullyDiscarded(const glm::vec3& base, const glm::vec3& cameraPos,
+                                             float fadeNear0, float minFade);
     static StructureGateResult structureGateProbe(
         const glm::ivec3& mn, const glm::ivec3& mx, const glm::vec3& cameraPos,
         float fadeGateEnd,
@@ -1180,6 +1289,8 @@ public:
         float lastDist = -1.0f;
         int   lastLevel = -1;
         float lastMinFade = 0.0f;
+        uint32_t trisL0 = 0;
+        bool merged = false;
     };
     std::vector<StructureLodInfo> structureLodReport() const;
 
@@ -1215,6 +1326,7 @@ public:
     /// (instanced meshes + cards) without touching the terrain tiles, so an artifact can be
     /// pinned to trees vs tile geometry in two screenshots.
     void setFarTreesEnabled(bool on);
+    bool farTreesEnabled() const;   ///< tree-LOD pipeline enabled state (echoed by set_far_terrain)
 
     /// World size of one shadow-map texel this frame (2*fittedRadius / mapWidth). Diagnostic:
     /// this is what the grass shadow pass clamps blade width against, so if blades stop

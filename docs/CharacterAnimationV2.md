@@ -1,5 +1,9 @@
 # Character Animation v2 — Paradigm Comparison & Design Direction
 
+> **2026-09-29:** extended by [`AnimationSystemV3Plan.md`](AnimationSystemV3Plan.md) — the phased
+> build plan (ground truth re-surveyed, ten runtime defects, the contact/constraint layer for
+> "sit on any chair", the learned-motion seam that now exists). This doc stays the paradigm analysis.
+>
 > **Status:** design / decision-support doc. Written 2026-07-09 in response to the standing
 > "character animation has failed for months" problem. Compares the three viable paradigms against
 > Phyxel's *actual* engine and *actual* history, then recommends a direction. **No code decision is

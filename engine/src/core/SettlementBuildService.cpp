@@ -158,6 +158,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // densified copy must outlive every use of tierP in this planning pass.
         const double density = std::clamp(p.value("density", 1.0), 0.5, 2.0);
         Core::SettlementTierPreset densified;
+        Core::SettlementTierPreset sited;   // site-scaled copy (scaleForSite), same lifetime rule
         if (programMode) {
             if (!programReg.loadFromFile("resources/settlement_program.json")) {
                 res.error = {{"error", "settlement_program.json failed to load"}};
@@ -172,6 +173,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             if (density != 1.0) {
                 densified = Core::applyDensity(*tierP, density);
                 tierP = &densified;
+            }
+            // After density: the cap grows with the site beyond the tier's reference site.
+            if (tierP->referenceSiteW > 0 && tierP->referenceSiteD > 0) {
+                sited = Core::scaleForSite(*tierP, W, D);
+                tierP = &sited;
             }
             if (tierP->morphology == "cluster") {
                 // cluster reuses the legacy scatter/grid layout; the tier contributes its weighted
@@ -381,7 +387,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     cleared += ch->clearCellsBulk(cells);
                     chunkManager->markChunkDirty(ch);
                 }
-                chunkManager->rebuildOccupancyFromChunks();
                 LOG_INFO_FMT("Settlement", "parcel clearing: " << cleared
                              << " cells over " << seen.size() << " columns (margin "
                              << kMargin << ")");
@@ -765,7 +770,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
                 grassConverted = static_cast<long>(gcut.size());
             }
-            chunkManager->rebuildOccupancyFromChunks();
             const double stampMs = std::chrono::duration<double, std::milli>(
                                        std::chrono::steady_clock::now() - t0).count();
             LOG_INFO_FMT("Settlement", "streets: paved " << placedMicros << " micros over "
@@ -854,7 +858,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             placedFill = Core::StructureGenerator::place(chunkManager, fillBatch).placed;
             const double stampMs = std::chrono::duration<double, std::milli>(
                                        std::chrono::steady_clock::now() - t0).count();
-            chunkManager->rebuildOccupancyFromChunks();   // so the paving is part of the static collision world
             LOG_INFO_FMT("Settlement", "paths: paved " << (placedFill + levelPaved) << " microcubes ("
                          << levelPaved << " level caps, " << placedFill << " fill), " << cut
                          << " cut cells owed; stamp " << static_cast<long>(stampMs) << " ms");
@@ -1010,7 +1013,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
             }
             fenceMicros = Core::StructureGenerator::place(chunkManager, fenceBatch).placed;
-            chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels fenced, " << unfenced
                          << " unfenced by policy, " << pinchedRuns << " runs dropped (alley < 2 cells to a neighbour wall), "
                          << fenceMicros << " micros (picket, " << fH << "-micro tall, posts @" << fSp << ")");
@@ -1093,7 +1095,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         emitMicro(re, s.x, my, s.z, sweepMat);
                 restamped = Core::StructureGenerator::place(chunkManager, re).placed;
             }
-            chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "street sweep: " << swept << " cells cleared over "
                          << sharedRoadBand->size() << " band cells, " << restamped
                          << " paving micros re-stamped");
@@ -1127,7 +1128,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     for (int z = g.opening.z; z < g.opening.z1(); ++z)
                         gateCols.insert({x, z});
 
-            constexpr int kGateClearCubes = 4;   // headroom under the gate lintel
+            const int kGateClearCubes = spec.gateClearCubes;  // headroom under the gate lintel
             Core::StructureResult batch;
             // The wall must OWN its line. place() will not overwrite an occupied cell, so a
             // tree standing on the wall line silently punched a hole in the circuit (found by
@@ -1308,7 +1309,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 chunkManager->markChunkDirty(ch);
             }
             const auto placed = Core::StructureGenerator::place(chunkManager, batch);
-            chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "town wall: " << placed.placed << " cubes, "
                          << wp.gates.size() << " gates, " << wp.towers.size()
                          << " towers (" << towersUsable << " walkable), line cleared "
@@ -1368,7 +1368,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 cleared += ch->clearCellsBulk(cells);
                 chunkManager->markChunkDirty(ch);
             }
-            if (cleared > 0) chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "orphaned canopy: " << orphans.size()
                          << " cells found, " << cleared << " cleared");
             (*pathsJsonP)["orphaned_canopy_cleared"] = cleared;
@@ -1400,7 +1399,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
                 (ok ? ++placed : ++skipped);
             }
-            chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "square dressing: " << placed << " placed, "
                          << skipped << " skipped");
             (*propsJsonP)["square_dressing"] = {{"placed", placed}, {"skipped", skipped}};
@@ -1512,7 +1510,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             long placed = 0;
             if (!out.voxels.empty()) {
                 placed = Core::StructureGenerator::place(chunkManager, out).placed;
-                chunkManager->rebuildOccupancyFromChunks();
             }
             LOG_INFO_FMT("Settlement", "doorsteps: " << stooped << " of " << sharedFrontDoors->size()
                          << " front doors stooped (" << steps << " steps, " << placed
@@ -1762,7 +1759,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // Echo {era, tier, seed, density} so a live build is exactly reproducible
             // (determinism contract; density echoes CLAMPED so the caller sees what applied).
             programJson = {{"era", era}, {"tier", tierName}, {"seed", seed},
-                           {"density", density}, {"morphology", tierP->morphology}};
+                           {"density", density}, {"morphology", tierP->morphology},
+                           // the EFFECTIVE cap after density and site scaling (echoed, so a
+                           // caller can tell "the site was full" from "the cap bound")
+                           {"buildings_cap", tierP->buildingsMax}};
             if (mainStreetMode) {
                 programJson["main_street"] = {{"x", ox + msl.mainStreet.x}, {"z", oz + msl.mainStreet.z},
                                               {"w", msl.mainStreet.w}, {"d", msl.mainStreet.d}};

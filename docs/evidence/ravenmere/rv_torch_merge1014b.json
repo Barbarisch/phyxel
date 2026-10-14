@@ -1,0 +1,401 @@
+{
+ "label": "merge1014b",
+ "noon": {
+  "night": false,
+  "npcs": 12,
+  "carrying": 0,
+  "drawn": 0,
+  "lit": 0,
+  "dropped_point_lights": 6,
+  "frame_ms": 69.75
+ },
+ "night": {
+  "night": true,
+  "default": "default",
+  "npcs": 12,
+  "carrying": 10,
+  "drawn": 10,
+  "lit": 10,
+  "dropped_point_lights": 16,
+  "frame_ms": 57.65,
+  "list": [
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 39,
+      "position": [
+       6.844062805175781,
+       18.187692642211914,
+       12.860455513000488
+      ]
+     }
+    ],
+    "name": "Selby",
+    "policy": "default",
+    "position": [
+     7.0,
+     17.11111068725586,
+     13.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.21,
+     1.08
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 40,
+      "position": [
+       -12.156826972961426,
+       18.17565155029297,
+       12.852193832397461
+      ]
+     }
+    ],
+    "name": "Aldric",
+    "policy": "default",
+    "position": [
+     -12.0,
+     17.11111068725586,
+     13.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.22,
+     1.06
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 42,
+      "position": [
+       -14.175395011901855,
+       18.278661727905273,
+       -11.150087356567383
+      ]
+     }
+    ],
+    "name": "Maera",
+    "policy": "default",
+    "position": [
+     -14.0,
+     17.11111068725586,
+     -11.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.23,
+     1.17
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 41,
+      "position": [
+       -26.73553466796875,
+       18.129009246826172,
+       17.253175735473633
+      ]
+     }
+    ],
+    "name": "Ada",
+    "policy": "default",
+    "position": [
+     -26.779264450073242,
+     17.11111068725586,
+     17.501924514770508
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.25,
+     1.02
+    ]
+   },
+   {
+    "carrying": "",
+    "held": "",
+    "hostile": false,
+    "indoors": true,
+    "lights": [],
+    "name": "Bram",
+    "policy": "default",
+    "position": [
+     -26.33333396911621,
+     18.0,
+     -3.3333332538604736
+    ],
+    "resolved": "night"
+   },
+   {
+    "carrying": "",
+    "held": "",
+    "hostile": false,
+    "indoors": true,
+    "lights": [],
+    "name": "Hobb",
+    "policy": "default",
+    "position": [
+     -24.0,
+     17.333332061767578,
+     -2.0
+    ],
+    "resolved": "night"
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 43,
+      "position": [
+       -5.149482727050781,
+       18.169246673583984,
+       13.849740028381348
+      ]
+     }
+    ],
+    "name": "Wren",
+    "policy": "default",
+    "position": [
+     -5.0,
+     17.11111068725586,
+     14.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.21,
+     1.06
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 44,
+      "position": [
+       3.1249637603759766,
+       18.234663009643555,
+       17.35247039794922
+      ]
+     }
+    ],
+    "name": "Tam",
+    "policy": "default",
+    "position": [
+     2.9775826930999756,
+     17.11111068725586,
+     17.50686264038086
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.21,
+     1.12
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 45,
+      "position": [
+       19.84609031677246,
+       18.2751407623291,
+       13.856436729431152
+      ]
+     }
+    ],
+    "name": "Old Moll",
+    "policy": "default",
+    "position": [
+     20.0,
+     17.11111068725586,
+     14.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.21,
+     1.16
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 46,
+      "position": [
+       41.58053207397461,
+       18.05088233947754,
+       22.511510848999023
+      ]
+     }
+    ],
+    "name": "Gerrit",
+    "policy": "default",
+    "position": [
+     41.32062911987305,
+     17.0,
+     22.64093017578125
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.29,
+     1.05
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 48,
+      "position": [
+       44.77227783203125,
+       18.5030517578125,
+       11.61836051940918
+      ]
+     }
+    ],
+    "name": "Pell",
+    "policy": "default",
+    "position": [
+     44.48733901977539,
+     17.333332061767578,
+     11.623723983764648
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.28,
+     1.17
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 47,
+      "position": [
+       -45.47557067871094,
+       18.044397354125977,
+       19.896991729736328
+      ]
+     }
+    ],
+    "name": "Wynn",
+    "policy": "default",
+    "position": [
+     -45.3311767578125,
+     17.0,
+     20.0677547454834
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.22,
+     1.04
+    ]
+   }
+  ],
+  "violations": []
+ },
+ "bearer": {
+  "name": "Wynn",
+  "position": [
+   -43.496604919433594,
+   17.0,
+   8.976808547973633
+  ]
+ },
+ "control_summary": {
+  "off_mean": 28.27,
+  "off_spread": 1.07,
+  "on_mean": 114.15,
+  "on_minus_off": 85.88
+ },
+ "control": [
+  {
+   "i": 0,
+   "torch": false,
+   "held": "",
+   "carrying": "",
+   "indoors": false,
+   "moved_m": 0.0,
+   "luma_centre": 28.7,
+   "luma_frame": 71.78
+  },
+  {
+   "i": 1,
+   "torch": true,
+   "held": "torch",
+   "carrying": "torch",
+   "indoors": false,
+   "moved_m": 0.0,
+   "luma_centre": 113.63,
+   "luma_frame": 99.9
+  },
+  {
+   "i": 2,
+   "torch": false,
+   "held": "",
+   "carrying": "",
+   "indoors": false,
+   "moved_m": 0.0,
+   "luma_centre": 27.63,
+   "luma_frame": 71.7
+  },
+  {
+   "i": 3,
+   "torch": true,
+   "held": "torch",
+   "carrying": "torch",
+   "indoors": false,
+   "moved_m": 0.0,
+   "luma_centre": 114.67,
+   "luma_frame": 100.6
+  },
+  {
+   "i": 4,
+   "torch": false,
+   "held": "",
+   "carrying": "",
+   "indoors": false,
+   "moved_m": 0.0,
+   "luma_centre": 28.47,
+   "luma_frame": 71.78
+  }
+ ]
+}

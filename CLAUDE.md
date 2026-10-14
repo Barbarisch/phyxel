@@ -147,7 +147,7 @@ When starting a new conversation in the engine terminal, **proactively check eng
 
 ## Project Overview
 
-Phyxel is a voxel game engine built with C++17 and Vulkan. Physics is an in-house stack — a GPU compute solver (`GpuParticlePhysics`, Vulkan XPBD/AVBD, primary for large-scale debris/destruction) plus a custom CPU rigid-body world (`VoxelDynamicsWorld`, used for furniture, character grounding, and left-click break debris). **Bullet Physics has been removed** entirely (the `external/bullet3` submodule was dropped; the `stb_image`/`stb_truetype` headers it used to provide are now vendored at `external/stb`). It features a 32³ chunk system, animated voxel characters, GPU/CPU voxel physics, embedded Python scripting, and an MCP server for AI agent integration.
+Phyxel is a voxel game engine built with C++17 and Vulkan. Physics is an in-house stack — a GPU compute solver (`GpuParticlePhysics`, Vulkan AVBD, primary for large-scale debris/destruction) plus a custom CPU rigid-body world (`VoxelDynamicsWorld`, used for furniture, fragments/props and character grounding; it has no break debris — every broken piece is GPU debris). **Bullet Physics has been removed** entirely (the `external/bullet3` submodule was dropped; the `stb_image`/`stb_truetype` headers it used to provide are now vendored at `external/stb`). It features a 32³ chunk system, animated voxel characters, GPU/CPU voxel physics, embedded Python scripting, and an MCP server for AI agent integration.
 
 ## Build & Test Pipeline (REQUIRED)
 
@@ -515,7 +515,7 @@ In `resources/animated_characters/`:
 |-----|--------|
 | ESC | Pause Menu |
 | F1 | Performance Overlay |
-| F3/F4 | Debug Vis / Debug Rendering (Ctrl+F4 cycles mode) |
+| F4 | Debug Rendering (Ctrl+F4 cycles mode) |
 | F5 | Raycast Vis + NPC FOV cones |
 | F6 | Lighting Controls |
 | F7 | Profiler |
@@ -535,14 +535,15 @@ In `resources/animated_characters/`:
 | Ctrl | Crouch (Animated) |
 | Left Click | Attack / Cast / Furniture Throw+Activate (Animated) |
 | X | Derez character |
+| G | Gather settled rubble into the inventory (by volume) |
 | N/B | Next/Prev Animation (Preview Mode only — B breaks voxels outside preview mode) |
 
-> Full, authoritative keybinding list (incl. F2/Shift+F5/O/G, asset- and anim-editor modes): [`docs/Keybindings.md`](docs/Keybindings.md).
+> Full, authoritative keybinding list (incl. F2/Shift+F5, asset- and anim-editor modes): [`docs/Keybindings.md`](docs/Keybindings.md).
 
 ## MCP Server (AI Agent Bridge)
 
 Server: `scripts/mcp/phyxel_mcp_server.py` — HTTP API at `localhost:8090` (default; the server
-honors `PHYXEL_API_PORT`/`PHYXEL_API_URL`). **Multiple engines can run at once, each on its own
+honors `PHYXEL_API_PORT`/`PHYXEL_API_URL`, and `PHYXEL_API_TIMEOUT` = request timeout in seconds, default 10). **Multiple engines can run at once, each on its own
 port** — game projects get a per-project port via the `phyxel` CLI (`.phyxel/config.json` +
 `.mcp.json` → `phyxel-mcp`); see `docs/GameDevWorkflow.md`. Don't assume 8090 / don't kill other
 sessions' engines.
@@ -583,13 +584,13 @@ Requirements: `pip install mcp httpx`. Engine must be running.
 ### Game Project Scaffolding & Packaging
 
 ```bash
-python tools/create_project.py MyGame --game-definition game.json   # scaffold
-python tools/package_game.py MyGame --project-dir path/to/MyGame    # package
+python tools/produce_game.py MyGame --project-dir path/to/MyGame --definition game.json --output path/to/dist/MyGame
 ```
 
-- Projects link against `phyxel_core`, no Python/MCP/dev tools in output
-- World terrain pre-baked in `worlds/default.db`; NPCs/story loaded from `game.json` at runtime
-- Output: `Documents/PhyxelProjects/<GameName>/` (self-contained)
+- `--definition` is only required to scaffold a project that does not exist yet
+- The command builds Release, packages, launches, and validates the actual standalone
+- Projects link against `phyxel_core`; packages include its Python runtime DLL but no MCP/dev server
+- A pre-baked `worlds/default.db` is used when present; otherwise `game.json` generates the world
 - See `docs/GameCreationGuide.md` for full workflow
 
 **Standalone test API (`--test`):** a packaged game can optionally host the HTTP API so an automated
@@ -623,11 +624,11 @@ docs/            # Documentation
 
 **Core:** ChunkManager (32³ chunks, Vulkan buffers, face culling), ChunkStreamingManager (SQLite persistence), WorldGenerator, SceneManager (multi-scene transitions), EntityRegistry (O(1) lookup), EngineAPIServer (HTTP port 8090; hosted by the editor, and — via `GameApiService`/`GameShell` behind `--test` — optionally by a standalone game), ScriptingSystem (pybind11), PhysicsWorld (thin wrapper over the custom CPU `VoxelDynamicsWorld` — Bullet removed), RenderPipeline/RenderCoordinator (Vulkan instanced)
 
-**Gameplay:** HealthComponent, RespawnSystem, CombatSystem (sphere+cone hit detection), EquipmentSystem (6 slots), CraftingSystem, DayNightCycle, HazardSystem, AchievementSystem, MusicPlaylist, PlayerProfile, ObjectiveTracker
+**Gameplay:** HealthComponent, RespawnSystem, CombatSystem (sphere+cone hit detection), EquipmentSystem (6 slots), DayNightCycle, HazardSystem, AchievementSystem, MusicPlaylist, PlayerProfile, ObjectiveTracker
 
 **NPC/AI:** NPCManager, NavGrid + AStarPathfinder, DialogueSystem, StoryEngine, AIConversationService (Claude/OpenAI/Ollama), BehaviorTree/UtilityAI
 
-**Voxel Physics (NO Bullet — removed):** GpuParticlePhysics (Vulkan compute XPBD/AVBD, ~10000 cap; the LIVE primary path for large-scale debris/destruction, warm-started), VoxelDynamicsWorld (custom CPU sequential-impulse rigid-body world; furniture, static-terrain occupancy grids + character grounding, and the left-click break-debris path via DynamicObjectManager/DebrisSystem), VoxelManipulationSystem (break routing — see `docs/DynamicVoxelPhysics.md`). Static voxel collision = per-chunk occupancy grids registered in VoxelDynamicsWorld; see `docs/AgentContext.md` for the "every DB-load path must call buildAllChunkPhysics()" rule.
+**Voxel Physics (NO Bullet — removed):** GpuParticlePhysics (Vulkan compute AVBD, ~10000 cap; the LIVE primary path for large-scale debris/destruction, warm-started; ⚠️ **any change to `solver_*.comp`, `voxel_contact.glsl` or `GpuParticlePhysics` must pass `tools/debris_settle_bench.py` on the DebrisLab project** — the six-month "bubbling debris" bug was contact-generation defects hidden by screenshot-only verification, see `docs/DebrisSettlingPlan.md` §R), VoxelDynamicsWorld (custom CPU sequential-impulse rigid-body world; furniture, static-terrain occupancy grids + character grounding), VoxelManipulationSystem (break routing — see `docs/DynamicVoxelPhysics.md`). **Every broken piece is GPU debris** through `DamageSystem::spawnBreakDebris` (B key, Python breaks, blasts, chops; the CPU single-box debris path `DynamicObjectManager` was deleted in DebrisInteractionPlan 1d); GPU debris collides against the shared micro occupancy pool (`POST /api/debug/occupancy_diff` checks store = grid = pool). Static voxel collision = per-chunk occupancy grids registered in VoxelDynamicsWorld; see `docs/AgentContext.md` for the "every DB-load path must call buildAllChunkPhysics()" rule.
 
 **D&D RPG:** DiceSystem, CharacterAttributes (6 ability scores + modifiers), ProficiencySystem, CharacterSheet/CharacterProgression (class/race/XP/level, data-driven JSON in `resources/rpg/`), ActionEconomy/InitiativeTracker, AttackResolver/ConditionSystem (15 conditions), SpellDefinition/SpellcasterComponent/SpellResolver, RpgItem/CurrencySystem/AttunementSystem/EncumbranceSystem, ReputationSystem/DialogueSkillCheck/SocialInteractionResolver, RestSystem, WorldClock (360-day calendar, lunar cycle), Party, LootTable, EncounterBuilder, CampaignJournal
 

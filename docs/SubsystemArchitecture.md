@@ -58,7 +58,8 @@ class Parent {
 
 **ChunkManager** (604 lines) - Multi-chunk world coordinator
 - **ChunkStreamingManager** - Chunk loading, saving, streaming (handles WorldStorage)
-- **DynamicObjectManager** - Global dynamic voxel lifecycle (subcubes, cubes, microcubes)
+- *(DynamicObjectManager was deleted 2026-10-06: all break debris is GPU debris, owned by
+  `DebrisRuntime`; see DynamicVoxelPhysics.md)*
 - **FaceUpdateCoordinator** - Face rebuilding coordination for dynamic objects
 - **ChunkInitializer** - Chunk creation and initialization
 - **DirtyChunkTracker** - Selective chunk update optimization
@@ -85,7 +86,6 @@ class Parent {
 
 **VoxelInteractionSystem** (519 lines) - Mouse interaction coordinator
 - **VoxelRaycaster** - Ray-voxel intersection, O(1) picking (~200 lines)
-- **VoxelForceApplicator** - Mouse-based force application (~235 lines)
 - **VoxelManipulationSystem** - Voxel manipulation (remove, subdivide, break) (~481 lines)
 
 **Original size**: 1,275 lines  
@@ -214,7 +214,7 @@ public:
 ### Manager Subsystems
 Handle lifecycle and coordination:
 - ChunkStreamingManager (load/save/unload)
-- DynamicObjectManager (create/update/destroy)
+- DebrisRuntime (GPU debris solver, mover feeds, events, water)
 - ChunkInitializer (create/populate chunks)
 
 ### Coordinator Subsystems

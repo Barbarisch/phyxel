@@ -5,7 +5,6 @@
 #include "core/DynamicFurnitureManager.h"
 #include "physics/PhysicsWorld.h"
 #include "ui/WindowManager.h"
-#include "core/ForceSystem.h"
 #include "utils/CoordinateUtils.h"
 #include "physics/Material.h"
 #include "utils/Logger.h"
@@ -18,15 +17,11 @@ namespace Phyxel {
 
 VoxelInteractionSystem::VoxelInteractionSystem(ChunkManager* chunkManager,
                                              Physics::PhysicsWorld* physicsWorld,
-                                             MouseVelocityTracker* mouseVelocityTracker,
                                              UI::WindowManager* windowManager,
-                                             ForceSystem* forceSystem,
                                              Core::AudioSystem* audioSystem)
     : m_chunkManager(chunkManager)
     , m_physicsWorld(physicsWorld)
-    , m_mouseVelocityTracker(mouseVelocityTracker)
     , m_windowManager(windowManager)
-    , m_forceSystem(forceSystem)
     , m_audioSystem(audioSystem)
     , m_hasHoveredCube(false)
     , m_lastHoveredCube(-1)
@@ -232,17 +227,6 @@ InteractionContext VoxelInteractionSystem::createContext() const {
     return context;
 }
 
-void VoxelInteractionSystem::removeHoveredCube() {
-    if (m_hasHoveredCube && m_currentHoveredLocation.isValid()) {
-        glm::ivec3 removedPos = m_currentHoveredLocation.worldPos;
-        m_manipulator.removeVoxel(m_currentHoveredLocation);
-        m_hasHoveredCube = false;
-        m_currentHoveredLocation = CubeLocation();
-        m_lastHoveredCube = -1;
-        if (m_onVoxelChanged) m_onVoxelChanged(removedPos);
-    }
-}
-
 void VoxelInteractionSystem::subdivideHoveredCube() {
     if (m_destructionTool->subdivideCube(createContext())) {
         m_hasHoveredCube = false;
@@ -287,25 +271,6 @@ void VoxelInteractionSystem::breakHoveredMicrocube() {
         m_lastHoveredCube = -1;
         if (m_onVoxelChanged) m_onVoxelChanged(removedPos);
     }
-}
-
-void VoxelInteractionSystem::breakHoveredCubeWithForce(const glm::vec3& cameraPos, double mouseX, double mouseY) {
-    // Delegate to VoxelForceApplicator
-    m_forceApplicator.breakHoveredCubeWithForce(
-        cameraPos, mouseX, mouseY,
-        m_currentHoveredLocation,
-        m_hasHoveredCube,
-        [this](const glm::vec3& camPos) { breakHoveredCube(camPos); },
-        [this]() { breakHoveredSubcube(); },
-        [this]() -> ChunkManager* { return m_chunkManager; },
-        [this]() -> ForceSystem* { return m_forceSystem; },
-        [this]() -> MouseVelocityTracker* { return m_mouseVelocityTracker; }
-    );
-}
-
-void VoxelInteractionSystem::breakCubeAtPosition(const glm::ivec3& worldPos) {
-    // Delegate to manipulation system
-    m_manipulator.breakCubeAtPosition(worldPos, m_debugFlags.disableBreakingForces);
 }
 
 void VoxelInteractionSystem::playPlaceSound(bool hadHover, const glm::ivec3& placedPos) {

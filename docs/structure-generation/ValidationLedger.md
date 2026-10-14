@@ -22,6 +22,16 @@ by the `solution-auditor`.
 the real output (no overlap, continuous, fits, clearance — `BuildingProgramValidator`, canvas scans) ·
 `L3` functional agent simulation (`TraversalProbe` — a character can *use* it) · `L4` live-engine runtime.
 
+> ⚠️ **The ladder has a hole, opened 2026-08-28: no rung asks whether the emitted object is
+> REGISTERED with the engine system that gives it its function.** That is why row 09 `place_doors`
+> reads "L3 ✅ met" while nothing in the world can open a door — L3 measures whether the character
+> box fits through the hole, and a hole passes. The missing axis is **W (wired)**: *after a build,
+> query the owning manager and assert the object is in it.* Until W rows exist here, treat every
+> "L3 ✅" on an object that is supposed to be OPERATED (doors, windows, seats, containers, gates)
+> as unproven on that dimension. Backlog + evidence:
+> [`../FunctionalWiringBacklog.md`](../FunctionalWiringBacklog.md),
+> [`../StructurePipelineGaps.md`](../StructurePipelineGaps.md) § 2026-08-28.
+
 ### Build status (from the placer specs): **D** done · **P** partial · **M** not-built.
 
 ## Realized-defect detectors (the "no shitty building passes validation" layer, 2026-06-28)

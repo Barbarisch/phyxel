@@ -68,7 +68,27 @@ public:
     bool isFinished() const { return finished_; }
     void setLooping(bool loop) { looping_ = loop; }
 
+    /// CONSTANT-SPEED mode (docs/PerfProgram2026-09.md section 16, I12): the camera moves along the
+    /// spline at `unitsPerSecond` world units per second, parametrised by ARC LENGTH, so the same path
+    /// takes the same time and visits the same place at the same progress on every run. The default
+    /// (speed <= 0) is the original timing: 1 s per segment whatever its length, which cinematics rely
+    /// on and CameraPathTest pins. In constant-speed mode the path is the POLYLINE through the
+    /// waypoints (uniform Catmull-Rom backtracks and swings wide when neighbouring segments differ in
+    /// length -- see evalSegment), and waypoint dwell times are ignored.
+    void setConstantSpeed(float unitsPerSecond);
+    float constantSpeed() const { return speed_; }
+    /// Total spline length in world units (built from the waypoints; 0 with < 2 waypoints).
+    float arcLength() const { return cum_.empty() ? 0.0f : cum_.back(); }
+    /// 0..1 along the path: arc-length fraction in constant-speed mode, segment fraction otherwise.
+    float progress() const;
+    /// The pose at `progress` (0..1 of arc length) -- the analytic reference the benchmark's route
+    /// determinism check compares recorded camera poses against. False with < 2 waypoints.
+    bool poseAt(float progress, glm::vec3& pos, float& yaw, float& pitch) const;
+
 private:
+    void buildArcTable();
+    void segmentParamAt(float s, size_t& segment, float& t) const;
+    void evalSegment(size_t segment, float t, glm::vec3& pos, float& yaw, float& pitch) const;
     glm::vec3 catmullRom(const glm::vec3& p0, const glm::vec3& p1,
                          const glm::vec3& p2, const glm::vec3& p3, float t) const;
     float lerpAngle(float a, float b, float t) const;
@@ -82,6 +102,13 @@ private:
     bool finished_ = false;
     bool looping_ = false;
     bool dwelling_ = false;
+
+    // Constant-speed mode: speed_ > 0. cum_[k] = arc length at sample k; sample k lies on segment
+    // k / kArcSamples at t = (k % kArcSamples) / kArcSamples (the last sample is the path's end).
+    static constexpr int kArcSamples = 64;
+    float speed_ = 0.0f;
+    float s_ = 0.0f;
+    std::vector<float> cum_;
 };
 
 /// Manages multiple named camera slots, transitions, and cinematic paths.

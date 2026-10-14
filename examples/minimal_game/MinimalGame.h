@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/GameCallbacks.h"
+#include "core/GameShell.h"
 #include "core/EngineRuntime.h"
 #include "core/Inventory.h"
 #include "core/HealthComponent.h"
@@ -26,7 +26,7 @@ namespace Examples {
  *   Examples::MinimalGame game;
  *   engine.run(game);
  */
-class MinimalGame : public Phyxel::Core::GameCallbacks {
+class MinimalGame : public Phyxel::Core::GameShell {
 public:
     bool onInitialize(Phyxel::Core::EngineRuntime& engine) override;
     void onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) override;
@@ -42,6 +42,13 @@ public:
 
 private:
     void applySettings(Phyxel::Core::EngineRuntime& engine);
+
+    // Standalone test-API ownership. These expose the actual game subsystems,
+    // allowing the production harness to observe this executable rather than
+    // an editor proxy.
+    Phyxel::Graphics::RenderCoordinator* apiRenderCoordinator() override;
+    Phyxel::UI::GameScreen* apiScreen() override { return &screen_; }
+    Phyxel::Core::Inventory* apiInventory() override { return &inventory_; }
 
     bool initialized_ = false;
     float elapsed_ = 0.0f;

@@ -88,6 +88,17 @@ public:
     };
     WaterSample sampleWater(const glm::vec3& worldPos) const;
 
+    // The TOP water surface over world column (wx, wz) and the current there (m/s, flowAtWorld) -
+    // what GPU debris floats on (DebrisInteractionPlan 6c, per-column water tiles). Inside the sim
+    // region's footprint the SIM is authoritative (scanned top-down, the sampleWater surface
+    // formula; dry if no water); outside it the baked table / implicit sea, as sampleWater.
+    // Returns false when the column is dry. Stacked bodies (a pond above a flooded cave) report
+    // the top one - a 2D field cannot hold both.
+    bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
+    // The sim region's footprint (world cells), for callers that refresh it every frame.
+    glm::ivec3 regionOrigin() const { return m_origin; }
+    glm::ivec3 regionDims() const { return m_dims; }
+
     // ── Current velocity (tangible-water Phase E) ─────────────────────────────────────────────
     // Horizontal water-current VELOCITY (m/s, y = 0) at a world point — THE physics/gameplay
     // flow query ("which way is this water carrying things, and how hard"). In-window: the live

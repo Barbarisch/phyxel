@@ -1,0 +1,106 @@
+{
+ "rung": "C-25",
+ "recipe": {
+  "era": "medieval",
+  "tier": "city",
+  "seed": 7,
+  "position": {
+   "x": -48,
+   "y": 16,
+   "z": -48
+  },
+  "width": 96,
+  "depth": 96,
+  "terrain": true,
+  "density": 1.5
+ },
+ "overview_pose": {
+  "x": 0,
+  "y": 190,
+  "z": 86.4,
+  "yaw": -90,
+  "pitch": -45
+ },
+ "fingerprint": {
+  "placed_objects": 526,
+  "npcs": 29,
+  "voxel_tiers": {
+   "tiers": {
+    "cube": {
+     "faces_merged": 27780,
+     "faces_view_main": 6564,
+     "gpu_bytes": 444480,
+     "merge_ratio": 15.271346292296617,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 27780,
+      "near": 1748
+     },
+     "stored": 6449135,
+     "unit_faces_premerge": 424238
+    },
+    "lod_cell": {
+     "faces_merged": 0,
+     "faces_view_main": 0,
+     "gpu_bytes": 0,
+     "merge_ratio": 0.0,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 0,
+      "near": 0
+     },
+     "unit_faces_premerge": 0
+    },
+    "micro": {
+     "cpu_bytes_floor": 542987344,
+     "faces_merged": 120745,
+     "faces_view_main": 66002,
+     "gpu_bytes": 1931920,
+     "merge_ratio": 8.975295043273013,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 120745,
+      "near": 11917
+     },
+     "stored": 3992554,
+     "unit_faces_premerge": 1083722
+    },
+    "sub": {
+     "cpu_bytes_floor": 201368192,
+     "faces_merged": 117682,
+     "faces_view_main": 17002,
+     "gpu_bytes": 1882912,
+     "merge_ratio": 2.97428663686885,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 117682,
+      "near": 6357
+     },
+     "stored": 1573189,
+     "unit_faces_premerge": 350020
+    }
+   }
+  },
+  "lights": {
+   "registered": 80,
+   "uploaded": null,
+   "enabled_point": 80,
+   "by_source": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 60,
+    "fixture": 0,
+    "item_effect": 20,
+    "vfx": 0
+   },
+   "by_source_uploaded": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 26,
+    "fixture": 0,
+    "item_effect": 6,
+    "vfx": 0
+   }
+  }
+ }
+}

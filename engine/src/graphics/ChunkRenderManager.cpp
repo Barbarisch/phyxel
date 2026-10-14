@@ -53,10 +53,78 @@ void ChunkRenderManager::resetMeshTimingStats() {
     g_meshTotalMicros.store(0, std::memory_order_relaxed);
 }
 
+// --- I7: per-phase mesh timing + micro-count histogram (docs/PerfProgram2026-09.md) ---
+namespace {
+    constexpr int kPh = ChunkRenderManager::kMeshPhases;
+    constexpr int kMb = ChunkRenderManager::kMicroBuckets;
+    std::atomic<uint64_t> g_phaseCalls{0};
+    std::atomic<uint64_t> g_phaseTotal[kPh]{};
+    std::atomic<uint64_t> g_phaseMax[kPh]{};
+    std::atomic<uint64_t> g_bucketCalls[kMb]{};
+    std::atomic<uint64_t> g_bucketTotal[kMb]{};
+    std::atomic<uint64_t> g_bucketMax[kMb]{};
+    std::atomic<uint64_t> g_bucketMicros[kMb]{};   // microcubes meshed (count, not time)
+
+    void atomicMax(std::atomic<uint64_t>& a, uint64_t v) {
+        uint64_t prev = a.load(std::memory_order_relaxed);
+        while (v > prev && !a.compare_exchange_weak(prev, v, std::memory_order_relaxed)) {}
+    }
+    int microBucket(size_t n) {
+        if (n == 0) return 0;
+        if (n < 100) return 1;
+        if (n < 1000) return 2;
+        if (n < 10000) return 3;
+        return 4;
+    }
+}
+
+ChunkRenderManager::MeshPhaseStats ChunkRenderManager::getMeshPhaseStats() {
+    MeshPhaseStats s;
+    s.calls = g_phaseCalls.load(std::memory_order_relaxed);
+    for (int i = 0; i < kPh; ++i) {
+        s.phaseTotalMs[i] = g_phaseTotal[i].load(std::memory_order_relaxed) / 1000.0;
+        s.phaseMaxMs[i] = g_phaseMax[i].load(std::memory_order_relaxed) / 1000.0;
+    }
+    for (int i = 0; i < kMb; ++i) {
+        s.bucketCalls[i] = g_bucketCalls[i].load(std::memory_order_relaxed);
+        s.bucketTotalMs[i] = g_bucketTotal[i].load(std::memory_order_relaxed) / 1000.0;
+        s.bucketMaxMs[i] = g_bucketMax[i].load(std::memory_order_relaxed) / 1000.0;
+        s.bucketMicrocubes[i] = g_bucketMicros[i].load(std::memory_order_relaxed);
+    }
+    return s;
+}
+
+void ChunkRenderManager::resetMeshPhaseStats() {
+    g_phaseCalls.store(0, std::memory_order_relaxed);
+    for (int i = 0; i < kPh; ++i) {
+        g_phaseTotal[i].store(0, std::memory_order_relaxed);
+        g_phaseMax[i].store(0, std::memory_order_relaxed);
+    }
+    for (int i = 0; i < kMb; ++i) {
+        g_bucketCalls[i].store(0, std::memory_order_relaxed);
+        g_bucketTotal[i].store(0, std::memory_order_relaxed);
+        g_bucketMax[i].store(0, std::memory_order_relaxed);
+        g_bucketMicros[i].store(0, std::memory_order_relaxed);
+    }
+}
+
+const char* ChunkRenderManager::meshPhaseName(int i) {
+    static const char* k[kPh] = {"cube_greedy", "fine_occupancy", "sub_faces", "micro_faces", "sort"};
+    return (i >= 0 && i < kPh) ? k[i] : "?";
+}
+
+const char* ChunkRenderManager::microBucketName(int i) {
+    static const char* k[kMb] = {"0", "1-99", "100-999", "1000-9999", "10000+"};
+    return (i >= 0 && i < kMb) ? k[i] : "?";
+}
+
 // Smooth-lighting globals (see header). Default: smooth ON, tolerance 0 (pure smooth — no snapping,
 // so gentle gradients never band into flat blocky steps). Raise tolerance (or toggle smooth off) only
 // as an opt-in perf lever; the default prioritizes look.
 bool ChunkRenderManager::s_smoothLighting = true;
+// L1 duplicate-emitter merge (docs/PerfProgram2026-09.md). Default ON; POST /api/debug/emitter_merge
+// flips it and re-meshes every chunk, so the win is measured by an interleaved A/B in one process.
+bool ChunkRenderManager::s_mergeEmitters = true;
 // M3-REDESIGN. Default OFF until the bake cost is measured on a real chunk load.
 ChunkRenderManager::SkyVisibilityFn ChunkRenderManager::s_skyVisibility;
 int  ChunkRenderManager::s_mergeTolerance = 0;
@@ -192,6 +260,9 @@ void ChunkRenderManager::clearForUniform() {
     std::vector<InstanceData>().swap(m_dirScratch);
     numInstances = 0;
     m_dirRangeOffsets.fill(0);
+    m_dirTierOffsets.fill(0);
+    m_tierFaces.fill(0);
+    m_tierUnitFaces.fill(0);
     std::vector<uint8_t>().swap(m_solidVis);
     std::vector<int>().swap(m_cellMat);
     std::vector<uint8_t>().swap(m_cellDamage);
@@ -264,8 +335,14 @@ void ChunkRenderManager::rebuildAllFaces(
     // Rebuild faces for each voxel type. Cubes first: rebuildCubeFaces fills m_solidVis (cube-level
     // occupancy) which the sub/micro occlusion reuses. Then build the leaf sub/micro occupancy so
     // rebuildSubcube/MicrocubeFaces can cull hidden faces.
+    // I7: per-phase timing. t[0] = start, t[i+1] = end of phase i.
+    using PhaseClock = std::chrono::steady_clock;
+    PhaseClock::time_point t[kMeshPhases + 1];
+    t[0] = PhaseClock::now();
     rebuildCubeFaces(cubes, subcubes, microcubes, worldOrigin, getNeighborCube, columnOpenMask, voxelStore);
+    t[1] = PhaseClock::now();
     buildSubMicroOccupancy(subcubes, microcubes, worldOrigin);
+    t[2] = PhaseClock::now();
     // The sub/micro border lookup (GlassTransparency.md §5) lives only for this rebuild (a stale pointer to a caller's
     // lambda must never outlive the call).
     struct FineLookupScope {
@@ -274,12 +351,32 @@ void ChunkRenderManager::rebuildAllFaces(
     } fineScope{m_fineLookup};
     m_fineLookup = getNeighborFine ? &getNeighborFine : nullptr;
     rebuildSubcubeFaces(subcubes, worldOrigin);
+    t[3] = PhaseClock::now();
     rebuildMicrocubeFaces(microcubes, worldOrigin);
+    t[4] = PhaseClock::now();
 
     // Phase 3 face-direction bucketing (docs/LargeWorldScalePlan.md): reorder the
     // instance buffer direction-major so draw passes can skip whole ranges the GPU
     // would cull anyway (a +X face can never be visible from a camera on its -X side).
     reorderFacesByDirection();
+    t[5] = PhaseClock::now();
+
+    {
+        g_phaseCalls.fetch_add(1, std::memory_order_relaxed);
+        for (int i = 0; i < kMeshPhases; ++i) {
+            const auto us = static_cast<uint64_t>(
+                std::max<long long>(0, std::chrono::duration_cast<std::chrono::microseconds>(t[i + 1] - t[i]).count()));
+            g_phaseTotal[i].fetch_add(us, std::memory_order_relaxed);
+            atomicMax(g_phaseMax[i], us);
+        }
+        const auto whole = static_cast<uint64_t>(
+            std::max<long long>(0, std::chrono::duration_cast<std::chrono::microseconds>(t[kMeshPhases] - t[0]).count()));
+        const int b = microBucket(microcubes.size());
+        g_bucketCalls[b].fetch_add(1, std::memory_order_relaxed);
+        g_bucketTotal[b].fetch_add(whole, std::memory_order_relaxed);
+        atomicMax(g_bucketMax[b], whole);
+        g_bucketMicros[b].fetch_add(microcubes.size(), std::memory_order_relaxed);
+    }
 
     numInstances = static_cast<uint32_t>(faces.size());
     needsUpdate = true;
@@ -287,29 +384,94 @@ void ChunkRenderManager::rebuildAllFaces(
 }
 
 void ChunkRenderManager::reorderFacesByDirection() {
-    // Counting sort by faceID (bits 15-17; 0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y). Stable,
-    // one pass + one scatter. m_dirRangeOffsets[d] = first instance of direction d,
-    // [6] = total — consumers verify [6] == numInstances before trusting the ranges.
-    std::array<uint32_t, 6> counts{};
+    // Counting sort by (faceID, tier): faceID bits 15-17 (0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y) major,
+    // scaleLevel bits 18-19 (0 cube, 1 sub, 2 micro, 3 LOD cell) minor. Stable, one pass + one
+    // scatter. m_dirRangeOffsets[d] = first instance of direction d, [6] = total; consumers verify
+    // [6] == numInstances before trusting the ranges.
+    //
+    // The tier key reorders NOTHING: faces are built cubes, then subcubes, then microcubes, so
+    // within one direction a stable sort already left them in tier order. It only records where
+    // each tier's run starts (I5 census, I6 per-tier draws; docs/PerfProgram2026-09.md).
+    namespace TR = TierRanges;
+    std::array<uint32_t, TR::kBuckets> counts{};
+    m_tierFaces.fill(0);
+    m_tierUnitFaces.fill(0);
     for (const auto& f : faces) {
-        uint32_t d = (f.packedData >> 15) & 0x7u;
-        counts[d > 5u ? 5u : d]++;
+        counts[TR::bucketOf(f.packedData)]++;
+        const uint32_t t = TR::tierOf(f.packedData);
+        m_tierFaces[t]++;
+        m_tierUnitFaces[t] += TR::unitFaces(f.packedData, f.light);
     }
     uint32_t run = 0;
-    for (int d = 0; d < 6; ++d) {
-        m_dirRangeOffsets[d] = run;
-        run += counts[d];
+    for (uint32_t b = 0; b < TR::kBuckets; ++b) {
+        m_dirTierOffsets[b] = run;
+        run += counts[b];
     }
+    m_dirTierOffsets[TR::kBuckets] = run;
+    for (int d = 0; d < 6; ++d) m_dirRangeOffsets[d] = m_dirTierOffsets[d * TR::kTiers];
     m_dirRangeOffsets[6] = run;
 
     m_dirScratch.resize(faces.size());
-    std::array<uint32_t, 6> cursor;
-    std::copy(m_dirRangeOffsets.begin(), m_dirRangeOffsets.begin() + 6, cursor.begin());
-    for (const auto& f : faces) {
-        uint32_t d = (f.packedData >> 15) & 0x7u;
-        m_dirScratch[cursor[d > 5u ? 5u : d]++] = f;
-    }
+    std::array<uint32_t, TR::kBuckets> cursor;
+    std::copy(m_dirTierOffsets.begin(), m_dirTierOffsets.begin() + TR::kBuckets, cursor.begin());
+    for (const auto& f : faces) m_dirScratch[cursor[TR::bucketOf(f.packedData)]++] = f;
     faces.swap(m_dirScratch);
+}
+
+void ChunkRenderManager::countCoveredCubeFaces(uint64_t& covered, uint64_t& unknown) const {
+    covered = 0;
+    unknown = 0;
+    if (m_solidVis.empty()) return;
+    // Face direction -> outward normal, and the (u, v) in-plane axes of a merged cube face. These
+    // MUST match rebuildCubeFaces: +Z/-Z u=x v=y, +X/-X u=z v=y, +Y/-Y u=x v=z; origin = min corner.
+    static const glm::ivec3 kNormal[6] = {{0,0,1},{0,0,-1},{1,0,0},{-1,0,0},{0,1,0},{0,-1,0}};
+    static const glm::ivec3 kU[6] = {{1,0,0},{1,0,0},{0,0,1},{0,0,1},{1,0,0},{1,0,0}};
+    static const glm::ivec3 kV[6] = {{0,1,0},{0,1,0},{0,1,0},{0,1,0},{0,0,1},{0,0,1}};
+
+    // Is the layer of cell `nb` that touches a face pointing along +/-axis fully opaque at sub or
+    // micro resolution? `layer` is 0 or 2: which 1/3 slab of the neighbour touches the face.
+    auto layerCovered = [&](const glm::ivec3& nb, int axis, int layer) {
+        for (int a = 0; a < 3; ++a)
+            for (int b = 0; b < 3; ++b) {
+                int s[3];
+                s[axis] = layer;
+                s[(axis + 1) % 3] = a;
+                s[(axis + 2) % 3] = b;
+                if (subCellClass(nb.x, nb.y, nb.z, s[0], s[1], s[2]) == NeighborOccupancy::Opaque) continue;
+                // Not a whole opaque subcube: every micro of that sub's touching micro layer must be.
+                for (int c = 0; c < 3; ++c)
+                    for (int e = 0; e < 3; ++e) {
+                        int m[3];
+                        m[axis] = layer;
+                        m[(axis + 1) % 3] = c;
+                        m[(axis + 2) % 3] = e;
+                        if (microCellClass(nb.x, nb.y, nb.z, s[0], s[1], s[2], m[0], m[1], m[2]) !=
+                            NeighborOccupancy::Opaque)
+                            return false;
+                    }
+            }
+        return true;
+    };
+
+    for (const auto& f : faces) {
+        if (TierRanges::tierOf(f.packedData) != TierRanges::kCube) continue;
+        const int dir = static_cast<int>(TierRanges::dirOf(f.packedData));
+        const glm::ivec3 o(f.packedData & 0x1F, (f.packedData >> 5) & 0x1F, (f.packedData >> 10) & 0x1F);
+        const int su = static_cast<int>(((f.packedData >> 20) & 0x3Fu) + 1u);
+        const int sv = static_cast<int>(((f.packedData >> 26) & 0x3Fu) + 1u);
+        const glm::ivec3 n = kNormal[dir];
+        const int axis = n.x != 0 ? 0 : (n.y != 0 ? 1 : 2);
+        const int layer = (n[axis] > 0) ? 0 : 2;   // a +axis face touches the neighbour's min slab
+        for (int u = 0; u < su; ++u)
+            for (int v = 0; v < sv; ++v) {
+                const glm::ivec3 nb = o + kU[dir] * u + kV[dir] * v + n;
+                if (nb.x < 0 || nb.x >= 32 || nb.y < 0 || nb.y >= 32 || nb.z < 0 || nb.z >= 32) {
+                    ++unknown;
+                    continue;
+                }
+                if (layerCovered(nb, axis, layer)) ++covered;
+            }
+    }
 }
 
 void ChunkRenderManager::rebuildCubeFaces(
@@ -675,6 +837,48 @@ void ChunkRenderManager::rebuildCubeFaces(
             const glm::vec3 far = glm::max(e.worldPos - a.bmin, a.bmax - e.worldPos);
             e.extent    = glm::length(glm::max(far, glm::vec3(0.0f)));
             m_emissiveLights.push_back(e);
+        }
+
+        // L1 (docs/PerfProgram2026-09.md §5): MERGE COINCIDENT EMITTERS. Every emissive sub/micro
+        // emits at its PARENT CUBE centre, so a chandelier cube with 8 glow micros produced 8
+        // identical lights, and each one ran its own per-fragment occupancy march (measured: 40-45%
+        // of uploaded light slots were duplicates). Key = (cube cell, radius). Members of one group
+        // share position and radius, and shading is linear (lightColor * intensity * atten(d, r)),
+        // so one light with intensity = sum(t) and color = sum(c*t) / sum(t) shades identically.
+        // Radii stay separate: a subcube emitter reaches further than a micro in the same cell.
+        // A cube cell lies in exactly one chunk, so the result cannot depend on the chunk grid, and
+        // sorting by the key makes the output a pure function of the voxels, not of their order.
+        // MERGED 2026-10-14: G-158 above (written 2026-09-22, in another session) already emits ONE
+        // light per parent cube, at the power-weighted centroid, with intensity = the brightest
+        // constituent rather than the sum (summing was the measured over-brightness), so this pass
+        // now sees no coincident pairs and is a no-op guard kept for the A/B switch. The two agree
+        // on the perf outcome (one march per fixture) and differ on brightness; G-158's look is the
+        // one the user confirmed, and EmitterMergeTest pins it.
+        if (s_mergeEmitters && m_emissiveLights.size() > 1) {
+            auto keyLess = [](const EmissiveLight& a, const EmissiveLight& b) {
+                if (a.worldPos.x != b.worldPos.x) return a.worldPos.x < b.worldPos.x;
+                if (a.worldPos.y != b.worldPos.y) return a.worldPos.y < b.worldPos.y;
+                if (a.worldPos.z != b.worldPos.z) return a.worldPos.z < b.worldPos.z;
+                return a.radius < b.radius;
+            };
+            std::stable_sort(m_emissiveLights.begin(), m_emissiveLights.end(), keyLess);
+            std::vector<EmissiveLight> merged;
+            merged.reserve(m_emissiveLights.size());
+            for (const auto& e : m_emissiveLights) {
+                if (!merged.empty() && merged.back().worldPos == e.worldPos && merged.back().radius == e.radius) {
+                    EmissiveLight& m = merged.back();
+                    // m.color holds sum(c*t) during accumulation; normalised below.
+                    m.color += e.color * e.intensity;
+                    m.intensity += e.intensity;
+                } else {
+                    EmissiveLight m = e;
+                    m.color = e.color * e.intensity;
+                    merged.push_back(m);
+                }
+            }
+            for (auto& m : merged)
+                if (m.intensity > 0.0f) m.color /= m.intensity;
+            m_emissiveLights.swap(merged);
         }
     }
 

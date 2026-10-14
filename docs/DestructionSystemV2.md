@@ -1,13 +1,15 @@
 # Destruction System v2 — Breakable Objects (design)
 
-> Status: **design, awaiting build-order approval** (2026-07-14). Supersedes and continues the
+> Status (corrected 2026-10-07): **partly built.** Shipped: Phase 0 (material break model), P2.1–P2.3,
+> U0, U1, U2 (analyzer), U4 v1, U6 v1, anti-tunneling, anisotropic blast, Phase 5 damage visualization;
+> each carries a SHIPPED note in its section. Read a section's own status before assuming. Supersedes and continues the
 > original v1 design (the P1–P5 roadmap; P1–P3 shipped), which now lives in this file as
 > **Appendix A**. This
 > document extends that energy/toughness core into a **general, tactile breakable-objects system**
 > spanning trees, structures, furniture, and terrain — the four "feel" qualities the user asked for:
 > **coherent fracture/topple · progressive damage · tool-driven impact · gatherable aftermath.**
 >
-> **Nothing here is built yet.** This is the plan we review before writing code. Numbers marked
+> (Original 2026-07-14 framing: the plan reviewed before writing code.) Numbers marked
 > *(needs grounding)* are placeholders to be set by the grounding-auditor, not decisions.
 
 ---
@@ -70,9 +72,8 @@ wants **already exists** in `DynamicFurnitureManager::shatter`. It is fenced ins
 of v2 is **generalizing it** and routing `collapseUnsupported`'s severed components into it instead of
 `dropDetachedCell`.
 
-Known dead/orphaned code (do not build on): the `Cube::Bond` 6-direction graph
-(`engine/include/core/Cube.h`) is only consumed by the dropped `ForceSystem` mouse path — it is **not**
-wired into any live break decision. Appendix A (the v1 design) chose flood-fill connectivity over bonds;
+The `Cube::Bond` 6-direction graph and the `ForceSystem` mouse path that was its only consumer were
+**deleted 2026-10-04** (DebrisInteractionPlan D3) — neither was wired into any live break decision. Appendix A (the v1 design) chose flood-fill connectivity over bonds;
 v2 keeps that choice (§9).
 
 ---
@@ -378,7 +379,9 @@ The doc does **not** invent these; it names them as grounding tasks.
 - **Two occupancy grids** — every voxel removal must update **both** the CPU grid and the GPU grid
   (`updateOccupancyVoxel` already does; any new removal path must too) or debris/characters fall
   through the world (`docs/AgentContext.md` invariant).
-- **Settling "popcorn"** — the debris no-sleep/popcorn problem is a known *parked* issue; coherent
+- **Settling "popcorn"**: *SOLVED for GPU debris 2026-10-03* ([DebrisSettlingPlan.md §R](DebrisSettlingPlan.md):
+  contact-generation defects, gate `tools/debris_settle_bench.py`). Original note, kept for the
+  coherent-body caveat: the debris no-sleep/popcorn problem is a known *parked* issue; coherent
   bodies use `VoxelRigidBody` sleeping (`SLEEP_TIME=1.2s`) which is better-behaved, but the aftermath
   conversion (D) must trigger on real sleep, and we should watch for coherent bodies that never settle.
 
@@ -1337,7 +1340,7 @@ Debris velocity = outward from impact (+jitter, + hit direction), magnitude ∝ 
 - **Structure** = per-`Cube` `bonds` (6-dir). Drives *connectivity/support* — used later for structural collapse + welded fragments, NOT for the break decision (toughness drives that).
 
 ### Backend facts (verified 2026-05-31)
-- GPU AVBD physics is the live, stable, primary path; debris = independent `GpuParticle`s (1 particle ↔ 1 body, contact constraints only). Settles correctly; ~78 FPS @ 800 bodies. Scales to thousands.
+- GPU AVBD physics is the live, stable, primary path; debris = independent `GpuParticle`s (1 particle ↔ 1 body, contact constraints only). ~78 FPS @ 800 bodies. Scales to thousands. ("Settles correctly" was claimed here from separated drops; packed or crater debris bubbled until the 2026-10-03 contact fixes, see DebrisSettlingPlan.md §R.)
 - Static→dynamic break (existing single-voxel path): `chunk->removeCube` + spawn dynamic + `updateAfterCubeBreak`. Destruction scales this to a region.
 - No weld/bond constraints yet → no coherent multi-voxel rigid fragments (P5 stretch goal). Voxels are independent for now.
 

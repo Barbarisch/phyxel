@@ -1,0 +1,245 @@
+{
+ "rig": "R-P1 (M4TavernBench, Flat fixed range)",
+ "fill_at_s": 8.0,
+ "window_s": [
+  7.8,
+  10.5
+ ],
+ "control_hitches": [
+  {
+   "t_s": 7.953,
+   "frame_ms": 9.83,
+   "local_median_ms": 4.65,
+   "top_phases": [
+    [
+     "Frame/render",
+     9.33
+    ],
+    [
+     "drawFrame/Fence Wait",
+     8.26
+    ],
+    [
+     "drawFrame/Record",
+     0.37
+    ],
+    [
+     "drawFrame/Frame Setup",
+     0.36
+    ]
+   ]
+  },
+  {
+   "t_s": 7.967,
+   "frame_ms": 9.84,
+   "local_median_ms": 4.65,
+   "top_phases": [
+    [
+     "Frame/render",
+     9.28
+    ],
+    [
+     "drawFrame/Fence Wait",
+     8.15
+    ],
+    [
+     "drawFrame/Record",
+     0.4
+    ],
+    [
+     "drawFrame/Frame Setup",
+     0.36
+    ]
+   ]
+  },
+  {
+   "t_s": 7.981,
+   "frame_ms": 9.89,
+   "local_median_ms": 4.65,
+   "top_phases": [
+    [
+     "Frame/render",
+     9.4
+    ],
+    [
+     "drawFrame/Fence Wait",
+     8.37
+    ],
+    [
+     "drawFrame/Record",
+     0.37
+    ],
+    [
+     "drawFrame/Frame Setup",
+     0.3
+    ]
+   ]
+  },
+  {
+   "t_s": 8.131,
+   "frame_ms": 10.16,
+   "local_median_ms": 4.82,
+   "top_phases": [
+    [
+     "Frame/render",
+     9.48
+    ],
+    [
+     "drawFrame/Fence Wait",
+     8.43
+    ],
+    [
+     "drawFrame/Record",
+     0.38
+    ],
+    [
+     "drawFrame/Frame Setup",
+     0.31
+    ]
+   ]
+  },
+  {
+   "t_s": 8.146,
+   "frame_ms": 9.82,
+   "local_median_ms": 4.84,
+   "top_phases": [
+    [
+     "Frame/render",
+     9.26
+    ],
+    [
+     "drawFrame/Fence Wait",
+     8.24
+    ],
+    [
+     "drawFrame/Record",
+     0.4
+    ],
+    [
+     "drawFrame/Frame Setup",
+     0.3
+    ]
+   ]
+  },
+  {
+   "t_s": 8.203,
+   "frame_ms": 10.1,
+   "local_median_ms": 5.0,
+   "top_phases": [
+    [
+     "Frame/render",
+     9.57
+    ],
+    [
+     "drawFrame/Fence Wait",
+     8.48
+    ],
+    [
+     "drawFrame/Record",
+     0.39
+    ],
+    [
+     "drawFrame/Frame Setup",
+     0.31
+    ]
+   ]
+  }
+ ],
+ "fill_hitches": [
+  {
+   "t_s": 8.037,
+   "frame_ms": 9.19,
+   "local_median_ms": 4.38,
+   "top_phases": [
+    [
+     "Frame/render",
+     8.66
+    ],
+    [
+     "drawFrame/Fence Wait",
+     7.55
+    ],
+    [
+     "drawFrame/Record",
+     0.39
+    ],
+    [
+     "drawFrame/Frame Setup",
+     0.3
+    ]
+   ]
+  },
+  {
+   "t_s": 9.88,
+   "frame_ms": 1842.37,
+   "local_median_ms": 9.43,
+   "top_phases": [
+    [
+     "Frame/API Drain",
+     1787.41
+    ],
+    [
+     "Frame/render",
+     30.47
+    ],
+    [
+     "drawFrame/Dirty Chunk Flush",
+     29.11
+    ],
+    [
+     "Frame/update",
+     23.98
+    ]
+   ]
+  },
+  {
+   "t_s": 9.924,
+   "frame_ms": 42.75,
+   "local_median_ms": 5.88,
+   "top_phases": [
+    [
+     "Frame/update",
+     21.13
+    ],
+    [
+     "Frame/update/Update",
+     21.13
+    ],
+    [
+     "Frame/render",
+     21.0
+    ],
+    [
+     "drawFrame/Dirty Chunk Flush",
+     19.84
+    ]
+   ]
+  },
+  {
+   "t_s": 10.045,
+   "frame_ms": 10.3,
+   "local_median_ms": 4.96,
+   "top_phases": [
+    [
+     "Frame/render",
+     9.83
+    ],
+    [
+     "drawFrame/Fence Wait",
+     8.56
+    ],
+    [
+     "drawFrame/Present",
+     0.46
+    ],
+    [
+     "drawFrame/Record",
+     0.37
+    ]
+   ]
+  }
+ ],
+ "fill_hitches_whole_route": 1079,
+ "control_hitches_whole_route": 967,
+ "pass": false
+}

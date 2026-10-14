@@ -15,7 +15,6 @@
 - **ESC**: Toggle Pause Menu (freeze world, show resume/settings/quit)
 - **F1**: Toggle Performance Overlay
 - **F2**: Save World (Not implemented)
-- **F3**: Toggle Force Debug Visualization
 - **F4**: Toggle Debug Rendering
 - **Ctrl + F4**: Cycle Debug Visualization Mode
 - **F5**: Toggle Raycast Visualization (also shows NPC FOV cones when perception is active — green
@@ -46,13 +45,11 @@
 - **Ctrl + Left Click**: Subdivide Cube
 - **Alt + Left Click**: Subdivide Subcube
 - **Middle Click**: Subdivide Cube
-- **G**: Spawn Dynamic Subcube (Placeholder — logs "not yet implemented", does not spawn anything)
 - **P**: Toggle Template Preview
 - **[**: Decrease Spawn Speed
 - **]**: Increase Spawn Speed
 - **-**: Decrease Ambient Light
 - **=**: Increase Ambient Light
-- **O**: Toggle Breaking Forces
 - **Up Arrow**: Cycle voxel target mode toward larger (Micro→Sub→Cube)
 - **Down Arrow**: Cycle voxel target mode toward smaller (Cube→Sub→Micro)
 
@@ -91,6 +88,7 @@
 - **Ctrl**: Crouch (Animated Character)
 - **E**: Interact / Grab Furniture (talk to NPC, or grab/release active furniture at the crosshair)
 - **X**: Derez Character (Explode into physics objects)
+- **G**: Gather Rubble: settled GPU debris within 2.5 m goes into the inventory, credited by volume (a shattered cube is still one cube). Shipped games: the interact key does this when nothing else is in range.
 - **N**: Next Animation (only when controlling the animated character, camera not in Free mode,
   and not in anim-editor mode)
 - **B**: Previous Animation (same conditions as N — see the World Interaction note above about

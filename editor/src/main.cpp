@@ -55,6 +55,9 @@ int main(int argc, char* argv[]) {
             interactionEditorChar = argv[++i];
         } else if ((arg == "--port") && i + 1 < argc) {
             apiPortOverride = std::stoi(argv[++i]);
+        } else if (Phyxel::DebrisRuntime::handleArg(arg)) {
+            // --disable-gpu-debris: same switch as the env var; the flag exists because
+            // launch_engine passes arguments, not environment (gpu_init_failure_is_loud).
         }
     }
 

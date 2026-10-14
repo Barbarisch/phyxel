@@ -7,7 +7,6 @@
 #include "graphics/ChunkRenderManager.h"
 #include "physics/ChunkPhysicsManager.h"
 #include "core/ChunkVoxelManager.h"
-#include "core/ChunkVoxelBreaker.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -34,8 +33,8 @@ class ChunkManager;   // m_owner (GlassTransparency.md §6)
  *   - Hash map management for O(1) lookups
  *   - Subdivision logic and voxel type resolution
  *   - Callback pattern for clean separation
- * ✓ Phase 21 Complete: Voxel breaking extracted to ChunkVoxelBreaker (~120 lines)
- *   - breakSubcube logic for static→dynamic conversion
+ * (Phase 21's ChunkVoxelBreaker - static to CPU-dynamic subcube breaking - was deleted with
+ *  the CPU debris path, DebrisInteractionPlan 1d; breaks are GPU debris via DamageSystem.)
  *   - Physics body creation and force application
  *   - Global dynamic object transfer
  * 
@@ -83,7 +82,6 @@ private:
     Graphics::ChunkRenderManager renderManager;    // Manages face generation and Vulkan buffers
     Physics::ChunkPhysicsManager physicsManager;   // Manages collision shapes and physics bodies
     ChunkVoxelManager voxelManager;                // Manages voxel hierarchy and hash maps
-    ChunkVoxelBreaker voxelBreaker;                // Manages breaking voxels to dynamic physics objects
     
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;
@@ -231,6 +229,31 @@ public:
     uint32_t getNumInstances() const { return renderManager.getNumInstances(); }
     // Face-direction ranges for bucketed draws (Phase 3) — see ChunkRenderManager::getFaceDirRanges().
     const std::array<uint32_t, 7>& getFaceDirRanges() const { return renderManager.getFaceDirRanges(); }
+    // I5/I6 per-(direction, tier) ranges and per-tier counts — see ChunkRenderManager.
+    const Graphics::TierRanges::Offsets& getDirTierOffsets() const { return renderManager.getDirTierOffsets(); }
+    const std::array<uint32_t, Graphics::TierRanges::kTiers>& getTierFaces() const { return renderManager.getTierFaces(); }
+    const std::array<uint64_t, Graphics::TierRanges::kTiers>& getTierUnitFaces() const { return renderManager.getTierUnitFaces(); }
+    void countCoveredCubeFaces(uint64_t& covered, uint64_t& unknown) const { renderManager.countCoveredCubeFaces(covered, unknown); }
+
+    /// Stored static voxels and the CPU bytes their objects take (I5 census). Bytes = sizeof(object)
+    /// + its owning unique_ptr + a heap-allocated material-name buffer (beyond the small-string
+    /// buffer). EXCLUDES allocator overhead and the ChunkVoxelManager lookup maps, so it is a floor.
+    struct FineStorageStats {
+        size_t cubes = 0, subcubes = 0, microcubes = 0;
+        size_t subcubeBytes = 0, microcubeBytes = 0;
+    };
+    FineStorageStats fineStorageStats() const {
+        FineStorageStats s;
+        s.cubes = getVoxelStore().solidCount();
+        s.subcubes = staticSubcubes.size();
+        s.microcubes = staticMicrocubes.size();
+        auto heapName = [](const std::string& n) { return n.capacity() > 15 ? n.capacity() + 1 : size_t(0); };
+        for (const auto& p : staticSubcubes)
+            s.subcubeBytes += sizeof(p) + (p ? sizeof(*p) + heapName(p->getMaterialName()) : 0);
+        for (const auto& p : staticMicrocubes)
+            s.microcubeBytes += sizeof(p) + (p ? sizeof(*p) + heapName(p->getMaterialName()) : 0);
+        return s;
+    }
     bool hasMirrorVoxel() const { return m_hasMirror; }            // Cached; see recomputeRenderFlags()
     bool hasTransparentVoxel() const { return m_hasTransparent; }  // Cached; any cube alpha < 0.99
     // Occlusion graph query: can sight pass from face a to face b through this chunk?
@@ -340,11 +363,6 @@ public:
     bool removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
     bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Remove all microcubes at subcube position (leaves empty space)
     
-    // Physics-related subcube manipulation
-    bool breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos,  // Move subcube from static to global dynamic system
-                     class Physics::PhysicsWorld* physicsWorld = nullptr, 
-                     class ChunkManager* chunkManager = nullptr,
-                     const glm::vec3& impulseForce = glm::vec3(0.0f));
     
     // Chunk operations
     void clearAll();                                   // Bulk clear: remove all voxels, rebuild once

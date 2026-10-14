@@ -12,8 +12,9 @@ using namespace Phyxel;
 
 // ============================================================================
 // AI End-to-End Tests
-// These tests exercise the full LLM pipeline. Skipped if no API key is set.
-// Set PHYXEL_AI_API_KEY environment variable to enable.
+// These tests exercise the full LLM pipeline. They are deliberately opt-in: a developer's
+// ambient API key must not make the default unit suite network-dependent or incur charges.
+// Set PHYXEL_RUN_LIVE_AI_TESTS=1 as well as PHYXEL_AI_API_KEY to enable them.
 // ============================================================================
 
 static std::string getApiKey() {
@@ -24,6 +25,10 @@ static std::string getApiKey() {
 class AIEndToEndTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        const char* runLive = std::getenv("PHYXEL_RUN_LIVE_AI_TESTS");
+        if (!runLive || std::string(runLive) != "1") {
+            GTEST_SKIP() << "Set PHYXEL_RUN_LIVE_AI_TESTS=1 to run live LLM tests";
+        }
         apiKey = getApiKey();
         if (apiKey.empty()) {
             GTEST_SKIP() << "PHYXEL_AI_API_KEY not set — skipping live LLM test";

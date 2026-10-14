@@ -1,0 +1,31 @@
+{
+  "id": "quaternius_wyvern",
+  "morphology": "dragon",
+  "gaitClass": "flying_clips",
+  "rootBone": "Root",
+  "hipAliases": ["body1", "torso"],
+  "gripBone": "Head",
+  "headBone": "Head",
+  "capsule": { "mode": "xz_extent", "minHalfWidth": 0.3, "maxHalfWidth": 1.5 },
+  "legs": [],
+  "segments": [
+    { "bone": "Head",    "isArm": false },
+    { "bone": "Neck",    "isArm": false },
+    { "bone": "Torso",   "isArm": false },
+    { "bone": "Body1",   "isArm": false },
+    { "bone": "Wing1.L", "isArm": true },
+    { "bone": "Wing2.L", "isArm": true },
+    { "bone": "Wing1.R", "isArm": true },
+    { "bone": "Wing2.R", "isArm": true }
+  ],
+  "clipDefaults": {
+    "Idle":      "Flying_Idle",
+    "Walk":      "Flying_Idle",
+    "StartWalk": "Flying_Idle",
+    "Run":       "Fast_Flying",
+    "Fall":      "Flying_Idle",
+    "HitReact":  "HitReact",
+    "Death":     "Death",
+    "Attack":    "Headbutt"
+  }
+}

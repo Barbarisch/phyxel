@@ -208,8 +208,8 @@ ranges, sea level, cave dimensions) before shipping.
 | Ridged-multifractal | H=1.0, offset=1.0, gain=2.0, **lacunarity=2.0**, **octaves=6** (tunable knob, not a fact) | Musgrave `musgrave.c` (H/offset/gain); libnoise/SharpNoise lineage (lacunarity/octaves default) |
 | Ocean/shelf depth | *range grounded, point value deferred to P1/P2:* near-shore 60–140 voxels; abyssal 3,000–6,000 (cap for perf, declare the cap) | NOAA/Britannica shelf-break ~133 m, avg ocean 3,682 m |
 
-> Note: the repo asserts "1 cube ≈ 1 m" **uncited** in 4 places (`DimensionCanon.h:9`, `scale.py:6-7`,
-> `StructureGenerationPipeline.md:113`, `character_design_constraints.json`). Housekeeping follow-up:
+> Note: the repo asserts "1 cube ≈ 1 m" **uncited** in 3 places (`DimensionCanon.h:9`, `scale.py:6-7`,
+> `character_design_constraints.json`). Housekeeping follow-up:
 > paste the NHANES citation there so the ratio stops being bare. Tracked, not P0-blocking.
 
 ### P1 — Density-function evaluator + biome overhaul

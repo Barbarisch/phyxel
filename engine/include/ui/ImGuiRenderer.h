@@ -18,8 +18,6 @@ namespace Phyxel {
     class GpuProfiler;
     struct FrameTiming;
     struct DetailedFrameTiming;
-    class ForceSystem;
-    class MouseVelocityTracker;
     namespace Physics { class PhysicsWorld; }
     namespace Graphics { class LightManager; class ShadowMap; }
     namespace Vulkan { class VulkanDevice; class RenderPipeline; }
@@ -68,15 +66,6 @@ public:
         GpuProfiler* gpuProfiler
     );
     
-    void renderForceSystemDebug(
-        bool showDebug,
-        Phyxel::ForceSystem* forceSystem,
-        Phyxel::MouseVelocityTracker* mouseVelocityTracker,
-        bool hasHoveredCube,
-        const glm::vec3& hoveredCubePos,
-        float& manualForceValue  // Reference to allow modification by slider
-    );
-
     void renderLightingControls(
         bool showControls,
         glm::vec3& sunDirection,

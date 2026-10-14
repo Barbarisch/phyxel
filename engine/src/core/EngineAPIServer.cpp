@@ -182,7 +182,14 @@ void EngineAPIServer::setupRoutes() {
             {"status", "ok"},
             {"engine", "phyxel"},
             {"api_version", "1.0"},
-            {"port", m_port}
+            {"port", m_port},
+            // Which configuration this process was compiled as. Perf tooling refuses Debug
+            // (tools/perf_harness.py): Debug numbers are not representative of shipped perf.
+#ifdef NDEBUG
+            {"build_config", "Release"}
+#else
+            {"build_config", "Debug"}
+#endif
         };
         res.set_content(response.dump(), "application/json");
     });
@@ -275,6 +282,63 @@ void EngineAPIServer::setupRoutes() {
         params["id"] = req.get_param_value("id");
         json result = queueAndWait("get_animation_state", params);
         res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/animation/grounding?id=... — A5 terrain foot-solve readback (corrections and pelvis
+    // shift in world units, ankle pitch in degrees, per-foot probe_ok, the knobs in force).
+    srv.Get("/api/animation/grounding", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_animation_grounding", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/debug/foot_ik — A5 grounding knobs for one character.
+    // Body: { "id": "npc_x", "enabled": true, "max_corr_u": 0.49, "probe_half_width_u": 0.05, "body_range_u": 0.27 }
+    // Omitted = unchanged; every field echoed back with the clamps applied.
+    srv.Post("/api/debug/foot_ik", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("set_foot_ik", params, 5000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/animation/seat?id=... — A4 seated-solve readback (pelvis/feet errors in world
+    // units, thigh angle and lean in degrees, armrest contacts 0-2, weight 0..1).
+    srv.Get("/api/animation/seat", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_animation_seat", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/animation/transitions?id=... — A3 transition graph readback: the plan's edges
+    // (from, to, blend seconds, phaseSync), the default blend, and the crossfade in flight.
+    srv.Get("/api/animation/transitions", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_animation_transitions", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/animation/factors — A3 composition factors for a character.
+    // Body: { "id": "npc_x", "grip": "2h_heavy", "load": "none", "condition": "fresh", "mood": "neutral" }
+    // Omitted fields are unchanged; the response echoes the resulting factors and active layers.
+    srv.Post("/api/animation/factors", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_animation_factors", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
     });
 
     // POST /api/animation/play — Play a named animation clip
@@ -1130,12 +1194,97 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/depth_prepass {enabled: bool} — P-DP static depth prepass A/B
+    // (docs/PerfProgram2026-09.md). Omitted = unchanged; non-boolean refused. Default ON (2026-09-27). Refused
+    // (not silently accepted) when the prepass pipelines are unavailable. Echoes enabled, available,
+    // ran_last_frame.
+    srv.Post("/api/debug/depth_prepass", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_depth_prepass", params).dump(), "application/json");
+    });
+
+    // POST /api/debug/effect_time {frozen: bool} - hold the effect clocks for frozen pixel gates
+    // that must NOT pause the game (PerfProgram 17.2 step 2). Omitted = unchanged. Echoes state.
+    srv.Post("/api/debug/effect_time", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_effect_time", params).dump(), "application/json");
+    });
+
+    // POST /api/debug/residents {enabled: bool} - suspend the settlement ResidentSpawner and
+    // despawn every resident it owns (false), or resume it (true; it re-derives residents from the
+    // persisted locations). A per-NPC remove does not stick: the spawner's rescan re-spawns them.
+    // Optional {fauna: bool} does the same for the biome wildlife spawner (a separate population).
+    // Echoes enabled, despawned, active, fauna, fauna_despawned, fauna_active.
+    // PerfProgram 17.2 step 7 (and step 2's night freeze).
+    srv.Post("/api/debug/residents", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_residents", params).dump(), "application/json");
+    });
+
+    // POST /api/debug/gi_probe {skip_buried: bool, two_level_trace: bool} - probe-pass options A/B
+    // (GI-1, GI-2; docs/PerfProgram2026-09.md section 15). Each optional (omitted = unchanged); a
+    // non-boolean refuses the request. Both default ON. Echoes both and gi_enabled.
+    srv.Post("/api/debug/gi_probe", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_gi_probe_options", params).dump(), "application/json");
+    });
+
+    // POST /api/debug/emitter_merge {enabled: bool} — L1 duplicate-emitter merge A/B
+    // (docs/PerfProgram2026-09.md). Omitted = unchanged. Re-meshes every chunk so the emissive light
+    // list is rebuilt under the new setting; echoes the state and the resulting light count.
+    srv.Post("/api/debug/emitter_merge", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_emitter_merge", params, 30000).dump(), "application/json");
+    });
+
     // POST /api/debug/fine_merge — toggle sub/microcube greedy-merge (docs/BinaryGreedyMeshingPlan.md),
     // then re-mesh all chunks for a live A/B. Body: { "enabled": bool }
     srv.Post("/api/debug/fine_merge", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("set_fine_merge", params, 30000); // re-meshes all chunks
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/animation/record — arm the per-character oracle ring buffer
+    // Body: { "id": "npc_x", "frames": 120 }   (A1, docs/AnimationSystemV3Plan.md)
+    // Frames are captured on the main thread inside the character's update();
+    // this call only ARMS (never waits across frames — queued commands run on
+    // the game loop). Returns { armed, frames, cap }.
+    // ====================================================================
+    srv.Post("/api/animation/record", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("animation_record", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/animation/validate — evaluate the recorded frames with the
+    // MotionOracle. Body: { "id": "npc_x", "authored_speed": 1.68 (optional) }
+    // Returns the metric struct, the thresholds each value was judged against,
+    // per-metric verdicts, frames sampled vs requested.
+    // ====================================================================
+    srv.Post("/api/animation/validate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("animation_validate", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
@@ -1503,6 +1652,38 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/break_voxel {x,y,z, level, sub, micro} — the B-key break at a cell,
+    // no cursor hover (DebrisInteractionPlan 1d test hook).
+    // ====================================================================
+    srv.Post("/api/debug/break_voxel", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json body = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("break_voxel", body, 10000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/debug/occupancy_diff {x1,y1,z1,x2,y2,z2} (world cubes, <= 64^3) — store vs
+    // physics grid vs packed pool at micro resolution (DebrisInteractionPlan 1c step 6).
+    // ====================================================================
+    srv.Post("/api/debug/occupancy_diff", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json body = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("occupancy_diff", body, 60000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/debug/chunk_faces?cx=&cy=&cz=[&x1=&y1=&z1=&x2=&y2=&z2=]
     // docs/GlassTransparency.md §7. A chunk's emitted faces expanded to COVERED UNIT FACES at
     // microcube resolution (graphics/FaceCoverage.h — the same decoder the unit tests use), so the
@@ -1694,7 +1875,15 @@ void EngineAPIServer::setupRoutes() {
     // ====================================================================
     // GET /api/world/chunks — Chunk information
     // ====================================================================
-    srv.Get("/api/world/chunks", [this](const httplib::Request&, httplib::Response& res) {
+    // ?detail=1 adds the per-chunk list (origin + cube/sub/micro counts). It walks the chunk
+    // vector, which streaming mutates, so it runs on the MAIN thread via the queued
+    // get_chunk_info command; the summary below stays on the HTTP thread (sizes only).
+    srv.Get("/api/world/chunks", [this](const httplib::Request& req, httplib::Response& res) {
+        if (req.has_param("detail") && req.get_param_value("detail") == "1") {
+            res.set_content(queueAndWait("get_chunk_info", json::object(), 30000).dump(),
+                            "application/json");
+            return;
+        }
         if (m_chunkInfoHandler) {
             json result = m_chunkInfoHandler();
             res.set_content(result.dump(), "application/json");
@@ -1798,39 +1987,16 @@ void EngineAPIServer::setupRoutes() {
 
     // ====================================================================
     // POST /api/debug/particle_log — Start/stop GPU particle position logging
-    // Body: { "action": "start" } or { "action": "stop" }
+    // Body: { "action": "start" } or { "action": "stop" } or { "action": "status" }
     //   Optional for start: { "action": "start", "file": "particle_positions.csv" }
+    // QUEUED to the main thread. It used to run on this HTTP thread, opening/closing the same
+    // std::ofstream the main thread writes every frame: a stop/start mid-write hung this request
+    // and, on the next debris spawn, the main thread with it (2026-10-05).
     // ====================================================================
     srv.Post("/api/debug/particle_log", [this](const httplib::Request& req, httplib::Response& res) {
-        if (!m_particleLogHandler) {
-            json err = {{"error", "Particle log handler not configured"}};
-            res.status = 503;
-            res.set_content(err.dump(), "application/json");
-            return;
-        }
         try {
             json params = json::parse(req.body);
-            std::string action = params.value("action", "");
-            std::string filePath = params.value("file", "particle_positions.csv");
-            json result = m_particleLogHandler(action, filePath);
-            res.set_content(result.dump(), "application/json");
-        } catch (const json::exception& e) {
-            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
-            res.status = 400;
-            res.set_content(err.dump(), "application/json");
-        }
-    });
-
-    // ====================================================================
-    // POST /api/debug/spawn_bullet_cube — Spawn a Bullet-physics dynamic cube
-    // Body: { "x":10, "y":20, "z":10, "material":"Stone",
-    //         "velocity":{"x":0,"y":0,"z":0}, "count":1, "scale":1.0 }
-    // scale: 1.0=full cube, 0.333=subcube, 0.111=microcube
-    // ====================================================================
-    srv.Post("/api/debug/spawn_bullet_cube", [this](const httplib::Request& req, httplib::Response& res) {
-        try {
-            json params = json::parse(req.body);
-            json result = queueAndWait("spawn_bullet_cube", params);
+            json result = queueAndWait("particle_log", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
@@ -1856,6 +2022,35 @@ void EngineAPIServer::setupRoutes() {
             res.set_content(err.dump(), "application/json");
         }
     });
+
+    // ====================================================================
+    // Debris settling measurement (docs/DebrisSettlingPlan.md §3)
+    // POST /api/debug/settle_probe {"op":"start"|"stop"|"status", "series":bool,
+    //      "series_last":N, "csv":"path", start-only: "settle_window", "all_asleep_by",
+    //      "max_rebounds_after", "max_injected_lift_after"}
+    //   → per-tick energy / rebound / sleep / solver-failure analysis + SETTLES|FAILS verdict.
+    // POST /api/debug/spawn_gpu_lattice {"x","y","z" (min corner; y = bottom face),
+    //      "nx","ny","nz","scale","gap" (0 = touching),"spin","jitter","velocity",
+    //      "material","lifetime","seed"}
+    // ====================================================================
+    // POST /api/debug/gpu_physics {"frozen":bool, "step":N} — hold the debris solver / advance
+    //      exactly N ticks (exact-time captures; lifetimes do not drain while frozen).
+    for (const char* action : {"settle_probe", "spawn_gpu_lattice", "gpu_physics", "gpu_kinematic_box",
+                               "debris_events", "debris_gather"}) {   // the last two: DebrisInteractionPlan 6b
+        const std::string route = std::string("/api/debug/") + action;
+        const std::string act = action;
+        srv.Post(route.c_str(), [this, act](const httplib::Request& req, httplib::Response& res) {
+            try {
+                json params = req.body.empty() ? json::object() : json::parse(req.body);
+                json result = queueAndWait(act, params);
+                res.set_content(result.dump(), "application/json");
+            } catch (const json::exception& e) {
+                json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+                res.status = 400;
+                res.set_content(err.dump(), "application/json");
+            }
+        });
+    }
 
     // ====================================================================
     // POST /api/debug/spawn_voxel_body — Spawn a VoxelDynamicsWorld body
@@ -1900,8 +2095,8 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
-    // GET /api/debug/dynamic_stats — Bullet + GPU particle object counts
-    // Returns: bullet_active, bullet_cap, gpu_active, gpu_cap
+    // GET /api/debug/dynamic_stats — CPU dynamic objects + GPU debris counts
+    // Returns: gpu_active, gpu_cap (CPU debris and cpu_dynamic deleted, DebrisInteractionPlan 1d)
     // ====================================================================
     srv.Get("/api/debug/dynamic_stats", [this](const httplib::Request& req, httplib::Response& res) {
         if (!m_dynamicStatsHandler) {
@@ -1915,7 +2110,8 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
-    // POST /api/debug/clear_dynamics — Remove all Bullet + GPU particles
+    // POST /api/debug/clear_dynamics — Remove all CPU dynamic objects + GPU debris
+    // Returns: cpu_cleared, gpu_cleared
     // ====================================================================
     srv.Post("/api/debug/clear_dynamics", [this](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -2963,29 +3159,6 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("try_slide", params);
-            res.set_content(result.dump(), "application/json");
-        } catch (const json::exception& e) {
-            res.status = 400;
-            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
-                            "application/json");
-        }
-    });
-
-    // POST /api/interaction/try_push — Phase M3. Find nearest dynamic cube
-    // in front of the character (within `reach`) and apply a capped
-    // horizontal impulse along the character's forward direction. Plays
-    // the named push clip if a character_id+clip is supplied. If no
-    // dynamic body is found within reach, response.success is true but
-    // object_id_pushed is empty and applied_impulse is zero — the clip
-    // still plays (cosmetic push against a wall).
-    // Body: { "character_id"?, "force"?: float (default 6.0),
-    //         "reach"?: float (default 0.8), "clip"?: "push" }
-    // Returns: { success, object_id_pushed, applied_impulse: [x,y,z],
-    //            contact_voxel: [x,y,z]?, clip_played }
-    srv.Post("/api/interaction/try_push", [this](const httplib::Request& req, httplib::Response& res) {
-        try {
-            json params = json::parse(req.body);
-            json result = queueAndWait("try_push", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             res.status = 400;
@@ -4613,6 +4786,95 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // GET /api/debug/gpu_timing?frames=N — GPU scope timing HISTORY (docs/PerfProgram2026-09.md, I1):
+    // per scope median/p90/p99/mean/last over the last N accepted frames (N clamped to [1, 240],
+    // omitted = all held), plus gpu_frame_ms for the whole command buffer. Unlike gpu_scopes (one
+    // frame, ~2 frames stale) this is what perf numbers should be read from.
+    srv.Get("/api/debug/gpu_timing", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("frames")) params["frames"] = req.get_param_value("frames");
+        json result = queueAndWait("get_gpu_timing", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/debug/light_stats — light census (docs/PerfProgram2026-09.md, I3): registered /
+    // uploaded / dropped, unique positions (duplicate lights each still march per fragment),
+    // by_source, radius histogram, and the CPU cost of selection + the emissive reconcile. Read-only.
+    srv.Get("/api/debug/light_stats", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_light_stats", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/debug/voxel_tiers?per_chunk=0|1&covered=0|1 — voxel tier census (PerfProgram I5):
+    // per tier (cube/sub/micro/LOD cell) stored objects, merged instances, pre-merge unit faces,
+    // instances drawn this view (main + each shadow cascade), CPU/GPU bytes. covered=1 adds cube
+    // faces hidden behind opaque fine detail (costlier). Read-only.
+    srv.Get("/api/debug/voxel_tiers", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("per_chunk")) params["per_chunk"] = req.get_param_value("per_chunk");
+        if (req.has_param("covered")) params["covered"] = req.get_param_value("covered");
+        res.set_content(queueAndWait("get_voxel_tiers", params, 30000).dump(), "application/json");
+    });
+
+    // POST /api/debug/tier_mask {main:[cube,sub,micro], shadow:[cube,sub,micro]} — per-tier draw
+    // masks for GPU cost attribution (PerfProgram I6). Omitted array = unchanged; a malformed one
+    // is refused and NOTHING is applied. Default all-true. While a mask is active,
+    // shadow_chunks_drawn counts indirect commands, not chunks.
+    srv.Post("/api/debug/tier_mask", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_tier_mask", params).dump(), "application/json");
+    });
+
+    // GET /api/debug/cpu_timing?frames=N — CPU scope HISTORY of the render path (PerfProgram I7),
+    // same statistics as gpu_timing (drawFrame > dirty flush, fence wait, setup, record, submit, ...).
+    srv.Get("/api/debug/cpu_timing", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("frames")) params["frames"] = req.get_param_value("frames");
+        res.set_content(queueAndWait("get_cpu_timing", params).dump(), "application/json");
+    });
+
+    // ---- City benchmark tooling (docs/PerfProgram2026-09.md section 16) ----
+    // GET /api/debug/frame_pacing?frames=N -- main-loop phases (PerformanceProfiler scopes) + Frame
+    // Interval, statistics AND the raw per-frame series (I11).
+    srv.Get("/api/debug/frame_pacing", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("frames")) params["frames"] = req.get_param_value("frames");
+        res.set_content(queueAndWait("get_frame_pacing", params).dump(), "application/json");
+    });
+    // POST /api/debug/record {start:true, max_frames:N} | {stop:true}; GET /api/debug/record?from=K&count=M
+    // -- the route recorder (I15). Read AFTER a route: requests during a measured route perturb it.
+    srv.Post("/api/debug/record", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("record_control", params).dump(), "application/json");
+    });
+    srv.Get("/api/debug/record", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("from")) params["from"] = req.get_param_value("from");
+        if (req.has_param("count")) params["count"] = req.get_param_value("count");
+        res.set_content(queueAndWait("record_dump", params, 30000).dump(), "application/json");
+    });
+    // POST /api/camera/path {waypoints, speed_u_per_s, loop, stream_follow} | {stop:true}; GET = status
+    // -- constant-speed camera path; the streaming focus follows it (I12/I14).
+    srv.Post("/api/camera/path", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded() || !params.is_object() || params.empty())
+            params = json{{"invalid", true}};   // an empty POST must not read as a GET
+        res.set_content(queueAndWait("camera_path", params).dump(), "application/json");
+    });
+    srv.Get("/api/camera/path", [this](const httplib::Request&, httplib::Response& res) {
+        res.set_content(queueAndWait("camera_path", json::object()).dump(), "application/json");
+    });
+
+    // GET /api/debug/mesh_timing?reset=0|1 — chunk re-mesh cost by phase and by the chunk's
+    // microcube count (PerfProgram I7). reset=1 zeroes the counters after reading.
+    srv.Get("/api/debug/mesh_timing", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("reset")) params["reset"] = req.get_param_value("reset");
+        res.set_content(queueAndWait("get_mesh_timing", params).dump(), "application/json");
+    });
+
     // GET /api/debug/frame_profile — Per-phase CPU frame profile tree (input/update/render)
     srv.Get("/api/debug/frame_profile", [this](const httplib::Request&, httplib::Response& res) {
         json result = queueAndWait("get_frame_profile", json::object());
@@ -4772,6 +5034,20 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // POST /api/damage/apply — Apply area destruction damage at a point
+    // POST /api/physics/impulse - push EXISTING debris and CPU bodies (DebrisInteractionPlan
+    // Phase 4). Body: x,y,z (m), radius (m), impulse (N*s at the centre), up_bias (0..1),
+    // optional direction {x,y,z} + half_angle_deg for a cone, worlds "gpu"|"cpu"|"both".
+    srv.Post("/api/physics/impulse", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("physics_impulse", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
     srv.Post("/api/damage/apply", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);

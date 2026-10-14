@@ -1,4 +1,6 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_shared.h"
 //
 // particle_scan_blocksums.comp — Parallel exclusive prefix sum, Pass 2 of 3.
 //
@@ -11,7 +13,7 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
 layout(std430, set = 0, binding = 0) buffer BlockSums { uint blockSums[]; };
 
-layout(push_constant) uniform PC { uint numBlocks; } pc;
+layout(push_constant) uniform PC { PHX_PC_BLOCKS } pc;  // shaders/solver_shared.h
 
 void main() {
     uint sum = 0u;

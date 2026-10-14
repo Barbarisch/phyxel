@@ -22,6 +22,4 @@ Or load directly into the running engine via MCP:
 load_game_definition { "definition": <contents of JSON file> }
 ```
 
-## Prompt Catalog
-
-For a comprehensive list of 40 ready-to-use prompts that create full games and test engine features, see [docs/GameDevPromptCatalog.md](../../docs/GameDevPromptCatalog.md).
+.

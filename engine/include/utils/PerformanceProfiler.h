@@ -9,8 +9,18 @@
 
 namespace Phyxel {
 
+class CpuTimingRecorder;
+
 class PerformanceProfiler {
 public:
+    // Frame pacing (docs/PerfProgram2026-09.md section 16, I11): when set, every frame and every
+    // ScopedTimer/PROFILE_SCOPE scope is ALSO recorded into `recorder` (the same history and statistics
+    // as the GPU/CPU render scopes), so GET /api/debug/frame_pacing sees exactly the main-loop scopes
+    // this profiler already has, instead of a parallel set that could drift. The recorder additionally
+    // gets "Frame Interval", the wall time between consecutive endFrame() calls. nullptr = off.
+    void setFrameRecorder(CpuTimingRecorder* recorder) { frameRecorder_ = recorder; }
+    uint64_t frameRecorderSerial() const { return frameRecorderSerial_; }
+
     PerformanceProfiler();
     ~PerformanceProfiler() = default;
 
@@ -134,6 +144,11 @@ private:
     // Helper methods
     void updateFrameTimings();
     void calculateMemoryBandwidth();
+
+    CpuTimingRecorder* frameRecorder_ = nullptr;
+    uint64_t frameRecorderSerial_ = 0;
+    std::chrono::high_resolution_clock::time_point lastFrameEnd_{};
+    bool haveLastFrameEnd_ = false;
 };
 
 // RAII timer helper class

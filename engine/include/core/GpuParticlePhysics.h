@@ -1,11 +1,15 @@
 #pragma once
 
 #include "core/Types.h"
+#include "core/DebrisSettleAnalyzer.h"
 #include "vulkan/ComputePipeline.h"
+#include "solver_shared.h"   // shaders/: constants + push-constant layouts shared with GLSL (1b)
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
+#include <map>
+#include <unordered_map>
 #include <string>
 #include <cstdint>
 #include <functional>
@@ -18,21 +22,20 @@ namespace Vulkan { class VulkanDevice; }
 class GpuProfiler;
 
 /**
- * GpuParticlePhysics — GPU-accelerated voxel debris physics.
+ * GpuParticlePhysics — GPU AVBD rigid-body solver for voxel debris (cubes, subcubes,
+ * microcubes). Gameplay bodies (furniture, items, fragments, characters) live on the CPU
+ * VoxelDynamicsWorld.
  *
- * Replaces Bullet btRigidBody + CPU face rebuild for all broken-voxel debris
- * (dynamic cubes, subcubes, microcubes). Characters and interactive objects
- * remain on Bullet.
- *
- * Per-frame pipeline (all on GPU, no CPU readback):
- *   1. particle_integrate.comp  — XPBD position + quaternion angular step
- *   2. particle_collide.comp    — 3D occupancy-grid voxel collision
- *   3. particle_expand.comp     — write 6 DynamicSubcubeInstanceData faces per active particle
- *   4. dynamic_voxel.vert/frag  — render directly from face buffer (unchanged shaders)
+ * Per physics tick (recordComputeCommandsNew; docs/DynamicVoxelPhysics.md "GPU Compute Path"):
+ *   sync_in → integrate → grid/scan/sort → narrowphase + voxel contacts → CSR → colouring
+ *   → AVBD dual/primal → hard-contact → sync_out → warmstart save,
+ *   then particle_expand.comp writes 6 DynamicSubcubeInstanceData faces per particle for
+ *   dynamic_voxel.vert / dynamic_shadow.vert.
+ * Settling is gated by tools/debris_settle_bench.py (docs/DebrisSettlingPlan.md §R).
  */
 class GpuParticlePhysics {
 public:
-    static constexpr uint32_t MAX_PARTICLES  = 10000;
+    static constexpr uint32_t MAX_PARTICLES  = DebrisShared::MAX_PARTICLES;
     static constexpr uint32_t MAX_FACE_SLOTS = MAX_PARTICLES * 6; // 60 000 face instances
 
     // 96 bytes, std430-compatible (vec3+float pairs at 16-byte boundaries)
@@ -61,6 +64,9 @@ public:
         glm::vec4   color       = glm::vec4(1);
         float       lifetime    = 30.0f;
         uint32_t    typeFlags   = 0; // PARTICLE_TYPE_CUBE etc.
+        /// Micro position inside the parent cube (mx*81+my*9+mz, 0..728): which slice of the
+        /// parent texture the piece shows (DamageSystem::debrisSliceFor). Ignored for full cubes.
+        uint32_t    slice       = 0;
     };
 
     GpuParticlePhysics();
@@ -103,51 +109,37 @@ public:
      */
     void recordComputeCommands(VkCommandBuffer cmd, uint32_t frameIndex, GpuProfiler* profiler = nullptr);
 
-    // ---- 3D occupancy grid interface (called by ChunkManager) ----
-
-    /** Set a single voxel's occupancy bit in the GPU grid. Host-coherent — auto-visible to GPU. */
-    void setOccupied(int worldX, int worldY, int worldZ, bool solid);
-
-    /** Clear entire occupancy grid (all voxels empty). */
-    void clearOccupancy();
-
-    /** Rebuild all occupancy data from scratch (called after initial chunk load). */
-    // (ChunkManager calls setOccupied per-voxel during rebuildOccupancyFromChunks)
+    // ---- The static world: the SHARED micro occupancy (DebrisInteractionPlan 1c) ----
+    // Debris collides against the same packed pool CPU physics and lighting use
+    // (VoxelLightOccupancyGpu), not a private bitfield. The pool has one buffer pair per frame
+    // in flight, so the contact passes keep one descriptor set per slot and bind the slot of
+    // the frame being recorded (the CPU rewrites the OTHER slot meanwhile).
+    static constexpr uint32_t OCC_FRAME_SLOTS = 2;   // == VoxelLightOccupancyGpu::kSlots
+    /// Once, before the first frame is recorded (descriptor sets must not change in flight).
+    void setStaticOccupancyBuffers(const VkBuffer dir[OCC_FRAME_SLOTS], VkDeviceSize dirBytes,
+                                   const VkBuffer pool[OCC_FRAME_SLOTS], VkDeviceSize poolBytes);
+    /// Every frame, before recordComputeCommands: the box the slot's pack was built with, and
+    /// whether the pool is readable. Not ready = every sample UNKNOWN = every body held (counted).
+    void setStaticOccupancyBox(const glm::ivec3& boxMinChunk, bool ready);
+    /** The occupancy box's min chunk (the water directory covers its XZ); false until readable. */
+    bool occupancyBoxMinChunk(glm::ivec3& out) const {
+        out = glm::ivec3(m_occBox.x, m_occBox.y, m_occBox.z);
+        return (m_occBox.w & 1) != 0;
+    }
+    /** Phase 6c water for the integrate pass (built by DebrisRuntime). `dir` has
+     *  WATER_DIR_CHUNKS^2 entries (a tile index or WATER_TILE_NONE) for the window whose min chunk
+     *  column is `dirMinChunkXZ`; `cells` holds the tiles (WATER_TILE_CELLS^2 cells of 2 uints:
+     *  surface-Y bits, packHalf2x16(flow)). Columns with no tile read the background: `seaLevel`
+     *  when `implicitSea`, else dry. Uploaded after the frame slot's fence like the impulses. */
+    void setWater(const glm::ivec2& dirMinChunkXZ, bool implicitSea, float seaLevel,
+                  std::vector<uint32_t> dir, std::vector<uint32_t> cells);
+    uint32_t waterTiles() const { return static_cast<uint32_t>(m_waterCellStage.size() / (2u * 32u * 32u)); }
+    bool staticOccupancyWired() const { return m_staticOccWired; }
 
     // ---- Character collision interface ----
 
-    // Max per-limb segment boxes uploaded per frame. Must cover the character's full
-    // segment set — 12 boxes (4 torso + 4 arm + 4 leg). Setting this too low silently
-    // drops the trailing boxes (e.g. the legs), leaving floor-height debris uncovered.
-    // Keep in sync with charSeg[] in solver_integrate.comp.
-    static constexpr uint32_t MAX_CHAR_SEGMENTS = 12;
-
-    // One body-part box (std430: two vec4s = 32 bytes).
-    struct CharSegmentGpu {
-        glm::vec4 center;       // xyz = world center
-        glm::vec4 halfExtents;  // xyz = world half-extents
-    };
-    static_assert(sizeof(CharSegmentGpu) == 32, "CharSegmentGpu must be 32 bytes");
-
-    // std430 layout uploaded each frame for particle-vs-character collision.
-    // The first 48 bytes are the broadphase union AABB + velocity, byte-compatible
-    // with the original single-AABB layout (so the dead legacy particle_collide.comp
-    // still reads sane values). The live AVBD solver (solver_integrate.comp) uses the
-    // union for a cheap early-out, then tests the per-limb segments[].
-    struct CharacterCollider {
-        glm::vec3 center;       // union AABB center (broadphase)
-        float     segmentCount; // number of active segments (0 = disabled)
-        glm::vec3 halfExtents;  // union AABB half-extents
-        float     pad0;
-        glm::vec3 velocity;     // character velocity (imparted to pushed debris)
-        float     legacyActive; // mirrors (segmentCount>0) for the legacy shader's charActive
-        CharSegmentGpu segments[MAX_CHAR_SEGMENTS];
-    };
-    static_assert(sizeof(CharacterCollider) == 48 + 32 * MAX_CHAR_SEGMENTS,
-                  "CharacterCollider layout mismatch");
-
-    /** Update per-limb character colliders for the live solver. `boxes` = (center,
-     *  halfExtents) of each body segment; the union AABB is computed internally.
+    /** The player's body-part boxes for this frame: each becomes a kinematic (mover) body
+     *  carrying `velocity` (Phase 2 - the D7 shove buffer they used to fill is deleted).
      *  Empty disables character collision. Called each frame from Application. */
     void setCharacterColliders(const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes,
                                const glm::vec3& velocity);
@@ -159,6 +151,101 @@ public:
     /** Disable character collision (no character active). */
     void clearCharacterAABB();
 
+    /** Every character mover for this frame (Phase 3a): oriented limb boxes, each with its own
+     *  velocity. Replaces whatever setCharacterColliders/setMoverBoxes set before. The caller
+     *  orders them by priority (nearest first): past MAX_KINEMATIC they are counted as overflow. */
+    struct MoverBox {
+        glm::vec3 center{0.0f};
+        glm::vec3 halfExtents{0.0f};
+        glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+        glm::vec3 velocity{0.0f};
+        uint32_t  owner = 0;   // Phase 6a: whose push-back this box's contacts feed (0 = nobody)
+    };
+    void setMoverBoxes(std::vector<MoverBox> movers);
+    uint32_t moverCount() const { return static_cast<uint32_t>(m_movers.size()); }
+    /** CPU rigid bodies as movers (Phase 3c, DebrisMoverFeed::appendRigidBodies), fed after the
+     *  CPU physics step. Staged AFTER the character limbs: the overflow drops bodies first. */
+    void setBodyMoverBoxes(std::vector<MoverBox> movers);
+
+    /** Phase 4: push EXISTING debris. Queued now, applied by sync_in on the first GPU tick that
+     *  runs (so a frozen/stepped solver applies it on its next step). dv = J * w(d) / m with the
+     *  linear falloff phxImpulseWeight, along the radial direction blended toward +Y by upBias,
+     *  |dv| <= IMPULSE_MAX_DV. Debris spawned by the same blast is not kicked twice (spawn age 0).
+     *  Clamps at entry (reasons in solver_shared.h): radius 0.1..IMPULSE_MAX_RADIUS, impulse >= 0,
+     *  upBias 0..1, cone half angle 0..90 deg; past MAX_IMPULSES per frame = counted, dropped.
+     *  Returns the values actually queued (`queued` false = dropped). */
+    struct ImpulseQueued {
+        bool  queued = false;
+        float radius = 0.0f, impulse = 0.0f, upBias = 0.0f, halfAngleDeg = 0.0f;
+    };
+    ImpulseQueued applyRadialImpulse(const glm::vec3& center, float radius, float impulse, float upBias = 0.0f);
+    ImpulseQueued applyConeImpulse(const glm::vec3& origin, const glm::vec3& dir, float halfAngleDeg,
+                                   float range, float impulse, float upBias = 0.0f);
+    /** Phase 6: debris events read back from the GPU (sleep / wake / impact), two frames after the
+     *  ticks that produced them. takeEvents() drains what arrived since the last call. A slot is
+     *  identified by `slot` + `serial` (the serial changes whenever the slot is (re)spawned, so a
+     *  consumer can tell a recycled slot from the body an event described). */
+    struct DebrisEvent {
+        uint32_t    slot = 0;
+        uint32_t    type = 0;            // DebrisShared::DEBRIS_EVENT_*
+        uint32_t    materialIndex = 0;   // incl. the texture-slice bits
+        float       speed = 0.0f;        // impact |dv| (m/s), 0 otherwise
+        glm::vec3   position{0.0f};
+        float       scale = 1.0f;        // largest axis (1, 1/3, 1/9 ...)
+        uint32_t    serial = 0;          // slotSerial(slot) when the event was READ
+    };
+    std::vector<DebrisEvent> takeEvents() { std::vector<DebrisEvent> out; out.swap(m_events); return out; }
+    /** Phase 6a: per owner tag, the impulse (N*s) debris contacts put on its mover boxes, summed
+     *  over the frames read back since the last call (two frames late). Normal force only. */
+    std::unordered_map<uint32_t, glm::vec3> takeMoverImpulses() {
+        std::unordered_map<uint32_t, glm::vec3> out; out.swap(m_moverImpulses); return out;
+    }
+    uint64_t eventsTotal()   const { return m_eventsTotal; }
+    uint64_t eventsDropped() const { return m_eventsDropped; }
+    /** Bumped every time `slot` is spawned into (0 = never used). */
+    uint32_t slotSerial(uint32_t slot) const { return slot < m_slotSerial.size() ? m_slotSerial[slot] : 0u; }
+    bool     slotActive(uint32_t slot) const { return slot < m_slots.size() && m_slots[slot].active; }
+    /** Remove one body (gathered rubble): it retires on the next update(), exactly like a lifetime
+     *  expiry (GPU ACTIVE flag cleared, slot freed). False if the slot is not active. */
+    bool     despawnSlot(uint32_t slot);
+    /** Material name of a GPU material index (the low MATERIAL_MASK bits). */
+    static std::string materialNameOf(uint32_t materialIndex);
+
+    uint32_t pendingImpulses() const { return static_cast<uint32_t>(m_impulseStage.size()); }
+    uint32_t impulseOverflow() const { return m_impulseOverflow; }
+    uint64_t impulsesSubmitted() const { return m_impulsesSubmitted; }   // reached a GPU tick
+    uint32_t bodyMoverCount() const { return static_cast<uint32_t>(m_bodyMovers.size()); }
+    /** Doors, animated template parts and held items (Phase 3b, KinematicVoxelManager), staged
+     *  after the character limbs and before the CPU bodies. */
+    void setObjectMoverBoxes(std::vector<MoverBox> movers);
+    uint32_t objectMoverCount() const { return static_cast<uint32_t>(m_objectMovers.size()); }
+    /** Kinematic slots left for objects once the scripted boxes and character limbs are staged. */
+    uint32_t objectMoverBudget() const {
+        const size_t used = m_kinematicBoxesFrameStart.size() + m_movers.size();
+        return used >= DebrisShared::MAX_KINEMATIC ? 0u : static_cast<uint32_t>(DebrisShared::MAX_KINEMATIC - used);
+    }
+    /** Kinematic slots left for bodies once the scripted boxes and character limbs are staged. */
+    uint32_t bodyMoverBudget() const {
+        const size_t used = m_kinematicBoxesFrameStart.size() + m_movers.size() + m_objectMovers.size();
+        return used >= DebrisShared::MAX_KINEMATIC ? 0u : static_cast<uint32_t>(DebrisShared::MAX_KINEMATIC - used);
+    }
+
+    /** Scripted kinematic test box (DebrisInteractionPlan 1f): a mover the solver tests can drive
+     *  without NPC AI. It advances by SIMULATED time (ticks x FIXED_DT, so a frozen, stepped solver
+     *  moves it deterministically) and expires after `ttl` seconds. It is a kinematic AVBD body
+     *  (Phase 2): axis-aligned for now, its own velocity, at most MAX_KINEMATIC movers in total
+     *  with the player's boxes (the rest are counted as overflow). */
+    struct KinematicBox {
+        glm::vec3 center{0.0f};
+        glm::vec3 half{0.5f};
+        glm::vec3 velocity{0.0f};
+        float     ttl = 5.0f;   // seconds left, <= 10
+    };
+    void setKinematicBox(const std::string& id, const KinematicBox& box);
+    bool removeKinematicBox(const std::string& id);
+    const std::map<std::string, KinematicBox>& kinematicBoxes() const { return m_kinematicBoxes; }
+    uint32_t kinematicOverflow() const { return m_kinematicOverflow; }
+
     // GPU-side per-material physics (32 bytes, std430).
     // Populated at init from MaterialRegistry, indexed by GpuParticle::materialIndex.
     struct alignas(4) MaterialPhysicsGpu {
@@ -168,7 +255,7 @@ public:
         float linearDamp;      // Per-frame velocity damping
         float angularDamp;     // Per-frame spin damping
         float breakForceScale; // Break impulse multiplier
-        float pad0;
+        float buoyancy;        // water density / material density (Phase 6c; > 1 floats)
         float pad1;
     };
     static_assert(sizeof(MaterialPhysicsGpu) == 32, "MaterialPhysicsGpu must be 32 bytes");
@@ -184,10 +271,6 @@ public:
 
     /** Immediately mark all active particles as dead and reset tracking state. */
     void despawnAll();
-
-    /** Switch between constraint solver (new, default) and legacy XPBD pipeline. */
-    void setUseNewPipeline(bool use) { m_useNewPipeline = use; }
-    bool getUseNewPipeline() const   { return m_useNewPipeline; }
 
     // ---- Debug timing stats (ring buffer) ----
     struct FrameTimingEntry {
@@ -211,24 +294,49 @@ public:
     void stopPositionLog();
     bool isPositionLogging() const { return m_positionLogging; }
 
+    // ---- Settle probe (docs/DebrisSettlingPlan.md §3) ----
+    // Measures whether debris actually loses energy and comes to rest. While running, every
+    // physics tick's particle state + solver telemetry counters + graph colours are copied to
+    // a host-visible ring (one slot per frame in flight) and fed to a DebrisSettleAnalyzer
+    // when that frame's fence has retired (≈2 frames of lag). Off by default — zero cost.
+    void startSettleProbe(const Core::DebrisSettleAnalyzer::Config& cfg);
+    void stopSettleProbe();
+    bool isSettleProbing() const { return m_probeActive; }
+
+    // Freeze / single-step (debug rigs + exact-time captures). While frozen no physics tick
+    // runs and lifetimes do not drain; stepTicks(n) lets exactly n more ticks run (≤ 4 per
+    // frame, the normal catch-up cap). Rendering continues, so a frozen pile can be captured.
+    void setFrozen(bool frozen) { m_frozen = frozen; m_stepBudget = 0; m_timeAccumulator = 0.0f; }
+    bool isFrozen() const { return m_frozen; }
+    void stepTicks(uint32_t n) { m_stepBudget += n; }
+    uint32_t pendingStepTicks() const { return m_stepBudget; }
+    uint64_t totalTicks() const { return m_totalTicks; }
+
+    // Debris-settling fix switches (solver_types.glsl SOLVER_FLAG_*), pushed to the solver
+    // every tick. Default = all shipped fixes on; the API exposes them for A/B runs.
+    static constexpr uint32_t SOLVER_FLAG_MASS_PENALTY  = DebrisShared::SOLVER_FLAG_MASS_PENALTY;
+    static constexpr uint32_t SOLVER_FLAG_START_AT_REST = DebrisShared::SOLVER_FLAG_START_AT_REST;
+    static constexpr uint32_t SOLVER_FLAG_HC_NEUTRAL    = DebrisShared::SOLVER_FLAG_HC_NEUTRAL;
+    static constexpr uint32_t SOLVER_FLAG_POST_STAB     = DebrisShared::SOLVER_FLAG_POST_STAB;
+    // POST_STAB (8) is implemented but OFF: measured worse on the bench (more forced sleeps in
+    // drop_layer/crater/crater_subcube — docs/evidence/debris_settle/fix4-tickstart-ps).
+    static constexpr uint32_t SOLVER_FLAG_STATIC_FRICTION = DebrisShared::SOLVER_FLAG_STATIC_FRICTION;
+    static constexpr uint32_t SOLVER_FLAGS_DEFAULT      = DebrisShared::SOLVER_FLAGS_DEFAULT;  // all but POST_STAB
+    static constexpr float    SOLVER_ALPHA              = DebrisShared::SOLVER_ALPHA;
+    static constexpr uint32_t PRIMAL_STORE_VELOCITY     = DebrisShared::PRIMAL_STORE_VELOCITY;
+    void     setSolverFlags(uint32_t f) { m_solverFlags = f; }
+    uint32_t solverFlags() const { return m_solverFlags; }
+    // Cold-contact stiffness multiplier (x m/dt^2) when SOLVER_FLAG_MASS_PENALTY is set.
+    void  setColdPenaltyScale(float s) { m_coldPenaltyScale = s; }
+    float coldPenaltyScale() const { return m_coldPenaltyScale; }
+    const Core::DebrisSettleAnalyzer& settleAnalyzer() const { return m_settle; }
+
     // ---- Material name → index lookup ----
     static uint32_t materialNameToIndex(const std::string& name);
 
 private:
-    // 3D occupancy grid constants — must match particle_collide.comp
-    static constexpr int OCC_X        = 512;
-    static constexpr int OCC_Y        = 256;
-    static constexpr int OCC_Z        = 512;
-    static constexpr int OCC_HALF_X   = 256;   // world X offset
-    static constexpr int OCC_Y_OFFSET = 64;    // world Y offset (Y range: -64..+191)
-    static constexpr int OCC_HALF_Z   = 256;   // world Z offset
-    static constexpr int OCC_TOTAL_BITS  = OCC_X * OCC_Y * OCC_Z;        // 67,108,864 bits
-    static constexpr int OCC_TOTAL_WORDS = OCC_TOTAL_BITS / 32;          // 2,097,152 uint32s
-
     // Physics constants
-    static constexpr float GRAVITY             = -9.81f;  // match Bullet physics
-    static constexpr float SLEEP_THRESH_SQ     = 5e-4f;   // settle faster
-    static constexpr int   COLLISION_ITERATIONS = 3;       // constraint solver passes per tick
+    static constexpr float GRAVITY             = -9.81f;
 
     // ---- Vulkan resources ----
     VkDevice         m_device         = VK_NULL_HANDLE;
@@ -251,19 +359,64 @@ private:
     VkBuffer         m_indirectDrawBuffer = VK_NULL_HANDLE;
     VkDeviceMemory   m_indirectDrawMem    = VK_NULL_HANDLE;
 
-    // 3D occupancy bitfield — host-coherent, persistently mapped, uint32[OCC_TOTAL_WORDS]
-    VkBuffer         m_occupancyBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory   m_occupancyMem    = VK_NULL_HANDLE;
-    void*            m_occupancyMapped = nullptr;
-
     // Material→texture lookup table — device-local SSBO
     VkBuffer         m_matTexBuffer   = VK_NULL_HANDLE;
     VkDeviceMemory   m_matTexMem      = VK_NULL_HANDLE;
 
-    // Character collider AABB — host-coherent, persistently mapped, 48 bytes
-    VkBuffer         m_characterBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory   m_characterMem    = VK_NULL_HANDLE;
-    void*            m_characterMapped = nullptr;
+
+    // Kinematic (mover) boxes for the AVBD solver, Phase 2 - host-coherent, persistently mapped,
+    // KinematicBoxGpu[MAX_KINEMATIC]. solver_kinematic_sync turns entry k into SolverBody
+    // KINEMATIC_BASE + k each tick. Filled by writeColliderBuffer (player boxes + scripted boxes).
+    // ONE BUFFER PER FRAME SLOT: the CPU writes slot s only in recordComputeCommands, after that
+    // slot's fence (a single buffer rewritten in update() was read by the previous frame's
+    // still-running ticks - the box jumped a whole frame ahead, 4 x 33 mm, frames-in-flight).
+    VkBuffer         m_kinematicBoxBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_kinematicBoxMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_kinematicBoxMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<DebrisShared::KinematicBoxGpu> m_kinematicStage;   // this frame's frame-start poses
+    // Phase 4 impulses: queued here, copied into the frame slot's buffer by the first frame whose
+    // ticks run (recordComputeCommands), applied by sync_in on that frame's tick 0.
+    VkBuffer         m_impulseBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_impulseMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_impulseMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<DebrisShared::ImpulseGpu> m_impulseStage;
+    // Phase 6c water: per frame slot, host-visible (directory + tile pool), read by integrate.
+    VkBuffer         m_waterDirBuffer[OCC_FRAME_SLOTS]  = {};
+    VkDeviceMemory   m_waterDirMem[OCC_FRAME_SLOTS]     = {};
+    void*            m_waterDirMapped[OCC_FRAME_SLOTS]  = {};
+    VkBuffer         m_waterTileBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_waterTileMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_waterTileMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<uint32_t> m_waterDirStage;    // empty = no water (all columns background)
+    std::vector<uint32_t> m_waterCellStage;
+    DebrisShared::ivec4   m_waterPC{0, 0, 0, 0};
+    bool createHostBuffer(VkDeviceSize size, VkBuffer& buf, VkDeviceMemory& mem, void*& mapped, const char* what);
+    // Phase 6 event readback: per frame slot, host-visible, written by sync_in / sync_out.
+    VkBuffer         m_eventBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_eventMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_eventMapped[OCC_FRAME_SLOTS] = {};
+    bool             m_eventsWritten[OCC_FRAME_SLOTS] = {};   // ticks ran into this slot; read after its fence
+    std::vector<DebrisEvent> m_events;
+    // Phase 6a push-back readback: per frame slot, with the owner tag of every kinematic body as
+    // staged for that slot (the order changes every frame).
+    VkBuffer         m_pushBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_pushMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_pushMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<uint32_t> m_pushOwners[OCC_FRAME_SLOTS];
+    std::vector<uint32_t> m_kinematicOwnerStage;    // parallel to m_kinematicStage
+    std::unordered_map<uint32_t, glm::vec3> m_moverImpulses;
+    uint64_t         m_eventsTotal = 0, m_eventsDropped = 0;
+    std::vector<uint32_t> m_slotSerial;
+    void consumeEventSlot(uint32_t slot);
+    // Position-log readback: one buffer, so one copy in flight; read only after ITS slot's fence.
+    uint32_t         m_readbackSlot  = 0;
+    bool             m_readbackReady = false;
+    uint32_t         m_impulseCountThisFrame = 0;
+    uint32_t         m_impulseOverflow       = 0;   // dropped past MAX_IMPULSES (lifetime count)
+    uint64_t         m_impulsesSubmitted     = 0;
+    ImpulseQueued    queueImpulse(const glm::vec3& c, float radius, const glm::vec3& axis, float cosHalf,
+                                  float impulse, float upBias, float halfAngleDeg);
+    uint32_t         m_kinematicCount     = 0;
 
     // Per-material physics properties — host-coherent, persistently mapped
     VkBuffer         m_materialPhysBuffer = VK_NULL_HANDLE;
@@ -271,13 +424,12 @@ private:
     void*            m_materialPhysMapped = nullptr;
 
     // Sorted spatial grid for cache-coherent inter-particle collision
-    static constexpr int    GRID_SIZE  = 64;
-    static constexpr int    GRID_CELLS = GRID_SIZE * GRID_SIZE * GRID_SIZE; // 262,144
-    // Work-efficient parallel prefix sum over gridCellCount (replaces the old
-    // single-thread serial scan). SCAN_BLOCK must match local_size_x in the
-    // particle_scan_*.comp shaders; GRID_CELLS is divisible by it.
-    static constexpr int    SCAN_BLOCK  = 256;
-    static constexpr int    SCAN_BLOCKS = GRID_CELLS / SCAN_BLOCK; // 1024
+    static constexpr int    GRID_SIZE  = DebrisShared::GRID_SIZE;
+    static constexpr int    GRID_CELLS = DebrisShared::GRID_CELLS;   // 262,144
+    // Work-efficient parallel prefix sum over gridCellCount. SCAN_BLOCK is the scan
+    // shaders' workgroup size (solver_shared.h PHX_SCAN_BLOCK).
+    static constexpr int    SCAN_BLOCK  = DebrisShared::SCAN_BLOCK;
+    static constexpr int    SCAN_BLOCKS = DebrisShared::SCAN_BLOCKS; // 1024
     VkBuffer         m_gridCellCountBuffer  = VK_NULL_HANDLE;  // uint[GRID_CELLS] — particles per cell
     VkDeviceMemory   m_gridCellCountMem     = VK_NULL_HANDLE;
     VkBuffer         m_gridCellOffsetBuffer = VK_NULL_HANDLE;  // uint[GRID_CELLS] — END of each cell's sorted range
@@ -289,41 +441,29 @@ private:
     VkBuffer         m_scanBlockSumsBuffer  = VK_NULL_HANDLE;  // uint[SCAN_BLOCKS] — per-block totals for the parallel scan
     VkDeviceMemory   m_scanBlockSumsMem     = VK_NULL_HANDLE;
 
-    // ---- Compute pipelines (legacy XPBD) ----
+    // ---- Broadphase + render-feed compute pipelines ----
     Vulkan::ComputePipeline m_gridClearPass;
     Vulkan::ComputePipeline m_gridBuildPass;
-    Vulkan::ComputePipeline m_sortScanPass;
     Vulkan::ComputePipeline m_sortScatterPass;
-    // Parallel prefix-sum passes — replace the serial m_sortScanPass in the live
-    // (AVBD) pipeline. The dead legacy path still uses m_sortScanPass.
+    // Parallel prefix sum over the grid cells (block scan → block-sum scan → add offsets).
     Vulkan::ComputePipeline m_scanBlockPass;
     Vulkan::ComputePipeline m_scanBlockSumsPass;
     Vulkan::ComputePipeline m_scanAddPass;
-    Vulkan::ComputePipeline m_integratePass;
-    Vulkan::ComputePipeline m_collidePass;
     Vulkan::ComputePipeline m_expandPass;
 
-    // ---- Constraint-based solver pipeline (the live pipeline) ----
-    // Pipeline switch: true = AVBD constraint solver (solver_*.comp), false =
-    // legacy XPBD (particle_integrate/collide.comp). Hardcoded true and never
-    // toggled off anywhere — the legacy path is dead code kept for reference.
-    // All particle physics (gravity, voxel + character collision) lives in the
-    // solver_*.comp shaders; do NOT add new behaviour to the legacy shaders.
-    bool m_useNewPipeline = true;
+    // ---- AVBD constraint solver (solver_*.comp) ----
 
-    static constexpr uint32_t MAX_CONSTRAINTS = 60000;
-    static constexpr uint32_t MAX_COLORS      = 12;
+    static constexpr uint32_t MAX_CONSTRAINTS = DebrisShared::MAX_CONSTRAINTS;
+    static constexpr uint32_t MAX_COLORS      = DebrisShared::MAX_COLORS;
+    static constexpr int      COLOR_ROUNDS    = 32;  // Jones-Plassmann rounds (16 left bodies uncoloured = skipped)
     static constexpr int      SOLVE_ITERATIONS = 8;
 
-    // Warmstart hash table sizing (must match shaders/solver_types.glsl).
-    // HASH_CAP must be a power of two and >= ~2 * MAX_CONSTRAINTS.
-    static constexpr uint32_t HASH_CAP        = 131072;
-    static constexpr uint32_t HASH_BASE       = 8;
+    // Warmstart hash table sizing (solver_shared.h asserts pow2 and >= 2 * MAX_CONSTRAINTS).
+    static constexpr uint32_t HASH_CAP        = DebrisShared::HASH_CAP;
+    static constexpr uint32_t HASH_BASE       = DebrisShared::HASH_BASE;
     // Sleep wake-bits (docs/PhysicsRestOverhaul.md Phase 2): one bit per body appended
     // after the hash table. Set by narrowphase/integrate, consumed by sync_in next tick.
-    // Must match solver_types.glsl WAKE_BITS_BASE/WAKE_WORDS (320 words covers 10240
-    // bodies >= MAX_PARTICLES).
-    static constexpr uint32_t WAKE_WORDS      = 320;
+    static constexpr uint32_t WAKE_WORDS      = DebrisShared::WAKE_WORDS;
     static constexpr uint32_t SOLVER_STATE_UINTS = HASH_BASE + HASH_CAP + WAKE_WORDS;
 
     // SolverBody buffer — device-local, MAX_PARTICLES × 208 bytes
@@ -361,6 +501,7 @@ private:
     // Compute pipelines for new solver
     Vulkan::ComputePipeline m_solverSyncInPass;
     Vulkan::ComputePipeline m_solverIntegratePass;
+    Vulkan::ComputePipeline m_solverKinematicSyncPass;   // movers -> SolverBody (Phase 2)
     Vulkan::ComputePipeline m_solverNarrowphasePass;
     Vulkan::ComputePipeline m_solverVoxelPass;
     Vulkan::ComputePipeline m_solverDualPass;
@@ -380,7 +521,24 @@ private:
         bool  active            = false;
     };
     std::vector<SlotInfo> m_slots;         // per-particle CPU tracking
-    std::vector<uint32_t> m_freeSlots;     // freelist of inactive particle indices
+    // Inactive particle indices as a MIN-heap (std::greater): a spawn always takes the LOWEST free
+    // slot, so slot assignment is a function of current occupancy, never of history. A plain
+    // stack handed slots out in reverse after despawnAll, and the solver's colouring/processing
+    // order follows slots: the same scenario gave 11.2 / 81.4 / 47.1 mm hard-contact depth on its
+    // 1st/2nd/3rd run in one session (DebrisInteractionPlan 1c, session-state dependence).
+    std::vector<uint32_t> m_freeSlots;
+    // Collider feed: the player's boxes (setCharacterColliders) + the scripted boxes (1f), merged
+    // into the collider buffer by writeColliderBuffer().
+    std::vector<MoverBox> m_movers;   // character limbs (setMoverBoxes / setCharacterColliders)
+    std::vector<MoverBox> m_objectMovers; // doors / animated parts / held items (setObjectMoverBoxes, 3b)
+    std::vector<MoverBox> m_bodyMovers;   // CPU rigid-body boxes (setBodyMoverBoxes, Phase 3c)
+    // Scripted boxes at the START of this frame: the feed can arrive after update() has advanced
+    // m_kinematicBoxes to the frame-end pose, and the GPU ticks start from the frame-start pose.
+    std::map<std::string, KinematicBox> m_kinematicBoxesFrameStart;
+    std::map<std::string, KinematicBox> m_kinematicBoxes;
+    uint32_t m_kinematicOverflow = 0;   // movers past MAX_KINEMATIC (last write), counted not dropped silently
+    void writeColliderBuffer();
+    void releaseSlot(uint32_t slot);
     LightSampler          m_lightSampler;  // Phase 4c: baked-light sampler for spawned debris (null = full sky)
     uint32_t              m_activeCount = 0;
     uint32_t              m_highWaterSlot = 0; // highest active slot index + 1 (dispatch range)
@@ -403,6 +561,7 @@ private:
     // Fixed-timestep accumulator: physics runs at exactly FIXED_DT intervals
     // regardless of render frame rate. Prevents speed-up at high FPS.
     static constexpr float FIXED_DT = 1.0f / 60.0f;
+    static_assert(FIXED_DT == DebrisShared::SOLVER_TICK_DT, "the shaders' tick length (6a push cap) must match");
     float    m_timeAccumulator = 0.0f;  // accumulated real time awaiting physics steps
     uint32_t m_physicsTicks    = 0;     // number of physics steps to run this frame
     float    m_lastRealDt      = 0.0f;  // real elapsed time for lifetime drain
@@ -418,6 +577,44 @@ private:
     std::ofstream    m_posLogFile;
     uint32_t         m_posLogFrameCounter    = 0;
 
+    // ---- Settle probe readback ring ----
+    // Per tick: GpuParticle[MAX_PARTICLES] | header uint[PROBE_HDR_UINTS] | color uint[MAX_PARTICLES]
+    //           | constraintCount uint[MAX_PARTICLES]. Only `count` entries of each array are copied.
+    static constexpr uint32_t PROBE_FRAMES     = 2;  // == MAX_FRAMES_IN_FLIGHT
+    static constexpr uint32_t PROBE_MAX_TICKS  = 4;  // == physics tick cap per frame
+    static constexpr uint32_t PROBE_HDR_UINTS  = DebrisShared::HASH_BASE;  // the whole solver-state header
+    static constexpr VkDeviceSize PROBE_PARTICLES_OFF = 0;
+    static constexpr VkDeviceSize PROBE_HDR_OFF   = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
+    static constexpr VkDeviceSize PROBE_COLOR_OFF = PROBE_HDR_OFF + PROBE_HDR_UINTS * sizeof(uint32_t);
+    static constexpr VkDeviceSize PROBE_CCOUNT_OFF = PROBE_COLOR_OFF + static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
+    static constexpr VkDeviceSize PROBE_TICK_STRIDE = PROBE_CCOUNT_OFF + static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
+    struct ProbeSlot {
+        VkBuffer       buffer = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        void*          mapped = nullptr;
+        uint32_t       ticks  = 0;
+        uint32_t       generation = 0;
+        uint32_t       count[PROBE_MAX_TICKS] = {};
+    };
+    ProbeSlot            m_probe[PROBE_FRAMES];
+    bool                 m_probeActive     = false;
+    bool                 m_frozen          = false;
+    uint32_t             m_stepBudget      = 0;
+    uint64_t             m_totalTicks      = 0;
+    uint32_t             m_solverFlags     = SOLVER_FLAGS_DEFAULT;
+    float                m_coldPenaltyScale = 1.0f;
+    // Shared static occupancy (1c): pushed to solver_voxel / solver_hardcontact as `occBox`.
+    DebrisShared::ivec4  m_occBox{0, 0, 0, 0};   // xyz = box min chunk, w bit0 = readable
+    uint32_t             m_frameSlot = 0;         // frame slot being recorded (descriptor set)
+    bool                 m_staticOccWired = false;
+    uint32_t             m_probeGeneration = 0;
+    uint32_t             m_probeFrame      = 0;   // frame-in-flight slot being recorded
+    Core::DebrisSettleAnalyzer m_settle;
+    std::vector<float>   m_materialMassCpu;       // CPU mirror of MaterialPhysicsGpu::mass
+    bool createProbeBuffers();
+    void consumeProbeSlot(uint32_t slot);
+    void recordProbeCopy(VkCommandBuffer cmd, uint32_t count, uint32_t tick);
+
     // ---- Debug timing ring buffer ----
     std::vector<FrameTimingEntry> m_timingRing;
     size_t   m_timingRingHead    = 0;
@@ -432,7 +629,7 @@ private:
     bool createSolverPipelines(const std::string& shaderDir);
     void uploadMatTexTable(Vulkan::VulkanDevice* vulkanDevice, const std::vector<uint32_t>& table);
     void recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt,
-                                  GpuProfiler* profiler, bool instrument);
+                                  GpuProfiler* profiler, bool instrument, uint32_t tick);
 
     static void insertBarrier(VkCommandBuffer cmd,
                               VkPipelineStageFlags src, VkPipelineStageFlags dst,

@@ -1,0 +1,37 @@
+{
+  "id": "quaternius_quadruped",
+  "morphology": "quadruped",
+  "gaitClass": "quadruped_clips",
+  "rootBone": "Back",
+  "hipAliases": ["back", "body"],
+  "gripBone": "Head",
+  "headBone": "Head",
+  "capsule": { "mode": "xz_extent", "minHalfWidth": 0.2, "maxHalfWidth": 1.2 },
+  "legs": [
+    { "id": "front_left",  "upper": "FrontShoulder.L", "mid": "FrontUpperLeg.L", "foot": "FrontLowerLeg.L", "footIK": false },
+    { "id": "front_right", "upper": "FrontShoulder.R", "mid": "FrontUpperLeg.R", "foot": "FrontLowerLeg.R", "footIK": false },
+    { "id": "back_left",   "upper": "BackLeg.L",       "mid": "BackUpperLeg.L",  "foot": "BackLowerLeg.L",  "footIK": false },
+    { "id": "back_right",  "upper": "BackLeg.R",       "mid": "BackUpperLeg.R",  "foot": "BackLowerLeg.R",  "footIK": false }
+  ],
+  "segments": [
+    { "bone": "Head",            "isArm": false },
+    { "bone": "Neck2",           "isArm": false },
+    { "bone": "Torso3",          "isArm": false },
+    { "bone": "Torso2",          "isArm": false },
+    { "bone": "Torso",           "isArm": false },
+    { "bone": "Back",            "isArm": false },
+    { "bone": "FrontUpperLeg.L", "isArm": false },
+    { "bone": "FrontUpperLeg.R", "isArm": false },
+    { "bone": "BackUpperLeg.L",  "isArm": false },
+    { "bone": "BackUpperLeg.R",  "isArm": false }
+  ],
+  "clipDefaults": {
+    "Idle":     "Idle",
+    "Walk":     "Walk",
+    "StartWalk":"Walk",
+    "Run":      "Gallop",
+    "Jump":     "Gallop_Jump",
+    "HitReact": "Idle_HitReact1",
+    "Death":    "Death"
+  }
+}

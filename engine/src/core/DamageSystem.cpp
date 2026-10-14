@@ -3,6 +3,8 @@
 #include "core/ChunkManager.h"
 #include "core/MaterialRegistry.h"
 #include "core/GpuParticlePhysics.h"
+#include "physics/PhysicsWorld.h"
+#include "physics/VoxelDynamicsWorld.h"
 #include "core/CoherentFragmentManager.h"
 #include "core/KinematicVoxelManager.h"
 #include "core/Cube.h"
@@ -12,6 +14,7 @@
 #include "utils/Logger.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <vector>
 #include <deque>
@@ -89,22 +92,52 @@ int DamageSystem::solidVoxelsBetween(const glm::vec3& a, const glm::vec3& b) con
     return solid;
 }
 
-void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float scale,
-                               const std::string& material) {
-    if (!m_gpu) return;
+static std::atomic<uint64_t> s_refusedDebris{0};
+
+uint64_t DamageSystem::refusedDebrisTotal() { return s_refusedDebris.load(std::memory_order_relaxed); }
+
+bool DamageSystem::spawnBreakDebris(GpuParticlePhysics* gpu, const glm::vec3& centre, const glm::vec3& vel,
+                                    float scale, const std::string& material, const glm::vec3& angularVel) {
+    if (!gpu || !gpu->isInitialized()) { s_refusedDebris.fetch_add(1, std::memory_order_relaxed); return false; }
     GpuParticlePhysics::SpawnParams sp;
-    sp.position     = pos;
+    sp.position     = centre;
     sp.velocity     = vel;
-    sp.angularVel   = glm::vec3(frand(-4.0f, 4.0f), frand(-4.0f, 4.0f), frand(-4.0f, 4.0f));
+    sp.angularVel   = angularVel;
     sp.scale        = glm::vec3(scale);
     sp.materialName = material;
     sp.lifetime     = 25.0f;
-    m_gpu->queueSpawn(sp);
+    sp.slice        = debrisSliceFor(centre, scale);
+    gpu->queueSpawn(sp);
+    return true;
+}
+
+uint32_t DamageSystem::debrisSliceFor(const glm::vec3& centre, float scale) {
+    if (scale >= 0.8f) return 0u;                          // full cube: shows the whole face
+    const int n = (scale < 0.2f) ? 9 : 3;                  // micro grid or subcube grid
+    const glm::vec3 rel = centre - glm::floor(centre);     // centre inside its parent cube, [0,1)
+    glm::ivec3 k = glm::ivec3(glm::floor(rel * static_cast<float>(n)));
+    k = glm::clamp(k, glm::ivec3(0), glm::ivec3(n - 1));
+    const glm::ivec3 m = (n == 9) ? k : k * 3;             // micro coords 0..8
+    return static_cast<uint32_t>(m.x * 81 + m.y * 9 + m.z);
+}
+
+void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float scale,
+                               const std::string& material) {
+    spawnBreakDebris(m_gpu, pos, vel, scale, material,
+                     glm::vec3(frand(-4.0f, 4.0f), frand(-4.0f, 4.0f), frand(-4.0f, 4.0f)));
 }
 
 // Forward decl: representative material of a cell, scanning cube -> subcube -> MICROCUBE
 // (defined below). The blast scan needs it to see micro-only leaf cells (U0/F1).
 static std::string cellMaterial(ChunkManager* cm, const glm::ivec3& wp);
+
+float DamageSystem::blastImpulse(float energy) {
+    if (!(energy > 0.0f)) return 0.0f;
+    const auto* ref = Core::MaterialRegistry::instance().getMaterial(IMPULSE_REF_MATERIAL);
+    const float m = (ref && ref->physics.mass > 0.0f) ? ref->physics.mass : 6.0f;   // materials.json Stone
+    const float t = std::max(responseFor(IMPULSE_REF_MATERIAL).toughness, 1.0f);
+    return m * BASE_SPEED * std::sqrt(energy / t);
+}
 
 DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, float energy,
                                        const std::string& /*damageType*/, const glm::vec3& direction,
@@ -359,8 +392,23 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
     auto ms = [](Clock::time_point a, Clock::time_point b) {
         return std::chrono::duration<double, std::milli>(b - a).count();
     };
-    LOG_INFO("DamageSystem", "applyDamage E={} r={} -> broken={} grazed={} debris={}",
-             energy, radius, res.voxelsBroken, res.voxelsGrazed, res.debrisSpawned);
+    // ---- Phase 4: push what already moves. Runs for EVERY blast, including one that breaks
+    // nothing (a spell landing on the ground beside a settled pile - the user report that
+    // started Phase 4). The new debris this blast spawned is not kicked twice: the GPU skips
+    // bodies that have never ticked (spawn age 0), and it carries its own launch velocity.
+    res.impulse       = blastImpulse(energy);
+    res.impulseRadius = std::max(R.x, std::max(R.y, R.z)) * IMPULSE_RADIUS_SCALE;
+    if (m_pushExisting && m_gpu && m_gpu->isInitialized())
+        res.impulseQueued = m_gpu->applyRadialImpulse(center, res.impulseRadius, res.impulse,
+                                                      IMPULSE_UP_BIAS).queued;
+    if (m_pushExisting && m_cm->physicsWorld && m_cm->physicsWorld->getVoxelWorld())
+        res.cpuBodiesPushed = m_cm->physicsWorld->getVoxelWorld()->applyImpulse(
+            center, res.impulseRadius, res.impulse, IMPULSE_UP_BIAS, glm::vec3(0.0f),
+            DebrisShared::IMPULSE_RADIAL);
+
+    LOG_INFO("DamageSystem", "applyDamage E={} r={} -> broken={} grazed={} debris={} push J={} r={} gpu={} cpu={}",
+             energy, radius, res.voxelsBroken, res.voxelsGrazed, res.debrisSpawned,
+             res.impulse, res.impulseRadius, res.impulseQueued, res.cpuBodiesPushed);
     // Per-phase timing (DEBUG): break-loop scans/breaks/spawns, collapse floods the
     // severed groups, remesh is the single batched chunk rebuild. Watch this if a
     // big op ever starts spiking again.

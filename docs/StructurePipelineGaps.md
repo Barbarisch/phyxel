@@ -430,6 +430,34 @@ Two API traps found while chasing it: `set_day_night`'s `time` param and a `/api
 both leave `timeOfDay` pinned at 12.0, and *enabling* day/night resets ambient to 1.0 — so lower
 ambient only sticks with day/night disabled.
 
+## 2026-09-29 - NOT REPRODUCED: the tabled "unposed beyond ~5-7u" imported-rig defect (A2 probe, 1-day timebox)
+
+Probe run as the A2 render step of `docs/AnimationSystemV3Plan.md` §4. **Method (all L4, Release,
+CharacterTestbed, camera free at (8,23,33)/(8,22,33)):** one `bear_meshy` NPC at 10.9 u and 12.6 u,
+then TWELVE `bear_meshy` idle NPCs in two rows spanning **11-23 u** from the camera, then one moved
+to **~40 u** (beyond the LOD-1 threshold of 35 u). `get_render_stats.characters`: considered 15,
+drawn_main 12, **dropped 0**, parts_batched 32,973. **Every bear rendered horizontal and posed
+(idle) at every distance** — screenshots `screenshots/screenshot_20260929_2210{19,110}*.png`,
+`..._221232_047.png`. The 2026-08-26 symptom (coherent vertical raw-GLB-frame body past ~5-7 u)
+did not appear once.
+
+**What the read of the draw path established** (`RenderCoordinator::buildCharacterFrameData`
+:4641-4900, `getCharacterBlob` :4550, `LodService::characterLodLevel`, `character_instanced.vert`):
+the only per-character camera-distance branch is the part-count LOD (`lodForDistanceSq`, 35/80 u,
+squared correctly); bone matrices for BOTH LOD levels come from the same `first.worldPos/worldRot`
+of each bone group; the shader indexes `boneModels[pushConsts.boneBase + inBoneIndex]` with a
+per-draw push constant. **Nothing in that path can produce a 5-7 u threshold.** One thing that
+COULD masquerade as one: `candidates` is sorted by camera distance before the bone/instance
+buffers are filled, so any failure keyed on ORDER (the N-th character, a buffer offset, a
+per-frame budget) presents as "the near ones are fine, the far ones are broken" — which is what
+the Hall session saw with 12 identical bears and never separated from distance. If the defect
+recurs, test THAT first: two bears at equal distance, then swap their spawn order.
+
+**Status:** falsified on today's tree at 12 instances / 11-40 u; the code between 2026-08-26 and
+now (camera-relative rendering, the CityBench frames-in-flight fixes) may have removed it, or it
+needs the Hall's 46-rig load. A6 re-runs this probe under `bestiary_stage` with the order test
+above. Not blocking A2.
+
 ## 2026-08-26 - TABLED: imported-rig characters render UNPOSED (vertical) beyond ~5-7u
 
 User-visible: Meshy/Quaternius-class rigs in the hall look "really fucked up" — the bear rears
@@ -920,3 +948,111 @@ repo root creates it, so the test fails for anyone who has run the engine there.
 with `cache/textures` moved aside the test passes; restored afterwards. Fix belongs to the test
 (or `getAtlasInfo` on the cached path), not to any feature; not fixed here.
 
+## 2026-09-25 — Standalone (packaged) games do NOT stream terrain; the editor anchors streaming on the CAMERA
+
+Found while validating the city-benchmark tooling (`docs/PerfProgram2026-09.md` §16, V4). Code search,
+not yet an L4 run of a packaged game:
+- **Only the editor pumps streaming.** `updateChunkStreaming()` / `pumpChunkLanding()` are called from
+  exactly one place, `Application.cpp:4263-4264` (editor loop). Nothing in `engine/src` (EngineRuntime,
+  GameShell), `examples/`, the project scaffold (`tools/create_project.py`) or any game project under
+  `Documents/PhyxelProjects` calls them. So a `world.streaming: true` game, run as the shipped
+  standalone, generates its up-front range and never streams beyond it.
+- **`playerPosition` is the camera in the editor.** `Application.cpp:4245`
+  `chunkManager->setPlayerPosition(camera->getPosition())`, every frame, despite `ChunkManager`'s
+  comments calling it the player. Nothing sets it in the standalone at all.
+- Fix direction: move the streaming pump (and the anchor update: the player character if one exists,
+  else the camera) into `EngineRuntime`'s frame so both hosts share it — the same defect family as audio
+  listener updates living only in the editor loop (`EngineRuntime::endFrame` comment). Needs a red L4
+  test on a packaged streaming game (walk past the up-front range; assert new chunks become resident).
+- Workaround in the benchmark: measure in the editor host; the standalone `--test` follow-up is blocked
+  on this for streaming worlds.
+
+## 2026-09-26 — Generated buildings came back UNLIT after a reload (FIXED on the editor path; scene transitions still open)
+
+Found by the city-benchmark persistence check (`docs/PerfProgram2026-09.md` §16.1): CityBench C-25
+registered **67 fixture lights at build and 0 after a relaunch** (placed objects 526 = 526, residents
+29 = 29). `place_lights` registered LightManager lights, which are memory-only, and nothing
+re-registered them on load (the forge comment even said so: "recorded, not faked").
+- **Fixed:** the build now records every light it registers on the STRUCTURE's placed object
+  (metadata `lights`: position, colour, intensity, radius, type; hearths have no fixture object of
+  their own), and `Application::initialize` re-registers them after `loadFromDb` via
+  `StructureBuildService::restoreLights`. Pinned by `StructureLightPersistenceTest` (save, load into a
+  fresh registry, restore: exact parameters; refused/malformed counted, never guessed).
+- **Worlds built before this fix have no records** and stay unlit until rebuilt.
+- **Still open — scene transitions:** `SceneManager.cpp:360` reloads the placed-object registry but
+  has no light hook (core cannot reach LightManager) and does not call
+  `ItemPropManager::rebuildFromPlacedObjects` either, so a scene entered by transition loses both its
+  structure lights AND its item props. The old scene's fixture lights are not torn down on exit
+  either. Fix direction: one shared "placed-object world load" routine (registry, interaction points,
+  item props, lights) that every load path calls, with the light hook in `GameSubsystems`.
+- **Teardown (fixed the same day):** removing a structure did not remove its lights; in C-25 one
+  house replaced by an overlapping later build left **7 ghost lights burning over empty ground**
+  (67 fixture lights at build, only 60 on surviving buildings). Records now carry the session light
+  id; `PlacedObjectManager`'s pre-remove callback passes the object and the editor removes its
+  recorded lights; `restoreLights` rewrites ids after a load.
+
+## 2026-09-26 — Trees cleared by a build GROW BACK after a reload (a chunk saved EMPTY loads as "not saved")
+
+Found by the city-benchmark persistence check. Every CityBench rung reloads with MORE sub/micro voxels
+than it was built with (C-25 +2,075 sub / +7,644 micro, C-50 +8,152 / +24,640, C-75 +6,959 / +21,431 in
+the chunks resident both times); the reloaded state is then stable across further reloads. Located with
+`GET /api/world/chunks?detail=1` (C-75, `docs/evidence/perf2026-09/p1c/chunk_diff.py`): all of it is in
+chunks at roof/canopy height (world y 64-95) that were EMPTY at build time and full after reload.
+- **Mechanism (code + DB verified):** the vegetation gate clears tree canopy there, the chunk becomes
+  empty, it is saved dirty as an EMPTY blob row (confirmed in the C-75 DB: `chunk_blobs` rows with
+  0/0/0 counts). `WorldStorage::loadChunkFromBlob` returns `found && (cubes+subs+micros) > 0`
+  ("match v1 semantics"), so an empty saved chunk reads as NOT SAVED; the streaming worker then
+  regenerates it from the generator, flora included. Any edit that empties a chunk (felling every
+  tree in an air chunk, a build's vegetation gate) is undone on reload.
+- **Why it is not a one-line fix:** `ChunkManager::ensureChunkAt` creates chunks EMPTY
+  (`createChunk(origin, false)`, "for placement") even in streaming worlds, shadowing the terrain the
+  generator would have made (seen in the C-50 build at y=0/32 chunk depth). Today an empty-saved
+  placement chunk is masked by the regenerate-on-empty rule; making empty rows authoritative ALONE
+  would turn those into permanent holes. Fix both together: (1) ensureChunkAt in a world with a
+  generator loads or GENERATES the missing chunk; (2) a found+decoded blob row is authoritative even
+  when empty. Red tests: save an emptied chunk, reload, assert empty (fails today); place into an
+  unloaded streaming chunk, assert the generator's terrain is present (fails today).
+- Benchmark impact: small (0.2-0.4% of sub/micro), and the reloaded state is stable, so each rung's
+  REFERENCE fingerprint is the reload fingerprint.
+
+## 2026-09-26 — CityForge plans OVERLAPPING lots; the later build silently replaces the earlier house
+
+Same C-25 build (seed 7, 96×96, density 1.5): **26 buildings queued, 25 exist.** The log shows
+`removing overlapping structure 'house_7' before rebuild (no stacking)`: house_7 bbox
+(8,52,2)-(16,60,19) and house_8 bbox (15,51,2)-(22,55,11) overlap at x 15-16. The forge's
+no-stacking rule (`StructureForge::stageFootprint`) is right for a user rebuilding in place, but
+inside ONE settlement build it means the planner handed out colliding lots and the job reports
+success with one building fewer, silently. Fix direction: the settlement planner must reserve
+realized footprints (a building can grow past its planned lot: house_7 is 17 deep), and a settlement
+unit must refuse to remove a structure the SAME job built (surface it as a lot failure instead).
+Not fixed here (city benchmark measures what the generator produces; this is recorded, not patched).
+
+
+## 2026-09-30 - `armchair` (structure_pipeline.furniture) has no seat: no `# interaction_point:` header, so the v2 sidecar has zero points and every sit is refused deny-on-missing
+
+**Found during** A4 step 4 (seated solve): looking for a shipped seat WITH armrests to demo the
+armrest hand-rest + backrest lean live. `resources/templates/furniture/armchair.voxel` is authored by
+the structure pipeline's furniture generator (`method: structure_pipeline.furniture`, 175 microcubes),
+not by `tools/regen_furniture.py`, and carries no `# interaction_point:` line. The characterizer only
+characterizes declared points, so `armchair.metrics.json` is `asset_metrics.v2` with
+`interaction_points: []` - `find_fitting_seat` never offers it and `sit_character` refuses it
+(correctly: deny-on-missing). The one shipped seat that would exercise A4's armrest path is therefore
+not a seat at all to the engine.
+
+**Fix direction:** the furniture generator (or `asset_index.py --validate`) should emit the seat
+line for any asset in the seat category; add a lint "furniture in `seats` without an
+`interaction_point`". Until then the armrest path is pinned only headlessly
+(`SeatSolveTest.BackrestLeanAndArmrestsAreAppliedOnlyWhenTheSeatHasThem`).
+
+## 2026-09-30 - OBSERVATION (unverified): the halfling preset's standing foot joint sits ~0.32 u above the floor in the FloorWorld rig
+
+**Seen in** `SeatMatrixStressTest` (A4): the standing ankle-joint height above the floor is 0.113 u
+(standard), 0.133 u (goliath) but **0.319 u (halfling, heightScale 0.57 / legLengthScale 0.72)** -
+a body 0.90 u tall with its ankle a third of the way up. The seated solve puts the halfling's ankle at
+floor + 0.08 (the guard rejects an ankle height >= 0.3 and falls back to the unscaled default), so
+the SEATED pose is right; the STANDING reference is the anomaly. Live (CharacterTestbed, halfling
+NPC at y=17.0) the segment boxes are too small (half 0.04) to confirm a float from the API alone and
+the screenshot is not conclusive in tall grass. Hypothesis: the model-to-capsule foot offset follows
+`heightScale` but not `legLengthScale`. **Not chased in A4** - the matrix test judges feet against the
+floor band instead of the standing reference because of this. Worth one FloorWorld test: standing
+sole height vs `worldPosition.y` per preset.

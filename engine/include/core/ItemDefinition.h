@@ -173,6 +173,13 @@ struct HeldItemInfo {
     glm::vec3 gripEulerDeg{0.0f};
     float scale = 1.0f;                  // uniform scale applied to the held template
 
+    // A3: optional SECOND grip point for two-handed carries, in the item's TEMPLATE frame
+    // (units, same frame as the manifest's grip_point_units). Derived by
+    // tools/items_second_grip.py from the grip point + shaft; never hand-typed. The runtime
+    // IK-pins the off-hand to `itemTransform * secondGrip` when the grip class is two-handed.
+    bool hasSecondGrip = false;
+    glm::vec3 secondGrip{0.0f};
+
     // Optional held light (torch, lantern)
     glm::vec3 lightColor{1.0f, 0.8f, 0.5f};
     float lightIntensity = 0.0f;         // 0 = no light
@@ -186,6 +193,7 @@ struct HeldItemInfo {
         j["gripOffset"] = {gripOffset.x, gripOffset.y, gripOffset.z};
         j["gripEulerDeg"] = {gripEulerDeg.x, gripEulerDeg.y, gripEulerDeg.z};
         j["scale"] = scale;
+        if (hasSecondGrip) j["secondGrip"] = {secondGrip.x, secondGrip.y, secondGrip.z};
         if (hasLight()) {
             j["light"] = {
                 {"color", {lightColor.r, lightColor.g, lightColor.b}},
@@ -207,6 +215,10 @@ struct HeldItemInfo {
         h.gripOffset = vec3("gripOffset", h.gripOffset);
         h.gripEulerDeg = vec3("gripEulerDeg", h.gripEulerDeg);
         h.scale = j.value("scale", 1.0f);
+        if (j.contains("secondGrip") && j["secondGrip"].is_array() && j["secondGrip"].size() == 3) {
+            h.hasSecondGrip = true;
+            h.secondGrip = vec3("secondGrip", glm::vec3(0.0f));
+        }
         if (j.contains("light")) {
             const auto& l = j["light"];
             if (l.contains("color") && l["color"].is_array() && l["color"].size() == 3)

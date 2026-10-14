@@ -64,6 +64,10 @@ struct SettlementTierPreset {
 
     int buildingsMin = 3;
     int buildingsMax = 8;
+    /// Site size (cells) the building range was tuned and verified on (JSON "reference_site").
+    /// 0 = none: the range is absolute. See scaleForSite().
+    int referenceSiteW = 0;
+    int referenceSiteD = 0;
 
     StreetSpec  street;
     PlotSpec    plot;
@@ -107,6 +111,13 @@ struct SettlementTierPreset {
 /// preset UNCHANGED (identity — legacy calls stay byte-compatible). Bounded so no scaled value
 /// can break a layout invariant (blocks >= 8, plot depth >= 6, side gap >= 0, fraction 0..1).
 SettlementTierPreset applyDensity(const SettlementTierPreset& t, double density);
+
+/// Grow the building cap with the SITE: a tier's buildings.max is tuned on its reference site, so a
+/// larger site allows proportionally more (max x site area / reference area). Scale-UP only: a site at
+/// or below the reference keeps the tier exactly as tuned. Without it the cap was a fixed ceiling, so
+/// a 192x192 city stopped at the same 72 buildings as a 160x160 one (PerfProgram 2026-09 section 16).
+/// Bounded at 400, the same bound applyDensity uses. Identity when the tier has no reference site.
+SettlementTierPreset scaleForSite(const SettlementTierPreset& t, int siteW, int siteD);
 
 class SettlementProgramRegistry {
 public:

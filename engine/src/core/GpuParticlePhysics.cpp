@@ -7,7 +7,9 @@
 #include "utils/GpuProfiler.h"
 #include <glm/gtc/quaternion.hpp>
 #include <cstring>
+#include <cmath>
 #include <algorithm>
+#include <functional>
 #include <stdexcept>
 #include <random>
 
@@ -29,10 +31,15 @@ uint32_t GpuParticlePhysics::materialNameToIndex(const std::string& name) {
 
 GpuParticlePhysics::GpuParticlePhysics() {
     m_slots.resize(MAX_PARTICLES);
+    m_slotSerial.assign(MAX_PARTICLES, 0u);
     m_freeSlots.reserve(MAX_PARTICLES);
-    for (uint32_t i = MAX_PARTICLES; i > 0; --i) {
-        m_freeSlots.push_back(i - 1); // push in reverse so slot 0 is popped first
-    }
+    for (uint32_t i = 0; i < MAX_PARTICLES; ++i) m_freeSlots.push_back(i);
+    std::make_heap(m_freeSlots.begin(), m_freeSlots.end(), std::greater<uint32_t>());
+}
+
+void GpuParticlePhysics::releaseSlot(uint32_t slot) {
+    m_freeSlots.push_back(slot);
+    std::push_heap(m_freeSlots.begin(), m_freeSlots.end(), std::greater<uint32_t>());
 }
 
 GpuParticlePhysics::~GpuParticlePhysics() {
@@ -84,12 +91,6 @@ bool GpuParticlePhysics::initialize(Vulkan::VulkanDevice* vulkanDevice, const st
         vkFreeMemory(m_device, stageMem, nullptr);
     }
 
-    // Initialize occupancy grid: all zeros (empty world)
-    memset(m_occupancyMapped, 0, static_cast<size_t>(OCC_TOTAL_WORDS) * sizeof(uint32_t));
-
-    // Initialize character collider: disabled (active = 0)
-    memset(m_characterMapped, 0, sizeof(CharacterCollider));
-
     m_initialized = true;
     LOG_INFO_FMT("GpuParticlePhysics", "Initialized: MAX_PARTICLES=" << MAX_PARTICLES
         << " particleBuffer=" << (MAX_PARTICLES * sizeof(GpuParticle) / 1024) << "KB"
@@ -105,7 +106,8 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
     // 1. Particle SSBO (device-local)
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle),
-        m_particleBuffer, m_particleMem);
+        m_particleBuffer, m_particleMem,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT); // position-log + settle-probe readback copies
 
     // 2. Face output buffer (device-local, also bound as vertex buffer)
     dev->createStorageBuffer(
@@ -158,21 +160,21 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         }
     }
 
-    // 5. 3D occupancy bitfield (host-coherent, persistent map)
-    //    512×256×512 bits = 2,097,152 uint32 words = 8 MB
-    {
-        VkDeviceSize occSize = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
+    // 6b. Kinematic (mover) boxes (host-coherent SSBO, persistent map, one per frame slot), Phase 2
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize kinSize = static_cast<VkDeviceSize>(DebrisShared::MAX_KINEMATIC) *
+                                     sizeof(DebrisShared::KinematicBoxGpu);
         VkBufferCreateInfo bi{};
         bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bi.size        = occSize;
+        bi.size        = kinSize;
         bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
         bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        if (vkCreateBuffer(m_device, &bi, nullptr, &m_occupancyBuffer) != VK_SUCCESS) {
-            LOG_ERROR("GpuParticlePhysics", "Failed to create occupancy buffer");
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_kinematicBoxBuffer[slot]) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create kinematic box buffer");
             return false;
         }
         VkMemoryRequirements req;
-        vkGetBufferMemoryRequirements(m_device, m_occupancyBuffer, &req);
+        vkGetBufferMemoryRequirements(m_device, m_kinematicBoxBuffer[slot], &req);
         VkMemoryAllocateInfo ai{};
         ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         ai.allocationSize = req.size;
@@ -187,60 +189,101 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
                 memType = j; break;
             }
         }
-        if (memType == UINT32_MAX) {
-            LOG_ERROR("GpuParticlePhysics", "No host-coherent memory for occupancy buffer");
-            return false;
-        }
         ai.memoryTypeIndex = memType;
-        if (vkAllocateMemory(m_device, &ai, nullptr, &m_occupancyMem) != VK_SUCCESS ||
-            vkBindBufferMemory(m_device, m_occupancyBuffer, m_occupancyMem, 0) != VK_SUCCESS ||
-            vkMapMemory(m_device, m_occupancyMem, 0, occSize, 0, &m_occupancyMapped) != VK_SUCCESS) {
-            LOG_ERROR("GpuParticlePhysics", "Failed to create/map occupancy buffer");
+        if (memType == UINT32_MAX ||
+            vkAllocateMemory(m_device, &ai, nullptr, &m_kinematicBoxMem[slot]) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot], 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, m_kinematicBoxMem[slot], 0, kinSize, 0, &m_kinematicBoxMapped[slot]) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create/map kinematic box buffer");
             return false;
         }
+        std::memset(m_kinematicBoxMapped[slot], 0, static_cast<size_t>(kinSize));
     }
 
-    // 6. Character collider AABB (host-coherent SSBO, persistent map, 48 bytes)
-    {
-        VkDeviceSize charSize = static_cast<VkDeviceSize>(sizeof(CharacterCollider));
+    // 6c. Impulses (host-coherent SSBO, persistent map, one per frame slot), Phase 4
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize impSize = static_cast<VkDeviceSize>(DebrisShared::MAX_IMPULSES) *
+                                     sizeof(DebrisShared::ImpulseGpu);
         VkBufferCreateInfo bi{};
         bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bi.size        = charSize;
+        bi.size        = impSize;
         bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
         bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        if (vkCreateBuffer(m_device, &bi, nullptr, &m_characterBuffer) != VK_SUCCESS) {
-            LOG_ERROR("GpuParticlePhysics", "Failed to create character buffer");
-            return false;
+        VkMemoryRequirements req{};
+        uint32_t memType = UINT32_MAX;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_impulseBuffer[slot]) == VK_SUCCESS) {
+            vkGetBufferMemoryRequirements(m_device, m_impulseBuffer[slot], &req);
+            VkPhysicalDeviceMemoryProperties props;
+            vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+            const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            for (uint32_t j = 0; j < props.memoryTypeCount; ++j)
+                if ((req.memoryTypeBits & (1u << j)) && (props.memoryTypes[j].propertyFlags & want) == want) { memType = j; break; }
         }
-        VkMemoryRequirements req;
-        vkGetBufferMemoryRequirements(m_device, m_characterBuffer, &req);
         VkMemoryAllocateInfo ai{};
         ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        ai.allocationSize = req.size;
-        VkPhysicalDeviceMemoryProperties props;
-        vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
-        uint32_t memType = UINT32_MAX;
-        for (uint32_t j = 0; j < props.memoryTypeCount; ++j) {
-            if ((req.memoryTypeBits & (1u << j)) &&
-                ((props.memoryTypes[j].propertyFlags &
-                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
-                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
-                memType = j; break;
-            }
-        }
-        if (memType == UINT32_MAX) {
-            LOG_ERROR("GpuParticlePhysics", "No host-coherent memory for character buffer");
-            return false;
-        }
+        ai.allocationSize  = req.size;
         ai.memoryTypeIndex = memType;
-        if (vkAllocateMemory(m_device, &ai, nullptr, &m_characterMem) != VK_SUCCESS ||
-            vkBindBufferMemory(m_device, m_characterBuffer, m_characterMem, 0) != VK_SUCCESS ||
-            vkMapMemory(m_device, m_characterMem, 0, charSize, 0, &m_characterMapped) != VK_SUCCESS) {
-            LOG_ERROR("GpuParticlePhysics", "Failed to create/map character buffer");
+        if (m_impulseBuffer[slot] == VK_NULL_HANDLE || memType == UINT32_MAX ||
+            vkAllocateMemory(m_device, &ai, nullptr, &m_impulseMem[slot]) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, m_impulseBuffer[slot], m_impulseMem[slot], 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, m_impulseMem[slot], 0, impSize, 0, &m_impulseMapped[slot]) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create/map impulse buffer");
             return false;
         }
-        // Initialize to inactive
-        std::memset(m_characterMapped, 0, sizeof(CharacterCollider));
+        std::memset(m_impulseMapped[slot], 0, static_cast<size_t>(impSize));
+    }
+
+    // 6e. Water directory + tile pool (host-coherent SSBOs, persistent map, one per frame slot), 6c
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize dirBytes  = static_cast<VkDeviceSize>(DebrisShared::WATER_DIR_CHUNKS) *
+                                       DebrisShared::WATER_DIR_CHUNKS * sizeof(uint32_t);
+        const VkDeviceSize tileBytes = static_cast<VkDeviceSize>(DebrisShared::WATER_MAX_TILES) *
+                                       DebrisShared::WATER_TILE_CELLS * DebrisShared::WATER_TILE_CELLS *
+                                       2u * sizeof(uint32_t);
+        if (!createHostBuffer(dirBytes, m_waterDirBuffer[slot], m_waterDirMem[slot], m_waterDirMapped[slot], "water directory") ||
+            !createHostBuffer(tileBytes, m_waterTileBuffer[slot], m_waterTileMem[slot], m_waterTileMapped[slot], "water tiles"))
+            return false;
+        std::memset(m_waterDirMapped[slot], 0xFF, static_cast<size_t>(dirBytes));   // all WATER_TILE_NONE
+    }
+
+    // 6f. Mover push-back accumulator (host-coherent, one per frame slot), Phase 6a
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (!createHostBuffer(static_cast<VkDeviceSize>(DebrisShared::MAX_KINEMATIC) * 4u * sizeof(int32_t),
+                              m_pushBuffer[slot], m_pushMem[slot], m_pushMapped[slot], "mover push-back"))
+            return false;
+
+    // 6d. Debris event readback (host-coherent SSBO, persistent map, one per frame slot), Phase 6
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize evSize = static_cast<VkDeviceSize>(DebrisShared::EVENT_HEADER_UINTS) * 4u +
+                                    static_cast<VkDeviceSize>(DebrisShared::MAX_DEBRIS_EVENTS) *
+                                    sizeof(DebrisShared::DebrisEventGpu);
+        VkBufferCreateInfo bi{};
+        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size        = evSize;
+        bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VkMemoryRequirements req{};
+        uint32_t memType = UINT32_MAX;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_eventBuffer[slot]) == VK_SUCCESS) {
+            vkGetBufferMemoryRequirements(m_device, m_eventBuffer[slot], &req);
+            VkPhysicalDeviceMemoryProperties props;
+            vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+            const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            for (uint32_t j = 0; j < props.memoryTypeCount; ++j)
+                if ((req.memoryTypeBits & (1u << j)) && (props.memoryTypes[j].propertyFlags & want) == want) { memType = j; break; }
+        }
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize  = req.size;
+        ai.memoryTypeIndex = memType;
+        if (m_eventBuffer[slot] == VK_NULL_HANDLE || memType == UINT32_MAX ||
+            vkAllocateMemory(m_device, &ai, nullptr, &m_eventMem[slot]) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, m_eventBuffer[slot], m_eventMem[slot], 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, m_eventMem[slot], 0, evSize, 0, &m_eventMapped[slot]) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create/map debris event buffer");
+            return false;
+        }
+        std::memset(m_eventMapped[slot], 0, static_cast<size_t>(evSize));
     }
 
     // 7. Material physics properties (host-coherent SSBO, 32 bytes × material count)
@@ -412,21 +455,27 @@ bool GpuParticlePhysics::initMaterialPhysicsTable() {
             const auto& mp = reg.getPhysics(name);
             gpu.mass            = mp.mass;
             gpu.restitution     = mp.restitution;
-            gpu.friction        = std::max(0.0f, 1.0f - mp.friction * 0.36f);
+            // Coulomb mu for the AVBD friction cone (solver_dual/primal). The old mapping
+            // (1 - f*0.36) was the dead legacy shader's velocity-RETENTION factor and inverted
+            // friction under AVBD: Ice 0.96 (grippy), Stone 0.71.
+            gpu.friction        = std::max(0.0f, mp.friction);
             gpu.linearDamp      = std::max(0.9f, 1.0f - mp.linearDamping * 0.05f);
             gpu.angularDamp     = std::max(0.97f, 1.0f - mp.angularDamping * 0.03f);
             gpu.breakForceScale = mp.breakForceMultiplier;
+            gpu.buoyancy        = std::max(0.0f, mp.buoyancy);
         } else {
             gpu.mass            = 1.0f;
             gpu.restitution     = 0.3f;
-            gpu.friction        = 0.82f;
+            gpu.friction        = 0.5f;
             gpu.linearDamp      = 0.995f;
             gpu.angularDamp     = 0.97f;
             gpu.breakForceScale = 1.0f;
+            gpu.buoyancy        = Core::MaterialPhysics{}.buoyancy;
         }
-        gpu.pad0 = 0.0f;
         gpu.pad1 = 0.0f;
         dst[i] = gpu;
+        if (m_materialMassCpu.size() <= static_cast<size_t>(i)) m_materialMassCpu.resize(i + 1, 1.0f);
+        m_materialMassCpu[i] = gpu.mass;
 
         LOG_DEBUG_FMT("GpuParticlePhysics", "Material[" << i << "] " << name
             << ": mass=" << gpu.mass << " rest=" << gpu.restitution
@@ -446,47 +495,23 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
         return Core::AssetManager::instance().resolveShader(name);
     };
 
-    // Push constant sizes (must match the shader PC blocks)
-    struct IntegratePC  { float dt; float gravity; uint32_t count; float sleepThreshSq; float lifetimeDt; };
-    struct CollidePC    { uint32_t count; float dt; float sleepThreshSq; float gravity; uint32_t iteration; };
-    struct ExpandPC     { uint32_t count; uint32_t maxFaceSlots; float interpAlpha; };
-    struct GridClearPC  { uint32_t cellCount; };
-    struct GridBuildPC  { uint32_t count; };
-    struct SortScanPC   { uint32_t cellCount; };
-    struct SortScatterPC{ uint32_t count; };
+    // Push-constant layouts: ONE definition each, shared with the shaders (solver_shared.h).
+    using namespace DebrisShared;
 
     // grid clear: binding 0 = gridCellCount (rw)
     if (!m_gridClearPass.create(m_device, shader("particle_grid_clear.comp.spv"),
-                                 1, sizeof(GridClearPC)))
+                                 1, sizeof(GridCellsPC)))
         return false;
 
     // grid build: binding 0 = particles (ro), binding 1 = gridCellCount (rw)
     if (!m_gridBuildPass.create(m_device, shader("particle_grid_build.comp.spv"),
-                                 2, sizeof(GridBuildPC)))
-        return false;
-
-    // sort scan: binding 0 = gridCellCount (ro), binding 1 = gridCellOffset (rw)
-    if (!m_sortScanPass.create(m_device, shader("particle_sort_scan.comp.spv"),
-                                2, sizeof(SortScanPC)))
+                                 2, sizeof(GridCountPC)))
         return false;
 
     // sort scatter: binding 0 = particles (ro), binding 1 = gridCellOffset (rw atomic),
     //               binding 2 = sortedParticles (wo), binding 3 = sortedIndices (wo)
     if (!m_sortScatterPass.create(m_device, shader("particle_sort_scatter.comp.spv"),
-                                   4, sizeof(SortScatterPC)))
-        return false;
-
-    // integrate: binding 0 = particles (rw), binding 1 = material physics (ro)
-    if (!m_integratePass.create(m_device, shader("particle_integrate.comp.spv"),
-                                 2, sizeof(IntegratePC)))
-        return false;
-
-    // collide: binding 0 = particles (rw), binding 1 = occupancy grid (ro),
-    //          binding 2 = character AABB (ro), binding 3 = material physics (ro),
-    //          binding 4 = gridCellCount (ro), binding 5 = gridCellOffset (ro),
-    //          binding 6 = sortedParticles (ro), binding 7 = sortedIndices (ro)
-    if (!m_collidePass.create(m_device, shader("particle_collide.comp.spv"),
-                               8, sizeof(CollidePC)))
+                                   4, sizeof(GridCountPC)))
         return false;
 
     // expand: binding 0 = particles (ro), binding 1 = matTexTable (ro),
@@ -498,10 +523,8 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     // Wire buffers to each pipeline's descriptor set
     VkDeviceSize particleSize      = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
     VkDeviceSize faceSize          = static_cast<VkDeviceSize>(MAX_FACE_SLOTS) * 64;
-    VkDeviceSize occSize           = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
     uint32_t     matCount          = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
     uint32_t     matTableSize      = matCount * 6 * sizeof(uint32_t);
-    VkDeviceSize matPhysSize       = static_cast<VkDeviceSize>(matCount) * sizeof(MaterialPhysicsGpu);
     VkDeviceSize gridCellSize      = static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t);
     VkDeviceSize sortedParticleSize= static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
     VkDeviceSize sortedIndexSize   = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
@@ -513,10 +536,6 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     m_gridBuildPass.bindBuffer(1, m_gridCellCountBuffer, gridCellSize);
     m_gridBuildPass.updateDescriptors();
 
-    m_sortScanPass.bindBuffer(0, m_gridCellCountBuffer,  gridCellSize);
-    m_sortScanPass.bindBuffer(1, m_gridCellOffsetBuffer, gridCellSize);
-    m_sortScanPass.updateDescriptors();
-
     m_sortScatterPass.bindBuffer(0, m_particleBuffer,       particleSize);
     m_sortScatterPass.bindBuffer(1, m_gridCellOffsetBuffer, gridCellSize);
     m_sortScatterPass.bindBuffer(2, m_sortedParticleBuffer, sortedParticleSize);
@@ -526,37 +545,23 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     // Parallel prefix-sum passes — replace the serial sort scan in the live AVBD
     // pipeline: block scan -> block-sum scan -> add block offsets.
     VkDeviceSize scanBlockSumsSize = static_cast<VkDeviceSize>(SCAN_BLOCKS) * sizeof(uint32_t);
-    if (!m_scanBlockPass.create(m_device, shader("particle_scan_block.comp.spv"), 3, sizeof(SortScanPC)))
+    if (!m_scanBlockPass.create(m_device, shader("particle_scan_block.comp.spv"), 3, sizeof(GridCellsPC)))
         return false;
     m_scanBlockPass.bindBuffer(0, m_gridCellCountBuffer,  gridCellSize);
     m_scanBlockPass.bindBuffer(1, m_gridCellOffsetBuffer, gridCellSize);
     m_scanBlockPass.bindBuffer(2, m_scanBlockSumsBuffer,  scanBlockSumsSize);
     m_scanBlockPass.updateDescriptors();
 
-    if (!m_scanBlockSumsPass.create(m_device, shader("particle_scan_blocksums.comp.spv"), 1, sizeof(SortScanPC)))
+    if (!m_scanBlockSumsPass.create(m_device, shader("particle_scan_blocksums.comp.spv"), 1, sizeof(ScanBlocksPC)))
         return false;
     m_scanBlockSumsPass.bindBuffer(0, m_scanBlockSumsBuffer, scanBlockSumsSize);
     m_scanBlockSumsPass.updateDescriptors();
 
-    if (!m_scanAddPass.create(m_device, shader("particle_scan_add.comp.spv"), 2, sizeof(SortScanPC)))
+    if (!m_scanAddPass.create(m_device, shader("particle_scan_add.comp.spv"), 2, sizeof(GridCellsPC)))
         return false;
     m_scanAddPass.bindBuffer(0, m_gridCellOffsetBuffer, gridCellSize);
     m_scanAddPass.bindBuffer(1, m_scanBlockSumsBuffer,  scanBlockSumsSize);
     m_scanAddPass.updateDescriptors();
-
-    m_integratePass.bindBuffer(0, m_particleBuffer,    particleSize);
-    m_integratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
-    m_integratePass.updateDescriptors();
-
-    m_collidePass.bindBuffer(0, m_particleBuffer,       particleSize);
-    m_collidePass.bindBuffer(1, m_occupancyBuffer,      occSize);
-    m_collidePass.bindBuffer(2, m_characterBuffer,      static_cast<VkDeviceSize>(sizeof(CharacterCollider)));
-    m_collidePass.bindBuffer(3, m_materialPhysBuffer,   matPhysSize);
-    m_collidePass.bindBuffer(4, m_gridCellCountBuffer,  gridCellSize);
-    m_collidePass.bindBuffer(5, m_gridCellOffsetBuffer, gridCellSize);
-    m_collidePass.bindBuffer(6, m_sortedParticleBuffer, sortedParticleSize);
-    m_collidePass.bindBuffer(7, m_sortedIndexBuffer,    sortedIndexSize);
-    m_collidePass.updateDescriptors();
 
     m_expandPass.bindBuffer(0, m_particleBuffer,     particleSize);
     m_expandPass.bindBuffer(1, m_matTexBuffer,       matTableSize);
@@ -574,7 +579,7 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
 bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
     // SolverBody: 208 bytes per particle (AVBD primal solver fields)
     dev->createStorageBuffer(
-        static_cast<VkDeviceSize>(MAX_PARTICLES) * 208,
+        static_cast<VkDeviceSize>(MAX_PARTICLES + DebrisShared::MAX_KINEMATIC) * 208,   // + mover slots (Phase 2)
         m_solverBodyBuffer, m_solverBodyMem);
 
     // Constraints: 128 bytes each (AVBD + warmstart fields: featureKey, wsKey, isNew, stick, C_init_t1/2)
@@ -585,7 +590,8 @@ bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
     // Solver state: counters (HASH_BASE uints) + open-addressed hash table (HASH_CAP uints).
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(SOLVER_STATE_UINTS) * sizeof(uint32_t),
-        m_solverStateBuffer, m_solverStateMem);
+        m_solverStateBuffer, m_solverStateMem,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT); // settle-probe header readback
 
     // Warmstart entries: HASH_CAP × 64 bytes. Indexed by hashInsert(wsKey).
     dev->createStorageBuffer(
@@ -595,11 +601,13 @@ bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
     // Body color buffer (one uint per body for Jones-Plassmann coloring)
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
-        m_bodyColorBuffer, m_bodyColorMem);
+        m_bodyColorBuffer, m_bodyColorMem,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT); // settle-probe colour readback
 
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
-        m_bodyConstraintCountBuffer, m_bodyConstraintCountMem);
+        m_bodyConstraintCountBuffer, m_bodyConstraintCountMem,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT); // settle-probe readback
 
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
@@ -632,51 +640,54 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
         return Core::AssetManager::instance().resolveShader(name);
     };
 
-    struct SyncInPC      { uint32_t count; float dt; };
-    struct IntegratePC   { uint32_t count; float dt; float gravity; float pad; };
-    struct NpPC          { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
-    struct DualPC        { uint32_t maxConstraints; float dt; uint32_t pad0; float pad1; };
-    struct PrimalPC      { uint32_t bodyCount; float dt; uint32_t targetColor; float pad; };
-    struct SyncOutPC     { uint32_t count; float dt; float lifetimeDt; float pad; };
-    struct WarmstartSavePC { uint32_t maxConstraints; };
-    struct HardContactPC { uint32_t count; float pad0; float pad1; float pad2; };
-    struct CsrClearPC    { uint32_t bodyCount; uint32_t maxConstraints; };
-    struct CsrCountPC    { uint32_t maxConstraints; };
-    struct PrefixSumPC   { uint32_t bodyCount; };
-    struct BodyColorPC   { uint32_t bodyCount; };
+    using namespace DebrisShared;   // push-constant layouts (solver_shared.h)
 
     uint32_t     matCount       = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
     VkDeviceSize particleSize   = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(GpuParticle);
-    VkDeviceSize bodySize       = static_cast<VkDeviceSize>(MAX_PARTICLES)   * 208;
+    VkDeviceSize bodySize       = static_cast<VkDeviceSize>(MAX_PARTICLES + MAX_KINEMATIC) * 208;  // + movers
     VkDeviceSize constrSize     = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 128;
     VkDeviceSize stateSize      = static_cast<VkDeviceSize>(SOLVER_STATE_UINTS) * sizeof(uint32_t);
     VkDeviceSize warmstartSize  = static_cast<VkDeviceSize>(HASH_CAP)        * 64;
     VkDeviceSize matPhysSize    = static_cast<VkDeviceSize>(matCount)        * sizeof(MaterialPhysicsGpu);
-    VkDeviceSize occSize        = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
     VkDeviceSize gridCellSize   = static_cast<VkDeviceSize>(GRID_CELLS)      * sizeof(uint32_t);
     VkDeviceSize sortedIdxSize  = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(uint32_t);
     VkDeviceSize bodyUintSize   = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(uint32_t);
     VkDeviceSize adjListSize    = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 2 * sizeof(uint32_t);
 
     // solver_sync_in: particles(ro), bodies(rw), state(rw), materials(ro)
-    if (!m_solverSyncInPass.create(m_device, shader("solver_sync_in.comp.spv"), 4, sizeof(SyncInPC))) return false;
+    // + binding 4: this frame slot's impulses (Phase 4), so one descriptor set per frame slot.
+    if (!m_solverSyncInPass.create(m_device, shader("solver_sync_in.comp.spv"), 6, sizeof(SyncInPC),
+                                   OCC_FRAME_SLOTS)) return false;
     m_solverSyncInPass.bindBuffer(0, m_particleBuffer,     particleSize);
     m_solverSyncInPass.bindBuffer(1, m_solverBodyBuffer,   bodySize);
     m_solverSyncInPass.bindBuffer(2, m_solverStateBuffer,  stateSize);
     m_solverSyncInPass.bindBuffer(3, m_materialPhysBuffer, matPhysSize);
+    const VkDeviceSize eventBytes = static_cast<VkDeviceSize>(EVENT_HEADER_UINTS) * 4u +
+                                    static_cast<VkDeviceSize>(MAX_DEBRIS_EVENTS) * sizeof(DebrisEventGpu);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        m_solverSyncInPass.bindBufferInSet(slot, 4, m_impulseBuffer[slot],
+            static_cast<VkDeviceSize>(MAX_IMPULSES) * sizeof(ImpulseGpu));
+        m_solverSyncInPass.bindBufferInSet(slot, 5, m_eventBuffer[slot], eventBytes);   // Phase 6 wake events
+    }
     m_solverSyncInPass.updateDescriptors();
 
     // solver_integrate: bodies, materials, particles, character collider, state (wake bits)
-    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 5, sizeof(IntegratePC))) return false;
+    // + bindings 3/4: this frame slot's water directory + tiles (Phase 6c).
+    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 5, sizeof(IntegratePC),
+                                      OCC_FRAME_SLOTS)) return false;
     m_solverIntegratePass.bindBuffer(0, m_solverBodyBuffer,   bodySize);
     m_solverIntegratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
     m_solverIntegratePass.bindBuffer(2, m_particleBuffer,     particleSize);
-    m_solverIntegratePass.bindBuffer(3, m_characterBuffer,    static_cast<VkDeviceSize>(sizeof(CharacterCollider)));
-    m_solverIntegratePass.bindBuffer(4, m_solverStateBuffer,  stateSize);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        m_solverIntegratePass.bindBufferInSet(slot, 3, m_waterDirBuffer[slot],
+            static_cast<VkDeviceSize>(WATER_DIR_CHUNKS) * WATER_DIR_CHUNKS * sizeof(uint32_t));
+        m_solverIntegratePass.bindBufferInSet(slot, 4, m_waterTileBuffer[slot],
+            static_cast<VkDeviceSize>(WATER_MAX_TILES) * WATER_TILE_CELLS * WATER_TILE_CELLS * 2u * sizeof(uint32_t));
+    }
     m_solverIntegratePass.updateDescriptors();
 
     // solver_narrowphase: bodies, constraints, state, gridCount, gridOffset, sortedIndices, warmstarts
-    if (!m_solverNarrowphasePass.create(m_device, shader("solver_narrowphase.comp.spv"), 7, sizeof(NpPC))) return false;
+    if (!m_solverNarrowphasePass.create(m_device, shader("solver_narrowphase.comp.spv"), 7, sizeof(ContactsPC))) return false;
     m_solverNarrowphasePass.bindBuffer(0, m_solverBodyBuffer,    bodySize);
     m_solverNarrowphasePass.bindBuffer(1, m_constraintBuffer,    constrSize);
     m_solverNarrowphasePass.bindBuffer(2, m_solverStateBuffer,   stateSize);
@@ -686,13 +697,18 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverNarrowphasePass.bindBuffer(6, m_warmstartBuffer,     warmstartSize);
     m_solverNarrowphasePass.updateDescriptors();
 
-    // solver_voxel: bodies, constraints, state, occupancy, warmstarts
-    if (!m_solverVoxelPass.create(m_device, shader("solver_voxel.comp.spv"), 5, sizeof(NpPC))) return false;
+    // solver_voxel: bodies, constraints, state, occupancy DIRECTORY, warmstarts, occupancy POOL.
+    // One descriptor set per frame slot: 3 and 5 are the shared micro occupancy (1c), bound per
+    // slot by setStaticOccupancyBuffers. Until then they hold a placeholder the shader never
+    // reads (occBox.w == 0 makes every lookup UNKNOWN before touching a buffer).
+    if (!m_solverVoxelPass.create(m_device, shader("solver_voxel.comp.spv"), 6, sizeof(ContactsPC),
+                                  OCC_FRAME_SLOTS)) return false;
     m_solverVoxelPass.bindBuffer(0, m_solverBodyBuffer,  bodySize);
     m_solverVoxelPass.bindBuffer(1, m_constraintBuffer,  constrSize);
     m_solverVoxelPass.bindBuffer(2, m_solverStateBuffer, stateSize);
-    m_solverVoxelPass.bindBuffer(3, m_occupancyBuffer,   occSize);
+    m_solverVoxelPass.bindBuffer(3, m_solverBodyBuffer,  bodySize);    // placeholder: occupancy dir
     m_solverVoxelPass.bindBuffer(4, m_warmstartBuffer,   warmstartSize);
+    m_solverVoxelPass.bindBuffer(5, m_solverBodyBuffer,  bodySize);    // placeholder: occupancy pool
     m_solverVoxelPass.updateDescriptors();
 
     // solver_dual: bodies(ro), constraints(rw), state(ro)
@@ -714,24 +730,46 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverPrimalPass.updateDescriptors();
 
     // solver_sync_out: bodies, particles
-    if (!m_solverSyncOutPass.create(m_device, shader("solver_sync_out.comp.spv"), 2, sizeof(SyncOutPC))) return false;
+    // + binding 2: this frame slot's debris events (Phase 6: sleep + impact).
+    if (!m_solverSyncOutPass.create(m_device, shader("solver_sync_out.comp.spv"), 3, sizeof(SyncOutPC),
+                                    OCC_FRAME_SLOTS)) return false;
     m_solverSyncOutPass.bindBuffer(0, m_solverBodyBuffer, bodySize);
     m_solverSyncOutPass.bindBuffer(1, m_particleBuffer,   particleSize);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        m_solverSyncOutPass.bindBufferInSet(slot, 2, m_eventBuffer[slot], eventBytes);
     m_solverSyncOutPass.updateDescriptors();
 
+    // solver_kinematic_sync: kinematic boxes(ro), bodies(rw) - movers become SolverBodies (Phase 2)
+    if (!m_solverKinematicSyncPass.create(m_device, shader("solver_kinematic_sync.comp.spv"), 2,
+                                          sizeof(KinematicPC), OCC_FRAME_SLOTS)) return false;
+    m_solverKinematicSyncPass.bindBuffer(1, m_solverBodyBuffer, bodySize);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        m_solverKinematicSyncPass.bindBufferInSet(slot, 0, m_kinematicBoxBuffer[slot],
+            static_cast<VkDeviceSize>(MAX_KINEMATIC) * sizeof(KinematicBoxGpu));
+    m_solverKinematicSyncPass.updateDescriptors();
+
     // solver_warmstart_save: constraints(ro), warmstarts(rw), state(rw)
-    if (!m_solverWarmstartSavePass.create(m_device, shader("solver_warmstart_save.comp.spv"), 3, sizeof(WarmstartSavePC))) return false;
+    // + binding 3: this frame slot's mover push-back accumulator (Phase 6a).
+    if (!m_solverWarmstartSavePass.create(m_device, shader("solver_warmstart_save.comp.spv"), 5, sizeof(ConstraintsPC),
+                                          OCC_FRAME_SLOTS)) return false;
     m_solverWarmstartSavePass.bindBuffer(0, m_constraintBuffer,  constrSize);
     m_solverWarmstartSavePass.bindBuffer(1, m_warmstartBuffer,   warmstartSize);
     m_solverWarmstartSavePass.bindBuffer(2, m_solverStateBuffer, stateSize);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        m_solverWarmstartSavePass.bindBufferInSet(slot, 3, m_pushBuffer[slot],
+            static_cast<VkDeviceSize>(MAX_KINEMATIC) * 4u * sizeof(int32_t));
+    m_solverWarmstartSavePass.bindBuffer(4, m_solverBodyBuffer, bodySize);   // 6a push cap: masses, velocities
     m_solverWarmstartSavePass.updateDescriptors();
 
     // solver_hardcontact: bodies(rw), occupancy(ro)
     // Final positional safety pass — projects dynamic bodies out of static
     // voxel terrain in case AVBD couldn't fully resolve under heavy stacking.
-    if (!m_solverHardContactPass.create(m_device, shader("solver_hardcontact.comp.spv"), 2, sizeof(HardContactPC))) return false;
+    if (!m_solverHardContactPass.create(m_device, shader("solver_hardcontact.comp.spv"), 4,
+                                        sizeof(HardContactPC), OCC_FRAME_SLOTS)) return false;
     m_solverHardContactPass.bindBuffer(0, m_solverBodyBuffer, bodySize);
-    m_solverHardContactPass.bindBuffer(1, m_occupancyBuffer,  occSize);
+    m_solverHardContactPass.bindBuffer(1, m_solverBodyBuffer, bodySize);   // placeholder: occupancy dir
+    m_solverHardContactPass.bindBuffer(2, m_solverStateBuffer, stateSize); // settle-probe counters
+    m_solverHardContactPass.bindBuffer(3, m_solverBodyBuffer, bodySize);   // placeholder: occupancy pool
     m_solverHardContactPass.updateDescriptors();
 
     // solver_csr_clear: bodyConstraintCount(rw), bodyColor(rw)
@@ -741,21 +779,21 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_csrClearPass.updateDescriptors();
 
     // solver_csr_count: constraints(ro), state(ro), bodyConstraintCount(rw)
-    if (!m_csrCountPass.create(m_device, shader("solver_csr_count.comp.spv"), 3, sizeof(CsrCountPC))) return false;
+    if (!m_csrCountPass.create(m_device, shader("solver_csr_count.comp.spv"), 3, sizeof(ConstraintsPC))) return false;
     m_csrCountPass.bindBuffer(0, m_constraintBuffer,         constrSize);
     m_csrCountPass.bindBuffer(1, m_solverStateBuffer,        stateSize);
     m_csrCountPass.bindBuffer(2, m_bodyConstraintCountBuffer,bodyUintSize);
     m_csrCountPass.updateDescriptors();
 
     // solver_prefix_sum: count(ro), offset(rw), cursor(rw)
-    if (!m_prefixSumPass.create(m_device, shader("solver_prefix_sum.comp.spv"), 3, sizeof(PrefixSumPC))) return false;
+    if (!m_prefixSumPass.create(m_device, shader("solver_prefix_sum.comp.spv"), 3, sizeof(BodiesPC))) return false;
     m_prefixSumPass.bindBuffer(0, m_bodyConstraintCountBuffer, bodyUintSize);
     m_prefixSumPass.bindBuffer(1, m_bodyConstraintOffsetBuffer,bodyUintSize);
     m_prefixSumPass.bindBuffer(2, m_bodyConstraintCursorBuffer,bodyUintSize);
     m_prefixSumPass.updateDescriptors();
 
     // solver_csr_scatter: constraints(ro), state(ro), cursor(rw), adjacencyList(rw)
-    if (!m_csrScatterPass.create(m_device, shader("solver_csr_scatter.comp.spv"), 4, sizeof(CsrCountPC))) return false;
+    if (!m_csrScatterPass.create(m_device, shader("solver_csr_scatter.comp.spv"), 4, sizeof(ConstraintsPC))) return false;
     m_csrScatterPass.bindBuffer(0, m_constraintBuffer,          constrSize);
     m_csrScatterPass.bindBuffer(1, m_solverStateBuffer,         stateSize);
     m_csrScatterPass.bindBuffer(2, m_bodyConstraintCursorBuffer,bodyUintSize);
@@ -763,7 +801,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_csrScatterPass.updateDescriptors();
 
     // solver_body_color: constraints(ro), state(ro), bodyColor(rw), count(ro), offset(ro), list(ro)
-    if (!m_bodyColorPass.create(m_device, shader("solver_body_color.comp.spv"), 6, sizeof(BodyColorPC))) return false;
+    if (!m_bodyColorPass.create(m_device, shader("solver_body_color.comp.spv"), 6, sizeof(BodiesPC))) return false;
     m_bodyColorPass.bindBuffer(0, m_constraintBuffer,          constrSize);
     m_bodyColorPass.bindBuffer(1, m_solverStateBuffer,         stateSize);
     m_bodyColorPass.bindBuffer(2, m_bodyColorBuffer,           bodyUintSize);
@@ -780,9 +818,9 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
 // ============================================================
 
 void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt,
-                                                  GpuProfiler* profiler, bool instrument) {
-    const uint32_t groups        = (count + 255u) / 256u;
-    const uint32_t maxConstrGrps = (MAX_CONSTRAINTS + 255u) / 256u;
+                                                  GpuProfiler* profiler, bool instrument, uint32_t tick) {
+    const uint32_t groups        = (count + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP;
+    const uint32_t maxConstrGrps = (MAX_CONSTRAINTS + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP;
 
     auto ssBarrier = [&](VkBuffer buf) {
         insertBarrier(cmd,
@@ -797,22 +835,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     auto beginP = [&](const char* n) { if (instrument && profiler) profiler->startScope(cmd, n); };
     auto endP   = [&]()              { if (instrument && profiler) profiler->endScope(cmd); };
 
-    struct SyncInPC      { uint32_t count; float dt; };
-    struct IntegratePC   { uint32_t count; float dt; float gravity; float pad; };
-    struct NpPC          { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
-    struct DualPC        { uint32_t maxConstraints; float dt; uint32_t pad0; float pad1; };
-    struct PrimalPC      { uint32_t bodyCount; float dt; uint32_t targetColor; float pad; };
-    struct SyncOutPC     { uint32_t count; float dt; float lifetimeDt; float pad; };
-    struct WarmstartSavePC { uint32_t maxConstraints; };
-    struct HardContactPC { uint32_t count; float pad0; float pad1; float pad2; };
-    struct GridClearPC   { uint32_t cellCount; };
-    struct GridBuildPC   { uint32_t count; };
-    struct SortScanPC    { uint32_t cellCount; };
-    struct SortScatterPC { uint32_t count; };
-    struct CsrClearPC    { uint32_t bodyCount; uint32_t maxConstraints; };
-    struct CsrCountPC    { uint32_t maxConstraints; };
-    struct PrefixSumPC   { uint32_t bodyCount; };
-    struct BodyColorPC   { uint32_t bodyCount; };
+    using namespace DebrisShared;   // push-constant layouts (solver_shared.h)
 
     // Reset solver counters (first HASH_BASE uints) to 0 every frame so constraint counts,
     // warmstart hit/miss counters, etc. start fresh.
@@ -843,8 +866,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 1. Sync in: GpuParticle → SolverBody ----
     {
         beginP("Setup");
-        SyncInPC pc{ count, FIXED_DT };
-        m_solverSyncInPass.bind(cmd);
+        SyncInPC pc{ count, FIXED_DT, tick == 0 ? m_impulseCountThisFrame : 0u, 0u };
+        m_solverSyncInPass.bind(cmd, m_frameSlot);
         m_solverSyncInPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverSyncInPass.dispatch(cmd, groups);
     }
@@ -852,27 +875,36 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 2. Integrate: apply gravity + damping, predict position ----
     {
-        IntegratePC pc{ count, FIXED_DT, GRAVITY, 0.0f };
-        m_solverIntegratePass.bind(cmd);
+        IntegratePC pc{ count, FIXED_DT, GRAVITY, m_solverFlags, m_waterPC };
+        m_solverIntegratePass.bind(cmd, m_frameSlot);
         m_solverIntegratePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverIntegratePass.dispatch(cmd, groups);
     }
     ssBarrier(m_solverBodyBuffer);
     ssBarrier(m_solverStateBuffer);   // character-shove wake bits (Phase 2 sleep)
 
+    // ---- 2b. Movers -> SolverBody KINEMATIC_BASE + k at this sub-step's pose (Phase 2) ----
+    {
+        KinematicPC kp{ m_kinematicCount, tick, FIXED_DT, 0u };
+        m_solverKinematicSyncPass.bind(cmd, m_frameSlot);
+        m_solverKinematicSyncPass.pushConstants(cmd, &kp, sizeof(kp));
+        m_solverKinematicSyncPass.dispatch(cmd, (MAX_KINEMATIC + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP);
+    }
+    ssBarrier(m_solverBodyBuffer);
+
     // ---- 3. Grid sort (reads m_particleBuffer — previous-tick positions for broadphase) ----
     {
         endP(); beginP("GridClear");
-        GridClearPC gc{ static_cast<uint32_t>(GRID_CELLS) };
+        GridCellsPC gc{ static_cast<uint32_t>(GRID_CELLS) };
         m_gridClearPass.bind(cmd);
         m_gridClearPass.pushConstants(cmd, &gc, sizeof(gc));
-        m_gridClearPass.dispatch(cmd, (GRID_CELLS + 255u) / 256u);
+        m_gridClearPass.dispatch(cmd, (GRID_CELLS + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP);
     }
     ssBarrier(m_gridCellCountBuffer);
 
     {
         endP(); beginP("GridBuild");
-        GridBuildPC gb{ count };
+        GridCountPC gb{ count };
         m_gridBuildPass.bind(cmd);
         m_gridBuildPass.pushConstants(cmd, &gb, sizeof(gb));
         m_gridBuildPass.dispatch(cmd, groups);
@@ -885,7 +917,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     {
         endP(); beginP("SortScan");
         const uint32_t scanBlocks = static_cast<uint32_t>(SCAN_BLOCKS);
-        SortScanPC ss{ static_cast<uint32_t>(GRID_CELLS) };
+        GridCellsPC ss{ static_cast<uint32_t>(GRID_CELLS) };
 
         // Pass 1: per-block exclusive scan -> gridCellOffset; block totals -> blockSums
         m_scanBlockPass.bind(cmd);
@@ -896,7 +928,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
         // Pass 2: exclusive scan of the block totals (small; ~1024 elements)
         m_scanBlockSumsPass.bind(cmd);
-        m_scanBlockSumsPass.pushConstants(cmd, &scanBlocks, sizeof(scanBlocks));
+        ScanBlocksPC sb{ scanBlocks };
+        m_scanBlockSumsPass.pushConstants(cmd, &sb, sizeof(sb));
         m_scanBlockSumsPass.dispatch(cmd, 1);
         ssBarrier(m_scanBlockSumsBuffer);
 
@@ -909,7 +942,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     {
         endP(); beginP("SortScatter");
-        SortScatterPC sc{ count };
+        GridCountPC sc{ count };
         m_sortScatterPass.bind(cmd);
         m_sortScatterPass.pushConstants(cmd, &sc, sizeof(sc));
         m_sortScatterPass.dispatch(cmd, groups);
@@ -922,7 +955,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 4a. Narrowphase: dynamic-dynamic contacts → constraints ----
     {
         endP(); beginP("NarrowVoxel");
-        NpPC pc{ count, MAX_CONSTRAINTS, 0.0f, 0.0f };
+        ContactsPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale, m_occBox };
         m_solverNarrowphasePass.bind(cmd);
         m_solverNarrowphasePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverNarrowphasePass.dispatch(cmd, groups);
@@ -932,8 +965,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 4b. Voxel contacts → constraints (appended) ----
     {
-        NpPC pc{ count, MAX_CONSTRAINTS, 0.0f, 0.0f };
-        m_solverVoxelPass.bind(cmd);
+        ContactsPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale, m_occBox };
+        m_solverVoxelPass.bind(cmd, m_frameSlot);
         m_solverVoxelPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverVoxelPass.dispatch(cmd, groups);
     }
@@ -954,7 +987,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // 5b. Count how many constraints each body participates in
     {
-        CsrCountPC pc{ MAX_CONSTRAINTS };
+        ConstraintsPC pc{ MAX_CONSTRAINTS };
         m_csrCountPass.bind(cmd);
         m_csrCountPass.pushConstants(cmd, &pc, sizeof(pc));
         m_csrCountPass.dispatch(cmd, maxConstrGrps);
@@ -963,7 +996,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // 5c. Exclusive prefix sum → bodyConstraintOffset[] and bodyConstraintCursor[]
     {
-        PrefixSumPC pc{ count };
+        BodiesPC pc{ count };
         m_prefixSumPass.bind(cmd);
         m_prefixSumPass.pushConstants(cmd, &pc, sizeof(pc));
         m_prefixSumPass.dispatch(cmd, 1);
@@ -973,25 +1006,28 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // 5d. Scatter constraint indices into adjacency list using atomic cursors
     {
-        CsrCountPC pc{ MAX_CONSTRAINTS };
+        ConstraintsPC pc{ MAX_CONSTRAINTS };
         m_csrScatterPass.bind(cmd);
         m_csrScatterPass.pushConstants(cmd, &pc, sizeof(pc));
         m_csrScatterPass.dispatch(cmd, maxConstrGrps);
     }
     ssBarrier(m_bodyConstraintListBuffer);
 
-    // ---- 6. Body graph coloring: Jones-Plassmann, 16 passes ----
+    // ---- 6. Body graph coloring: Jones-Plassmann, COLOR_ROUNDS passes ----
     // Colors BODIES: two bodies are adjacent if they share a constraint.
     // Same-color bodies have no shared constraints → safe for parallel primal writes.
     {
-        BodyColorPC pc{ count };
-        for (int gc = 0; gc < 16; ++gc) {
+        BodiesPC pc{ count };
+        for (int gc = 0; gc < COLOR_ROUNDS; ++gc) {
             m_bodyColorPass.bind(cmd);
             m_bodyColorPass.pushConstants(cmd, &pc, sizeof(pc));
             m_bodyColorPass.dispatch(cmd, groups);
             ssBarrier(m_bodyColorBuffer);
         }
     }
+
+    const bool  postStab   = (m_solverFlags & SOLVER_FLAG_POST_STAB) != 0;
+    const float solveAlpha = postStab ? 1.0f : SOLVER_ALPHA;
 
     // ---- 7. AVBD dual+primal solve loop ----
     // solveDual: per-constraint, updates lambda and grows penalty (fully parallel, no body writes)
@@ -1000,7 +1036,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     for (int iter = 0; iter < SOLVE_ITERATIONS; ++iter) {
         // Dual: update all constraint lambdas/penalties
         {
-            DualPC pc{ MAX_CONSTRAINTS, FIXED_DT, 0u, 0.0f };
+            DualPC pc{ MAX_CONSTRAINTS, FIXED_DT, 0u, solveAlpha };
             m_solverDualPass.bind(cmd);
             m_solverDualPass.pushConstants(cmd, &pc, sizeof(pc));
             m_solverDualPass.dispatch(cmd, maxConstrGrps);
@@ -1008,7 +1044,35 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
         ssBarrier(m_constraintBuffer);
 
         // Primal: solve per body, one color at a time
-        for (uint32_t color = 0; color < MAX_COLORS; ++color) {
+        // Final sweep (ci == MAX_COLORS) solves bodies Jones-Plassmann left UNCOLORED, all in
+        // one Jacobi-style pass: a colouring conflict degrades to a Jacobi update instead of
+        // the body being SKIPPED (audit D1; paper §4 does the same via double buffering).
+        for (uint32_t ci = 0; ci <= MAX_COLORS; ++ci) {
+            const uint32_t color = (ci == MAX_COLORS) ? 0xFFFFFFFFu : ci;
+            PrimalPC pc{ count, FIXED_DT, color, solveAlpha };
+            m_solverPrimalPass.bind(cmd);
+            m_solverPrimalPass.pushConstants(cmd, &pc, sizeof(pc));
+            m_solverPrimalPass.dispatch(cmd, groups);
+            ssBarrier(m_solverBodyBuffer);
+        }
+    }
+
+    // ---- 7a. Post-stabilisation (avbd-demo2d) ----
+    // The loop above ran at alpha = 1: it never chases pre-existing overlap, so the motion it
+    // produced is physical. Record that as the velocity, THEN remove the overlap with one
+    // position-only primal sweep at alpha = 0. With the default alpha = 0.99 instead, only 1%
+    // of an overlap is corrected per tick (stacks visibly sink, then creep) and whatever IS
+    // corrected becomes velocity (the bubbling). This breaks that trade-off.
+    if (postStab) {
+        {
+            PrimalPC pc{ count, FIXED_DT, PRIMAL_STORE_VELOCITY, 1.0f };
+            m_solverPrimalPass.bind(cmd);
+            m_solverPrimalPass.pushConstants(cmd, &pc, sizeof(pc));
+            m_solverPrimalPass.dispatch(cmd, groups);
+            ssBarrier(m_solverBodyBuffer);
+        }
+        for (uint32_t ci = 0; ci <= MAX_COLORS; ++ci) {
+            const uint32_t color = (ci == MAX_COLORS) ? 0xFFFFFFFFu : ci;
             PrimalPC pc{ count, FIXED_DT, color, 0.0f };
             m_solverPrimalPass.bind(cmd);
             m_solverPrimalPass.pushConstants(cmd, &pc, sizeof(pc));
@@ -1018,14 +1082,14 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     }
 
     // ---- 7b. Hard-contact safety pass ----
-    // Pure positional projection of dynamic bodies out of any remaining
-    // static-voxel overlap left by the AVBD solver. Acts only when AVBD
-    // failed to fully resolve (e.g. deep stacks). Per body, samples the
-    // static occupancy grid in the body AABB and pushes out along MTV.
+    // Positional projection of dynamic bodies out of static-voxel overlap the AVBD solve
+    // left behind (> 1 cm — genuine failures only). Same contact geometry as the voxel
+    // contact pass (voxel_contact.glsl), and velocity-neutral under SOLVER_FLAG_HC_NEUTRAL
+    // (docs/DebrisSettlingPlan.md §R defect 5: it used to turn its push into launch velocity).
     {
         endP(); beginP("Finalize");
-        HardContactPC pc{ count, 0.0f, 0.0f, 0.0f };
-        m_solverHardContactPass.bind(cmd);
+        HardContactPC pc{ count, m_solverFlags, 0.0f, 0.0f, m_occBox };
+        m_solverHardContactPass.bind(cmd, m_frameSlot);
         m_solverHardContactPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverHardContactPass.dispatch(cmd, groups);
     }
@@ -1033,8 +1097,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 8. Sync out: SolverBody → GpuParticle ----
     {
-        SyncOutPC pc{ count, FIXED_DT, lifetimeDt, 0.0f };
-        m_solverSyncOutPass.bind(cmd);
+        SyncOutPC pc{ count, FIXED_DT, lifetimeDt, m_solverFlags };
+        m_solverSyncOutPass.bind(cmd, m_frameSlot);
         m_solverSyncOutPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverSyncOutPass.dispatch(cmd, groups);
     }
@@ -1043,8 +1107,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 9. Warmstart save: scatter final lambda/penalty/stick into hash table ----
     // Must run AFTER the dual+primal converge so that the persisted values are post-solve.
     {
-        WarmstartSavePC pc{ MAX_CONSTRAINTS };
-        m_solverWarmstartSavePass.bind(cmd);
+        ConstraintsPC pc{ MAX_CONSTRAINTS };
+        m_solverWarmstartSavePass.bind(cmd, m_frameSlot);
         m_solverWarmstartSavePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverWarmstartSavePass.dispatch(cmd, maxConstrGrps);
     }
@@ -1063,16 +1127,13 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
         return;
     }
 
-    // Auto-start position logging on first particle spawn
-    if (!m_positionLogging && m_activeCount == 0) {
-        startPositionLog("particle_positions.csv");
-    }
-
-    uint32_t slot = m_freeSlots.back();
+    std::pop_heap(m_freeSlots.begin(), m_freeSlots.end(), std::greater<uint32_t>());
+    uint32_t slot = m_freeSlots.back();   // the lowest free slot
     m_freeSlots.pop_back();
 
     m_slots[slot].lifetimeRemaining = p.lifetime;
     m_slots[slot].active            = true;
+    ++m_slotSerial[slot];   // Phase 6: a consumer holding (slot, serial) sees the recycle
     ++m_activeCount;
     if (slot + 1 > m_highWaterSlot) m_highWaterSlot = slot + 1;
 
@@ -1086,9 +1147,10 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
     gp.maxLifetime  = p.lifetime;
     gp.rotation     = glm::vec4(p.rotation.x, p.rotation.y, p.rotation.z, p.rotation.w);
     gp.angularVel   = p.angularVel;
-    gp.flags        = 1u | p.typeFlags; // PARTICLE_ACTIVE
+    gp.flags        = DebrisShared::PARTICLE_ACTIVE | p.typeFlags;
     gp.scale        = p.scale;
-    gp.materialIndex= materialNameToIndex(p.materialName);
+    gp.materialIndex= (materialNameToIndex(p.materialName) & DebrisShared::MATERIAL_MASK)
+                    | ((p.slice & DebrisShared::SLICE_MASK) << DebrisShared::SLICE_SHIFT);
     // color is unused by debris rendering (debris is textured), so repurpose it to carry the baked
     // light sampled at the spawn position (sky, blockR, blockG, blockB, each 0..15). The expand
     // compute shader packs it into the instance's reserved2; dynamic_voxel.vert reads it. Default
@@ -1100,11 +1162,10 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
 
 void GpuParticlePhysics::update(float dt) {
     // ---- Position logging: read back previous frame's particle data ----
-    if (m_readbackPending && m_positionLogging && m_posLogFile.is_open()) {
+    if (m_readbackPending && m_readbackReady && m_positionLogging && m_posLogFile.is_open()) {
         m_readbackPending = false;
+        m_readbackReady   = false;
         const GpuParticle* particles = static_cast<const GpuParticle*>(m_readbackMapped);
-        const CharacterCollider* cc = m_characterMapped ?
-            static_cast<const CharacterCollider*>(m_characterMapped) : nullptr;
 
         // Frame header: F,frame,dt,ticks,alpha,activeCount,char_cx,char_cy,char_cz,char_vx,char_vy,char_vz,char_active
         m_posLogFile << "F," << m_posLogFrameCounter
@@ -1112,10 +1173,13 @@ void GpuParticlePhysics::update(float dt) {
                      << "," << m_physicsTicks
                      << "," << (m_timeAccumulator / FIXED_DT)
                      << "," << m_activeCount;
-        if (cc) {
-            m_posLogFile << "," << cc->center.x << "," << cc->center.y << "," << cc->center.z
-                         << "," << cc->velocity.x << "," << cc->velocity.y << "," << cc->velocity.z
-                         << "," << cc->segmentCount;
+        // Character columns: the player's first body-part box and its velocity (the movers).
+        if (!m_movers.empty()) {
+            const glm::vec3& c = m_movers.front().center;
+            const glm::vec3& v = m_movers.front().velocity;
+            m_posLogFile << "," << c.x << "," << c.y << "," << c.z
+                         << "," << v.x << "," << v.y << "," << v.z
+                         << "," << m_movers.size();
         } else {
             m_posLogFile << ",0,0,0,0,0,0,0";
         }
@@ -1155,6 +1219,33 @@ void GpuParticlePhysics::update(float dt) {
         m_physicsTicks = 4;
         m_timeAccumulator = 0.0f;
     }
+    // Debug freeze / single-step: only budgeted ticks run, and lifetimes age by exactly the
+    // simulated time (so a frozen pile neither moves nor expires).
+    if (m_frozen) {
+        m_timeAccumulator = 0.0f;
+        m_physicsTicks = std::min<uint32_t>(m_stepBudget, 4u);
+        m_stepBudget  -= m_physicsTicks;
+        realDt         = m_physicsTicks * FIXED_DT;
+        m_lastRealDt   = realDt;
+    }
+    m_totalTicks += m_physicsTicks;
+
+    // Scripted kinematic boxes (1f) move and age by SIMULATED time, so a frozen solver stepped
+    // tick by tick drives them deterministically.
+    // The GPU ticks of THIS frame start from the frame-start pose (solver_kinematic_sync adds
+    // velocity*dt*tick), so upload first, then advance the CPU copy to the frame-end pose.
+    // Frame-start snapshot of the scripted boxes (the mover feed may stage after the advance
+    // below), then the unconditional upload: a box that expired last frame must also leave.
+    m_kinematicBoxesFrameStart = m_kinematicBoxes;
+    writeColliderBuffer();
+    if (!m_kinematicBoxes.empty()) {
+        const float simDt = static_cast<float>(m_physicsTicks) * FIXED_DT;
+        for (auto it = m_kinematicBoxes.begin(); it != m_kinematicBoxes.end(); ) {
+            it->second.center += it->second.velocity * simDt;
+            it->second.ttl    -= simDt;
+            it = (it->second.ttl <= 0.0f) ? m_kinematicBoxes.erase(it) : std::next(it);
+        }
+    }
 
     // Age CPU-side slots using real elapsed time (frame-rate independent).
     // The GPU integrate shader does the same via lifetimeDt push constant.
@@ -1164,7 +1255,7 @@ void GpuParticlePhysics::update(float dt) {
         m_slots[i].lifetimeRemaining -= realDt;
         if (m_slots[i].lifetimeRemaining <= 0.0f) {
             m_slots[i].active = false;
-            m_freeSlots.push_back(i);
+            releaseSlot(i);
             m_pendingDeactivations.push_back(i); // clear its GPU ACTIVE flag this frame
             --m_activeCount;
         } else {
@@ -1172,6 +1263,7 @@ void GpuParticlePhysics::update(float dt) {
         }
     }
     m_highWaterSlot = newHigh;
+    if (m_activeCount == 0 && m_pendingSpawns.empty()) m_hashInitialized = false;   // as despawnAll
 
     // Auto-stop logging when all particles have died
     if (m_positionLogging && m_activeCount == 0 && m_pendingSpawns.empty() && m_posLogFrameCounter > 0) {
@@ -1208,7 +1300,60 @@ void GpuParticlePhysics::update(float dt) {
 // Compute command recording
 // ============================================================
 
-void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*frameIndex*/, GpuProfiler* profiler) {
+void GpuParticlePhysics::setStaticOccupancyBuffers(const VkBuffer dir[OCC_FRAME_SLOTS], VkDeviceSize dirBytes,
+                                                   const VkBuffer pool[OCC_FRAME_SLOTS], VkDeviceSize poolBytes) {
+    if (!m_initialized) return;
+    for (uint32_t s = 0; s < OCC_FRAME_SLOTS; ++s) {
+        if (dir[s] == VK_NULL_HANDLE || pool[s] == VK_NULL_HANDLE) {
+            LOG_ERROR("GpuParticlePhysics", "shared occupancy slot has no buffer: debris will be HELD (frozen_unknown)");
+            return;
+        }
+        m_solverVoxelPass.bindBufferInSet(s, 3, dir[s], dirBytes);
+        m_solverVoxelPass.bindBufferInSet(s, 5, pool[s], poolBytes);
+        m_solverHardContactPass.bindBufferInSet(s, 1, dir[s], dirBytes);
+        m_solverHardContactPass.bindBufferInSet(s, 3, pool[s], poolBytes);
+    }
+    m_solverVoxelPass.updateDescriptors();
+    m_solverHardContactPass.updateDescriptors();
+    m_staticOccWired = true;
+    LOG_INFO("GpuParticlePhysics", "debris collides against the shared micro occupancy pool");
+}
+
+void GpuParticlePhysics::setStaticOccupancyBox(const glm::ivec3& boxMinChunk, bool ready) {
+    m_occBox = { boxMinChunk.x, boxMinChunk.y, boxMinChunk.z, (ready && m_staticOccWired) ? 1 : 0 };
+}
+
+void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t frameIndex, GpuProfiler* profiler) {
+    // Settle probe: this frame slot's fence has retired (we are recording into its command
+    // buffer), so the ticks copied into its ring slot PROBE_FRAMES frames ago are readable.
+    // Consumed before any early-out so no tick is lost when the pool empties.
+    if (m_initialized) {
+        m_probeFrame = frameIndex % PROBE_FRAMES;
+        consumeProbeSlot(m_probeFrame);
+    }
+    // The shared occupancy's slot for this frame (uploaded after this slot's fence, before now).
+    m_frameSlot = frameIndex % OCC_FRAME_SLOTS;
+    // Phase 6: events this slot's ticks wrote two frames ago are readable now (its fence retired).
+    if (m_initialized) consumeEventSlot(m_frameSlot);
+    // Position log: its single buffer was copied by THIS slot; readable now, never earlier.
+    if (m_readbackPending && m_readbackSlot == m_frameSlot) m_readbackReady = true;
+    // Movers for this frame's ticks into THIS slot's buffer: its fence has retired, so no
+    // in-flight frame reads it (Phase 2, frames-in-flight).
+    if (m_kinematicBoxMapped[m_frameSlot] && !m_kinematicStage.empty())
+        std::memcpy(m_kinematicBoxMapped[m_frameSlot], m_kinematicStage.data(),
+                    m_kinematicStage.size() * sizeof(DebrisShared::KinematicBoxGpu));
+    // Water (6c): this frame's directory + tiles into THIS slot (its fence has retired).
+    if (m_waterDirMapped[m_frameSlot]) {
+        const size_t dirN = static_cast<size_t>(DebrisShared::WATER_DIR_CHUNKS) * DebrisShared::WATER_DIR_CHUNKS;
+        if (m_waterDirStage.size() == dirN)
+            std::memcpy(m_waterDirMapped[m_frameSlot], m_waterDirStage.data(), dirN * sizeof(uint32_t));
+        else
+            std::memset(m_waterDirMapped[m_frameSlot], 0xFF, dirN * sizeof(uint32_t));   // no water data
+        if (!m_waterCellStage.empty() && m_waterTileMapped[m_frameSlot])
+            std::memcpy(m_waterTileMapped[m_frameSlot], m_waterCellStage.data(),
+                        m_waterCellStage.size() * sizeof(uint32_t));
+    }
+
     // Enter if anything is alive, spawning, or being retired this frame. The
     // deactivation check is required: when the last particles die, activeCount
     // is 0 and there are no spawns, but we still must clear their GPU flags.
@@ -1271,168 +1416,50 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
 
     // Dispatch only up to the highest active slot, not the full 10K pool.
     const uint32_t count  = m_highWaterSlot;
-    const uint32_t groups = (count + 255u) / 256u;
-    if (groups == 0) return; // nothing to simulate
+    const uint32_t groups = (count + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP;
+    if (groups == 0) { m_impulseStage.clear(); return; } // nothing to simulate (or to push)
 
-    // ---- Fixed-timestep physics loop ----
+    // Impulses (Phase 4) go to the first frame whose ticks actually RUN: a frozen or stepped
+    // solver keeps them queued until its next step, so none is lost or applied twice. This
+    // slot's fence has retired (see the movers above), so the copy cannot race the GPU.
+    m_impulseCountThisFrame = 0;
+    if (m_physicsTicks > 0 && !m_impulseStage.empty() && m_impulseMapped[m_frameSlot]) {
+        m_impulseCountThisFrame = static_cast<uint32_t>(m_impulseStage.size());
+        std::memcpy(m_impulseMapped[m_frameSlot], m_impulseStage.data(),
+                    m_impulseStage.size() * sizeof(DebrisShared::ImpulseGpu));
+        m_impulsesSubmitted += m_impulseStage.size();
+        m_impulseStage.clear();
+    }
+
+    // ---- Fixed-timestep physics loop (AVBD — the only pipeline; the legacy XPBD
+    //      particle_integrate/collide path was deleted 2026-10-04, DebrisInteractionPlan D4) ----
+    if (m_physicsTicks > 0 && m_eventBuffer[m_frameSlot] != VK_NULL_HANDLE) {
+        // Phase 6: this frame's ticks append to this slot's event buffer from count 0.
+        vkCmdFillBuffer(cmd, m_eventBuffer[m_frameSlot], 0, DebrisShared::EVENT_HEADER_UINTS * 4u, 0u);
+        if (m_pushBuffer[m_frameSlot] != VK_NULL_HANDLE) {
+            vkCmdFillBuffer(cmd, m_pushBuffer[m_frameSlot], 0, VK_WHOLE_SIZE, 0u);   // Phase 6a
+            insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                          m_pushBuffer[m_frameSlot]);
+            m_pushOwners[m_frameSlot] = m_kinematicOwnerStage;   // whose box is which, THIS frame
+        }
+        insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                      VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                      m_eventBuffer[m_frameSlot]);
+        m_eventsWritten[m_frameSlot] = true;
+    }
     for (uint32_t tick = 0; tick < m_physicsTicks; ++tick) {
         const float lifetimeDtThisTick = (tick == 0) ? m_lastRealDt : 0.0f;
-
-        if (m_useNewPipeline) {
-            // Per-pass GPU timing only on the first tick (query-budget safe).
-            recordComputeCommandsNew(cmd, count, lifetimeDtThisTick, profiler, tick == 0);
-            continue;
-        }
-
-        // ===================================================================
-        // LEGACY XPBD PIPELINE (NOT used by default — m_useNewPipeline is true
-        // and is never toggled off). Retained for reference/fallback only.
-        // Everything below until "end physics tick loop" runs ONLY in the
-        // legacy path: m_integratePass (particle_integrate.comp) and
-        // m_collidePass (particle_collide.comp). The AVBD pipeline above
-        // (recordComputeCommandsNew) is the live path; character collision,
-        // voxel collision, etc. must be maintained THERE, not here.
-        // (The expand pass + grid-sort passes below the loop are SHARED and
-        // are NOT legacy.)
-        // ===================================================================
-
-        // ---- 2. Integrate pass (legacy XPBD) ----
-        struct IntegratePC {
-            float    dt;
-            float    gravity;
-            uint32_t count;
-            float    sleepThreshSq;
-            float    lifetimeDt;
-        } ipc;
-        ipc.dt           = FIXED_DT;
-        ipc.gravity      = GRAVITY;
-        ipc.count        = count;
-        ipc.sleepThreshSq= SLEEP_THRESH_SQ;
-        ipc.lifetimeDt   = lifetimeDtThisTick;
-
-        m_integratePass.bind(cmd);
-        m_integratePass.pushConstants(cmd, &ipc, sizeof(ipc));
-        m_integratePass.dispatch(cmd, groups);
-
-        // Barrier: particles COMPUTE_WRITE → COMPUTE_READ/WRITE
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            m_particleBuffer);
-
-        // ---- 2b. Grid clear — zero per-cell counts ----
-        {
-            struct GridClearPC { uint32_t cellCount; } gcpc;
-            gcpc.cellCount = GRID_CELLS;
-            const uint32_t gridClearGroups = (GRID_CELLS + 255u) / 256u;
-            m_gridClearPass.bind(cmd);
-            m_gridClearPass.pushConstants(cmd, &gcpc, sizeof(gcpc));
-            m_gridClearPass.dispatch(cmd, gridClearGroups);
-        }
-
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            m_gridCellCountBuffer);
-
-        // ---- 2c. Grid build — count particles per cell ----
-        {
-            struct GridBuildPC { uint32_t count; } gbpc;
-            gbpc.count = count;
-            m_gridBuildPass.bind(cmd);
-            m_gridBuildPass.pushConstants(cmd, &gbpc, sizeof(gbpc));
-            m_gridBuildPass.dispatch(cmd, groups);
-        }
-
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            m_gridCellCountBuffer);
-
-        // ---- 2d. Sort scan — exclusive prefix sum → per-cell write offsets ----
-        {
-            struct SortScanPC { uint32_t cellCount; } sspc;
-            sspc.cellCount = GRID_CELLS;
-            m_sortScanPass.bind(cmd);
-            m_sortScanPass.pushConstants(cmd, &sspc, sizeof(sspc));
-            m_sortScanPass.dispatch(cmd, 1); // single invocation — sequential scan
-        }
-
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            m_gridCellOffsetBuffer);
-
-        // ---- 2e. Sort scatter — fill sortedParticles / sortedIndices by cell ----
-        // After scatter, gridCellOffset[c] = exclusiveStart[c] + count[c] = END.
-        // Collide reads [gridCellOffset[c]-gridCellCount[c], gridCellOffset[c]).
-        {
-            struct SortScatterPC { uint32_t count; } scpc;
-            scpc.count = count;
-            m_sortScatterPass.bind(cmd);
-            m_sortScatterPass.pushConstants(cmd, &scpc, sizeof(scpc));
-            m_sortScatterPass.dispatch(cmd, groups);
-        }
-
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            m_gridCellOffsetBuffer);
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            m_sortedParticleBuffer);
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            m_sortedIndexBuffer);
-
-        // ---- 3. Collide pass (multi-iteration) ----
-        // Terrain collision re-reads particles[i] each iteration and converges
-        // correctly. Particle-particle is gated to iteration 0 in the shader
-        // because sortedParticles holds a pre-tick snapshot — running it on
-        // iterations 1+ would double-count corrections and cause jitter.
-        struct CollidePC {
-            uint32_t count;
-            float    dt;
-            float    sleepThreshSq;
-            float    gravity;
-            uint32_t iteration;
-        } cpc;
-        cpc.count        = count;
-        cpc.dt           = FIXED_DT;
-        cpc.sleepThreshSq= SLEEP_THRESH_SQ;
-        cpc.gravity      = GRAVITY;
-
-        for (int iter = 0; iter < COLLISION_ITERATIONS; ++iter) {
-            cpc.iteration = static_cast<uint32_t>(iter);
-            m_collidePass.bind(cmd);
-            m_collidePass.pushConstants(cmd, &cpc, sizeof(cpc));
-            m_collidePass.dispatch(cmd, groups);
-
-            insertBarrier(cmd,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_ACCESS_SHADER_WRITE_BIT,
-                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                m_particleBuffer);
-        }
-
-    } // end physics tick loop
+        // Per-pass GPU timing only on the first tick (query-budget safe).
+        recordComputeCommandsNew(cmd, count, lifetimeDtThisTick, profiler, tick == 0, tick);
+        if (m_probeActive) recordProbeCopy(cmd, count, tick);
+    }
+    if (m_physicsTicks > 0 && m_eventBuffer[m_frameSlot] != VK_NULL_HANDLE)
+        insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                      VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_eventBuffer[m_frameSlot]);
+    if (m_physicsTicks > 0 && m_pushBuffer[m_frameSlot] != VK_NULL_HANDLE)
+        insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                      VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_pushBuffer[m_frameSlot]);
 
     // ---- 4. Reset instanceCount in indirect draw buffer ----
     // Always expand for rendering (even if 0 physics ticks — new spawns need faces)
@@ -1448,11 +1475,7 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
     // Smooth rendering between fixed-timestep physics ticks.
     // interpAlpha = fraction of FIXED_DT elapsed since the last completed tick.
     // The expand shader extrapolates: renderPos = position + velocity * alpha.
-    struct ExpandPC {
-        uint32_t count;
-        uint32_t maxFaceSlots;
-        float    interpAlpha;
-    } epc;
+    DebrisShared::ExpandPC epc;   // layout: solver_shared.h PHX_PC_EXPAND
     epc.count        = count;
     epc.maxFaceSlots = MAX_FACE_SLOTS;
     epc.interpAlpha  = m_timeAccumulator / FIXED_DT;
@@ -1478,7 +1501,11 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
         m_indirectDrawBuffer, 16);
 
     // ---- 7. Position logging readback (if active) ----
-    if (m_positionLogging && m_readbackBuffer != VK_NULL_HANDLE) {
+    if (m_positionLogging && m_readbackBuffer != VK_NULL_HANDLE && !m_readbackPending) {
+        // One buffer, so one copy in flight: it is read in update() only after THIS slot's fence
+        // (m_readbackReady, set when this slot records again). Before 2026-10-07 the next frame
+        // read it while the frame that wrote it could still be in flight (2 frames in flight).
+        m_readbackSlot = m_frameSlot;
         // Barrier: particle buffer COMPUTE_WRITE → TRANSFER_READ
         insertBarrier(cmd,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -1498,32 +1525,100 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
     }
 }
 
-// ============================================================
-// 3D Occupancy grid
-// ============================================================
-
-void GpuParticlePhysics::setOccupied(int worldX, int worldY, int worldZ, bool solid) {
-    int lx = worldX + OCC_HALF_X;
-    int ly = worldY + OCC_Y_OFFSET;
-    int lz = worldZ + OCC_HALF_Z;
-    if (lx < 0 || lx >= OCC_X) return;
-    if (ly < 0 || ly >= OCC_Y) return;
-    if (lz < 0 || lz >= OCC_Z) return;
-
-    int linearIdx = lx + ly * OCC_X + lz * OCC_X * OCC_Y;
-    uint32_t wordIdx = static_cast<uint32_t>(linearIdx) >> 5u;
-    uint32_t bitIdx  = static_cast<uint32_t>(linearIdx) & 31u;
-
-    uint32_t* words = static_cast<uint32_t*>(m_occupancyMapped);
-    if (solid)
-        words[wordIdx] |= (1u << bitIdx);
-    else
-        words[wordIdx] &= ~(1u << bitIdx);
+void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
+    if (slot >= OCC_FRAME_SLOTS || !m_eventsWritten[slot] || !m_eventMapped[slot]) return;
+    m_eventsWritten[slot] = false;
+    // Phase 6a: mover push-back (same slot, same fence). Force sums over the frame's ticks x the
+    // tick length = the impulse the debris put on each owner's boxes.
+    if (m_pushMapped[slot]) {
+        const auto* fp = static_cast<const int32_t*>(m_pushMapped[slot]);
+        const auto& owners = m_pushOwners[slot];
+        for (size_t k = 0; k < owners.size() && k < DebrisShared::MAX_KINEMATIC; ++k) {
+            if (owners[k] == 0 || fp[k * 4 + 3] == 0) continue;
+            const glm::vec3 f(fp[k * 4 + 0], fp[k * 4 + 1], fp[k * 4 + 2]);
+            m_moverImpulses[owners[k]] += f * (FIXED_DT / DebrisShared::MOVER_PUSH_SCALE);
+        }
+    }
+    const auto* words = static_cast<const uint32_t*>(m_eventMapped[slot]);
+    const uint32_t count  = words[0];
+    const uint32_t stored = std::min(count, DebrisShared::MAX_DEBRIS_EVENTS);
+    m_eventsTotal   += count;
+    m_eventsDropped += count - stored;
+    const auto* ev = reinterpret_cast<const DebrisShared::DebrisEventGpu*>(words + DebrisShared::EVENT_HEADER_UINTS);
+    m_events.reserve(m_events.size() + stored);
+    for (uint32_t k = 0; k < stored; ++k) {
+        DebrisEvent e;
+        e.slot          = ev[k].info.x;
+        e.type          = ev[k].info.y;
+        e.materialIndex = ev[k].info.z;
+        std::memcpy(&e.speed, &ev[k].info.w, sizeof(float));
+        e.position      = glm::vec3(ev[k].posScale.x, ev[k].posScale.y, ev[k].posScale.z);
+        e.scale         = ev[k].posScale.w;
+        e.serial        = slotSerial(e.slot);
+        m_events.push_back(e);
+    }
+    // A consumer that never drains (no DebrisRuntime) must not grow without bound.
+    constexpr size_t kMaxQueued = 8u * DebrisShared::MAX_DEBRIS_EVENTS;
+    if (m_events.size() > kMaxQueued) {
+        m_eventsDropped += m_events.size() - kMaxQueued;
+        m_events.erase(m_events.begin(), m_events.begin() + (m_events.size() - kMaxQueued));
+    }
 }
 
-void GpuParticlePhysics::clearOccupancy() {
-    if (m_occupancyMapped)
-        memset(m_occupancyMapped, 0, static_cast<size_t>(OCC_TOTAL_WORDS) * sizeof(uint32_t));
+void GpuParticlePhysics::setWater(const glm::ivec2& dirMinChunkXZ, bool implicitSea, float seaLevel,
+                                  std::vector<uint32_t> dir, std::vector<uint32_t> cells) {
+    const size_t tileWords = static_cast<size_t>(DebrisShared::WATER_TILE_CELLS) * DebrisShared::WATER_TILE_CELLS * 2u;
+    const size_t maxWords  = DebrisShared::WATER_MAX_TILES * tileWords;
+    if (cells.size() > maxWords) cells.resize(maxWords);   // the builder caps first (and counts)
+    m_waterDirStage  = std::move(dir);
+    m_waterCellStage = std::move(cells);
+    int seaBits = 0;
+    std::memcpy(&seaBits, &seaLevel, sizeof(int));
+    m_waterPC = DebrisShared::ivec4{dirMinChunkXZ.x, dirMinChunkXZ.y, implicitSea ? 1 : 0, seaBits};
+}
+
+bool GpuParticlePhysics::createHostBuffer(VkDeviceSize size, VkBuffer& buf, VkDeviceMemory& mem, void*& mapped,
+                                          const char* what) {
+    VkBufferCreateInfo bi{};
+    bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bi.size        = size;
+    bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;   // fill-cleared (6a)
+    bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkMemoryRequirements req{};
+    uint32_t memType = UINT32_MAX;
+    if (vkCreateBuffer(m_device, &bi, nullptr, &buf) == VK_SUCCESS) {
+        vkGetBufferMemoryRequirements(m_device, buf, &req);
+        VkPhysicalDeviceMemoryProperties props;
+        vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+        const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        for (uint32_t j = 0; j < props.memoryTypeCount; ++j)
+            if ((req.memoryTypeBits & (1u << j)) && (props.memoryTypes[j].propertyFlags & want) == want) { memType = j; break; }
+    }
+    VkMemoryAllocateInfo ai{};
+    ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    ai.allocationSize  = req.size;
+    ai.memoryTypeIndex = memType;
+    if (buf == VK_NULL_HANDLE || memType == UINT32_MAX ||
+        vkAllocateMemory(m_device, &ai, nullptr, &mem) != VK_SUCCESS ||
+        vkBindBufferMemory(m_device, buf, mem, 0) != VK_SUCCESS ||
+        vkMapMemory(m_device, mem, 0, size, 0, &mapped) != VK_SUCCESS) {
+        LOG_ERROR("GpuParticlePhysics", std::string("Failed to create/map ") + what + " buffer");
+        return false;
+    }
+    std::memset(mapped, 0, static_cast<size_t>(size));
+    return true;
+}
+
+bool GpuParticlePhysics::despawnSlot(uint32_t slot) {
+    if (slot >= m_slots.size() || !m_slots[slot].active) return false;
+    m_slots[slot].lifetimeRemaining = 0.0f;   // retired by the next update(), like any expiry
+    return true;
+}
+
+std::string GpuParticlePhysics::materialNameOf(uint32_t materialIndex) {
+    const auto* def = Core::MaterialRegistry::instance().getMaterial(
+        static_cast<int>(materialIndex & DebrisShared::MATERIAL_MASK));
+    return def ? def->name : std::string("Default");
 }
 
 void GpuParticlePhysics::despawnAll() {
@@ -1531,13 +1626,18 @@ void GpuParticlePhysics::despawnAll() {
         if (m_slots[i].active) {
             m_slots[i].active = false;
             m_slots[i].lifetimeRemaining = 0.0f;
-            m_freeSlots.push_back(i);
+            releaseSlot(i);
             m_pendingDeactivations.push_back(i); // clear its GPU ACTIVE flag this frame
         }
     }
     m_activeCount = 0;
     m_highWaterSlot = 0;
     m_pendingSpawns.clear();
+    // An empty pool has no contacts to warm-start: re-clear the hash + wake bits on the next
+    // step. They were cleared ONCE per engine, so later bodies inherited stale keys/lambdas and
+    // the table filled across a session — the same scenario gave a different result on every
+    // run (DebrisInteractionPlan 1c, session-state dependence).
+    m_hashInitialized = false;
     if (m_positionLogging) stopPositionLog();
 }
 
@@ -1547,33 +1647,58 @@ void GpuParticlePhysics::despawnAll() {
 
 void GpuParticlePhysics::setCharacterColliders(
     const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes, const glm::vec3& velocity) {
-    if (!m_characterMapped) return;
-    CharacterCollider* cc = static_cast<CharacterCollider*>(m_characterMapped);
+    std::vector<MoverBox> movers;
+    movers.reserve(boxes.size());
+    for (const auto& [c, h] : boxes) movers.push_back({c, h, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), velocity});
+    setMoverBoxes(std::move(movers));
+}
 
-    uint32_t n = static_cast<uint32_t>(boxes.size());
-    if (n > MAX_CHAR_SEGMENTS) n = MAX_CHAR_SEGMENTS;
-    if (n == 0) {
-        cc->segmentCount = 0.0f;
-        cc->legacyActive = 0.0f;
-        return;
-    }
+void GpuParticlePhysics::setMoverBoxes(std::vector<MoverBox> movers) {
+    m_movers = std::move(movers);
+    writeColliderBuffer();
+}
 
-    // Write segments and accumulate the union AABB (the solver's broadphase box).
-    glm::vec3 mn( 1e30f);
-    glm::vec3 mx(-1e30f);
-    for (uint32_t i = 0; i < n; ++i) {
-        const glm::vec3& c = boxes[i].first;
-        const glm::vec3& h = boxes[i].second;
-        cc->segments[i].center      = glm::vec4(c, 0.0f);
-        cc->segments[i].halfExtents = glm::vec4(h, 0.0f);
-        mn = glm::min(mn, c - h);
-        mx = glm::max(mx, c + h);
-    }
-    cc->center       = (mn + mx) * 0.5f;
-    cc->halfExtents  = (mx - mn) * 0.5f;
-    cc->velocity     = velocity;
-    cc->segmentCount = static_cast<float>(n);
-    cc->legacyActive = static_cast<float>(n);
+void GpuParticlePhysics::setBodyMoverBoxes(std::vector<MoverBox> movers) {
+    m_bodyMovers = std::move(movers);
+    writeColliderBuffer();
+}
+
+GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::queueImpulse(const glm::vec3& c, float radius,
+        const glm::vec3& axis, float cosHalf, float impulse, float upBias, float halfAngleDeg) {
+    ImpulseQueued q;
+    // Clamps at entry (the reasons live with the constants in solver_shared.h).
+    q.radius       = std::clamp(std::isfinite(radius) ? radius : 0.0f, 0.1f, DebrisShared::IMPULSE_MAX_RADIUS);
+    q.impulse      = std::max(std::isfinite(impulse) ? impulse : 0.0f, 0.0f);
+    q.upBias       = std::clamp(std::isfinite(upBias) ? upBias : 0.0f, 0.0f, 1.0f);
+    q.halfAngleDeg = halfAngleDeg;
+    if (!std::isfinite(c.x) || !std::isfinite(c.y) || !std::isfinite(c.z) || q.impulse <= 0.0f) return q;
+    if (m_activeCount == 0) return q;   // no debris to push: nothing is queued (would be stale later)
+    if (m_impulseStage.size() >= DebrisShared::MAX_IMPULSES) { ++m_impulseOverflow; return q; }
+    DebrisShared::ImpulseGpu g{};
+    g.centerRadius = { c.x, c.y, c.z, q.radius };
+    g.dirCos       = { axis.x, axis.y, axis.z, cosHalf };
+    g.params       = { q.impulse, q.upBias, 0.0f, 0.0f };
+    m_impulseStage.push_back(g);
+    q.queued = true;
+    return q;
+}
+
+GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::applyRadialImpulse(const glm::vec3& center, float radius,
+                                                                         float impulse, float upBias) {
+    return queueImpulse(center, radius, glm::vec3(0.0f), DebrisShared::IMPULSE_RADIAL, impulse, upBias, 0.0f);
+}
+
+GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::applyConeImpulse(const glm::vec3& origin, const glm::vec3& dir,
+        float halfAngleDeg, float range, float impulse, float upBias) {
+    const float len = glm::length(dir);
+    const glm::vec3 axis = (std::isfinite(len) && len > 1e-6f) ? dir / len : glm::vec3(0.0f, 0.0f, -1.0f);
+    const float half = std::clamp(std::isfinite(halfAngleDeg) ? halfAngleDeg : 0.0f, 0.0f, 90.0f);
+    return queueImpulse(origin, range, axis, std::cos(glm::radians(half)), impulse, upBias, half);
+}
+
+void GpuParticlePhysics::setObjectMoverBoxes(std::vector<MoverBox> movers) {
+    m_objectMovers = std::move(movers);
+    writeColliderBuffer();
 }
 
 void GpuParticlePhysics::setCharacterAABB(const glm::vec3& center, const glm::vec3& halfExtents, const glm::vec3& velocity) {
@@ -1581,10 +1706,51 @@ void GpuParticlePhysics::setCharacterAABB(const glm::vec3& center, const glm::ve
 }
 
 void GpuParticlePhysics::clearCharacterAABB() {
-    if (!m_characterMapped) return;
-    CharacterCollider* cc = static_cast<CharacterCollider*>(m_characterMapped);
-    cc->segmentCount = 0.0f;
-    cc->legacyActive = 0.0f;
+    m_movers.clear();
+    writeColliderBuffer();
+}
+
+void GpuParticlePhysics::setKinematicBox(const std::string& id, const KinematicBox& box) {
+    KinematicBox b = box;
+    b.half = glm::max(b.half, glm::vec3(0.01f));          // a degenerate box collides with nothing
+    b.ttl  = std::clamp(b.ttl, 0.0f, 10.0f);              // a forgotten box must not live forever
+    m_kinematicBoxes[id] = b;
+    m_kinematicBoxesFrameStart[id] = b;   // visible from the next GPU tick on
+    writeColliderBuffer();
+}
+
+bool GpuParticlePhysics::removeKinematicBox(const std::string& id) {
+    const bool had = m_kinematicBoxes.erase(id) > 0;
+    m_kinematicBoxesFrameStart.erase(id);
+    writeColliderBuffer();
+    return had;
+}
+
+void GpuParticlePhysics::writeColliderBuffer() {
+    // Every mover - scripted boxes, character limbs (3a), doors/parts/held items (3b) and CPU
+    // rigid-body boxes (3c), each an oriented box with its own velocity - is a kinematic AVBD body
+    // (Phase 2). Staged here, in that priority order, copied into the frame slot's buffer in
+    // recordComputeCommands after that slot's fence.
+    m_kinematicStage.clear();
+    m_kinematicOwnerStage.clear();
+    m_kinematicOverflow = 0;
+    auto put = [&](const glm::vec3& c, const glm::vec3& h, const glm::quat& r, const glm::vec3& v, uint32_t owner = 0u) {
+        if (m_kinematicStage.size() >= DebrisShared::MAX_KINEMATIC) { ++m_kinematicOverflow; return; }
+        m_kinematicOwnerStage.push_back(owner);
+        DebrisShared::KinematicBoxGpu kb{};
+        kb.center   = { c.x, c.y, c.z, 0.0f };
+        kb.halfExt  = { h.x, h.y, h.z, 0.0f };
+        kb.rotation = { r.x, r.y, r.z, r.w };   // GLSL quat convention: xyzw
+        kb.velocity = { v.x, v.y, v.z, 0.0f };
+        m_kinematicStage.push_back(kb);
+    };
+    // Scripted boxes first: they are test instruments and must never be the overflow.
+    for (const auto& [id, b] : m_kinematicBoxesFrameStart)
+        put(b.center, b.half, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), b.velocity);
+    for (const auto& m : m_movers) put(m.center, m.halfExtents, m.rotation, m.velocity, m.owner);
+    for (const auto& m : m_objectMovers) put(m.center, m.halfExtents, m.rotation, m.velocity);
+    for (const auto& m : m_bodyMovers) put(m.center, m.halfExtents, m.rotation, m.velocity);
+    m_kinematicCount = static_cast<uint32_t>(m_kinematicStage.size());
 }
 
 // ============================================================
@@ -1625,6 +1791,155 @@ void GpuParticlePhysics::stopPositionLog() {
 }
 
 // ============================================================
+// Settle probe (docs/DebrisSettlingPlan.md §3)
+// ============================================================
+
+bool GpuParticlePhysics::createProbeBuffers() {
+    if (m_probe[0].buffer != VK_NULL_HANDLE) return true;
+    const VkDeviceSize size = PROBE_TICK_STRIDE * PROBE_MAX_TICKS;
+    VkPhysicalDeviceMemoryProperties props;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+    for (ProbeSlot& s : m_probe) {
+        VkBufferCreateInfo bi{};
+        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size        = size;
+        bi.usage       = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &s.buffer) != VK_SUCCESS) return false;
+        VkMemoryRequirements req;
+        vkGetBufferMemoryRequirements(m_device, s.buffer, &req);
+        const VkMemoryPropertyFlags want =
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        uint32_t memType = UINT32_MAX;
+        for (uint32_t j = 0; j < props.memoryTypeCount; ++j) {
+            if ((req.memoryTypeBits & (1u << j)) &&
+                (props.memoryTypes[j].propertyFlags & want) == want) { memType = j; break; }
+        }
+        if (memType == UINT32_MAX) return false;
+        VkMemoryAllocateInfo ai{};
+        ai.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize  = req.size;
+        ai.memoryTypeIndex = memType;
+        if (vkAllocateMemory(m_device, &ai, nullptr, &s.memory) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, s.buffer, s.memory, 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, s.memory, 0, size, 0, &s.mapped) != VK_SUCCESS) return false;
+        s.ticks = 0;
+    }
+    LOG_INFO_FMT("GpuParticlePhysics", "Settle probe ring: " << PROBE_FRAMES << " x "
+        << (size / 1024) << " KB host-visible");
+    return true;
+}
+
+void GpuParticlePhysics::startSettleProbe(const Core::DebrisSettleAnalyzer::Config& cfg) {
+    if (!m_initialized || !createProbeBuffers()) {
+        LOG_ERROR("GpuParticlePhysics", "Settle probe: readback ring unavailable");
+        return;
+    }
+    Core::DebrisSettleAnalyzer::Config c = cfg;
+    c.dt = FIXED_DT;
+    c.gravity = -GRAVITY;
+    m_settle.setConfig(c);
+    m_settle.reset();
+    ++m_probeGeneration;     // ticks already in flight belong to the previous run
+    m_probeActive = true;
+    LOG_INFO("GpuParticlePhysics", "Settle probe started");
+}
+
+void GpuParticlePhysics::stopSettleProbe() {
+    if (!m_probeActive) return;
+    m_probeActive = false;
+    LOG_INFO("GpuParticlePhysics", "Settle probe stopped ({} ticks analysed)", m_settle.tickCount());
+}
+
+void GpuParticlePhysics::recordProbeCopy(VkCommandBuffer cmd, uint32_t count, uint32_t tick) {
+    ProbeSlot& s = m_probe[m_probeFrame];
+    if (!s.buffer || tick >= PROBE_MAX_TICKS || count == 0) return;
+    if (s.ticks == 0) s.generation = m_probeGeneration;
+
+    // Compute writes (sync_out / warmstart save / colouring / CSR count) → transfer reads.
+    VkMemoryBarrier toTransfer{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+    toTransfer.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         0, 1, &toTransfer, 0, nullptr, 0, nullptr);
+
+    const VkDeviceSize base = PROBE_TICK_STRIDE * tick;
+    VkBufferCopy cp{};
+    cp.srcOffset = 0;
+    cp.dstOffset = base + PROBE_PARTICLES_OFF;
+    cp.size      = static_cast<VkDeviceSize>(count) * sizeof(GpuParticle);
+    vkCmdCopyBuffer(cmd, m_particleBuffer, s.buffer, 1, &cp);
+    cp.dstOffset = base + PROBE_HDR_OFF;
+    cp.size      = PROBE_HDR_UINTS * sizeof(uint32_t);
+    vkCmdCopyBuffer(cmd, m_solverStateBuffer, s.buffer, 1, &cp);
+    cp.dstOffset = base + PROBE_COLOR_OFF;
+    cp.size      = static_cast<VkDeviceSize>(count) * sizeof(uint32_t);
+    vkCmdCopyBuffer(cmd, m_bodyColorBuffer, s.buffer, 1, &cp);
+    cp.dstOffset = base + PROBE_CCOUNT_OFF;
+    vkCmdCopyBuffer(cmd, m_bodyConstraintCountBuffer, s.buffer, 1, &cp);
+
+    // The next tick's header fill (transfer) and compute passes overwrite what we just read;
+    // the host reads the slot after the frame fence.
+    VkMemoryBarrier after{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+    after.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    after.dstAccessMask = VK_ACCESS_HOST_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT |
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         0, 1, &after, 0, nullptr, 0, nullptr);
+
+    s.count[tick] = count;
+    s.ticks = tick + 1;
+}
+
+void GpuParticlePhysics::consumeProbeSlot(uint32_t slot) {
+    ProbeSlot& s = m_probe[slot];
+    const uint32_t ticks = s.ticks;
+    s.ticks = 0;
+    if (!m_probeActive || !s.mapped || ticks == 0 || s.generation != m_probeGeneration) return;
+
+    std::vector<Core::SettleBodySample> samples;
+    for (uint32_t t = 0; t < ticks; ++t) {
+        const auto* bytes = static_cast<const uint8_t*>(s.mapped) + PROBE_TICK_STRIDE * t;
+        const auto* parts = reinterpret_cast<const GpuParticle*>(bytes + PROBE_PARTICLES_OFF);
+        const auto* hdr   = reinterpret_cast<const uint32_t*>(bytes + PROBE_HDR_OFF);
+        const auto* color = reinterpret_cast<const uint32_t*>(bytes + PROBE_COLOR_OFF);
+        const auto* ccnt  = reinterpret_cast<const uint32_t*>(bytes + PROBE_CCOUNT_OFF);
+        const uint32_t n  = s.count[t];
+
+        samples.assign(n, Core::SettleBodySample{});
+        for (uint32_t i = 0; i < n; ++i) {
+            const GpuParticle& p = parts[i];
+            Core::SettleBodySample& b  = samples[i];
+            b.position        = p.position;
+            b.prevPosition    = p.prevPosition;
+            b.angularVel      = p.angularVel;
+            b.rotation        = p.rotation;
+            b.flags           = p.flags;
+            const uint32_t mi = p.materialIndex & DebrisShared::MATERIAL_MASK;
+            b.mass            = mi < m_materialMassCpu.size() ? m_materialMassCpu[mi] : 1.0f;
+            b.radius          = 0.5f * std::max(p.scale.x, std::max(p.scale.y, p.scale.z));
+            b.color           = color[i];
+            b.constraintCount = ccnt[i];
+        }
+        Core::SettleSolverCounters c;
+        c.constraintsEmitted  = hdr[DebrisShared::SS_CONSTRAINT_COUNT];
+        c.constraintCap       = MAX_CONSTRAINTS;
+        c.warmstartHits       = hdr[DebrisShared::SS_WARMSTART_HITS];
+        c.hardContactFires    = hdr[DebrisShared::SS_HARDCONTACT_FIRES];
+        c.hardContactMaxDepth = static_cast<float>(hdr[DebrisShared::SS_HARDCONTACT_DEPTH_UM]) * 1.0e-6f;
+        c.wakeRequests        = hdr[DebrisShared::SS_WAKE_REQUESTS];
+        c.frozenUnknown       = hdr[DebrisShared::SS_FROZEN_UNKNOWN];
+        c.kinematicContacts   = hdr[DebrisShared::SS_KINEMATIC_CONTACTS];
+        c.impulsesApplied     = hdr[DebrisShared::SS_IMPULSES_APPLIED];
+        c.kinematicMaxDepth   = static_cast<float>(hdr[DebrisShared::SS_KINEMATIC_DEPTH_UM]) * 1.0e-6f;
+        c.maxColors           = MAX_COLORS;
+        c.uncoloredSolved     = true;   // recordComputeCommandsNew's final UNCOLORED sweep
+        m_settle.addTick(samples, c);
+    }
+}
+
+// ============================================================
 // Cleanup
 // ============================================================
 
@@ -1632,19 +1947,24 @@ void GpuParticlePhysics::cleanup() {
     stopPositionLog();
     if (m_device == VK_NULL_HANDLE) return;
 
+    m_probeActive = false;
+    for (ProbeSlot& s : m_probe) {
+        if (s.mapped) { vkUnmapMemory(m_device, s.memory); s.mapped = nullptr; }
+        if (s.buffer) { vkDestroyBuffer(m_device, s.buffer, nullptr); s.buffer = VK_NULL_HANDLE; }
+        if (s.memory) { vkFreeMemory(m_device, s.memory, nullptr); s.memory = VK_NULL_HANDLE; }
+    }
+
     m_gridClearPass.cleanup();
     m_gridBuildPass.cleanup();
-    m_sortScanPass.cleanup();
     m_sortScatterPass.cleanup();
     m_scanBlockPass.cleanup();
     m_scanBlockSumsPass.cleanup();
     m_scanAddPass.cleanup();
-    m_integratePass.cleanup();
-    m_collidePass.cleanup();
     m_expandPass.cleanup();
 
     m_solverSyncInPass.cleanup();
     m_solverIntegratePass.cleanup();
+    m_solverKinematicSyncPass.cleanup();
     m_solverNarrowphasePass.cleanup();
     m_solverVoxelPass.cleanup();
     m_solverDualPass.cleanup();
@@ -1665,8 +1985,18 @@ void GpuParticlePhysics::cleanup() {
 
     // Unmap before freeing
     if (m_stagingMapped)       { vkUnmapMemory(m_device, m_stagingMem);       m_stagingMapped      = nullptr; }
-    if (m_occupancyMapped)     { vkUnmapMemory(m_device, m_occupancyMem);     m_occupancyMapped    = nullptr; }
-    if (m_characterMapped)     { vkUnmapMemory(m_device, m_characterMem);     m_characterMapped    = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (m_kinematicBoxMapped[slot]) { vkUnmapMemory(m_device, m_kinematicBoxMem[slot]); m_kinematicBoxMapped[slot] = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (m_impulseMapped[slot]) { vkUnmapMemory(m_device, m_impulseMem[slot]); m_impulseMapped[slot] = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (m_eventMapped[slot]) { vkUnmapMemory(m_device, m_eventMem[slot]); m_eventMapped[slot] = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (m_pushMapped[slot]) { vkUnmapMemory(m_device, m_pushMem[slot]); m_pushMapped[slot] = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        if (m_waterDirMapped[slot])  { vkUnmapMemory(m_device, m_waterDirMem[slot]);  m_waterDirMapped[slot]  = nullptr; }
+        if (m_waterTileMapped[slot]) { vkUnmapMemory(m_device, m_waterTileMem[slot]); m_waterTileMapped[slot] = nullptr; }
+    }
     if (m_materialPhysMapped)  { vkUnmapMemory(m_device, m_materialPhysMem);  m_materialPhysMapped = nullptr; }
     if (m_readbackMapped)      { vkUnmapMemory(m_device, m_readbackMem);      m_readbackMapped     = nullptr; }
 
@@ -1674,8 +2004,14 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_faceBuffer,          m_faceMem);
     destroyBuf(m_stagingBuffer,       m_stagingMem);
     destroyBuf(m_indirectDrawBuffer,  m_indirectDrawMem);
-    destroyBuf(m_occupancyBuffer,     m_occupancyMem);
-    destroyBuf(m_characterBuffer,     m_characterMem);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_impulseBuffer[slot], m_impulseMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_eventBuffer[slot], m_eventMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_pushBuffer[slot], m_pushMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        destroyBuf(m_waterDirBuffer[slot],  m_waterDirMem[slot]);
+        destroyBuf(m_waterTileBuffer[slot], m_waterTileMem[slot]);
+    }
     destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
     destroyBuf(m_gridCellCountBuffer,  m_gridCellCountMem);
     destroyBuf(m_gridCellOffsetBuffer, m_gridCellOffsetMem);

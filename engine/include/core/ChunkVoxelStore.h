@@ -16,7 +16,7 @@ namespace Phyxel {
 // WHY: a heap `Cube` is ~176 B + ~48 B of Debug heap header, and a solid chunk holds 32,768 of
 // them (~7.6 MB) — the dominant per-chunk cost after Phase 4.1. But a *static* voxel only ever
 // needs its material (71 callers) and a visible bit (46); its position is derivable from the
-// index, and every other field (bonds 72 B, voxelBody/physics 52 B, damage) is physics-only.
+// index, and every other field (voxelBody/physics 52 B, damage) is physics-only.
 // This store holds exactly that static part in ~96 KB/chunk — ~80× less than the Cubes it will
 // replace once authority flips (Phase 4.2b) and `Cube`s are materialized on demand.
 //

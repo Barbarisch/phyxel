@@ -1,0 +1,72 @@
+{
+ "npcs_before": 104,
+ "residents_off": {
+  "active": 0,
+  "configured": true,
+  "despawned": 104,
+  "enabled": false,
+  "success": true
+ },
+ "npcs_after_off": 0,
+ "npcs_after_15s": 3,
+ "residents_on": {
+  "active": 0,
+  "configured": true,
+  "despawned": 0,
+  "enabled": true,
+  "success": true
+ },
+ "npcs_after_on_8s": 107,
+ "ladder_bad": {
+  "applied": false,
+  "error": "structure_ladder must be 5 strictly ascending distances > 0 (world units)",
+  "success": false
+ },
+ "ladder_good": {
+  "enabled": true,
+  "per_instance_levels": true,
+  "resident_tiles": 71,
+  "structure_ladder": [
+   300.0,
+   500.0,
+   700.0,
+   900.0,
+   1200.0
+  ],
+  "structures": true,
+  "structures_skip_invisible": true,
+  "success": true,
+  "trees": true
+ },
+ "ladder_report": [
+  300.0,
+  500.0,
+  700.0,
+  900.0,
+  1200.0
+ ],
+ "ladder_restore": [
+  360.0,
+  500.0,
+  700.0,
+  900.0,
+  1200.0
+ ],
+ "effect_on": {
+  "frozen": true,
+  "held_at_s": 24.125247955322266,
+  "note": "holds UBO elapsedTime (wind, grass, sky, far-tree sway, pulse) and VFX dt only; game, emissive reconcile, streaming and the day/night clock keep running",
+  "success": true
+ },
+ "effect_off": {
+  "frozen": false,
+  "held_at_s": null,
+  "note": "holds UBO elapsedTime (wind, grass, sky, far-tree sway, pulse) and VFX dt only; game, emissive reconcile, streaming and the day/night clock keep running",
+  "success": true
+ },
+ "effect_bad": {
+  "applied": false,
+  "error": "'frozen' must be a boolean",
+  "success": false
+ }
+}

@@ -13,7 +13,7 @@
     },
     "character.frag": {
       "built": true,
-      "sources": "b5de041b2476bd17ebb2cde751f3db66348718d95c8571f8b3a86f36c7f881ed",
+      "sources": "55a976c619ebed7aaca21bf6570c6981f8ed3ad272705c1f8209e9cbb5727c6b",
       "spv_present": true
     },
     "character.vert": {
@@ -29,16 +29,6 @@
     "character_shadow.vert": {
       "built": true,
       "sources": "628282c66a6bb2ae2ad79e24e056b747618a35c7030a856db088c7f12f124860",
-      "spv_present": true
-    },
-    "debris.frag": {
-      "built": true,
-      "sources": "fdbe383d874ef0b46117b9639d26a8bf533a3646902601365c1ab39baa772677",
-      "spv_present": true
-    },
-    "debris.vert": {
-      "built": true,
-      "sources": "c6b7eb3734ff0925ceb67688d6b077b10f6a932510d77e67bff5cc608b3bbe8b",
       "spv_present": true
     },
     "debug_line.frag": {
@@ -113,7 +103,7 @@
     },
     "foliage.frag": {
       "built": true,
-      "sources": "42e07a76fe01f884a9d562f15a7a865ddd35dd2d60a0345438395931379336f8",
+      "sources": "5f07c2348ea35fd44a5aa538d38754b01ed8ec67280b9341514bbaf1e8783c48",
       "spv_present": true
     },
     "foliage.vert": {
@@ -138,17 +128,17 @@
     },
     "gi_probe.comp": {
       "built": true,
-      "sources": "618014f79359ce4900ce105937f40c353c02bdd6963ac08fd1244b4b432f5566",
+      "sources": "d1228c5164984602734adba50fd69f7d700f5887041b1f2d7eef2c18e95156d3",
       "spv_present": true
     },
     "grass.frag": {
       "built": true,
-      "sources": "9f7bffddb4622d294fc3934d7f048843caf0b7aee928002fae1db5b02924388a",
+      "sources": "0cee14e7e2daaf38e08e0a323f19364ab4315cf226ef5b0ea33fc16b339f0a2e",
       "spv_present": true
     },
     "grass.vert": {
       "built": true,
-      "sources": "843d47a862d2af6324f4e824ff40cd6fdacb95d3f04269ff0c22039b131c165b",
+      "sources": "e47348b4c9619e17915099da8ed55da38ce458353809b77286fb80bf673efa3e",
       "spv_present": true
     },
     "grass_shadow.frag": {
@@ -158,7 +148,7 @@
     },
     "grass_shadow.vert": {
       "built": true,
-      "sources": "978db3855dd9d29d121f536586f51e3bde7f68e2509caa37b71678cad17996b1",
+      "sources": "5e8ae2a6bc880dbef294ab5c563e6f5c2d17fe8b8e9311a03d251e80e7a6f49f",
       "spv_present": true
     },
     "kinematic_shadow.vert": {
@@ -176,54 +166,39 @@
       "sources": "332b1c40cf1811047edb105050fbfa015a8c09e66de87d3b1a52691bb225f566",
       "spv_present": true
     },
-    "particle_collide.comp": {
-      "built": true,
-      "sources": "dd402081a1cc1b211f4224eab0e7807458e2b7b270b8346f5aedde4068589fba",
-      "spv_present": true
-    },
     "particle_expand.comp": {
       "built": true,
-      "sources": "5b199befac4adcfab15ae49bd72f8b53660dd175784b237541359742ea894f7b",
+      "sources": "6575df0c8e5d4abb9b8e6f7a0b2270074c00f882e9333a735da954ceeb3358a7",
       "spv_present": true
     },
     "particle_grid_build.comp": {
       "built": true,
-      "sources": "295801cfb4eb588f28ba43034c4e496423e13edfef2661ba29f08854dc0db220",
+      "sources": "d5b1bf958a45b62a2d203a6fecbb95f8d23fb9d5dbc539ccc4721e2fb912d113",
       "spv_present": true
     },
     "particle_grid_clear.comp": {
       "built": true,
-      "sources": "dc479f377990ec99b5852c276044a669d2ac33939207666cb85accb22262bc38",
-      "spv_present": true
-    },
-    "particle_integrate.comp": {
-      "built": true,
-      "sources": "ee5f731b83801dffd3c1498f99e12cc88e9afcab9b09df7263269346cc6c3e9b",
+      "sources": "d260a4f2d6a00aa50a2d4f7c6a8ca483930e679893f9a8bcaf7f49f7b6e4f04d",
       "spv_present": true
     },
     "particle_scan_add.comp": {
       "built": true,
-      "sources": "20902677926d1b82712e871fd5b6cff67ce1eb4fff3e7d526798cf3da16d67fb",
+      "sources": "a6032f73ddf41277399b4dbb31671c763add495661f20066d7d368c00b95c7ba",
       "spv_present": true
     },
     "particle_scan_block.comp": {
       "built": true,
-      "sources": "210b5e8088de9832cdcf9979668569cd55cf275eebdda0100d5c4dafe80e3d75",
+      "sources": "e2090f56506de9949e8af56d2fd73b2921b751553e08e835fdc23776de0daa0a",
       "spv_present": true
     },
     "particle_scan_blocksums.comp": {
       "built": true,
-      "sources": "7f43e8de380ccf74f2df31827393eab287ad055d3fb2a39cb9cd006dfc3cb1fa",
-      "spv_present": true
-    },
-    "particle_sort_scan.comp": {
-      "built": true,
-      "sources": "b09702360de13d2d0159c445f4a636f283bab89470e3ac2ce8ae184505b8f07a",
+      "sources": "5cb96086678f692c0daf901f7e877bb9f4cd90efd5e1530b20aee09d1ca882e5",
       "spv_present": true
     },
     "particle_sort_scatter.comp": {
       "built": true,
-      "sources": "75b294f536399697d7e41921d2923fc5a7ae94c853817d2da8d4431b927719ed",
+      "sources": "dfdc62380fdaff5b1c2e64d1c079b62b9d86b85833d1134c2ec8b7c7961742ef",
       "spv_present": true
     },
     "post_process.frag": {
@@ -256,89 +231,79 @@
       "sources": "83e2f5effae22643e853a6df10946d705c57322bcc19e7196d9a02ad0382681c",
       "spv_present": true
     },
-    "solver_apply.comp": {
-      "built": false,
-      "sources": "6d5265321489b870991b5a3d5db0e2cad149764624aa85d461ac68641a741749",
-      "spv_present": false
-    },
     "solver_body_color.comp": {
       "built": true,
-      "sources": "055f2eb6262901882f62361dedc8538e6d437541c584a49a99ad17c64e216aaa",
+      "sources": "a6155f0186faeeff210dba8b202c7f8532321f28a4194b261d488afb50cac338",
       "spv_present": true
     },
     "solver_csr_clear.comp": {
       "built": true,
-      "sources": "091a14ef9621a8048d618978bd7cb274ce5127d3a0ce12d58b36cc8cf70e53cf",
+      "sources": "ccc112d81e6bc12b57a9f514ca99636dd5cb11df38b6ffe83d5409557e629ad3",
       "spv_present": true
     },
     "solver_csr_count.comp": {
       "built": true,
-      "sources": "0133265e39d6be41004b93a489c66d08561b5fc34f526b9baad2d45ec64bbbc9",
+      "sources": "55aae541dfe2ceb77f396b337a67b72e16aeb98a529a5098d0f177334c3b06eb",
       "spv_present": true
     },
     "solver_csr_scatter.comp": {
       "built": true,
-      "sources": "35df7eab087296322939219173e78bebcb4cde37c3e7ed6c866f3dab87eabc1b",
+      "sources": "dae1e791e5a98f71f4f7207d054b5a1e57617713dda54be8b8aed28c9c8ae7e1",
       "spv_present": true
     },
     "solver_dual.comp": {
       "built": true,
-      "sources": "858abc76aa28592b6a17c75eefd55be5c42f897c48654e537add347fb47d7a72",
-      "spv_present": true
-    },
-    "solver_graph_color.comp": {
-      "built": true,
-      "sources": "8b0ace233ce7321524d6968b299f0e85668460e0f3a745708c4fee1e38ddb4db",
+      "sources": "fac8647dba418a84538d538b85f655a4e191f8bef7feb101d850172798a1e469",
       "spv_present": true
     },
     "solver_hardcontact.comp": {
       "built": true,
-      "sources": "c2f60db3fa63a689c317f86676f5af2b7448e618a63cea12003200b495e6e81c",
+      "sources": "edd2cfa54a3b986bde4fd39d0ba2e127631edb4260bd42efd6d6e015a28f3e79",
       "spv_present": true
     },
     "solver_integrate.comp": {
       "built": true,
-      "sources": "53d7110326d4fcbed217cebd8feccb6a379c4514e2ea5ad5b1f35e10bf2371ef",
+      "sources": "e24c94ff0710504d6470043054405921ac904040f741c217eb8dbf8cab79bfa4",
       "spv_present": true
     },
-    "solver_jacobi.comp": {
+    "solver_kinematic_sync.comp": {
       "built": true,
-      "sources": "d2fd7c38cce4d36dad5ab6517666c293568df9112bd2558816ba782928494a95",
+      "sources": "e26cec9e24153616afce2dba8dcfd1aa80a71768404407e01f66fe67b1a705a8",
       "spv_present": true
     },
     "solver_narrowphase.comp": {
       "built": true,
-      "sources": "df0be68013ea8d22f2f88008568625cae053ed2a7028aa5b06471a10950a8fa2",
+      "sources": "026b81398c52602fe18578e9e95f01d2321b48c08acab79cf79b7bd30910a67d",
       "spv_present": true
     },
     "solver_prefix_sum.comp": {
       "built": true,
-      "sources": "928f1b307a171db12a15fbb74aecbc2dd17be111e617d1bf6db1db0763910670",
+      "sources": "6f2456aa2c635198f6ec63f6a0f466f42f33cd9c8ca3d6a1e31399850c6c6b91",
       "spv_present": true
     },
     "solver_primal.comp": {
       "built": true,
-      "sources": "e22befc380c436ede24bb3f58124fe3bb988a7cbf3b8182143de3178834482c7",
+      "sources": "cda2b6377380ff9125a237744afca8d8a3b9f36c99cfea2ed81f3bf8981aea91",
       "spv_present": true
     },
     "solver_sync_in.comp": {
       "built": true,
-      "sources": "083c4e1d9e3ec9dc85f4b78e65672a59274f7db8db73dea7d625e37e6a9c9d8a",
+      "sources": "8aaacd9655af29c943eacc1458168d35c399ebd760153dc49d34ffd3d3221802",
       "spv_present": true
     },
     "solver_sync_out.comp": {
       "built": true,
-      "sources": "dfae37a513865ab9257b31746e180e632d8a3c4ad0978a2b5195114007478f37",
+      "sources": "0e7db30d5cd934f2a4ff7620210a7fd20ab044125033a6b96565780441717a71",
       "spv_present": true
     },
     "solver_voxel.comp": {
       "built": true,
-      "sources": "3b8eaa3125ec03086785b23d90d6fb312418a9835988e6d47c4e3ccefae58a00",
+      "sources": "31ae6db46919c0a668fe1a797a4fc312562e33a8b8d00a0099f57172eae1fef8",
       "spv_present": true
     },
     "solver_warmstart_save.comp": {
       "built": true,
-      "sources": "52794711e66c8ac5f6eac96da27c204510ad968bce1bc4d292d6c6ca8858fdd6",
+      "sources": "599d1f933b835699325365ceef1ca9ae7e48ed856e28a569ba4257265da50adb",
       "spv_present": true
     },
     "ssao.frag": {
@@ -358,7 +323,7 @@
     },
     "transparent_voxel.frag": {
       "built": true,
-      "sources": "98dfd23c86dec4ab55752028bb67417187542f0a7e1e5f5307929c51a771578b",
+      "sources": "4b5c6b05774f2b3acb80947da368b7eaf5414acc27353c4480b0a9cda2008055",
       "spv_present": true
     },
     "ui.frag": {
@@ -378,12 +343,17 @@
     },
     "vfx.vert": {
       "built": true,
-      "sources": "78f87573d8ab9cad061a238a3c226eea0d646b02715e2033743cdf741fa1dd2c",
+      "sources": "4529b59a9ac5d8c86ea82cb5b99e7201df65b304fd2ae8d51dead6d8e1aa514a",
       "spv_present": true
     },
     "voxel.frag": {
       "built": true,
-      "sources": "c387bb5ea3e2713b156a9aefab8ef30b1281061411550e0282af1e4c28ed778a",
+      "sources": "e91c18e7bda1ed6ddcf1ff441d106ad2fd274805d0f05d924b46efe87c043ac7",
+      "spv_present": true
+    },
+    "voxel_depth.frag": {
+      "built": true,
+      "sources": "ee83da1d79ec4b74747e6ff3caae749314709d2d0314ae673a223b83f1472c83",
       "spv_present": true
     },
     "water.frag": {

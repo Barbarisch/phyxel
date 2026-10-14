@@ -57,7 +57,8 @@ def main(argv: list[str] | None = None) -> int:
 
     targets: list[Path]
     if args.all:
-        targets = sorted(TEMPLATES_DIR.glob("*.voxel"))
+        # library taxonomy (docs/AssetLibrary.md): templates live in category subfolders
+        targets = sorted(TEMPLATES_DIR.rglob("*.voxel"))
         if not targets:
             print(f"[characterize] no .voxel files found in {TEMPLATES_DIR}", file=sys.stderr)
             return 1

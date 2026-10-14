@@ -25,7 +25,7 @@ struct Rig {
     Phyxel::Physics::PhysicsWorld physics;
     NPCManager npcs;
     KinematicVoxelManager kin;
-    ObjectTemplateManager templates{nullptr, nullptr};
+    ObjectTemplateManager templates{nullptr};
     ItemEffectSystem effects;
     std::map<int, glm::vec3> lights;   // live point lights by id
     int nextLight = 1;

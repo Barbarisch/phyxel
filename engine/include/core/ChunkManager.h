@@ -1,13 +1,13 @@
 #pragma once
 
 #include "Types.h"
+#include "core/StreamingFocus.h"
 #include "IChunkManager.h"
 #include "Chunk.h"
 #include "Cube.h"
 #include "utils/CoordinateUtils.h"
 #include "core/ChunkStreamingManager.h"
 #include "core/WorldGenerator.h"
-#include "core/DynamicObjectManager.h"
 #include "core/FaceUpdateCoordinator.h"
 #include "core/ChunkInitializer.h"
 #include "core/DirtyChunkTracker.h"
@@ -60,15 +60,6 @@ public:
     Core::EvictedLodCache& getEvictedLodCache() { return m_evictedLodCache; }
     const Core::EvictedLodCache& getEvictedLodCache() const { return m_evictedLodCache; }
 
-    // Global dynamic subcube management (not tied to specific chunks)
-    std::vector<std::unique_ptr<Subcube>> globalDynamicSubcubes;
-    
-    // Global dynamic cube management (not tied to specific chunks)
-    std::vector<std::unique_ptr<Cube>> globalDynamicCubes;
-    
-    // Global dynamic microcube management (not tied to specific chunks)
-    std::vector<std::unique_ptr<Microcube>> globalDynamicMicrocubes;
-    
     // Spatial hash map for O(1) chunk lookup by chunk coordinates
     std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash> chunkMap;
     
@@ -80,7 +71,6 @@ public:
     Physics::PhysicsWorld* physicsWorld = nullptr;
 
     // GPU particle physics — receives height map updates when voxels change
-    GpuParticlePhysics* m_gpuParticles = nullptr;
     std::function<void(int, int, int, bool)> m_voxelOccupancyCallback;
     
     // Chunk streaming manager (handles chunk loading/unloading/saving)
@@ -88,9 +78,6 @@ public:
 
     // In-memory LOD blobs for evicted-but-never-saved chunks (see getEvictedLodCache)
     Core::EvictedLodCache m_evictedLodCache;
-    
-    // Dynamic object manager (handles global dynamic subcubes/cubes/microcubes)
-    DynamicObjectManager m_dynamicObjectManager;
     
     // Face update coordinator (handles face rebuilding and updates)
     FaceUpdateCoordinator m_faceUpdateCoordinator;
@@ -112,9 +99,9 @@ public:
     float unloadDistance = 352.0f; // Distance to unload chunks (11 chunks * 32 units)
     glm::vec3 playerPosition = glm::vec3(0.0f); // Player position for streaming
 private:
-    // WorldForge M2: while set, streaming anchors here instead of playerPosition (see
-    // setStreamingFocusOverride). Main-thread only, like playerPosition.
-    std::optional<glm::vec3> m_streamingFocusOverride;
+    // WorldForge M2 / PerfProgram I14: while held, streaming anchors here instead of playerPosition
+    // (see setStreamingFocusOverride). Has an OWNER: StreamingFocus. Main-thread only.
+    Core::StreamingFocus m_streamingFocus;
 public:
 
     // Streaming world generation (Phase 1: the generation wire). When enabled, chunks
@@ -133,14 +120,6 @@ public:
     mutable Core::PlayBounds m_worldExtentCache;
     mutable size_t m_worldExtentCachedCount = static_cast<size_t>(-1);
 
-    // Hybrid physics routing: FPS-based Bullet vs GPU fallback
-    uint32_t m_frameBreakCount = 0;
-    static constexpr uint32_t MAX_BULLET_BREAKS_PER_FRAME = 8;
-    static constexpr float    GPU_FALLBACK_FPS_THRESHOLD  = 30.0f;
-    float m_smoothedFps = 60.0f;  // Exponentially smoothed FPS estimate
-    void updateSmoothedFps(float deltaTime);
-    void resetFrameBreakCounter() { m_frameBreakCount = 0; }
-    
     ChunkManager() = default;
     ChunkManager(const ChunkManager&) = delete;
     ChunkManager& operator=(const ChunkManager&) = delete;
@@ -162,18 +141,15 @@ public:
         m_voxelOccupancyCallback = std::move(cb);
     }
 
-    // Update a single voxel's occupancy bit in the GPU grid.
+    // Tell the per-voxel occupancy callback (the water sim's solidity mask) one voxel changed.
+    // GPU debris no longer needs this: it reads the shared micro occupancy pool, sourced from
+    // each chunk's VoxelOccupancyGrid (DebrisInteractionPlan 1c).
     void updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid);
 
-    // Bulk-populate the GPU 3D occupancy grid from all currently loaded chunks.
-    // Call once after GpuParticlePhysics is initialized and all startup chunks are loaded.
-    void rebuildOccupancyFromChunks();
-
-    // Push one loaded chunk's solid voxels to every occupancy consumer: the GPU particle grid
-    // AND the per-voxel occupancy callback (the water sim's solidity mask). Called when a chunk
-    // streams in at runtime — without the callback half, water flooded where terrain later loads
-    // stayed inside it until the next region recenter re-read solidity (the stale-solid window).
-    // No-op if the chunk isn't currently loaded.
+    // Push one loaded chunk's solid voxels to the per-voxel occupancy callback (the water sim's
+    // solidity mask). Called when a chunk streams in at runtime — without it, water flooded where
+    // terrain later loads stayed inside it until the next region recenter re-read solidity (the
+    // stale-solid window). No-op if the chunk isn't currently loaded.
     void syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin);
     
     // World storage management
@@ -181,15 +157,21 @@ public:
     void disconnectWorldStorage();
     void setPlayerPosition(const glm::vec3& position) { playerPosition = position; }
 
-    // Streaming FOCUS override (WorldForge M2, docs/WorldForge.md): while set, the streaming
+    // Streaming FOCUS override (WorldForge M2, docs/WorldForge.md): while held, the streaming
     // pump anchors on this position instead of the player, so an orchestration job can drive
     // residency at a remote build site through the normal throttled streaming path (never a
     // bulk generate — that wedges the game loop for minutes). playerPosition keeps updating
     // underneath; clearing the override hands residency straight back to the player.
-    void setStreamingFocusOverride(const glm::vec3& pos) { m_streamingFocusOverride = pos; }
-    void clearStreamingFocusOverride() { m_streamingFocusOverride.reset(); }
-    bool hasStreamingFocusOverride() const { return m_streamingFocusOverride.has_value(); }
-    glm::vec3 streamingAnchor() const { return m_streamingFocusOverride.value_or(playerPosition); }
+    // It has more than one user (WorldForge build job, /api/worldforge/focus, the camera-path
+    // benchmark), so each names itself as the HOLDER: a set by a different holder while held is
+    // refused (returns false), and a holder can only clear its own hold (StreamingFocusOwnerTest).
+    bool setStreamingFocusOverride(const glm::vec3& pos, const std::string& holder) {
+        return m_streamingFocus.set(pos, holder);
+    }
+    bool clearStreamingFocusOverride(const std::string& holder) { return m_streamingFocus.clear(holder); }
+    bool hasStreamingFocusOverride() const { return m_streamingFocus.held(); }
+    const std::string& streamingFocusHolder() const { return m_streamingFocus.holder(); }
+    glm::vec3 streamingAnchor() const { return m_streamingFocus.anchor(playerPosition); }
 
     // Enable/disable streaming world generation and configure the generator. Pass
     // enabled=true with a generation type + seed to make streamed-in chunks generate
@@ -312,7 +294,6 @@ public:
     
     // Face culling and rebuilding
     void calculateChunkFaceCulling();
-    void rebuildGlobalDynamicSubcubeFaces();
     
     // Rebuild faces from cubes (call after modifying cubes)
     void rebuildChunkFaces(Chunk& chunk);
@@ -354,36 +335,9 @@ public:
     // Subcube manipulation helpers
     Subcube* getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos); // Get subcube at position
     
-    // Global dynamic subcube management
-    void addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube);
-    void updateGlobalDynamicSubcubes(float deltaTime);  // Update timers and cleanup expired ones
-    void updateGlobalDynamicSubcubePositions();  // Update positions from physics bodies
-    void clearAllGlobalDynamicSubcubes();
-    void rebuildGlobalDynamicFaces();  // Rebuild global dynamic faces
-    const std::vector<std::unique_ptr<Subcube>>& getGlobalDynamicSubcubes() const { return globalDynamicSubcubes; }
-    size_t getGlobalDynamicSubcubeCount() const { return globalDynamicSubcubes.size(); }
-    
-    // Global dynamic cube management
-    void addGlobalDynamicCube(std::unique_ptr<Cube> cube);
-    void updateGlobalDynamicCubes(float deltaTime);  // Update timers and cleanup expired ones
-    void updateGlobalDynamicCubePositions();  // Update positions from physics bodies
-    void clearAllGlobalDynamicCubes();
-    const std::vector<std::unique_ptr<Cube>>& getGlobalDynamicCubes() const { return globalDynamicCubes; }
-    size_t getGlobalDynamicCubeCount() const { return globalDynamicCubes.size(); }
-    
-    // Global dynamic microcube management
-    void addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube);
-    void updateGlobalDynamicMicrocubes(float deltaTime);  // Update timers and cleanup expired ones
-    void updateGlobalDynamicMicrocubePositions();  // Update positions from physics bodies
-    void clearAllGlobalDynamicMicrocubes();
-    const std::vector<std::unique_ptr<Microcube>>& getGlobalDynamicMicrocubes() const { return globalDynamicMicrocubes; }
-    size_t getGlobalDynamicMicrocubeCount() const { return globalDynamicMicrocubes.size(); }
-    
-    // Combined dynamic object management - face data access
-    const std::vector<DynamicSubcubeInstanceData>& getGlobalDynamicSubcubeFaces() const { return globalDynamicSubcubeFaces; }
-    
-    // Dynamic object face data for rendering (both subcubes and full cubes)
-    std::vector<DynamicSubcubeInstanceData> globalDynamicSubcubeFaces;
+    // (The CPU single-box debris path - DynamicObjectManager and the global dynamic cube/
+    // subcube/microcube lists - was deleted in DebrisInteractionPlan 1d: every broken piece is
+    // GPU debris via DamageSystem::spawnBreakDebris.)
     
     // Convert between coordinate systems (forwarded to Utils::CoordinateUtils)
     static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { 
@@ -482,6 +436,8 @@ public:
     // Lock helpers for background job system
     std::unique_lock<std::shared_mutex> acquireWriteLock() { return std::unique_lock(m_chunkAccessMutex); }
     std::shared_lock<std::shared_mutex> acquireReadLock() const { return std::shared_lock(m_chunkAccessMutex); }
+    /// For try-lock readers (the light/debris occupancy repack skips a frame instead of waiting).
+    std::shared_mutex& chunkAccessMutex() const { return m_chunkAccessMutex; }
     
 private:
     size_t m_borderRippleCount = 0;   // see borderRippleCount()

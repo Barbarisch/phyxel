@@ -150,16 +150,21 @@ try:
         print('     %-18s %-7s hostile=%-5s indoors=%-5s carrying=%-6r held=%-6r light=%s' % (
             n['name'], n['resolved'], n['hostile'], n['indoors'], n['carrying'], n['held'], n.get('light_offset')), flush=True)
 
-    # --- control frames at one bearer. The camera stands where the PLAYER stands (walkable, open
-    # ground by construction), 2.5 m up, looking at the torch-bearer nearest to it - a first cut
-    # placed it beside the bearer and it landed inside a wall. The ambient probe field needs ~60 s
-    # to settle after a clock jump (G-186), so wait first, then interleave off/on frames: a drift
-    # left over shows as a trend across the OFF frames, not as a torch effect.
-    bearers = [n for n in night.get('list', []) if n['held'] == 'torch']
+    # --- control frames at one bearer. Top-down, 7 m above the bearer: outdoors there is no roof
+    # between, and the torch's light pool on the ground around its feet is in the middle of the
+    # frame. The probe field needs ~60 s to settle after a clock jump (G-186), so settle FIRST at
+    # the town, THEN pick the bearer nearest the player among those outdoors right now (at 23:00
+    # the schedules send people home; a bearer picked before the settle may be indoors, and
+    # legitimately torchless, by the time the frames are taken - 2026-10-14). Per frame the
+    # bearer's shelter and carried item are recorded, so a torchless frame is attributable.
+    if night.get('list'):
+        print('  settling the probe field 70 s before the control', flush=True)
+        time.sleep(70)
+        now = safe('POST', '/api/rpg/torches', {})
+        bearers = [n for n in now.get('list', []) if n['held'] == 'torch' and not n['indoors']]
+    else:
+        bearers = []
     if bearers:
-        # Top-down, 7 m above the bearer: outdoors there is no roof between, and the torch's
-        # light pool on the ground around its feet is in the middle of the frame. (Beside the
-        # bearer the camera landed in a wall; from the player's spot the bearer was out of frame.)
         ps = safe('GET', '/api/state')
         pl = None
         for e in ps.get('entities', []) if isinstance(ps.get('entities'), list) else []:
@@ -170,11 +175,10 @@ try:
         bx, by, bz = b['position']
         cx, cy, cz = bx + 0.05, by + 7.0, bz
         yaw, pitch = 0.0, -89.0
-        L = 7.0
-        res['bearer'] = {'name': b['name'], 'distance_m': round(L, 2)}
-        print('  control bearer %s at %.1f m from the camera; settling 75 s' % (b['name'], L), flush=True)
+        res['bearer'] = {'name': b['name'], 'position': b['position']}
+        print('  control bearer %s' % b['name'], flush=True)
         safe('POST', '/api/rpg/set_camera', {'detach': True, 'x': cx, 'y': cy, 'z': cz, 'yaw': yaw, 'pitch': pitch})
-        time.sleep(75)
+        time.sleep(8)
         frames = []
         for i, pol in enumerate(('never', 'night', 'never', 'night', 'never')):
             safe('POST', '/api/rpg/torches', {'default': pol})
@@ -184,12 +188,14 @@ try:
             state = safe('POST', '/api/rpg/torches', {})
             me = next((n for n in state.get('list', []) if n['name'] == b['name']), {})
             p = shot('control_%d_%s' % (i, 'on' if pol == 'night' else 'off'))
-            f = {'i': i, 'torch': pol == 'night', 'held': me.get('held'),
+            moved = math.hypot(me.get('position', [bx, 0, bz])[0] - bx, me.get('position', [bx, 0, bz])[2] - bz)
+            f = {'i': i, 'torch': pol == 'night', 'held': me.get('held'), 'carrying': me.get('carrying'),
+                 'indoors': me.get('indoors'), 'moved_m': round(moved, 2),
                  'luma_centre': luma(p, (0.4, 0.3, 0.6, 0.7)) if p else None,
                  'luma_frame': luma(p) if p else None}
             frames.append(f)
-            print('  control %d default=%-6s %s held=%-7r centre luma %s frame luma %s' % (
-                i, pol, b['name'], me.get('held'), f['luma_centre'], f['luma_frame']), flush=True)
+            print('  control %d default=%-6s %s held=%-7r carrying=%-7r indoors=%-5s moved %.1f m  centre luma %s frame luma %s' % (
+                i, pol, b['name'], me.get('held'), me.get('carrying'), me.get('indoors'), moved, f['luma_centre'], f['luma_frame']), flush=True)
         offs = [f['luma_centre'] for f in frames if not f['torch'] and f['luma_centre'] is not None]
         ons = [f['luma_centre'] for f in frames if f['torch'] and f['luma_centre'] is not None]
         if offs and ons:

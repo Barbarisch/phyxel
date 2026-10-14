@@ -20,9 +20,9 @@ struct VfxInstanceData {
     glm::vec4 color;
 };
 
-// Instanced-cube renderer for lightweight VFX particles. Mirrors
-// DebrisRenderPipeline but uses ADDITIVE blending and disables depth
-// writes so glowing particles accumulate without occluding each other.
+// Instanced-cube renderer for lightweight VFX particles. Uses ADDITIVE
+// blending and disables depth writes so glowing particles accumulate
+// without occluding each other.
 // See [[project-spell-vfx]].
 class VfxRenderPipeline {
 public:

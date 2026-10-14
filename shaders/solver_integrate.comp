@@ -8,83 +8,40 @@ layout(local_size_x = WORKGROUP_SOLVER) in;
 layout(std430, set=0, binding=0) buffer SolverBodyBuffer        { SolverBody  bodies[]; };
 layout(std430, set=0, binding=1) readonly buffer MaterialBuffer { MaterialPhysics materials[]; };
 layout(std430, set=0, binding=2) readonly buffer ParticleBuffer { GpuParticle particles[]; };
+// Phase 6c water: this frame slot's tile directory (WATER_DIR_CHUNKS^2 entries, a tile index or
+// WATER_TILE_NONE) and tile pool (WATER_TILE_CELLS^2 cells per tile: x = surface Y bits, y = flow
+// xz as half2). Everything else (no tile) is the background: the implicit sea, or dry.
+layout(std430, set=0, binding=3) readonly buffer WaterDirBuffer  { uint waterDir[]; };
+layout(std430, set=0, binding=4) readonly buffer WaterTileBuffer { uvec2 waterCells[]; };
 
-// Player character collider — uploaded each frame from the CPU (setCharacterColliders).
-// Header = broadphase union AABB + velocity (first 48 bytes match the legacy single-AABB
-// layout in particle_collide.comp). charSeg[] holds the per-limb body-part boxes; debris
-// overlapping a segment is shoved out + inherits the character's velocity, letting the
-// player plow through debris piles with arms/legs, not just the torso. This is the
-// AVBD-pipeline equivalent of the legacy XPBD character collision (no longer dispatched).
-struct CharSegment {
-    vec4 center;       // xyz = world center
-    vec4 halfExtents;  // xyz = world half-extents
-};
-layout(std430, set=0, binding=3) readonly buffer CharacterBuffer {
-    vec3  charUnionCenter;       float charSegCount;   // # active segments (0 = disabled)
-    vec3  charUnionHalfExtents;  float charPad0;
-    vec3  charVelocity;          float charPad1;
-    CharSegment charSeg[12];     // == GpuParticlePhysics::MAX_CHAR_SEGMENTS
-};
 
-// Wake bits live in the solver state buffer (Phase 2 sleep) — a moving character
-// overlapping a sleeping body requests a wake, consumed by sync_in next tick.
-layout(std430, set=0, binding=4) buffer SolverStateBuffer { uint solverState[]; };
+// Movers (the player, scripted boxes, later every character) are AVBD bodies since Phase 2:
+// narrowphase contacts against kinematic bodies push debris, and its impact wake wakes it.
+// The old per-limb shove that lived here (D7: push-out + velocity copy + a +0.5 m/s pop,
+// flinging bodies to ~6 m/s) is deleted (DebrisInteractionPlan Phase 2).
 
-// AABB overlap + shortest-axis push-out. Returns true if the body AABB (bpos +/- bhe)
-// overlaps the box (cpos +/- che); if so, outDisp = displacement that moves the body
-// out of the box along the axis of least penetration.
-bool aabbPushOut(vec3 bpos, vec3 bhe, vec3 cpos, vec3 che, out vec3 outDisp) {
-    outDisp = vec3(0.0);
-    vec3 pMin = bpos - bhe;  vec3 pMax = bpos + bhe;
-    vec3 cMin = cpos - che;  vec3 cMax = cpos + che;
-    if (!(pMin.x < cMax.x && pMax.x > cMin.x &&
-          pMin.y < cMax.y && pMax.y > cMin.y &&
-          pMin.z < cMax.z && pMax.z > cMin.z)) return false;
+layout(push_constant) uniform PC { PHX_PC_INTEGRATE } pc;  // shaders/solver_shared.h
 
-    float penPX = cMax.x - pMin.x;  float penNX = pMax.x - cMin.x;
-    float penPY = cMax.y - pMin.y;  float penNY = pMax.y - cMin.y;
-    float penPZ = cMax.z - pMin.z;  float penNZ = pMax.z - cMin.z;
-
-    float minPen = penPX;  int axis = 0;
-    if (penNX < minPen) { minPen = penNX; axis = 1; }
-    if (penPY < minPen) { minPen = penPY; axis = 2; }
-    if (penNY < minPen) { minPen = penNY; axis = 3; }
-    if (penPZ < minPen) { minPen = penPZ; axis = 4; }
-    if (penNZ < minPen) { minPen = penNZ; axis = 5; }
-
-    if      (axis == 0) outDisp.x =  minPen;
-    else if (axis == 1) outDisp.x = -minPen;
-    else if (axis == 2) outDisp.y =  minPen;
-    else if (axis == 3) outDisp.y = -minPen;
-    else if (axis == 4) outDisp.z =  minPen;
-    else                outDisp.z = -minPen;
-    return true;
+// Top water surface Y over world column (x, z) and its flow; WATER_DRY when dry.
+float waterSurface(vec3 p, out vec2 flow) {
+    flow = vec2(0.0);
+    const int x = int(floor(p.x)), z = int(floor(p.z));
+    const int d = phxWaterDirIndex(x, z, pc.water.x, pc.water.y);
+    const bool sea = (pc.water.z & 1) != 0;
+    const float seaY = intBitsToFloat(pc.water.w);
+    if (d < 0) return sea ? seaY : WATER_DRY;          // outside the window: the background
+    const uint t = waterDir[d];
+    if (t == WATER_TILE_NONE) return sea ? seaY : WATER_DRY;
+    const uvec2 c = waterCells[t * uint(WATER_TILE_CELLS * WATER_TILE_CELLS) + uint(phxWaterCellIndex(x, z))];
+    flow = unpackHalf2x16(c.y);
+    return uintBitsToFloat(c.x);
 }
-
-layout(push_constant) uniform PC {
-    uint  count;
-    float dt;
-    float gravity;
-    float pad;
-} pc;
 
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i >= pc.count) return;
 
     SolverBody b = bodies[i];
-
-    // ---- Sleep (Phase 2): a MOVING character overlapping a sleeping body wakes it.
-    // Sleeping bodies take the static path below (invMass 0 from sync_in), which skips
-    // the per-limb shove — so without this a player could never plow through a slept
-    // debris pile. Union-AABB test only (cheap); the wake bit is consumed next tick.
-    if ((b.flags & PARTICLE_SLEEPING) != 0u && charSegCount > 0.5 &&
-        dot(charVelocity, charVelocity) > 0.01) {
-        vec3 disp;
-        if (aabbPushOut(b.pos, b.halfExt, charUnionCenter, charUnionHalfExtents, disp)) {
-            atomicOr(solverState[WAKE_BITS_BASE + (i >> 5u)], 1u << (i & 31u));
-        }
-    }
 
     if ((b.flags & PARTICLE_ACTIVE) == 0u || b.invMass == 0.0) {
         // Static/inactive: save initial, stay in place
@@ -98,7 +55,7 @@ void main() {
     }
 
     GpuParticle     p   = particles[b.particleIdx];
-    MaterialPhysics mat = materials[p.materialIndex];
+    MaterialPhysics mat = materials[p.materialIndex & MATERIAL_MASK];
 
     // Save state before any forces (these are the "initial" AVBD reference values)
     b.prevVel     = b.vel;
@@ -126,6 +83,26 @@ void main() {
     b.vel     *= mat.linearDamp  * GAMMA;
     b.angVel  *= mat.angularDamp * GAMMA;
 
+    // ---- Water (Phase 6c): the same law VoxelDynamicsWorld applies to CPU bodies
+    // (solver_shared.h). f = submerged fraction of the body's vertical extent (bounding radius),
+    // b = the material's buoyancy ratio. buoyAccY joins gravity in the at-rest back-off below, so a
+    // floater at equilibrium does not start each solve displaced upward.
+    float buoyAccY = 0.0;
+    if ((pc.flags & SOLVER_FLAG_WATER) != 0u) {
+        vec2 flow;
+        const float surf = waterSurface(b.pos, flow);
+        const float r = max(b.radius, 1e-3);
+        const float f = clamp((surf - (b.pos.y - r)) / (2.0 * r), 0.0, 1.0);
+        if (f > 0.0) {
+            buoyAccY = -pc.gravity * f * mat.buoyancy;
+            b.vel.y  += buoyAccY * pc.dt;
+            b.vel    *= pow(1.0 - WATER_LINEAR_DRAG,  pc.dt * f);
+            b.angVel *= pow(1.0 - WATER_ANGULAR_DRAG, pc.dt * f);
+            const float k = min(1.0, WATER_CURRENT_COUPLE * f * pc.dt);
+            b.vel.xz += (flow - b.vel.xz) * k;
+        }
+    }
+
     // Inertial (unconstrained) prediction: where the body goes with no contacts.
     // Used as the energy minimum in primal/dual — solver pulls body toward it.
     b.inertial     = b.pos + b.vel * pc.dt;
@@ -137,44 +114,26 @@ void main() {
     // bodies, so narrowphase sees the same position as last frame → no fresh
     // penetration → λ stays steady. In free-fall (accelWeight=1) this collapses
     // to the full inertial prediction.
-    float gravBackoff = (1.0 - accelWeight) * pc.gravity * pc.dt * pc.dt;
+    float gravBackoff = (1.0 - accelWeight) * (pc.gravity + buoyAccY) * pc.dt * pc.dt;
     b.pos  = b.inertial - vec3(0.0, gravBackoff, 0.0);
     b.quat = b.inertialQuat;
 
     // Seed cumAng with the angular displacement accumulated during force integration
     b.cumAng = angDispFromInitial(b.inertialQuat, b.initialQuat);
 
-    // ---- Character per-limb push (external influence, applied after prediction) ----
-    // Ported/extended from the legacy XPBD particle_collide.comp character block.
-    // Treats the body's OBB as an AABB for a cheap shove (matches legacy). We first
-    // test the broadphase union AABB so the common case (debris far from the player)
-    // costs a single test; only on a union hit do we scan the per-limb segment boxes.
-    // On the first overlapping segment we push the body out along the shortest exit
-    // axis, give it the character's velocity (boosted for a lively shove) + a small
-    // upward pop, and RE-ANCHOR the AVBD inertial target to the pushed state —
-    // otherwise the solver pulls the body straight back. The later voxel-contact pass
-    // still resolves any push-into-floor, so debris can't sink.
-    if (charSegCount > 0.5) {
-        vec3 he = b.halfExt;
-        vec3 disp;
-        if (aabbPushOut(b.pos, he, charUnionCenter, charUnionHalfExtents, disp)) {
-            int n = int(charSegCount);
-            for (int s = 0; s < n && s < 12; ++s) {
-                vec3 segDisp;
-                if (aabbPushOut(b.pos, he, charSeg[s].center.xyz, charSeg[s].halfExtents.xyz, segDisp)) {
-                    b.pos += segDisp;
-
-                    vec3 pushVel = charVelocity * 1.25;
-                    pushVel.y   += 0.5;
-                    b.vel        = pushVel;
-                    b.angVel    += vec3(-charVelocity.z, 0.0, charVelocity.x);
-
-                    b.inertial     = b.pos + b.vel * pc.dt;
-                    b.inertialQuat = quatIntegrate(b.quat, b.angVel * pc.dt);
-                    b.cumAng       = angDispFromInitial(b.inertialQuat, b.initialQuat);
-                    break;
-                }
-            }
+    // startAtRest (three-avbd docs/FINDINGS.md Stage 8m): the guess above still extrapolates
+    // last tick's UNCONVERGED velocity, which in a resting stack "turns jitter into a push
+    // down into the supports" — each tick's leftover motion becomes next tick's overlap,
+    // whose correction becomes velocity again. A slow body starts the solve from where it
+    // IS (x⁻); `inertial` is untouched, so gravity still acts through the energy minimum and
+    // an unsupported body still falls. Faster bodies keep the extrapolated guess (starting
+    // everything at x⁻ damps real sliding — three-avbd measured 2.26 m vs Coulomb 3.16 m).
+    if ((pc.flags & SOLVER_FLAG_START_AT_REST) != 0u) {
+        float restSpeed = length(b.prevVel) + length(b.angVel) * b.radius;
+        if (restSpeed < 0.1) {
+            b.pos    = b.initial;
+            b.quat   = b.initialQuat;
+            b.cumAng = vec3(0.0);
         }
     }
 

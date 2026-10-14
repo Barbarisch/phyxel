@@ -105,7 +105,7 @@ struct UniformBufferObject {
     alignas(16) glm::mat4 reflectedViewProj; // Reflected camera VP matrix (identity if no mirrors)
     alignas(4) float elapsedTime; // Seconds since engine start — drives grass wind + growth. Trailing field: safe to append.
     // Precombined per-frame products so vertex shaders do one mat4*vec4 instead of a
-    // per-vertex mat4*mat4 (docs/ShaderMathRedundancyPlan.md Increment 1). GLSL UBO
+    // per-vertex mat4*mat4 (shader-math pass 2026-07-03, RenderOptimization.md). GLSL UBO
     // blocks must declare fields in this exact order for std140 offsets to match.
     alignas(16) glm::mat4 viewProj;         // proj * view
     alignas(16) glm::mat4 biasedLightSpace; // clip->UV bias * lightSpaceMatrix (shadow sampling)
@@ -321,12 +321,6 @@ public:
     void cleanupReflectionBuffers();
     void updateInstanceBuffer(const std::vector<InstanceData>& instances);
     
-    // Dynamic subcube buffer management
-    bool createDynamicSubcubeBuffer(uint32_t maxDynamicSubcubes);
-    void updateDynamicSubcubeBuffer(const std::vector<DynamicSubcubeInstanceData>& dynamicSubcubes);
-    void bindDynamicSubcubeBuffer(uint32_t frameIndex);
-    void cleanupDynamicSubcubeBuffer();
-    uint32_t getMaxDynamicSubcubes() const { return maxDynamicSubcubes; }
 
     // Character instance buffer management
     bool createCharacterInstanceBuffer(uint32_t maxInstances);
@@ -434,14 +428,28 @@ public:
         shadowMapFarImageView = imageView;
         shadowMapFarSampler = sampler;
     }
-    /// Sub-voxel light occupancy buffers (bindings 11/12) — docs/UnifiedLightingPlan.md.
-    /// Both null is legal: the descriptors then fall back to a valid buffer that the shader never
-    /// reads, because setLightOccupancyReady(false) leaves the guard flag clear.
-    void setLightOccupancyResources(VkBuffer directory, VkBuffer pool) {
-        lightOccupancyDirBuffer = directory;
-        lightOccupancyPoolBuffer = pool;
+    /// Sub-voxel light occupancy buffers (bindings 11/12) — docs/UnifiedLightingPlan.md — for
+    /// frame-in-flight `slot`. ONE COPY PER FRAME IN FLIGHT: frame slot i's descriptor set binds slot
+    /// i's buffers, which the CPU rewrites only after slot i's fence (VoxelLightOccupancyGpu::
+    /// uploadToSlot). A single shared copy was rewritten while the other in-flight frame still read
+    /// it -- torn directory/pool reads hung the GPU (VK_ERROR_DEVICE_LOST) in streaming worlds.
+    /// Null is legal: the descriptors then fall back to a valid buffer that the shader never reads,
+    /// because setLightOccupancyReady(false) leaves the guard flag clear.
+    void setLightOccupancyResources(uint32_t slot, VkBuffer directory, VkBuffer pool) {
+        if (slot >= static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)) return;
+        lightOccupancyDirBuffer[slot] = directory;
+        lightOccupancyPoolBuffer[slot] = pool;
     }
-    VkBuffer getLightOccupancyDirBuffer() const { return lightOccupancyDirBuffer; }
+    VkBuffer getLightOccupancyDirBuffer(uint32_t slot = 0) const { return lightOccupancyDirBuffer[slot]; }
+
+    /// GPU crash diagnostics (VK_NV_device_diagnostic_checkpoints, enabled when the device supports
+    /// it; a no-op otherwise). Every GPU profiler scope drops a begin/end checkpoint, and after a
+    /// VK_ERROR_DEVICE_LOST the checkpoints the GPU last reached are logged -- the pass that STARTED
+    /// (top of pipe) but never FINISHED (bottom of pipe) is the one that hung. Added 2026-09-26 to find
+    /// an intermittent device loss that three rounds of bisection could not pin down.
+    void cmdCheckpoint(VkCommandBuffer cmd, const std::string& name, bool end);
+    void logCheckpointsAfterDeviceLost();
+    bool checkpointsEnabled() const { return checkpointsEnabled_; }
 
     /// M5.1 GI probe field (binding 13). Null is legal -- the descriptor falls back to a valid
     /// buffer the shader never reads, because the guard bit stays clear.
@@ -618,10 +626,6 @@ private:
     VkBuffer instanceBuffer = VK_NULL_HANDLE;
     VkDeviceMemory instanceBufferMemory = VK_NULL_HANDLE;
     
-    // Dynamic subcube buffer
-    VkBuffer dynamicSubcubeBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory dynamicSubcubeBufferMemory = VK_NULL_HANDLE;
-    uint32_t maxDynamicSubcubes = 0;
 
     // Character instance buffer
     VkBuffer characterInstanceBuffer = VK_NULL_HANDLE;
@@ -694,8 +698,14 @@ private:
     VkBuffer giProbeBuffer = VK_NULL_HANDLE;
     glm::vec4 m_giProbeGrid{0.0f, 0.0f, 0.0f, 2.0f};
     bool m_giEnabled = false;
-    VkBuffer lightOccupancyDirBuffer = VK_NULL_HANDLE;
-    VkBuffer lightOccupancyPoolBuffer = VK_NULL_HANDLE;
+    bool checkpointsEnabled_ = false;
+    PFN_vkCmdSetCheckpointNV pfnCmdSetCheckpoint_ = nullptr;
+    PFN_vkGetQueueCheckpointDataNV pfnGetQueueCheckpointData_ = nullptr;
+    std::vector<std::string> checkpointNames_;                    // index+1 -> name (append-only)
+    std::unordered_map<std::string, uint32_t> checkpointIndex_;
+    bool checkpointsLogged_ = false;
+    VkBuffer lightOccupancyDirBuffer[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};    // per frame in flight
+    VkBuffer lightOccupancyPoolBuffer[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
     VkSampler   shadowMapFarSampler = VK_NULL_HANDLE;
     glm::mat4   m_farLightSpace{1.0f};
     float       m_farCascadeRangeEnd = 0.0f;    // 0 = far cascade off
@@ -748,9 +758,14 @@ private:
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkPresentModeKHR preferredPresentMode_ = VK_PRESENT_MODE_IMMEDIATE_KHR;
+    // The mode the current swapchain was actually created with. The preferred mode is only a
+    // request; FIFO (vsync) is the guaranteed fallback and caps the frame rate, so perf runs record
+    // this instead of assuming "vsync off" (docs/PerfProgram2026-09.md).
+    VkPresentModeKHR activePresentMode_ = VK_PRESENT_MODE_FIFO_KHR;
 public:
     void setPreferredPresentMode(VkPresentModeKHR mode) { preferredPresentMode_ = mode; }
     VkPresentModeKHR getPreferredPresentMode() const { return preferredPresentMode_; }
+    VkPresentModeKHR getActivePresentMode() const { return activePresentMode_; }
 private:
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, int windowWidth, int windowHeight);
 

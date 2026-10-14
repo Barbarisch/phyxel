@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-SCHEMA_VERSION = "asset_metrics.v1"
+SCHEMA_VERSION = "asset_metrics.v2"   # v2 (A4, 2026-09-30): + backrest_angle_deg, armrests[], approach — additive over v1
 
 # Voxel-primitive sizes in metres (matching engine convention)
 _CUBE_SIZE = 1.0
@@ -161,10 +161,15 @@ class SeatFeatures:
     front_edge_z: float          # Z of the front face (along facing direction)
     backrest_height: float       # Y delta from seat top to top of backrest voxels (0 if none)
     backrest_present: bool
+    # ---- v2 (A4): what the seated SOLVE reads; absent/empty = none ----
+    backrest_angle_deg: float = 0.0           # lean of the backrest front face from vertical, + = leans back
+    armrests: list = field(default_factory=list)   # [{top_y, inner_x, z_min, z_max}] in local space, 0-2 entries
+    approach: Optional[tuple[float, float, float]] = None   # floor point in front of the seat the character walks to
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["seat_center"] = list(self.seat_center)
+        d["approach"] = list(self.approach) if self.approach is not None else None
         return d
 
 
@@ -284,12 +289,22 @@ def extract_seat_features(
         # leave to consumer to interpret via facing.
         front_edge_z = xs_mx if fx >= 0 else xs_mn
 
-    # Backrest: voxels above the seat top that overlap the seat footprint in XZ.
+    # Backrest: voxels above the seat top that overlap the seat footprint in XZ — allowing up to
+    # 0.2 u BEHIND the rear edge (a raked back leans away from the sitter, past the slab; v2).
+    rear_slack = 0.2
+    if abs(fz) >= abs(fx):
+        z_lo = zs_mn - (rear_slack if fz >= 0 else 0.0)
+        z_hi = zs_mx + (rear_slack if fz < 0 else 0.0)
+        x_lo, x_hi = xs_mn, xs_mx
+    else:
+        x_lo = xs_mn - (rear_slack if fx >= 0 else 0.0)
+        x_hi = xs_mx + (rear_slack if fx < 0 else 0.0)
+        z_lo, z_hi = zs_mn, zs_mx
     backrest = [
         b for b in boxes
         if b.mn[1] >= top_y - 1e-4
-        and b.mx[0] > xs_mn and b.mn[0] < xs_mx
-        and b.mx[2] > zs_mn and b.mn[2] < zs_mx
+        and b.mx[0] > x_lo and b.mn[0] < x_hi
+        and b.mx[2] > z_lo and b.mn[2] < z_hi
     ]
     if backrest:
         backrest_top = max(b.mx[1] for b in backrest)
@@ -299,6 +314,63 @@ def extract_seat_features(
         backrest_height = 0.0
         backrest_present = False
 
+    # ---- v2: backrest ANGLE — least-squares slope of the backrest voxels' front faces vs Y.
+    # The front face is the one toward the seat's front (facing). A vertical slab fits 0°;
+    # a raked back leans away from the sitter, reported positive.
+    # Per height COURSE take the frontmost face (what the sitter's back touches), and start the
+    # fit 0.15 u above the seat so a raised seat rim / second slab layer (chair_wood has one,
+    # spanning the seat depth at y 0.667-0.778) does not read as a 37 deg rake.
+    backrest_angle_deg = 0.0
+    if backrest_present:
+        courses: dict[float, float] = {}
+        for b in backrest:
+            yc = round((b.mn[1] + b.mx[1]) * 0.5, 4)
+            if yc <= top_y + 0.15:
+                continue
+            front = b.mn[2] if fz >= 0 else b.mx[2]          # face toward the sitter
+            courses[yc] = min(courses[yc], front) if fz >= 0 and yc in courses else \
+                          (max(courses[yc], front) if yc in courses else front)
+        if len(courses) >= 2:
+            pts = sorted(courses.items())
+            ys = [y for y, _ in pts]; zs = [z for _, z in pts]
+            my, mz = sum(ys) / len(ys), sum(zs) / len(zs)
+            var = sum((y - my) ** 2 for y in ys)
+            if var > 1e-9:
+                slope = sum((y - my) * (z - mz) for y, z in pts) / var      # dz per dy
+                lean = -slope if fz >= 0 else slope                          # away from the sitter = positive
+                backrest_angle_deg = math.degrees(math.atan(lean))
+
+    # ---- v2: ARMRESTS — contiguous tops in the band seat_top + [0.15, 0.35] u that sit laterally
+    # outside the seat slab, within 0.15 u of its side faces. One plane per side at most.
+    armrests = []
+    for side in ("left", "right"):
+        cand = [
+            b for b in boxes
+            if top_y + 0.15 <= b.mx[1] <= top_y + 0.35
+            and b.mx[2] > zs_mn - 1e-4 and b.mn[2] < zs_mx + 1e-4
+            and ((side == "left"  and b.mx[0] <= xs_mn + 1e-4 and b.mn[0] >= xs_mn - 0.15)
+              or (side == "right" and b.mn[0] >= xs_mx - 1e-4 and b.mx[0] <= xs_mx + 0.15))
+        ]
+        if not cand:
+            continue
+        arm_top = max(b.mx[1] for b in cand)
+        top_boxes = [b for b in cand if abs(b.mx[1] - arm_top) <= 1e-4]
+        inner_x = max(b.mx[0] for b in top_boxes) if side == "left" else min(b.mn[0] for b in top_boxes)
+        armrests.append({
+            "side": side,
+            "top_y": arm_top,
+            "inner_x": inner_x,
+            "z_min": min(b.mn[2] for b in top_boxes),
+            "z_max": max(b.mx[2] for b in top_boxes),
+        })
+
+    # ---- v2: APPROACH — a floor point 0.45 u in front of the front edge, on the seat's centre line.
+    floor_y = min(b.mn[1] for b in boxes) if boxes else 0.0
+    if abs(fz) >= abs(fx):
+        approach = ((xs_mn + xs_mx) * 0.5, floor_y, front_edge_z + (0.45 if fz >= 0 else -0.45))
+    else:
+        approach = (front_edge_z + (0.45 if fx >= 0 else -0.45), floor_y, (zs_mn + zs_mx) * 0.5)
+
     return SeatFeatures(
         seat_top_y=top_y,
         seat_width_x=xs_mx - xs_mn,
@@ -307,6 +379,9 @@ def extract_seat_features(
         front_edge_z=front_edge_z,
         backrest_height=backrest_height,
         backrest_present=backrest_present,
+        backrest_angle_deg=round(backrest_angle_deg, 2),
+        armrests=armrests,
+        approach=approach,
     )
 
 

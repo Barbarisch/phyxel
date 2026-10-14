@@ -1,5 +1,5 @@
 {
-  "schema_version": "asset_metrics.v1",
+  "schema_version": "asset_metrics.v2",
   "template_name": "bed_single",
   "overall_min": [
     0.0,
@@ -11,19 +11,5 @@
     0.8888888888888888,
     1.8888888888888888
   ],
-  "interaction_points": [
-    {
-      "point_id": "lie_0",
-      "kind": "lie",
-      "local_position": [
-        0.444,
-        0.556,
-        0.944
-      ],
-      "facing_yaw": 0.0,
-      "features": {
-        "lie_top_y": 0.556
-      }
-    }
-  ]
+  "interaction_points": []
 }

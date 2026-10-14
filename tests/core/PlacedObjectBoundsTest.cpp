@@ -47,7 +47,7 @@ const char* kCofferBody =
 // a 5-deep body spilling to cube 24.
 TEST(PlacedObjectBoundsTest, MicroSpillIsCapturedNotDroppedByCubeAnchor) {
     auto path = writeTempTemplate("test_coffer", kCofferBody);
-    ObjectTemplateManager otm(nullptr, nullptr);
+    ObjectTemplateManager otm(nullptr);
     ASSERT_TRUE(otm.loadTemplate(path.string()));
     PlacedObjectManager pom(nullptr, &otm, nullptr);
 
@@ -73,7 +73,7 @@ TEST(PlacedObjectBoundsTest, MicroSpillIsCapturedNotDroppedByCubeAnchor) {
 // registered box tracks the render under rotation too (bed/chest long-axis turns).
 TEST(PlacedObjectBoundsTest, RotationSwapsExtentsLikeRender) {
     auto path = writeTempTemplate("test_coffer", kCofferBody);
-    ObjectTemplateManager otm(nullptr, nullptr);
+    ObjectTemplateManager otm(nullptr);
     ASSERT_TRUE(otm.loadTemplate(path.string()));
     PlacedObjectManager pom(nullptr, &otm, nullptr);
 

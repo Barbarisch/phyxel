@@ -21,15 +21,31 @@
 #include "graphics/CameraRig.h"
 #include "input/ControlScheme.h"
 #include "core/ChunkManager.h"
+#include "core/Inventory.h"
+#include "core/SoundRegistry.h"
+#include "core/PerfCapture.h"
 #include <GLFW/glfw3.h>
 #include <nlohmann/json.hpp>
 
 namespace Phyxel {
 namespace Core {
 
+bool GameShell::initDebris(EngineRuntime& engine, Graphics::RenderCoordinator* renderer,
+                           const DebrisRuntime::Config& config) {
+    const bool ok = debris_.initialize(engine.getVulkanDevice(), renderer, engine.getChunkManager(),
+                                       engine.getPhysicsWorld(), config);
+    // Phase 6b: impacts / settles through the game's sound catalog.
+    debris_.setSoundCallback([eng = &engine](const std::string& ev, const glm::vec3& pos, float vol) {
+        if (auto* reg = eng->getSoundRegistry()) reg->playEvent(ev, pos, vol);
+    });
+    return ok;
+}
+
 void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string& name) {
     gameApi_.runtime          = &engine;
     gameApi_.renderCoordinator = apiRenderCoordinator();
+    // City-benchmark capture (PerfProgram section 16): GPU serials + resolved scopes for the route recorder.
+    if (auto* pc = engine.getPerfCapture()) pc->setRenderCoordinator(gameApi_.renderCoordinator);
     gameApi_.npcManager       = apiNPCManager();
     gameApi_.triggers         = apiTriggerSystem();
     gameApi_.screen           = apiScreen();
@@ -57,6 +73,16 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
     gameApi_.npcHeldItems     = apiNpcHeldItems();
     gameApi_.itemEffects      = apiItemEffects();
     gameApi_.projectName      = name;
+    gameApi_.debrisContext    = [this, eng = &engine]() {
+        DebrisApiContext c;
+        c.chunks   = eng->getChunkManager();
+        c.debris   = &debris_;
+        c.physics  = eng->getPhysicsWorld();
+        c.renderer = apiRenderCoordinator();
+        c.kvm      = apiKinematicVoxelManager();
+        c.addToInventory = [this](const std::string& mat, int n) { if (auto* inv = apiInventory()) inv->addItem(mat, n); };
+        return c;
+    };
     if (gameApi_.start(port))
         LOG_WARN("GameShell", "*** TEST API ENABLED on 127.0.0.1:{} — dev/test build, do NOT ship ***", port);
 }

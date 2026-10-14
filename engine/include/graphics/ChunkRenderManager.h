@@ -2,6 +2,7 @@
 
 #include "core/Types.h"
 #include "graphics/ChunkRenderBuffer.h"
+#include "graphics/TierRanges.h"
 #include <array>
 #include <vector>
 #include <memory>
@@ -58,6 +59,9 @@ public:
     // (recovers most of the perf lost to smoothing; gentle gradients re-merge, imperceptibly).
     static bool s_smoothLighting;
     static int  s_mergeTolerance;
+    // L1 (docs/PerfProgram2026-09.md): merge coincident emissive lights per (cube cell, radius).
+    // Default ON. Toggle only via POST /api/debug/emitter_merge, which re-meshes every chunk.
+    static bool s_mergeEmitters;
     // M3-REDESIGN. The alias must be declared BEFORE the member that uses it (see the accessors
     // further down for what this is and why it is injected).
     using SkyVisibilityFn = std::function<float(const glm::vec3& worldPos, const glm::vec3& normal)>;
@@ -130,6 +134,25 @@ public:
     };
     static MeshTimingStats getMeshTimingStats();
     static void            resetMeshTimingStats();
+
+    /// I7 (docs/PerfProgram2026-09.md): rebuildAllFaces split by phase, and a histogram of whole
+    /// rebuild time by how many MICROCUBES the chunk held, so the CPU cost of micro detail is
+    /// measured rather than assumed. Lock-free atomics, like MeshTimingStats.
+    static constexpr int kMeshPhases = 5;   // cube greedy, sub/micro occupancy, sub faces, micro faces, sort
+    static constexpr int kMicroBuckets = 5; // microcubes: 0, 1-99, 100-999, 1000-9999, 10000+
+    struct MeshPhaseStats {
+        uint64_t calls = 0;
+        double phaseTotalMs[kMeshPhases] = {};
+        double phaseMaxMs[kMeshPhases] = {};
+        uint64_t bucketCalls[kMicroBuckets] = {};
+        double bucketTotalMs[kMicroBuckets] = {};
+        double bucketMaxMs[kMicroBuckets] = {};
+        uint64_t bucketMicrocubes[kMicroBuckets] = {};
+    };
+    static MeshPhaseStats getMeshPhaseStats();
+    static void           resetMeshPhaseStats();
+    static const char*    meshPhaseName(int i);
+    static const char*    microBucketName(int i);
 
     ChunkRenderManager();
     ~ChunkRenderManager();
@@ -212,7 +235,8 @@ public:
     struct EmissiveLight {
         glm::vec3 worldPos;   ///< centre of the emitting voxel, in world units
         glm::vec3 color;      ///< hue: material colorTint, or the per-voxel tint when burning
-        float     intensity;  ///< 0..1, from the material's emissive strength
+        float     intensity;  ///< per emitter 0..1 from the material; a MERGED light (L1: all emitters
+                              ///< of one cube cell + radius) carries the SUM, so it can exceed 1
         float     radius;     ///< reach, scaled with intensity
         float     extent;     ///< G-157: half-extent of the emitting body itself, world units
     };
@@ -312,6 +336,11 @@ public:
         // full draw -- see RenderCoordinator's dirRanges check).
         for (auto& r : m_dirRangeOffsets) r = 0;
         m_dirRangeOffsets[6] = static_cast<uint32_t>(faces.size() + 1);   // != numInstances => full draw
+        // Same for the tier ranges: degenerate => a tier-masked draw skips this chunk (I6).
+        m_dirTierOffsets.fill(0);
+        m_dirTierOffsets[TierRanges::kBuckets] = static_cast<uint32_t>(faces.size() + 1);
+        m_tierFaces.fill(0);
+        m_tierUnitFaces.fill(0);
     }
 
     uint32_t getNumInstances() const { return numInstances; }
@@ -321,6 +350,18 @@ public:
     /// 3=-X 4=+Y 5=-Y), [6] = total. Consumers must verify [6] == getNumInstances()
     /// before trusting the ranges (a chunk meshed before this feature reads all-zero).
     const std::array<uint32_t, 7>& getFaceDirRanges() const { return m_dirRangeOffsets; }
+
+    /// I5/I6 (docs/PerfProgram2026-09.md): per-(direction, tier) ranges, bucket = dir*4 + tier,
+    /// [kBuckets] = total. Valid only when [kBuckets] == getNumInstances() (same rule as above).
+    const TierRanges::Offsets& getDirTierOffsets() const { return m_dirTierOffsets; }
+    /// Instances per tier (0 cube, 1 sub, 2 micro, 3 LOD cell) after merging, and the unit faces
+    /// they cover (the count with merging off), from the last rebuild.
+    const std::array<uint32_t, TierRanges::kTiers>& getTierFaces() const { return m_tierFaces; }
+    const std::array<uint64_t, TierRanges::kTiers>& getTierUnitFaces() const { return m_tierUnitFaces; }
+    /// Census only (I5, sizes candidate S1): unit cube faces that were emitted although the
+    /// neighbouring cell's touching layer is fully covered by OPAQUE subcubes/microcubes. Faces
+    /// whose neighbour lies in another chunk are counted in `unknown`, not guessed.
+    void countCoveredCubeFaces(uint64_t& covered, uint64_t& unknown) const;
 
     // --- Grass (lightweight blade layer) ---
     // Grass blade instances collected on the last rebuild — one per exposed grass-topped voxel
@@ -491,6 +532,9 @@ private:
     // Face-direction bucketing (Phase 3): direction-major reorder of `faces` +
     // prefix offsets, rebuilt at the end of every rebuildAllFaces.
     std::array<uint32_t, 7> m_dirRangeOffsets{};
+    TierRanges::Offsets m_dirTierOffsets{};
+    std::array<uint32_t, TierRanges::kTiers> m_tierFaces{};
+    std::array<uint64_t, TierRanges::kTiers> m_tierUnitFaces{};
     std::vector<InstanceData> m_dirScratch;    // reused scatter buffer
     void reorderFacesByDirection();
 

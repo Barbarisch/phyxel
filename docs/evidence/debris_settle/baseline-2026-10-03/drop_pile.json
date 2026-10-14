@@ -1,0 +1,458 @@
+{
+  "awake_bodies": [
+    {
+      "age": 255,
+      "ang_speed": 0.0032462780363857746,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        18.393442153930664,
+        -260.39398193359375,
+        -45.09300994873047
+      ],
+      "rebounds": 0,
+      "sleep_ctr": 0,
+      "slot": 128,
+      "speed": 26.874435424804688,
+      "tilt_deg": 43.743892669677734,
+      "vel": [
+        -0.009498595260083675,
+        -26.874387741088867,
+        -0.0496673546731472
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.010358144529163837,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        13.200997352600098,
+        -256.14654541015625,
+        -43.114681243896484
+      ],
+      "rebounds": 0,
+      "sleep_ctr": 0,
+      "slot": 100,
+      "speed": 26.846965789794922,
+      "tilt_deg": 28.881258010864258,
+      "vel": [
+        -0.01115798857063055,
+        -26.846921920776367,
+        -0.0476074181497097
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.012802045792341232,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        22.489458084106445,
+        -249.30526733398438,
+        -39.34991455078125
+      ],
+      "rebounds": 1,
+      "sleep_ctr": 0,
+      "slot": 127,
+      "speed": 26.823144912719727,
+      "tilt_deg": 42.48387145996094,
+      "vel": [
+        0.012245177291333675,
+        -26.823118209838867,
+        -0.0366210900247097
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.012140128761529922,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        15.527414321899414,
+        -250.74148559570312,
+        -44.31486129760742
+      ],
+      "rebounds": 1,
+      "sleep_ctr": 0,
+      "slot": 101,
+      "speed": 26.820417404174805,
+      "tilt_deg": 25.70551872253418,
+      "vel": [
+        -0.004749297630041838,
+        -26.820371627807617,
+        -0.0501251183450222
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.003525099018588662,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        20.21476173400879,
+        -249.84864807128906,
+        -38.33164978027344
+      ],
+      "rebounds": 3,
+      "sleep_ctr": 0,
+      "slot": 8,
+      "speed": 26.82038688659668,
+      "tilt_deg": 38.762081146240234,
+      "vel": [
+        0.009498595260083675,
+        -26.820371627807617,
+        -0.02815246395766735
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.03239031881093979,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        21.0950870513916,
+        -229.97894287109375,
+        -41.438350677490234
+      ],
+      "rebounds": 3,
+      "sleep_ctr": 0,
+      "slot": 78,
+      "speed": 26.73527717590332,
+      "tilt_deg": 37.45293426513672,
+      "vel": [
+        0.009498595260083675,
+        -26.735227584838867,
+        -0.0514984093606472
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.028247946873307228,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        20.0858097076416,
+        -229.90989685058594,
+        -39.33848190307617
+      ],
+      "rebounds": 1,
+      "sleep_ctr": 0,
+      "slot": 102,
+      "speed": 26.734344482421875,
+      "tilt_deg": 17.822490692138672,
+      "vel": [
+        0.009498595260083675,
+        -26.734312057495117,
+        -0.0402831993997097
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.35337501764297485,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        12.771947860717773,
+        -225.35829162597656,
+        -40.767578125
+      ],
+      "rebounds": 0,
+      "sleep_ctr": 0,
+      "slot": 125,
+      "speed": 26.727310180664062,
+      "tilt_deg": 13.950520515441895,
+      "vel": [
+        -0.33891674876213074,
+        -26.725156784057617,
+        0.014419554732739925
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.1994234323501587,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        15.681219100952148,
+        -225.27764892578125,
+        -41.094215393066406
+      ],
+      "rebounds": 5,
+      "sleep_ctr": 0,
+      "slot": 9,
+      "speed": 26.701688766479492,
+      "tilt_deg": 41.191017150878906,
+      "vel": [
+        0.32335278391838074,
+        -26.699522018432617,
+        -0.1057434007525444
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.013270393013954163,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        12.906967163085938,
+        -222.89573669433594,
+        -37.14191436767578
+      ],
+      "rebounds": 1,
+      "sleep_ctr": 0,
+      "slot": 75,
+      "speed": 26.694049835205078,
+      "tilt_deg": 14.219143867492676,
+      "vel": [
+        -0.012359618209302425,
+        -26.694028854370117,
+        -0.03067016415297985
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.012661664746701717,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        21.807043075561523,
+        -219.47610473632812,
+        -39.39540481567383
+      ],
+      "rebounds": 1,
+      "sleep_ctr": 0,
+      "slot": 104,
+      "speed": 26.672096252441406,
+      "tilt_deg": 42.623451232910156,
+      "vel": [
+        -0.009498595260083675,
+        -26.672056198120117,
+        -0.0453185997903347
+      ]
+    },
+    {
+      "age": 255,
+      "ang_speed": 0.0343465693295002,
+      "color": 0,
+      "constraints": 0,
+      "kicks": 0,
+      "pos": [
+        15.76858139038086,
+        -216.79837036132812,
+        -37.59357452392578
+      ],
+      "rebounds": 0,
+      "sleep_ctr": 0,
+      "slot": 126,
+      "speed": 26.658348083496094,
+      "tilt_deg": 45.13143539428711,
+      "vel": [
+        -0.004749297630041838,
+        -26.658323287963867,
+        -0.0368499718606472
+      ]
+    }
+  ],
+  "csv": "G:\\github\\phyxel\\docs\\evidence\\debris_settle\\baseline-2026-10-03\\drop_pile.csv",
+  "csv_written": true,
+  "running": false,
+  "success": true,
+  "summary": {
+    "bodies": 150,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 4.0,
+        "pass": false,
+        "value": null
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": false,
+        "value": 65
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": false,
+        "value": 63668
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 0.0
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": false,
+        "value": 3.466666666666667
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": false,
+        "value": 38
+      }
+    },
+    "criteria": {
+      "settle_window_s": 1.0
+    },
+    "duration_s": 14.250000953674316,
+    "energy": {
+      "final_J": -173590.87871415008,
+      "initial_J": 205646.39162184406,
+      "injected_after_window_J": 0.0,
+      "injected_after_window_lift_m": 0.0,
+      "injected_total_J": 0.0,
+      "injected_total_lift_m": 0.0
+    },
+    "kicks_after_settle_window": 196,
+    "rebounds": {
+      "after_settle_window": 520,
+      "bodies_over_3": 66,
+      "per_body_after_mean": 3.466666666666667,
+      "per_body_max": 21,
+      "per_body_mean": 3.6333333333333333,
+      "total": 545
+    },
+    "sleep": {
+      "awake_at_end": 108,
+      "clean": 59,
+      "forced": 65,
+      "forced_fraction": 0.5241935483870968,
+      "woke": 82
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 63668,
+      "hardcontact_max_depth_m": 0.0971279963850975,
+      "hardcontact_max_depth_tick": 67,
+      "max_color_skipped": 0,
+      "max_constraints": 600,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 855,
+    "time_95_asleep_s": null,
+    "time_all_asleep_s": null,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 38,
+      "floor_y": 17.0,
+      "lowest_y": -260.39398193359375,
+      "max_bodies_below_floor": 38
+    },
+    "verdict": "FAILS",
+    "windows": [
+      {
+        "awake_at_end": 150,
+        "from_s": 0.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 1,
+        "max_churning": 150,
+        "max_color_skipped": 0,
+        "max_speed": 5.13780403137207,
+        "rebounds": 1,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 150,
+        "from_s": 0.5,
+        "hardcontact_fires": 123,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 10,
+        "max_churning": 150,
+        "max_color_skipped": 0,
+        "max_speed": 8.618534088134766,
+        "rebounds": 24,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 150,
+        "from_s": 1.0,
+        "hardcontact_fires": 1505,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 18,
+        "max_churning": 150,
+        "max_color_skipped": 0,
+        "max_speed": 9.27376651763916,
+        "rebounds": 190,
+        "to_s": 2.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 150,
+        "from_s": 2.0,
+        "hardcontact_fires": 8056,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 25,
+        "max_churning": 150,
+        "max_color_skipped": 0,
+        "max_speed": 17.672571182250977,
+        "rebounds": 150,
+        "to_s": 4.0,
+        "woke": 1
+      },
+      {
+        "awake_at_end": 147,
+        "from_s": 4.0,
+        "hardcontact_fires": 22296,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 68,
+        "max_churning": 139,
+        "max_color_skipped": 0,
+        "max_speed": 24.85942840576172,
+        "rebounds": 127,
+        "to_s": 8.0,
+        "woke": 18
+      },
+      {
+        "awake_at_end": 108,
+        "from_s": 8.0,
+        "hardcontact_fires": 31811,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 85,
+        "max_churning": 126,
+        "max_color_skipped": 0,
+        "max_speed": 26.874435424804688,
+        "rebounds": 53,
+        "to_s": 14.250000953674316,
+        "woke": 63
+      }
+    ],
+    "scenario": "drop_pile",
+    "setup": "5x6x5 cubes, gap 0.1, spin<=3 rad/s, dropped 3 m (Phase-2 verification case)",
+    "site": {
+      "x": 16,
+      "z": -30,
+      "ground_top": 17
+    }
+  },
+  "ticks": 855
+}

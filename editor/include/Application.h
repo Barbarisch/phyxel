@@ -25,7 +25,6 @@
 #include "core/ChunkManager.h"
 #include "core/FaunaSpawner.h"
 #include "core/ResidentSpawner.h"
-#include "core/ForceSystem.h"
 // WorldInitializer now lives in engine/ and is used by EngineRuntime internally
 #include "core/ObjectTemplateManager.h"
 #include "core/RuntimeEntityStore.h"
@@ -99,6 +98,7 @@
 #include "core/EngineRuntime.h"
 #include "core/SceneManager.h"
 #include "core/GpuParticlePhysics.h"
+#include "core/DebrisRuntime.h"
 #include "core/WaterManager.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
@@ -191,6 +191,9 @@ public:
     Scene::AnimatedVoxelCharacter* createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile);
     void setControlTarget(const std::string& targetName);
     void derezCharacter(float duration = 2.0f);
+    void gatherRubble();   // G: settled debris near the player -> inventory (DebrisInteractionPlan 6b)
+    /// Unregister + erase the animated character (both derez completion paths use this).
+    void removeAnimatedCharacterFromScene();
 
     /// Left-click during the player's turn (turn-based): resolve the cursor ray
     /// into a move/attack intent (S6). Returns true if it handled the click
@@ -265,9 +268,7 @@ private:
     Graphics::CameraManager* cameraManager = nullptr;
     ChunkManager* chunkManager = nullptr;
     Physics::PhysicsWorld* physicsWorld = nullptr;
-    ForceSystem* forceSystem = nullptr;
     Input::InputManager* inputManager = nullptr;
-    MouseVelocityTracker* mouseVelocityTracker = nullptr;
     Timer* timer = nullptr;
     PerformanceProfiler* performanceProfiler = nullptr;
     Utils::PerformanceMonitor* performanceMonitor = nullptr;
@@ -275,7 +276,10 @@ private:
     Core::LocationRegistry* locationRegistry = nullptr;
 
     // Game-specific subsystems (still owned by Application)
-    std::unique_ptr<GpuParticlePhysics> gpuParticlePhysics;            // GPU-accelerated debris physics
+    // GPU debris (DebrisInteractionPlan Phase 5): DebrisRuntime owns the solver and the mover feeds
+    // (shared with shipped games); gpuParticlePhysics is a non-owning alias (null = disabled).
+    std::unique_ptr<DebrisRuntime> debrisRuntime;
+    GpuParticlePhysics* gpuParticlePhysics = nullptr;
     std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
@@ -508,6 +512,8 @@ private:
     bool  showSpellCaster    = true;
     bool  m_spellModeEnabled = false;
     int   m_spellTypeIndex   = 0;
+    // Why GPU debris is off (empty = running). Echoed by /api/debug/gpu_physics.
+    std::string m_gpuDebrisDisabledReason;
     float m_spellPower       = 500.0f;  // -> DamageSystem blast energy
     float m_spellRadius      = 4.0f;    // -> DamageSystem blast radius
     void renderSpellCaster();

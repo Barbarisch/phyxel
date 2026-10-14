@@ -3,8 +3,8 @@
 // particle_grid_build.comp — Count active particles into per-cell buckets.
 //
 // Each active particle hashes its position to a grid cell and atomically
-// increments the cell's count. particle_sort_scan.comp then computes an
-// exclusive prefix sum over these counts to get per-cell write offsets,
+// increments the cell's count. The parallel scan (particle_scan_block/_blocksums/_add)
+// then computes an exclusive prefix sum over these counts to get per-cell write offsets,
 // and particle_sort_scatter.comp writes contiguous sorted arrays.
 //
 // Buffers:
@@ -24,11 +24,8 @@ layout(std430, set = 0, binding = 1) buffer GridCellCount {
     uint gridCellCount[];
 };
 
-layout(push_constant) uniform PC {
-    uint count;
-} pc;
+layout(push_constant) uniform PC { PHX_PC_COUNT } pc;  // shaders/solver_shared.h
 
-const int GRID_SIZE = 64;
 
 int cellIndex(vec3 pos) {
     int cx = int(floor(pos.x)) & (GRID_SIZE - 1);

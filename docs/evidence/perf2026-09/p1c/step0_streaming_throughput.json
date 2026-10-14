@@ -1,0 +1,71 @@
+{
+ "world": "CityBench (Perlin seed 7, streaming, default residency)",
+ "runs": [
+  {
+   "speed_u_per_s": 8,
+   "from_x": -40.0,
+   "chunk_entries": 16,
+   "entries_resident": 16,
+   "first_unresident_entry": null,
+   "peak_pending_generation": 48,
+   "frames": 775,
+   "truncated": false,
+   "frame_ms_p50": 73.50550079345703,
+   "frame_ms_p99": 343.6615905761719,
+   "frame_ms_max": 486.0563049316406
+  },
+  {
+   "speed_u_per_s": 16,
+   "from_x": 440.0,
+   "chunk_entries": 16,
+   "entries_resident": 16,
+   "first_unresident_entry": null,
+   "peak_pending_generation": 48,
+   "frames": 331,
+   "truncated": false,
+   "frame_ms_p50": 86.85700225830078,
+   "frame_ms_p99": 157.67689514160156,
+   "frame_ms_max": 214.62770080566406
+  },
+  {
+   "speed_u_per_s": 32,
+   "from_x": 920.0,
+   "chunk_entries": 16,
+   "entries_resident": 16,
+   "first_unresident_entry": null,
+   "peak_pending_generation": 48,
+   "frames": 296,
+   "truncated": false,
+   "frame_ms_p50": 48.85970115661621,
+   "frame_ms_p99": 128.49659729003906,
+   "frame_ms_max": 272.02490234375
+  },
+  {
+   "speed_u_per_s": 48,
+   "from_x": 1400.0,
+   "chunk_entries": 16,
+   "entries_resident": 16,
+   "first_unresident_entry": null,
+   "peak_pending_generation": 48,
+   "frames": 135,
+   "truncated": false,
+   "frame_ms_p50": 63.538299560546875,
+   "frame_ms_p99": 162.33529663085938,
+   "frame_ms_max": 181.26339721679688
+  },
+  {
+   "speed_u_per_s": 64,
+   "from_x": 1880.0,
+   "chunk_entries": 16,
+   "entries_resident": 15,
+   "first_unresident_entry": 15,
+   "peak_pending_generation": 48,
+   "frames": 82,
+   "truncated": false,
+   "frame_ms_p50": 80.19180297851562,
+   "frame_ms_p99": 173.02679443359375,
+   "frame_ms_max": 178.00579833984375
+  }
+ ],
+ "max_all_resident_speed": 48
+}

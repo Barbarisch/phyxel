@@ -1,0 +1,61 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+// solver_kinematic_sync — DebrisInteractionPlan Phase 2.
+//
+// Movers (scripted boxes, character limb boxes) are AVBD bodies with invMass 0 at the FIXED body
+// indices [KINEMATIC_BASE, KINEMATIC_BASE + MAX_KINEMATIC). Each tick this pass writes body k from
+// the CPU-uploaded box: `initial` = the box's pose at the START of this sub-step and `pos` = its
+// pose at the END. Narrowphase finds contacts at `initial`; dual/primal read pos - initial as the
+// body-B displacement J·Δq_B, which is what pushes debris out of the box's way. No new constraint
+// type, and the particle range (count, grid, integrate, sync_in/out) never sees these bodies.
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) readonly buffer KinematicBoxBuffer { KinematicBox boxes[]; };
+layout(std430, set=0, binding=1) buffer SolverBodyBuffer            { SolverBody bodies[]; };
+
+layout(push_constant) uniform PC { PHX_PC_KINEMATIC } pc;  // shaders/solver_shared.h
+
+void main() {
+    uint k = gl_GlobalInvocationID.x;
+    if (k >= MAX_KINEMATIC) return;
+
+    SolverBody b;
+    b.particleIdx = 0xFFFFFFFFu;   // no particle behind a mover
+    b.pad0 = 0.0; b.pad1 = 0.0; b.pad2 = 0.0; b.pad3 = 0.0; b.pad4 = 0.0; b.pad5 = 0.0;
+    b.pad6 = 0.0; b.pad7 = 0.0; b.pad8 = 0.0;
+    b.invMass    = 0.0;
+    b.invInertia = 0.0;
+    b.friction    = 0.6;
+    b.restitution = 0.0;
+    b.angVel  = vec3(0.0);
+    b.cumAng  = vec3(0.0);
+
+    if (k >= pc.boxCount) {
+        // Unused slot: inactive, so a stale box from an earlier frame can never collide.
+        b.flags = 0u;
+        b.pos = vec3(0.0); b.initial = vec3(0.0); b.inertial = vec3(0.0);
+        b.vel = vec3(0.0); b.prevVel = vec3(0.0); b.halfExt = vec3(0.0); b.radius = 0.0;
+        b.quat = vec4(0.0, 0.0, 0.0, 1.0); b.initialQuat = b.quat; b.inertialQuat = b.quat;
+        bodies[KINEMATIC_BASE + k] = b;
+        return;
+    }
+
+    KinematicBox kb = boxes[k];
+    vec3 start   = kb.center.xyz + kb.velocity.xyz * (pc.dt * float(pc.tick));
+    b.flags      = PARTICLE_ACTIVE | PARTICLE_KINEMATIC;
+    b.initial    = start;
+    b.pos        = start + kb.velocity.xyz * pc.dt;
+    b.inertial   = b.pos;
+    b.vel        = kb.velocity.xyz;
+    b.prevVel    = b.vel;
+    b.halfExt    = kb.halfExt.xyz;
+    b.radius     = max(b.halfExt.x, max(b.halfExt.y, b.halfExt.z));
+    b.quat         = kb.rotation;
+    b.initialQuat  = kb.rotation;
+    b.inertialQuat = kb.rotation;
+    bodies[KINEMATIC_BASE + k] = b;
+}

@@ -28,7 +28,9 @@ Measure the Phyxel engine's rendering performance with a clean, repeatable loop.
    - `fps`
    - `detailed.commandRecordTime` (CPU command recording, ms)
    - `visibleInstances`, `drawCalls`
-   Note: in this JSON `gpuFrameTime` just mirrors `cpuFrameTime` — it is NOT a real GPU timer. Infer GPU-bound vs CPU-bound from `totalFrameTime` minus `commandRecordTime` (large remainder = GPU-bound / CPU waiting on GPU).
+   Note: in this JSON `gpuFrameTime` just mirrors `cpuFrameTime` — it is NOT a real GPU timer. Since 2026-09-24 use `gpu_frame_ms` (the real whole-frame GPU time, last frame) and `present_mode` (FIFO caps FPS). For medians/percentiles per pass use `GET /api/debug/gpu_timing?frames=240`.
+
+**Preferred since 2026-09-24: `tools/perf_harness.py`** (docs/PerfProgram2026-09.md §10). It enforces Release, the settle gate, pose read-back, history windows and counterbalanced A/B, and `compare` refuses a verdict below 8 pairs. Run `python tools/perf_harness.py aa ...` first for the noise floor. Light census: `GET /api/debug/light_stats`.
 
 6. **For a before/after comparison**, measure baseline first, then apply the change, rebuild, relaunch, and re-measure with the scene fully loaded both times. Report both medians side by side.
 

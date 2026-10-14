@@ -38,6 +38,9 @@ struct MaterialPhysics {
     float breakForceMultiplier = 1.0f;
     float bondStrength = 0.5f;
     float angularVelocityScale = 1.0f;
+    // Water density / material density (DebrisInteractionPlan 6c): > 1 floats, < 1 sinks (slowed).
+    // Default = rock (1000 / 2600 kg/m^3): most debris is mineral; materials.json sets the rest.
+    float buoyancy = 0.38f;
     glm::vec3 colorTint = glm::vec3(1.0f);
     float metallic = 0.0f;
     float roughness = 0.5f;

@@ -13,14 +13,8 @@ layout(std430, set=0, binding=4) readonly buffer GridCellOffset   { uint gridCel
 layout(std430, set=0, binding=5) readonly buffer SortedIndices    { uint sortedIndices[]; };
 layout(std430, set=0, binding=6) readonly buffer WarmstartBuffer  { WarmstartEntry warmstarts[]; };
 
-layout(push_constant) uniform PC {
-    uint  count;
-    uint  maxConstraints;
-    float pad0;
-    float pad1;
-} pc;
+layout(push_constant) uniform PC { PHX_PC_CONTACTS } pc;  // shaders/solver_shared.h
 
-const int GRID_SIZE = 64;
 
 // Positive-biased sign (avoids sign(0)==0 giving zero-length impulse arms)
 float sgn(float x) { return (x >= 0.0) ? 1.0 : -1.0; }
@@ -134,6 +128,25 @@ void emitCon(uint idxA, uint idxB,
     vec3 rA_local = quatRotate(quatInv(quatA), rA_w);
     vec3 rB_local = (idxB == SOLVER_STATIC) ? vec3(0) : quatRotate(quatInv(quatB), rB_w);
 
+    // Static friction (paper §3.3): a sticking contact keeps last tick's material points
+    // (local arms), and the tangential offset between them at tick start is the drift the
+    // friction rows pull back. Without this friction could only slow sliding, never hold.
+    bool sFric  = (pc.flags & SOLVER_FLAG_STATIC_FRICTION) != 0u;
+    bool coldWs = (ws.featureKey == FEATURE_KEY_NONE);
+    if (sFric && !coldWs && ws.stick != 0u && idxB != SOLVER_STATIC) {
+        rA_local = ws.rA;
+        rB_local = ws.rB;
+    }
+    float cInitT1 = 0.0, cInitT2 = 0.0;
+    if (sFric && idxB != SOLVER_STATIC) {
+        SolverBody A0 = bodies[idxA];
+        SolverBody B0 = bodies[idxB];
+        vec3 pA0 = A0.initial + quatRotate(A0.initialQuat, rA_local);
+        vec3 pB0 = B0.initial + quatRotate(B0.initialQuat, rB_local);
+        cInitT1 = dot(t1, pA0 - pB0);
+        cInitT2 = dot(t2, pA0 - pB0);
+    }
+
     GPUConstraint c;
     c.n          = n;
     c.depth      = depth;
@@ -147,16 +160,52 @@ void emitCon(uint idxA, uint idxB,
     c.bodyB      = idxB;
     c.mu         = mu;
     c.color      = UNCOLORED;
-    c.penalty_n  = clamp(ws.penaltyN  * GAMMA, PENALTY_MIN, PENALTY_MAX);
+    // Cold contact (no warm-start match): start at the lighter dynamic body's m/dt² instead of
+    // PENALTY_MIN = 1, so a fresh contact is not a near-zero spring that lets the bodies sink
+    // into each other before the ramp catches up (three-avbd "massPenalty").
+    bool cold = (ws.featureKey == FEATURE_KEY_NONE);
+    float penN = ws.penaltyN * GAMMA;
+    if (cold && (pc.flags & SOLVER_FLAG_MASS_PENALTY) != 0u) {
+        float imA = bodies[idxA].invMass;
+        float imB = (idxB == SOLVER_STATIC) ? 0.0 : bodies[idxB].invMass;
+        float im  = max(imA, imB);               // lighter dynamic body (sleepers have 0)
+        if (im > 0.0) penN = COLD_PENALTY_DT2_INV * pc.coldScale / im;
+        // A mover cannot be stopped: its contact must hold from the first iteration, not ramp up
+        // over ticks while the box drives a body into itself (Phase 2 experiment: x100).
+        if (isKinematicBody(idxB)) penN *= KINEMATIC_COLD_PENALTY_SCALE;
+    }
+    c.penalty_n  = clamp(penN, PENALTY_MIN, PENALTY_MAX);
+    // Depth was measured at the PREDICTED iterates; the solver's J·Δq is measured from the
+    // tick start, so convert back (otherwise this tick's relative motion counts twice).
+    {
+        SolverBody A = bodies[idxA];
+        float jdq = dot(n, A.pos - A.initial) + dot(cross(rA_w, n), A.cumAng);
+        if (idxB != SOLVER_STATIC) {
+            SolverBody B = bodies[idxB];
+            jdq += dot(-n, B.pos - B.initial) + dot(cross(rB_w, -n), B.cumAng);
+        }
+        depth += jdq;
+    }
     c.C_init_n   = depth;
-    c.penalty_t1 = clamp(ws.penaltyF1 * GAMMA, PENALTY_MIN, PENALTY_MAX);
-    c.penalty_t2 = clamp(ws.penaltyF2 * GAMMA, PENALTY_MIN, PENALTY_MAX);
+    // Phase 2 telemetry: the deepest tick-start penetration into a mover (plan: <= 2 cm).
+    if (isKinematicBody(idxB) && depth > 0.0)
+        atomicMax(solverState[SS_KINEMATIC_DEPTH_UM], uint(min(depth, 4000.0) * 1.0e6));
+    // Cold friction rows start stiff too (they used to start at PENALTY_MIN = 1 → soft slip).
+    float penT1 = ws.penaltyF1 * GAMMA, penT2 = ws.penaltyF2 * GAMMA;
+    if (sFric && cold) {
+        float imA = bodies[idxA].invMass;
+        float imB = (idxB == SOLVER_STATIC) ? 0.0 : bodies[idxB].invMass;
+        float im  = max(imA, imB);
+        if (im > 0.0) penT1 = penT2 = COLD_PENALTY_DT2_INV * pc.coldScale / im;
+    }
+    c.penalty_t1 = clamp(penT1, PENALTY_MIN, PENALTY_MAX);
+    c.penalty_t2 = clamp(penT2, PENALTY_MIN, PENALTY_MAX);
     c.featureKey = featureKey;
     c.wsKey      = wsKey;
     c.isNew      = (ws.featureKey == FEATURE_KEY_NONE) ? 1u : 0u;
     c.stick      = ws.stick;
-    c.C_init_t1  = 0.0;
-    c.C_init_t2  = 0.0;
+    c.C_init_t1  = cInitT1;
+    c.C_init_t2  = cInitT2;
     c.pad0       = 0.0;
     c.pad1       = 0.0;
     constraints[slot] = c;
@@ -168,7 +217,8 @@ void faceManifold(uint idxA, uint idxB,
                   vec3 posB, vec3 ax0B, vec3 ax1B, vec3 ax2B, vec3 hB, vec4 quatB,
                   vec3 satN,   // normalized, points from B toward A
                   float depth,
-                  float mu)
+                  float mu,
+                  float margin)   // speculative band: COLLISION_MARGIN, + a mover's reach (Phase 2)
 {
     // --- Pick reference face (whose normal is most aligned with satN) ---
     // Test all 6 faces of A and 6 faces of B; reference = most parallel to satN.
@@ -187,10 +237,13 @@ void faceManifold(uint idxA, uint idxB,
         float d  = dot(s * axB[ai], satN);
         if (d > bestDot) { bestDot = d; refBody = 1; refFace = f; }
     }
+    // A's CONTACT face points from A toward B, i.e. along -satN. (This loop used to score A
+    // against +satN, which picks A's FAR face: whenever a rotated A won, the manifold was built
+    // against the wrong side of the box — "penetrations" of nearly two box widths.)
     for (int f = 0; f < 6; f++) {
         int   ai = f / 2;
         float s  = (f % 2 == 0) ? 1.0 : -1.0;
-        float d  = dot(s * axA[ai], satN);
+        float d  = dot(s * axA[ai], -satN);
         if (d > bestDot) { bestDot = d; refBody = 0; refFace = f; }  // strict >, B wins ties
     }
 
@@ -241,6 +294,7 @@ void faceManifold(uint idxA, uint idxB,
     refEdge[2] = refV3 - refV2;
     refEdge[3] = refV0 - refV3;
 
+    vec3 refCenter = 0.25 * (refV0 + refV1 + refV2 + refV3);
     for (int e = 0; e < 4; e++) {
         vec3 edgeN = normalize(cross(refEdge[e], refN));
         // Edge start vertex
@@ -249,6 +303,10 @@ void faceManifold(uint idxA, uint idxB,
         else if (e == 1) ev = refV1;
         else if (e == 2) ev = refV2;
         else             ev = refV3;
+        // The side plane must face AWAY from the face centre. cross(edge, refN) only does that
+        // for the +axis faces (the vertex winding is shared, the outward normal flips), so for
+        // every -axis reference face the clip used to keep the region OUTSIDE the face.
+        if (dot(edgeN, ev - refCenter) < 0.0) edgeN = -edgeN;
         float planeDist = dot(ev, edgeN);
         polyN = clipByPlane(poly, polyN, edgeN, planeDist);
         if (polyN == 0) return;
@@ -267,11 +325,13 @@ void faceManifold(uint idxA, uint idxB,
     float shallowestP  = 1e30;
 
     for (int p = 0; p < polyN; p++) {
+        // Signed height of the incident point above the reference face (along its OUTWARD
+        // normal): negative = inside the reference body. The point's own penetration is -d.
+        // (Was `depth - d`, which double-counted: a point at the true depth got 2x, and the
+        // shallow corners of a tilted box got phantom penetration at the wrong lever arms.)
         float d = dot(poly[p], refN) - refFaceDist;
-        if (d > COLLISION_MARGIN) continue;
-
-        float pen = depth - d;
-        if (pen <= 0.0) continue;
+        float pen = -d;
+        if (pen <= -margin) continue;   // speculative: keep the contact alive at rest
 
         if (contactCount < MAX_PAIR_CONTACTS) {
             pens[contactCount] = pen;
@@ -292,7 +352,9 @@ void faceManifold(uint idxA, uint idxB,
     // featureKey encodes (refBody, refFace, incFace, contactSlot). slot bit-packed in low 3 bits.
     // wsKey uses the per-pair hash slot so each manifold point keeps its own warmstart.
     uint baseFeature = (uint(refBody) << 6) | (uint(refFace) << 3) | uint(incFace);
-    vec3 n = refN;
+    // Emitted normal convention: from B toward A. B's contact face points toward A already;
+    // A's contact face points toward B, so flip it.
+    vec3 n = (refBody == 1) ? refN : -refN;
 
     for (int k = 0; k < contactCount; k++) {
         vec3 cp = cps[k];
@@ -355,6 +417,136 @@ void edgeContact(uint idxA, uint idxB,
             mu, quatA, quatB, wsKey, featureKey);
 }
 
+// One body pair: SAT over 15 axes, then a face manifold or an edge contact (emitCon). Body B's
+// pose is passed in, so the same code serves debris pairs (B's current pose) and movers (Phase 2:
+// the kinematic body's TICK-START pose, `initial`). Returns the penetration used, or -1 when the
+// pair is separated.
+float collidePair(uint i, SolverBody a, vec3 ax0A, vec3 ax1A, vec3 ax2A, vec3 hA, bool aSleeping,
+                  uint j, vec3 bPos, vec4 bQuat, vec3 hB, float bFriction, vec3 bVel, bool bSleeping,
+                  float extraMargin) {
+    float depthUsed = -1.0;
+    // Speculative band: contacts persist this far apart. Debris pairs: COLLISION_MARGIN only.
+    // Movers add their reach over the next two ticks, so a body ahead of a box is contacted - and
+    // a sleeper woken - BEFORE the box arrives: otherwise a sleeping body is static for the tick
+    // it is hit and ends up inside the box, where alpha = 0.99 recovers only 1 % of the overlap
+    // per tick (Phase 2: measured 10-39 cm lag inside a 2 m/s box without it).
+    const float margin = COLLISION_MARGIN + extraMargin;
+    vec3 ax0B = quatRotate(bQuat, vec3(1,0,0));
+    vec3 ax1B = quatRotate(bQuat, vec3(0,1,0));
+    vec3 ax2B = quatRotate(bQuat, vec3(0,0,1));
+
+    vec3 d = bPos - a.pos;  // A → B
+
+    // Broad phase: circumscribed sphere check
+    float rA = length(hA) * 1.1;
+    float rB = length(hB) * 1.1;
+    if (dot(d, d) > (rA + rB + margin) * (rA + rB + margin))
+        return -1.0;
+
+    // ================================================================
+    // SAT: 15 axes.  Track min pen for face axes and edge axes separately.
+    // ================================================================
+    float minFacePen = 1e30;
+    vec3  minFaceN   = vec3(0, 1, 0);
+
+    float minEdgePen  = 1e30;
+    vec3  minEdgeN    = vec3(0, 1, 0);
+    int   minEdgeIdxA = 0;
+    int   minEdgeIdxB = 0;
+
+    vec3 axA[3]; axA[0]=ax0A; axA[1]=ax1A; axA[2]=ax2A;
+    vec3 axB[3]; axB[0]=ax0B; axB[1]=ax1B; axB[2]=ax2B;
+
+    bool separated = false;
+
+    // --- 3 face axes of A ---
+    for (int k = 0; k < 3; k++) {
+        vec3 n = axA[k];
+        float pen = projOBB(ax0A,ax1A,ax2A,hA,n) + projOBB(ax0B,ax1B,ax2B,hB,n)
+                  - abs(dot(d, n));
+        if (pen < -margin) { separated = true; break; }
+        // Ensure axis points from A toward B
+        vec3 nFinal = n * sgn(dot(d, n));
+        if (pen < minFacePen) { minFacePen = pen; minFaceN = nFinal; }
+    }
+    if (separated) return -1.0;
+
+    // --- 3 face axes of B ---
+    for (int k = 0; k < 3; k++) {
+        vec3 n = axB[k];
+        float pen = projOBB(ax0A,ax1A,ax2A,hA,n) + projOBB(ax0B,ax1B,ax2B,hB,n)
+                  - abs(dot(d, n));
+        if (pen < -margin) { separated = true; break; }
+        vec3 nFinal = n * sgn(dot(d, n));
+        if (pen < minFacePen) { minFacePen = pen; minFaceN = nFinal; }
+    }
+    if (separated) return -1.0;
+
+    // --- 9 edge cross-product axes ---
+    for (int a2 = 0; a2 < 3; a2++) {
+    for (int b2 = 0; b2 < 3; b2++) {
+        vec3 n = cross(axA[a2], axB[b2]);
+        float lenSq = dot(n, n);
+        if (lenSq < 1e-9) continue;  // parallel edges
+        n /= sqrt(lenSq);
+        float pen = projOBB(ax0A,ax1A,ax2A,hA,n) + projOBB(ax0B,ax1B,ax2B,hB,n)
+                  - abs(dot(d, n));
+        if (pen < -margin) { separated = true; break; }
+        vec3 nFinal = n * sgn(dot(d, n));
+        if (pen < minEdgePen) {
+            minEdgePen = pen;
+            minEdgeN   = nFinal;
+            minEdgeIdxA = a2;
+            minEdgeIdxB = b2;
+        }
+    }
+    if (separated) break;
+    }
+    if (separated) return -1.0;
+
+    // ---- Sleep (Phase 2): impact wake ----
+    // A fast awake body overlapping a sleeper wakes it on the NEXT tick
+    // (sync_in consumes the bit). Slow touches leave it frozen, so debris
+    // can come to rest ON a sleeping pile without churning it awake.
+    if (aSleeping != bSleeping) {
+        vec3 vAwake = aSleeping ? bVel : a.vel;
+        if (dot(vAwake, vAwake) > WAKE_IMPACT_SPEED * WAKE_IMPACT_SPEED) {
+            uint sleeperIdx = aSleeping ? i : j;
+            atomicOr(solverState[WAKE_BITS_BASE + (sleeperIdx >> 5u)],
+                     1u << (sleeperIdx & 31u));
+            atomicAdd(solverState[SS_WAKE_REQUESTS], 1u);
+        }
+    }
+
+    // ================================================================
+    // Contact normal: choose face or edge contact
+    // Use Shallot heuristic: prefer face unless edge is significantly smaller.
+    // ================================================================
+    float mu = mix(a.friction, bFriction, 0.5);
+
+    bool useEdge = (minEdgePen < minFacePen * 0.95 - 0.01);
+
+    if (useEdge) {
+        // satN points from B toward A (we track "from A to B" in minEdgeN)
+        vec3 satN = -minEdgeN;  // flip to "from B toward A"
+        depthUsed = minEdgePen;
+        edgeContact(i, j,
+                    a.pos, ax0A, ax1A, ax2A, hA, a.quat,
+                    bPos, ax0B, ax1B, ax2B, hB, bQuat,
+                    satN, minEdgePen,
+                    minEdgeIdxA, minEdgeIdxB, mu);
+    } else {
+        // satN from B toward A
+        vec3 satN = -minFaceN;
+        depthUsed = minFacePen;
+        faceManifold(i, j,
+                     a.pos, ax0A, ax1A, ax2A, hA, a.quat,
+                     bPos, ax0B, ax1B, ax2B, hB, bQuat,
+                     satN, minFacePen, mu, margin);
+    }
+    return depthUsed;
+}
+
 void main() {
     uint i = gl_GlobalInvocationID.x;
     uint constraintCount = pc.count;
@@ -399,117 +591,36 @@ void main() {
             bool bSleeping = (b.flags & PARTICLE_SLEEPING) != 0u;
             if (aSleeping && bSleeping) continue;   // frozen pair — nothing to solve or wake
 
-            vec3 ax0B = quatRotate(b.quat, vec3(1,0,0));
-            vec3 ax1B = quatRotate(b.quat, vec3(0,1,0));
-            vec3 ax2B = quatRotate(b.quat, vec3(0,0,1));
-            vec3 hB   = b.halfExt;
-
-            vec3 d = b.pos - a.pos;  // A → B
-
-            // Broad phase: circumscribed sphere check
-            float rA = length(hA) * 1.1;
-            float rB = length(hB) * 1.1;
-            if (dot(d, d) > (rA + rB + COLLISION_MARGIN) * (rA + rB + COLLISION_MARGIN))
-                continue;
-
-            // ================================================================
-            // SAT: 15 axes.  Track min pen for face axes and edge axes separately.
-            // ================================================================
-            float minFacePen = 1e30;
-            vec3  minFaceN   = vec3(0, 1, 0);
-
-            float minEdgePen  = 1e30;
-            vec3  minEdgeN    = vec3(0, 1, 0);
-            int   minEdgeIdxA = 0;
-            int   minEdgeIdxB = 0;
-
-            vec3 axA[3]; axA[0]=ax0A; axA[1]=ax1A; axA[2]=ax2A;
-            vec3 axB[3]; axB[0]=ax0B; axB[1]=ax1B; axB[2]=ax2B;
-
-            bool separated = false;
-
-            // --- 3 face axes of A ---
-            for (int k = 0; k < 3; k++) {
-                vec3 n = axA[k];
-                float pen = projOBB(ax0A,ax1A,ax2A,hA,n) + projOBB(ax0B,ax1B,ax2B,hB,n)
-                          - abs(dot(d, n));
-                if (pen < 0.0) { separated = true; break; }
-                // Ensure axis points from A toward B
-                vec3 nFinal = n * sgn(dot(d, n));
-                if (pen < minFacePen) { minFacePen = pen; minFaceN = nFinal; }
-            }
-            if (separated) continue;
-
-            // --- 3 face axes of B ---
-            for (int k = 0; k < 3; k++) {
-                vec3 n = axB[k];
-                float pen = projOBB(ax0A,ax1A,ax2A,hA,n) + projOBB(ax0B,ax1B,ax2B,hB,n)
-                          - abs(dot(d, n));
-                if (pen < 0.0) { separated = true; break; }
-                vec3 nFinal = n * sgn(dot(d, n));
-                if (pen < minFacePen) { minFacePen = pen; minFaceN = nFinal; }
-            }
-            if (separated) continue;
-
-            // --- 9 edge cross-product axes ---
-            for (int a2 = 0; a2 < 3; a2++) {
-            for (int b2 = 0; b2 < 3; b2++) {
-                vec3 n = cross(axA[a2], axB[b2]);
-                float lenSq = dot(n, n);
-                if (lenSq < 1e-9) continue;  // parallel edges
-                n /= sqrt(lenSq);
-                float pen = projOBB(ax0A,ax1A,ax2A,hA,n) + projOBB(ax0B,ax1B,ax2B,hB,n)
-                          - abs(dot(d, n));
-                if (pen < 0.0) { separated = true; break; }
-                vec3 nFinal = n * sgn(dot(d, n));
-                if (pen < minEdgePen) {
-                    minEdgePen = pen;
-                    minEdgeN   = nFinal;
-                    minEdgeIdxA = a2;
-                    minEdgeIdxB = b2;
-                }
-            }
-            if (separated) break;
-            }
-            if (separated) continue;
-
-            // ---- Sleep (Phase 2): impact wake ----
-            // A fast awake body overlapping a sleeper wakes it on the NEXT tick
-            // (sync_in consumes the bit). Slow touches leave it frozen, so debris
-            // can come to rest ON a sleeping pile without churning it awake.
-            if (aSleeping != bSleeping) {
-                vec3 vAwake = aSleeping ? b.vel : a.vel;
-                if (dot(vAwake, vAwake) > WAKE_IMPACT_SPEED * WAKE_IMPACT_SPEED) {
-                    uint sleeperIdx = aSleeping ? i : j;
-                    atomicOr(solverState[WAKE_BITS_BASE + (sleeperIdx >> 5u)],
-                             1u << (sleeperIdx & 31u));
-                }
-            }
-
-            // ================================================================
-            // Contact normal: choose face or edge contact
-            // Use Shallot heuristic: prefer face unless edge is significantly smaller.
-            // ================================================================
-            float mu = mix(a.friction, b.friction, 0.5);
-
-            bool useEdge = (minEdgePen < minFacePen * 0.95 - 0.01);
-
-            if (useEdge) {
-                // satN points from B toward A (we track "from A to B" in minEdgeN)
-                vec3 satN = -minEdgeN;  // flip to "from B toward A"
-                edgeContact(i, j,
-                            a.pos, ax0A, ax1A, ax2A, hA, a.quat,
-                            b.pos, ax0B, ax1B, ax2B, hB, b.quat,
-                            satN, minEdgePen + COLLISION_MARGIN,
-                            minEdgeIdxA, minEdgeIdxB, mu);
-            } else {
-                // satN from B toward A
-                vec3 satN = -minFaceN;
-                faceManifold(i, j,
-                             a.pos, ax0A, ax1A, ax2A, hA, a.quat,
-                             b.pos, ax0B, ax1B, ax2B, hB, b.quat,
-                             satN, minFacePen + COLLISION_MARGIN, mu);
-            }
+            vec3 hB = b.halfExt;
+            collidePair(i, a, ax0A, ax1A, ax2A, hA, aSleeping,
+                        j, b.pos, b.quat, hB, b.friction, b.vel, bSleeping, 0.0);
         }
     }}}
+
+    // ---- Movers (Phase 2): every kinematic body, measured like any other body at its END-of-tick
+    // pose (`pos`, the counterpart of a debris body's predicted iterate); emitCon then converts the
+    // depth back to tick start by subtracting both bodies' motion, and dual/primal read
+    // pos - initial as body B's displacement - the push. (Measuring the box at `initial` made that
+    // conversion subtract its motion twice: every mover contact looked one box-step shallower than
+    // it was, and a 2 m/s box sank 14 cm into a single cube.) Bodies are dense from
+    // KINEMATIC_BASE; the first inactive one ends the list. ----
+    if ((pc.flags & SOLVER_FLAG_KINEMATIC_CONTACTS) != 0u) {
+        float rA = length(hA);
+        for (uint k = 0u; k < MAX_KINEMATIC; ++k) {
+            uint j = KINEMATIC_BASE + k;
+            SolverBody kb = bodies[j];
+            if ((kb.flags & PARTICLE_ACTIVE) == 0u) break;
+            // AABB reject against the box's start-of-tick pose (bounding sphere of A).
+            // The box's reach over this tick and the next (its displacement this tick, twice).
+            float spec = 2.0 * length(kb.pos - kb.initial);
+            vec3 dd = abs(kb.pos - a.pos);
+            vec3 reach = kb.halfExt * 1.733 + vec3(rA + COLLISION_MARGIN + spec);   // rotated box: sqrt(3)
+            if (any(greaterThan(dd, reach))) continue;
+            float depth = collidePair(i, a, ax0A, ax1A, ax2A, hA, aSleeping,
+                                      j, kb.pos, kb.quat, kb.halfExt, kb.friction, kb.vel,
+                                      /*bSleeping=*/false, spec);
+            if (depth > -1.0)   // a contact was emitted (its tick-start depth is recorded in emitCon)
+                atomicAdd(solverState[SS_KINEMATIC_CONTACTS], 1u);
+        }
+    }
 }

@@ -20,6 +20,17 @@ $OriginalLocation = Get-Location
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
+# Fail before touching the build directory or running stale binaries. PowerShell does not
+# reliably update $LASTEXITCODE when a command cannot be resolved, so checking only that
+# variable after invoking cmake/python can let the script continue after a missing tool.
+foreach ($RequiredCommand in @("cmake", "python")) {
+    if (-not (Get-Command $RequiredCommand -ErrorAction SilentlyContinue)) {
+        Write-Host "Required command not found on PATH: $RequiredCommand" -ForegroundColor Red
+        Set-Location $OriginalLocation
+        exit 1
+    }
+}
+
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Phyxel Build and Test System" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
@@ -183,8 +194,6 @@ foreach ($BuildTarget in $BuildTargets) {
     Set-Location (Join-Path $ScriptDir "build")
 }
 
-$BuildSuccess = $true
-
 if ($BuildSuccess -and ($RunTests -or $UnitOnly -or $IntegrationOnly -or $BenchmarkOnly -or $StressOnly -or $E2EOnly)) {
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Cyan
@@ -199,7 +208,7 @@ if ($BuildSuccess -and ($RunTests -or $UnitOnly -or $IntegrationOnly -or $Benchm
     if ($UnitOnly -or ($RunTests -and -not $IntegrationOnly -and -not $BenchmarkOnly -and -not $StressOnly -and -not $E2EOnly)) {
         Write-Host ""
         Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "Running Unit Tests (276 core tests, ~5-10 seconds)..." -ForegroundColor Cyan
+        Write-Host "Running fast unit-test selection..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
         $UnitTestExe = Join-Path "build" (Join-Path "tests" (Join-Path $Config "phyxel_tests.exe"))

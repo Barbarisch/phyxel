@@ -190,6 +190,16 @@ Multiplayer/backends, monetization/IAP, remix/share libraries, console certifica
 and live-ops. These are real in the consumer/studio landscape but not for a **single-player voxel game**
 built by Claude sessions. Left as optional future milestones (§4e), not core.
 
+### 2e½. The engine/game split (folded from the retired PresentationPolish.md)
+
+**Engine** owns capabilities: widgets, alignment, fonts, themes, animation primitives, camera
+rigs/paths, scene types. **Games** own expressions of them: which font, which palette, which camera
+orbit, which words — always as `game.json` / screen-JSON **data**. The generated scaffold is glue
+only and should keep shrinking into `GameShell`. Litmus test: **if two different games would both
+want it, it's engine; if it expresses THIS game, it's data; if it's neither, it's scaffold glue and
+a candidate to absorb into the engine.** The shipped menu/presentation features are described in
+`recipes/menus-and-style.md`.
+
 ### 2f. Design principles (north stars — the tracker must not become bureaucracy)
 
 Distilled from the AI-first engines that work best (esp. **Capybara 2.5D** — an open-source AI-first

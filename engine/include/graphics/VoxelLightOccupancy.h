@@ -176,6 +176,24 @@ std::vector<std::pair<glm::ivec3, ChunkLightOccupancy>> selectChunksThatFit(
     const std::vector<std::pair<glm::ivec3, ChunkLightOccupancy>>& chunks,
     size_t capacityWords, size_t& droppedOut);
 
+/// A chunk whose occupancy revision changed since it was last packed (DebrisInteractionPlan 1c).
+struct RepackCandidate {
+    glm::ivec3 origin;
+    bool alreadyResident = false;   ///< already in the pool, i.e. an EDIT; false = first-time residency
+};
+
+struct RepackPlan {
+    std::vector<size_t> order;      ///< indices into the candidate list, in pack order (<= budget)
+    size_t editBacklog = 0;         ///< edited resident chunks left for a later frame
+    size_t residencyBacklog = 0;    ///< first-time chunks left for a later frame
+};
+
+/// Which changed chunks to repack this frame. EDITS FIRST: a blasted chunk must reach the pool
+/// before newly streamed ones, or GPU debris spawned into the fresh hole collides with the stale
+/// solid cells it was carved out of. Within each class the given order is kept. Pure, so the
+/// policy is testable without a device; `budget` <= 0 packs nothing.
+RepackPlan chooseRepackOrder(const std::vector<RepackCandidate>& changed, int budget);
+
 /// Result of a light-visibility march. `firstHitMicro` is meaningful only when blocked.
 struct LightVisibility {
     bool  visible = true;
@@ -207,6 +225,17 @@ LightVisibility packedPoolLightVisibility(const PackedOccupancyPool& packed,
                                           float emitterExtent = 0.866f,
                                           int maxSteps = 192);
 
+/// L3a: the shader's phxLightVisibility since 2026-09-25 -- the same start, emitter run and target as
+/// packedPoolLightVisibility (which stays the micro-march REFERENCE the lighting tests assert against),
+/// walked two-level (packedPoolSegmentBlocked). True = the light reaches the surface.
+/// OccupancyTraversalTest.LightVisibilityTwoLevelEqualsTheMicroMarch pins the two equal.
+/// `emitterExtent` as in packedPoolLightVisibility (G-157): it bounds the emitter run, and the cell
+/// containing the target IS tested (packedPoolSegmentBlocked alone skips it, like the micro march
+/// its other callers want) - the target cell is the first thing beyond the emitter.
+bool packedPoolLightVisibleTwoLevel(const PackedOccupancyPool& packed, const glm::vec3& surfaceWorld,
+                                    const glm::vec3& geomNormal, const glm::vec3& lightWorld,
+                                    float emitterExtent = 0.866f);
+
 /// M3 — SKY VISIBILITY. What fraction of the sky hemisphere above a surface is unoccluded,
 /// cosine-weighted. This replaces the deleted per-cell skylight flood: instead of a number stored
 /// per cube cell and decayed 1-per-cell from the nearest opening, "how much sky can this surface
@@ -231,6 +260,19 @@ float packedPoolSkyVisibility(const PackedOccupancyPool& packed,
 /// This is the CPU mirror of the GLSL; the two must stay identical, and the test suite is what
 /// keeps them honest before any GLSL exists.
 bool packedPoolSolidAt(const PackedOccupancyPool& packed, const glm::ivec3& worldMicro);
+
+/// What the pool KNOWS about a micro cell. DebrisInteractionPlan 1c.
+enum class OccupancyState : uint8_t {
+    Empty   = 0,   ///< a resident chunk says there is nothing here
+    Solid   = 1,   ///< a resident chunk says this is solid
+    Unknown = 2,   ///< outside the covered box, chunk not resident, or the pool was never packed
+};
+
+/// THE three-state query, CPU mirror of phxOccupancyState (occupancy.glsl). "Not solid" is the
+/// right answer for LIGHT (no occlusion) and the wrong one for DEBRIS, which would fall through
+/// the world wherever the pool simply has no data — so debris must tell known-empty from unknown.
+/// Known cells answer exactly what packedPoolSolidAt answers; only the unknown cases differ.
+OccupancyState packedPoolOccupancyState(const PackedOccupancyPool& packed, const glm::ivec3& worldMicro);
 
 /// Cube-level occupancy of one CUBE cell. Three states, because the bake needs to tell them apart.
 enum class CubeOccupancy : uint8_t {
@@ -273,6 +315,33 @@ bool packedPoolSegmentHitsSolid(const PackedOccupancyPool& packed, const glm::ve
 /// marches per fragment and cost 56 ms/frame on the laptop GPU.
 bool packedPoolSegmentBlocked(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
                               const glm::vec3& toWorld);
+
+/// The micro march that REPORTS its hit: the CPU mirror of phxDdaTrace (occupancy.glsl), the probe
+/// pass's primary ray. On a hit, `hitCell` = the first solid micro cell on the segment and `hitAxis`
+/// = the axis of the step that entered it (1 when the start cell itself is solid) -- the face normal
+/// is -sign(dir[hitAxis]) along that axis. Same end-cell convention as packedPoolSegmentHitsSolid.
+bool packedPoolTraceMicro(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                          const glm::vec3& toWorld, int maxCells, glm::ivec3& hitCell, int& hitAxis);
+
+/// GI-2 (docs/PerfProgram2026-09.md section 15): the TWO-LEVEL version of packedPoolTraceMicro, the
+/// CPU mirror of phxDdaTraceTwoLevel. Walks cube cells like packedPoolSegmentBlocked and descends to
+/// the micro march only inside MIXED cubes, but reports the same hit cell and axis the micro march
+/// reports. OccupancyTraversalTest pins the equality on random rays.
+bool packedPoolTraceTwoLevel(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                             const glm::vec3& toWorld, glm::ivec3& hitCell, int& hitAxis);
+
+/// How far the probe trace runs the exact micro march before handing over to the cube walk.
+/// Probe rays start ON the 2 u lattice, i.e. exactly on a cube corner, where the micro march
+/// resolves zero-length steps in its fixed tie order; the cube walk's 1e-4 slice offset resolves
+/// them differently (OccupancyTraversalTest: 49 of 41,850 probe-shaped rays). One unit clears the
+/// corner neighbourhood; beyond it a rotated ray sits at a generic position.
+constexpr float kProbeExactReach = 1.0f;
+
+/// GI-2: the probe pass's primary trace, the CPU mirror of phxDdaTraceProbe. The micro march over
+/// the first kProbeExactReach units, then packedPoolTraceTwoLevel's cube walk from the micro
+/// march's (untested) end cell, seeded with the axis that entered it. Reports the micro march's hit.
+bool packedPoolTraceProbe(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                          const glm::vec3& toWorld, glm::ivec3& hitCell, int& hitAxis);
 
 }  // namespace Graphics
 }  // namespace Phyxel

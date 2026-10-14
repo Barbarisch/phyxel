@@ -49,7 +49,7 @@ TEST(TemplateLibraryScan, RecursiveScanLoadsSubdirectories) {
     rig.write("rootonly.voxel", "C 0 0 0 Stone\n");
     rig.write("sub/nested.voxel", "C 0 0 0 Wood\n");
 
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     mgr.loadTemplates(rig.root.string());
 
     EXPECT_NE(mgr.getTemplate("rootonly"), nullptr);
@@ -61,7 +61,7 @@ TEST(TemplateLibraryScan, SubdirectoryTemplatesResolveByPathAlias) {
     ScanRig rig;
     rig.write("sub/aliased.voxel", "C 0 0 0 Wood\n");
 
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     mgr.loadTemplates(rig.root.string());
 
     const auto* byStem = mgr.getTemplate("aliased");
@@ -79,7 +79,7 @@ TEST(TemplateLibraryScan, DuplicateStemIsCollisionNotSilentOverwrite) {
     rig.write("dupe.voxel", "C 0 0 0 Stone\nC 1 0 0 Stone\n");   // 2 cubes
     rig.write("sub/dupe.voxel", "C 0 0 0 Wood\n");                // 1 cube
 
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     mgr.loadTemplates(rig.root.string());
 
     const auto* t = mgr.getTemplate("dupe");

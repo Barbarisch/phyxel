@@ -1,6 +1,6 @@
 # 14 · place_chimney
 
-> Tier: Closure & roof. Part-1 status: **M**. Schema: [`README.md`](README.md).
+> Tier: Closure & roof. Part-1 status: **M**. Index: [`StructureGenerationPlacers.md`](../StructureGenerationPlacers.md).
 >
 > **WHERE IT LIVES (2026-08-10):** this is no longer a pass over a finished building.
 > Hearths are sited by the **floorplan** (as program fixtures) and the body + stack are

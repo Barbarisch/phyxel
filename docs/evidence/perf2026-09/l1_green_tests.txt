@@ -1,0 +1,3 @@
+[  FAILED  ] FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes (0 ms)
+[==========] 65 tests from 7 test suites ran. (180 ms total)
+[  PASSED  ] 64 tests.

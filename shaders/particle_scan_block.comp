@@ -1,4 +1,6 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_shared.h"
 //
 // particle_scan_block.comp — Parallel exclusive prefix sum, Pass 1 of 3.
 //
@@ -11,23 +13,23 @@
 // (particle_scan_add.comp) adds each block's global offset back into
 // gridCellOffset, yielding the full exclusive prefix sum.
 //
-// SCAN_BLOCK (256) must match GpuParticlePhysics::SCAN_BLOCK and local_size_x.
+// SCAN_BLOCK (solver_shared.h PHX_SCAN_BLOCK) is the workgroup size and the cells per block.
 //
 
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = PHX_SCAN_BLOCK, local_size_y = 1, local_size_z = 1) in;
 
 layout(std430, set = 0, binding = 0) readonly buffer GridCellCount  { uint gridCellCount[]; };
 layout(std430, set = 0, binding = 1)          buffer GridCellOffset { uint gridCellOffset[]; };
 layout(std430, set = 0, binding = 2)          buffer BlockSums      { uint blockSums[]; };
 
-layout(push_constant) uniform PC { uint cellCount; } pc;
+layout(push_constant) uniform PC { PHX_PC_CELLS } pc;  // shaders/solver_shared.h
 
-shared uint temp[256];
+shared uint temp[PHX_SCAN_BLOCK];
 
 void main() {
     uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
-    const uint n = 256u;
+    const uint n = uint(PHX_SCAN_BLOCK);
 
     uint v = (gid < pc.cellCount) ? gridCellCount[gid] : 0u;
     temp[lid] = v;

@@ -1,6 +1,7 @@
 # Continuous LOD — a unified, Nanite-inspired scaling layer for every subsystem
 
-> **Status: DESIGN ONLY — no code, no branch.** Written 2026-07-29 in response to the goal
+> **Status: design record** (header corrected 2026-10-07: parts of it have since been built — the
+> live tiers are in [`LodTierLedger.md`](LodTierLedger.md); §7b M4 RESULT is the measured density result). Written 2026-07-29 in response to the goal
 > "a continuously scaling LOD system that works for all systems: static voxels, dynamic
 > voxels, water, shadows." This doc decides the *architecture* and the *order*; it does not
 > claim anything works. Every measured number below is cited to code or an existing doc;

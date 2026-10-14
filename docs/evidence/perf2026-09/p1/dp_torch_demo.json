@@ -1,0 +1,60 @@
+{
+ "light_id": 17,
+ "frames": [
+  {
+   "tag": "A_far",
+   "player": [
+    2.5,
+    17.0,
+    3.5
+   ],
+   "torch_light": {
+    "x": 2.24,
+    "y": 17.92,
+    "z": 3.63
+   },
+   "prepass_ran": true,
+   "capture": "dp_torch_prepass_on_A_far.png"
+  },
+  {
+   "tag": "B_mid",
+   "player": [
+    6.5,
+    17.0,
+    3.5
+   ],
+   "torch_light": {
+    "x": 6.26,
+    "y": 17.92,
+    "z": 3.65
+   },
+   "prepass_ran": true,
+   "capture": "dp_torch_prepass_on_B_mid.png"
+  },
+  {
+   "tag": "C_near",
+   "player": [
+    10.5,
+    17.0,
+    3.5
+   ],
+   "torch_light": {
+    "x": 10.26,
+    "y": 17.92,
+    "z": 3.67
+   },
+   "prepass_ran": true,
+   "capture": "dp_torch_prepass_on_C_near.png"
+  },
+  {
+   "tag": "B_mid_prepass_off",
+   "torch_light": {
+    "x": 6.3,
+    "y": 17.97,
+    "z": 3.67
+   },
+   "prepass_ran": false,
+   "capture": "dp_torch_prepass_off_B_mid.png"
+  }
+ ]
+}

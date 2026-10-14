@@ -24,6 +24,13 @@ struct DamageResult {
     // apply_damage so a caller can assert a graze moved something: `voxelsGrazed` only says
     // a hit landed, never that the surface now looks any different.
     int voxelsStageChanged = 0;
+    // Phase 4 (DebrisInteractionPlan): the blast also PUSHES what already moves - existing GPU
+    // debris (queued, applied on the next GPU tick) and CPU bodies (furniture, fragments, item
+    // props; applied now). Echoed so a caller can assert the push happened.
+    bool  impulseQueued   = false;   // GPU debris impulse queued (false: no debris alive / no GPU)
+    int   cpuBodiesPushed = 0;
+    float impulse         = 0.0f;    // N*s at the centre
+    float impulseRadius   = 0.0f;    // m
 };
 
 // P1 destruction core (see docs/DestructionSystemV2.md). Applies a shaped energy
@@ -36,6 +43,41 @@ class DamageSystem {
 public:
     DamageSystem(ChunkManager* chunkManager, GpuParticlePhysics* gpu)
         : m_cm(chunkManager), m_gpu(gpu) {}
+
+    // Blast -> push (Phase 4). Grounded in the break path's own launch law: a voxel this blast
+    // breaks leaves at BASE_SPEED * sqrt(E_reached / toughness). A LOOSE piece has no bond to
+    // break, so it should move at least as fast - the impulse is sized so that a reference Stone
+    // piece at the centre gets exactly the speed a Stone voxel broken there gets:
+    //   J(E) = m_ref * BASE_SPEED * sqrt(E / toughness_ref)        (ref = IMPULSE_REF_MATERIAL)
+    // (momentum ~ sqrt(energy)). Linear falloff to IMPULSE_RADIUS_SCALE x the blast radius (the
+    // shock reaches past the carve), blended IMPULSE_UP_BIAS toward +Y (blasts throw things up).
+    // A first guess, J = 0.05 * E, gave a 300-energy blast's loose Stone 2.5 m/s at the centre
+    // against >= 4 m/s for the pieces it broke - measured live: a settled pile beside it moved
+    // 17 mm (floor friction mu 0.8 stops 1.25 m/s in ~10 cm).
+    static constexpr const char* IMPULSE_REF_MATERIAL = "Stone";
+    static float blastImpulse(float energy);   // N*s at the centre, from the reference material's data
+    static constexpr float IMPULSE_RADIUS_SCALE = 1.5f;
+    static constexpr float IMPULSE_UP_BIAS      = 0.3f;
+    /// Test control only (apply_damage "push": false): the same blast WITHOUT the Phase 4 push -
+    /// what every blast did before Phase 4. Default on.
+    void setPushExisting(bool on) { m_pushExisting = on; }
+
+    /// Debris pieces refused process-wide because no GPU debris solver existed (disabled by
+    /// PHYXEL_DISABLE_GPU_DEBRIS or failed init). Echoed by /api/debug/gpu_physics so a
+    /// missing solver is observable instead of breaks silently making no debris.
+    static uint64_t refusedDebrisTotal();
+
+    /// THE one way a broken piece becomes debris (DebrisInteractionPlan 1d): blasts, chops and
+    /// collapse (spawnDebris below), the B key and Python break_hovered_* (VoxelManipulationSystem).
+    /// `centre` in world units, `scale` = piece edge (1, 1/3, 1/9). With no GPU solver the piece
+    /// is REFUSED and counted in refusedDebrisTotal() — never dropped silently. Returns queued.
+    static bool spawnBreakDebris(GpuParticlePhysics* gpu, const glm::vec3& centre, const glm::vec3& vel,
+                                 float scale, const std::string& material, const glm::vec3& angularVel);
+
+    /// Which slice of its parent cube's texture a piece shows, as its micro position inside that
+    /// cube (mx*81 + my*9 + mz, 0..728). A pure function of the piece's world centre and edge —
+    /// so a broken subcube/microcube keeps the slice it showed while static. 0 for full cubes.
+    static uint32_t debrisSliceFor(const glm::vec3& centre, float scale);
 
     // Apply a radial energy hit at `center`. `direction` biases debris (and can
     // be (0,0,0) for a pure radial blast). `damageType` is informational for now.
@@ -244,7 +286,8 @@ private:
     // pass so sub-voxel structures detach like full-cube ones.
     int dropDetachedCell(const glm::ivec3& wp, DamageResult& res);
 
-    // Queue one debris piece into the GPU particle system.
+    // Queue one debris piece into the GPU particle system. With no GPU solver the piece is
+    // REFUSED and counted (refusedDebrisTotal) — never dropped silently.
     void spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float scale,
                      const std::string& material);
 
@@ -253,6 +296,7 @@ private:
 
     ChunkManager*       m_cm  = nullptr;
     GpuParticlePhysics* m_gpu = nullptr;
+    bool m_pushExisting = true;
     Core::CoherentFragmentManager* m_fragMgr = nullptr;  // coherent-collapse sink (optional)
     uint32_t            m_rng = 0x51ED2700u;
     uint32_t            m_fragSeq = 0;   // unique-id counter for coherent collapse bodies

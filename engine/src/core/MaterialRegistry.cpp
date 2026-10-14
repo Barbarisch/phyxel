@@ -27,6 +27,7 @@ static MaterialPhysics parsePhysics(const json& j) {
     if (j.contains("breakForceMultiplier")) p.breakForceMultiplier = j["breakForceMultiplier"].get<float>();
     if (j.contains("bondStrength"))         p.bondStrength = j["bondStrength"].get<float>();
     if (j.contains("angularVelocityScale")) p.angularVelocityScale = j["angularVelocityScale"].get<float>();
+    if (j.contains("buoyancy"))             p.buoyancy = j["buoyancy"].get<float>();
     if (j.contains("metallic"))             p.metallic = j["metallic"].get<float>();
     if (j.contains("roughness"))            p.roughness = j["roughness"].get<float>();
     if (j.contains("colorTint")) {
@@ -46,6 +47,7 @@ static json serializePhysics(const MaterialPhysics& p) {
         {"breakForceMultiplier", p.breakForceMultiplier},
         {"bondStrength", p.bondStrength},
         {"angularVelocityScale", p.angularVelocityScale},
+        {"buoyancy", p.buoyancy},
         {"colorTint", {p.colorTint.x, p.colorTint.y, p.colorTint.z}},
         {"metallic", p.metallic},
         {"roughness", p.roughness}

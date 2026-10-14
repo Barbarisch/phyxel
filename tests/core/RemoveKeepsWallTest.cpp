@@ -24,7 +24,7 @@ using namespace Phyxel::Core;
 TEST(RemoveKeepsWall, RemovingFurnitureLeavesTheWallStanding) {
     ChunkManager chunks;
     chunks.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    ObjectTemplateManager templates(&chunks, nullptr);
+    ObjectTemplateManager templates(&chunks);
     templates.loadTemplates("resources/templates");
     if (!templates.getTemplate("stool")) GTEST_SKIP() << "repo-root CWD required for templates";
 

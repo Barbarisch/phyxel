@@ -40,7 +40,7 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // DeviceAccessFunc: Get Vulkan device handles
         [this]() { return std::make_pair(device, physicalDevice); }
     );
-    // Occupancy grid: update all voxels in a 32³ chunk whenever it is streamed in at runtime
+    // Water-sim solidity: push a chunk's solid voxels whenever it is streamed in at runtime
     m_streamingManager.setOnChunkLoaded([this](const glm::ivec3& origin) {
         syncChunkToOccupancy(origin);
     });
@@ -106,6 +106,10 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
             // Mark pristine: generated terrain + flora regenerate deterministically,
             // so only player edits should hit the DB.
             chunk.markClean();
+            // Out of loading bulk mode before anything else (the worker's forcePhysicsRebuild ends
+            // it too; this covers air chunks and any path that skipped the rebuild): in bulk mode
+            // every later edit skips the occupancy grid (1c step 5, OccupancyCoverageTest).
+            chunk.setPhysicsBulkMode(false);
             if (!chunk.hasAnySolidVoxel()) return;  // pure air: nothing to collide/mesh
             if (physicsWorld) {
                 chunk.setPhysicsWorld(physicsWorld);
@@ -123,32 +127,8 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
             }
         });
 
-    // Setup dynamic object manager callbacks
-    m_dynamicObjectManager.setCallbacks(
-        // PhysicsWorldAccessFunc: Access physics world
-        [this]() { return physicsWorld; },
-        // DynamicSubcubeVectorAccessFunc: Access subcube vector
-        [this]() -> auto& { return globalDynamicSubcubes; },
-        // DynamicCubeVectorAccessFunc: Access cube vector
-        [this]() -> auto& { return globalDynamicCubes; },
-        // DynamicMicrocubeVectorAccessFunc: Access microcube vector
-        [this]() -> auto& { return globalDynamicMicrocubes; },
-        // RebuildFacesFunc: Rebuild faces when objects change
-        [this]() { rebuildGlobalDynamicFaces(); },
-        // VoxelQuerySystem: For debris collision
-        &m_voxelQuerySystem
-    );
-    
     // Setup face update coordinator callbacks
     m_faceUpdateCoordinator.setCallbacks(
-        // DynamicSubcubeVectorAccessFunc: Access subcube vector
-        [this]() -> auto& { return globalDynamicSubcubes; },
-        // DynamicCubeVectorAccessFunc: Access cube vector
-        [this]() -> auto& { return globalDynamicCubes; },
-        // DynamicMicrocubeVectorAccessFunc: Access microcube vector
-        [this]() -> auto& { return globalDynamicMicrocubes; },
-        // FaceDataAccessFunc: Access face data
-        [this]() -> auto& { return globalDynamicSubcubeFaces; },
         // ChunkLookupFunc: Get chunk at position
         [this](const glm::ivec3& pos) { return getChunkAt(pos); },
         // MarkChunkDirtyFunc: Mark chunk dirty
@@ -701,7 +681,6 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
 }
 
 void ChunkManager::setGpuParticlePhysics(GpuParticlePhysics* gpp) {
-    m_gpuParticles = gpp;
     // Wire the debris light sampler so GPU particle debris is lit by the baked light field
     // (sampled per particle at spawn). Returns sky/blockRGB each 0..15 (matches the nibble packing).
     if (gpp) {
@@ -1020,124 +999,6 @@ void ChunkManager::clearDirtyChunkList() {
     m_dirtyChunkTracker.clearDirtyChunkList();
 }
 
-void ChunkManager::updateSmoothedFps(float deltaTime) {
-    if (deltaTime > 0.0f) {
-        float instantFps = 1.0f / deltaTime;
-        // Exponential moving average (alpha ~0.05 = smooth over ~20 frames)
-        m_smoothedFps = m_smoothedFps * 0.95f + instantFps * 0.05f;
-    }
-}
-
-void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
-    if (!subcube) return;
-    m_dynamicObjectManager.addGlobalDynamicSubcube(std::move(subcube));
-}
-
-void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
-    // Legacy function - now calls the combined function that handles both subcubes and cubes
-    rebuildGlobalDynamicFaces();
-}
-
-void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
-    m_dynamicObjectManager.updateGlobalDynamicSubcubes(deltaTime);
-}
-
-void ChunkManager::updateGlobalDynamicSubcubePositions() {
-    m_dynamicObjectManager.updateGlobalDynamicSubcubePositions();
-}
-
-void ChunkManager::clearAllGlobalDynamicSubcubes() {
-    m_dynamicObjectManager.clearAllGlobalDynamicSubcubes();
-}
-
-// ===============================================================
-// GLOBAL DYNAMIC CUBE MANAGEMENT
-// ===============================================================
-
-void ChunkManager::addGlobalDynamicCube(std::unique_ptr<Cube> cube) {
-    if (!cube) return;
-    m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
-}
-
-void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
-    m_dynamicObjectManager.updateGlobalDynamicCubes(deltaTime);
-}
-
-void ChunkManager::updateGlobalDynamicCubePositions() {
-    m_dynamicObjectManager.updateGlobalDynamicCubePositions();
-}
-
-void ChunkManager::clearAllGlobalDynamicCubes() {
-    m_dynamicObjectManager.clearAllGlobalDynamicCubes();
-}
-
-// ===============================================================
-// GLOBAL DYNAMIC MICROCUBE MANAGEMENT
-// ===============================================================
-
-void ChunkManager::addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube) {
-    if (!microcube) return;
-    globalDynamicMicrocubes.push_back(std::move(microcube));
-    rebuildGlobalDynamicFaces();
-}
-
-void ChunkManager::updateGlobalDynamicMicrocubes(float deltaTime) {
-    // Update lifetimes and remove expired microcubes
-    auto it = globalDynamicMicrocubes.begin();
-    size_t removedCount = 0;
-    
-    while (it != globalDynamicMicrocubes.end()) {
-        (*it)->updateLifetime(deltaTime);
-        
-        if ((*it)->hasExpired()) {
-            removedCount++;
-            // Note: The unique_ptr destructor will automatically clean up the microcube
-            it = globalDynamicMicrocubes.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    
-    // Rebuild faces if any microcubes were removed
-    if (removedCount > 0) {
-        LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Removed " << removedCount << " expired dynamic microcubes (lifetime ended)");
-        rebuildGlobalDynamicFaces();
-    }
-}
-
-void ChunkManager::updateGlobalDynamicMicrocubePositions() {
-    bool transformsChanged = false;
-
-    for (auto& microcube : globalDynamicMicrocubes) {
-        if (!microcube) continue;
-        if (auto* vb = microcube->getVoxelBody()) {
-            if (vb->isAsleep) continue;
-            glm::vec3 newWorldPos = vb->position;
-            const glm::quat& q = vb->orientation;
-            microcube->setPhysicsPosition(newWorldPos);
-            microcube->setPhysicsRotation(glm::vec4(q.x, q.y, q.z, q.w));
-            transformsChanged = true;
-        }
-    }
-
-    if (transformsChanged) {
-        rebuildGlobalDynamicFaces();
-    }
-}
-
-void ChunkManager::clearAllGlobalDynamicMicrocubes() {
-    LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Clearing all " << globalDynamicMicrocubes.size() << " global dynamic microcubes");
-    globalDynamicMicrocubes.clear();
-}
-
-// ===============================================================
-// COMBINED DYNAMIC OBJECT MANAGEMENT (SUBCUBES + CUBES)
-// ===============================================================
-
-void ChunkManager::rebuildGlobalDynamicFaces() {
-    m_faceUpdateCoordinator.rebuildGlobalDynamicFaces();
-}
-
 size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {
     // Find the index of a chunk in the chunks vector
     for (size_t i = 0; i < chunks.size(); ++i) {
@@ -1154,41 +1015,20 @@ size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {
 
 void ChunkManager::updateAfterCubeBreak(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubeBreak(worldPos);
-    if (m_gpuParticles) m_gpuParticles->setOccupied(worldPos.x, worldPos.y, worldPos.z, false);
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldPos.x, worldPos.y, worldPos.z, false);
 }
 
 void ChunkManager::updateAfterCubePlace(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubePlace(worldPos);
-    if (m_gpuParticles) m_gpuParticles->setOccupied(worldPos.x, worldPos.y, worldPos.z, true);
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldPos.x, worldPos.y, worldPos.z, true);
 }
 
-void ChunkManager::rebuildOccupancyFromChunks() {
-    if (!m_gpuParticles) return;
-    m_gpuParticles->clearOccupancy();
-    for (const auto& chunkPtr : chunks) {
-        const glm::ivec3 origin = chunkPtr->getWorldOrigin();
-        for (int lx = 0; lx < 32; ++lx) {
-            for (int ly = 0; ly < 32; ++ly) {
-                for (int lz = 0; lz < 32; ++lz) {
-                    glm::ivec3 world(origin.x + lx, origin.y + ly, origin.z + lz);
-                    if (hasVoxelAt(world))
-                        m_gpuParticles->setOccupied(world.x, world.y, world.z, true);
-                }
-            }
-        }
-    }
-    LOG_INFO_FMT("ChunkManager", "Occupancy grid rebuilt from " << chunks.size() << " chunks");
-}
-
 void ChunkManager::updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid) {
-    if (m_gpuParticles) m_gpuParticles->setOccupied(worldX, worldY, worldZ, solid);
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldX, worldY, worldZ, solid);
 }
 
 void ChunkManager::syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin) {
-    if (!m_gpuParticles && !m_voxelOccupancyCallback) return;
+    if (!m_voxelOccupancyCallback) return;
     // Direct map lookup + dense-array cube reads. The previous form linear-scanned the chunk
     // vector, then made 32k GLOBAL hasVoxelAt queries (chunk lookup + hash each) — ~26ms per
     // streamed chunk, in the pump, on the main thread.
@@ -1203,9 +1043,8 @@ void ChunkManager::syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin) {
                 if (!store.solid(static_cast<size_t>(lz + ly * 32 + lx * 1024))) continue;
                 const int wx = chunkWorldOrigin.x + lx, wy = chunkWorldOrigin.y + ly,
                           wz = chunkWorldOrigin.z + lz;
-                if (m_gpuParticles) m_gpuParticles->setOccupied(wx, wy, wz, true);
                 // Water-sim solidity (setSolidWorld bounds-rejects out-of-region cells cheaply).
-                if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(wx, wy, wz, true);
+                m_voxelOccupancyCallback(wx, wy, wz, true);
             }
         }
     }
@@ -1245,7 +1084,9 @@ void ChunkManager::finalizeLoadedChunk(Chunk& chunk, bool syncMesh) {
     // finalize entirely. Most streamed chunks at flight altitude ARE pure air (the
     // load sphere spans ~10 vertical chunk bands, terrain occupies ~2), so this
     // cuts the remesh flood (and its ~50ms-per-chunk drain frames) by that factor.
-    if (!chunk.hasAnySolidVoxel()) return;
+    // ...but it must leave bulk mode FIRST (see below): an air chunk kept the flag, so the first
+    // cube a player placed in open air never collided (1c step 5, OccupancyCoverageTest).
+    if (!chunk.hasAnySolidVoxel()) { chunk.setPhysicsBulkMode(false); return; }
     // Static collision: a DB-loaded chunk has NO physics world (Chunk ctor), so
     // forcePhysicsRebuild alone registers nothing - the farm's NPCs fell to y -910
     // after a "faces + physics built" load (editor, 2026-09-11).

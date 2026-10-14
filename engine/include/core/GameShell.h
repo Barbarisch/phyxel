@@ -1,4 +1,5 @@
 #pragma once
+#include "core/DebrisRuntime.h"
 #include <nlohmann/json.hpp>
 
 #include "core/GameCallbacks.h"
@@ -158,6 +159,18 @@ protected:
     virtual InteractionManager*   apiInteractionManager() { return nullptr; }  // start_dialogue (G-182)
     virtual NpcHeldItems*         apiNpcHeldItems()   { return nullptr; }  // torches (T-73)
     virtual ItemEffectSystem*     apiItemEffects()    { return nullptr; }  // torches: flame lights
+    /// Doors/held items for the debris API's coherent-collapse path (optional).
+    virtual Core::KinematicVoxelManager* apiKinematicVoxelManager() { return nullptr; }
+
+    // ---- GPU debris (DebrisInteractionPlan Phase 5) -------------------------------------------
+    // The same DebrisRuntime the editor uses. A game calls initDebris() in onInitialize once its
+    // RenderCoordinator exists; per frame: debris().beginFrame(dt), then the feeds (characters
+    // after they update, kinematic objects before and CPU bodies after the physics step);
+    // debris().shutdown() FIRST in onShutdown (the Vulkan device must still be alive).
+    // config: game.json "debris": {"enabled": bool} (default true).
+    bool initDebris(EngineRuntime& engine, Graphics::RenderCoordinator* renderer,
+                    const DebrisRuntime::Config& config = {});
+    DebrisRuntime& debris() { return debris_; }
 
 private:
     bool journalOpen_ = false;        // G-168 quest journal window
@@ -171,6 +184,7 @@ private:
     float     detachedCamYaw_   = 0.0f;
     float     detachedCamPitch_ = 0.0f;
     GameApiService gameApi_;
+    DebrisRuntime  debris_;
     const Graphics::CameraRig*  configuredRig_ = nullptr;     // last rig given its world hooks
     const Input::ControlScheme* configuredScheme_ = nullptr;  // last scheme given its bindings
     /// WoW scheme: Q/E strafe, so Interact leaves E for F; bags on B. Restored otherwise.

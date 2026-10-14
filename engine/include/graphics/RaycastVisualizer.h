@@ -22,6 +22,18 @@ namespace Vulkan {
  * - Hit face highlighting
  * 
  * Uses simple line rendering with VK_PRIMITIVE_TOPOLOGY_LINE_LIST
+ *
+ * Rules for new debug drawing code:
+ * 1. Accumulate, don't generate: addLine() and friends push to a list and set m_dataChanged;
+ *    they never call generateDebugGeometry().
+ * 2. One upload per frame: updateBuffers() is the only caller of generateDebugGeometry() and the
+ *    only writer of the GPU buffer.
+ * 3. Never draw with m_vertices.size() (it reflects the last build, possibly stale); use
+ *    m_uploadedVertexCount.
+ * 4. beginFrame() only clears CPU-side lists; the GPU buffer stays valid until the next
+ *    updateBuffers().
+ * 5. clearData() resets m_uploadedVertexCount to 0 (that is how "draw nothing" is signalled).
+ * F5 segment colours: magenta = head, cyan = spine, orange = arms, yellow = legs, red = hit.
  */
 class RaycastVisualizer {
 public:

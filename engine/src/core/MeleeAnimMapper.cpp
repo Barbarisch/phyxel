@@ -3,6 +3,8 @@
 #include "core/RpgItem.h"
 #include "utils/Logger.h"
 
+#include <algorithm>
+#include <cctype>
 #include <fstream>
 
 namespace Phyxel {
@@ -94,6 +96,45 @@ std::string MeleeAnimMapper::resolveFamily(const ItemDefinition* item) const {
     if (item->type == ItemType::Weapon) return "slash_1h";
 
     return unarmed;
+}
+
+MeleeAnimMapper::GripFactors MeleeAnimMapper::resolveGripFactors(const ItemDefinition* mainHand,
+                                                                 const ItemDefinition* offHand) const {
+    GripFactors out;
+    if (!mainHand) return out;                                  // empty hand, no load
+    auto lower = [](std::string s) {
+        std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+        return s;
+    };
+    const std::string id = lower(mainHand->id);
+    const auto* rpg = RpgItemRegistry::instance().getItem(mainHand->id);
+
+    // load band from D&D weight (the only mass the data has; gameplay items carry none)
+    if (rpg) {
+        const float w = rpg->weightLbs;
+        out.load = (w < 2.0f) ? "none" : (w < 6.0f) ? "light" : (w < 15.0f) ? "heavy" : "bulky";
+    }
+
+    // grip class, most specific first
+    // torch: a held light, or the torch item itself (its light lives under "effects", not held.light)
+    if (mainHand->held.hasLight() || id.find("torch") != std::string::npos) { out.grip = "torch"; return out; }
+    if (id.find("staff") != std::string::npos) { out.grip = "staff"; return out; }
+    if (rpg && rpg->isWeapon) {
+        const bool twoHanded = rpg->weaponProperties.count(WeaponProperty::TwoHanded) > 0;
+        const bool heavy     = rpg->weaponProperties.count(WeaponProperty::Heavy) > 0;
+        if (rpg->weaponProperties.count(WeaponProperty::Ammunition)) { out.grip = "bow"; return out; }
+        if (twoHanded && heavy) { out.grip = "2h_heavy"; return out; }
+        if (twoHanded)          { out.grip = "2h_light"; return out; }
+        if (heavy)              { out.grip = "2h_heavy"; return out; }
+    } else if (id.find("bow") != std::string::npos && id.find("bowl") == std::string::npos) {
+        out.grip = "bow"; return out;                              // gameplay bow/crossbow without RPG data
+    }
+    out.grip = "1h";
+    if (offHand) {
+        if (const auto* offRpg = RpgItemRegistry::instance().getItem(offHand->id))
+            if (offRpg->isArmor && offRpg->armorType == RpgArmorType::Shield) out.grip = "1h_shield";
+    }
+    return out;
 }
 
 std::vector<std::string> MeleeAnimMapper::familyAttacks(const std::string& family) const {

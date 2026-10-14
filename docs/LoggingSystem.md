@@ -77,7 +77,6 @@ The system uses these module categories throughout the codebase:
 - `Scene` - Scene management and instance data
 - `UI` - ImGui rendering and interface
 - `Performance` - Performance profiling and metrics
-- `ForceSystem` - Force propagation and material properties
 - `WorldGenerator` - Procedural world generation
 - `Main` - Application startup and initialization
 

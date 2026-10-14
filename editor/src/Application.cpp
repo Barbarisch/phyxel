@@ -11,7 +11,10 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include <unistd.h>
 #endif
 #include "Application.h"
+#include "core/PerfCapture.h"
+#include "core/DebrisApiCommands.h"
 #include <cmath>
+#include <cstdlib>
 #include "graphics/FarTerrainManager.h"
 #include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §7)
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
@@ -19,6 +22,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/ChunkArenaSystem.h"       // Phase 4.3 region arenas (docs/RegionArenaPlan.md)
 #include "core/MaterialRegistry.h"
+#include "core/PerfApi.h"
 #include "core/TraversalProbe.h"
 #include "core/GameSettings.h"   // Core::stringToKey for inject_input
 #include "core/AtlasManager.h"
@@ -34,6 +38,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/SeatFit.h"
 #include "scene/motion/MotionBricksSystem.h"
 #include "scene/AppearancePresetRegistry.h"
 #include "graphics/AnimationSystem.h"
@@ -246,9 +251,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     cameraManager       = runtime->getCameraManager();
     chunkManager        = runtime->getChunkManager();
     physicsWorld        = runtime->getPhysicsWorld();
-    forceSystem         = runtime->getForceSystem();
     inputManager        = runtime->getInputManager();
-    mouseVelocityTracker = runtime->getMouseVelocityTracker();
     timer               = runtime->getTimer();
     performanceProfiler = runtime->getPerformanceProfiler();
     performanceMonitor  = runtime->getPerformanceMonitor();
@@ -269,9 +272,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     voxelInteractionSystem = std::make_unique<VoxelInteractionSystem>(
         chunkManager,
         physicsWorld,
-        mouseVelocityTracker,
         windowManager,
-        forceSystem,
         audioSystem
     );
     // Event-catalog audio: place/activate become 3D events at the interaction
@@ -286,12 +287,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (inventory) return inventory->getSelectedMaterial();
         return "";
     });
+    // B key / break_hovered_*: pieces become GPU debris (1d). Lazy: the solver is created below.
+    voxelInteractionSystem->setGpuDebrisProvider([this]() { return gpuParticlePhysics; });
 
     // STEP 4.5: CREATE ObjectTemplateManager
-    objectTemplateManager = std::make_unique<ObjectTemplateManager>(
-        chunkManager,
-        &chunkManager->m_dynamicObjectManager
-    );
+    objectTemplateManager = std::make_unique<ObjectTemplateManager>(chunkManager);
     objectTemplateManager->loadTemplates(assets.templatesDir());
     LOG_INFO("Application", "ObjectTemplateManager initialized successfully!");
 
@@ -369,6 +369,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
     renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
     renderCoordinator->setEntities(&entities);
+    if (Core::PerfCapture* pc = runtime->getPerfCapture()) pc->setRenderCoordinator(renderCoordinator.get());
     // WRv2 M2: give the instanced far-tree mesh tier its template source (templates loaded
     // in STEP 4.5 above). Captured raw pointer outlives the render coordinator — both are
     // application-lifetime.
@@ -382,20 +383,22 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
-    // STEP 6b: INITIALIZE GPU PARTICLE PHYSICS
-    gpuParticlePhysics = std::make_unique<GpuParticlePhysics>();
-    if (gpuParticlePhysics->initialize(vulkanDevice, "")) {
-        // Wire to RenderCoordinator (for compute dispatch + GPU draw)
-        renderCoordinator->setGpuParticlePhysics(gpuParticlePhysics.get());
-        // Wire to ChunkManager (for occupancy grid updates on voxel change + streaming)
-        chunkManager->setGpuParticlePhysics(gpuParticlePhysics.get());
-        // Populate 3D occupancy grid from chunks already loaded at startup
-        chunkManager->rebuildOccupancyFromChunks();
-        LOG_INFO("Application", "GpuParticlePhysics initialized successfully!");
-    } else {
-        LOG_WARN("Application", "GpuParticlePhysics initialization failed  --  falling back to CPU physics");
-        gpuParticlePhysics.reset();
-    }
+    // STEP 6b: INITIALIZE GPU PARTICLE PHYSICS — all debris lives here. Without it breaks,
+    // blasts and derez make NO debris, so a missing solver must be LOUD: one ERROR, a reason
+    // echoed by /api/debug/gpu_physics, and every refused piece counted
+    // (DamageSystem::refusedDebrisTotal). PHYXEL_DISABLE_GPU_DEBRIS=1 / --disable-gpu-debris
+    // force this path for tests.
+    // DebrisRuntime (Phase 5) does exactly this for the editor and shipped games alike: create
+    // unless disabled, wire RenderCoordinator + ChunkManager, ERROR loudly when off.
+    debrisRuntime = std::make_unique<DebrisRuntime>();
+    debrisRuntime->initialize(vulkanDevice, renderCoordinator.get(), chunkManager, physicsWorld);
+    gpuParticlePhysics       = debrisRuntime->gpu();
+    m_gpuDebrisDisabledReason = debrisRuntime->disabledReason();
+    // Phase 6b: debris impacts / settles are heard through the sound catalog (debris.impact,
+    // debris.settle in resources/sounds/sounds.json).
+    debrisRuntime->setSoundCallback([this](const std::string& ev, const glm::vec3& pos, float vol) {
+        if (auto* reg = runtime ? runtime->getSoundRegistry() : nullptr) reg->playEvent(ev, pos, vol);
+    });
 
     // STEP 6c: INITIALIZE CPU WATER SIMULATION (cellular automaton over a world region).
     // Solidity is synced from chunks after the world loads (autoLoadGameDefinition).
@@ -433,6 +436,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Create GPU compute resources for the water flow (off by default; toggle with the
     // water_gpu debug command). Falls back to CPU if creation fails.
     if (vulkanDevice) waterManager->enableGpu(vulkanDevice);
+    // GPU debris floats / drags / drifts in this water (DebrisInteractionPlan 6c).
+    if (debrisRuntime) debrisRuntime->setWaterSource(waterManager.get());
 
     // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings
@@ -1146,22 +1151,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         };
     });
 
-    apiServer->setParticleLogHandler([this](const std::string& action, const std::string& filePath) -> nlohmann::json {
-        if (!gpuParticlePhysics || !gpuParticlePhysics->isInitialized()) {
-            return nlohmann::json{{"error", "GpuParticlePhysics not available"}};
-        }
-        if (action == "start") {
-            bool ok = gpuParticlePhysics->startPositionLog(filePath);
-            return nlohmann::json{{"success", ok}, {"action", "start"}, {"file", filePath}};
-        } else if (action == "stop") {
-            gpuParticlePhysics->stopPositionLog();
-            return nlohmann::json{{"success", true}, {"action", "stop"}};
-        } else if (action == "status") {
-            return nlohmann::json{{"logging", gpuParticlePhysics->isPositionLogging()}};
-        }
-        return nlohmann::json{{"error", "Unknown action. Use 'start', 'stop', or 'status'."}};
-    });
-
     // Engine-wide frame timing: FPS, cpu/gpu times, draw calls, active counts
     apiServer->setEngineTimingHandler([this]() -> nlohmann::json {
         auto ft = performanceMonitor->getCurrentFrameTiming();
@@ -1183,15 +1172,23 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             };
         }
 
-        size_t bulletActive = chunkManager ? chunkManager->m_dynamicObjectManager.getActiveBulletCount() : 0;
         uint32_t gpuActive = (gpuParticlePhysics && gpuParticlePhysics->isInitialized())
             ? gpuParticlePhysics->getActiveParticleCount() : 0;
 
         double fps = ft.cpuFrameTime > 0.0 ? 1000.0 / ft.cpuFrameTime : 0.0;
+        // Served on the HTTP thread: only atomics / swapchain-creation state are read here.
+        // gpuFrameTime is kept for old callers but is FAKE (PerformanceMonitor sets it to the CPU
+        // frame time); gpu_frame_ms is the real whole-command-buffer GPU time of the last resolved
+        // frame. For medians/percentiles read GET /api/debug/gpu_timing.
+        const auto* gpuProf = renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr;
+        const double gpuFrameMs = gpuProf ? gpuProf->getLastGpuFrameMsAtomic() : -1.0;
         return nlohmann::json{
             {"fps", fps},
             {"cpuFrameTime", ft.cpuFrameTime},
             {"gpuFrameTime", ft.gpuFrameTime},
+            {"gpu_frame_ms", gpuFrameMs >= 0.0 ? nlohmann::json(gpuFrameMs) : nlohmann::json(nullptr)},
+            {"present_mode", vulkanDevice ? Core::PerfApi::presentModeName(vulkanDevice->getActivePresentMode())
+                                          : "unknown"},
             {"drawCalls", ft.drawCalls},
             {"vertexCount", ft.vertexCount},
             {"visibleInstances", ft.visibleInstances},
@@ -1199,24 +1196,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             {"frustumCulled", ft.frustumCulledInstances},
             {"occlusionCulled", ft.occlusionCulledInstances},
             {"faceCulledFaces", ft.faceCulledFaces},
-            {"bulletActive", bulletActive},
-            {"bulletCap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
             {"gpuActive", gpuActive},
             {"gpuCap", GpuParticlePhysics::MAX_PARTICLES},
             {"detailed", detail}
         };
     });
 
-    // Dynamic object stats: bullet and GPU counts/caps
+    // Debris stats: GPU debris count/cap. (The CPU single-box debris path and its cpu_dynamic
+    // count were deleted in DebrisInteractionPlan 1d - every broken piece is GPU debris.)
     apiServer->setDynamicStatsHandler([this]() -> nlohmann::json {
-        size_t bulletActive = chunkManager ? chunkManager->m_dynamicObjectManager.getActiveBulletCount() : 0;
-        size_t bulletTotal = chunkManager ? chunkManager->m_dynamicObjectManager.getTotalBulletCount() : 0;
         uint32_t gpuActive = (gpuParticlePhysics && gpuParticlePhysics->isInitialized())
             ? gpuParticlePhysics->getActiveParticleCount() : 0;
         return nlohmann::json{
-            {"bullet_active", bulletActive},
-            {"bullet_total", bulletTotal},
-            {"bullet_cap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
             {"gpu_active", gpuActive},
             {"gpu_cap", GpuParticlePhysics::MAX_PARTICLES}
         };
@@ -1827,7 +1818,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     dynamicFurnitureManager->setKinematicVoxelManager(kinematicVoxelManager.get());
     dynamicFurnitureManager->setPhysicsWorld(physicsWorld);
     dynamicFurnitureManager->setChunkManager(chunkManager);
-    dynamicFurnitureManager->setGpuParticlePhysics(gpuParticlePhysics.get());
+    dynamicFurnitureManager->setGpuParticlePhysics(gpuParticlePhysics);
 
     // Initialize Item Prop Manager (holdable items lying in the world)
     itemPropManager = std::make_unique<Core::ItemPropManager>();
@@ -1851,7 +1842,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 pl.color = color;
                 pl.intensity = intensity;
                 pl.radius = radius;
-                return renderCoordinator->getLightManager().addPointLight(pl);
+                return renderCoordinator->getLightManager().addPointLight(Graphics::LightSource::ItemEffect, pl);
             },
             [this](int lightId, const glm::vec3& pos) {
                 if (renderCoordinator)
@@ -1882,7 +1873,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // + render so it cannot be re-baked back into the world (the "removed chair
     // reappears" bug). Covers every removal path, not just the MCP handler.
     // Item props likewise tear down their kinematic render group.
-    placedObjectManager->setPreRemoveCallback([this](const std::string& id) {
+    placedObjectManager->setPreRemoveCallback([this](const std::string& id,
+                                                     const Core::PlacedObject& obj) {
         // A registered door's voxels live in the KinematicVoxelManager (moved there by
         // DoorManager::registerDoor so the leaf can swing), NOT in the chunk grid. The
         // remove() path only clears static chunk cubes, so without this the kinematic
@@ -1891,6 +1883,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (doorManager) doorManager->unregisterDoor(id);
         if (dynamicFurnitureManager) dynamicFurnitureManager->discard(id);
         if (itemPropManager) itemPropManager->onPlacedObjectRemoved(id);
+        // A generated building's lamps/hearths die with it. Without this, a structure
+        // removed by a later overlapping build left its lights burning over empty
+        // ground (CityBench C-25: 7 ghost lights from one replaced house).
+        if (renderCoordinator)
+            for (int lightId : Core::StructureBuildService::recordedLightIds(obj))
+                renderCoordinator->getLightManager().removeLight(lightId);
     });
 
     // Wire furniture activation into the voxel interaction system
@@ -2125,6 +2123,21 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             placedObjectManager->recomputeAllInteractionPoints();
             // Item props restored from the DB need their kinematic render groups back.
             if (itemPropManager) itemPropManager->rebuildFromPlacedObjects();
+            // Generated buildings' lamps and hearths: LightManager lights are memory-only,
+            // so re-register the records the build persisted on each structure.
+            if (renderCoordinator) {
+                const auto lr = Core::StructureBuildService::restoreLights(
+                    *placedObjectManager,
+                    [this](const glm::vec3& p, const glm::vec3& c, float intensity, float radius) {
+                        return renderCoordinator->getLightManager().addPointLight(
+                            Graphics::LightSource::Fixture, p, c, intensity, radius);
+                    });
+                LOG_INFO_FMT("Application", "Structure lights restored from world.db: "
+                             << lr.restored << " (refused at capacity " << lr.refused
+                             << ", malformed " << lr.malformed << ")");
+            } else {
+                LOG_WARN("Application", "Structure lights NOT restored: no render coordinator yet");
+            }
 
             // Restore persisted world locations (world_meta["locations"]): the
             // ResidentSpawner re-derives every settlement's townsfolk from these, so a
@@ -2518,13 +2531,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_worldOutliner->onDeleteChunk = [this](const glm::ivec3& chunkCoord) {
         if (!chunkManager) return;
         chunkManager->clearChunk(chunkCoord);
-        if (gpuParticlePhysics) {
-            glm::ivec3 origin = chunkCoord * 32;
-            for (int lx = 0; lx < 32; ++lx)
-                for (int ly = 0; ly < 32; ++ly)
-                    for (int lz = 0; lz < 32; ++lz)
-                        gpuParticlePhysics->setOccupied(origin.x + lx, origin.y + ly, origin.z + lz, false);
-        }
     };
 
     m_worldOutliner->onSpawnTemplate = [this](const std::string& name, const glm::ivec3& pos,
@@ -2845,10 +2851,6 @@ void Application::applyProjectSelection(const std::string& projectPath) {
             // so characters fall through the world. (Runtime/WorldInitializer path
             // already does this; the editor project-open path previously skipped it.)
             chunkManager->buildAllChunkPhysics();
-            // GPU-side analog of buildAllChunkPhysics: populate the particle
-            // occupancy grid so debris collides with DB-loaded terrain instead of
-            // falling through it.
-            chunkManager->rebuildOccupancyFromChunks();
             // Water renders from what the chunks HOLD (docs/Water.md §6 step 2): a saved basin
             // shows its water at boot with no command, or shows none if none was ever stored.
             rebuildGroundedWaterFromSpans();
@@ -2899,7 +2901,12 @@ void Application::run() {
         timer->update();
 
         // Always process API commands (even during launcher  --  enables MCP project management)
-        processAPICommands();
+        {
+            // Frame-pacing phase (PerfProgram I11): API commands run on the main thread, inside the
+            // frame they arrive in, so a slow command is a hitch like any other.
+            ScopedTimer apiTimer(*performanceProfiler, "API Drain");
+            processAPICommands();
+        }
 
         // Process deferred file open (set by File > Open menu, must run before rendering)
         if (!m_pendingOpenFile.empty()) {
@@ -3102,17 +3109,6 @@ void Application::run() {
             currentChunkInclusionDistance  // Pass by reference to allow UI modification
         );
         
-        // Render Force System Debug overlay
-        auto& flags = inputController->getDebugFlags();
-        imguiRenderer->renderForceSystemDebug(
-            flags.showForceSystemDebug,
-            forceSystem,
-            mouseVelocityTracker,
-            voxelInteractionSystem->hasHoveredCube(),
-            voxelInteractionSystem->hasHoveredCube() ? glm::vec3(voxelInteractionSystem->getCurrentHoveredLocation().worldPos) : glm::vec3(0.0f),
-            flags.manualForceValue
-        );
-
         // Voxel size mode HUD (persistent indicator + fade label on change)
         if (voxelInteractionSystem && inputController) {
             imguiRenderer->renderVoxelSizeHUD(
@@ -3323,6 +3319,9 @@ void Application::run() {
 
         // End frame profiling
         performanceProfiler->endFrame();
+        // City-benchmark capture (PerfProgram section 16): stream_follow + the route recorder.
+        if (Core::PerfCapture* pc = runtime ? runtime->getPerfCapture() : nullptr)
+            pc->onFrameEnd(chunkManager, cameraManager, camera);
         
         // Profile the frame with PerformanceMonitor
         FrameTiming timing = performanceMonitor->profileFrame();
@@ -3416,6 +3415,7 @@ void Application::cleanup() {
     }
     
     // Reset game-specific subsystems before engine cleanup
+    if (runtime && runtime->getPerfCapture()) runtime->getPerfCapture()->setRenderCoordinator(nullptr);
     renderCoordinator.reset();
     voxelInteractionSystem.reset();
     raycastVisualizer.reset();
@@ -3451,9 +3451,7 @@ void Application::cleanup() {
     imguiRenderer = nullptr;
     physicsWorld = nullptr;
     chunkManager = nullptr;
-    forceSystem = nullptr;
     inputManager = nullptr;
-    mouseVelocityTracker = nullptr;
     timer = nullptr;
     performanceProfiler = nullptr;
     performanceMonitor = nullptr;
@@ -3536,34 +3534,9 @@ void Application::update(float deltaTime) {
     if (gamePaused) return;
 
     // Update GPU particle physics (CPU-side slot tracking + staging upload)
-    if (gpuParticlePhysics) {
-        // Feed per-limb character colliders to the GPU so debris collides with the
-        // player's body parts (not just the torso capsule). These are the same segment
-        // boxes used for CPU kinematic-obstacle collision; fall back to the controller
-        // capsule if they haven't been built yet.
-        if (animatedCharacter) {
-            glm::vec3 vel = animatedCharacter->getControllerVelocity();
-            auto segs = animatedCharacter->getSegmentBoxInfo();
-            std::vector<std::pair<glm::vec3, glm::vec3>> boxes;
-            boxes.reserve(segs.size());
-            for (const auto& s : segs) {
-                if (s.worldHalfExtents.x <= 0.0f) continue; // skip un-refit/degenerate
-                boxes.emplace_back(s.position, s.worldHalfExtents);
-            }
-            if (!boxes.empty()) {
-                gpuParticlePhysics->setCharacterColliders(boxes, vel);
-            } else {
-                glm::vec3 pos = animatedCharacter->getPosition(); // feet position
-                float halfH   = animatedCharacter->getControllerHalfHeight();
-                float halfW   = animatedCharacter->getControllerHalfWidth();
-                gpuParticlePhysics->setCharacterAABB(pos + glm::vec3(0.0f, halfH, 0.0f),
-                                                     glm::vec3(halfW, halfH, halfW), vel);
-            }
-        } else {
-            gpuParticlePhysics->clearCharacterAABB();
-        }
-        gpuParticlePhysics->update(deltaTime);
-    }
+    // Character movers are fed AFTER the NPC/entity updates below (Phase 3a: every animated
+    // character, this frame's pose - the old player-only feed here was one frame stale).
+    if (debrisRuntime) debrisRuntime->beginFrame(deltaTime);
 
     // Update-LOD: tell characters where the viewer is so distant ones can tick
     // at a reduced rate. Set before NPC/entity updates this frame.
@@ -3902,6 +3875,20 @@ void Application::update(float deltaTime) {
         for (auto& entity : entities) {
             entity->update(deltaTime);
         }
+        // ---- GPU debris movers (DebrisInteractionPlan Phase 3a): EVERY animated character - the
+        // player, spawned entities, NPCs, monsters, fauna - as oriented limb boxes with per-limb
+        // velocity, fed after all of them updated this frame. A character that skipped its tick
+        // (update-LOD) or is derezzing feeds nothing; nearest the camera first, so the
+        // MAX_KINEMATIC overflow (counted) drops the farthest.
+        if (debrisRuntime && debrisRuntime->enabled()) {
+            std::vector<Scene::AnimatedVoxelCharacter*> chars;
+            chars.push_back(animatedCharacter);
+            for (auto& e : entities) chars.push_back(dynamic_cast<Scene::AnimatedVoxelCharacter*>(e.get()));
+            if (npcManager)
+                npcManager->forEachNPC([&](Scene::NPCEntity& npc) { chars.push_back(npc.getAnimatedCharacter()); });
+            debrisRuntime->feedCharacters(chars, camera ? camera->getPosition() : glm::vec3(0.0f));
+        }
+
         // If animated character just finished standing up, release its seat claim
         if (wasAnimCharSitting && animatedCharacter && !animatedCharacter->isSitting()) {
             if (interactionManager) interactionManager->releaseSeat("player");
@@ -3947,18 +3934,7 @@ void Application::update(float deltaTime) {
         // Remove character once all its voxels have been derezed
         if (animatedCharacter && animatedCharacter->isFullyDerezed()) {
             LOG_INFO("Application", "Derez complete - removing character from scene");
-            // Unregister from entity registry BEFORE erasing the entity, so nothing
-            // (e.g. WorldOutliner) can dereference the dangling pointer after deletion.
-            if (entityRegistry) {
-                std::string entityId = entityRegistry->getEntityId(animatedCharacter);
-                if (!entityId.empty()) entityRegistry->unregisterEntity(entityId);
-            }
-            auto it = std::remove_if(entities.begin(), entities.end(),
-                [this](const std::unique_ptr<Scene::Entity>& e) {
-                    return e.get() == animatedCharacter;
-                });
-            if (it != entities.end()) entities.erase(it, entities.end());
-            animatedCharacter = nullptr;
+            removeAnimatedCharacterFromScene();
         }
     }
 
@@ -4092,12 +4068,7 @@ void Application::update(float deltaTime) {
         
         // Sync debug flags
         auto& flags = inputController->getDebugFlags();
-        voxelInteractionSystem->setDebugFlags(
-            flags.hoverDetection,
-            flags.disableBreakingForces,
-            flags.showForceSystemDebug,
-            flags.manualForceValue
-        );
+        voxelInteractionSystem->setDebugFlags(flags.hoverDetection);
         
         // Update raycast visualizer if enabled
         if (raycastVisualizer && raycastVisualizer->isEnabled()) {
@@ -4218,14 +4189,15 @@ void Application::update(float deltaTime) {
         auto tChunk0 = std::chrono::steady_clock::now();
         chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
         auto tChunk1 = std::chrono::steady_clock::now();
-        // Reset per-frame break counter for hybrid physics routing
-        chunkManager->resetFrameBreakCounter();
-        // Update player position for hybrid Bullet/GPU proximity routing
+        // Player position anchors chunk streaming (see ChunkManager::streamingAnchor)
         if (camera) chunkManager->setPlayerPosition(camera->getPosition());
         // Phase 1b — stream chunks in/out around the player when streaming terrain is
         // enabled (opt-in via the game.json world "streaming" flag). Throttled because
         // generation + face finalize is heavy; the per-update cap bounds it further.
         if (chunkManager->isStreamingGenerationEnabled()) {
+            // Frame-pacing phase (PerfProgram I11). Alternates by design: the full update on every
+            // 2nd frame, landings only on the others -- the hitch report judges by frame parity.
+            PROFILE_SCOPE(*performanceProfiler, "Streaming Pump");
             static int s_streamTick = 0;
             // View-cone load priority: what the camera looks at streams first, refreshed
             // every frame so panning dynamically reprioritizes the worker queue.
@@ -4245,9 +4217,8 @@ void Application::update(float deltaTime) {
             chunkManager->pumpDeferredDbLoads(camera->getPosition());
         }
         auto tChunk2 = std::chrono::steady_clock::now();
-        // Bullet dynamic object update  --  always runs in hybrid mode since
-        // nearby cubes use Bullet while mass debris uses GPU particles.
-        chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
+        // (The CPU debris update that ran here was deleted with the CPU debris path,
+        //  DebrisInteractionPlan 1d; dynMs below stays as the slot it used to time.)
         auto tChunk3 = std::chrono::steady_clock::now();
         const double dirtyMs  = std::chrono::duration<double, std::milli>(tChunk1 - tChunk0).count();
         const double streamMs = std::chrono::duration<double, std::milli>(tChunk2 - tChunk1).count();
@@ -4270,10 +4241,14 @@ void Application::update(float deltaTime) {
     float frameTime = std::min(deltaTime, MAX_DELTA);
     physicsDeltaAccumulator += frameTime;
     
-    // Sync kinematic door/platform colliders into Bullet before physics step
-    if (kinematicVoxelManager) {
-        kinematicVoxelManager->syncCollidersToPhysics();
-    }
+    // Kinematic movers (DebrisInteractionPlan 3b): doors, animated template parts and held items -
+    // every KinematicVoxelObject flagged pushesDebris - as oriented sub-boxes with per-box velocity
+    // from this frame's transform delta. The same boxes become CPU kinematic obstacles (doors now
+    // block furniture) and GPU debris movers, staged after the character limbs. Runs after every
+    // owner set its transform this frame (held items, doors, animator) and before the CPU step.
+    if (kinematicVoxelManager && debrisRuntime)
+        debrisRuntime->feedKinematicObjects(kinematicVoxelManager.get(), deltaTime,
+                                            camera ? camera->getPosition() : glm::vec3(0.0f));
 
     // Run physics in fixed timesteps — CAPPED per frame. Uncapped, a slow
     // frame demanded proportionally more physics next frame (60fps→1 step,
@@ -4289,16 +4264,17 @@ void Application::update(float deltaTime) {
     if (physicsSteps == MAX_PHYSICS_STEPS_PER_FRAME)
         physicsDeltaAccumulator = 0.0f;
 
+    // ---- GPU debris movers, part 2 (DebrisInteractionPlan Phase 3c): every CPU rigid body
+    // (furniture incl. grabbed/thrown, fragments, felled trees, item props) at its post-step pose,
+    // compound boxes with point velocities; sleepers too, as supports. One-way: debris does not
+    // push them back (Phase 4). Nearest the camera first, whole bodies only, in the slots the
+    // character limbs left; a body that does not fit is counted and logged once.
+    if (debrisRuntime) debrisRuntime->feedRigidBodies(camera ? camera->getPosition() : glm::vec3(0.0f));
+
     auto physicsEnd = std::chrono::high_resolution_clock::now();
     if (renderCoordinator) {
         renderCoordinator->setPhysicsFrameMs(
             std::chrono::duration<double, std::milli>(physicsEnd - physicsStart).count());
-    }
-    
-    // Update dynamic subcube positions from physics bodies (batched + throttled)
-    // In hybrid mode, Bullet objects need position sync alongside GPU particles.
-    if (chunkManager) {
-        chunkManager->m_dynamicObjectManager.updateAllDynamicObjectPositions();
     }
     
     static int frameCount = 0;
@@ -4836,7 +4812,7 @@ void Application::updatePendingSpellHits(float dt) {
     for (auto it = m_pendingSpellHits.begin(); it != m_pendingSpellHits.end();) {
         it->delay -= dt;
         if (it->delay <= 0.0f) {
-            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics);
             // U0: opt into COHERENT collapse so a spell blast at a trunk topples the
             // tree as one rigid body instead of scattering it into voxels (the "fireball
             // exploded the tree" report). Same lazy fragment-manager wiring the
@@ -6019,6 +5995,24 @@ void Application::setControlTarget(const std::string& targetName) {
     LOG_INFO("Application", "Control target set to: " + targetName);
 }
 
+// The ONE way the animated character leaves the scene after a derez. Unregister from the
+// entity registry BEFORE erasing the entity, so nothing (WorldOutliner, Properties, API
+// lookups) can dereference the dangling pointer. The no-GPU derez fallback erased without
+// unregistering and crashed the engine the first time it was exercised (2026-10-04).
+void Application::removeAnimatedCharacterFromScene() {
+    if (!animatedCharacter) return;
+    if (entityRegistry) {
+        std::string entityId = entityRegistry->getEntityId(animatedCharacter);
+        if (!entityId.empty()) entityRegistry->unregisterEntity(entityId);
+    }
+    auto it = std::remove_if(entities.begin(), entities.end(),
+        [this](const std::unique_ptr<Scene::Entity>& e) {
+            return e.get() == animatedCharacter;
+        });
+    if (it != entities.end()) entities.erase(it, entities.end());
+    animatedCharacter = nullptr;
+}
+
 void Application::derezCharacter(float duration) {
     if (!animatedCharacter) {
         LOG_WARN("Application", "Cannot derez: no animated character");
@@ -6033,18 +6027,13 @@ void Application::derezCharacter(float duration) {
 
     if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
         // GPU path: staggered voxel-by-voxel falling apart
-        animatedCharacter->beginDerez(gpuParticlePhysics.get(), duration,
+        animatedCharacter->beginDerez(gpuParticlePhysics, duration,
                                       Scene::DerezPattern::Wave);
     } else {
-        // Fallback: instant CPU debris if GPU physics not available
-        if (chunkManager)
-            chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter, 1.0f);
-        auto it = std::remove_if(entities.begin(), entities.end(),
-            [this](const std::unique_ptr<Scene::Entity>& e) {
-                return e.get() == animatedCharacter;
-            });
-        if (it != entities.end()) entities.erase(it, entities.end());
-        animatedCharacter = nullptr;
+        // No GPU debris solver: the character is removed without debris (all debris is
+        // GPU-only since DebrisInteractionPlan D2 deleted the CPU DebrisSystem).
+        LOG_WARN("Application", "Derez without GPU debris physics: removing the character, no debris");
+        removeAnimatedCharacterFromScene();
     }
 
     // Release player control immediately
@@ -6541,15 +6530,6 @@ void Application::autoLoadGameDefinition() {
             // Render distance + far-terrain LOD from the world block (boots with vistas on).
             applyFarTerrainConfig(gameDef);
 
-            // Populate the GPU particle occupancy grid from the freshly generated
-            // terrain. Without this, debris particles have no floor to collide with
-            // and fall straight through the world. CPU collision grids are built
-            // inside GameDefinitionLoader::load (so characters ground correctly);
-            // this is the GPU-side analog, previously only done on the MCP
-            // load_game_definition path — the startup --project path skipped it.
-            if (chunkManager && (result.chunksGenerated > 0 || result.structuresPlaced > 0)) {
-                chunkManager->rebuildOccupancyFromChunks();
-            }
 
             // Sync terrain solidity into the water sim now the world is loaded, then
             // restore persisted water (sea level / ocean seeds / springs). The field
@@ -7800,175 +7780,6 @@ static bool handleNavGridQueryCommand(
     return false;
 }
 
-// Helper: handle debug dynamic spawn commands (Bullet cubes / GPU particles)
-static bool handleDebugDynamicSpawnCommand(
-    const Core::APICommand& cmd,
-    nlohmann::json& response,
-    ChunkManager* chunkManager,
-    GpuParticlePhysics* gpuParticles)
-{
-    if (cmd.action == "spawn_bullet_cube") {
-        float x = cmd.params.value("x", 0.0f);
-        float y = cmd.params.value("y", 20.0f);
-        float z = cmd.params.value("z", 0.0f);
-        std::string material = cmd.params.value("material", "Stone");
-        float scale = cmd.params.value("scale", 1.0f);
-        float lifetime = cmd.params.value("lifetime", 30.0f);
-        int count = std::clamp(cmd.params.value("count", 1), 1, 300);
-        glm::vec3 vel(0.0f);
-        if (cmd.params.contains("velocity")) {
-            vel.x = cmd.params["velocity"].value("x", 0.0f);
-            vel.y = cmd.params["velocity"].value("y", 0.0f);
-            vel.z = cmd.params["velocity"].value("z", 0.0f);
-        }
-        if (!chunkManager || !chunkManager->physicsWorld) {
-            response = {{"error", "ChunkManager or PhysicsWorld not available"}};
-            return true;
-        }
-        glm::vec3 cubeSize(scale);
-        float spacing = scale * 1.1f;
-        int gridSize = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(count))));
-        int spawned = 0;
-        for (int i = 0; i < count; ++i) {
-            int gx = i % gridSize;
-            int gy = (i / gridSize) % gridSize;
-            int gz = i / (gridSize * gridSize);
-            glm::vec3 pos(x + gx * spacing, y + gy * spacing, z + gz * spacing);
-            glm::vec3 center = pos + glm::vec3(scale * 0.5f);
-            auto cube = std::make_unique<Cube>(glm::ivec3(pos), material);
-            if (auto* vw = chunkManager->physicsWorld->getVoxelWorld()) {
-                auto* body = vw->createVoxelBody(center, cubeSize * 0.5f, 1.0f);
-                if (body) body->linearVelocity = vel;
-                cube->setVoxelBody(body);
-            }
-            cube->setPhysicsPosition(center);
-            cube->setDynamicScale(cubeSize);
-            cube->setLifetime(lifetime);
-            cube->breakApart();
-            chunkManager->m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
-            ++spawned;
-        }
-        response = {{"success", true}, {"spawned", spawned}, {"system", "voxel"},
-                    {"scale", scale}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
-        return true;
-    }
-    if (cmd.action == "spawn_gpu_particle") {
-        float x = cmd.params.value("x", 0.0f);
-        float y = cmd.params.value("y", 20.0f);
-        float z = cmd.params.value("z", 0.0f);
-        std::string material = cmd.params.value("material", "Stone");
-        float scale = cmd.params.value("scale", 1.0f);
-        float lifetime = cmd.params.value("lifetime", 30.0f);
-        int count = std::clamp(cmd.params.value("count", 1), 1, 2000);
-        glm::vec3 vel(0.0f);
-        if (cmd.params.contains("velocity")) {
-            vel.x = cmd.params["velocity"].value("x", 0.0f);
-            vel.y = cmd.params["velocity"].value("y", 0.0f);
-            vel.z = cmd.params["velocity"].value("z", 0.0f);
-        }
-        if (!gpuParticles || !gpuParticles->isInitialized()) {
-            response = {{"error", "GPU particle physics not available"}};
-            return true;
-        }
-        float spacing = scale * 1.1f;
-        int gridSize = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(count))));
-        int spawned = 0;
-        for (int i = 0; i < count; ++i) {
-            int gx = i % gridSize;
-            int gy = (i / gridSize) % gridSize;
-            int gz = i / (gridSize * gridSize);
-            GpuParticlePhysics::SpawnParams sp;
-            sp.position = glm::vec3(x + gx * spacing, y + gy * spacing, z + gz * spacing);
-            sp.velocity = vel;
-            sp.angularVel = glm::vec3(
-                ((rand() % 1000) / 500.f - 1.f) * 3.0f,
-                ((rand() % 1000) / 500.f - 1.f) * 3.0f,
-                ((rand() % 1000) / 500.f - 1.f) * 3.0f);
-            sp.materialName = material;
-            sp.scale = glm::vec3(scale);
-            sp.lifetime = lifetime;
-            gpuParticles->queueSpawn(sp);
-            ++spawned;
-        }
-        response = {{"success", true}, {"spawned", spawned}, {"system", "gpu"},
-                    {"position", {{"x", x}, {"y", y}, {"z", z}}}};
-        return true;
-    }
-    if (cmd.action == "spawn_voxel_body") {
-        float x = cmd.params.value("x", 0.0f);
-        float y = cmd.params.value("y", 20.0f);
-        float z = cmd.params.value("z", 0.0f);
-        float scale = cmd.params.value("scale", 1.0f);
-        float mass = cmd.params.value("mass", 1.0f);
-        float restitution = cmd.params.value("restitution", 0.2f);
-        float friction = cmd.params.value("friction", 0.6f);
-        float lifetime = cmd.params.value("lifetime", std::numeric_limits<float>::max());
-        int count = std::clamp(cmd.params.value("count", 1), 1, 5000);
-        glm::vec3 vel(0.0f);
-        if (cmd.params.contains("velocity")) {
-            vel.x = cmd.params["velocity"].value("x", 0.0f);
-            vel.y = cmd.params["velocity"].value("y", 0.0f);
-            vel.z = cmd.params["velocity"].value("z", 0.0f);
-        }
-        if (!chunkManager || !chunkManager->physicsWorld ||
-            !chunkManager->physicsWorld->getVoxelWorld()) {
-            response = {{"error", "VoxelDynamicsWorld not available"}};
-            return true;
-        }
-        auto* voxelWorld = chunkManager->physicsWorld->getVoxelWorld();
-        glm::vec3 halfExtents(scale * 0.5f);
-        float spacing = scale * 1.1f;
-        int gridSize = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(count))));
-        int spawned = 0;
-        for (int i = 0; i < count; ++i) {
-            int gx = i % gridSize;
-            int gy = (i / gridSize) % gridSize;
-            int gz = i / (gridSize * gridSize);
-            glm::vec3 pos(x + gx * spacing, y + gy * spacing, z + gz * spacing);
-            auto* body = voxelWorld->createVoxelBody(pos, halfExtents, mass, restitution, friction);
-            if (body) {
-                body->linearVelocity = vel;
-                body->lifetime = lifetime;
-                ++spawned;
-            }
-        }
-        response = {{"success", true}, {"spawned", spawned}, {"system", "voxel"},
-                    {"body_count", static_cast<int>(voxelWorld->getBodyCount())},
-                    {"position", {{"x", x}, {"y", y}, {"z", z}}}};
-        return true;
-    }
-    if (cmd.action == "clear_voxel_bodies") {
-        if (!chunkManager || !chunkManager->physicsWorld ||
-            !chunkManager->physicsWorld->getVoxelWorld()) {
-            response = {{"error", "VoxelDynamicsWorld not available"}};
-            return true;
-        }
-        auto* voxelWorld = chunkManager->physicsWorld->getVoxelWorld();
-        size_t cleared = voxelWorld->getBodyCount();
-        voxelWorld->removeAllBodies();
-        response = {{"success", true}, {"cleared", cleared}};
-        return true;
-    }
-    if (cmd.action == "clear_dynamics") {
-        size_t bulletCleared = 0;
-        uint32_t gpuCleared = 0;
-        if (chunkManager) {
-            bulletCleared = chunkManager->m_dynamicObjectManager.getActiveBulletCount();
-            chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicCubes();
-            chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicSubcubes();
-            chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicMicrocubes();
-        }
-        if (gpuParticles && gpuParticles->isInitialized()) {
-            gpuCleared = gpuParticles->getActiveParticleCount();
-            gpuParticles->despawnAll();
-        }
-        response = {{"success", true},
-                    {"bullet_cleared", bulletCleared},
-                    {"gpu_cleared", gpuCleared}};
-        return true;
-    }
-    return false;
-}
 
 // Helper: handle subcube/microcube API commands (extracted to avoid nesting depth limit)
 static bool handleSubcubeMicrocubeCommand(
@@ -8609,6 +8420,12 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             // x,z in [-256,256) and y in [-64,192).
             {"loaded_chunks",       renderCoordinator->lightOccupancyLoadedChunks()},
             {"out_of_box_chunks",   renderCoordinator->lightOccupancyOutOfBoxChunks()},
+            // Repack backlog (DebrisInteractionPlan 1c): edits are repacked before first-time
+            // residency, so a non-zero edit backlog means more chunks were edited in one frame
+            // than the per-frame budget -- GPU debris may briefly collide with stale cells there.
+            {"occupancy_edit_backlog",      renderCoordinator->lightOccupancyEditBacklog()},
+            {"occupancy_residency_backlog", renderCoordinator->lightOccupancyResidencyBacklog()},
+            {"occupancy_job_skips", renderCoordinator->lightOccupancyJobSkips()},
             // The box's own position, so "the box did not follow the camera" is distinguishable
             // from "the camera did not move" without guessing between them.
             {"box_min_chunk",       {box.x, box.y, box.z}},
@@ -8834,6 +8651,40 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         c["micro_slots"] = cm;
 
         response = {{"cell", {wp.x, wp.y, wp.z}}, {"grid", g}, {"content", c}};
+        return true;
+
+    } else if (action == "break_voxel") {
+        // DebrisInteractionPlan 1d test hook: the B-key break at a given cell, no cursor hover.
+        // {x,y,z, level: cube|subcube|microcube, sub:[sx,sy,sz], micro:[mx,my,mz]}. Echoes what
+        // the break did: removed?, GPU pieces queued, pieces refused (no GPU solver).
+        if (!chunkManager || !voxelInteractionSystem) { response = {{"error", "no world"}}; return true; }
+        const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0), cmd.params.value("z", 0));
+        const std::string level = cmd.params.value("level", std::string("cube"));
+        auto vec3Param = [&](const char* k) {
+            const auto& a = cmd.params.value(k, json::array({0, 0, 0}));
+            return glm::ivec3(a.at(0).get<int>(), a.at(1).get<int>(), a.at(2).get<int>());
+        };
+        Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+        if (!ch) { response = {{"error", "no chunk at cell"}}; return true; }
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+        const auto queuedBefore = gpuParticlePhysics ? gpuParticlePhysics->getActiveParticleCount() : 0u;
+        const uint64_t refusedBefore = Phyxel::DamageSystem::refusedDebrisTotal();
+        auto& m = voxelInteractionSystem->manipulator();
+        bool removed = false;
+        if (level == "cube") {
+            removed = m.breakCube(CubeLocation(ch, lp, wp), glm::vec3(0.0f), false);
+        } else if (level == "subcube") {
+            removed = m.breakSubcube(CubeLocation(ch, lp, wp, vec3Param("sub")), false);
+        } else if (level == "microcube") {
+            removed = m.breakMicrocube(CubeLocation(ch, lp, wp, vec3Param("sub"), vec3Param("micro")), false);
+        } else {
+            response = {{"error", "level must be cube, subcube or microcube"}};
+            return true;
+        }
+        const auto queuedAfter = gpuParticlePhysics ? gpuParticlePhysics->getActiveParticleCount() : 0u;
+        response = {{"removed", removed}, {"level", level}, {"cell", {wp.x, wp.y, wp.z}},
+                    {"gpu_pieces", queuedAfter - queuedBefore},   // queueSpawn counts immediately
+                    {"refused", Phyxel::DamageSystem::refusedDebrisTotal() - refusedBefore}};
         return true;
 
     } else if (action == "debug_body_boxes") {
@@ -9168,6 +9019,45 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         if (cmd.params.contains("trees") && renderCoordinator)
             renderCoordinator->setFarTreesEnabled(cmd.params.value("trees", true));
         // A/B: per-instance level crossfade vs per-tile-centre selection (straddle-cost probe).
+        // Structure-proxy ladder sweep: {"structure_ladder": [d0..d4]}, 5 strictly ascending values
+        // > 0. Refused otherwise: a non-ascending ladder makes the first-match level search skip
+        // levels, so a proxy would jump straight past one (a pop the sweep would misattribute).
+        if (cmd.params.contains("structure_ladder")) {
+            const auto& L = cmd.params["structure_ladder"];
+            bool ok = L.is_array() && L.size() == 5;
+            float v[5] = {};
+            for (size_t i = 0; ok && i < 5; ++i) {
+                ok = L[i].is_number() && L[i].get<float>() > 0.0f &&
+                     (i == 0 || L[i].get<float>() > v[i - 1]);
+                if (ok) v[i] = L[i].get<float>();
+            }
+            if (!ok) {
+                response = {{"success", false},
+                            {"error", "structure_ladder must be 5 strictly ascending distances > 0 (world units)"},
+                            {"applied", false}};
+                return true;
+            }
+            for (int i = 0; i < 5; ++i) Graphics::RenderCoordinator::s_structureLevelDist[i] = v[i];
+        }
+        // Structure-proxy mesh merge A/B (PerfProgram 17.2 step 3). A change rebuilds every proxy
+        // through the frame-deferred retire path; poll lod_report structures.pending to know when done.
+        if (cmd.params.contains("proxy_mesh_merge")) {
+            if (!cmd.params["proxy_mesh_merge"].is_boolean()) {
+                response = {{"success", false}, {"error", "'proxy_mesh_merge' must be a boolean"}, {"applied", false}};
+                return true;
+            }
+            const bool m = cmd.params["proxy_mesh_merge"].get<bool>();
+            if (m != Graphics::RenderCoordinator::s_proxyMeshMerge && renderCoordinator) {
+                Graphics::RenderCoordinator::s_proxyMeshMerge = m;
+                renderCoordinator->rebuildAllStructureLod();
+            }
+        }
+        // A/B attribution: structure LOD proxies alone (the trees knob also removes them).
+        if (cmd.params.contains("structures"))
+            Graphics::RenderCoordinator::s_structureLodEnabled = cmd.params.value("structures", true);
+        if (cmd.params.contains("structures_skip_invisible"))
+            Graphics::RenderCoordinator::s_structureLodSkipInvisible =
+                cmd.params.value("structures_skip_invisible", true);
         if (cmd.params.contains("per_instance_levels"))
             Graphics::RenderCoordinator::s_treePerInstanceLevels =
                 cmd.params.value("per_instance_levels", true);
@@ -9186,9 +9076,19 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 for (int i = 0; i < 4; ++i)
                     Graphics::RenderCoordinator::s_treeMeshLevelDist[i] = v[i];
         }
+        // Echo every knob this command accepts (FeatureDesignKeys: a caller must be able to
+        // assert the state took effect; design check 9.9 found three of them silent).
         response = {{"success", true}, {"enabled", ft->params().enabled},
                     {"per_instance_levels",
-                     Graphics::RenderCoordinator::s_treePerInstanceLevels}};
+                     Graphics::RenderCoordinator::s_treePerInstanceLevels},
+                    {"trees", renderCoordinator ? renderCoordinator->farTreesEnabled() : false},
+                    {"structures", Graphics::RenderCoordinator::s_structureLodEnabled},
+                    {"structures_skip_invisible",
+                     Graphics::RenderCoordinator::s_structureLodSkipInvisible},
+                    {"proxy_mesh_merge", Graphics::RenderCoordinator::s_proxyMeshMerge},
+                    {"structure_ladder", std::vector<float>(
+                         std::begin(Graphics::RenderCoordinator::s_structureLevelDist),
+                         std::end(Graphics::RenderCoordinator::s_structureLevelDist))}};
         if (cmd.params.value("debug_tile", false)) {
             if (!ft->isConfigured()) {
                 WorldGenerator* gen = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
@@ -9383,117 +9283,12 @@ namespace {
 
 namespace fs = std::filesystem;
 
-/// Minimal character metric scalars needed by current compatibility rules.
-/// Mirrors the fields produced by `compute_character_metrics`. Values are in
-/// metres in the character's world-space at the current bind pose.
-struct CharScalarMetrics {
-    float total_height = 0.0f;
-    float hip_height   = 0.0f;
-    float eye_height   = 0.0f;
-    float leg_length   = 0.0f;
-    float arm_reach    = 0.0f;
-    float shoulder_width = 0.0f;
-    float hip_width    = 0.0f;
-    float body_depth   = 0.0f;
-    float sitting_height = 0.0f;
-};
+/// A4 step 1: the character metrics and the seat-fit rules are ENGINE code now
+/// (scene/SeatFit.h); the editor keeps these thin aliases so the API handlers read the same.
+using CharScalarMetrics = Phyxel::Scene::SeatFit::CharacterFitMetrics;
 
-/// Suffix-match a bone name against candidates, treating ':' as a namespace
-/// separator (so "mixamorig:Hips" matches the candidate "Hips").
-static const Phyxel::Scene::AnimatedVoxelCharacter::BoneAABB*
-findAABB(const std::vector<Phyxel::Scene::AnimatedVoxelCharacter::BoneAABB>& v,
-         const std::vector<std::string>& candidates)
-{
-    for (const auto& cand : candidates) {
-        for (const auto& b : v) {
-            const auto& nm = b.boneName;
-            if (nm == cand
-                || (nm.size() > cand.size()
-                    && nm.compare(nm.size() - cand.size(), cand.size(), cand) == 0
-                    && (nm.size() == cand.size() || nm[nm.size() - cand.size() - 1] == ':'))) {
-                return &b;
-            }
-        }
-    }
-    return nullptr;
-}
-
-/// Compute the scalar metrics used by interaction compatibility rules.
-/// Same approach as the `compute_character_metrics` handler but returns the
-/// minimal struct used by the gate (no per-bone breakdown).
 static CharScalarMetrics computeCharScalarMetrics(Phyxel::Scene::AnimatedVoxelCharacter* ch) {
-    CharScalarMetrics m;
-    if (!ch) return m;
-
-    auto liveAABBs = ch->getBoneAABBs();
-    auto sitAABBs  = ch->sampleBoneAABBsAtTime("sitting_idle", 0.5f, glm::vec3(0.0f));
-
-    float yMin =  std::numeric_limits<float>::infinity();
-    float yMax = -std::numeric_limits<float>::infinity();
-    for (const auto& b : liveAABBs) {
-        yMin = std::min(yMin, b.center.y - b.halfExtents.y);
-        yMax = std::max(yMax, b.center.y + b.halfExtents.y);
-    }
-    m.total_height = (std::isfinite(yMin) && std::isfinite(yMax)) ? (yMax - yMin) : 0.0f;
-
-    const auto* hips  = findAABB(liveAABBs, {"Hips", "Pelvis", "mixamorig:Hips"});
-    const auto* head  = findAABB(liveAABBs, {"Head", "mixamorig:Head"});
-    const auto* lSh   = findAABB(liveAABBs, {"LeftArm", "LeftShoulder", "mixamorig:LeftArm"});
-    const auto* rSh   = findAABB(liveAABBs, {"RightArm", "RightShoulder", "mixamorig:RightArm"});
-    const auto* lUp   = findAABB(liveAABBs, {"LeftUpLeg", "mixamorig:LeftUpLeg"});
-    const auto* rUp   = findAABB(liveAABBs, {"RightUpLeg", "mixamorig:RightUpLeg"});
-    const auto* lFt   = findAABB(liveAABBs, {"LeftFoot", "mixamorig:LeftFoot"});
-    const auto* lLg   = findAABB(liveAABBs, {"LeftLeg", "mixamorig:LeftLeg"});
-    const auto* spine = findAABB(liveAABBs, {"Spine2", "Spine1", "Spine", "mixamorig:Spine2"});
-
-    m.hip_height      = hips ? hips->center.y - yMin : 0.0f;
-    m.eye_height      = head ? head->center.y - yMin : 0.0f;
-    m.shoulder_width  = (lSh && rSh) ? glm::distance(lSh->center, rSh->center) : 0.0f;
-    m.hip_width       = (lUp && rUp) ? glm::distance(lUp->center, rUp->center) : 0.0f;
-    m.body_depth      = spine ? spine->halfExtents.z * 2.0f : 0.0f;
-    if (hips && lFt)      m.leg_length = hips->center.y - (lFt->center.y - lFt->halfExtents.y);
-    else if (hips && lLg) m.leg_length = hips->center.y - (lLg->center.y - lLg->halfExtents.y);
-    else                  m.leg_length = m.hip_height;
-
-    // Arm reach via bind-pose chain length Hand->Shoulder.
-    const auto& skel = ch->getSkeleton();
-    auto findBoneId = [&](std::initializer_list<const char*> names) -> int {
-        for (const auto* cand : names) {
-            std::string c(cand);
-            for (const auto& kv : skel.boneMap) {
-                const auto& nm = kv.first;
-                if (nm == c
-                    || (nm.size() > c.size()
-                        && nm.compare(nm.size() - c.size(), c.size(), c) == 0
-                        && (nm.size() == c.size() || nm[nm.size() - c.size() - 1] == ':'))) {
-                    return kv.second;
-                }
-            }
-        }
-        return -1;
-    };
-    int handId = findBoneId({"LeftHand", "mixamorig:LeftHand"});
-    int shId   = findBoneId({"LeftArm", "LeftShoulder", "mixamorig:LeftArm"});
-    if (handId >= 0 && shId >= 0) {
-        float total = 0.0f;
-        int cur = handId, guard = 0;
-        while (cur != -1 && cur != shId && guard < 64) {
-            total += glm::length(skel.bones[cur].localPosition);
-            cur = skel.bones[cur].parentId;
-            ++guard;
-        }
-        m.arm_reach = total;
-    }
-
-    if (!sitAABBs.empty()) {
-        const auto* sHead = findAABB(sitAABBs, {"Head", "mixamorig:Head"});
-        const auto* sHips = findAABB(sitAABBs, {"Hips", "Pelvis", "mixamorig:Hips"});
-        if (sHead && sHips) {
-            m.sitting_height = (sHead->center.y + sHead->halfExtents.y)
-                             - (sHips->center.y - sHips->halfExtents.y);
-        }
-    }
-    return m;
+    return ch ? Phyxel::Scene::SeatFit::measureCharacter(*ch) : CharScalarMetrics{};
 }
 
 /// Resolve a template-library file by name across the category taxonomy
@@ -9549,90 +9344,17 @@ static nlohmann::json findSeatFeaturesInSidecar(const nlohmann::json& sidecar,
     return nullptr;
 }
 
-/// Run the sit-kind compatibility rules. Appends `{rule_id, message, measured,
-/// required, severity}` entries into `issues`. Returns true if any issue had
-/// severity == "error" (i.e., the interaction should be refused).
-///
-/// Margins MUST stay in sync with
-/// `tools/interaction_pipeline/interaction_kinds/sit.py`.
+/// Run the sit-kind compatibility rules (engine SeatFit::evaluate). Appends
+/// `{rule_id, message, measured, required, severity}` entries into `issues`. Returns true if
+/// any issue is an error (the interaction should be refused).
 static bool runSitCompatChecks(const CharScalarMetrics& c,
                                const nlohmann::json& seatFeatures,
                                nlohmann::json& issues)
 {
-    constexpr float HIP_CLEARANCE   = 0.05f;
-    constexpr float DEPTH_CLEARANCE = 0.10f;
-    constexpr float FOOT_DROP_MAX   = 0.20f;
-    constexpr float BACKREST_HEAD_MAX = 0.10f;
-    constexpr float KNEE_RISE_MAX   = 0.35f;
-
-    const float seat_width  = seatFeatures.value("seat_width_x", 0.0f);
-    const float seat_depth  = seatFeatures.value("seat_depth_z", 0.0f);
-    const float seat_top_y  = seatFeatures.value("seat_top_y",   0.0f);
-    const float backrest_h  = seatFeatures.value("backrest_height", 0.0f);
-
-    bool hasError = false;
-    auto push = [&](const char* rule, const std::string& msg, float meas, float req,
-                    const char* sev) {
-        issues.push_back({
-            {"rule_id", rule},
-            {"message", msg},
-            {"measured", meas},
-            {"required", req},
-            {"severity", sev}
-        });
-        if (std::string(sev) == "error") hasError = true;
-    };
-
-    auto fmt = [](const char* prefix, float a, const char* mid, float b, const char* suffix = "") {
-        std::ostringstream os;
-        os << std::fixed << std::setprecision(3)
-           << prefix << a << mid << b << suffix;
-        return os.str();
-    };
-
-    if (seat_width > 0.0f && c.hip_width > 0.0f) {
-        float need = c.hip_width + HIP_CLEARANCE;
-        if (seat_width < need) {
-            push("SEAT_TOO_NARROW",
-                 fmt("Seat width ", seat_width, "m too narrow for hip width ", c.hip_width, "m"),
-                 seat_width, need, "error");
-        }
-    }
-    // Fit failures are HARD errors — accuracy over coverage: a character never
-    // sits where it doesn't fit (docs/CharacterLibraryPlan.md seat-fit policy).
-    if (seat_depth > 0.0f && c.body_depth > 0.0f) {
-        float need = c.body_depth + DEPTH_CLEARANCE;
-        if (seat_depth < need) {
-            push("SEAT_TOO_SHALLOW",
-                 fmt("Seat depth ", seat_depth, "m too shallow for body depth ", c.body_depth, "m"),
-                 seat_depth, need, "error");
-        }
-    }
-    if (seat_top_y > 0.0f && c.leg_length > 0.0f) {
-        float overhang = seat_top_y - c.leg_length;
-        if (overhang > FOOT_DROP_MAX) {
-            push("SEAT_TOO_TALL",
-                 fmt("Seat ", seat_top_y, "m above floor, legs only ", c.leg_length, "m"),
-                 overhang, FOOT_DROP_MAX, "error");
-        }
-        // Big body on a tiny seat: knees rise far above the hips (squat).
-        float kneeRise = c.leg_length - seat_top_y;
-        if (kneeRise > KNEE_RISE_MAX) {
-            push("SEAT_TOO_LOW",
-                 fmt("Seat ", seat_top_y, "m too low for leg length ", c.leg_length, "m"),
-                 kneeRise, KNEE_RISE_MAX, "error");
-        }
-    }
-    if (backrest_h > 0.0f && c.sitting_height > 0.0f) {
-        float seated_eye_above_seat = std::max(0.0f, c.sitting_height - 0.1f);
-        if (backrest_h > seated_eye_above_seat + BACKREST_HEAD_MAX) {
-            push("BACKREST_BLOCKS_VIEW",
-                 fmt("Backrest ", backrest_h, "m exceeds seated eye height ~",
-                     seated_eye_above_seat, "m"),
-                 backrest_h, seated_eye_above_seat + BACKREST_HEAD_MAX, "warn");
-        }
-    }
-    return hasError;
+    const auto seat = Phyxel::Scene::SeatFit::SeatFeatures::fromJson(seatFeatures);
+    const auto found = Phyxel::Scene::SeatFit::evaluate(c, seat);
+    for (const auto& i : found) issues.push_back(i.toJson());
+    return Phyxel::Scene::SeatFit::refused(found);
 }
 
 /// Enumerate free, FITTING seats for a character near `origin` — the same
@@ -9680,6 +9402,21 @@ static nlohmann::json collectFittingSeats(Core::PlacedObjectManager& pom,
 // The held visual is a kinematic voxel group (same rendering as world item
 // props) whose transform follows an invisible grip-bone attachment each frame.
 // ============================================================================
+// Phase 6b: G gathers settled rubble around the player (finite physical items - credited by
+// volume, see DebrisRuntime::gather) into the inventory.
+void Application::gatherRubble() {
+    if (!debrisRuntime || !debrisRuntime->enabled()) return;
+    const glm::vec3 at = animatedCharacter ? animatedCharacter->getPosition()
+                                           : (camera ? camera->getPosition() : glm::vec3(0.0f));
+    const auto g = debrisRuntime->gather(at, 2.5f, 64);
+    for (const auto& [mat, n] : g.items) if (inventory) inventory->addItem(mat, n);
+    std::string got;
+    for (const auto& [mat, n] : g.items) got += (got.empty() ? "" : ", ") + std::to_string(n) + " " + mat;
+    LOG_INFO("Application", "Gathered {} rubble piece(s){}", g.pieces, got.empty() ? "" : " -> " + got);
+    if (g.pieces > 0)
+        if (auto* reg = runtime ? runtime->getSoundRegistry() : nullptr) reg->playEvent("debris.settle", at, 0.8f);
+}
+
 void Application::updateHeldItem() {
     if (!inventory || !kinematicVoxelManager || !itemPropManager) return;
 
@@ -9714,6 +9451,7 @@ void Application::updateHeldItem() {
             if (tmpl) {
                 auto voxels = Core::ItemPropManager::voxelsFromTemplate(*tmpl);
                 m_heldKinId = kinematicVoxelManager->add("held_" + itemId, std::move(voxels));
+                kinematicVoxelManager->setPushesDebris(m_heldKinId, true);   // a swung weapon shoves debris (3b)
                 m_heldAnchorId = animatedCharacter->attachToBone(
                     def->held.gripBone, glm::vec3(0.02f), def->held.gripOffset,
                     glm::vec4(0.0f), "held_anchor");
@@ -9751,8 +9489,16 @@ void Application::updateHeldItem() {
         cms.chainWindowFrac = ms.chainWindowFrac;
         cms.blockHoldFrac   = ms.blockHoldFrac;
         animatedCharacter->setMoveset(std::move(cms));
-        LOG_INFO("Application", "Held item '{}' -> melee family '{}' (rate {})",
-                 m_heldItemId.empty() ? "(none)" : m_heldItemId, ms.family, ms.attackRate);
+        // A3: the held item also sets the composition factors (grip class + load band), DERIVED
+        // from the D&D weapon data — the carry layers and lean/cadence modifiers key on them.
+        // The player has no off-hand slot yet, so 1h_shield is NPC-only for now.
+        const auto gf = melee.resolveGripFactors(heldDef, nullptr);
+        auto factors = animatedCharacter->compositionFactors();
+        factors.grip = gf.grip;
+        factors.load = gf.load;
+        animatedCharacter->setCompositionFactors(factors);
+        LOG_INFO("Application", "Held item '{}' -> melee family '{}' (rate {}), grip '{}', load '{}'",
+                 m_heldItemId.empty() ? "(none)" : m_heldItemId, ms.family, ms.attackRate, gf.grip, gf.load);
     }
 
     // Follow the grip bone.
@@ -9767,6 +9513,13 @@ void Application::updateHeldItem() {
             t = glm::rotate(t, glm::radians(h.gripEulerDeg.z), glm::vec3(0, 0, 1));
             t = glm::scale(t, glm::vec3(h.scale));
             kinematicVoxelManager->setTransform(m_heldKinId, t);
+            // A3: two-handed carry — pin the off-hand to the item's second grip (template frame
+            // point through the same transform the voxels use). One frame behind the main hand.
+            const std::string& grip = animatedCharacter->compositionFactors().grip;
+            if (h.hasSecondGrip && (grip == "2h_heavy" || grip == "2h_light" || grip == "staff"))
+                animatedCharacter->setOffHandTarget(glm::vec3(t * glm::vec4(h.secondGrip, 1.0f)));
+            else
+                animatedCharacter->clearOffHandTarget();
         } else {
             // Anchor vanished (character rebuilt/derezzed) — drop the visual;
             // it re-creates next frame on the live character.
@@ -9914,7 +9667,7 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     const float chopPower = heldDef->damage > 0.0f ? heldDef->damage : 4.0f;
     const float kDepthPerChopPoint = 0.06f;   // axe damage 6 → ~0.36 m bite per swing
 
-    Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+    Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics);
     if (physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
         coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
         dmg.setFragmentManager(&coherentFragmentManager);
@@ -10339,6 +10092,136 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
+    // ---- A1 live MotionOracle (docs/AnimationSystemV3Plan.md §4 A1) ----
+    if (action == "animation_record") {
+        std::string id = cmd.params.value("id", "");
+        int frames = cmd.params.value("frames", 120);
+        // A2: the window is a DURATION. Default 2 s (two-plus stride cycles at any gait) unless
+        // the caller passes frames explicitly and no seconds; at 270 fps 120 frames is 0.44 s and
+        // the stance band reads swing feet as planted (80 % false skate, 2026-09-29).
+        const bool hasFrames  = cmd.params.contains("frames");
+        const bool hasSeconds = cmd.params.contains("seconds");
+        float seconds = cmd.params.value("seconds", (hasFrames && !hasSeconds) ? 0.0f : 2.0f);
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            const std::size_t armed = character->startOracleRecording(static_cast<std::size_t>(std::max(frames, 3)), seconds);
+            response = {{"success", true}, {"id", id}, {"armed", true},
+                        {"frames", static_cast<int>(armed)}, {"min_seconds", seconds},
+                        {"cap", static_cast<int>(Scene::AnimatedVoxelCharacter::kOracleMaxFrames)}};
+        }
+        return true;
+    }
+
+    if (action == "animation_validate") {
+        using namespace Scene::Motion;
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        if (character->getSkeleton().bones.empty()) { response = {{"error", "character has no skeleton"}}; return true; }
+        const bool stillRecording = character->isOracleRecording();
+        const std::size_t wanted = character->oracleFrameCount();
+        const float dt = character->oracleSecondsPerFrame();
+        auto frames = character->takeOracleFrames();
+        if (frames.size() < 3) {
+            response = {{"success", true}, {"id", id}, {"valid", false},
+                        {"frames_sampled", static_cast<int>(frames.size())},
+                        {"reason", stillRecording ? "still recording — call again later" : "nothing recorded; call animation_record first"}};
+            return true;
+        }
+        // Options: feet + legs by name (same rule as anim_lint), ground from the character's own
+        // voxel-world query (a pure function of x,z), adjacency for the segment boxes.
+        OracleOptions opt;
+        opt.footJoints = character->oracleFootJoints();
+        opt.kneeChains = character->oracleLegChains();
+        opt.boxAdjacency = character->oracleBoxAdjacency();
+        // A5: a FOOT-sized probe (the capsule column reads a neighbouring higher cell up to a
+        // quarter unit early) and the rig's ankle height, so a planted foot reads 0 clearance.
+        opt.ground = [character](float x, float z) { return character->groundYUnderPoint(x, z); };
+        opt.footClearanceRef = character->standingAnkleHeight();
+        opt.footHalfLength = Scene::AnimatedVoxelCharacter::kFootHalfLength;
+        float authoredSpeed = cmd.params.value("authored_speed", 0.0f);
+        if (authoredSpeed > 0.0f) opt.authoredSpeed = authoredSpeed;
+        std::vector<std::pair<std::size_t, std::size_t>> chainEdges;
+        const auto& bones = character->getSkeleton().bones;
+        for (std::size_t i = 0; i < bones.size(); ++i)
+            if (bones[i].parentId >= 0) chainEdges.emplace_back(static_cast<std::size_t>(bones[i].parentId), i);
+        const auto m = evaluateMotion(frames, dt, chainEdges, opt);
+
+        // Live frames are WORLD space: a planted foot must not move in the world at all, so the
+        // skate figure is the stance body speed itself, judged against how fast the capsule moved.
+        float meanCapsuleSpeed = 0.0f;
+        for (const auto& f : frames) meanCapsuleSpeed += glm::length(glm::vec2(f.capsuleVelocity.x, f.capsuleVelocity.z));
+        meanCapsuleSpeed /= static_cast<float>(frames.size());
+        const float skateRatio = m.stanceBodySpeed / std::max(meanCapsuleSpeed, 0.1f);
+        // Window length in frame time. The stance band assumes the window spans whole stride
+        // cycles; under ~1.5 s it reads touch-down/lift-off as stance and the skate figure is
+        // meaningless (measured 2026-09-29: 0.33 s → 80 %, 3.2 s → 4.6 % on the same patrol).
+        float windowSeconds = 0.0f;
+        for (const auto& f : frames) windowSeconds += (f.dt > 0.0f && std::isfinite(f.dt)) ? f.dt : dt;
+        const float kMinWindowSeconds = 1.5f;
+        const bool  windowShort = windowSeconds < kMinWindowSeconds;
+
+        // Thresholds (calibrated where a source exists; documented at the value).
+        const float kPoseDeltaFail   = glm::radians(120.0f); // anim_lint AMBIGUOUS_SEGMENT_DEG
+        const float kChainDriftFail  = 0.02f;                // rigid boxes: any drift is a solver bug
+        const float kKneeInvFail     = 0.02f;
+        const float kPenetrationWarn = 0.01f, kPenetrationFail = 0.05f;
+        const float kFloatWarn       = 0.15f;                // report-only band until calibrated (G-98 sole was 0.12 high)
+        const float kSkateWarn       = 0.35f, kSkateFail = 0.60f;   // anim_lint SPEED_MISMATCH bands
+        const float kResidualWarn    = 0.40f;                // anim_lint RESIDUAL_RATIO_WARN
+        auto verdict = [](float v, float warn, float fail) { return v > fail ? "FAIL" : (v > warn ? "WARN" : "PASS"); };
+        json verdicts = {
+            {"pose_pop",        verdict(m.maxPoseDeltaRadians, kPoseDeltaFail, kPoseDeltaFail)},
+            {"chain_drift",     verdict(m.maxChainLengthError, kChainDriftFail, kChainDriftFail)},
+            {"knee_inversion",  verdict(m.maxKneeInversion, kKneeInvFail, kKneeInvFail)},
+            {"penetration",     m.terrainEvaluated ? verdict(m.maxPenetration, kPenetrationWarn, kPenetrationFail) : "N/A"},
+            {"float",           m.terrainEvaluated ? (m.maxStanceFloat > kFloatWarn ? "WARN" : "PASS") : "N/A"},
+            {"world_skate",     windowShort ? "SHORT_WINDOW"
+                                : (m.stanceSamples >= 6 ? verdict(skateRatio, kSkateWarn, kSkateFail) : "N/A")},
+            {"stance_residual", windowShort ? "SHORT_WINDOW"
+                                : ((m.stanceSamples >= 6 && meanCapsuleSpeed > 0.1f)
+                                    ? ((m.stanceResidual / meanCapsuleSpeed) > kResidualWarn ? "WARN" : "PASS") : "N/A")},
+            {"box_overlap",     m.maxBoxOverlap > 0.0f ? "WARN" : "PASS"},
+            {"speed_mismatch",  m.speedMismatch >= 0.0f ? verdict(m.speedMismatch, kSkateWarn, kSkateFail) : "N/A"},
+        };
+        response = {
+            {"success", true}, {"id", id}, {"valid", m.valid},
+            {"frames_sampled", static_cast<int>(frames.size())}, {"frames_requested", static_cast<int>(wanted)},
+            {"seconds_per_frame", dt}, {"window_seconds", windowSeconds}, {"min_window_seconds", kMinWindowSeconds},
+            {"clip", character->getCurrentClipName()},
+            {"state", character->stateToString(character->getAnimationState())},
+            {"metrics", {
+                {"max_pose_delta_deg", glm::degrees(m.maxPoseDeltaRadians)},
+                {"max_angular_velocity_deg_s", glm::degrees(m.maxAngularVelocity)},
+                {"max_angular_accel_deg_s2", glm::degrees(m.maxAngularAcceleration)},
+                {"max_root_velocity_error", m.maxRootVelocityError},
+                {"max_planted_joint_speed", m.maxPlantedJointSpeed},
+                {"max_chain_length_error", m.maxChainLengthError},
+                {"stance_body_velocity", {m.stanceBodyVelocity.x, m.stanceBodyVelocity.y}},
+                {"stance_body_speed", m.stanceBodySpeed},
+                {"stance_residual", m.stanceResidual},
+                {"stance_samples", m.stanceSamples},
+                {"mean_capsule_speed", meanCapsuleSpeed},
+                {"world_skate_ratio", skateRatio},
+                {"speed_mismatch", m.speedMismatch},
+                {"max_penetration", m.maxPenetration},
+                {"max_stance_float", m.maxStanceFloat},
+                {"max_knee_inversion", m.maxKneeInversion},
+                {"max_box_overlap", m.maxBoxOverlap},
+                {"terrain_evaluated", m.terrainEvaluated}}},
+            {"thresholds", {
+                {"pose_pop_deg", 120.0f}, {"chain_drift", kChainDriftFail}, {"knee_inversion", kKneeInvFail},
+                {"penetration_warn", kPenetrationWarn}, {"penetration_fail", kPenetrationFail},
+                {"float_warn_uncalibrated", kFloatWarn}, {"skate_warn", kSkateWarn}, {"skate_fail", kSkateFail},
+                {"residual_warn", kResidualWarn}}},
+            {"verdicts", verdicts},
+            {"feet", opt.footJoints.size()}
+        };
+        return true;
+    }
+
     if (action == "get_animation_state") {
         std::string id = cmd.params.value("id", "");
         auto* character = resolveCharacter(id);
@@ -10350,8 +10233,149 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
                         {"clip", character->getCurrentClipName()},
                         {"progress", character->getAnimationProgress()},
                         {"duration", character->getAnimationDuration()},
-                        {"blendDuration", character->getBlendDuration()}};
+                        {"blendDuration", character->getBlendDuration()},
+                        // A2 L4 readback: which plan the rig adopted and its two roots.
+                        {"plan", character->bodyPlan().id},
+                        {"plan_root", (character->bodyPlanResolved().rootBoneId >= 0 &&
+                                       character->bodyPlanResolved().rootBoneId < (int)character->getSkeleton().bones.size())
+                                          ? character->getSkeleton().bones[character->bodyPlanResolved().rootBoneId].name : std::string()},
+                        {"skeleton_root", (!character->getSkeleton().bones.empty())
+                                          ? character->getSkeleton().bones[character->skeletonRootIndex()].name : std::string()},
+                        // A3 transition graph: the crossfade in flight and who owns the clip.
+                        {"blending", character->isCrossfading()},
+                        {"blend_seconds", character->activeBlendDuration()},
+                        {"clip_owner_state", character->stateToString(character->clipOwnerState())}};
+            // A3 composition: the character's factors and the layers in flight.
+            const auto& f = character->compositionFactors();
+            response["factors"] = {{"grip", f.grip}, {"load", f.load}, {"condition", f.condition}, {"mood", f.mood}};
+            json layers = json::array();
+            for (const auto& L : character->activeLayers())
+                if (L.clipIndex >= 0 && L.clipIndex < (int)character->getAnimationClips().size())
+                    layers.push_back({{"clip", character->getAnimationClips()[L.clipIndex].name}, {"mask", L.maskName},
+                                      {"additive", L.additive}, {"weight", L.weight}});
+            response["layers"] = layers;
+            // A3 two-handed carry: is the off-hand pinned to the item's second grip, and how well.
+            response["off_hand"] = {{"active", character->offHandPinActive()},
+                                    {"error_units", character->offHandError()},
+                                    {"chain_resolved", character->offHandChain()[0] >= 0}};
+            // A5 grounding readback (world units / degrees); zero when the solve did not run.
+            const auto& gs = character->grounding();
+            response["grounding"] = {{"enabled", character->isFootIKEnabled()}, {"blend", gs.blend},
+                                     {"l_corr_u", gs.lCorr}, {"r_corr_u", gs.rCorr}, {"pelvis_shift_u", gs.pelvisShift},
+                                     {"l_lock", gs.lLock}, {"r_lock", gs.rLock},
+                                     {"probe_ok", {gs.probeOk[0], gs.probeOk[1]}},
+                                     {"ankle_pitch_deg", {gs.anklePitchDeg[0], gs.anklePitchDeg[1]}},
+                                     {"knobs", {{"max_corr_u", character->groundingMaxCorr()},
+                                                {"probe_half_width_u", character->groundingProbeHalfWidth()},
+                                                {"body_range_u", character->groundingBodyRange()}}}};
+            // A4 seated solve readback (all world units / degrees).
+            const auto& ss = character->seatSolve();
+            response["seat"] = {{"sitting", character->isSitting()}, {"weight", ss.weight},
+                                {"pelvis_error_u", ss.pelvisError},
+                                {"feet_floor_error_u", {ss.feetFloorError[0], ss.feetFloorError[1]}},
+                                {"thigh_angle_deg", ss.thighAngleDeg},
+                                {"lean_deg", ss.leanDeg}, {"armrest_contacts", ss.armrestContacts}};
         }
+        return true;
+    }
+
+    if (action == "set_animation_factors") {
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        Phyxel::ClipMeta::Factors f = character->compositionFactors();
+        // Omitted = unchanged (the /api/debug convention). Values are validated against the
+        // schema enums so a typo cannot silently select nothing.
+        auto take = [&](const char* key, std::string& field) -> bool {
+            if (!cmd.params.contains(key)) return true;
+            std::string v = cmd.params.value(key, std::string());
+            std::transform(v.begin(), v.end(), v.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+            const auto& sch = Phyxel::ClipMeta::schema();
+            auto it = sch.find(key);
+            if (it != sch.end() && it->second.type == Phyxel::ClipMeta::ValueType::Enum &&
+                std::find(it->second.values.begin(), it->second.values.end(), v) == it->second.values.end()) {
+                response = {{"error", std::string("'") + key + "=" + v + "' is not in the clip_meta schema"}};
+                return false;
+            }
+            field = v;
+            return true;
+        };
+        if (!take("grip", f.grip) || !take("load", f.load) || !take("condition", f.condition) || !take("mood", f.mood)) return true;
+        character->setCompositionFactors(f);
+        json layers = json::array();
+        for (const auto& L : character->activeLayers())
+            layers.push_back({{"clip", character->getAnimationClips()[L.clipIndex].name}, {"mask", L.maskName},
+                              {"additive", L.additive}, {"weight", L.weight}});
+        response = {{"success", true}, {"id", id},
+                    {"factors", {{"grip", f.grip}, {"load", f.load}, {"condition", f.condition}, {"mood", f.mood}}},
+                    {"layers", layers}};
+        return true;
+    }
+
+    if (action == "get_animation_grounding" || action == "set_foot_ik") {
+        // A5. set_foot_ik: {id, enabled?, max_corr_u?, probe_half_width_u?, body_range_u?} — omitted
+        // (or negative) = unchanged; clamps live in AnimatedVoxelCharacter::setGroundingKnobs with
+        // the prevented failure written there. Both return the same grounding block.
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        if (action == "set_foot_ik") {
+            if (cmd.params.contains("enabled") && cmd.params["enabled"].is_boolean())
+                character->setFootIKEnabled(cmd.params["enabled"].get<bool>());
+            character->setGroundingKnobs(cmd.params.value("max_corr_u", -1.0f),
+                                         cmd.params.value("probe_half_width_u", -1.0f),
+                                         cmd.params.value("body_range_u", -1.0f));
+        }
+        const auto& gs = character->grounding();
+        response = {{"success", true}, {"id", id}, {"enabled", character->isFootIKEnabled()}, {"blend", gs.blend},
+                    {"l_corr_u", gs.lCorr}, {"r_corr_u", gs.rCorr}, {"pelvis_shift_u", gs.pelvisShift},
+                    {"l_lock", gs.lLock}, {"r_lock", gs.rLock},
+                    {"probe_ok", {gs.probeOk[0], gs.probeOk[1]}},
+                    {"ankle_pitch_deg", {gs.anklePitchDeg[0], gs.anklePitchDeg[1]}},
+                    {"achieved", {{"hips_before_y", gs.hipsBeforeY}, {"hips_after_y", gs.hipsAfterY},
+                                  {"l_foot_dy", gs.lAchieved}, {"r_foot_dy", gs.rAchieved}}},
+                    {"knobs", {{"max_corr_u", character->groundingMaxCorr()},
+                               {"probe_half_width_u", character->groundingProbeHalfWidth()},
+                               {"body_range_u", character->groundingBodyRange()}}}};
+        return true;
+    }
+
+    if (action == "get_animation_seat") {
+        // A4 seated-solve readback (world units / degrees), the same block get_animation_state
+        // carries under "seat": weight 0..1 (SitDown ramps in, SitStandUp ramps out), pelvis and
+        // per-leg ankle errors against the solve's targets, first-leg thigh angle, applied lean,
+        // hands on armrests. All zero when not sitting.
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        const auto& ss = character->seatSolve();
+        response = {{"success", true}, {"id", id}, {"state", character->stateToString(character->getAnimationState())},
+                    {"sitting", character->isSitting()}, {"weight", ss.weight},
+                    {"pelvis_error_u", ss.pelvisError},
+                    {"feet_floor_error_u", {ss.feetFloorError[0], ss.feetFloorError[1]}},
+                    {"thigh_angle_deg", ss.thighAngleDeg},
+                    {"lean_deg", ss.leanDeg}, {"armrest_contacts", ss.armrestContacts}};
+        return true;
+    }
+
+    if (action == "get_animation_transitions") {
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        const auto& plan = character->bodyPlan();
+        json edges = json::array();
+        for (const auto& e : plan.transitions)
+            edges.push_back({{"from", e.from}, {"to", e.to},
+                             {"blend_seconds", e.blend < 0.0f ? plan.defaultBlend : e.blend},
+                             {"phase_sync", e.phaseSync}});
+        response = {{"success", true}, {"id", id}, {"plan", plan.id},
+                    {"default_blend_seconds", plan.defaultBlend},
+                    {"character_blend_seconds", character->getBlendDuration()},
+                    {"edges", edges},
+                    {"in_flight", {{"blending", character->isCrossfading()},
+                                   {"blend_seconds", character->activeBlendDuration()},
+                                   {"from_state", character->stateToString(character->clipOwnerState())},
+                                   {"clip", character->getCurrentClipName()}}}};
         return true;
     }
 
@@ -10595,7 +10619,35 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         }
 
         character->sitAt(pt->worldPos, pt->facingYaw, sitDown, sitIdle, sitStandUp, blendDur, heightOff);
+        json seatAffordancesEcho = json::object();
+        // A4: the seat's affordances (v2 sidecar) in WORLD space — backrest lean and armrest
+        // hand-rest points (inner edge, top, mid-depth) through the object's placement.
+        {
+            const nlohmann::json seatJson = findSeatFeaturesInSidecar(loadAssetMetricsSidecar(obj->templateName), pointId);
+            const auto seat = Phyxel::Scene::SeatFit::SeatFeatures::fromJson(seatJson.is_object() ? seatJson : nlohmann::json::object());
+            // The same origin + Y-rotation the interaction points use (PlacedObjectManager
+            // rotateLocalOffset: 90° maps (x, z) → (z, -x)).
+            const glm::vec3 objOrigin = obj->placedAtMicro ? glm::vec3(obj->microAnchor) / 9.0f : glm::vec3(obj->position);
+            auto rotOff = [](const glm::vec3& v, int deg) -> glm::vec3 {
+                switch (((deg % 360) + 360) % 360) {
+                    case 90:  return { v.z, v.y, -v.x};
+                    case 180: return {-v.x, v.y, -v.z};
+                    case 270: return {-v.z, v.y,  v.x};
+                    default:  return v;
+                }
+            };
+            std::vector<glm::vec3> arms;
+            for (const auto& a : seat.armrests)
+                arms.push_back(objOrigin + rotOff(glm::vec3(a.inner_x, a.top_y, 0.5f * (a.z_min + a.z_max)), pt->objectRotation));
+            character->setSeatAffordances(seat.backrest_angle_deg, arms);
+            json armPts = json::array();
+            for (const auto& a : arms) armPts.push_back({a.x, a.y, a.z});
+            seatAffordancesEcho = {{"backrest_angle_deg", glm::clamp(seat.backrest_angle_deg, 0.0f, Phyxel::Scene::AnimatedVoxelCharacter::kMaxBackrestLeanDeg)},
+                                   {"armrest_world_points", armPts},
+                                   {"solve_readback", "get_animation_seat / get_animation_state.seat (weight ramps over stand_to_sit)"}};
+        }
         response = {{"success", true}, {"entity_id", entityId}, {"object_id", objectId}, {"point_id", pointId},
+                    {"seat_affordances", seatAffordancesEcho},
                     {"seat_world_pos", {pt->worldPos.x, pt->worldPos.y, pt->worldPos.z}},
                     {"facing_yaw", pt->facingYaw}, {"object_rotation", pt->objectRotation},
                     {"compatibility_issues", compatIssues},
@@ -10943,91 +10995,6 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             response["character_id"] = characterId;
             response["clip"] = clipName;
         }
-        return true;
-    }
-
-    if (action == "try_push") {
-        // Phase M3: apply a capped horizontal impulse to the nearest dynamic
-        // cube in front of `character_id` within `reach`. Plays the push clip
-        // if both character_id and clip are supplied. A miss is still a
-        // success (clip plays, no impulse) — push against a wall is cosmetic.
-        if (!chunkManager) {
-            response = {{"error", "ChunkManager not available"}};
-            return true;
-        }
-        std::string characterId = cmd.params.value("character_id", "");
-        float force   = cmd.params.value("force", 6.0f);
-        float reach   = cmd.params.value("reach", 0.8f);
-        std::string clipName = cmd.params.value("clip", "push");
-
-        Phyxel::Scene::AnimatedVoxelCharacter* ch = resolveCharacter(characterId);
-        if (!ch) {
-            if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
-            else if (animatedCharacter)              ch = animatedCharacter;
-        }
-        if (!ch) {
-            response = {{"error", "No animated character found for: " + characterId}};
-            return true;
-        }
-
-        glm::vec3 pos = ch->getPosition();
-        glm::vec3 fwd = ch->getForwardDirection();
-        fwd.y = 0.0f;
-        float fl = glm::length(fwd);
-        if (fl > 1e-4f) fwd /= fl;
-
-        // Find nearest dynamic cube within reach + cube half-extent (0.5 m).
-        const auto& cubes = chunkManager->getGlobalDynamicCubes();
-        float bestDist = reach + 0.5f;
-        Phyxel::Cube* bestCube = nullptr;
-        for (const auto& c : cubes) {
-            if (!c || !c->getVoxelBody()) continue;
-            glm::vec3 cp = c->getPhysicsPosition();
-            glm::vec3 d = cp - pos;
-            d.y = 0.0f;
-            float fwdDot = glm::dot(d, fwd);
-            if (fwdDot <= 0.0f) continue;  // behind the character
-            glm::vec3 perp = d - fwd * fwdDot;
-            float lateral = glm::length(perp);
-            if (lateral > 0.6f) continue;  // outside contact cone
-            float dist = glm::length(d);
-            if (dist < bestDist) {
-                bestDist = dist;
-                bestCube = c.get();
-            }
-        }
-
-        bool clipPlayed = false;
-        if (!clipName.empty()) {
-            ch->setAnimationState(Phyxel::Scene::AnimatedCharacterState::Preview);
-            ch->playAnimation(clipName);
-            clipPlayed = true;
-        }
-
-        glm::vec3 applied(0.0f);
-        json contactVoxel = nullptr;
-        std::string objectIdPushed;
-        if (bestCube && bestCube->getVoxelBody()) {
-            applied = fwd * force;
-            bestCube->getVoxelBody()->wake();
-            bestCube->getVoxelBody()->applyCentralImpulse(applied);
-            glm::ivec3 vp = bestCube->getPosition();
-            contactVoxel = json::array({vp.x, vp.y, vp.z});
-            // Use the cube's grid position as a stable identifier.
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "dyn_cube_%d_%d_%d", vp.x, vp.y, vp.z);
-            objectIdPushed = buf;
-        }
-
-        response = {
-            {"success", true},
-            {"object_id_pushed", objectIdPushed},
-            {"applied_impulse", {applied.x, applied.y, applied.z}},
-            {"contact_voxel", contactVoxel},
-            {"clip_played", clipPlayed},
-            {"force", force},
-            {"reach", reach},
-        };
         return true;
     }
 
@@ -12116,30 +12083,40 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
                 if (base && profile != base) dbgFoundOverride = true;
             }
         }
-        seatAnchor.y += heightOff;
+        // A0 #3: heightOff used to be added HERE and again inside sitAt() (which adds
+        // seatHeightOffset itself), so the editor previewed the seat one offset too high
+        // and the per-frame snap then dragged the character to the double-counted Y.
+        // sitAt()/refreshSitOffsets() own the height offset; this handler only needs the
+        // resulting surface for its own targetWorldPos.
+        glm::vec3 seatSurface = seatAnchor;
+        seatSurface.y += heightOff;
 
         // Determine target state and per-clip Hips reference. The runtime engine
         // mirrors this formula every frame in update():
-        //   worldPosition = seat + sitStandUpOffset - rotateByYaw(hipsRef_<state>)
+        //   worldPosition = seat + <state>Offset - rotateByYaw(hipsRef_<state>)
         // so the visible Hips bone lines up with the seat in world space. We must
         // do the same here so IE preview renders the character on the chair, not
         // ~0.5m below it.
         Scene::AnimatedCharacterState targetState = Scene::AnimatedCharacterState::SitDown;
         glm::vec3 hipsRef{0.0f};
+        glm::vec3 stateOffset = sitStandUp;   // A0 #2: per-state, mirrors update()'s snap
         const auto& clipDur = clips[clipIdx].duration;
         if (targetLower == "stand_to_sit") {
             targetState = Scene::AnimatedCharacterState::SitDown;
             m_iePreviewState = InteractionPreviewState::SittingDown;
             // Reference frame for stand_to_sit is the END (character settled on seat)
             hipsRef = m_ieChar->sampleClipBonePos(clipIdx, 0, clipDur);
+            stateOffset = sitDown;
         } else if (targetLower == "sitting_idle") {
             targetState = Scene::AnimatedCharacterState::SittingIdle;
             m_iePreviewState = InteractionPreviewState::SittingIdle;
             hipsRef = m_ieChar->sampleClipBonePos(clipIdx, 0, 0.0f);
+            stateOffset = sittingIdle;
         } else if (targetLower == "sit_to_stand") {
             targetState = Scene::AnimatedCharacterState::SitStandUp;
             m_iePreviewState = InteractionPreviewState::StandingUp;
             hipsRef = m_ieChar->sampleClipBonePos(clipIdx, 0, 0.0f);
+            stateOffset = sitStandUp;
         }
 
         // Always (re-)apply offsets so the cached m_sit*Offset members stay in
@@ -12153,7 +12130,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         }
 
         float cy = cosf(facingYaw), sy = sinf(facingYaw);
-        glm::vec3 targetWorldPos = seatAnchor + sitStandUp;
+        glm::vec3 targetWorldPos = seatSurface + stateOffset;
         targetWorldPos.x -= hipsRef.x * cy - hipsRef.z * sy;
         targetWorldPos.y -= hipsRef.y;
         targetWorldPos.z -= hipsRef.x * sy + hipsRef.z * cy;
@@ -12843,7 +12820,11 @@ void Application::registerWaterCommands() {
         // Keep the flat sea-plane renderer at the same height as the sim — these two
         // drifting apart is exactly the bug the shared kSeaLevelY default fixed.
         if (renderCoordinator) renderCoordinator->setSeaLevel(level);
-        r = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
+        // "implicit": the flat sea everywhere outside the sim region / water table (game.json
+        // water.enabled) - omitted = unchanged. The debris water test (DebrisInteractionPlan 6c)
+        // floods a lab world with it.
+        if (cmd.params.contains("implicit")) waterManager->setImplicitSea(cmd.params.value("implicit", false));
+        r = {{"success", true}, {"sea_level", waterManager->seaLevel()}, {"implicit_sea", waterManager->implicitSea()}};
     });
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Setting amplitude 0 flattens the
     // sheet back to the pre-Phase-2 plane — the A/B control for before/after captures.
@@ -13447,7 +13428,7 @@ void Application::registerSettlementCommands() {
             deps.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
                                         float intensity, float radius) {
                 return renderCoordinator->getLightManager()
-                           .addPointLight(p, c, intensity, radius);
+                           .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
             };
 
         auto plan = Core::SettlementBuildService::plan(cmd.params, deps);
@@ -13676,7 +13657,7 @@ void Application::registerWorldForgeCommands() {
         if (renderCoordinator)
             d.settlement.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
                                                 float intensity, float radius) {
-                return renderCoordinator->getLightManager().addPointLight(p, c, intensity,
+                return renderCoordinator->getLightManager().addPointLight(Graphics::LightSource::Fixture, p, c, intensity,
                                                                           radius);
             };
         d.plan = plan;
@@ -13694,15 +13675,15 @@ void Application::registerWorldForgeCommands() {
             chunkManager->loadDistance = std::max(chunkManager->loadDistance, radius);
             chunkManager->unloadDistance =
                 std::max(chunkManager->unloadDistance, radius + 96.0f);
-            constexpr float kFocusStep = 64.0f;   // ~2 chunks per poll — a fast player, not a teleport
-            const glm::vec3 cur = chunkManager->streamingAnchor();
-            const glm::vec3 to = target - cur;
-            const float dist = glm::length(to);
+            // At most StreamingFocus::kMaxStepPerFrame (64 u) per poll -- ~2 chunks, a fast player,
+            // not a teleport. The poll re-runs every frame, so this is a per-FRAME bound, shared with
+            // every other focus holder. Refused while another holder (e.g. a camera-path benchmark)
+            // holds the focus: this poll then simply waits, bounded by the job's residency deadline.
             chunkManager->setStreamingFocusOverride(
-                dist <= kFocusStep ? target : cur + to * (kFocusStep / dist));
+                Core::StreamingFocus::stepToward(chunkManager->streamingAnchor(), target), "worldforge_build");
         };
         d.releaseFocus = [this, savedDist] {
-            chunkManager->clearStreamingFocusOverride();
+            chunkManager->clearStreamingFocusOverride("worldforge_build");
             if (*savedDist) {
                 chunkManager->loadDistance = (*savedDist)->first;
                 chunkManager->unloadDistance = (*savedDist)->second;
@@ -13792,17 +13773,26 @@ void Application::registerWorldForgeCommands() {
         Phyxel::WorldGenerator* g = streamingGen();
         if (!g) return noGen(r);
         if (!cmd.params.contains("x") || !cmd.params.contains("z")) {
-            chunkManager->clearStreamingFocusOverride();
-            r = {{"success", true}, {"focused", false}};
+            // Releases only THIS route's hold; another holder's focus is left alone and named.
+            const bool released = chunkManager->clearStreamingFocusOverride("worldforge_focus");
+            r = {{"success", true}, {"focused", false}, {"released", released},
+                 {"holder", chunkManager->streamingFocusHolder()}};
             return;
         }
         const int x = cmd.params["x"].get<int>();
         const int z = cmd.params["z"].get<int>();
         const int sy = g->sampleSurface(x, z).surfaceY;
-        chunkManager->setStreamingFocusOverride(glm::vec3(static_cast<float>(x),
-                                                          static_cast<float>(sy),
-                                                          static_cast<float>(z)));
-        r = {{"success", true}, {"focused", true}, {"x", x}, {"z", z}, {"surface_y", sy}};
+        if (!chunkManager->setStreamingFocusOverride(glm::vec3(static_cast<float>(x),
+                                                               static_cast<float>(sy),
+                                                               static_cast<float>(z)),
+                                                     "worldforge_focus")) {
+            r = {{"success", false}, {"focused", false},
+                 {"error", "streaming focus is held by another user"},
+                 {"holder", chunkManager->streamingFocusHolder()}};
+            return;
+        }
+        r = {{"success", true}, {"focused", true}, {"x", x}, {"z", z}, {"surface_y", sy},
+             {"holder", "worldforge_focus"}};
     });
 
     // ASCII map of the plan over the hydrology region: '~' standing water, 'r' order>=3
@@ -14234,7 +14224,7 @@ void Application::registerLightCommands() {
         pl.intensity = cmd.params.value("intensity", 1.0f);
         pl.radius = cmd.params.value("radius", 10.0f);
         pl.enabled = cmd.params.value("enabled", true);
-        int id = lm.addPointLight(pl);
+        int id = lm.addPointLight(Graphics::LightSource::Api, pl);
         if (id >= 0) r = {{"success", true}, {"id", id}, {"type", "point"}};
         else r = {{"error", "At capacity"}, {"max", Graphics::MAX_POINT_LIGHTS}};
     });
@@ -14253,7 +14243,7 @@ void Application::registerLightCommands() {
         sl.innerCone = cmd.params.value("inner_cone", 0.9f);
         sl.outerCone = cmd.params.value("outer_cone", 0.8f);
         sl.enabled = cmd.params.value("enabled", true);
-        int id = lm.addSpotLight(sl);
+        int id = lm.addSpotLight(Graphics::LightSource::Api, sl);
         if (id >= 0) r = {{"success", true}, {"id", id}, {"type", "spot"}};
         else r = {{"error", "At capacity"}, {"max", Graphics::MAX_SPOT_LIGHTS}};
     });
@@ -14452,6 +14442,20 @@ void Application::registerEffectsCommands() {
     auto& reg = m_commandRegistry;
     auto noVfx = [](nlohmann::json& r) { r = {{"error", "VfxSystem not available"}}; };
 
+    // Debris API (DebrisInteractionPlan 5b): apply_damage, physics_impulse, occupancy_diff and the
+    // debug debris set, shared with shipped games (GameApiService) - one copy of the handlers.
+    registerDebrisCommands(reg, [this]() {
+        DebrisApiContext c;
+        c.chunks    = chunkManager;
+        c.debris    = debrisRuntime.get();
+        c.physics   = physicsWorld;
+        c.renderer  = renderCoordinator.get();
+        c.kvm       = kinematicVoxelManager.get();
+        c.fragments = &coherentFragmentManager;
+        c.addToInventory = [this](const std::string& mat, int n) { if (inventory) inventory->addItem(mat, n); };
+        return c;
+    });
+
     reg.on("spawn_vfx", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
         std::string effect = cmd.params.value("effect", std::string("spark"));
@@ -14461,55 +14465,6 @@ void Application::registerEffectsCommands() {
              {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
     });
 
-    reg.on("apply_damage", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (!chunkManager) { r = {{"error", "ChunkManager not available"}}; return; }
-        glm::vec3 center(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
-        float radius = cmd.params.value("radius", 4.0f);
-        float energy = cmd.params.value("energy", 400.0f);
-        std::string type = cmd.params.value("type", std::string("force"));
-        glm::vec3 dir(0.0f);
-        if (cmd.params.contains("direction")) {
-            auto d = cmd.params["direction"];
-            dir = glm::vec3(d.value("x", 0.0f), d.value("y", 0.0f), d.value("z", 0.0f));
-        }
-        float supportY = cmd.params.value("support_y", Phyxel::DamageSystem::NO_SUPPORT);
-        bool collapse = cmd.params.value("collapse", true);
-        // Coherent topple is OPT-IN (default false) until the DamageSystem-level glue has
-        // automated coverage — until then the shipped scatter path stays the default.
-        bool coherent = cmd.params.value("coherent", false);
-        // Blast SHAPE (§15.6 B). Explicit `radii:{x,y,z}` wins; else a `shape` convenience
-        // expands from `radius` + `thickness`: "disc" = thin horizontal slab (the clean
-        // tree-fell), "wall" = thin in Z / tall in Y, "line" = thin on both lateral axes.
-        // Omitted -> {0,0,0} -> spherical `radius` (back-compat).
-        glm::vec3 radii(0.0f);
-        if (cmd.params.contains("radii")) {
-            auto rr = cmd.params["radii"];
-            radii = glm::vec3(rr.value("x", 0.0f), rr.value("y", 0.0f), rr.value("z", 0.0f));
-        } else if (cmd.params.contains("shape")) {
-            const std::string shape = cmd.params.value("shape", std::string("sphere"));
-            const float th = cmd.params.value("thickness", 0.7f);
-            if      (shape == "disc") radii = glm::vec3(radius, th,     radius);
-            else if (shape == "wall") radii = glm::vec3(radius, radius, th);
-            else if (shape == "line") radii = glm::vec3(radius, th,     th);
-            // "sphere" (or anything else) leaves radii {0,0,0} -> scalar radius.
-        }
-        Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
-        // Coherent collapse: a severed component topples as ONE rigid slab via the
-        // persistent CoherentFragmentManager (docs/DestructionSystemV2.md P1.2b). Wire
-        // its deps lazily — the voxel world is live by the time damage is applied.
-        if (coherent && physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
-            coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
-            dmg.setFragmentManager(&coherentFragmentManager);
-        }
-        auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse, coherent, radii);
-        // stage_changed: grazed voxels whose damage crossed a VISIBLE stage boundary. Echoed
-        // so a caller can assert a pure graze actually moved something -- `grazed` alone says
-        // only that a hit landed, never that the surface now looks different (3.7).
-        r = {{"success", true}, {"broken", dmgResult.voxelsBroken},
-             {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned},
-             {"stage_changed", dmgResult.voxelsStageChanged},
-             {"coherent_bodies", coherentFragmentManager.count()}};
-    });
 
     reg.on("cast_vfx_projectile", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
@@ -14734,6 +14689,86 @@ void Application::registerEffectsCommands() {
 
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
     // Re-meshes all chunks so the change takes effect immediately (same as smooth_lighting).
+    // P-DP static depth prepass A/B (docs/PerfProgram2026-09.md).
+    // City benchmark tooling (docs/PerfProgram2026-09.md section 16).
+    reg.on("get_frame_pacing", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::framePacing(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("record_control", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::recordControl(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("record_dump", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::recordDump(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("camera_path", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::cameraPath(runtime ? runtime->getPerfCapture() : nullptr, cameraManager,
+                                      chunkManager, camera, cmd.params);
+    });
+    reg.on("set_gi_probe_options", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::setGiProbeOptions(renderCoordinator.get(), cmd.params);
+    });
+    reg.on("set_depth_prepass", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::setDepthPrepass(renderCoordinator.get(), cmd.params);
+    });
+    reg.on("set_effect_time", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::setEffectTime(renderCoordinator.get(), cmd.params);
+    });
+    reg.on("set_residents", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        int despawned = 0;
+        if (cmd.params.contains("enabled")) {
+            if (!cmd.params["enabled"].is_boolean()) {
+                r = {{"success", false}, {"error", "'enabled' must be a boolean"}, {"applied", false}};
+                return;
+            }
+            const bool on = cmd.params["enabled"].get<bool>();
+            if (!on) {
+                // Suspend FIRST so the next rescan cannot re-spawn what clear() removes.
+                m_residentSpawner.setEnabled(false);
+                despawned = m_residentSpawner.activeCount();
+                m_residentSpawner.clear();
+            } else {
+                m_residentSpawner.setEnabled(true);   // re-derives on its next throttled scan
+            }
+        }
+        // Optional "fauna": the biome wildlife population is a SEPARATE spawner (FaunaSpawner, capped
+        // by total NPC load) and appears as soon as residents go -- measured: 3 wandering animals
+        // within 15 s of suspending residents at C-100. A frozen frame needs both held.
+        int faunaDespawned = 0;
+        if (cmd.params.contains("fauna")) {
+            if (!cmd.params["fauna"].is_boolean()) {
+                r = {{"success", false}, {"error", "'fauna' must be a boolean"}, {"applied", false}};
+                return;
+            }
+            if (!cmd.params["fauna"].get<bool>()) {
+                m_faunaSpawner.setEnabled(false);
+                faunaDespawned = m_faunaSpawner.activeCount();
+                m_faunaSpawner.clear();
+            } else {
+                m_faunaSpawner.setEnabled(true);
+            }
+        }
+        r = {{"success", true}, {"enabled", m_residentSpawner.isEnabled()},
+             {"despawned", despawned}, {"active", m_residentSpawner.activeCount()},
+             {"configured", m_residentSpawner.isConfigured()},
+             {"fauna", m_faunaSpawner.isEnabled()}, {"fauna_despawned", faunaDespawned},
+             {"fauna_active", m_faunaSpawner.activeCount()}};
+    });
+
+    // L1 duplicate-emitter merge A/B (docs/PerfProgram2026-09.md). The re-mesh rebuilds each chunk's
+    // emissive list; the light count updates on the next updateVfx reconcile.
+    reg.on("set_emitter_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled")) {
+            if (!cmd.params["enabled"].is_boolean()) {
+                r = {{"success", false}, {"error", "'enabled' must be a boolean"}};
+                return;
+            }
+            Graphics::ChunkRenderManager::s_mergeEmitters = cmd.params["enabled"].get<bool>();
+            if (chunkManager) chunkManager->rebuildAllChunkLighting();
+        }
+        r = {{"success", true}, {"emitter_merge", Graphics::ChunkRenderManager::s_mergeEmitters},
+             {"note", "light count updates on the next frame's emissive reconcile; read /api/debug/light_stats"}};
+    });
+
     reg.on("set_fine_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("enabled"))
             Graphics::ChunkRenderManager::setFineGreedyMerge(cmd.params["enabled"].get<bool>());
@@ -14774,10 +14809,35 @@ void Application::registerEffectsCommands() {
     // D0/D1 pipeline-statistics gate — ON to read overdraw/primitive counts (adds GPU-sync overhead;
     // keep OFF during perf A/B). docs/RenderDensityPlan.md.
     reg.on("set_pipeline_stats", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        bool on = cmd.params.value("enabled", true);
-        if (renderCoordinator && renderCoordinator->getGpuProfiler())
-            renderCoordinator->getGpuProfiler()->setPipelineStatsActive(on);
-        r = {{"success", true}, {"pipeline_stats_active", on}};
+        r = Core::PerfApi::setPipelineStats(renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr,
+                                            cmd.params);
+    });
+
+    // I7: CPU render-path scopes + mesh phase timing.
+    reg.on("get_cpu_timing", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::cpuTiming(renderCoordinator.get(), cmd.params);
+    });
+    reg.on("get_mesh_timing", [](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::meshTiming(cmd.params);
+    });
+
+    // I5: voxel tier census; I6: per-tier draw masks.
+    reg.on("get_voxel_tiers", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::voxelTiers(renderCoordinator.get(), chunkManager, cmd.params);
+    });
+    reg.on("set_tier_mask", [](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::setTierMask(cmd.params);
+    });
+
+    // I3: light census (GET /api/debug/light_stats).
+    reg.on("get_light_stats", [this](const Core::APICommand&, nlohmann::json& r) {
+        r = Core::PerfApi::lightStats(renderCoordinator.get());
+    });
+
+    // I1: GPU scope timing history (GET /api/debug/gpu_timing?frames=N).
+    reg.on("get_gpu_timing", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::gpuTiming(renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr,
+                                     cmd.params);
     });
 
     // D1c shadow light-frustum cull toggle — live A/B for docs/RenderDensityPlan.md. ON culls the
@@ -15108,14 +15168,18 @@ void Application::registerEffectsCommands() {
                                 {"card_fade_far", {th.cardFadeFar0, th.cardFadeFar1}},
                                 {"instances", fs.farTrees}};
             nlohmann::json structLadder = nlohmann::json::array();
-            for (float d : Graphics::RenderCoordinator::kStructureLevelDist)
+            for (float d : Graphics::RenderCoordinator::s_structureLevelDist)
                 structLadder.push_back(d);
             nlohmann::json structures = nlohmann::json::array();
             // THE stale-proxy red detector: a proxy DRAWN essentially solid (minFade ≈ 1)
             // inside the fade band, where resident chunks should own the view. Nonzero here
             // at close range = the "low poly building stays" bug.
             int solidInBand = 0;
+            uint64_t trisL0Total = 0;
+            int proxiesPending = 0;
             for (const auto& s : renderCoordinator->structureLodReport()) {
+                trisL0Total += s.trisL0;
+                if (s.state == 0 || s.state == 1) ++proxiesPending;
                 if (s.lastLevel >= 0 && s.lastMinFade > 0.97f &&
                     s.lastDist >= 0.0f && s.lastDist < th.treeFadeNear1)
                     ++solidInBand;
@@ -15124,11 +15188,19 @@ void Application::registerEffectsCommands() {
                                       {"last_dist", s.lastDist},
                                       {"last_level", s.lastLevel},
                                       {"last_min_fade", s.lastMinFade},
+                                      {"tris_l0", s.trisL0}, {"merged", s.merged},
                                       {"min", {s.mn.x, s.mn.y, s.mn.z}},
                                       {"max", {s.mx.x, s.mx.y, s.mx.z}}});
             }
             out["structures"] = {{"level_dist", structLadder},
                                  {"entries", structures},
+                                 {"enabled", Graphics::RenderCoordinator::s_structureLodEnabled},
+                                 {"skip_invisible", Graphics::RenderCoordinator::s_structureLodSkipInvisible},
+                                 {"proxy_mesh_merge", Graphics::RenderCoordinator::s_proxyMeshMerge},
+                                 {"tris_l0_total", trisL0Total},
+                                 {"pending", proxiesPending},
+                                 {"skipped_invisible_last_frame",
+                                  renderCoordinator->getLastFrameStats().structureLodSkippedInvisible},
                                  {"solid_proxies_in_band", solidInBand}};
             out["grass"] = {{"radius", th.grassRadius}, {"fade_range", th.grassFadeRange}};
             out["foliage"] = {{"radius", th.foliageRadius}};
@@ -15243,10 +15315,10 @@ void Application::registerEffectsCommands() {
                                 {"in_fade_band",
                                  dist >= th.treeFadeNear0 && dist < th.treeFadeNear1}};
             int structLevel =
-                int(std::size(Graphics::RenderCoordinator::kStructureLevelDist));
+                int(std::size(Graphics::RenderCoordinator::s_structureLevelDist));
             for (size_t i = 0;
-                 i < std::size(Graphics::RenderCoordinator::kStructureLevelDist); ++i)
-                if (dist < Graphics::RenderCoordinator::kStructureLevelDist[i]) {
+                 i < std::size(Graphics::RenderCoordinator::s_structureLevelDist); ++i)
+                if (dist < Graphics::RenderCoordinator::s_structureLevelDist[i]) {
                     structLevel = int(i);
                     break;
                 }
@@ -15408,6 +15480,15 @@ void Application::registerCameraCommands() {
     auto& reg = m_commandRegistry;
 
     reg.on("set_camera", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        // A camera path (PerfProgram I12) owns the pose while it plays; an explicit camera set STOPS
+        // it (and releases its streaming focus) instead of silently fighting it, and says so.
+        bool pathStopped = false;
+        if (cameraManager && cameraManager->getPath().isPlaying()) {
+            cameraManager->getPath().stop();
+            if (Core::PerfCapture* pc = runtime ? runtime->getPerfCapture() : nullptr) pc->setStreamFollow(false);
+            if (chunkManager) chunkManager->clearStreamingFocusOverride(Core::PerfCapture::kFocusHolder);
+            pathStopped = true;
+        }
         if (cmd.params.contains("position") && inputManager) {
             float x = cmd.params["position"].value("x", 0.0f);
             float y = cmd.params["position"].value("y", 0.0f);
@@ -15449,6 +15530,7 @@ void Application::registerCameraCommands() {
             }
         }
         if (!modeError) r = {{"success", true}, {"rig", gameplayRigOverride_}, {"control_scheme", cameraCtl_.schemeName()}};
+        r["path_stopped"] = pathStopped;
     });
 
     // Synthetic input injection — drive WASD/jump/attack into the running game so
@@ -15654,6 +15736,9 @@ void Application::registerProfilingCommands() {
             // shadow chunk/instance counts (culling-hypothesis test)
             const auto& fs = renderCoordinator->getLastFrameStats();
             r = {{"scopes", arr},
+                 // The frame these scopes came from. A repeat of the last serial is the SAME frame
+                 // again (a readback wasn't ready), not a new sample.
+                 {"serial", prof->getLastResultSerial()},
                  {"static_geometry_pipeline_stats", pstats},
                  {"shadow_pipeline_stats", shadowps},
                  {"character_pipeline_stats", charps},
@@ -15684,12 +15769,6 @@ void Application::processAPICommands() {
                 continue;
             }
 
-            // Handle debug dynamic spawn commands early (avoids nesting depth limit)
-            if (handleDebugDynamicSpawnCommand(cmd, response, chunkManager,
-                    gpuParticlePhysics.get())) {
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
             // Water-sim commands (place_water/water_sync/set_sea_level/add_ocean_seed/
             // clear_ocean/place_spring/clear_springs/water_gpu/set_channel_region/water_save/
@@ -15766,7 +15845,7 @@ void Application::processAPICommands() {
                         auto* d = renderCoordinator ? renderCoordinator->getVfxDirector() : nullptr;
                         if (d) d->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
                         if (destroy && chunkManager) {
-                            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+                            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics);
                             // U0: coherent collapse so a destructive spell fells a struck tree/
                             // structure as a rigid body instead of scattering it (see the pending-
                             // spell-hits path). Lazy fragment-manager wiring.
@@ -16275,22 +16354,6 @@ void Application::processAPICommands() {
                         if (placed > 0 && npcManager) {
                             npcManager->buildNavGrid();
                         }
-                        // Update GPU occupancy grid for filled region
-                        if (placed > 0 && gpuParticlePhysics) {
-                            for (int ix = minX; ix <= maxX; ++ix) {
-                                for (int iy = minY; iy <= maxY; ++iy) {
-                                    for (int iz = minZ; iz <= maxZ; ++iz) {
-                                        if (hollow &&
-                                            ix > minX && ix < maxX &&
-                                            iy > minY && iy < maxY &&
-                                            iz > minZ && iz < maxZ) {
-                                            continue;
-                                        }
-                                        gpuParticlePhysics->setOccupied(ix, iy, iz, true);
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
 
@@ -16330,9 +16393,13 @@ void Application::processAPICommands() {
                         if (!chunk) continue;
                         auto pos = chunk->getWorldOrigin();
                         auto cubeCount = chunk->getCubeCount();
+                        // Sub/micro counts let a persistence check locate WHICH chunk
+                        // changed across a save/reload (PerfProgram 2026-09 §16.1).
                         chunkArr.push_back({
                             {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
-                            {"cubeCount", cubeCount}
+                            {"cubeCount", cubeCount},
+                            {"subcubeCount", chunk->getStaticSubcubeCount()},
+                            {"microcubeCount", chunk->getStaticMicrocubeCount()}
                         });
                     }
 
@@ -16428,13 +16495,6 @@ void Application::processAPICommands() {
                         if (removed > 0 && npcManager) {
                             npcManager->buildNavGrid();
                         }
-                        // Update GPU occupancy grid for cleared region
-                        if (removed > 0 && gpuParticlePhysics) {
-                            for (int ix = minX; ix <= maxX; ++ix)
-                                for (int iy = minY; iy <= maxY; ++iy)
-                                    for (int iz = minZ; iz <= maxZ; ++iz)
-                                        gpuParticlePhysics->setOccupied(ix, iy, iz, false);
-                        }
                     }
                 }
 
@@ -16452,14 +16512,6 @@ void Application::processAPICommands() {
                         response = {{"success", true}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
                         if (gameEventLog) {
                             gameEventLog->emit("chunk_cleared", {{"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}});
-                        }
-                        // Update GPU occupancy grid for entire cleared chunk
-                        if (gpuParticlePhysics) {
-                            glm::ivec3 origin = cc * 32;
-                            for (int lx = 0; lx < 32; ++lx)
-                                for (int ly = 0; ly < 32; ++ly)
-                                    for (int lz = 0; lz < 32; ++lz)
-                                        gpuParticlePhysics->setOccupied(origin.x + lx, origin.y + ly, origin.z + lz, false);
                         }
                     } else {
                         response = {{"error", "Chunk not found"}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
@@ -16865,15 +16917,9 @@ void Application::processAPICommands() {
                                 const std::string instUuid = cmd.params.value("instance_uuid", "");
                                 bool ok = npc->getEquipment().equip(*def, instUuid);
                                 if (ok) {
-                                    // Attach weapon visual to right_hand bone
-                                    auto* animChar = npc->getAnimatedCharacter();
-                                    if (animChar && def->equipSlot == Core::EquipSlot::MainHand) {
-                                        animChar->attachToBone("right_hand",
-                                            glm::vec3(0.15f, 0.4f, 0.15f),
-                                            glm::vec3(0.0f, 0.2f, 0.0f),
-                                            glm::vec4(0.7f, 0.7f, 0.8f, 1.0f),
-                                            itemId);
-                                    }
+                                    // The held visual is built by updateNpcHeldItems() from the
+                                    // equipped MainHand item's real template (fine-voxel), the
+                                    // same way as the player's hand — no placeholder box here.
                                     response = {{"success", true}, {"entityId", entityId}, {"itemId", itemId},
                                                 {"slot", Core::equipSlotToString(def->equipSlot)}};
                                     const std::string eu = npc->getEquipment().getInstanceUuid(def->equipSlot);
@@ -16916,11 +16962,9 @@ void Application::processAPICommands() {
                                 const std::string removedUuid = npc->getEquipment().getInstanceUuid(slot);
                                 auto removedItem = npc->getEquipment().unequip(slot);
                                 if (removedItem) {
-                                    // Remove weapon visual
-                                    auto* animChar = npc->getAnimatedCharacter();
-                                    if (animChar && slot == Core::EquipSlot::MainHand) {
-                                        animChar->detachAll();
-                                    }
+                                    // The held visual follows the equipped MainHand item and is
+                                    // torn down by updateNpcHeldItems() when the slot empties
+                                    // (detachAll() here used to also rip out the held anchor).
                                     response = {{"success", true}, {"entityId", entityId},
                                                 {"slot", slotStr}, {"removedItemId", *removedItem}};
                                     if (!removedUuid.empty()) response["removed_instance_uuid"] = removedUuid;
@@ -17270,7 +17314,7 @@ void Application::processAPICommands() {
                         deps.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
                                                     float intensity, float radius) {
                             return renderCoordinator->getLightManager()
-                                       .addPointLight(p, c, intensity, radius);
+                                       .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
                         };
 
                     const std::string stype = cmd.params.value("type", std::string());
@@ -17665,10 +17709,6 @@ void Application::processAPICommands() {
                         }
                         if (generated > 0 && npcManager) {
                             npcManager->buildNavGrid();
-                        }
-                        // Rebuild entire GPU occupancy grid after world generation
-                        if (generated > 0) {
-                            chunkManager->rebuildOccupancyFromChunks();
                         }
                     }
                 }
@@ -18470,10 +18510,6 @@ void Application::processAPICommands() {
                 // the project-open path).
                 applyFarTerrainConfig(cmd.params);
 
-                // Rebuild GPU occupancy grid after world generation/placement
-                if (loadResult.chunksGenerated > 0 || loadResult.structuresPlaced > 0) {
-                    chunkManager->rebuildOccupancyFromChunks();
-                }
 
                 // Set up character control but keep camera Free (press V to follow)
                 if (loadResult.playerSpawned) {
@@ -18864,7 +18900,6 @@ void Application::processAPICommands() {
                                 });
                             }
                             if (placed > 0) {
-                                cmFill->rebuildOccupancyFromChunks();
                                 // Only rebuild nav if NPCs exist — a full-world NavGrid+NavGraph
                                 // build is ~seconds and is pure waste with zero NPCs. NPC creation
                                 // paths rebuild nav themselves, so a later-spawned NPC still gets it.
@@ -18931,7 +18966,6 @@ void Application::processAPICommands() {
                             if (removed > 0 && evClear) {
                                 evClear->emit("region_cleared", {{"removed", removed}, {"async", true}});
                             }
-                            if (removed > 0) cmClear->rebuildOccupancyFromChunks();
                         };
                         
                     } else if (jobType == "generate_world") {
@@ -19078,7 +19112,6 @@ void Application::processAPICommands() {
                             if (generated > 0 && npcGen && npcGen->getNPCCount() > 0) {
                                 npcGen->buildNavGrid();
                             }
-                            cmGen->rebuildOccupancyFromChunks();
                         };
 
                     } else if (jobType == "save_world") {

@@ -97,7 +97,6 @@ The user is working performance in a separate session; these stay listed so noth
 |---|---|---|---|---|
 | T-07 | G-181 | S3 | Load times | Town visit is 2.1-2.4 s load + 1.2-1.7 s hold after four increments; the 2 s load line is met on the first visit, open on revisits. Levers left: faces in the finalize (0.57 s), decode (0.65 s), NavGraph (0.55 s). |
 | T-43 | G-146 | S3 | The ambient model costs 39-52 ms/frame in the town | Grass done; the remaining receivers are not. Measure per pass (`gpu_scopes`). |
-| T-53 | G-155 | S3 | Pipeline-statistics queries crash the NVIDIA driver | Dev-only, off by default. Find the misuse or drop the queries. |
 | T-54 | G-12 | S3 | Menu scene should be smooth | *(census)* |
 | T-55 | G-23 | S3 | Building the game project should be quick | *(census)* |
 
@@ -139,5 +138,6 @@ The user is working performance in a separate session; these stay listed so noth
 | G-116 (T-01) | Shipped 2026-09-25: the intro story card gates the first scene of every run (button, Enter or Space); L4 `rv_intro_l4.py`. |
 | G-164 (T-02) | Shipped 2026-09-25: a sun that crosses the southern sky (noon 50 deg, `sky.latitudeDeg`), a moon that is full on the first night, the `sky` block honoured in shipped games; L4 `rv_sky_l4.py`. |
 | G-186 | Shipped 2026-09-25: moonless nights are dark but readable (a night-only ambient fill); L4 `rv_night_l4.py`. |
+| G-155 (T-53) | Fixed upstream 2026-09-24 (merged 2026-10-14): `GpuProfiler::lastPipelineStats` was sized [2] for 3 slots; the character slot's readback overran it. Ours, not the driver's. |
 | G-189 | Shipped 2026-09-26: the sky is a per-game setting - `sky.lunarCycleDays`, `sky.nightFill`, a lone `sky.latitudeDeg`, "sun"/"moon" bodies start from the defaults; L4 `rv_sky_config_l4.py`. |
 | G-188 (T-73) | Shipped 2026-09-26: townsfolk light a torch outdoors at night (game.json `torch`, `npcDefaults.torch`); NPC held items + their effects in the shipped shell; torch grip flipped; L4 `rv_torch_l4.py`. |

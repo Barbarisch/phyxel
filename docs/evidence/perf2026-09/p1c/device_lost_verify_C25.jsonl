@@ -1,0 +1,7 @@
+{"label": "fix_run1", "duration_s": 150.0, "trigger_fired_s": 19.8, "exclusion_events": 1, "lost": false, "lost_at_s": null, "last_frameCount": null}
+{"label": "fix_run2", "duration_s": 150.0, "trigger_fired_s": 6.4, "exclusion_events": 1, "lost": false, "lost_at_s": null, "last_frameCount": null}
+{"label": "fix_run3", "duration_s": 150.0, "trigger_fired_s": 14.7, "exclusion_events": 1, "lost": false, "lost_at_s": null, "last_frameCount": null}
+{"label": "fix_run4", "duration_s": 150.0, "trigger_fired_s": 14.7, "exclusion_events": 1, "lost": false, "lost_at_s": null, "last_frameCount": null}
+{"label": "control_run1", "duration_s": 150.0, "trigger_fired_s": 14.7, "exclusion_events": 1, "lost": true, "lost_at_s": 14.7, "last_frameCount": null}
+{"label": "control_run2", "duration_s": 150.0, "trigger_fired_s": 14.8, "exclusion_events": 1, "lost": true, "lost_at_s": 14.8, "last_frameCount": null}
+{"label": "fix_run5_final", "duration_s": 150.0, "trigger_fired_s": 14.8, "exclusion_events": 1, "lost": false, "lost_at_s": null, "last_frameCount": null}

@@ -26,10 +26,9 @@ namespace Phyxel {
     namespace AI { class TTSService; }
     class Timer;
     class ChunkManager;
-    class ForceSystem;
-    class MouseVelocityTracker;
     class PerformanceProfiler;
     namespace Core { class LocationRegistry; }
+    namespace Core { class PerfCapture; }
 }
 
 namespace Phyxel {
@@ -124,13 +123,14 @@ public:
     AmbienceDirector*           getAmbienceDirector()       const;
     AI::TTSService*             getTTSService()             const;
     Input::InputManager*        getInputManager()           const;
-    ForceSystem*                getForceSystem()            const;
     UI::ImGuiRenderer*          getImGuiRenderer()          const;
-    MouseVelocityTracker*       getMouseVelocityTracker()   const;
     PerformanceProfiler*        getPerformanceProfiler()    const;
     Utils::PerformanceMonitor*  getPerformanceMonitor()     const;
     Graphics::Camera*           getCamera()                 const;
     Graphics::CameraManager*    getCameraManager()          const;
+    // City-benchmark capture (frame pacing, route recorder, camera-path stream_follow);
+    // docs/PerfProgram2026-09.md section 16. Standalone games drive it from endFrame().
+    Core::PerfCapture*          getPerfCapture()            const;
     Core::LocationRegistry*     getLocationRegistry()       const;
     Core::SceneManager*         getSceneManager()           const;
     UI::GameMenuRenderer*       getGameMenuRenderer()       const;
@@ -179,11 +179,9 @@ private:
     // World & physics
     std::unique_ptr<ChunkManager>            chunkManager_;
     std::unique_ptr<Physics::PhysicsWorld>   physicsWorld_;
-    std::unique_ptr<ForceSystem>             forceSystem_;
 
     // Input
     std::unique_ptr<Input::InputManager>     inputManager_;
-    std::unique_ptr<MouseVelocityTracker>    mouseVelocityTracker_;
 
     // Timing & profiling
     std::unique_ptr<Timer>                   timer_;
@@ -199,6 +197,9 @@ private:
     // Camera
     std::unique_ptr<Graphics::Camera>        camera_;
     std::unique_ptr<Graphics::CameraManager> cameraManager_;
+
+    // Benchmark capture (see getPerfCapture)
+    std::unique_ptr<Core::PerfCapture>       perfCapture_;
 
     // Locations
     std::unique_ptr<Core::LocationRegistry>  locationRegistry_;

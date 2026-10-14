@@ -112,7 +112,6 @@ void VulkanDevice::cleanup() {
     }
     
     // Cleanup dynamic subcube buffer
-    cleanupDynamicSubcubeBuffer();
 
     // Cleanup ImGui textures (must be before ImGui shutdown)
     cleanupImGuiTextures();
@@ -581,8 +580,23 @@ bool VulkanDevice::createLogicalDevice() {
 
     createInfo.pEnabledFeatures = &deviceFeatures;
 
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-    createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    // GPU crash diagnostics: enable VK_NV_device_diagnostic_checkpoints when available (see
+    // cmdCheckpoint). Optional -- the device is created without it on hardware that lacks it.
+    std::vector<const char*> enabledExtensions(deviceExtensions.begin(), deviceExtensions.end());
+    {
+        uint32_t extCount = 0;
+        vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extCount, nullptr);
+        std::vector<VkExtensionProperties> available(extCount);
+        vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extCount, available.data());
+        for (const auto& e : available)
+            if (std::string(e.extensionName) == VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME) {
+                enabledExtensions.push_back(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
+                checkpointsEnabled_ = true;
+                break;
+            }
+    }
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
+    createInfo.ppEnabledExtensionNames = enabledExtensions.data();
 
     if (enableValidationLayers) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
@@ -598,6 +612,15 @@ bool VulkanDevice::createLogicalDevice() {
     }
 
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+    if (checkpointsEnabled_) {
+        pfnCmdSetCheckpoint_ = reinterpret_cast<PFN_vkCmdSetCheckpointNV>(
+            vkGetDeviceProcAddr(device, "vkCmdSetCheckpointNV"));
+        pfnGetQueueCheckpointData_ = reinterpret_cast<PFN_vkGetQueueCheckpointDataNV>(
+            vkGetDeviceProcAddr(device, "vkGetQueueCheckpointDataNV"));
+        checkpointsEnabled_ = pfnCmdSetCheckpoint_ && pfnGetQueueCheckpointData_;
+        LOG_INFO("Vulkan", std::string("GPU crash checkpoints (VK_NV_device_diagnostic_checkpoints): ") +
+                 (checkpointsEnabled_ ? "ON" : "unavailable"));
+    }
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
     vkGetDeviceQueue(device, computeQueueFamily, 0, &computeQueue);
 
@@ -705,6 +728,7 @@ bool VulkanDevice::createSwapChain(int windowWidth, int windowHeight) {
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+    activePresentMode_ = presentMode;
     VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities, windowWidth, windowHeight);
 
     uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
@@ -1029,6 +1053,7 @@ bool VulkanDevice::submitCommandBuffer(uint32_t frameIndex) {
     VkResult result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[frameIndex]);
     if (result != VK_SUCCESS) {
         LOG_ERROR("Vulkan", "vkQueueSubmit failed with VkResult={}", static_cast<int>(result));
+        if (result == VK_ERROR_DEVICE_LOST) logCheckpointsAfterDeviceLost();
         return false;
     }
 
@@ -1985,6 +2010,40 @@ void VulkanDevice::updateReflectionUniformBuffer(uint32_t frameIndex, const glm:
     vkUnmapMemory(device, reflectionUniformBuffersMemory[frameIndex]);
 }
 
+void VulkanDevice::cmdCheckpoint(VkCommandBuffer cmd, const std::string& name, bool end) {
+    if (!checkpointsEnabled_ || cmd == VK_NULL_HANDLE) return;
+    auto it = checkpointIndex_.find(name);
+    if (it == checkpointIndex_.end()) {
+        checkpointNames_.push_back(name);
+        it = checkpointIndex_.emplace(name, static_cast<uint32_t>(checkpointNames_.size())).first;
+    }
+    // The marker is an opaque pointer-sized value: (name index << 1) | end. Never dereferenced.
+    const uintptr_t marker = (static_cast<uintptr_t>(it->second) << 1) | (end ? 1u : 0u);
+    pfnCmdSetCheckpoint_(cmd, reinterpret_cast<const void*>(marker));
+}
+
+void VulkanDevice::logCheckpointsAfterDeviceLost() {
+    if (!checkpointsEnabled_ || checkpointsLogged_) return;
+    checkpointsLogged_ = true;
+    uint32_t count = 0;
+    pfnGetQueueCheckpointData_(graphicsQueue, &count, nullptr);
+    std::vector<VkCheckpointDataNV> data(count);
+    for (auto& d : data) { d.sType = VK_STRUCTURE_TYPE_CHECKPOINT_DATA_NV; d.pNext = nullptr; }
+    pfnGetQueueCheckpointData_(graphicsQueue, &count, data.data());
+    LOG_ERROR("Vulkan", "DEVICE LOST: {} checkpoint(s) last reached by the GPU "
+                        "(TOP_OF_PIPE = the pass had started; BOTTOM_OF_PIPE = it had finished):", count);
+    for (uint32_t i = 0; i < count; ++i) {
+        const uintptr_t marker = reinterpret_cast<uintptr_t>(data[i].pCheckpointMarker);
+        const uint32_t idx = static_cast<uint32_t>(marker >> 1);
+        const std::string name = (idx >= 1 && idx <= checkpointNames_.size()) ? checkpointNames_[idx - 1] : "?";
+        const char* stage = data[i].stage == VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT ? "TOP_OF_PIPE"
+                          : data[i].stage == VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT ? "BOTTOM_OF_PIPE" : "other";
+        // Plain concatenation: the engine logger's formatter does not support {:x}-style specs.
+        LOG_ERROR("Vulkan", std::string("  checkpoint[") + std::to_string(i) + "] stage=" + stage +
+                            " " + ((marker & 1u) ? "END" : "BEGIN") + " '" + name + "'");
+    }
+}
+
 void VulkanDevice::bindReflectionDescriptorSets(uint32_t frameIndex, VkPipelineLayout layout) {
     vkCmdBindDescriptorSets(commandBuffers[frameIndex], VK_PIPELINE_BIND_POINT_GRAPHICS,
         layout, 0, 1, &reflectionDescriptorSets[frameIndex], 0, nullptr);
@@ -2013,54 +2072,6 @@ void VulkanDevice::updateInstanceBuffer(const std::vector<InstanceData>& instanc
     vkMapMemory(device, instanceBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, instances.data(), (size_t) bufferSize);
     vkUnmapMemory(device, instanceBufferMemory);
-}
-
-bool VulkanDevice::createDynamicSubcubeBuffer(uint32_t maxSubcubes) {
-    maxDynamicSubcubes = maxSubcubes;
-    VkDeviceSize bufferSize = sizeof(DynamicSubcubeInstanceData) * maxDynamicSubcubes;
-
-    createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                dynamicSubcubeBuffer, dynamicSubcubeBufferMemory);
-    
-    return true;
-}
-
-void VulkanDevice::updateDynamicSubcubeBuffer(const std::vector<DynamicSubcubeInstanceData>& dynamicSubcubes) {
-    // std::cout << "[BUFFER DEBUG] updateDynamicSubcubeBuffer called with " << dynamicSubcubes.size() << " subcubes" << std::endl;
-    // std::cout << "[BUFFER DEBUG] dynamicSubcubeBuffer handle: " << dynamicSubcubeBuffer << std::endl;
-    
-    if (dynamicSubcubes.empty() || dynamicSubcubeBuffer == VK_NULL_HANDLE) {
-        //std::cout << "[BUFFER DEBUG] Early return - empty subcubes or null buffer handle" << std::endl;
-        return;
-    }
-    
-    VkDeviceSize bufferSize = sizeof(DynamicSubcubeInstanceData) * std::min(static_cast<uint32_t>(dynamicSubcubes.size()), maxDynamicSubcubes);
-    //std::cout << "[BUFFER DEBUG] Updating buffer with " << bufferSize << " bytes" << std::endl;
-    
-    void* data;
-    vkMapMemory(device, dynamicSubcubeBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, dynamicSubcubes.data(), (size_t) bufferSize);
-    vkUnmapMemory(device, dynamicSubcubeBufferMemory);
-    
-    //std::cout << "[BUFFER DEBUG] Buffer update complete" << std::endl;
-}
-
-void VulkanDevice::bindDynamicSubcubeBuffer(uint32_t frameIndex) {
-    VkBuffer vertexBuffers[] = {vertexBuffer, dynamicSubcubeBuffer};
-    VkDeviceSize offsets[] = {0, 0};
-    vkCmdBindVertexBuffers(commandBuffers[frameIndex], 0, 2, vertexBuffers, offsets);
-}
-
-void VulkanDevice::cleanupDynamicSubcubeBuffer() {
-    if (dynamicSubcubeBuffer != VK_NULL_HANDLE) {
-        vkDestroyBuffer(device, dynamicSubcubeBuffer, nullptr);
-        dynamicSubcubeBuffer = VK_NULL_HANDLE;
-    }
-    if (dynamicSubcubeBufferMemory != VK_NULL_HANDLE) {
-        vkFreeMemory(device, dynamicSubcubeBufferMemory, nullptr);
-        dynamicSubcubeBufferMemory = VK_NULL_HANDLE;
-    }
 }
 
 bool VulkanDevice::createCharacterInstanceBuffer(uint32_t maxInstances) {
@@ -3062,12 +3073,12 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         // 0, so it is never read. An invalid or null buffer here is a validation error; a
         // wrongly-read one would be phantom geometry.
         VkDescriptorBufferInfo occDirInfo{};
-        occDirInfo.buffer = lightOccupancyDirBuffer ? lightOccupancyDirBuffer : lightBuffers[i];
+        occDirInfo.buffer = lightOccupancyDirBuffer[i] ? lightOccupancyDirBuffer[i] : lightBuffers[i];
         occDirInfo.offset = 0;
         occDirInfo.range  = VK_WHOLE_SIZE;
 
         VkDescriptorBufferInfo occPoolInfo{};
-        occPoolInfo.buffer = lightOccupancyPoolBuffer ? lightOccupancyPoolBuffer : lightBuffers[i];
+        occPoolInfo.buffer = lightOccupancyPoolBuffer[i] ? lightOccupancyPoolBuffer[i] : lightBuffers[i];
         occPoolInfo.offset = 0;
         occPoolInfo.range  = VK_WHOLE_SIZE;
 

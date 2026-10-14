@@ -322,5 +322,74 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
     return StructureForge::run(params, deps);
 }
 
+nlohmann::json StructureBuildService::lightRecord(const glm::vec3& pos, const glm::vec3& color,
+                                                 float intensity, float radius,
+                                                 const std::string& type, int lightId) {
+    return {{"type", type},
+            {"id", lightId},
+            {"p", nlohmann::json::array({pos.x, pos.y, pos.z})},
+            {"c", nlohmann::json::array({color.r, color.g, color.b})},
+            {"i", intensity},
+            {"r", radius}};
+}
+
+std::vector<int> StructureBuildService::recordedLightIds(const PlacedObject& obj) {
+    std::vector<int> ids;
+    const auto it = obj.metadata.find(kLightsKey);
+    if (it == obj.metadata.end() || !it->is_array()) return ids;
+    for (const auto& rec : *it)
+        if (rec.is_object() && rec.contains("id") && rec["id"].is_number_integer() &&
+            rec["id"].get<int>() >= 0)
+            ids.push_back(rec["id"].get<int>());
+    return ids;
+}
+
+StructureBuildService::LightRestore StructureBuildService::restoreLights(
+    PlacedObjectManager& placed,
+    const std::function<int(const glm::vec3&, const glm::vec3&, float, float)>& addPointLight) {
+    LightRestore out;
+    if (!addPointLight) return out;
+    const auto vec3At = [](const nlohmann::json& rec, const char* key, glm::vec3& v) {
+        if (!rec.contains(key) || !rec[key].is_array() || rec[key].size() != 3) return false;
+        for (int k = 0; k < 3; ++k) {
+            if (!rec[key][k].is_number()) return false;
+            v[k] = rec[key][k].get<float>();
+            if (!std::isfinite(v[k])) return false;
+        }
+        return true;
+    };
+    // Collected first, written after: setMetadata takes the registry lock and must not run
+    // while iterating getAllObjects().
+    std::vector<std::pair<std::string, nlohmann::json>> rewritten;
+    for (const auto& [id, obj] : placed.getAllObjects()) {
+        const auto it = obj.metadata.find(kLightsKey);
+        if (it == obj.metadata.end() || !it->is_array()) continue;
+        nlohmann::json recs = *it;
+        for (auto& rec : recs) {
+            glm::vec3 p(0.0f), c(0.0f);
+            if (rec.is_object()) rec["id"] = -1;   // stale ids from the saving session never survive
+            if (!rec.is_object() || !vec3At(rec, "p", p) || !vec3At(rec, "c", c) ||
+                !rec.contains("i") || !rec["i"].is_number() ||
+                !rec.contains("r") || !rec["r"].is_number()) {
+                ++out.malformed;
+                continue;
+            }
+            const float intensity = rec["i"].get<float>();
+            const float radius = rec["r"].get<float>();
+            if (!std::isfinite(intensity) || !std::isfinite(radius) || radius <= 0.0f) {
+                ++out.malformed;
+                continue;
+            }
+            const int lightId = addPointLight(p, c, intensity, radius);
+            rec["id"] = lightId;
+            if (lightId < 0) ++out.refused;
+            else ++out.restored;
+        }
+        rewritten.emplace_back(id, std::move(recs));
+    }
+    for (auto& [id, recs] : rewritten) placed.setMetadata(id, kLightsKey, recs);
+    return out;
+}
+
 } // namespace Core
 } // namespace Phyxel

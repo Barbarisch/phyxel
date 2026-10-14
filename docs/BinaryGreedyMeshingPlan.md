@@ -38,7 +38,7 @@
 > - a new unit-test file under `tests/`
 > - `docs/RenderOptimization.md` (record results)
 >
-> **Known overlap:** [`ShaderMathRedundancyPlan.md`](ShaderMathRedundancyPlan.md) also edits
+> **Known overlap:** the shader-math pass (see `RenderOptimization.md`) also edits
 > `static_voxel.vert` (its Increment 1 rewrites the `gl_Position` line). Different lines, same
 > file — whichever plan lands second must rebase and re-run `build_shaders.bat`.
 >
@@ -417,7 +417,7 @@ Scaling axis = fine-face density; push it and assert invariants at every step:
   emit all 6 faces unmerged by design (`VoxelRenderPipelines.md:15`); out of scope.
 - **Lighting re-derivation at merged-quad corners** — merges split at light boundaries instead
   (§4.3), matching the shipped cube behavior.
-- **Shader micro-optimizations** on this path — that is `ShaderMathRedundancyPlan.md`'s job.
+- **Shader micro-optimizations** on this path — that was the shader-math pass (see `RenderOptimization.md`).
 - **Device-local instance memory / buffer-capacity shrinking** — see Appendix A; real but
   separate.
 

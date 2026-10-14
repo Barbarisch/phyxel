@@ -41,6 +41,7 @@ void expectPlanEqual(const BodyPlan& a, const BodyPlan& b) {
     EXPECT_EQ(a.rootBone, b.rootBone);
     EXPECT_EQ(a.hipAliases, b.hipAliases);
     EXPECT_EQ(a.gripBone, b.gripBone);
+    EXPECT_EQ(a.headBone, b.headBone);
     ASSERT_EQ(a.legs.size(), b.legs.size());
     for (size_t i = 0; i < a.legs.size(); ++i) {
         EXPECT_EQ(a.legs[i].upper, b.legs[i].upper) << "leg " << i;
@@ -54,6 +55,17 @@ void expectPlanEqual(const BodyPlan& a, const BodyPlan& b) {
         EXPECT_EQ(a.segments[i].isArm, b.segments[i].isArm) << "segment " << i;
     }
     EXPECT_EQ(a.clipDefaults, b.clipDefaults);
+    EXPECT_EQ(a.clipSprint, b.clipSprint);
+    EXPECT_EQ(a.clipFallbacks, b.clipFallbacks);
+    EXPECT_EQ(a.spineChain, b.spineChain);
+    EXPECT_NEAR(a.defaultBlend, b.defaultBlend, 1e-6f);
+    ASSERT_EQ(a.transitions.size(), b.transitions.size());
+    for (size_t i = 0; i < a.transitions.size(); ++i) {
+        EXPECT_EQ(a.transitions[i].from, b.transitions[i].from) << "edge " << i;
+        EXPECT_EQ(a.transitions[i].to, b.transitions[i].to) << "edge " << i;
+        EXPECT_NEAR(a.transitions[i].blend, b.transitions[i].blend, 1e-6f) << "edge " << i;
+        EXPECT_EQ(a.transitions[i].phaseSync, b.transitions[i].phaseSync) << "edge " << i;
+    }
     EXPECT_EQ(a.capsule.mode, b.capsule.mode);
     EXPECT_NEAR(a.capsule.minHalfWidth, b.capsule.minHalfWidth, 1e-6f);
     EXPECT_NEAR(a.capsule.maxHalfWidth, b.capsule.maxHalfWidth, 1e-6f);
@@ -159,11 +171,24 @@ TEST(BodyPlan, HumanoidResolutionMatchesLegacyLiterals) {
     }
 }
 
-TEST(BodyPlan, HumanoidClipDefaultsAreEmpty) {
-    // NEUTRALITY: humanoid clip selection must keep falling through to the
-    // legacy FSM switch (sprint variants + multi-candidate lists live there).
+// A3 item 2 (2026-09-30) RETIRES the neutrality pin `HumanoidClipDefaultsAreEmpty`: the
+// humanoid table now lives in humanoid.json (see docs/AnimationSystemV3Plan.md §4 A3, item 2).
+// The byte-identical behaviour proof is ClipSelection.HumanoidMatchesLegacySwitchExactly,
+// which reads the SAME table back through the plan; CharacterGoldenPoseTest (poses, not
+// names) stays untouched. RED 2026-09-30: clipDefaults was {}.
+TEST(BodyPlan, HumanoidPlanCarriesTheLegacyClipTable) {
     auto& reg = freshRegistry();
-    EXPECT_TRUE(reg.planFor(MorphologyType::Humanoid).clipDefaults.empty());
+    const auto& plan = reg.planFor(MorphologyType::Humanoid);
+    ASSERT_FALSE(plan.clipDefaults.empty()) << "humanoid.json must carry the clip table";
+    EXPECT_EQ(plan.clipDefaults.at("Walk"), "walk");
+    EXPECT_EQ(plan.clipDefaults.at("Run"), "run");
+    EXPECT_EQ(plan.clipDefaults.at("SittingIdle"), "sitting_idle");
+    EXPECT_EQ(plan.clipDefaults.at("StopWalk"), "female_stop_walking");
+    EXPECT_EQ(plan.clipSprint.at("Run"), "fast_run");
+    EXPECT_EQ(plan.clipSprint.at("StrafeLeft"), "left_strafe");
+    EXPECT_EQ(plan.clipFallbacks.at("Block"), "body_block");
+    EXPECT_EQ(plan.clipFallbacks.at("Celebrate"), "taunt");
+    EXPECT_EQ(plan.clipFallbacks.count("Attack"), 0u) << "Attack returns its member verbatim, even empty";
 }
 
 // ---------------------------------------------------------------------------

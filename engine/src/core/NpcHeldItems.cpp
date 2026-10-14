@@ -1,7 +1,10 @@
 #include "core/NpcHeldItems.h"
 
+#include "core/EquipmentSystem.h"
 #include "core/ItemDefinition.h"
 #include "core/ItemEffectSystem.h"
+#include "core/MeleeAnimMapper.h"
+#include "core/RpgItem.h"
 #include "core/ItemPropManager.h"
 #include "core/ItemRegistry.h"
 #include "core/KinematicVoxelManager.h"
@@ -26,6 +29,10 @@ NpcHeldItems::~NpcHeldItems() { clear(); }
 std::string NpcHeldItems::desiredItem(const Scene::NPCEntity& npc) {
     std::string id;
     if (auto* cb = dynamic_cast<const Scene::CombatBehavior*>(npc.getBehavior())) id = cb->getWeaponId();
+    // The hand shows whatever is EQUIPPED (equip_item -> EquipmentSlots MainHand) - the real
+    // fine-voxel item template, same path as the player (upstream, 2026-09-29).
+    if (id.empty())
+        if (const ItemDefinition* eq = npc.getEquipment().getItem(EquipSlot::MainHand)) id = eq->id;
     if (id.empty()) id = npc.getCarriedItem();
     if (id.empty()) return {};
     const ItemDefinition* def = ItemRegistry::instance().getItem(id);
@@ -53,8 +60,27 @@ std::string NpcHeldItems::heldMeshId(const std::string& npcName) const {
     return it == m_held.end() ? std::string() : it->second.kinId;
 }
 
+namespace {
+// A3: composition factors follow the hands (grip class + load band derived from the D&D weapon
+// data; the off-hand shield makes 1h into 1h_shield). `def` null = empty hands.
+void applyGripFactors(Scene::NPCEntity& npc, Scene::AnimatedVoxelCharacter& character,
+                      const ItemDefinition* def) {
+    auto& melee = MeleeAnimMapper::instance();
+    if (!melee.isLoaded()) melee.loadConfig("resources/rpg_items/anim/melee_anim_families.json");
+    auto& rpgReg = RpgItemRegistry::instance();
+    if (rpgReg.count() == 0) rpgReg.loadFromDirectory("resources/rpg_items");
+    const ItemDefinition* off = npc.getEquipment().getItem(EquipSlot::OffHand);
+    const auto gf = melee.resolveGripFactors(def, off);
+    auto factors = character.compositionFactors();
+    factors.grip = gf.grip;
+    factors.load = gf.load;
+    character.setCompositionFactors(factors);
+}
+}  // namespace
+
 void NpcHeldItems::drop(const std::string& npcName, Held& held, Scene::NPCEntity* npc) {
     if (held.effects && m_effects) m_effects->unregisterInstance(effectInstanceId(npcName));
+    if (npc && npc->getAnimatedCharacter()) npc->getAnimatedCharacter()->clearOffHandTarget();
     held.effects = false;
     if (!held.kinId.empty() && m_kin) m_kin->remove(held.kinId);
     held.kinId.clear();
@@ -91,6 +117,7 @@ void NpcHeldItems::update(NPCManager& npcs) {
                 if (tmpl) voxels = ItemPropManager::voxelsFromTemplate(*tmpl);
                 if (!voxels.empty()) {
                     held.kinId = m_kin->add("npcheld_" + name, std::move(voxels));
+                    m_kin->setPushesDebris(held.kinId, true);   // a swung weapon shoves debris (3b)
                     held.anchorId = character->attachToBone(def->held.gripBone, glm::vec3(0.02f),
                                                             def->held.gripOffset, glm::vec4(0.0f),
                                                             "npc_held_anchor");
@@ -116,6 +143,10 @@ void NpcHeldItems::update(NPCManager& npcs) {
                         LOG_WARN("NpcHeldItems", "'{}' wants '{}' but its template is not loadable", name, want);
                 }
             }
+            // The hands changed: the pose composition follows (empty hands when nothing is drawn).
+            if (character)
+                applyGripFactors(npc, *character,
+                                 held.itemId.empty() ? nullptr : ItemRegistry::instance().getItem(held.itemId));
         }
 
         // Follow the grip bone.
@@ -123,10 +154,18 @@ void NpcHeldItems::update(NPCManager& npcs) {
             const ItemDefinition* def = ItemRegistry::instance().getItem(held.itemId);
             glm::vec3 pos;
             glm::quat rot;
-            if (def && character->getAttachmentTransform(held.anchorId, pos, rot))
-                m_kin->setTransform(held.kinId, gripTransform(pos, rot, *def));
-            else
+            if (def && character->getAttachmentTransform(held.anchorId, pos, rot)) {
+                const glm::mat4 t = gripTransform(pos, rot, *def);
+                m_kin->setTransform(held.kinId, t);
+                // A3 off-hand pin: a two-handed item's second grip holds the other hand.
+                const std::string& grip = character->compositionFactors().grip;
+                if (def->held.hasSecondGrip && (grip == "2h_heavy" || grip == "2h_light" || grip == "staff"))
+                    character->setOffHandTarget(glm::vec3(t * glm::vec4(def->held.secondGrip, 1.0f)));
+                else
+                    character->clearOffHandTarget();
+            } else {
                 drop(name, held, &npc);
+            }
         }
     });
 

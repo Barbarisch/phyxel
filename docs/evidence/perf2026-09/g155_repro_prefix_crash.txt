@@ -1,0 +1,17 @@
+Phyxel crash report
+Exception 0xC0000005 ACCESS_VIOLATION at 0x00007ff94f1b34b9  (nvoglv64.dll+0xf134b9)
+Access violation: read of address 0x00000252c05dc000
+Thread 72264   Minidump: crashes/crash_20260924_194200.dmp
+
+Stack (faulting thread):
+#0  0x00007ff94f1b34b9 nvoglv64.dll+0xf134b9  vkGetInstanceProcAddr+0xc6ff9
+#1  0x00007ff94f1b33e5 nvoglv64.dll+0xf133e5  vkGetInstanceProcAddr+0xc6f25
+#2  0x00007ff94f0ecda3 nvoglv64.dll+0xe4cda3  vkGetInstanceProcAddr+0x8e3
+#3  0x00007ff9d379d055 vulkan-1.dll+0x6d055  vkResetEvent+0x5b985
+#4  0x00007ff63c3ed189 phyxel.exe+0x80d189
+#5  0x00007ff63be88009 phyxel.exe+0x2a8009
+#6  0x00007ff63bd9f307 phyxel.exe+0x1bf307
+#7  0x00007ff63bbe8b8a phyxel.exe+0x8b8a
+#8  0x00007ff63c52e67c phyxel.exe+0x94e67c
+#9  0x00007ffa4243cd87 KERNEL32.DLL+0x2cd87  BaseThreadInitThunk+0x17
+#10 0x00007ffa436ecaec ntdll.dll+0xacaec  RtlUserThreadStart+0x2c

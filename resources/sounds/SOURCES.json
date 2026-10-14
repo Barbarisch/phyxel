@@ -632,6 +632,42 @@
       "freesound_id": 823246,
       "query": "fight shout",
       "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/debris/impact_1.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_debris_sounds.py (rock clack: inharmonic damped modes + noise transient; seeded)",
+      "deterministic": true,
+      "verified": "2026-10-07 regenerated, md5 fd742aa9707bb79f3b6a2deac94a12f8 byte-identical"
+    },
+    "sfx/debris/impact_2.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_debris_sounds.py (rock clack: inharmonic damped modes + noise transient; seeded)",
+      "deterministic": true,
+      "verified": "2026-10-07 regenerated, md5 32a7a7476410393e99f263cae08329e0 byte-identical"
+    },
+    "sfx/debris/impact_3.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_debris_sounds.py (rock clack: inharmonic damped modes + noise transient; seeded)",
+      "deterministic": true,
+      "verified": "2026-10-07 regenerated, md5 1385c718ad8dae631a94a9ad42b6870c byte-identical"
+    },
+    "sfx/debris/impact_4.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_debris_sounds.py (rock clack: inharmonic damped modes + noise transient; seeded)",
+      "deterministic": true,
+      "verified": "2026-10-07 regenerated, md5 a0a64bf9af63e9119425f2ca9ad04f65 byte-identical"
+    },
+    "sfx/debris/settle_1.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_debris_sounds.py (rock clack: inharmonic damped modes + noise transient; seeded)",
+      "deterministic": true,
+      "verified": "2026-10-07 regenerated, md5 80af8b4a14e44b13901e761dcdd0d307 byte-identical"
+    },
+    "sfx/debris/settle_2.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_debris_sounds.py (rock clack: inharmonic damped modes + noise transient; seeded)",
+      "deterministic": true,
+      "verified": "2026-10-07 regenerated, md5 cf9b6c0d1e7bd3d57c6969908baeefa8 byte-identical"
     }
   }
 }

@@ -48,17 +48,16 @@ Three separate Vulkan pipelines render voxels. All three share the same fragment
 `RenderCoordinator::drawFrame()` executes in this order:
 
 1. **Shadow pass** — depth-only render to shadow map
-2. **GPU particle compute** — integrate → collide → expand (writes face buffer + indirect count)
+2. **GPU particle compute** — AVBD solver ticks (`solver_*.comp`) → expand (writes face buffer + indirect count)
 3. **Begin scene render pass** (offscreen framebuffer)
 4. **Static geometry** — bind static pipeline, per-chunk indexed draws
 5. **Kinematic objects** — bind kinematic pipeline, one indexed draw per object with per-object push constant transform
 6. **Dynamic voxels** — bind GPU particle pipeline, single indirect draw from GPU face buffer
 7. **Entities** — animated characters, NPCs (instanced character pipeline)
 8. **Debug lines** — raycast visualization, FOV cones
-9. **Debris** — CPU-side particle system (DebrisRenderPipeline, separate vertex format)
-10. **End scene render pass**
-11. **Post-process pass** — fullscreen quad to swapchain
-12. **UI** — ImGui overlay
+9. **End scene render pass**
+10. **Post-process pass** — fullscreen quad to swapchain
+11. **UI** — ImGui overlay
 
 ---
 
@@ -67,7 +66,11 @@ Three separate Vulkan pipelines render voxels. All three share the same fragment
 ### Vertex + Index Buffers (Binding 0)
 
 - **Vertex buffer**: 8 vertices, each containing a single `uint32_t vertexID` (0–7).
-- **Index buffer**: 36 × `uint16_t` indices defining 12 triangles (2 per face, 6 faces).
+- **Index buffer**: 36 × `uint16_t` indices defining 12 triangles (2 per face, 6 faces). The MAIN
+  opaque pass draws a 6-index quad per face instead (`VulkanDevice::s_quadDraw`, default ON since
+  2026-08: 4.7 → 3.0 ms). The shadow pass must stay 36-index (see CLAUDE.md). Lesson from that
+  change: a timing-null is not an output-null — pixel-diff render changes
+  (`tools/render_pixel_diff.py`) with grass/foliage off and day-night paused.
 
 The static vertex shader (`static_voxel.vert`) uses `vertexID` to index into hard-coded corner positions for the unit cube. The index buffer selects which corners form each triangle.
 
@@ -142,8 +145,8 @@ Each object's world transform is passed as a push constant (`mat4`, 64 bytes). T
 
 Executed **before** the render pass each frame, in command buffer order:
 
-1. **`particle_integrate.comp`** — XPBD position integration with gravity, angular velocity, sleep detection. Reads/writes `ParticleBuffer`.
-2. **`particle_collide.comp`** — Voxel occupancy-grid collision (512×256×512 bitfield) and character AABB collision. Floor/ceiling/wall bounce with restitution and friction. Wakes sleeping particles on character overlap. Reads/writes `ParticleBuffer`, reads `OccupancyBuffer` and `CharacterBuffer`.
+1. **Grid sort** (`particle_grid_build`, `particle_scan_block`, `particle_sort_scatter`) — bins active bodies for the narrowphase.
+2. **AVBD solver ticks** (`solver_*.comp`, voxel contacts from `voxel_contact.glsl`) — the live per-tick pass order is in [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) "Per-tick pipeline (live)". (The XPBD `particle_integrate/collide.comp` pipeline was deleted 2026-10-04.)
 3. **`particle_expand.comp`** — Generates 6 face instances per active particle into the face buffer. Writes `FaceBuffer` and atomically increments `IndirectCmd.instanceCount`.
 
 Memory barriers separate each stage to ensure writes complete before reads.
@@ -282,7 +285,7 @@ Dynamic voxels / debris (the GPU-particle + CPU `renderDynamicSubcubes` paths, t
 
 5. **SSBO buffer usage flags**: Any buffer bound as an SSBO in a compute shader **must** have `STORAGE_BUFFER_BIT`. Using `createPersistentStagingBuffer` (TRANSFER_SRC only) produces silent failures — the shader reads zeros, no Vulkan validation error is raised.
 
-6. **Sleeping particles skip collision**: The sleep early-return in `particle_collide.comp` skips ALL collision checks. Any new collision source (e.g. NPC AABBs, projectiles) must check before the sleep gate or wake particles in a pre-check, as the character AABB does.
+6. **Sleeping bodies are static to the solver**: `solver_sync_in` gives a sleeping body invMass 0, so it takes the static path in `solver_integrate.comp`. Any new collision source (NPC AABBs, projectiles) must request a wake (the WAKE_BITS in the solver state buffer, as the character does) or it will pass straight through sleepers.
 
 7. **Kinematic duplicate colliders (STALE — historical):** this described a Bullet-era hazard (a `KinematicVoxelObject` collider double-registered against an owning system's `btRigidBody`). Bullet has since been removed and `KinematicVoxelManager` no longer creates any collider at all (`skipCollider` is now a no-op parameter kept for API compatibility) — the hazard as described no longer applies; kept here as a historical note only.
 

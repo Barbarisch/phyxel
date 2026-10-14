@@ -1,5 +1,6 @@
 #include "IntegrationTestFixture.h"
 #include "utils/Logger.h"
+#include "graphics/ChunkArenaSystem.h"
 #include <vector>
 #include <cstring>
 
@@ -94,6 +95,11 @@ void VulkanTestFixture::SetUp() {
 
 void VulkanTestFixture::TearDown() {
     if (device != VK_NULL_HANDLE) {
+        // The chunk render arena is a process-wide singleton that keeps the FIRST device it saw
+        // (region arenas are default ON). Without this, a later test memcpy'd into the mapped
+        // blocks of a destroyed device: an intermittent access violation in
+        // ChunkRenderBuffer::createBufferRaw for every destruction test that ran after it.
+        Phyxel::Graphics::ChunkArenaSystem::instance().shutdown();
         vkDestroyDevice(device, nullptr);
         device = VK_NULL_HANDLE;
     }
@@ -213,6 +219,11 @@ void VulkanPhysicsTestFixture::TearDown() {
     physicsWorld.reset();
     
     if (device != VK_NULL_HANDLE) {
+        // The chunk render arena is a process-wide singleton that keeps the FIRST device it saw
+        // (region arenas are default ON). Without this, a later test memcpy'd into the mapped
+        // blocks of a destroyed device: an intermittent access violation in
+        // ChunkRenderBuffer::createBufferRaw for every destruction test that ran after it.
+        Phyxel::Graphics::ChunkArenaSystem::instance().shutdown();
         vkDestroyDevice(device, nullptr);
         device = VK_NULL_HANDLE;
     }

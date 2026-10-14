@@ -10,6 +10,7 @@ namespace Phyxel {
 // Forward declarations
 class ChunkManager;
 class Chunk;
+class GpuParticlePhysics;
 namespace Physics {
     class PhysicsWorld;
 }
@@ -21,7 +22,6 @@ namespace Physics {
  * from hover detection and rendering.
  * 
  * Responsibilities:
- * - Removing voxels (cubes, subcubes, microcubes)
  * - Subdividing voxels (cubes into subcubes, subcubes into microcubes)
  * - Breaking voxels with physics (converting static → dynamic)
  * 
@@ -43,17 +43,6 @@ public:
         GetChunkManagerFunc chunkManagerFunc,
         GetPhysicsWorldFunc physicsWorldFunc
     );
-    
-    // =========================================================================
-    // VOXEL REMOVAL OPERATIONS
-    // =========================================================================
-    
-    /**
-     * Remove a cube or subcube (does not create physics objects)
-     * @param location CubeLocation identifying the voxel to remove
-     * @return true if voxel was successfully removed
-     */
-    bool removeVoxel(const CubeLocation& location);
     
     // =========================================================================
     // VOXEL SUBDIVISION OPERATIONS
@@ -101,15 +90,7 @@ public:
      * @return true if microcube was successfully broken
      */
     bool breakMicrocube(const CubeLocation& location, bool applyForce = false);
-    
-    /**
-     * Break a cube at a specific world position (convenience method)
-     * @param worldPos World position of the cube
-     * @param disableForces If true, don't apply breaking forces
-     * @return true if cube was successfully broken
-     */
-    bool breakCubeAtPosition(const glm::ivec3& worldPos, bool disableForces = false);
-    
+
     // =========================================================================
     // VOXEL PLACEMENT OPERATIONS
     // =========================================================================
@@ -155,6 +136,13 @@ public:
         m_materialProvider = std::move(provider);
     }
 
+    /// Where broken pieces go (DebrisInteractionPlan 1d): every break spawns GPU debris through
+    /// DamageSystem::spawnBreakDebris. A provider, not a pointer, because the GPU solver is created
+    /// after this system (and can be torn down). Unset/null = pieces are refused and counted.
+    void setGpuDebrisProvider(std::function<GpuParticlePhysics*()> provider) {
+        m_gpuDebris = std::move(provider);
+    }
+
 private:
     // Callback functions
     GetChunkManagerFunc getChunkManager;
@@ -162,6 +150,9 @@ private:
 
     // Optional material provider — called at placement time to get the active material
     std::function<std::string()> m_materialProvider;
+    std::function<GpuParticlePhysics*()> m_gpuDebris;
+    /// Spawn one broken piece as GPU debris (refused + counted without a GPU solver).
+    bool spawnPiece(const glm::vec3& centre, float edge, const std::string& material);
     
     // Helper methods for material selection
     std::string selectMaterialForCube(const glm::vec3& cubeWorldPos) const;

@@ -1066,6 +1066,7 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                           bool exact = false;   ///< microPos IS the flame (hearths), not a base
                         };
         std::vector<Emitting> emitters;
+        std::vector<nlohmann::json> lightRecords;   ///< persisted per story onto the structure
         // M7: every placed fixture's TRUE world AABB, for the doorway-clearance scan.
         std::vector<RealizedStructureValidator::PlacedBox> placedBoxes;
         // ...and what it takes to PUT ONE BACK somewhere else. The M7 repair used to
@@ -1303,13 +1304,26 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 }
                 ++lightsRegistered;
                 // Record the id on the fixture so a rebuild/removal can tear the light
-                // down with it. NOTE (StructurePipelineGaps): LightManager lights are
-                // NOT world-persisted, so they do not survive save/load — recorded, not
-                // faked.
+                // down with it (this session's id only — ids are not stable across loads).
                 if (!em.objectId.empty())
                     placedObjectManager->setMetadata(em.objectId, "light",
                                                      {{"id", id}, {"type", em.type}});
+                // Persist the light itself on the STRUCTURE (hearths have no fixture
+                // object): LightManager lights are memory-only, and every world load
+                // re-registers these via StructureBuildService::restoreLights.
+                lightRecords.push_back(StructureBuildService::lightRecord(
+                    pos, glm::vec3(e.r, e.g, e.b), e.intensity, e.radius, em.type, id));
             }
+            if (!lightRecords.empty() && !objectId.empty()) {
+                nlohmann::json all = nlohmann::json::array();
+                if (const auto* so = placedObjectManager->get(objectId)) {
+                    const auto it = so->metadata.find(StructureBuildService::kLightsKey);
+                    if (it != so->metadata.end() && it->is_array()) all = *it;
+                }
+                for (auto& r : lightRecords) all.push_back(std::move(r));
+                placedObjectManager->setMetadata(objectId, StructureBuildService::kLightsKey, all);
+            }
+            lightRecords.clear();
             emitters.clear();
 
             // Dark-room check (checklist K8): a habitable room wants SOME light —

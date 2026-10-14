@@ -104,7 +104,7 @@ TEST_F(FloraMarginTest, WideCanopyNotClippedAtChunkSeams) {
     ASSERT_TRUE(gen.loadBiomes(fx.biomes.string())) << "temp biomes.json failed to load";
 
     ChunkManager cm;
-    ObjectTemplateManager otm(&cm, nullptr);
+    ObjectTemplateManager otm(&cm);
     ASSERT_TRUE(otm.loadTemplate(fx.tmpl.string()));
     const VoxelTemplate* wide = otm.getTemplate("_flora_wide");
     ASSERT_NE(wide, nullptr);
@@ -185,7 +185,7 @@ TEST_F(FloraMarginTest, GiantSpansVerticalChunksNoSeam) {
     ASSERT_TRUE(gen.loadBiomes(fx.biomes.string()));
 
     ChunkManager cm;
-    ObjectTemplateManager otm(&cm, nullptr);
+    ObjectTemplateManager otm(&cm);
     ASSERT_TRUE(otm.loadTemplate("resources/templates/nature/" + kGiant + ".voxel"))
         << "shipped giant template missing — run gen_tree.py --batch tools/tree_library.json";
     const VoxelTemplate* g = otm.getTemplate(kGiant);

@@ -1,0 +1,72 @@
+{
+ "pose": [
+  -48.0,
+  70.0,
+  -0.5,
+  0.0,
+  -12.0
+ ],
+ "frozen": true,
+ "freeze_method": "no-pause (residents/fauna off, effect time held, player parked)",
+ "time_of_day": 12.0,
+ "route": "/api/debug/depth_prepass",
+ "key": "enabled",
+ "curves": {
+  "linear": {
+   "control_A1_C": {
+    "max": 6,
+    "p999": 3.0,
+    "over8": 0,
+    "mean": 0.23901813732426605
+   },
+   "test_A1_B": {
+    "max": 3,
+    "p999": 2.0,
+    "over8": 0,
+    "mean": 0.13434438442137858
+   },
+   "pass": true,
+   "void": true,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260927_093501_219.png",
+    "screenshots/screenshot_20260927_093508_226.png",
+    "screenshots/screenshot_20260927_093504_800.png"
+   ]
+  },
+  "shipping": {
+   "control_A1_C": {
+    "max": 6,
+    "p999": 3.0,
+    "over8": 0,
+    "mean": 0.20555523185643296
+   },
+   "test_A1_B": {
+    "max": 4,
+    "p999": 2.0,
+    "over8": 0,
+    "mean": 0.14301767119752953
+   },
+   "pass": true,
+   "void": true,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260927_093511_712.png",
+    "screenshots/screenshot_20260927_093518_529.png",
+    "screenshots/screenshot_20260927_093515_104.png"
+   ]
+  }
+ },
+ "pose_readback_err": 0.0,
+ "npcs_at_start": 0,
+ "converge_s": 7.3,
+ "converge_last_drift": 2,
+ "player_parked_from": {
+  "x": 8.0,
+  "y": 52.0,
+  "z": 8.0
+ },
+ "npcs_at_end": 0
+}

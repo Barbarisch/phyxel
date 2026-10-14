@@ -223,7 +223,7 @@ public:
     size_t getActiveBeamCount() const { return m_activeBeams; }
     size_t getActiveFieldCount() const { return m_activeFields; }
 
-    // Rendering access (mirrors DebrisSystem's interface).
+    // Rendering access.
     const std::vector<VfxParticle>& getParticles() const { return m_particles; }
     size_t getActiveCount() const { return m_activeCount; }
 

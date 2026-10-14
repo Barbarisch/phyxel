@@ -101,11 +101,11 @@ system creates the object (e.g. `DynamicFurnitureManager`), not by `KinematicVox
 **Renderer:** GPU particle pipeline (`dynamic_voxel.vert`)
 **Persistence:** none — transient, cleared between sessions
 
-Dynamic particles are individually simulated voxels running on the GPU via Vulkan compute shaders (XPBD integration). They are used for:
+Dynamic particles are individually simulated voxels running on the GPU via Vulkan compute shaders (the AVBD solver). They are used for:
 - Debris from broken voxels or shattered furniture
 - Small fragments (< 4 voxels) that don't justify a full kinematic body
 
-Physics runs entirely on the GPU: `particle_integrate.comp` → `particle_collide.comp` → `particle_expand.comp`. The expand stage writes 6 face instances per active particle directly into the face buffer for rendering, bypassing the CPU entirely.
+Physics runs entirely on the GPU: grid sort → AVBD solver ticks (`solver_*.comp`) → `particle_expand.comp`. The expand stage writes 6 face instances per active particle directly into the face buffer for rendering, bypassing the CPU entirely.
 
 Capacity: up to **10,000 particles** simultaneously. Excess fragments are silently discarded. Particles sleep when at rest and are woken by nearby character overlap.
 

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "graphics/CameraManager.h"
 #include <glm/glm.hpp>
+#include <algorithm>
 #include <cmath>
 
 using namespace Phyxel::Graphics;
@@ -277,6 +278,94 @@ TEST(CameraPathTest, ClearWaypoints) {
     EXPECT_EQ(path.waypointCount(), 2u);
     path.clearWaypoints();
     EXPECT_EQ(path.waypointCount(), 0u);
+}
+
+// V1 (docs/PerfProgram2026-09.md section 16): the benchmark route must move at a CONSTANT speed, so
+// the same route takes the same time and is at the same place at the same progress on every run.
+// The default timing is 1 s per segment whatever its length: on a 1 u segment followed by a 10 u one
+// the camera moves at ~1 u/s, then ~10 u/s.
+TEST(CameraPathTest, ConstantSpeedCoversEqualArcLengthInEqualTime) {
+    Camera cam(glm::vec3(0, 0, 0));
+    CameraPath path;
+    path.addWaypoint({{0, 0, 0}, 0, 0, 0});
+    path.addWaypoint({{1, 0, 0}, 0, 0, 0});
+    path.addWaypoint({{11, 0, 0}, 0, 0, 0});
+    path.setConstantSpeed(2.0f);
+    path.play();
+    glm::vec3 prev = cam.getPosition();
+    int steps = 0, offSpeed = 0;
+    float worst = 0.0f;
+    while (path.isPlaying() && steps < 1000) {
+        path.update(0.1f, cam);
+        const glm::vec3 p = cam.getPosition();
+        const float d = glm::length(p - prev);
+        prev = p;
+        ++steps;
+        if (!path.isPlaying()) break;                 // the last step is partial
+        const float err = std::abs(d - 0.2f) / 0.2f;
+        worst = std::max(worst, err);
+        if (err > 0.02f) ++offSpeed;
+    }
+    EXPECT_EQ(offSpeed, 0) << "worst relative speed error " << worst;
+    EXPECT_TRUE(path.isFinished());
+    EXPECT_NEAR(glm::length(cam.getPosition() - glm::vec3(11, 0, 0)), 0.0f, 1e-3f);
+    // The constant-speed path is the polyline: 11 u at 2 u/s is 55 steps of 0.1 s.
+    EXPECT_NEAR(path.arcLength(), 11.0f, 1e-3f);
+    EXPECT_NEAR(static_cast<float>(steps), 55.0f, 1.0f);
+}
+
+// Uniform Catmull-Rom through unevenly spaced waypoints walks BACKWARDS (x = 0, 1, 11: the first
+// segment dips to x = -0.125). A benchmark route camera must never do that: in constant-speed mode
+// every step moves forward along the route.
+TEST(CameraPathTest, ConstantSpeedNeverBacktracksOnUnevenWaypoints) {
+    Camera cam(glm::vec3(0, 0, 0));
+    CameraPath path;
+    path.addWaypoint({{0, 0, 0}, 0, 0, 0});
+    path.addWaypoint({{1, 0, 0}, 0, 0, 0});
+    path.addWaypoint({{11, 0, 0}, 0, 0, 0});
+    path.setConstantSpeed(0.5f);
+    path.play();
+    float prevX = 0.0f, minX = 0.0f;
+    bool monotonic = true;
+    while (path.isPlaying()) {
+        path.update(0.05f, cam);
+        const float x = cam.getPosition().x;
+        if (x < prevX - 1e-5f) monotonic = false;
+        minX = std::min(minX, x);
+        prevX = x;
+    }
+    EXPECT_TRUE(monotonic);
+    EXPECT_GE(minX, 0.0f);
+}
+
+TEST(CameraPathTest, ConstantSpeedProgressMatchesThePoseAtThatProgress) {
+    Camera cam(glm::vec3(0, 0, 0));
+    CameraPath path;
+    path.addWaypoint({{0, 0, 0}, 0, 0, 0});
+    path.addWaypoint({{5, 0, 5}, 90, 0, 0});
+    path.addWaypoint({{10, 3, 0}, 180, -10, 0});
+    path.setConstantSpeed(3.0f);
+    path.play();
+    for (int i = 0; i < 40 && path.isPlaying(); ++i) {
+        path.update(1.0f / 60.0f + 0.013f * (i % 3), cam);   // uneven frame times
+        glm::vec3 ref; float yaw, pitch;
+        ASSERT_TRUE(path.poseAt(path.progress(), ref, yaw, pitch));
+        EXPECT_LT(glm::length(cam.getPosition() - ref), 1e-3f);
+        EXPECT_NEAR(cam.getYaw(), yaw, 1e-2f);
+    }
+}
+
+// Control: speed <= 0 keeps the original per-segment timing (the pinned tests above stay as they are).
+TEST(CameraPathTest, ZeroSpeedKeepsTheOriginalOneSecondPerSegment) {
+    Camera cam(glm::vec3(0, 0, 0));
+    CameraPath path;
+    path.addWaypoint({{0, 0, 0}, 0, 0, 0});
+    path.addWaypoint({{10, 0, 0}, 0, 0, 0});
+    path.setConstantSpeed(0.0f);
+    path.play();
+    for (int i = 0; i < 5; ++i) path.update(0.1f, cam);   // half of the 1 s segment
+    EXPECT_NEAR(cam.getPosition().x, 5.0f, 0.6f);          // Catmull-Rom at t = 0.5
+    EXPECT_FALSE(path.isFinished());
 }
 
 // ============================================================================

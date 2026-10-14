@@ -1,0 +1,65 @@
+{
+ "rig": "R-P1 (M4TavernBench, Flat fixed range)",
+ "waypoints": [
+  {
+   "x": 4,
+   "y": 20,
+   "z": 4,
+   "yaw": 0,
+   "pitch": -10
+  },
+  {
+   "x": 28,
+   "y": 20,
+   "z": 4,
+   "yaw": 90,
+   "pitch": -10
+  },
+  {
+   "x": 28,
+   "y": 21,
+   "z": 28,
+   "yaw": 180,
+   "pitch": -20
+  },
+  {
+   "x": 4,
+   "y": 22,
+   "z": 28,
+   "yaw": 270,
+   "pitch": -5
+  }
+ ],
+ "speed": 4.0,
+ "pos_tol_u": 0.05,
+ "ang_tol_deg": 0.1,
+ "runs": [
+  {
+   "run": 0,
+   "frames_recorded": 2828,
+   "frames_on_path": 2579,
+   "frames_out_of_tol": 0,
+   "worst_pos_err_u": 6.306974726759673e-05,
+   "worst_ang_err_deg": 0.00024246652321835427,
+   "truncated": false,
+   "arc_length_u": 72.0416259765625,
+   "duration_s": 18.010406494140625,
+   "path_finished": true,
+   "pass": true
+  },
+  {
+   "run": 1,
+   "frames_recorded": 2859,
+   "frames_on_path": 2567,
+   "frames_out_of_tol": 0,
+   "worst_pos_err_u": 6.193581970626018e-05,
+   "worst_ang_err_deg": 0.0002351071984776354,
+   "truncated": false,
+   "arc_length_u": 72.0416259765625,
+   "duration_s": 18.010406494140625,
+   "path_finished": true,
+   "pass": true
+  }
+ ],
+ "pass": true
+}

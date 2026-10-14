@@ -2,6 +2,8 @@
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
 #include "core/Subcube.h"
+#include "core/DamageSystem.h"
+#include "scene/VoxelManipulationSystem.h"
 #include "utils/CoordinateUtils.h"
 #include <glm/glm.hpp>
 
@@ -272,21 +274,26 @@ TEST_F(ChunkManagerIntegrationTest, PhysicsWorldSet) {
     EXPECT_NE(chunkManager->physicsWorld, nullptr) << "ChunkManager should have physics world set";
 }
 
-TEST_F(ChunkManagerIntegrationTest, DynamicSubcubePhysics) {
-    glm::ivec3 origin(0, 0, 0);
-    chunkManager->createChunk(origin);
+// DebrisInteractionPlan 1d: a broken subcube leaves the chunk and becomes GPU debris through
+// DamageSystem::spawnBreakDebris (the CPU global-dynamic list it used to join is deleted). With no
+// GPU solver wired the piece is REFUSED and counted - never silently dropped.
+TEST_F(ChunkManagerIntegrationTest, BreakingASubcubeRemovesItAndHandsThePieceToGpuDebris) {
+    chunkManager->createChunk(glm::ivec3(0, 0, 0));
+    Chunk* chunk = chunkManager->getChunkAtCoord(glm::ivec3(0, 0, 0));
+    ASSERT_NE(chunk, nullptr);
+    const glm::ivec3 cell(16, 20, 16), sub(1, 1, 1);
+    chunk->removeCube(cell);   // createChunk fills the chunk: make the cell a lone subcube
+    ASSERT_TRUE(chunk->addSubcube(cell, sub, "Stone"));
 
-    // Create a dynamic subcube
-    glm::ivec3 spawnPos(16, 50, 16);  // Use ivec3 for Subcube constructor
-    glm::vec3 color(1.0f, 0.0f, 0.0f);
-    
-    auto subcube = std::make_unique<Subcube>(spawnPos, color);
-    
-    // Note: Can't easily test physics falling because Subcube physics is managed internally
-    // Just verify we can add the subcube to the global list
-    chunkManager->addGlobalDynamicSubcube(std::move(subcube));
+    VoxelManipulationSystem m;
+    m.setCallbacks([this]() { return chunkManager.get(); }, [this]() { return physicsWorld.get(); });
+    // no setGpuDebrisProvider: the no-GPU path
+    const uint64_t refusedBefore = DamageSystem::refusedDebrisTotal();
+    ASSERT_TRUE(m.breakSubcube(CubeLocation(chunk, cell, cell, sub), false));
 
-    EXPECT_GT(chunkManager->globalDynamicSubcubes.size(), 0);
+    EXPECT_EQ(chunk->getSubcubeAt(cell, sub), nullptr) << "the subcube must leave the chunk";
+    EXPECT_EQ(DamageSystem::refusedDebrisTotal() - refusedBefore, 1u)
+        << "with no GPU solver the piece is refused and counted, not dropped";
 }
 
 // ============================================================================

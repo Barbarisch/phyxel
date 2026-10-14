@@ -1,0 +1,49 @@
+[
+ {
+  "t": 0.0,
+  "err": "URLError",
+  "lost": false
+ },
+ {
+  "t": 4.2,
+  "err": "URLError",
+  "lost": false
+ },
+ {
+  "t": 8.3,
+  "err": "KeyError",
+  "lost": false
+ },
+ {
+  "t": 15.4,
+  "gpu_frame": null,
+  "foliage_n": null,
+  "lost": false
+ },
+ {
+  "t": 17.7,
+  "gpu_frame": 42.158496,
+  "Scene Pass/Foliage": [
+   0.001024,
+   1.055744
+  ],
+  "Scene Pass/Grass": [
+   0.864256,
+   1.731584
+  ],
+  "GI Probes": [
+   5.086016,
+   12.891136
+  ],
+  "Scene Pass/Static Geometry": [
+   3.898368,
+   11.30496
+  ],
+  "Shadow Pass": [
+   4.850272,
+   13.417216
+  ],
+  "foliage_n": 12,
+  "lost": true
+ }
+]

@@ -26,8 +26,20 @@
 #ifndef PHYXEL_OCCUPANCY_GLSL
 #define PHYXEL_OCCUPANCY_GLSL
 
-layout(std430, set = 0, binding = 11) readonly buffer OccDirectory { uint occDir[]; };
-layout(std430, set = 0, binding = 12) readonly buffer OccPool      { uint occPool[]; };
+// Binding slots default to the scene layout (set 0, bindings 11/12). A pipeline with its OWN
+// descriptor layout — the debris compute passes (DebrisInteractionPlan 1c) — #defines these
+// before including this file to map the same two buffers onto its next free bindings.
+#ifndef PHX_OCC_SET
+#define PHX_OCC_SET 0
+#endif
+#ifndef PHX_OCC_BINDING_DIR
+#define PHX_OCC_BINDING_DIR 11
+#endif
+#ifndef PHX_OCC_BINDING_POOL
+#define PHX_OCC_BINDING_POOL 12
+#endif
+layout(std430, set = PHX_OCC_SET, binding = PHX_OCC_BINDING_DIR)  readonly buffer OccDirectory { uint occDir[]; };
+layout(std430, set = PHX_OCC_SET, binding = PHX_OCC_BINDING_POOL) readonly buffer OccPool      { uint occPool[]; };
 
 const uint  PHX_OCC_NO_CHUNK        = 0xFFFFFFFFu;
 const int   PHX_OCC_DIR_X           = 32;
@@ -79,14 +91,17 @@ bool phxOccupancySolid(ivec3 worldMicro, ivec4 occBox) {
     if (((occPool[mixedBase + uint(ci >> 5)] >> uint(ci & 31)) & 1u) == 0u) return false;
 
     // Binary search the ascending mixed-cube index list.
-    // GUARDED (2026-09-23, Ravenmere G-177 / G-127): the count is READ FROM THE POOL, and the pool
-    // is a single host-mapped buffer the CPU repacks while a frame can still be in flight. A torn
-    // read used to hand this loop a garbage count (a solid-bitfield word is 0xFFFFFFFF): lo+hi
-    // wrapped, mid stuck at 0, the loop never ended, the OS reset the GPU (VK_ERROR_DEVICE_LOST).
-    // A chunk has at most 32768 cubes, so the count is clamped there, the midpoint is computed
-    // without overflow, and a torn frame reads wrong lighting for one frame instead of hanging.
+    // HARDENED (2026-09-25, docs/PerfProgram2026-09.md section 16.9). A chunk has at most 32^3 cubes,
+    // so n is clamped to that, and the midpoint is lo + (hi - lo) / 2, which cannot overflow. The old
+    // (lo + hi) >> 1 wrapped for a garbage n near 2^32 (a torn read of a fully solid 0xFFFFFFFF row),
+    // mid fell below lo, the search never converged, and the GPU hung (VK_ERROR_DEVICE_LOST). Both are
+    // exact on valid data (n <= 32768 always); they make a bad word cost one wrong answer, not the device.
+    // (First landed 2026-09-23 as the Ravenmere G-177 / G-127 device-lost guard.)
     uint n = min(occPool[base], 32768u);
     uint idxBase = mixedBase + uint(PHX_OCC_CUBE_WORDS);
+    // The index list and micro blocks must lie inside the pool buffer; a count that says otherwise is
+    // corrupt data, answered "not solid" instead of read past the end (CPU mirror: packedPoolSolidAt).
+    if (idxBase + n * uint(1 + PHX_OCC_MICRO_WORDS) > uint(occPool.length())) return false;
     uint lo = 0u, hi = n;
     while (lo < hi) {
         uint mid = lo + ((hi - lo) >> 1u);
@@ -98,6 +113,28 @@ bool phxOccupancySolid(ivec3 worldMicro, ivec4 occBox) {
     int bit = inCube.x + inCube.y * 9 + inCube.z * 81;
     uint microBase = idxBase + n + lo * uint(PHX_OCC_MICRO_WORDS);
     return ((occPool[microBase + uint(bit >> 5)] >> uint(bit & 31)) & 1u) != 0u;
+}
+
+/// What the pool KNOWS about a micro cell (DebrisInteractionPlan 1c). phxOccupancySolid answers
+/// "not solid" both for known-empty space and for cells it has no data for — right for light
+/// (no occlusion), wrong for debris (it would fall through the world). This tells them apart.
+/// Known cells defer to phxOccupancySolid, so the mask decode exists once.
+/// CPU mirror: packedPoolOccupancyState. If you change one, change BOTH.
+const int PHX_OCC_EMPTY   = 0;
+const int PHX_OCC_SOLID   = 1;
+const int PHX_OCC_UNKNOWN = 2;
+int phxOccupancyState(ivec3 worldMicro, ivec4 occBox) {
+    if ((occBox.w & 1) == 0) return PHX_OCC_UNKNOWN;   // occupancy not readable this frame
+    ivec3 chunkCoord = ivec3(phxFloorDiv(worldMicro.x, PHX_OCC_MICRO_PER_CHUNK),
+                             phxFloorDiv(worldMicro.y, PHX_OCC_MICRO_PER_CHUNK),
+                             phxFloorDiv(worldMicro.z, PHX_OCC_MICRO_PER_CHUNK));
+    ivec3 c = chunkCoord - occBox.xyz;
+    if (c.x < 0 || c.x >= PHX_OCC_DIR_X ||
+        c.y < 0 || c.y >= PHX_OCC_DIR_Y ||
+        c.z < 0 || c.z >= PHX_OCC_DIR_Z) return PHX_OCC_UNKNOWN;          // outside the box
+    if (occDir[c.x + c.y * PHX_OCC_DIR_X + c.z * PHX_OCC_DIR_X * PHX_OCC_DIR_Y] == PHX_OCC_NO_CHUNK)
+        return PHX_OCC_UNKNOWN;                                             // chunk not resident
+    return phxOccupancySolid(worldMicro, occBox) ? PHX_OCC_SOLID : PHX_OCC_EMPTY;
 }
 
 /// Cube-level state of one CUBE cell: 0 = empty, 1 = MIXED (carries sub-voxel detail), 2 = solid.
@@ -278,8 +315,11 @@ bool phxSegmentBlocked(vec3 fromWorld, vec3 toWorld, ivec4 occBox) {
 /// `hitNormal` = the face normal, taken from the axis the DDA last stepped along. That is exact
 ///               for voxel geometry, which is the one place a stepped normal is not an
 ///               approximation -- every surface really is axis-aligned.
-bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
-                 out vec3 hitWorld, out vec3 hitNormal) {
+/// `axis` IN = the axis of the step that entered the START cell (it seeds the normal when the start
+/// cell itself is solid; 1 for a fresh ray). OUT on a miss = the axis of the step that entered the
+/// segment's END cell, the one cell this march never tests -- the seed a continuation needs.
+bool phxDdaTraceFrom(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox, inout int axis,
+                     out vec3 hitWorld, out vec3 hitNormal) {
     hitWorld = toWorld;
     hitNormal = vec3(0.0, 1.0, 0.0);
 
@@ -304,7 +344,7 @@ bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
         }
     }
 
-    int axis = 1;   // which axis produced the most recent step; seeds the face normal
+    // `axis`: which axis produced the most recent step; seeds the face normal
     for (int n = 0; n < maxCells; ++n) {
         if (phxOccupancySolid(cell, occBox)) {
             hitWorld = (vec3(cell) + 0.5) / 9.0;
@@ -324,6 +364,118 @@ bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
         if (tMax.x > len && tMax.y > len && tMax.z > len) return false;
     }
     return false;
+}
+
+bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
+                 out vec3 hitWorld, out vec3 hitNormal) {
+    int axis = 1;
+    return phxDdaTraceFrom(fromWorld, toWorld, maxCells, occBox, axis, hitWorld, hitNormal);
+}
+
+/// GI-2 (docs/PerfProgram2026-09.md section 15): phxDdaTrace's answer -- the same hit micro cell and
+/// the same face normal -- from a CUBE-cell walk that descends to the micro march only inside MIXED
+/// cubes, the way phxSegmentBlocked answers phxDdaHitsSolid. A 16 u probe ray costs ~48 cube queries
+/// instead of up to 288 micro ones. The cube walk and its end-cell cases are phxSegmentBlocked's;
+/// what is added is WHICH micro cell was hit:
+///   solid cube -> the first micro cell of the segment inside it (the start cell for n == 0),
+///                 entered along the cube step's axis (axis 1 for n == 0, as the micro march);
+///   mixed cube -> the micro march over this cube's slice, seeded with that same entry axis.
+/// `seedAxis` = the axis of the step that entered the START micro cell (1 for a fresh ray).
+/// NOT exact on its own for a ray that starts ON a cube corner (every probe ray does): its 1e-4 slice
+/// offset resolves the zero-length corner steps differently from the micro march. The probe pass
+/// therefore calls phxDdaTraceProbe, which covers the start with the micro march.
+/// CPU mirror: packedPoolTraceTwoLevel (traceTwoLevelFrom), pinned by OccupancyTraversalTest.
+/// Change one, change both.
+bool phxDdaTraceTwoLevelFrom(vec3 fromWorld, vec3 toWorld, ivec4 occBox, int seedAxis,
+                             out vec3 hitWorld, out vec3 hitNormal) {
+    hitWorld = toWorld;
+    hitNormal = vec3(0.0, 1.0, 0.0);
+    vec3 d = toWorld - fromWorld;
+    float len = length(d);
+    if (len < 1e-6) return false;
+    vec3 dir = d / len;
+
+    ivec3 cell = ivec3(floor(fromWorld));
+    ivec3 last = ivec3(floor(toWorld));
+    ivec3 stp;
+    vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dir[i] > 1e-9) {
+            stp[i] = 1;  tMax[i] = (float(cell[i] + 1) - fromWorld[i]) / dir[i];  tDelta[i] = 1.0 / dir[i];
+        } else if (dir[i] < -1e-9) {
+            stp[i] = -1; tMax[i] = (fromWorld[i] - float(cell[i])) / -dir[i];     tDelta[i] = 1.0 / -dir[i];
+        } else {
+            stp[i] = 0;  tMax[i] = 3.4e38;                                        tDelta[i] = 3.4e38;
+        }
+    }
+
+    float tEnter = 0.0;
+    int cubeAxis = seedAxis;
+    int maxCubes = int(3.0 * len) + 4;
+    ivec3 endMicro = ivec3(floor(toWorld * 9.0));
+    for (int n = 0; n < maxCubes; ++n) {
+        int st = phxCubeOccupancy(cell, occBox);
+        float tExit = min(min(tMax.x, tMax.y), min(tMax.z, len));
+        float a = (n == 0) ? 0.0 : tEnter + 1e-4;
+        vec3 aPos = fromWorld + dir * a;
+        ivec3 aMicro = ivec3(floor(aPos * 9.0));
+        bool firstIsEnd = (n > 0) && (cell == last) && all(equal(aMicro, endMicro));
+        if (st == 2) {
+            if (cell != last || n == 0 || !firstIsEnd) {
+                // The entry cell, located AT the face crossing rather than 1e-4 u past it (the
+                // offset can cross a micro boundary on another axis and report the neighbour): on
+                // the entry axis it is the cube's boundary micro cell, on the others the crossing.
+                ivec3 e = aMicro;
+                if (n > 0) {
+                    e = ivec3(floor((fromWorld + dir * tEnter) * 9.0));
+                    e[cubeAxis] = (stp[cubeAxis] > 0) ? cell[cubeAxis] * 9 : cell[cubeAxis] * 9 + 8;
+                }
+                hitWorld = (vec3(e) + 0.5) / 9.0;
+                vec3 nrm = vec3(0.0);
+                nrm[cubeAxis] = (stp[cubeAxis] > 0) ? -1.0 : 1.0;   // as phxDdaTraceFrom
+                hitNormal = nrm;
+                return true;
+            }
+            return false;
+        }
+        if (st == 1 && !firstIsEnd) {
+            float b = min(tExit + 1e-4, len);
+            vec3 hw, hn;
+            int sliceAxis = cubeAxis;
+            if (b > a && phxDdaTraceFrom(aPos, fromWorld + dir * b, 64, occBox, sliceAxis, hw, hn)) {
+                hitWorld = hw;
+                hitNormal = hn;
+                return true;
+            }
+        }
+        if (cell == last || tExit >= len) return false;
+        tEnter = tExit;
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { cell.x += stp.x; tMax.x += tDelta.x; cubeAxis = 0; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; cubeAxis = 2; }
+        } else {
+            if (tMax.y < tMax.z) { cell.y += stp.y; tMax.y += tDelta.y; cubeAxis = 1; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; cubeAxis = 2; }
+        }
+    }
+    return false;
+}
+
+/// GI-2: the probe pass's primary trace. The micro march over the first PHX_PROBE_EXACT_REACH units --
+/// exact through the corner neighbourhood a lattice-started ray begins in -- then the cube walk from
+/// the micro march's untested end cell, seeded with the axis that entered it. Reports the micro
+/// march's hit (OccupancyTraversalTest, probe-shaped and random rays). CPU mirror:
+/// packedPoolTraceProbe; PHX_PROBE_EXACT_REACH mirrors kProbeExactReach. Change one, change both.
+const float PHX_PROBE_EXACT_REACH = 1.0;
+bool phxDdaTraceProbe(vec3 fromWorld, vec3 toWorld, ivec4 occBox, out vec3 hitWorld, out vec3 hitNormal) {
+    vec3 d = toWorld - fromWorld;
+    float len = length(d);
+    int axis = 1;
+    if (len <= PHX_PROBE_EXACT_REACH)
+        return phxDdaTraceFrom(fromWorld, toWorld, 64, occBox, axis, hitWorld, hitNormal);
+    vec3 mid = fromWorld + d * (PHX_PROBE_EXACT_REACH / len);
+    if (phxDdaTraceFrom(fromWorld, mid, 64, occBox, axis, hitWorld, hitNormal)) return true;
+    return phxDdaTraceTwoLevelFrom(mid, toWorld, occBox, axis, hitWorld, hitNormal);
 }
 
 /// How far the contiguous SOLID run containing a light extends, measured outward from the light
@@ -425,7 +577,21 @@ float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld,
     int runCells = clamp(int(ceil(max(emitterExtent, 0.0) * 9.0)), 1, 32);
     float runEnd = phxEmitterRunLength(lightWorld, -dir, runCells, occBox);
     vec3 target = start + dir * max(dist - runEnd - (0.1 / 9.0), 0.0);
-    return phxDdaHitsSolidEx(start, target, 512, occBox, true) ? 0.0 : 1.0;
+    // L3a (docs/PerfProgram2026-09.md section 16.11): the TWO-LEVEL walk (cube cells, micro only
+    // inside mixed cubes), which answers exactly what the micro march answers
+    // (OccupancyTraversalTest; LightVisibilityTwoLevelEqualsTheMicroMarch pins THIS use of it). The
+    // flat micro march (phxDdaHitsSolid, up to 512 cells) cost up to 32 lights x ~300 cells per
+    // fragment, and in a lit city with dense foliage, while occupancy was still filling at load
+    // (unloaded chunks read as open air, so every march ran to full length), one frame outran the
+    // driver's timeout: VK_ERROR_DEVICE_LOST ~10-15 s after launch (2/2 with tracing on, 0/2 off).
+    // G-157 keeps the END CELL tested. phxSegmentBlocked mirrors phxDdaHitsSolid and skips the cell
+    // containing the target on purpose (its other callers stop one cell short of a light), but THIS
+    // march stops short by the emitter's measured extent, so the target cell is the first thing
+    // BEYOND the emitter: the wall a flush sconce is mounted on. Skipping it let that sconce light
+    // through a one-micro wall. Same answer as phxDdaHitsSolidEx(..., true): blocked on the way, or
+    // solid at the end. CPU mirror: packedPoolLightVisibleTwoLevel.
+    if (phxSegmentBlocked(start, target, occBox)) return 0.0;
+    return phxOccupancySolid(ivec3(floor(target * 9.0)), occBox) ? 0.0 : 1.0;
 }
 
 // phxSkyVisibility / PHX_SKY_DIRS (the M3 per-fragment 5-ray sky trace) were DELETED 2026-09-19

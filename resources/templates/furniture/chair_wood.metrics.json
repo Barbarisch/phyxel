@@ -1,5 +1,5 @@
 {
-  "schema_version": "asset_metrics.v1",
+  "schema_version": "asset_metrics.v2",
   "template_name": "chair_wood",
   "overall_min": [
     0.0,
@@ -32,7 +32,14 @@
         ],
         "front_edge_z": 0.6666666666666667,
         "backrest_height": 0.4444444444444444,
-        "backrest_present": true
+        "backrest_present": true,
+        "backrest_angle_deg": -0.0,
+        "armrests": [],
+        "approach": [
+          0.33333333333333337,
+          0.0,
+          1.1166666666666667
+        ]
       }
     }
   ]

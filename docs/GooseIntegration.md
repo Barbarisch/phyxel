@@ -7,7 +7,7 @@
 > ai/AISystem.h/.cpp` (the top-level owner — not in this doc's original planned file tree),
 > `editor/include+src/ai/StoryDirector.h/.cpp` (implements the "Story Director" concept below,
 > also not in the original tree), `scripts/mcp/phyxel_extension.py` (718 lines — also referenced
-> as real/current in `docs/MCPIntegration.md`), `scripts/goose_bridge.py`, and a populated
+> as real/current in `scripts/mcp/phyxel_mcp_server.py`), `scripts/goose_bridge.py`, and a populated
 > `resources/ai/` (characters/guard.yaml, characters/merchant.yaml, skills/combat.yaml,
 > skills/dialog.yaml, skills/patrol.yaml, stories/story_director.yaml). It's wired into the live
 > editor: `Application` constructs an `AI::AISystem`, and **F9** toggles it at runtime

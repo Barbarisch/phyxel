@@ -3,7 +3,7 @@
 Pure-Python spec authoring + static validation for the functional structure/furniture/item
 generation pipeline. No engine, no voxels — catch a bad design before realizing it.
 
-Full design: [`docs/structure-generation/StructureGenerationPipeline.md`](../../docs/structure-generation/StructureGenerationPipeline.md).
+This is the v1 (Python) pipeline; its design doc was retired 2026-10-07. Current design and the v1 disposition: [`docs/structure-generation/StructureGenerationV2.md`](../../docs/structure-generation/StructureGenerationV2.md) ("Disposition of v1").
 
 ## Modules
 

@@ -123,7 +123,7 @@ def test_gate_rejects_inverted_aabb():
 # ---------------------------------------------------------------------------
 
 def test_door_features_geometry():
-    metrics = characterize_asset(TEMPLATES_ROOT / "door_wood.voxel")
+    metrics = characterize_asset(TEMPLATES_ROOT / "architecture" / "door_wood.voxel")
     door = next(p for p in metrics.interaction_points if p.kind == "door_handle")
     f = door.features
     # door_wood is 1m wide (X), 2m tall (Y), 1m deep (Z)
@@ -140,7 +140,7 @@ def test_door_features_geometry():
 # ---------------------------------------------------------------------------
 
 def test_asset_provenance_round_trip():
-    metrics = characterize_asset(TEMPLATES_ROOT / "chair_wood.voxel")
+    metrics = characterize_asset(TEMPLATES_ROOT / "furniture" / "chair_wood.voxel")
     prov = asset_provenance(metrics, "seat_0")
     assert prov["template_name"] == "chair_wood"
     assert prov["kind"] == "seat"
@@ -149,6 +149,6 @@ def test_asset_provenance_round_trip():
 
 
 def test_asset_provenance_missing_point_raises():
-    metrics = characterize_asset(TEMPLATES_ROOT / "chair_wood.voxel")
+    metrics = characterize_asset(TEMPLATES_ROOT / "furniture" / "chair_wood.voxel")
     with pytest.raises(KeyError):
         asset_provenance(metrics, "nope_0")

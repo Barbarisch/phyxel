@@ -299,9 +299,6 @@ void SceneManager::executeLoad() {
             !scene->resolvedWorldPath.empty()) {
             auto* cm = subsystems_->chunkManager;
             cm->saveDirtyChunks();
-            cm->clearAllGlobalDynamicSubcubes();
-            cm->clearAllGlobalDynamicCubes();
-            cm->clearAllGlobalDynamicMicrocubes();
             cm->cleanup();
             cm->disconnectWorldStorage();
             if (cm->initializeWorldStorage(scene->resolvedWorldPath)) {
@@ -351,11 +348,6 @@ void SceneManager::executeLoad() {
         }
         cm->saveDirtyChunks();
 
-        // Clear dynamic physics objects before destroying chunks
-        cm->clearAllGlobalDynamicSubcubes();
-        cm->clearAllGlobalDynamicCubes();
-        cm->clearAllGlobalDynamicMicrocubes();
-
         cm->cleanup();             // Clear all chunk data from memory
         cm->disconnectWorldStorage();
         if (subsystems_->placedObjectManager) subsystems_->placedObjectManager->clear();
@@ -404,14 +396,6 @@ void SceneManager::executeLoad() {
         lastResult_.success = false;
         lastResult_.error = "GameDefinitionLoader failed: " + result.error;
         return;
-    }
-
-    // 3b. Rebuild the GPU particle occupancy grid for the final terrain (generated
-    // or pre-baked). Per the world-load rule: every load path must refresh BOTH the
-    // CPU occupancy grids (buildAllChunkPhysics / per-chunk physics rebuilds above)
-    // AND the GPU grid, or debris falls through the new scene's floor.
-    if (subsystems_->chunkManager) {
-        subsystems_->chunkManager->rebuildOccupancyFromChunks();
     }
 
     // 4. Re-entry: the player was spawned at the recorded position by the loader (2b). The

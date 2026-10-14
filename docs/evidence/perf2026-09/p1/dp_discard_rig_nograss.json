@@ -1,0 +1,146 @@
+{
+ "orbit0_az0": {
+  "pose": [
+   44.0,
+   20.716,
+   36.606,
+   90.0,
+   -10.0
+  ],
+  "pass": true,
+  "curves": {
+   "linear": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   },
+   "shipping": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   }
+  }
+ },
+ "orbit1_az60": {
+  "pose": [
+   49.494,
+   22.458,
+   40.328,
+   150.0,
+   -25.0
+  ],
+  "pass": true,
+  "curves": {
+   "linear": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   },
+   "shipping": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   }
+  }
+ },
+ "orbit2_az120": {
+  "pose": [
+   49.97,
+   20.716,
+   46.947,
+   -150.0,
+   -10.0
+  ],
+  "pass": true,
+  "curves": {
+   "linear": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   },
+   "shipping": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   }
+  }
+ },
+ "orbit3_az180": {
+  "pose": [
+   44.0,
+   22.458,
+   49.844,
+   -90.0,
+   -25.0
+  ],
+  "pass": true,
+  "curves": {
+   "linear": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   },
+   "shipping": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   }
+  }
+ },
+ "orbit4_az240": {
+  "pose": [
+   38.03,
+   20.716,
+   46.947,
+   -30.0,
+   -10.0
+  ],
+  "pass": true,
+  "curves": {
+   "linear": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   },
+   "shipping": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   }
+  }
+ },
+ "orbit5_az300": {
+  "pose": [
+   39.034,
+   23.515,
+   40.633,
+   30.0,
+   -35.0
+  ],
+  "pass": true,
+  "curves": {
+   "linear": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   },
+   "shipping": {
+    "control_over8": 0,
+    "test_over8": 0,
+    "control_p999": 1.0,
+    "test_p999": 1.0
+   }
+  }
+ }
+}
