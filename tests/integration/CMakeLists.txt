@@ -15,6 +15,7 @@ set(INTEGRATION_TEST_SOURCES
     SceneIntegrationTest.cpp
     VulkanIntegrationTest.cpp
     WaterCoreGpuParityTest.cpp
+    WaterBrickTest.cpp
     WaterRippleGpuParityTest.cpp
 )
 

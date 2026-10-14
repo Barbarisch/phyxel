@@ -289,6 +289,40 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagCostPerCell) {
     }
 }
 
+// 26.6 diagnostic: the WaterBench_Small pond through the MANAGER, one tick per call (the engine's realtime shape): the
+// live GPU pond lost ~2.2e-5 m^3/s at rest where the CPU held exactly (2026-10-13). Stone floor at voxel y <= 14, walls at
+// x 99 / 104 and z 11 / 16, water at y 15 (full) and 16 (half) over x 100-103, z 12-15; the volume box 99..104 x 14..19 x 11..16.
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagBenchPondThroughTheManager) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto state = [](const glm::ivec3& m) -> int {   // micro (1/9) coordinates
+        const glm::ivec3 v(static_cast<int>(std::floor(m.x / 9.0)), static_cast<int>(std::floor(m.y / 9.0)), static_cast<int>(std::floor(m.z / 9.0)));
+        if (v.y <= 14) return 1;
+        if (v.x <= 99 || v.x >= 104 || v.z <= 11 || v.z >= 16) return v.y <= 17 ? 1 : 0;
+        return 0;
+    };
+    // the engine's shape: realtime update(frame dt) with an occupancy revision that may change every frame (each change
+    // re-reads occupancy and re-uploads a GPU volume)
+    for (const char* backend : {"cpu", "gpu"}) for (bool revEveryFrame : {false, true}) for (float frame : {1.0f / 60.0f, 1.0f / 165.0f}) {
+        uint64_t rev = 0;
+        WaterCoreManager mgr(state, [&rev, revEveryFrame]() { return revEveryFrame ? ++rev : rev; });
+        std::string err;
+        if (std::string(backend) == "gpu") ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        const int id = mgr.create(glm::ivec3(99, 14, 11), glm::ivec3(104, 19, 16), 1.0f / 3.0f, "eulerian", &err, backend, 0);
+        ASSERT_NE(id, 0) << err;
+        mgr.placeBox(glm::ivec3(100, 15, 12), glm::ivec3(103, 15, 15), 1.0f, nullptr);
+        mgr.placeBox(glm::ivec3(100, 16, 12), glm::ivec3(103, 16, 15), 0.5f, nullptr);
+        mgr.setRealtime(true);
+        AvRecord rec;
+        double m0 = -1.0, last = 0.0, ke = 0.0;
+        const int frames = static_cast<int>(10.0f / frame);
+        for (int k = 0; k < frames; ++k) {
+            mgr.update(frame);
+            if (k == 0 || k == frames - 1) { const auto l = mgr.list(); rec = l.front(); if (m0 < 0.0) m0 = rec.mass; last = rec.mass; ke = rec.kineticEnergy; }
+        }
+        std::printf("  %s, revision %s, frame %.4f s: 10 s mass %.6f -> %.6f (%+.3e m^3), ke %.1e\n", backend, revEveryFrame ? "EVERY frame" : "fixed", frame, m0, last, last - m0, ke);
+    }
+}
+
 // The pressure solve's convergence is MEASURED (docs/WaterCore.md §15.11 risk): for each relaxation
 // factor and sweep count, the worst hydrostatic error on the 10 m column after 5 ticks and the
 // RBGS residual. The row the solver ships with must reach the CPU test's 1 % at a sweep count
@@ -353,7 +387,8 @@ TEST_F(WaterCoreGpuParityTest, GpuRestDecisionDeterministic) {
 }
 
 // §15.11: a GPU volume the device cannot hold is refused at create with the byte count in the
-// message - never a failure inside a dispatch.
+// message - never a failure inside a dispatch. Since 26.6 a box this size meets the brick-map cap first (4 M bricks):
+// the same refusal, the same promise (reason + bytes).
 TEST_F(WaterCoreGpuParityTest, GpuAllocationRefusalCarriesTheByteCount) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     GridSpec spec; spec.dims = glm::ivec3(4096, 4096, 512); spec.h = 1.0f;   // 8.6e9 cells: 34 GB per buffer

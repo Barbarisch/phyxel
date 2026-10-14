@@ -5,6 +5,7 @@
 // Neighbours of the other colour are read, never written, in this pass: no races, fixed order.
 // mode 1: write the residual |diag p - rhs - sum nb p/h^2| per cell into binding 4 (read by the
 // parity rows: the one number that says whether the sweep count was enough on a rig).
+#define WC_BRICKS_BINDING 5
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 0) readonly buffer Liq  { uint liq[]; };
@@ -17,8 +18,8 @@ float pn(int x, int y, int z) { return (inBounds(x, y, z) && liq[cellIdx(x, y, z
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
-    const ivec3 c = decode(id, pc.nx, pc.ny);
-    if (c.z >= pc.nz) return;
+    ivec3 c;
+    if (!threadSite(id, 3, c)) return;
     if (liq[id] == 0u) { if (pc.mode == 1) res[id] = 0.0; return; }
     const float invh2 = 1.0 / (pc.h * pc.h);
     const float nb = (pn(c.x - 1, c.y, c.z) + pn(c.x + 1, c.y, c.z) + pn(c.x, c.y - 1, c.z) + pn(c.x, c.y + 1, c.z) + pn(c.x, c.y, c.z - 1) + pn(c.x, c.y, c.z + 1)) * invh2;

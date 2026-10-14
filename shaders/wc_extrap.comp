@@ -11,6 +11,7 @@
 //               layer 1) take back their original value (binding 8); dry unreached faces -> 0;
 //               kept drop faces (v only) take their original value (no fall clamp when iparam = 1,
 //               i.e. a particle transport owns the mass; else clamped to -sqrt(2 g 3h)).
+#define WC_BRICKS_BINDING 9
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 0) readonly buffer F      { float f[]; };
@@ -31,8 +32,8 @@ void main() {
     const uint id = gl_GlobalInvocationID.x;
     const int lattice = pc.mode % 3;
     const int sx = lattice == 0 ? pc.nx + 1 : pc.nx, sy = lattice == 1 ? pc.ny + 1 : pc.ny, sz = lattice == 2 ? pc.nz + 1 : pc.nz;
-    const ivec3 c = decode(id, sx, sy);
-    if (c.z >= sz) return;
+    ivec3 c;
+    if (!threadSite(id, lattice, c)) return;
     if (pc.mode < 3) {
         bool k, wt, kp = false;
         if (lattice == 0)      { k = dom(c.x - 1, c.y, c.z) || dom(c.x, c.y, c.z); wt = wet(c.x - 1, c.y, c.z) || wet(c.x, c.y, c.z); }
@@ -49,7 +50,7 @@ void main() {
         for (int i = 0; i < 6; ++i) {
             const ivec3 q = c + d[i];
             if (q.x < 0 || q.y < 0 || q.z < 0 || q.x >= sx || q.y >= sy || q.z >= sz) continue;
-            const uint j = uint(q.x) + uint(sx) * (uint(q.y) + uint(sy) * uint(q.z));
+            const uint j = latIdx(lattice, q);
             if (known[j] != 0u) { sum += val[j]; ++n; }
         }
         if (n > 0) { valOut[id] = sum / float(n); knownOut[id] = 1u; if (pc.iparam == 100) first[id] = 1u; }

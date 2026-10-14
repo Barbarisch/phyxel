@@ -18,6 +18,7 @@
 //   mode 5: droplet DEPOSIT (21.2 landing): the host's per-cell deposits (binding 8, cell fractions) go into f
 //            with room 1 - s - f, overflow carried up the column; what meets a solid or the grid top is written
 //            back into the birth record (it flies again - never dropped). Consumes binding 8.
+#define WC_BRICKS_BINDING 9
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 0)          buffer F   { float f[]; };
@@ -53,8 +54,8 @@ bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, 
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
-    const int x = int(id % uint(pc.nx)), z = int(id / uint(pc.nx));
-    if (z >= pc.nz) return;
+    int x, z;
+    if (!threadColumn(id, x, z)) return;
     if (pc.mode == 0) {
         for (int y = 0; y < pc.ny; ++y) {
             const float fc = f[cellIdx(x, y, z)];
@@ -63,6 +64,7 @@ void main() {
             if (upperIsDomain) continue;
             if (y + 1 < pc.ny && blocked(x, y + 1, z)) continue;
             if (y + 1 < pc.ny && f[cellIdx(x, y + 1, z)] > 0.0) continue;   // wet above: that face is gravity's
+            if (absentCell(x, y + 1, z)) { atomicAdd(bricks[pc.counterOff], 1); continue; }   // 26.6: never written (a halo defect, counted)
             const bool solidBelow = blocked(x, y - 1, z);
             const float vBottom = solidBelow ? 0.0 : v[vIdx(x, y, z)];
             v[vIdx(x, y + 1, z)] = vBottom;
@@ -97,6 +99,7 @@ void main() {
             float carry = excess;
             for (int yy = y + 1; yy < pc.ny && carry > 0.0; ++yy) {
                 if (blocked(x, yy, z)) break;
+                if (absentCell(x, yy, z)) { atomicAdd(bricks[pc.counterOff], 1); break; }   // 26.6
                 const uint j = cellIdx(x, yy, z);
                 const float room = 1.0 - solid[j].x - f[j];
                 if (room <= 0.0) continue;
@@ -154,6 +157,10 @@ void main() {
         float carry = 0.0; int lastOpen = -1;
         for (int y = 0; y < pc.ny; ++y) {
             const uint i = cellIdx(x, y, z);
+            if (absentCell(x, y, z)) {   // 26.6: an absent brick holds no deposit and takes none - it flies again (counted)
+                if (carry > 0.0) { atomicAdd(bricks[pc.counterOff], 1); if (lastOpen >= 0) { addBirth(id, carry, float(lastOpen) + 0.5, vec3(0.0)); carry = 0.0; } }
+                continue;
+            }
             carry += deposit[i]; deposit[i] = 0.0;
             if (carry <= 0.0) continue;
             if (occ[i] != 0u) {   // a ceiling over carried water: it flies again (the CPU returns it to the caller)

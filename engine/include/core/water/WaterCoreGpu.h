@@ -25,8 +25,11 @@ struct WcPush {
     float filmHold = 0.01f, param0 = 0.0f, param1 = 0.0f;
     int32_t iparam = 0;
     float thetaMin = 0.01f;   ///< SolverParams::thetaMin (WaterCore.md 24.1)
+    // 26.6 P2a: brick storage (shaders/water_core.glsl)
+    int32_t bricked = 0, slotsUsed = 0, ox = 0, oy = 0, oz = 0, bnx = 0, bny = 0, bnz = 0;
+    int32_t slotTableOff = 0, colTableOff = 0, counterOff = 0, colCount = 0;
 };
-static_assert(sizeof(WcPush) == 52, "WcPush must match the GLSL push block");
+static_assert(sizeof(WcPush) == 100, "WcPush must match the GLSL push block");
 
 /// A pump or sink on the device (shaders/wc_sources.comp GpuSource, 32 bytes).
 struct GpuSource {
@@ -52,6 +55,28 @@ struct GpuStepStats {
     int    quietTicks = 0;
     bool   asleep = false;
     double gpuMs = 0.0;              ///< wall time of the fenced submission (GPU time + submit/fence overhead)
+    double hostResidencyMs = 0.0;    ///< 26.6: of gpuMs, the host's residency work before recording (sparse volumes)
+    double hostAfterMs = 0.0;        ///< 26.6: after the fence (the halo check)
+    double submitWaitMs = 0.0;       ///< 26.6: of gpuMs, the submission and the fence wait (the GPU's own time + overhead)
+    // 26.6 P2a: brick storage
+    int    bricks = 0;               ///< bricks stored after this call (a dense volume: all of its brick box)
+    int    capacity = 0;             ///< slots (bricks) the volume can hold
+    int    allocated = 0, freed = 0; ///< bricks allocated / freed by this call's residency update
+    int    haloRings = 0;            ///< neighbour rings the residency took (1 unless the water is fast)
+    int    compacted = 0;            ///< bricks moved to lower slots this call (fragmentation repair)
+    long   fluxIntoAbsent = 0;       ///< faces where water would have moved into a brick that is not stored (must be 0)
+    long   heldByCapacity = 0;       ///< bricks the residency wanted but the capacity refused (their faces stay closed)
+    long   haloShort = 0;            ///< after the call: bricks within 4 cells of water that are NOT stored (must be 0 unless capacity-held)
+    double unstoredWater = 0.0;      ///< m^3 the last upload could not store (capacity smaller than the water itself; must be 0)
+    bool   sentinelDirty = false;    ///< something wrote into the absent brick (must be false)
+};
+
+/// 26.6 P2a: how a volume stores its cells. Dense = every brick of its box kept (the engine default); sparse = only the
+/// bricks holding water or within reach of it (residency follows the water each call).
+struct BrickOptions {
+    bool   sparse = false;
+    size_t capacity = 0;             ///< slots for bricks (0 = every brick of the box: never full)
+    bool   freezeForTest = false;    ///< TEST ONLY (the equality test's red control): residency never follows the water
 };
 
 class WaterCoreGpu {
@@ -64,7 +89,30 @@ public:
     };
     struct Volume {
         GridSpec spec;
+        /// STORAGE counts (what the buffers hold and the kernels address): dense volumes - the grid's own sizes; bricked
+        /// volumes - capacity x 512 for cells and every lattice, column capacity x 64 for columns (26.6).
         size_t cells = 0, nu = 0, nv = 0, nw = 0, latticeMax = 0, columns = 0, groups = 0;
+        size_t dCells = 0, dNu = 0, dNv = 0, dNw = 0, dColumns = 0;   ///< the grid's own (dense) counts - the host API's layout
+        // 26.6 P2a bricks
+        bool bricked = false, sparse = false;
+        glm::ivec3 o{0}, bn{0};          ///< origin offset in its first brick (cells); the brick box (bricks)
+        size_t mapCount = 0, capacity = 0, colCap = 0;   ///< capacity counts slot 0 (the absent brick)
+        int slotsUsed = 1, colCount = 0;
+        std::vector<int> map, slotBrick, colEntries;   ///< host mirrors: map entry -> slot (0 absent); slot -> packed brick (-1 free)
+        size_t slotTableOff = 0, colTableOff = 0, counterOff = 0, infoOff = 0, brickInts = 0;
+        Buffer bricks;                   ///< [map | slot table | column table | counters 2 | water record per slot]
+        VkDeviceSize offBricks = 0;      ///< staging region of the bricks buffer
+        bool recordValid = false;        ///< staging holds the water record of the last call (sparse residency reads it)
+        bool freezeForTest = false;
+        std::vector<int32_t> hostInfo;   ///< the last call's water records (2 per slot), copied once from staging after the fence
+        bool tablesDirty = true;         ///< the map / slot / column tables changed since they were last uploaded
+        int storedCount = 0;             ///< bricks stored (kept by applyResidency)
+        std::vector<uint32_t> hostOcc;   ///< dense occupancy from the last upload (new bricks are filled from it)
+        std::vector<float> hostSolid;    ///< dense (s, q, wake, ledger) from the last setSolids
+        std::vector<float> hostDeposit;  ///< dense deposits pending for the next step
+        std::vector<int> sourceCells;    ///< dense indices of the pumps (their bricks stay stored)
+        int lastAllocated = 0, lastFreed = 0, lastRings = 0, lastCompacted = 0; long lastHeld = 0;
+        double unstoredM3 = 0.0;          ///< water the last upload could not store (counted, never silent)
         Buffer f, fOrig, fPrev, u, v, w, uOld, vOld, wOld, occ, src, liq, diag, rhs, p, res;
         Buffer valA, valB, knownA, knownB, first, keep, dropped, part, part2, out;
         Buffer origLat;                  ///< extrapolation scratch: the lattice before the halo pass (NOT uOld: that is the FLIP base)
@@ -98,7 +146,8 @@ public:
         bool surfaceValid = false;       ///< Phase F: staging holds a surface field from the last step
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
-                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, FlipSort, FlipP2g, FlipG2p, KernelCount };
+                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, KernelCount };
+    static constexpr size_t kMaxMapEntries = 4u << 20;   ///< 26.6: brick-map cap (16 MB) - a larger box is refused (world scale is P5)
     static constexpr int kMaxSources = 64;
     static_assert(KernelCount <= 32, "Volume::pipes must hold every kernel");
 
@@ -114,9 +163,11 @@ public:
     void setOmega(float w) { m_omega = w; }
     float omega() const { return m_omega; }
 
-    Volume* createVolume(const WaterGrid& g, std::string* err);
-    /// Allocation only (no upload): refuses with the byte count when the device cannot hold it.
-    Volume* createVolume(const GridSpec& spec, std::string* err, bool particles = false, size_t particleCapacity = 0);
+    Volume* createVolume(const WaterGrid& g, std::string* err, const BrickOptions& bricks = BrickOptions{});
+    /// Allocation only (no upload): refuses with the byte count when the device cannot hold it. A particle volume is
+    /// dense-laid (the FLIP kernels index the grid directly); every other volume is bricked (26.6).
+    Volume* createVolume(const GridSpec& spec, std::string* err, bool particles = false, size_t particleCapacity = 0,
+                         const BrickOptions& bricks = BrickOptions{});
     void destroyVolume(Volume* vol);
     void upload(Volume& vol, const WaterGrid& g);                              ///< f, u, v, w, occ -> GPU (fenced)
     /// docs/WaterCore.md 20 (M1): the fields of the bodies in this volume for the next `frameSeconds` - s and
@@ -167,6 +218,25 @@ private:
     void recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush push);
     VkCommandBuffer beginCommands() const;
     void submitAndWait(VkCommandBuffer cmd) const;
+    // 26.6 P2a bricks (host side)
+    long storageIndex(const Volume& vol, int x, int y, int z) const;   ///< -1 = absent / outside the brick box
+    void fillPushBricks(const Volume& vol, WcPush& push) const;
+    size_t liveCells(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.slotsUsed) * 512 : vol.cells; }
+    size_t liveLattice(const Volume& vol, int L) const { return vol.bricked ? liveCells(vol) : (L == 0 ? vol.nu : (L == 1 ? vol.nv : vol.nw)); }
+    size_t liveColumns(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.colCount) * 64 : vol.columns; }
+    long columnStorage(const Volume& vol, int x, int z) const;          ///< storage index of a column's thread, -1 = none
+    /// Residency: `need` (per map entry: 2 = holds water, 1 = within reach of it, 0 = not needed) -> slots. Bricks holding
+    /// water are stored FIRST, then the halo; returns the new slots (to be zeroed and filled); counts refusals.
+    std::vector<int> applyResidency(Volume& vol, const std::vector<char>& need);
+    void markNeed(const Volume& vol, std::vector<char>& need, const glm::ivec3& brick, const int dist[6], int reach, int rings) const;
+    void needFromDenseFill(const Volume& vol, const std::vector<float>& f, std::vector<char>& need, int reach, int rings) const;
+    long haloShortAfterCall(const Volume& vol) const;   ///< from the staging water record: bricks within 4 cells of water not stored
+    void writeTablesToStaging(Volume& vol) const;
+    void scatterSlots(Volume& vol, const std::vector<int>& slots, const WaterGrid* g) const;   ///< staging <- grid / host copies
+    void recordSlotUploads(VkCommandBuffer cmd, Volume& vol, const std::vector<int>& slots, bool zero) const;
+    /// Move the highest stored bricks into the lowest free slots when the addressed range has grown past the stored count
+    /// (the dispatches walk every slot up to the highest used). Records the device copies; returns the bricks moved.
+    int compactSlots(VkCommandBuffer cmd, Volume& vol);
 
     VkDevice         m_device = VK_NULL_HANDLE;
     VkPhysicalDevice m_physical = VK_NULL_HANDLE;

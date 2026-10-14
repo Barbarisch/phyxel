@@ -70,8 +70,9 @@ stitch it to the pond's; §26 replaces that: water is cell fills on the 1/9 m la
 their numbers (§25.24-25.38), Manning at the bed and the generator-line floor (25.39), the GPU ripple step (25.35), the
 measuring tools. **§26 P1 DONE and signed off (2026-10-13, §26.5):** the cause was the fill transport (face by face, each
 move capped at the receiver's room); the all-faces-at-once transport is the default on CPU and GPU (100.0 % of Manning's
-depth and speed), and the GPU projection now warm-starts. **Next: §26 P2** - sparse bricks on the GPU, then P3 creeks and
-ponds on one model. The §23 slime experiment stays queued.
+depth and speed). **§26 P2a BUILT (26.8):** the GPU core stores water in bricks that follow it, bit-identical to a box;
+the creek's cost gate is OPEN (1.94-2.02 ms) and the GPU's cold-start solve still creeps (open row). **Next:** the
+converged, cheaper GPU solve (26.8 levers), then P2b (the engine on bricks), P3 creeks and ponds on one model. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5324,13 +5325,13 @@ peak GPU time per call 4.5 ms old, 3.6 ms new. Stills are near-identical - the d
 | `PocketsAndASloshAreNotScraps` | grid + born drift <= 1e-6 m^3 | <= 2e-6 | 1.5e-6 measured - float rounding on ~32 m^3 (5e-8 relative) |
 | `GpuFillsMatchCpuElementwise` | every face within 5e-3 m/s | every PROJECTION face (f >= 0.5 on a side): 4.3e-4 | film-top faces follow `settleThinFilmTopFaces`' "any water above" switch, which float dust flips (0.16 m/s apart there while the fills agree to 3e-4); printed, not gated |
 
-**A GPU defect the default exposed - fixed: the projection never warm-started.** `wc_classify.comp` zeroed the pressure
+**A GPU defect the default exposed - the warm start below was REVERTED the same day (26.8: it made a surface at the liquid threshold flicker and lose water live); the creep is an OPEN row.** ~~Fixed: the projection never warm-started.~~ `wc_classify.comp` zeroed the pressure
 every substep, so 40 RBGS sweeps stopped 0.02-0.07 % over hydrostatic on a still pool (4.9086 vs 4.9050 at the top
 cell): still water crept up into the air (6-15e-6 of a cell per tick per column) under BOTH rules; the old rule leaked
 7.8e-6/tick - just under the quiet threshold 1e-5 - and slept; the new one 1.5e-5 and never slept
 (`GpuRestDecisionDeterministic` red). 200 sweeps: exact. Fix: liquid cells keep the last pressure as the first guess
 (zero outside the water; zeroed on create and upload). Now: the still pool sleeps at tick 32 / 32 (deterministic), its top
-cell's pressure 4.9050, the resting-pond mass gate 1.6e-4 cells over 30 s. Diagnostic: `DiagStillPool` (env `DIAG_SWEEPS`).
+cell's pressure 4.9050, the resting-pond mass gate 1.6e-4 cells over 30 s. Diagnostic: `DiagStillPool` (env `DIAG_SWEEPS`). (All as measured WITH the warm start; after its revert `GpuRestDecisionDeterministic` (a) is red again - the open row.)
 
 ### 26.6 P2 detailed design - water stored in bricks that follow it (2026-10-13). Status: designed, checked (26.7)
 
@@ -5435,6 +5436,77 @@ pose, a long creek) for the owner.
 (the pour and the drain allocate and free every tick), degenerate (capacity forced to a handful of slots).
 
 **Verdict: READY for P2a.** P2b gets its own design and check once P2a's numbers are in.
+
+### 26.8 P2a built - the GPU core on bricks (2026-10-13). Status: storage DONE (bit-identical); cost gate OPEN
+
+**What was built.** Every fill volume on the GPU is now stored in world-aligned 8^3 bricks held in slots (slot 0 = the
+absent brick, all zero, never written); the particle (FLIP) transport keeps the dense layout. All addressing lives in
+`water_core.glsl` (`cellIdx`/`uIdx`/`vIdx`/`wIdx` brick lookups, `threadSite` / `threadColumn` thread mapping); a thread's
+id IS its storage index, so every kernel's `x[id]` stayed as it was. `BrickOptions{sparse, capacity}` on
+`WaterCoreGpu::createVolume`; dense (every brick kept) stays the engine default until P2b. A new kernel
+(`wc_bricks.comp`) writes per brick, after each call, where its water and its liquid lie (two records: any water f != 0,
+and liquid f >= thr - distances to the six faces) and checks the absent brick is still zero. The host decides residency
+from those records before the next call: reach 4 + travel for liquid (the extrapolation's three layers + a face), 2 +
+travel for any other water (films: the rules that read round them reach one cell), travel = the farthest this call can move
+water. Bricks holding water are stored first, then the halo; a capacity refusal never strands water (a capacity below
+the water itself is refused at create). Slots are compacted when the addressed range outgrows the stored count by a
+quarter. Reductions fold per-brick partials in MAP order, so a sparse volume's sums - and so its rest and settle decisions
+- equal the dense run's bit for bit. The upload/download API keeps the dense layout (scatter/gather), so nothing outside
+moved.
+
+**Gates (red first, all on the GPU; `WaterBrickTest`):**
+
+| test | result |
+|---|---|
+| `SparseEqualsDenseAcrossSeams` - dam break, slosh, stone entry, pump into dry bricks, sink draining; a box over a chunk seam (world cell x 288) and negative z | **0 differing ticks** in all five (every f, u, v, w, p compared with ==, every tick); halo short 0; absent brick clean; sparse stored 22-60 of 72 bricks |
+| `AFrozenResidencyIsCaught` (the control: residency frozen) | differs in 98 of 120 ticks; halo short 907 - the check sees a wrong halo |
+| `CapacityHoldsWater` | capacity 10 (water needs 16) refused at create ("0.527 m^3 would not be stored"); capacity 24: 1,981 bricks refused, water held, mass within 2e-8 m^3 |
+| GPU parity suite (24 rows) on brick storage | unchanged - same numbers as before bricks (dam-break front 19/19, fills 3.3e-4, still pool asleep at 32/32); FLIP run-up the known open row |
+| the 306 CPU water tests | unchanged |
+
+**Found and fixed on the way (each by measurement):** (1) the transport's count of "flux into an absent brick" cannot see
+a thin halo - a face between a stored cell and an absent brick belongs to the absent brick and never carries velocity
+(the frozen control differed in 98 ticks with the count at 0); the halo check (`haloShort`: water within 4 cells of an
+absent brick after the call) is what sees it. (2) A small capacity lost 0.26 m^3 at upload: halo bricks took slots before
+water bricks - water now goes first, and a capacity below the water is refused. (3) One reach for all water stored a
+whole brick layer above a resting creek for 2.7e-6 of film and freed/re-stored it every tick (9 ms spikes) - films now
+get the short reach. (4) Freed bricks left high slots addressed (1,184 walked for 592 stored) - compaction. (5) Reading the
+records one value at a time from uncached staging memory cost ~0.3 ms a call - one bulk copy. (6) A box's upper wall faces
+had been given their own layer of bricks (a 16^3 box stepped 27 bricks for 8) - they read 0 from the absent brick.
+(7) A pump's residency scanned the whole dense grid every call (5 M cells on the creek box) - now marked from its cell.
+
+**Cost (this machine, Release, one tick per call):**
+
+| case | stepped cells | ms per call (median) |
+|---|---|---|
+| dense boxes, brick addressing vs before (4 k / 65 k / 262 k / 1 M cells) | same | +22 % / +15 % / +9 % / +3 % (gate <= +25 %: met) |
+| diagonal creek, ~85 m, 2 m x 0.15 m at 1/9 m - DENSE box | 7.1 M | 16.9 |
+| the same creek - SPARSE | 303,104 (592 bricks, 11.4 per water cell) | **1.94-2.02** (host residency 0.08, recording 0.29, GPU 1.57) |
+
+**The cost gate is OPEN.** The creek sits at the 2 ms line (1.94 in one run, 2.02 in the next), and 25.10's 2 ms is the
+budget for ALL water, so one creek must cost well under it. `DISABLED_ACreekStoredSparseFitsTheBudget` keeps the
+measurement. **The levers, from the split above:** (a) FLAT bricks for shallow water (8 x 4 x 8): the creek's 1.35-cell
+sheet fills 17 % of an 8-cell brick column - half the stepped cells, storage only (bit-identical by the same test); (b) the
+fixed cost - ~0.9 ms of the 1.57 is per-call (80 RBGS dispatches per substep with a barrier each, 0.29 ms recording):
+fewer, fused dispatches; (c) the sweep count - with the warm start (26.5) the solve converges from last substep's pressure,
+so fewer than 40 sweeps may hold the parity gates - a solver-accuracy change, measured against the pond suite before
+it is considered. P2b (the engine on bricks) does not depend on these.
+
+**The warm start (26.5) REVERTED - found by the live check of P2a.** The live bench pond (WaterBench_Small, GPU) LOST water
+while it settled - 2.2e-5 m^3/s, ~3e-4 m^3 in its first 15-25 s, counted nowhere - where the CPU held exactly. Bisected
+live: warm start off -> no loss (bricks innocent: every brick test bit-identical either way, every origin bit-identical,
+the download/upload round trip exact). Reproduced headless only at the ENGINE's step (the frame's dt, 1/165 s; the tests had
+used 1/60): `WaterBrickTest.DISABLED_DiagSettlingLoss` - 2.8e-4 m^3 in 20 s and never asleep; per tick
+(`DISABLED_DiagSettlingLossPerTick`) a steady trickle, ~1.5e-7 m^3 every tick, with the top layer - at f = 0.5, ON the
+liquid threshold - flickering in a CHECKERBOARD (0.49997 / 0.50003, KE 3e-3). The cold start (what the owner signed off)
+holds: 3e-6 m^3 in the same rig. Reverted (`wc_classify.comp` zeroes p every substep again).
+
+**Open rows (honest state after P2a):** (1) the GPU's cold-start projection (40 sweeps) leaves still water creeping
+(~1e-5 of a cell per tick per column at dt 1/60) - a still GPU pool never sleeps under the all-faces transport
+(`GpuRestDecisionDeterministic` (a) red) and the live pond drifts ~1e-6 m^3/s (24 s: -2.7e-5 m^3; this predates P2a). The
+fix is a CONVERGED solve that does not destabilise a threshold surface - the warm start alone did; it belongs with the
+cost levers (b)/(c) above (a converged, cheaper solve is both). (2) The creek's cost (above). (3) `GpuFlipBulkParityAndRunup`
+(the known FLIP row).
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

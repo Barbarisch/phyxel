@@ -10,6 +10,10 @@
 //   mode 5: per workgroup of 256 columns -> partial.x = sum of dropped residue (binding 9)
 //           param1 == 1, into out[iparam] (the final fold). mode 3: the same from binding 7 into
 //           binding 5. The host alternates 2/3 until one workgroup remains: a fixed tree, no atomics.
+//   mode 6 (26.6, bricked): gather mode 0's per-half-brick partials (part, in SLOT order) into MAP order (part2), an
+//           absent brick as zero - the fold that follows is then the same tree whichever bricks are stored, so a sparse
+//           volume's sums (the rest and settle decisions read them) equal the dense run's bit for bit.
+#define WC_BRICKS_BINDING 10
 #include "water_core.glsl"
 layout(local_size_x = 256) in;
 layout(std430, set = 0, binding = 0) readonly buffer F     { float f[]; };
@@ -27,10 +31,17 @@ shared vec4 sh[256];
 
 void main() {
     const uint lid = gl_LocalInvocationID.x, gid = gl_GlobalInvocationID.x, wg = gl_WorkGroupID.x;
+    if (pc.mode == 6) {   // uniform per dispatch: whole workgroups return before the barrier
+        if (gid < uint(2 * pc.bnx * pc.bny * pc.bnz)) {
+            const int slot = bricks[int(gid >> 1u)];
+            part2[gid] = slot > 0 ? part[2u * uint(slot) + (gid & 1u)] : vec4(0.0);
+        }
+        return;
+    }
     vec4 mine = vec4(0.0);
     if (pc.mode == 0) {
-        const ivec3 c = decode(gid, pc.nx, pc.ny);
-        if (c.z < pc.nz) {
+        ivec3 c;
+        if (threadSite(gid, 3, c)) {
             const float fc = f[gid];
             if (fc > 0.0) {
                 const float ux = 0.5 * (u[uIdx(c.x, c.y, c.z)] + u[uIdx(c.x + 1, c.y, c.z)]);
@@ -42,12 +53,14 @@ void main() {
             mine.z = fc;
         }
     } else if (pc.mode == 1) {
-        const int n = pc.iparam == 0 ? (pc.nx + 1) * pc.ny * pc.nz : (pc.iparam == 1 ? pc.nx * (pc.ny + 1) * pc.nz : pc.nx * pc.ny * (pc.nz + 1));
-        if (int(gid) < n) mine.w = abs(pc.iparam == 0 ? u[gid] : (pc.iparam == 1 ? v[gid] : w[gid]));
+        ivec3 c;
+        if (threadSite(gid, pc.iparam, c)) mine.w = abs(pc.iparam == 0 ? u[gid] : (pc.iparam == 1 ? v[gid] : w[gid]));
     } else if (pc.mode == 4) {
-        if (int(gid) < pc.nx * pc.ny * pc.nz) mine.w = res[gid];
+        ivec3 c;
+        if (threadSite(gid, 3, c)) mine.w = res[gid];
     } else if (pc.mode == 5) {
-        if (int(gid) < pc.nx * pc.nz) mine.x = dropped[gid];
+        int x, z;
+        if (threadColumn(gid, x, z)) mine.x = dropped[gid];
     } else if (pc.mode == 2) {
         const uint n = uint(pc.param0);
         if (gid < n) mine = part[gid];

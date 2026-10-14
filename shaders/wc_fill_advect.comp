@@ -10,6 +10,7 @@
 // whole advect (fOrig), the limits use the running f, exactly as the CPU's scratch copy does.
 // Downward moves out of a THIN donor take min(f, |v| dt / h): a film lies on its cell floor and
 // falls as a block (WaterCore.cpp, EulerianTransport::advect).
+#define WC_BRICKS_BINDING 8
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 0)          buffer F     { float f[]; };
@@ -37,8 +38,12 @@ float faceDesired(int axis, ivec3 a, ivec3 b, out bool donorIsA) {
     const float vel = faceVel(axis, b);
     if (vel == 0.0) return 0.0;
     donorIsA = vel > 0.0;
-    const float fd = donorIsA ? fo[cellIdx(a.x, a.y, a.z)] : fo[cellIdx(b.x, b.y, b.z)];
+    const bool absA = absentCell(a.x, a.y, a.z), absB = absentCell(b.x, b.y, b.z);
+    const float fd = donorIsA ? (absA ? 0.0 : fo[cellIdx(a.x, a.y, a.z)]) : (absB ? 0.0 : fo[cellIdx(b.x, b.y, b.z)]);
     if (fd <= 0.0) return 0.0;
+    // 26.6: water may never move into a brick that is not stored - the face is closed and COUNTED (the halo is wrong if this
+    // is ever non-zero outside the capacity test; WaterBrickTest gates it at 0)
+    if (absA || absB) { if (pc.mode == 3) atomicAdd(bricks[pc.counterOff], 1); return 0.0; }
     const float sweep = abs(vel) * pc.dt / pc.h;
     const bool downward = axis == 1 && vel < 0.0;
     return (downward && fd < pc.thr) ? min(fd, sweep) : sweep * fd;
@@ -49,12 +54,16 @@ float scaleOf(ivec3 c) { const uint i = cellIdx(c.x, c.y, c.z); const float o = 
 
 void allFaces(uint id) {
     if (pc.mode == 5) {
-        if (id >= uint(pc.nx * pc.nz)) return;
-        const int x = int(id % uint(pc.nx)), z = int(id / uint(pc.nx));
+        int x, z;
+        if (!threadColumn(id, x, z)) return;
         float carry = 0.0; int last = -1;
         for (int y = 0; y < pc.ny; ++y) {
             const uint i = cellIdx(x, y, z);
-            if (blocked(x, y, z)) { if (carry > 0.0 && last >= 0) f[uint(last)] += carry; carry = 0.0; last = -1; continue; }
+            if (blocked(x, y, z) || absentCell(x, y, z)) {   // an absent brick is never written: the excess parks below it
+                if (carry > 0.0 && absentCell(x, y, z)) atomicAdd(bricks[pc.counterOff], 1);
+                if (carry > 0.0 && last >= 0) f[uint(last)] += carry;
+                carry = 0.0; last = -1; continue;
+            }
             f[i] += carry; carry = 0.0; last = int(i);
             const float room = 1.0 - solid[i].x;
             if (f[i] > room) { carry = f[i] - room; f[i] = room; }
@@ -62,8 +71,8 @@ void allFaces(uint id) {
         if (carry > 0.0 && last >= 0) f[uint(last)] += carry;
         return;
     }
-    if (id >= uint(pc.nx * pc.ny * pc.nz)) return;
-    const ivec3 c = decode(id, pc.nx, pc.ny);
+    ivec3 c;
+    if (!threadSite(id, 3, c)) return;
     if (blocked(c.x, c.y, c.z)) { if (pc.mode == 3) outSum[id] = 0.0; return; }
     const ivec3 e[3] = ivec3[3](ivec3(1, 0, 0), ivec3(0, 1, 0), ivec3(0, 0, 1));
     float outs = 0.0, ins = 0.0;
@@ -92,20 +101,20 @@ void main() {
     if (pc.mode >= 3) { allFaces(id); return; }
     ivec3 a, b; float vel; bool downward = false;
     if (pc.mode == 0) {                       // u faces: lattice (nx+1, ny, nz), interior x in 1..nx-1
-        ivec3 c = decode(id, pc.nx + 1, pc.ny);
-        if (c.z >= pc.nz || c.x < 1 || c.x >= pc.nx || (c.x & 1) != pc.iparam) return;
+        ivec3 c;
+        if (!threadSite(id, 0, c) || c.x < 1 || c.x >= pc.nx || (c.x & 1) != pc.iparam) return;
         a = ivec3(c.x - 1, c.y, c.z); b = c; vel = u[uIdx(c.x, c.y, c.z)];
     } else if (pc.mode == 1) {                // v faces: lattice (nx, ny+1, nz), interior y in 1..ny-1
-        ivec3 c = decode(id, pc.nx, pc.ny + 1);
-        if (c.z >= pc.nz || c.y < 1 || c.y >= pc.ny || (c.y & 1) != pc.iparam) return;
+        ivec3 c;
+        if (!threadSite(id, 1, c) || c.y < 1 || c.y >= pc.ny || (c.y & 1) != pc.iparam) return;
         a = ivec3(c.x, c.y - 1, c.z); b = c; vel = v[vIdx(c.x, c.y, c.z)]; downward = vel < 0.0;
     } else {                                  // w faces: lattice (nx, ny, nz+1), interior z in 1..nz-1
-        ivec3 c = decode(id, pc.nx, pc.ny);
-        if (c.z < 1 || c.z >= pc.nz || (c.z & 1) != pc.iparam) return;
+        ivec3 c;
+        if (!threadSite(id, 2, c) || c.z < 1 || c.z >= pc.nz || (c.z & 1) != pc.iparam) return;
         a = ivec3(c.x, c.y, c.z - 1); b = c; vel = w[wIdx(c.x, c.y, c.z)];
     }
     if (vel == 0.0) return;
-    if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z)) return;
+    if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z) || absentCell(a.x, a.y, a.z) || absentCell(b.x, b.y, b.z)) return;
     const uint ia = cellIdx(a.x, a.y, a.z), ib = cellIdx(b.x, b.y, b.z);
     const uint from = vel > 0.0 ? ia : ib, to = vel > 0.0 ? ib : ia;
     const float fDonorOrig = fo[from];

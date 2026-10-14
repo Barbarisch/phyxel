@@ -7,6 +7,7 @@
 // twice the rate, so room appears for it. One thread does the whole source: sources are few and
 // the pour is sequential by design (two sources sharing a neighbour would race otherwise, so the
 // host dispatches them one at a time with a barrier between).
+#define WC_BRICKS_BINDING 4
 #include "water_core.glsl"
 layout(local_size_x = 1) in;
 struct GpuSource { int cell; float rate; float pending; float placedTotal; float unplaced; float pad0, pad1, pad2; };

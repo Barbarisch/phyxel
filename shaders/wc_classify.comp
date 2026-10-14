@@ -7,6 +7,7 @@
 // param0 = 1: a PARTICLE transport owns the mass (Phase B2 on the GPU): no ceiling target, but the
 // symmetric density control - an over-full cell pushes, a submerged under-full cell in a QUIET cell
 // pulls (WaterCore.cpp project(), the ownsMass() branch).
+#define WC_BRICKS_BINDING 11
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 0) readonly buffer F    { float f[]; };
@@ -40,8 +41,8 @@ bool bodyWall(int x, int y, int z) {
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
-    const ivec3 c = decode(id, pc.nx, pc.ny);
-    if (c.z >= pc.nz) return;
+    ivec3 c;
+    if (!threadSite(id, 3, c)) return;
     if (pc.mode == 1) {
         // 20 (M1) WaterSolver::computeSolidRates: q = max(0, f + s - 1) V / T (param0 = T), clamped to (open
         // faces) x h^2 x 20 m/s; fresh (uploaded .w), walled-in and body-filled cells to the column ledger. Reads
@@ -59,13 +60,15 @@ void main() {
         solid[id] = sd;
         return;
     }
-    // WARM START (26.5, 2026-10-13): a liquid cell keeps the last substep's pressure as the sweeps' first guess - the
-    // hydrostatic part is the same substep to substep. Zeroed every substep, 40 sweeps stopped 0.02-0.07 % over
-    // hydrostatic, and still water crept up into the air (6-15e-6 of a cell per tick per column) and never slept under the
-    // all-faces transport (GpuRestDecisionDeterministic). Outside the water the pressure is 0 (the free surface).
+    // COLD START, every substep (26.8, 2026-10-13). A warm start (the last pressure as the first guess) made the solve exact
+    // and stopped still water creeping into the air - but a surface resting AT the liquid threshold (the bench pond's top
+    // layer at f = 0.5) then flickered in a checkerboard (KE 3e-3, never asleep) at small frame steps and lost water
+    // (2.2e-5 m^3/s live, 2.8e-4 m^3 in 20 s at dt 1/165 - WaterBrickTest.DISABLED_DiagSettlingLoss); the pond the owner
+    // signed off ran cold. Reverted; the creep is an open row (WaterCore.md 26.8).
+    p[id] = 0.0;
     const bool liquid = isLiqCell(c.x, c.y, c.z);
     liq[id] = liquid ? 1u : 0u;
-    if (!liquid) { p[id] = 0.0; diag[id] = 0.0; rhs[id] = 0.0; return; }
+    if (!liquid) { diag[id] = 0.0; rhs[id] = 0.0; return; }
     const ivec3 d[6] = ivec3[6](ivec3(-1,0,0), ivec3(1,0,0), ivec3(0,-1,0), ivec3(0,1,0), ivec3(0,0,-1), ivec3(0,0,1));
     float dsum = 0.0;
     for (int k = 0; k < 6; ++k) {
