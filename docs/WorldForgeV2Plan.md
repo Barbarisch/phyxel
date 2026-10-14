@@ -180,7 +180,14 @@ L6  LIVED-IN         residents (exists), economy edges from L2/L3, LLM authors n
 5. No universal water level anywhere in this stack. Sea is one body with one level that *WaterCore*
    owns; this plan only shapes the shelf and the coast against the level the recipe names.
 
-### 3.1 Decisions proposed for the owner to settle (D1–D9)
+### 3.1 Decisions (D1–D9) — **D1, D4, D6 SETTLED by the owner 2026-10-14 (all "yes")**
+
+Settled: **D1** store the continent once with erosion as a paged coarse sheet; **D4** design each
+settlement as a free-form vector map first; **D6** build settlements on first stream-in with a
+per-frame budget, identically in packaged games. D2, D3 and D7 follow from D1 (erosion on the
+sheet, hydrology at sheet resolution, a grounded grade cap); D5 follows from D4 (buildings stay
+axis-aligned while streets/parcels go free-form). D8 and D9 remain to be settled. The milestone
+order in §5 stands as written.
 
 | # | Decision | Why | Alternative rejected |
 |---|---|---|---|
