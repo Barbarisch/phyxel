@@ -136,12 +136,12 @@ TEST(WaterShallowFlowTest, DISABLED_DiagMassByStage) {
         for (size_t i = 0; i < names.size(); ++i) if (std::abs(dm[i]) > 1e-12) std::printf("    %-16s %+.3e m^3\n", names[i].c_str(), dm[i]);
         (void)between;
     }
-    EulerianTransport::s_allFacesAtOnce = false;
+    EulerianTransport::s_allFacesAtOnce = true;   // the default
 }
 
 TEST(WaterShallowFlowTest, DISABLED_DiagMomentumBudget) {
     constexpr int kNx = 144;
-    EulerianTransport::s_allFacesAtOnce = std::getenv("P1_NEW_TRANSPORT") != nullptr;   // the new rule, for comparison
+    EulerianTransport::s_allFacesAtOnce = std::getenv("P1_SEQUENTIAL") == nullptr;   // P1_SEQUENTIAL: the old rule, for comparison
     const double q = 0.15, dn = std::pow(q * kN / std::sqrt(kS), 0.6), un = q / dn;
     GridSpec spec; spec.origin = glm::ivec3(0); spec.dims = glm::ivec3(kNx, kNy, kNz); spec.h = kH;
     WaterGrid g(spec);
@@ -201,7 +201,7 @@ TEST(WaterShallowFlowTest, APondModelCarriesACreek) {
     EulerianTransport::s_allFacesAtOnce = true;
     Opts o; o.q = 0.40; o.seconds = 60.0f;
     const Result r = runChannel(o);
-    EulerianTransport::s_allFacesAtOnce = false;
+    EulerianTransport::s_allFacesAtOnce = true;   // the default
     print("all faces at once, q 0.40", r);
     EXPECT_NEAR(r.depth / r.dn, 1.0, 0.05);
     EXPECT_NEAR(r.speed / r.un, 1.0, 0.05);
@@ -216,7 +216,7 @@ TEST(WaterShallowFlowTest, DISABLED_DiagBothFlows) {
         char nm[64]; std::snprintf(nm, sizeof nm, "%s q %.2f", sim ? "new" : "old", q);
         print(nm, runChannel(o));
     }
-    EulerianTransport::s_allFacesAtOnce = false;
+    EulerianTransport::s_allFacesAtOnce = true;   // the default
 }
 
 TEST(WaterShallowFlowTest, DISABLED_DiagSimultaneousTransport) {
@@ -226,7 +226,7 @@ TEST(WaterShallowFlowTest, DISABLED_DiagSimultaneousTransport) {
         print(sim ? "faces at once (no receiver cap)" : "faces in order (today)", runChannel(o));
         if (sim) std::printf("    parked over full %.2e cells\n", EulerianTransport::s_overfullForTest);
     }
-    EulerianTransport::s_allFacesAtOnce = false;
+    EulerianTransport::s_allFacesAtOnce = true;   // the default
 }
 
 TEST(WaterShallowFlowTest, DISABLED_DiagDirection) {

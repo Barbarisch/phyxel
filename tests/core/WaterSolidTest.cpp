@@ -255,9 +255,19 @@ TEST(WaterSolidTest, TheCavityCloses) {
     const double stone = std::pow(kH, 3.0);
     std::printf("  control (dragged air may not rise out): trapped %.5f m^3 - the measure sees the air the rule removes\n", ctl.airAfter);
     // control re-based 2026-10-11 (WaterCore.md 24.6): with compaction confined to the settle band the moving pond no longer
-    // squeezes the swept air into one pocket, and the control holds 0.0018 m^3 (4.8 % of the stone) where it held > 10 %;
-    // the rule's run holds 0.0000. The control's job - the measure is not blind - is "clearly more air without the rule".
-    EXPECT_GT(ctl.airAfter, r.airAfter + 0.02 * stone) << "control: without the rule the stone's air must stay trapped (else the measure is blind)";
+    // squeezes the swept air into one pocket, and the control held 0.0018 m^3 (4.8 % of the stone). Since the all-faces
+    // transport (2026-10-13, 26.5) the cavity closes even WITHOUT the wake rule (0.00043 m^3, 1.1 % of the stone) - the
+    // transport no longer blocks water from flowing into it. So the A/B only asks "no less air without the rule", and the
+    // measure's sight is proven directly: a scripted half-empty cell under the water reads as its own volume.
+    EXPECT_GE(ctl.airAfter, r.airAfter) << "control: the wake rule must never ADD trapped air";
+    {
+        Pond p; p.fill();
+        const double base = airUnderWater(p.grid);
+        p.grid.f(6, 1, 6) = 0.5f;
+        const double seen = airUnderWater(p.grid) - base, put = 0.5 * stone;
+        std::printf("  control (scripted pocket, half a cell under 1.2 m of water): measured %.5f m^3 of %.5f\n", seen, put);
+        EXPECT_NEAR(seen, put, 0.01 * put) << "control: the measure must see a trapped pocket (else it is blind)";
+    }
     std::printf("  air trapped under water: before %.5f m^3, 6 s after the drop %.5f m^3 (stone %.5f m^3); surface split across two cells %.5f m^3 (not air - item 3)\n", r.airBefore, r.airAfter, stone, r.splitAfter);
     EXPECT_LE(r.airAfter, r.airBefore + 0.1 * stone) << "the cavity behind the stone stayed trapped";
     EXPECT_NEAR(r.m1, r.m0, 1e-6);

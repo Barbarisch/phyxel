@@ -179,6 +179,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     {   // the solid buffer starts all zero: no body, every rule exactly as before
         VkCommandBuffer cmd = beginCommands();
         vkCmdFillBuffer(cmd, vol->solid.buf, 0, vol->solid.bytes, 0);
+        vkCmdFillBuffer(cmd, vol->p.buf, 0, vol->p.bytes, 0);   // 26.5: the projection warm-starts from p - never from garbage
         vkCmdFillBuffer(cmd, vol->births.buf, 0, vol->births.bytes, 0);
         vkCmdFillBuffer(cmd, vol->deposit.buf, 0, vol->deposit.bytes, 0);
         submitAndWait(cmd);
@@ -247,6 +248,7 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     copy(cmd, vol.staging, vol.w, vol.nw * sizeof(float), vol.offW);
     copy(cmd, vol.staging, vol.occ, vol.cells * 4, vol.offOcc);
     vkCmdFillBuffer(cmd, vol.src.buf, 0, vol.src.bytes, 0);
+    vkCmdFillBuffer(cmd, vol.p.buf, 0, vol.p.bytes, 0);   // 26.5: a replaced state starts its solve fresh (deterministic, as a new volume)
     submitAndWait(cmd);
 }
 

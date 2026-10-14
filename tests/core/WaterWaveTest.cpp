@@ -163,7 +163,13 @@ TEST(WaterWaveTest, WavesKeepTheirEnergy) {
         // Since 24.11 (voids under a liquid cell close always, slowly in moving water) the short waves give some back on a
         // half-full cell: mode 3 0.82, mode 4 0.53 at top 0.5 (0.94 / 0.97 in 24.6, 0.46 / 0.42 with the closing at free
         // fall). The bounds for modes 3-4 are those measurements, not the prediction.
-        EXPECT_GE(r.kept, n < 3 ? 0.90 : (n == 3 ? 0.80 : 0.50)) << "mode " << n << " top " << top;
+        // Re-based 2026-10-13 (WaterCore.md 26.5) with the all-faces transport the owner signed off: the long waves lose
+        // more on a nearly full top cell (modes 1-2 at top 0.9: 0.86 / 0.87, were >= 0.90), the short ones less (mode 4 at
+        // top 0.5: 0.65, was 0.53; mode 3 >= 0.85 everywhere). Some cases still GROW per period - 1.05-1.11 on a half to
+        // three-quarter full top cell (the old rule grew 1.03-1.07) - energy from nowhere, now capped so it cannot worsen.
+        // The bounds are those measurements, not the 0.90 prediction.
+        EXPECT_GE(r.kept, n < 3 ? 0.85 : (n == 3 ? 0.80 : 0.60)) << "mode " << n << " top " << top;
+        EXPECT_LE(r.kept, 1.15) << "mode " << n << " top " << top << ": a wave growing per period is energy from nowhere";
         EXPECT_NEAR(r.period / r.periodTheory, 1.0, n < 4 ? 0.10 : 0.15) << "mode " << n << " top " << top;
     }
     // W3's threshold: a wave a viewer would not see, against the still pond's own jitter (the floor the band must sit above)

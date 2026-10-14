@@ -59,10 +59,13 @@ void main() {
         solid[id] = sd;
         return;
     }
-    p[id] = 0.0;
+    // WARM START (26.5, 2026-10-13): a liquid cell keeps the last substep's pressure as the sweeps' first guess - the
+    // hydrostatic part is the same substep to substep. Zeroed every substep, 40 sweeps stopped 0.02-0.07 % over
+    // hydrostatic, and still water crept up into the air (6-15e-6 of a cell per tick per column) and never slept under the
+    // all-faces transport (GpuRestDecisionDeterministic). Outside the water the pressure is 0 (the free surface).
     const bool liquid = isLiqCell(c.x, c.y, c.z);
     liq[id] = liquid ? 1u : 0u;
-    if (!liquid) { diag[id] = 0.0; rhs[id] = 0.0; return; }
+    if (!liquid) { p[id] = 0.0; diag[id] = 0.0; rhs[id] = 0.0; return; }
     const ivec3 d[6] = ivec3[6](ivec3(-1,0,0), ivec3(1,0,0), ivec3(0,-1,0), ivec3(0,1,0), ivec3(0,0,-1), ivec3(0,0,1));
     float dsum = 0.0;
     for (int k = 0; k < 6; ++k) {

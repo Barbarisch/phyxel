@@ -124,7 +124,7 @@ TEST(WaterDropletTest, AFullPoolRefusesAndKeepsTheWater) {
 // a floating scrap in this rig (the CPU stone throws none of its own at 6 m/s: 21.11, DiagJetParcels). A voxel-sized
 // scrap is no use here: a 3 x 3 sheet of columns touching each other is never "isolated" (the draft rule measured).
 struct EntryRun { double born = 0.0, worstDrift = 0.0; int scraps = 0, sprays = 0, isoSmallTicks = 0, isoSmall = 0; };
-EntryRun stoneEntry(bool droplets, float speed, bool inject) {
+EntryRun stoneEntry(bool droplets, float speed, bool inject, glm::ivec3 at = {3, 7, 3}, int injectTick = 20) {
     WaterGrid g(GridSpec{glm::ivec3(0), glm::ivec3(12, 9, 12), kH});
     const GridSpec sp = g.spec();
     SolidQuery q = [sp](const glm::ivec3& c) -> Occ {
@@ -139,7 +139,7 @@ EntryRun stoneEntry(bool droplets, float speed, bool inject) {
     const float film = WaterGrid::kSurfaceMinDepth / kH, cx = 6.5f * kH, he = kH / 2.0f, rest = 1.5f;
     MovingSolid b; b.centre = {cx, rest + he + 0.02f, cx}; b.halfExtents = glm::vec3(he); b.velocity = {0.0f, -speed, 0.0f};
     for (int k = 0; k < 180; ++k) {
-        if (inject && k == 20) { g.f(3, 7, 3) = 0.2f; s.wake(); m0 = g.totalMass() + r.born; }
+        if (inject && k == injectTick) { g.f(at.x, at.y, at.z) = 0.2f; s.wake(); m0 = g.totalMass() + r.born; }
         b.centre.y = std::max(he, b.centre.y - speed * kDt);
         if (b.centre.y <= he) b.velocity = glm::vec3(0.0f);
         s.setMovingSolids({b}, kDt);
@@ -159,19 +159,21 @@ EntryRun stoneEntry(bool droplets, float speed, bool inject) {
 }
 
 // D-T2 - the T4 stone entry (21.6): no isolated run with sum f < 1 exists after any tick's birth pass; grid + born
-// exact. 21.6 also predicted ">= 1 parcel born during the cavity collapse" with the slab as the control; 21.11 then
-// measured that the CPU stone (constant speed, no tumble) throws almost nothing - the slab is the live stone's. So
-// births are asserted only at 7.7 m/s (where the spray rule fires), and the control is the scripted scrap.
+// exact. 21.6 also predicted ">= 1 parcel born during the cavity collapse"; 21.11 measured that the CPU stone (constant
+// speed, no tumble) throws almost nothing. Since the all-faces transport (2026-10-13, WaterCore.md 26.5) it throws NOTHING
+// at 6-20 m/s (the face-by-face rule threw 8 spray cells at 7.7, 6 at 10, none at 15-20 - erratic: its own blockage
+// squeezed water up), so no births are asserted here; the spray rule is pinned on the grid rigs below. The control is the
+// scripted scrap, placed as the stone enters in a corner (seen floating 3 ticks under either rule; at tick 20 beside the
+// entry it was seen 1 tick old / 0 new - the splash's films touch it: DiagScriptedScrap).
 TEST(WaterDropletTest, TheStoneEntryLeavesNoFloatingScraps) {
     for (float speed : {6.0f, 7.7f}) {
         const EntryRun on = stoneEntry(true, speed, false), off = stoneEntry(false, speed, false);
-        const EntryRun onInj = stoneEntry(true, speed, true), offInj = stoneEntry(false, speed, true);
+        const EntryRun onInj = stoneEntry(true, speed, true, {1, 7, 1}, 0), offInj = stoneEntry(false, speed, true, {1, 7, 1}, 0);
         std::printf("  entry %.1f m/s, births ON : %d scrap runs, %d spray cells, %.6f m^3; isolated scraps after the birth pass %d (in %d ticks);"
                     " worst drift %.2e m^3\n", speed, on.scraps, on.sprays, on.born, on.isoSmall, on.isoSmallTicks, on.worstDrift);
         std::printf("  entry %.1f m/s, births OFF: isolated scraps %d (in %d ticks)\n", speed, off.isoSmall, off.isoSmallTicks);
         std::printf("  + scripted scrap: ON isolated in %d ticks (%d scrap runs born, drift %.2e), OFF isolated in %d ticks\n",
                     onInj.isoSmallTicks, onInj.scraps, onInj.worstDrift, offInj.isoSmallTicks);
-        if (speed > 7.0f) EXPECT_GE(on.scraps + on.sprays, 1) << "the 7.7 m/s entry must birth at least one parcel";
         EXPECT_EQ(on.isoSmallTicks, 0) << "a floating scrap survived the birth pass";
         EXPECT_EQ(onInj.isoSmallTicks, 0) << "the scripted scrap survived the birth pass";
         EXPECT_GE(onInj.scraps, 1);
@@ -179,6 +181,18 @@ TEST(WaterDropletTest, TheStoneEntryLeavesNoFloatingScraps) {
         EXPECT_LE(onInj.worstDrift, 1e-6);
         EXPECT_GT(offInj.isoSmallTicks, 0) << "control: without births the scripted scrap must be seen floating (else the measure is blind)";
     }
+}
+
+// 26.5 diagnostic: the stone rig's scripted scrap (births off) - where it is seen floating, old rule vs new
+TEST(WaterDropletTest, DISABLED_DiagScriptedScrap) {
+    for (bool allFaces : {false, true}) {
+        EulerianTransport::s_allFacesAtOnce = allFaces;
+        for (float speed : {6.0f, 7.7f, 10.0f, 12.0f, 15.0f, 20.0f}) {
+            const EntryRun r = stoneEntry(true, speed, false);
+            std::printf("  %s: entry %.1f m/s: %d scrap runs, %d spray cells, %.6f m^3 born, isolated after births %d ticks, drift %.1e\n", allFaces ? "new" : "old", speed, r.scraps, r.sprays, r.born, r.isoSmallTicks, r.worstDrift);
+        }
+    }
+    EulerianTransport::s_allFacesAtOnce = true;
 }
 
 // D-T3 - the 19.7 pocket pond (the DiagPockets rig: 2 m of water, a 62 m/s blast 3 m off the east wall, 30 s) then a
@@ -218,7 +232,8 @@ TEST(WaterDropletTest, PocketsAndASloshAreNotScraps) {
                 pockets, scraps, sprays, born, worst);
     EXPECT_GT(pockets, 0) << "control: the rig must hold pockets after the blast";
     EXPECT_EQ(scraps, 0) << "a pocket's roof (beside supported water) was born as a scrap";
-    EXPECT_LE(worst, 1e-6);
+    // 2e-6 m^3 (was 1e-6): 1.5e-6 with the all-faces transport - float rounding on ~32 m^3 of water (5e-8 relative)
+    EXPECT_LE(worst, 2e-6);
 }
 
 // ── grid-level rigs (birthDroplets + DropletPool, no solver) ────────────────────────────────────────────

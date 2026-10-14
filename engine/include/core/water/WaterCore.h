@@ -297,9 +297,9 @@ public:
     const char* name() const override { return "eulerian"; }
     void advect(WaterGrid& g, float dt) override;
     /// WaterCore.md 26.5 (P1): the ALL-FACES-AT-ONCE fill transport - the cause of the pond model's slow creek fixed (100 % of
-    /// Manning's depth and speed vs 114 % with the face-by-face rule). OFF by default pending the owner: it changes the
-    /// signed-off pond (wave energy per swing mixed, the stone-entry spray gone - 26.5). Tests switch it on.
-    static inline bool s_allFacesAtOnce = false;
+    /// Manning's depth and speed vs 114 % with the face-by-face rule). THE DEFAULT since the owner signed off the pond A/B
+    /// (2026-10-13); false = the old face-by-face rule, kept only as a test control and the A/B switch (water_transport).
+    static inline bool s_allFacesAtOnce = true;
     /// 26 P1: fill parked over full under a ceiling or at the box top since start (cell fills) - reported by the tests.
     static inline double s_overfullForTest = 0.0;
     void setLiquidThreshold(float thr) override { m_liquidThreshold = thr; }
