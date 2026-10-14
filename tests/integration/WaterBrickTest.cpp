@@ -12,6 +12,9 @@
 #include "core/water/WaterCoreGpu.h"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <map>
+#include <string>
 #include <functional>
 
 using namespace Phyxel::Core::Water;
@@ -239,22 +242,31 @@ TEST_F(WaterBrickTest, DISABLED_ACreekStoredSparseFitsTheBudget) {
         for (int y = 0; y < dims.y; ++y) {
             g.occ(x, y, z) = (!channel && y < 4) ? Occ::Solid : Occ::Air;
             if (channel && y == 0) { g.f(x, y, z) = 1.0f; ++waterCells; }
-            if (channel && y == 1) { g.f(x, y, z) = 0.35f; ++waterCells; }
+            // 26.9: a gentle tilt along the creek (0.15 -> 0.55 of the second cell): the water keeps MOVING through the timed
+            // window - resting water now sleeps (the still-water guess) and a sleeping volume costs nothing
+            if (channel && y == 1) { g.f(x, y, z) = 0.15f + 0.4f * static_cast<float>(x + z) / static_cast<float>(dims.x + dims.z); ++waterCells; }
         }
     }
     SolverParams prm;
+    const int sweeps = std::getenv("DIAG_SWEEPS") ? std::atoi(std::getenv("DIAG_SWEEPS")) : 40;
+    std::printf("  sweeps %d, still-water guess %d\n", sweeps, int(WaterCoreGpu::s_stillWaterGuess));
     auto measure = [&](WaterCoreGpu::Volume* v, int& bricks, long& shortBy) {
         for (int k = 0; k < 20; ++k) {
-            const GpuStepStats st = gpu.step(*v, prm, kDt, 1, 40);
+            const GpuStepStats st = gpu.step(*v, prm, kDt, 1, sweeps);
             if (std::getenv("DIAG_RES") && k < 8) std::printf("    warm %d: bricks %d alloc %d freed %d rings %d asleep %d ms %.3f maxSpeed %.4f\n", k, st.bricks, st.allocated, st.freed, st.haloRings, int(st.asleep), st.gpuMs, st.maxSpeed);
         }
         std::vector<double> ms;
         double res = 0.0, wait = 0.0, after = 0.0;
+        int asleep = 0; double resMax = 0.0;
         for (int k = 0; k < 30; ++k) {
-            const GpuStepStats st = gpu.step(*v, prm, kDt, 1, 40);
+            const GpuStepStats st = gpu.step(*v, prm, kDt, 1, sweeps);
+            asleep += st.asleep ? 1 : 0;
+            resMax = std::max(resMax, static_cast<double>(st.rbgsResidualMax));
             ms.push_back(st.gpuMs); bricks = st.bricks; shortBy += st.haloShort;
             res += st.hostResidencyMs / 30.0; wait += st.submitWaitMs / 30.0; after += st.hostAfterMs / 30.0;
         }
+        std::printf("    worst pressure residual over the timed calls %.2e\n", resMax);
+        if (asleep) std::printf("    WARNING: asleep in %d of the 30 timed calls - the timing is not a stepping cost\n", asleep);
         std::printf("    mean split: host residency %.3f ms, recording %.3f ms, submit+fence %.3f ms, after %.3f ms\n", res, std::max(0.0, [&]{ double m = 0; for (double x : ms) m += x / 30.0; return m; }() - res - wait), wait, after);
         std::sort(ms.begin(), ms.end());
         return std::make_pair(ms[15], ms[27]);
@@ -324,7 +336,7 @@ TEST_F(WaterBrickTest, AnyOriginKeepsTheWater) {
         WaterGrid out(g.spec());
         for (int k = 0; k < 1800; ++k) {
             const GpuStepStats st = gpu.step(*v, prm, kDt, 1, 40);
-            worst = std::max(worst, std::abs(st.totalMass - m0));
+            if (!st.asleep) worst = std::max(worst, std::abs(st.totalMass - m0));   // an asleep call reports no sums (26.9: this pond now sleeps)
             if (k < 120) cpu.step(kDt);
             if (k == 119) {
                 gpu.download(*v, out);
@@ -338,6 +350,7 @@ TEST_F(WaterBrickTest, AnyOriginKeepsTheWater) {
                 EXPECT_LT(df, 1e-2);
             }
         }
+        { WaterGrid end(g.spec()); gpu.download(*v, end); worst = std::max(worst, std::abs(end.totalMass() - m0)); }   // and the water itself at 30 s
         std::printf("  origin (%d,%d,%d) (o = %d,%d,%d): worst |mass - start| over 30 s %.3e m^3 of %.4f\n", origin.x, origin.y, origin.z, v->o.x, v->o.y, v->o.z, worst, m0);
         EXPECT_LT(worst, 1e-5 * m0) << "origin " << origin.x << "," << origin.y << "," << origin.z;
         gpu.destroyVolume(v);
@@ -386,7 +399,9 @@ TEST_F(WaterBrickTest, DISABLED_DiagSettlingLoss) {
         g.occ(x, y, z) = (pit || y >= 12) ? Occ::Air : Occ::Solid;
     }
     for (int z = 3; z < 15; ++z) for (int x = 3; x < 15; ++x) { for (int y = 3; y < 7; ++y) g.f(x, y, z) = 1.0f; g.f(x, 7, z) = 0.5f; }
-    for (int sweeps : {40, 27}) for (float dt : {1.0f / 60.0f, 1.0f / 165.0f}) {
+    const bool guessWas = WaterCoreGpu::s_stillWaterGuess;
+    for (bool guess : {false, true}) for (int sweeps : {40, 27}) for (float dt : {1.0f / 60.0f, 1.0f / 165.0f}) {
+        WaterCoreGpu::s_stillWaterGuess = guess;
         WaterGrid w = g;
         std::string err;
         WaterCoreGpu::Volume* v = gpu.createVolume(w, &err);
@@ -401,9 +416,10 @@ TEST_F(WaterBrickTest, DISABLED_DiagSettlingLoss) {
             if (st.asleep) sleptAt = k;
         }
         gpu.download(*v, w);
-        std::printf("  sweeps %d, dt %.4f: asleep at tick %d (%.2f s); mass %.6f -> %.6f (%+.3e m^3), lowest %.6f\n", sweeps, dt, sleptAt, sleptAt * dt, m0, w.totalMass(), w.totalMass() - m0, minM);
+        std::printf("  %s sweeps %d, dt %.4f: asleep at tick %d (%.2f s); mass %.6f -> %.6f (%+.3e m^3), lowest %.6f\n", guess ? "GUESS" : "cold ", sweeps, dt, sleptAt, sleptAt * dt, m0, w.totalMass(), w.totalMass() - m0, minM);
         gpu.destroyVolume(v);
     }
+    WaterCoreGpu::s_stillWaterGuess = guessWas;
 }
 
 // 26.6 diagnostic: the settling loss tick by tick (40 sweeps, dt 1/165): per-tick mass change from the downloaded grid,
@@ -417,19 +433,32 @@ TEST_F(WaterBrickTest, DISABLED_DiagSettlingLossPerTick) {
         g.occ(x, y, z) = (pit || y >= 12) ? Occ::Air : Occ::Solid;
     }
     for (int z = 3; z < 15; ++z) for (int x = 3; x < 15; ++x) { for (int y = 3; y < 7; ++y) g.f(x, y, z) = 1.0f; g.f(x, 7, z) = 0.5f; }
+    if (std::getenv("DIAG_NOISE")) {   // the CPU diagnostic's fixed +-noise pattern on the threshold layer
+        const float e = static_cast<float>(std::atof(std::getenv("DIAG_NOISE")));
+        for (int z = 3; z < 15; ++z) for (int x = 3; x < 15; ++x) g.f(x, 7, z) += ((x * 7 + z * 13) % 3 - 1) * e;
+    }
     WaterGrid w = g;
     std::string err;
     WaterCoreGpu::Volume* v = gpu.createVolume(w, &err);
     ASSERT_NE(v, nullptr) << err;
     SolverParams prm;
-    const float dt = 1.0f / 165.0f;
+    if (std::getenv("DIAG_THETAMIN")) prm.thetaMin = std::atof(std::getenv("DIAG_THETAMIN"));
+    const float dt = std::getenv("DIAG_DT") ? 1.0f / std::atof(std::getenv("DIAG_DT")) : 1.0f / 165.0f;   // env: the frame rate
+    const bool guessWas = WaterCoreGpu::s_stillWaterGuess;
+    if (std::getenv("DIAG_GUESS")) WaterCoreGpu::s_stillWaterGuess = std::atoi(std::getenv("DIAG_GUESS")) != 0;
+    const bool ghostWas2 = WaterSolver::s_surfaceGhost; const float riseWas2 = EulerianTransport::s_quietRiseFraction;
+    if (std::getenv("DIAG_GHOST")) WaterSolver::s_surfaceGhost = std::atoi(std::getenv("DIAG_GHOST")) != 0;
+    if (std::getenv("DIAG_RISE")) EulerianTransport::s_quietRiseFraction = static_cast<float>(std::atof(std::getenv("DIAG_RISE")));
     std::vector<float> prevF = w.fData();
     double prevM = w.totalMass(), lossSum = 0.0, gainSum = 0.0;
+    double dropped = 0.0;
     struct Ev { double dm; int tick; std::vector<std::pair<size_t, std::pair<float, float>>> cells; };
     std::vector<Ev> worst;
-    for (int k = 0; k < 1650; ++k) {
+    for (int k = 0; k < static_cast<int>(10.0f / dt); ++k) {
         const GpuStepStats st = gpu.step(*v, prm, dt, 1, 40);
         gpu.download(*v, w);
+        dropped += st.residueDropped;
+        if (std::getenv("DIAG_TICKS") && k < std::atoi(std::getenv("DIAG_TICKS"))) std::printf("    tick %d: dm %+.3e ke %.2e residual %.2e\n", k, w.totalMass() - prevM, st.kineticEnergy, st.rbgsResidualMax);
         const double m = w.totalMass(), dm = m - prevM;
         if (dm < 0) lossSum += dm; else gainSum += dm;
         if (dm < -1e-7) {
@@ -440,9 +469,26 @@ TEST_F(WaterBrickTest, DISABLED_DiagSettlingLossPerTick) {
             if (worst.size() > 3) worst.resize(3);
         }
         prevM = m; prevF = w.fData();
-        if (k % 330 == 0) std::printf("  tick %4d: mass %.7f ke %.1e quiet %d substeps %d\n", k, m, st.kineticEnergy, st.quietTicks, st.substepsLast);
+        if (k % static_cast<int>(2.0f / dt) == 0) std::printf("  tick %4d: mass %.7f ke %.1e quiet %d substeps %d\n", k, m, st.kineticEnergy, st.quietTicks, st.substepsLast);
     }
     std::printf("  losses %.3e, gains %.3e (cell units x h^3 = m^3)\n", lossSum, gainSum);
+    std::printf("  residue dropped (counted) %.3e m^3\n", dropped);
+    {   // where the motion is: the fastest faces at the end, with the fills on both sides
+        struct Fc { float s; char lat; int x, y, z; };
+        std::vector<Fc> fc;
+        for (int z = 0; z < 18; ++z) for (int y = 0; y < 18; ++y) for (int x = 0; x < 18; ++x) {
+            fc.push_back({std::abs(w.u(x, y, z)), 'u', x, y, z});
+            fc.push_back({std::abs(w.v(x, y, z)), 'v', x, y, z});
+            fc.push_back({std::abs(w.w(x, y, z)), 'w', x, y, z});
+        }
+        std::sort(fc.begin(), fc.end(), [](const Fc& a, const Fc& b) { return a.s > b.s; });
+        for (int k = 0; k < 12; ++k) {
+            const Fc& e = fc[k];
+            const int bx = e.x - (e.lat == 'u'), by = e.y - (e.lat == 'v'), bz = e.z - (e.lat == 'w');
+            std::printf("  %c(%d,%d,%d) |%.3e| m/s: f below/behind %.6f, f at %.6f\n", e.lat, e.x, e.y, e.z, e.s,
+                        (bx >= 0 && by >= 0 && bz >= 0) ? w.f(bx, by, bz) : -1.0f, w.f(e.x, e.y, e.z));
+        }
+    }
     for (const Ev& e : worst) {
         double sum = 0.0; for (auto& c : e.cells) sum += (c.second.second - c.second.first);
         std::printf("  tick %d: dm %.3e m^3, %zu cells changed, net %.3e cells:\n", e.tick, e.dm, e.cells.size(), sum);
@@ -454,4 +500,148 @@ TEST_F(WaterBrickTest, DISABLED_DiagSettlingLossPerTick) {
         }
     }
     gpu.destroyVolume(v);
+    WaterCoreGpu::s_stillWaterGuess = guessWas;
+    WaterSolver::s_surfaceGhost = ghostWas2; EulerianTransport::s_quietRiseFraction = riseWas2;
+}
+
+// 26.9 diagnostic: the same bench pond (top layer AT the liquid threshold) on the CPU reference - a converged PCG - at the
+// frame rate DIAG_DT (default 60): does an exact solve flicker there too? KE and mass every 2 s.
+TEST_F(WaterBrickTest, DISABLED_DiagSettlingCpu) {
+    const glm::ivec3 origin(297, 42, 33), d(18, 18, 18);
+    WaterGrid g(GridSpec{origin, d, 1.0f / 3.0f});
+    for (int z = 0; z < d.z; ++z) for (int y = 0; y < d.y; ++y) for (int x = 0; x < d.x; ++x) {
+        const bool pit = x >= 3 && x < 15 && z >= 3 && z < 15 && y >= 3;
+        g.occ(x, y, z) = (pit || y >= 12) ? Occ::Air : Occ::Solid;
+    }
+    for (int z = 3; z < 15; ++z) for (int x = 3; x < 15; ++x) { for (int y = 3; y < 7; ++y) g.f(x, y, z) = 1.0f; g.f(x, 7, z) = 0.5f; }
+    if (std::getenv("DIAG_NOISE")) {   // a fixed +-noise pattern on the threshold layer (mass-neutral pairs)
+        const float e = static_cast<float>(std::atof(std::getenv("DIAG_NOISE")));
+        for (int z = 3; z < 15; ++z) for (int x = 3; x < 15; ++x) g.f(x, 7, z) += ((x * 7 + z * 13) % 3 - 1) * e;
+    }
+    SolverParams sp;
+    const float riseWas = EulerianTransport::s_quietRiseFraction;
+    if (std::getenv("DIAG_RISE")) EulerianTransport::s_quietRiseFraction = static_cast<float>(std::atof(std::getenv("DIAG_RISE")));
+    const bool ghostWas = WaterSolver::s_surfaceGhost;
+    if (std::getenv("DIAG_GHOST")) WaterSolver::s_surfaceGhost = std::atoi(std::getenv("DIAG_GHOST")) != 0;
+    if (std::getenv("DIAG_OFF")) sp.debugDisableStages = static_cast<uint32_t>(std::atoi(std::getenv("DIAG_OFF")));
+    if (std::getenv("DIAG_THETAMIN")) sp.thetaMin = std::atof(std::getenv("DIAG_THETAMIN"));
+    WaterSolver cpu(g, [&g, origin, d](const glm::ivec3& cw) { const glm::ivec3 l = cw - origin; return (l.x < 0 || l.y < 0 || l.z < 0 || l.x >= d.x || l.y >= d.y || l.z >= d.z) ? Occ::Solid : g.occ(l.x, l.y, l.z); }, sp);
+    const float dt = std::getenv("DIAG_DT") ? 1.0f / std::atof(std::getenv("DIAG_DT")) : 1.0f / 60.0f;
+    // per stage: the mass each stage changes (summed over the run) - which stage loses the water
+    std::map<std::string, double> stageDm;
+    double lastM = g.totalMass();
+    // and the water ABOVE the surface layer (y >= 8) each stage adds - who lifts water over the surface
+    std::map<std::string, double> stageUp;
+    auto above = [&]() { double t = 0.0; for (int z = 0; z < 18; ++z) for (int y = 8; y < 18; ++y) for (int x = 0; x < 18; ++x) t += g.f(x, y, z); return t; };
+    double lastUp = above();
+    cpu.stageProbeForTest = [&](const char* stage) {
+        const double m = g.totalMass(); stageDm[stage] += m - lastM; lastM = m;
+        const double u = above(); if (u > lastUp) stageUp[stage] += u - lastUp; lastUp = u;
+    };
+    const double m0 = g.totalMass();
+    double dropped = 0.0;
+    for (int k = 0; k < static_cast<int>(10.0f / dt); ++k) {
+        const StepReport r = cpu.step(dt);
+        dropped += r.residueDropped;
+        { const double m = g.totalMass(); stageDm["(after the tick: residue sweep)"] += m - lastM; lastM = m; }
+        if (k % static_cast<int>(2.0f / dt) == 0) {
+            // the kinetic energy split: liquid cells (f >= 0.5) vs partial cells (0 < f < 0.5) - the partial cells' top faces
+            // carry free fall under a film, which is energy of almost no water
+            double keLiq = 0.0, kePart = 0.0, levelMin = 1e9, levelMax = -1e9;
+            for (int z = 0; z < 18; ++z) for (int y = 0; y < 18; ++y) for (int x = 0; x < 18; ++x) {
+                const float fc = g.f(x, y, z);
+                if (fc <= 0.0f) continue;
+                const double uc = 0.5 * (g.u(x, y, z) + g.u(x + 1, y, z)), vc = 0.5 * (g.v(x, y, z) + g.v(x, y + 1, z)), wc = 0.5 * (g.w(x, y, z) + g.w(x, y, z + 1));
+                const double e = 0.5 * fc * (uc * uc + vc * vc + wc * wc) * g.h() * g.h() * g.h();
+                (fc >= 0.5f ? keLiq : kePart) += e;
+            }
+            for (int z = 3; z < 15; ++z) for (int x = 3; x < 15; ++x) { double col = 0.0; for (int y = 3; y < 12; ++y) col += g.f(x, y, z); levelMin = std::min(levelMin, col); levelMax = std::max(levelMax, col); }
+            std::printf("  tick %4d: mass %+.3e ke %.1e (liquid %.1e, partial %.1e) asleep %d, column levels %.5f..%.5f\n", k, g.totalMass() - m0, r.kineticEnergy, keLiq, kePart, int(cpu.asleep()), levelMin, levelMax);
+        }
+    }
+    std::printf("  residue dropped (counted) %.3e m^3\n", dropped);
+    for (auto& kv : stageDm) if (kv.second != 0.0) std::printf("  stage %-32s dm %+.3e m^3\n", kv.first.c_str(), kv.second);
+    for (auto& kv : stageUp) std::printf("  stage %-32s lifted above the surface layer %.3e cells\n", kv.first.c_str(), kv.second);
+    struct Fc { float s; char lat; int x, y, z; };
+    std::vector<Fc> fc;
+    for (int z = 0; z < 18; ++z) for (int y = 0; y < 18; ++y) for (int x = 0; x < 18; ++x) {
+        fc.push_back({g.u(x, y, z), 'u', x, y, z}); fc.push_back({g.v(x, y, z), 'v', x, y, z}); fc.push_back({g.w(x, y, z), 'w', x, y, z});
+    }
+    std::sort(fc.begin(), fc.end(), [](const Fc& a, const Fc& b) { return std::abs(a.s) > std::abs(b.s); });
+    for (int k = 0; k < 8; ++k) {
+        const Fc& e = fc[k];
+        const int bx = e.x - (e.lat == 'u'), by = e.y - (e.lat == 'v'), bz = e.z - (e.lat == 'w');
+        std::printf("  %c(%d,%d,%d) %+.3e m/s: f below/behind %.6f, f at %.6f\n", e.lat, e.x, e.y, e.z, e.s, (bx >= 0 && by >= 0 && bz >= 0) ? g.f(bx, by, bz) : -1.0f, g.f(e.x, e.y, e.z));
+    }
+    WaterSolver::s_surfaceGhost = ghostWas;
+    EulerianTransport::s_quietRiseFraction = riseWas;
+}
+
+// 26.9 diagnostic: ONE tick of the threshold pond on the GPU (guess on): a column's pressure against g x depth to the surface
+// (raw theta from the fills), and its vertical face speeds - DIAG_GHOST=0: the old surface rule (p_air = 0).
+TEST_F(WaterBrickTest, DISABLED_DiagThresholdColumn) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const glm::ivec3 origin(297, 42, 33), d(18, 18, 18);
+    WaterGrid g(GridSpec{origin, d, 1.0f / 3.0f});
+    for (int z = 0; z < d.z; ++z) for (int y = 0; y < d.y; ++y) for (int x = 0; x < d.x; ++x) {
+        const bool pit = x >= 3 && x < 15 && z >= 3 && z < 15 && y >= 3;
+        g.occ(x, y, z) = (pit || y >= 12) ? Occ::Air : Occ::Solid;
+    }
+    for (int z = 3; z < 15; ++z) for (int x = 3; x < 15; ++x) { for (int y = 3; y < 7; ++y) g.f(x, y, z) = 1.0f; g.f(x, 7, z) = 0.5f; }
+    const bool guessWas = WaterCoreGpu::s_stillWaterGuess;
+    WaterCoreGpu::s_stillWaterGuess = true;
+    std::string err;
+    WaterCoreGpu::Volume* v = gpu.createVolume(g, &err);
+    ASSERT_NE(v, nullptr) << err;
+    SolverParams prm;
+    const bool ghostWas = WaterSolver::s_surfaceGhost;
+    if (std::getenv("DIAG_GHOST")) WaterSolver::s_surfaceGhost = std::atoi(std::getenv("DIAG_GHOST")) != 0;
+    for (int tick = 0; tick < 3; ++tick) {
+        const GpuStepStats st = gpu.step(*v, prm, 1.0f / 165.0f, 1, std::getenv("DIAG_SWEEPS") ? std::atoi(std::getenv("DIAG_SWEEPS")) : 40);
+        std::vector<float> pr; gpu.readPressure(*v, pr); gpu.download(*v, g);
+        std::printf("  tick %d: KE %.2e residual %.2e\n", tick, st.kineticEnergy, st.rbgsResidualMax);
+        for (int y = 3; y < 10; ++y)
+            std::printf("    (8,%d,8) f %.7f p %+.6f (g x depth %+.6f) | v below %+.3e | corner (3,%d,3) p %+.6f u-face %+.3e\n", y, g.f(8, y, 8), pr[g.idx(8, y, 8)],
+                        prm.gravity * g.h() * (8.0f - (y + 0.5f) - 0.5f), g.v(8, y, 8), y, pr[g.idx(3, y, 3)], g.u(3, y, 3));
+    }
+    gpu.destroyVolume(v);
+    WaterCoreGpu::s_stillWaterGuess = guessWas;
+    WaterSolver::s_surfaceGhost = ghostWas;
+}
+
+// 26.9 diagnostic: what the sweep count buys once the solve starts from the still water. A dam break (the most dynamic
+// scene) and a slosh, 1 s each at dt 1/60, at 8..80 sweeps with the guess on (and 40 cold for reference), every run
+// against a 160-sweep guess run: max |f - f_ref| at 1 s, the worst residual and mass drift.
+TEST_F(WaterBrickTest, DISABLED_DiagSweepsAfterTheGuess) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const bool guessWas = WaterCoreGpu::s_stillWaterGuess;
+    for (int scene = 0; scene < 2; ++scene) {
+        WaterGrid g(GridSpec{glm::ivec3(0), glm::ivec3(36, 18, 6), kH});
+        for (int z = 0; z < 6; ++z) for (int y = 0; y < 18; ++y) for (int x = 0; x < 36; ++x) {
+            g.occ(x, y, z) = Occ::Air;
+            if (scene == 0 && x < 12 && y < 12) g.f(x, y, z) = 1.0f;                                         // dam break
+            if (scene == 1 && y < 6 + (x < 18 ? 2 : 0)) g.f(x, y, z) = 1.0f;                                 // slosh (a step)
+        }
+        auto run = [&](int sweeps, bool guess, double& resMax, double& mass) {
+            WaterCoreGpu::s_stillWaterGuess = guess;
+            WaterGrid w = g; std::string err;
+            WaterCoreGpu::Volume* v = gpu.createVolume(w, &err);
+            EXPECT_NE(v, nullptr) << err;
+            SolverParams prm; resMax = 0.0;
+            for (int k = 0; k < 60; ++k) { const GpuStepStats st = gpu.step(*v, prm, kDt, 1, sweeps); resMax = std::max(resMax, static_cast<double>(st.rbgsResidualMax)); }
+            gpu.download(*v, w); mass = w.totalMass(); gpu.destroyVolume(v);
+            return w.fData();
+        };
+        double r0, m0;
+        const std::vector<float> ref = run(160, true, r0, m0);
+        std::printf("  %s: reference 160 sweeps (guess): residual %.2e, mass %.6f\n", scene == 0 ? "DAM BREAK" : "SLOSH", r0, m0);
+        for (int sweeps : {8, 12, 16, 20, 27, 40, 80}) for (bool guess : {true, false}) {
+            if (!guess && sweeps != 40 && sweeps != 20) continue;
+            double r, m;
+            const std::vector<float> f = run(sweeps, guess, r, m);
+            double df = 0.0; for (size_t i = 0; i < f.size(); ++i) df = std::max(df, static_cast<double>(std::abs(f[i] - ref[i])));
+            std::printf("    %3d sweeps %s: max|f - ref| %.3e, worst residual %.2e, mass %+.2e\n", sweeps, guess ? "guess" : "cold ", df, r, m - m0);
+        }
+    }
+    WaterCoreGpu::s_stillWaterGuess = guessWas;
 }

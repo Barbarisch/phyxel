@@ -332,19 +332,22 @@ void EulerianTransport::advect(WaterGrid& g, float dt) {
         // 0.185 m^2/s where 0.150 moved; WaterShallowFlowTest). Exact by construction: every amount leaves one cell and
         // enters another.
         m_faces.clear(); m_out.assign(f.size(), 0.0);
-        auto add = [&](size_t ia, size_t ib, float vel, bool downward) {
+        const float quietRise = s_quietRiseFraction * std::sqrt(2.0f * 9.81f * h);
+        auto add = [&](size_t ia, size_t ib, float vel, bool downward, bool upward = false) {
             if (vel == 0.0f) return;
             const size_t from = vel > 0.0f ? ia : ib, to = vel > 0.0f ? ib : ia;
             const float fd = f[from];
             if (fd <= 0.0f) return;
             const float sweep = std::abs(vel) * dt / h;
-            const float desired = (downward && fd < thr) ? std::min(fd, sweep) : sweep * fd;
+            float desired = (downward && fd < thr) ? std::min(fd, sweep) : sweep * fd;
+            // 26.9: a quiet partial cell under an emptier one fills itself before water crosses its ceiling (donor-acceptor)
+            if (upward && vel < quietRise && fd < 1.0f && f[to] < fd) desired = std::clamp(sweep - (1.0f - fd), 0.0f, fd);
             m_faces.push_back({from, to, desired}); m_out[from] += static_cast<double>(desired);
         };
         for (int y = 0; y < ny; ++y) for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
             if (x >= 1 && !blocked(g, x - 1, y, z) && !blocked(g, x, y, z)) add(g.idx(x - 1, y, z), g.idx(x, y, z), g.u(x, y, z), false);
             if (z >= 1 && !blocked(g, x, y, z - 1) && !blocked(g, x, y, z)) add(g.idx(x, y, z - 1), g.idx(x, y, z), g.w(x, y, z), false);
-            if (y >= 1 && !blocked(g, x, y - 1, z) && !blocked(g, x, y, z)) add(g.idx(x, y - 1, z), g.idx(x, y, z), g.v(x, y, z), g.v(x, y, z) < 0.0f);
+            if (y >= 1 && !blocked(g, x, y - 1, z) && !blocked(g, x, y, z)) add(g.idx(x, y - 1, z), g.idx(x, y, z), g.v(x, y, z), g.v(x, y, z) < 0.0f, g.v(x, y, z) > 0.0f);
         }
         // the sums in DOUBLE, rounded to float once per cell: six float adds per cell drifted 2.7e-6 m^3 in a 10 s slosh where
         // the face-by-face rule drifted 2e-8 (WaterShallowFlowTest.DiagMassByStage)
@@ -366,9 +369,11 @@ void EulerianTransport::advect(WaterGrid& g, float dt) {
                     if (carry > 0.0f && last >= 0) { g_[static_cast<size_t>(last)] += carry; s_overfullForTest += carry; }
                     carry = 0.0f; last = -1; continue;
                 }
-                g_[i] += carry; carry = 0.0f; last = static_cast<long>(i);
+                // 26.9: add only what this cell can HOLD in float - the rest stays in the carry (the GPU's rule, wc_fill_advect mode 5)
+                { const float before = g_[i]; g_[i] = before + carry; carry -= g_[i] - before; }
+                last = static_cast<long>(i);
                 const float room = 1.0f - sv[i];
-                if (g_[i] > room) { carry = g_[i] - room; g_[i] = room; }
+                if (g_[i] > room) { carry += g_[i] - room; g_[i] = room; }
             }
             if (carry > 0.0f && last >= 0) { g_[static_cast<size_t>(last)] += carry; s_overfullForTest += carry; }
         }
@@ -887,7 +892,16 @@ void WaterSolver::settleThinFilmTopFaces() {
                 // Basin run at h = 1 ended with a 1.03 m surface spread, films at the rim, 2026-10-08).
                 if (y + 1 < m_grid.ny() && m_grid.f(x, y + 1, z) > 0.0f) continue;
                 const bool solidBelow = blocked(m_grid, x, y - 1, z);
-                const float vBottom = solidBelow ? 0.0f : m_grid.v(x, y, z);
+                float vBottom = solidBelow ? 0.0f : m_grid.v(x, y, z);
+                // 26.9: a thin layer RESTING ON WATER rises by filling its cell, not through its ceiling. Copying a slow upward
+                // floor velocity to the top face let the transport lift sweep x f out of the top of the layer every substep - a
+                // film that fell back under gravity next substep, kept the volume's kinetic energy up (99.7 % of a settled pond's
+                // KE sat on those faces) and lost water to float rounding when it merged (DiagSettlingCpu, 2026-10-14). Fast
+                // floors (a run-up sheet, a jet: over a tenth of the one-cell free-fall speed - compaction's quiet gate) and
+                // layers not on water keep the block motion.
+                if (vBottom > 0.0f && !solidBelow && m_grid.inBounds(x, y - 1, z) && m_grid.f(x, y - 1, z) + m_grid.s(x, y - 1, z) >= thr
+                    && vBottom < 0.1f * static_cast<float>(std::sqrt(2.0 * m_params.gravity * m_grid.h())))
+                    vBottom = 0.0f;
                 m_grid.v(x, y + 1, z) = vBottom;   // y ascends in the loop, so a stack of thin cells copies the floor upward
             }
 }
@@ -975,6 +989,20 @@ double WaterSolver::thetaToAir(int x, int y, int z, int dir) const {
     return 0.5;
 }
 
+// 26.9: the pressure the ghost (air) cell holds across face `dir`. Zero, except where thetaToAir CLAMPED: the surface sits
+// raw = (f - 0.5 + f_above) of a cell over this centre, closer than thetaMin, and the matrix and the velocity update use
+// thetaMin. The ghost then holds the still-water pressure at that distance, -g (thetaMin - raw) h, so this cell's own
+// pressure comes out g raw h - CONTINUOUS as the cell crosses the liquid threshold (raw -> 0, the cell below then takes the
+// surface at 1 + raw). With p_air = 0 the clamp lifted the surface by thetaMin h at every crossing: the neighbour just under
+// the threshold (air) took a sideways push of 2 g thetaMin, a surface resting AT the threshold traded water in a
+// checkerboard and never slept, and the films it threw up lost water to float rounding (DiagSettlingCpu, 2026-10-14).
+double WaterSolver::surfaceGhost(int x, int y, int z, int dir) const {
+    if (dir != 3 || !s_surfaceGhost) return 0.0;
+    const double fa = m_grid.inBounds(x, y + 1, z) ? std::min(1.0, static_cast<double>(m_grid.f(x, y + 1, z))) : 0.0;
+    const double raw = static_cast<double>(m_grid.f(x, y, z)) + m_grid.s(x, y, z) - 0.5 + fa;
+    return raw < m_params.thetaMin ? -static_cast<double>(m_params.gravity) * m_grid.h() * (m_params.thetaMin - raw) : 0.0;
+}
+
 void WaterSolver::project(float dt, StepReport& r) {
     const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
     const size_t n = m_grid.cellCount();
@@ -999,14 +1027,16 @@ void WaterSolver::project(float dt, StepReport& r) {
     for (size_t i = 0; i < m; ++i) {
         const int ci = liquid[i];
         const int x = ci % nx, y = (ci / nx) % ny, z = ci / (nx * ny);
-        double d = 0.0;
+        double d = 0.0, ghostRhs = 0.0;   // ghostRhs: sum of p_ghost / theta over the air faces (26.9), x 1/h^2 below
         for (int k = 0; k < 6; ++k) {
             const int xn = x + dx[k], yn = y + dy[k], zn = z + dz[k];
             nb[i][k] = -1;
             if (blocked(m_grid, xn, yn, zn) || bodyWall(xn, yn, zn)) continue;          // Neumann (a body-full cell is a wall, 20.5)
             const int ni = static_cast<int>(m_grid.idx(xn, yn, zn));
             if (row[ni] >= 0) { nb[i][k] = row[ni]; d += 1.0; continue; }               // liquid neighbour
-            d += 1.0 / thetaToAir(x, y, z, k);                                          // ghost fluid
+            const double th = thetaToAir(x, y, z, k);                                   // ghost fluid
+            d += 1.0 / th;
+            ghostRhs += surfaceGhost(x, y, z, k) / th;
         }
         // A liquid cell with no open neighbour (walled in by rock and body cells, 20.5) cannot move water
         // through any face: its row is decoupled (p = 0) - a zero diagonal made the Jacobi preconditioner
@@ -1018,7 +1048,7 @@ void WaterSolver::project(float dt, StepReport& r) {
         diag[i] = isolated ? 1.0 : d * invh2;
         // rhs = −div(u)/dt
         const double div = (static_cast<double>(m_grid.u(x + 1, y, z)) - m_grid.u(x, y, z) + m_grid.v(x, y + 1, z) - m_grid.v(x, y, z) + m_grid.w(x, y, z + 1) - m_grid.w(x, y, z)) / h;
-        rhs[i] = -div / dt;
+        rhs[i] = -div / dt + ghostRhs * invh2;   // 26.9: a Dirichlet ghost value moves to the right-hand side
         // A pump outlet is an inflow boundary: the projection enforces div(u) = q there, q = rate /
         // cell volume, so the velocity field carries the added water away each substep instead of
         // the outlet cell saturating (S2 Small: the trough stopped at 2/3, 2026-10-08).
@@ -1151,7 +1181,9 @@ void WaterSolver::project(float dt, StepReport& r) {
     auto faceUpdate = [&](int xa, int ya, int za, int xb, int yb, int zb, int dirAtoB, float& vel) {
         const bool la = isLiq(xa, ya, za), lb = isLiq(xb, yb, zb);
         if (!la && !lb) return;
-        const double pa = pAt(xa, ya, za), pb = pAt(xb, yb, zb);
+        // 26.9: the air side holds the ghost pressure (0, or the hydrostatic ghost at a clamped surface)
+        const double pa = la ? pAt(xa, ya, za) : surfaceGhost(xb, yb, zb, dirAtoB ^ 1);
+        const double pb = lb ? pAt(xb, yb, zb) : surfaceGhost(xa, ya, za, dirAtoB);
         double dist = h;
         if (la && !lb) dist = h * thetaToAir(xa, ya, za, dirAtoB);
         else if (lb && !la) dist = h * thetaToAir(xb, yb, zb, dirAtoB ^ 1);
@@ -1362,8 +1394,12 @@ void WaterSolver::compactSubmergedPartials(float dt, bool settling) {
         const float vFree = static_cast<float>(std::sqrt(2.0 * m_params.gravity * h));
         if (uc * uc + wc * wc > 0.01f * vFree * vFree) continue;
         const float moved = std::min({fa, 1.0f - sb - fb, settling ? cap : std::min(cap, m_params.compactionSpeed * dt / h)});   // 24.11: slowly in moving water, at free fall while settling
-        m_grid.f(x, y, z) = fb + moved;
-        m_grid.f(x, y + 1, z) = fa - moved;
+        // 26.9: move what the receiver can HOLD in float - fb + moved rounds to fb's resolution (3e-8 near 0.5), so a film of
+        // millionths poured into a half-full cell lost the rounding every time: the donor gave `moved`, the cell gained less.
+        // The exact difference (nb - fb is exact in float) leaves the donor; what the cell cannot represent stays above.
+        const float nb = fb + moved;
+        m_grid.f(x, y, z) = nb;
+        m_grid.f(x, y + 1, z) = fa - (nb - fb);
     }
 }
 
@@ -1384,7 +1420,11 @@ void WaterSolver::sweepResidue(StepReport& r) {
             const float fn = m_grid.f(xn, yn, zn);
             if (needWet && fn <= 0.0f) return false;
             if (fn + fc > 1.0f) return false;
-            m_grid.f(xn, yn, zn) = fn + fc;
+            // 26.9: the receiver keeps what float can hold (fn + fc rounds to fn's resolution); the rest is COUNTED, never lost
+            const float sum = fn + fc;
+            m_grid.f(xn, yn, zn) = sum;
+            const double unheld = static_cast<double>(fc) - (static_cast<double>(sum) - fn);
+            if (unheld > 0.0) r.residueDropped += unheld * m_grid.h() * m_grid.h() * m_grid.h();
             return true;
         };
         bool placed = tryInto(x, y - 1, z, false)

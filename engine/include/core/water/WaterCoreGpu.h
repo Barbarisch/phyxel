@@ -28,8 +28,10 @@ struct WcPush {
     // 26.6 P2a: brick storage (shaders/water_core.glsl)
     int32_t bricked = 0, slotsUsed = 0, ox = 0, oy = 0, oz = 0, bnx = 0, bny = 0, bnz = 0;
     int32_t slotTableOff = 0, colTableOff = 0, counterOff = 0, colCount = 0;
+    int32_t surfaceGhost = 1;   ///< 26.9: the hydrostatic ghost at a clamped surface (WaterSolver::surfaceGhost)
+    float quietRise = 0.0f;     ///< 26.9: m/s under which a partial cell's surface rises by filling (EulerianTransport::s_quietRiseFraction)
 };
-static_assert(sizeof(WcPush) == 100, "WcPush must match the GLSL push block");
+static_assert(sizeof(WcPush) == 108, "WcPush must match the GLSL push block");
 
 /// A pump or sink on the device (shaders/wc_sources.comp GpuSource, 32 bytes).
 struct GpuSource {
@@ -160,6 +162,8 @@ public:
               const std::string& shaderDir, std::string* err);
     void shutdown();
     bool ready() const { return m_device != VK_NULL_HANDLE && m_pool != VK_NULL_HANDLE; }
+    /// 26.9: the projection starts from the still-water pressure of the water as it is now (classify mode 2), not 0.
+    static inline bool s_stillWaterGuess = false;   // OFF by default: 26.9 (a resting body loses water with it at 27 sweeps)
     void setOmega(float w) { m_omega = w; }
     float omega() const { return m_omega; }
 

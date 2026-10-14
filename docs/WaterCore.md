@@ -48,7 +48,7 @@ containers.
 **Open small-body items, by weight** (each with its section):
 - *Feel and correctness:* voids made by moving water are closed by compaction, not prevented - the cure is a volume
   correction in the pressure solve (§24.11); short waves on a half-full cell keep 0.53-0.82 per swing (§24.11); the
-  ±2 cm terraces / cells stuck at f = 0.5 (§19.8, cause unestablished); a 0.08-0.10 m/s phantom current on a still GPU
+  ±2 cm terraces / cells stuck at f = 0.5 (§19.8 - causes FOUND and fixed 2026-10-14 in §26.9, not signed off); a 0.08-0.10 m/s phantom current on a still GPU
   pond (§19.6); wood floats high and a floating block's pond never sleeps (§19.3, §24.8; cure M4 two-way force, §20.6);
   added mass not modelled (§24.10).
 - *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater S4 not wired to the breaking ledger (§21.4, §22.12);
@@ -71,8 +71,11 @@ their numbers (§25.24-25.38), Manning at the bed and the generator-line floor (
 measuring tools. **§26 P1 DONE and signed off (2026-10-13, §26.5):** the cause was the fill transport (face by face, each
 move capped at the receiver's room); the all-faces-at-once transport is the default on CPU and GPU (100.0 % of Manning's
 depth and speed). **§26 P2a BUILT (26.8):** the GPU core stores water in bricks that follow it, bit-identical to a box;
-the creek's cost gate is OPEN (1.94-2.02 ms) and the GPU's cold-start solve still creeps (open row). **Next:** the
-converged, cheaper GPU solve (26.8 levers), then P2b (the engine on bricks), P3 creeks and ponds on one model. The §23 slime experiment stays queued.
+the creek's cost gate is OPEN. **26.9 (2026-10-14, built, not signed off):** the surface at the liquid threshold fixed in
+BOTH backends (the surface jump, films thrown over a slow surface, float-rounding losses - 19.8's "cells stuck at f = 0.5"),
+ON by default; the still-water first guess built but OFF (with a resting body it loses water at the engine's sweeps), so
+GPU still water still creeps. **Next:** the owner's A/B of 26.9 (videos in 26.9); the guess's body loss; then the cost
+(the sweeps cannot buy it - flat bricks and fewer dispatches), P2b (the engine on bricks), P3. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5172,7 +5175,13 @@ immediate neighbours (where water can move next) - never a box of dry banks and 
 
 ### 26.3 Phases (each designed in detail and design-checked before it is built; the owner looks in motion)
 
-- **P1 - the pond model carries a creek.** Find, by measurement, why the pond core runs shallow fast water deep and slow,
+**Status (2026-10-14):** P1 **DONE** (signed off 2026-10-13, 26.5). P2a **DONE** - storage in bricks, bit-identical (26.8).
+**26.9 surface fixes BUILT, ON by default, not signed off** (the threshold surface, quiet rise, exact moves - CPU and GPU;
+A/B videos recorded). **The still-water guess BUILT, OFF by default** (a resting body loses water with it - 26.9). OPEN:
+GPU still water creeps (needs the guess); the P2 cost gate (1.80 ms at 40 sweeps for one creek; 2 ms is for ALL water).
+P2b, P3, P4, P5 **not started**.
+
+- **P1 - the pond model carries a creek.** [DONE, signed off 2026-10-13 - 26.5] Find, by measurement, why the pond core runs shallow fast water deep and slow,
   and fix it in the core (CPU reference first, then the GPU kernels - one law, both backends). Rig: the straight 1:100
   channel of 25.39 (`WindowRig`'s world) run by the pond core ALONE - a dense box is acceptable here, it is a unit rig - at
   1/9 m, 0.2 and 0.5 m^3/s (normal depth ~0.12 and ~0.23 m: one and two to three cells). Candidates, each measured by
@@ -5182,19 +5191,19 @@ immediate neighbours (where water can move next) - never a box of dry banks and 
   mid-reach depth and speed within 5 % of Manning at two to three cells deep (and the one-cell case reported); the
   column solver's numbers on the same rig as the cross-check; the still-pond suite (§19-§24: slosh, waves, pebble pair,
   W-T tests) unchanged - the fix must not break the signed-off pond.
-- **P2 - storage that follows the water.** The pond core on the GPU stores and steps BRICKS of 8 x 8 x 8 cells (8/9 m) that
+- **P2 - storage that follows the water.** [P2a storage DONE - 26.8; cost gate OPEN - 26.8/26.9; P2b not started] The pond core on the GPU stores and steps BRICKS of 8 x 8 x 8 cells (8/9 m) that
   hold water or touch a brick that does; empty bricks are freed. Bricks are world-aligned (36 per 32 m chunk side), so a
   body of water is one set of bricks wherever it lies. **Gates:** a sparse run equals the dense run of the same water
   (the 25.32 equality shape: bit-identical on the CPU reference, parity on the GPU); cost per water cell measured; the
   100 m bench creek (~22,000 cells) inside 25.10's budget.
-- **P3 - creeks and ponds on one model.** The creek bench, the dam & pond bench and the pond benches all run as pond water;
+- **P3 - creeks and ponds on one model.** [not started] The creek bench, the dam & pond bench and the pond benches all run as pond water;
   springs and outfalls are the pond core's sources and sinks; the bed is the generator line (option a). **Gates:** the
   numbers the column solver met (25.28 K: speed vs Manning, roughness tuning; 25.38 DP: fill rate Q/A, spill at the crest,
   the dam's dip and the break's surge, the ledger exact across edits) met by the pond model; ripples and splashes as on
   the pond (no ported copies); then the column regions and windows removed from near water.
-- **P4 - rest and the world record.** Still water sleeps into spans and wakes where disturbed or flowing (§16, as today);
+- **P4 - rest and the world record.** [not started] Still water sleeps into spans and wakes where disturbed or flowing (§16, as today);
   flowing water never sleeps; 25.3's world record (saved water, springs as world objects) on the one model.
-- **P5 - far away.** Measured against the budget: either the pond model within the whole simulation radius, or a cheap
+- **P5 - far away.** [not started] Measured against the budget: either the pond model within the whole simulation radius, or a cheap
   summary far from the player (25.5's T3, basins and reaches) with its hand-off placed where no seam can be seen. Decided
   by numbers from P2/P3, not now.
 H3-H5 of 25.13 (settling, the far network, underground) are re-designed on the one model when they are reached; their
@@ -5501,12 +5510,91 @@ used 1/60): `WaterBrickTest.DISABLED_DiagSettlingLoss` - 2.8e-4 m^3 in 20 s and 
 liquid threshold - flickering in a CHECKERBOARD (0.49997 / 0.50003, KE 3e-3). The cold start (what the owner signed off)
 holds: 3e-6 m^3 in the same rig. Reverted (`wc_classify.comp` zeroes p every substep again).
 
-**Open rows (honest state after P2a):** (1) the GPU's cold-start projection (40 sweeps) leaves still water creeping
+**Open rows (honest state after P2a):** (1) [**STILL OPEN after 26.9** - the cure (the still-water guess) is built but OFF:
+with a body resting in the pond it loses water at the engine's sweep count; 26.9 also found and fixed the threshold-surface
+causes the warm start exposed] the GPU's cold-start projection (40 sweeps) leaves still water creeping
 (~1e-5 of a cell per tick per column at dt 1/60) - a still GPU pool never sleeps under the all-faces transport
 (`GpuRestDecisionDeterministic` (a) red) and the live pond drifts ~1e-6 m^3/s (24 s: -2.7e-5 m^3; this predates P2a). The
 fix is a CONVERGED solve that does not destabilise a threshold surface - the warm start alone did; it belongs with the
 cost levers (b)/(c) above (a converged, cheaper solve is both). (2) The creek's cost (above). (3) `GpuFlipBulkParityAndRunup`
 (the known FLIP row).
+
+### 26.9 The surface at the liquid threshold, and a still-water first guess (2026-10-14). Status: surface fixes BUILT + ON (not signed off); the guess BUILT + OFF
+
+**The ask (owner, 2026-10-14: "get it done"):** 26.8's next step - a converged, cheaper GPU solve, for open row (1) (still
+GPU water creeps and never sleeps; the live pond drifts) and the cost. What happened, in order, each step measured:
+
+**1. A still-water first guess (built).** The projection starts from the pressure of the water AS IT IS NOW - down each
+column, g x the distance to the free surface (the matrix's own theta) - not 0 (`wc_classify.comp` mode 2;
+`WaterCoreGpu::s_stillWaterGuess`). A pure function of the water, never last substep's pressure (the warm start's stale
+state). For a level pool it IS the solution: `DiagStillPool` p 4.90500 against 4.90500 (cold 4.90862), asleep at tick 30,
+nothing creeping above the pool (cold: 5.6e-3 cells in 54 ticks). But the bench pond with its top layer AT the threshold
+(f = 0.5) flickered with it at dt 1/60 (KE 2e-2, ~1.5e-7 m^3 lost per tick) - the warm start's symptom. So the warm start
+was never the cause; a converged solve exposes something the cold start's error hid.
+
+**2. The CPU fails the same way** (`WaterBrickTest.DISABLED_DiagSettlingCpu`): exact on an exact f = 0.5 layer, but +-1e-5
+of noise on it (what float rounding gives the GPU) and the converged CPU never sleeps and loses 2e-6 m^3 in 10 s. A
+defect of the ONE model at the threshold - 19.8's "cells stuck at f = 0.5, cause unestablished".
+
+**3. Its causes, measured stage by stage, and the fixes (CPU and GPU, one law each; all ON by default):**
+- **(a) The surface jumped at the threshold** (`DiagThresholdColumn`, `DiagSettlingCpu`): a top cell just over the
+  threshold has its surface (f - 0.5 + f_above) closer than thetaMin (0.01); the matrix used 0.01 with p_air = 0, so the
+  cell's pressure was g x 0.01 h instead of ~0, and its neighbour just under the threshold (air) took a false sideways push
+  of 2 g thetaMin. **Fix:** where theta is clamped, the ghost (air) cell holds the still-water pressure at the clamped
+  distance, -g (thetaMin - raw) h (`WaterSolver::surfaceGhost`, `wcSurfaceGhost`, `WaterSolver::s_surfaceGhost`) - the
+  cell's pressure is then g raw h, continuous across the threshold. Matrix unchanged (the clamp keeps 1/theta finite).
+- **(b) A slow surface threw films over itself** (the KE split: 99.7 % of a "settled" pond's KE sat on the free-falling
+  top faces of cells just under the threshold, under a film; the transport lifted 0.37-0.53 of a cell over the surface in
+  10 s). Two rules: a thin layer RESTING ON WATER rises by filling, not through its ceiling - its top face no longer copies
+  a slow upward floor velocity (`settleThinFilmTopFaces`, `wc_column_ops` mode 0); and a QUIET partial cell under an emptier
+  one fills before water crosses its ceiling - 24.2's donor-acceptor rule W1, only below `quietRise` = 0.002 x sqrt(2 g h)
+  (~5 mm/s at 1/3 m, ~3 at 1/9) (`EulerianTransport::s_quietRiseFraction`, `wc_fill_advect` faceDesired). W1 everywhere
+  slowed every wave (24.6); gated, every `WaterWaveTest` row keeps its number (mode 4 at top 0.5: 0.66, was 0.65; 0.005
+  cost it 0.59).
+- **(c) Water lost to float rounding** where a tiny amount enters a large cell: compaction moved it and the receiver could
+  not hold it (`fb + moved` == fb) - now the exact difference leaves the donor; the transport's carry up a column the same
+  (the GPU's resting-body loss 2.7e-4 -> 1.8e-4 m^3 with it); the residue sweep counts what the receiver cannot hold as
+  DROPPED instead of losing it silently.
+
+**4. Results with (a)-(c) on (guess OFF - the default):**
+
+| test | before 26.9 | now |
+|---|---|---|
+| `DiagSettlingCpu` - the bench pond, +-1e-5 / +-1e-3 noise on the threshold layer, CPU, dt 1/60 | never asleep, -2.0e-6 / -1.8e-6 m^3 | **asleep by 2 s / by 6 s**, mass +1.5e-8 / +2.5e-7, levels within 4e-5 cells |
+| `DiagSettlingLoss` - the same pond on the GPU (cold start), 4 settings | asleep in 1 of 4 | asleep at dt 1/165 (-2.4e-6 m^3); at 1/60 still not |
+| the CPU water suite | 318 green | **318 green** (`SpawnInsideWaterIsLedgerExact` now checks water + counted drops - it had passed by CANCELLATION: the transport's rounding gained +2.4e-5 while the sweep dropped 3.0e-5; uncounted now +6.8e-6, four times smaller) |
+| the GPU water suite (30) | 2 red (rest, FLIP) | the same 2 red (rest = the open row, FLIP) |
+| live, WaterBench_Small, the sloshed pond (stone drop, 25 s) | -9.0e-6 m^3; KE at 12 s 2.7e-2 | **-4.5e-6 m^3; KE at 12 s 4.1e-3** (calms sooner; 1.3e-4 vs 7.4e-5 at the end) |
+| live, the still bench pond, 24 s | CPU exact; GPU drifts | CPU exact; GPU +7e-6 m^3, never still (open row) |
+
+The owner's A/B (left the signed-off rules, right 26.9): `docs/evidence/water_core_e/pebble_pair_p269_ab.mp4`,
+`slosh_live_p269_ab.mp4` (and the separate `_old` / `_new` clips + JSON).
+
+**5. The guess - built, OFF by default, and why.** With (a)-(c) the guess fixes still GPU water (`GpuRestDecisionDeterministic`
+green with it; the threshold pond asleep at every setting, mass exact at 1/165). But with a BODY resting in the pond, at the
+engine's sweep count, the GPU loses water: live slosh -1.5..-2.2e-4 m^3 with it, -4.5e-6 without (droplets off: the same);
+headless `WaterCoreGpuParityTest.DISABLED_DiagRestingBodyKeepsTheWater`: -1.8e-4 m^3 in 27 s. What is known:
+- it is a PARTLY CONVERGED solve with a body, not the guess as such: 27 sweeps cold +5.8e-6, guess -1.8e-4; 40 sweeps cold
+  -1.3e-4, guess -9.7e-5; 80 cold -5.6e-5, guess +1.6e-5; 160 both +1.6e-5 (the cold start at 27 sweeps is so far from
+  converged - residual 2.3 - that it never reaches the losing band);
+- skipping compaction and the carry stops most of it (and the motion: KE 1e-4 -> 5e-11), each alone halves it - they keep
+  the water near the body cycling; where the water then leaves is NOT found: no negative or over-full cells, nothing counted
+  as residue or droplet births, and a compensated (Kahan) fill update changed nothing (tried, reverted); the GPU's own
+  stage-mass sums are float (resolution 6e-5 of a cell) and cannot see it.
+- next: exact stage sums on the GPU (integer or two-float), or the CPU on the same body rig stage by stage; then the
+  guess can be switched on. A/B: `/api/debug/water_transport {still_water_guess}`.
+
+**6. The cost - "cheaper" is NOT met.** The creek (`DISABLED_ACreekStoredSparseFitsTheBudget`, now tilted so it keeps moving):
+40 sweeps 1.80 ms (residual 0.115), 20 sweeps 1.49 ms (3.3), 10 sweeps 1.37 ms (16.7). About 1.2 ms of a call is NOT the
+pressure solve, so sweeps can save at most ~0.4 ms, and fewer sweeps cost accuracy in moving water (the dam break's worst
+residual at 40 sweeps: 12 with the guess, 5.7 cold - `DiagSweepsAfterTheGuess`). The levers left: (a) flat bricks for
+shallow water, (b) fewer, fused dispatches; a solver that converges moving water (multigrid-preconditioned CG, or
+brick-local sweeps in shared memory) if the parity or the feel asks for it.
+
+**API.** `/api/debug/water_transport` echoes and sets `still_water_guess` (GPU, default false), `surface_ghost` (CPU and
+GPU, default true), `quiet_rise` (fraction, default 0.002; 0 = off) beside `all_faces`. **Design keys.** Pure functions
+of the water now; no chunk or brick dependence (the brick equality tests pass unchanged); no new world-recipe parameters.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

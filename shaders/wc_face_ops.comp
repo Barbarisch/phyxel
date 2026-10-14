@@ -82,7 +82,9 @@ void main() {
         const bool la = isLiq(a.x, a.y, a.z), lb = isLiq(b.x, b.y, b.z);
         if (!la && !lb) return;
         if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z) || bodyWall(a.x, a.y, a.z) || bodyWall(b.x, b.y, b.z)) { vel[id] = 0.0; return; }   // no update on solid faces (a body wall is one, 20.5)
-        const float pa = la ? p[cellIdx(a.x, a.y, a.z)] : 0.0, pb = lb ? p[cellIdx(b.x, b.y, b.z)] : 0.0;
+        // 26.9: the air side holds the ghost pressure (0, or the hydrostatic ghost at a clamped surface)
+        const float pa = la ? p[cellIdx(a.x, a.y, a.z)] : (lb ? wcSurfaceGhost(b.x, b.y, b.z, dirAB ^ 1) : 0.0);
+        const float pb = lb ? p[cellIdx(b.x, b.y, b.z)] : (la ? wcSurfaceGhost(a.x, a.y, a.z, dirAB) : 0.0);
         float dist = pc.h;
         if (la && !lb) dist = pc.h * wcThetaToAir(a.x, a.y, a.z, dirAB);
         else if (lb && !la) dist = pc.h * wcThetaToAir(b.x, b.y, b.z, dirAB ^ 1);

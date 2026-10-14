@@ -15,6 +15,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/PerfCapture.h"
 #include "core/water/WaterSpanWriteBack.h"   // Phase D: span clip/assemble/merge
 #include "core/water/WaterSpanEdit.h"        // Phase D2: edits never create water
+#include "core/water/WaterCoreGpu.h"         // 26.9: the still-water guess A/B switch
 #include "core/DebrisApiCommands.h"
 #include <cmath>
 #include <cstdlib>
@@ -14286,7 +14287,14 @@ void Application::registerWaterCommands() {
         // all_faces: the all-faces-at-once fill transport (the fixed creek) on every volume, CPU and GPU, from the next step;
         // false = the face-by-face rule the signed-off pond was tuned on. Omitted = unchanged; the reply echoes it.
         if (cmd.params.contains("all_faces")) Core::Water::EulerianTransport::s_allFacesAtOnce = cmd.params.value("all_faces", false);
-        r = {{"all_faces", Core::Water::EulerianTransport::s_allFacesAtOnce}};
+        // still_water_guess (26.9): the GPU projection starts from the still-water pressure of the water now, not 0
+        if (cmd.params.contains("still_water_guess")) Core::Water::WaterCoreGpu::s_stillWaterGuess = cmd.params.value("still_water_guess", false);
+        // surface_ghost (26.9): a top cell just over the liquid threshold keeps its own surface pressure (CPU and GPU); false = the old rule
+        if (cmd.params.contains("surface_ghost")) Core::Water::WaterSolver::s_surfaceGhost = cmd.params.value("surface_ghost", true);
+        // quiet_rise (26.9): fraction of the one-cell free-fall speed under which a partial cell fills before water crosses its ceiling (0 = off)
+        if (cmd.params.contains("quiet_rise")) Core::Water::EulerianTransport::s_quietRiseFraction = std::max(0.0f, cmd.params.value("quiet_rise", 0.002f));
+        r = {{"all_faces", Core::Water::EulerianTransport::s_allFacesAtOnce}, {"still_water_guess", Core::Water::WaterCoreGpu::s_stillWaterGuess},
+             {"surface_ghost", Core::Water::WaterSolver::s_surfaceGhost}, {"quiet_rise", Core::Water::EulerianTransport::s_quietRiseFraction}};
     });
     reg.on("water_pond_friction", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 24.7
         if (!waterCore) { r = {{"error", "no water core"}}; return; }

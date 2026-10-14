@@ -916,6 +916,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     enforceSolids();
     // projection
     push.mode = 0; push.param0 = vol.particles ? 1.0f : 0.0f; dispatch(cmd, *vol.pipes[Classify], push, cells); push.param0 = 0.0f;
+    if (s_stillWaterGuess) { push.mode = 2; dispatch(cmd, *vol.pipes[Classify], push, cols); }   // 26.9: the still-water first guess
     for (int s = 0; s < sweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
         push.mode = 0; push.iparam = colour; push.param1 = m_omega; dispatch(cmd, *vol.pipes[Rbgs], push, cells);
     }
@@ -979,6 +980,8 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     }
     WcPush push; push.nx = vol.spec.dims.x; push.ny = vol.spec.dims.y; push.nz = vol.spec.dims.z;
     push.h = vol.spec.h; push.thr = params.liquidThreshold; push.gravity = params.gravity; push.filmHold = params.filmHoldDepth / vol.spec.h; push.thetaMin = static_cast<float>(params.thetaMin);
+    push.surfaceGhost = WaterSolver::s_surfaceGhost ? 1 : 0;   // 26.9: one switch for both backends
+    push.quietRise = EulerianTransport::s_quietRiseFraction * std::sqrt(2.0f * 9.81f * vol.spec.h);   // 26.9: the CPU's gate, the CPU's g
     // CFL from the last known max speed plus the gravity a few ticks can add. The margin is capped at
     // six ticks' worth: a 60-tick benchmark call otherwise carried +9.8 m/s and doubled its substeps
     // (2.39 ms at 1/3 m with 2 substeps, 2026-10-08). The fill move is bounded (min of donor, room)

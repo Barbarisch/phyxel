@@ -8,6 +8,7 @@
 #include "core/water/WaterSurfaceMesh.h"
 #include "core/water/WaterCoreManager.h"
 #include <cmath>
+#include <cstdlib>
 #include <functional>
 
 using namespace Phyxel::Core::Water;
@@ -222,17 +223,18 @@ TEST_F(WaterCoreGpuParityTest, GpuAllFacesRestingPondKeepsItsMass) {
 }
 
 // 26.5 diagnostic: the still pool (GpuRestDecisionDeterministic (a)) - KE, the water above the pool and the quiet counter
-// per tick, GPU vs CPU, both rules
+// per tick, GPU vs CPU; the all-faces rule, without and with the still-water first guess (26.9)
 TEST_F(WaterCoreGpuParityTest, DISABLED_DiagStillPool) {
     if (!isVulkanAvailable()) GTEST_SKIP();
-    for (bool allFaces : {false, true}) {
-        EulerianTransport::s_allFacesAtOnce = allFaces;
+    const bool guessWas = WaterCoreGpu::s_stillWaterGuess;
+    for (bool guess : {false, true}) {
+        WaterCoreGpu::s_stillWaterGuess = guess;
         Tank t(6, 4, 3), c(6, 4, 3);
         for (Tank* x : {&t, &c}) x->grid.fillBox({0, 0, 0}, {5, 1, 2}, 1.0f);
         auto* vol = make(t);
         WaterSolver cpu(c.grid, c.query());
         SolverParams prm;
-        std::printf("  %s\n", allFaces ? "ALL FACES" : "face by face");
+        std::printf("  %s\n", guess ? "STILL-WATER GUESS" : "cold start");
         for (int tick = 0; tick < 60; ++tick) {
             const auto st = gpu.step(*vol, prm, kDt, 1, std::getenv("DIAG_SWEEPS") ? std::atoi(std::getenv("DIAG_SWEEPS")) : 40);
             const StepReport cr = cpu.step(kDt);
@@ -257,7 +259,7 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagStillPool) {
         }
         gpu.destroyVolume(vol);
     }
-    EulerianTransport::s_allFacesAtOnce = true;   // the default
+    WaterCoreGpu::s_stillWaterGuess = guessWas;
 }
 
 // 26.6 P2 cost model (DIAGNOSTIC): the GPU core's time per call (one tick, realtime's shape) against the cells it steps, on
@@ -771,6 +773,105 @@ TEST_F(WaterCoreGpuParityTest, GpuStoneMakesACraterAndTheCavityCloses) {
     EXPECT_LE(on.air, 0.1 * stone) << "the cavity's air stayed trapped on the GPU";
     EXPECT_LT(off.absMax, 0.01f) << "control: no body, no splash";
     gpu.destroyVolume(vol); gpu.destroyVolume(vctl);
+}
+
+// 26.9 diagnostic: a body RESTING on the bottom of a pond whose top layer is at the threshold (fillPond: 0.5) - the live
+// bench's stones after a drop. The live slosh lost 1.5-2.2e-4 m^3 with the still-water guess on and 5e-6 with it off (droplets
+// off made no difference). Lowered at 0.5 m/s to the floor, then 25 s at the engine's frame step; mass every 2.5 s, guess on
+// vs off. DIAG_HALF = the cube's half extent (m, default 0.17 - the bench's 1/3 m stone).
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagRestingBodyKeepsTheWater) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const bool guessWas = WaterCoreGpu::s_stillWaterGuess;
+    const float half = std::getenv("DIAG_HALF") ? static_cast<float>(std::atof(std::getenv("DIAG_HALF"))) : 0.17f;
+    const float dt = 1.0f / 165.0f;
+    for (bool guess : {false, true}) {
+        WaterCoreGpu::s_stillWaterGuess = guess;
+        Tank g(12, 9, 12, kH3);
+        fillPond(g.grid);
+        auto* vol = make(g); ASSERT_NE(vol, nullptr);
+        SolverParams prm;
+        const double m0 = g.grid.totalMass();
+        WaterSolver aux(g.grid, g.query());
+        MovingSolid b; b.centre = {2.0f, 2.6f, 2.0f}; b.halfExtents = glm::vec3(half);
+        std::printf("  %s (cube half %.2f m)\n", guess ? "GUESS" : "cold ", half);
+        const int n = static_cast<int>(27.5f / dt);
+        double dropped = 0.0, births = 0.0;
+        for (int k = 0; k < n; ++k) {
+            b.centre.y = std::max(half + 0.001f, 2.6f - 0.5f * (k + 1) * dt);
+            aux.updateSolidFields({b}, dt);
+            gpu.setSolids(*vol, g.grid.sData(), aux.solidWake(), aux.solidFresh(), dt);
+            const GpuStepStats st = gpu.step(*vol, prm, dt, 1, std::getenv("DIAG_SWEEPS") ? std::atoi(std::getenv("DIAG_SWEEPS")) : 27);
+            dropped += st.residueDropped;
+            { std::vector<float> br; if (gpu.readBirths(*vol, br)) for (size_t c = 0; c + 7 < br.size(); c += 8) births += static_cast<double>(br[c]) * kH3 * kH3 * kH3; }   // cell fractions -> m^3
+            if (k % static_cast<int>(2.5f / dt) == 0 || k == n - 1) {
+                WaterGrid w(g.grid.spec()); gpu.download(*vol, w);
+                {   // TMP: where the water sits - negative fills, water inside the body, over-full cells
+                    double neg = 0.0, over = 0.0, inBody = 0.0; int nNeg = 0, nOver = 0;
+                    for (size_t c = 0; c < w.cellCount(); ++c) {
+                        const float fv = w.fData()[c], sv = g.grid.sData()[c];
+                        if (fv < 0.0f) { neg += fv; ++nNeg; }
+                        if (fv + sv > 1.0f + 1e-6f) { over += fv + sv - 1.0f; ++nOver; }
+                        if (sv > 0.0f) inBody += fv;
+                    }
+                    std::printf("      negative f: %d cells, %.3e; over-full (f + s > 1): %d cells, %.3e; water in body cells %.4f cells\n", nNeg, neg, nOver, over, inBody);
+                }
+                std::printf("    t %5.1f s: body y %.2f, mass %+.3e m^3 (residue dropped, counted %.3e; droplet births %.3e), ke %.1e, asleep %d, residual %.2e\n", (k + 1) * dt, b.centre.y, w.totalMass() - m0, dropped, births, st.kineticEnergy, int(st.asleep), st.rbgsResidualMax);
+            }
+        }
+        gpu.destroyVolume(vol);
+    }
+    WaterCoreGpu::s_stillWaterGuess = guessWas;
+}
+
+// 26.9 diagnostic: the resting-body loss TICK BY TICK once the body has settled (guess on): the worst ticks' changed cells,
+// with each cell's body fraction s - where does the water go?
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagRestingBodyWhereItGoes) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float dt = 1.0f / 165.0f, half = 0.17f;
+    Tank g(12, 9, 12, kH3);
+    fillPond(g.grid);
+    auto* vol = make(g); ASSERT_NE(vol, nullptr);
+    SolverParams prm;
+    WaterSolver aux(g.grid, g.query());
+    MovingSolid b; b.centre = {2.0f, 2.6f, 2.0f}; b.halfExtents = glm::vec3(half);
+    WaterGrid prev(g.grid.spec()), now(g.grid.spec());
+    double lossSum = 0.0, gainSum = 0.0;
+    struct Ev { double dm; int tick; std::vector<std::pair<size_t, std::pair<float, float>>> cells; };
+    std::vector<Ev> worst;
+    const int settle = static_cast<int>(10.0f / dt), n = settle + static_cast<int>(8.0f / dt);
+    for (int k = 0; k < n; ++k) {
+        b.centre.y = std::max(half + 0.001f, 2.6f - 0.5f * (k + 1) * dt);
+        aux.updateSolidFields({b}, dt);
+        gpu.setSolids(*vol, g.grid.sData(), aux.solidWake(), aux.solidFresh(), dt);
+        if (k == settle) gpu.download(*vol, prev);
+        gpu.step(*vol, prm, dt, 1, 27);
+        if (k < settle) continue;
+        gpu.download(*vol, now);
+        const double dm = now.totalMass() - prev.totalMass();
+        if (dm < 0) lossSum += dm; else gainSum += dm;
+        if (dm < -2e-8) {
+            Ev e; e.dm = dm; e.tick = k;
+            for (size_t i = 0; i < now.cellCount(); ++i) if (now.fData()[i] != prev.fData()[i]) e.cells.push_back({i, {prev.fData()[i], now.fData()[i]}});
+            worst.push_back(e);
+            std::sort(worst.begin(), worst.end(), [](const Ev& a, const Ev& c) { return a.dm < c.dm; });
+            if (worst.size() > 2) worst.resize(2);
+        }
+        prev = now;
+    }
+    std::printf("  settled 8 s: losses %.3e, gains %.3e m^3\n", lossSum, gainSum);
+    for (const Ev& e : worst) {
+        // the cells with the largest |change|, and the net change by body fraction band
+        double netBody = 0.0, netFree = 0.0;
+        for (auto& c : e.cells) { const double d = c.second.second - c.second.first; (g.grid.sData()[c.first] > 0.0f ? netBody : netFree) += d; }
+        std::printf("  tick %d: dm %.3e m^3 (%.3e cells), %zu cells changed; net in body cells %.3e, elsewhere %.3e cells\n", e.tick, e.dm, e.dm / (kH3 * kH3 * kH3), e.cells.size(), netBody, netFree);
+        std::vector<std::pair<size_t, std::pair<float, float>>> cs = e.cells;
+        std::sort(cs.begin(), cs.end(), [](const auto& a, const auto& c) { return std::abs(a.second.second - a.second.first) > std::abs(c.second.second - c.second.first); });
+        for (size_t q = 0; q < std::min<size_t>(cs.size(), 14); ++q) {
+            const size_t i = cs[q].first; const int x = int(i % 12), y = int((i / 12) % 9), z = int(i / 108);
+            std::printf("     (%d,%d,%d) s %.3f: %.7f -> %.7f (%+.2e)\n", x, y, z, g.grid.sData()[i], cs[q].second.first, cs[q].second.second, cs[q].second.second - cs[q].second.first);
+        }
+    }
+    gpu.destroyVolume(vol);
 }
 
 // T2 on the device: a 1 m cube lowered at 0.2 m/s until fully under raises the level by 1/16 m.

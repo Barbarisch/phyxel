@@ -190,11 +190,17 @@ TEST(WaterSolidTest, SpawnInsideWaterIsLedgerExact) {
     // the RESTING level (WaterCore.md 24.6): until 2026-10-11 read at a fixed 5 s, when the over-damped pond had stopped;
     // a pond that keeps its waves is still moving then, so wait for the volume to sleep (<= 60 s) and report when it did
     int slept = -1;
-    for (int k = 0; k < 3600 && slept < 0; ++k) { s.setMovingSolids({b}, kDt); if (s.step(kDt).asleep) slept = k; }
+    double dropped = 0.0;   // residue the sweep could not merge - COUNTED (StepReport::residueDropped), part of the ledger
+    for (int k = 0; k < 3600 && slept < 0; ++k) { s.setMovingSolids({b}, kDt); const StepReport rr = s.step(kDt); dropped += rr.residueDropped; if (rr.asleep) slept = k; }
     const float level = levelAway(p.grid, 4, 7);
-    std::printf("  spawned cube: asleep after %.1f s (-1 = not in 60 s); level away %.4f m (predicted 1.5625; drawn %.4f, air under water %.4f m^3), mass %.9f -> %.9f\n", slept < 0 ? -1.0f : slept * kDt, level, drawnLevelAway(p.grid, 4, 7), airUnderWater(p.grid), m0, p.grid.totalMass());
+    std::printf("  spawned cube: asleep after %.1f s (-1 = not in 60 s); level away %.4f m (predicted 1.5625; drawn %.4f, air under water %.4f m^3), mass %.9f -> %.9f, residue dropped (counted) %.3e, uncounted %+.3e m^3\n", slept < 0 ? -1.0f : slept * kDt, level, drawnLevelAway(p.grid, 4, 7), airUnderWater(p.grid), m0, p.grid.totalMass(), dropped, p.grid.totalMass() + dropped - m0);
     EXPECT_NEAR(level, 1.5625f, 0.005f);
-    EXPECT_NEAR(p.grid.totalMass(), m0, 1e-7 * m0) << "relative since 24.7: the run is ~34 s to sleep (was a fixed 5 s); float rounding over 2000 ticks is 1.6e-6 m^3 of 24";
+    // THE LEDGER: water now + water counted as dropped = water at the start, to float rounding. 26.9 (2026-10-14): the check had
+    // been |mass - m0| <= 1e-7 m0 and passed by CANCELLATION - the transport's float rounding GAINED +2.4e-5 m^3 in this run
+    // while the residue sweep dropped 3.0e-5 (counted, but not in the check): uncounted +2.75e-5. With the quiet-rise rule
+    // (26.9) the films that fed the sweep are gone (drops 2.4e-6) and so is the cancellation: uncounted +6.8e-6 - four
+    // times smaller, and visible. The bound is that, measured, with headroom; the transport's rounding gain is an open row.
+    EXPECT_NEAR(p.grid.totalMass() + dropped, m0, 1e-5) << "water + counted drops must equal the start (float rounding over ~3600 ticks)";
 }
 
 struct DropRun { float entryMin = 1e9f, ring1Max = -1e9f, ring2Max = -1e9f, ring2MaxEarly = -1e9f, ringAbs = 0.0f; double m0 = 0, m1 = 0, airBefore = 0, airAfter = 0, splitAfter = 0; };

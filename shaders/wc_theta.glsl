@@ -14,4 +14,16 @@ float wcThetaToAir(int x, int y, int z, int dir) {
     }
     return 0.5;
 }
+// 26.9: the pressure the ghost cell holds across face `dir` - WaterSolver::surfaceGhost. Where the surface sits closer to
+// the cell centre than the clamp (raw theta < thetaMin, the top cell just over the liquid threshold) the matrix and the
+// velocity update use thetaMin; the ghost then holds the still-water pressure at that distance, -g (thetaMin - raw) h,
+// so the cell's own pressure is g raw h - continuous as the cell crosses the threshold. With p_air = 0 the clamp moved
+// the surface up by thetaMin h at every crossing; the cell beside it (air, just under the threshold) took a sideways push
+// of 2 g thetaMin and a surface resting AT the threshold flickered in a checkerboard and never slept (26.9).
+float wcSurfaceGhost(int x, int y, int z, int dir) {
+    if (dir != 3 || pc.surfaceGhost == 0) return 0.0;
+    const float fa = inBounds(x, y + 1, z) ? min(1.0, f[cellIdx(x, y + 1, z)]) : 0.0;
+    const float raw = f[cellIdx(x, y, z)] + solid[cellIdx(x, y, z)].x - 0.5 + fa;
+    return raw < pc.thetaMin ? -pc.gravity * pc.h * (pc.thetaMin - raw) : 0.0;
+}
 #endif

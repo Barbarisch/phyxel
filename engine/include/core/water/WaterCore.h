@@ -300,6 +300,12 @@ public:
     /// Manning's depth and speed vs 114 % with the face-by-face rule). THE DEFAULT since the owner signed off the pond A/B
     /// (2026-10-13); false = the old face-by-face rule, kept only as a test control and the A/B switch (water_transport).
     static inline bool s_allFacesAtOnce = true;
+    /// 26.9: a QUIET surface rises by filling its cell (the donor-acceptor rule, 24.2 W1) - only where the face rises slower
+    /// than this fraction of the one-cell free-fall speed sqrt(2 g h), g = 9.81 on both backends; 0 = off (W1 everywhere slowed
+    /// waves, 24.6)
+    /// 0.002 (measured 2026-10-14, 26.9): the settled threshold pond sleeps with no water lost, and every WaterWaveTest row
+    /// keeps its number (mode 4 at top 0.5: 0.66, was 0.65; 0.005 cost it 0.59). ~5 mm/s at 1/3 m, ~3 mm/s at 1/9 m.
+    static inline float s_quietRiseFraction = 0.002f;
     /// 26 P1: fill parked over full under a ceiling or at the box top since start (cell fills) - reported by the tests.
     static inline double s_overfullForTest = 0.0;
     void setLiquidThreshold(float thr) override { m_liquidThreshold = thr; }
@@ -359,6 +365,9 @@ double seedGridFromRuns(WaterGrid& grid, const std::vector<ColumnRuns>& runs);
 
 class WaterSolver {
 public:
+    /// 26.9: the hydrostatic ghost at a clamped surface (surfaceGhost), CPU and GPU; false = the old p_air = 0 (the A/B,
+    /// `/api/debug/water_transport {surface_ghost}`)
+    static inline bool s_surfaceGhost = true;
     WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params = SolverParams{});
 
     void setTransport(std::unique_ptr<IWaterTransport> t);
@@ -460,6 +469,7 @@ private:
     void resolveFreshOverflow();        // 20.5 ledger (a): a fresh body's excess moves up its own column
     int  substepsFor(float dt) const;
     double thetaToAir(int x, int y, int z, int dir) const;
+    double surfaceGhost(int x, int y, int z, int dir) const;   ///< 26.9: the ghost pressure across an air face (0 unless the surface is clamped)
     double maxSpeed() const;
 
     WaterGrid& m_grid;

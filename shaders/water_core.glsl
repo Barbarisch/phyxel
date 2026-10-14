@@ -36,6 +36,8 @@ layout(push_constant) uniform WcPush {
     int   colTableOff;
     int   counterOff;    // Bricks[counterOff + k]: k 0 = flux into absent cells (faces), 1 = sentinel dirty
     int   colCount;      // resident brick columns (column dispatches: 64 threads each)
+    int   surfaceGhost;  // 26.9: 1 = the hydrostatic ghost at a clamped surface (wc_theta.glsl wcSurfaceGhost); 0 = p_air = 0
+    float quietRise;     // 26.9: m/s - under it a partial cell under an emptier one fills before water crosses its ceiling
 } pc;
 
 #ifdef WC_BRICKS_BINDING
