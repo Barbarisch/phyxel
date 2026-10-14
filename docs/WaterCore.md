@@ -5287,8 +5287,27 @@ against gates tuned to the old rule (run with it on, 2026-10-13):
   the splash). Its injected-scrap control also changed.
 - *Smaller:* the blast's near-side drop 0.275 m vs its 0.28 floor; the air-pocket test's control comparison; one mass row
   1.5e-6 vs 1e-6.
-**Not done yet:** the GPU kernel (`wc_fill_advect.comp`) - the engine's ponds run on the GPU, so the owner cannot see either
-rule's look in the engine until the kernel is ported; the creek and dam benches on the pond model (P3).
+**GPU port (2026-10-13).** `wc_fill_advect.comp` modes 3-5 run the same rule on the GPU: mode 3 each cell's total
+outflow (into the projection's residual buffer as scratch - the projection rewrites it later in the substep), mode 4 each
+cell GATHERED (its fill at the start, minus its outflows x its scale, plus its neighbours' flows into it x theirs - no two
+threads write one cell), mode 5 the excess carried up per column. Switch: `POST /api/debug/water_transport {"all_faces":
+true|false}` (echoes `all_faces`; CPU and GPU, from the next step). Parity (`GpuAllFacesTransportMatchesCpu`): dam-break
+front CPU 19 / GPU 19, mass 89.99999 of 90; small tank max |df| 7.1e-4.
+
+**A GPU-only bug the A/B caught, fixed red-before-green.** The first live recording of the new rule GAINED water (slosh:
+24.00 -> 24.30 m^3 in 24 s, the resting pond waking up). Cause: a cell left a hair NEGATIVE by rounding (-5e-23) sends
+nothing, so its outflow sum 0 is "more than its fill" and the scale divided by zero (-inf; 0 x inf = NaN); compaction's
+`min(NaN, cap)` then moved exactly one free-fall cap (0.0738 cells) down from nowhere and the residue sweep zeroed the NaN.
+The CPU never divides there (it scales only faces whose donor sends). Fix: scale only when the outflow is > 0. Gate
+`GpuAllFacesRestingPondKeepsItsMass` (resting pond, 30 s, one tick per call): red +0.73 cells, green 3.9e-4, no non-finite
+fill. Live after the fix: 24.0000 flat over 14 s, stones and droplets on/off.
+
+**The owner's A/B (both rules, same bench, same camera, fixed kernel):** `pebble_pair_p1_ab.mp4`, `slosh_live_p1_ab.mp4`
+(left old, right new; the single clips and their JSON beside them). Measured: both hold their mass (slosh 23.99989 ->
+23.99988 old, 23.99964 -> 23.99963 new); the slosh calms below KE 1e-3 at 18.6 s old, 19.7 s new; the 0.333 m stone
+reaches the floor (1.50 m) either way, the new rule decelerating it earlier (0.57 m/s at 1.44 m vs 1.25 m/s at 1.50 m);
+peak GPU time per call 4.5 ms old, 3.6 ms new. Stills are near-identical - the differences are in motion. **Default stays
+face by face until the owner decides.**
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

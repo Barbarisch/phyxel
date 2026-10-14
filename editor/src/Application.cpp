@@ -14282,6 +14282,12 @@ void Application::registerWaterCommands() {
         r["regions"] = regions; r["realtime"] = waterCore->realtime();
         if (id) r["id"] = id;
     });
+    reg.on("water_transport", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 26.5 - the owner's A/B
+        // all_faces: the all-faces-at-once fill transport (the fixed creek) on every volume, CPU and GPU, from the next step;
+        // false = the face-by-face rule the signed-off pond was tuned on. Omitted = unchanged; the reply echoes it.
+        if (cmd.params.contains("all_faces")) Core::Water::EulerianTransport::s_allFacesAtOnce = cmd.params.value("all_faces", false);
+        r = {{"all_faces", Core::Water::EulerianTransport::s_allFacesAtOnce}};
+    });
     reg.on("water_pond_friction", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 24.7
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("half_life_s")) {

@@ -16,7 +16,7 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_column_ops.comp.spv", "wc_classify.comp.spv", "wc_rbgs.comp.spv",
     "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv", "wc_sources.comp.spv", "wc_surface.comp.spv",
     "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv"};
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {7, 4, 4, 4, 6, 6, 6, 9, 11, 5, 9, 9, 9, 10, 4, 6, 7, 6, 9};   // Surface (6: f, occ, surf, u, w, solid) sits before the FLIP kernels; 20 (M1): + solid on FillAdvect, FaceOps, ColumnOps, Classify, Surface
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {8, 4, 4, 4, 6, 6, 6, 9, 11, 5, 9, 9, 9, 10, 4, 6, 7, 6, 9};   // FillAdvect 8: + the all-faces outflow scratch (26.5)   // Surface (6: f, occ, surf, u, w, solid) sits before the FLIP kernels; 20 (M1): + solid on FillAdvect, FaceOps, ColumnOps, Classify, Surface
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 } // namespace
 
@@ -89,7 +89,7 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     auto bindAll = [](Vulkan::ComputePipeline& p, std::initializer_list<const Buffer*> bufs) {
         uint32_t i = 0; for (const Buffer* b : bufs) { p.bindBuffer(i++, b->buf, b->bytes); } p.updateDescriptors();
     };
-    bindAll(*vol.pipes[FillAdvect], {&vol.f, &vol.fOrig, &vol.u, &vol.v, &vol.w, &vol.occ, &vol.solid});
+    bindAll(*vol.pipes[FillAdvect], {&vol.f, &vol.fOrig, &vol.u, &vol.v, &vol.w, &vol.occ, &vol.solid, &vol.res});   // res: 26.5's scratch (the projection rewrites it later in the substep)
     bindAll(*vol.pipes[VelAdvectU], {&vol.uOld, &vol.vOld, &vol.wOld, &vol.u});
     bindAll(*vol.pipes[VelAdvectV], {&vol.uOld, &vol.vOld, &vol.wOld, &vol.v});
     bindAll(*vol.pipes[VelAdvectW], {&vol.uOld, &vol.vOld, &vol.wOld, &vol.w});
@@ -496,6 +496,11 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
         copy(cmd, vol.f, vol.fOrig, vol.cells * sizeof(float));
         copy(cmd, vol.u, vol.uOld, vol.nu * sizeof(float)); copy(cmd, vol.v, vol.vOld, vol.nv * sizeof(float)); copy(cmd, vol.w, vol.wOld, vol.nw * sizeof(float));
         barrier(cmd);
+        if (EulerianTransport::s_allFacesAtOnce) {   // 26.5: the CPU's rule - all faces at once, gathered, the excess carried up
+            push.mode = 3; dispatch(cmd, *vol.pipes[FillAdvect], push, vol.cells);
+            push.mode = 4; dispatch(cmd, *vol.pipes[FillAdvect], push, vol.cells);
+            push.mode = 5; dispatch(cmd, *vol.pipes[FillAdvect], push, vol.columns);
+        } else
         for (int dir = 0; dir < 3; ++dir) for (int parity = 0; parity < 2; ++parity) {
             push.mode = dir; push.iparam = parity;
             dispatch(cmd, *vol.pipes[FillAdvect], push, n[dir]);

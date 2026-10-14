@@ -19,11 +19,77 @@ layout(std430, set = 0, binding = 3) readonly buffer V     { float v[]; };
 layout(std430, set = 0, binding = 4) readonly buffer W     { float w[]; };
 layout(std430, set = 0, binding = 5) readonly buffer Occ   { uint occ[]; };
 layout(std430, set = 0, binding = 6) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
+layout(std430, set = 0, binding = 7)          buffer Out   { float outSum[]; };   // 26.5: a cell's total outflow (scratch: the projection's residual buffer)
 
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
 
+// ---- 26.5 (WaterCore.md): ALL FACES AT ONCE, the CPU's EulerianTransport::s_allFacesAtOnce rule ----
+//   mode 3: per cell, the total outflow its faces want (from the fills at the start: fo)
+//   mode 4: per cell, GATHERED: fo - its own outflows x its scale + its neighbours' flows into it x theirs (no two threads
+//           write one cell; a donor's outflow is scaled to its fill, never clamped after)
+//   mode 5: per column, a cell left over full (1 - s) carries the excess up its column; under a ceiling it stays in the last
+//           open cell for a substep (the deposit rule, 21.2) - exact
+float faceVel(int axis, ivec3 c) { return axis == 0 ? u[uIdx(c.x, c.y, c.z)] : (axis == 1 ? v[vIdx(c.x, c.y, c.z)] : w[wIdx(c.x, c.y, c.z)]); }
+// the face between cells a (lower) and b (upper along `axis`): the amount its donor wants to send, and which cell donates
+float faceDesired(int axis, ivec3 a, ivec3 b, out bool donorIsA) {
+    donorIsA = false;
+    if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z)) return 0.0;
+    const float vel = faceVel(axis, b);
+    if (vel == 0.0) return 0.0;
+    donorIsA = vel > 0.0;
+    const float fd = donorIsA ? fo[cellIdx(a.x, a.y, a.z)] : fo[cellIdx(b.x, b.y, b.z)];
+    if (fd <= 0.0) return 0.0;
+    const float sweep = abs(vel) * pc.dt / pc.h;
+    const bool downward = axis == 1 && vel < 0.0;
+    return (downward && fd < pc.thr) ? min(fd, sweep) : sweep * fd;
+}
+// o > 0: a cell left a hair NEGATIVE by rounding sends nothing (o = 0 > f0) - dividing there made -inf, 0 x inf = NaN, and
+// compaction's min(NaN, cap) turned the NaN into a free-fall cap of water from nowhere (GpuAllFacesRestingPondKeepsItsMass)
+float scaleOf(ivec3 c) { const uint i = cellIdx(c.x, c.y, c.z); const float o = outSum[i], f0 = fo[i]; return (o > 0.0 && o > f0) ? f0 / o : 1.0; }
+
+void allFaces(uint id) {
+    if (pc.mode == 5) {
+        if (id >= uint(pc.nx * pc.nz)) return;
+        const int x = int(id % uint(pc.nx)), z = int(id / uint(pc.nx));
+        float carry = 0.0; int last = -1;
+        for (int y = 0; y < pc.ny; ++y) {
+            const uint i = cellIdx(x, y, z);
+            if (blocked(x, y, z)) { if (carry > 0.0 && last >= 0) f[uint(last)] += carry; carry = 0.0; last = -1; continue; }
+            f[i] += carry; carry = 0.0; last = int(i);
+            const float room = 1.0 - solid[i].x;
+            if (f[i] > room) { carry = f[i] - room; f[i] = room; }
+        }
+        if (carry > 0.0 && last >= 0) f[uint(last)] += carry;
+        return;
+    }
+    if (id >= uint(pc.nx * pc.ny * pc.nz)) return;
+    const ivec3 c = decode(id, pc.nx, pc.ny);
+    if (blocked(c.x, c.y, c.z)) { if (pc.mode == 3) outSum[id] = 0.0; return; }
+    const ivec3 e[3] = ivec3[3](ivec3(1, 0, 0), ivec3(0, 1, 0), ivec3(0, 0, 1));
+    float outs = 0.0, ins = 0.0;
+    const float myScale = pc.mode == 4 ? scaleOf(c) : 1.0;
+    for (int axis = 0; axis < 3; ++axis) {
+        bool dA;
+        // the face below/behind: c is its upper cell b
+        const ivec3 lo = c - e[axis];
+        if (inBounds(lo.x, lo.y, lo.z)) {
+            const float d = faceDesired(axis, lo, c, dA);
+            if (d > 0.0) { if (!dA) outs += d; else if (pc.mode == 4) ins += d * scaleOf(lo); }
+        }
+        // the face above/ahead: c is its lower cell a
+        const ivec3 hi = c + e[axis];
+        if (inBounds(hi.x, hi.y, hi.z)) {
+            const float d = faceDesired(axis, c, hi, dA);
+            if (d > 0.0) { if (dA) outs += d; else if (pc.mode == 4) ins += d * scaleOf(hi); }
+        }
+    }
+    if (pc.mode == 3) outSum[id] = outs;
+    else f[id] = fo[id] - outs * myScale + ins;
+}
+
 void main() {
     const uint id = gl_GlobalInvocationID.x;
+    if (pc.mode >= 3) { allFaces(id); return; }
     ivec3 a, b; float vel; bool downward = false;
     if (pc.mode == 0) {                       // u faces: lattice (nx+1, ny, nz), interior x in 1..nx-1
         ivec3 c = decode(id, pc.nx + 1, pc.ny);

@@ -157,6 +157,70 @@ TEST_F(WaterCoreGpuParityTest, GpuDamBreakFrontParity) {
     gpu.destroyVolume(vol);
 }
 
+// WaterCore.md 26.5: the ALL-FACES-AT-ONCE fill transport on the GPU equals the CPU's - the same dam break, both with the new
+// rule (EulerianTransport::s_allFacesAtOnce): fronts within one cell at 2 s, mass exact to float, and the small tank's fills
+// elementwise within 5e-3 after 60 ticks.
+TEST_F(WaterCoreGpuParityTest, GpuAllFacesTransportMatchesCpu) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    EulerianTransport::s_allFacesAtOnce = true;
+    Tank c(60, 6, 3), g(60, 6, 3);
+    for (Tank* t : {&c, &g}) t->grid.fillBox({0, 0, 0}, {9, 2, 2}, 1.0f);
+    WaterSolver cpu(c.grid, c.query());
+    for (int i = 0; i < 120; ++i) cpu.step(kDt);
+    auto* vol = make(g); ASSERT_NE(vol, nullptr);
+    SolverParams prm;
+    gpu.step(*vol, prm, kDt, 120, 40);
+    gpu.download(*vol, g.grid);
+    const int cf = frontX(c.grid, 1, 0.5), gf = frontX(g.grid, 1, 0.5);
+    std::printf("  all faces at once, dam break at 2 s: CPU front %d, GPU front %d; mass CPU %.6f GPU %.6f (90)\n", cf, gf, c.grid.totalMass(), g.grid.totalMass());
+    EXPECT_NEAR(gf, cf, 1);
+    EXPECT_NEAR(g.grid.totalMass(), 90.0, 1e-3);
+    gpu.destroyVolume(vol);
+    Tank c2(4, 4, 2), g2(4, 4, 2);
+    for (Tank* t : {&c2, &g2}) { t->grid.fillBox({0, 0, 0}, {3, 0, 1}, 1.0f); for (int x = 0; x < 4; ++x) for (int z = 0; z < 2; ++z) t->grid.f(x, 1, z) = 0.3f + 0.05f * x; }
+    WaterSolver cpu2(c2.grid, c2.query());
+    for (int i = 0; i < 60; ++i) cpu2.step(kDt);
+    auto* vol2 = make(g2); ASSERT_NE(vol2, nullptr);
+    gpu.step(*vol2, prm, kDt, 60, 40);
+    gpu.download(*vol2, g2.grid);
+    double df = 0.0;
+    for (size_t i = 0; i < c2.grid.fData().size(); ++i) df = std::max(df, static_cast<double>(std::abs(c2.grid.fData()[i] - g2.grid.fData()[i])));
+    std::printf("  small tank, 60 ticks: max|df| %.2e\n", df);
+    EXPECT_LT(df, 5e-3);
+    gpu.destroyVolume(vol2);
+    EulerianTransport::s_allFacesAtOnce = false;
+}
+
+// 26.5 red test: a RESTING pond (one full layer, one half layer - the bench pond's state) keeps its mass on the GPU with the
+// all-faces transport. Found by the engine A/B (slosh_live_p1_new: 24.00 -> 24.30 m^3 in 24 s): a cell left a hair NEGATIVE
+// by float rounding (-5e-23) sends nothing, so its outflow sum is 0 > its fill and the kernel's scale divided by zero; the
+// NaN reached compaction, whose min(NaN, cap) moved one free-fall cap (0.0738 cells) down from nowhere, and the residue
+// sweep zeroed the NaN. The CPU never divides there (it scales only faces whose donor sends). Before the fix: +0.074 at
+// tick 1183, +0.29 by 20 s, the pond woke (KE 1e-5 -> 0.4).
+TEST_F(WaterCoreGpuParityTest, GpuAllFacesRestingPondKeepsItsMass) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    EulerianTransport::s_allFacesAtOnce = true;
+    Tank g(12, 9, 12);
+    g.grid.fillBox({0, 0, 0}, {11, 0, 11}, 1.0f);
+    for (int x = 0; x < 12; ++x) for (int z = 0; z < 12; ++z) g.grid.f(x, 1, z) = 0.5f;
+    auto* vol = make(g); ASSERT_NE(vol, nullptr);
+    SolverParams prm;
+    double worst = 0.0; int nan = 0;
+    for (int tick = 0; tick < 1800; ++tick) {   // 30 s, one tick per call (the call pattern that found it)
+        gpu.step(*vol, prm, kDt, 1, 40);
+        if (tick % 30 == 29) {
+            gpu.download(*vol, g.grid);
+            for (float v : g.grid.fData()) if (!std::isfinite(v)) ++nan;
+            worst = std::max(worst, std::abs(g.grid.totalMass() - 216.0));
+        }
+    }
+    std::printf("  resting pond, 30 s on the GPU, all faces at once: worst |mass - 216| %.2e cells, non-finite fills %d\n", worst, nan);
+    EXPECT_LT(worst, 1e-3);
+    EXPECT_EQ(nan, 0);
+    gpu.destroyVolume(vol);
+    EulerianTransport::s_allFacesAtOnce = false;
+}
+
 // The pressure solve's convergence is MEASURED (docs/WaterCore.md §15.11 risk): for each relaxation
 // factor and sweep count, the worst hydrostatic error on the 10 m column after 5 ticks and the
 // RBGS residual. The row the solver ships with must reach the CPU test's 1 % at a sweep count
