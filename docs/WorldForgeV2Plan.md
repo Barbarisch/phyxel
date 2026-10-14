@@ -186,8 +186,19 @@ Settled: **D1** store the continent once with erosion as a paged coarse sheet; *
 settlement as a free-form vector map first; **D6** build settlements on first stream-in with a
 per-frame budget, identically in packaged games. D2, D3 and D7 follow from D1 (erosion on the
 sheet, hydrology at sheet resolution, a grounded grade cap); D5 follows from D4 (buildings stay
-axis-aligned while streets/parcels go free-form). D8 and D9 remain to be settled. The milestone
-order in §5 stands as written.
+axis-aligned while streets/parcels go free-form). **D9 SETTLED (yes):** a second era is built early,
+during M5, at hamlet size with one typology, as a deliberate test of the era switch.
+**D8 SETTLED with a nuance (owner, 2026-10-14):** *"we want most of everything to be procedural and
+deterministic, but I like the idea of LLM passes when desired to add flavor"* — so the rule is:
+the deterministic pipeline always produces a complete, shippable result on its own; an LLM
+**refinement pass** is an opt-in layer that may propose design-level choices (ring layout pattern,
+palette, place type, names, owners, histories, sign text) as **validated data** that re-enters the
+pipeline through its normal spec inputs (a critic/schema check gates it, as in EthosLM's
+agent-decides / code-builds split); it never emits geometry and never becomes a dependency. M8
+widens accordingly from "lore only" to "flavor passes", still last. **Water merge ruling (owner):**
+`feat/water-rethink` is merged into `main` by the owner when ready, and **M1 starts after that**;
+M0 proceeds now, with its two generator-side items (bounded road earthworks, creek ford) done last
+inside M0 so they land on the merged generator. The milestone order in §5 stands as written.
 
 | # | Decision | Why | Alternative rejected |
 |---|---|---|---|
