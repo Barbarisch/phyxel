@@ -718,3 +718,31 @@ gains the generator source. New: `sheet`, `site/{id}/map`, `site/{id}/ledger`, `
 - `perf/lights-microvoxel-program` — T4a; M5 increments re-run the city ladder; no settlement
   density change ships without a ladder number.
 - `main` was 34 commits ahead of `origin/main` when this branch was cut; the branch carries them.
+
+---
+
+## 14. Reference and asset sourcing for eras and cultures (owner suggestion, 2026-10-14)
+
+The owner has a **Meshy AI** account (text-to-3D / image-to-3D; outputs textured GLB/FBX/OBJ/USDZ/STL
+meshes with low-poly and quad-topology options, per its docs) and proposed it as a source "when
+developing assets or outlines or floorplans for different architectural buildings" to flesh out eras
+and cultural architectures (D9, M5). Where it fits, and where it must not:
+
+| Use | Fit | How |
+|---|---|---|
+| **Era / culture reference** (massing, roof forms, ornament, street furniture for a Roman, Edo, adobe or Norse pack) | GOOD | Generate reference meshes/renders, study them, write the era data pack from them + grounded sources. The reference is an input to a human/agent author, never shipped. |
+| **Props and furniture** (braziers, shrines, statues, market goods, lanterns, signs per era) | GOOD, gated | New `tools/meshy_import.py`: mesh (GLB) → voxelize with `trimesh` (installed, 4.10.1) at the fine-item grid (`# grid: 81`) or furniture micro grid → material map from texture colour clusters → `lint_voxel_detail.py` → `asset_index.py --validate` → spawn + screenshot in hand/at scale (the existing `vox_import.py --scale fine` route is the template; `docs/AssetLibrary.md` aesthetic contract applies). |
+| **Building shells** | NO as generator output | A Meshy building voxelized and placed is exactly the hand-assembled lookalike the provenance rule forbids. Shells come from the structure forge (program → rooms → realizer) so they stay walkable, furnished and validated. A Meshy shell may be a REFERENCE for the realizer's roof/ornament rules. |
+| **Floorplans / room programs** | NO | Meshy makes meshes, not plans. Room programs need grounded sources (historical plans, surveys, vernacular-architecture references via the grounding-auditor). An LLM research pass (EthosLM stage 3 shape; D8 flavor pass) is the better fit for drafting a room program, which the auditor then grounds. |
+| **Materials / textures** | MAYBE | Meshy PBR textures could seed era palettes, but the engine's textures are per-face CC0 sources with provenance (`CC0_SOURCES.json`); a Meshy texture needs the same provenance row and licence check. |
+
+**Gates:** every imported asset passes the fine-voxel/furniture conformance checks and a visual
+in-engine check before it enters `template_catalog.json`; the catalog records `source: meshy` +
+prompt + date (provenance). **Licence:** Meshy's commercial-use terms were not verified in this
+pass — check the account's plan/ToS before any Meshy output ships in a packaged game. **Relation
+to BlockSmith:** `tools/blocksmith_generate.py` (LLM → .bbmodel → .voxel) already covers prompt-to-
+voxel furniture; Meshy adds image-to-3D and higher-fidelity organic forms. Pick per asset; both land
+in the same catalog with the same gates.
+
+**Where in the plan:** M5 (second era data pack: reference pass + era props) and M8 (flavor passes).
+Nothing in M0–M4 depends on it.
