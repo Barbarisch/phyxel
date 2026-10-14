@@ -413,7 +413,7 @@ route bake for 300 sites; per-column cost unchanged from M1.
 
 Contract: for each site, a **headless** planner produces an OSM-like vector map from the real meso
 heightfield: (1) **interest-map growth** (Emilien 2012: per-building-type interest = sociability ×
-worship/civic × road access bell × slope bell × water × fortification × domination; seed a building,
+worship/civic × road access bell × slope bell × water × fortification × domination — the paper gives the FORMS only; bell parameters come from our own grounded program data, §10; seed a building,
 connect it by road immediately with the M4 cost + reuse, update maps, repeat under a scenario =
 tier + era program); (2) **parcels by anisotropic conquest** from road frontage (Chebyshev-like for
 houses, Euclidean for fields, infinite cost through water/walls/roads, quadratic slope cost →
@@ -572,20 +572,54 @@ Both the RTX 4090 desktop and the RTX 1000 Ada laptop are stated on every eviden
 
 ---
 
-## 10. Numbers that need grounding before they are typed into code (grounding-auditor)
+## 10. Numbers that need grounding — F4 AUDIT RESULT (grounding-auditor + PDF reads, 2026-10-14)
 
-| Value | Candidate sources |
-|---|---|
-| Road grade cap by class (track / road / highway) | historic turnpike and Roman road gradient surveys; modern design manuals as the upper reference |
-| Cut depth / fill height caps; embankment slope; when a retaining wall is required | civil earthworks standards; angle of repose by material (already partly in `materials.json`) |
-| Bridge clearance over water by river order; max unsupported span by era material | timber/stone bridge engineering by period |
-| Route reuse fraction | Veloren uses 1/3 (`civ/mod.rs`); Emilien's `w_ex` discount |
-| Settlement density per tier, spacing ratios | Christaller central-place theory; Domesday / early-modern settlement surveys |
-| Tributary junction angle; width/depth vs discharge | Leopold & Maddock hydraulic geometry; Horton/Howard junction-angle studies |
-| Beach band width; shelf slope | coastal geomorphology references |
-| Interest-map bells per building type (slope, road distance) | Emilien 2012 Table 1 values as the starting point, re-derived for our tiers |
+**Verdict: not ready to type numbers.** Two groups are grounded, the rest are REASONED, STRUCK or
+need the named document read first. Nothing below enters code until its row says GROUNDED.
+Verdict key: GROUNDED (source + value) · REASONED (chain stated, no direct dataset) · STRIKE (must
+not be typed as a constant; derive or drop) · NEEDS-RESEARCH (source exists, not yet read) ·
+MISMATCH (a shipped value contradicts the sources).
 
----
+| Value | Source | Engine value / range | Verdict |
+|---|---|---|---|
+| **Road grade cap, highway (main route)** | Encyclopaedia Britannica 9th ed. "Roads and Streets": 1 in 30 "the ruling gradient to be aimed at on first-class roads", Telford's Holyhead road ([Wikisource](https://en.wikisource.org/wiki/Encyclop%C3%A6dia_Britannica,_Ninth_Edition/Road)); Roman wagons "seldom" > 5 %, Hispania 6–8 % (2019 review of Roman mountain transport, [PDF](https://recercat.cat//bitstream/2072/369267/1/2019-Land-transport-mountainous-regions-roman-empire-Postprint.pdf) — figures from the search summary, ⚠verify against the PDF) | **0.05** (3.3 % lower bound for best practice) | GROUNDED (⚠verify Roman PDF) |
+| **Road grade cap, road (cart)** | Herzog 2013 critical slopes 8–10 % for ox traffic (same review) | **0.08** (range 0.06–0.10) | GROUNDED (⚠verify) |
+| **Road grade cap, track (foot / pack)** | USFS Forest Trail Handbook: pack-animal ruling grade 15 %, ideal 10 %, short pitches steeper ([sec 6](https://npshistory.com/publications/usfs/forest-trail-handbook/sec6.htm)); USFS notebook: mules manage > 10 %, even 20 %, at erosion cost ([FS](https://www.fs.usda.gov/t-d/pubs/htmlpubs/htm07232816/page08.htm)) | **0.15** sustained, ≤ 0.20 short pitch | GROUNDED by modern analogy (state it) |
+| Shipped `kMaxRoadGrade = 0.5` (`WorldForgePlan.h:131`) | 50 % = 26.6°, above every cap above; the 0.69 % unclimbable steps on mountains is the symptom | replace by the three per-class caps; expect far more switchbacks and cuts (budget it) | **MISMATCH** |
+| Agent step-up 4/9 m (`AnimatedVoxelCharacter.cpp:1611`, clamp 0.34–0.70) | engine physics; real stair risers ≈ 0.18–0.20 m (IRC R311.7.5.1 ≈ 196 mm, ⚠verify) | keep 4/9 as the *unclimbable* floor; never use it as a comfort criterion | GROUNDED (engine) / CONVENIENCE vs real stairs |
+| Embankment side slope | angle of repose, Pocket Ref via [Wikipedia](https://en.wikipedia.org/wiki/Angle_of_repose): soil 30–45°, dry sand 34°, gravel+sand 25–30°, crushed stone 45°, wet clay 15°; a built slope is flatter by a safety factor (1V:2H = 26.6° common, ⚠verify AASHTO Roadside Design Guide). `materials.json` has NO repose column (friction is a contact coefficient) | per-material repose table to be added to `materials.json` with the Pocket Ref citation; built slope = repose − safety factor | REASONED (safety factor unsourced) |
+| Max cut depth / fill height before a retaining wall | none found (medieval dry-stone revetment practice, FHWA/AASHTO embankment guidance: NEEDS-RESEARCH) | **STRIKE as constants.** Derive: cap = (lateral room before the parcel-clear margin) × tan(built slope); beyond it a dry-stone retaining wall is required | STRIKE → derivation |
+| 3 u grading shoulder (`WorldGenerator.cpp:1067-1079`) | a constant regardless of cut height | **STRIKE as a constant**; shoulder = cut depth / tan(built slope) | STRIKE → derivation |
+| Bridge clearance over water by river order | none found | **STRIKE.** V1 already sets the deck at the higher bank's surface (medieval bridges met road grade); if a freeboard is ever wanted it is `channelDepth` + a sourced freeboard | STRIKE |
+| Stone bridge span, pier interval | [Alcántara Bridge](https://en.wikipedia.org/wiki/Alc%C3%A1ntara_Bridge) spans 13.8–28.8 m (⚠verify via Structurae) | shipped 12 u pier interval is conservative (real stone spans 14–29 u) | GROUNDED (span) / REASONED (12 u) |
+| Timber span | Trajan's Danube bridge 50 m centre-to-centre (not clear span); medieval timber spans NEEDS-RESEARCH (Historic England / conservation literature) | — | NEEDS-RESEARCH |
+| "96 u max span" (`WorldForgePlan.cpp:604-611`) | it is a bank-search horizon over a piered deck (8 spans at 12 u), not a span; Alcántara is ~180–194 m long | relabel **max deck length**; raise after M4's deck model lands | REASONED → relabel |
+| Route re-use discount | Veloren builds only if cheaper than existing/3 (`civ/mod.rs`, not read this pass); Emilien 2012: `C'(R) = w_ex·C(R)` on existing roads with `w_ex ≪ 1`, **no numeric value published** (PDF read 2026-10-14) | the *existence* of a discount is grounded (path dependence); the fraction is a **tunable labelled "game-tuned, Veloren precedent"** with a sensitivity run | REASONED / STRIKE as "grounded number" |
+| Settlement hierarchy ratio | Christaller central-place theory K=3 market / K=4 transport / K=7 administrative ([Wikipedia](https://en.wikipedia.org/wiki/Central_place_theory)) | each tier up has K× fewer centres; K=3 default | GROUNDED (ratio) |
+| Settlement spacing per tier (km) | Christaller's spacing table (⚠ 7/12/21/36/62 km recalled, not read) — read *Die zentralen Orte in Süddeutschland* or a secondary source | — | NEEDS-RESEARCH |
+| Settlement density | Domesday Book: > 13,400 named places in 1086 (Domesday Gazetteer via [ADS](https://archaeologydataservice.ac.uk/catalogue/adsdata/arch-6172-1/dissemination/Records_43/rob_43_0_209.pdf)); ÷ England ≈ 130,000 km² (⚠verify) ≈ **10 places / 100 km², mean spacing ≈ 3 km** (our arithmetic, not a published density). Plan T2's 300 sites / 10,000 km² = 3 / 100 km², ~3× sparser: label **"gameplay-thinned"** | tier targets per 100 km² NEEDS-RESEARCH (Darby *Domesday England* 1977; Dyer on medieval towns) | REASONED |
+| River width / depth vs drainage area | `TerrainGenerationV2.md:356-357`: Doll et al. NC Coastal-Plain regressions W = 10.97·A^0.36 (r² 0.87), D = 1.29·A^0.30, chained through a Horton area ratio ≈ 4 to get the per-order table 2/3/5/8/14/22 u — the doc itself labels the chaining "design synthesis". Leopold & Maddock 1953 ([USGS PP252](https://pubs.usgs.gov/publication/pp252)) exponents w∝Q^0.5, d∝Q^0.4 recalled, ⚠verify | regression GROUNDED; per-order chaining REASONED; the 1/1/1 depth plateau at orders 3–5 is grid convenience (real ≈ 1.0/1.5/2.3 m) — M2 moves to drainage-area-driven width/depth and drops the table | GROUNDED (regression) / REASONED (chaining) |
+| Tributary junction angle | Howard 1971 "Optimal Angles of Stream Junction" (exists, [abstract](https://arch.neicon.ru/xmlui/handle/123456789/3195164)); Horton 1932 — no numeric value read | **STRIKE until read**; M2's "no 90° junctions" test stays qualitative (angle < 90°) until then | NEEDS-RESEARCH |
+| Beach band width | none | **STRIKE** the width; derive the band from the shelf slope × tidal/wave run-up once sourced | STRIKE |
+| Nearshore / foreshore slope | qualitative only: coarser grain = steeper ([Coastal Restoration Trust](https://ref.coastalrestorationtrust.org.nz/documents/relationship-between-grain-size-size-sorting-and-foreshore-slope-on-mixed-sand-shingle-beaches/)); King 1972 range 1:5–1:100. Read USACE EM 1110-2-1100 Part III | — | NEEDS-RESEARCH |
+| Emilien 2012 interest-map parameters | **PDF read 2026-10-14**: functional forms only — per-building-type bells with λmin/λ0/λmax for road distance, slope, water; attraction–repulsion for sociability/worship; open-distance for fortification; ~150 parameters per village type in an unpublished "building encyclopedia". **Table 1 is computation time, not parameters** (rev-1 plan text corrected). | forms GROUNDED; every value must come from OUR grounded sources: slope bells from the per-typology relief caps already in `settlement_program.json` (with their `sources`), road-distance bells from burgage frontage/setback data there, water bells NEEDS-RESEARCH | GROUNDED (form) / derive (values) |
+| Road widths 3/5/6 u (`WorldForgePlan.h:145` "grounded in settlement_program.json" — an internal file) | nearest real ties: Twelve Tables 8 Roman ft straight / 16 at bends ≈ 2.4 / 4.7 m (⚠verify), Margary *Roman Roads in Britain* | plausible, unsourced | REASONED (⚠verify) |
+| Terrace skirt 4 cubes at 1:1 (`SettlementBuildService.cpp:406`) | 45° is the top of the soil repose range; aggressive as a built slope | keep width as tuning; flag the 45° and tie the ramp to the repose table above | REASONED |
+| Parcel-clear margin 4, vegetation flood 16 | heuristics / search bounds, not dimensions | label as heuristics in code | UNSOURCED (label) |
+| Canopy margin 8 cubes (`:1351`) | should equal the engine's own max crown radius (`ProceduralTree` / tree library) | derive from the asset library, not a literal | NEEDS-RESEARCH (engine-derived) |
+| `kMinCorridorWidthCubes = 2` (`SettlementWalkability.h:48`) | agent box 5 micro + boundary margin (its own comment) | keep | GROUNDED (engine character) |
+
+**F4b — the reading list (each closes a row above):** Emilien 2012 (done); Roman mountain transport
+2019 PDF (verify the 5 / 6–8 / 8–10 % figures); Christaller 1933 or a secondary with the spacing
+table; Darby 1977 for per-tier density; USACE EM 1110-2-1100 Part III for foreshore slope; USGS
+PP252 exponents; Howard 1971 junction angle; AASHTO Roadside Design Guide for built embankment
+slope; Historic England on medieval timber spans; Margary for Roman road widths; `ProceduralTree`
+max crown radius. Rows marked ⚠verify were read from search summaries, not the documents.
+
+**Consequence for M0:** the earthworks row types **no cut/fill constants** — it derives the shoulder
+and the wall trigger from the repose table and the parcel margin, and replaces `kMaxRoadGrade` with
+the three per-class caps (0.05 / 0.08 / 0.15) once the Roman PDF is verified (F4b). The ford row
+has no new number. Everything else in M0 is number-free.
 
 ## 11. Research basis (what each borrowed idea is and where it came from)
 
@@ -806,7 +840,7 @@ and whatnot."* This section is the gate between the plan and the first commit of
 | F1 | Decisions D1–D9 settled | owner | **DONE 2026-10-14** (§3.1) |
 | F2 | Stop-hook wired and tested | owner (approved) | **DONE 2026-10-14** |
 | F3 | `/design-check` run on **each** milestone M0–M8 and on `meshy_import.py`, verdict (NEEDS WORK / READY) recorded under that milestone in §5, findings folded in — the WaterCore.md §25.15 / §26.4 pattern | agent, per milestone, before it starts | NOT DONE |
-| F4 | grounding-auditor on every §10 number; each gets a source row or is struck | agent | NOT DONE |
+| F4 | grounding-auditor on every §10 number; each gets a source row or is struck | agent | **RUN 2026-10-14 — PARTIAL**: grade caps by class and the hierarchy ratio GROUNDED, the river regression GROUNDED, 8 rows STRUCK or re-expressed as derivations, the rest NEEDS-RESEARCH with the exact document named (§10 F4b). `kMaxRoadGrade = 0.5` is a MISMATCH. No number enters code until its row is GROUNDED. |
 | F5 | solution-auditor reads this plan's §1 and §13 claims against the code and confirms the file:line facts the plan builds on (an audit of the audit) | agent | NOT DONE |
 | F6 | Lab worlds specified (`WorldSheetLab`, `RiverLab`, `CivLab`, `RouteLab`, `CityLab`): one tile each, poses, predictions written before any run | agent | NOT DONE (named only) |
 | F7 | Baselines measured and archived in `docs/evidence/worldforge_v2/` before M0 changes anything: `WorldForgeStressTest` numbers, column cost, chunks/s in forest (Release, named GPU), test count (`tools/test_count_check.sh`), the C-25…C-100 city ladder | agent | NOT DONE |
