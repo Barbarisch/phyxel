@@ -260,6 +260,35 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagStillPool) {
     EulerianTransport::s_allFacesAtOnce = true;   // the default
 }
 
+// 26.6 P2 cost model (DIAGNOSTIC): the GPU core's time per call (one tick, realtime's shape) against the cells it steps, on
+// dense boxes at 1/9 m - a resting pond half full (substeps 1) and the same box sloshing (a tilted start). The fixed cost
+// per call (dispatch count x barriers) and the per-cell slope decide the brick size and whether sparse stepping fits 2 ms.
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagCostPerCell) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 9.0f;
+    for (glm::ivec3 d : {glm::ivec3(16, 16, 16), glm::ivec3(32, 16, 32), glm::ivec3(64, 16, 64), glm::ivec3(128, 16, 64), glm::ivec3(128, 16, 128), glm::ivec3(256, 16, 128), glm::ivec3(256, 16, 256)}) {
+        for (bool slosh : {false, true}) {
+            Tank t(d.x, d.y, d.z, h);
+            for (int z = 0; z < d.z; ++z) for (int x = 0; x < d.x; ++x) {
+                const float top = d.y * 0.5f + (slosh ? 3.0f * (x - d.x * 0.5f) / d.x : 0.0f);
+                for (int y = 0; y < d.y; ++y) t.grid.f(x, y, z) = std::clamp(top - static_cast<float>(y), 0.0f, 1.0f);
+            }
+            std::string err;
+            auto* vol = gpu.createVolume(t.grid, &err);
+            if (!vol) { std::printf("  %dx%dx%d: refused (%s)\n", d.x, d.y, d.z, err.c_str()); continue; }
+            SolverParams prm;
+            for (int k = 0; k < 10; ++k) gpu.step(*vol, prm, kDt, 1, 40);   // warm
+            std::vector<double> ms; int sub = 0;
+            for (int k = 0; k < 30; ++k) { const auto st = gpu.step(*vol, prm, kDt, 1, 40); ms.push_back(st.gpuMs); sub = st.substepsLast; }
+            std::sort(ms.begin(), ms.end());
+            const double cells = double(d.x) * d.y * d.z;
+            std::printf("  %3dx%2dx%3d = %8.0f cells, %s: median %.3f ms (p90 %.3f), substeps %d -> %.1f ns per cell-substep\n",
+                        d.x, d.y, d.z, cells, slosh ? "slosh " : "resting", ms[15], ms[27], sub, ms[15] * 1e6 / (cells * std::max(sub, 1)));
+            gpu.destroyVolume(vol);
+        }
+    }
+}
+
 // The pressure solve's convergence is MEASURED (docs/WaterCore.md §15.11 risk): for each relaxation
 // factor and sweep count, the worst hydrostatic error on the 10 m column after 5 ticks and the
 // RBGS residual. The row the solver ships with must reach the CPU test's 1 % at a sweep count

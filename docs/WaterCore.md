@@ -5243,7 +5243,7 @@ is unknown until P2 measures cells/ms; P5 exists for that.
 **Verdict: NEEDS WORK -> the three gaps folded in above -> READY for P1** (every key answered; its rigs, gate, controls and
 regression named). P2-P5 are READY in outline and each gets its own detailed design and check before it is built.
 
-### 26.5 P1 measured - why the pond model ran a creek deep and slow, and the fix (2026-10-13). Status: built (opt-in), not signed off
+### 26.5 P1 measured - why the pond model ran a creek deep and slow, and the fix (2026-10-13). Status: DONE, signed off by the owner 2026-10-13
 
 **The rig** (`tests/core/WaterShallowFlowTest.cpp`): the pond solver ALONE (`WaterSolver`, CPU reference) in a 48 m x 1 m
 channel at 1/9 m cells; the slope as a TILTED FRAME (`SolverParams::gravityX` = g S - no 1/9 m staircase); pumps across the
@@ -5331,6 +5331,110 @@ cell): still water crept up into the air (6-15e-6 of a cell per tick per column)
 (`GpuRestDecisionDeterministic` red). 200 sweeps: exact. Fix: liquid cells keep the last pressure as the first guess
 (zero outside the water; zeroed on create and upload). Now: the still pool sleeps at tick 32 / 32 (deterministic), its top
 cell's pressure 4.9050, the resting-pond mass gate 1.6e-4 cells over 30 s. Diagnostic: `DiagStillPool` (env `DIAG_SWEEPS`).
+
+### 26.6 P2 detailed design - water stored in bricks that follow it (2026-10-13). Status: designed, checked (26.7)
+
+**In plain words.** Today a body of water is a BOX: every cell inside it is stored and stepped, wet or dry - a 100 m creek
+running diagonally would need a 100 x 100 m box. P2 stores the world as small cubes of cells ("bricks", 8 x 8 x 8 cells =
+8/9 m at 1/9 m) and keeps only the bricks that hold water or lie close enough to it to receive some this tick. A brick is
+a STORAGE unit only: the water in a cell behaves exactly as it would in a box (the equality test proves it bit for bit).
+
+**The cost model, measured first** (`WaterCoreGpuParityTest.DISABLED_DiagCostPerCell`, the GPU core as it is, dense boxes
+at 1/9 m, one tick per call, Release, this machine):
+
+| cells stepped | ms per call (median / p90) |
+|---|---|
+| 4,096 | 0.73 / 0.84 |
+| 65,536 | 0.82 / 1.27 |
+| 262,144 | 1.32 / 1.94 |
+| 1,048,576 | 3.36 / 3.74 |
+
+~0.75 ms per call fixed (the dispatch chain and its barriers, the fenced submission) + ~2.6 ns per cell-substep; resting and
+sloshing water cost the same. **What it means:** the budget (25.10, 2 ms) holds ~400,000 stepped cells at one substep.
+The 100 m bench creek (2 m wide, 0.15 m deep: ~22,000 water cells) stored in 8^3 bricks with the halo below is estimated
+at ~250,000 stepped cells (~1.4 ms) - within budget, with the brick indirection's own cost still to be measured (P2a's
+cost rows). Smaller bricks would waste less on a shallow sheet (4^3: ~3x the water cells instead of ~10x) but cannot
+hold the halo inside one ring of neighbours (below); 8^3 is the design, 4^3 is the fallback if the measured rows miss.
+
+**P2 is built in two halves.** **P2a - the GPU core on bricks** (this design, unit rigs): the solver's storage becomes
+bricks; a "dense" volume is simply one whose bricks are all kept. **P2b - the engine on bricks** (designed after P2a
+measures): the manager's CPU copy of a volume (`Av::grid`, ~80 uses: bodies, buoyancy, droplets, write-back), the drawn
+surface (per brick column) and the ripple layer (a camera-following window - 26.4 gap 1), the routes, the live bench.
+
+**P2a design.**
+1. *Bricks.* B = 8 cells per edge. World-aligned: a cell's brick is floor(world cell / 8) - 36 bricks per 32 m chunk side
+   at 1/9 m, so every chunk seam is a brick seam and a body of water is the same set of bricks wherever its volume box lies.
+   A volume keeps its box (the API's domain and walls: out-of-box cells are blocked exactly as today); its BRICK BOX is the
+   box rounded out to whole bricks; cells inside the brick box but outside the box are Solid (as today's out-of-bounds).
+2. *Storage.* A pool of brick SLOTS on the device, capacity C fixed at creation (refused with the byte count when the device
+   cannot hold it, as today). Every per-cell buffer (f, fOrig, fPrev, occ, liq, diag, rhs, p, res, src, solid, deposit,
+   extrapolation scratch) becomes C x 512 entries; every face lattice (u, v, w and their copies) stores each cell's LOWER face
+   (512 per slot) - a cell's upper face is its neighbour's lower face, in the neighbour brick. A BRICK MAP (one int per brick
+   of the brick box: slot or -1) on the device and mirrored on the host; capped at 4 M entries (16 MB, e.g. a 256 x 256 x 16 m
+   box at 1/9 m) - larger boxes are refused with the reason (world scale is P5).
+3. *Addressing - one place.* The kernels address cells only through `water_core.glsl` (cellIdx, uIdx/vIdx/wIdx, inBounds,
+   decode). Those helpers become brick lookups: (x, y, z) -> map[brick] -> slot x 512 + local. An ABSENT brick reads as dry
+   air: f = 0, velocity 0, p = 0, not liquid, occupancy Air. A write to an absent cell is dropped - and a FILL moving into an
+   absent cell is never made: the transport treats that face as closed and counts it (`fluxIntoAbsent`, an atomic count).
+4. *Threads.* Cell and face kernels dispatch over C x 512 (slot, local) instead of nx x ny x nz; idle slots return at once.
+   Column kernels (settle, compaction, carry-up, the residue sweep, droplet births, the surface field) dispatch over the
+   resident BRICK COLUMNS (a host-built list: (bx, bz) and its brick-row range), 64 threads each walking y through the map
+   (an absent brick in the stack is dry air). Reductions run over slots.
+5. *Residency - a pure function of the water.* After each call the device writes, per slot, whether it holds any water
+   (f > 0) and the distance of its water to each of its 6 faces (cells); the host reads it with the stats (8 bytes a slot).
+   Before the next call, a brick is RESIDENT when it holds water, or when water in a neighbour (all 26) lies within R cells
+   of it, with R = 3 (the extrapolation's three layers read that far from liquid) + the farthest the water can move this
+   call (ceil(vmax x dt x ticks / h) + 1, vmax from the max-speed reduction the substep count already uses). R <= 8 keeps
+   the halo to one ring of neighbours; when the measured speed makes R > 8 the halo takes a second ring (fast water, a
+   blast) - stated, counted (`haloRings`). New bricks are zeroed and their occupancy filled from the volume's SolidQuery on
+   the host (512 queries a brick; Unknown stays a hold, 26.4 gap 2), uploaded in the call's prologue; a brick no longer
+   resident is freed (it holds no water by the rule, so nothing is lost). Slots are assigned lowest-free-first in brick
+   order: deterministic.
+6. *Capacity.* When residency needs more than C slots, the missing bricks stay absent and the flow into them is held (a
+   closed face, counted `heldByCapacity`) - water is never dropped; the stats say so.
+7. *Not on bricks:* the particle transport (FLIP, not the shipped transport) stays dense - a sparse FLIP volume is refused.
+8. *Stats.* `GpuStepStats` gains bricks, capacity, allocated, freed, haloRings, fluxIntoAbsent, heldByCapacity.
+
+**Tests (P2a gates, red first).**
+- `WaterBrickTest.SparseEqualsDenseAcrossSeams` (integration, GPU): the same water run with every brick kept (dense) and
+  with residency following the water (sparse); the box placed so it straddles a chunk seam and brick seams on purpose.
+  Scenes: a dam break whose front crosses seams; a slosh; a stone entering (moving solid); a pump pouring into dry bricks
+  (allocation as water arrives); a sink draining bricks dry (freeing). Every tick: every cell's f, u, v, w, p
+  BIT-IDENTICAL between the two (an absent cell compares as 0 against the dense run's value, which must then be exactly 0);
+  `fluxIntoAbsent` = 0; mass equal to the reductions' rounding (their summation order differs - stated). RED before the
+  residency rule: the sparse run with only its starting bricks kept - the front is held at the first seam,
+  `fluxIntoAbsent` > 0, the fields differ (the control that the test can see a wrong halo).
+- `WaterBrickTest.CapacityHoldsWater`: C forced small - `heldByCapacity` > 0, mass exact, nothing dropped.
+- The GPU parity suite (24 rows) green on the brick storage, tolerances unchanged - the link to the CPU reference
+  (the CPU WaterSolver stays dense: it is the oracle, not a storage scheme).
+- Cost rows: (1) the synthetic 100 m creek (the bench's 2 m x 0.15 m section at 1:100, run DIAGONALLY so a box would be
+  ~100 x 100 m): median ms per tick incl. residency, gate <= 2 ms; resident bricks and stepped cells per water cell
+  reported. (2) The WaterBench_Small pond box, dense vs bricks: the indirection's overhead, gate <= +25 %. If (1) misses,
+  4^3 bricks are measured before anything else is changed.
+
+**Risks.** (1) The indirection costs more than +25 % - then the map lookup is cached per workgroup (a brick's 26 neighbour
+slots in shared memory) before the design changes. (2) A fast front allocates every tick (churn) - counted per tick in the
+dam break. (3) Equality fails on air faces: the extrapolation zeroes dry faces beyond its three layers every substep, so
+dense air far from water already holds 0 (read in `wc_extrap.comp` mode 6-8) - if the test still finds a difference, it is
+named before anything is changed.
+
+### 26.7 Design-check of P2a (Feature Design Keys, 2026-10-13)
+
+**Voxel look.** Unchanged by construction: storage only, 1/9 m everywhere water is; the equality test is the proof.
+**Chunks.** Bricks are world-aligned and every chunk seam is a brick seam; residency is a function of the water alone
+(never of chunk residency, distance or LOD); Unknown ground stays a per-cell hold. Equality test straddles a chunk seam.
+No cross-chunk lookup: the SolidQuery is world-addressed.
+**Generation.** None (runtime storage).
+**API.** No route in P2a (P2b adds `storage` on create and the brick stats to the replies, echoed). No default changes:
+engine volumes stay all-bricks-kept (dense) until P2b; the GPU parity suite pins that nothing moved.
+**Visual test plan.** P2a is invisible by design: bit-identical fields, so no look can change - the equality test and
+the parity suite are the gate (L2 structural invariant on real output). P2b brings the live look (the pebble pair at its
+pose, a long creek) for the owner.
+**Small rigs.** Unit boxes of a few metres at 1/9 m, one variable per test (the residency), a dense control each.
+**Stress dimension.** Count (bricks: 1 -> thousands, the diagonal creek), boundary crossing (chunk and brick seams), churn
+(the pour and the drain allocate and free every tick), degenerate (capacity forced to a handful of slots).
+
+**Verdict: READY for P2a.** P2b gets its own design and check once P2a's numbers are in.
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
