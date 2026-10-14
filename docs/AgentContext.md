@@ -168,6 +168,21 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **▶ WORLDFORGE v2 — PLAN OF RECORD, nothing built (branch `feat/worldforge-v2`, 2026-10-14).**
+  User goal: terrain, towns, cities, roads and waterways that are **epic in scale and functional at
+  small detail**. **Read [`docs/WorldForgeV2Plan.md`](WorldForgeV2Plan.md) before touching
+  WorldForge/CityForge/terrain generation.** Verdict from six code audits: the purity/determinism
+  architecture, PriorityFlood/FlowField, plan→ledger→realize and the structure forge are a
+  foundation; the three planning cores (analytic Layer-0 + 32 km hydro box, 3..8-site siting with
+  128 u A*, rect settlement layout) are prototypes and the ceiling. Order M0 cleanup → M1 world
+  sheet (the only scale-moving item) → M2 hydro geometry → M3 civ → M4 routes → M5 vector
+  settlement map (+ second era) → M6 lazy realization → M7 horizon → M8 lore. Decisions D1–D9 are
+  PROPOSED, not owner-settled. **Boundary with `feat/water-rethink`: shape terrain for water,
+  never fill it** (plan §4). Facts a fresh session must not re-derive: packaged games DO stream
+  (G-177) but have no realizer host; realizers are axis-aligned-rect only; realizing a lot deletes
+  any bbox-overlapping structure; partial placement counts as success; settlement buildings get
+  no `period`; the Stop-hook is unwired (`.claude/settings.json` hooks empty).
+
 - **▶ PERFORMANCE PROGRAM 2026-09 — ACTIVE (branch `perf/lights-microvoxel-program`).** User goal:
   as fast as possible **without visual loss**, measured at real load (~100-building cities). **The
   forward guide is [`docs/PerfProgram2026-09.md`](PerfProgram2026-09.md) §17** (operating point,
