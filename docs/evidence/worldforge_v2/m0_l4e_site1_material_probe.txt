@@ -1,0 +1,7 @@
+(-875,-1412) chunks surface_y=135 material=SnowGrass True below=Dirt | generator surface_y=135
+(-882,-1400) chunks surface_y=138 material=SnowGrass True below=Dirt | generator surface_y=138
+(-900,-1420) chunks surface_y=136 material=SnowGrass True below=Dirt | generator surface_y=136
+(-860,-1440) chunks surface_y=126 material=Grass True below=Dirt | generator surface_y=126
+(-875,-1450) chunks surface_y=126 material=Grass True below=Dirt | generator surface_y=126
+(-996,-1491) chunks surface_y=133 material=Grass True below=Dirt | generator surface_y=133
+(-850,-1380) chunks surface_y=145 material=SnowGrass True below=Dirt | generator surface_y=145

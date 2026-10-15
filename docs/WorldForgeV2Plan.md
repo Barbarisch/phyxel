@@ -377,6 +377,39 @@ A/B on hamlets 3/4/7; the refused-lot cell census (`RefusalIsClean`); world-leve
 material scans for rows 8–9; a live round-trip of the six MCP mirrors; rows named in the table without a
 test (`SweepNeverErasesPlacedObjectCells`, `SecondRoadGetsASpur`, earthworks/ford) stay NOT GREEN.
 
+**M0 L4 run 5 + the water merge — 2026-10-15 (`m0_l4e_summary.json`, predictions first).** The owner's
+`feat/water-rethink` (WaterCore 26.16) is merged into main (489caee2, pushed) and main into this branch
+(70f40163): F8 is done and M1 is unblocked. Merge conflicts were docs/manifest only; every `.spv` rebuilt
+(main changed `occupancy.glsl`, which the water and solver shaders include). Run 5 (Release 2e78d1df =
+row 2d + the merge): hash 9693137997320541182 held; the town's refusal now reads "unwalkable: 2 of 14
+street->door routes blocked, 1 front door(s) unseated (walkability gate)" with `gate.skipped:1` in the job
+JSON (the tavern @-1146,-1052 whose passage cell never seated). **Solution-auditor on row 2d (raw): "VERDICT:
+FAIL (narrowly). Claim A is confirmed. Claim B's text/JSON plumbing is confirmed, but no L4 run shows the
+new rule failing a build on skipped>0 alone."** Row 2d's decision branch (`gate:"unseated"`, blocked==0)
+is proven at L2 only (`GateOutcomeBlocksUnlessOverridden`, red→green on the shipped case {13,0,1}); the town
+was already blocked, and every built site logged 0 skipped, so the rule never fired alone at L4. Auditor
+caveats acted on / recorded: the nav-rebuild WARN omitted the unseated count (fixed, same day); nothing
+unit-tests that the probe loop increments `skipped` (only L4 does); `thresholdMicro<0` now counts as a
+refusal. **Prediction misses:** (1) hamlet 1 BUILT (2 buildings, 8/8 walkable) where runs 1–4 refused it
+"no buildable plots" → ledger 6 built / 2 refused; attributed by code reading + measurement, NOT A/B'd: the
+merged generator's lake flood is gated by the bake's Priority-Flood `filled` surface
+(`WaterOccupancy.cpp` `floodBodiesOverGrid`, WaterRethink D4), and the saved world measures DRY at the
+houses (`water_table_level` wet=false at 5 columns, `water_validate` 3721 columns wet 0 / rim_leaks 0, air
+above y135) where run 4's generator flooded the whole 40×32 rect (`terrain analyse buildable=0` → 0.525);
+site 3 moved 0.903 → 0.925, sites 2/4/7 identical. Whether a lake belongs in that basin is the owner's
+water work (fill), not M0's (shape); the white terraced floor in the captures is `SnowGrass` from the
+lapse-rate snow line (measured at 4 columns), pre-existing. (2) duration 355 s vs 280–340. (3) the capture
+targeted site 1, not site 2, as a consequence of (1). **Also found this day:** `ForgeStageOrder.
+CanonicalStageSequence` had been RED since row 4 (1a2ffe32) — neither row 4 nor the M0 auditor pass ran
+that fixture; fixed in 2e78d1df (test + placers doc). The merged main's full Debug suite: 4437 tests, 4415
+pass, 19 skip, the 2 pre-existing fails + ONE order-dependent water test (`WaterCouplingTest.BlastBeside
+ThePondMovesItAndItSettles`, 0.215 < 0.27 inside the full run, 0.284 alone; not bisected). **Still owed,
+updated:** the unseated-only L4 proof (a site with skipped>0, blocked==0 — the town once its two blocked
+routes are fixed, or a lab); a unit test that drives the probe loop to produce `skipped`; the generator A/B
+for hamlet 1 (old vs merged flood on this seed); the plan-time `site_list.surfaceY` vs chunk `surface_y`
+gap (151 vs 134 at site 1, 150.66 vs 144 at site 2) — unexplained, for M1/M3; plus everything in the
+auditor paragraph above.
+
 ### M1 — World Sheet (L) — *the one change that moves the scale ceiling*
 
 Contract: `heightAt / drainageAt / climateAt / rockAt` are served from a **macro sheet** (512 u

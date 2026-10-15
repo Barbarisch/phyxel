@@ -1,0 +1,53 @@
+== terrain_height chunks (-875,-1427)
+{"max_y":255,"source":"chunks","spawn_y":136,"surface_y":135,"x":-875,"z":-1427}
+== terrain_height generator (-875,-1427)
+{"source":"generator","spawn_y":131,"surface_y":130,"x":-875,"z":-1427}
+== water_table_level (-875,-1427)
+{"level":0.0,"river_channel":false,"river_order":0,"table_bound":true,"wet":false,"x":-875.0,"z":-1427.0}
+== terrain_height chunks (-890,-1427)
+{"max_y":255,"source":"chunks","spawn_y":140,"surface_y":139,"x":-890,"z":-1427}
+== terrain_height generator (-890,-1427)
+{"source":"generator","spawn_y":133,"surface_y":132,"x":-890,"z":-1427}
+== water_table_level (-890,-1427)
+{"level":0.0,"river_channel":false,"river_order":0,"table_bound":true,"wet":false,"x":-890.0,"z":-1427.0}
+== terrain_height chunks (-875,-1412)
+{"max_y":255,"source":"chunks","spawn_y":136,"surface_y":135,"x":-875,"z":-1412}
+== terrain_height generator (-875,-1412)
+{"source":"generator","spawn_y":136,"surface_y":135,"x":-875,"z":-1412}
+== water_table_level (-875,-1412)
+{"level":0.0,"river_channel":false,"river_order":0,"table_bound":true,"wet":false,"x":-875.0,"z":-1412.0}
+== terrain_height chunks (-888,-1416)
+{"max_y":255,"source":"chunks","spawn_y":135,"surface_y":134,"x":-888,"z":-1416}
+== terrain_height generator (-888,-1416)
+{"source":"generator","spawn_y":135,"surface_y":134,"x":-888,"z":-1416}
+== water_table_level (-888,-1416)
+{"level":0.0,"river_channel":false,"river_order":0,"table_bound":true,"wet":false,"x":-888.0,"z":-1416.0}
+== terrain_height chunks (-875,-1440)
+{"max_y":255,"source":"chunks","spawn_y":128,"surface_y":127,"x":-875,"z":-1440}
+== terrain_height generator (-875,-1440)
+{"source":"generator","spawn_y":128,"surface_y":127,"x":-875,"z":-1440}
+== water_table_level (-875,-1440)
+{"level":0.0,"river_channel":false,"river_order":0,"table_bound":true,"wet":false,"x":-875.0,"z":-1440.0}
+== voxel (-875,130,-1412)
+{"damage01":0.0,"damage_energy":0.0,"damage_stage":0,"damage_stage_bits":0,"damage_stages_max":7,"damage_tracked":true,"exists":true,"material":"Stone","position":{"x":-875,"y":130,"z":-1412},"toughness":110.0}
+== voxel (-875,132,-1412)
+{"damage01":0.0,"damage_energy":0.0,"damage_stage":0,"damage_stage_bits":0,"damage_stages_max":7,"damage_tracked":true,"exists":true,"material":"Dirt","position":{"x":-875,"y":132,"z":-1412},"toughness":45.0}
+== voxel (-875,134,-1412)
+{"damage01":0.0,"damage_energy":0.0,"damage_stage":0,"damage_stage_bits":0,"damage_stages_max":7,"damage_tracked":true,"exists":true,"material":"Dirt","position":{"x":-875,"y":134,"z":-1412},"toughness":45.0}
+== voxel (-875,136,-1412)
+{"exists":false,"position":{"x":-875,"y":136,"z":-1412}}
+== voxel (-875,138,-1412)
+{"exists":false,"position":{"x":-875,"y":138,"z":-1412}}
+== voxel (-875,140,-1412)
+{"exists":false,"position":{"x":-875,"y":140,"z":-1412}}
+== voxel (-875,142,-1412)
+{"exists":false,"position":{"x":-875,"y":142,"z":-1412}}
+== water_stats rect
+{"camera_depth_below":0.0,"camera_submergence":0.0,"dims":{"x":64,"y":32,"z":64},"edge_outflow":true,"origin":{"x":-16,"y":26,"z":-13},"outflow_bank":0.0,"overrides":0,"plane_enabled":false,"render_sea_level":16.0,"surface_cells":0,"total_mass":0.0,"water_table":true}
+== water_validate rect
+{"columns":3721,"rim":0,"rim_leaks":0,"unloaded":0,"wet":0,"worst_leak_at":{"x":0,"z":0},"worst_leak_depth":0.0}
+== water_bake_info
+{"bake_sea_level":16.0,"drainage_complete":true,"generator_sea_level":16.0,"has_outlet":true,"hydro_cell_size":128.0,"hydro_cells":{"x":256,"z":256},"max_order":4,"min_terrain":-24.0}
+== camera readback
+{"activeSlot":"","front":{"x":-2.5071823728239906e-08,"y":-0.8191520571708679,"z":-0.5735764503479004},"pitch":-55.0,"position":{"x":-882.0,"y":190.0,"z":-1392.0},"slots":[{"followEntityId":"","name":"default","pitch":-30.0,"position":{"x":45.0,"y":55.0,"z":45.0},"yaw":-135.0}],"yaw":-90.0}
+saved m0_l4e_site1_above_capture.png

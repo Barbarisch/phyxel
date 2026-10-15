@@ -1,0 +1,10 @@
+{
+  "what": "Predictions for M0 L4 run 5 (PREFIX=m0_l4e), written 2026-10-15 before the run, while the Release build of 2e78d1df (feat/worldforge-v2 with row 2d AND the water-core merge 489caee2 -> 70f40163) is in progress. Changes since run 4 (7411b0f8): row 2d (gateOutcome fails on skipped>0, gate:\"unseated\", one error text); the stage-order test fix (test-only); main merged in (water core, Ravenmere/sky/nav/hud work) - none of it touches siting, layout, the gate or the structure forge, but the engine's runtime (water, lighting, streaming) is different, so the job's duration and the capture's look may move.",
+  "P1_plan_hash": "9693137997320541182 before and after (siting/hash code untouched by the merge)",
+  "P2_town": "REFUSED; the error text now reads 'unwalkable: 2 of 14 street->door routes blocked, 1 front door(s) unseated (walkability gate)' or the 2d wording with the same numbers; gate JSON carries skipped=1 (the tavern's unseated front door from run 2-4's '5 front doors, 1 skipped'); the two blocked routes are hall_house @-1160,-1091 (pinch) and general_store @-1146,-1058 (one-way)",
+  "P3_other_sites": "5, 2, 3, 4, 7 BUILT with the same building counts as run 4 (2,3,3,3,4) and skipped=0 at each; 6 REFUSED (blacksmith @-1004,1404 pinch); 1 REFUSED (no plots) -> ledger 5 built / 3 refused, the run-4 outcome set unchanged; if any built site reports skipped>0 it will now REFUSE and the set changes - that is the row-2d-visible case",
+  "P4_capture": "site 0 refused -> target site 2 at (-1432,-1288), surfaceY 150 -> camA (-1432,181,-1228) yaw -90 pitch -45 and camB (-1420,168,-1294) yaw -90 pitch -30 read back as sent; both show canopy as in run 4 (the §16 poses are not re-aimed in this run)",
+  "P5_terrain_height": "chunks 144 / generator 144 at (-1432,-1288)",
+  "P6_duration": "280-340 s (merged runtime; run 4 was 303 s)",
+  "P7_water": "no water-core activity at any site (the lab game.json has no water block / water disabled - checked before the run); if the log shows the water core running, note it, it is not a prediction failure"
+}

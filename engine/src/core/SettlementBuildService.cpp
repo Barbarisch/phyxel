@@ -1899,7 +1899,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                           walkJsonP, allowUnwalkable]() {
             if (gateOutcome(*walkJsonP, allowUnwalkable).value("fails_build", false)) {
                 LOG_WARN_FMT("Settlement", "walkability gate BLOCKED the build (" << walkJsonP->value("blocked", 0)
-                             << " blocked routes) - nav rebuild skipped; the settlement is a refused outcome");
+                             << " blocked routes, " << walkJsonP->value("skipped", 0)
+                             << " front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome");
                 return;
             }
             if (npcManager) npcManager->buildNavGrid();
