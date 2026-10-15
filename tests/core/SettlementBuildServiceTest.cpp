@@ -241,3 +241,54 @@ TEST(SettlementBuildServiceTest, TheWalkabilityGateRunsOnTheFinishedWorldBeforeN
     EXPECT_GT(gate, sweep)        << "the gate must see the swept streets";
     EXPECT_LT(gate, nav)          << "the gate reports before the graph is built on the same world";
 }
+
+// ── M0 (docs/WorldForgeV2Plan.md §5 M0): the gate runs for EVERY morphology ──────
+// F7 live baseline 2026-10-14: the 8-site build logged a "walkability gate:" line for the
+// three main_street sites only; the five cluster-morphology hamlets were never gated.
+// A hamlet's residents walk street -> door like anyone else; the gate's routes start at
+// each recorded front-door marker, not at street rectangles, so nothing in the gate itself
+// needs the main street. RED: today the unit is queued under `mainStreetMode`.
+TEST(SettlementBuildServiceTest, TheWalkabilityGateRunsForEveryMorphology) {
+    Phyxel::ChunkManager cm;
+    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    for (const char* tier : {"hamlet", "village", "town", "city"}) {
+        nlohmann::json params = {{"era", "medieval"}, {"tier", tier}, {"seed", 7},
+                                 {"position", {{"x", 0}, {"y", 16}, {"z", 0}}},
+                                 {"width", 160}, {"depth", 160}, {"allow_ungrounded", true}};
+        SettlementBuildService::Deps deps;
+        deps.chunkManager = &cm;
+        const auto plan = SettlementBuildService::plan(params, deps);
+        ASSERT_TRUE(plan.ok()) << tier << ": " << plan.error.dump();
+        bool gate = false;
+        for (const auto& u : plan.units) gate = gate || (u.label == "walkability gate");
+        EXPECT_TRUE(gate) << tier << ": no walkability gate unit was planned (morphology "
+                          << plan.program.value("morphology", std::string("?")) << ")";
+        ASSERT_NE(plan.walkability, nullptr) << tier << ": plan carries no walkability result slot";
+        EXPECT_FALSE(plan.allowUnwalkable) << tier << ": allow_unwalkable must default to false";
+    }
+}
+
+// The verdict is a pure function of the gate result + the override flag (owner ruling
+// 2026-10-14: "mark it failed, keep the voxels, retry later").
+TEST(SettlementBuildServiceTest, GateOutcomeBlocksUnlessOverridden) {
+    const nlohmann::json clean   = {{"walkable", 12}, {"blocked", 0}, {"skipped", 0}};
+    const nlohmann::json pinched = {{"walkable", 27}, {"blocked", 1}, {"skipped", 0}};
+    const nlohmann::json notRun  = nlohmann::json::object();
+
+    auto o = SettlementBuildService::gateOutcome(clean, false);
+    EXPECT_EQ(o.value("gate", ""), "passed");
+    EXPECT_FALSE(o.value("fails_build", true));
+
+    o = SettlementBuildService::gateOutcome(pinched, false);
+    EXPECT_EQ(o.value("gate", ""), "blocked");
+    EXPECT_TRUE(o.value("fails_build", false)) << "a blocked gate must fail the build by default";
+    EXPECT_EQ(o.value("blocked", 0), 1);
+
+    o = SettlementBuildService::gateOutcome(pinched, true);
+    EXPECT_EQ(o.value("gate", ""), "overridden");
+    EXPECT_FALSE(o.value("fails_build", true)) << "allow_unwalkable keeps the build";
+
+    o = SettlementBuildService::gateOutcome(notRun, false);
+    EXPECT_EQ(o.value("gate", ""), "not_run");
+    EXPECT_FALSE(o.value("fails_build", true)) << "a gate that never ran is not a refusal";
+}

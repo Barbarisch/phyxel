@@ -154,6 +154,28 @@ void queuePlanAndBuild(const std::shared_ptr<BuildState>& s) {
                 }
                 return 0;
             };
+            // M0 (WorldForgeV2Plan §5 M0): a blocked walkability gate REFUSES the site.
+            // Owner ruling 2026-10-14: recorded refused, NOT checkpointed (the voxels stay
+            // in memory until restream), retried after the generator is fixed.
+            const nlohmann::json walk = plan->walkability ? *plan->walkability
+                                                           : nlohmann::json::object();
+            const nlohmann::json gate = SettlementBuildService::gateOutcome(walk, plan->allowUnwalkable);
+            if (gate.value("fails_build", false)) {
+                const std::string err = "unwalkable: " + std::to_string(gate.value("blocked", 0)) + " of "
+                    + std::to_string(gate.value("blocked", 0) + gate.value("walkable", 0))
+                    + " street->door routes blocked (walkability gate)";
+                auto& re = s->ledger.ensure(st.id, st.tier);
+                re.status = "refused";
+                re.error = err;
+                persistLedger(*s);
+                s->outcomes.push_back({{"id", st.id}, {"tier", st.tier}, {"status", "refused"},
+                                       {"error", err}, {"walkability", walk}, {"gate", gate}});
+                LOG_WARN_FMT("WorldForge", "[WORLDFORGE] site " << st.id << " (" << st.tier
+                             << ") REFUSED: " << err << " - not checkpointed");
+                ++s->idx;
+                queueNextSite(s);
+                return;
+            }
             auto& e = s->ledger.ensure(st.id, st.tier);
             e.status = "built";
             e.buildings = plan->queuedBuilds.is_array()

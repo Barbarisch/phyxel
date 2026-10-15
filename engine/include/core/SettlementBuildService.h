@@ -115,9 +115,27 @@ public:
         /// retry_error}). Empty = every lot built (possibly on its re-roll). Filled
         /// by the building units as they run.
         std::shared_ptr<nlohmann::json> lotFailures;
+        /// M0 (WorldForgeV2Plan §5 M0): the walkability gate's result, filled by the gate
+        /// unit after every building, stoop, fence and sweep has landed:
+        /// {routes[], walkable, blocked, skipped}. Empty object until the gate ran.
+        std::shared_ptr<nlohmann::json> walkability;
+        /// {"allow_unwalkable": true} in the params: a blocked gate is REPORTED but does
+        /// not fail the build (default false: a blocked gate fails it — "walkability by
+        /// construction"; the pinched town is a generator defect, never shipped).
+        bool allowUnwalkable = false;
 
         bool ok() const { return error.is_null(); }
     };
+
+    /// The gate's verdict as a pure function of its result (shared by the editor's
+    /// build_settlement response, the WorldForge checkpoint and the post-gate units):
+    ///   {"gate": "not_run" | "passed" | "blocked" | "overridden",
+    ///    "walkable": N, "blocked": N, "fails_build": bool}
+    /// not_run  = the gate never produced a result (no world / no front doors)
+    /// passed   = 0 blocked routes
+    /// blocked  = >0 blocked and allow_unwalkable is false  -> fails_build = true
+    /// overridden = >0 blocked and allow_unwalkable is true -> fails_build = false
+    static nlohmann::json gateOutcome(const nlohmann::json& walkability, bool allowUnwalkable);
 
     /// Plan a settlement from build_settlement params. Planning (grounding gate, program
     /// resolution, layout, building assignment) runs INLINE and can fail fast; the heavy

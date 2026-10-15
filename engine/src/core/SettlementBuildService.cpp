@@ -69,6 +69,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     res.yardProps   = std::make_shared<nlohmann::json>(nlohmann::json::object());
     res.lotFailures = std::make_shared<nlohmann::json>(nlohmann::json::array());
     res.residents = std::make_shared<nlohmann::json>(nlohmann::json::object());
+    res.walkability = std::make_shared<nlohmann::json>(nlohmann::json::object());
 
     // Bound ONCE and captured BY VALUE into the work units, which outlive this frame.
     // Deliberately named to match the fields they replace so the relocated body reads
@@ -119,6 +120,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // Refuse by default; {"allow_ungrounded": true} overrides (and is forwarded to
         // the per-building builds so they don't re-refuse).
         const bool allowUngrounded = p.value("allow_ungrounded", false);
+        // M0 (WorldForgeV2Plan §5 M0): a blocked walkability gate FAILS the build unless
+        // {"allow_unwalkable": true}. Owner ruling 2026-10-14: mark it failed, keep the
+        // voxels, retry after the generator is fixed - never patch the world.
+        res.allowUnwalkable = p.value("allow_unwalkable", false);
         if (chunkManager && !allowUngrounded) {
             const int gScanTop = oy + 64;
             int missing = 0;
@@ -331,6 +336,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // every unit inline for callers needing the full synchronous response).
         std::vector<WorkUnit> units;
         auto pathsJsonP = res.paths;
+        auto walkJsonP  = res.walkability;
+        const bool allowUnwalkable = res.allowUnwalkable;
         auto propsJsonP = res.yardProps;
         auto residentsJsonP = res.residents;
         auto sharedPaved = std::make_shared<std::set<std::pair<int, int>>>();
@@ -1529,10 +1536,13 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // is reported LOCATED (pinch coordinates) in the log and the job result; it is a
         // generator defect record, never patched here. Item props (fine-voxel, not chunk
         // voxels) are not in this occupancy yet - see the loop doc.
-        if (mainStreetMode && chunkManager) {
+        // M0: EVERY morphology is gated. The routes start at each recorded front-door
+        // marker, never at a street rectangle, so cluster hamlets gate exactly like a
+        // main-street town (F7 live baseline 2026-10-14: 5 of 8 sites had no gate line).
+        if (chunkManager) {
             units.push_back({"walkability gate",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 sharedFrontDoors, pathsJsonP]() {
+                 sharedFrontDoors, pathsJsonP, walkJsonP]() {
             if (!chunkManager) return;
             const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
                 return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
@@ -1688,6 +1698,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          << sharedFrontDoors->size() << " front doors, " << skipped << " skipped)");
             (*pathsJsonP)["walkability"] = {{"routes", routesJ}, {"walkable", walkable},
                                             {"blocked", blocked}, {"failed", blocked}, {"skipped", skipped}};
+            *walkJsonP = (*pathsJsonP)["walkability"];
             }});
         }
 
@@ -1697,7 +1708,13 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // exist at all (built pre-settlement over near-empty chunk bounds) — so region
         // refreshes hit no cells. One full rebuild re-derives bounds from the now-loaded
         // chunks; without it navgrid/path over the finished settlement returns found:false.
-        units.push_back({"nav rebuild", [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo]() {
+        units.push_back({"nav rebuild", [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
+                                          walkJsonP, allowUnwalkable]() {
+            if (gateOutcome(*walkJsonP, allowUnwalkable).value("fails_build", false)) {
+                LOG_WARN_FMT("Settlement", "walkability gate BLOCKED the build (" << walkJsonP->value("blocked", 0)
+                             << " blocked routes) - nav rebuild skipped; the settlement is a refused outcome");
+                return;
+            }
             if (npcManager) npcManager->buildNavGrid();
         }});
 
@@ -1712,7 +1729,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         const bool spawnResidents = programMode && p.value("residents", true);
         if (spawnResidents) {
             const int rW = W, rD = D, rOx = ox, rOz = oz;
-            units.push_back({"spawn residents", [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, residentsJsonP, rW, rD, rOx, rOz]() {
+            units.push_back({"spawn residents", [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, residentsJsonP, rW, rD, rOx, rOz,
+                                              walkJsonP, allowUnwalkable]() {
+                if (gateOutcome(*walkJsonP, allowUnwalkable).value("fails_build", false)) return;  // M0: no residents in a refused town
                 if (!npcManager || !locationRegistry) return;
                 std::vector<Core::Location> locs;
                 for (const auto& [id, loc] : locationRegistry->getAllLocations()) {
@@ -1793,6 +1812,25 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                            : std::string("settlement (legacy params)");
     res.units        = std::move(units);
     return res;
+}
+
+nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkability,
+                                                   bool allowUnwalkable) {
+    // Pure: the verdict is a function of the gate's result and the override, nothing
+    // else — the editor response, the WorldForge checkpoint and the post-gate units
+    // must never disagree about whether a settlement failed its gate.
+    const bool ran = walkability.is_object() && walkability.contains("blocked");
+    const int walkable = ran ? walkability.value("walkable", 0) : 0;
+    const int blocked  = ran ? walkability.value("blocked", 0) : 0;
+    std::string gate = "not_run";
+    bool failsBuild = false;
+    if (ran) {
+        if (blocked <= 0)            gate = "passed";
+        else if (allowUnwalkable)    gate = "overridden";
+        else { gate = "blocked";     failsBuild = true; }
+    }
+    return {{"gate", gate}, {"walkable", walkable}, {"blocked", blocked},
+            {"fails_build", failsBuild}};
 }
 
 } // namespace Core

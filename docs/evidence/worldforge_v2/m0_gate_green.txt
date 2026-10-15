@@ -1,0 +1,193 @@
+[==========] Running 95 tests from 12 test suites.
+[ RUN      ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan
+[       OK ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan (40 ms)
+[ RUN      ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans
+[       OK ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans (6 ms)
+[ RUN      ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist
+[       OK ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist (9 ms)
+[ RUN      ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped
+[       OK ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped (9 ms)
+[ RUN      ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty
+[       OK ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty (10 ms)
+[ RUN      ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted
+[       OK ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted (5 ms)
+[ RUN      ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused
+[       OK ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused (8 ms)
+[ RUN      ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused
+[       OK ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused (7 ms)
+[ RUN      ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed
+[       OK ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed (30 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav (10 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology (56 ms)
+[ RUN      ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden
+[       OK ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden (0 ms)
+[ RUN      ] SettlementLayoutTest.AdjacentPlotsSeparatedByStreet
+[       OK ] SettlementLayoutTest.AdjacentPlotsSeparatedByStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.EveryPlotMeetsMinSize
+[       OK ] SettlementLayoutTest.EveryPlotMeetsMinSize (0 ms)
+[ RUN      ] SettlementLayoutTest.PlotsFitTheFootprint
+[       OK ] SettlementLayoutTest.PlotsFitTheFootprint (0 ms)
+[ RUN      ] SettlementLayoutTest.StreetsCoverTheGapsAndDontOverlapPlots
+[       OK ] SettlementLayoutTest.StreetsCoverTheGapsAndDontOverlapPlots (0 ms)
+[ RUN      ] SettlementLayoutTest.TooDenseReturnsEmpty
+[       OK ] SettlementLayoutTest.TooDenseReturnsEmpty (0 ms)
+[ RUN      ] SettlementLayoutTest.BuildingInsetFromPlotByYard
+[       OK ] SettlementLayoutTest.BuildingInsetFromPlotByYard (0 ms)
+[ RUN      ] SettlementLayoutTest.BuildingsFitDontOverlapAndCarryTypology
+[       OK ] SettlementLayoutTest.BuildingsFitDontOverlapAndCarryTypology (0 ms)
+[ RUN      ] SettlementLayoutTest.TinyPlotSkipped
+[       OK ] SettlementLayoutTest.TinyPlotSkipped (0 ms)
+[ RUN      ] SettlementLayoutTest.TerrainPlotsLandOnlyOnBuildable
+[       OK ] SettlementLayoutTest.TerrainPlotsLandOnlyOnBuildable (0 ms)
+[ RUN      ] SettlementLayoutTest.SteepMountainYieldsNoPlots
+[       OK ] SettlementLayoutTest.SteepMountainYieldsNoPlots (0 ms)
+[ RUN      ] SettlementLayoutTest.TerrainPlotsDontOverlapAndAreSpaced
+[       OK ] SettlementLayoutTest.TerrainPlotsDontOverlapAndAreSpaced (0 ms)
+[ RUN      ] SettlementLayoutTest.ScaleSixBySixAllInvariantsHold
+[       OK ] SettlementLayoutTest.ScaleSixBySixAllInvariantsHold (0 ms)
+[ RUN      ] SettlementLayoutTest.ZeroSetbackFlushButClearOfStreet
+[       OK ] SettlementLayoutTest.ZeroSetbackFlushButClearOfStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.ComposedWorldFootprintsDontOverlap
+[       OK ] SettlementLayoutTest.ComposedWorldFootprintsDontOverlap (0 ms)
+[ RUN      ] SettlementLayoutTest.EveryGridPlotFrontsAStreet
+[       OK ] SettlementLayoutTest.EveryGridPlotFrontsAStreet (0 ms)
+[ RUN      ] SettlementLayoutTest.PlotsFrontTheSharedStreetFacingEachOther
+[       OK ] SettlementLayoutTest.PlotsFrontTheSharedStreetFacingEachOther (0 ms)
+[ RUN      ] SettlementProgramTest.ShippedFileLoadsAllMedievalTiers
+[       OK ] SettlementProgramTest.ShippedFileLoadsAllMedievalTiers (2 ms)
+[ RUN      ] SettlementProgramTest.UnknownEraOrTierRejected
+[       OK ] SettlementProgramTest.UnknownEraOrTierRejected (2 ms)
+[ RUN      ] SettlementProgramTest.EveryTierTypologyExistsInRoomProgram
+[       OK ] SettlementProgramTest.EveryTierTypologyExistsInRoomProgram (7 ms)
+[ RUN      ] SettlementProgramTest.EveryTierIsSourced
+[       OK ] SettlementProgramTest.EveryTierIsSourced (2 ms)
+[ RUN      ] SettlementProgramTest.MalformedJsonRejected
+[       OK ] SettlementProgramTest.MalformedJsonRejected (0 ms)
+[ RUN      ] SettlementProgramTest.DensityScalesThePreset
+[       OK ] SettlementProgramTest.DensityScalesThePreset (2 ms)
+[ RUN      ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused
+[       OK ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused (68 ms)
+[ RUN      ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured
+[       OK ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured (53 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement
+[       OK ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement (115 ms)
+[ RUN      ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt
+[       OK ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt (121 ms)
+[ RUN      ] SettlementTerrainPlanTest.PartlyBuildableTerrainSurfacesTheDroppedPlotCount
+[       OK ] SettlementTerrainPlanTest.PartlyBuildableTerrainSurfacesTheDroppedPlotCount (121 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed
+[       OK ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed (347 ms)
+[ RUN      ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned
+[       OK ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned (80 ms)
+[ RUN      ] SettlementTraversalTest.StreetReachesEveryBuildingInterior
+[       OK ] SettlementTraversalTest.StreetReachesEveryBuildingInterior (2484 ms)
+[ RUN      ] SettlementTraversalTest.RealizerStaysWithinPlotFootprint
+[       OK ] SettlementTraversalTest.RealizerStaysWithinPlotFootprint (538 ms)
+[ RUN      ] SettlementTraversalTest.SealedBuildingIsUnreachable
+[       OK ] SettlementTraversalTest.SealedBuildingIsUnreachable (2490 ms)
+[ RUN      ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage
+[       OK ] SettlementWalkabilityTest.EveryPlotIsEnterableFromItsStreetFrontage (7791 ms)
+[ RUN      ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed
+[       OK ] SettlementWalkabilityTest.WithoutAGateEveryPlotIsSealed (14422 ms)
+[ RUN      ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding
+[       OK ] SettlementWalkabilityTest.SealingOneDoorBlocksOnlyThatBuilding (23103 ms)
+[ RUN      ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze
+[       OK ] SettlementWalkabilityTest.FreeWidthMeasuresAnActualSqueeze (39 ms)
+[ RUN      ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn
+[       OK ] SettlementWalkabilityTest.AResidentCanWalkFromHomeAcrossTheVillageAndBackIn (26182 ms)
+[ RUN      ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell
+[       OK ] SettlementWalkabilityTest.TheVillageIsStillWalkableWithYardPropsAndTheWell (19726 ms)
+[ RUN      ] StructureBuildServiceTest.AliasHouseSmallFootprintIsCroft
+[       OK ] StructureBuildServiceTest.AliasHouseSmallFootprintIsCroft (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasHouseLargeFootprintIsHallHouse
+[       OK ] StructureBuildServiceTest.AliasHouseLargeFootprintIsHallHouse (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasTavernKeepsTypologyAndStoriesCount
+[       OK ] StructureBuildServiceTest.AliasTavernKeepsTypologyAndStoriesCount (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasRespectsExplicitTypologyAndStyle
+[       OK ] StructureBuildServiceTest.AliasRespectsExplicitTypologyAndStyle (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasUnknownTypeIsNull
+[       OK ] StructureBuildServiceTest.AliasUnknownTypeIsNull (0 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite (11 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis (8 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RealizationOrderTownFirst
+[       OK ] WorldForgeBuildFlowTest.RealizationOrderTownFirst (8 ms)
+[ RUN      ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger
+[       OK ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger (12 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues
+[       OK ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues (11 ms)
+[ RUN      ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite
+[       OK ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite (11 ms)
+[ RUN      ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun
+[       OK ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun (12 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun
+[       OK ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun (10 ms)
+[ RUN      ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed
+[       OK ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed (11 ms)
+[ RUN      ] WorldForgeLedgerTest.RoundTrip
+[       OK ] WorldForgeLedgerTest.RoundTrip (0 ms)
+[ RUN      ] WorldForgeLedgerTest.StaleDetection
+[       OK ] WorldForgeLedgerTest.StaleDetection (0 ms)
+[ RUN      ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable
+[       OK ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable (7 ms)
+[ RUN      ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount
+[       OK ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount (63 ms)
+[ RUN      ] WorldForgePlanTest.TierMixIsOneTownTwoVillages
+[       OK ] WorldForgePlanTest.TierMixIsOneTownTwoVillages (64 ms)
+[ RUN      ] WorldForgePlanTest.SitesNotInWater
+[       OK ] WorldForgePlanTest.SitesNotInWater (63 ms)
+[ RUN      ] WorldForgePlanTest.SitesRespectMinSpacing
+[       OK ] WorldForgePlanTest.SitesRespectMinSpacing (64 ms)
+[ RUN      ] WorldForgePlanTest.SitesWithinRegion
+[       OK ] WorldForgePlanTest.SitesWithinRegion (64 ms)
+[ RUN      ] WorldForgePlanTest.SiteCountClamped
+[       OK ] WorldForgePlanTest.SiteCountClamped (99 ms)
+[ RUN      ] WorldForgePlanTest.RoadsConnectAllSites
+[       OK ] WorldForgePlanTest.RoadsConnectAllSites (65 ms)
+[ RUN      ] WorldForgePlanTest.RoadsAvoidStandingWater
+[       OK ] WorldForgePlanTest.RoadsAvoidStandingWater (65 ms)
+[ RUN      ] WorldForgePlanTest.RoadCenterlinesContinuous
+[       OK ] WorldForgePlanTest.RoadCenterlinesContinuous (63 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsMarkedWhereOrder3
+[       OK ] WorldForgePlanTest.CrossingsMarkedWhereOrder3 (52 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsGetBridgeSpans
+[       OK ] WorldForgePlanTest.CrossingsGetBridgeSpans (51 ms)
+[ RUN      ] WorldForgePlanTest.SitePinsSeatedVerbatim
+[       OK ] WorldForgePlanTest.SitePinsSeatedVerbatim (57 ms)
+[ RUN      ] WorldForgePlanTest.RoadsReachTheFootprintEdge
+[       OK ] WorldForgePlanTest.RoadsReachTheFootprintEdge (65 ms)
+[ RUN      ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar
+[       OK ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar (64 ms)
+[ RUN      ] WorldForgePlanTest.RoadQueryPerf
+[       OK ] WorldForgePlanTest.RoadQueryPerf (95 ms)
+[ RUN      ] WorldForgePlanTest.PlanDeterminism
+[       OK ] WorldForgePlanTest.PlanDeterminism (135 ms)
+[ RUN      ] WorldForgePlanTest.SiteSeedDerivation
+[       OK ] WorldForgePlanTest.SiteSeedDerivation (176 ms)
+[ RUN      ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly
+[       OK ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly (1 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeSeedAuthority
+[       OK ] WorldForgeRecipeTest.RecipeSeedAuthority (1257 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeSeedZeroKeepsConstructorSeed
+[       OK ] WorldForgeRecipeTest.RecipeSeedZeroKeepsConstructorSeed (4 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeWorldForgeRoundTrip
+[       OK ] WorldForgeRecipeTest.RecipeWorldForgeRoundTrip (0 ms)
+[ RUN      ] WorldForgeRecipeTest.LegacyRecipeDisabledAndKeyless
+[       OK ] WorldForgeRecipeTest.LegacyRecipeDisabledAndKeyless (0 ms)
+[ RUN      ] WorldForgeRecipeTest.GeneratorBakesPlanOnlyWhenEnabled
+[       OK ] WorldForgeRecipeTest.GeneratorBakesPlanOnlyWhenEnabled (873 ms)
+[ RUN      ] WorldForgeStressTest.EightSitesOverFullRegion
+[       OK ] WorldForgeStressTest.EightSitesOverFullRegion (1043 ms)
+[ RUN      ] WorldForgeStressTest.MountainWorldDegradesHonestly
+[       OK ] WorldForgeStressTest.MountainWorldDegradesHonestly (1046 ms)
+[ RUN      ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators
+[       OK ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators (884 ms)
+[ RUN      ] WorldForgeStressTest.RoadStepProfileMostlyWalkable
+[       OK ] WorldForgeStressTest.RoadStepProfileMostlyWalkable (104 ms)
+[ RUN      ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains
+[       OK ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains (683 ms)
+[==========] 95 tests from 12 test suites ran. (105226 ms total)
+[  PASSED  ] 95 tests.

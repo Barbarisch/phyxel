@@ -1,0 +1,63 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology:SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden:WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed
+[==========] Running 3 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from SettlementBuildServiceTest
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology
+[21:32:55.158] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[21:32:55.163] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[21:32:55.164] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(264): error: Value of: gate
+  Actual: false
+Expected: true
+hamlet: no walkability gate unit was planned (morphology cluster)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(266): error: Expected: (plan.walkability) != (nullptr), actual: (nullptr) vs (nullptr)
+hamlet: plan carries no walkability result slot
+
+[  FAILED  ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology (10 ms)
+[ RUN      ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden
+[       OK ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden (0 ms)
+[----------] 2 tests from SettlementBuildServiceTest (10 ms total)
+
+[----------] 1 test from WorldForgeBuildFlowTest
+[ RUN      ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed
+[21:32:55.176] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)
+[21:32:55.177] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites
+[21:32:55.178] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 4 buildings, 0 residents, 0 lot failures
+[21:32:55.178] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 0 residents, 0 lot failures
+[21:32:55.179] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 0 residents, 0 lot failures
+[21:32:55.179] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgeBuildFlowTest.cpp(345): error: Expected equality of these values:
+  refused
+    Which is: 0
+  1
+the pinched site must be recorded refused, not built
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgeBuildFlowTest.cpp(346): error: Expected equality of these values:
+  built
+    Which is: 3
+  2
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgeBuildFlowTest.cpp(347): error: Expected equality of these values:
+  h.checkpoints
+    Which is: 3
+  2
+a refused site is NOT checkpointed (its voxels stay in memory until restream)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgeBuildFlowTest.cpp(353): error: Value of: sawGate
+  Actual: false
+Expected: true
+the refusal outcome must carry the walkability result
+
+[  FAILED  ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed (14 ms)
+[----------] 1 test from WorldForgeBuildFlowTest (14 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 2 test suites ran. (25 ms total)
+[  PASSED  ] 1 test.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology
+[  FAILED  ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed
+
+ 2 FAILED TESTS

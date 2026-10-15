@@ -302,3 +302,53 @@ TEST(WorldForgeBuildFlowTest, SiteFilterRestrictsRun) {
         if (s.status == "built") ++built;
     EXPECT_EQ(built, 1);
 }
+
+// ── M0 (docs/WorldForgeV2Plan.md §5 M0): a blocked walkability gate REFUSES the site ──
+// F7 live baseline 2026-10-14: site 0 (town) and site 5 (village) each had one blocked
+// street->door route and were recorded "built" and checkpointed. Owner ruling: mark it
+// failed, keep the voxels, do NOT checkpoint, retry after the generator is fixed.
+// RED: today the checkpoint unit never reads the gate result.
+TEST(WorldForgeBuildFlowTest, UnwalkableSiteIsRefusedNotCheckpointed) {
+    Harness h;
+    int planned = 0;
+    h.deps.planSettlement = [&planned](const nlohmann::json& params) {
+        ++planned;
+        SettlementBuildService::Plan p;
+        p.settlement = {{"buildings", 4}};
+        p.queuedBuilds = nlohmann::json::array({1, 2, 3, 4});
+        p.jobLabel = "stub settlement";
+        p.residents = std::make_shared<nlohmann::json>(nlohmann::json::array());
+        p.lotFailures = std::make_shared<nlohmann::json>(nlohmann::json::array());
+        p.paths = std::make_shared<nlohmann::json>();
+        p.yardProps = std::make_shared<nlohmann::json>();
+        // The gate "ran" (as a unit) and found a pinch on the first site only.
+        const bool pinched = (planned == 1);
+        p.walkability = std::make_shared<nlohmann::json>(nlohmann::json::object());
+        p.allowUnwalkable = params.value("allow_unwalkable", false);
+        p.units.push_back({"walkability gate", [w = p.walkability, pinched] {
+            *w = {{"walkable", pinched ? 27 : 16}, {"blocked", pinched ? 1 : 0}, {"skipped", 0}};
+        }});
+        return p;
+    };
+    nlohmann::json immediate;
+    const auto id = WorldForgeBuildService::start(h.jobs, h.deps, {}, immediate);
+    const auto st = h.run(id);
+    ASSERT_EQ(st.value("state", std::string()), "complete");
+    EXPECT_EQ(planned, 3) << "a refused site must not stop the remaining sites";
+    const WorldForgeLedger ledger = WorldForgeLedger::fromJson(h.ledgerStore);
+    ASSERT_EQ(ledger.sites.size(), 3u);
+    int refused = 0, built = 0;
+    for (const auto& s : ledger.sites) {
+        if (s.status == "refused") { ++refused; EXPECT_NE(s.error.find("unwalkable"), std::string::npos) << s.error; }
+        if (s.status == "built") ++built;
+    }
+    EXPECT_EQ(refused, 1) << "the pinched site must be recorded refused, not built";
+    EXPECT_EQ(built, 2);
+    EXPECT_EQ(h.checkpoints, 2) << "a refused site is NOT checkpointed (its voxels stay in memory until restream)";
+    // The job result carries the gate verdict so a caller can see WHY.
+    const auto& sites = st["result"]["sites"];
+    bool sawGate = false;
+    for (const auto& s : sites)
+        if (s.value("status", "") == "refused") sawGate = s.contains("walkability");
+    EXPECT_TRUE(sawGate) << "the refusal outcome must carry the walkability result";
+}

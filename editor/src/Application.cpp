@@ -13443,11 +13443,22 @@ void Application::registerSettlementCommands() {
             // final unit: fold the phase results into the job's payload
             mainThreadJobs->addUnit(jobId, "finalizing",
                 [this, jobId, paths = plan.paths, props = plan.yardProps,
-                 residents = plan.residents]() {
-                    if (mainThreadJobs)
-                        mainThreadJobs->mergeResult(jobId, {{"paths", *paths},
-                                                            {"yard_props", *props},
-                                                            {"residents", *residents}});
+                 residents = plan.residents, walk = plan.walkability,
+                 allowUnwalkable = plan.allowUnwalkable]() {
+                    if (!mainThreadJobs) return;
+                    // M0: the gate verdict rides on the result; a blocked gate FAILS the build.
+                    const auto gate = Core::SettlementBuildService::gateOutcome(
+                        walk ? *walk : nlohmann::json::object(), allowUnwalkable);
+                    nlohmann::json merged = {{"paths", *paths}, {"yard_props", *props},
+                                             {"residents", *residents},
+                                             {"walkability", walk ? *walk : nlohmann::json::object()},
+                                             {"gate", gate}};
+                    if (gate.value("fails_build", false)) {
+                        merged["success"] = false;
+                        merged["error"] = "unwalkable: " + std::to_string(gate.value("blocked", 0))
+                            + " street->door routes blocked (walkability gate); pass allow_unwalkable:true to keep it";
+                    }
+                    mainThreadJobs->mergeResult(jobId, merged);
                 });
             mainThreadJobs->seal(jobId);
             r = {{"success", true}, {"job_id", jobId}, {"async", true},
@@ -13456,13 +13467,20 @@ void Application::registerSettlementCommands() {
         } else {
             for (auto& u : plan.units)
                 if (u.run) u.run();
-            r = {{"success", true},
+            const auto gate = Core::SettlementBuildService::gateOutcome(
+                plan.walkability ? *plan.walkability : nlohmann::json::object(), plan.allowUnwalkable);
+            r = {{"success", !gate.value("fails_build", false)},
                  {"settlement", plan.settlement},
                  {"program", plan.program},
                  {"paths", *plan.paths},
                  {"yard_props", *plan.yardProps},
                  {"residents", *plan.residents},
+                 {"walkability", plan.walkability ? *plan.walkability : nlohmann::json::object()},
+                 {"gate", gate},
                  {"queued_builds", plan.queuedBuilds}};
+            if (gate.value("fails_build", false))
+                r["error"] = "unwalkable: " + std::to_string(gate.value("blocked", 0))
+                    + " street->door routes blocked (walkability gate); pass allow_unwalkable:true to keep it";
         }
     });
 }
