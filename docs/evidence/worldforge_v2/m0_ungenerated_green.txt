@@ -1,0 +1,95 @@
+[==========] Running 46 tests from 7 test suites.
+[ RUN      ] StructureGroundingTest.RefusesAirBuildsByDefault
+[       OK ] StructureGroundingTest.RefusesAirBuildsByDefault (53 ms)
+[ RUN      ] StructureGroundingTest.ARefusalLeavesNoRemovalsBehind
+[       OK ] StructureGroundingTest.ARefusalLeavesNoRemovalsBehind (17 ms)
+[ RUN      ] StructureGroundingTest.PlacementIntoUngeneratedTerrainIsRefused
+[       OK ] StructureGroundingTest.PlacementIntoUngeneratedTerrainIsRefused (2193 ms)
+[ RUN      ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan
+[       OK ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan (35 ms)
+[ RUN      ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans
+[       OK ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans (5 ms)
+[ RUN      ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist
+[       OK ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist (8 ms)
+[ RUN      ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped
+[       OK ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped (8 ms)
+[ RUN      ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty
+[       OK ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty (8 ms)
+[ RUN      ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted
+[       OK ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted (4 ms)
+[ RUN      ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused
+[       OK ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused (6 ms)
+[ RUN      ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused
+[       OK ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused (6 ms)
+[ RUN      ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed
+[       OK ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed (26 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav (9 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology (49 ms)
+[ RUN      ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden
+[       OK ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden (0 ms)
+[ RUN      ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology
+[       OK ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology (4235 ms)
+[ RUN      ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices
+[       OK ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices (0 ms)
+[ RUN      ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused
+[       OK ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused (69 ms)
+[ RUN      ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured
+[       OK ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured (52 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement
+[       OK ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement (148 ms)
+[ RUN      ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt
+[       OK ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt (147 ms)
+[ RUN      ] SettlementTerrainPlanTest.PartlyBuildableTerrainSurfacesTheDroppedPlotCount
+[       OK ] SettlementTerrainPlanTest.PartlyBuildableTerrainSurfacesTheDroppedPlotCount (152 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed
+[       OK ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed (448 ms)
+[ RUN      ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned
+[       OK ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned (77 ms)
+[ RUN      ] SettlementTerrainPlanTest.CreekInsideFootprintIsNotBuildable
+[       OK ] SettlementTerrainPlanTest.CreekInsideFootprintIsNotBuildable (296 ms)
+[ RUN      ] StructureBuildServiceTest.AliasHouseSmallFootprintIsCroft
+[       OK ] StructureBuildServiceTest.AliasHouseSmallFootprintIsCroft (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasHouseLargeFootprintIsHallHouse
+[       OK ] StructureBuildServiceTest.AliasHouseLargeFootprintIsHallHouse (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasTavernKeepsTypologyAndStoriesCount
+[       OK ] StructureBuildServiceTest.AliasTavernKeepsTypologyAndStoriesCount (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasRespectsExplicitTypologyAndStyle
+[       OK ] StructureBuildServiceTest.AliasRespectsExplicitTypologyAndStyle (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasUnknownTypeIsNull
+[       OK ] StructureBuildServiceTest.AliasUnknownTypeIsNull (0 ms)
+[ RUN      ] StructureLocationsTest.TavernEmitsTavernMarkerOutsideDoor
+[       OK ] StructureLocationsTest.TavernEmitsTavernMarkerOutsideDoor (199 ms)
+[ RUN      ] StructureLocationsTest.TypologyMapsToLocationType
+[       OK ] StructureLocationsTest.TypologyMapsToLocationType (134 ms)
+[ RUN      ] StructureLocationsTest.PrefersFrontWallDoor
+[       OK ] StructureLocationsTest.PrefersFrontWallDoor (270 ms)
+[ RUN      ] StructureLocationsTest.DoorlessShellFallsBackToCentre
+[       OK ] StructureLocationsTest.DoorlessShellFallsBackToCentre (28 ms)
+[ RUN      ] StructureLocationsTest.SnapToStandableFixesDeadAnchor
+[       OK ] StructureLocationsTest.SnapToStandableFixesDeadAnchor (0 ms)
+[ RUN      ] StructureLocationsTest.DeterministicAndOriginRelative
+[       OK ] StructureLocationsTest.DeterministicAndOriginRelative (47 ms)
+[ RUN      ] VegetationGateTest.KeepVegetationRefusesBuildOverATree
+[       OK ] VegetationGateTest.KeepVegetationRefusesBuildOverATree (27 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite (9 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis (7 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RealizationOrderTownFirst
+[       OK ] WorldForgeBuildFlowTest.RealizationOrderTownFirst (7 ms)
+[ RUN      ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger
+[       OK ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger (10 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues
+[       OK ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues (9 ms)
+[ RUN      ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite
+[       OK ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite (9 ms)
+[ RUN      ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun
+[       OK ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun (10 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun
+[       OK ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun (9 ms)
+[ RUN      ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed
+[       OK ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed (9 ms)
+[==========] 46 tests from 7 test suites ran. (8855 ms total)
+[  PASSED  ] 46 tests.

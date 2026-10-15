@@ -1,5 +1,7 @@
 #include "core/StructureBuildService.h"
 
+#include <unordered_set>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -17,6 +19,7 @@
 #include "core/BuildingProgram.h"
 #include "core/BuildingProgramValidator.h"
 #include "core/ChunkManager.h"
+#include "core/WorldStorage.h"
 #include "core/DamageSystem.h"
 #include "core/FurnitureCatalog.h"
 #include "core/FurniturePlacer.h"
@@ -106,20 +109,62 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
         deps.pushUndo(out.smin, out.smax,
                       "build_structure:" + params.value("type", std::string("unknown")));
 
+    // M0 (WorldForgeV2Plan §5 M0): never materialize an EMPTY chunk over UN-GENERATED
+    // terrain. place() calls ensureChunkAt, which creates an empty chunk for a target that
+    // is neither resident nor saved; in a STREAMING world the streamer then treats that
+    // chunk as existing and never generates its terrain - a hill with a building in a void
+    // (the "structures on thin air" family). The grounding gate covers the footprint's own
+    // chunk; this covers every chunk a wall or roof reaches. A chunk the generator would
+    // leave as pure air under the structure's columns is a legitimate target.
+    if (chunkManager && chunkManager->isStreamingGenerationEnabled()) {
+        WorldGenerator* gen = chunkManager->getStreamingGenerator();
+        WorldStorage* ws = chunkManager->getWorldStorage();
+        std::unordered_set<glm::ivec3, ChunkCoordHash> targets;
+        for (const auto& v : structure.voxels)
+            targets.insert(Utils::CoordinateUtils::worldToChunkCoord(v.position));
+        nlohmann::json ungenerated = nlohmann::json::array();
+        for (const auto& cc : targets) {
+            if (chunkManager->getChunkAtCoord(cc)) continue;       // resident
+            if (ws && ws->chunkExists(cc)) continue;               // saved: ensureChunkAt LOADS it
+            bool terrain = (gen == nullptr);                       // no generator: cannot prove air
+            if (gen) {
+                const glm::ivec3 o = cc * 32;
+                for (int x = std::max(o.x, out.smin.x); x <= std::min(o.x + 31, out.smax.x) && !terrain; ++x)
+                    for (int z = std::max(o.z, out.smin.z); z <= std::min(o.z + 31, out.smax.z) && !terrain; ++z)
+                        if (gen->sampleSurface(x, z).surfaceY >= o.y) terrain = true;
+            }
+            if (terrain) ungenerated.push_back({{"cx", cc.x}, {"cy", cc.y}, {"cz", cc.z}});
+        }
+        if (!ungenerated.empty()) {
+            out.response = {{"success", false},
+                            {"error", "placement into un-generated terrain: " +
+                                      std::to_string(ungenerated.size()) +
+                                      " target chunk(s) are not resident, not saved, and the generator "
+                                      "would put terrain there - stream the site in first"},
+                            {"ungenerated_chunks", ungenerated}, {"placed", 0}};
+            LOG_WARN_FMT("StructureBuild", "REFUSING placement: " << ungenerated.size()
+                         << " target chunk(s) are un-generated terrain (would materialize empty)");
+            return out;
+        }
+    }
+
     PhaseClock pc;
     auto placement = StructureGenerator::place(chunkManager, structure);
     out.msPlace = pc.lap();
 
-    if (placement.placed == 0) {
+    // M0: a PARTIAL placement is a failure too (failed > 0 = a target chunk could not be
+    // materialized); before this only 0 placed refused and a half-building shipped as success.
+    if (placement.placed == 0 || placement.failed > 0) {
         // Honest failure: nothing landed. Do NOT register a wall-less "ghost"
         // (bbox + furniture with no voxels) or report success.
         out.response = {{"success", false},
-                        {"error", "structure placement failed — 0 of " +
-                                  std::to_string(structure.voxels.size()) + " voxels placed"},
-                        {"placed", 0}, {"failed", placement.failed},
+                        {"error", "structure placement failed - " + std::to_string(placement.placed) +
+                                  " of " + std::to_string(structure.voxels.size()) + " voxels placed, " +
+                                  std::to_string(placement.failed) + " failed (target chunk not materialized)"},
+                        {"placed", placement.placed}, {"failed", placement.failed},
                         {"voxels_generated", structure.voxels.size()}};
-        LOG_WARN_FMT("StructureBuild", "placement failed (0/" << structure.voxels.size()
-                     << " placed) — not registering ghost");
+        LOG_WARN_FMT("StructureBuild", "placement failed (" << placement.placed << "/" << structure.voxels.size()
+                     << " placed, " << placement.failed << " failed) - not registering");
         return out;
     }
 
