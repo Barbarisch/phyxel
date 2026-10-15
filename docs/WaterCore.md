@@ -80,7 +80,8 @@ remainder; GPU still water now settles and sleeps (`GpuRestDecisionDeterministic
 per stage with GPU timestamps: only the water's columns cross to the host now, and the extrapolation ping-pongs without
 copies. **26.12 P2b BUILT (2026-10-14): the engine on bricks** - engine GPU volumes are sparse; on the creek bench's box
 (583,200 cells) a frame went from 21 ms (one moving body) + 7.1 ms (update) to 0.36 + 2.2 ms, a forced read-back 257 -> 14 ms.
-**26.13-26.14 (2026-10-14): P3a BUILT, P3b first run** - the creek bench runs as POND water live (one sparse GPU volume,
+**26.13-26.14 (2026-10-14): P3a BUILT, P3b first run; the owner signed off the clips 2026-10-15 (the creek as pond water
+and the 26.10 A/B: "they all look really good")** - the creek bench runs as POND water live (one sparse GPU volume,
 springs, outfalls, Manning at the bed, a ripple window): steady out/in 0.991, ledger 7e-5 m^3, ripples on. Two things open
 before it can replace the column creek: the cost (~6 ms a call at 1,216 bricks - 3x the budget) and the depth (the pond
 model flows over the carve's REAL 1/3 m steps, the column run flowed over the line - not the same creek; 26.14).
@@ -5186,11 +5187,12 @@ immediate neighbours (where water can move next) - never a box of dry banks and 
 ### 26.3 Phases (each designed in detail and design-checked before it is built; the owner looks in motion)
 
 **Status (2026-10-14):** P1 **DONE** (signed off 2026-10-13, 26.5). P2a **DONE** - storage in bricks, bit-identical (26.8).
-**26.9 surface fixes DONE** (signed off 2026-10-14). **26.10 still-water guess ON by default, BUILT, not signed off** (the
+**26.9 surface fixes DONE** (signed off 2026-10-14). **26.10 still-water guess ON by default, DONE** (signed off 2026-10-15, "they all look really good"; the
 resting-body loss found and fixed - a per-cell float remainder; GPU still water settles and sleeps). **P2 cost gate MET at the
 median** (26.11: the creek 1.02 ms a call at 27 sweeps, GPU 0.79 ms; p90 2.06 ms is host jitter around the fence - the GPU sum
 does not vary). **P2b BUILT** (26.12: the engine's volumes sparse, the per-frame paths bounded by the water and the bodies, not
-the box). P3, P4, P5 **not started**.
+the box). **P3a BUILT; P3b's look signed off 2026-10-15** (the creek bench as pond water, fill and steady clips; its numbers
+are open - the cost 3x, the bed comparison; 26.14). P4, P5 **not started**.
 
 - **P1 - the pond model carries a creek.** [DONE, signed off 2026-10-13 - 26.5] Find, by measurement, why the pond core runs shallow fast water deep and slow,
   and fix it in the core (CPU reference first, then the GPU kernels - one law, both backends). Rig: the straight 1:100
@@ -5605,7 +5607,7 @@ brick-local sweeps in shared memory) if the parity or the feel asks for it.
 GPU, default true), `quiet_rise` (fraction, default 0.002; 0 = off) beside `all_faces`. **Design keys.** Pure functions
 of the water now; no chunk or brick dependence (the brick equality tests pass unchanged); no new world-recipe parameters.
 
-### 26.10 Where the resting body's water went: the float store (2026-10-14). Status: guess ON, BUILT, not signed off
+### 26.10 Where the resting body's water went: the float store (2026-10-14). Status: guess ON, DONE (owner signed off 2026-10-15)
 
 **The ask (owner, 2026-10-14: "get it done"):** 26.9's open item - find the still-water guess's resting-body loss, then
 switch the guess on (it is what lets still GPU water settle; 26.8 open row 1).
@@ -5818,7 +5820,7 @@ echoed, defaults unchanged (`manning_n` 0, no outfall). *Visual test:* the creek
 (pond) clips, plus the numbers. *Small rigs and controls:* each P3a gate is a unit rig with the CPU (or the old path) as
 its control. **Verdict: READY for P3a.**
 
-### 26.14 P3a built; P3b - the creek bench as pond water, first run (2026-10-14). Status: P3a BUILT; P3b RUNNING, not passed
+### 26.14 P3a built; P3b - the creek bench as pond water, first run (2026-10-14). Status: P3a BUILT; P3b's LOOK signed off by the owner 2026-10-15 ("they all look really good"); its numbers not passed
 
 **P3a (26.13's list), each red-before-green:**
 - *The ripple window for every volume* - `WaterCoreManager::rippleWindow`, one rule for volumes and column regions
