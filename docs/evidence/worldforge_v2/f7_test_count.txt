@@ -1,0 +1,13 @@
+TEST() macros since HEAD~1:  +0 / -0  => net 0
+Running the full suite (this takes ~12 min in Debug)...
+[  FAILED  ] AtlasManagerTest.BuildAtlasFromSourcePNGs (0 ms)
+[  FAILED  ] FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes (2 ms)
+[==========] 4286 tests from 530 test suites ran. (2959020 ms total)
+[  PASSED  ] 4265 tests.
+[  SKIPPED ] 19 tests.
+
+RECONCILE: the diff adds a net 0 test(s). If you are quoting a total in a
+commit message, it must be the PREVIOUS ACTUAL total + 0 -- not the number
+from the previous commit's MESSAGE. Actual total now: 4286.
+NOTE: verify the exe is fresh (a stale link silently reports the old count):
+  exe: Oct 14 10:26
