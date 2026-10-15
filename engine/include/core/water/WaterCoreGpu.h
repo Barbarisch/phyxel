@@ -41,7 +41,10 @@ struct GpuSource {
     float placedTotal = 0.0f;  ///< m^3 placed (negative = removed)
     float unplaced = 0.0f;
     float kind = 0.0f;         ///< 26.13: 0 = pump / sink, 1 = outfall (takes what arrives: SourceSpec::outfall)
-    float pad1 = 0.0f, pad2 = 0.0f;
+    float placedLo = 0.0f;     ///< 26.15: placedTotal's rounding remainder (two-sum) - the books stay exact past 100 m^3 through
+    float pad2 = 0.0f;
+    double total() const { return static_cast<double>(placedTotal) + static_cast<double>(placedLo); }
+    void setTotal(double t) { placedTotal = static_cast<float>(t); placedLo = static_cast<float>(t - static_cast<double>(placedTotal)); }
 };
 static_assert(sizeof(GpuSource) == 32, "GpuSource must match the GLSL struct");
 
@@ -61,6 +64,7 @@ struct GpuStepStats {
     double hostResidencyMs = 0.0;    ///< 26.6: of gpuMs, the host's residency work before recording (sparse volumes)
     double hostAfterMs = 0.0;        ///< 26.6: after the fence (the halo check)
     double submitWaitMs = 0.0;       ///< 26.6: of gpuMs, the submission and the fence wait (the GPU's own time + overhead)
+    double deviceMs = 0.0;           ///< 26.15: the GPU's own time for the call's main submission (timestamps; 0 = unsupported)
     // 26.6 P2a: brick storage
     int    bricks = 0;               ///< bricks stored after this call (a dense volume: all of its brick box)
     int    capacity = 0;             ///< slots (bricks) the volume can hold
@@ -141,6 +145,7 @@ public:
         Buffer stageCap;                 ///< 26.10 test hook: f after each stage of the last tick (host-visible, s_stageCapture)
         double stageLast = -1.0;         ///< 26.10: the last captured call's end sum (cells), -1 = none
         VkQueryPool tsPool = VK_NULL_HANDLE;   ///< 26.11 test hook: GPU timestamps per stage (s_kernelTiming)
+        VkQueryPool callTs = VK_NULL_HANDLE;   ///< 26.15: two timestamps round every step call - the device's own time, live
         int tsCount = 0;                 ///< stamps written this call
         std::array<int, 64> tsLabel{};   ///< the stage each stamp closes
         Buffer births, deposit;          ///< 21 (droplets): per column 8 floats (wc_column_ops mode 4/5); per cell fractions to add

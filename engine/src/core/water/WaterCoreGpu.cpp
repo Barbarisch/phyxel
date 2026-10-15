@@ -269,6 +269,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     vkDeviceWaitIdle(m_device);
     for (auto& p : vol->pipes) if (p) { p->cleanup(); p.reset(); }
     if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
+    if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                       &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging})
         destroyBuffer(*b);
@@ -1101,6 +1102,9 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const auto t0 = std::chrono::steady_clock::now();
     VkCommandBuffer cmd = beginCommands();
     vol.tsCount = -1;   // 26.11 test hook: armed only for single-tick, single-substep calls
+    if (!vol.callTs) { VkQueryPoolCreateInfo qi{}; qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO; qi.queryType = VK_QUERY_TYPE_TIMESTAMP; qi.queryCount = 2;
+                       if (vkCreateQueryPool(m_device, &qi, nullptr, &vol.callTs) != VK_SUCCESS) vol.callTs = VK_NULL_HANDLE; }
+    if (vol.callTs) { vkCmdResetQueryPool(cmd, vol.callTs, 0, 2); vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, vol.callTs, 0); }
     if (s_kernelTiming && ticks == 1 && n == 1) {
         if (!vol.tsPool) { VkQueryPoolCreateInfo qi{}; qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO; qi.queryType = VK_QUERY_TYPE_TIMESTAMP; qi.queryCount = static_cast<uint32_t>(vol.tsLabel.size());
                            if (vkCreateQueryPool(m_device, &qi, nullptr, &vol.tsPool) != VK_SUCCESS) vol.tsPool = VK_NULL_HANDLE; }
@@ -1228,9 +1232,17 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     stamp(cmd, vol, TsSurfaceCopy);
     push.param0 = 0.0f; push.param1 = 0.0f; push.iparam = 0;
     stamp(cmd, vol, TsReduceSurface);
+    if (vol.callTs) vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, vol.callTs, 1);
     const auto tSubmit = std::chrono::steady_clock::now();
     submitAndWait(cmd);
     const auto tFence = std::chrono::steady_clock::now();
+    if (vol.callTs) {   // 26.15: the device's own time (the fence has signalled: the results are ready)
+        uint64_t q[2] = {0, 0};
+        if (vkGetQueryPoolResults(m_device, vol.callTs, 0, 2, sizeof(q), q, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS && q[1] >= q[0]) {
+            VkPhysicalDeviceProperties pp; vkGetPhysicalDeviceProperties(m_physical, &pp);
+            st.deviceMs = static_cast<double>(q[1] - q[0]) * pp.limits.timestampPeriod * 1e-6;
+        }
+    }
     if (vol.tsCount > 1) {   // 26.11 test hook: per-stage GPU time
         std::array<uint64_t, 64> q{};
         if (vkGetQueryPoolResults(m_device, vol.tsPool, 0, static_cast<uint32_t>(vol.tsCount), vol.tsCount * sizeof(uint64_t), q.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) == VK_SUCCESS) {

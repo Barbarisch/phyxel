@@ -10,13 +10,15 @@
 #define WC_BRICKS_BINDING 4
 #include "water_core.glsl"
 layout(local_size_x = 1) in;
-struct GpuSource { int cell; float rate; float pending; float placedTotal; float unplaced; float kind, pad1, pad2; };   // 26.13: kind 1 = outfall
+struct GpuSource { int cell; float rate; float pending; float placedTotal; float unplaced; float kind, placedLo, pad2; };   // 26.13: kind 1 = outfall; 26.15: placedLo
 layout(std430, set = 0, binding = 0)          buffer F   { float f[]; };
 layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
 layout(std430, set = 0, binding = 2)          buffer Src { float src[]; };        // m^3/s per cell for the projection
 layout(std430, set = 0, binding = 3)          buffer Srcs { GpuSource sources[]; };
 
 bool air(int x, int y, int z) { return inBounds(x, y, z) && occ[cellIdx(x, y, z)] == 0u; }
+// 26.15: the running total with its rounding remainder kept (a float total of 100 m^3 rounds a substep's 1e-5 by up to 4e-6)
+void addTotal(inout GpuSource s, float d) { precise float t = s.placedTotal + d; s.placedLo += twoSumErr(s.placedTotal, d, t); s.placedTotal = t; }
 
 void main() {
     if (gl_GlobalInvocationID.x != 0u) return;
@@ -27,7 +29,7 @@ void main() {
     if (s.kind == 1.0) {   // 26.13 OUTFALL (WaterSolver::applySources): the cell and the cells above it up to the first solid empty, counted
         float took = 0.0;
         for (int y = cy; y < pc.ny && air(cx, y, cz); ++y) { const uint ci = cellIdx(cx, y, cz); if (f[ci] > 0.0) { took += f[ci]; f[ci] = 0.0; } }
-        s.placedTotal -= took * vol;
+        addTotal(s, -took * vol);
         sources[pc.iparam] = s;
         src[cellIdx(cx, cy, cz)] = 0.0;
         return;
@@ -46,12 +48,12 @@ void main() {
             f[ci] += placed; left -= placed;
         }
         const float placed = want - left;
-        s.placedTotal += placed * vol; s.unplaced = left * vol; s.pending = left * vol;
+        addTotal(s, placed * vol); s.unplaced = left * vol; s.pending = left * vol;
     } else {
         const uint ci = cellIdx(cx, cy, cz);
         const float take = min(-want, f[ci]);
         f[ci] -= take;
-        s.placedTotal -= take * vol; s.pending = (-want - take) * vol; s.unplaced = s.pending;
+        addTotal(s, -take * vol); s.pending = (-want - take) * vol; s.unplaced = s.pending;
     }
     sources[pc.iparam] = s;
     // the projection's inflow: rate plus the owed backlog (at most the rate itself)

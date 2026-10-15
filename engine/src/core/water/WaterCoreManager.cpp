@@ -108,7 +108,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity;
     r.cells = av.grid->cellCount();
     r.autoSleep = av.autoSleep; r.seededMass = av.seededMass;
     r.surfaceAgeMs = av.fieldStepSec < 0.0 ? -1.0 : (std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - av.fieldStepSec) * 1000.0;
@@ -516,7 +516,7 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     if (av.gpuVol->sourceCount > 0) {   // the ledger: placedTotal/pending back into the solver's list
         std::vector<GpuSource> gs; m_gpu->readSources(*av.gpuVol, gs);
         auto& srcs = av.solver->sourcesMutable();
-        for (size_t i = 0; i < gs.size() && i < srcs.size(); ++i) { srcs[i].placedTotal = gs[i].placedTotal; srcs[i].pending = gs[i].pending; srcs[i].unplaced = gs[i].unplaced; }
+        for (size_t i = 0; i < gs.size() && i < srcs.size(); ++i) { srcs[i].placedTotal = gs[i].total(); srcs[i].pending = gs[i].pending; srcs[i].unplaced = gs[i].unplaced; }
         av.last.sourceUnplaced = 0.0; for (const auto& g : gs) av.last.sourceUnplaced += g.unplaced;
     }
     av.last.substeps = st.substepsLast; av.last.totalMass = st.totalMass; av.last.kineticEnergy = st.kineticEnergy;
@@ -537,7 +537,7 @@ bool WaterCoreManager::pushSourcesToGpu(Av& av, std::string* err) {
     std::vector<GpuSource> gs;
     for (const SourceSpec& s : av.solver->sources()) {
         GpuSource g; g.cell = static_cast<int32_t>(av.grid->idx(s.cell.x, s.cell.y, s.cell.z)); g.rate = s.rate;
-        g.pending = static_cast<float>(s.pending); g.placedTotal = static_cast<float>(s.placedTotal); g.unplaced = static_cast<float>(s.unplaced);
+        g.pending = static_cast<float>(s.pending); g.setTotal(s.placedTotal); g.unplaced = static_cast<float>(s.unplaced);
         g.kind = s.outfall ? 1.0f : 0.0f;
         gs.push_back(g);
     }

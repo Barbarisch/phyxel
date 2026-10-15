@@ -85,8 +85,12 @@ and the 26.10 A/B: "they all look really good")** - the creek bench runs as POND
 springs, outfalls, Manning at the bed, a ripple window): steady out/in 0.991, ledger 7e-5 m^3, ripples on. Two things open
 before it can replace the column creek: the cost (~6 ms a call at 1,216 bricks - 3x the budget) and the depth (the pond
 model flows over the carve's REAL 1/3 m steps, the column run flowed over the line - not the same creek; 26.14).
-**Next:** the cost of a creek-length volume (flat bricks, the sweeps, the GPU contention live); the comparison on the same
-bed; then P3c. The §23 slime experiment stays queued.
+**26.15 (2026-10-15): the bench re-carved at 1/9 m (owner's choice (b))** - on the same voxel bed the pond model runs 6 % (q 0.2)
+/ 10 % (q 0.5) deeper than the column model, both deeper than Manning (the drops cost head); the source totals' float drift
+fixed (the books exact again live); the call's time measured live - the GPU's own work is 1.85 ms, the frame loses ~7 ms
+because the main thread WAITS at the fence behind the renderer.
+**Next:** 26.16 - the water's call not waited on (collect it next frame); then the pond's extra drag; then P3c. The §23 slime
+experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5862,6 +5866,57 @@ n 0.035; `creekbench_pond_q0.2.{json,mp4}` = the fill, `creekbench_pond_q0.2_ste
 2. *The cost of a creek-length volume:* flat bricks (8 x 2 x 8 - the creek's water is 2-3 cells deep), the sweep count with
    the guess (measure the residual at 20-40), and the live figure without the renderer's share (GPU timestamps).
 3. *The drag excess* on the flat reach, once the solve is converged and the walls accounted for.
+
+### 26.15 The bench re-carved at 1/9 m; both models on the same bed; the books; where the call's time goes (2026-10-15). Status: BUILT, not signed off
+
+**The ask (owner, 2026-10-15: "go with B"):** 26.14 open item 1, option (b) - re-carve the creek bench at the 1/9 m grid and
+run both models on it.
+
+**The carve.** `tools/water_creek_bench.py --build` now floors the 1:200 line to the 1/9 m grid (`--grid 9`, the default; `--grid
+3` is the 25.22 carve): gravel subcubes for whole thirds, gravel microcubes for the rest - 1,224 subcubes + 19,764 microcubes.
+The bed is flat reaches 22 m long with 1/9 m drops between (15.556 m at x 11-32, 15.444 at 33-54, 15.333 at 55-76, 15.222 at
+77-99, 15.111 at 100-109). Checked in the WORLD, not the API reply: a pond volume over the creek reads Solid one half-cell below
+the carve's top and Air one half-cell above it at all 300 sampled columns (x 10-109, three z each). The column regions'
+`voxel` bed reads the same micro cells (`refreshColumnSolids`), so both models now stand on identical ground (`--bed voxel` on
+the column run; `plane` remains its 25.22 option (a)).
+
+**The comparison** (`tools/water_creek_profile.py --model pond|column`: the drawn surface over every voxel column minus the
+carve, the mean of 10 reads 1 s apart, each reach's mean, and the mean over the three whole reaches - x 33-99; the head and
+foot reaches are cut by the springs and the outfalls). Manning for a 2 m channel on 1:200 at n 0.035, wide (q/b) and with the
+walls (hydraulic radius):
+
+| q (m^3/s) | Manning wide | Manning, walls | column, voxel bed | pond (1/9 m core) | pond / column |
+|---|---|---|---|---|---|
+| 0.2 | 0.165 m | 0.176 m | 0.189 m | 0.199 m | 1.06 |
+| 0.5 | 0.285 m | 0.319 m | 0.305 m | 0.336 m (80 sweeps: 0.337) | 1.10 |
+
+- Both models run DEEPER than Manning on this bed: the 1/9 m drops cost head (the flow draws down to ~0.11-0.14 m at each
+  edge (q 0.2) and expands below it) - the column model, which has no wall friction, is 1.14x / 1.07x Manning-wide.
+- The pond model is 6 % / 10 % deeper than the column model on the same ground, and its reaches deepen slightly downstream at
+  q 0.5 (0.324 -> 0.340 m; the column's stay at 0.306). The pressure solve is NOT the cause: 80 sweeps gives the same depth as
+  40 (0.337 vs 0.336 m). Nor is the bed law: `applyBedManning` (and GPU mode 10) divides every layer's face velocity by the
+  same depth-averaged factor, which is the column law exactly. Open: where the extra drag comes from (the 3-D core resolves
+  the flow over each drop - the column model cannot - and that is a candidate, not a finding). 26.13's gate (10 % of Manning) assumed a smooth bed; on a stepped one the fair
+  reference is the column model on the same steps - within 10 % at q 0.2, on the edge at q 0.5.
+- Steady: out/in 0.998-1.001, stored flat (q 0.5: 60.2 m^3 from 200 s on).
+
+**The books - a counting fault, found and fixed.** The q 0.2 run's ledger drifted to -7.7e-4 m^3 after 118 m^3 had passed
+through, growing with the throughput, not the water. The GPU kept each source's running total as a float: a substep's 1e-5 m^3
+added to 100 m^3 rounds by up to 4e-6. Fix: `GpuSource.placedLo` (was a pad) holds the total's rounding remainder (two-sum, as
+26.10's `fLo`), the host reads `total()` = hi + lo and writes `setTotal()`. Red-before-green:
+`WaterCoreGpuParityTest.GpuSourceTotalsKeepTheBooksAfterALongRun` (the outfall rig with 99 m^3 already counted through): ledger
++1.47e-2 -> +8.3e-7 m^3; the plain outfall test 2.7e-6 -> 4e-8. Live after: -3.4e-6 m^3 after 84 m^3 through (gate 1e-4).
+
+**Where the call's time goes - measured live.** The record now echoes `gpu_device_ms` (two GPU timestamps round the call's
+main submission), `gpu_host_ms` (residency), `gpu_wait_ms` (submit + fence) and `gpu_ticks`. The creek at q 0.2 (1,351 bricks,
+40 sweeps, one tick a call): **device 1.85 ms, host 0.06 ms, wait 5.78 ms, wall 6.12 ms**. The GPU's own work is 1.85 ms; the
+other ~4 ms is the main thread blocked at the fence while the queue finishes the RENDERER's work submitted ahead of it. The frame
+shows it: 5.6 ms (178 fps) with the water paused (`water_av_realtime off`), 12.9 ms (77 fps) with it stepping. **The cost to
+fix first is the wait, not the kernels** - 26.16.
+
+Evidence: `docs/evidence/water_core_h1/creekbench_pond_g9_q{0.2,0.5}.json` + `_steady.mp4` (the last 60 s; q 0.2: the 7-min run after the fix, with
+the timing split; q 0.5: the 80-sweep run), `creekbench_g9_voxbed_q{0.2,0.5}.json` + `_steady.mp4` (the column model on the voxel bed),
+`creekbench_{pond,column}_g9_q{0.2,0.5}_profile.json`. Tests: GPU water 34 pass (the known FLIP row fails), CPU water 330 / 330.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

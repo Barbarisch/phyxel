@@ -991,7 +991,7 @@ TEST_F(WaterCoreGpuParityTest, GpuOutfallTakesWhatArrives) {
     SolverParams p; p.pondFriction = 0.0f;
     auto totals = [&](double& in, double& out) {
         std::vector<GpuSource> rs; gpu.readSources(*vol, rs); in = 0.0; out = 0.0;
-        for (const auto& s : rs) { if (s.kind == 1.0f) out -= s.placedTotal; else in += s.placedTotal; }
+        for (const auto& s : rs) { if (s.kind == 1.0f) out -= s.total(); else in += s.total(); }
     };
     for (int k = 0; k < 60; ++k) gpu.step(*vol, p, kDt, 60, 27);
     double in30, out30; totals(in30, out30);
@@ -1004,6 +1004,32 @@ TEST_F(WaterCoreGpuParityTest, GpuOutfallTakesWhatArrives) {
     EXPECT_GT(out40, 0.0);
     EXPECT_NEAR(out40 - out30, in40 - in30, 0.02 * (in40 - in30));
     EXPECT_NEAR(stored, in40 - out40, 1e-5);
+    gpu.destroyVolume(vol);
+}
+
+// 26.15: the books after a long run. The creek bench passed 118 m^3 through its springs and outfalls in 10 min and its ledger
+// drifted to -7.7e-4 m^3 - the totals were float sums, and a substep's few 1e-5 m^3 added to 100 m^3 rounds by up to half a
+// float step (7.6e-6). The rig above with 99 m^3 already counted through: the books must still balance.
+TEST_F(WaterCoreGpuParityTest, GpuSourceTotalsKeepTheBooksAfterALongRun) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 9.0f;
+    Tank t(36, 6, 3, h);
+    auto* vol = make(t); ASSERT_NE(vol, nullptr);
+    const double already = 99.0;   // 33 m^3 through each outfall: every starting total is exact in a float
+    std::vector<GpuSource> srcs;
+    { GpuSource s; s.cell = static_cast<int32_t>(t.grid.idx(0, 0, 1)); s.rate = 0.002f; s.setTotal(already); srcs.push_back(s); }
+    for (int z = 0; z < 3; ++z) { GpuSource s; s.cell = static_cast<int32_t>(t.grid.idx(35, 0, z)); s.kind = 1.0f; s.setTotal(-already / 3.0); srcs.push_back(s); }
+    std::string err; ASSERT_TRUE(gpu.setSources(*vol, srcs, &err)) << err;
+    SolverParams p; p.pondFriction = 0.0f;
+    for (int k = 0; k < 90; ++k) gpu.step(*vol, p, kDt, 60, 27);
+    std::vector<GpuSource> rs; gpu.readSources(*vol, rs);
+    double in = 0.0, out = 0.0;
+    for (const auto& s : rs) { if (s.kind == 1.0f) out -= s.total(); else in += s.total(); }
+    gpu.download(*vol, t.grid);
+    const double stored = t.grid.totalMass();
+    std::printf("  pumped %.6f m^3 (after %.0f), out %.6f m^3, stored %.6f m^3: ledger %+.2e m^3\n", in - already, already, out - already, stored, stored - (in - out));
+    EXPECT_GT(out - already, 0.0);
+    EXPECT_NEAR(stored, in - out, 1e-5);
     gpu.destroyVolume(vol);
 }
 

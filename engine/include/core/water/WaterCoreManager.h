@@ -42,6 +42,10 @@ struct AvRecord {
     float rbgsResidual = 0.0f;             ///< GPU backend: max |A p - b| after the last substep's sweeps (0 on the CPU)
     int   gpuSweeps = 0;
     double gpuMs = 0.0;                    ///< wall time of the last GPU step call (all its ticks)
+    double gpuDeviceMs = 0.0;              ///< 26.15: of it, the GPU's own time (timestamps round the main submission)
+    double gpuHostMs = 0.0;                ///< 26.15: of it, the host's residency work before recording
+    double gpuWaitMs = 0.0;                ///< 26.15: of it, submission + fence wait (device time + queue contention + overhead)
+    int gpuTicks = 0;                      ///< 26.15: ticks the last call stepped
     int gpuBricks = 0;                     ///< 26.12: bricks the GPU volume steps (stored: water + its halo); 0 = not on the GPU
     int gpuBrickCapacity = 0;              ///< 26.12: bricks it could store (the whole box)
     double surfaceAgeMs = -1.0;            ///< Phase F: age of the surface field the renderer last read (ms since the step that produced it; -1 = never)
