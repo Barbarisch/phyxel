@@ -17,7 +17,7 @@ resources/templates/
   imported/       external imports (barony_* — LOCAL USE ONLY, (c) Turning Wheel)
   decor/          (reserved) surface-projected wall/floor art not registered as items
   test/           test rigs (*_test) — never shipped, never placed by generators
-  generated/      BlockSmith LLM output lands here (quarantine until curated)
+  generated/      imported/voxelized model output lands here (Meshy route; quarantine until curated)
   template_catalog.json   THE INDEX (generated — see below)
   items_manifest.json     gen_items.py sidecar: dims + grip points
 ```
@@ -91,7 +91,7 @@ dead `items.json` templateFile references. Run it before committing assets.
 | Furniture/fixture | `tools/regen_furniture.py` builder + `object_dimensions.json` canon + conformance test |
 | Tree/plant species | `tools/tree_forge.py` / `tools/gen_tree.py --batch tools/tree_library.json` |
 | CC0 MagicaVoxel pack | `tools/vox_import.py pack.vox -o resources/templates/<category>/name.voxel --scale fine` (auto-detects RIFF; per-voxel tints) |
-| LLM one-off | `tools/blocksmith_generate.py` → lands in `generated/`; curate (rename/move/polish) before pipelines may use it |
+| Generated model | Meshy (text/image-to-3D) → `tools/meshy_import.py` (planned, docs/WorldForgeV2Plan.md §14) → `generated/`; curate (rename/move/polish) before pipelines may use it. BlockSmith removed 2026-10-14. |
 
 After ANY of these: `python tools/asset_index.py` (regenerate + validate),
 then verify live (`spawn_item` / `spawn_template` + screenshot). New items are

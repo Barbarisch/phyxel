@@ -468,25 +468,18 @@ resolve by stem or relative path (`items/torch`). Spawnable via **T** (static) /
 > blocky plank in the hand (`lint_voxel_detail.py` enforces). **Verify every new/edited
 > asset visually** (spawn it, screenshot in-hand at scale) before calling it done.
 
-### BlockSmith AI Model Generation
+### Meshy AI model generation (reference + voxelized props)
 
-Generates voxel templates from text prompts via LLM → .bbmodel → .voxel pipeline.
-Fork at `external/blocksmith/`. Env vars: `PHYXEL_AI_API_KEY` or `ANTHROPIC_API_KEY`.
-
-```bash
-python tools/blocksmith_generate.py "a wooden chair" --name chair --size 2 --material Wood
-python tools/blocksmith_generate.py --building --name tavern --building-type tavern --style medieval \
-  --width 14 --depth 18 --stories 2 --materials '{"wall":"Stone","floor":"Wood","roof":"Wood"}'
-python tools/blocksmith_generate.py --list
-```
-
-Key params: `--size` (furniture: 2-3, buildings: 8-15), `--material`, `--model` (anthropic/claude-sonnet-4-20250514, gemini/gemini-2.5-pro, openai/gpt-4o)
-Templates cached permanently in `resources/templates/`. Catalog: `resources/templates/template_catalog.json`.
-**MCP tools**: `generate_template`, `search_templates`, `list_generated_templates`
-(`build_building` was REMOVED 2026-07-08 — generated buildings come from the engine's
-procedural pipeline only: `build_structure` schema v2 / `build_settlement`, never an LLM.
-The v1 composite generators (house/tavern/tower, BuildingSpec) were removed the same day;
-plain `build_structure type:house|tavern` aliases onto v2 typologies.)
+**BlockSmith was removed 2026-10-14** (owner: not adequate for our uses — `docs/WorldForgeV2Plan.md`
+§5 M0 row 11; the submodule, `tools/blocksmith_generate.py`, the six `generate_template`-family MCP
+tools and the `/generate` BlockSmith workflow are gone). The model source for voxelized assets is the
+owner's **Meshy AI** account (text/image-to-3D meshes), per the plan's §14: era/culture REFERENCE
+models and voxelized PROPS via `tools/meshy_import.py` (planned: GLB → trimesh voxelize at the fine-item
+or furniture micro grid → material map → `lint_voxel_detail.py` → `asset_index.py --validate` →
+in-engine screenshot → catalog provenance `source: meshy`). Buildings still come ONLY from the
+structure forge (`build_structure` schema v2 / `build_settlement`); a Meshy building is a reference,
+never generator output (provenance rule). Until the import tool lands, author assets with `/asset`,
+`tools/gen_items.py` or `tools/regen_furniture.py`.
 
 ## Animation Files
 
@@ -616,7 +609,7 @@ tools/           # create_project.py, package_game.py, anim_editor.py, etc.
 scripts/mcp/     # MCP server for AI agents
 resources/       # Templates, animations, textures, sounds, recipes, rpg/
 shaders/         # GLSL shaders + compiled SPIR-V
-external/        # Third-party: stb (vendored image/font headers), glfw, glm, imgui, goose, blocksmith, miniaudio, sqlite3
+external/        # Third-party: stb (vendored image/font headers), glfw, glm, imgui, goose, miniaudio, sqlite3
 docs/            # Documentation
 ```
 

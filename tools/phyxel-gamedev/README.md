@@ -11,7 +11,7 @@ per-project `phyxel` MCP server that `phyxel link` / `phyxel new` wire up.
 | `phyxel-playtest`   | building/launching/iterating — engine lifecycle + the verify loop |
 | `phyxel-world`      | building terrain, structures, or scenes |
 | `phyxel-characters` | adding the player, NPCs, dialogue, or story |
-| `phyxel-assets`     | spawning templates or generating models (BlockSmith) |
+| `phyxel-assets`     | spawning templates or generating models (Meshy route, docs/WorldForgeV2Plan.md §14) |
 | `phyxel-mechanics`  | adding health, objectives, music, day/night, combat, menus, … |
 | `phyxel-package`    | saving, exporting, or building a standalone game |
 

@@ -100,7 +100,7 @@ current — when a structure needs an asset we don't have, add it here.
 `chair_wood` (16 subcubes), `bed_single` (47), `table_wood` (17) are crude subcube-only blocks
 with ZERO microcube detail — they violate the "exploit subcubes/microcubes, never full-cube" rule
 and read as ugly/overlapping. Regenerate via the DetailCanvas (turned legs, beveled edges, seat
-back slats, mattress + pillow + blanket relief, table aprons) or BlockSmith. Needed set: chair,
+back slats, mattress + pillow + blanket relief, table aprons) or BlockSmith. Needed set: chair, *(BlockSmith removed 2026-10-14 — WorldForgeV2Plan §5 M0 row 11; the model source is now Meshy, §14.)*
 stool, bench, table, desk, bed, wardrobe, dresser, bookshelf, chest, cabinet, barrel, rug.
 
 ### Door variety — LIBRARY + DETERMINISTIC SELECTION DONE (2026-06-21)

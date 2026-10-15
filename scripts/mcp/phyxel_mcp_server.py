@@ -38,6 +38,8 @@ import random
 import httpx
 from typing import Any
 from pathlib import Path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # scripts/mcp: voxel_meta
+from voxel_meta import read_voxel_metadata
 
 # MCP SDK imports
 from mcp.server import Server
@@ -1706,54 +1708,7 @@ async def list_tools() -> list[Tool]:
         ),
 
         # ================================================================
-        # Template Generation (BlockSmith AI)
-        # ================================================================
-        Tool(
-            name="generate_template",
-            description="Generate a voxel template from a text description using BlockSmith (LLM-powered). Creates a .voxel template file that can be spawned with spawn_template. If the template already exists, returns the cached version (use force=true to regenerate). Requires ANTHROPIC_API_KEY or PHYXEL_AI_API_KEY.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "prompt": {"type": "string", "description": "Text description of the object to generate (e.g., 'a wooden chair', 'medieval torch', 'tavern bar counter')"},
-                    "name": {"type": "string", "description": "Template name (used as filename, no extension)"},
-                    "material": {"type": "string", "description": "Default material for the model", "default": "Wood"},
-                    "size": {"type": "number", "description": "Target size in world cubes (1.0 = one block)", "default": 3.0},
-                    "force": {"type": "boolean", "description": "Force regeneration even if template already exists", "default": False},
-                    "native": {"type": "boolean", "description": "Use native Phyxel C/S/M generation (no bbmodel/trimesh pipeline). Enables per-part materials and subcube detail.", "default": False},
-                    "image": {"type": "string", "description": "Reference image (local path or URL). Enables prompt enhancement automatically."},
-                    "enhance_prompt": {"type": "boolean", "description": "Run a pre-pass LLM call to expand the prompt into a detailed spatial breakdown before generation.", "default": False},
-                    "auto_inspect": {"type": "boolean", "description": "After generation, automatically take multi-angle screenshots with the asset editor and return them inline.", "default": False}
-                },
-                "required": ["prompt", "name"]
-            }
-        ),
-        Tool(
-            name="search_templates",
-            description="Search the generated template catalog by name or prompt keyword. Returns matching templates with their metadata (prompt, material, size, primitive counts). Only searches AI-generated templates, not hand-crafted ones.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search term to match against template names and generation prompts"}
-                },
-                "required": ["query"]
-            }
-        ),
-        Tool(
-            name="list_generated_templates",
-            description="List all AI-generated templates from the catalog with their prompts, materials, sizes, and primitive counts.",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        ),
-
-        # build_building (BlockSmith LLM-designed buildings) was REMOVED — generated
-        # structures must come from the engine's procedural pipeline (build_structure
-        # schema v2 / build_settlement), never from an LLM. See docs/ForgePattern.md.
-
-        # ================================================================
-        # Template Creation
+        # Template inspection (the BlockSmith generation tools were removed 2026-10-14)
         # ================================================================
         Tool(
             name="save_template",
@@ -2832,99 +2787,6 @@ async def list_tools() -> list[Tool]:
                         "description": "Show a humanoid reference character beside the asset for scale comparison (default: true)"
                     }
                 }
-            }
-        ),
-        Tool(
-            name="critique_template",
-            description=(
-                "Visually inspect a .voxel template and return an AI critique. "
-                "Takes multi-angle screenshots, then asks a vision-capable model to evaluate "
-                "how well it matches the original prompt. Returns critique JSON plus all screenshots. "
-                "Use refine_template to act on the critique automatically."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "template_name": {
-                        "type": "string",
-                        "description": "Template name (without extension) in resources/templates/"
-                    },
-                    "original_prompt": {
-                        "type": "string",
-                        "description": "The original generation prompt — used to evaluate match quality"
-                    },
-                    "critique_model": {
-                        "type": "string",
-                        "description": "Vision-capable model for critique (default: anthropic/claude-opus-4-5)"
-                    },
-                    "port": {
-                        "type": "integer",
-                        "description": "Asset editor API port (default: 8091)"
-                    },
-                    "config": {
-                        "type": "string",
-                        "enum": ["Debug", "Release"],
-                        "description": "Build config for auto-launch (default: Debug)"
-                    },
-                    "show_reference_character": {
-                        "type": "boolean",
-                        "description": "Show a humanoid reference character beside the asset for scale comparison (default: true)"
-                    }
-                },
-                "required": ["template_name", "original_prompt"]
-            }
-        ),
-        Tool(
-            name="refine_template",
-            description=(
-                "Iterative refinement loop: critique → regenerate → repeat until quality threshold "
-                "is met or max rounds exhausted. Each round saves <name>_round_N.voxel; the best "
-                "round is promoted to <name>.voxel. Uses native Phyxel C/S/M generation."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "template_name": {"type": "string", "description": "Template name (without .voxel extension)"},
-                    "original_prompt": {"type": "string", "description": "Original generation prompt"},
-                    "image": {"type": "string", "description": "Optional reference image (file path or URL) threaded through all rounds"},
-                    "max_rounds": {"type": "integer", "description": "Maximum refinement rounds (default: 3)"},
-                    "quality_threshold": {"type": "number", "description": "Stop when critique score >= this value 0-10 (default: 7)"},
-                    "critique_model": {"type": "string", "description": "Vision model for critique (default: anthropic/claude-sonnet-4-6)"},
-                    "generation_model": {"type": "string", "description": "Model for generation (default: anthropic/claude-sonnet-4-20250514)"},
-                    "port": {"type": "integer", "description": "Asset editor API port (default: 8091)"},
-                    "config": {"type": "string", "enum": ["Debug", "Release"], "description": "Build config for asset editor (default: Debug)"},
-                    "show_reference_character": {
-                        "type": "boolean",
-                        "description": "Show a humanoid reference character beside the asset for scale comparison during each round (default: true)"
-                    }
-                },
-                "required": ["template_name", "original_prompt"]
-            }
-        ),
-        Tool(
-            name="generate_asset",
-            description=(
-                "Full asset generation pipeline for game development: enhance prompt → generate → "
-                "critique → refine loop → final verification. Produces a game-ready .voxel template "
-                "with metadata (facing direction, bounding box, interaction points). "
-                "Accepts an optional reference image for higher accuracy. "
-                "Saves round snapshots and automatically promotes the best result. "
-                "Use this as the single command to go from a description to a verified asset."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Output template name (no extension)"},
-                    "prompt": {"type": "string", "description": "Description of the object to generate"},
-                    "image": {"type": "string", "description": "Optional reference image (file path or HTTP/HTTPS URL) — dramatically improves quality for complex assets"},
-                    "max_rounds": {"type": "integer", "description": "Max refinement rounds after initial generation (default: 3)"},
-                    "quality_threshold": {"type": "number", "description": "Accept result when critique score >= this (0-10, default: 7)"},
-                    "generation_model": {"type": "string", "description": "LLM for generation (default: anthropic/claude-sonnet-4-20250514)"},
-                    "critique_model": {"type": "string", "description": "Vision LLM for critique (default: anthropic/claude-sonnet-4-6)"},
-                    "config": {"type": "string", "enum": ["Debug", "Release"], "description": "Engine build config (default: Debug)"},
-                    "port": {"type": "integer", "description": "Asset editor port (default: 8091)"}
-                },
-                "required": ["name", "prompt"]
             }
         ),
         Tool(
@@ -5443,76 +5305,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         # Route through the JobSystem worker thread so the engine keeps rendering.
         return await submit_job_and_wait("generate_world", body)
 
-    # --- Template Generation (BlockSmith) ---
-    elif name == "generate_template":
-        import subprocess as _sp
-        # Enhance prompt in-process (avoids litellm hanging in child process)
-        gen_prompt = args["prompt"]
-        if args.get("enhance_prompt", False) or args.get("image"):
-            _ep_prompt = gen_prompt
-            _ep_model  = args.get("model", "anthropic/claude-sonnet-4-20250514")
-            _ep_image  = args.get("image")
-            gen_prompt = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: _enhance_prompt_inprocess(_ep_prompt, _ep_model, _ep_image)
-            )
-        cmd = [
-            sys.executable,
-            os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "tools", "blocksmith_generate.py"),
-            gen_prompt,
-            "--name", args["name"],
-            "--material", args.get("material", "Wood"),
-            "--size", str(args.get("size", 3.0)),
-            "--json",
-        ]
-        if args.get("force", False):
-            cmd.append("--force")
-        if args.get("native", False):
-            cmd.append("--native")
-        if args.get("image"):
-            cmd += ["--image", args["image"]]
-        # Note: --enhance-prompt NOT passed — already enhanced above
-        result = _sp.run(cmd, capture_output=True, text=True, timeout=180)
-        if result.returncode != 0:
-            return {"success": False, "error": result.stderr.strip() or "Generation failed"}
-        try:
-            gen_result = json.loads(result.stdout.strip().split("\n")[-1])
-        except json.JSONDecodeError:
-            return {"success": False, "error": f"Failed to parse output: {result.stdout}"}
-
-        if args.get("auto_inspect", False) and gen_result.get("success"):
-            inspect_content = await _inspect_template({
-                "template_name": args["name"],
-            })
-            return [TextContent(type="text", text=json.dumps(gen_result))] + inspect_content
-
-        return gen_result
-
-    elif name == "search_templates":
-        catalog_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "resources", "templates", "template_catalog.json")
-        if not os.path.exists(catalog_path):
-            return {"results": [], "message": "No catalog found"}
-        with open(catalog_path, "r", encoding="utf-8") as f:
-            catalog = json.load(f)
-        query = args["query"].lower()
-        results = []
-        for name_key, info in catalog.items():
-            if query in name_key.lower() or query in info.get("prompt", "").lower():
-                results.append({"name": name_key, **info})
-        return {"results": results, "count": len(results)}
-
-    elif name == "list_generated_templates":
-        catalog_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "resources", "templates", "template_catalog.json")
-        if not os.path.exists(catalog_path):
-            return {"templates": [], "count": 0}
-        with open(catalog_path, "r", encoding="utf-8") as f:
-            catalog = json.load(f)
-        templates = [{"name": k, **v} for k, v in catalog.items()]
-        return {"templates": templates, "count": len(templates)}
-
-    # build_building (BlockSmith LLM buildings) was REMOVED — use build_structure
-    # (schema v2) / build_settlement: the engine's procedural generators, not an LLM.
-
-    # --- Template Save ---
+    # --- Template inspection (BlockSmith generation removed 2026-10-14) ---
     elif name == "save_template":
         return await api_post("/api/template/save", {
             "name": args["name"],
@@ -5852,15 +5645,6 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "inspect_template":
         return await _inspect_template(args)
-
-    elif name == "critique_template":
-        return await _critique_template(args)
-
-    elif name == "refine_template":
-        return await _refine_template(args)
-
-    elif name == "generate_asset":
-        return await _generate_asset(args)
 
     elif name == "engine_running":
         return await _check_engine_running()
@@ -6641,9 +6425,6 @@ if _env_file.exists():
             _k, _, _v = _line.partition("=")
             os.environ.setdefault(_k.strip(), _v.strip())
 
-# Propagate PHYXEL_AI_API_KEY → ANTHROPIC_API_KEY (blocksmith alias)
-if os.environ.get("PHYXEL_AI_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY"):
-    os.environ["ANTHROPIC_API_KEY"] = os.environ["PHYXEL_AI_API_KEY"]
 
 
 def _embed_screenshot(path_str: str) -> ImageContent | None:
@@ -7171,46 +6952,19 @@ async def _inspect_template(args: dict) -> list:
     if show_reference_character:
         await _set_ref_character(False, port)
 
-    # Read metadata from the .voxel file via blocksmith parser
+    # Read metadata from the .voxel file (scripts/mcp/voxel_meta.py - the dependency-free
+    # reader; the BlockSmith parser it once tried to import never existed in the submodule,
+    # so this fallback was always the real path. BlockSmith removed 2026-10-14, M0 row 11).
     abs_voxel = Path(template_path)
     if not abs_voxel.is_absolute():
         abs_voxel = PROJECT_ROOT / template_path
     if not abs_voxel.exists():
         abs_voxel = PROJECT_ROOT / "resources" / "templates" / (args.get("template_name", "") + ".voxel")
 
-    meta: dict = {}
-    if abs_voxel.exists():
-        try:
-            import sys as _sys
-            _bs_path = str(PROJECT_ROOT / "external" / "blocksmith")
-            if _bs_path not in _sys.path:
-                _sys.path.insert(0, _bs_path)
-            from blocksmith.generators.phyxel_parser import read_voxel_metadata
-            meta = read_voxel_metadata(str(abs_voxel))
-        except Exception:
-            # Fallback: count manually without metadata
-            for line in abs_voxel.read_text().splitlines():
-                s = line.strip()
-                if s.startswith("C "):
-                    meta.setdefault("primitive_counts", {}).setdefault("cubes", 0)
-                    meta["primitive_counts"]["cubes"] += 1
-                elif s.startswith("S "):
-                    meta.setdefault("primitive_counts", {}).setdefault("subcubes", 0)
-                    meta["primitive_counts"]["subcubes"] += 1
-                elif s.startswith("M "):
-                    meta.setdefault("primitive_counts", {}).setdefault("microcubes", 0)
-                    meta["primitive_counts"]["microcubes"] += 1
-                elif s.startswith("V "):
-                    meta.setdefault("primitive_counts", {}).setdefault("fine_voxels", 0)
-                    meta["primitive_counts"]["fine_voxels"] += 1
-                elif s.startswith("# grid:"):
-                    try:
-                        meta["fine_grid"] = int(s.split(":", 1)[1].strip())
-                    except ValueError:
-                        pass
+    meta: dict = read_voxel_metadata(str(abs_voxel)) if abs_voxel.exists() else {}
 
-    # Fine-grid tier (`# grid: N` + V lines) may be missed by the blocksmith
-    # parser — recount directly so a fine template never reads as empty.
+    # Fine-grid tier (`# grid: N` + V lines): recount directly so a fine template never
+    # reads as empty (belt and braces over the reader).
     if abs_voxel.exists() and "fine_voxels" not in meta.get("primitive_counts", {}):
         _fine = 0
         for line in abs_voxel.read_text().splitlines():
@@ -7276,76 +7030,6 @@ async def _inspect_template(args: dict) -> list:
     return content
 
 
-def _enhance_prompt_inprocess(prompt: str, model: str, image: str | None = None) -> str:
-    """Run prompt enhancement directly (no subprocess) — avoids litellm hanging in child processes.
-
-    Adds external/blocksmith and tools/ to sys.path so prompt_enhancer can import LLMClient.
-    Falls back to original prompt on any error.
-    """
-    import sys as _sys
-    bs_path  = str(PROJECT_ROOT / "external" / "blocksmith")
-    tools_path = str(PROJECT_ROOT / "tools")
-    for p in (bs_path, tools_path):
-        if p not in _sys.path:
-            _sys.path.insert(0, p)
-    try:
-        from asset_pipeline.prompt_enhancer import enhance_prompt as _ep
-        return _ep(prompt, image=image, model=model)
-    except Exception as e:
-        return prompt  # non-fatal fallback
-
-
-def _run_blocksmith_native(
-    name: str,
-    prompt: str,
-    model: str,
-    templates_dir,
-    revision_notes: list | None = None,
-    image: str | None = None,
-    enhance_prompt: bool = False,
-) -> dict:
-    """Run blocksmith_generate.py --native in a subprocess.
-
-    On refinement rounds, revision_notes are appended as a structured
-    '## Revision Notes' block so the generator can address specific issues.
-    The original prompt is always preserved as the base description.
-    """
-    import sys as _sys, json as _json
-
-    # Append revision notes as a structured block the generator reads
-    full_prompt = prompt
-    if revision_notes:
-        notes_block = "\n\n## Revision Notes\n" + "\n".join(f"- {n}" for n in revision_notes)
-        full_prompt = prompt + notes_block
-
-    script = PROJECT_ROOT / "tools" / "blocksmith_generate.py"
-    cmd = [
-        _sys.executable, str(script),
-        full_prompt,
-        "--name", name,
-        "--model", model,
-        "--native",
-        "--force",
-        "--output-dir", str(templates_dir),
-        "--json",
-    ]
-    if image:
-        cmd += ["--image", image]
-    if enhance_prompt:
-        cmd += ["--enhance-prompt"]
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT), timeout=600)
-    except subprocess.TimeoutExpired:
-        return {"success": False, "error": "blocksmith generation timed out after 10 minutes"}
-    if result.returncode != 0:
-        return {"success": False, "error": result.stderr or result.stdout}
-    try:
-        return _json.loads(result.stdout.strip())
-    except Exception:
-        return {"success": False, "error": f"JSON parse error: {result.stdout}"}
-
-
 async def _set_ref_character(visible: bool, port: int) -> None:
     """Show or hide the humanoid reference character in the asset editor."""
     try:
@@ -7353,387 +7037,6 @@ async def _set_ref_character(visible: bool, port: int) -> None:
         await asyncio.sleep(0.5)  # let the character spawn/despawn before capturing
     except Exception:
         pass  # non-fatal — orbit continues without the character
-
-
-async def _orbit_for_critique(template_path: str, port: int, config: str, show_reference_character: bool = True) -> tuple[list, list]:
-    """
-    Ensure asset editor is running on `port` with `template_path`, then capture
-    6-angle orbit screenshots.  Returns (mcp_content_list, image_parts_for_llm).
-    """
-    # Ensure the asset editor is up with this template
-    editor_up = (
-        _asset_editor_process is not None and _asset_editor_process.poll() is None
-    )
-    if not editor_up:
-        launch = await _launch_asset_editor(
-            {"template_path": template_path, "port": port, "config": config}
-        )
-        if "error" in launch:
-            return [TextContent(type="text", text=f"ERROR launching asset editor: {launch['error']}")], []
-        await asyncio.sleep(1.0)  # extra settle time after launch
-
-    # Optionally show a humanoid reference character for scale context
-    if show_reference_character:
-        await _set_ref_character(True, port)
-
-    # Use orbit_screenshots endpoint (same binary, available on any port)
-    orbit_result = await _api_post_port(
-        "/api/orbit-screenshots",
-        {"x": 16, "y": 20, "z": 16, "radius": 6},
-        port,
-        timeout=120.0,
-    )
-
-    # Hide the reference character after capture so it doesn't persist
-    if show_reference_character:
-        await _set_ref_character(False, port)
-
-    if "error" in orbit_result:
-        return [TextContent(type="text", text=f"ERROR capturing orbit: {orbit_result['error']}")], []
-
-    # Build content list and image parts for the LLM
-    content: list = []
-    image_parts: list = []
-    for shot in orbit_result.get("screenshots", []):
-        path_str = shot.get("path", "")
-        label = shot.get("view", "").upper()
-        img = _embed_screenshot(path_str) if path_str else None
-        if img:
-            content.append(TextContent(type="text", text=f"[{label}]"))
-            content.append(img)
-            image_parts.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:{img.mimeType};base64,{img.data}"},
-            })
-    return content, image_parts
-
-
-async def _critique_template(args: dict) -> list:
-    """Visually critique a template: 6-angle orbit + vision LLM evaluation."""
-    import json as _json
-
-    template_name          = args.get("template_name", "")
-    original_prompt        = args.get("original_prompt", "")
-    critique_model         = args.get("critique_model", "anthropic/claude-sonnet-4-6")
-    port                   = int(args.get("port", _asset_editor_port or 8091))
-    config                 = args.get("config", "Debug")
-    show_reference_character = args.get("show_reference_character", True)
-
-    # Resolve template path
-    voxel_path = PROJECT_ROOT / "resources" / "templates" / f"{template_name}.voxel"
-    if not voxel_path.exists():
-        return [TextContent(type="text", text=f"ERROR: {voxel_path} not found")]
-
-    # Read metadata for context
-    meta_text = ""
-    try:
-        _bs_path = str(PROJECT_ROOT / "external" / "blocksmith")
-        import sys as _sys
-        if _bs_path not in _sys.path:
-            _sys.path.insert(0, _bs_path)
-        from blocksmith.generators.phyxel_parser import read_voxel_metadata
-        import math as _math
-        m = read_voxel_metadata(str(voxel_path))
-        b = m.get("bounds", {})
-        fy = m.get("facing_yaw", 0.0)
-        ips = m.get("interaction_points", [])
-        counts = m.get("primitive_counts", {})
-        ip_lines = "\n".join(
-            f"  {ip['point_id']} ({ip['type']}) at {ip['local']}, yaw={ip['facing_yaw']:.3f}"
-            for ip in ips
-        ) or "  none"
-        meta_text = (
-            f"\nTemplate metadata:\n"
-            f"  Primitives: {counts.get('cubes',0)}C + {counts.get('subcubes',0)}S + {counts.get('microcubes',0)}M\n"
-            f"  Bounds: {b.get('w',0)}W × {b.get('h',0)}H × {b.get('d',0)}D cubes\n"
-            f"  Facing: {_math.degrees(fy):.1f}° (0°=front faces +Z)\n"
-            f"  Interaction points:\n{ip_lines}"
-        )
-    except Exception:
-        pass
-
-    # Capture 6-angle orbit (with reference character for scale context)
-    orbit_content, image_parts = await _orbit_for_critique(str(voxel_path), port, config, show_reference_character)
-    if not image_parts:
-        return orbit_content + [TextContent(type="text", text="ERROR: No screenshots for critique")]
-
-    # Ask the vision LLM
-    critique_text = ""
-    try:
-        import litellm
-        user_text = (
-            f'Original prompt: "{original_prompt}"\n'
-            f"{meta_text}\n\n"
-            "The 6 screenshots above show NORTH (front), SOUTH (back), EAST, WEST, TOP, and ISO views.\n\n"
-            "SCALE REFERENCE: 1 cube = 1 meter. Standard humanoid character is ~2 cubes (2m) tall.\n"
-            "Humanoid furniture proportions: chair seat at ~0.67m, throne seat at ~0.67-1.0m, \n"
-            "chair total height ≤1.3m, throne total height ≤3m, table ≤1.0m tall.\n"
-            "A throne with seat higher than 1.0 cube, or total height over 3 cubes, is too large.\n\n"
-            "Evaluate the model against the prompt. Return ONLY valid JSON:\n"
-            "{\n"
-            '  "overall_quality": <0-10>,\n'
-            '  "issues": ["specific visual problems — be precise about which part and what\'s wrong"],\n'
-            '  "scale_issues": ["any parts that are too large or too small for a standard humanoid character"],\n'
-            '  "interaction_point_issues": ["problems with interaction point placement or facing — or empty list if ok"],\n'
-            '  "suggestions": ["actionable geometry/material/proportion changes for the next generation round"]\n'
-            "}\n\n"
-            "Scoring guide: 0-3 = unrecognisable, 4-5 = roughly correct shape but major issues, "
-            "6-7 = recognisable with minor issues, 8-9 = good game asset, 10 = excellent. "
-            "Deduct 2 points if furniture is badly out of scale for a humanoid character."
-        )
-        messages = [{
-            "role": "user",
-            "content": [{"type": "text", "text": user_text}, *image_parts],
-        }]
-        response = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: litellm.completion(
-                model=critique_model, messages=messages, max_tokens=1000, temperature=0.2,
-                timeout=120,
-            )
-        )
-        critique_text = response.choices[0].message.content.strip()
-    except Exception as e:
-        critique_text = f'{{"overall_quality": 0, "issues": ["Critique failed: {e}"], "interaction_point_issues": [], "suggestions": []}}'
-
-    return orbit_content + [TextContent(type="text", text=f"\n=== Critique ===\n{critique_text}")]
-
-
-async def _refine_template(args: dict) -> list:
-    """Iterative critique → regenerate loop with structured revision notes."""
-    import json as _json, shutil
-
-    template_name            = args.get("template_name", "")
-    original_prompt          = args.get("original_prompt", "")
-    image                    = args.get("image")
-    max_rounds               = int(args.get("max_rounds", 3))
-    quality_threshold        = float(args.get("quality_threshold", 7.0))
-    critique_model           = args.get("critique_model", "anthropic/claude-sonnet-4-6")
-    generation_model         = args.get("generation_model", "anthropic/claude-sonnet-4-20250514")
-    port                     = int(args.get("port", _asset_editor_port or 8091))
-    config                   = args.get("config", "Debug")
-    show_reference_character = args.get("show_reference_character", True)
-
-    templates_dir = PROJECT_ROOT / "resources" / "templates"
-    base_path     = templates_dir / f"{template_name}.voxel"
-
-    best_quality    = 0.0
-    best_round_path = base_path
-    all_content     = []
-
-    for round_num in range(1, max_rounds + 1):
-        all_content.append(TextContent(
-            type="text",
-            text=f"\n{'='*44}\nRound {round_num}/{max_rounds}\n{'='*44}"
-        ))
-
-        # Critique current version
-        critique_content = await _critique_template({
-            "template_name":  template_name,
-            "original_prompt": original_prompt,
-            "critique_model": critique_model,
-            "port": port, "config": config,
-            "show_reference_character": show_reference_character,
-        })
-        all_content.extend(critique_content)
-
-        # Parse quality + issues from the critique JSON block
-        quality = 0.0
-        issues: list[str] = []
-        suggestions: list[str] = []
-        ip_issues: list[str] = []
-        scale_issues: list[str] = []
-        for item in reversed(critique_content):
-            if hasattr(item, "text") and "overall_quality" in item.text:
-                try:
-                    start = item.text.find("{")
-                    end   = item.text.rfind("}") + 1
-                    cj    = _json.loads(item.text[start:end])
-                    quality      = float(cj.get("overall_quality", 0))
-                    issues       = cj.get("issues", [])
-                    suggestions  = cj.get("suggestions", [])
-                    ip_issues    = cj.get("interaction_point_issues", [])
-                    scale_issues = cj.get("scale_issues", [])
-                except Exception:
-                    pass
-                break
-
-        all_content.append(TextContent(type="text", text=f"Score: {quality}/10"))
-
-        # Save round snapshot
-        round_path = templates_dir / f"{template_name}_round_{round_num}.voxel"
-        if base_path.exists():
-            shutil.copy2(str(base_path), str(round_path))
-            if quality > best_quality:
-                best_quality    = quality
-                best_round_path = round_path
-
-        if quality >= quality_threshold:
-            all_content.append(TextContent(
-                type="text",
-                text=f"Quality threshold met ({quality:.1f} >= {quality_threshold}). Done."
-            ))
-            break
-
-        if round_num == max_rounds:
-            all_content.append(TextContent(type="text", text="Max rounds reached."))
-            break
-
-        # Build revision notes from scale issues (highest priority) + issues + suggestions + IP issues
-        revision_notes = []
-        if scale_issues:
-            revision_notes += [f"[Scale] {n}" for n in scale_issues]
-        revision_notes += issues + suggestions
-        if ip_issues:
-            revision_notes += [f"[Interaction point] {n}" for n in ip_issues]
-
-        all_content.append(TextContent(
-            type="text",
-            text=f"Regenerating with {len(revision_notes)} revision notes..."
-        ))
-
-        # Close and relaunch the asset editor after regeneration
-        await _close_asset_editor()
-
-        regen = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: _run_blocksmith_native(
-                template_name, original_prompt, generation_model, templates_dir,
-                revision_notes=revision_notes, image=image, enhance_prompt=False,
-            )
-        )
-        if not regen.get("success"):
-            all_content.append(TextContent(type="text", text=f"Regeneration failed: {regen.get('error')}"))
-            break
-
-        counts = f"{regen.get('cubes',0)}C + {regen.get('subcubes',0)}S + {regen.get('microcubes',0)}M"
-        all_content.append(TextContent(type="text", text=f"Generated: {counts}"))
-
-        await _launch_asset_editor({"template_path": str(base_path), "port": port, "config": config})
-
-    # Promote best round to canonical path
-    if best_round_path != base_path and best_round_path.exists():
-        shutil.copy2(str(best_round_path), str(base_path))
-        all_content.append(TextContent(
-            type="text",
-            text=f"Best result (score={best_quality:.1f}) promoted to {base_path.name}"
-        ))
-
-    return all_content
-
-
-async def _generate_asset(args: dict) -> list:
-    """Full pipeline: enhance → generate → refine loop → final orbit verification."""
-    import json as _json, shutil
-
-    name              = args.get("name", "")
-    prompt            = args.get("prompt", "")
-    image             = args.get("image")
-    max_rounds        = int(args.get("max_rounds", 3))
-    quality_threshold = float(args.get("quality_threshold", 7.0))
-    generation_model  = args.get("generation_model", "anthropic/claude-sonnet-4-20250514")
-    critique_model    = args.get("critique_model", "anthropic/claude-sonnet-4-6")
-    config            = args.get("config", "Debug")
-    port              = int(args.get("port", 8091))
-
-    templates_dir = PROJECT_ROOT / "resources" / "templates"
-    all_content: list = []
-
-    # Close any lingering asset editor from a previous session before starting
-    await _kill_process_on_port(port)
-
-    # --- Step 1: Initial generation ---
-    all_content.append(TextContent(type="text", text=(
-        f"=== generate_asset: {name} ===\n"
-        f"Prompt: {prompt}\n"
-        f"Image: {image or 'none'}\n"
-        f"Max rounds: {max_rounds}  Threshold: {quality_threshold}/10"
-    )))
-
-    # Enhance prompt in-process (litellm works in MCP server context; subprocess hangs)
-    all_content.append(TextContent(type="text", text="Enhancing prompt..."))
-    enhanced_prompt = await asyncio.get_event_loop().run_in_executor(
-        None, lambda: _enhance_prompt_inprocess(prompt, generation_model, image)
-    )
-    if enhanced_prompt != prompt:
-        all_content.append(TextContent(type="text", text=f"Enhanced ({len(enhanced_prompt)} chars)"))
-
-    gen = await asyncio.get_event_loop().run_in_executor(
-        None,
-        lambda: _run_blocksmith_native(
-            name, enhanced_prompt, generation_model, templates_dir,
-            revision_notes=None, image=image, enhance_prompt=False,
-        )
-    )
-    if not gen.get("success"):
-        all_content.append(TextContent(type="text", text=f"ERROR: Initial generation failed: {gen.get('error')}"))
-        return all_content
-
-    counts = f"{gen.get('cubes',0)}C + {gen.get('subcubes',0)}S + {gen.get('microcubes',0)}M"
-    all_content.append(TextContent(type="text", text=f"Initial generation: {counts}"))
-
-    # --- Steps 2–4: Editor-dependent work — always close editor when done ---
-    try:
-        # Step 2: Refinement loop
-        await _launch_asset_editor({
-            "template_path": str(templates_dir / f"{name}.voxel"),
-            "port": port, "config": config,
-        })
-
-        refine_content = await _refine_template({
-            "template_name":          name,
-            "original_prompt":        prompt,
-            "image":                  image,
-            "max_rounds":             max_rounds,
-            "quality_threshold":      quality_threshold,
-            "generation_model":       generation_model,
-            "critique_model":         critique_model,
-            "port":                   port,
-            "config":                 config,
-            "show_reference_character": True,
-        })
-        all_content.extend(refine_content)
-
-        # Step 3: Final verification orbit (always with reference character)
-        all_content.append(TextContent(type="text", text="\n=== Final verification ==="))
-        final_orbit, _ = await _orbit_for_critique(
-            str(templates_dir / f"{name}.voxel"), port, config, show_reference_character=True
-        )
-        all_content.extend(final_orbit)
-
-        # Step 4: Metadata summary
-        voxel_path = templates_dir / f"{name}.voxel"
-        try:
-            _bs_path = str(PROJECT_ROOT / "external" / "blocksmith")
-            import sys as _sys, math as _math
-            if _bs_path not in _sys.path:
-                _sys.path.insert(0, _bs_path)
-            from blocksmith.generators.phyxel_parser import read_voxel_metadata
-            m = read_voxel_metadata(str(voxel_path))
-            b  = m.get("bounds", {})
-            fy = m.get("facing_yaw", 0.0)
-            ips = m.get("interaction_points", [])
-            c   = m.get("primitive_counts", {})
-            ip_lines = "\n".join(
-                f"  • {ip['point_id']} ({ip['type']}) at {ip['local']}, yaw={ip['facing_yaw']:.3f}"
-                for ip in ips
-            ) or "  none (add via asset editor if needed)"
-            summary = (
-                f"\n--- Asset ready: {name}.voxel ---\n"
-                f"Primitives : {c.get('cubes',0)}C + {c.get('subcubes',0)}S + {c.get('microcubes',0)}M\n"
-                f"Bounds     : {b.get('w',0)}W × {b.get('h',0)}H × {b.get('d',0)}D cubes\n"
-                f"Facing     : {_math.degrees(fy):.1f}° (0°=+Z front)\n"
-                f"Interaction points:\n{ip_lines}"
-            )
-            all_content.append(TextContent(type="text", text=summary))
-        except Exception as e:
-            all_content.append(TextContent(type="text", text=f"Metadata read error: {e}"))
-
-    finally:
-        # Always clean up the asset editor regardless of success or error
-        await _close_asset_editor()
-
-    return all_content
 
 
 def _clear_engine_logs() -> dict:

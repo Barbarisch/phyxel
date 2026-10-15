@@ -17,7 +17,7 @@ restores it). In **Systems-Interaction Matrix**, add the rows this loop needs, e
 ## 2. Assets as game objects (not raw art)
 Crops are a **stateful prop-sequence**: seed → sprout → grown → harvested. The milestone is done only
 when **every state exists and is wired to its transition** (§4c). Author the states (templates /
-BlockSmith) and confirm each has collision/anchor metadata, not just a mesh.
+Meshy import) and confirm each has collision/anchor metadata, not just a mesh.
 
 ## 3. Build the loop
 - **Harvest:** placeable resource nodes; on interact, `give_item` the yield and swap the node to its

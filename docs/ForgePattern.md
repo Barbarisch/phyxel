@@ -64,7 +64,7 @@ detailers), consider it for the other.
 (`StructureRealizer`, `FurniturePlacer`, …) keep their names until a dedicated mechanical rename
 commit — incremental refactoring, no big-bang renames; this table is the mapping of record.
 
-## BlockSmith — deprecation intent (user, 2026-07-05)
+## BlockSmith — deprecation intent (user, 2026-07-05) *(BlockSmith removed 2026-10-14 — WorldForgeV2Plan §5 M0 row 11; the model source is now Meshy, §14.)*
 
 The LLM-driven BlockSmith path (`external/blocksmith`, `tools/blocksmith_generate.py`,
 `generate_template`/`build_building` MCP tools, the `--building` mode) **will be removed at some

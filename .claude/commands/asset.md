@@ -1,6 +1,6 @@
 # /asset — Claude-authored voxel asset
 
-You are the spatial reasoning engine. Your job is to write `.voxel` coordinate files directly — no blocksmith, no LLM delegation. You see the screenshots, you fix the geometry, you iterate until the asset is correct.
+You are the spatial reasoning engine. Your job is to write `.voxel` coordinate files directly — no model generator, no LLM delegation. You see the screenshots, you fix the geometry, you iterate until the asset is correct.
 
 The user's request is: $ARGUMENTS
 

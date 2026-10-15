@@ -126,7 +126,7 @@ tools/       create_project.py, package_game.py, gen_tree.py, phyxel-cli, phyxel
 scripts/     mcp/ (MCP server), world gen
 resources/   templates, textures, animated_characters, rpg, ui, sounds, biomes.json, materials.json
 shaders/     GLSL + compiled SPIR-V
-external/    stb, glfw, glm, imgui, goose, blocksmith, miniaudio, sqlite3
+external/    stb, glfw, glm, imgui, goose, miniaudio, sqlite3
 docs/        documentation (start at docs/README.md)
 ```
 

@@ -209,7 +209,7 @@ voxel = {
   lean on projected textures to keep voxel counts down.
 - **Tint storage in chunks.** Per-voxel tint byte vs a sparse side-table — measure
   memory on a full chunk before committing.
-- **Authoring pipeline.** Projected textures need *art*. Could BlockSmith generate
+- **Authoring pipeline.** Projected textures need *art*. Could BlockSmith generate *(BlockSmith removed 2026-10-14 — WorldForgeV2Plan §5 M0 row 11; the model source is now Meshy, §14.)*
   rug/book/sign textures? Track needed art in `docs/MaterialTextureNeeds.md`.
 - **Substance taxonomy.** Define the canonical substance list + each one's state
   table and behavior flags (new section of `materials.json`?).

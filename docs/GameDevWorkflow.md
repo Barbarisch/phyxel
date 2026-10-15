@@ -124,7 +124,7 @@ as model-invoked **skills** bundled in the plugin (shared by all projects):
 - `phyxel-characters` — animated characters, NPCs, dialogue, story arcs.
 - `phyxel-scenes` — multi-scene games, transitions, world generation.
 - `phyxel-menus` — menus / UI.
-- `phyxel-assets` — object templates + BlockSmith AI generation + placement.
+- `phyxel-assets` — object templates + Meshy model import (planned) + placement.
 - `phyxel-playtest` — the build → launch → screenshot → iterate loop (+ engine lifecycle rules).
 - `phyxel-package` — build_game / run_game / package_game.
 

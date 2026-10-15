@@ -933,7 +933,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
      LLM-generated — engine procedural pipeline only.** StructureGenerator keeps primitives +
      place/removeVoxels/planPadLevel only.
   **Follow-ups queued:** v2 tower typology; featureAt refinements (roof slope profile, opening
-  classification); migrate remaining material-sniffing consumers; BlockSmith full removal.
+  classification); migrate remaining material-sniffing consumers; BlockSmith full removal. *(BlockSmith removed 2026-10-14 — WorldForgeV2Plan §5 M0 row 11; the model source is now Meshy, §14.)*
 
 - **FINISH_FORGE ARC — 6 increments SHIPPED 2026-07-06 (commits fc852f1, 83dcf14, c338baf on
   main; every one red-before-green + independent solution-auditor pass).** The tree-forge
@@ -1175,7 +1175,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     mixed fills+templates example (the session hand-built a whole tavern out of fills
     while 50 purpose-built templates sat in the catalog). `list_templates` added to the
     MCP `_NO_PROJECT_TOOLS` whitelist (catalog browsing during menu scenes).
-  - **ROADMAP — tavern asset batch (queue for a BlockSmith `/generate` session):**
+  - **ROADMAP — tavern asset batch (queue for a BlockSmith `/generate` session):** *(BlockSmith removed 2026-10-14 — WorldForgeV2Plan §5 M0 row 11; the model source is now Meshy, §14.)*
     tankard/beer mug, ale/wine bottle, bottle-shelf row, large keg w/ tap, hanging tavern
     sign, chandelier/candle wheel, rug/floor mat, cellar trapdoor, food set
     (plate/bread/cheese), sack/grain bag, wall decor (antlers/painting), serving tray.

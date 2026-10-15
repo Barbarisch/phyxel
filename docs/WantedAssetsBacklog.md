@@ -86,6 +86,6 @@ These gate entire categories above and must be built in the engine, not authored
 
 Each item follows the Part 4 loop: **detect → generate (variants → rank → repair → gates → user approval) →
 persist → reuse**. Materials are authored via the texture pipeline (source PNG → `texture_atlas_builder.py`,
-no recompile); templates via BlockSmith (text → `.voxel`); decals/water/excavation are engine work. Nothing here
+no recompile); templates via BlockSmith (text → `.voxel`); decals/water/excavation are engine work. Nothing here *(BlockSmith removed 2026-10-14 — WorldForgeV2Plan §5 M0 row 11; the model source is now Meshy, §14.)*
 is built yet — this file is the honest ledger of what's missing, so it gets authored **once** and the engine
 keeps it, rather than re-improvised (and faked) every session.

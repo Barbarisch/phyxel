@@ -163,7 +163,7 @@ command surfaces or forward-only generators. Nobody persists a machine-readable 
 | **CLAUDE.md = design doc + known-workarounds** ("a minute on CLAUDE.md saves ten correcting output") | `GAMEPLAN.md` (design) + per-project `CLAUDE.md` (gotchas) |
 | **Git/commit checkpoint after every milestone** (the revert system) | Bind milestone completion to a **snapshot** (`create_snapshot` exists) — §8 |
 | **MCP screenshot / play-in-editor loop** — cited as *"the single most useful thing in the whole setup"* | `screenshot`/`get_visual_diagnostic` + `--project` runtime = our L3/L4 — §6.5 |
-| **External asset-gen, then wire in** | BlockSmith/templates + the asset track — §4c |
+| **External asset-gen, then wire in** | Meshy import (planned)/templates + the asset track — §4c |
 
 **The universal bottleneck, phrased identically by everyone: AI can't judge runtime *feel/fun* and can't
 natively "press play."** Ground-truth quote: a leveling cadence tuned to *every 3.9s* when the fun range
@@ -313,7 +313,7 @@ consumer-tool failure mode of "every screen exists once but nothing is deep," an
 
 The dominant time-sink in every real build was assets. Named explicitly (Phyxel mapping in parens):
 
-- `environment_art` — world/structure assets present at quality (templates / `build_structure` / BlockSmith).
+- `environment_art` — world/structure assets present at quality (templates / `build_structure` / Meshy import).
 - `character_art` — player/NPC models + **rig/anim** (`.anim`, character pipeline).
 - `materials_textures` — coherent material set (materials.json / texture atlas).
 

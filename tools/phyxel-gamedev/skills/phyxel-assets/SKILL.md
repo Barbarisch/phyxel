@@ -1,6 +1,6 @@
 ---
 name: phyxel-assets
-description: Use when adding voxel objects, props, furniture, or buildings to a Phyxel game — spawning existing templates, searching the template catalog, or generating brand-new voxel models from a text prompt via BlockSmith. Invoke for "add a chair / tree / castle / barrel / generate a <thing>" tasks.
+description: Use when adding voxel objects, props, furniture, or buildings to a Phyxel game — spawning existing templates, searching the template catalog, or generating brand-new voxel models from a text prompt via Meshy import (planned). Invoke for "add a chair / tree / castle / barrel / generate a <thing>" tasks.
 ---
 
 # Assets: templates & AI generation
@@ -12,10 +12,10 @@ description: Use when adding voxel objects, props, furniture, or buildings to a 
 - Stock templates include `tree.voxel`, `tree2.voxel`, `sphere.voxel`, and generated furniture/
   buildings cached in `resources/templates/` (catalog: `template_catalog.json`).
 
-## Generating new models from text (BlockSmith — small props only)
+## Generating new models (Meshy route — Meshy import (planned) removed 2026-10-14)
 Text prompt → LLM → `.bbmodel` → `.voxel`. Two routes:
 - MCP: `generate_template`, `search_templates`, `list_generated_templates`.
-- CLI (in the engine repo): `python tools/blocksmith_generate.py "a wooden chair" --name chair
+- Models come from the owner's Meshy AI account (text/image-to-3D) and are voxelized by `tools/meshy_import.py` (planned — see docs/WorldForgeV2Plan.md §14); until then author with `/asset` or `tools/gen_items.py`.
   --size 2 --material Wood`. Sizes: furniture 2–3. Needs `PHYXEL_AI_API_KEY` or
   `ANTHROPIC_API_KEY`. Generated templates are cached permanently in `resources/templates/`.
 
