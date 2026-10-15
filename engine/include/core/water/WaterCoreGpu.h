@@ -11,6 +11,7 @@
 #include "core/water/WaterCore.h"
 #include "vulkan/ComputePipeline.h"
 #include <vulkan/vulkan.h>
+#include <chrono>
 #include <array>
 #include <memory>
 #include <string>
@@ -163,6 +164,21 @@ public:
         bool quietBefore = false;
         double lastMaxSpeed = 0.0;       ///< from the last call's reduction (or the upload), drives the CFL count
         bool surfaceValid = false;       ///< Phase F: staging holds a surface field from the last step
+        // 26.16: one call in flight (ASYNC) - what the host reads of a call is copied out of staging when it is collected
+        bool async = false, inFlight = false;
+        VkFence callFence = VK_NULL_HANDLE;
+        VkCommandBuffer callCmd = VK_NULL_HANDLE;
+        struct Pending {
+            int n = 1, ticks = 0; bool capture = false;
+            SolverParams params;
+            std::chrono::steady_clock::time_point t0, tResidency, tSubmit;
+            GpuStepStats st;
+        } pend;
+        GpuStepStats lastStats; bool haveLast = false;   ///< the last collected call's stats (ASYNC returns them)
+        std::vector<char> hostSurf;                      ///< the collected call's packed surface lists (one-run, multi-run records)
+        std::vector<char> hostBirths;                    ///< the collected call's packed birth list
+        std::array<uint32_t, 3> hostCount{};             ///< their lengths (one-run, births, multi-run)
+        std::vector<GpuSource> hostSources;              ///< the sources' totals as the collected call left them (or as set)
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
                         ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, KernelCount };
@@ -218,7 +234,7 @@ public:
                       const glm::ivec3& lo, const glm::ivec3& hi);
     /// Replace the volume's pumps/sinks (fenced); the projection's per-cell rate buffer is reset.
     bool setSources(Volume& vol, const std::vector<GpuSource>& sources, std::string* err);
-    void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending after a step (fenced)
+    void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending as the last collected call left them (26.16: no submission)
     /// Phase F: the surface field as the last step() left it in the staging ring (no submission: a memcpy).
     /// `out` must hold columns * 16 floats (SurfaceColumn). Returns false when no step has run since the upload.
     bool readSurface(const Volume& vol, float* out) const;
@@ -243,6 +259,13 @@ public:
     /// rather than per-tick exact; rest bookkeeping advances by `ticks` when the final state is
     /// quiet (exact for realtime's one tick per call).
     GpuStepStats step(Volume& vol, const SolverParams& params, float dt, int ticks, int sweeps);
+    /// 26.16: ASYNC - step() submits its call and returns the stats of the call before it (collected first); nothing waits on
+    /// the GPU in the frame. The water is bit-identical to SYNC (the default); what the host reads lags one call
+    /// (WaterCoreGpuParityTest.GpuAsyncEqualsSync). Turning it off finishes the call in flight.
+    void setAsync(Volume& vol, bool on) { if (!on) settle(vol); vol.async = on; }
+    /// 26.16: finish the call in flight, if any (wait on its fence, collect its results) - every host entry that touches the
+    /// staging buffer or the device state does this first.
+    void settle(Volume& vol) { if (vol.inFlight) finishCall(vol); }
 
 private:
     bool createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible, std::string* err);
@@ -259,6 +282,7 @@ private:
     void recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush push);
     VkCommandBuffer beginCommands() const;
     void submitAndWait(VkCommandBuffer cmd) const;
+    void finishCall(Volume& vol);   ///< 26.16: wait on the call in flight and collect it (everything step did after its fence)
     // 26.6 P2a bricks (host side)
     long storageIndex(const Volume& vol, int x, int y, int z) const;   ///< -1 = absent / outside the brick box
     void fillPushBricks(const Volume& vol, WcPush& push) const;

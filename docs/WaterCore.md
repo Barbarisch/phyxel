@@ -89,8 +89,11 @@ model flows over the carve's REAL 1/3 m steps, the column run flowed over the li
 / 10 % (q 0.5) deeper than the column model, both deeper than Manning (the drops cost head); the source totals' float drift
 fixed (the books exact again live); the call's time measured live - the GPU's own work is 1.85 ms, the frame loses ~7 ms
 because the main thread WAITS at the fence behind the renderer.
-**Next:** 26.16 - the water's call not waited on (collect it next frame); then the pond's extra drag; then P3c. The §23 slime
-experiment stays queued.
+**26.16 (2026-10-15): the water's call is no longer waited on** - submitted each frame, collected the next (bit-identical
+water, one frame of lag in what the host sees): the creek bench's frame 12.9 -> 7.4 ms (77 -> 135 fps; 5.5 ms with the water
+paused); a lost-count fault found on the way (re-sending sources in async) and fixed.
+**Next:** flat bricks (the creek's GPU 1.7 ms -> under the budget with room for ripples); the pond's extra drag on the stepped
+bed; then P3c. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5918,7 +5921,7 @@ Evidence: `docs/evidence/water_core_h1/creekbench_pond_g9_q{0.2,0.5}.json` + `_s
 the timing split; q 0.5: the 80-sweep run), `creekbench_g9_voxbed_q{0.2,0.5}.json` + `_steady.mp4` (the column model on the voxel bed),
 `creekbench_{pond,column}_g9_q{0.2,0.5}_profile.json`. Tests: GPU water 34 pass (the known FLIP row fails), CPU water 330 / 330.
 
-### 26.16 The water's call not waited on - design and check (2026-10-15). Status: DESIGN, READY
+### 26.16 The water's call not waited on - design, check, build (2026-10-15). Status: BUILT, not signed off
 
 **The problem (26.15, measured live):** each frame the engine records the water's call, submits it to the graphics queue and
 WAITS for its fence. The queue still holds the renderer's frame, so the main thread sits ~4 ms behind the renderer's work plus
@@ -5954,6 +5957,29 @@ stepping vs paused, before / after, and the clip (the water must look the same).
 `WaterCoreGpuParityTest.GpuAsyncEqualsSync` - the 26.13 outfall rig and a sloshing tank, 60 calls each in sync and in async
 mode: every cell's f, every face's velocity and the source totals bit-identical after the last call is settled, and the
 stats returned by async call k equal sync call k-1's (red before: there is no async mode). **Verdict: READY.**
+
+**Built (2026-10-15).** `WaterCoreGpu::setAsync` / `settle` / `finishCall`; the step submits on the volume's own fence; the
+manager turns ASYNC on for GPU volumes while realtime (`water_av_list` echoes `gpu_async`). The surface lists, the birth list
+and the sources' totals are copied to host memory when a call is collected (`hostSurf`, `hostBirths`, `hostSources`); the
+sources ride the call (the per-step `readSources` submission is gone in both modes).
+- `GpuAsyncEqualsSync` (red with a do-nothing `setAsync`: 0 of 149 stats lagged): a sparse dam-break tank with a pump and 6
+  outfalls, 150 calls each way - f, u, v, w and the source totals bit-identical, 149 of 149 stats exactly one call behind.
+- **Found building it, fixed:** the creek bench's first async run read a ledger of 7.6e-3 m^3, constant from the start. Adding a
+  source re-sends the whole list from the solver's copy, whose totals are one call old in async mode - the call in flight had
+  placed water the re-sent totals no longer counted (18 springs added one by one). `pushSourcesToGpu` now finishes the call in
+  flight and takes the GPU's totals first (`pullSourceTotals`, also after a full download, so the record's mass and totals are
+  always the same call's). `GpuAsyncEngineKeepsTheBooksAcrossSourceEdits` (the engine path, realtime, 6 springs added mid-run,
+  10 s): worst |mass - (in - out)| 1.5e-3 -> 4.3e-8 m^3.
+- GPU water tests: 37 pass (the known FLIP row fails); CPU water 330 / 330.
+
+**Live, the creek bench at q 0.2 (1,352 bricks, 40 sweeps):** host time per call 6.1 -> 0.40 ms (the fence wait 5.8 -> 0.003
+ms); device 1.70 ms; **frame 12.9 -> 7.4 ms (77 -> 135 fps)** against 5.5 ms (181 fps) with the water paused - the water's
+share of the frame is now ~1.9 ms, about its GPU time. Steady out/in 1.003, ledger -2.1e-6 m^3. The look: unchanged (clips
+`creekbench_pond_g9_q0.2_async_{fill,steady}.mp4`; `creekbench_pond_g9_q0.2.json` is now this run's record).
+
+**What is left of the cost:** the 2 ms budget (25.10) covers all water; the creek alone takes ~1.7-1.9 ms of GPU. The next lever
+is the cells stepped - the creek's water is 2-3 cells deep but stored in 8-cell-tall bricks (~4 brick layers per column with
+the halo): flat bricks (8 x 2 x 8 or 8 x 4 x 8), measured on this bench.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

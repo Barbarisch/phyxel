@@ -46,6 +46,7 @@ struct AvRecord {
     double gpuHostMs = 0.0;                ///< 26.15: of it, the host's residency work before recording
     double gpuWaitMs = 0.0;                ///< 26.15: of it, submission + fence wait (device time + queue contention + overhead)
     int gpuTicks = 0;                      ///< 26.15: ticks the last call stepped
+    bool gpuAsync = false;                 ///< 26.16: the call is collected next frame (realtime) - the gpu_* numbers are the previous call's
     int gpuBricks = 0;                     ///< 26.12: bricks the GPU volume steps (stored: water + its halo); 0 = not on the GPU
     int gpuBrickCapacity = 0;              ///< 26.12: bricks it could store (the whole box)
     double surfaceAgeMs = -1.0;            ///< Phase F: age of the surface field the renderer last read (ms since the step that produced it; -1 = never)
@@ -426,6 +427,7 @@ private:
     void refreshOccupancy(Av& av);
     Occ sampleOccupancy(const Av& av, const glm::ivec3& cellLocal) const;
     AvRecord record(const Av& av) const;
+    void pullSourceTotals(Av& av);   ///< 26.16: the GPU's collected source totals into the solver's list
     const Av* volumeAtVoxel(int x, int y, int z) const;
 
     MicroStateQuery m_state;

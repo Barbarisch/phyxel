@@ -108,7 +108,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity;
     r.cells = av.grid->cellCount();
     r.autoSleep = av.autoSleep; r.seededMass = av.seededMass;
     r.surfaceAgeMs = av.fieldStepSec < 0.0 ? -1.0 : (std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - av.fieldStepSec) * 1000.0;
@@ -485,6 +485,7 @@ void WaterCoreManager::syncFromGpu(Av& av, bool rateLimited) {
     const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     if (rateLimited && av.gpuLastDownloadSec >= 0.0 && now - av.gpuLastDownloadSec < 1.0) return;   // §15.11: realtime readers see the grid once a second
     m_gpu->download(*av.gpuVol, *av.grid);
+    if (av.gpuVol->sourceCount > 0) pullSourceTotals(av);   // 26.16: the grid is the newest call's (download settled it) - so are the totals
     if (av.solver->transport().ownsMass()) {
         auto* flip = dynamic_cast<FlipTransport*>(&av.solver->transport());
         if (flip) { std::vector<FlipParticle> ps; m_gpu->readParticles(*av.gpuVol, ps); flip->setParticles(std::move(ps)); }
@@ -503,6 +504,7 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
         }
         av.gpuDirty = false;
     }
+    m_gpu->setAsync(*av.gpuVol, m_realtime);   // 26.16: realtime frames never wait on the water's call (collected next frame)
     const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, av.gpuSweeps);
     av.gpuStale = true;
     av.gpuLast = st;
@@ -514,10 +516,8 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
         m_gpu->upload(*av.gpuVol, *av.grid);
     }
     if (av.gpuVol->sourceCount > 0) {   // the ledger: placedTotal/pending back into the solver's list
-        std::vector<GpuSource> gs; m_gpu->readSources(*av.gpuVol, gs);
-        auto& srcs = av.solver->sourcesMutable();
-        for (size_t i = 0; i < gs.size() && i < srcs.size(); ++i) { srcs[i].placedTotal = gs[i].total(); srcs[i].pending = gs[i].pending; srcs[i].unplaced = gs[i].unplaced; }
-        av.last.sourceUnplaced = 0.0; for (const auto& g : gs) av.last.sourceUnplaced += g.unplaced;
+        pullSourceTotals(av);
+        av.last.sourceUnplaced = 0.0; for (const auto& s : av.solver->sources()) av.last.sourceUnplaced += s.unplaced;
     }
     av.last.substeps = st.substepsLast; av.last.totalMass = st.totalMass; av.last.kineticEnergy = st.kineticEnergy;
     av.last.maxDeltaF = st.maxDeltaF; av.last.quietTicks = st.quietTicks; av.last.asleep = st.asleep;
@@ -532,8 +532,21 @@ bool WaterCoreManager::clearSources(int id) {
 
 // The solver's source list is the authority (cells, rates); the GPU holds a mirror whose
 // placedTotal/pending come back after every step so the ledger reads as for the CPU.
+// 26.16: the sources' totals as the GPU's last collected call left them, into the solver's list (the GPU's list is the solver's
+// list as last pushed: sources are only appended or cleared, so the GPU's entries are the solver's first ones).
+void WaterCoreManager::pullSourceTotals(Av& av) {
+    std::vector<GpuSource> gs; m_gpu->readSources(*av.gpuVol, gs);
+    auto& srcs = av.solver->sourcesMutable();
+    for (size_t i = 0; i < gs.size() && i < srcs.size(); ++i) { srcs[i].placedTotal = gs[i].total(); srcs[i].pending = gs[i].pending; srcs[i].unplaced = gs[i].unplaced; }
+}
+
 bool WaterCoreManager::pushSourcesToGpu(Av& av, std::string* err) {
     if (!av.gpuVol || !m_gpu) return false;
+    // 26.16: in ASYNC mode the solver's totals are one call old - the call in flight has placed water since. Finish it and take
+    // the GPU's totals first, or re-sending the list would erase what that call counted (the creek bench: 7.6e-3 m^3 lost from
+    // the books over 18 springs added one by one)
+    m_gpu->settle(*av.gpuVol);
+    pullSourceTotals(av);
     std::vector<GpuSource> gs;
     for (const SourceSpec& s : av.solver->sources()) {
         GpuSource g; g.cell = static_cast<int32_t>(av.grid->idx(s.cell.x, s.cell.y, s.cell.z)); g.rate = s.rate;

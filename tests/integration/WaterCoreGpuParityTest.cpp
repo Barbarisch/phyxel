@@ -1033,6 +1033,85 @@ TEST_F(WaterCoreGpuParityTest, GpuSourceTotalsKeepTheBooksAfterALongRun) {
     gpu.destroyVolume(vol);
 }
 
+// 26.16: the water's call not waited on. ASYNC mode submits a call and collects it at the next one; the GPU runs the same
+// commands in the same order, so the water is bit-identical to SYNC mode - only what the host sees lags one call. A sparse
+// sloshing tank with a pump and outfalls (residency moves, the substep count varies), 150 calls (2.5 s) in each mode.
+TEST_F(WaterCoreGpuParityTest, GpuAsyncEqualsSync) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 9.0f;
+    auto rig = [&](Tank& t) {
+        for (int z = 0; z < 6; ++z) for (int y = 0; y < 5; ++y) for (int x = 0; x < 8; ++x) t.grid.f(x, y, z) = 1.0f;   // a dam break
+        t.bakeOcc();
+        std::string err;
+        BrickOptions bo; bo.sparse = true;
+        auto* v = gpu.createVolume(t.grid, &err, bo);
+        if (!v) { ADD_FAILURE() << err; return v; }
+        std::vector<GpuSource> srcs;
+        { GpuSource s; s.cell = static_cast<int32_t>(t.grid.idx(1, 5, 2)); s.rate = 0.003f; srcs.push_back(s); }
+        for (int z = 0; z < 6; ++z) { GpuSource s; s.cell = static_cast<int32_t>(t.grid.idx(31, 0, z)); s.kind = 1.0f; srcs.push_back(s); }
+        if (!gpu.setSources(*v, srcs, &err)) ADD_FAILURE() << err;
+        return v;
+    };
+    Tank ts(32, 12, 6, h), ta(32, 12, 6, h);
+    auto* vs = rig(ts); auto* va = rig(ta);
+    ASSERT_NE(vs, nullptr); ASSERT_NE(va, nullptr);
+    gpu.setAsync(*va, true);
+    SolverParams p; p.pondFriction = 0.0f;
+    std::vector<GpuStepStats> ss, sa;
+    for (int k = 0; k < 150; ++k) { ss.push_back(gpu.step(*vs, p, kDt, 1, 27)); sa.push_back(gpu.step(*va, p, kDt, 1, 27)); }
+    int lagged = 0, substeps = 0;
+    for (int k = 1; k < 150; ++k) {   // async call k returns what sync call k-1 returned
+        substeps = std::max(substeps, ss[k].substepsLast);
+        if (sa[k].totalMass == ss[k - 1].totalMass && sa[k].kineticEnergy == ss[k - 1].kineticEnergy && sa[k].substepsLast == ss[k - 1].substepsLast
+            && sa[k].bricks == ss[k - 1].bricks) ++lagged;
+    }
+    WaterGrid gs = ts.grid, ga = ta.grid;
+    gpu.download(*vs, gs); gpu.download(*va, ga);   // download finishes the call in flight
+    std::vector<GpuSource> rs, ra; gpu.readSources(*vs, rs); gpu.readSources(*va, ra);
+    auto same = [](const std::vector<float>& x, const std::vector<float>& y) { return x.size() == y.size() && std::memcmp(x.data(), y.data(), x.size() * sizeof(float)) == 0; };
+    double ins = 0, outs = 0, ina = 0, outa = 0;
+    for (const auto& s : rs) (s.kind == 1.0f ? outs : ins) += s.total();
+    for (const auto& s : ra) (s.kind == 1.0f ? outa : ina) += s.total();
+    std::printf("  sync: mass %.6f m^3, in %.6f, out %.6f; async: mass %.6f, in %.6f, out %.6f; %d of 149 stats lag one call; max substeps %d, bricks %d\n",
+                gs.totalMass(), ins, -outs, ga.totalMass(), ina, -outa, lagged, substeps, ss.back().bricks);
+    EXPECT_TRUE(same(gs.fData(), ga.fData()));
+    EXPECT_TRUE(same(gs.uData(), ga.uData()));
+    EXPECT_TRUE(same(gs.vData(), ga.vData()));
+    EXPECT_TRUE(same(gs.wData(), ga.wData()));
+    EXPECT_EQ(ins, ina); EXPECT_EQ(outs, outa);
+    EXPECT_EQ(lagged, 149);
+    EXPECT_GT(-outs, 0.0);   // the outfalls ran
+    gpu.destroyVolume(vs); gpu.destroyVolume(va);
+}
+
+// 26.16: the books through the ENGINE while its GPU volume runs ASYNC (realtime). Found live on the creek bench: adding the
+// springs one by one re-sent the source list from the host, whose totals are one call old in async mode - the call in flight
+// had placed water its totals no longer counted (7.6e-3 m^3 by the 18th spring). A 4 m channel, an outfall, a pump, a second
+// pump added mid-run: the record's mass - (in - out) must stay at the float floor.
+TEST_F(WaterCoreGpuParityTest, GpuAsyncEngineKeepsTheBooksAcrossSourceEdits) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };   // micro coords: a flat floor at y 0
+    WaterCoreManager mgr(state);
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(3, 0, 0), 1.0f / 9.0f, "eulerian", &err, "gpu", 27);
+    ASSERT_NE(id, 0) << err;
+    mgr.setRealtime(true);
+    for (int z = 0; z < 9; ++z) ASSERT_TRUE(mgr.addSource(id, glm::vec3(3.95f, 0.05f, (z + 0.5f) / 9.0f), 0.0f, &err, true)) << err;
+    ASSERT_TRUE(mgr.addSource(id, glm::vec3(0.05f, 0.05f, 0.5f), 0.02f, &err)) << err;
+    double worst = 0.0;
+    auto books = [&]() { const AvRecord* r = mgr.find(id); return r ? r->mass - (r->sourceIn - r->outfallOut) : 1.0; };
+    for (int k = 0; k < 600; ++k) {
+        if (k % 60 == 30 && k < 360) ASSERT_TRUE(mgr.addSource(id, glm::vec3(0.05f, 0.05f, 0.2f + 0.1f * (k / 60)), 0.005f, &err)) << err;   // a spring added while it runs
+        mgr.update(1.0f / 60.0f);
+        worst = std::max(worst, std::abs(books()));
+    }
+    const AvRecord* r = mgr.find(id); ASSERT_NE(r, nullptr);
+    std::printf("  in %.6f out %.6f mass %.6f m^3: books %+.2e, worst over the run %.2e m^3\n", r->sourceIn, r->outfallOut, r->mass, books(), worst);
+    EXPECT_GT(r->outfallOut, 0.0);
+    EXPECT_LT(worst, 1e-6);
+}
+
 // 26.12 P2b measurement: the ENGINE's path (WaterCoreManager + GPU) on the creek bench's box - 100 m x 4 m x 2 m at 1/9 m
 // (900 x 18 x 36 = 583,200 cells), a 2 m channel 1 m deep along x, water 0.3 m deep and tilted so it flows, one 1/3 m body
 // drifting along the surface. Where a frame's time goes: create, update (the step), the body feed, the surface read, a
