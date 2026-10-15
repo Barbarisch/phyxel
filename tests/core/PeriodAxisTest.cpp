@@ -183,4 +183,10 @@ TEST(PeriodAxis, AnUnknownPeriodRefusesRatherThanSubstituting) {
         << "an unknown period did not refuse at intake: " << res.dump();
     EXPECT_EQ(res.value("requested_period", std::string()), "victorian");
     ASSERT_TRUE(res.contains("known_periods")) << "the refusal must say what IS available";
+    // An empty list would satisfy contains(); the shipped legacy file is loaded first, so the
+    // list must name medieval (auditor finding, 2026-10-15).
+    ASSERT_TRUE(res["known_periods"].is_array() && !res["known_periods"].empty()) << res.dump();
+    bool medieval = false;
+    for (const auto& k : res["known_periods"]) medieval = medieval || k == "medieval";
+    EXPECT_TRUE(medieval) << "known_periods does not name the shipped era: " << res.dump();
 }

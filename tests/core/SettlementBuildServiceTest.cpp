@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <cstdio>
+#include <fstream>
 #include <set>
 #include <string>
 
@@ -163,6 +165,39 @@ TEST(SettlementBuildServiceTest, AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted
             << "the refusal must tell the caller what IS valid, not just say no: "
             << plan.error.dump();
     }
+}
+
+// An era the SETTLEMENT program knows but the ROOM programs have no pack for must refuse
+// naming the pack and what IS available (M0 row 6's refusal, untested until the 2026-10-15
+// audit). Shipped data has one era, so the test declares a second one through the
+// settlement_program override: georgian = a copy of the medieval hamlet tier.
+TEST(SettlementBuildServiceTest, AKnownEraWithoutARoomProgramPackIsRefusedNamingThePack) {
+    nlohmann::json shipped;
+    { std::ifstream in("resources/settlement_program.json"); ASSERT_TRUE(in.good()); in >> shipped; }
+    ASSERT_TRUE(shipped["eras"]["medieval"]["tiers"].contains("hamlet"));
+    nlohmann::json prog = {{"eras", {{"medieval", shipped["eras"]["medieval"]},
+                                     {"georgian", {{"tiers", {{"hamlet",
+                                        shipped["eras"]["medieval"]["tiers"]["hamlet"]}}}}}}}};
+    const std::string tmp = "test_georgian_settlement_program.json";
+    { std::ofstream out(tmp); out << prog.dump(2); }
+
+    nlohmann::json params = {{"era", "georgian"}, {"tier", "hamlet"}, {"seed", 3},
+                             {"settlement_program", tmp}, {"width", 80}, {"depth", 48},
+                             {"position", {{"x", 0}, {"y", 16}, {"z", 0}}}};
+    SettlementBuildService::Deps deps;
+    const auto plan = SettlementBuildService::plan(params, deps);
+    std::remove(tmp.c_str());
+
+    ASSERT_FALSE(plan.ok()) << "a georgian settlement planned with medieval room programs";
+    EXPECT_TRUE(plan.units.empty());
+    EXPECT_EQ(plan.error.value("era", std::string()), "georgian") << plan.error.dump();
+    EXPECT_EQ(plan.error.value("room_program_pack", std::string()),
+              "resources/room_programs/georgian.json") << plan.error.dump();
+    ASSERT_TRUE(plan.error.contains("known_periods"))
+        << "the refusal must say what IS available: " << plan.error.dump();
+    bool medieval = false;
+    for (const auto& k : plan.error["known_periods"]) medieval = medieval || k == "medieval";
+    EXPECT_TRUE(medieval) << plan.error.dump();
 }
 
 // A footprint too small for the tier's morphology must fail fast with a reason,

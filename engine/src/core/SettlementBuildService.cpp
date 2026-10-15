@@ -325,8 +325,13 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         Core::SettlementTierPreset densified;
         Core::SettlementTierPreset sited;   // site-scaled copy (scaleForSite), same lifetime rule
         if (programMode) {
-            if (!programReg.loadFromFile("resources/settlement_program.json")) {
-                res.error = {{"error", "settlement_program.json failed to load"}};
+            // Overridable ({"settlement_program": path}) like room_program, so a test can
+            // declare an era the room programs have no pack for and drive that refusal.
+            const std::string settlementProgramPath =
+                p.value("settlement_program", std::string("resources/settlement_program.json"));
+            if (!programReg.loadFromFile(settlementProgramPath)) {
+                res.error = {{"error", "settlement program not loadable: " + settlementProgramPath},
+                             {"settlement_program", settlementProgramPath}};
                 return res;
             }
             tierP = programReg.get(era, tierName);

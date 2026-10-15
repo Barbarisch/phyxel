@@ -411,7 +411,15 @@ missing-pack refusal I added emitted `requested_period` + `room_program_pack` bu
 "51/51" did not include that fixture. Fixed the same day (both the forge intake and the settlement-side era
 refusal now carry `known_periods`); PeriodAxis + ForgeStageOrder + StructureForge/Build + SettlementBuild +
 RoomProgram/BuildingProgram = 54/54 (`m0_period_fix_green.txt`). Second red-since-a-row contract test in two
-days — the rule stands: after a row, run every fixture that names the thing changed. **Still owed,
+days — the rule stands: after a row, run every fixture that names the thing changed. **Solution-auditor on
+that fix (raw): "VERDICT: PASS for the narrow claim, which is the forge-intake fix and its fixture. The
+settlement-side half of the claim has no test, and the test is weak on the content of `known_periods`."**
+Both closed the same day: `PeriodAxis` now requires a non-empty list naming `medieval`; the settlement-side
+era-without-pack refusal (reachable only with a second era, which shipped data lacks) is driven by
+`SettlementBuildServiceTest.AKnownEraWithoutARoomProgramPackIsRefusedNamingThePack` through a new
+`{"settlement_program": path}` override (mirrors row 6's `room_program`), red by mutation
+(`m0_period_settlement_red.txt`: fails only on the absent `known_periods`) → green 55/55
+(`m0_period_settlement_green.txt`). **Still owed,
 updated:** the unseated-only L4 proof (a site with skipped>0, blocked==0 — the town once its two blocked
 routes are fixed, or a lab); a unit test that drives the probe loop to produce `skipped`; the generator A/B
 for hamlet 1 (old vs merged flood on this seed); the plan-time `site_list.surfaceY` vs chunk `surface_y`

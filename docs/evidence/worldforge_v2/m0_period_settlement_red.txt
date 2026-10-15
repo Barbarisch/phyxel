@@ -1,0 +1,21 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[14:12:50.571] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:12:50.577] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:12:50.583] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:12:50.588] [INFO] [RoomProgram] Loaded 1 'georgian' room programs from test_georgian_pack.json[0m
+[32m[14:12:50.593] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:12:50.602] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:12:50.606] [INFO] [RoomLayout] entrance moved off the stair shaft: (0,3) -> (3,0)[0m
+[32m[14:12:50.615] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[14:12:50.622] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:12:50.625] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[14:12:50.655] [INFO] [SettlementProgram] Loaded 5 settlement tiers from test_georgian_settlement_program.json[0m
+[32m[14:12:50.660] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(196): error: Value of: plan.error.contains("known_periods")
+  Actual: false
+Expected: true
+the refusal must say what IS available: {"era":"georgian","error":"no room-program pack for era 'georgian': resources/room_programs/georgian.json (the engine never substitutes another era's buildings)","room_program_pack":"resources/room_programs/georgian.json"}
+
+[  FAILED  ] SettlementBuildServiceTest.AKnownEraWithoutARoomProgramPackIsRefusedNamingThePack (39 ms)
+[==========] 8 tests from 2 test suites ran. (107 ms total)
+[  PASSED  ] 7 tests.
