@@ -80,8 +80,12 @@ remainder; GPU still water now settles and sleeps (`GpuRestDecisionDeterministic
 per stage with GPU timestamps: only the water's columns cross to the host now, and the extrapolation ping-pongs without
 copies. **26.12 P2b BUILT (2026-10-14): the engine on bricks** - engine GPU volumes are sparse; on the creek bench's box
 (583,200 cells) a frame went from 21 ms (one moving body) + 7.1 ms (update) to 0.36 + 2.2 ms, a forced read-back 257 -> 14 ms.
-**Next:** the owner's A/B of 26.10; P3 (creeks and ponds on one model - the creek bench as pond water). The §23 slime
-experiment stays queued.
+**26.13-26.14 (2026-10-14): P3a BUILT, P3b first run** - the creek bench runs as POND water live (one sparse GPU volume,
+springs, outfalls, Manning at the bed, a ripple window): steady out/in 0.991, ledger 7e-5 m^3, ripples on. Two things open
+before it can replace the column creek: the cost (~6 ms a call at 1,216 bricks - 3x the budget) and the depth (the pond
+model flows over the carve's REAL 1/3 m steps, the column run flowed over the line - not the same creek; 26.14).
+**Next:** the cost of a creek-length volume (flat bricks, the sweeps, the GPU contention live); the comparison on the same
+bed; then P3c. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5203,7 +5207,7 @@ the box). P3, P4, P5 **not started**.
   body of water is one set of bricks wherever it lies. **Gates:** a sparse run equals the dense run of the same water
   (the 25.32 equality shape: bit-identical on the CPU reference, parity on the GPU); cost per water cell measured; the
   100 m bench creek (~22,000 cells) inside 25.10's budget.
-- **P3 - creeks and ponds on one model.** [designed - 26.13; P3a building] The creek bench, the dam & pond bench and the pond benches all run as pond water;
+- **P3 - creeks and ponds on one model.** [designed - 26.13; P3a BUILT; P3b first run - 26.14: cost and the bed open] The creek bench, the dam & pond bench and the pond benches all run as pond water;
   springs and outfalls are the pond core's sources and sinks; the bed is the generator line (option a). **Gates:** the
   numbers the column solver met (25.28 K: speed vs Manning, roughness tuning; 25.38 DP: fill rate Q/A, spill at the crest,
   the dam's dip and the break's surge, the ledger exact across edits) met by the pond model; ripples and splashes as on
@@ -5813,6 +5817,49 @@ cell / per face, world-addressed. *Generation:* none (runtime; the bench's carve
 echoed, defaults unchanged (`manning_n` 0, no outfall). *Visual test:* the creek bench at its RC pose, old (column) vs new
 (pond) clips, plus the numbers. *Small rigs and controls:* each P3a gate is a unit rig with the CPU (or the old path) as
 its control. **Verdict: READY for P3a.**
+
+### 26.14 P3a built; P3b - the creek bench as pond water, first run (2026-10-14). Status: P3a BUILT; P3b RUNNING, not passed
+
+**P3a (26.13's list), each red-before-green:**
+- *The ripple window for every volume* - `WaterCoreManager::rippleWindow`, one rule for volumes and column regions
+  (`WaterColumnTest.EveryVolumeGetsTheRippleWindow`: a 100 m volume gets a 384-cell window that follows the view, clamped to
+  its box - refused before; a 4 x 4 m pond's layer is its whole box at its corner, unmoved - as before). A volume with
+  `manning_n` > 0 is carried by its surface velocity and forced by u* (the regions' 25.26 rule); a pond steps as before.
+- *Outfalls* - `SourceSpec::outfall` / `GpuSource.kind = 1`: the cell and the cells above it emptied every substep, counted
+  (`WaterCoreTest.AnOutfallTakesWhatArrives`, `GpuOutfallTakesWhatArrives`: a pump and an outfall on a 4 m channel - last 30 s
+  out 0.06048 vs in 0.06000 m^3, ledger 2e-7 (CPU) / 3e-6 (GPU) m^3; CPU and GPU agree to the printed digit).
+- *Manning at the bed on the GPU* - `wc_face_ops` mode 10 (`GpuBedManningMatchesCpu`: 0.36 % from the CPU; the law takes 10 %
+  off the rig's frictionless slosh at n 0.1).
+- *Found live, fixed:* a pump added to a SLEEPING GPU volume never ran - `setSources` did not wake it (the creek's empty
+  volume slept in half a second and its springs placed nothing). `GpuAPumpWakesASleepingVolume` (red: 0 m^3 -> 0.001 m^3).
+- *API:* `water_av_create {manning_n}`, `water_av_source {outfall: true}`, `water_av_column {points}` (the drawn surface at
+  voxel columns, no read-back; registered in EngineAPIServer), the record's `source_in_m3`, `outfall_out_m3`, `outfalls`,
+  `manning_n`. Tool: `tools/water_creek_bench.py --run --pond [--q] [--sweeps] [--record]`.
+- All GPU water tests pass but the known FLIP row (33); CPU water tests 305 / 305.
+
+**P3b first run (WaterBench_Creek, q 0.2 m^3/s, one sparse GPU volume of 1,749,600 cells over the creek, 40 sweeps,
+n 0.035; `creekbench_pond_q0.2.{json,mp4}` = the fill, `creekbench_pond_q0.2_steady.mp4` = steady flow):**
+- *The fill:* the front runs the dry gravel at ~0.6 m/s and reaches the foot at ~170 s; the ledger holds through it (in
+  32.207, stored 32.207 m^3 at 160 s).
+- *Steady (after ~7 min):* out/in 0.991 over 20 s, stored flat (44.30 -> 44.34 m^3), ledger 7e-5 m^3 (gate 1e-4: met).
+- *Ripples:* one window (384 x 54), awake, flow-forced; facet slopes 0.05-0.2 (the band 25.29 tuned the column creek to).
+- *The depth - NOT comparable to Manning on this bed.* The pond model flows over the carve's VOXELS: the bed is FLAT from
+  x 11 to 77 (15.33 m) and from 78 to 109 (15.0 m) with a 1/3 m drop between (the 1:200 line floored to the 1/3 m grid).
+  Steady profile: 0.31 m at the head of each flat reach falling to 0.16 m at the drop's edge (the drawdown to critical depth
+  over a step - yc = 0.10 m for 0.1 m^2/s). The column run flowed over the LINE (`bed: plane`, option (a)), so its Manning
+  comparison (0.165 m at q 0.2) is a different creek. On the flat reach the surface's friction slope reads ~1.3-1.6x
+  Manning's for the measured depth and speed (the 2 m channel's walls account for ~1.3x by hydraulic radius; the rest is
+  not explained, and the solve was not converged - residual 0.6 at 40 sweeps).
+- *The cost - 3x over.* ~6 ms a call (the record's wall time, live, with the renderer sharing the GPU) at 1,216 bricks:
+  the creek's water (2 m x 0.2-0.3 m) straddles brick layers, so ~4 brick layers of 8 are stored per brick column.
+
+**Open (P3b is not passed):**
+1. *The same bed for both models* - run the column solver over the VOXEL bed (its default, not `plane`) beside the pond run
+   for the depth/speed comparison, or re-carve the bench at the 1/9 m grid (drops of 1/9 m every 22 m - closer to the line)
+   and run both. The owner's choice of bench decides which (the column creek's look was signed off on the line).
+2. *The cost of a creek-length volume:* flat bricks (8 x 2 x 8 - the creek's water is 2-3 cells deep), the sweep count with
+   the guess (measure the residual at 20-40), and the live figure without the renderer's share (GPU timestamps).
+3. *The drag excess* on the flat reach, once the solve is converged and the walls accounted for.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

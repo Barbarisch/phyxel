@@ -960,6 +960,25 @@ TEST_F(WaterCoreGpuParityTest, GpuBedManningMatchesCpu) {
 // 26.13 P3a: the GPU outfall (GpuSource kind 1) - the CPU rig of WaterCoreTest.AnOutfallTakesWhatArrives on the device: a
 // pump at one end of a 4 m channel, an outfall across the other end. Steady out = in within 2 % over the last 30 s of 90;
 // the ledger (downloaded fills = in - out) within 1e-5 m^3 (the device's ledger floats).
+// 26.13: a pump added to a SLEEPING volume runs it. Found live: the creek bench's pond volume was created empty, slept within
+// half a second, and its springs never placed a drop (setSources did not wake it). RED before the fix: mass stays 0.
+TEST_F(WaterCoreGpuParityTest, GpuAPumpWakesASleepingVolume) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    Tank t(12, 6, 12, 1.0f / 9.0f);
+    auto* vol = make(t); ASSERT_NE(vol, nullptr);
+    SolverParams p;
+    GpuStepStats st;
+    for (int k = 0; k < 120 && !st.asleep; ++k) st = gpu.step(*vol, p, kDt, 1, 27);
+    ASSERT_TRUE(st.asleep) << "the empty volume sleeps first (the precondition)";
+    GpuSource s; s.cell = static_cast<int32_t>(t.grid.idx(6, 0, 6)); s.rate = 0.001f;
+    std::string err; ASSERT_TRUE(gpu.setSources(*vol, {s}, &err)) << err;
+    for (int k = 0; k < 60; ++k) gpu.step(*vol, p, kDt, 1, 27);
+    gpu.download(*vol, t.grid);
+    std::printf("  after the pump was added to the sleeping volume: %.6f m^3 (pumped 1 s at 0.001 m^3/s)\n", t.grid.totalMass());
+    EXPECT_NEAR(t.grid.totalMass(), 0.001, 1e-4);
+    gpu.destroyVolume(vol);
+}
+
 TEST_F(WaterCoreGpuParityTest, GpuOutfallTakesWhatArrives) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     const float h = 1.0f / 9.0f;

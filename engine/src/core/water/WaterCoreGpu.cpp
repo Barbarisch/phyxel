@@ -627,6 +627,7 @@ bool WaterCoreGpu::setSources(Volume& vol, const std::vector<GpuSource>& sources
     vol.sourceCount = static_cast<int>(sources.size());
     vol.sourceCells.clear();
     for (const GpuSource& s : sources) vol.sourceCells.push_back(s.cell);   // 26.6: a pump's brick is always stored
+    if (!sources.empty()) { vol.asleep = false; vol.quietTicks = 0; }   // 26.13: a pump added to a sleeping (e.g. empty) volume must run it - it never woke (the creek bench)
     VkCommandBuffer cmd = beginCommands();
     copy(cmd, vol.staging, vol.sources, kMaxSources * sizeof(GpuSource), vol.offSources);
     vkCmdFillBuffer(cmd, vol.src.buf, 0, vol.src.bytes, 0);   // the projection's per-cell rates are rebuilt by the kernel
