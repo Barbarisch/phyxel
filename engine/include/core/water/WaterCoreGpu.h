@@ -118,7 +118,6 @@ public:
         Buffer f, fOrig, fPrev, u, v, w, uOld, vOld, wOld, occ, src, liq, diag, rhs, p, res;
         Buffer fLo;                      ///< 26.10: per cell, the part of the transport's fill change the float store could not hold
         Buffer valA, valB, knownA, knownB, first, keep, dropped, part, part2, out;
-        Buffer origLat;                  ///< extrapolation scratch: the lattice before the halo pass (NOT uOld: that is the FLIP base)
         // Phase B2 on the GPU: the particle transport (FlipTransport mirrored on the device)
         bool particles = false;          ///< this volume's mass is carried by particles
         size_t particleCount = 0, particleCapacity = 0;
@@ -126,7 +125,13 @@ public:
         Buffer posA, velA, posB, velB, pcount, pstart, pcursor;
         VkDeviceSize offParticles = 0;   ///< staging region for pos+vel (capacity x 32 B)
         Buffer sources;                  ///< GpuSource array (device-local; kMaxSources)
-        Buffer surf;                     ///< Phase F: the surface field (columns x 48 B), written by wc_surface at the end of every step
+        Buffer surf;                     ///< Phase F: the surface field, 26.11 PACKED - only the columns holding water: [one-run records, 32 B x
+                                         ///< columns | multi-run records, 64 B x columns]; a dry column is rebuilt on the host (ground at hostSolidTop)
+        Buffer birthsPacked, lists;      ///< 26.11: the columns with droplet births (8 floats, the dense column index in slot 7); [one-run, births, multi-run] counts
+        std::vector<float> hostSolidTop; ///< 26.11: per dense column, the top face of its highest solid cell (-1e30 none) - from the upload's occupancy
+        std::array<uint32_t, 3> lastCount{}, copied{};   ///< 26.11: per list (one-run, births, multi-run): last call's length (the next copy is
+                                                         ///< predicted from it) and how many entries the staging holds
+        bool listsSized = false;         ///< 26.11: false until a first call measured the lists (the first copy takes every column)
         Buffer solid;                    ///< 20 (moving solids): vec4 per cell = (s, q m^3/s, wake seconds, ledger 0/1); all zero = no body (every rule as before)
         VkDeviceSize offSolid = 0;       ///< staging region of the solid buffer (cells x 16 B)
         bool  solidRatesPending = false; ///< setSolids uploaded new fields: the next step computes q and the ledger marks first (wc_classify mode 1)
@@ -134,6 +139,9 @@ public:
         bool  hasSolids = false;         ///< the buffer holds anything nonzero
         Buffer stageCap;                 ///< 26.10 test hook: f after each stage of the last tick (host-visible, s_stageCapture)
         double stageLast = -1.0;         ///< 26.10: the last captured call's end sum (cells), -1 = none
+        VkQueryPool tsPool = VK_NULL_HANDLE;   ///< 26.11 test hook: GPU timestamps per stage (s_kernelTiming)
+        int tsCount = 0;                 ///< stamps written this call
+        std::array<int, 64> tsLabel{};   ///< the stage each stamp closes
         Buffer births, deposit;          ///< 21 (droplets): per column 8 floats (wc_column_ops mode 4/5); per cell fractions to add
         VkDeviceSize offBirths = 0, offDeposit = 0;
         bool dropletsOn = false;         ///< run the birth pass after every tick
@@ -175,6 +183,12 @@ public:
     static inline bool s_stageCapture = false;
     static inline double s_stageDm[kStages] = {};
     static inline long s_stageCalls = 0;
+    /// 26.11 test hook: GPU time per stage of single-tick, single-substep calls (timestamps; ms accumulated in s_tsMs[label]).
+    enum TsLabel : int { TsStart = 0, TsResidency, TsSources, TsTransport, TsVelAdvect, TsCompaction, TsForces, TsClassify, TsSweeps,
+                         TsVelUpdate, TsExtrapolate, TsSettle, TsSweepBirths, TsBrickRecord, TsReduce, TsSurfaceKernel, TsSurfaceCopy, TsReduceSurface, TsLabelCount };
+    static inline bool s_kernelTiming = false;
+    static inline double s_tsMs[TsLabelCount] = {};
+    static inline long s_tsCalls = 0;
     void setOmega(float w) { m_omega = w; }
     float omega() const { return m_omega; }
 
@@ -230,6 +244,7 @@ private:
     void copy(VkCommandBuffer cmd, const Buffer& from, const Buffer& to, VkDeviceSize bytes, VkDeviceSize srcOff = 0, VkDeviceSize dstOff = 0) const;
     void recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, const SolverParams& params, int sweeps, bool quietBefore);
     void recordExtrapolate(VkCommandBuffer cmd, Volume& vol, WcPush push, bool particles);
+    void stamp(VkCommandBuffer cmd, Volume& vol, int label) const;   ///< 26.11 test hook (no-op unless the volume's pool is armed)
     void recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush push);
     VkCommandBuffer beginCommands() const;
     void submitAndWait(VkCommandBuffer cmd) const;

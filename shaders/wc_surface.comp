@@ -19,6 +19,14 @@ layout(std430, set = 0, binding = 2) writeonly buffer Surf { float surf[]; };
 layout(std430, set = 0, binding = 3) readonly buffer U   { float uF[]; };
 layout(std430, set = 0, binding = 4) readonly buffer W   { float wF[]; };
 layout(std430, set = 0, binding = 5) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
+// 26.11 (WaterCore.md): PACKED lists - only what the host needs crosses the bus. A column holding ONE run appends 8 floats to the
+// front of surf (top, bottom, u, w, body, -, -, its dense column index x + nx z); one with several runs appends its full 16-float
+// record behind them (the index in slot 15); a dry column is rebuilt on the host (no water, ground at its solid top). A
+// column with droplet births appends its 8-float record to birthsPacked (the dense index in slot 7, unused in the record). The
+// order is the atomics' - the host scatters by index, so the result is the same whatever the order.
+layout(std430, set = 0, binding = 7) readonly buffer Births  { float births[]; };
+layout(std430, set = 0, binding = 8) writeonly buffer BirthsP { float birthsP[]; };
+layout(std430, set = 0, binding = 9)          buffer Lists   { uint lists[]; };   // [one-run, births, multi-run] counts
 
 // WaterGrid::levelFill (20.5): water + the body volume it surrounds; a body in air (f below the film) is not water
 float levelFill(int x, int y, int z) {
@@ -56,18 +64,34 @@ void main() {
         else top[3] += sum * pc.h;
         topCell = t;
     }
-    const uint base = id * 16u;
+    const uint denseCol = uint(x) + uint(pc.nx) * uint(z);
+    {   // births first (independent of the surface)
+        bool any = false;
+        for (uint k = 0u; k < 7u; ++k) any = any || births[id * 8u + k] != 0.0;
+        if (any) {
+            const uint e = atomicAdd(lists[1], 1u);
+            for (uint k = 0u; k < 7u; ++k) birthsP[e * 8u + k] = births[id * 8u + k];
+            birthsP[e * 8u + 7u] = uintBitsToFloat(denseCol);
+        }
+    }
+    if (runs == 0) return;   // dry: the host rebuilds it
+    float b = 0.0, cu = 0.0, cw = 0.0;
+    if (topCell >= 0) {   // 20: a body at the surface - the level here is the body's (SurfaceColumn::bodyAtSurface); E2: the top cell's velocity
+        b = solid[cellIdx(x, topCell, z)].x;
+        if (topCell + 1 < pc.ny) b = max(b, solid[cellIdx(x, topCell + 1, z)].x);
+        cu = 0.5 * (uF[uIdx(x, topCell, z)] + uF[uIdx(x + 1, topCell, z)]);
+        cw = 0.5 * (wF[wIdx(x, topCell, z)] + wF[wIdx(x, topCell, z + 1)]);
+    }
+    if (runs == 1) {
+        const uint e = atomicAdd(lists[0], 1u) * 8u;
+        surf[e] = top[0]; surf[e + 1u] = bottom[0]; surf[e + 2u] = cu; surf[e + 3u] = cw; surf[e + 4u] = b;
+        surf[e + 5u] = 0.0; surf[e + 6u] = 0.0; surf[e + 7u] = uintBitsToFloat(denseCol);
+        return;
+    }
+    const uint base = uint(pc.param1) * 8u + atomicAdd(lists[2], 1u) * 16u;
     for (int r = 0; r < 4; ++r) { surf[base + uint(r)] = top[r]; surf[base + 4u + uint(r)] = bottom[r]; }
     surf[base + 8u] = solidTop;
     surf[base + 9u] = float(runs);
-    for (uint k = 10u; k < 16u; ++k) surf[base + k] = 0.0;
-    if (topCell >= 0) {   // 20: a body at the surface - the level here is the body's (SurfaceColumn::bodyAtSurface, slot 13)
-        float b = solid[cellIdx(x, topCell, z)].x;
-        if (topCell + 1 < pc.ny) b = max(b, solid[cellIdx(x, topCell + 1, z)].x);
-        surf[base + 13u] = b;
-    }
-    if (topCell >= 0) {
-        surf[base + 11u] = 0.5 * (uF[uIdx(x, topCell, z)] + uF[uIdx(x + 1, topCell, z)]);
-        surf[base + 12u] = 0.5 * (wF[wIdx(x, topCell, z)] + wF[wIdx(x, topCell, z + 1)]);
-    }
+    surf[base + 10u] = 0.0; surf[base + 11u] = cu; surf[base + 12u] = cw; surf[base + 13u] = b; surf[base + 14u] = 0.0;
+    surf[base + 15u] = uintBitsToFloat(denseCol);
 }

@@ -10,6 +10,8 @@
 #include "IntegrationTestFixture.h"
 #include "core/water/WaterCore.h"
 #include "core/water/WaterCoreGpu.h"
+#include "core/water/WaterSurfaceMesh.h"
+#include <cstring>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -53,7 +55,8 @@ protected:
     void TearDown() override { gpu.shutdown(); VulkanTestFixture::TearDown(); }
 
     struct SceneResult { long ticksCompared = 0, ticksDiffering = 0, flux = 0, haloShort = 0; bool sentinel = false; int minBricks = 1 << 30, maxBricks = 0, denseBricks = 0;
-                         long allocated = 0, freed = 0; Diff diff; double massDense = 0, massSparse = 0; };
+                         long allocated = 0, freed = 0; Diff diff; double massDense = 0, massSparse = 0;
+                         long surfaceColumnsDiffering = 0; std::string surfaceFirst; };   // 26.11: the surface field the renderer gets, byte for byte
     /// Run `ticks` ticks of the same water in a dense and a sparse volume. `perTick(k, dense, sparse)` may feed bodies or
     /// sources before each step. `sparseOpts` lets the control freeze the residency.
     SceneResult runScene(const WaterGrid& start, int ticks, const std::function<void(int, WaterCoreGpu::Volume&, WaterCoreGpu::Volume&)>& perTick,
@@ -92,6 +95,15 @@ protected:
                 if (r.diff.first.empty()) { r.diff = d; r.diff.first = "tick " + std::to_string(k) + ": " + d.first; }
             }
             r.massDense = gd.totalMass(); r.massSparse = gs.totalMass();
+            {   // 26.11: the surface field (packed lists, dry columns rebuilt on the host) - a bricked volume draws what the dense box draws
+                std::vector<SurfaceColumn> sd(static_cast<size_t>(start.nx()) * start.nz()), ss(sd.size());
+                const bool okD = gpu.readSurface(*dv, reinterpret_cast<float*>(sd.data())), okS = gpu.readSurface(*sv, reinterpret_cast<float*>(ss.data()));
+                EXPECT_TRUE(okD && okS);
+                for (size_t c = 0; c < sd.size(); ++c) if (std::memcmp(&sd[c], &ss[c], sizeof(SurfaceColumn)) != 0) {
+                    ++r.surfaceColumnsDiffering;
+                    if (r.surfaceFirst.empty()) r.surfaceFirst = "tick " + std::to_string(k) + " column " + std::to_string(c);
+                }
+            }
         }
         gpu.destroyVolume(dv); gpu.destroyVolume(sv);
         return r;
@@ -103,6 +115,7 @@ protected:
     }
     void expectEqual(const char* name, const SceneResult& r) {
         report(name, r);
+        EXPECT_EQ(r.surfaceColumnsDiffering, 0) << name << ": the surface field differs, first at " << r.surfaceFirst;
         EXPECT_EQ(r.ticksDiffering, 0) << name << ": " << r.diff.first << " (f " << r.diff.f << ", u " << r.diff.u << ", v " << r.diff.v << ", w " << r.diff.w << ", p " << r.diff.p << " sites)";
         EXPECT_EQ(r.haloShort, 0) << name << ": water came within 4 cells of a brick that was not stored (the halo is too thin)";
         EXPECT_EQ(r.flux, 0) << name << ": water tried to move into a brick that was not stored";
@@ -264,6 +277,19 @@ TEST_F(WaterBrickTest, DISABLED_ACreekStoredSparseFitsTheBudget) {
             resMax = std::max(resMax, static_cast<double>(st.rbgsResidualMax));
             ms.push_back(st.gpuMs); bricks = st.bricks; shortBy += st.haloShort;
             res += st.hostResidencyMs / 30.0; wait += st.submitWaitMs / 30.0; after += st.hostAfterMs / 30.0;
+        }
+        {   // 26.11: where the GPU time goes (timestamps per stage; the stamps add a barrier each, so the total reads a little high)
+            WaterCoreGpu::s_kernelTiming = true; WaterCoreGpu::s_tsCalls = 0;
+            for (double& t : WaterCoreGpu::s_tsMs) t = 0.0;
+            for (int k = 0; k < 30; ++k) gpu.step(*v, prm, kDt, 1, sweeps);
+            WaterCoreGpu::s_kernelTiming = false;
+            static const char* nm[WaterCoreGpu::TsLabelCount] = {"-", "residency", "sources", "transport", "vel advect", "ledger+compaction", "forces+settle",
+                                                                  "classify+guess", "sweeps", "residual+vel update", "extrapolate", "settle+damping", "sweep+births", "brick record", "reductions", "surface kernel", "surface copy", "births copy"};
+            double tot = 0.0; for (double t : WaterCoreGpu::s_tsMs) tot += t;
+            const double c = static_cast<double>(std::max(1L, WaterCoreGpu::s_tsCalls));
+            std::printf("    GPU per call (%ld calls, total %.3f ms):", WaterCoreGpu::s_tsCalls, tot / c);
+            for (int q = 1; q < WaterCoreGpu::TsLabelCount; ++q) std::printf(" %s %.3f", nm[q], WaterCoreGpu::s_tsMs[q] / c);
+            std::printf("\n");
         }
         std::printf("    worst pressure residual over the timed calls %.2e\n", resMax);
         if (asleep) std::printf("    WARNING: asleep in %d of the 30 timed calls - the timing is not a stepping cost\n", asleep);

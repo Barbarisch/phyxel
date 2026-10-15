@@ -76,8 +76,10 @@ threshold fixed in BOTH backends (the surface jump, films thrown over a slow sur
 stuck at f = 0.5"). **26.10 (2026-10-14, built, not signed off):** the still-water first guess is ON - its resting-body loss
 was the float store rounding at f = 0.5 (and the GPU compiler folding every "exact difference"), fixed with a per-cell
 remainder; GPU still water now settles and sleeps (`GpuRestDecisionDeterministic` green, the live pond asleep in 2 s).
-**Next:** the owner's A/B of 26.10 (videos in 26.10); then the cost (the sweeps cannot buy it - flat bricks and fewer
-dispatches), P2b (the engine on bricks), P3. The §23 slime experiment stays queued.
+**26.11 (2026-10-14): the cost** - the creek call ~1.6 -> 1.02 ms at the engine's 27 sweeps (GPU 0.79 ms), measured
+per stage with GPU timestamps: only the water's columns cross to the host now, and the extrapolation ping-pongs without
+copies. **Next:** the owner's A/B of 26.10; flat bricks (11.4 stepped cells per creek water cell) if P3's water needs the
+room; P2b (the engine on bricks), P3. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5179,8 +5181,9 @@ immediate neighbours (where water can move next) - never a box of dry banks and 
 
 **Status (2026-10-14):** P1 **DONE** (signed off 2026-10-13, 26.5). P2a **DONE** - storage in bricks, bit-identical (26.8).
 **26.9 surface fixes DONE** (signed off 2026-10-14). **26.10 still-water guess ON by default, BUILT, not signed off** (the
-resting-body loss found and fixed - a per-cell float remainder; GPU still water settles and sleeps). OPEN: the P2 cost gate
-(1.80 ms at 40 sweeps for one creek; 2 ms is for ALL water). P2b, P3, P4, P5 **not started**.
+resting-body loss found and fixed - a per-cell float remainder; GPU still water settles and sleeps). **P2 cost gate MET at the
+median** (26.11: the creek 1.02 ms a call at 27 sweeps, GPU 0.79 ms; p90 2.06 ms is host jitter around the fence - the GPU sum
+does not vary). P2b, P3, P4, P5 **not started**.
 
 - **P1 - the pond model carries a creek.** [DONE, signed off 2026-10-13 - 26.5] Find, by measurement, why the pond core runs shallow fast water deep and slow,
   and fix it in the core (CPU reference first, then the GPU kernels - one law, both backends). Rig: the straight 1:100
@@ -5192,7 +5195,7 @@ resting-body loss found and fixed - a per-cell float remainder; GPU still water 
   mid-reach depth and speed within 5 % of Manning at two to three cells deep (and the one-cell case reported); the
   column solver's numbers on the same rig as the cross-check; the still-pond suite (§19-§24: slosh, waves, pebble pair,
   W-T tests) unchanged - the fix must not break the signed-off pond.
-- **P2 - storage that follows the water.** [P2a storage DONE - 26.8; cost gate OPEN - 26.8/26.9; P2b not started] The pond core on the GPU stores and steps BRICKS of 8 x 8 x 8 cells (8/9 m) that
+- **P2 - storage that follows the water.** [P2a storage DONE - 26.8; cost gate MET at the median - 26.11; P2b not started] The pond core on the GPU stores and steps BRICKS of 8 x 8 x 8 cells (8/9 m) that
   hold water or touch a brick that does; empty bricks are freed. Bricks are world-aligned (36 per 32 m chunk side), so a
   body of water is one set of bricks wherever it lies. **Gates:** a sparse run equals the dense run of the same water
   (the 25.32 equality shape: bit-identical on the CPU reference, parity on the GPU); cost per water cell measured; the
@@ -5646,6 +5649,41 @@ as signed off; right = guess on), plus the `_off` / `_on` clips and JSON.
 **Still open:** the cost (26.9 point 6 - about 1.2 ms of a creek call is not the solve; flat bricks and fewer dispatches);
 the FLIP row. **Design keys:** a per-cell storage detail, a pure function of the water; no chunk or brick dependence (the
 remainder moves with its brick); no new parameters.
+
+### 26.11 The cost, measured per stage (2026-10-14). Status: BUILT (no change to how water moves; the surface the renderer gets is the dense box's)
+
+**The ask:** 26.9 point 6 - the creek cost "about 1.2 ms is not the solve". Measured, not argued.
+
+**1. A GPU clock per stage.** Test hook `WaterCoreGpu::s_kernelTiming`: on single-tick calls the step writes a timestamp
+after each stage (one extra barrier each, so totals read a little high) and accumulates `s_tsMs[label]`;
+`DISABLED_ACreekStoredSparseFitsTheBudget` prints the table. The creek (592 bricks, 303,104 stepped cells, 40 sweeps), GPU
+1.63 ms a call: the sweeps 0.45, **the surface copy 0.37 and the births copy 0.20** (both to host memory, every stored
+column, every call), the extrapolation 0.20 (33 buffer copies a substep), the reductions 0.15, everything else < 0.06 each.
+
+**2. Only the water's columns cross to the host** (`wc_surface.comp`). A dry column's record is "no water, ground at its solid
+top" - the host rebuilds it from the upload's occupancy (`Volume::hostSolidTop`, the whole column: a bricked volume now reads
+the dense box's ground where a brick is absent, where it read 0 before). Wet columns append to packed lists by atomics with
+their dense column index: one-run columns 32 B (top, bottom, u, w, body), several-run columns the full 64 B record; columns
+with droplet births their 8 floats (`birthsPacked`). The host scatters by index, so the field is the same whatever the order.
+The copy takes the last call's length + 25 % + 64 (every column on a first call); a list that grew past that is completed
+with one more fenced copy. Gate: `SparseEqualsDenseAcrossSeams` now also compares the whole surface field the renderer gets,
+byte for byte, every tick (dam break, slosh, stone entry, pump, drain): equal. `GpuSurfaceFieldMatchesCpu` (one- and
+multi-run columns) passes.
+
+**3. The extrapolation without copies.** Four descriptor sets per lattice: the masks read the lattice, the three layers
+ping-pong A/B by set, the finish writes the lattice in place (`origLat` scratch deleted). Bit-identical (every GPU test's
+numbers unchanged, the FLIP row's to the last digit).
+
+**4. Measured (Release, the creek, median of 30 calls).** At the engine's 27 sweeps: **1.02 ms a call** (was ~1.6), GPU 0.79
+ms: sweeps 0.32, surface copy 0.09, extrapolation 0.085, transport 0.056, reductions 0.054, the rest < 0.035 each. At 40
+sweeps 1.32 ms. p90 2.06 ms at 27 sweeps: host jitter at the fence (the GPU sum does not vary). Live (WaterBench_Small slosh,
+25 s): the volume's step 1.03 -> 0.83 ms median; the pond drawn as before (`slosh_live_p2611.mp4`, `pebble_pair_p2611.mp4`).
+
+**Left on the table, by size:** the sweeps (0.32 ms: brick-local sweeps in shared memory would cut the dispatch count -
+changes convergence, needs its own gate); flat bricks for shallow water (the creek steps 11.4 cells per water cell); the
+reductions fused into fewer passes (~0.02 ms); one fewer fence per call by reading last call's results (a frame of latency -
+a design change for the coupling). **Design keys:** cost only; the drawn surface is a pure function of the water and the
+grid's occupancy (now also for absent bricks); no new parameters.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
