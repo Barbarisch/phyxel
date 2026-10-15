@@ -1,0 +1,28 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[15:07:27.826] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[15:07:29.140] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[15:07:29.141] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[15:07:29.186] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[15:07:30.683] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[15:07:30.683] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[15:07:30.792] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 104 ms (hash 390629209938214499)[0m
+[32m[15:07:30.792] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[15:07:30.819] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[15:07:32.121] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[15:07:32.121] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[32m[15:07:32.133] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[15:07:32.145] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[relief] fine window Y[140,304] mSteep=0.310 pSteep=0.000 | continental Y[-15,458] peakRelief=442
+[32m[15:08:43.397] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[15:08:44.075] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2836 bodies[0m
+[32m[15:08:44.075] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5797 maxOrder=5 drainageComplete=1[0m
+[slope] worst single step over 97240 mountain columns = 3 at (-213,-118)
+[32m[15:08:56.287] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[15:08:56.996] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[15:08:56.996] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[32m[15:08:57.000] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[==========] 16 tests from 5 test suites ran. (89198 ms total)
+[  PASSED  ] 16 tests.
+
+  YOU HAVE 1 DISABLED TEST
+

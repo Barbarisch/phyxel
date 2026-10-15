@@ -60,7 +60,13 @@ float tnGrad(int hash, float x, float y, float z) {
 // Gradient-noise lattice. NOTE: the lattice index is deliberately NOT masked with & 255 —
 // masking creates a hard several-voxel cliff at every multiple of 256 (world coord 0, chunk
 // edges). See the original comment in noise3D; preserved here verbatim.
+// M1 ColumnCostBench instrument (docs/WorldForgeV2Plan.md §9): one "noise eval" = one call of the
+// base 3-D gradient noise (an fbm with N octaves counts N). Thread-local so worker generators do
+// not contend; read through WorldGenerator::noiseEvalsThisThread().
+thread_local uint64_t t_noiseEvals = 0;
+
 float tnNoise3D(float x, float y, float z, uint32_t seed) {
+    ++t_noiseEvals;
     int xi = static_cast<int>(std::floor(x));
     int yi = static_cast<int>(std::floor(y));
     int zi = static_cast<int>(std::floor(z));
@@ -1811,6 +1817,8 @@ bool WorldGenerator::generateCity(const glm::ivec3& chunkCoord, const glm::ivec3
 // (single source of truth, seed passed explicitly so it's reusable by the coarse-model source
 // and the ridged detail). These members delegate, preserving identical behavior — including the
 // deliberately-unmasked lattice index that keeps noise continuous across chunk edges / x=z=0.
+uint64_t WorldGenerator::noiseEvalsThisThread() { return t_noiseEvals; }
+
 float WorldGenerator::perlinNoise3D(float x, float y, float z, int octaves, float persistence, float lacunarity) {
     return tnFbm(x, y, z, octaves, persistence, lacunarity, seed);
 }

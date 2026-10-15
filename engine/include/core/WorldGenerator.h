@@ -193,6 +193,11 @@ public:
     // Pure function of world (x,z) + seed/params, so it's seam-free and reusable by the
     // flora decoration pass (which lives outside WorldGenerator).
     ColumnSample sampleSurface(int worldX, int worldZ) { return sampleColumn(worldX, worldZ); }
+
+    /// M1 cost instrument: base 3-D noise evaluations performed on the CALLING thread so far (an
+    /// fbm of N octaves counts N). Monotonic; diff two reads around the work you want to cost.
+    /// Pinned by ColumnCostBench (docs/WorldForgeV2Plan.md §9: <= 25 per column after M1).
+    static uint64_t noiseEvalsThisThread();
     /// WaterCore.md 25.22: is the 1/3 m creek-bed carve on (the recipe's flag)?
     bool creekCarve() const { return m_creekCarve; }
     void setCreekCarve(bool on) { m_creekCarve = on; }

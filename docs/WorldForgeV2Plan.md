@@ -499,6 +499,22 @@ answers; nothing is built until each is in code or measured):**
    `SurfaceBandBoundsEveryColumn` (every column's true `surfaceY` lies inside its reported band;
    red today at a mountain flank where the centre sample's band differs from a corner's).
 
+**M1a BUILT 2026-10-15 — the meso tile pipeline + its seam invariant.** `engine/{include,src}/core/WorldSheet.*`:
+`SheetParams` (clamps with reasons; `apronCells()` DERIVED = steps × stencil radius + bicubic reach),
+`MesoTile` (padded height cells addressed by ABSOLUTE cell index), `MesoBaker` (h0 = macro field + detail
+at the cell centre, then a fixed number of **Jacobi** thermal-erosion + hillslope-diffusion steps),
+`mesoHeightAt` (Catmull-Rom from the absolute cell coordinate), `MesoPager` (shared mutex-guarded LRU).
+`MesoSeamTest` 4/4: apron derivation + clamps; four tiles baked in shuffled order on four threads ==
+one 2N×2N window, bit-exact, every interior cell; 152 bicubic samples straddling the seam served by the
+pager == the window; evict + re-bake bit-identical. **Red first, as predicted by resolution 2:** the
+in-place (Gauss-Seidel) sweep tried first differed in 881 of 16384 cells and 74 of 152 seam samples
+(`m1_meso_seam_and_column_cost_red.txt`); the double-buffered sweep is green
+(`m1_meso_seam_green.txt`). Rig deltas: 64-cell tiles (shipped 256), a synthetic macro field + hash
+detail (the invariant is about the pipeline, not the field); the macro sheet, the generator's real
+detail noise, the version-2 recipe gate and the `sampleColumn` wiring are M1b. The relaxation
+constants (talus = `kRockSlope`, diffusion < 0.25 for stability, thermal rate ≤ 0.5) are stated in
+the header; none is yet a grounded geomorphic rate (§10 K/U rows) — they shape, they do not claim.
+
 Validation: L2 (`MacroErosionTest`: drainage is a tree, no sinks, dendritic density within a
 grounded band; `MesoSeamTest`; `ColumnCostBench`), L4 Release fly-through at a fixed pose set
 before/after (same seed is NOT comparable — new terrain; compare *statistics*: slope histogram,
@@ -726,7 +742,7 @@ grounding-auditor; `ValidationLedger.md` gets a row per new placer/field.
 
 | Quantity | Today (where known) | Gate |
 |---|---|---|
-| Noise evals per column | ~140 (audit) | ≤ 25 |
+| Noise evals per column | **136.6 measured 2026-10-15** (`ColumnCostBench`, one eval = one base 3-D noise call; the audit's ~140 was an estimate) — and `sampleSurface()` is UNCACHED (the chunk-block cache serves `generateChunk` only), so every streaming-band query and `terrain_height?source=generator` call pays the full column | ≤ 25 (`ColumnCostBench.DISABLED_FreshColumnCostsAtMost25Evals`, parked red until M1b) |
 | Macro bake 200² | — | < 2 s Release (record) |
 | Meso tile bake 256² | — | < 50 ms on a worker (record) |
 | Civ + routes plan, 300 sites | all-pairs A* O(n²) at 8 sites today | < 10 s Release, off the main thread |
