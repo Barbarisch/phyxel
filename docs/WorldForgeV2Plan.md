@@ -515,6 +515,34 @@ detail noise, the version-2 recipe gate and the `sampleColumn` wiring are M1b. T
 constants (talus = `kRockSlope`, diffusion < 0.25 for stability, thermal rate ≤ 0.5) are stated in
 the header; none is yet a grounded geomorphic rate (§10 K/U rows) — they shape, they do not claim.
 
+**M1b BUILT 2026-10-15 — the sheet serves Layer-0 for version-2 recipes (D10).** `MacroSheet`
+(continentCells² cells of base elevation + continentalness at 512 u, centred on the origin, bicubic,
+edge-clamped; baked from the same continent noise the v1 coarse source evaluates) + the meso tile
+gains raw temperature/moisture planes (the v1 climate fbm at the cell centre; the column still applies
+its domain warp and the contrast expansion, so biome borders stay ragged). `WorldRecipe::version >= 2`
+⇔ `sheet{…}` (`WorldRecipe::sheetToJson/FromJson`, clamped on the way in; a sheet block promotes
+the version; legacy JSON byte-identical — `TerrainRecipeTest.SheetParamsRoundTripThroughRecipeJsonOnlyAtVersionTwo`);
+game.json `world.sheet` → a version-2 recipe (loader), a stored recipe still wins. In `sampleColumn`
+the v2 branch reads climate from the pager at the warped position, base + continentalness from the
+macro sheet, relief = max(0, mesoHeight − base) + the per-column FINE ridged band
+(`fineReliefAt`; the BROAD band `broadReliefAt` is the tile's detail term, relaxed), and the material
+slope from the tile's analytic bicubic gradient; everything after (biome blend, valley shaping, carve,
+roads, materials) is shared. `baseHeightFn()` is the one full-surface height the hydrology bake and the
+worldforge preview flood (v1 closure unchanged; v2 = meso + fine); `HydroBakeKey` carries the sheet
+identity so a v2 world never reuses a v1 hydro memo. The macro sheet + pager are memoized process-wide
+by the SHEET key (no worldforge params, resolution 6) so the twice-per-load `applyRecipe` and every
+worker copy share one bake and one LRU (`WorldSheetGeneratorTest.GeneratorCopySamplesIdenticalColumnsAcrossATileSeam`:
+120 columns straddling x = 8192, original vs copy in opposite orders, bit-exact on every field;
+`VersionTwoRecipeEnablesTheSheetAndVersionOneDoesNot`; `BaseHeightFnReadsTheSheet`). **Column cost
+gate GREEN: `ColumnCostBench.FreshColumnCostsAtMost25EvalsOnTheSheet` = 18.6 evals per fresh
+column (v1 frozen at 136.6, pinned by `LegacyColumnCostIsFrozen`).** Meso tile bake 256² + apron 6:
+201.5 ms **Debug** (the §9 gate is Release, measured at M1e). Deviation from the plan text,
+with reason: climate lives on the MESO grid (32 u), not the macro grid — temperature/moisture at
+climateFrequency 0.002 have a ~500 u wavelength, which a 512 u cell grid would alias into biome mush;
+the macro orographic model comes with erosion (M1c). Not yet: erosion/drainage on the macro sheet
+(M1c), the streaming band min/max (M1d), the lab L4 + Release perf gates (M1e), Flat/heightmap trivial
+sheets, the DB tile cache (measure first: a 200 ms Debug bake per tile may not need it).
+
 Validation: L2 (`MacroErosionTest`: drainage is a tree, no sinks, dendritic density within a
 grounded band; `MesoSeamTest`; `ColumnCostBench`), L4 Release fly-through at a fixed pose set
 before/after (same seed is NOT comparable — new terrain; compare *statistics*: slope histogram,
@@ -742,9 +770,9 @@ grounding-auditor; `ValidationLedger.md` gets a row per new placer/field.
 
 | Quantity | Today (where known) | Gate |
 |---|---|---|
-| Noise evals per column | **136.6 measured 2026-10-15** (`ColumnCostBench`, one eval = one base 3-D noise call; the audit's ~140 was an estimate) — and `sampleSurface()` is UNCACHED (the chunk-block cache serves `generateChunk` only), so every streaming-band query and `terrain_height?source=generator` call pays the full column | ≤ 25 (`ColumnCostBench.DISABLED_FreshColumnCostsAtMost25Evals`, parked red until M1b) |
+| Noise evals per column | **136.6 measured 2026-10-15** on the v1 path (`ColumnCostBench`, one eval = one base 3-D noise call; the audit's ~140 was an estimate) — and `sampleSurface()` is UNCACHED (the chunk-block cache serves `generateChunk` only), so every streaming-band query and `terrain_height?source=generator` call pays the full column | ≤ 25 — **GREEN on the sheet (M1b): 18.6** (`ColumnCostBench.FreshColumnCostsAtMost25EvalsOnTheSheet`); v1 pinned at 136.6 (D10) |
 | Macro bake 200² | — | < 2 s Release (record) |
-| Meso tile bake 256² | — | < 50 ms on a worker (record) |
+| Meso tile bake 256² | 201.5 ms Debug (laptop, `WorldSheetGeneratorTest.MesoTileBakeTimeRecorded`, 2026-10-15) | < 50 ms on a worker, Release (record at M1e) |
 | Civ + routes plan, 300 sites | all-pairs A* O(n²) at 8 sites today | < 10 s Release, off the main thread |
 | Settlement map, 200-lot city | — | < 2 s headless |
 | Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
@@ -1067,7 +1095,7 @@ positions (x, y, z, yaw, pitch); "surface" means `terrain_height?source=generato
 | **WorldForgeBaseline** (exists as `samples/game_definitions/worldforge_test.json` scaled up; the stress fixture) | F7, M0 L4, M4 | `type: Perlin, seed: 20260816, streaming: true, worldforge{siteCount: 8, regionRadius: 2048, minSpacing: 400}`; Mountains variant `seed: 424242` (both from `WorldForgeStressTest.cpp:59-60, 84-85`) | the canonical 8-site region; variable = the M0 row under test, everything else pinned | per site: centre at surface+40, pitch −45 (town read); per bridge: 30 u off the deck axis at deck+6, pitch −15 | the pre-M0 binary on the same seed (archived numbers) | sites built/refused, `lotFailures`, residue census on refused lots, walkability routes walkable/blocked, road step profile (% unclimbable, both seeds), bridge count vs crossings, plan hash |
 | **StructGenTest** (exists, flat) | M0 unit rigs | `type: Flat, from (0,0,0) to (4,0,2)` (5×1×3 chunks) | one lot per run inside chunk (0,0,0); variable = refusal path / sweep / partial placement | (16, 30, 48) yaw −90 pitch −35 | a lot that builds cleanly on the same rig | cell + object census before/after; `success` + `placed/failed` counts |
 | **StructGenHills** (exists) | M0 terrace-material row | `type: Perlin, seed: 1234, from (0,0,0) to (128,64,128)` | one parcel on a slope; variable = biome under the parcel | parcel centre at surface+20, pitch −40 | the same parcel on StructGenTest (Grass biome) | terrace top/skirt materials == biome surface/subsurface |
-| **WorldSheetLab** (new) | M1 | `type: Perlin, seed: 7001, streaming: true, sheet{macroCellU: 512, mesoCellU: 32, continentCells: 16, uplift: "flat+ridge"}` — a 16×16-macro (8 km) sheet, one painted ridge along z = 0 of amplitude 160 u | the ridge is the only relief source; variable = erosion steps (0 → N) | ridge crest (0, crest+30, 0) pitch −20 looking +x; tile seam at x = 0 (tiles cover [tx·8192, (tx+1)·8192), so 0 is a real seam and it crosses the ridge): (0, surface+60, 40) pitch −60 looking −z along the seam (the meso tile boundary must be invisible); valley floor at the first order-3 confluence | erosion steps = 0 (pure uplift: no valleys, drainage is a fan) | drainage is a tree with no sinks; valley density per km² rises monotonically with steps; slope histogram; `MesoSeamTest` bit-equality across x = 4096; column cost ≤ 25 noise evals; macro bake ms, meso tile ms |
+| **WorldSheetLab** (scaffolded 2026-10-15 at `PhyxelProjects/WorldSheetLab`; game.json `world.sheet{continentCells:16, mesoSteps:4,…}` = a version-2 recipe; the painted ridge + uplift arrive with M1c, so until then the macro field is the noise continent) | M1 | `type: Perlin, seed: 7001, streaming: true, sheet{macroCellU: 512, mesoCellU: 32, continentCells: 16, uplift: "flat+ridge"}` — a 16×16-macro (8 km) sheet, one painted ridge along z = 0 of amplitude 160 u | the ridge is the only relief source; variable = erosion steps (0 → N) | ridge crest (0, crest+30, 0) pitch −20 looking +x; tile seam at x = 0 (tiles cover [tx·8192, (tx+1)·8192), so 0 is a real seam and it crosses the ridge): (0, surface+60, 40) pitch −60 looking −z along the seam (the meso tile boundary must be invisible); valley floor at the first order-3 confluence | erosion steps = 0 (pure uplift: no valleys, drainage is a fan) | drainage is a tree with no sinks; valley density per km² rises monotonically with steps; slope histogram; `MesoSeamTest` bit-equality across x = 4096; column cost ≤ 25 noise evals; macro bake ms, meso tile ms |
 | **RiverLab** (new) | M2 (+ WaterCore hand-off) | WorldSheetLab recipe + `hydro{minChannelDrainage}` tuned so exactly one order-3 river leaves the ridge, enters one basin (a painted low at (1500, −, 1500)) and the basin spills to a coast at x > 6000 (`seaLevelY: 16`) | one river, one lake, one coast; variable = the M2 geometry rule under test | confluence of the first two order-2 creeks, from 25 u up, pitch −50; lake rim at the spill point, pitch −30; coast at the mouth, elevated 40 u, pitch −35 | the same world with M1's straight-segment channels | `water_validate rim_leaks == 0` on the bake; bed monotone along every centreline; width/depth monotone in drainage; junction angles < 90°; `TraversalProbe` walks both banks end to end |
 | **CivLab** (new) | M3 | WorldSheetLab recipe with one river (RiverLab) + one painted massif at (−2500, −, −2500) + `civ{tiersPer100km2: {city: 1, town: 3, village: 9, hamlet: 27}, epochs: 3}` on a 64-km² sheet | suitability inputs are exactly: one river, one massif, one coast; variable = the civ parameter under test | the `worldforge_minimap` PNG (no 3-D pose needed); one elevated pose over the city site | a flat featureless sheet (suitability uniform → sites spread by spacing alone) | every site obeys its tier's hard constraints; the city sits on the river or coast (prediction written at M3's F3); hierarchy ratio K=3 within ±1 per tier; determinism across two bakes |
 | **RouteLab** (new) | M4 | WorldSheetLab recipe + RiverLab river + two pinned sites: A at (−1500, −, 0) west of the ridge, B at (1500, −, 0) east of it, `routes{gradeCap by class from §10}` | the route must cross the ridge and the river; variable = the cost-field term under test | ridge pass from 60 u above, pitch −35; bridge, 30 u off-axis; one cutting, from the road at eye height | the same sites with the grade cap set to 0.5 (today's behaviour) | grade ≤ cap along the whole route; `TraversalProbe` 0 unclimbable steps; bridge present over the river; earthwork within the derived bounds; the predicted corridor (drawn on the minimap before the run) vs the realized one |

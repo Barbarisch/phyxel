@@ -1,0 +1,55 @@
+{
+  "name": "WorldSheetLab",
+  "description": "WorldForge v2 plan section 16 'WorldSheetLab': the M1 world-sheet lab. Version-2 recipe (world.sheet present): a 16x16-macro (8 km) sheet, meso tiles of 256 x 32 u with a derived apron; the variable is mesoSteps (erosion/relaxation steps), the control is mesoSteps 0. Poses: ridge/seam at x = 0 (a real meso tile seam), from (0, surface+60, 40) pitch -60 looking -z along the seam. Pre-erosion (M1b): the macro field is still the noise continent; the painted ridge + stream-power erosion land in M1c.",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 7001,
+    "streaming": true,
+    "loadRadius": 8,
+    "unloadRadius": 11,
+    "from": {
+      "x": -1,
+      "y": 0,
+      "z": -1
+    },
+    "to": {
+      "x": 1,
+      "y": 0,
+      "z": 1
+    },
+    "sheet": {
+      "macroCellU": 512,
+      "continentCells": 16,
+      "mesoCellU": 32,
+      "mesoTileCells": 256,
+      "mesoSteps": 4,
+      "diffusion": 0.1,
+      "talusSlope": 0.7,
+      "thermalRate": 0.5,
+      "pagerTiles": 64
+    }
+  },
+  "camera": {
+    "position": {
+      "x": 0,
+      "y": 120,
+      "z": 40
+    },
+    "yaw": -90,
+    "pitch": -60
+  },
+  "player": {
+    "type": "animated",
+    "position": {
+      "x": 16,
+      "y": 90,
+      "z": 16
+    }
+  },
+  "dayNight": {
+    "enabled": true,
+    "timeOfDay": 9.0,
+    "dayLengthSeconds": 1200
+  }
+}

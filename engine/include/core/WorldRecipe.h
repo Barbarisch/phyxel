@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/WorldSheet.h"
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -66,6 +67,30 @@ struct WorldRecipe {
     // flows on that height, option (a), 25.21). A world made before the carve has no key -> false, so its unsaved chunks
     // regenerate with the shelf its saved ones have; new worlds get it from makeRecipe(). Written only when true.
     bool creekCarve = false;
+    // M1 World Sheet (docs/WorldForgeV2Plan.md 5 M1, D10): a version >= 2 recipe serves Layer-0 from
+    // the macro/meso sheet; version 1 keeps the analytic source byte-for-byte. Written only at
+    // version >= 2 so legacy recipe JSON stays identical. Units in SheetParams' field comments.
+    SheetParams sheet;
+    static nlohmann::json sheetToJson(const SheetParams& s) {
+        return {{"macroCellU", s.macroCellU}, {"continentCells", s.continentCells},
+                {"mesoCellU", s.mesoCellU}, {"mesoTileCells", s.mesoTileCells},
+                {"mesoSteps", s.mesoSteps}, {"diffusion", s.diffusion},
+                {"talusSlope", s.talusSlope}, {"thermalRate", s.thermalRate},
+                {"pagerTiles", s.pagerTiles}};
+    }
+    static SheetParams sheetFromJson(const nlohmann::json& j) {
+        SheetParams s;
+        s.macroCellU     = j.value("macroCellU", s.macroCellU);
+        s.continentCells = j.value("continentCells", s.continentCells);
+        s.mesoCellU      = j.value("mesoCellU", s.mesoCellU);
+        s.mesoTileCells  = j.value("mesoTileCells", s.mesoTileCells);
+        s.mesoSteps      = j.value("mesoSteps", s.mesoSteps);
+        s.diffusion      = j.value("diffusion", s.diffusion);
+        s.talusSlope     = j.value("talusSlope", s.talusSlope);
+        s.thermalRate    = j.value("thermalRate", s.thermalRate);
+        s.pagerTiles     = j.value("pagerTiles", s.pagerTiles);
+        return SheetParams::clamped(s);   // the clamped copy is what the generator runs with
+    }
 
     std::string toJson() const {
         nlohmann::json root;
@@ -105,6 +130,7 @@ struct WorldRecipe {
         }
         if (worldforge.enabled) root["worldforge"] = worldforge.toJson();
         if (creekCarve) root["creekCarve"] = true;
+        if (version >= 2) root["sheet"] = sheetToJson(sheet);
         return root.dump(2);
     }
 
@@ -157,6 +183,10 @@ struct WorldRecipe {
             if (root.contains("worldforge"))
                 r.worldforge = WorldForgeParams::fromJson(root["worldforge"]);
             r.creekCarve = root.value("creekCarve", false);
+            if (root.contains("sheet") && root["sheet"].is_object()) {
+                r.sheet = sheetFromJson(root["sheet"]);
+                if (r.version < 2) r.version = 2;   // a sheet block IS the version-2 contract
+            }
         } catch (...) {
             // Bad/empty input -> caller falls back to synthesizing from the category library.
         }

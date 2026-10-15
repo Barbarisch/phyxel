@@ -7,9 +7,12 @@ namespace Phyxel {
 
 SheetParams SheetParams::clamped(SheetParams p) {
     // Each clamp names the failure it prevents (FeatureDesignKeys: clamp at the boundary, say why).
+    if (p.macroCellU < 32.0f) p.macroCellU = 32.0f;     // finer than a meso cell inverts the macro/meso roles
+    if (p.continentCells < 4) p.continentCells = 4;      // below 4 the bicubic has no interior
+    if (p.continentCells > 1024) p.continentCells = 1024; // 1024^2 cells x 8 B = 8 MB; a 512 km continent is the plan's stress ceiling
     if (p.mesoCellU < 1.0f) p.mesoCellU = 1.0f;          // a sub-voxel cell has no column to serve
     if (p.mesoTileCells < 4) p.mesoTileCells = 4;        // below 4 the apron is the whole tile
-    if (p.mesoTileCells > 1024) p.mesoTileCells = 1024;  // 1024^2 floats = 4 MB per tile; the LRU is sized for 256^2
+    if (p.mesoTileCells > 1024) p.mesoTileCells = 1024;  // 1024^2 x 3 planes = 12 MB per tile; the LRU is sized for 256^2
     if (p.mesoSteps < 0) p.mesoSteps = 0;
     if (p.mesoSteps > 32) p.mesoSteps = 32;              // apron = steps + 2 extra cells per edge; 32 -> ~30 % extra area at 256^2
     if (p.diffusion < 0.0f) p.diffusion = 0.0f;
@@ -17,16 +20,64 @@ SheetParams SheetParams::clamped(SheetParams p) {
     if (p.talusSlope < 0.05f) p.talusSlope = 0.05f;      // a ~0 talus moves everything every step (flattens the tile)
     if (p.thermalRate < 0.0f) p.thermalRate = 0.0f;
     if (p.thermalRate > 0.5f) p.thermalRate = 0.5f;      // > 0.5 lets a pair swap past each other and oscillate
+    if (p.pagerTiles < 4) p.pagerTiles = 4;              // a column's climate warp can read a neighbouring tile: keep a 2x2 at least
+    if (p.pagerTiles > 512) p.pagerTiles = 512;          // 512 x ~0.9 MB = ~460 MB resident: past the laptop's budget (laptop-memory-kill)
     return p;
 }
 
+// ---------------------------------------------------------------------------
+// Macro sheet
+// ---------------------------------------------------------------------------
+MacroSheet::MacroSheet(int cells, float cellU, uint64_t hash)
+    : m_cells(cells), m_cellU(cellU), m_origin(-0.5f * static_cast<float>(cells) * cellU), m_hash(hash),
+      m_c(static_cast<size_t>(cells) * static_cast<size_t>(cells)) {}
+
+namespace {
+inline float catmullRom(float p0, float p1, float p2, float p3, float t) {
+    const float t2 = t * t, t3 = t2 * t;
+    return 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
+                   (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
+}
+// d/dt of catmullRom at t (per cell).
+inline float catmullRomD(float p0, float p1, float p2, float p3, float t) {
+    const float t2 = t * t;
+    return 0.5f * ((-p0 + p2) + 2.0f * (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t +
+                   3.0f * (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t2);
+}
+}  // namespace
+
+MacroCell MacroSheet::sampleAt(float worldX, float worldZ) const {
+    const float u = (worldX - m_origin) / m_cellU - 0.5f;
+    const float v = (worldZ - m_origin) / m_cellU - 0.5f;
+    const float fi = std::floor(u), fj = std::floor(v);
+    const float tu = u - fi, tv = v - fj;
+    const int i0 = static_cast<int>(fi), j0 = static_cast<int>(fj);
+    float rh[4], rc[4];
+    for (int r = 0; r < 4; ++r) {
+        const int j = j0 - 1 + r;
+        rh[r] = catmullRom(cell(i0 - 1, j).baseHeight, cell(i0, j).baseHeight,
+                           cell(i0 + 1, j).baseHeight, cell(i0 + 2, j).baseHeight, tu);
+        rc[r] = catmullRom(cell(i0 - 1, j).continentalness, cell(i0, j).continentalness,
+                           cell(i0 + 1, j).continentalness, cell(i0 + 2, j).continentalness, tu);
+    }
+    MacroCell out;
+    out.baseHeight = catmullRom(rh[0], rh[1], rh[2], rh[3], tv);
+    out.continentalness = std::min(1.0f, std::max(0.0f, catmullRom(rc[0], rc[1], rc[2], rc[3], tv)));
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+// Meso tile + baker
+// ---------------------------------------------------------------------------
 MesoTile::MesoTile(int cellX0, int cellZ0, int cells, int apron, float cellU)
     : m_cellX0(cellX0), m_cellZ0(cellZ0), m_cells(cells), m_apron(apron), m_cellU(cellU),
-      m_h(static_cast<size_t>(cells + 2 * apron) * static_cast<size_t>(cells + 2 * apron), 0.0f) {}
+      m_h(static_cast<size_t>(cells + 2 * apron) * static_cast<size_t>(cells + 2 * apron), 0.0f),
+      m_t(m_h.size(), 0.0f), m_m(m_h.size(), 0.0f) {}
 
-MesoBaker::MesoBaker(uint32_t seed, SheetParams params, HeightFieldFn macroHeightAt, HeightFieldFn detailAt)
+MesoBaker::MesoBaker(uint32_t seed, SheetParams params, HeightFieldFn macroHeightAt, HeightFieldFn detailAt,
+                     ClimateFn climateAt)
     : m_seed(seed), m_params(SheetParams::clamped(params)), m_macro(std::move(macroHeightAt)),
-      m_detail(std::move(detailAt)) {}
+      m_detail(std::move(detailAt)), m_climate(std::move(climateAt)) {}
 
 std::shared_ptr<const MesoTile> MesoBaker::bake(int tx, int tz) const {
     const int n = m_params.mesoTileCells;
@@ -40,7 +91,7 @@ std::shared_ptr<const MesoTile> MesoBaker::bakeCells(int cellX0, int cellZ0, int
     const int P = t.padded();
     const float cu = m_params.mesoCellU;
 
-    // h0: the macro field + detail at each cell CENTRE, addressed by the ABSOLUTE cell index so the
+    // h0 + climate: the fields at each cell CENTRE, addressed by the ABSOLUTE cell index so the
     // float inputs are bit-identical whichever window the cell is baked in.
     for (int j = -apron; j < cells + apron; ++j) {
         for (int i = -apron; i < cells + apron; ++i) {
@@ -49,6 +100,12 @@ std::shared_ptr<const MesoTile> MesoBaker::bakeCells(int cellX0, int cellZ0, int
             float h = m_macro ? m_macro(cx, cz) : 0.0f;
             if (m_detail) h += m_detail(cx, cz);
             t.at(i, j) = h;
+            if (m_climate) {
+                float tr = 0.0f, mr = 0.0f;
+                m_climate(cx, cz, tr, mr);
+                t.temp(i, j) = tr;
+                t.moist(i, j) = mr;
+            }
         }
     }
 
@@ -56,14 +113,15 @@ std::shared_ptr<const MesoTile> MesoBaker::bakeCells(int cellX0, int cellZ0, int
     // diffusion, a fixed number of steps over the padded grid minus its outer ring. Cell at padded
     // index k is correct through step k, so the interior (k >= apron) is correct after every step
     // (apron = steps + bicubic reach, SheetParams::apronCells).
-    const float talusU = m_params.talusSlope * cu;   // height difference between neighbour centres at the talus slope
-    const float rate   = m_params.thermalRate;
-    const float kd     = m_params.diffusion;
+    //
     // JACOBI (double-buffered): every cell of step s+1 reads only step-s values, so a cell's
     // value depends on nothing outside its (steps x radius) cone and tile-by-tile == whole-region
     // bit for bit. The in-place sweep tried first read already-updated W/N neighbours whose values
     // reached back across the whole sweep: 881 of 16384 cells differed between a tile and the
     // whole-region bake (docs/evidence/worldforge_v2/m1_meso_seam_and_column_cost_red.txt).
+    const float talusU = m_params.talusSlope * cu;   // height difference between neighbour centres at the talus slope
+    const float rate   = m_params.thermalRate;
+    const float kd     = m_params.diffusion;
     std::vector<float>& h = t.raw();
     std::vector<float> next(h.size());
     for (int step = 0; step < m_params.mesoSteps; ++step) {
@@ -88,31 +146,58 @@ std::shared_ptr<const MesoTile> MesoBaker::bakeCells(int cellX0, int cellZ0, int
     return tile;
 }
 
+// ---------------------------------------------------------------------------
+// Sampling: absolute cell coordinate relative to cell CENTRES; the fractional part is computed
+// from the absolute value so it does not depend on which tile serves the sample.
+// ---------------------------------------------------------------------------
 namespace {
-inline float catmullRom(float p0, float p1, float p2, float p3, float t) {
-    const float t2 = t * t, t3 = t2 * t;
-    return 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
-                   (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
+struct CellPos { int i0, j0; float tu, tv; };
+inline CellPos cellPos(const MesoTile& t, float worldX, float worldZ) {
+    const float ua = worldX / t.cellU() - 0.5f;
+    const float va = worldZ / t.cellU() - 0.5f;
+    const float fi = std::floor(ua), fj = std::floor(va);
+    return {static_cast<int>(fi) - t.cellX0(), static_cast<int>(fj) - t.cellZ0(), ua - fi, va - fj};
+}
+template <class Get>
+inline float bicubic(const MesoTile& t, const CellPos& p, Get get) {
+    float rows[4];
+    for (int r = 0; r < 4; ++r) {
+        const int j = p.j0 - 1 + r;
+        rows[r] = catmullRom(get(p.i0 - 1, j), get(p.i0, j), get(p.i0 + 1, j), get(p.i0 + 2, j), p.tu);
+    }
+    return catmullRom(rows[0], rows[1], rows[2], rows[3], p.tv);
 }
 }  // namespace
 
 float mesoHeightAt(const MesoTile& t, float worldX, float worldZ) {
-    // Absolute cell coordinate of the sample relative to cell CENTRES; the fractional part is
-    // computed from the absolute value so it does not depend on which tile serves the sample.
-    const float ua = worldX / t.cellU() - 0.5f;
-    const float va = worldZ / t.cellU() - 0.5f;
-    const float fi = std::floor(ua), fj = std::floor(va);
-    const float tu = ua - fi, tv = va - fj;
-    const int i0 = static_cast<int>(fi) - t.cellX0();
-    const int j0 = static_cast<int>(fj) - t.cellZ0();
-    float rows[4];
-    for (int r = 0; r < 4; ++r) {
-        const int j = j0 - 1 + r;
-        rows[r] = catmullRom(t.at(i0 - 1, j), t.at(i0, j), t.at(i0 + 1, j), t.at(i0 + 2, j), tu);
-    }
-    return catmullRom(rows[0], rows[1], rows[2], rows[3], tv);
+    const CellPos p = cellPos(t, worldX, worldZ);
+    return bicubic(t, p, [&t](int i, int j) { return t.at(i, j); });
 }
 
+void mesoClimateAt(const MesoTile& t, float worldX, float worldZ, float& tempRaw, float& moistRaw) {
+    const CellPos p = cellPos(t, worldX, worldZ);
+    tempRaw  = bicubic(t, p, [&t](int i, int j) { return t.temp(i, j); });
+    moistRaw = bicubic(t, p, [&t](int i, int j) { return t.moist(i, j); });
+}
+
+std::pair<float, float> mesoGradientAt(const MesoTile& t, float worldX, float worldZ) {
+    const CellPos p = cellPos(t, worldX, worldZ);
+    // d/dx: derivative along u in each row, then interpolate the rows along v.
+    float rowsD[4], rows[4];
+    for (int r = 0; r < 4; ++r) {
+        const int j = p.j0 - 1 + r;
+        const float a = t.at(p.i0 - 1, j), b = t.at(p.i0, j), c = t.at(p.i0 + 1, j), d = t.at(p.i0 + 2, j);
+        rowsD[r] = catmullRomD(a, b, c, d, p.tu);
+        rows[r]  = catmullRom(a, b, c, d, p.tu);
+    }
+    const float dhdu = catmullRom(rowsD[0], rowsD[1], rowsD[2], rowsD[3], p.tv);
+    const float dhdv = catmullRomD(rows[0], rows[1], rows[2], rows[3], p.tv);
+    return {dhdu / t.cellU(), dhdv / t.cellU()};
+}
+
+// ---------------------------------------------------------------------------
+// Pager
+// ---------------------------------------------------------------------------
 MesoPager::MesoPager(std::shared_ptr<const MesoBaker> baker, size_t capacity)
     : m_baker(std::move(baker)), m_capacity(std::max<size_t>(1, capacity)) {}
 
@@ -146,11 +231,21 @@ std::shared_ptr<const MesoTile> MesoPager::get(int tx, int tz) {
     return tile;
 }
 
-float MesoPager::heightAt(float worldX, float worldZ) {
+std::shared_ptr<const MesoTile> MesoPager::tileFor(float worldX, float worldZ) {
     const float tileU = m_baker->params().tileU();
-    const int tx = static_cast<int>(std::floor(worldX / tileU));
-    const int tz = static_cast<int>(std::floor(worldZ / tileU));
-    return mesoHeightAt(*get(tx, tz), worldX, worldZ);
+    return get(static_cast<int>(std::floor(worldX / tileU)), static_cast<int>(std::floor(worldZ / tileU)));
+}
+
+float MesoPager::heightAt(float worldX, float worldZ) {
+    return mesoHeightAt(*tileFor(worldX, worldZ), worldX, worldZ);
+}
+
+void MesoPager::climateAt(float worldX, float worldZ, float& tempRaw, float& moistRaw) {
+    mesoClimateAt(*tileFor(worldX, worldZ), worldX, worldZ, tempRaw, moistRaw);
+}
+
+std::pair<float, float> MesoPager::gradientAt(float worldX, float worldZ) {
+    return mesoGradientAt(*tileFor(worldX, worldZ), worldX, worldZ);
 }
 
 size_t MesoPager::resident() const {

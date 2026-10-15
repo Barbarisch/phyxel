@@ -269,9 +269,11 @@ struct HydroBakeKey {
     float climateFreq;
     float seaLevel;   // the flood outlet is part of the bake's identity (same seed, different sea → different lakes)
     std::vector<Spline::Point> spline;
+    bool sheet = false;          // M1: a v2 world floods the SHEET surface, never the v1 memo
+    SheetParams sheetParams;
     bool operator==(const HydroBakeKey& o) const {
         if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq ||
-            seaLevel != o.seaLevel) return false;
+            seaLevel != o.seaLevel || sheet != o.sheet || !(sheetParams == o.sheetParams)) return false;
         if (spline.size() != o.spline.size()) return false;
         for (size_t i = 0; i < spline.size(); ++i)
             if (spline[i].x != o.spline[i].x || spline[i].y != o.spline[i].y) return false;
@@ -341,6 +343,7 @@ void WorldGenerator::rebuildCoarseModel() {
             return cs;
         },
         32.0f);
+    rebuildSheet();   // M1: no-op for v1 recipes; the v2 macro sheet + meso pager (memoized)
 
     // ── P2 hydrology bake ─────────────────────────────────────────────────────────────────────
     // Flat / non-height-based types have no relief and no drainage worth baking → skip (leaves the
@@ -354,7 +357,7 @@ void WorldGenerator::rebuildCoarseModel() {
     // Cache lookup: the bake is fully determined by these inputs (region constants are compile-time).
     const float seaLvl = terrainParams.seaLevelY;
     const HydroBakeKey key{static_cast<int>(generationType), seed, terrainParams.climateFrequency,
-                           seaLvl, m_continentalHeightSpline.points()};
+                           seaLvl, m_continentalHeightSpline.points(), m_sheetMode, m_sheetParams};
     bool cacheHit = false;
     {
         std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
@@ -377,11 +380,7 @@ void WorldGenerator::rebuildCoarseModel() {
     // Layer-1 relief): the relief's defined ridge/valley structure funnels drainage into convergent,
     // high-Strahler-order trunk rivers (the smooth base alone drains in low-order parallel sheets).
     // Pure: captures the immutable coarse model + seed + type by value; no `this`.
-    auto heightAt = [coarse = m_coarse, s = seed, gt = generationType](float x, float z) -> float {
-        const CoarseSample cs = coarse->sample(x, z);
-        return cs.baseHeight + reliefAt(gt, s, static_cast<int>(std::floor(x)),
-                                        static_cast<int>(std::floor(z)), cs.continentalness);
-    };
+    auto heightAt = baseHeightFn();   // v1: coarse + reliefAt; v2: the meso sheet + the fine band
     // Channel-initiation threshold is a physical AREA (kDefaultRiverThresholdCells ≈ 0.1 km² at the
     // 32 m reference cell); rescale it to THIS cell size so a coarser grid keeps the same real drainage
     // density (and the same Strahler order, which depends on basin-area/threshold-area, not on cell
@@ -444,11 +443,7 @@ std::shared_ptr<const WorldForgePlan> WorldGenerator::previewWorldForge(
     if (!m_hydro || !m_flow || !m_waterBodies || !m_coarse) return nullptr;
     // The SAME full-surface height function the hydrology bake flooded (pure: immutable
     // shared coarse model + seed/type by value — the worker-copy contract).
-    auto heightAt = [coarse = m_coarse, s = seed, gt = generationType](float x, float z) -> float {
-        const CoarseSample cs = coarse->sample(x, z);
-        return cs.baseHeight + reliefAt(gt, s, static_cast<int>(std::floor(x)),
-                                        static_cast<int>(std::floor(z)), cs.continentalness);
-    };
+    auto heightAt = baseHeightFn();   // v1: coarse + reliefAt; v2: the meso sheet + the fine band
     // Biome-hostility probe: the full resolved surface material (biome + physical overrides).
     // Captures `this` but is only invoked DURING the bake, on this thread — never stored.
     auto surfaceMat = [this](int x, int z) { return sampleColumn(x, z).surfaceMat; };
@@ -755,6 +750,30 @@ static float reliefAt(WorldGenerator::GenerationType genType, uint32_t seed, int
     return (broad * kHillBroadAmp + fine * kHillFineAmp) * mask;
 }
 
+// M1 (v2 sheet mode): reliefAt's two bands served separately: the BROAD band is baked into the
+// meso tile at 32 u (then relaxed), the FINE band stays per column at 1 u. Same warp, same mask,
+// same amplitudes; v1's reliefAt stays byte-identical (D10).
+static float broadReliefAt(WorldGenerator::GenerationType genType, uint32_t seed, int wx, int wz, float cont) {
+    if (genType == WorldGenerator::GenerationType::Flat) return 0.0f;
+    const float warpF = 0.006f, warpAmp = 40.0f;
+    const float wxw = wx + tnFbm(wx * warpF, 900.0f, wz * warpF, 2, 0.5f, 2.0f, seed) * warpAmp;
+    const float wzw = wz + tnFbm(wx * warpF, 950.0f, wz * warpF, 2, 0.5f, 2.0f, seed) * warpAmp;
+    const float broad = clamp01(tnRidgedMultifractal(wxw * kRmFreqBroad, wzw * kRmFreqBroad, seed) / kRidgedNorm);
+    if (genType == WorldGenerator::GenerationType::Mountains)
+        return broad * kMtnBroadAmp * smoothstep01(0.20f, 0.70f, cont);
+    return broad * kHillBroadAmp * smoothstep01(0.40f, 0.85f, cont);
+}
+static float fineReliefAt(WorldGenerator::GenerationType genType, uint32_t seed, int wx, int wz, float cont) {
+    if (genType == WorldGenerator::GenerationType::Flat) return 0.0f;
+    const float warpF = 0.006f, warpAmp = 40.0f;
+    const float wxw = wx + tnFbm(wx * warpF, 900.0f, wz * warpF, 2, 0.5f, 2.0f, seed) * warpAmp;
+    const float wzw = wz + tnFbm(wx * warpF, 950.0f, wz * warpF, 2, 0.5f, 2.0f, seed) * warpAmp;
+    const float fine = clamp01(tnRidgedMultifractal(wxw * kRmFreq, wzw * kRmFreq, seed ^ 0x51EDu) / kRidgedNorm);
+    if (genType == WorldGenerator::GenerationType::Mountains)
+        return fine * kMtnFineAmp * smoothstep01(0.20f, 0.70f, cont);
+    return fine * kHillFineAmp * smoothstep01(0.40f, 0.85f, cont);
+}
+
 float WorldGenerator::surfaceVariationFor(int wx, int wz, float cont) {
     return reliefAt(generationType, seed, wx, wz, cont);
 }
@@ -924,12 +943,28 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     const float swz = wz + perlinNoise3D(wx * warpF, 600.0f, wz * warpF, 2, 0.5f, 2.0f) * warpAmp;
     // Expand contrast so climate reaches its hot/cold and wet/dry extremes; without it the central
     // full-range biome (Plains) wins ~98% and extreme biomes (Desert/Tundra/Jungle) never appear.
-    col.temperature     = expandContrast(to01(perlinNoise3D(swx * cf, 100.0f, swz * cf, 4, 0.5f, 2.0f)));
-    col.moisture        = expandContrast(to01(perlinNoise3D(swx * cf, 200.0f, swz * cf, 4, 0.5f, 2.0f)));
-    // Continentalness + continental base elevation now come from the Layer-0 coarse model
-    // (docs/TerrainGenerationV2.md). It is very low frequency, so per-chunk interpolation is
-    // effectively exact; this is the seam where Layer 1 reads the global landmass shape.
-    const CoarseSample coarse = m_coarse->sample(static_cast<float>(wx), static_cast<float>(wz));
+    // M1 (v2 sheet mode, D10): climate from the meso tile's raw planes at the WARPED position
+    // (the warp above keeps biome borders ragged), base + continentalness from the macro sheet:
+    // zero noise evals in this block (ColumnCostBench). v1 keeps the per-column noise + the
+    // coarse model byte-for-byte.
+    const bool sheet = m_sheetMode && m_macroSheet && m_mesoPager;
+    CoarseSample coarse;
+    if (sheet) {
+        float tRaw = 0.0f, mRaw = 0.0f;
+        m_mesoPager->climateAt(swx, swz, tRaw, mRaw);
+        col.temperature = expandContrast(to01(tRaw));
+        col.moisture    = expandContrast(to01(mRaw));
+        const MacroCell mc = m_macroSheet->sampleAt(static_cast<float>(wx), static_cast<float>(wz));
+        coarse.baseHeight = mc.baseHeight;
+        coarse.continentalness = mc.continentalness;
+    } else {
+        col.temperature     = expandContrast(to01(perlinNoise3D(swx * cf, 100.0f, swz * cf, 4, 0.5f, 2.0f)));
+        col.moisture        = expandContrast(to01(perlinNoise3D(swx * cf, 200.0f, swz * cf, 4, 0.5f, 2.0f)));
+        // Continentalness + continental base elevation come from the Layer-0 coarse model
+        // (docs/TerrainGenerationV2.md). It is very low frequency, so per-chunk interpolation is
+        // effectively exact; this is the seam where Layer 1 reads the global landmass shape.
+        coarse = m_coarse->sample(static_cast<float>(wx), static_cast<float>(wz));
+    }
     col.continentalness = coarse.continentalness;
 
     // Biome selection + height blending: weight each biome by a Gaussian of the distance
@@ -977,7 +1012,12 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         //          + Layer-1 ridged mountain relief, scaled by the biome's height extremeness.
         // The old ±9 continental cap is gone — the base now spans kContinentalMin..kContinentalMax
         // and peaks reach ~kSeaLevelY + kContinentalMax + kMountainAmp (~384 above sea level).
-        float relief = surfaceVariationFor(wx, wz, coarse.continentalness);
+        // v2: the meso tile holds base + the BROAD band (relaxed); the fine band stays per column.
+        // Clamped >= 0 so the valley rule below ("drive relief to 0 at the thalweg") still holds.
+        float relief = sheet
+            ? std::max(0.0f, m_mesoPager->heightAt(static_cast<float>(wx), static_cast<float>(wz)) - coarse.baseHeight)
+                  + fineReliefAt(generationType, seed, wx, wz, coarse.continentalness)
+            : surfaceVariationFor(wx, wz, coarse.continentalness);
 
         // P2 valley shaping (docs/TerrainGenerationV2.md §P2): near a river, attenuate Layer-1 relief
         // toward the channel centreline so the river seats in a SMOOTH valley floor rather than a thin
@@ -1080,8 +1120,19 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             const CoarseSample c = m_coarse->sample(static_cast<float>(nx), static_cast<float>(nz));
             return c.baseHeight + surfaceVariationFor(nx, nz, c.continentalness) * blendScale + blendOffset;
         };
-        const float dhx = (nbSurfaceY(wx + 1, wz) - nbSurfaceY(wx - 1, wz)) * 0.5f;
-        const float dhz = (nbSurfaceY(wx, wz + 1) - nbSurfaceY(wx, wz - 1)) * 0.5f;
+        float dhx, dhz;
+        if (sheet) {
+            // M1 (resolution 3): the analytic bicubic gradient of the meso height (base + broad
+            // band, relaxed): zero evals. The fine band's roughness and the biome blend scale are
+            // not in it (an approximation stated in the plan; the 4-neighbour re-sample cost 96 of
+            // the 136 evals per column).
+            const auto g = m_mesoPager->gradientAt(static_cast<float>(wx), static_cast<float>(wz));
+            dhx = g.first;
+            dhz = g.second;
+        } else {
+            dhx = (nbSurfaceY(wx + 1, wz) - nbSurfaceY(wx - 1, wz)) * 0.5f;
+            dhz = (nbSurfaceY(wx, wz + 1) - nbSurfaceY(wx, wz - 1)) * 0.5f;
+        }
         const float slope = std::sqrt(dhx * dhx + dhz * dhz);
         const float effTemp = col.temperature - altitude * kLapse01PerVoxel;  // colder with altitude
 
@@ -1548,6 +1599,117 @@ float WorldGenerator::drawnTop(const ColumnSample& c) const {
     return static_cast<float>(c.surfaceY + 1);
 }
 
+// ---------------------------------------------------------------------------
+// M1 World Sheet (v2 recipes). The macro sheet and the meso pager are memoized process-wide by the
+// SHEET key: seed, type, climate frequency, height spline, sheet params; NOT the worldforge params,
+// which the sheet never reads (plan resolution 6), so the twice-per-load applyRecipe and every
+// generator copy share one bake and one LRU.
+// ---------------------------------------------------------------------------
+namespace {
+struct SheetBakeKey {
+    int genType;
+    uint32_t seed;
+    float climateFreq;
+    std::vector<Spline::Point> spline;
+    SheetParams sheet;
+    bool operator==(const SheetBakeKey& o) const {
+        if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq || !(sheet == o.sheet)) return false;
+        if (spline.size() != o.spline.size()) return false;
+        for (size_t i = 0; i < spline.size(); ++i)
+            if (spline[i].x != o.spline[i].x || spline[i].y != o.spline[i].y) return false;
+        return true;
+    }
+};
+struct SheetBakeEntry {
+    std::shared_ptr<const MacroSheet> macro;
+    std::shared_ptr<MesoPager> pager;
+};
+std::mutex g_sheetCacheMutex;
+std::vector<std::pair<SheetBakeKey, SheetBakeEntry>> g_sheetCache;
+
+uint64_t sheetHashOf(const SheetBakeKey& k) {
+    // FNV-1a over the key's text form: a cache identity, not a cryptographic one.
+    std::string txt = std::to_string(k.genType) + "|" + std::to_string(k.seed) + "|" + std::to_string(k.climateFreq) +
+                      "|" + std::to_string(k.sheet.macroCellU) + "|" + std::to_string(k.sheet.continentCells) +
+                      "|" + std::to_string(k.sheet.mesoCellU) + "|" + std::to_string(k.sheet.mesoTileCells) +
+                      "|" + std::to_string(k.sheet.mesoSteps) + "|" + std::to_string(k.sheet.diffusion) +
+                      "|" + std::to_string(k.sheet.talusSlope) + "|" + std::to_string(k.sheet.thermalRate);
+    for (const auto& p : k.spline) txt += "|" + std::to_string(p.x) + "," + std::to_string(p.y);
+    uint64_t h = 1469598103934665603ull;
+    for (unsigned char c : txt) { h ^= c; h *= 1099511628211ull; }
+    return h;
+}
+}  // namespace
+
+void WorldGenerator::rebuildSheet() {
+    m_macroSheet.reset();
+    m_mesoPager.reset();
+    if (!m_sheetMode || !isHeightBased() || m_mapSource) return;
+    const SheetBakeKey key{static_cast<int>(generationType), seed, terrainParams.climateFrequency,
+                           m_continentalHeightSpline.points(), m_sheetParams};
+    {
+        std::lock_guard<std::mutex> lock(g_sheetCacheMutex);
+        for (const auto& e : g_sheetCache)
+            if (e.first == key) { m_macroSheet = e.second.macro; m_mesoPager = e.second.pager; return; }
+    }
+    // MACRO bake: continentalness + base elevation at every macro cell centre (the same noise the
+    // v1 coarse source evaluates, at 512 u instead of 32 u; bicubic instead of bilinear).
+    const uint32_t s = seed;
+    const GenerationType gt = generationType;
+    const float cf = terrainParams.climateFrequency;
+    const float contF = cf * 0.075f;   // continents >> biomes (see rebuildCoarseModel)
+    const Spline hspline = m_continentalHeightSpline;
+    auto macro = std::make_shared<MacroSheet>(m_sheetParams.continentCells, m_sheetParams.macroCellU, sheetHashOf(key));
+    auto to01 = [](float n) { return n < -1.0f ? 0.0f : (n > 1.0f ? 1.0f : (n + 1.0f) * 0.5f); };
+    for (int j = 0; j < macro->cells(); ++j) {
+        for (int i = 0; i < macro->cells(); ++i) {
+            const float cx = macro->originU() + (static_cast<float>(i) + 0.5f) * macro->cellU();
+            const float cz = macro->originU() + (static_cast<float>(j) + 0.5f) * macro->cellU();
+            MacroCell& c = macro->cell(i, j);
+            c.continentalness = expandContrast(to01(tnFbm(cx * contF, 300.0f, cz * contF, 2, 0.5f, 2.0f, s)));
+            c.baseHeight = hspline.eval(c.continentalness);
+        }
+    }
+    // MESO baker: h0 = macro base (bicubic) + the BROAD ridged band at the cell centre; raw climate
+    // planes from the same fbm the v1 column evaluates (contrast expansion stays per column).
+    std::shared_ptr<const MacroSheet> macroC = macro;
+    auto baker = std::make_shared<MesoBaker>(
+        s, m_sheetParams,
+        [macroC](float x, float z) { return macroC->sampleAt(x, z).baseHeight; },
+        [macroC, s, gt](float x, float z) {
+            return broadReliefAt(gt, s, static_cast<int>(std::floor(x)), static_cast<int>(std::floor(z)),
+                                 macroC->sampleAt(x, z).continentalness);
+        },
+        [s, cf](float x, float z, float& t, float& m) {
+            t = tnFbm(x * cf, 100.0f, z * cf, 4, 0.5f, 2.0f, s);
+            m = tnFbm(x * cf, 200.0f, z * cf, 4, 0.5f, 2.0f, s);
+        });
+    auto pager = std::make_shared<MesoPager>(baker, static_cast<size_t>(m_sheetParams.pagerTiles));
+    LOG_INFO_FMT("WorldGenerator", "[WORLD_SHEET] macro " << macro->cells() << "x" << macro->cells() << " @ "
+                 << macro->cellU() << " u baked (hash " << macro->hash() << "); meso tiles "
+                 << m_sheetParams.mesoTileCells << " @ " << m_sheetParams.mesoCellU << " u, apron "
+                 << m_sheetParams.apronCells() << ", LRU " << m_sheetParams.pagerTiles);
+    std::lock_guard<std::mutex> lock(g_sheetCacheMutex);
+    g_sheetCache.push_back({key, {macroC, pager}});
+    m_macroSheet = macroC;
+    m_mesoPager = pager;
+}
+
+std::function<float(float, float)> WorldGenerator::baseHeightFn() const {
+    if (m_sheetMode && m_macroSheet && m_mesoPager) {
+        return [pager = m_mesoPager, macro = m_macroSheet, s = seed, gt = generationType](float x, float z) -> float {
+            return pager->heightAt(x, z) + fineReliefAt(gt, s, static_cast<int>(std::floor(x)),
+                                                        static_cast<int>(std::floor(z)),
+                                                        macro->sampleAt(x, z).continentalness);
+        };
+    }
+    return [coarse = m_coarse, s = seed, gt = generationType](float x, float z) -> float {
+        const CoarseSample cs = coarse->sample(x, z);
+        return cs.baseHeight + reliefAt(gt, s, static_cast<int>(std::floor(x)),
+                                        static_cast<int>(std::floor(z)), cs.continentalness);
+    };
+}
+
 void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     // The DB recipe OWNS the seed (docs/WorldModel.md: the DB is the source of truth once a
     // world exists) — without this, editing game.json's seed silently re-seeded an existing
@@ -1557,6 +1719,8 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     if (recipe.seed != 0) seed = recipe.seed;
     m_worldForgeParams = recipe.worldforge;
     m_creekCarve = recipe.creekCarve;   // 25.22
+    m_sheetMode = recipe.version >= 2;                    // M1 (D10): only version-2 recipes get the sheet
+    m_sheetParams = SheetParams::clamped(recipe.sheet);
     terrainParams.climateFrequency = recipe.climateFrequency;
     terrainParams.seaLevelY = recipe.seaLevelY;   // rebake below re-floods against this outlet
     // Override per-biome tuning by name; biome category fields (materials, climate) untouched.

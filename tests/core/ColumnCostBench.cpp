@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <cstdio>
+
 #include "core/WorldGenerator.h"
+#include "core/WorldRecipe.h"
 
 using namespace Phyxel;
 
@@ -44,13 +47,29 @@ TEST(ColumnCostBench, InstrumentCountsAndPublicSamplerIsUncached) {
 
 // The gate. Prints the measured mean so the red run IS the first real number. MEASURED RED
 // 2026-10-15: 136.625 evals per fresh column on the analytic Layer-0 (Perlin seed 4242;
-// m1_meso_seam_and_column_cost_red.txt). DISABLED_ until M1b serves climate + the broad
-// relief from the sheet; M1b's commit enables it (a DISABLED_ test is a parked red, never a
-// skipped claim). Run it any time with --gtest_also_run_disabled_tests.
-TEST(ColumnCostBench, DISABLED_FreshColumnCostsAtMost25Evals) {
+// m1_meso_seam_and_column_cost_red.txt). M1b: a version-2 recipe serves climate, base and the
+// broad relief from the sheet; the tile is warmed first so its one-time bake is not amortized
+// into the column figure (the bake is the section 9 "meso tile" budget, recorded separately).
+TEST(ColumnCostBench, FreshColumnCostsAtMost25EvalsOnTheSheet) {
+    WorldGenerator perlin(WorldGenerator::GenerationType::Perlin, 4242u);
+    WorldRecipe r;
+    r.version = 2;
+    r.type = "Perlin";
+    r.seed = 4242u;
+    perlin.applyRecipe(r);
+    ASSERT_TRUE(perlin.sheetMode()) << "a version-2 recipe did not enable the sheet";
+    (void)perlin.sampleSurface(30000, -30000);   // warms the tile the 64 columns live in
+    const double evals = measureEvalsPerColumn(perlin, 30000, -30000);
+    std::printf("[ M1 section 9 ] sheet column cost: %.3f base-noise evals per fresh column (gate <= 25)\n", evals);
+    EXPECT_LE(evals, 25.0) << "mean base-noise evals per fresh column = " << evals
+                           << " (plan section 9 gate: <= 25; v1 measured 136.6)";
+}
+
+// D10: the version-1 path is frozen. Its cost is the characterization pinned here; a change
+// means the legacy terrain changed, which is exactly what D10 forbids.
+TEST(ColumnCostBench, LegacyColumnCostIsFrozen) {
     WorldGenerator perlin(WorldGenerator::GenerationType::Perlin, 4242u);
     (void)perlin.sampleSurface(0, 0);
     const double evals = measureEvalsPerColumn(perlin, 30000, -30000);
-    EXPECT_LE(evals, 25.0) << "mean base-noise evals per fresh column = " << evals
-                           << " (plan §9 gate: <= 25; the audit estimate was ~140)";
+    EXPECT_NEAR(evals, 136.6, 1.5) << "the v1 column cost moved: " << evals;
 }

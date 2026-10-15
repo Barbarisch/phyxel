@@ -482,6 +482,16 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         LOG_INFO("GameDefinitionLoader", "World: worldforge params from game.json (siteCount=" +
                  std::to_string(recipe.worldforge.siteCount) + ")");
     }
+    // M1 World Sheet (docs/WorldForgeV2Plan.md 5 M1): game.json world.sheet -> a version-2 recipe,
+    // so Layer-0 is served from the macro/meso sheet. A stored recipe still wins below (D10: an
+    // existing version-1 world keeps its analytic terrain whatever game.json now says).
+    if (worldDef.contains("sheet") && worldDef["sheet"].is_object()) {
+        recipe.version = 2;
+        recipe.sheet = WorldRecipe::sheetFromJson(worldDef["sheet"]);
+        LOG_INFO("GameDefinitionLoader", "World: sheet params from game.json -> recipe version 2 (continentCells=" +
+                 std::to_string(recipe.sheet.continentCells) + ", mesoSteps=" +
+                 std::to_string(recipe.sheet.mesoSteps) + ")");
+    }
     if (WorldStorage* storage = sub.chunkManager ? sub.chunkManager->getWorldStorage() : nullptr) {
         if (storage->hasMeta("recipe")) {
             recipe = WorldRecipe::fromJson(storage->getMeta("recipe"));

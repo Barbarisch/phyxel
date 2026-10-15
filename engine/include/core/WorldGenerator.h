@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/CoarseWorldModel.h"
+#include "core/WorldSheet.h"
 #include "core/FlowField.h"
 #include "core/WaterBodyIndex.h"
 #include "core/Spline.h"
@@ -198,6 +199,17 @@ public:
     /// fbm of N octaves counts N). Monotonic; diff two reads around the work you want to cost.
     /// Pinned by ColumnCostBench (docs/WorldForgeV2Plan.md §9: <= 25 per column after M1).
     static uint64_t noiseEvalsThisThread();
+
+    /// M1 World Sheet (recipe version >= 2, D10): Layer-0 served from the macro/meso sheet. v1
+    /// recipes never touch these (null pager, sheetMode false).
+    bool sheetMode() const { return m_sheetMode; }
+    const SheetParams& sheetParams() const { return m_sheetParams; }
+    std::shared_ptr<const MacroSheet> macroSheet() const { return m_macroSheet; }
+    std::shared_ptr<MesoPager> mesoPager() const { return m_mesoPager; }
+    /// The pure full-surface height (base + relief, before valley shaping and the carve) that the
+    /// hydrology bake floods and the worldforge preview reads: v1 = coarse + reliefAt, v2 = meso
+    /// sheet + the fine band. Captures shared immutable state only (the worker-copy contract).
+    std::function<float(float, float)> baseHeightFn() const;
     /// WaterCore.md 25.22: is the 1/3 m creek-bed carve on (the recipe's flag)?
     bool creekCarve() const { return m_creekCarve; }
     void setCreekCarve(bool on) { m_creekCarve = on; }
@@ -373,6 +385,15 @@ private:
     // or generation params change (ctor + applyRecipe).
     std::shared_ptr<CoarseWorldModel> m_coarse;
     void rebuildCoarseModel();
+
+    // M1 World Sheet (v2 recipes). The macro sheet is immutable + shared; the pager is a shared,
+    // internally synchronized LRU (one per recipe, process-wide), so a worker's generator copy
+    // shares both (plan 13.1). Rebuilt inside rebuildCoarseModel when sheetMode is on.
+    bool m_sheetMode = false;
+    SheetParams m_sheetParams;
+    std::shared_ptr<const MacroSheet> m_macroSheet;
+    std::shared_ptr<MesoPager> m_mesoPager;
+    void rebuildSheet();
 
     // Optional Layer-0 override: an imported heightmap (P4). When set, rebuildCoarseModel
     // sources baseHeight/continentalness from it instead of noise, and skips the hydrology

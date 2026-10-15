@@ -102,3 +102,28 @@ TEST(TerrainRecipeTest, HeightSplineRoundTripsThroughRecipeJson) {
 
 }  // namespace
 }  // namespace Phyxel
+
+using Phyxel::WorldRecipe;
+
+// M1 (D10): the sheet block is written only at version >= 2, and a sheet block implies version 2.
+TEST(TerrainRecipeTest, SheetParamsRoundTripThroughRecipeJsonOnlyAtVersionTwo) {
+    WorldRecipe v1;
+    v1.seed = 5;
+    EXPECT_FALSE(nlohmann::json::parse(v1.toJson()).contains("sheet")) << "legacy JSON must stay identical";
+    WorldRecipe v2 = v1;
+    v2.version = 2;
+    v2.sheet.mesoSteps = 7;
+    v2.sheet.continentCells = 64;
+    v2.sheet.diffusion = 0.2f;
+    const WorldRecipe back = WorldRecipe::fromJson(v2.toJson());
+    EXPECT_EQ(back.version, 2);
+    EXPECT_EQ(back.sheet.mesoSteps, 7);
+    EXPECT_EQ(back.sheet.continentCells, 64);
+    EXPECT_FLOAT_EQ(back.sheet.diffusion, 0.2f);
+    EXPECT_TRUE(back.sheet == v2.sheet);
+    // Clamps apply on the way in, with the version promoted by the presence of the block.
+    const WorldRecipe hot = WorldRecipe::fromJson(R"({"version":1,"seed":5,"sheet":{"diffusion":0.9,"mesoSteps":99}})");
+    EXPECT_EQ(hot.version, 2);
+    EXPECT_LT(hot.sheet.diffusion, 0.25f);
+    EXPECT_EQ(hot.sheet.mesoSteps, 32);
+}
