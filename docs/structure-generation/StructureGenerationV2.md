@@ -299,6 +299,9 @@ tier, the first NetworkGraph edge, and every gate.
 - **P7** — Building types (shop / church / tavern / manor) via style + program libraries; articulated
   massing (L/T/U), hip/valley roofs, habitable basements/attics, multi-story; persist whole buildings
   as composite templates.
+- *(P8–P10 below were NOT the build: the world tier shipped as WorldForge — hydrology-grid A* roads +
+  the burgage settlement program (`docs/WorldForge.md`, `docs/CityForgePlan.md`) — and its successor is
+  `docs/WorldForgeV2Plan.md` M3–M5 (civ plan, route field, vector settlement map). Reconciled 2026-10-14.)*
 - **P8 — Network & roads**: full `NetworkGraph` + terrain-following road/path realizer + **building-
   driven** path growth (accretive).
 - **P9 — Lots & blocks**: `SettlementOccupancyGrid` + lot subdivision + **road-driven** placement

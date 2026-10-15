@@ -950,6 +950,11 @@ with `cache/textures` moved aside the test passes; restored afterwards. Fix belo
 
 ## 2026-09-25 — Standalone (packaged) games do NOT stream terrain; the editor anchors streaming on the CAMERA
 
+> **STALE (reconciled 2026-10-14):** the pump was moved into `EngineRuntime::beginFrame` on
+> 2026-09-23 (Ravenmere G-177) — packaged games DO stream. What packaged games still lack is a
+> **realizer host** (no `MainThreadJobs`, `WorldForgeBuildService`, `ResidentSpawner`, light/
+> location restore, far-tree exclusions): `docs/WorldForgeV2Plan.md` §13.6 (M6).
+
 Found while validating the city-benchmark tooling (`docs/PerfProgram2026-09.md` §16, V4). Code search,
 not yet an L4 run of a packaged game:
 - **Only the editor pumps streaming.** `updateChunkStreaming()` / `pumpChunkLanding()` are called from

@@ -96,7 +96,8 @@ resolution — parameters, not modes).
 
 ## 4. Migration order (each increment shippable, red-before-green)
 
-1. **Recipe owns the seed** (small; closes the carried gap). Acceptance: two boots of the same
+1. **Recipe owns the seed** — **DONE 2026-08-16** (`RecipeSeedAuthority`, shipped with WorldForge M0;
+   `WorldForgeRecipeTest` pins it). Acceptance (met): two boots of the same
    DB with a *changed* `game.json` seed produce identical chunks; red = today they don't.
 2. **Bake from the recipe for bounded worlds.** `WorldGenerator` computes hydrology whenever
    the recipe's type is height-based, streaming or not (bounded worlds clamp the bake box to

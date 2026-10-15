@@ -17,7 +17,7 @@ has a validator/gate; nothing physical is invented by the LLM.
 
 ## Reading order
 
-0. **[ChimneyForgePlan.md](ChimneyForgePlan.md)** — ⏭ **NEXT UP (planned 2026-08-09, not built).**
+0. **[ChimneyForgePlan.md](ChimneyForgePlan.md)** — ✅ **SHIPPED 2026-08-10 (HearthForge chimneys, displaced==0)**; this line said "NEXT UP" until 2026-10-14. The current "next" for generation is `docs/WorldForgeV2Plan.md`.
    The chimney is the only structural element still built AFTER the shell: it is stamped into a
    finished building and fights it (~600 displaced cells per tavern). Moves hearths to program
    fixtures sited at floorplan time and paints hearth+stack into the MicroCanvas during realize.

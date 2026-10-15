@@ -12,6 +12,8 @@
 All on `main` now. Pipeline: `StructureBrief → BuildingProgram → autofillRoomLayout → StructureRealizer
 → place`. Build at runtime via `POST /api/structure/build {"schema":"v2",...}`.
 
+**2026-10-14 — WORLDFORGE v2 is the plan of record: [`docs/WorldForgeV2Plan.md`](docs/WorldForgeV2Plan.md)** (owner-signed; M0 in progress on `feat/worldforge-v2`: blocking walkability gate, lot dressing after buildings, water unbuildable, no placement into un-generated terrain, era reaches buildings, derived canopy margins and biome/program materials, loud raster cap, BlockSmith removed). Read it before touching WorldForge/CityForge/terrain generation.
+
 **2026-08-16 — WORLDFORGE (world-scale layer) M0–M2 built + Release-L4-verified
 ([`docs/WorldForge.md`](docs/WorldForge.md)):** the engine now PLANS a region (settlement siting
 scored on hydrology/relief/biome with derived per-site seeds + inter-settlement roads baked as a
@@ -26,8 +28,7 @@ RELEASE (Debug streams ~7 chunks/min in forest — looks like the pump-death bug
 road grading, street fusion, live apply, far-road LOD, residents-at-remote-sites) logged in
 `docs/StructurePipelineGaps.md` 2026-08-16. **M3 stress COMPLETE 2026-08-17**: 8-site world
 built live 8/8 (idempotent), Mountains world degrades honestly, delete-DB road identity
-cell-exact, road walkability measured (0% canonical / 0.69% mountains unclimbable steps —
-`WorldForgeStressTest`). All WorldForge work on `main`, uncommitted.
+cell-exact, road walkability measured (post-grading re-measure 2026-10-14: 0.069% canonical / 0.46% mountains unclimbable steps, `docs/evidence/worldforge_v2/f7_baseline.json`; the pre-grading M3 figures were 0% / 0.69%). All WorldForge work on `main`, uncommitted.
 
 **Recently shipped (grounded + red-before-green + auditor-verified):** first functional typology — the
 `tavern` (taproom/kitchen/service, L3-navigable); **generative multi-story** (inn upstairs guest

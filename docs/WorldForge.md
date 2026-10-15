@@ -1,5 +1,13 @@
 # WorldForge — world-scale settlement & road planning
 
+> **2026-10-14: V1 record.** The plan of record for what comes next is
+> [`WorldForgeV2Plan.md`](WorldForgeV2Plan.md) (owner-signed). Its M0 already changed V1
+> behaviour: the walkability gate BLOCKS a build (every morphology; `allow_unwalkable` overrides)
+> and a blocked site is refused and not checkpointed; lot dressing (spurs, fences, props, paths)
+> runs AFTER the buildings and skips refused lots; water columns are unbuildable; placement into
+> un-generated terrain refuses; the era reaches every building; canopy margins and terrace/
+> fence/path materials come from the biome and the tier program; the road-raster cap is loud.
+
 **Status (2026-08-16): M0 + M1 + M2 BUILT and Release-L4-verified** — 37 unit tests
 (red-before-green) across `WorldForgePlanTest` / `WorldForgeRecipeTest` / `RoadFieldSeamTest` /
 `WorldForgeBuildFlowTest`+`WorldForgeLedgerTest`; live proof on the canonical test world:
@@ -135,7 +143,7 @@ own siting.
 | Route | Command | Notes |
 |---|---|---|
 | `POST /api/worldforge/plan` | `worldforge_plan` | pure preview bake; `{}` → the applied plan |
-| `POST /api/worldforge/apply` | `worldforge_apply` | persist into the recipe; **refuses** if world.db has saved chunks unless `force:true`; `restart_required:true` — worker generator snapshots only pick the plan up on the next project load |
+| `POST /api/worldforge/apply` | `worldforge_apply` | persist into the recipe; **refuses** if world.db has saved chunks unless `force:true`; applies LIVE (restreams the world, `live_applied` + `evicted_chunks` — shipped 2026-08-21, see "Live apply"); `restart_required` only when a live apply is refused (a build job is active / deferred DB loads pending) |
 | `GET /api/worldforge/status` | `worldforge_status` | enabled/applied/hash/counts (+ ledger, M2) |
 | `GET /api/worldforge/map?step=4` | `worldforge_map` | ASCII map: `~` water, `r` order≥3 river, `=` road, `T/V/H` sites |
 
@@ -188,6 +196,8 @@ orientation (logged gap).
   non-river land; 10 roads.
 - **Road walkability (draped roads, measured at 1 u steps along every centerline):**
   canonical world **0/1320 steps unclimbable (0.0%)**; mountains world **45/6496 (0.69%)**.
+  *(Re-measured 2026-10-14 on the post-grading code (grading shipped 2026-08-20): canonical
+  1/1440 = 0.069 %, mountains 31/6722 = 0.46 % — `docs/evidence/worldforge_v2/f7_baseline.json`.)*
   The slope-averse router does most of the grading gap's work — the gap stands (those 45
   steps are real cliffs a character cannot climb), but V1 roads are ~99.3% step-walkable
   even on mountain terrain. Bounds pinned at 6% / 50% so only real regression fails.
@@ -288,17 +298,23 @@ carry a grade summary in toJson): pre-grading ledgers correctly flag stale. **L4
 1-cube terrace steps between grass-bank shoulders — an engineered cutting, not draped
 terrain — `docs/evidence/road_grading_{terraces,cutting}.png`.
 
-## Known gaps (V1 non-goals, logged)
+## Known gaps (V1) — reconciled 2026-10-14
 
-- **Road grading**: roads drape the terrain surface at generation time; no cut/fill.
-- **Road-to-street fusion**: roads stop at the settlement footprint edge.
-- **Live apply**: `worldforge_apply` is restart-required (worker generator snapshots are
-  not refreshed mid-session; a live apply would seam chunks).
-- **Roads at distance**: no far-LOD tier shows roads beyond chunk residency (P-DERIVED
-  gap; noted for `docs/LodTierLedger.md`).
-- **Heightmap/Flat worlds**: no hydrology bake → no plan.
-- **Lazy realization on stream-in**: later phase; V1 is the orchestrated build job.
-- **Preview feedback**: a `worldforge_plan` preview on a world with an applied plan can
-  deviate microscopically in biome scores near existing roads (the biome probe sees the
-  stamped road material). Fresh bakes (the flow that matters) reset the plan first and
-  cannot self-feed.
+> **Superseded as a roadmap by [`WorldForgeV2Plan.md`](WorldForgeV2Plan.md)** (owner-signed
+> 2026-10-14). This section only records what V1 did and did not do; the V2 plan says what comes next.
+
+Resolved in V1 (sections above): **road grading** (2026-08-20), **live apply** (2026-08-21),
+**roads at distance** (far tiles repaint road material; bridges still pop in — V2 M7).
+
+Still true of V1 (carried into the V2 plan):
+- **Road-to-street fusion**: roads stop at the settlement footprint edge; every arriving route
+  becomes a street spur only in V2 M4/M5 (M0 registers every arriving road as a spur).
+- **Heightmap/Flat worlds**: no hydrology bake → no plan (V2 M1 gives them a trivial sheet).
+- **Lazy realization on stream-in**: V1 is the orchestrated build job (V2 M6 retires it — owner
+  decision D6).
+- **Preview feedback**: a preview on a world with an applied plan can deviate microscopically in
+  biome scores near existing roads; fresh bakes reset the plan first.
+- **Clamps**: 3–8 sites, 512–8192 u radius, 3 tiers, 128 u routing grid, 96 u bridge horizon,
+  grade cap 0.5 — all retired by V2 M3/M4 (grade cap is a MISMATCH against every source, V2 §10).
+- **Residents**: worldforge sites build with `residents:false`; the editor's `ResidentSpawner`
+  spawns them from persisted locations on load.

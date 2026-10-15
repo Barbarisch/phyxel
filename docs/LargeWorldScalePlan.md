@@ -26,7 +26,7 @@
   on face-bound scenes).
 - **Chunk-level frustum + distance culling** (`RenderCoordinator::renderStaticGeometry:329`) —
   verified working.
-- **Far-terrain LOD** (`FarTerrain*`, committed, **OFF by default**): heightmap tiles from
+- **Far-terrain LOD** (`FarTerrain*`, committed, **default ON for streaming worlds since G-177, 2026-09-23** — this line said OFF until 2026-10-14): heightmap tiles from
   `WorldGenerator::sampleSurface` on a worker, 3 rings (steps 2/4/8, tiles 128/256/512u) to
   2048u, LRU 512 tiles, deterministic, watertight-tested. Phase 4 (config/fog/far-plane
   auto-extension) and Phase 5 (chunk-downsample LOD) never built.
