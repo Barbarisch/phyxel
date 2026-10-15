@@ -540,8 +540,8 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "siteCount": {"type": "integer", "description": "Settlements to site (clamped 3-8)"},
-                    "regionRadius": {"type": "number", "description": "World units from the region centre (clamped 512-8192)"},
+                    "siteCount": {"type": "integer", "description": "Settlements to site (V1 clamp 3-8; the clamp is echoed in the plan params - WorldForge v2 widens it)"},
+                    "regionRadius": {"type": "number", "description": "World units from the region centre (V1 clamp 512-8192, echoed in the plan params)"},
                     "minSpacing": {"type": "number", "description": "Hard minimum between site centres"},
                     "maxSpacing": {"type": "number", "description": "Soft cohesion distance (farther candidates score-halved)"},
                     "sitePins": {"type": "array", "description": "Pinned site centres, seated verbatim first",
@@ -554,7 +554,8 @@ async def list_tools() -> list[Tool]:
             description="WorldForge: persist plan params into the world recipe (world.db world_meta). "
                         "REFUSES on a world that already has saved chunks unless force:true (roads stamp at "
                         "generation time; enabling them mid-world seams old chunks against new). "
-                        "restart_required: reload the project so streamed chunks pick up the plan.",
+                        "live_applied + evicted_chunks when the apply restreamed the world in place; "
+                        "restart_required only when a live apply was refused (e.g. a build job is active).",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -586,6 +587,46 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="build_settlement",
+            description=("Compose a whole settlement with the engine's generator (POST /api/settlement/build): "
+                         "program mode {era, tier (hamlet|village|town|city), seed, position{x,y,z}, width, depth, "
+                         "terrain:bool, density, allow_unwalkable:bool}. Async by default (returns job_id; poll "
+                         "get_job_status). The response carries 'walkability' + 'gate' (passed|blocked|overridden); a "
+                         "blocked gate FAILS the build unless allow_unwalkable is true. This is THE provenance route "
+                         "for a generated town (never hand-assemble one)."),
+            inputSchema={"type": "object", "properties": {
+                "era": {"type": "string"}, "tier": {"type": "string"}, "seed": {"type": "integer"},
+                "position": {"type": "object"}, "width": {"type": "integer"}, "depth": {"type": "integer"},
+                "terrain": {"type": "boolean"}, "density": {"type": "number"},
+                "allow_unwalkable": {"type": "boolean", "description": "default false: a blocked walkability gate fails the build"},
+                "async": {"type": "boolean"}}}
+        ),
+        Tool(
+            name="validate_world",
+            description="Run the geometric world-placement detectors over the live realized world (POST /api/world/validate). Returns a ValidationReport (issues[] with code/message/where). Heavy (micro-scans).",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="walk_probe",
+            description="The walkability gate's TraversalProbe flood from a MICRO feet position (GET /api/walk/probe?x&y&z[&radius]). Diagnostic for 'why is this door/street unreachable'.",
+            inputSchema={"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}, "radius": {"type": "integer"}}, "required": ["x", "y", "z"]}
+        ),
+        Tool(
+            name="navgrid_path",
+            description="2.5D NavGrid A* path between two world columns (GET /api/navgrid/path?x1&z1&x2&z2) - the conservative proxy; navgraph_path is what NPC movers use.",
+            inputSchema={"type": "object", "properties": {"x1": {"type": "integer"}, "z1": {"type": "integer"}, "x2": {"type": "integer"}, "z2": {"type": "integer"}}, "required": ["x1", "z1", "x2", "z2"]}
+        ),
+        Tool(
+            name="navgraph_path",
+            description="3D NavGraph route between two world positions (GET /api/navgraph/path?x1&z1&x2&z2[&y1&y2]) - the route schedule-driven NPC movers actually take.",
+            inputSchema={"type": "object", "properties": {"x1": {"type": "integer"}, "z1": {"type": "integer"}, "x2": {"type": "integer"}, "z2": {"type": "integer"}, "y1": {"type": "integer"}, "y2": {"type": "integer"}}, "required": ["x1", "z1", "x2", "z2"]}
+        ),
+        Tool(
+            name="water_validate",
+            description="L3 bake-vs-terrain rim-leak check over a rect (POST /api/debug/water_validate {x1,z1,x2,z2,maxY}). rim_leaks == 0 is the acceptance test for 'water tied to terrain'.",
+            inputSchema={"type": "object", "properties": {"x1": {"type": "integer"}, "z1": {"type": "integer"}, "x2": {"type": "integer"}, "z2": {"type": "integer"}, "maxY": {"type": "integer"}}, "required": ["x1", "z1", "x2", "z2"]}
+        ),
+        Tool(
             name="worldforge_status",
             description="WorldForge: enabled/applied state, plan hash, and site/road counts for the current world.",
             inputSchema={"type": "object", "properties": {}}
@@ -593,7 +634,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="worldforge_map",
             description="WorldForge: ASCII overview map of the applied plan — '~' water, 'r' order>=3 river, "
-                        "'=' road, T/V/H sites, '.' land. One char per `step` hydrology cells (128u each).",
+                        "'=' road, T/V/H sites, '.' land. One char per `step` hydrology cells (cell_units in the response).",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -4961,6 +5002,27 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "worldforge_build":
         return await api_post("/api/worldforge/build", args)
 
+    elif name == "build_settlement":
+        return await api_post("/api/settlement/build", args)
+
+    elif name == "validate_world":
+        return await api_post("/api/world/validate", {}, timeout=60.0)
+
+    elif name == "walk_probe":
+        params = {k: str(args[k]) for k in ("x", "y", "z", "radius") if k in args}
+        return await api_get("/api/walk/probe", params)
+
+    elif name == "navgrid_path":
+        params = {k: str(args[k]) for k in ("x1", "z1", "x2", "z2") if k in args}
+        return await api_get("/api/navgrid/path", params)
+
+    elif name == "navgraph_path":
+        params = {k: str(args[k]) for k in ("x1", "z1", "x2", "z2", "y1", "y2") if k in args}
+        return await api_get("/api/navgraph/path", params)
+
+    elif name == "water_validate":
+        return await api_post("/api/debug/water_validate", args, timeout=60.0)
+
     elif name == "worldforge_status":
         return await api_get("/api/worldforge/status")
 
@@ -6120,6 +6182,8 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             params["max_y"] = str(args["max_y"])
         if "min_y" in args:
             params["min_y"] = str(args["min_y"])
+        if "source" in args:
+            params["source"] = str(args["source"])   # chunks (default) | generator
         return await api_get("/api/world/terrain_height", params)
 
     # --- Animation Control ---

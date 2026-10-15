@@ -87,6 +87,8 @@ constexpr float kDetourFactor = 1.4f;
 constexpr float kResampleU = 16.0f;          // centerline point spacing
 constexpr float kRasterCellU = 8.0f;
 constexpr int kRasterMaxCells = 2048;        // per axis; cellSize grows if the bbox needs more
+constexpr size_t kRasterSegmentCap = 0xFFFE;  // uint16 segment index in the raster
+static size_t g_rasterSegmentCap = kRasterSegmentCap;   // M0: test hook lowers it
 
 int tierRank(const std::string& tier) {
     if (tier == "town") return 3;
@@ -763,15 +765,21 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     }
 
     // ── Road raster: nearest-segment index per 8 u cell over the network bbox ────────────────
+    size_t truncated = 0;
     for (size_t r = 0; r < plan->m_roads.size(); ++r) {
         const auto& cl = plan->m_roads[r].centerline;
         for (size_t i = 0; i + 1 < cl.size(); ++i) {
-            if (plan->m_segments.size() >= 0xFFFE) break;   // uint16 raster limit (log below)
+            if (plan->m_segments.size() >= g_rasterSegmentCap) { ++truncated; continue; }   // M0: counted, never silent
             plan->m_segments.push_back({cl[i], cl[i + 1], static_cast<uint16_t>(r),
                                         static_cast<uint8_t>(plan->m_roads[r].cls),
                                         static_cast<uint16_t>(i)});
         }
     }
+    plan->m_rasterTruncatedSegments = truncated;
+    if (truncated > 0)
+        LOG_WARN_FMT("WorldForge", "[WORLDFORGE] road raster segment cap (" << g_rasterSegmentCap
+                     << ") reached: " << truncated << " segment(s) are NOT indexed - roads past the cap are"
+                     " invisible to roadAt (fewer roads, or a wider raster index, before this plan is used)");
     if (!plan->m_segments.empty()) {
         glm::vec2 lo(1e30f), hi(-1e30f);
         for (const auto& s : plan->m_segments) {
@@ -907,6 +915,10 @@ WorldForgePlan::RoadHit WorldForgePlan::roadAt(float worldX, float worldZ) const
     return hit;
 }
 
+void WorldForgePlan::setRasterSegmentCapForTesting(size_t cap) {
+    g_rasterSegmentCap = cap == 0 ? kRasterSegmentCap : cap;
+}
+
 nlohmann::json WorldForgePlan::toJson() const {
     nlohmann::json j;
     j["version"] = m_params.version;
@@ -967,6 +979,7 @@ nlohmann::json WorldForgePlan::toJson() const {
         bridges.push_back({{"ax", b.a.x}, {"az", b.a.y}, {"bx", b.b.x}, {"bz", b.b.y},
                            {"deckY", b.deckY}, {"class", b.cls}, {"order", b.crossingOrder}});
     j["bridges"] = bridges;
+    j["raster_truncated_segments"] = m_rasterTruncatedSegments;   // M0: 0 unless the uint16 cap bit
     return j;
 }
 

@@ -1,0 +1,29 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = WorldForgePlanTest.RasterCapSurfaces
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from WorldForgePlanTest
+[ RUN      ] WorldForgePlanTest.RasterCapSurfaces
+[22:46:00.235] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 54 ms (hash 14223618455714071673)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgePlanTest.cpp(444): error: Expected equality of these values:
+  full->toJson().value("raster_truncated_segments", -1)
+    Which is: -1
+  0
+below the cap the record must say 0 truncated (not be absent)
+
+[22:46:00.300] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 20 segments in 52 ms (hash 14223618455714071673)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgePlanTest.cpp(451): error: Value of: j.contains("raster_truncated_segments")
+  Actual: false
+Expected: true
+the plan must RECORD raster truncation
+
+[  FAILED  ] WorldForgePlanTest.RasterCapSurfaces (130 ms)
+[----------] 1 test from WorldForgePlanTest (130 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (131 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] WorldForgePlanTest.RasterCapSurfaces
+
+ 1 FAILED TEST

@@ -1,0 +1,107 @@
+[==========] Running 52 tests from 5 test suites.
+[ RUN      ] RoadFieldSeamTest.TestWorldHasRoads
+[       OK ] RoadFieldSeamTest.TestWorldHasRoads (698 ms)
+[ RUN      ] RoadFieldSeamTest.RoadColumnsStampedWithRoadMaterial
+[       OK ] RoadFieldSeamTest.RoadColumnsStampedWithRoadMaterial (54 ms)
+[ RUN      ] RoadFieldSeamTest.RoadNeverOverridesRiverOrSea
+[       OK ] RoadFieldSeamTest.RoadNeverOverridesRiverOrSea (55 ms)
+[ RUN      ] RoadFieldSeamTest.GeneratorCopyStampsIdenticalRoadColumns
+[       OK ] RoadFieldSeamTest.GeneratorCopyStampsIdenticalRoadColumns (55 ms)
+[ RUN      ] RoadFieldSeamTest.FloraKeepsOffTheRoadCorridor
+[       OK ] RoadFieldSeamTest.FloraKeepsOffTheRoadCorridor (320 ms)
+[ RUN      ] RoadFieldSeamTest.BridgeDeckEmittedOverOrder3Channel
+[       OK ] RoadFieldSeamTest.BridgeDeckEmittedOverOrder3Channel (11892 ms)
+[ RUN      ] RoadFieldSeamTest.BridgeRailsGuardDeckEdgesAndPiersReachTheBed
+[       OK ] RoadFieldSeamTest.BridgeRailsGuardDeckEdgesAndPiersReachTheBed (12150 ms)
+[ RUN      ] RoadFieldSeamTest.BridgePiersStandSolidOnALongSpan
+[       OK ] RoadFieldSeamTest.BridgePiersStandSolidOnALongSpan (11375 ms)
+[ RUN      ] RoadFieldSeamTest.OffRoadColumnsIdenticalToDisabledWorld
+[       OK ] RoadFieldSeamTest.OffRoadColumnsIdenticalToDisabledWorld (57 ms)
+[ RUN      ] RoadFieldSeamTest.BridgeCrossingIsAgentWalkable
+[       OK ] RoadFieldSeamTest.BridgeCrossingIsAgentWalkable (34561 ms)
+[ RUN      ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains
+[       OK ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains (681 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite (11 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis (8 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RealizationOrderTownFirst
+[       OK ] WorldForgeBuildFlowTest.RealizationOrderTownFirst (8 ms)
+[ RUN      ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger
+[       OK ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger (13 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues
+[       OK ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues (10 ms)
+[ RUN      ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite
+[       OK ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite (10 ms)
+[ RUN      ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun
+[       OK ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun (11 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun
+[       OK ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun (9 ms)
+[ RUN      ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed
+[       OK ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed (10 ms)
+[ RUN      ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled
+[       OK ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled (8 ms)
+[ RUN      ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely
+[       OK ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely (0 ms)
+[ RUN      ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable
+[       OK ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable (7 ms)
+[ RUN      ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount
+[       OK ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount (67 ms)
+[ RUN      ] WorldForgePlanTest.TierMixIsOneTownTwoVillages
+[       OK ] WorldForgePlanTest.TierMixIsOneTownTwoVillages (63 ms)
+[ RUN      ] WorldForgePlanTest.SitesNotInWater
+[       OK ] WorldForgePlanTest.SitesNotInWater (65 ms)
+[ RUN      ] WorldForgePlanTest.SitesRespectMinSpacing
+[       OK ] WorldForgePlanTest.SitesRespectMinSpacing (63 ms)
+[ RUN      ] WorldForgePlanTest.SitesWithinRegion
+[       OK ] WorldForgePlanTest.SitesWithinRegion (63 ms)
+[ RUN      ] WorldForgePlanTest.SiteCountClamped
+[       OK ] WorldForgePlanTest.SiteCountClamped (101 ms)
+[ RUN      ] WorldForgePlanTest.RoadsConnectAllSites
+[       OK ] WorldForgePlanTest.RoadsConnectAllSites (64 ms)
+[ RUN      ] WorldForgePlanTest.RoadsAvoidStandingWater
+[       OK ] WorldForgePlanTest.RoadsAvoidStandingWater (65 ms)
+[ RUN      ] WorldForgePlanTest.RoadCenterlinesContinuous
+[       OK ] WorldForgePlanTest.RoadCenterlinesContinuous (65 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsMarkedWhereOrder3
+[       OK ] WorldForgePlanTest.CrossingsMarkedWhereOrder3 (53 ms)
+[ RUN      ] WorldForgePlanTest.CrossingsGetBridgeSpans
+[       OK ] WorldForgePlanTest.CrossingsGetBridgeSpans (54 ms)
+[ RUN      ] WorldForgePlanTest.SitePinsSeatedVerbatim
+[       OK ] WorldForgePlanTest.SitePinsSeatedVerbatim (58 ms)
+[ RUN      ] WorldForgePlanTest.RoadsReachTheFootprintEdge
+[       OK ] WorldForgePlanTest.RoadsReachTheFootprintEdge (66 ms)
+[ RUN      ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar
+[       OK ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar (65 ms)
+[ RUN      ] WorldForgePlanTest.RoadQueryPerf
+[       OK ] WorldForgePlanTest.RoadQueryPerf (96 ms)
+[ RUN      ] WorldForgePlanTest.PlanDeterminism
+[       OK ] WorldForgePlanTest.PlanDeterminism (140 ms)
+[ RUN      ] WorldForgePlanTest.SiteSeedDerivation
+[       OK ] WorldForgePlanTest.SiteSeedDerivation (180 ms)
+[ RUN      ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly
+[       OK ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly (1 ms)
+[ RUN      ] WorldForgePlanTest.RasterCapSurfaces
+[       OK ] WorldForgePlanTest.RasterCapSurfaces (131 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeSeedAuthority
+[       OK ] WorldForgeRecipeTest.RecipeSeedAuthority (1264 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeSeedZeroKeepsConstructorSeed
+[       OK ] WorldForgeRecipeTest.RecipeSeedZeroKeepsConstructorSeed (4 ms)
+[ RUN      ] WorldForgeRecipeTest.RecipeWorldForgeRoundTrip
+[       OK ] WorldForgeRecipeTest.RecipeWorldForgeRoundTrip (0 ms)
+[ RUN      ] WorldForgeRecipeTest.LegacyRecipeDisabledAndKeyless
+[       OK ] WorldForgeRecipeTest.LegacyRecipeDisabledAndKeyless (0 ms)
+[ RUN      ] WorldForgeRecipeTest.GeneratorBakesPlanOnlyWhenEnabled
+[       OK ] WorldForgeRecipeTest.GeneratorBakesPlanOnlyWhenEnabled (805 ms)
+[ RUN      ] WorldForgeStressTest.EightSitesOverFullRegion
+[       OK ] WorldForgeStressTest.EightSitesOverFullRegion (1055 ms)
+[ RUN      ] WorldForgeStressTest.MountainWorldDegradesHonestly
+[       OK ] WorldForgeStressTest.MountainWorldDegradesHonestly (936 ms)
+[ RUN      ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators
+[       OK ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators (775 ms)
+[ RUN      ] WorldForgeStressTest.RoadStepProfileMostlyWalkable
+[       OK ] WorldForgeStressTest.RoadStepProfileMostlyWalkable (94 ms)
+[ RUN      ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains
+[       OK ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains (680 ms)
+[==========] 52 tests from 5 test suites ran. (79101 ms total)
+[  PASSED  ] 52 tests.

@@ -2265,6 +2265,9 @@ void EngineAPIServer::setupRoutes() {
         if (req.has_param("z")) params["z"] = std::stoi(req.get_param_value("z"));
         if (req.has_param("max_y")) params["max_y"] = std::stoi(req.get_param_value("max_y"));
         if (req.has_param("min_y")) params["min_y"] = std::stoi(req.get_param_value("min_y"));
+        // M0: source=chunks (default; the RESIDENT voxel scan, null where nothing is streamed)
+        //     | generator (the streaming generator's surface for the column, pure, no residency)
+        if (req.has_param("source")) params["source"] = req.get_param_value("source");
         json result = queueAndWait("get_terrain_height", params);
         res.set_content(result.dump(), "application/json");
     });

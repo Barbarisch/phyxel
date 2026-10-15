@@ -427,3 +427,28 @@ TEST(WorldForgePlanTest, UnviableRegionYieldsFewerSitesHonestly) {
     EXPECT_TRUE(plan->sites().empty());
     EXPECT_TRUE(plan->roads().empty());
 }
+
+// ── M0 (docs/WorldForgeV2Plan.md §5 M0): the road-raster segment cap is LOUD ─────────
+// The 8 u raster indexes segments with a uint16; past 0xFFFE segments the bake silently
+// `break`s (its comment promised a log that did not exist) and every later road is invisible
+// to roadAt - the terrain never stamps it. RED: with the cap lowered below the fixture's
+// segment count, the plan JSON carries no truncation record.
+TEST(WorldForgePlanTest, RasterCapSurfaces) {
+    struct ResetCap { ~ResetCap() { WorldForgePlan::setRasterSegmentCapForTesting(0); } } reset;
+    Fixture f;
+    auto full = f.bake(Fixture::defaultParams());
+    ASSERT_FALSE(full->sites().empty());
+    size_t segments = 0;
+    for (const auto& r : full->roads()) segments += r.centerline.size() > 1 ? r.centerline.size() - 1 : 0;
+    ASSERT_GT(segments, 20u) << "fixture has too few segments to exercise a cap";
+    EXPECT_EQ(full->toJson().value("raster_truncated_segments", -1), 0)
+        << "below the cap the record must say 0 truncated (not be absent)";
+
+    WorldForgePlan::setRasterSegmentCapForTesting(20);
+    Fixture g;
+    auto capped = g.bake(Fixture::defaultParams());
+    const auto j = capped->toJson();
+    ASSERT_TRUE(j.contains("raster_truncated_segments")) << "the plan must RECORD raster truncation";
+    EXPECT_EQ(j.value("raster_truncated_segments", 0), static_cast<int>(segments - 20))
+        << "every segment past the cap is counted, none silently dropped";
+}

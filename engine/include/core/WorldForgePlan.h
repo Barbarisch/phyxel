@@ -164,6 +164,13 @@ public:
     /// Full plan as JSON: sites + scores, road polylines (decimated), crossings, clamped
     /// params. The determinism contract is defined over this string.
     nlohmann::json toJson() const;
+    /// M0: road segments the 8 u raster could NOT index (uint16 segment table). Roads past the
+    /// cap exist in the plan but `roadAt` cannot see them - a loud WARN at bake and this count
+    /// (also in toJson as "raster_truncated_segments") replace the silent `break` the code had.
+    size_t rasterTruncatedSegments() const { return m_rasterTruncatedSegments; }
+    /// TEST-ONLY: lower the road-raster segment cap so a small fixture can exercise the
+    /// truncation path (the real cap is 0xFFFE). 0 resets to the real cap.
+    static void setRasterSegmentCapForTesting(size_t cap);
     /// FNV-1a over toJson().dump() — the realization ledger stores this to detect plan drift.
     uint64_t planHash() const;
 
@@ -191,6 +198,7 @@ private:
         uint16_t vert = 0;   // index of `a` in its road's centerline (grade interpolation)
     };
     std::vector<Segment> m_segments;
+    size_t m_rasterTruncatedSegments = 0;   ///< M0: segments dropped at the raster's uint16 cap (0 = none)
 };
 
 }  // namespace Phyxel

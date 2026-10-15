@@ -16654,7 +16654,22 @@ void Application::processAPICommands() {
                     int qz = cmd.params.value("z", 0);
                     int maxY = cmd.params.value("max_y", 255);
                     int minY = cmd.params.value("min_y", 0);
+                    const std::string source = cmd.params.value("source", std::string("chunks"));
 
+                    if (source == "generator") {
+                        // M0: the generator's own surface for the column - pure, no residency
+                        // needed (what worldforge_focus and the far-terrain tiles use). Two
+                        // truths existed: this one and the resident scan below; now each is
+                        // named and echoed.
+                        if (Phyxel::WorldGenerator* gen = chunkManager->getStreamingGenerator()) {
+                            const int sy = gen->sampleSurface(qx, qz).surfaceY;
+                            response = {{"x", qx}, {"z", qz}, {"surface_y", sy}, {"spawn_y", sy + 1},
+                                        {"source", "generator"}};
+                        } else {
+                            response = {{"x", qx}, {"z", qz}, {"surface_y", nullptr}, {"spawn_y", nullptr},
+                                        {"source", "generator"}, {"message", "no streaming generator"}};
+                        }
+                    } else {
                     int surfaceY = -1;
                     for (int y = maxY; y >= minY; --y) {
                         if (chunkManager->hasVoxelAt(glm::ivec3(qx, y, qz))) {
@@ -16663,10 +16678,13 @@ void Application::processAPICommands() {
                         }
                     }
                     if (surfaceY >= 0) {
-                        response = {{"x", qx}, {"z", qz}, {"surface_y", surfaceY}, {"spawn_y", surfaceY + 1}};
+                        response = {{"x", qx}, {"z", qz}, {"surface_y", surfaceY}, {"spawn_y", surfaceY + 1},
+                                    {"source", "chunks"}, {"max_y", maxY}};
                     } else {
                         response = {{"x", qx}, {"z", qz}, {"surface_y", nullptr}, {"spawn_y", nullptr},
-                                    {"message", "No terrain found"}};
+                                    {"source", "chunks"}, {"max_y", maxY},
+                                    {"message", "No terrain found (resident chunks only; try source=generator)"}};
+                    }
                     }
                 }
 
