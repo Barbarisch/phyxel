@@ -5716,8 +5716,10 @@ the box is every per-frame path:
 - *Read-back:* staging is allocated in HOST_CACHED memory when the device offers it.
 - *Debug cells:* built only when the water render mode is Cells.
 - *Not in P2b (logged):* a sparse CPU copy (needed only beyond 2 M cells - P5's question); the ripple layer's
-  camera-following window (26.4 gap 1 - the creek bench's layer is 900 x 36, under its cap); the `m_fields` copy per
-  `surfaceFields()` call (~0.3 ms on this box).
+  camera-following window (26.4 gap 1) - **CORRECTION (same day): the creek bench's volume gets NO ripple layer** - its
+  lattice would be 900 x 36 and the cap is 512 per axis (`kRippleMaxCells`), so it is refused; the window is REQUIRED before
+  the creek runs as pond water (the owner's standing rule: ripples carry forward) and moves to P3's first step; the
+  `m_fields` copy per `surfaceFields()` call (~0.3 ms on this box).
 
 **Design-check (Feature Design Keys).** *Look:* nothing drawn changes - the fields are bit-identical and the surface
 equality (26.11) holds. *Chunks:* bricks are world-aligned (26.7); the body box is in grid cells of world-aligned bodies; no
@@ -5741,7 +5743,7 @@ slosh's step 0.83 -> 0.78 ms median, the pond 27 / 27 bricks (the small box is a
 before (`slosh_live_p2612.mp4`, `pebble_pair_p2612.mp4`).
 
 **What it opens:** P3 - the creek bench run as pond water in one sparse volume (its box fits; its frame on this rig is ~2.5
-ms with one body, of which the GPU step is 1.5).
+ms with one body, of which the GPU step is 1.5) - once its ripple layer is a camera-following window (above: refused today).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
