@@ -36,5 +36,11 @@ struct SolidRaster {
 /// `fresh` are resized to the grid's cell count; fresh[i] = 1 where any fresh body overlaps cell i.
 SolidRaster rasterizeSolids(const WaterGrid& g, const std::vector<MovingSolid>& bodies,
                             std::vector<float>& s, std::vector<uint8_t>& fresh);
+/// 26.12: the same raster into `s` / `fresh` already sized to the grid, touching only the inclusive grid-cell box [lo, hi]: it is
+/// zeroed, the bodies are rasterized (clipped to the grid as always), and the clip-and-count runs over it. The CALLER guarantees
+/// every cell outside the box is 0 in both arrays and every body lies inside it - the result is then bit-identical to
+/// rasterizeSolids (WaterSolidTest.ABoxedFeedEqualsTheWholeGrid).
+SolidRaster rasterizeSolidsIn(const WaterGrid& g, const std::vector<MovingSolid>& bodies,
+                              std::vector<float>& s, std::vector<uint8_t>& fresh, const glm::ivec3& lo, const glm::ivec3& hi);
 
 } // namespace Phyxel::Core::Water

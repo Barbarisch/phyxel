@@ -76,7 +76,9 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         // the grid's occupancy must hold the hold boundary the GPU reads (it is the solver's query on the CPU)
         for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
             av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
-        av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip");
+        // 26.12 P2b: a fill volume is SPARSE - it stores and steps only the bricks holding water and their halo (26.6), bit-identical
+        // to keeping every brick (WaterBrickTest); the particle transport stays dense (26.6 point 7)
+        av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, BrickOptions{transport != "flip", 0, false});
         if (!av->gpuVol) return 0;   // the refusal carries the byte count
         m_gpu->upload(*av->gpuVol, *av->grid);
         av->gpuDirty = false;
@@ -106,7 +108,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity;
     r.cells = av.grid->cellCount();
     r.autoSleep = av.autoSleep; r.seededMass = av.seededMass;
     r.surfaceAgeMs = av.fieldStepSec < 0.0 ? -1.0 : (std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - av.fieldStepSec) * 1000.0;
@@ -577,7 +579,8 @@ WaterCoreManager::SolidsFeed WaterCoreManager::setMovingSolids(const std::vector
         if (av.backend == "gpu" && av.gpuVol && m_gpu) {
             rep = av.solver->updateSolidFields(mine, frameSeconds);
             static const std::vector<float> kNoWake;
-            m_gpu->setSolids(*av.gpuVol, av.grid->sData(), m_solidWakeRule ? av.solver->solidWake() : kNoWake, av.solver->solidFresh(), frameSeconds);
+            const WaterSolver::CellBox& box = av.solver->solidActiveBox();   // 26.12: only where a body is, was, or left its wake
+            m_gpu->setSolidsBox(*av.gpuVol, av.grid->sData(), m_solidWakeRule ? av.solver->solidWake() : kNoWake, av.solver->solidFresh(), frameSeconds, box.lo, box.hi);
             if (rep.raster.cells > 0 || rep.wakeCells > 0 || rep.sChange > 0.0) av.gpuLast.asleep = false;   // setSolids woke the device volume
         } else {
             rep = av.solver->setMovingSolids(mine, frameSeconds);

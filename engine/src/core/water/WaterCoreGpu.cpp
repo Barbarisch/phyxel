@@ -64,7 +64,10 @@ bool WaterCoreGpu::createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible,
     VkMemoryAllocateInfo ai{}; ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     ai.allocationSize = mr.size;
     const VkMemoryPropertyFlags want = hostVisible ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    ai.memoryTypeIndex = findMemoryType(mr.memoryTypeBits, want);
+    // 26.12: host memory the CPU READS back (staging: surface, births, stats, downloads) is CACHED when the device offers it -
+    // reading uncached (write-combined) memory cost 5 ms for the creek's surface list and most of a 257 ms download
+    ai.memoryTypeIndex = hostVisible ? findMemoryType(mr.memoryTypeBits, want | VK_MEMORY_PROPERTY_HOST_CACHED_BIT) : UINT32_MAX;
+    if (ai.memoryTypeIndex == UINT32_MAX) ai.memoryTypeIndex = findMemoryType(mr.memoryTypeBits, want);
     if (ai.memoryTypeIndex == UINT32_MAX || vkAllocateMemory(m_device, &ai, nullptr, &b.mem) != VK_SUCCESS) {
         // the §15.11 refusal: the byte count is in the message, the failure never reaches a dispatch
         if (err) *err = "cannot allocate " + std::to_string(mr.size) + " bytes of " + (hostVisible ? "host-visible" : "device-local") + " memory for a WaterCore GPU volume";
@@ -656,6 +659,53 @@ void WaterCoreGpu::setSolids(Volume& vol, const std::vector<float>& s, const std
     copy(cmd, vol.staging, vol.solid, vol.cells * 16, vol.offSolid);
     submitAndWait(cmd);
     if (!any) vol.hostSolid.clear();
+    vol.hasSolids = any;
+    vol.solidRatesPending = any;
+    vol.solidFrame = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
+    vol.asleep = false; vol.quietTicks = 0;           // a body is there (or just left): the water must move
+}
+
+void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const std::vector<float>& wake, const std::vector<uint8_t>& fresh, float frameSeconds,
+                                const glm::ivec3& lo, const glm::ivec3& hi) {
+    const glm::ivec3 n = vol.spec.dims;
+    const bool emptyBox = hi.x < lo.x || hi.y < lo.y || hi.z < lo.z;
+    bool any = false;   // outside the box everything is 0 (the caller's contract), so the box decides
+    if (!emptyBox) for (int z = lo.z; z <= hi.z && !any; ++z) for (int y = lo.y; y <= hi.y && !any; ++y) for (int x = lo.x; x <= hi.x && !any; ++x) {
+        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z);
+        any = (i < s.size() && s[i] > 0.0f) || (i < wake.size() && wake[i] > 0.0f);
+    }
+    if (!any && !vol.hasSolids) return;   // nothing there and nothing was: the buffer is already zero
+    if (!vol.bricked) { setSolids(vol, s, wake, fresh, frameSeconds); return; }   // the dense (FLIP) layout: the whole upload
+    if (vol.hostSolid.size() != vol.dCells * 4) vol.hostSolid.assign(vol.dCells * 4, 0.0f);
+    if (!emptyBox) for (int z = lo.z; z <= hi.z; ++z) for (int y = lo.y; y <= hi.y; ++y) for (int x = lo.x; x <= hi.x; ++x) {
+        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z);
+        vol.hostSolid[i * 4 + 0] = i < s.size() ? s[i] : 0.0f;
+        vol.hostSolid[i * 4 + 1] = 0.0f;   // q: computed on the device from its own fill (wc_classify mode 1)
+        vol.hostSolid[i * 4 + 2] = i < wake.size() ? wake[i] : 0.0f;
+        vol.hostSolid[i * 4 + 3] = (i < fresh.size() && fresh[i]) ? 1.0f : 0.0f;
+    }
+    std::vector<int> slots;   // the stored bricks the box touches (an absent brick takes its bodies from hostSolid when it is stored)
+    if (!emptyBox) {
+        const glm::ivec3 b0 = (lo + vol.o) / kB, b1 = (hi + vol.o) / kB;
+        for (int bz = b0.z; bz <= b1.z; ++bz) for (int by = b0.y; by <= b1.y; ++by) for (int bx = b0.x; bx <= b1.x; ++bx) {
+            if (bx < 0 || by < 0 || bz < 0 || bx >= vol.bn.x || by >= vol.bn.y || bz >= vol.bn.z) continue;
+            const int slot = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)];
+            if (slot > 0) slots.push_back(slot);
+        }
+    }
+    std::sort(slots.begin(), slots.end());
+    if (!slots.empty()) {
+        scatterSlots(vol, slots, nullptr);
+        VkCommandBuffer cmd = beginCommands();
+        for (size_t a = 0; a < slots.size();) {   // contiguous slots in one copy
+            size_t e = a + 1;
+            while (e < slots.size() && slots[e] == slots[e - 1] + 1) ++e;
+            const VkDeviceSize first = static_cast<VkDeviceSize>(slots[a]) * 512 * 16, bytes = static_cast<VkDeviceSize>(e - a) * 512 * 16;
+            copy(cmd, vol.staging, vol.solid, bytes, vol.offSolid + first, first);
+            a = e;
+        }
+        submitAndWait(cmd);
+    }
     vol.hasSolids = any;
     vol.solidRatesPending = any;
     vol.solidFrame = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate

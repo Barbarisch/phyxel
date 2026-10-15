@@ -42,6 +42,8 @@ struct AvRecord {
     float rbgsResidual = 0.0f;             ///< GPU backend: max |A p - b| after the last substep's sweeps (0 on the CPU)
     int   gpuSweeps = 0;
     double gpuMs = 0.0;                    ///< wall time of the last GPU step call (all its ticks)
+    int gpuBricks = 0;                     ///< 26.12: bricks the GPU volume steps (stored: water + its halo); 0 = not on the GPU
+    int gpuBrickCapacity = 0;              ///< 26.12: bricks it could store (the whole box)
     double surfaceAgeMs = -1.0;            ///< Phase F: age of the surface field the renderer last read (ms since the step that produced it; -1 = never)
     size_t particles = 0;                  ///< Phase B2: FLIP particles alive (0 for fills)
     size_t cells = 0;

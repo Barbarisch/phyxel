@@ -505,5 +505,52 @@ TEST(WaterSolidTest, DiagJetParcels) {
     }
 }
 
+// 26.12 (WaterCore.md): the body fields are worked only in the box round where a body is, was, or left its wake - and must
+// equal the whole-grid pass BIT FOR BIT, every frame. Two solvers on the same water: one with the test hook forcing the whole
+// grid (the reference), one boxed. The path: a body appears (fresh) at a negative-origin grid's corner, moves along, a second
+// one crosses it, both leave through the grid's side, then nothing while the wake runs out - every cell of s, the wake and
+// fresh compared, and the report's sums. RED before the box (the hook did not exist): this is the equality the box needs.
+TEST(WaterSolidTest, ABoxedFeedEqualsTheWholeGrid) {
+    const GridSpec spec{glm::ivec3(-20, -3, 5), glm::ivec3(40, 12, 30), kH};
+    WaterGrid ga(spec), gb(spec);
+    auto q = [spec](const glm::ivec3& c) -> Occ {
+        const glm::ivec3 l = c - spec.origin;
+        if (l.x < 0 || l.y < 0 || l.z < 0 || l.x >= spec.dims.x || l.y >= spec.dims.y || l.z >= spec.dims.z) return Occ::Solid;
+        return (l.y < 2 || (l.x == 17 && l.y < 6)) ? Occ::Solid : Occ::Air;   // a floor and a low wall the bodies pass over
+    };
+    WaterSolver whole(ga, q), boxed(gb, q);
+    whole.refreshSolids(); boxed.refreshSolids();
+    long framesCompared = 0, cellsDiffering = 0, boxedSmaller = 0;
+    for (int k = 0; k < 400; ++k) {
+        std::vector<MovingSolid> bodies;
+        const float t = k * kDt;
+        if (k < 260) {   // body 1: appears fresh, drifts +x and down, leaves through +x
+            MovingSolid a; a.id = 1; a.halfExtents = glm::vec3(0.17f, 0.2f, 0.25f);
+            a.centre = glm::vec3(-6.5f + 4.0f * t, 1.6f - 0.3f * t, 3.1f); a.fresh = k == 0; bodies.push_back(a);
+        }
+        if (k >= 60 && k < 200) {   // body 2: crosses body 1's path along z
+            MovingSolid b; b.id = 2; b.halfExtents = glm::vec3(0.3f);
+            b.centre = glm::vec3(-1.0f, 1.2f, 2.0f + 3.0f * (t - 1.0f)); b.fresh = k == 60; bodies.push_back(b);
+        }
+        WaterSolver::s_solidFieldsWhole = true;
+        const WaterSolver::SolidsReport ra = whole.updateSolidFields(bodies, kDt);
+        WaterSolver::s_solidFieldsWhole = false;
+        const WaterSolver::SolidsReport rb = boxed.updateSolidFields(bodies, kDt);
+        const WaterSolver::CellBox& bx = boxed.solidActiveBox();
+        if (bx.empty() || static_cast<size_t>(bx.hi.x - bx.lo.x + 1) * (bx.hi.y - bx.lo.y + 1) * (bx.hi.z - bx.lo.z + 1) < ga.cellCount()) ++boxedSmaller;
+        for (size_t i = 0; i < ga.cellCount(); ++i)
+            if (ga.sData()[i] != gb.sData()[i] || whole.solidWake()[i] != boxed.solidWake()[i] || whole.solidFresh()[i] != boxed.solidFresh()[i]) ++cellsDiffering;
+        EXPECT_EQ(ra.raster.bodies, rb.raster.bodies) << "frame " << k;
+        EXPECT_EQ(ra.raster.cells, rb.raster.cells) << "frame " << k;
+        EXPECT_EQ(ra.raster.volumeInside, rb.raster.volumeInside) << "frame " << k;
+        EXPECT_EQ(ra.sChange, rb.sChange) << "frame " << k;
+        EXPECT_EQ(ra.wakeCells, rb.wakeCells) << "frame " << k;
+        ++framesCompared;
+    }
+    std::printf("  %ld frames, %ld cell values differing; the box smaller than the grid in %ld frames\n", framesCompared, cellsDiffering, boxedSmaller);
+    EXPECT_EQ(cellsDiffering, 0);
+    EXPECT_GT(boxedSmaller, 300) << "the box must actually bound the work (else the test proves nothing)";
+}
+
 }  // namespace
 }  // namespace Phyxel::Core::Water

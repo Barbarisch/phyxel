@@ -3739,7 +3739,10 @@ void Application::update(float deltaTime) {
             if (camera) waterCore->setViewPoint(camera->getPosition());   // 25.26 RC: ripple windows follow the camera
             waterCore->update(std::min(deltaTime, 0.05f));
             if (renderCoordinator) {
-                renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
+                // 26.12: the per-voxel cell list feeds only the Cells debug draw - building it read the whole volume back once a second
+                // (a 257 ms hitch on a creek-sized box); the shipped Mesh mode never asks
+                const bool cellsMode = renderCoordinator->waterCoreRenderMode() == Core::Water::WaterCoreRenderMode::Cells;
+                renderCoordinator->setWaterCoreSurfaceCells((cellsMode && waterCore->totalCells()) ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
                 renderCoordinator->setWaterCoreSurfaceFields((waterCore->totalCells() || !waterCore->columnRegions().empty()) ? &waterCore->surfaceFields() : nullptr);   // 25.18: column regions draw too   // Phase F: the surface mesh feed
                 renderCoordinator->setWaterCoreDroplets(&waterCore->dropletDrawList());   // 21: the droplet crown
@@ -13893,7 +13896,7 @@ void Application::registerWaterCommands() {
     auto noCore = [](nlohmann::json& r) { r = {{"error", "WaterCore not available"}}; };
     auto avJson = [](const Core::Water::AvRecord& a) {
         return nlohmann::json{{"id", a.id}, {"box", {{"min", {a.minVoxel.x, a.minVoxel.y, a.minVoxel.z}}, {"max", {a.maxVoxel.x, a.maxVoxel.y, a.maxVoxel.z}}}},
-                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
+                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
                               {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};

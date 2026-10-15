@@ -8,10 +8,18 @@ namespace Phyxel::Core::Water {
 
 SolidRaster rasterizeSolids(const WaterGrid& g, const std::vector<MovingSolid>& bodies,
                             std::vector<float>& s, std::vector<uint8_t>& fresh) {
+    s.assign(g.cellCount(), 0.0f);
+    fresh.assign(g.cellCount(), 0);
+    return rasterizeSolidsIn(g, bodies, s, fresh, glm::ivec3(0), glm::ivec3(g.nx() - 1, g.ny() - 1, g.nz() - 1));
+}
+
+SolidRaster rasterizeSolidsIn(const WaterGrid& g, const std::vector<MovingSolid>& bodies,
+                              std::vector<float>& s, std::vector<uint8_t>& fresh, const glm::ivec3& blo, const glm::ivec3& bhi) {
     SolidRaster r;
-    const size_t n = g.cellCount();
-    s.assign(n, 0.0f);
-    fresh.assign(n, 0);
+    for (int z = blo.z; z <= bhi.z; ++z) for (int y = blo.y; y <= bhi.y; ++y) {
+        const size_t row = g.idx(0, y, z);
+        for (int x = blo.x; x <= bhi.x; ++x) { s[row + x] = 0.0f; fresh[row + x] = 0; }
+    }
     const float h = g.h();
     const glm::ivec3 o = g.spec().origin;   // in cells
     const double V = static_cast<double>(g.cellVolume());
@@ -51,7 +59,8 @@ SolidRaster rasterizeSolids(const WaterGrid& g, const std::vector<MovingSolid>& 
             }
         }
     }
-    for (size_t i = 0; i < n; ++i) {
+    for (int z = blo.z; z <= bhi.z; ++z) for (int y = blo.y; y <= bhi.y; ++y) for (int x = blo.x; x <= bhi.x; ++x) {   // memory order, as a whole-grid pass
+        const size_t i = g.idx(x, y, z);
         if (s[i] <= 0.0f) continue;
         s[i] = std::min(s[i], 1.0f);   // two bodies overlapping one cell cannot fill more than the cell
         ++r.cells;

@@ -78,8 +78,10 @@ was the float store rounding at f = 0.5 (and the GPU compiler folding every "exa
 remainder; GPU still water now settles and sleeps (`GpuRestDecisionDeterministic` green, the live pond asleep in 2 s).
 **26.11 (2026-10-14): the cost** - the creek call ~1.6 -> 1.02 ms at the engine's 27 sweeps (GPU 0.79 ms), measured
 per stage with GPU timestamps: only the water's columns cross to the host now, and the extrapolation ping-pongs without
-copies. **Next:** the owner's A/B of 26.10; flat bricks (11.4 stepped cells per creek water cell) if P3's water needs the
-room; P2b (the engine on bricks), P3. The §23 slime experiment stays queued.
+copies. **26.12 P2b BUILT (2026-10-14): the engine on bricks** - engine GPU volumes are sparse; on the creek bench's box
+(583,200 cells) a frame went from 21 ms (one moving body) + 7.1 ms (update) to 0.36 + 2.2 ms, a forced read-back 257 -> 14 ms.
+**Next:** the owner's A/B of 26.10; P3 (creeks and ponds on one model - the creek bench as pond water). The §23 slime
+experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5183,7 +5185,8 @@ immediate neighbours (where water can move next) - never a box of dry banks and 
 **26.9 surface fixes DONE** (signed off 2026-10-14). **26.10 still-water guess ON by default, BUILT, not signed off** (the
 resting-body loss found and fixed - a per-cell float remainder; GPU still water settles and sleeps). **P2 cost gate MET at the
 median** (26.11: the creek 1.02 ms a call at 27 sweeps, GPU 0.79 ms; p90 2.06 ms is host jitter around the fence - the GPU sum
-does not vary). P2b, P3, P4, P5 **not started**.
+does not vary). **P2b BUILT** (26.12: the engine's volumes sparse, the per-frame paths bounded by the water and the bodies, not
+the box). P3, P4, P5 **not started**.
 
 - **P1 - the pond model carries a creek.** [DONE, signed off 2026-10-13 - 26.5] Find, by measurement, why the pond core runs shallow fast water deep and slow,
   and fix it in the core (CPU reference first, then the GPU kernels - one law, both backends). Rig: the straight 1:100
@@ -5195,7 +5198,7 @@ does not vary). P2b, P3, P4, P5 **not started**.
   mid-reach depth and speed within 5 % of Manning at two to three cells deep (and the one-cell case reported); the
   column solver's numbers on the same rig as the cross-check; the still-pond suite (§19-§24: slosh, waves, pebble pair,
   W-T tests) unchanged - the fix must not break the signed-off pond.
-- **P2 - storage that follows the water.** [P2a storage DONE - 26.8; cost gate MET at the median - 26.11; P2b not started] The pond core on the GPU stores and steps BRICKS of 8 x 8 x 8 cells (8/9 m) that
+- **P2 - storage that follows the water.** [P2a storage DONE - 26.8; cost gate MET at the median - 26.11; P2b BUILT - 26.12] The pond core on the GPU stores and steps BRICKS of 8 x 8 x 8 cells (8/9 m) that
   hold water or touch a brick that does; empty bricks are freed. Bricks are world-aligned (36 per 32 m chunk side), so a
   body of water is one set of bricks wherever it lies. **Gates:** a sparse run equals the dense run of the same water
   (the 25.32 equality shape: bit-identical on the CPU reference, parity on the GPU); cost per water cell measured; the
@@ -5684,6 +5687,61 @@ changes convergence, needs its own gate); flat bricks for shallow water (the cre
 reductions fused into fewer passes (~0.02 ms); one fewer fence per call by reading last call's results (a frame of latency -
 a design change for the coupling). **Design keys:** cost only; the drawn surface is a pure function of the water and the
 grid's occupancy (now also for absent bricks); no new parameters.
+
+### 26.12 P2b - the engine on bricks: design, check, build (2026-10-14). Status: BUILT, not signed off
+
+**Measured first (the design is the measurement's).** `WaterCoreGpuParityTest.DISABLED_DiagEngineCreekBox`: the ENGINE's
+path (`WaterCoreManager` + GPU) on the creek bench's box - 100 x 4 x 2 m at 1/9 m (900 x 18 x 36 = 583,200 cells: inside
+the manager's 2 M-cell cap), a 2 m channel 1 m deep, water flowing, one 1/3 m body drifting along the surface. Before P2b,
+per frame (median of 120): **feeding the one body 20.9 ms**, `update` 7.1 ms (GPU step 3.3; the ripple layer's share ~5 ms
+was really the surface read below), the surface read 0.34 ms; a forced read of the CPU copy (`probe`, `sleep`) **257 ms**.
+Causes, each found by switching it alone:
+1. the body feed ran over EVERY cell of the box three times on the CPU (raster zeroing, wake ageing, the copy) and uploaded
+   the whole solid field (9.3 MB) every frame;
+2. the GPU volume kept every brick (the engine never asked for sparse);
+3. the staging memory the CPU reads back from was uncached - a 512 KB surface list read in ~5 ms, a full read-back 257 ms;
+4. the editor asked for `surfaceCells()` every frame - a per-voxel list only the Cells debug draw uses - which reads the whole
+   volume back once a second.
+
+**Design (P2b scope: what P3's benches need).** The CPU copy of a volume (`Av::grid`, the 2 M-cell cap) STAYS dense: the
+creek bench's box fits, and its readers (probes, write-back, the CPU reference) are not per-frame. What must not scale with
+the box is every per-frame path:
+- *Bodies:* `WaterSolver::updateSolidFields` works only in the box round where a body is, was, or left its wake (grown by
+  the wake's 3 cells): every cell with s, wake or fresh non-zero lies in `m_solidBox`, so outside the box all three are 0
+  before and after - bit-identical to the whole-grid pass, sums in memory order either way (`rasterizeSolidsIn`).
+  `WaterCoreGpu::setSolidsBox` updates the host copy there and uploads only the stored bricks the box touches; an absent
+  brick takes its bodies from the host copy when it is stored (as before).
+- *Storage:* engine fill volumes are created SPARSE (`BrickOptions{sparse}`; capacity = the whole box, so never full);
+  particle (FLIP) volumes stay dense (26.6 point 7). The record echoes `gpu_bricks` / `gpu_brick_capacity`.
+- *Read-back:* staging is allocated in HOST_CACHED memory when the device offers it.
+- *Debug cells:* built only when the water render mode is Cells.
+- *Not in P2b (logged):* a sparse CPU copy (needed only beyond 2 M cells - P5's question); the ripple layer's
+  camera-following window (26.4 gap 1 - the creek bench's layer is 900 x 36, under its cap); the `m_fields` copy per
+  `surfaceFields()` call (~0.3 ms on this box).
+
+**Design-check (Feature Design Keys).** *Look:* nothing drawn changes - the fields are bit-identical and the surface
+equality (26.11) holds. *Chunks:* bricks are world-aligned (26.7); the body box is in grid cells of world-aligned bodies; no
+chunk or camera input. *Generation:* none. *API:* `water_av_list` echoes `gpu_bricks`, `gpu_brick_capacity`; no new
+parameter; defaults change only in storage (results equal). *Visual test:* the bench pond and pebble pair live (unchanged),
+the creek box headless (the numbers). *Small rigs + controls:* the equality tests below, each with the whole-grid path as its
+control. **Verdict: READY** (built the same day).
+
+**Gates (red-before-green where the rule is new).**
+- `WaterSolidTest.ABoxedFeedEqualsTheWholeGrid` (CPU, 400 frames: a fresh body, a second crossing it, both leaving through a
+  side, then the wake running out; a negative-origin grid): every cell of s, the wake and fresh, and every report sum,
+  identical to the whole-grid pass (the test hook `WaterSolver::s_solidFieldsWhole`); the box smaller than the grid in
+  400 / 400 frames.
+- `WaterCoreGpuParityTest.GpuBoxedSolidsEqualTheWhole` (GPU, 150 ticks, sparse bricks, a stone dropped in and dragged):
+  the device's solid buffer (s, q, wake, ledger) and every fill identical between `setSolids` and `setSolidsBox`.
+- All GPU water tests pass but the known FLIP row; CPU water tests 303 / 303.
+
+**Measured after (the same rig).** Body feed **0.36 ms** (was 20.9), `update` **2.24 ms** (was 7.1; GPU step 1.5, ripples
+~0.5), surface read 0.31 ms, a forced read-back **14 ms** (was 257), create 76 ms (was 92). Live (WaterBench_Small): the
+slosh's step 0.83 -> 0.78 ms median, the pond 27 / 27 bricks (the small box is all water and halo), pebble pair and slosh as
+before (`slosh_live_p2612.mp4`, `pebble_pair_p2612.mp4`).
+
+**What it opens:** P3 - the creek bench run as pond water in one sparse volume (its box fits; its frame on this rig is ~2.5
+ms with one body, of which the GPU step is 1.5).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

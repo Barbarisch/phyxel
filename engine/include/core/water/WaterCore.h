@@ -439,6 +439,12 @@ public:
     void computeSolidRates(float frameSeconds, SolidsReport& rep);
     const std::vector<float>& solidWake() const { return m_solidWake; }
     const std::vector<uint8_t>& solidFresh() const { return m_solidFresh; }
+    /// 26.12: the inclusive grid-cell box the last updateSolidFields could change (s, the wake, fresh); outside it all three are 0
+    /// and were 0. Empty when hi < lo. A GPU volume uploads only the bricks it touches.
+    struct CellBox { glm::ivec3 lo{0}, hi{-1}; bool empty() const { return hi.x < lo.x || hi.y < lo.y || hi.z < lo.z; } };
+    const CellBox& solidActiveBox() const { return m_solidActive; }
+    /// 26.12 test hook: updateSolidFields over the whole grid every call (the reference the box must equal bit for bit).
+    static inline bool s_solidFieldsWhole = false;
 
     /// One engine tick of `dt` seconds, substepped internally to honour the CFL fraction.
     /// A sleeping volume returns immediately (asleep = true, nothing touched).
@@ -483,6 +489,9 @@ public:
 private:
     std::vector<uint8_t> m_solidFresh;   // 20: cells of bodies that appeared this frame
     std::vector<float> m_solidWake;      // 20: seconds left in which a body's dragged air may rise out of this cell
+    std::vector<float> m_sNew;           // 26.12: the raster's scratch, kept (zero outside the box it last used)
+    CellBox m_solidBox;                  // 26.12: every cell with s, wake or fresh non-zero lies inside it
+    CellBox m_solidActive;               // 26.12: the box the last call worked in
     std::vector<BoundarySpec> m_boundaries;   // Phase G
     std::vector<double> m_p, m_rhs, m_z, m_s, m_r, m_diag;   // projection scratch (double)
     std::vector<float> m_fPrev;

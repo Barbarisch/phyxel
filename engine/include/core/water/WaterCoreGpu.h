@@ -205,6 +205,11 @@ public:
     /// fill (wc_classify mode 1, the same rule as WaterSolver::computeSolidRates). All-zero inputs after a
     /// zero buffer upload nothing. Wakes the volume when anything is or was there.
     void setSolids(Volume& vol, const std::vector<float>& s, const std::vector<float>& wake, const std::vector<uint8_t>& fresh, float frameSeconds);
+    /// 26.12: setSolids where only the inclusive grid-cell box [lo, hi] may have changed (WaterSolver::solidActiveBox): the host
+    /// copy is updated there and only the stored bricks it touches are uploaded. The device's solid buffer ends identical to
+    /// setSolids' (WaterCoreGpuParityTest.GpuBoxedSolidsEqualTheWhole).
+    void setSolidsBox(Volume& vol, const std::vector<float>& s, const std::vector<float>& wake, const std::vector<uint8_t>& fresh, float frameSeconds,
+                      const glm::ivec3& lo, const glm::ivec3& hi);
     /// Replace the volume's pumps/sinks (fenced); the projection's per-cell rate buffer is reset.
     bool setSources(Volume& vol, const std::vector<GpuSource>& sources, std::string* err);
     void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending after a step (fenced)

@@ -8,6 +8,8 @@
 #include "core/water/WaterSurfaceMesh.h"
 #include "core/water/WaterCoreManager.h"
 #include <cmath>
+#include <chrono>
+#include <algorithm>
 #include <cstdlib>
 #include <functional>
 
@@ -881,6 +883,94 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagRestingBodyWhereItGoes) {
         }
     }
     gpu.destroyVolume(vol);
+}
+
+// 26.12: the body upload limited to the box the solver worked in (setSolidsBox) leaves the device exactly as the whole upload
+// (setSolids) does - two sparse-brick volumes of the same pond, a stone dropped in at 1/9 m and dragged along the bottom,
+// every tick the solid buffer and the fills compared bit for bit. 1/9 m and 24 x 18 x 24 cells: several bricks, so the box
+// touches some and not others.
+TEST_F(WaterCoreGpuParityTest, GpuBoxedSolidsEqualTheWhole) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 9.0f;
+    Tank a(24, 18, 24, h), b(24, 18, 24, h);
+    a.grid.fillBox({0, 0, 0}, {23, 8, 23}, 1.0f); b.grid.fillBox({0, 0, 0}, {23, 8, 23}, 1.0f);
+    a.bakeOcc(); b.bakeOcc();
+    std::string err;
+    auto* va = gpu.createVolume(a.grid, &err, BrickOptions{true, 0, false}); ASSERT_NE(va, nullptr) << err;
+    auto* vb = gpu.createVolume(b.grid, &err, BrickOptions{true, 0, false}); ASSERT_NE(vb, nullptr) << err;
+    WaterSolver aux(a.grid, a.query());
+    SolverParams prm;
+    long solidDiff = 0, fillDiff = 0, ticks = 0;
+    std::vector<float> sa, sb;
+    for (int k = 0; k < 150; ++k) {
+        std::vector<MovingSolid> bodies;
+        if (k < 120) {
+            MovingSolid st; st.id = 1; st.halfExtents = glm::vec3(1.0f / 6.0f);
+            st.centre = glm::vec3(0.6f + 0.8f * k * kDt, std::max(1.0f / 6.0f, 2.2f - 3.0f * k * kDt), 1.3f); st.fresh = k == 0;
+            bodies.push_back(st);
+        }
+        aux.updateSolidFields(bodies, kDt);
+        const WaterSolver::CellBox& box = aux.solidActiveBox();
+        gpu.setSolids(*va, a.grid.sData(), aux.solidWake(), aux.solidFresh(), kDt);
+        gpu.setSolidsBox(*vb, a.grid.sData(), aux.solidWake(), aux.solidFresh(), kDt, box.lo, box.hi);
+        gpu.step(*va, prm, kDt, 1, 27); gpu.step(*vb, prm, kDt, 1, 27);
+        for (const char* what : {"solid_s", "solid_q", "solid_wake", "solid_ledger"}) {
+            gpu.readCells(*va, what, sa); gpu.readCells(*vb, what, sb);
+            for (size_t i = 0; i < sa.size(); ++i) if (!(sa[i] == sb[i])) ++solidDiff;
+        }
+        gpu.readCells(*va, "f", sa); gpu.readCells(*vb, "f", sb);
+        for (size_t i = 0; i < sa.size(); ++i) if (!(sa[i] == sb[i])) ++fillDiff;
+        ++ticks;
+    }
+    std::printf("  %ld ticks: solid values differing %ld, fills differing %ld\n", ticks, solidDiff, fillDiff);
+    EXPECT_EQ(solidDiff, 0);
+    EXPECT_EQ(fillDiff, 0);
+    gpu.destroyVolume(va); gpu.destroyVolume(vb);
+}
+
+// 26.12 P2b measurement: the ENGINE's path (WaterCoreManager + GPU) on the creek bench's box - 100 m x 4 m x 2 m at 1/9 m
+// (900 x 18 x 36 = 583,200 cells), a 2 m channel 1 m deep along x, water 0.3 m deep and tilted so it flows, one 1/3 m body
+// drifting along the surface. Where a frame's time goes: create, update (the step), the body feed, the surface read, a
+// mirror download. DIAG_FRAMES (default 120).
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagEngineCreekBox) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto state = [](const glm::ivec3& m) -> int {   // micro (1/9 m) coords: ground top at y 18 (2 m), the channel z 9..26, bed at y 9
+        if (m.y < 0) return 1;
+        const bool channel = m.z >= 9 && m.z < 27;
+        return m.y < (channel ? 9 : 18) ? 1 : 0;
+    };
+    using clk = std::chrono::steady_clock;
+    auto ms = [](clk::time_point a, clk::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    WaterCoreManager mgr(state);
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    auto t0 = clk::now();
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(99, 1, 3), 1.0f / 9.0f, "eulerian", &err, "gpu", 27);
+    ASSERT_NE(id, 0) << err;
+    auto t1 = clk::now();
+    for (int x = 0; x < 100; ++x) mgr.placeBox(glm::ivec3(x, 1, 1), glm::ivec3(x, 1, 2), std::clamp(0.30f + 0.10f * (99 - x) / 99.0f, 0.0f, 1.0f), nullptr);   // 0.4 -> 0.3 of the voxel above the bed: a tilt
+    auto t2 = clk::now();
+    if (std::getenv("DIAG_NO_DROPLETS")) mgr.setDroplets(false);
+    if (std::getenv("DIAG_NO_RIPPLES")) mgr.setRipples(false);
+    const bool noBody = std::getenv("DIAG_NO_BODY") != nullptr;
+    mgr.setRealtime(true);
+    const int frames = std::getenv("DIAG_FRAMES") ? std::atoi(std::getenv("DIAG_FRAMES")) : 120;
+    std::vector<double> upd, feed, surf;
+    for (int k = 0; k < frames; ++k) {
+        MovingSolid b; b.id = 7; b.halfExtents = glm::vec3(1.0f / 6.0f); b.centre = glm::vec3(20.0f + 0.5f * k / 60.0f, 1.35f, 2.0f); b.velocity = glm::vec3(0.5f, 0, 0);
+        auto a = clk::now(); if (!noBody) mgr.setMovingSolids({b}, 1.0f / 60.0f); auto c = clk::now();
+        mgr.update(1.0f / 60.0f); auto d = clk::now();
+        (void)mgr.surfaceFields(); auto e = clk::now();
+        feed.push_back(ms(a, c)); upd.push_back(ms(c, d)); surf.push_back(ms(d, e));
+    }
+    auto med = [](std::vector<double> v) { std::sort(v.begin(), v.end()); return v[v.size() / 2]; };
+    auto t3 = clk::now();
+    AvRecord rec; mgr.step(id, 1, 1.0f / 60.0f, &rec);
+    const auto p = mgr.probe(glm::vec3(50.0f, 1.2f, 2.0f));   // a reader of the mirror (forced download)
+    auto t4 = clk::now();
+    std::printf("  creek box %ld cells: create %.1f ms, place %.1f ms; per frame median - body feed %.3f ms, update %.3f ms, surface read %.3f ms; a probe (download) %.1f ms; gpu ms %.3f, mass %.4f m^3\n",
+                static_cast<long>(rec.cells), ms(t0, t1), ms(t1, t2), med(feed), med(upd), med(surf), ms(t3, t4), rec.gpuMs, rec.mass);
+    (void)p;
 }
 
 // T2 on the device: a 1 m cube lowered at 0.2 m/s until fully under raises the level by 1/16 m.

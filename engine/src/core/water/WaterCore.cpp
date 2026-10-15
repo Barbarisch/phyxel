@@ -1463,31 +1463,64 @@ WaterSolver::SolidsReport WaterSolver::setMovingSolids(const std::vector<MovingS
 // The half that does not read the water (M1: the GPU backend calls this, uploads s / wake / fresh and
 // computes the rates from its own fill - the CPU grid's f is stale for a GPU volume).
 WaterSolver::SolidsReport WaterSolver::updateSolidFields(const std::vector<MovingSolid>& bodies, float frameSeconds) {
+    // 26.12: the work is bounded by the bodies, not the grid. Every cell with s, wake or fresh non-zero lies in m_solidBox; this
+    // call works in the box round it and the bodies now, grown by the wake's reach - outside, all three are 0 before and after,
+    // so the result is the whole-grid pass's bit for bit (the sums run in memory order either way). A 583,200-cell creek box
+    // spent 21 ms a frame on one stone doing these loops over every cell (DiagEngineCreekBox).
     SolidsReport rep;
-    std::vector<float> sNew;
-    rep.raster = rasterizeSolids(m_grid, bodies, sNew, m_solidFresh);
-    std::vector<float>& s = m_grid.sData();
-    const float V = m_grid.cellVolume();
-    const float T = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
+    const size_t n = m_grid.cellCount();
     const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
+    if (m_solidWake.size() != n) m_solidWake.assign(n, 0.0f);
+    if (m_solidFresh.size() != n) m_solidFresh.assign(n, 0);
+    if (m_sNew.size() != n) m_sNew.assign(n, 0.0f);
+    std::vector<float>& s = m_grid.sData();
+    const float V = m_grid.cellVolume(), h = m_grid.h();
+    const float T = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
+    const int r = kSolidWakeCells;
+    CellBox act;
+    if (s_solidFieldsWhole) { act.lo = glm::ivec3(0); act.hi = glm::ivec3(nx - 1, ny - 1, nz - 1); }
+    else {
+        CellBox u = m_solidBox;
+        const glm::ivec3 o = m_grid.spec().origin;
+        for (const MovingSolid& b : bodies) {   // the raster's own clipped cell range (MovingSolids.cpp), as grid cells
+            const glm::vec3 he = b.halfExtents;
+            if (!std::isfinite(b.centre.x + b.centre.y + b.centre.z) || !(he.x > 0.0f) || !(he.y > 0.0f) || !(he.z > 0.0f) || !std::isfinite(he.x + he.y + he.z)) continue;
+            const glm::vec3 lo = b.centre - he, hi = b.centre + he;
+            const glm::ivec3 c0(std::max(o.x, static_cast<int>(std::floor(lo.x / h))), std::max(o.y, static_cast<int>(std::floor(lo.y / h))), std::max(o.z, static_cast<int>(std::floor(lo.z / h))));
+            const glm::ivec3 c1(std::min(o.x + nx - 1, static_cast<int>(std::floor(hi.x / h))), std::min(o.y + ny - 1, static_cast<int>(std::floor(hi.y / h))), std::min(o.z + nz - 1, static_cast<int>(std::floor(hi.z / h))));
+            if (c1.x < c0.x || c1.y < c0.y || c1.z < c0.z) continue;   // wholly outside the grid
+            if (u.empty()) { u.lo = c0 - o; u.hi = c1 - o; } else { u.lo = glm::min(u.lo, c0 - o); u.hi = glm::max(u.hi, c1 - o); }
+        }
+        if (!u.empty()) { act.lo = glm::max(u.lo - glm::ivec3(r), glm::ivec3(0)); act.hi = glm::min(u.hi + glm::ivec3(r), glm::ivec3(nx - 1, ny - 1, nz - 1)); }
+    }
+    m_solidActive = act;
+    rep.raster = rasterizeSolidsIn(m_grid, bodies, m_sNew, m_solidFresh, act.lo, act.hi);
+    const std::vector<float>& sNew = m_sNew;
     // the wake (see project: air a body drags under water rises back out): age it, then mark every cell
     // within kSolidWakeCells of a cell the body is leaving (s falling)
-    if (m_solidWake.size() != m_grid.cellCount()) m_solidWake.assign(m_grid.cellCount(), 0.0f);
-    for (float& w : m_solidWake) w = std::max(0.0f, w - T);
-    for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x) {
+    for (int z = act.lo.z; z <= act.hi.z; ++z) for (int y = act.lo.y; y <= act.hi.y; ++y) for (int x = act.lo.x; x <= act.hi.x; ++x) {
+        float& w = m_solidWake[m_grid.idx(x, y, z)]; w = std::max(0.0f, w - T);
+    }
+    for (int z = act.lo.z; z <= act.hi.z; ++z) for (int y = act.lo.y; y <= act.hi.y; ++y) for (int x = act.lo.x; x <= act.hi.x; ++x) {
         const size_t i = m_grid.idx(x, y, z);
         if (sNew[i] >= s[i]) continue;
-        const int r = kSolidWakeCells;
         for (int zz = std::max(0, z - r); zz <= std::min(nz - 1, z + r); ++zz)
             for (int yy = std::max(0, y - r); yy <= std::min(ny - 1, y + r); ++yy)
                 for (int xx = std::max(0, x - r); xx <= std::min(nx - 1, x + r); ++xx)
                     m_solidWake[m_grid.idx(xx, yy, zz)] = solidWakeSeconds();
     }
-    for (size_t i = 0; i < s.size(); ++i) {
+    CellBox next;
+    for (int z = act.lo.z; z <= act.hi.z; ++z) for (int y = act.lo.y; y <= act.hi.y; ++y) for (int x = act.lo.x; x <= act.hi.x; ++x) {
+        const size_t i = m_grid.idx(x, y, z);
         rep.sChange += std::abs(static_cast<double>(sNew[i]) - s[i]) * V;
         s[i] = sNew[i];
+        if (m_solidWake[i] > 0.0f) ++rep.wakeCells;
+        if (s[i] > 0.0f || m_solidWake[i] > 0.0f || m_solidFresh[i]) {
+            const glm::ivec3 c(x, y, z);
+            if (next.empty()) { next.lo = c; next.hi = c; } else { next.lo = glm::min(next.lo, c); next.hi = glm::max(next.hi, c); }
+        }
     }
-    for (float w : m_solidWake) if (w > 0.0f) ++rep.wakeCells;
+    m_solidBox = next;
     return rep;
 }
 
