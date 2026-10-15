@@ -154,9 +154,13 @@ struct StructureForge::Context {
 };
 
 const std::vector<std::string>& StructureForge::stageNames() {
+    // M0 (WorldForgeV2Plan §5 M0): the READ-ONLY gates (ground_gate) run before any stage
+    // mutates the world, and the mutating `footprint` (overlap + placed-tree removal) runs
+    // only after the realized shell passed its traversal check - so EVERY refusal leaves
+    // the world and the registry exactly as it found them.
     static const std::vector<std::string> kNames = {
-        "intake", "floorplan", "validate_program", "validate_assets", "footprint",
-        "realize", "validate_realized", "place", "furnish", "emit"};
+        "intake", "floorplan", "validate_program", "validate_assets", "ground_gate",
+        "realize", "validate_realized", "footprint", "place", "furnish", "emit"};
     return kNames;
 }
 
@@ -170,9 +174,10 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
         {"floorplan",         &StructureForge::stageFloorplan},
         {"validate_program",  &StructureForge::stageValidateProgram},
         {"validate_assets",   &StructureForge::stageValidateAssets},
-        {"footprint",         &StructureForge::stageFootprint},
+        {"ground_gate",       &StructureForge::stageGroundGate},     // M0: read-only, before any mutation
         {"realize",           &StructureForge::stageRealize},
         {"validate_realized", &StructureForge::stageValidateRealized},
+        {"footprint",         &StructureForge::stageFootprint},      // M0: mutates only after every gate passed
         {"place",             &StructureForge::stagePlace},
         {"furnish",           &StructureForge::stageFurnish},
         {"emit",              &StructureForge::stageEmit},
@@ -428,6 +433,58 @@ StructureForge::StageReport StructureForge::stageValidateAssets(Context& ctx) {
                              std::to_string(coverage.gaps.size()) +
                              " fixture type(s) this building needs have no engine asset"},
                    {"asset_requests", AssetRequestLedger::toJson(requests)}};
+    return rep;
+}
+
+// ---------------------------------------------------------------------------
+// ground_gate (M0) — the grounding gate and the keep_vegetation refusal, READ-ONLY,
+// before `footprint` removes anything and before `realize` spends time. These used
+// to live inside `place`, AFTER `footprint` had already deleted overlapping
+// structures and placed trees - so a refused build left the removals behind
+// (F5 audit of docs/WorldForgeV2Plan.md). `place` keeps its own scan for the pad and
+// the vegetation flood; the refusals there are now unreachable belts-and-braces.
+// ---------------------------------------------------------------------------
+StructureForge::StageReport StructureForge::stageGroundGate(Context& ctx) {
+    StageReport rep;
+    auto* chunkManager = ctx.deps.chunkManager;
+    if (!chunkManager) return rep;   // no world: nothing to ground against (headless planning)
+    const nlohmann::json& params = ctx.params;
+    const int ox = ctx.ox, oz = ctx.oz, reqY = ctx.reqY;
+    const int W = std::max(ctx.program.footprintW, 1), D = std::max(ctx.program.footprintD, 1);
+    const int scanTop = reqY + 64;
+    int grounded = 0, vegCells = 0;
+    for (int x = ox; x < ox + W; ++x)
+        for (int z = oz; z < oz + D; ++z) {
+            for (int y = scanTop; y >= 0; --y) {
+                const glm::ivec3 wp(x, y, z);
+                if (DamageSystem::isTreeMatterCell(chunkManager, wp)) { ++vegCells; continue; }
+                if (chunkManager->hasVoxelAt(wp)) { ++grounded; break; }
+            }
+        }
+    const int missingCols = W * D - grounded;
+    if (missingCols > 0 && !params.value("allow_ungrounded", false)) {
+        LOG_WARN_FMT("StructureBuild", "REFUSING ungrounded build at (" << ox << "," << oz
+                     << "): " << missingCols << "/" << (W * D)
+                     << " footprint columns have no terrain (allow_ungrounded overrides)");
+        rep.action = StageReport::Action::Refused;
+        rep.refusal = {{"error", "ungrounded footprint: " + std::to_string(missingCols) + " of " +
+                          std::to_string(W * D) + " columns have no terrain below y=" +
+                          std::to_string(scanTop) +
+                          " - generate terrain there first, or pass allow_ungrounded:true"},
+                {"ungrounded_columns", missingCols},
+                {"footprint_columns", W * D}};
+        return rep;
+    }
+    if (vegCells > 0 && params.value("keep_vegetation", false)) {
+        LOG_WARN_FMT("StructureBuild", "REFUSING build at (" << ox << "," << oz << "): " << vegCells
+                     << " tree cells in the footprint (keep_vegetation)");
+        rep.action = StageReport::Action::Refused;
+        rep.refusal = {{"error", "vegetation in footprint: " + std::to_string(vegCells) +
+                          " tree cells - refused (keep_vegetation is set); "
+                          "move the build or drop keep_vegetation"},
+                {"vegetation_cells", vegCells}};
+        return rep;
+    }
     return rep;
 }
 

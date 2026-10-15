@@ -62,3 +62,49 @@ TEST(StructureGroundingTest, RefusesAirBuildsByDefault) {
     EXPECT_FALSE(edge.value("success", false));
     EXPECT_EQ(edge.value("ungrounded_columns", 0), 2 * 6) << edge.dump();
 }
+
+// ============================================================================
+// M0 (docs/WorldForgeV2Plan.md §5 M0, "forge gates run read-only before any mutation").
+// F5 audit finding: the forge's stage order is footprint (REMOVES overlapping structures
+// and placed trees) -> realize -> validate_realized -> place (grounding + vegetation gates),
+// so EVERY refusal after `footprint` leaves the removals behind: a neighbour deleted, a
+// tree felled, and then "refused". RED: an ungrounded lot that overlaps a registered
+// neighbouring structure refuses (correct) AND the neighbour is gone (the residue).
+// ============================================================================
+#include "core/ObjectTemplateManager.h"
+#include "core/PlacedObjectManager.h"
+
+TEST(StructureGroundingTest, ARefusalLeavesNoRemovalsBehind) {
+    ChunkManager cm;
+    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(96, 0, 192));
+    owned->initializeForLoading();
+    for (int x = 100; x < 112; ++x)
+        for (int z = 200; z < 210; ++z)
+            owned->addCube(glm::ivec3(x - 96, 15, z - 192));
+    cm.chunkMap[glm::ivec3(3, 0, 6)] = owned.get();
+    cm.chunks.push_back(std::move(owned));
+
+    ObjectTemplateManager templates(nullptr);
+    Core::PlacedObjectManager placed(&cm, &templates, nullptr);
+    // A neighbour whose XZ bbox overlaps the lot we will try to build on (500,500) — in the
+    // void, so the build MUST refuse as ungrounded. Today the overlap removal runs first.
+    const std::string neighbour = placed.registerStructure(
+        "croft", glm::ivec3(498, 16, 498), 0, glm::ivec3(498, 16, 498), glm::ivec3(505, 20, 505));
+    ASSERT_FALSE(neighbour.empty());
+    ASSERT_EQ(placed.list().size(), 1u);
+
+    StructureBuildService::Deps deps;
+    deps.chunkManager = &cm;
+    deps.placedObjects = &placed;
+    const auto bad = StructureBuildService::buildV2(croftParams(500, 500), deps);
+    ASSERT_TRUE(bad.contains("error")) << bad.dump();
+    EXPECT_NE(bad.value("error", std::string()).find("ungrounded"), std::string::npos) << bad.dump();
+    // THE invariant: a refused build changes nothing in the world or the registry.
+    EXPECT_EQ(placed.list().size(), 1u)
+        << "the refusal removed the overlapping neighbour BEFORE the grounding gate ran (refused_at="
+        << bad.value("refused_at", std::string("?")) << ")";
+    // And the gate that refused must have run before any mutating stage.
+    EXPECT_NE(bad.value("refused_at", std::string()), "place")
+        << "grounding must be checked before 'footprint' mutates, not inside 'place'";
+}

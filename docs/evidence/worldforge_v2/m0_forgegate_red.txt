@@ -1,0 +1,36 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = StructureGroundingTest.ARefusalLeavesNoRemovalsBehind
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from StructureGroundingTest
+[ RUN      ] StructureGroundingTest.ARefusalLeavesNoRemovalsBehind
+[22:02:50.817] [INFO] [PlacedObjectManager] Registered structure 'croft' as 'croft_1' bbox (498,16,498)-(505,20,505)
+[22:02:50.823] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[22:02:50.824] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[22:02:50.825] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[22:02:50.826] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[22:02:50.826] [INFO] [StructureBuild] program validation: OK [typology croft]
+[22:02:50.828] [INFO] [StructureBuild] removing overlapping structure 'croft_1' before rebuild (no stacking)
+[22:02:50.829] [INFO] [PlacedObjectManager] Removed 'croft_1' (cleared bbox cubes)
+[22:02:50.875] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)
+[22:02:50.885] [WARN] [StructureBuild] REFUSING ungrounded build at (500,500): 48/48 footprint columns have no terrain (allow_ungrounded overrides)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\StructureGroundingTest.cpp(104): error: Expected equality of these values:
+  placed.list().size()
+    Which is: 0
+  1u
+    Which is: 1
+the refusal removed the overlapping neighbour BEFORE the grounding gate ran (refused_at=place)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\StructureGroundingTest.cpp(108): error: Expected: (bad.value("refused_at", std::string())) != ("place"), actual: "place" vs "place"
+grounding must be checked before 'footprint' mutates, not inside 'place'
+
+[  FAILED  ] StructureGroundingTest.ARefusalLeavesNoRemovalsBehind (88 ms)
+[----------] 1 test from StructureGroundingTest (88 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (88 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] StructureGroundingTest.ARefusalLeavesNoRemovalsBehind
+
+ 1 FAILED TEST

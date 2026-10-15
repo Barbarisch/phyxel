@@ -134,6 +134,8 @@ private:
     static StageReport stageFloorplan(Context& ctx);
     static StageReport stageValidateProgram(Context& ctx);
     static StageReport stageValidateAssets(Context& ctx);
+    /// M0: read-only grounding + vegetation gates, BEFORE any stage mutates the world.
+    static StageReport stageGroundGate(Context& ctx);
     static StageReport stageFootprint(Context& ctx);
     static StageReport stageRealize(Context& ctx);
     static StageReport stageValidateRealized(Context& ctx);
