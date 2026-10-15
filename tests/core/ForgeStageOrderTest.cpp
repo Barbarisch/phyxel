@@ -18,8 +18,12 @@ using namespace Phyxel::Core;
 
 TEST(ForgeStageOrder, CanonicalStageSequence) {
     const std::vector<std::string> expected = {
-        "intake", "floorplan", "validate_program", "validate_assets", "footprint",
-        "realize", "validate_realized", "place", "furnish", "emit"};
+        "intake", "floorplan", "validate_program", "validate_assets", "ground_gate",
+        "realize", "validate_realized", "footprint", "place", "furnish", "emit"};
+    // M0 row 4 (docs/WorldForgeV2Plan.md section 5): the read-only ground_gate runs before any
+    // mutation and the mutating footprint stage only after the realized shell passed its
+    // traversal check. This contract line was NOT updated with row 4 (1a2ffe32); the merged
+    // suite of 2026-10-15 caught it red.
     EXPECT_EQ(StructureForge::stageNames(), expected)
         << "the forge stage order is a public contract (response[\"gates\"] order; "
            "docs/structure-generation stage mapping) - update BOTH if this is intentional";

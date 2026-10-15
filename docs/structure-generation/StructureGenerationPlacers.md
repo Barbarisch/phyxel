@@ -13,8 +13,12 @@
 > **STRUCTUREFORGE (M1, 2026-08-07): the build ORCHESTRATION is now staged.** The former
 > `StructureBuildService::buildV2` monolith is decomposed into `StructureForge`
 > (`engine/{include,src}/core/StructureForge.{h,cpp}`) — named stages over one context with a
-> StageReport gate protocol: `intake → floorplan → validate_program → footprint → realize →
-> validate_realized → place → furnish → emit`. Every `/api/structure/build` response carries
+> StageReport gate protocol: `intake → floorplan → validate_program → validate_assets →
+> ground_gate → realize → validate_realized → footprint → place → furnish → emit` (order since
+> WorldForge v2 M0 row 4, 2026-10-14: the read-only `ground_gate` runs before any mutation and
+> the mutating `footprint` only after the realized shell passed traversal, so a refusal leaves
+> the world untouched; pinned by `ForgeStageOrder.CanonicalStageSequence`). Every
+> `/api/structure/build` response carries
 > `gates: [{stage, outcome, ms}]`; a refused stage returns its legacy error json verbatim + the
 > trail + `refused_at`. Behavior parity with the monolith is pinned by
 > `BuildingHarness.ForgeParityDigests`.
