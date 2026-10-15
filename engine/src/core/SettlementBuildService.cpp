@@ -549,6 +549,21 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // sweep reaches 2x (a trunk inside the band leaves canopy one more radius out).
         int parcelClearMargin = 4, canopySweepMargin = 8;
         std::string canopyMarginSource = "default: no generator or template library";
+        // M0: terrace materials from the SITE BIOME (a snow village is not resurfaced in temperate
+        // turf), fences and cluster paths from the tier PROGRAM - no literals in the units.
+        std::string terraceTop = "Grass", terraceFill = "Dirt";
+        if (chunkManager) {
+            if (WorldGenerator* gen = chunkManager->getStreamingGenerator()) {
+                const auto& biomes = gen->getBiomes();
+                const int bi = gen->sampleSurface(ox + W / 2, oz + D / 2).biomeIndex;
+                if (bi >= 0 && bi < static_cast<int>(biomes.size())) {
+                    terraceTop  = biomes[bi].surfaceMaterial;
+                    terraceFill = biomes[bi].subsurfaceMaterial;
+                }
+            }
+        }
+        const std::string fenceMat = (programMode && tierP) ? tierP->fenceMaterial : std::string("Log");
+        const std::string pathMat  = (programMode && tierP) ? tierP->street.material : std::string("Cobblestone");
         if (chunkManager && objectTemplateManager) {
             if (WorldGenerator* gen = chunkManager->getStreamingGenerator()) {
                 const auto& biomes = gen->getBiomes();
@@ -612,7 +627,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 const Core::Rect pr = layout.plots[pi].rect;   // by value into the unit
                 const std::string ph = "terracing parcel " + std::to_string(pi + 1) + "/" +
                                        std::to_string(layout.plots.size());
-                units.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, pr, ox, oz, oy, terrainTopAt, groundTopAt]() {
+                units.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, pr, ox, oz, oy, terrainTopAt, groundTopAt,
+                                      terraceTop, terraceFill]() {
                     if (!chunkManager) return;
                     const int SK = 4;             // skirt width blending plot grade -> natural
                     const int px0 = ox + pr.x, pz0 = oz + pr.z, pw = pr.w, pd = pr.d;
@@ -648,9 +664,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             const int cur = groundTopAt(x, z);
                             if (target == cur) continue;
                             for (int y = target + 1; y <= cur; ++y) tcut.push_back(glm::ivec3(x, y, z));
-                            for (int y = cur + 1; y < target; ++y) addT(x, y, z, "Dirt");
+                            for (int y = cur + 1; y < target; ++y) addT(x, y, z, terraceFill.c_str());   // M0: biome subsurface
                             tcut.push_back(glm::ivec3(x, target, z));   // resurface graded top
-                            addT(x, target, z, "Grass");
+                            addT(x, target, z, terraceTop.c_str());    // M0: biome surface
                         }
                     if (!tcut.empty())         Core::StructureGenerator::removeVoxels(chunkManager, tcut);
                     if (!tfill.voxels.empty()) Core::StructureGenerator::place(chunkManager, tfill);
@@ -925,12 +941,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         } else if (terrain && chunkManager && doorCenters.size() >= 2) {
             // MST door-to-door path network (cluster/legacy morphology), as ONE work unit.
             postBuildUnits.push_back({"grading + paving paths",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, sharedFrontDoors, bFoot, ox, oy, groundMicro, surfMicro, fl9, emitMicro, abox,
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, sharedFrontDoors, bFoot, ox, oy, groundMicro, surfMicro, fl9, emitMicro, abox, pathMat,
                  pathsJsonP, sharedPaved]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
             auto& pavedCols = *sharedPaved;
-            const std::string paveMat = "Cobblestone";
+            const std::string paveMat = pathMat;   // M0: the tier's street material, not a literal
             // M0: the REALIZED doors (a refused lot records none); the network joins doors, not
             // footprint centres.
             std::vector<Core::DoorAnchor> doors;
@@ -1015,7 +1031,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if ((terrain || mainStreetMode) && chunkManager && !layout.plots.empty()) {
             postBuildUnits.push_back({"fencing parcels",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, layout, msl, doorCenters, ox, oz, terrainTopAt, mainStreetMode,
-                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved, seed, lotFailuresP = res.lotFailures, lotToPlot,
+                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved, seed, lotFailuresP = res.lotFailures, lotToPlot, fenceMat,
                  fenceFraction = (programMode && tierP ? tierP->fenceFraction : 1.0),
                  coreRing = (programMode && tierP ? tierP->coreRing : 0)]() {
             if (!chunkManager) return;
@@ -1114,7 +1130,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             if (std::abs(gtAt(ccx + NDX[k], ccz + NDZ[k]) - g0) >= 2) { cliff = true; break; }
                         if (cliff) continue;
                         const int base = (g0 + 1) * 9;                         // top face of terrain
-                        emitMicro(fenceBatch, wx, base + c.y, wz, "Log");
+                        emitMicro(fenceBatch, wx, base + c.y, wz, fenceMat);   // M0: program material
                     }
                 };
                 // KI-5f: composition from planParcelFenceRuns — every run ends exactly on
@@ -1942,6 +1958,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     programJson["parcel_clear_margin"] = parcelClearMargin;
     programJson["canopy_sweep_margin"] = canopySweepMargin;
     programJson["canopy_margin_source"] = canopyMarginSource;
+    programJson["terrace_top"] = terraceTop;
+    programJson["terrace_fill"] = terraceFill;
+    programJson["fence_material"] = fenceMat;
+    programJson["path_material"] = pathMat;
     res.settlement   = settlementJson;
     if (!chunkManager) {
         // Planning without a world is legitimate (a caller may only want the layout), but

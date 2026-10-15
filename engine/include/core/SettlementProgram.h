@@ -99,6 +99,9 @@ struct SettlementTierPreset {
     /// (core ring, building clearance) is decided by shouldFencePlot; absent key = 1.0 = the
     /// legacy everything-fenced behaviour.
     double fenceFraction = 1.0;
+    /// M0: the fence material (fences.material; absent = "Log", the shipped picket). A
+    /// literal "Log" lived in the fence unit; eras/tiers now say what their fences are.
+    std::string fenceMaterial = "Log";
 
     std::map<std::string, std::string> sources;  ///< per-value provenance (grounding rule)
 

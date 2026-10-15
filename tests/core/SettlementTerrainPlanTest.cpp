@@ -344,3 +344,36 @@ TEST(SettlementTerrainPlanTest, CanopyMarginCoversTheBiomesWidestTree) {
     EXPECT_GE(plan.program.value("canopy_sweep_margin", -1), 2 * expected)
         << "the orphan-canopy sweep must reach one more crown radius beyond the cleared band";
 }
+
+// ---------------------------------------------------------------------------
+// M0 (docs/WorldForgeV2Plan.md §5 M0, "terrace/fence/path materials from the biome + program,
+// not literals"). Terraces emitted "Dirt"/"Grass" in every biome (a snow or savanna village got
+// temperate turf pads), fences were always "Log", cluster paths always "Cobblestone" while the
+// tier program already names a street material. RED: the plan echoes none of these choices.
+// ---------------------------------------------------------------------------
+TEST(SettlementTerrainPlanTest, TerraceFenceAndPathMaterialsComeFromBiomeAndProgram) {
+    HeadlessWorld w(2, [](int, int) { return 16; });
+    w.cm()->configureStreamingGeneration(true, Phyxel::WorldGenerator::GenerationType::Perlin, 20260816);
+    Phyxel::WorldGenerator* gen = w.cm()->getStreamingGenerator();
+    ASSERT_NE(gen, nullptr);
+    const auto& biome = gen->getBiomes()[gen->sampleSurface(24, 14).biomeIndex];
+
+    nlohmann::json params = {{"era", "medieval"}, {"tier", "hamlet"}, {"seed", 3},
+                             {"width", 48}, {"depth", 28}, {"terrain", true},
+                             {"position", {{"x", 0}, {"y", 16}, {"z", 0}}}};
+    SettlementBuildService::Deps deps;
+    deps.chunkManager = w.cm();
+    const auto plan = SettlementBuildService::plan(params, deps);
+    ASSERT_TRUE(plan.ok()) << plan.error.dump();
+
+    ASSERT_TRUE(plan.program.contains("terrace_top")) << "the plan must record the terrace materials it will emit";
+    EXPECT_EQ(plan.program.value("terrace_top", ""), biome.surfaceMaterial)
+        << "biome " << biome.name << ": a graded pad is resurfaced in the BIOME's surface, not literal Grass";
+    EXPECT_EQ(plan.program.value("terrace_fill", ""), biome.subsurfaceMaterial)
+        << "biome " << biome.name << ": fill below the pad is the biome's subsurface, not literal Dirt";
+    EXPECT_EQ(plan.program.value("fence_material", ""), "Log")
+        << "the tier program's fence material (data; medieval default Log)";
+    // hamlet = cluster morphology: its door-to-door paths use the TIER's street material (Dirt)
+    EXPECT_EQ(plan.program.value("path_material", ""), "Dirt")
+        << "cluster paths must pave in the tier's street material, not literal Cobblestone";
+}

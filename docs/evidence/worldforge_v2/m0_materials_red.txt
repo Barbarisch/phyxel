@@ -1,0 +1,29 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementTerrainPlanTest.TerraceFenceAndPathMaterialsComeFromBiomeAndProgram
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SettlementTerrainPlanTest
+[ RUN      ] SettlementTerrainPlanTest.TerraceFenceAndPathMaterialsComeFromBiomeAndProgram
+[22:39:37.723] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[22:39:38.359] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies
+[22:39:38.359] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+[22:39:38.359] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)
+[22:39:38.386] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[22:39:38.391] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[22:39:59.035] [INFO] [Settlement] terrain analyse 48x28: buildable=1 -> 6 plots
+[22:39:59.037] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (0 streets)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementTerrainPlanTest.cpp(369): error: Value of: plan.program.contains("terrace_top")
+  Actual: false
+Expected: true
+the plan must record the terrace materials it will emit
+
+[  FAILED  ] SettlementTerrainPlanTest.TerraceFenceAndPathMaterialsComeFromBiomeAndProgram (21406 ms)
+[----------] 1 test from SettlementTerrainPlanTest (21406 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (21407 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] SettlementTerrainPlanTest.TerraceFenceAndPathMaterialsComeFromBiomeAndProgram
+
+ 1 FAILED TEST

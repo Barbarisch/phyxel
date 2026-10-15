@@ -126,8 +126,10 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         t.walls.crenellations    = w.value("crenellations", t.walls.crenellations);
         t.walls.material         = w.value("material", t.walls.material);
     }
-    if (rec.contains("fences") && rec["fences"].is_object())
+    if (rec.contains("fences") && rec["fences"].is_object()) {
         t.fenceFraction = std::clamp(rec["fences"].value("fraction", 1.0), 0.0, 1.0);
+        t.fenceMaterial = rec["fences"].value("material", t.fenceMaterial);   // M0
+    }
     if (rec.contains("sources") && rec["sources"].is_object())
         for (auto it = rec["sources"].begin(); it != rec["sources"].end(); ++it)
             if (it.value().is_string()) t.sources[it.key()] = it.value().get<std::string>();
