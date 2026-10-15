@@ -1,0 +1,38 @@
+status before: {"applied":true,"enabled":true,"plan_hash":"9693137997320541182","roads":18,"site_list":[{"depth":60,"id":0,"score":{"biome":1.0,"relief":0.9637749195098877,"total":0.7586987018585205,"water":0.25},"s
+build start: {"job_id":1000000,"plan_hash":"9693137997320541182","sites_queued":8,"success":true}
+job end: complete | complete | 9409/9409 | 292s
+capture target (id x z surfaceY): 2 -1432 -1288 150.66099548339844
+terrain_height site 2: chunks {"max_y":255,"source":"chunks","spawn_y":145,"surface_y":144,"x":-1432,"z":-1288} | generator {"source":"generator","spawn_y":145,"surface_y":144,"x":-1432,"z":-1288}
+tools/worldforge_m0_l4.sh: line 80: 150.66099548339844: syntax error: invalid arithmetic operator (error token is ".66099548339844")
+== gate lines ==
+[23:53:20.680] [WARN] [Settlement] walkability: BLOCKED hall_house @-1160,-1091: street -> door pinch (-10355,1320,-9752)->(-10354,1320,-9753) gap 1 micro; reac
+[23:53:21.081] [WARN] [Settlement] walkability: BLOCKED (ONE-WAY, a drop) general_store @-1146,-1058: street -> door pinch (-10308,1287,-9471)->(-10309,1287,-94
+[23:53:21.888] [INFO] [Settlement] walkability gate: 12 walkable, 2 blocked over 14 routes (5 front doors, 1 skipped)
+[23:53:21.901] [WARN] [Settlement] walkability gate BLOCKED the build (2 blocked routes) - nav rebuild skipped; the settlement is a refused outcome
+[23:53:59.553] [INFO] [Settlement] walkability gate: 8 walkable, 0 blocked over 8 routes (2 front doors, 0 skipped)
+[23:54:44.255] [WARN] [Settlement] walkability: BLOCKED blacksmith @-1004,1404: street -> door pinch (-8987,171,12703)->(-8986,171,12702) gap 1 micro; reached 2
+[23:54:44.255] [INFO] [Settlement] walkability gate: 16 walkable, 1 blocked over 17 routes (6 front doors, 0 skipped)
+[23:54:44.287] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes) - nav rebuild skipped; the settlement is a refused outcome
+[23:55:41.741] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[23:55:59.053] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[23:56:21.475] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[23:56:46.428] [WARN] [Settlement] walkability: BLOCKED (ONE-WAY, a drop) hall_house @-638,1262: door -> solar pinch (0,0,0)->(0,0,0) gap -1 micro; reached 3147
+[23:56:46.428] [INFO] [Settlement] walkability gate: 13 walkable, 1 blocked over 14 routes (4 front doors, 0 skipped)
+[23:56:46.463] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes) - nav rebuild skipped; the settlement is a refused outcome
+== site outcomes ==
+[23:53:21.932] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: unwalkable: 2 of 14 street->door routes blocked (walkability gate) - not checkpointed
+[23:54:00.934] [INFO] [WorldForge] [WORLDFORGE] site 5 (village) BUILT: 2 buildings, 0 residents, 0 lot failures
+[23:54:44.317] [WARN] [WorldForge] [WORLDFORGE] site 6 (village) REFUSED: unwalkable: 1 of 17 street->door routes blocked (walkability gate) - not checkpointed
+[23:54:51.806] [WARN] [WorldForge] [WORLDFORGE] site 1 (hamlet) REFUSED: terrain too steep - no buildable plots
+[23:55:43.721] [INFO] [WorldForge] [WORLDFORGE] site 2 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[23:56:02.033] [INFO] [WorldForge] [WORLDFORGE] site 3 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[23:56:23.577] [INFO] [WorldForge] [WORLDFORGE] site 4 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[23:56:46.499] [WARN] [WorldForge] [WORLDFORGE] site 7 (hamlet) REFUSED: unwalkable: 1 of 14 street->door routes blocked (walkability gate) - not checkpointed
+== spurs / fences / props after buildings ==
+[23:53:13.841] [INFO] [Settlement] door spurs: 2 planned from 5 realized doors, 3 too steep, 0 micros over 0 columns, 0 ms
+[23:53:13.906] [INFO] [Settlement] fences: 1 parcels fenced, 4 unfenced by policy, 1 runs dropped (alley < 2 cells to a neighbour wall), 1454 micros (picket, 8-
+[23:53:13.989] [INFO] [Settlement] yard props: 6 placed, 0 skipped
+[23:53:56.555] [INFO] [Settlement] door spurs: 2 planned from 2 realized doors, 0 too steep, 95 micros over 95 columns, 55 ms
+[23:53:56.701] [INFO] [Settlement] fences: 2 parcels fenced, 0 unfenced by policy, 0 runs dropped (alley < 2 cells to a neighbour wall), 8406 micros (picket, 8-
+[23:53:56.805] [INFO] [Settlement] yard props: 5 placed, 0 skipped
+done

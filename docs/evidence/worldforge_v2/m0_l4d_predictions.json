@@ -1,0 +1,10 @@
+{
+  "what": "Predictions for M0 L4 run 4 (PREFIX=m0_l4d), written before the run (2026-10-15 00:02 local, Debug build of the arrival-point fix in progress; the Release build follows). Changes since run 3: the gate's return walk starts at the arrival cell (row 2c-2); the script truncates surfaceY to an int before the camera arithmetic.",
+  "P1_plan_hash": "9693137997320541182",
+  "P2_town": "REFUSED, 2 blocked of 14 as in run 3 (hall_house @-1160,-1091 pinch + general_store @-1146,-1058 one-way drop); no route newly blocked or unblocked by the arrival-point change",
+  "P3_hamlet_7": "BUILT again (4 buildings, 14/14 walkable) - the 'door -> solar' false refusal is gone",
+  "P4_other_sites": "5, 2, 3, 4 BUILT; 6 REFUSED (blacksmith pinch); 1 REFUSED (no plots) -> ledger 5 built / 3 refused, matching run 2's outcome set with the one-way check still active at the town",
+  "P5_capture": "site 0 refused -> target site 2 (hamlet at -1432,-1288, surfaceY 150 -> camA (-1432, 181, -1228) yaw -90 pitch -45; camB (-1420, 168, -1294) yaw -90 pitch -30); both read back as sent; images show the hamlet's 3 buildings",
+  "P6_terrain_height": "chunks 144 / generator 144 at (-1432,-1288) again",
+  "P7_duration": "285-320 s"
+}

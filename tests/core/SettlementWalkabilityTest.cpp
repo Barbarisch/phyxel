@@ -631,3 +631,27 @@ TEST(SettlementWalkabilityTest, AOneWayDropIsNotWalkable) {
     EXPECT_TRUE(ok.routes[0].walkable);
     EXPECT_FALSE(ok.routes[0].oneWay);
 }
+
+// ── M0 row 2c, second half: the way back starts where the walker ARRIVED ──────────────
+// L4 run 3 refused hamlet 7 on "door -> solar ... GOAL-UNSUPPORTED, ONE-WAY": the forward
+// walk reached the room's goal box, but the return trip was started at the route's exact
+// `to` point - the room centre, under a fixture - which does not settle. A route is two-way
+// when the walker can get back from where it actually stood. RED: the reverse walk starts
+// at `to` and reports a one-way drop that does not exist.
+TEST(SettlementWalkabilityTest, TheWayBackStartsWhereTheWalkerArrived) {
+    // flat ground; a solid post occupies the route's exact goal point (x 19..21, z -1..1)
+    auto occ = [](int x, int y, int z) {
+        return y < 0 || (x >= 19 && x <= 21 && z >= -1 && z <= 1 && y < 20);
+    };
+    AgentBox box;
+    WalkRoute r;
+    r.label = "door -> room centre under a fixture";
+    r.from = {-20, 0, 0};
+    r.to = {20, 0, 0};   // goal box x 16..24 (radius 4): reachable beside the post
+    const auto rep = checkRoutes(occ, box, {r}, {-60, -5, -60}, {60, 60, 60}, true);
+    ASSERT_EQ(rep.routes.size(), 1u);
+    EXPECT_TRUE(rep.routes[0].walkable)
+        << "the room is reachable and the walker can come back from where it stood";
+    EXPECT_FALSE(rep.routes[0].oneWay);
+    EXPECT_EQ(rep.blocked, 0);
+}

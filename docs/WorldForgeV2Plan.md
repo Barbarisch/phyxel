@@ -339,7 +339,14 @@ asked only start→goal, so a one-way cliff counted as walkable — **row 2c**: 
 the way back (`RouteResult.oneWay`, `one_way` in the gate JSON), red→green
 `SettlementWalkabilityTest.AOneWayDropIsNotWalkable` (`m0_bothways_red.txt` → `m0_bothways_green.txt`).
 `worldforge_status` now carries `site_list` (the applied plan's sites with x/z/tier/surfaceY) so a probe
-can aim at a built site. Run 3 (both-ways gate, captures on a built site): `m0_l4c_summary.json`.
+can aim at a built site. **Run 3 (`m0_l4c_summary.json`):** hash back; **4 built / 4 refused**: the general_store's one-way
+drop is now caught (town 2 blocked of 14), but hamlet 7 was refused on `door -> solar … GOAL-UNSUPPORTED,
+ONE-WAY` — the return walk started at the route's exact `to` (a room centre under a fixture, which does
+not settle), a FALSE refusal from probe input. **Row 2c-2:** `reachable()` reports the arrival cell and
+the way back starts there (`SettlementWalkabilityTest.TheWayBackStartsWhereTheWalkerArrived`,
+`m0_arrival_red.txt` → `m0_arrival_green.txt`). `terrain_height` chunks vs generator at hamlet 2's centre:
+144 vs 144 (the F7 town's 127/136 split was terracing at the centre). Captures still owed (script float
+arithmetic, fixed). Run 4: `m0_l4d_summary.json`.
 
 ### M1 — World Sheet (L) — *the one change that moves the scale ceiling*
 

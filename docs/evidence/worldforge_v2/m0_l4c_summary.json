@@ -1,0 +1,16 @@
+{
+  "what": "WorldForge v2 M0 L4 run 3 (PREFIX=m0_l4c) on the WorldForgeBaseline lab with the both-ways walkability gate (row 2c, 1caaca47) and the site_list-aimed capture step. Predictions written first: m0_l4c_predictions.json.",
+  "date": "2026-10-14 23:52-23:58 local",
+  "binary": "build/editor/Release/phyxel.exe 23:50 (contains 'ONE-WAY')",
+  "artifacts": ["m0_l4c_run.txt", "m0_l4c_status_before.json", "m0_l4c_build_start.json", "m0_l4c_job_progress.txt", "m0_l4c_jobs.json", "m0_l4c_status.json", "m0_l4c_terrain_height_chunks.json", "m0_l4c_terrain_height_generator.json", "m0_l4c_engine.txt"],
+  "results_vs_predictions": {
+    "P1_plan_hash": "CONFIRMED: 9693137997320541182 before and after.",
+    "P2_town": "PARTLY: refused with 2 blocked of 14 (run 2: 1). The general_store @-1146,-1058 'street -> door' is now BLOCKED (ONE-WAY, a drop) as predicted; the bakery and the hall_house @-1160,-1058 - whose spurs fail on the same 18-micro drop - still pass both ways, so some other climbable path reaches them (the doorsteps unit stooped 2 of 5 doors; which two is not logged - an unverified explanation). Predicted ~4 blocked, got 2.",
+    "P3_other_sites": "sites 5, 2, 3, 4 BUILT and 6, 1 REFUSED as predicted. Site 7 NOT as predicted: REFUSED on 'hall_house @-638,1262: door -> solar pinch gap -1, reached 31472/0, GOAL-UNSUPPORTED, ONE-WAY'. The forward walk reached the solar's goal box (walkable in run 2), but row 2c started the return trip at the route's exact `to` point - the room centre, which does not settle (a fixture stands there) - so the reverse walk failed before taking a step. A FALSE refusal from probe input, exactly the failure mode checkRoutes' own comment warns about. Fixed as row 2c-2: reachable() reports the arrival cell and the way back starts there (SettlementWalkabilityTest.TheWayBackStartsWhereTheWalkerArrived, red on this binary's logic).",
+    "P4_capture": "NOT DONE again: the target was chosen correctly this time (site 2, the first built, at -1432,-1288) but bash arithmetic choked on the float surfaceY ('150.66099548339844: syntax error'); fixed (integer truncation) for run 4.",
+    "P5_terrain_height": "DONE at site 2's centre: chunks surface_y 144 (max_y 255) and generator surface_y 144 - the two truths AGREE here; the F7 town's 127-vs-136 split came from terracing at the town centre, which this hamlet's centre did not get.",
+    "P6_duration": "292 s (4 built)."
+  },
+  "ledger": "built 5, 2, 3, 4; refused 0 (2 blocked: hall_house pinch + general_store one-way drop), 6 (blacksmith pinch), 1 (no plots), 7 (false one-way on an unsupported room centre)",
+  "caveats": ["n=1", "no captures yet", "the bakery/hall_house-1058 both-ways pass is unexplained (hypothesis: stoops), not measured"]
+}

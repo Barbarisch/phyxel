@@ -66,7 +66,7 @@ for i in [0]+[k for k in sorted(sites) if k!=0]:
         s=sites[i]; print(i, s['x'], s['z'], s['surfaceY']); break")
 echo "capture target (id x z surfaceY): ${TGT:-none}"
 if [ -n "$TGT" ]; then
-  set -- $TGT; SID=$1; CX=$2; CZ=$3; SY0=$4
+  set -- $TGT; SID=$1; CX=$2; CZ=$3; SY0=${4%.*}   # surfaceY is a float; bash arithmetic needs an int
   curl -s -m 15 -X POST "$API/api/worldforge/focus" -H 'Content-Type: application/json' -d "{\"x\":$CX,\"z\":$CZ}" >/dev/null
   for i in $(seq 1 36); do SY=$(curl -s -m 10 "$API/api/world/terrain_height?x=$CX&z=$CZ" | python -I -c "import json,sys;v=json.load(sys.stdin).get('surface_y');print('' if v is None else v)"); [ -n "$SY" ] && break; sleep 5; done
   # the two surface truths at the site centre (F7: town 127 chunks vs 136 generator)

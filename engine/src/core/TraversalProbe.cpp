@@ -49,9 +49,9 @@ int TraversalProbe::settle(int fx, int fy, int fz, int minY) const {
 }
 
 bool TraversalProbe::reachable(glm::ivec3 start, glm::ivec3 goalLo, glm::ivec3 goalHi,
-                               glm::ivec3 boundLo, glm::ivec3 boundHi) const {
+                               glm::ivec3 boundLo, glm::ivec3 boundHi, glm::ivec3* hitAt) const {
     bool hit = false;
-    bfs(start, boundLo, boundHi, &goalLo, &goalHi, &hit, nullptr);
+    bfs(start, boundLo, boundHi, &goalLo, &goalHi, &hit, nullptr, hitAt);
     return hit;
 }
 
@@ -64,7 +64,7 @@ std::vector<glm::ivec3> TraversalProbe::flood(glm::ivec3 start, glm::ivec3 bound
 
 void TraversalProbe::bfs(glm::ivec3 start, glm::ivec3 boundLo, glm::ivec3 boundHi,
                          const glm::ivec3* goalLo, const glm::ivec3* goalHi,
-                         bool* hitGoal, std::vector<glm::ivec3>* out) const {
+                         bool* hitGoal, std::vector<glm::ivec3>* out, glm::ivec3* hitAt) const {
     if (hitGoal) *hitGoal = false;
     auto inGoal = [&](const glm::ivec3& p) {
         if (!goalLo || !goalHi) return false;
@@ -96,7 +96,7 @@ void TraversalProbe::bfs(glm::ivec3 start, glm::ivec3 boundLo, glm::ivec3 boundH
         glm::ivec3 c = q.front();
         q.pop_front();
         if (out) out->push_back(c);
-        if (inGoal(c)) { if (hitGoal) *hitGoal = true; return; }
+        if (inGoal(c)) { if (hitGoal) *hitGoal = true; if (hitAt) *hitAt = c; return; }
         if ((int)seen.size() > maxVisited) break;
 
         for (int d = 0; d < 4; ++d) {

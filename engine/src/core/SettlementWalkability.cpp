@@ -66,8 +66,13 @@ WalkabilityReport checkRoutes(const std::function<bool(int, int, int)>& occupied
                                 r.from.z - r.goalRadiusMicro);
         const glm::ivec3 backHi(r.from.x + r.goalRadiusMicro, r.from.y + r.goalHeightMicro,
                                 r.from.z + r.goalRadiusMicro);
-        const bool forward = probe.reachable(r.from, goalLo, goalHi, boundLo, boundHi);
-        const bool back = forward && probe.reachable(r.to, backLo, backHi, boundLo, boundHi);
+        // The way back starts where the walker ARRIVED (the first goal-box cell the forward
+        // walk reached), never at the exact `to` point: a room centre under a fixture does
+        // not settle, and starting there refused hamlet 7 on a drop that does not exist
+        // (M0 L4 run 3: "door -> solar ... GOAL-UNSUPPORTED, ONE-WAY").
+        glm::ivec3 arrived = r.to;
+        const bool forward = probe.reachable(r.from, goalLo, goalHi, boundLo, boundHi, &arrived);
+        const bool back = forward && probe.reachable(arrived, backLo, backHi, boundLo, boundHi);
         res.walkable = forward && back;
         res.oneWay = forward && !back;
         if (res.walkable) {

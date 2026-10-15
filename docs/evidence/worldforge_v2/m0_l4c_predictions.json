@@ -1,0 +1,9 @@
+{
+  "what": "Predictions for M0 L4 run 3 (PREFIX=m0_l4c), written before the run (Release build of 1caaca47 in progress at 23:51 local). Changes since run 2: the walkability gate requires the way back (row 2c); the script's capture step now works and aims at site 0 if built, else the first built site.",
+  "P1_plan_hash": "9693137997320541182 again",
+  "P2_town": "still REFUSED; the gate now reports MORE blocked routes at site 0: the three lots whose doorsteps sit 18 micro below the street (general_store @-1146,-1058, bakery @-1145,-1044, hall_house @-1160,-1058) come back BLOCKED and flagged one_way, in addition to the hall_house @-1160,-1091 pinch - so about 4 blocked of 14 (run 2: 1 of 14)",
+  "P3_other_sites": "sites 5 and 2 built (both-ways should not change flat lowland villages/hamlets whose doorsteps meet the street); sites 3, 4, 7: built in run 2 with 10/10, 10/10, 14/14 walkable - PREDICTED still built, but this is the test of the row: a one-way drop at any of their doors would now refuse them; site 6 refused (blacksmith pinch), site 1 no plots",
+  "P4_capture": "site 0 refused -> target site 5 (village at -1480,1400, surfaceY 18.9); camA/camB read back as sent; two images of the village (2 buildings, street, fences)",
+  "P5_terrain_height": "both chunks and generator return a number at (-1480,1400); chunks reads the terraced/paved top, generator ~19",
+  "P6_duration": "280-320 s"
+}

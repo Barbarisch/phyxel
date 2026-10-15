@@ -48,8 +48,10 @@ public:
     /// Can the agent walk — 1-micro steps in +/-x and +/-z, auto step-up up to
     /// maxStepUpMicro, gravity settle — from `start` feet to ANY feet position inside
     /// [goalLo,goalHi], staying within [boundLo,boundHi]? Deterministic BFS.
+    /// `hitAt` (optional) receives the first cell inside the goal box the walk reached -
+    /// the point a return trip must start from (M0 row 2c: the exact `to` may not settle).
     bool reachable(glm::ivec3 start, glm::ivec3 goalLo, glm::ivec3 goalHi,
-                   glm::ivec3 boundLo, glm::ivec3 boundHi) const;
+                   glm::ivec3 boundLo, glm::ivec3 boundHi, glm::ivec3* hitAt = nullptr) const;
 
     /// Every feet-position the agent can walk to from `start` within [boundLo,boundHi] —
     /// the same stepping rule as reachable(), run to exhaustion. Returned in deterministic
@@ -66,7 +68,7 @@ private:
     /// `*hitGoal`. If `out` is non-null every visited feet-position is appended.
     void bfs(glm::ivec3 start, glm::ivec3 boundLo, glm::ivec3 boundHi,
              const glm::ivec3* goalLo, const glm::ivec3* goalHi,
-             bool* hitGoal, std::vector<glm::ivec3>* out) const;
+             bool* hitGoal, std::vector<glm::ivec3>* out, glm::ivec3* hitAt = nullptr) const;
 
     std::function<bool(int, int, int)> m_occ;
     AgentBox m_box;
