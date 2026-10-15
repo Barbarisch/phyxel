@@ -119,6 +119,7 @@ bool ObjectTemplateManager::loadTemplate(const std::string& filePath, const std:
                      << "; used as flora its canopy beyond " << kFloraMarginCap
                      << " columns will clip at chunk seams");
     m_floraMarginColumns = std::min(kFloraMarginCap, std::max(m_floraMarginColumns, r));
+    m_halfFootprint[tmpl->name] = r;   // M0: per-template, for the settlement canopy margin
 
     m_templates[tmpl->name] = std::move(tmpl);
     return true;

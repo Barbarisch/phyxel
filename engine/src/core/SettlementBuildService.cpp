@@ -540,14 +540,44 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // canopy margin of ALL above-ground content at EVERY resolution before any
         // site prep. Only terrain + flora exist at this stage (site prep precedes all
         // buildings), so no material filter is needed; the ground surface itself stays.
+        // M0 (WorldForgeV2Plan §5 M0): the canopy margins are DERIVED from the trees the site's
+        // biome can grow (F4b read the library: ordinary oaks half-width 8, forge_enchanted_oak
+        // 11.5, forge_jungle_l 9.5, megaflora up to 26) against literals of 4 (parcel clearing)
+        // and 8 (orphan sweep) that only covered ordinary oaks. Rule: parcel margin = widest
+        // crown half-width of the biome's pool + extra layers (floor 4); a procedural-mode entry
+        // has no template, so the library's widest loaded crown bounds it; the orphan-canopy
+        // sweep reaches 2x (a trunk inside the band leaves canopy one more radius out).
+        int parcelClearMargin = 4, canopySweepMargin = 8;
+        std::string canopyMarginSource = "default: no generator or template library";
+        if (chunkManager && objectTemplateManager) {
+            if (WorldGenerator* gen = chunkManager->getStreamingGenerator()) {
+                const auto& biomes = gen->getBiomes();
+                const int bi = gen->sampleSurface(ox + W / 2, oz + D / 2).biomeIndex;
+                if (bi >= 0 && bi < static_cast<int>(biomes.size())) {
+                    std::vector<int> halves;
+                    auto add = [&](const std::vector<std::pair<std::string, int>>& items, const std::string& mode) {
+                        for (const auto& item : items) {
+                            const int hw = objectTemplateManager->templateHalfFootprintColumns(item.first);
+                            halves.push_back(hw > 0 ? hw : (mode == "procedural" ? objectTemplateManager->floraMarginColumns() : 0));
+                        }
+                    };
+                    add(biomes[bi].flora, biomes[bi].floraMode);
+                    for (const auto& L : biomes[bi].extraFloraLayers) add(L.items, L.mode);
+                    parcelClearMargin = canopyMarginCubes(halves, 4);
+                    canopySweepMargin = std::max(8, 2 * parcelClearMargin);
+                    canopyMarginSource = "biome pool: " + biomes[bi].name;
+                }
+            }
+        }
         if (chunkManager) {
             std::vector<Core::Rect> prects;
             prects.reserve(layout.plots.size());
             for (const auto& pl : layout.plots) prects.push_back(pl.rect);
             units.push_back({"clearing parcels",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, prects, ox, oz, terrainTopAt, groundTopAt]() {
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, prects, ox, oz, terrainTopAt, groundTopAt,
+                 parcelClearMargin]() {
                 if (!chunkManager) return;
-                constexpr int kMargin = 4;    // canopy overhang reach beyond the plot line
+                const int kMargin = parcelClearMargin;    // M0: canopy overhang reach beyond the plot line, derived
                 std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
                 std::set<std::pair<int, int>> seen;
                 for (const auto& pr : prects) {
@@ -1453,7 +1483,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if (chunkManager) {
             units.push_back({"clearing orphaned canopy",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
-                 ox, oz, W, D, terrainTopAt, pathsJsonP]() {
+                 ox, oz, W, D, terrainTopAt, pathsJsonP, canopySweepMargin]() {
             if (!chunkManager) return;
             // Vertical band: from just under the lowest ground in the rect to well above the
             // tallest canopy. A tree TALLER than the band touches the box top and is left
@@ -1469,7 +1499,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // Margin = a canopy radius beyond the settlement rect: site prep clears INSIDE
             // the rect, so an edge tree loses its trunk in-rect while its canopy hangs
             // OUTSIDE it. A 2-cube margin missed exactly that case (measured).
-            constexpr int kCanopyMargin = 8;
+            const int kCanopyMargin = canopySweepMargin;   // M0: 2x the derived parcel margin, >= 8
             Core::SweepBounds bounds;
             bounds.min = glm::ivec3(ox - kCanopyMargin, gMin - 1, oz - kCanopyMargin);
             bounds.max = glm::ivec3(ox + W + kCanopyMargin, gMax + 44, oz + D + kCanopyMargin);
@@ -1908,6 +1938,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             {{"plots", layout.plots.size()}, {"streets", layout.streets.size()},
              {"buildings", buildings.size()}, {"origin", {{"x", ox}, {"y", oy}, {"z", oz}}}};
 
+    // M0: the derived canopy margins are part of the plan's record (a caller/test can see them).
+    programJson["parcel_clear_margin"] = parcelClearMargin;
+    programJson["canopy_sweep_margin"] = canopySweepMargin;
+    programJson["canopy_margin_source"] = canopyMarginSource;
     res.settlement   = settlementJson;
     if (!chunkManager) {
         // Planning without a world is legitimate (a caller may only want the layout), but
@@ -1959,6 +1993,12 @@ StructureBuildService::Deps SettlementBuildService::Deps::structureDeps() const 
     d.pushUndo      = pushUndo;       // editor undo snapshot, forwarded
     d.addPointLight = addPointLight;  // M5: light settlement interiors too
     return d;
+}
+
+int SettlementBuildService::canopyMarginCubes(const std::vector<int>& crownHalfWidths, int floorCubes) {
+    int m = floorCubes;
+    for (int hw : crownHalfWidths) m = std::max(m, hw);
+    return m;
 }
 
 std::set<int> SettlementBuildService::failedPlots(const nlohmann::json& lotFailures,

@@ -166,6 +166,14 @@ public:
     /// template's half-footprint (clamped to [12, kFloraMarginCap]) — a fixed 12 silently clipped
     /// any canopy wider than 12 cubes at chunk seams. See docs/ProceduralTreeExpansionPlan.md B.
     int floraMarginColumns() const { return m_floraMarginColumns; }
+    /// M0 (WorldForgeV2Plan §5 M0, canopy margin): THIS template's half-footprint in columns
+    /// (the same radius the flora margin is grown from), 0 if the template is not loaded.
+    /// Settlement site prep derives its parcel-clearing margin from the site biome's flora
+    /// pool through this, instead of a literal that only covered ordinary oaks.
+    int templateHalfFootprintColumns(const std::string& name) const {
+        auto it = m_halfFootprint.find(name);
+        return it == m_halfFootprint.end() ? 0 : it->second;
+    }
     // Canopy width ceiling (columns). A wider template's canopy would clip at chunk seams. Raised
     // to 40 for broad enchanted-forest world-trees (was 24). Cost: decorateChunk's planFlora window
     // inflates to chunk±40 — hash-cheap, no correctness impact.
@@ -189,6 +197,7 @@ private:
     // Widest half-footprint (columns) over all loaded templates, clamped [12, kFloraMarginCap].
     // Updated in loadTemplate; consumed by decorateChunk as the planFlora window inflation.
     int m_floraMarginColumns = 12;
+    std::unordered_map<std::string, int> m_halfFootprint;   ///< per template (M0 canopy margin)
 
     // Sequential spawning queue
     std::deque<PendingSpawn> m_pendingSpawns;

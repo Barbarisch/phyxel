@@ -151,6 +151,12 @@ public:
     static std::set<int> failedPlots(const nlohmann::json& lotFailures,
                                      const std::vector<int>& lotToPlot);
 
+    /// M0 ("canopy margin"): the parcel-clearing margin in cubes = the widest crown half-width
+    /// among the trees the site's biome can grow (template half-footprints), never below
+    /// `floorCubes` (the shipped 4). The orphan-canopy sweep uses 2x this (a tree whose trunk
+    /// falls inside the band leaves canopy up to one more crown radius beyond it). Pure.
+    static int canopyMarginCubes(const std::vector<int>& crownHalfWidths, int floorCubes);
+
     /// Plan a settlement from build_settlement params. Planning (grounding gate, program
     /// resolution, layout, building assignment) runs INLINE and can fail fast; the heavy
     /// phases come back as `units` for the caller to drive. Deterministic in the params'

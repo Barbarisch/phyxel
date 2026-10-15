@@ -284,3 +284,63 @@ TEST(SettlementTerrainPlanTest, CreekInsideFootprintIsNotBuildable) {
         << "plots over water must be DROPPED and counted, not silently shrunk";
     EXPECT_GT(plan.settlement.value("buildings", 0), 0) << "the dry parts still host buildings";
 }
+
+// ---------------------------------------------------------------------------
+// M0 (docs/WorldForgeV2Plan.md §5 M0, "parcel canopy margin derived from the biome's flora
+// pool"). F4b grounding pass read the tree library: ordinary oaks are 16 cubes wide (half 8),
+// forge_enchanted_oak 23 (11.5), forge_jungle_l 19, forge_acacia_l 17, megaflora up to 52
+// (26) - against a parcel-clearing margin that was the literal 4 and an orphan-canopy sweep
+// margin of 8. A tree rooted 5 cubes outside a plot with an 11-cube crown overhung the lot.
+// RED: today the plan echoes no margin at all (both numbers are literals in two units).
+// ---------------------------------------------------------------------------
+#include "core/ObjectTemplateManager.h"
+#include "core/WorldGenerator.h"
+
+TEST(SettlementTerrainPlanTest, CanopyMarginCoversTheBiomesWidestTree) {
+    // the pure rule first
+    EXPECT_EQ(SettlementBuildService::canopyMarginCubes({}, 4), 4);
+    EXPECT_EQ(SettlementBuildService::canopyMarginCubes({8, 3}, 4), 8);
+    EXPECT_EQ(SettlementBuildService::canopyMarginCubes({2, 3}, 4), 4);
+    EXPECT_EQ(SettlementBuildService::canopyMarginCubes({12, 26, 9}, 4), 26);
+
+    // Then the wiring: a streaming generator (its biomes carry the flora pools) + the loaded
+    // nature library (the template manager knows every tree's half-footprint).
+    Phyxel::ObjectTemplateManager templates(nullptr);
+    templates.loadTemplates("resources/templates/nature");
+    ASSERT_GT(templates.templateHalfFootprintColumns("forge_oak_l"), 0)
+        << "rig: the nature library did not load headless";
+
+    HeadlessWorld w(2, [](int, int) { return 16; });
+    w.cm()->configureStreamingGeneration(true, Phyxel::WorldGenerator::GenerationType::Perlin, 20260816);
+    Phyxel::WorldGenerator* gen = w.cm()->getStreamingGenerator();
+    ASSERT_NE(gen, nullptr);
+    // NOTE: configureStreamingGeneration replaces the generator but the headless chunks stay.
+    nlohmann::json params = {{"era", "medieval"}, {"tier", "village"}, {"seed", 3},
+                             {"width", 48}, {"depth", 28}, {"terrain", true},
+                             {"position", {{"x", 0}, {"y", 16}, {"z", 0}}}};
+    SettlementBuildService::Deps deps;
+    deps.chunkManager = w.cm();
+    deps.templates = &templates;
+    const auto plan = SettlementBuildService::plan(params, deps);
+    ASSERT_TRUE(plan.ok()) << plan.error.dump();
+
+    // Expected: the widest crown the SITE biome can grow (pool + extra layers, pool mode), floor 4.
+    const auto& biome = gen->getBiomes()[gen->sampleSurface(24, 14).biomeIndex];
+    std::vector<int> halves;
+    auto add = [&](const std::vector<std::pair<std::string, int>>& items, const std::string& mode) {
+        for (const auto& it : items) {
+            const int hw = templates.templateHalfFootprintColumns(it.first);
+            halves.push_back(hw > 0 ? hw : (mode == "procedural" ? templates.floraMarginColumns() : 0));
+        }
+    };
+    add(biome.flora, biome.floraMode);
+    for (const auto& L : biome.extraFloraLayers) add(L.items, L.mode);
+    const int expected = SettlementBuildService::canopyMarginCubes(halves, 4);
+
+    ASSERT_TRUE(plan.program.contains("parcel_clear_margin"))
+        << "the plan must echo the derived parcel-clearing margin (today a literal 4 in the unit)";
+    EXPECT_EQ(plan.program.value("parcel_clear_margin", -1), expected)
+        << "biome " << biome.name << ": widest crown half-width of its pool is " << expected;
+    EXPECT_GE(plan.program.value("canopy_sweep_margin", -1), 2 * expected)
+        << "the orphan-canopy sweep must reach one more crown radius beyond the cleared band";
+}
