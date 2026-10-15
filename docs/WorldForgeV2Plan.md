@@ -532,11 +532,40 @@ worldforge preview flood (v1 closure unchanged; v2 = meso + fine); `HydroBakeKey
 identity so a v2 world never reuses a v1 hydro memo. The macro sheet + pager are memoized process-wide
 by the SHEET key (no worldforge params, resolution 6) so the twice-per-load `applyRecipe` and every
 worker copy share one bake and one LRU (`WorldSheetGeneratorTest.GeneratorCopySamplesIdenticalColumnsAcrossATileSeam`:
-120 columns straddling x = 8192, original vs copy in opposite orders, bit-exact on every field;
+120 columns straddling x = 8192, original vs copy in opposite orders, bit-exact on every field — this
+proves the copy is wired to the shared pager and the v2 path is order-independent; it compares one
+pager against itself and CANNOT see a tile-vs-whole defect, which is `MesoSeamTest`'s job;
 `VersionTwoRecipeEnablesTheSheetAndVersionOneDoesNot`; `BaseHeightFnReadsTheSheet`). **Column cost
 gate GREEN: `ColumnCostBench.FreshColumnCostsAtMost25EvalsOnTheSheet` = 18.6 evals per fresh
 column (v1 frozen at 136.6, pinned by `LegacyColumnCostIsFrozen`).** Meso tile bake 256² + apron 6:
-201.5 ms **Debug** (the §9 gate is Release, measured at M1e). Deviation from the plan text,
+201.5 ms **Debug** (the §9 gate is Release, measured at M1e). **Solution-auditor on M1b (raw, 2026-10-15): "VERDICT: FAIL. The 18.6-eval gate and the thread-safety
+design are real, but the 'v1 byte-for-byte' and 'bit-identical across the seam' claims rest on code
+reading and a self-comparing test; the suite-coverage claim cannot be verified from the evidence
+file; and `setGenerationType` after `applyRecipe` leaves a stale sheet."** Closed the same day:
+(a) `LegacyTerrainGoldenTest` pins the bit patterns of 2000 scattered columns (surfaceY, bedHeight,
+temperature, moisture, continentalness, biomeIndex, surfaceMat) for Perlin and Mountains at seed
+4242 as one FNV-1a hash each (Perlin 11413304086647064455, Mountains 5521812291101006622); the file
+uses only the v1 API so the SAME file is built at the pre-M1 commit 4961a277 in a worktree — the
+"before" run is `m1b_legacy_golden_parent.txt` (if it disagrees, D10 is broken and this paragraph is
+wrong); (b) `MesoSeamTest.ClimateAndGradientStraddlingTheSeamMatchTheWholeRegion`: the climate planes
+and the analytic gradient served by a pager from two tiles == one 2N×2N window, bit-exact, with a
+non-constant control; (c) `setGenerationType` now rebuilds Layer-0 (coarse model, hydrology, sheet)
+— `SetGenerationTypeAfterRecipeRebuildsTheSheet`; it had no callers, the hole was latent and
+pre-existing for the coarse model + hydrology too; (d) the terrain/hydrology/worldforge/flora/road/
+streaming suites re-run with the exe and the filter written into the evidence header
+(`m1b_suites_recorded.txt`). **M1b L4 on the lab (Release f958af2f, `m1b_lab_l4_run.txt`):** the
+engine logged `[WORLD_SHEET] macro 16x16 @ 512 u baked … meso tiles 256 @ 32 u, apron 6, LRU 64`,
+the loader promoted game.json `world.sheet` to recipe version 2 and world.db persisted it
+(`version: 2` + the sheet block read back); the generator surface across the x = 0 tile seam at
+z = 40 is 51 for every column from −6 to +6 (flat there — continuity, not a relief test); streaming
+at a never-stored pose (3000, 151, −2000) ran the queue saturated and reached 961 resident chunks
+in 50 s = **17.3 chunks/s** (frame p50 32.7 / p95 81.1 ms) — a different world and pose from the
+11.4 baseline, so NOT the §9 gate measurement (that needs the baseline seed with a sheet block,
+M1e); the seam-pose capture `m1b_lab_seam_pose.png` (0, 111, 40) pitch −60 shows continuous ground
+across the seam with one chunk still un-meshed at the left edge 60 s after the teleport (not
+diagnosed). **Release meso tile bake = 76.2 ms** (`phyxel_tests` Release, laptop) — **RED against
+the §9 < 50 ms gate**; the bake is 268² cells × (warp 4 + broad 6 + climate 8 evals): the climate
+planes alone are 8 of 18 evals per cell, the first lever. Deviation from the plan text,
 with reason: climate lives on the MESO grid (32 u), not the macro grid — temperature/moisture at
 climateFrequency 0.002 have a ~500 u wavelength, which a 512 u cell grid would alias into biome mush;
 the macro orographic model comes with erosion (M1c). Not yet: erosion/drainage on the macro sheet
@@ -772,10 +801,10 @@ grounding-auditor; `ValidationLedger.md` gets a row per new placer/field.
 |---|---|---|
 | Noise evals per column | **136.6 measured 2026-10-15** on the v1 path (`ColumnCostBench`, one eval = one base 3-D noise call; the audit's ~140 was an estimate) — and `sampleSurface()` is UNCACHED (the chunk-block cache serves `generateChunk` only), so every streaming-band query and `terrain_height?source=generator` call pays the full column | ≤ 25 — **GREEN on the sheet (M1b): 18.6** (`ColumnCostBench.FreshColumnCostsAtMost25EvalsOnTheSheet`); v1 pinned at 136.6 (D10) |
 | Macro bake 200² | — | < 2 s Release (record) |
-| Meso tile bake 256² | 201.5 ms Debug (laptop, `WorldSheetGeneratorTest.MesoTileBakeTimeRecorded`, 2026-10-15) | < 50 ms on a worker, Release (record at M1e) |
+| Meso tile bake 256² | **76.2 ms Release** / 201.5 ms Debug (laptop, `WorldSheetGeneratorTest.MesoTileBakeTimeRecorded`, 2026-10-15) | < 50 ms on a worker, Release — **RED** (lever: the climate planes are 8 of the 18 evals per cell) |
 | Civ + routes plan, 300 sites | all-pairs A* O(n²) at 8 sites today | < 10 s Release, off the main thread |
 | Settlement map, 200-lot city | — | < 2 s headless |
-| Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
+| Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (v1 baseline; the M1b sheet on the WorldSheetLab pose measured 17.3 — a different world, not the gate pose) (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
 | Realization | 0.9 s per furnished tavern place | 0 frames > 33 ms during lazy realization |
 
 Both the RTX 4090 desktop and the RTX 1000 Ada laptop are stated on every evidence row.

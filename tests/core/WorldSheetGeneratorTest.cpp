@@ -108,6 +108,23 @@ TEST(WorldSheetGeneratorTest, BaseHeightFnReadsTheSheet) {
     EXPECT_GT(checked, 100);
 }
 
+// A type change after the recipe must rebuild the sheet (auditor finding 2026-10-15: the setter
+// only cleared the column cache, so the pager stayed keyed to the old type).
+TEST(WorldSheetGeneratorTest, SetGenerationTypeAfterRecipeRebuildsTheSheet) {
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 4242u);
+    gen.applyRecipe(v2Recipe(4242u));
+    ASSERT_TRUE(gen.sheetMode());
+    const auto perlinPager = gen.mesoPager();
+    const uint64_t perlinHash = gen.macroSheet()->hash();
+    const float hPerlin = perlinPager->heightAt(1000.0f, 1000.0f);
+    gen.setGenerationType(WorldGenerator::GenerationType::Mountains);
+    ASSERT_NE(gen.mesoPager(), nullptr);
+    EXPECT_NE(gen.mesoPager(), perlinPager) << "the pager still serves the Perlin bake";
+    EXPECT_NE(gen.macroSheet()->hash(), perlinHash) << "the macro sheet is still the Perlin bake";
+    const float hMtn = gen.mesoPager()->heightAt(1000.0f, 1000.0f);
+    EXPECT_NE(hPerlin, hMtn) << "Mountains relief did not reach the tile";
+}
+
 // Section 9: meso tile bake time, recorded (Debug here; the Release figure is the gate's).
 TEST(WorldSheetGeneratorTest, MesoTileBakeTimeRecorded) {
     WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 4242u);

@@ -128,6 +128,46 @@ TEST(MesoSeamTest, BicubicSamplesStraddlingTheSeamMatchTheWholeRegion) {
     EXPECT_GE(pager.bakes(), 2u) << "the pager did not serve the seam from two tiles";
 }
 
+// The climate planes and the analytic gradient must obey the same seam invariant as the height
+// (auditor finding 2026-10-15: the generator-copy test compares one pager against itself and
+// cannot see a tile-vs-whole discrepancy). Independent pagers: tiles via pager->get against
+// one 2N x 2N window, for climateAt and gradientAt at x = seam +- 20 u.
+TEST(MesoSeamTest, ClimateAndGradientStraddlingTheSeamMatchTheWholeRegion) {
+    auto climate = [](float x, float z, float& t, float& m) {
+        t = detailField(x * 0.37f, z * 0.91f) * 0.01f;
+        m = detailField(x * 1.13f + 7.0f, z * 0.53f) * 0.01f;
+    };
+    const SheetParams p = labParams(4);
+    auto baker = std::make_shared<MesoBaker>(7001u, p, macroField, detailField, climate);
+    const int N = baker->params().mesoTileCells;
+    const float seamX = N * p.mesoCellU;
+    MesoPager pager(baker, 8);
+    const auto whole = baker->bakeCells(0, 0, 2 * N);
+
+    size_t mismatches = 0, samples = 0;
+    for (float wz : {12.0f, 700.0f, 1500.0f})
+        for (float dx = -20.0f; dx <= 20.0f; dx += 1.9f) {
+            const float wx = seamX + dx;
+            float ta, ma, tb, mb;
+            pager.climateAt(wx, wz, ta, ma);
+            mesoClimateAt(*whole, wx, wz, tb, mb);
+            const auto ga = pager.gradientAt(wx, wz);
+            const auto gb = mesoGradientAt(*whole, wx, wz);
+            ++samples;
+            if (!sameBits(ta, tb) || !sameBits(ma, mb) || !sameBits(ga.first, gb.first) ||
+                !sameBits(ga.second, gb.second))
+                ++mismatches;
+        }
+    EXPECT_EQ(mismatches, 0u) << mismatches << " of " << samples
+                              << " climate/gradient samples differ across the seam";
+    EXPECT_GE(pager.bakes(), 2u);
+    // Control: the climate planes carry real content (a flat plane would pass trivially).
+    float t0, m0, t1, m1;
+    pager.climateAt(seamX - 300.0f, 12.0f, t0, m0);
+    pager.climateAt(seamX + 300.0f, 700.0f, t1, m1);
+    EXPECT_FALSE(sameBits(t0, t1) && sameBits(m0, m1)) << "the climate planes are constant";
+}
+
 // Eviction + re-bake is bit-identical (the bake is pure), and the LRU honours its cap.
 TEST(MesoSeamTest, PagerEvictsAndRebakesIdentically) {
     auto baker = std::make_shared<MesoBaker>(7001u, labParams(2), macroField, detailField);

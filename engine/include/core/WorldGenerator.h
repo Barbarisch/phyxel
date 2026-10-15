@@ -58,7 +58,10 @@ public:
     void setCustomGenerator(GenerationFunction func) { customGenerator = func; generationType = GenerationType::Custom; }
     
     // Change generation type
-    void setGenerationType(GenerationType type) { generationType = type; clearColumnCache(); }
+    // Rebuilds Layer-0 (coarse model, hydrology, the M1 sheet) so a type change never serves a
+    // stale bake (auditor finding 2026-10-15: the setter only cleared the column cache, leaving the
+    // coarse model, hydrology and sheet keyed to the old type until the next applyRecipe).
+    void setGenerationType(GenerationType type) { generationType = type; rebuildCoarseModel(); }
     
     // Terrain parameters
     struct TerrainParams {

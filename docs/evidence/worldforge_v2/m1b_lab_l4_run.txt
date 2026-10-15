@@ -1,0 +1,28 @@
+exe: 2026-10-15_15:48:46  HEAD: f958af2f
+gpu: NVIDIA RTX 1000 Ada Generation Laptop GPU (discrete, 2 device(s) enumerated)
+sheet log: [15:53:01.915] [INFO] [WorldGenerator] [WORLD_SHEET] macro 16x16 @ 512 u baked (hash 11902151080018594494); meso tiles 256 @ 32 u, apron 6, LRU 64
+loader log: [15:53:01.915] [INFO] [GameDefinitionLoader] World: sheet params from game.json -> recipe version 2 (continentCells=16, mesoSteps=4)
+seam profile (x: surface_y) at z=40:
+ -6:51 -5:51 -4:51 -3:51 -2:51 -1:51 0:51 1:51 2:51 3:51 4:51 5:51 6:51
+throughput pose (3000,151,-2000) generator surface_y=111
+{"capacity":6000,"frames":0,"recording":true,"success":true,"truncated":false}
+{"capacity":6000,"frames":2756,"recording":false,"success":true,"truncated":false}
+dump bytes: 2554012
+chunks@pose after: {"max_y":255,"source":"chunks","spawn_y":112,"surface_y":111,"x":3000,"z":-2000}
+cam readback: {'x': 0.0, 'y': 111.0, 'z': 40.0} -90.0 -60.0
+shot: screenshots/screenshot_20261015_155556_622.png
+world.db recipe: {
+  "biomes": [
+    {
+      "extremeness": {
+        "heightScale": 1.2999999523162842
+      },
+      "flora": {
+        "density": 0.800000011920929,
+        "fullness": 0.8500000238418579,
+        "items": [
+          {
+            "template": "forge_spruce_m",
+            "weight": 4
+          },
+done

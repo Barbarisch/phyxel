@@ -1,0 +1,46 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[16:04:25.486] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:04:26.114] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[16:04:26.115] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[ D10 golden ] Perlin 4242 x 2000 columns: 11413304086647064455
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\LegacyTerrainGoldenTest.cpp(59): error: Expected equality of these values:
+  h
+    Which is: 11413304086647064455
+  kGoldenPerlin
+    Which is: 0
+the version-1 Perlin terrain changed (D10 forbids it)
+
+[  FAILED  ] LegacyTerrainGoldenTest.PerlinColumnsAreByteIdenticalToThePreM1Golden (713 ms)
+[32m[16:04:26.197] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:04:26.818] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[16:04:26.819] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[ D10 golden ] Mountains 4242 x 2000 columns: 5521812291101006622
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\LegacyTerrainGoldenTest.cpp(65): error: Expected equality of these values:
+  h
+    Which is: 5521812291101006622
+  kGoldenMountains
+    Which is: 0
+the version-1 Mountains terrain changed (D10 forbids it)
+
+[  FAILED  ] LegacyTerrainGoldenTest.MountainsColumnsAreByteIdenticalToThePreM1Golden (701 ms)
+[32m[16:04:26.918] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:04:26.919] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:04:26.922] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:04:26.934] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 840778309001629837); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[16:04:30.542] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 945 bodies[0m
+[32m[16:04:30.542] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2500 maxOrder=5 drainageComplete=1[0m
+[32m[16:04:30.542] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:04:30.547] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:04:30.547] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:04:30.557] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:04:30.558] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:04:30.562] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:04:30.563] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:04:30.573] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 7410193900006463647); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[16:04:34.202] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2556 bodies[0m
+[32m[16:04:34.202] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4883 maxOrder=5 drainageComplete=1[0m
+[32m[16:04:34.206] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:04:34.206] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M1 §9 ] meso tile 256x256 (+apron 6) bake: 197.3 ms (this build config)
+[==========] 12 tests from 3 test suites ran. (8923 ms total)
+[  PASSED  ] 10 tests.

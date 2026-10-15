@@ -1,0 +1,1148 @@
+exe: 2026-10-15_16:05:48  HEAD+working tree (M1b audit fixes)
+filter: ColumnCostBench*:WorldSheetGeneratorTest*:MesoSeamTest*:LegacyTerrainGoldenTest*:TerrainRecipeTest*:*Terrain*:*Hydro*:*WorldForge*:*Flora*:*Road*:*Coarse*:*Recipe*:*Biome*:*Stream*
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[16:06:23.398] [INFO] [Audio] Audio System Initialized.[0m
+[32m[16:06:23.399] [INFO] [SoundRegistry] Loaded 1 sound events from C:\Users\bpete\AppData\Local\Temp\phyxel_ambience_test/sounds.json[0m
+[32m[16:06:23.400] [INFO] [Ambience] Loaded 3 ambience contexts from C:\Users\bpete\AppData\Local\Temp\phyxel_ambience_test/ambience.json[0m
+[32m[16:06:23.401] [INFO] [Ambience] Context -> 'Forest' (bed: C:/Users/bpete/AppData/Local/Temp/phyxel_ambience_test/beds/forest.wav)[0m
+[32m[16:06:23.413] [INFO] [Ambience] Context -> 'cave' (bed: C:/Users/bpete/AppData/Local/Temp/phyxel_ambience_test/beds/cave.wav)[0m
+[32m[16:06:23.448] [INFO] [Audio] Audio System Initialized.[0m
+[32m[16:06:23.448] [INFO] [SoundRegistry] Loaded 1 sound events from C:\Users\bpete\AppData\Local\Temp\phyxel_ambience_test/sounds.json[0m
+[32m[16:06:23.449] [INFO] [Ambience] Loaded 3 ambience contexts from C:\Users\bpete\AppData\Local\Temp\phyxel_ambience_test/ambience.json[0m
+[32m[16:06:23.449] [INFO] [Ambience] Context -> 'Forest' (bed: C:/Users/bpete/AppData/Local/Temp/phyxel_ambience_test/beds/forest.wav)[0m
+[32m[16:06:23.481] [INFO] [Audio] Audio System Initialized.[0m
+[32m[16:06:23.481] [INFO] [SoundRegistry] Loaded 1 sound events from C:\Users\bpete\AppData\Local\Temp\phyxel_ambience_test/sounds.json[0m
+[32m[16:06:23.483] [INFO] [Ambience] Loaded 3 ambience contexts from C:\Users\bpete\AppData\Local\Temp\phyxel_ambience_test/ambience.json[0m
+[32m[16:06:23.484] [INFO] [Ambience] Context -> 'Forest' (bed: C:/Users/bpete/AppData/Local/Temp/phyxel_ambience_test/beds/forest.wav)[0m
+[32m[16:06:23.495] [INFO] [Ambience] Context -> 'Moonscape' (bed: <silence>)[0m
+[32m[16:06:23.505] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:06:24.126] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[16:06:24.126] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+[32m[16:06:42.093] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:06:42.714] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 874 bodies[0m
+[32m[16:06:42.714] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2263 maxOrder=5 drainageComplete=1[0m
+[32m[16:07:00.645] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:01.287] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1129 bodies[0m
+[32m[16:07:01.287] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2096 maxOrder=4 drainageComplete=1[0m
+[reach] achievable temp [0,1] moisture [0,1]
+[reach] Desert = 2241
+[reach] EnchantedForest = 28676
+[reach] Forest = 126126
+[reach] Jungle = 68682
+[reach] Plains = 1040495
+[reach] Savanna = 68205
+[reach] Snow = 109064
+[reach] Tundra = 51819
+[32m[16:07:19.519] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:20.148] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 957 bodies[0m
+[32m[16:07:20.148] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=3017 maxOrder=5 drainageComplete=1[0m
+[32m[16:07:20.150] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_0.db[0m
+[32m[16:07:20.156] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.156] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_0.db[0m
+[32m[16:07:20.157] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:20.158] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_1.db[0m
+[32m[16:07:20.163] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.163] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_1.db[0m
+[32m[16:07:20.165] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:20.166] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_2.db[0m
+[32m[16:07:20.171] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.171] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_2.db[0m
+[32m[16:07:20.172] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:20.173] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_3.db[0m
+[32m[16:07:20.178] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.178] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_3.db[0m
+[32m[16:07:20.180] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:20.181] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_4.db[0m
+[32m[16:07:20.186] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.186] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_4.db[0m
+[32m[16:07:20.189] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:20.190] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_5.db[0m
+[32m[16:07:20.195] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.196] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_5.db[0m
+[32m[16:07:20.198] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:20.199] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_6.db[0m
+[32m[16:07:20.204] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.204] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_6.db[0m
+[32m[16:07:20.211] [INFO] [ChunkStreaming] Saved 1 chunks to storage[0m
+[32m[16:07:20.213] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:20.213] [INFO] [ChunkStreaming] World storage disconnected[0m
+[32m[16:07:20.214] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_6.db[0m
+[32m[16:07:20.215] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.215] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_6.db[0m
+[33m[16:07:20.222] [WARN] [ChunkManager] createChunk(-32,0,0): chunk is saved in the world DB - LOADED it instead of creating an empty one[0m
+[32m[16:07:20.222] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:20.223] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[16:07:20.229] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.229] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[16:07:20.484] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:20.485] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[16:07:20.486] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.486] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[16:07:20.487] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[16:07:20.500] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:20.500] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[16:07:23.054] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.056] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.057] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_8.db[0m
+[32m[16:07:23.063] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:23.063] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_8.db[0m
+[32m[16:07:23.063] [INFO] [ChunkStreaming] Saved 0 chunks to storage[0m
+[32m[16:07:23.065] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.066] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_9.db[0m
+[32m[16:07:23.071] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:23.071] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_9.db[0m
+[32m[16:07:23.072] [INFO] [ChunkStreaming] Saved 2 chunks to storage[0m
+[32m[16:07:23.073] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.074] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_10.db[0m
+[32m[16:07:23.079] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:23.079] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_10.db[0m
+[32m[16:07:23.081] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.082] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_11.db[0m
+[32m[16:07:23.087] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:23.087] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_11.db[0m
+[32m[16:07:23.087] [INFO] [ChunkStreaming] Attempting to save 1 dirty chunks[0m
+[32m[16:07:23.089] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.090] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_12.db[0m
+[32m[16:07:23.094] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:23.094] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_12.db[0m
+[32m[16:07:23.096] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.096] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_13.db[0m
+[32m[16:07:23.101] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:23.101] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_13.db[0m
+[32m[16:07:23.103] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.103] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_14.db[0m
+[32m[16:07:23.108] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:23.108] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_14.db[0m
+[32m[16:07:23.111] [INFO] [WorldStorage] [WORLD_STORAGE] Found 5 chunks in database[0m
+[32m[16:07:23.111] [INFO] [ChunkStreaming] Stream-in boot: 1 chunk(s) loaded near anchor (0 empty), 4 deferred to background[0m
+[32m[16:07:23.111] [INFO] [ChunkStreaming] Async chunk-generation (3 worker(s)) + disposal workers started (pure DB-load mode, no generator)[0m
+[32m[16:07:23.122] [INFO] [ChunkStreaming] Stream-in boot complete: deferred background load finished[0m
+[32m[16:07:23.133] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.134] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_15.db[0m
+[32m[16:07:23.139] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:23.139] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_15.db[0m
+[32m[16:07:23.140] [INFO] [WorldStorage] [WORLD_STORAGE] Found 1 chunks in database[0m
+[32m[16:07:23.140] [INFO] [ChunkStreaming] Stream-in boot: 0 chunk(s) loaded near anchor (0 empty), 0 deferred to background [streaming world: far chunks load on approach][0m
+[32m[16:07:23.142] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:23.146] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:23.777] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[16:07:23.777] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[16:07:23.785] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:23.796] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 840778309001629837); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[16:07:27.457] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 945 bodies[0m
+[32m[16:07:27.457] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2500 maxOrder=5 drainageComplete=1[0m
+[32m[16:07:27.457] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M1 section 9 ] sheet column cost: 18.625 base-noise evals per fresh column (gate <= 25)
+[32m[16:07:27.667] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:27.682] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:27.683] [INFO] [WorldGenerator] Loaded 1 biomes from C:\Users\bpete\AppData\Local\Temp\phyxel_fauna_plan_test\_nofauna.json[0m
+[32m[16:07:27.950] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:27.951] [INFO] [WorldGenerator] Loaded 1 biomes from C:\Users\bpete\AppData\Local\Temp\phyxel_flora_layers_test\_biomes.json[0m
+[32m[16:07:28.128] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:28.129] [INFO] [WorldGenerator] Loaded 1 biomes from C:\Users\bpete\AppData\Local\Temp\phyxel_flora_layers_test\_biomes.json[0m
+[32m[16:07:28.129] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 1 biome tunings)[0m
+[32m[16:07:28.326] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:28.327] [INFO] [WorldGenerator] Loaded 1 biomes from C:\Users\bpete\AppData\Local\Temp\phyxel_flora_margin_test\_biomes.json[0m
+[32m[16:07:28.377] [INFO] [ObjectTemplateManager] Loaded template: _flora_wide with 3586 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:07:29.238] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:29.238] [INFO] [WorldGenerator] Loaded 1 biomes from C:\Users\bpete\AppData\Local\Temp\phyxel_giant_yseam_test\_biomes.json[0m
+[32m[16:07:29.557] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_xl with 38336 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:07:39.875] [INFO] [ItemRegistry] Loaded 58 item definitions[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'iron_sword' already registered — skipping[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'iron_pickaxe' already registered — skipping[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'iron_axe' already registered — skipping[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'torch' already registered — skipping[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'wooden_sword' already registered — skipping[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'wooden_pickaxe' already registered — skipping[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'bread' already registered — skipping[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'health_potion' already registered — skipping[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'iron_helmet' already registered — skipping[0m
+[33m[16:07:39.885] [WARN] [ItemRegistry] Item 'iron_chestplate' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'quest_key' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'rug_test' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_rug_oriental' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_sign_prancing_pony' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_sign_blacksmith' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_sign_bakery' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_sign_general_store' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_sign_apothecary' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_sign_butcher' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_tome_arcane' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_tome_necromantic' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'prop_tome_fire' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'short_sword' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'dagger' already registered — skipping[0m
+[33m[16:07:39.886] [WARN] [ItemRegistry] Item 'battle_axe' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'spear' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'mace' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'maul' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'warhammer' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'staff_fire' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'staff_frost' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'staff_nature' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'staff_arcane' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'wand' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'tome_leather' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'scroll' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'rug_woven' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'candlestick' already registered — skipping[0m
+[33m[16:07:39.887] [WARN] [ItemRegistry] Item 'lantern' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'oil_lamp' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'candle' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'tankard' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'goblet' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'plate' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'bowl' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'jug' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'bottle_wine' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'fork' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'knife_table' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'spoon' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'frying_pan' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'ladle' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'bow' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'crossbow' already registered — skipping[0m
+[33m[16:07:39.888] [WARN] [ItemRegistry] Item 'quiver' already registered — skipping[0m
+[33m[16:07:39.889] [WARN] [ItemRegistry] Item 'throwing_knife' already registered — skipping[0m
+[33m[16:07:39.889] [WARN] [ItemRegistry] Item 'firewood' already registered — skipping[0m
+[33m[16:07:39.889] [WARN] [ItemRegistry] Item 'flaming_log' already registered — skipping[0m
+[32m[16:07:39.889] [INFO] [ItemRegistry] Loaded 0 item definitions[0m
+[32m[16:07:39.894] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[ D10 golden ] Perlin 4242 x 2000 columns: 11413304086647064455
+[32m[16:07:39.979] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:40.608] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[16:07:40.609] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[ D10 golden ] Mountains 4242 x 2000 columns: 5521812291101006622
+[32m[16:07:40.690] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:41.315] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[16:07:41.315] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+
+=== C0 BRICK SWEEP - GENERATED TERRAIN (Perlin, 2x2 chunks at the surface) ===
+level-0 volume: 64x32x64 cubes, 94823 solid cells, 3 materials
+
+brick lvl coarse    solid  units/  fattening  over-    mat_      scale us
+          dims      bricks chunk              carve    mismatch  ok?
+   4^3  2  16x 8x16    1616     512     1.09x     0.0%  12.6182%  yes  3942
+   8^3  3   8x 4x8      216      64     1.17x     0.0%  19.0471%  yes  563
+  16^3  4   4x 2x4       32       8     1.38x     0.0%  26.6011%  NO   84
+
+over-carve is 0% by construction here (no openings). Compare `fattening` against the
+structure tables: if terrain fattens far less at 8^3/16^3, then terrain and structures
+want DIFFERENT brick sizes and a single global constant is the wrong model.
+
+[32m[16:07:53.505] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: test_worlds/lod_pyramid_test_0.db[0m
+[32m[16:07:53.510] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:53.525] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:53.526] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: test_worlds/lod_pyramid_test_1.db[0m
+[32m[16:07:53.530] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[16:07:53.549] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[16:07:53.553] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:54.179] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[16:07:54.179] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[16:07:54.538] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[16:07:54.542] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:54.542] [INFO] [Chunk] Streaming generation ENABLED (type=2, seed=1, asyncGen=1)[0m
+[32m[16:07:54.543] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[16:07:54.546] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:54.547] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:54.551] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:54.551] [INFO] [Chunk] Streaming generation ENABLED (type=2, seed=7, asyncGen=1)[0m
+[32m[16:07:54.551] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:54.551] [INFO] [GameDefinitionLoader] World: streaming terrain ENABLED (loadDist=256.000000, unloadDist=352.000000)[0m
+[32m[16:07:56.126] [INFO] [GameDefinitionLoader] World: generated 9 chunks (Flat, seed=7)[0m
+[32m[16:07:56.127] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=9, structures=0, locations=0, npcs=0)[0m
+[32m[16:07:56.128] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[16:07:56.133] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:56.133] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:56.137] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:56.137] [INFO] [Chunk] Streaming generation ENABLED (type=2, seed=7, asyncGen=1)[0m
+[32m[16:07:56.137] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:56.137] [INFO] [GameDefinitionLoader] World: streaming terrain ENABLED (loadDist=256.000000, unloadDist=352.000000)[0m
+[32m[16:07:56.237] [INFO] [GameDefinitionLoader] World: generated 1 chunks (Flat, seed=7)[0m
+[32m[16:07:56.238] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=1, structures=0, locations=0, npcs=0)[0m
+[32m[16:07:56.238] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[16:07:56.242] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:56.242] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:56.242] [INFO] [Chunk] Streaming generation disabled (type=1, seed=0, asyncGen=0)[0m
+[32m[16:07:56.242] [INFO] [GameDefinitionLoader] World: streaming terrain OFF (explicit or non-terrain type)[0m
+[32m[16:07:56.291] [INFO] [GameDefinitionLoader] World: generated 1 chunks (Flat, seed=7)[0m
+[32m[16:07:56.291] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=1, structures=0, locations=0, npcs=0)[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\RealizedStructureValidatorTest.cpp(162): Skipped
+bush_flower.voxel not reachable from CWD
+
+[32m[16:07:56.295] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:56.938] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[16:07:56.938] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[16:07:56.985] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 45 ms (hash 390629209938214499)[0m
+[32m[16:07:56.985] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:56.989] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:57.037] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 46 ms (hash 390629209938214499)[0m
+[32m[16:07:57.037] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:57.043] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:57.090] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 45 ms (hash 390629209938214499)[0m
+[32m[16:07:57.090] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:57.097] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:57.146] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 46 ms (hash 390629209938214499)[0m
+[32m[16:07:57.146] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:57.157] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:57.205] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 46 ms (hash 390629209938214499)[0m
+[32m[16:07:57.205] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:07:57.519] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:07:59.603] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 1 bridges, 183 segments in 2081 ms (hash 8898297598189654879)[0m
+[32m[16:07:59.603] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:08:10.590] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:08:12.612] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 1 bridges, 183 segments in 2019 ms (hash 8898297598189654879)[0m
+[32m[16:08:12.612] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:08:23.549] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:08:24.186] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[16:08:24.186] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[32m[16:08:24.608] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 418 ms (hash 18197215997962677593)[0m
+[32m[16:08:24.608] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:08:35.467] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:08:35.516] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 47 ms (hash 390629209938214499)[0m
+[32m[16:08:35.516] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:08:35.520] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:08:35.521] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:08:35.531] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:08:37.674] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 3 roads, 1 bridges, 183 segments in 2140 ms (hash 8898297598189654879)[0m
+[32m[16:08:37.675] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[BRIDGE-WALK] deckY=65 bankA.surfaceY=65 bankB.surfaceY=65 approachA.surfaceY=67 approachB.surfaceY=68 len=13
+[32m[16:09:11.534] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:09:11.959] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 419 ms (hash 18197215997962677593)[0m
+[32m[16:09:11.959] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:09:12.219] [INFO] [RuntimeEntityStore] Saved 2 runtime entities[0m
+[32m[16:09:12.219] [INFO] [RuntimeEntityStore] Loaded 2 runtime entities[0m
+[32m[16:09:12.221] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:12.227] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:12.345] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:12.350] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:12.352] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)[0m
+[32m[16:09:12.427] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:12.432] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:12.500] [INFO] [Settlement] main_street terrain: axis X offset 11, 4 plots (0 dropped unbuildable)[0m
+[32m[16:09:12.502] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)[0m
+[32m[16:09:12.589] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:12.594] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:12.652] [INFO] [Settlement] main_street terrain: axis X offset 11, 0 plots (4 dropped unbuildable)[0m
+[32m[16:09:12.737] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:12.742] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:12.804] [INFO] [Settlement] main_street terrain: axis Z offset 12, 1 plots (1 dropped unbuildable)[0m
+[32m[16:09:12.804] [INFO] [Settlement] build_settlement: 1 plots, 1 buildings queued (1 streets)[0m
+[32m[16:09:12.879] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:12.884] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:12.952] [INFO] [Settlement] main_street terrain: axis Z offset 21, 2 plots (0 dropped unbuildable)[0m
+[32m[16:09:12.953] [INFO] [Settlement] build_settlement: 2 plots, 2 buildings queued (1 streets)[0m
+[32m[16:09:13.027] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:13.032] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:13.100] [INFO] [Settlement] main_street terrain: axis Z offset 21, 2 plots (0 dropped unbuildable)[0m
+[32m[16:09:13.100] [INFO] [Settlement] build_settlement: 2 plots, 2 buildings queued (1 streets)[0m
+[32m[16:09:13.174] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:13.179] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:13.248] [INFO] [Settlement] main_street terrain: axis Z offset 21, 3 plots (0 dropped unbuildable)[0m
+[32m[16:09:13.249] [INFO] [Settlement] build_settlement: 3 plots, 3 buildings queued (1 streets)[0m
+[32m[16:09:13.323] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:13.328] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:13.330] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)[0m
+[32m[16:09:13.402] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:13.407] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:13.475] [INFO] [Settlement] main_street terrain: axis X offset 11, 4 plots (0 dropped unbuildable)[0m
+[32m[16:09:13.476] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)[0m
+[32m[16:09:13.548] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:13.553] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:09:13.621] [INFO] [Settlement] main_street terrain: axis Z offset 12, 1 plots (1 dropped unbuildable)[0m
+[32m[16:09:13.621] [INFO] [Settlement] build_settlement: 1 plots, 1 buildings queued (1 streets)[0m
+[32m[16:09:13.624] [INFO] [ObjectTemplateManager] Loaded template: bush_flower with 0 cubes, 18 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:13.629] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_blue with 3 cubes, 366 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:13.636] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_green with 1 cubes, 494 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:13.647] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_m with 21 cubes, 788 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:13.655] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_s with 9 cubes, 634 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:13.662] [INFO] [ObjectTemplateManager] Loaded template: bush_round with 8 cubes, 506 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:13.663] [INFO] [ObjectTemplateManager] Loaded template: fern with 0 cubes, 11 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:13.865] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_l with 17 cubes, 6791 subcubes, 7074 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:14.010] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_m with 9 cubes, 4028 subcubes, 5562 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:14.315] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_l with 23 cubes, 9275 subcubes, 10937 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:14.610] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_m with 10 cubes, 5388 subcubes, 13347 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:14.813] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_l with 18 cubes, 6473 subcubes, 7074 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:15.015] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_m with 8 cubes, 3491 subcubes, 9307 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:15.039] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_blue with 0 cubes, 321 subcubes, 1138 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:15.063] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_green with 0 cubes, 356 subcubes, 1134 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:15.102] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_m with 0 cubes, 625 subcubes, 1890 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:15.130] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_s with 0 cubes, 371 subcubes, 1404 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:15.157] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_m with 6 cubes, 827 subcubes, 965 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:15.174] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_s with 6 cubes, 589 subcubes, 567 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:16.154] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xl with 4491 cubes, 30928 subcubes, 33213 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:17.859] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xxl with 13788 cubes, 57981 subcubes, 50494 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:18.523] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak with 2142 cubes, 20403 subcubes, 22610 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:18.900] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak_s with 585 cubes, 9306 subcubes, 14376 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:19.028] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_l with 16 cubes, 2522 subcubes, 5422 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:19.100] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_m with 4 cubes, 1236 subcubes, 3206 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:19.578] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_l with 84 cubes, 16978 subcubes, 14405 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:19.866] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_m with 31 cubes, 7400 subcubes, 10866 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:20.387] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_hero with 27 cubes, 13693 subcubes, 20095 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:20.690] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_l with 29 cubes, 10898 subcubes, 9600 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:20.999] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_m with 10 cubes, 5289 subcubes, 14261 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:21.159] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_sparse with 9 cubes, 4051 subcubes, 6345 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:21.189] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_l with 0 cubes, 114 subcubes, 1636 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:21.210] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_m with 0 cubes, 128 subcubes, 1125 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:21.413] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_l with 30 cubes, 5832 subcubes, 7496 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:21.531] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_m with 5 cubes, 2571 subcubes, 4883 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:22.710] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xl with 6730 cubes, 40818 subcubes, 34983 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:24.933] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xxl with 21549 cubes, 79410 subcubes, 59079 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:25.065] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_l with 8 cubes, 3119 subcubes, 4980 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:25.171] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_m with 5 cubes, 1484 subcubes, 5093 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:25.218] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_s with 4 cubes, 744 subcubes, 2126 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:25.670] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_l with 20 cubes, 15241 subcubes, 15417 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.090] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_m with 5 cubes, 8624 subcubes, 18414 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.091] [INFO] [ObjectTemplateManager] Loaded template: hedge_section with 1 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.092] [INFO] [ObjectTemplateManager] Loaded template: mushroom with 0 cubes, 16 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.102] [INFO] [ObjectTemplateManager] Loaded template: shrub_flat with 0 cubes, 25 subcubes, 583 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.118] [INFO] [ObjectTemplateManager] Loaded template: shrub_round with 0 cubes, 62 subcubes, 877 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.157] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_l with 0 cubes, 3149 subcubes, 4 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.177] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_m with 0 cubes, 1475 subcubes, 2 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.178] [INFO] [ObjectTemplateManager] Loaded template: tree_apple with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.237] [INFO] [ObjectTemplateManager] Loaded template: tree_autumn_m with 11 cubes, 4675 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.238] [INFO] [ObjectTemplateManager] Loaded template: tree_birch with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.254] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_l with 4 cubes, 1213 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.269] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_m with 3 cubes, 1117 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.282] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_sparse with 3 cubes, 992 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.282] [INFO] [ObjectTemplateManager] Loaded template: tree_dead with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.284] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_m with 3 cubes, 116 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.286] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_s with 2 cubes, 116 subcubes, 2 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.590] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak with 35730 cubes, 19 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.960] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak_xl with 42041 cubes, 5 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.981] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_l with 40 cubes, 1391 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:26.992] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_m with 11 cubes, 784 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.020] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_m with 85 cubes, 2141 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.073] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_xl with 218 cubes, 3909 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.074] [INFO] [ObjectTemplateManager] Loaded template: tree_oak with 0 cubes, 22 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.157] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_l with 19 cubes, 6503 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.211] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_lush with 10 cubes, 4176 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.274] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_m with 11 cubes, 5009 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.299] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_s with 7 cubes, 1978 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.348] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_sparse with 6 cubes, 3780 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.349] [INFO] [ObjectTemplateManager] Loaded template: tree_palm with 0 cubes, 12 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.351] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_l with 0 cubes, 120 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.353] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_m with 0 cubes, 96 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.354] [INFO] [ObjectTemplateManager] Loaded template: tree_pine with 0 cubes, 27 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.377] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_l with 8 cubes, 1696 subcubes, 28 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.384] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_m with 5 cubes, 506 subcubes, 20 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.389] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_s with 4 cubes, 291 subcubes, 16 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.615] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_l with 26550 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.944] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_xl with 38336 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.981] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_l with 183 cubes, 2578 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:27.995] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_m with 38 cubes, 1012 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:28.034] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_l with 163 cubes, 2894 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:28.050] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_m with 32 cubes, 1130 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:28.056] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_s with 7 cubes, 464 subcubes, 1 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:28.057] [INFO] [ObjectTemplateManager] Loaded template: tree_stump with 0 cubes, 14 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:28.088] [INFO] [ObjectTemplateManager] Loaded template: tree_willow_l with 80 cubes, 2303 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 1 parts[0m
+[32m[16:09:28.088] [INFO] [ObjectTemplateManager] Template scan: 85 loaded from resources/templates/nature[0m
+[32m[16:09:28.140] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:09:28.140] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)[0m
+[32m[16:09:28.168] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:09:28.173] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:10:00.914] [INFO] [Settlement] main_street terrain: axis X offset 11, 4 plots (0 dropped unbuildable)[0m
+[32m[16:10:00.915] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)[0m
+[32m[16:10:01.157] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:10:01.157] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)[0m
+[32m[16:10:01.185] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[16:10:01.190] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:10:33.747] [INFO] [Settlement] terrain analyse 48x28: buildable=1 -> 6 plots[0m
+[32m[16:10:33.749] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (0 streets)[0m
+[32m[16:10:33.797] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:10:33.801] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:10:34.447] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[16:10:34.447] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+  Perlin hills: height[51,59] maxRelief=3 buildable=1
+  Mountains:   height[191,242] maxRelief=19 buildable=0.369358
+[32m[16:10:34.619] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:10:34.619] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)[0m
+[32m[16:10:34.666] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:10:34.668] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:10:34.669] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[16:10:34.670] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:10:34.670] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[16:10:34.737] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)[0m
+[32m[16:10:34.752] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=28 (cut 48, fill 48)[0m
+[33m[16:10:35.013] [WARN] [StructureBuild] REFUSING placement: 3 target chunk(s) are un-generated terrain (would materialize empty)[0m
+[32m[16:10:35.084] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[16:10:35.085] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json[0m
+[32m[16:10:35.086] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft][0m
+[32m[16:10:35.087] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)[0m
+[32m[16:10:35.087] [INFO] [StructureBuild] program validation: OK [typology croft][0m
+[32m[16:10:35.152] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)[0m
+[32m[16:10:35.168] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=28 (cut 48, fill 48)[0m
+[32m[16:10:35.422] [INFO] [StructureGenerator] Placing 30859 voxels in 2 steps[0m
+[32m[16:10:35.525] [INFO] [ChunkManager] Created new chunk at (64, 0, 32) for placement[0m
+[32m[16:10:35.631] [INFO] [ChunkManager] Created new chunk at (64, 32, 32) for placement[0m
+[32m[16:10:35.733] [INFO] [ChunkManager] Created new chunk at (64, 32, 64) for placement[0m
+[32m[16:10:36.240] [INFO] [StructureGenerator]   step 1: 25000/30859 (25000 placed, 0 failed)[0m
+[32m[16:10:36.476] [INFO] [StructureBuild] [perf] phases ms: setup=8 overlap=4 realize=64 pad=11 excav=253 place+register=1054 (place=1053 grass=0 nav=0) fixtures=0 TOTAL=1394[0m
+[32m[16:10:36.523] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:10:37.177] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1024 bodies[0m
+[32m[16:10:37.177] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2548 maxOrder=5 drainageComplete=1[0m
+[biome] Jungle=5794 Tundra=4276 | Forest=7708 Plains=61511 Desert=5 Savanna=3507 Snow=6973
+[biome] Jungle avg temp=0.76 moist=0.74
+[biome] Tundra avg temp=0.25 moist=0.22
+[32m[16:10:40.467] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[flora] placements=626 onSeabed=0 onCliff=0 onSnow=0 onTaiga=417
+[32m[16:10:43.255] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[mat] highPeaks=10408 highGrass=0  snowAlt=40116 stoneSurf=2339 warmLowSnow=0
+[32m[16:10:45.621] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[mat] belowSea=52940 notSand=0
+[32m[16:11:02.783] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:03.447] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[16:11:03.447] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[mat] bareSnow=14653 snowViolations=0
+[32m[16:11:04.920] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:05.582] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 981 bodies[0m
+[32m[16:11:05.583] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2660 maxOrder=4 drainageComplete=1[0m
+[32m[16:11:06.590] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1589 bodies[0m
+[32m[16:11:06.590] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=17935 maxOrder=5 drainageComplete=1[0m
+[33m[16:11:06.590] [WARN] [WorldGenerator] [WORLD_GENERATOR] Hydrology bake has NO sea outlet: min terrain 220 sits ABOVE seaLevel 16. Every basin fills to its spill (perched hillside lakes). Set game.json water.seaLevel to a level the terrain actually reaches.[0m
+[32m[16:11:06.590] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:11:06.974] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:07.607] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2687 bodies[0m
+[32m[16:11:07.607] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5288 maxOrder=5 drainageComplete=1[0m
+[32m[16:11:08.265] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2647 bodies[0m
+[32m[16:11:08.265] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=120, maxAccum=1520 maxOrder=4 drainageComplete=1[0m
+[32m[16:11:08.265] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:11:08.269] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:08.908] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2695 bodies[0m
+[32m[16:11:08.908] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=40, maxAccum=3337 maxOrder=5 drainageComplete=1[0m
+[32m[16:11:08.908] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:11:08.912] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:09.567] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2687 bodies[0m
+[32m[16:11:09.568] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5288 maxOrder=5 drainageComplete=1[0m
+[32m[16:11:10.203] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2443 bodies[0m
+[32m[16:11:10.203] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6280 maxOrder=5 drainageComplete=1[0m
+[32m[16:11:10.203] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:11:10.213] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:10.214] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[16:11:10.232] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:10.869] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[16:11:10.869] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[32m[16:11:10.873] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:11.512] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[16:11:11.512] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[16:11:11.517] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[relief] fine window Y[140,304] mSteep=0.310 pSteep=0.000 | continental Y[-15,458] peakRelief=442
+[32m[16:11:45.183] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:45.826] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2836 bodies[0m
+[32m[16:11:45.826] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5797 maxOrder=5 drainageComplete=1[0m
+[slope] worst single step over 97240 mountain columns = 3 at (-213,-118)
+[32m[16:11:56.301] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:56.938] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[16:11:56.938] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[32m[16:11:56.942] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:56.961] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=7 region=256x256 maxAccum=7834 maxOrder=6
+[32m[16:11:56.966] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=99 region=256x256 maxAccum=5797 maxOrder=5
+[32m[16:11:56.970] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=4242 region=256x256 maxAccum=4932 maxOrder=5
+[32m[16:11:56.974] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:57.620] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[16:11:57.620] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[river] seed=1234 region=256x256 maxAccum=4932 maxOrder=5
+[32m[16:11:57.624] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:11:58.268] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2721 bodies[0m
+[32m[16:11:58.268] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5631 maxOrder=6 drainageComplete=1[0m
+[river] seed=2026 region=256x256 maxAccum=5631 maxOrder=6
+[32m[16:11:58.272] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=7 anchor box: 8 river cells, 2819 carved channel columns
+[32m[16:11:58.869] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] river-cell centres still on the carved channel = 0.50 (4/8) — low ⇒ meandered
+[32m[16:11:58.876] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] channel sinuosity (arc/straight) = 1.197 over 921 centreline points
+[32m[16:12:06.899] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] beds in a cross-channel trough: 2339/2819 (0.83)
+[32m[16:12:07.984] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:07.988] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:07.993] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:07.997] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:08.580] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:09.154] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[16:12:09.154] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[river] deterministic over 2819 carved columns
+[32m[16:12:09.363] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:09.367] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:09.371] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:10.014] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2876 bodies[0m
+[32m[16:12:10.014] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5108 maxOrder=5 drainageComplete=1[0m
+[32m[16:12:10.019] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:10.660] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 874 bodies[0m
+[32m[16:12:10.660] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2263 maxOrder=5 drainageComplete=1[0m
+[32m[16:12:10.664] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed7 has 2739 order>=3 cells; nearest-to-origin + highest-order:
+[river]   near #0 (832,64) order=4 accum=812
+[river]   near #1 (832,-64) order=4 accum=797
+[river]   near #2 (832,-192) order=4 accum=782
+[river]   near #3 (832,192) order=4 accum=826
+[river]   near #4 (832,-320) order=4 accum=767
+[river]   near #5 (832,320) order=4 accum=847
+[river]   TRUNK (-5184,-5696) order=6 accum=4716
+[32m[16:12:10.671] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[creek] swale: mean(bank - creek) = 1.503 voxels over 291 columns
+[32m[16:12:10.886] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] carved columns: 2819; warped-query hits 100.0%, raw-query hits 33.4%
+[32m[16:12:11.482] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:12:22.517] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+  creek bed columns checked 300 (on a chunk seam: 162); carve layers 0/1/2: 98 / 94 / 108
+[32m[19:46:16.060] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+  carve off: 306 creek-bed columns in 8 windows, corner-only joins 57
+[32m[19:46:16.242] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+  carve on : 423 creek-bed columns in 8 windows, corner-only joins 0
+[32m[19:46:16.524] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[19:46:16.544] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[19:46:16.582] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.590] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.599] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.607] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.609] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[32m[19:46:16.610] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[19:46:16.610] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[19:46:16.611] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[19:46:16.611] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)[0m
+[32m[19:46:16.621] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.622] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[33m[19:46:16.622] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: terrain too steep - no buildable plot[0m
+[33m[19:46:16.623] [WARN] [WorldForge] [WORLDFORGE] site 1 (village) REFUSED: terrain too steep - no buildable plot[0m
+[33m[19:46:16.623] [WARN] [WorldForge] [WORLDFORGE] site 2 (village) REFUSED: terrain too steep - no buildable plot[0m
+[32m[19:46:16.623] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (7 units)[0m
+[32m[19:46:16.632] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.633] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[33m[19:46:16.633] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: residency_timeout[0m
+[33m[19:46:16.634] [WARN] [WorldForge] [WORLDFORGE] site 1 (village) REFUSED: residency_timeout[0m
+[33m[19:46:16.635] [WARN] [WorldForge] [WORLDFORGE] site 2 (village) REFUSED: residency_timeout[0m
+[32m[19:46:16.635] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (16 units)[0m
+[32m[19:46:16.645] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 8 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.645] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[32m[19:46:16.646] [INFO] [WorldForge] [WORLDFORGE] site 0 (town) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[19:46:16.646] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[19:46:16.647] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[19:46:16.647] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)[0m
+[32m[19:46:16.648] [INFO] [MainThreadJobs] job 1000001 started: worldforge: 0 sites[0m
+[32m[19:46:16.648] [INFO] [MainThreadJobs] job 1000001 complete: worldforge: 0 sites (1 units)[0m
+[32m[19:46:16.657] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.658] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 1 sites[0m
+[32m[19:46:16.658] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 2 residents, 0 lot failures[0m
+[32m[19:46:16.658] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 1 sites (5 units)[0m
+[32m[19:46:16.667] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.668] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[33m[19:46:16.668] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: unwalkable: 1 of 28 street->door routes blocked, 0 front door(s) unseated (walkability gate) - not checkpointed[0m
+[32m[19:46:16.669] [INFO] [WorldForge] [WORLDFORGE] site 1 (village) BUILT: 4 buildings, 0 residents, 0 lot failures[0m
+[32m[19:46:16.669] [INFO] [WorldForge] [WORLDFORGE] site 2 (village) BUILT: 4 buildings, 0 residents, 0 lot failures[0m
+[32m[19:46:16.670] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (13 units)[0m
+[32m[19:46:16.679] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 8 ms (hash 17580432909071824106)[0m
+[32m[19:46:16.680] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[32m[19:46:16.680] [INFO] [MainThreadJobs] job 1000000 cancelled (20/21 units done)[0m
+[32m[19:46:16.682] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\worldforge_live_apply_test.db[0m
+[32m[19:46:16.689] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[19:46:16.689] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\worldforge_live_apply_test.db[0m
+[32m[19:46:16.693] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:46:17.332] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[19:46:17.332] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[19:46:17.332] [INFO] [Chunk] Streaming generation ENABLED (type=1, seed=20260816, asyncGen=1)[0m
+[32m[19:46:17.336] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:46:17.384] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 46 ms (hash 390629209938214499)[0m
+[32m[19:46:17.384] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:46:17.384] [INFO] [ChunkStreaming] Async chunk-generation (3 worker(s)) + disposal workers started[0m
+[32m[19:46:17.396] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,18)[0m
+[32m[19:46:17.396] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,18)[0m
+[32m[19:46:17.396] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,18)[0m
+[32m[19:46:17.397] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,18)[0m
+[32m[19:46:17.397] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,17)[0m
+[32m[19:46:17.397] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,17)[0m
+[32m[19:46:45.375] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,17)[0m
+[32m[19:46:45.376] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,17)[0m
+[32m[19:46:45.449] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,1,18)[0m
+[32m[19:46:45.449] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,1,18)[0m
+[32m[19:46:45.476] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 65 ms (hash 390629209938214499)[0m
+[32m[19:46:45.476] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:46:47.248] [INFO] [ChunkStreaming] Evicted ALL 2 resident chunks (live re-stream, 0 dirty discarded); deletion deferred to the next pump[0m
+[32m[19:46:47.248] [INFO] [ChunkStreaming] Async chunk-generation (3 worker(s)) + disposal workers started[0m
+[32m[19:46:47.259] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,18)[0m
+[32m[19:46:47.260] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,18)[0m
+[32m[19:46:47.260] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,18)[0m
+[32m[19:46:47.260] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,18)[0m
+[32m[19:46:47.260] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,0,17)[0m
+[32m[19:46:47.260] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,0,17)[0m
+[32m[19:47:14.711] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (1,0,17)[0m
+[32m[19:47:14.711] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (1,0,17)[0m
+[32m[19:47:14.881] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,1,18)[0m
+[32m[19:47:14.881] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,1,18)[0m
+[32m[19:47:14.881] [INFO] [WorldStorage] [WORLD_STORAGE] Attempting to load chunk (2,1,17)[0m
+[32m[19:47:14.881] [INFO] [WorldStorage] [WORLD_STORAGE] Loaded 0 cubes for chunk (2,1,17)[0m
+[32m[19:47:16.091] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[19:47:16.164] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 55 ms (hash 14223618455714071673)[0m
+[32m[19:47:16.229] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 54 ms (hash 14223618455714071673)[0m
+[32m[19:47:16.293] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 54 ms (hash 14223618455714071673)[0m
+[32m[19:47:16.356] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[19:47:16.420] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[19:47:16.520] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 15 roads, 2 bridges, 681 segments in 87 ms (hash 9087854481993593608)[0m
+[32m[19:47:16.583] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[19:47:16.647] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[19:47:16.712] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 54 ms (hash 14223618455714071673)[0m
+[32m[19:47:16.764] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 1 bridges, 52 segments in 43 ms (hash 10696269276559264202)[0m
+[32m[19:47:16.815] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 1 bridges, 52 segments in 43 ms (hash 10696269276559264202)[0m
+[32m[19:47:16.871] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 3 roads, 1 bridges, 132 segments in 46 ms (hash 16487454871437280339)[0m
+[32m[19:47:16.934] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[19:47:16.998] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[19:47:17.061] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[19:47:17.162] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[19:47:17.219] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 54 ms (hash 14223618455714071673)[0m
+[32m[19:47:17.290] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[19:47:17.347] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 54 ms (hash 14223618455714071673)[0m
+[32m[19:47:17.402] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 18206298669951534089)[0m
+[32m[19:47:17.468] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[33m[19:47:17.530] [WARN] [WorldForge] [WORLDFORGE] road raster segment cap (20) reached: 199 segment(s) are NOT indexed - roads past the cap are invisible to roadAt (fewer roads, or a wider raster index, before this plan is used)[0m
+[32m[19:47:17.533] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 20 segments in 52 ms (hash 14223618455714071673)[0m
+[32m[19:47:17.542] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:18.166] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 963 bodies[0m
+[32m[19:47:18.166] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2771 maxOrder=4 drainageComplete=1[0m
+[32m[19:47:18.794] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1014 bodies[0m
+[32m[19:47:18.794] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1247 maxOrder=4 drainageComplete=1[0m
+[32m[19:47:18.794] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:47:18.799] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:18.799] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:47:18.805] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:19.428] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[19:47:19.428] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+[32m[19:47:19.432] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:19.548] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 56 segments in 114 ms (hash 7247371439836729452)[0m
+[32m[19:47:19.548] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:47:19.552] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:19.668] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 56 segments in 114 ms (hash 7247371439836729452)[0m
+[32m[19:47:19.668] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:47:19.673] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:20.314] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[19:47:20.314] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[19:47:20.722] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 395 ms (hash 9693137997320541182)[0m
+[32m[19:47:20.722] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:47:20.726] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:21.347] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[19:47:21.347] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[32m[19:47:21.767] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 415 ms (hash 18197215997962677593)[0m
+[32m[19:47:21.767] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:47:21.772] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:22.175] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 390 ms (hash 9693137997320541182)[0m
+[32m[19:47:22.175] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:47:22.179] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:22.592] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 401 ms (hash 9693137997320541182)[0m
+[32m[19:47:22.592] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:47:22.637] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:22.684] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 45 ms (hash 390629209938214499)[0m
+[32m[19:47:22.684] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[WORLDFORGE] canonical road steep-step fraction: 0.000694444 (1/1440)
+[32m[19:47:22.742] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:23.159] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 412 ms (hash 18197215997962677593)[0m
+[32m[19:47:23.159] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[WORLDFORGE] mountain road steep-step fraction: 0.00461172 (31/6722)
+[32m[19:47:23.487] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:24.118] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[19:47:24.118] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[19:47:24.118] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[19:47:24.122] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:24.594] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 945 bodies[0m
+[32m[19:47:24.594] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2500 maxOrder=5 drainageComplete=1[0m
+[32m[19:47:24.594] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[19:47:24.598] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:24.599] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[19:47:24.609] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:24.609] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[19:47:24.614] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:24.614] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[19:47:24.624] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 7410193900006463647); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[19:47:28.270] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2556 bodies[0m
+[32m[19:47:28.270] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4883 maxOrder=5 drainageComplete=1[0m
+[32m[19:47:28.274] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:28.274] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M1 §9 ] meso tile 256x256 (+apron 6) bake: 196.9 ms (this build config)
+[32m[19:47:28.475] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:29.099] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[19:47:29.099] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+[32m[19:47:29.103] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:30.754] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:30.758] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:36.421] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:36.425] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:38.576] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:39.654] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:41.106] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:42.184] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:43.582] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:45.796] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:47.186] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:48.268] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:48.316] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 94 segments in 46 ms (hash 390629209938214499)[0m
+[32m[19:47:48.316] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[19:47:55.345] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:47:55.974] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1019 bodies[0m
+[32m[19:47:55.974] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2872 maxOrder=4 drainageComplete=1[0m
+[32m[19:47:55.975] [INFO] [WorldGenerator] Loaded 1 biomes from C:\Users\bpete\AppData\Local\Temp\phyxel_far_tree_test\_biomes.json[0m
+[32m[19:48:07.899] [INFO] [Physics] PhysicsWorld initialized (VoxelDynamicsWorld)[0m
+[32m[19:48:07.903] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:48:07.903] [INFO] [Chunk] Streaming generation ENABLED (type=2, seed=1, asyncGen=1)[0m
+[32m[19:48:07.903] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
+[32m[19:48:17.795] [INFO] [Character] === Loaded Animations (159) ===[0m
+[32m[19:48:17.795] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
+[32m[19:48:17.795] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
+[32m[19:48:17.795] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
+[32m[19:48:17.795] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
+[32m[19:48:17.795] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
+[32m[19:48:17.795] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
+[32m[19:48:17.795] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
+[32m[19:48:17.795] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
+[32m[19:48:17.796] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [60] sword1h_light1 (Duration: 0.94s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [61] sword1h_light2 (Duration: 1.07s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [62] sword1h_light3 (Duration: 0.9s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [63] sword1h_heavy (Duration: 1.26s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [64] roll_forward (Duration: 2.36667s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [65] dive_forward (Duration: 1.2s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [66] hit_head (Duration: 1.43333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [67] hit_stomach (Duration: 1.2s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [68] hit_rib (Duration: 1s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [69] dodge_right (Duration: 1.43333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [70] death_front (Duration: 4.33333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [71] death_back (Duration: 4.6s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [72] ko_lay (Duration: 2.13333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [73] get_up (Duration: 11.4s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [74] kick (Duration: 1.5s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [75] chop_1h (Duration: 1.1s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [76] ogre_walk (Duration: 1.41667s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [77] ogre_swipe (Duration: 2.66667s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [78] ogre_idle (Duration: 4s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [79] ogre_jump_attack (Duration: 3.66667s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [80] hop_onto_seat (Duration: 3.875s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [81] scamper_walk (Duration: 1.08333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [82] stomp (Duration: 1.79167s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [83] sword1h_light4 (Duration: 1.26s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [84] sword1h_mocap_combo (Duration: 4.53333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [85] slash2h_idle (Duration: 2s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [86] slash2h_light1 (Duration: 1.26667s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [87] slash2h_light2 (Duration: 3.53333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [88] slash2h_light3 (Duration: 1.83333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [89] slash2h_light4 (Duration: 1.8s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [90] slash2h_light5 (Duration: 1.43333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [91] slash2h_heavy (Duration: 1.2s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [92] slash2h_block1 (Duration: 0.5s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [93] slash2h_block2 (Duration: 0.966667s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [94] slash2h_block3 (Duration: 0.5s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [95] blunt2h_heavy (Duration: 5.2s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [96] dagger1h_light1 (Duration: 2.13333s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [97] dagger1h_light2 (Duration: 2.36667s)[0m
+[32m[19:48:17.797] [INFO] [Character]   [98] dagger1h_light3 (Duration: 2.63333s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [99] bow_idle (Duration: 5.1s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [100] bow_draw (Duration: 1.03333s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [101] bow_aim_overdraw (Duration: 3.76667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [102] bow_release_recoil (Duration: 0.7s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [103] bow_aim_walk_forward (Duration: 1.2s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [104] bow_aim_walk_back (Duration: 1.46667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [105] bow_aim_walk_left (Duration: 1.2s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [106] bow_aim_walk_right (Duration: 1.3s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [107] mining_wall_strike (Duration: 2.26667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [108] digging_ground (Duration: 4.83333s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [109] woodchop_horizontal (Duration: 2.4s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [110] blunt1h_mocap_combo (Duration: 3.63333s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [111] blunt2h_mocap_combo (Duration: 5.43333s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [112] blunt1h_light1 (Duration: 1.1s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [113] blunt1h_light2 (Duration: 0.87s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [114] blunt1h_light3 (Duration: 0.74s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [115] blunt1h_light4 (Duration: 1.13s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [116] blunt2h_light1 (Duration: 1.5s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [117] blunt2h_light2 (Duration: 1.2s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [118] blunt2h_light3 (Duration: 1.07s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [119] blunt2h_light4 (Duration: 0.93s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [120] cast_1h_spell1 (Duration: 2.26667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [121] cast_1h_attack1 (Duration: 2.3s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [122] cast_1h_attack2 (Duration: 2.2s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [123] cast_1h_attack3 (Duration: 2.3s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [124] cast_2h_spell1 (Duration: 2.16667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [125] cast_2h_area1 (Duration: 2.96667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [126] cast_2h_area2 (Duration: 3.26667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [127] cast_2h_attack1 (Duration: 2.7s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [128] cast_2h_attack2 (Duration: 2.63333s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [129] cast_2h_attack3 (Duration: 4.3s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [130] cast_2h_attack4 (Duration: 3.33333s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [131] cast_2h_attack5 (Duration: 3.53333s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [132] axe1h_uppercut (Duration: 3.16667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [133] axe1h_spin_high (Duration: 3.16667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [134] axe1h_spin_low (Duration: 2.5s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [135] axe2h_mocap_combo1 (Duration: 4.66667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [136] axe1h_mocap_combo2 (Duration: 4.2s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [137] axe1h_mocap_combo3 (Duration: 2.73333s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [138] unimate_walk_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [139] unimate_run_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.798] [INFO] [Character]   [140] unimate_jump_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [141] unimate_swordslash_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [142] unimate_jump_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [143] unimate_jump_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [144] unimate_run_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [145] unimate_run_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [146] unimate_sit_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [147] unimate_sit_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [148] unimate_sit_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [149] unimate_swordslash_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [150] unimate_swordslash_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [151] unimate_walk_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [152] unimate_walk_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [153] unimate_wave_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [154] unimate_wave_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [155] unimate_wave_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [156] carry_2h_heavy (Duration: 0.1s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [157] carry_1h (Duration: 0.1s)[0m
+[32m[19:48:17.799] [INFO] [Character]   [158] carry_bow (Duration: 0.1s)[0m
+[32m[19:48:17.799] [INFO] [Character] =====================================[0m
+[32m[19:48:17.826] [INFO] [BodyPlan] loaded 40 body plans[0m
+[32m[19:48:17.829] [INFO] [Character] resizeController: height=1.9 halfWidth=0.25 maxStep=0.444444 footOffset=0.0249996 minY=-0.0250004 maxY=1.825[0m
+[32m[19:48:17.832] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)[0m
+[32m[19:48:17.832] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)[0m
+[32m[19:48:17.832] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)[0m
+[32m[19:48:17.832] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)[0m
+[32m[19:48:17.833] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[19:48:17.833] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[19:48:17.833] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[19:48:17.833] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[19:48:17.833] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[19:48:17.833] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[19:48:17.833] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[19:48:17.833] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[19:48:17.833] [INFO] [Character] Built 12/8 segment collision boxes[0m
+[31m[19:48:17.833] [ERROR] [AnimatedVoxelCharacter] No terrain occupancy grids registered in physics world (voxelWorld=000002437C67B870) — characters will fall through all terrain. Check chunk grid registration on this load path.[0m
+[32m[19:48:17.898] [INFO] [Physics] PhysicsWorld initialized (VoxelDynamicsWorld)[0m
+[32m[19:48:17.902] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[19:48:17.902] [INFO] [Chunk] Streaming generation ENABLED (type=2, seed=1, asyncGen=1)[0m
+[32m[19:48:17.903] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
+[32m[19:48:17.924] [INFO] [Character] === Loaded Animations (159) ===[0m
+[32m[19:48:17.924] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
+[32m[19:48:17.924] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
+[32m[19:48:17.924] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
+[32m[19:48:17.924] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
+[32m[19:48:17.924] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
+[32m[19:48:17.924] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
+[32m[19:48:17.924] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
+[32m[19:48:17.925] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [60] sword1h_light1 (Duration: 0.94s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [61] sword1h_light2 (Duration: 1.07s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [62] sword1h_light3 (Duration: 0.9s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [63] sword1h_heavy (Duration: 1.26s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [64] roll_forward (Duration: 2.36667s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [65] dive_forward (Duration: 1.2s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [66] hit_head (Duration: 1.43333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [67] hit_stomach (Duration: 1.2s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [68] hit_rib (Duration: 1s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [69] dodge_right (Duration: 1.43333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [70] death_front (Duration: 4.33333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [71] death_back (Duration: 4.6s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [72] ko_lay (Duration: 2.13333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [73] get_up (Duration: 11.4s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [74] kick (Duration: 1.5s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [75] chop_1h (Duration: 1.1s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [76] ogre_walk (Duration: 1.41667s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [77] ogre_swipe (Duration: 2.66667s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [78] ogre_idle (Duration: 4s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [79] ogre_jump_attack (Duration: 3.66667s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [80] hop_onto_seat (Duration: 3.875s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [81] scamper_walk (Duration: 1.08333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [82] stomp (Duration: 1.79167s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [83] sword1h_light4 (Duration: 1.26s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [84] sword1h_mocap_combo (Duration: 4.53333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [85] slash2h_idle (Duration: 2s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [86] slash2h_light1 (Duration: 1.26667s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [87] slash2h_light2 (Duration: 3.53333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [88] slash2h_light3 (Duration: 1.83333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [89] slash2h_light4 (Duration: 1.8s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [90] slash2h_light5 (Duration: 1.43333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [91] slash2h_heavy (Duration: 1.2s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [92] slash2h_block1 (Duration: 0.5s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [93] slash2h_block2 (Duration: 0.966667s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [94] slash2h_block3 (Duration: 0.5s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [95] blunt2h_heavy (Duration: 5.2s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [96] dagger1h_light1 (Duration: 2.13333s)[0m
+[32m[19:48:17.926] [INFO] [Character]   [97] dagger1h_light2 (Duration: 2.36667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [98] dagger1h_light3 (Duration: 2.63333s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [99] bow_idle (Duration: 5.1s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [100] bow_draw (Duration: 1.03333s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [101] bow_aim_overdraw (Duration: 3.76667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [102] bow_release_recoil (Duration: 0.7s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [103] bow_aim_walk_forward (Duration: 1.2s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [104] bow_aim_walk_back (Duration: 1.46667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [105] bow_aim_walk_left (Duration: 1.2s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [106] bow_aim_walk_right (Duration: 1.3s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [107] mining_wall_strike (Duration: 2.26667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [108] digging_ground (Duration: 4.83333s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [109] woodchop_horizontal (Duration: 2.4s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [110] blunt1h_mocap_combo (Duration: 3.63333s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [111] blunt2h_mocap_combo (Duration: 5.43333s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [112] blunt1h_light1 (Duration: 1.1s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [113] blunt1h_light2 (Duration: 0.87s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [114] blunt1h_light3 (Duration: 0.74s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [115] blunt1h_light4 (Duration: 1.13s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [116] blunt2h_light1 (Duration: 1.5s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [117] blunt2h_light2 (Duration: 1.2s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [118] blunt2h_light3 (Duration: 1.07s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [119] blunt2h_light4 (Duration: 0.93s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [120] cast_1h_spell1 (Duration: 2.26667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [121] cast_1h_attack1 (Duration: 2.3s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [122] cast_1h_attack2 (Duration: 2.2s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [123] cast_1h_attack3 (Duration: 2.3s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [124] cast_2h_spell1 (Duration: 2.16667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [125] cast_2h_area1 (Duration: 2.96667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [126] cast_2h_area2 (Duration: 3.26667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [127] cast_2h_attack1 (Duration: 2.7s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [128] cast_2h_attack2 (Duration: 2.63333s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [129] cast_2h_attack3 (Duration: 4.3s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [130] cast_2h_attack4 (Duration: 3.33333s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [131] cast_2h_attack5 (Duration: 3.53333s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [132] axe1h_uppercut (Duration: 3.16667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [133] axe1h_spin_high (Duration: 3.16667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [134] axe1h_spin_low (Duration: 2.5s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [135] axe2h_mocap_combo1 (Duration: 4.66667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [136] axe1h_mocap_combo2 (Duration: 4.2s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [137] axe1h_mocap_combo3 (Duration: 2.73333s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [138] unimate_walk_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [139] unimate_run_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [140] unimate_jump_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [141] unimate_swordslash_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [142] unimate_jump_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.927] [INFO] [Character]   [143] unimate_jump_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [144] unimate_run_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [145] unimate_run_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [146] unimate_sit_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [147] unimate_sit_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [148] unimate_sit_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [149] unimate_swordslash_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [150] unimate_swordslash_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [151] unimate_walk_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [152] unimate_walk_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [153] unimate_wave_r0 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [154] unimate_wave_r1 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [155] unimate_wave_r2 (Duration: 1.96667s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [156] carry_2h_heavy (Duration: 0.1s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [157] carry_1h (Duration: 0.1s)[0m
+[32m[19:48:17.928] [INFO] [Character]   [158] carry_bow (Duration: 0.1s)[0m
+[32m[19:48:17.928] [INFO] [Character] =====================================[0m
+[32m[19:48:17.931] [INFO] [Character] resizeController: height=1.9 halfWidth=0.25 maxStep=0.444444 footOffset=0.0249996 minY=-0.0250004 maxY=1.825[0m
+[32m[19:48:17.934] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[19:48:17.935] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[19:48:17.935] [INFO] [Character] Built 12/8 segment collision boxes[0m
+[32m[19:48:17.962] [INFO] [GroundLost] No ground found at pos=(16,40,16) halfW=0.25 searchDepth=1.95[0m
+[==========] 229 tests from 69 test suites ran. (13314680 ms total)
+[  PASSED  ] 228 tests.
+[  SKIPPED ] 1 test.
+exit=0
