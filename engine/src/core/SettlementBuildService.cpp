@@ -1868,7 +1868,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         j["reached_from_goal"] = rr.reachedFromGoal;
                         j["start_unsupported"] = rr.startUnsupported;
                         j["goal_unsupported"] = rr.goalUnsupported;
-                        LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << rr.label
+                        j["one_way"] = rr.oneWay;   // M0 row 2c: in but not back (a drop)
+                        LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << (rr.oneWay ? "(ONE-WAY, a drop) " : "") << rr.label
                                      << " pinch (" << rr.pinchFrom.x << "," << rr.pinchFrom.y << "," << rr.pinchFrom.z
                                      << ")->(" << rr.pinchTo.x << "," << rr.pinchTo.y << "," << rr.pinchTo.z
                                      << ") gap " << rr.pinchGapMicro << " micro; reached "

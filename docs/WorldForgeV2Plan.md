@@ -328,7 +328,18 @@ numbers (`paths.spur_failures`). Red→green: `SettlementBuildServiceTest.DoorAp
 9693137997320541182 came back 10638243061351388589 on an unchanged recipe (every pre-M0 ledger would read
 stale). Fix: `planHash` hashes identity only; `WorldForgePlanTest.RasterCapSurfaces` pins it (same red/green files).
 Not M0's to fix, now visible: the door pinch itself (next generator task); creek-crossing siting (M3).
-Run 2 after the fixes: `m0_l4b_summary.json`.
+**Run 2 (`m0_l4b_summary.json`, predictions in `m0_l4b_predictions.json`):** F7 hash back
+(9693137997320541182); **5 built / 3 refused** (hamlets 3/4/7 now build — the path network meeting the
+FOUND door's outside cell closed their 1-micro longhouse pinches; town and village 6 still refused on a
+hall_house / blacksmith pinch; hamlet 1 still plot-less). The town's three spurs still fail, now loudly:
+`door y1296 -> street y1314, 6 cells, drop 18 micro, cap 2` — the doorstep is **2 cubes below the street
+edge** (a terrace-pad / street-grade mismatch, upstream of the spur; logged as a generator finding, M5
+realization). Those three lots had PASSED the gate: the probe free-falls without limit and `checkRoutes`
+asked only start→goal, so a one-way cliff counted as walkable — **row 2c**: `checkRoutes` now requires
+the way back (`RouteResult.oneWay`, `one_way` in the gate JSON), red→green
+`SettlementWalkabilityTest.AOneWayDropIsNotWalkable` (`m0_bothways_red.txt` → `m0_bothways_green.txt`).
+`worldforge_status` now carries `site_list` (the applied plan's sites with x/z/tier/surfaceY) so a probe
+can aim at a built site. Run 3 (both-ways gate, captures on a built site): `m0_l4c_summary.json`.
 
 ### M1 — World Sheet (L) — *the one change that moves the scale ceiling*
 

@@ -57,7 +57,19 @@ WalkabilityReport checkRoutes(const std::function<bool(int, int, int)>& occupied
         const glm::ivec3 goalHi(r.to.x + r.goalRadiusMicro, r.to.y + r.goalHeightMicro,
                                 r.to.z + r.goalRadiusMicro);
 
-        res.walkable = probe.reachable(r.from, goalLo, goalHi, boundLo, boundHi);
+        // M0 row 2c: BOTH WAYS. The probe free-falls after every step with no drop limit, so
+        // a one-way reachable() accepts any cliff in the walking direction (M0 L4 run 2: the
+        // town's general_store / bakery doorsteps sat 18 micro below the street edge 5 micro
+        // away and "street -> door" passed; the way back is a 2-cube climb). "Walkable" means
+        // the resident can get there AND back.
+        const glm::ivec3 backLo(r.from.x - r.goalRadiusMicro, r.from.y - r.goalHeightMicro,
+                                r.from.z - r.goalRadiusMicro);
+        const glm::ivec3 backHi(r.from.x + r.goalRadiusMicro, r.from.y + r.goalHeightMicro,
+                                r.from.z + r.goalRadiusMicro);
+        const bool forward = probe.reachable(r.from, goalLo, goalHi, boundLo, boundHi);
+        const bool back = forward && probe.reachable(r.to, backLo, backHi, boundLo, boundHi);
+        res.walkable = forward && back;
+        res.oneWay = forward && !back;
         if (res.walkable) {
             ++rep.walkable;
             rep.routes.push_back(res);
@@ -116,6 +128,7 @@ std::string WalkabilityReport::summary() const {
     for (const auto& r : routes) {
         if (r.walkable) continue;
         os << "\n  BLOCKED " << r.label;
+        if (r.oneWay) os << " [ONE-WAY: reachable going in, the way back is a drop too high to climb]";
         if (r.startUnsupported) os << " [start does not settle -- bad probe input, not a town defect]";
         if (r.goalUnsupported) os << " [goal does not settle -- bad probe input, not a town defect]";
         os << "\n    reachable set: " << r.reachedFromStart << " from start, " << r.reachedFromGoal

@@ -71,6 +71,10 @@ struct RouteResult {
 
     /// Input problems, reported distinctly so a bad probe setup is never mistaken
     /// for a town defect (the failure mode that makes a validator lie).
+    /// M0 row 2c: the forward walk reached the goal but the way BACK did not - a drop the
+    /// walker can fall down and never climb (the probe free-falls without limit, so a
+    /// one-way reachable() accepts any cliff in the walking direction).
+    bool oneWay = false;
     bool startUnsupported = false;  ///< `from` doesn't settle onto anything
     bool goalUnsupported = false;   ///< `to` doesn't settle onto anything
 };

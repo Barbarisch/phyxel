@@ -600,3 +600,34 @@ TEST(SettlementWalkabilityTest, TheVillageIsStillWalkableWithYardPropsAndTheWell
     EXPECT_TRUE(cross.ok()) << "the cross-village route is blocked once props are placed.\n"
                             << cross.summary();
 }
+
+// ── M0 row 2c: "walkable" means BOTH WAYS ─────────────────────────────────────────────
+// The probe settles (free-falls, no drop limit) after every step, and checkRoutes asked
+// only start -> goal. So a street edge 2 cubes ABOVE a door passed "street -> door": the
+// walker falls off the kerb onto the doorstep and can never climb back. M0 L4 run 2 showed
+// exactly this at the town (door spurs: "door y1296 -> street y1314, 6 cells, drop 18"
+// for the general_store / bakery / hall_house lots whose gate routes all read walkable).
+// RED: the one-way drop is reported walkable.
+TEST(SettlementWalkabilityTest, AOneWayDropIsNotWalkable) {
+    // ground at y < 0 everywhere; a raised slab (the street) 18 micro high for x < 0
+    auto occ = [](int x, int y, int z) { (void)z; return y < 0 || (x < 0 && y < 18); };
+    AgentBox box;
+    WalkRoute r;
+    r.label = "street -> door across a 2-cube drop";
+    r.from = {-20, 18, 0};   // on the street
+    r.to = {20, 0, 0};       // the doorstep, 2 cubes lower
+    const auto rep = checkRoutes(occ, box, {r}, {-60, -5, -60}, {60, 60, 60}, true);
+    ASSERT_EQ(rep.routes.size(), 1u);
+    EXPECT_FALSE(rep.routes[0].walkable) << "the walker falls off the kerb but can never climb back";
+    EXPECT_TRUE(rep.routes[0].oneWay);
+    EXPECT_EQ(rep.blocked, 1);
+    EXPECT_EQ(rep.walkable, 0);
+    // control: a kerb of exactly the step-up (4 micro) is walkable both ways
+    auto kerb = [](int x, int y, int z) { (void)z; return y < 0 || (x < 0 && y < 4); };
+    WalkRoute k = r;
+    k.from = {-20, 4, 0};
+    const auto ok = checkRoutes(kerb, box, {k}, {-60, -5, -60}, {60, 60, 60}, true);
+    ASSERT_EQ(ok.routes.size(), 1u);
+    EXPECT_TRUE(ok.routes[0].walkable);
+    EXPECT_FALSE(ok.routes[0].oneWay);
+}

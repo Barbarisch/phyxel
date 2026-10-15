@@ -1,0 +1,10 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementWalkabilityTest.AOneWayDropIsNotWalkable
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SettlementWalkabilityTest
+[       OK ] SettlementWalkabilityTest.AOneWayDropIsNotWalkable (827 ms)
+[----------] 1 test from SettlementWalkabilityTest (827 ms total)
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (828 ms total)
+[  PASSED  ] 1 test.

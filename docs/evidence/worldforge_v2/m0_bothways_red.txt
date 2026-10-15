@@ -1,0 +1,28 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementWalkabilityTest.AOneWayDropIsNotWalkable
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SettlementWalkabilityTest
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementWalkabilityTest.cpp(621): error: Value of: rep.routes[0].walkable
+  Actual: true
+Expected: false
+the walker falls off the kerb but can never climb back
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementWalkabilityTest.cpp(622): error: Value of: rep.routes[0].oneWay
+  Actual: false
+Expected: true
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementWalkabilityTest.cpp(623): error: Expected equality of these values:
+  rep.blocked
+    Which is: 0
+  1
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementWalkabilityTest.cpp(624): error: Expected equality of these values:
+  rep.walkable
+    Which is: 1
+  0
+[  FAILED  ] SettlementWalkabilityTest.AOneWayDropIsNotWalkable (77 ms)
+[----------] 1 test from SettlementWalkabilityTest (77 ms total)
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (78 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] SettlementWalkabilityTest.AOneWayDropIsNotWalkable
+ 1 FAILED TEST
