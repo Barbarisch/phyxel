@@ -1,0 +1,219 @@
+{
+ "pose": {
+  "x": 109.5,
+  "y": 20.5,
+  "z": 13.5,
+  "yaw": 180,
+  "pitch": -38
+ },
+ "backend": "auto",
+ "volume": {
+  "asleep": false,
+  "auto_sleep": false,
+  "backend": "gpu",
+  "box": {
+   "max": [
+    104,
+    19,
+    16
+   ],
+   "min": [
+    99,
+    14,
+    11
+   ]
+  },
+  "cellSize": 0.3333333432674408,
+  "cells": 5832,
+  "gpu_ms_last_call": 0.0,
+  "gpu_sweeps": 27,
+  "id": 3,
+  "kinetic_energy": 0.0,
+  "last": {
+   "pcg_iterations": 0,
+   "pcg_residual": 0.0,
+   "source_unplaced": 0.0,
+   "substeps": 0
+  },
+  "mass": 0.0,
+  "particles": 0,
+  "quiet_ticks": 0,
+  "rbgs_residual": 0.0,
+  "residue_dropped_m3": 0.0,
+  "seeded_mass": 0.0,
+  "source_count": 0,
+  "source_placed_m3": 0.0,
+  "surface_age_ms": -1.0,
+  "transport": "eulerian"
+ },
+ "before": {
+  "near": 16.5053,
+  "far": 16.5015
+ },
+ "before_png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_before.png",
+ "blast": {
+  "success": true,
+  "broken": 0,
+  "debris": 0
+ },
+ "coupling": {
+  "debris_exchange": {
+   "applied": 4703,
+   "clamped": 0,
+   "dry": 0,
+   "frames": 974,
+   "gpu_records_dropped": 0,
+   "gpu_records_total": 4703,
+   "last_frame_momentum": [
+    -6.033038062014384e-06,
+    0.00020363146904855967,
+    2.504008534742752e-06
+   ],
+   "momentum_to_water_total": 5.000613499291148,
+   "outside_volumes": 0,
+   "records": 4703
+  },
+  "debris_water_tiles": 1,
+  "enabled": true,
+  "last_blast": {
+   "blasts_total": 1,
+   "centre": [
+    106.0,
+    17.0,
+    13.5
+   ],
+   "clamped": 0,
+   "faces": 2231,
+   "reach_m": 6.0,
+   "speed_at_centre_ms": 3.0030288696289062,
+   "volumes": 1
+  }
+ },
+ "frames": [
+  {
+   "t": 0.15,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_t00.15.png",
+   "near": 16.3501,
+   "far": 16.7854,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 1.0066772021974058,
+    "mass": 23.999997624644188
+   }
+  },
+  {
+   "t": 0.4,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_t00.40.png",
+   "near": 16.2584,
+   "far": 16.8278,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.19849314094906112,
+    "mass": 23.999997624644188
+   }
+  },
+  {
+   "t": 0.8,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_t00.80.png",
+   "near": 16.3556,
+   "far": 16.7618,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.2583423737023704,
+    "mass": 23.999997624644188
+   }
+  },
+  {
+   "t": 1.5,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_t01.50.png",
+   "near": 16.3679,
+   "far": 16.6749,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.7311678323928268,
+    "mass": 23.999997624644188
+   }
+  },
+  {
+   "t": 3.0,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_t03.00.png",
+   "near": 16.4428,
+   "far": 16.6353,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 1.175968914966291,
+    "mass": 23.999997624644188
+   }
+  },
+  {
+   "t": 6.0,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_t06.00.png",
+   "near": 16.5275,
+   "far": 16.5524,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.2875317927480927,
+    "mass": 23.999997624644188
+   }
+  },
+  {
+   "t": 10.0,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_t10.00.png",
+   "near": 16.5161,
+   "far": 16.553,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.04758042008061322,
+    "mass": 23.999997624644188
+   }
+  }
+ ],
+ "control": {
+  "blast": {
+   "success": true,
+   "broken": 0
+  },
+  "coupling": {
+   "debris_exchange": {
+    "applied": 4703,
+    "clamped": 0,
+    "dry": 0,
+    "frames": 974,
+    "gpu_records_dropped": 0,
+    "gpu_records_total": 4703,
+    "last_frame_momentum": [
+     -6.033038062014384e-06,
+     0.00020363146904855967,
+     2.504008534742752e-06
+    ],
+    "momentum_to_water_total": 5.000613499291148,
+    "outside_volumes": 0,
+    "records": 4703
+   },
+   "debris_water_tiles": 1,
+   "enabled": true,
+   "last_blast": {
+    "blasts_total": 2,
+    "centre": [
+     124.0,
+     17.0,
+     13.5
+    ],
+    "clamped": 0,
+    "faces": 0,
+    "reach_m": 6.0,
+    "speed_at_centre_ms": 3.0030288696289062,
+    "volumes": 0
+   }
+  },
+  "before": {
+   "near": 16.5147,
+   "far": 16.5114
+  },
+  "after": {
+   "near": 16.5174,
+   "far": 16.5139
+  }
+ },
+ "after_control_png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_control.png"
+}

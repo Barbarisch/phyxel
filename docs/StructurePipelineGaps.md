@@ -1056,3 +1056,58 @@ the screenshot is not conclusive in tall grass. Hypothesis: the model-to-capsule
 `heightScale` but not `legLengthScale`. **Not chased in A4** - the matrix test judges feet against the
 floor band instead of the standing reference because of this. Worth one FloorWorld test: standing
 sole height vs `worldPosition.y` per preset.
+
+
+## 2026-10-09 — water: the hydraulic lake flood cannot see a carved river inside a bake cell
+
+WaterCore Phase D4 (WaterCore.md 16.9) built the WaterRethink 8.8 rule: a column joins a lake flood only where the
+bake's depression-filled elevation is >= the lake level. River trunk rect: 17,677 -> 8,562 lake-painted columns.
+The residual sits INSIDE wet 128 m bake cells that the order-5 carve runs through: the carve post-dates the bake,
+so the coarse cell is 'lake at 108' while the fine valley floor is at 20. Fix is bake-side: a carved channel
+drains the basin it crosses (the basin's level becomes its outlet bed), or the bake re-floods after the carve.
+Also open: creek spans (orders 1-2 on the 2/3 shelf) need a float-bottom WaterSpan.
+
+## 2026-10-09 — WaterCore Phase G1, the shoreline band (docs/WaterCore.md 18.5)
+- **Sheet/band height seam in shallow water.** The sea sheet draws the full Gerstner swell (0.45 m,
+  four components) right up to the waterline; the band's ring prescribes a depth-limited wave
+  (total height ≤ 0.78 d). Where the ring sits in 1–2 m of water the sheet beside it is taller than
+  the band's edge. Fix: depth-limit the sheet too (it needs the terrain depth per vertex — the
+  hydrology texture carries the level, not the bed), or let the band own a wider margin.
+- **A shelf exactly at sea level is awash by construction.** The Coast beach has a 24 m shelf whose
+  bed equals the still level (full-cube terrain); every swash leaves a film that cannot drain, so
+  the wet area grows for as long as the swell runs. Physically right, visually a glassy shelf. The
+  terrain generator could avoid a flat at sea level (a sub-voxel step), or the look could darken
+  wet sand under films (F2 leftover).
+- **The band's seaward edge is a vertical water face under the sheet.** The F1 mesh draws no face at
+  the field's edge (the sheet continues the water), but the ring's prescribed columns end at the box
+  edge where the sheet's masked columns begin; from under water the band's edge is a wall of water.
+- **Edits under the band re-bed one column at a time** (`noteEdit`); a bulk clear of a chunk under the
+  band fires one edit per cell (fine) but a streamed-in chunk does not (the bed query runs at siting).
+- **The foam marker** (surface step beyond the bed step, > 0.3) misses a 20 cm bore spread over a 1 m
+  column; G2 replaces it with the velocity-convergence foam.
+- **(G2) Foam is one block per column at 1 m.** A 20 cm bore occupies one 1 m column, so its
+  whitewater is a 1 m square; the fbm mask tears the edge but the patch is still a block. The band
+  needs ⅓ m columns near the camera (9× columns, ~20 ms at radius 48 — so a two-ring band: fine
+  inner, coarse outer) and foam that is advected with the flow instead of only made and decayed.
+- **(G2) The volumes' surface field carries foam 0 / velocity 0.** `wc_surface.comp` and
+  `extractSurfaceField` write zeros for the new fields; the 3-D core has face velocities and could
+  export the top liquid cell's — until then a pond's ripples do not travel and a pour makes no foam.
+- **(G3) A named region's box is fixed when named.** `water_look {at}` floods the RESIDENT stored
+  water; an open sea's region stops at the resident edge, so water that streams in later beyond its
+  box renders with the derived look until the region is named again. Fix: grow the region's box when
+  its level-matched water streams in adjacent to it (cheap: the span-grid rebuild already visits
+  every wet column).
+- **(G3) The underwater overlay resolves the eye's body by box only** (no stored top at the eye), so
+  inside a region's box a pond at another level gets the sea's fog. The fix is the camera
+  submergence query returning the column's top.
+- **(G3) The Coast sea is in no generation body.** The coarse map's 9 oceans miss the bench's sea;
+  `water_bodies` and the look both had to fall back to stored water. Another reason the coarse map
+  should not be the authority on what water exists.
+- **(G4) The generated coast cannot make surf.** The Coast bench's beach is a full-cube staircase with
+  a 24 m shelf exactly at sea level, then a 1 m riser. Waves spill over the riser as a thin sheet; a
+  breaking line needs a shoaling slope below sea level. Both the 1 m and the ⅓ m shore band showed
+  it (WaterCore.md 18.8). Fix in the terrain: a coastal profile that descends below sea level in
+  subcube steps (Dean's equilibrium profile h = A x^(2/3) is the standard shape), not a flat at the
+  waterline.
+- **(G4) Two bands cost 5.65 ms p95 together on the CPU** (single thread). The solver's rates loop is
+  embarrassingly parallel per line; threading or a GPU port is the cost lever if the fine band ships.

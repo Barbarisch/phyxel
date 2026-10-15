@@ -56,6 +56,15 @@ public:
     // 17 mm (floor friction mu 0.8 stops 1.25 m/s in ~10 cm).
     static constexpr const char* IMPULSE_REF_MATERIAL = "Stone";
     static float blastImpulse(float energy);   // N*s at the centre, from the reference material's data
+    /// The speed a loose reference piece gets at the blast centre: blastImpulse / m_ref =
+    /// BASE_SPEED * sqrt(E / toughness_ref). WaterCore E1 gives water at r the same speed a loose
+    /// piece at r gets (docs/WaterCore.md 19.1).
+    static float blastSpeed(float energy);
+    /// WaterCore E1: called for every blast (every DamageSystem instance, every caller) with the
+    /// centre, the effective radius and the energy - the hook that lets the water feel it. Fired only
+    /// when the Phase 4 push is on (push:false is the pre-push control, for the water too).
+    using BlastListener = std::function<void(const glm::vec3& centre, float radius, float energy)>;
+    static void setBlastListener(BlastListener l);
     static constexpr float IMPULSE_RADIUS_SCALE = 1.5f;
     static constexpr float IMPULSE_UP_BIAS      = 0.3f;
     /// Test control only (apply_damage "push": false): the same blast WITHOUT the Phase 4 push -

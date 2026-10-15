@@ -1,0 +1,82 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel F2: grid -> particle and the move (WaterCore.cpp FlipTransport::advect, 1-2).
+// Per particle: FLIP/PIC blend (param0 = blend) of the projected grid (u, v, w) against the p2g base
+// of the last substep (uOld, vOld, wOld), RK2 motion in the projected field (cells/s), axis-split
+// placement against Solid/Unknown cells (a blocked axis loses its component), lift out of a cell
+// that became solid, clamp inside the grid. iparam = particle count; param1 = 1 when there is no
+// p2g base yet (first substep after seeding: PIC only).
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0)          buffer Pos  { vec4 pos[]; };
+layout(std430, set = 0, binding = 1)          buffer Vel  { vec4 vel[]; };
+layout(std430, set = 0, binding = 2) readonly buffer U    { float u[]; };
+layout(std430, set = 0, binding = 3) readonly buffer V    { float v[]; };
+layout(std430, set = 0, binding = 4) readonly buffer W    { float w[]; };
+layout(std430, set = 0, binding = 5) readonly buffer UOld { float uo[]; };
+layout(std430, set = 0, binding = 6) readonly buffer VOld { float vo[]; };
+layout(std430, set = 0, binding = 7) readonly buffer WOld { float wo[]; };
+layout(std430, set = 0, binding = 8) readonly buffer Occ  { uint occ[]; };
+
+bool blockedCell(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+
+float sampleLat(int which, vec3 p) {   // which: 0 u,1 v,2 w (current) 3 uo,4 vo,5 wo
+    const int L = which % 3;
+    const int sx = L == 0 ? pc.nx + 1 : pc.nx, sy = L == 1 ? pc.ny + 1 : pc.ny, sz = L == 2 ? pc.nz + 1 : pc.nz;
+    p = clamp(p, vec3(0.0), vec3(float(sx - 1), float(sy - 1), float(sz - 1)));
+    const ivec3 c0 = ivec3(floor(p)); const ivec3 c1 = min(c0 + 1, ivec3(sx - 1, sy - 1, sz - 1));
+    const vec3 t = p - vec3(c0);
+    float r = 0.0;
+    for (int dz = 0; dz < 2; ++dz) for (int dy = 0; dy < 2; ++dy) for (int dx = 0; dx < 2; ++dx) {
+        const int x = dx == 0 ? c0.x : c1.x, y = dy == 0 ? c0.y : c1.y, z = dz == 0 ? c0.z : c1.z;
+        const float wt = (dx == 0 ? 1.0 - t.x : t.x) * (dy == 0 ? 1.0 - t.y : t.y) * (dz == 0 ? 1.0 - t.z : t.z);
+        const uint i = uint(x) + uint(sx) * (uint(y) + uint(sy) * uint(z));
+        float val;
+        if (which == 0) val = u[i]; else if (which == 1) val = v[i]; else if (which == 2) val = w[i];
+        else if (which == 3) val = uo[i]; else if (which == 4) val = vo[i]; else val = wo[i];
+        r += wt * val;
+    }
+    return r;
+}
+vec3 sampleFaces(int base, vec3 p) {   // base 0 = current, 3 = old; p in cell space
+    return vec3(sampleLat(base + 0, vec3(p.x, p.y - 0.5, p.z - 0.5)), sampleLat(base + 1, vec3(p.x - 0.5, p.y, p.z - 0.5)), sampleLat(base + 2, vec3(p.x - 0.5, p.y - 0.5, p.z)));
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (id >= uint(pc.iparam)) return;
+    vec4 P = pos[id]; vec4 Vl = vel[id];
+    vec3 p = P.xyz; vec3 pv = Vl.xyz;
+    const float eps = 1e-4;
+    // 1. grid -> particle
+    const vec3 vNew = sampleFaces(0, p);
+    if (pc.param1 == 0.0) {
+        const vec3 vOld = sampleFaces(3, p);
+        pv = pc.param0 * (pv + (vNew - vOld)) + (1.0 - pc.param0) * vNew;
+    } else {
+        pv = vNew;
+    }
+    // 2. move: RK2 in the grid field (cells/s); a particle the grid does not reach moves by itself
+    const vec3 k1 = sampleFaces(0, p) / pc.h;
+    const vec3 mid = p + 0.5 * pc.dt * k1;
+    vec3 k2 = sampleFaces(0, mid) / pc.h;
+    if (dot(k2, k2) == 0.0) k2 = pv / pc.h;
+    const vec3 target = p + pc.dt * k2;
+    vec3 np = p;
+    for (int axis = 0; axis < 3; ++axis) {
+        vec3 trial = np; trial[axis] = target[axis];
+        const ivec3 c = ivec3(floor(trial));
+        if (!blockedCell(c.x, c.y, c.z)) { np = trial; continue; }
+        const int here = int(floor(np[axis]));
+        np[axis] = target[axis] > np[axis] ? float(here + 1) - eps : float(here) + eps;
+        pv[axis] = 0.0;
+    }
+    const ivec3 cc = ivec3(floor(np));
+    if (blockedCell(cc.x, cc.y, cc.z)) {
+        for (int up = 1; up < pc.ny; ++up) { if (!blockedCell(cc.x, cc.y + up, cc.z)) { np.y = float(cc.y + up) + 0.5; break; } }
+        pv = vec3(0.0);
+    }
+    np = clamp(np, vec3(eps), vec3(float(pc.nx) - eps, float(pc.ny) - eps, float(pc.nz) - eps));
+    pos[id] = vec4(np, P.w);
+    vel[id] = vec4(pv, Vl.w);
+}

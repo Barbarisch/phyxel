@@ -1,0 +1,808 @@
+{
+ "near": [
+  -2140,
+  -1740
+ ],
+ "box": {
+  "x1": -2158,
+  "z1": -1753,
+  "x2": -2117,
+  "z2": -1721,
+  "y1": 78,
+  "y2": 84
+ },
+ "slope": 0.04725450465744878,
+ "width": 4.163665585888366,
+ "columns": [
+  {
+   "bed_height": 80.38719940185547,
+   "channel_depth": 0.0,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2155,
+   "z": -1724
+  },
+  {
+   "bed_height": 80.20258331298828,
+   "channel_depth": 0.18511824309825897,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2154,
+   "z": -1724
+  },
+  {
+   "bed_height": 80.13101959228516,
+   "channel_depth": 0.3296144902706146,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2153,
+   "z": -1724
+  },
+  {
+   "bed_height": 80.36697387695312,
+   "channel_depth": 0.0,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2152,
+   "z": -1725
+  },
+  {
+   "bed_height": 80.26946258544922,
+   "channel_depth": 0.09007977694272995,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2152,
+   "z": -1724
+  },
+  {
+   "bed_height": 80.13928985595703,
+   "channel_depth": 0.31122487783432007,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2151,
+   "z": -1725
+  },
+  {
+   "bed_height": 80.71250915527344,
+   "channel_depth": 0.0,
+   "creek_bed": true,
+   "drawn_top": 80.66666412353516,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2151,
+   "z": -1724
+  },
+  {
+   "bed_height": 80.32733917236328,
+   "channel_depth": 0.0,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2150,
+   "z": -1726
+  },
+  {
+   "bed_height": 80.25775909423828,
+   "channel_depth": 0.12172884494066238,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2150,
+   "z": -1725
+  },
+  {
+   "bed_height": 80.60478973388672,
+   "channel_depth": 0.0,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2149,
+   "z": -1727
+  },
+  {
+   "bed_height": 80.14196014404297,
+   "channel_depth": 0.3292899429798126,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2149,
+   "z": -1726
+  },
+  {
+   "bed_height": 80.7962646484375,
+   "channel_depth": 0.0,
+   "creek_bed": true,
+   "drawn_top": 80.66666412353516,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2149,
+   "z": -1725
+  },
+  {
+   "bed_height": 80.17945861816406,
+   "channel_depth": 0.2577543556690216,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2148,
+   "z": -1727
+  },
+  {
+   "bed_height": 80.42100524902344,
+   "channel_depth": 0.0,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2148,
+   "z": -1726
+  },
+  {
+   "bed_height": 80.24430847167969,
+   "channel_depth": 0.1405487358570099,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2147,
+   "z": -1728
+  },
+  {
+   "bed_height": 80.26070404052734,
+   "channel_depth": 0.15638016164302826,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2147,
+   "z": -1727
+  },
+  {
+   "bed_height": 80.27210235595703,
+   "channel_depth": 0.09676474332809448,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2146,
+   "z": -1729
+  },
+  {
+   "bed_height": 80.20809173583984,
+   "channel_depth": 0.2635515332221985,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2146,
+   "z": -1728
+  },
+  {
+   "bed_height": 80.25076293945312,
+   "channel_depth": 0.14828184247016907,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2145,
+   "z": -1730
+  },
+  {
+   "bed_height": 80.20191192626953,
+   "channel_depth": 0.28881576657295227,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2145,
+   "z": -1729
+  },
+  {
+   "bed_height": 80.20431518554688,
+   "channel_depth": 0.2501372694969177,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2144,
+   "z": -1731
+  },
+  {
+   "bed_height": 80.2199935913086,
+   "channel_depth": 0.27292075753211975,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2144,
+   "z": -1730
+  },
+  {
+   "bed_height": 80.23817443847656,
+   "channel_depth": 0.15173286199569702,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2143,
+   "z": -1733
+  },
+  {
+   "bed_height": 80.17560577392578,
+   "channel_depth": 0.32501354813575745,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2143,
+   "z": -1732
+  },
+  {
+   "bed_height": 80.26835632324219,
+   "channel_depth": 0.2069670557975769,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2143,
+   "z": -1731
+  },
+  {
+   "bed_height": 80.2254638671875,
+   "channel_depth": 0.06874179095029831,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2142,
+   "z": -1736
+  },
+  {
+   "bed_height": 80.1728744506836,
+   "channel_depth": 0.2320098578929901,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2142,
+   "z": -1735
+  },
+  {
+   "bed_height": 80.1576156616211,
+   "channel_depth": 0.3229896128177643,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2142,
+   "z": -1734
+  },
+  {
+   "bed_height": 80.20552825927734,
+   "channel_depth": 0.29367271065711975,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2142,
+   "z": -1733
+  },
+  {
+   "bed_height": 80.36356353759766,
+   "channel_depth": 0.056926384568214417,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2142,
+   "z": -1732
+  },
+  {
+   "bed_height": 80.1148910522461,
+   "channel_depth": 0.14702418446540833,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2141,
+   "z": -1739
+  },
+  {
+   "bed_height": 80.08902740478516,
+   "channel_depth": 0.2692100703716278,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2141,
+   "z": -1738
+  },
+  {
+   "bed_height": 80.09806823730469,
+   "channel_depth": 0.3237099051475525,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2141,
+   "z": -1737
+  },
+  {
+   "bed_height": 80.13567352294922,
+   "channel_depth": 0.32216838002204895,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2141,
+   "z": -1736
+  },
+  {
+   "bed_height": 80.20632934570312,
+   "channel_depth": 0.25635284185409546,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2141,
+   "z": -1735
+  },
+  {
+   "bed_height": 80.32633972167969,
+   "channel_depth": 0.09581553190946579,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2141,
+   "z": -1734
+  },
+  {
+   "bed_height": 80.03011322021484,
+   "channel_depth": 0.2389506846666336,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2140,
+   "z": -1741
+  },
+  {
+   "bed_height": 80.02581024169922,
+   "channel_depth": 0.3266693353652954,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2140,
+   "z": -1740
+  },
+  {
+   "bed_height": 80.07662963867188,
+   "channel_depth": 0.309253990650177,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2140,
+   "z": -1739
+  },
+  {
+   "bed_height": 80.1591796875,
+   "channel_depth": 0.2300242930650711,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2140,
+   "z": -1738
+  },
+  {
+   "bed_height": 80.26380920410156,
+   "channel_depth": 0.10688015073537827,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2140,
+   "z": -1737
+  },
+  {
+   "bed_height": 80.03941345214844,
+   "channel_depth": 0.14893889427185059,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2139,
+   "z": -1743
+  },
+  {
+   "bed_height": 79.99009704589844,
+   "channel_depth": 0.3255993723869324,
+   "creek_bed": true,
+   "drawn_top": 79.66666412353516,
+   "river_order": 1,
+   "surface_y": 79,
+   "x": -2139,
+   "z": -1742
+  },
+  {
+   "bed_height": 80.06033325195312,
+   "channel_depth": 0.2776437997817993,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2139,
+   "z": -1741
+  },
+  {
+   "bed_height": 80.193359375,
+   "channel_depth": 0.11037743836641312,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2139,
+   "z": -1740
+  },
+  {
+   "bed_height": 80.01776885986328,
+   "channel_depth": 0.1991732120513916,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2138,
+   "z": -1744
+  },
+  {
+   "bed_height": 79.99727630615234,
+   "channel_depth": 0.32496389746665955,
+   "creek_bed": true,
+   "drawn_top": 79.66666412353516,
+   "river_order": 1,
+   "surface_y": 79,
+   "x": -2138,
+   "z": -1743
+  },
+  {
+   "bed_height": 80.14066314697266,
+   "channel_depth": 0.14395180344581604,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2138,
+   "z": -1742
+  },
+  {
+   "bed_height": 80.03939056396484,
+   "channel_depth": 0.16916735470294952,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2137,
+   "z": -1745
+  },
+  {
+   "bed_height": 80.00830841064453,
+   "channel_depth": 0.31720611453056335,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2137,
+   "z": -1744
+  },
+  {
+   "bed_height": 80.21167755126953,
+   "channel_depth": 0.0275187399238348,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2137,
+   "z": -1743
+  },
+  {
+   "bed_height": 80.1148452758789,
+   "channel_depth": 0.03905385732650757,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2136,
+   "z": -1746
+  },
+  {
+   "bed_height": 80.01006317138672,
+   "channel_depth": 0.32643046975135803,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2136,
+   "z": -1745
+  },
+  {
+   "bed_height": 80.01901245117188,
+   "channel_depth": 0.3218803107738495,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2135,
+   "z": -1746
+  },
+  {
+   "bed_height": 80.20875549316406,
+   "channel_depth": 0.06275800615549088,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2135,
+   "z": -1745
+  },
+  {
+   "bed_height": 80.08120727539062,
+   "channel_depth": 0.21778665482997894,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2134,
+   "z": -1747
+  },
+  {
+   "bed_height": 80.14014434814453,
+   "channel_depth": 0.20394796133041382,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2134,
+   "z": -1746
+  },
+  {
+   "bed_height": 80.08399963378906,
+   "channel_depth": 0.32106462121009827,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2133,
+   "z": -1747
+  },
+  {
+   "bed_height": 80.12185668945312,
+   "channel_depth": 0.262389600276947,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2132,
+   "z": -1748
+  },
+  {
+   "bed_height": 80.27762603759766,
+   "channel_depth": 0.0715300515294075,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2132,
+   "z": -1747
+  },
+  {
+   "bed_height": 80.1536636352539,
+   "channel_depth": 0.314208984375,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2131,
+   "z": -1748
+  },
+  {
+   "bed_height": 80.21621704101562,
+   "channel_depth": 0.2090732902288437,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2130,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.32786560058594,
+   "channel_depth": 0.10275393724441528,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2130,
+   "z": -1748
+  },
+  {
+   "bed_height": 80.21239471435547,
+   "channel_depth": 0.3283628821372986,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2129,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.2963638305664,
+   "channel_depth": 0.2852405607700348,
+   "creek_bed": true,
+   "drawn_top": 80.0,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2128,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.3856430053711,
+   "channel_depth": 0.12858398258686066,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2127,
+   "z": -1750
+  },
+  {
+   "bed_height": 80.4182357788086,
+   "channel_depth": 0.1719115525484085,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2127,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.39612579345703,
+   "channel_depth": 0.2215598225593567,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2126,
+   "z": -1750
+  },
+  {
+   "bed_height": 80.53325653076172,
+   "channel_depth": 0.07145874947309494,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2126,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.44377899169922,
+   "channel_depth": 0.24531038105487823,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2125,
+   "z": -1750
+  },
+  {
+   "bed_height": 80.60986328125,
+   "channel_depth": 0.04199669510126114,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2125,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.5205078125,
+   "channel_depth": 0.21456924080848694,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2124,
+   "z": -1750
+  },
+  {
+   "bed_height": 80.63764953613281,
+   "channel_depth": 0.1026202067732811,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2124,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.64156341552734,
+   "channel_depth": 0.10074380785226822,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2123,
+   "z": -1750
+  },
+  {
+   "bed_height": 80.63249206542969,
+   "channel_depth": 0.22371962666511536,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2123,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.63858032226562,
+   "channel_depth": 0.3229896128177643,
+   "creek_bed": true,
+   "drawn_top": 80.33333587646484,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2122,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.7268295288086,
+   "channel_depth": 0.26851651072502136,
+   "creek_bed": true,
+   "drawn_top": 80.66666412353516,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2121,
+   "z": -1749
+  },
+  {
+   "bed_height": 80.88668823242188,
+   "channel_depth": 0.0780482143163681,
+   "creek_bed": true,
+   "drawn_top": 80.66666412353516,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2121,
+   "z": -1748
+  },
+  {
+   "bed_height": 80.81256103515625,
+   "channel_depth": 0.32438063621520996,
+   "creek_bed": true,
+   "drawn_top": 80.66666412353516,
+   "river_order": 1,
+   "surface_y": 80,
+   "x": -2120,
+   "z": -1748
+  }
+ ]
+}

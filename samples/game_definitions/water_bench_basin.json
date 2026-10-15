@@ -1,0 +1,38 @@
+{
+  "name": "WaterBench_Basin",
+  "version": "1.0",
+  "description": "WATER v4 bench #1 (docs/WaterRethink.md WP0/WP3). The shallow-water + shoreline rig. NO world block on purpose: a world block regenerates terrain every launch and would refill the carved basin (same rule as DebrisLab). The terrain lives only in worlds/default.db, authored ONCE by `python tools/water_bench.py build-basin` and verified by `python tools/water_bench.py verify basin`. Everything sits inside ONE chunk (x,z 0..31): an 8-thick Stone slab (top solid y=16), basin A with a stepped ~1:3 ramp (west) and a vertical wall (east), a notch+channel north to the DRY sibling basin B (the control). No hydrology bake, no water at boot: the sim prototype places water via the API.",
+  "water": {
+    "enabled": false,
+    "_comment": "Deliberately OFF. Any implicit sea at kSeaLevelY=16 would flood the basin (floor top y=12) before a test starts. The WP3 prototype adds water itself and must find the rig bone dry (verify checks total_mass == 0)."
+  },
+  "camera": {
+    "position": { "x": 16, "y": 34, "z": -10 },
+    "yaw": 90,
+    "pitch": -40,
+    "_comment": "Spawn vantage only. Reproducible poses live in testVantages."
+  },
+  "waterBench": {
+    "rig": "basin",
+    "chunk": [0, 0],
+    "slab": { "x": [0, 31], "z": [0, 31], "y": [9, 16], "material": "Stone" },
+    "basinA": {
+      "x": [3, 28], "z": [10, 21],
+      "ramp": [ { "x": [3, 5], "floorTop": 15 }, { "x": [6, 8], "floorTop": 14 }, { "x": [9, 11], "floorTop": 13 } ],
+      "flat": { "x": [12, 28], "floorTop": 12 },
+      "eastWallX": 29,
+      "_comment": "4 deep at the flat floor (water cells y 13..16 possible; fill 3 deep = cells 13..15, surface 16.0, one voxel of freeboard). Dam-break run: initial block x 22..28, h0=3, front travels west L=10 u to the ramp foot at x=12 -> Ritter 2*sqrt(9.81*3)=10.8 u/s -> ~0.93 s. Ramp is voxel-stepped ~1:3, NOT the 1:10 of the first draft (a 1:10 ramp 3 deep needs 30 u; the rig must stay inside one chunk)."
+    },
+    "channel": { "x": [14, 15], "z": [22, 26], "floorTop": 14, "_comment": "Spills from basin A into basin B only when A's surface exceeds 15.0 (fill 3 deep spills; fill 2 deep does not) - the falsifiable pair." },
+    "basinB": { "x": [10, 19], "z": [27, 30], "floorTop": 12, "_comment": "DRY control. Must hold 0 mass unless water crosses the channel." }
+  },
+  "testVantages": {
+    "_comment": "Fixed poses. Changing one silently invalidates every archived capture taken from it. yaw convention: editor camera yaw -90 = -Z, 0 = +X, 90 = +Z.",
+    "vantages": [
+      { "name": "rig_overview", "x": 16, "y": 34, "z": -10, "yaw": 90, "pitch": -40, "tests": "Whole rig in frame: ramp (left), flat floor, east wall (right), channel and control basin (far)." },
+      { "name": "east_wall", "x": 10, "y": 19, "z": 15.5, "yaw": 0, "pitch": -12, "tests": "Looking down the basin at the vertical east wall: slosh, pile-up, reflection amplitude." },
+      { "name": "ramp_runup", "x": 26, "y": 19, "z": 15.5, "yaw": 180, "pitch": -12, "tests": "Looking west up the stepped ramp: run-up height, wet front on steps." },
+      { "name": "channel_top", "x": 14.5, "y": 26, "z": 24, "yaw": 90, "pitch": -75, "tests": "Top-down on the notch/channel: spill vs no-spill control." }
+    ]
+  }
+}

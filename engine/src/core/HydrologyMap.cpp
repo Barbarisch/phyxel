@@ -2,6 +2,7 @@
 
 #include "core/PriorityFlood.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace Phyxel {
@@ -24,6 +25,8 @@ HydrologyMap::HydrologyMap(const HeightFunc& heightAt, float originX, float orig
     // Depression-fill with the ocean as an outlet: inland basins fill only to their spill.
     std::vector<float> filled = PriorityFlood::fill(base, m_cellsX, m_cellsZ, seaLevel);
 
+    m_filled.resize(filled.size());
+    for (size_t i = 0; i < filled.size(); ++i) m_filled[i] = std::max(filled[i], seaLevel);
     // Resolve the water surface per cell: ocean at sea level; inland lake at the filled level; else dry.
     m_waterLevel.assign(base.size(), NO_WATER);
     for (size_t i = 0; i < base.size(); ++i) {
@@ -43,6 +46,14 @@ float HydrologyMap::waterLevelAt(float worldX, float worldZ) const {
     int j = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
     if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return NO_WATER;  // outside the baked region
     return m_waterLevel[static_cast<size_t>(j) * m_cellsX + i];
+}
+
+float HydrologyMap::filledAt(float worldX, float worldZ) const {
+    if (m_cellsX <= 0 || m_cellsZ <= 0 || m_filled.empty()) return NO_WATER;
+    const int i = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    const int j = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return NO_WATER;
+    return m_filled[static_cast<size_t>(j) * m_cellsX + i];
 }
 
 }  // namespace Phyxel

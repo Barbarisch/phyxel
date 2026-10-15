@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <chrono>
+#include <vector>
 
 namespace Phyxel {
 namespace Graphics {
@@ -62,7 +63,7 @@ public:
     void renderUnderwater(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet,
                           const Camera& camera, const glm::mat4& projectionMatrix,
                           float submergence, float depthBelow, VkExtent2D screenExtent,
-                          float turbidity = 0.0f);
+                          float turbidity = 0.0f, float clarity = 0.0f);   ///< clarity (G3): the body's Secchi depth, m; 0 = derived
 
     // Gerstner swell controls (WaterSystemV3 Phase 2). amplitude 0 disables the displacement
     // entirely, which restores the pre-Phase-2 flat sheet — that is the A/B used to prove the
@@ -71,6 +72,9 @@ public:
         m_waveAmplitude = amplitude; m_waveLength = wavelength; m_windDirection = windDirectionRadians;
     }
     float waveAmplitude() const { return m_waveAmplitude; }
+    /// The sheet's own clock (s since construction) - what water.vert displaces with. The shore
+    /// band prescribes its ocean ring at THIS time so band and sheet hold the same surface (Phase G).
+    float waveTime() const { return std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_startTime).count(); }
     float waveLength() const { return m_waveLength; }
     float windDirection() const { return m_windDirection; }
 
@@ -101,9 +105,26 @@ public:
     // that form once right after initialize() so the binding is always valid.
     // REPLACING a previously-uploaded grid re-writes the descriptor — the caller must ensure the
     // device is idle (vkDeviceWaitIdle) when swapping mid-session (world change).
+    /// `looks` (G3, optional): 4 floats per cell = (tint.r, tint.g, tint.b, clarity), tint.r < 0 =
+    /// unset, clarity 0 = unset; nullptr = all neutral. The image holds TWO texels per cell along x:
+    /// (2 cx) = level/energy/turbidity/roughness, (2 cx + 1) = the look (water.vert/frag read both).
     void recordHydrologyUpload(VkCommandBuffer cmd, const float* levels, int cellsX, int cellsZ,
-                               float originX, float originZ, float cellSize);
+                               float originX, float originZ, float cellSize, const float* looks = nullptr);
     bool hydrologyBound() const { return m_hydroBound; }
+
+    // What the RENDERER holds for a column — the observable the camera-walk probe diffs
+    // (docs/Water.md §8 #8b; docs/WaterRethink.md WP0). It mirrors basinLevelAt() in water.vert /
+    // water.frag EXACTLY (same texel index, same dry sentinel, same off-grid rule per mode) from a
+    // CPU shadow of the last grid uploaded, so a caller can ask "would the sheet draw water here?"
+    // without a screenshot. It answers for the sheet's PLACEMENT source only: the fragment stage's
+    // depth-based dry-land gate and rim-wall kill are per-pixel and not reproduced here.
+    // `seaLevel` is the push-constant value the shaders receive (RenderCoordinator::getSeaLevel()).
+    struct ColumnWater { bool onGrid; bool wet; float level; };
+    ColumnWater renderWaterAt(float worldX, float worldZ, float seaLevel) const;
+    const char* hydroModeName() const;   // "unbound" | "flat" | "bake" | "grounded"
+    int hydroCellsX() const { return m_hydroCellsX; }
+    int hydroCellsZ() const { return m_hydroCellsZ; }
+    glm::vec3 hydroParams() const { return m_hydroParams; }
 
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
 
@@ -145,6 +166,7 @@ private:
     int            m_hydroCellsX = 0, m_hydroCellsZ = 0;
     bool           m_hydroBound = false;                 // no draw until binding 3 is valid
     glm::vec3      m_hydroParams{0.0f, 0.0f, 0.0f};      // originX, originZ, invCellSize (0 = flat)
+    std::vector<float> m_hydroShadowLevels;              // R channel of the last upload (renderWaterAt)
     float          m_waveRadius = 700.0f;      // world units; set from the render distance
     float          m_seaOuterExtent = 0.0f;    // reach the clipmap actually achieved
 

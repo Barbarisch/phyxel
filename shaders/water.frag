@@ -59,6 +59,14 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3  moonColor;
     float exposure;
     int   tonemapCurve;
+    // 21.3: std140 is positional - the lit in-scatter needs occupancyBox / giProbeGrid (gi_field.glsl)
+    vec4  skyBodyDirRadius[4];
+    vec4  skyBodyDisc[4];
+    vec4  skyBodyLitDir[4];
+    vec4  skyBodyLight[4];
+    int   skyBodyCount;
+    ivec4 occupancyBox;
+    vec4  giProbeGrid;
 } ubo;
 
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
@@ -93,10 +101,11 @@ layout(push_constant) uniform PushConstants {
 // depth-buffer dry-land gate — and that gate cannot fire where there is no depth.
 //
 // "NOT WET" IS THREE DIFFERENT THINGS and only one of them means there is no water:
-//   * flat-sea mode (no bake at all) -> implicit sea; authored worlds depend on it.  KEEP.
-//   * outside the baked region       -> the open ocean beyond the grid's reach.      KEEP.
-//   * DRY COLUMN INSIDE THE BAKE     -> land. No water here at all.                  DISCARD.
-// Conflating the third case with the first two is what put an ocean under the world.
+//   * no grid bound (invCellSize 0) -> NOTHING (Phase D5: the implicit flat sea is gone).   DISCARD.
+//   * outside the grid               -> NOTHING (far water is Phase G's tiles, not a plane). DISCARD.
+//   * DRY COLUMN INSIDE THE GRID     -> land. No water here at all.                        DISCARD.
+// The implicit sea and the open-ocean fallback were the universal water level the user's rule
+// forbids (docs/WaterRethink.md 0, rule 1); they were deleted in WaterCore Phase D5.
 //
 // ⚑THE SIGN OF invCellSize IS A MODE (WaterAsWorldData: grounded grids). The second KEEP above is
 // only right for a 32 km baked world, where beyond-the-bake genuinely is open ocean. For a BOUNDED
@@ -104,24 +113,28 @@ layout(push_constant) uniform PushConstants {
 // water is representable there, and falling back to "open ocean" re-creates the exact defect the
 // grid exists to kill (an infinite sheet in all directions, drawn through solid rock). A NEGATIVE
 // invCellSize marks such a grounded grid: same lookup, but off-grid means DRY.
-float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness, out float noWater) {
+float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness, out float noWater, out vec4 look) {
     turbidity = 0.0;
     roughness = 1.0;
     noWater   = 0.0;
+    look      = vec4(-1.0, -1.0, -1.0, 0.0);   // G3 neutral: tint unset, clarity derived
     float invCellRaw = pc.params3.w;
-    if (invCellRaw == 0.0) return pc.params.x;               // flat-sea mode: implicit sea
-    float dryBeyond = invCellRaw < 0.0 ? 1.0 : 0.0;          // grounded grid: no implicit ocean
+    if (invCellRaw == 0.0) { noWater = 1.0; return pc.params.x; }   // nothing bound: nothing drawn
+    float dryBeyond = 1.0;                                            // off-grid is dry in every mode
     float invCell   = abs(invCellRaw);
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);
+    sz.x /= 2;   // G3: two texels per cell (data, look)
     if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y)) {
         noWater = dryBeyond;                                 // baked: open ocean · grounded: DRY
         return pc.params.x;
     }
-    vec4 t = texelFetch(hydroLevelTex, ivec2(cellF), 0);
+    ivec2 cell = ivec2(cellF);
+    vec4 t = texelFetch(hydroLevelTex, ivec2(cell.x * 2, cell.y), 0);
     if (t.r < -1e5) { noWater = 1.0; return pc.params.x; }   // dry land inside the grid: NO water
     turbidity = t.b;
     roughness = t.a;
+    look      = texelFetch(hydroLevelTex, ivec2(cell.x * 2 + 1, cell.y), 0);
     return t.r;
 }
 
@@ -164,7 +177,11 @@ void main() {
     // own column's level and vanish — a divide's terrain sits above both basins' levels by
     // definition (water-layer P1).
     float noWaterHere;
-    inp.restLevelY   = basinLevelAt(fragWorldPos.xz, inp.turbidity, inp.roughness, noWaterHere);
+    vec4 bodyLook;
+    inp.restLevelY   = basinLevelAt(fragWorldPos.xz, inp.turbidity, inp.roughness, noWaterHere, bodyLook);
+    inp.tint         = max(bodyLook.rgb, vec3(0.0));   // G3: the body's look (per-column, second texel)
+    inp.tintSet      = bodyLook.r >= 0.0 ? 1.0 : 0.0;
+    inp.clarity      = max(bodyLook.a, 0.0);
     // Dry land inside the baked region has NO water, so nothing is drawn — full stop, and without
     // consulting the depth buffer. This is the terrain deciding, which is the whole governing rule:
     // the bake says this column holds nothing, so nothing is rendered, whether or not any geometry
@@ -176,7 +193,12 @@ void main() {
     // displaced water. viewProj is the water's own ABSOLUTE-space matrix (ubo.viewProj is
     // camera-relative and would march the ray in the wrong frame).
     inp.viewProj     = pc.viewProj;
+    inp.debugMode    = 0;
+    inp.horizonGuard = 0.0;   // WaterCore 22.12 B2 is scoped to simulated small-body water
+    inp.shoreFoam    = 1.0;
     inp.ssr          = pc.params2.z;
+    inp.droplet      = 0.0;
+    inp.scatterLit   = 0.0;   // 21.3 is scoped to simulated (small-body) water; the sea keeps its look until the owner takes up large bodies
 
     // RIM-WALL KILL (water-layer P1). Where adjacent clipmap vertices land in basins at
     // different levels (lake rim, lake→dry falloff), the connecting quad is a vertical wall

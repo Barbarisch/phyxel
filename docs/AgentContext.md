@@ -168,6 +168,16 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **▶ WATER CORE — ACTIVE (branch `feat/water-rethink`, pushed after every commit).** The design of record AND
+  build ledger is [`docs/WaterCore.md`](WaterCore.md); **read its §0a first** (where things stand, what is next).
+  As of 2026-10-11: the small still pond is built on a 3-D Eulerian core (CPU reference + GPU default), with debris
+  coupling, moving solids, droplets, a ripple layer, pond friction and size-dependent stone drag; the owner signed off
+  the pond feel (2026-10-09) and the ripples (2026-10-11). **Next: §25 Phase H, small flowing water (a creek in a
+  bench channel)**, then creeks in the world, rivers, shorelines (Phase G, paused). Slime/other liquids (§23) queued.
+  Standing rules: small bodies first; no universal water level; nothing done until the owner sees it in motion;
+  design-check before building; a question from the owner is answered, not acted on. Bench: WaterBench_Small, port
+  8111 (`phyxel up`).
+
 - **▶ PERFORMANCE PROGRAM 2026-09 — ACTIVE (branch `perf/lights-microvoxel-program`).** User goal:
   as fast as possible **without visual loss**, measured at real load (~100-building cities). **The
   forward guide is [`docs/PerfProgram2026-09.md`](PerfProgram2026-09.md) §17** (operating point,

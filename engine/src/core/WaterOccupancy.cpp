@@ -25,7 +25,7 @@ constexpr int kNZ[4] = {0, 0, 1, -1};
 }  // namespace
 
 void floodBodiesOverGrid(int w, int d, const float* groundTop, const float* bakedLevel,
-                         float* outLevel, int maxSteps) {
+                         float* outLevel, int maxSteps, const float* filled, const uint8_t* river) {
     if (w <= 0 || d <= 0 || maxSteps < 0 || !groundTop || !bakedLevel || !outLevel) return;
     const size_t n = static_cast<size_t>(w) * static_cast<size_t>(d);
 
@@ -36,7 +36,7 @@ void floodBodiesOverGrid(int w, int d, const float* groundTop, const float* bake
     frontier.reserve(n / 4);
     for (size_t i = 0; i < n; ++i) {
         const float bl = bakedLevel[i];
-        if (bl > kNoBody * 0.5f) { outLevel[i] = bl; frontier.push_back(static_cast<int>(i)); }
+        if (bl > kNoBody * 0.5f && !(river && river[i])) { outLevel[i] = bl; frontier.push_back(static_cast<int>(i)); }
         else                     { outLevel[i] = kNoBody; }
     }
 
@@ -60,6 +60,12 @@ void floodBodiesOverGrid(int w, int d, const float* groundTop, const float* bake
                 // The submerged-path rule: ground breaking this body's surface blocks the spread,
                 // which is what stops a valley beyond a ridge joining a lake at a similar altitude.
                 if (groundTop[ni] >= level) continue;
+                // The hydraulic rule (Phase D4): below the body's level but DOWNHILL OF ITS SPILL is
+                // not the body - Priority-Flood already decided the water drains there (filled <
+                // level). Without it a perched lake drowned the valley below it to the step budget
+                // (River bench: 17,677 span-wet / bake-dry / non-river columns, 2026-10-08).
+                if (filled && filled[ni] < level - 1e-3f) continue;
+                if (river && river[ni]) continue;   // a channel column holds its river span, never a lake's level
                 outLevel[ni] = level;
                 next.push_back(static_cast<int>(ni));
             }

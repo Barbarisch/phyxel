@@ -971,6 +971,20 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // POST /api/debug/editor_panels {"item_equipper": bool} — hide/show editor ImGui panels that
+    // overlay the viewport (reference captures must be taken with them hidden). Omitted = unchanged.
+    srv.Post("/api/debug/editor_panels", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("editor_panels", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     srv.Post("/api/debug/overlay", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);
@@ -2162,6 +2176,37 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_span_scan",      waterEndpoint("water_span_scan"));  // occupancy §5.2
     srv.Post("/api/debug/water_ground_sync",    waterEndpoint("water_ground_sync"));  // grounded grid (un-baked worlds)
     srv.Post("/api/debug/water_spans_stored",   waterEndpoint("water_spans_stored")); // chunk-resident span readback
+    srv.Post("/api/debug/water_render_grid",    waterEndpoint("water_render_grid"));  // what the sheet would DRAW per column (camera-walk probe)
+    srv.Post("/api/debug/water_ledger",         waterEndpoint("water_ledger"));       // WaterCore Phase A: Σ mass by representation
+    srv.Post("/api/debug/water_probe_rect",     waterEndpoint("water_probe_rect"));   // WaterCore Phase A: per-column surface + mass over a rect
+    srv.Post("/api/debug/place_water_box",      waterEndpoint("place_water_box"));    // WaterCore Phase A: fill a box of cells in one command
+    srv.Post("/api/debug/water_av_create",      waterEndpoint("water_av_create"));    // WaterCore Phase B: active volumes (docs/WaterCore.md sec. 15.4)
+    srv.Post("/api/debug/water_av_destroy",     waterEndpoint("water_av_destroy"));
+    srv.Post("/api/debug/water_av_step",        waterEndpoint("water_av_step"));
+    srv.Post("/api/debug/water_av_list",        waterEndpoint("water_av_list"));
+    srv.Post("/api/debug/water_av_probe",       waterEndpoint("water_av_probe"));
+    srv.Post("/api/debug/water_av_source",      waterEndpoint("water_av_source"));
+    srv.Post("/api/debug/water_av_impulse",     waterEndpoint("water_av_impulse"));
+    srv.Post("/api/debug/water_av_realtime",    waterEndpoint("water_av_realtime"));
+    srv.Post("/api/debug/water_av_particles",   waterEndpoint("water_av_particles"));   // Phase B2
+    srv.Post("/api/debug/water_av_settle",      waterEndpoint("water_av_settle"));      // Phase B2
+    srv.Post("/api/debug/water_av_sleep",       waterEndpoint("water_av_sleep"));       // Phase D: write-back + free
+    srv.Post("/api/debug/water_av_wake",        waterEndpoint("water_av_wake"));        // Phase D: flood over spans -> volume
+    srv.Post("/api/debug/water_body_table",     waterEndpoint("water_body_table"));     // Phase D: Tier A records
+    srv.Post("/api/debug/water_render_inject",  waterEndpoint("water_render_inject"));  // Phase D5: probe self-test injection
+    srv.Post("/api/debug/water_render_core",    waterEndpoint("water_render_core"));    // Phase F: mesh | cells | off
+    srv.Post("/api/debug/water_shore",          waterEndpoint("water_shore"));          // Phase G: the shoreline band
+    srv.Post("/api/debug/water_coupling",       waterEndpoint("water_coupling"));       // Phase E: coupling status + A/B
+    srv.Post("/api/debug/water_av_watch",       waterEndpoint("water_av_watch"));       // 20: per-frame surface recorder
+    srv.Post("/api/debug/water_av_column",      waterEndpoint("water_av_column"));      // 26.13: the drawn surface at voxel columns (no read-back)
+    srv.Post("/api/debug/water_jet_scan",       waterEndpoint("water_jet_scan"));       // 21.7 S1: per-frame detached-run recorder
+    srv.Post("/api/debug/water_droplets",       waterEndpoint("water_droplets"));       // 21: droplet crown state + ledger
+    srv.Post("/api/debug/water_ripples",        waterEndpoint("water_ripples"));        // 22: ripple layer state
+    srv.Post("/api/debug/water_pond_friction",  waterEndpoint("water_pond_friction"));  // 24.7: pond friction half-life
+    srv.Post("/api/debug/water_transport",      waterEndpoint("water_transport"));      // 26.5: the fill transport A/B
+    srv.Post("/api/debug/water_columns",        waterEndpoint("water_columns"));        // 25.18 H1: column-water regions
+    srv.Post("/api/debug/terrain_column",       waterEndpoint("terrain_column"));       // 25.22: one generated column (measurement)
+    srv.Post("/api/debug/debris_position_log",  waterEndpoint("debris_position_log"));  // 25.26 K: debris drift (CSV)
     srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));

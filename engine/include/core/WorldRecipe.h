@@ -62,6 +62,10 @@ struct WorldRecipe {
     // WorldForge world-scale plan params (docs/WorldForge.md). Disabled by default; a
     // disabled block writes NO key, so legacy recipe JSON stays byte-identical.
     WorldForgeParams worldforge;
+    // WaterCore.md 25.22 (H1c): creek beds carved to the 1/3 m grid by ROUNDING DOWN the continuous height (the water
+    // flows on that height, option (a), 25.21). A world made before the carve has no key -> false, so its unsaved chunks
+    // regenerate with the shelf its saved ones have; new worlds get it from makeRecipe(). Written only when true.
+    bool creekCarve = false;
 
     std::string toJson() const {
         nlohmann::json root;
@@ -100,6 +104,7 @@ struct WorldRecipe {
             root["heightSpline"] = sp;
         }
         if (worldforge.enabled) root["worldforge"] = worldforge.toJson();
+        if (creekCarve) root["creekCarve"] = true;
         return root.dump(2);
     }
 
@@ -151,6 +156,7 @@ struct WorldRecipe {
                     r.heightSpline.push_back({p.value("x", 0.0f), p.value("y", 0.0f)});
             if (root.contains("worldforge"))
                 r.worldforge = WorldForgeParams::fromJson(root["worldforge"]);
+            r.creekCarve = root.value("creekCarve", false);
         } catch (...) {
             // Bad/empty input -> caller falls back to synthesizing from the category library.
         }

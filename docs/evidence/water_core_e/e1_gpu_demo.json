@@ -1,0 +1,185 @@
+{
+ "pose": {
+  "x": 109.5,
+  "y": 20.5,
+  "z": 13.5,
+  "yaw": 180,
+  "pitch": -38
+ },
+ "backend": "auto",
+ "volume": {
+  "asleep": false,
+  "auto_sleep": false,
+  "backend": "gpu",
+  "box": {
+   "max": [
+    104,
+    19,
+    16
+   ],
+   "min": [
+    99,
+    14,
+    11
+   ]
+  },
+  "cellSize": 0.3333333432674408,
+  "cells": 5832,
+  "gpu_ms_last_call": 0.0,
+  "gpu_sweeps": 27,
+  "id": 2,
+  "kinetic_energy": 0.0,
+  "last": {
+   "pcg_iterations": 0,
+   "pcg_residual": 0.0,
+   "source_unplaced": 0.0,
+   "substeps": 0
+  },
+  "mass": 0.0,
+  "particles": 0,
+  "quiet_ticks": 0,
+  "rbgs_residual": 0.0,
+  "residue_dropped_m3": 0.0,
+  "seeded_mass": 0.0,
+  "source_count": 0,
+  "source_placed_m3": 0.0,
+  "surface_age_ms": -1.0,
+  "transport": "eulerian"
+ },
+ "before": {
+  "near": 16.5015,
+  "far": 16.5011
+ },
+ "before_png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_gpu_before.png",
+ "blast": {
+  "success": true,
+  "broken": 0,
+  "debris": 0
+ },
+ "coupling": {
+  "enabled": true,
+  "last_blast": {
+   "blasts_total": 3,
+   "centre": [
+    106.0,
+    17.0,
+    13.5
+   ],
+   "clamped": 0,
+   "faces": 13513,
+   "reach_m": 6.0,
+   "speed_at_centre_ms": 3.0030288696289062,
+   "volumes": 1
+  }
+ },
+ "frames": [
+  {
+   "t": 0.15,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_gpu_t00.15.png",
+   "near": 16.3297,
+   "far": 16.7257,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.915199038486249,
+    "mass": 24.000002145767272
+   }
+  },
+  {
+   "t": 0.4,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_gpu_t00.40.png",
+   "near": 16.2559,
+   "far": 16.7607,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.21594463568310157,
+    "mass": 23.99999988520573
+   }
+  },
+  {
+   "t": 0.8,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_gpu_t00.80.png",
+   "near": 16.3061,
+   "far": 16.6691,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.31638682699026155,
+    "mass": 23.99999988520573
+   }
+  },
+  {
+   "t": 1.5,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_gpu_t01.50.png",
+   "near": 16.396,
+   "far": 16.6613,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.7558807131436829,
+    "mass": 23.99999988520573
+   }
+  },
+  {
+   "t": 3.0,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_gpu_t03.00.png",
+   "near": 16.457,
+   "far": 16.6182,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 1.3118271829490311,
+    "mass": 23.99999988520573
+   }
+  },
+  {
+   "t": 6.0,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_gpu_t06.00.png",
+   "near": 16.555,
+   "far": 16.549,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.3408621253025271,
+    "mass": 23.99999988520573
+   }
+  },
+  {
+   "t": 10.0,
+   "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_gpu_t10.00.png",
+   "near": 16.5144,
+   "far": 16.5026,
+   "volume": {
+    "asleep": false,
+    "kinetic_energy": 0.059056732803380675,
+    "mass": 23.999997624644188
+   }
+  }
+ ],
+ "control": {
+  "blast": {
+   "success": true,
+   "broken": 0
+  },
+  "coupling": {
+   "enabled": true,
+   "last_blast": {
+    "blasts_total": 4,
+    "centre": [
+     124.0,
+     17.0,
+     13.5
+    ],
+    "clamped": 0,
+    "faces": 0,
+    "reach_m": 6.0,
+    "speed_at_centre_ms": 3.0030288696289062,
+    "volumes": 0
+   }
+  },
+  "before": {
+   "near": 16.5169,
+   "far": 16.5025
+  },
+  "after": {
+   "near": 16.5149,
+   "far": 16.5098
+  }
+ },
+ "after_control_png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e1_gpu_control.png"
+}

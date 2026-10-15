@@ -131,6 +131,15 @@ void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float
 // (defined below). The blast scan needs it to see micro-only leaf cells (U0/F1).
 static std::string cellMaterial(ChunkManager* cm, const glm::ivec3& wp);
 
+namespace { DamageSystem::BlastListener g_blastListener; }
+void DamageSystem::setBlastListener(BlastListener l) { g_blastListener = std::move(l); }
+
+float DamageSystem::blastSpeed(float energy) {
+    if (!(energy > 0.0f)) return 0.0f;
+    const float t = std::max(responseFor(IMPULSE_REF_MATERIAL).toughness, 1.0f);
+    return BASE_SPEED * std::sqrt(energy / t);
+}
+
 float DamageSystem::blastImpulse(float energy) {
     if (!(energy > 0.0f)) return 0.0f;
     const auto* ref = Core::MaterialRegistry::instance().getMaterial(IMPULSE_REF_MATERIAL);
@@ -145,6 +154,10 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
                                        const glm::vec3& radii) {
     DamageResult res;
     if (!m_cm || energy <= 0.0f) return res;
+    if (g_blastListener && m_pushExisting) {   // WaterCore E1: the water feels every blast
+        const float rEff = std::max(radius, std::max(radii.x, std::max(radii.y, radii.z)));
+        g_blastListener(center, rEff, energy);
+    }
 
     // Ellipsoid radii (§15.6 B): any positive component activates a shaped blast; otherwise
     // fall back to a sphere of scalar `radius`. Distance is normalized by R per axis below, so

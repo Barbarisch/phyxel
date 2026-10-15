@@ -296,3 +296,6 @@ build_mb_*/
 # Crash reports. The .txt is small and useful, the .dmp is tens of MB of process image;
 # copy the report you actually cite into docs/evidence/ instead of committing the folder.
 crashes/
+
+# Machine-local tool config (API keys, credit logs) - never committed
+tools/*.local.json

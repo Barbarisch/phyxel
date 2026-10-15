@@ -1,0 +1,137 @@
+#pragma once
+// docs/WaterCore.md 22 - ripples: the sub-cell wave layer of one active volume. Surface DISPLACEMENT r (m) on a
+// world-aligned lattice of pitch d = 1/9 m (the microcube), zero mean, no mass: it moves no water, it changes how
+// the surface looks at the scale the 1/3 m grid cannot hold (waves 22 cm - 2/3 m).
+//
+// Evolution: Tessendorf's iWave (Interactive Water Surfaces, 2004) -
+//     r'' + 2 a r' + g (K * r) = 0, stepped centred: r(t+dt) = [2 r - (1 - a dt) r(t-dt) - g dt^2 (K * r)] / (1 + a dt)
+// K is the vertical-derivative kernel (13 x 13): the lattice convolution whose spectrum is
+// L(k) = k (1 + sigma k^2 / (rho g)), so every wavelength runs at its own speed (omega^2 = g L(k)) and a
+// disturbance spreads into a TRAIN of rings. Masked cells (solid, dry) hold r = 0: rings reflect off walls.
+// Sources: an IMPULSE per unit area I (kg m/s / m^2, downward positive) - Cauchy-Poisson: the surface starts
+// moving with dr/dt = -(K * I) / rho (a droplet's momentum, 22.3.1); a KINEMATIC velocity (m/s) the surface
+// must follow this frame (a body's sharp-edge remainder, 22.3.2).
+
+#include <glm/glm.hpp>
+#include <algorithm>
+#include <cstdint>
+#include <vector>
+
+namespace Phyxel::Core::Water {
+
+class RippleGpu;
+
+class RippleLayer {
+public:
+    static constexpr int kRadius = 6;                       ///< kernel half-width (13 x 13), Tessendorf's
+    static constexpr float kPitch = 1.0f / 9.0f;            ///< m - the microcube (owner, 2026-10-10)
+    static constexpr float kMaxStep = 1.0f / 30.0f;         ///< s - the stability bound's step (omega_max dt < 2: 0.12 s at this pitch); the layer steps at kStep
+    /// s - the FIXED substep. The centred leapfrog stores the previous height, so a step whose length differs from the
+    /// last one rescales the implied velocity; stepping the frame's dt (4-25 ms jitter) pumped energy in until the pond
+    /// was a 1 m checkerboard (owner's screenshot 2026-10-10; WaterRippleTest.UnevenFramesStayBounded). Frame time is
+    /// accumulated and spent in whole steps.
+    static constexpr float kStep = 1.0f / 120.0f;
+    static constexpr int kMaxSubsteps = 4;                  ///< per call: a longer stall drops time - a visual field owes none
+    /// 22.12 B1: the breaking slope. Water holds no wave steeper than the Stokes limit H/L = 0.142 (Michell 1893); as the
+    /// sinusoid's steepest slope that is pi x 0.142 = 0.446. Steeper, the crest breaks and the excess leaves the wave.
+    static constexpr float kBreakSlope = 0.44f;
+
+    /// `origin` = the lattice cell (world / kPitch, integer) of cell (0, 0); nx x nz cells.
+    RippleLayer(const glm::ivec2& origin, int nx, int nz, float gravity = 9.81f);
+
+    int nx() const { return m_nx; }
+    int nz() const { return m_nz; }
+    const glm::ivec2& origin() const { return m_origin; }
+    size_t idx(int x, int z) const { return static_cast<size_t>(x) + static_cast<size_t>(m_nx) * z; }
+    bool inBounds(int x, int z) const { return x >= 0 && z >= 0 && x < m_nx && z < m_nz; }
+    /// World xz -> lattice cell (may be out of bounds).
+    glm::ivec2 cellAt(float wx, float wz) const;
+
+    /// 1 = water (evolves), 0 = masked (solid / dry: r held at 0). Set before step(); default all water.
+    std::vector<uint8_t>& mask() { return m_mask; }
+    /// Cells on the layer's border that are water continue past the volume: absorbed over 2 cells (no reflection).
+    void setOpenBorder(bool open) { m_openBorder = open; }
+
+    /// A downward impulse per unit area I (kg m/s / m^2) on one cell, applied at the next step.
+    void addImpulse(float wx, float wz, float impulsePerArea);
+    /// 25.34: a whole field of impulses at once (one value per lattice cell, row-major) - the same 3 x 3 binomial tent as
+    /// addImpulse, applied as two separable passes (a cell's share past the layer's edge stays on it, per axis). Equal to
+    /// one addImpulse per cell away from the edges; the flow forcing (the caller) fades to zero there anyway.
+    void addImpulseField(const std::vector<float>& raw);
+    /// The surface over this cell moves at `velocity` (m/s, up positive) during the next step.
+    void setKinematic(int x, int z, float velocity);
+
+    void step(float dt);
+    /// WaterCore.md 25.34 - step() split so the GPU step (RippleGpu) shares the bookkeeping word for word: planStep spends
+    /// frame time in whole kStep substeps (0 = nothing to do this call: asleep, or not a whole step yet - impulses and
+    /// kinematic cells wait), finishStep is the sleep rule after the substeps. step() = planStep + the CPU math + finishStep.
+    int planStep(float dt);
+    void finishStep();
+    /// 25.34: the sleep half of finishStep (the GPU step clears the kinematic cells when it consumes them, at record).
+    void sleepRule();
+    /// 25.34: advect()'s accumulator - the time to advect by NOW (0 = keep accumulating).
+    float planAdvect(const std::vector<glm::vec2>& vel, float dt);
+    /// A unique id per layer object (25.34: RippleGpu keys its device state by it - an address can be reused).
+    uint64_t uid() const { return m_uid; }
+    /// WaterCore.md 25.26 RC - moving water: carry the field WITH the water. Both leapfrog levels are back-traced along `vel`
+    /// (m/s, one per lattice cell, row-major) by dt and sampled bilinearly; a masked neighbour reads as 0 (the wall). A ring
+    /// on a current drifts downstream at the current's speed and keeps its shape (WaterRippleTest RC-T2).
+    /// Resampling is deferred: dt accumulates until the fastest cell has moved a whole lattice cell (or 0.5 s), then the
+    /// field is moved once by the accumulated time - a uniform current becomes an exact one-cell shift, and the per-frame
+    /// fractional resample (0.075 cell at 0.5 m/s, 60 Hz) that smeared short ripples away is gone.
+    void advect(const std::vector<glm::vec2>& vel, float dt);
+    /// 25.26 RC - a window that follows the camera along a creek: move the lattice to `newOrigin` (lattice cells). The field
+    /// stays put in the WORLD (cells keep their world position); cells entering the window start at rest.
+    void shiftOrigin(const glm::ivec2& newOrigin);
+    /// 22.12 B1: no lattice edge steeper than `s` (axis |dr| <= s d, diagonal <= s d sqrt 2) after a step; 0 = off (the
+    /// A/B control, and the tests of linear propagation / stepping stability - a limit would hide an instability).
+    void setBreakSlope(float s) { m_breakSlope = std::max(0.0f, s); }
+    float breakSlope() const { return m_breakSlope; }
+    /// m^3 of surface height the limit has removed since the last call (sum |moved| x d^2) - the whitewater hook (S4).
+    double takeBroken() { const double b = m_broken; m_broken = 0.0; return b; }
+    bool asleep() const { return m_asleep; }
+    void wake() { m_asleep = false; }
+    const std::vector<float>& heights() const { return m_r; }
+    /// Measurement only (water_ripples {pattern}): hold the field at `h` (both leapfrog levels), awake. The caller
+    /// skips step() while pinned, so the field does not move.
+    void pin(const std::vector<float>& h) { if (h.size() != m_r.size()) return; m_r = h; m_prev = h; m_asleep = false; m_quietSteps = 0; }
+    float height(int x, int z) const { return inBounds(x, z) ? m_r[idx(x, z)] : 0.0f; }
+    float maxAbs() const;
+    double energyProxy() const;   ///< sum r^2 + (dr)^2 (for sleep and the tests)
+
+    /// Damping a (1/s): the inextensible-film rate k sqrt(nu omega / 8) at the 20 cm band centre (22.2).
+    static float filmDamping(float gravity = 9.81f);
+    /// The kernel's own spectrum on the lattice at wavenumber k (1/m) along x - what a plane wave sees (R-T2).
+    float kernelResponse(float k) const;
+    /// The target spectrum L(k) = k (1 + sigma k^2 / (rho g)).
+    static float targetResponse(float k, float gravity = 9.81f);
+    const std::vector<float>& kernel() const { return m_kernel; }   ///< (2R+1)^2, row-major (dz, dx)
+
+private:
+    friend class RippleGpu;   // 25.34: the GPU step reads and writes the levels and the sources
+    uint64_t m_uid = 0;
+    uint32_t m_labelRev = 0;   ///< 25.34: bumped when the labels are recomputed (the GPU re-uploads them)
+    void buildKernel();
+    void convolve(const std::vector<float>& in, std::vector<float>& out) const;
+    float convolveAt(const std::vector<float>& in, int x, int z) const;   ///< one cell of convolve (kinematic cells)
+    int labelComponents();                 ///< 4-connected bodies of water in the mask (cached until the mask changes)
+    double limitSlope(std::vector<float>& r);   ///< 22.12 B1 on one leapfrog level; returns the height moved (m, sum |delta|)
+    std::vector<int> m_label;              ///< per cell: its body, -1 = masked
+    std::vector<uint8_t> m_maskSeen;
+    int m_nComp = 0;
+    int m_nx, m_nz;
+    glm::ivec2 m_origin;
+    float m_g, m_a;
+    std::vector<float> m_kernel;
+    float m_advT = 0.0f;   // RC: advection time accumulated since the last resample
+    std::vector<float> m_r, m_prev, m_next, m_tmp, m_impulse, m_kin;
+    std::vector<uint8_t> m_mask, m_kinSet;
+    bool m_openBorder = true, m_asleep = true, m_anyImpulse = false, m_anyKin = false;
+    int m_quietSteps = 0;
+    float m_accum = 0.0f;   ///< frame time not yet spent in whole kStep steps
+    float m_breakSlope = kBreakSlope;
+    double m_broken = 0.0;
+    std::vector<float> m_delta;
+};
+
+}  // namespace Phyxel::Core::Water

@@ -1,3 +1,4 @@
+#include "atmosphere.glsl"   // the sky the water reflects is the sky the dome draws (Phase F2)
 //
 // water_common.glsl — shading shared by the flat sea plane (water.frag) and the per-cell sim
 // surface (water_cell.frag), so the two renderers cannot drift apart visually.
@@ -231,27 +232,16 @@ vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelW
 
 // Sky/sun reflection driven by the SCENE's sun, not a hardcoded one. `toSun` is the direction TO
 // the sun (= -ubo.sunDirection, matching voxel.frag's `sunL`).
-vec3 waterSkyReflection(vec3 R, vec3 toSun, vec3 sunColor, float ambient) {
-    // Daylight factor: 1 with the sun overhead, 0 once it is at/below the horizon. This is what
-    // makes water go dark at night — the pre-V3 shader kept a midday glint at midnight.
-    float daylight = clamp(toSun.y * 1.5 + 0.15, 0.0, 1.0);
-
-    vec3 dayHorizon = vec3(0.72, 0.82, 0.95);
-    vec3 dayZenith  = vec3(0.24, 0.46, 0.80);
-    vec3 nightHorizon = vec3(0.05, 0.07, 0.12);
-    vec3 nightZenith  = vec3(0.01, 0.02, 0.05);
-
-    float up = clamp(R.y, 0.0, 1.0);
-    vec3 horizonCol = mix(nightHorizon, dayHorizon, daylight);
-    vec3 zenithCol  = mix(nightZenith,  dayZenith,  daylight);
-    vec3 sky = mix(horizonCol, zenithCol, pow(up, 0.6));
-
-    // Sun disc + halo, only while the sun is actually up, tinted by its live colour.
-    float sd = pow(max(dot(R, toSun), 0.0), 900.0);   // tight bright disc
-    float sg = pow(max(dot(R, toSun), 0.0), 40.0);    // soft halo
-    vec3  sunCol = sunColor * daylight;
-
-    return sky * max(ambient, 0.35) + sunCol * (sd * 2.0 + sg * 0.12);
+vec3 waterSkyReflection(vec3 R, vec3 toSun, vec3 sunColor, float ambient, float altitudeM) {
+    // WaterCore Phase F2 (docs/WaterCore.md 17.3): the reflected sky is the SAME single-scattered
+    // radiance the sky dome draws (atmosphere.glsl), plus the sun disc - so a pond reflects the sky
+    // that is actually overhead, at the scene's exposure. The hardcoded daylight gradient this
+    // replaces (0.72,0.82,0.95 x ambient) was far above the atmosphere's radiance and read as a
+    // white sheet after the x8 exposure - the "white water" on every bench (Fresnel tap, 2026-10-09).
+    // Below-horizon directions get the short near-ground scatter (the model's own rule).
+    // sunColor / ambient are kept in the signature for the callers; the atmosphere carries both
+    vec3 dir = normalize(R);
+    return phxSkyRadiance(dir, toSun, altitudeM) + phxSunDisc(dir, toSun, altitudeM);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -322,6 +312,19 @@ const vec3 WATER_SCATTER = vec3(0.04, 0.18, 0.24);
 // radiative-transfer step (single-scattering albedo + source-function integration) nobody has done
 // here. Skewed green to match the transmission window named above. Artistic magnitude — do not cite.
 const vec3 WATER_SCATTER_TURBID = vec3(0.20, 0.26, 0.18);
+
+// LIT IN-SCATTER (WaterCore.md 21.3, 2026-10-10). The two constants above are an UNLIT radiance: they
+// predate the x8-exposure physical lighting (2026-08) and, measured on the Small bench, made a clear
+// pond glow ~3x brighter than its own floor (body 0.039 vs floor 0.0095 linear: the floor was 21 % of
+// what the pond showed - the stone on the bottom vanished, the floor's refraction wobble was washed out).
+// Deep water returns a fraction R of the light falling on it - the irradiance reflectance:
+// âš‘GROUND - Mobley, Ocean Optics Web Book, "Reflectances" (oceanopticsbook.info/view/inherent-and-
+// apparent-optical-properties/reflectances): "in most clear natural hydrosols ... in the neighborhood of
+// 0.02, give or take 0.01, for mid-spectrum wavelengths"; "turbid, near shore or inland waters ... 0.08 or
+// more". So R_G = 0.020 clear, 0.080 turbid. âš‘The per-channel SHAPE is the shipped artistic one above
+// (unsourced, kept), scaled so G hits the sourced value.
+const vec3 WATER_REFLECTANCE        = WATER_SCATTER        * (0.020 / 0.18);   // (0.0044, 0.020, 0.027)
+const vec3 WATER_REFLECTANCE_TURBID = WATER_SCATTER_TURBID * (0.080 / 0.26);   // (0.062, 0.080, 0.055)
 
 // Path length (world units) over which a shoreline fades from invisible to fully water.
 // ⚑GROUND: 0.4 voxel ≈ 40 cm of water — about where a real shore stops reading as wet ground and
@@ -474,13 +477,53 @@ struct WaterSurfaceInput {
     // pre-change capture.
     float turbidity;   // 0 = clear (Pope & Fry constants), 1 = fully turbid
     float roughness;   // multiplier on the fine ripple slope; 1 = shipped detail, 0 = mirror
+    // ── PER-BODY LOOK (WaterCore G3, docs/WaterCore.md 18.7) ──────────────────────────
+    // Callers set tintSet 0 and clarity 0 for the derived look (exactly the pre-G3 pixels).
+    vec3  tint;        // the colour deep water glows with, in WATER_SCATTER's units (0.04, 0.18, 0.24)
+    float tintSet;     // 1 = tint is set
+    float clarity;     // Secchi depth in m; 0 = derived (Pope & Fry clear water ~ 10.8 m)
     // ── SCREEN-SPACE REFLECTION (v4 W4) ───────────────────────────────────────────────────────
     // The water's OWN absolute-world-space viewProj. NOT ubo.viewProj, which is camera-relative
     // (see the SSR block above) — passing it explicitly keeps this file independent of each
     // includer's push-constant layout.
     mat4  viewProj;
     float ssr;         // 0 = sky reflection only (the pre-W4 look), 1 = march the depth buffer
+    int   debugMode;   // Phase F taps: 0 off, 2 body, 3 reflection, 4 thickness, 5 fresnel (callers set 0)
+    float horizonGuard; // WaterCore 22.12 B2: 1 = a reflection below the horizon meets the water again (water_surface.frag only; others 0)
+    float shoreFoam;   // 1 = the sheet's waterline rim + breaking surf model; 0 = none (simulated water: foam comes from the solver)
+    float scatterLit;  // 1 = the lit in-scatter (21.3, every caller); 0 = the pre-21.3 constant glow (water_render_core A/B only)
+    float droplet;     // 21: 1 = a droplet cube - its thickness is its own edge (minThickness), never the scene behind it,
+                       // and it is drawn as SPRAY: each cube carries ~50 ml standing for a cloud of real mm drops, which
+                       // scatter like aerated water (white), not like a clear 4 cm block (invisible). Callers set 0.
 };
+
+// ---------------------------------------------------------------------------------------------
+// The light the water body receives (21.3) - THE SHARED MODEL, never a second one (LightingPipeline.md
+// rules R1/R2/R9): ambient = phxAmbient (the probe field) at the surface point facing up; direct sun =
+// the cascade shadow maps (near min mid, as foliage.frag) x phxSunGate, Lambert 1/pi as voxel.frag's
+// pbrBRDF diffuse. Returned in the units where `albedo x result` is a Lambertian surface's radiance, so
+// `R x result` is deep water's upwelling radiance under the same light as its floor. Unshadowed, a pond
+// under a roof or in a cave would glow over its dark floor - the defect again (21.9 F5).
+// The water pipelines' set 0 IS the scene's global layout (RenderCoordinator passes
+// vulkanDevice->getDescriptorSetLayout()), so these bindings are already bound.
+// ---------------------------------------------------------------------------------------------
+layout(set = 0, binding = 2) uniform sampler2D shadowMap;       // mid cascade
+layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;   // near cascade
+#include "occupancy.glsl"
+#include "gi_field.glsl"
+
+vec3 waterLightAt(vec3 worldPos) {
+    const vec3 up = vec3(0.0, 1.0, 0.0);
+    vec3 rel = worldPos - ubo.cameraWorld;   // the biased light-space matrices take camera-relative positions
+    vec4 sc  = ubo.biasedLightSpace * vec4(rel, 1.0);
+    float shadow = phxShadowFast(shadowMap, sc, ubo.shadowDepthRange);
+    if (ubo.shadowCascadeNear.x > 0.0)
+        shadow = min(shadow, phxShadowFast(shadowMapNear, ubo.biasedLightSpaceNear * vec4(rel, 1.0), ubo.shadowCascadeNear.y));
+    vec3  amb    = phxAmbient(worldPos, up, ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
+    float skyAcc = phxSkyAccessOf(amb, up, ubo.ambientColor);
+    float cosSun = max(normalize(-ubo.sunDirection).y, 0.0);
+    return amb + ubo.sunColor * (cosSun * shadow * phxSunGate(skyAcc, sc) * 0.31830989);
+}
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // DETAIL LOD. The fine octaves are sub-metre; past a few tens of metres they are smaller than a
@@ -515,6 +558,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // A vertical face (a waterfall curtain) has no meaningful "scene behind minus surface"
     // reading at grazing angles; the sim's own column depth is the better floor there.
     thickness = max(thickness, inp.minThickness);
+    if (inp.droplet > 0.5) thickness = inp.minThickness;   // 21: a drop in the air is only as thick as itself
 
     // VERTICAL water depth, which is a different quantity from `thickness` above and the right one
     // for anything shore-shaped. thickness is the path length ALONG THE VIEW RAY, so at a grazing
@@ -552,14 +596,46 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // single-constant version this replaces — which is what the W1 no-regression capture asserts.
     vec3 extinction = mix(WATER_EXTINCTION, WATER_EXTINCTION_TURBID, inp.turbidity);
     vec3 scatter    = mix(WATER_SCATTER,    WATER_SCATTER_TURBID,    inp.turbidity);
+    // G3 per-body look. TINT: the water's own colour replaces the in-scatter hue at the brightness
+    // turbidity already gives it (tint == WATER_SCATTER at turbidity 0 is today's scatter), and the
+    // absorption tilts toward its complement - water looks green because it absorbs red and blue
+    // (a judgement for the shape, 1.05 - 0.85 x normalised tint; the magnitude is kept).
+    // CLARITY: Secchi depth Z -> Kd = 1.7 / Z (Poole & Atkins 1929, the relation the underwater fog
+    // uses); the extinction is rescaled so its luminance-weighted mean is Kd. The derived clear
+    // water's mean is 0.157 / m, i.e. Z ~ 10.8 m.
+    const vec3 WATER_LUM = vec3(0.2126, 0.7152, 0.0722);
+    if (inp.tintSet > 0.5) {
+        vec3 tn = inp.tint / max(max(inp.tint.r, inp.tint.g), max(inp.tint.b, 1e-4));
+        vec3 shape = vec3(1.05) - 0.85 * tn;
+        extinction = shape * (dot(extinction, WATER_LUM) / max(dot(shape, WATER_LUM), 1e-4));
+        scatter = inp.tint * (dot(scatter, WATER_LUM) / dot(WATER_SCATTER, WATER_LUM));
+    }
+    if (inp.clarity > 0.0) extinction *= (1.7 / inp.clarity) / max(dot(extinction, WATER_LUM), 1e-4);
     vec3 transmit = exp(-extinction * thickness);
+    // 21.3: the in-scatter is R x the light received. `scatter` carries the hue (turbidity mix + G3 tint)
+    // in WATER_SCATTER's units; the ratio maps its brightness onto the sourced reflectance at the same
+    // turbidity (exactly WATER_REFLECTANCE at turbidity 0 untinted, WATER_REFLECTANCE_TURBID at 1).
+    if (inp.scatterLit > 0.5) {
+        float toR = dot(mix(WATER_REFLECTANCE, WATER_REFLECTANCE_TURBID, inp.turbidity), WATER_LUM)
+                  / dot(mix(WATER_SCATTER, WATER_SCATTER_TURBID, inp.turbidity), WATER_LUM);
+        scatter *= toR * waterLightAt(inp.worldPos);
+    }
     vec3 body = behind * transmit + scatter * (1.0 - transmit);
 
     // --- Reflection ------------------------------------------------------------------------
     float ndv  = clamp(dot(V, N), 0.0, 1.0);
     float fres = clamp(0.02 + 0.98 * pow(1.0 - ndv, 5.0), 0.0, 1.0);
     vec3  R    = reflect(-V, N);
-    vec3  refl = waterSkyReflection(R, toSun, ubo.sunColor, ubo.ambientLight);
+    vec3  refl = waterSkyReflection(R, toSun, ubo.sunColor, ubo.ambientLight, max(inp.worldPos.y, 1.0));
+    // WaterCore 22.12 B2: a ray reflected DOWNWARD (a facet tilted away from the eye) does not reach the ground - it
+    // meets the next stretch of water. Taken as the mean surface (+Y), it reflects once more (R2, Schlick at that
+    // incidence) and the rest enters the water and returns its body colour. Continuous at the horizon (F2 -> 1); the
+    // sky model's below-horizon branch returned near-black there (22.11: 6-68 % of such pixels black).
+    if (inp.horizonGuard > 0.5 && R.y < 0.0) {
+        float F2 = 0.02 + 0.98 * pow(1.0 - min(-R.y, 1.0), 5.0);
+        vec3  R2 = vec3(R.x, -R.y, R.z);
+        refl = F2 * waterSkyReflection(R2, toSun, ubo.sunColor, ubo.ambientLight, max(inp.worldPos.y, 1.0)) + (1.0 - F2) * body;
+    }
 
     // SCREEN-SPACE REFLECTION (v4 W4). The sky stays the FALLBACK, never the loser: where the ray
     // leaves the screen, finds no geometry, or lands on a surface too far behind, the water keeps
@@ -577,6 +653,15 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     }
 
     vec3 color = mix(body, refl, fres);
+    // WaterCore Phase F debug taps (water_surface.frag sets inp.debugMode; 0 = off)
+    if (inp.debugMode == 2) return vec4(body, 1.0);
+    if (inp.debugMode == 3) return vec4(refl, 1.0);
+    if (inp.debugMode == 4) return vec4(vec3(clamp(thickness / 2.0, 0.0, 1.0)), 1.0);
+    if (inp.debugMode == 5) return vec4(vec3(fres), 1.0);
+    // 22.11 measurement tap (read with POST /api/debug/tonemap {curve 0, exposure 1}): R = the reflected ray's angle to
+    // the sun / 180 deg, G = its elevation, (deg + 90) / 180, B = 0.5 (the encoding check: 128 linear, 188 sRGB)
+    if (inp.debugMode == 8) return vec4(acos(clamp(dot(normalize(R), toSun), -1.0, 1.0)) / 3.14159265,
+                                        asin(clamp(normalize(R).y, -1.0, 1.0)) / 3.14159265 + 0.5, 0.5, 1.0);
 
     // Specular glint off the ripples, using the LIVE sun (gone at night, warm at sunset).
     vec3  H = normalize(toSun + V);
@@ -621,7 +706,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     float foamDepth = max(verticalDepth + wob, 0.0);
 
     float surfFoam = 0.0;
-    if (inp.breakDepth > 0.0001 && hasSeabed) {
+    if (inp.shoreFoam > 0.5 && inp.breakDepth > 0.0001 && hasSeabed) {
         // Shoaling: 0 offshore, 1 at the waterline. Squared — cubed collapsed the band to nothing
         // once the swell was scaled down to the voxel world (breakDepth 2.56*0.30 = 0.77 voxels,
         // which is sub-voxel and simply invisible). The band has to be a WIDTH you can see.
@@ -639,7 +724,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     }
     // The waterline itself always carries foam, wave or not — the line that makes a coast read as a
     // coast even on flat calm water (and what lakes and rivers get).
-    float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.55, foamDepth)) : 0.0;
+    float rim = (hasSeabed && inp.shoreFoam > 0.5) ? (1.0 - smoothstep(0.0, 0.55, foamDepth)) : 0.0;
     inp.foam = max(inp.foam, max(surfFoam, rim * 0.7));
     inp.foam *= WATER_FOAM_DEBUG_SCALE;   // A/B probe: 0 disables all foam
 
@@ -664,8 +749,8 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
         float fineK = smoothstep(2.5, 7.0, (1.0 / 1.55) / max(pixelWorld, 1e-4));
         float fine  = waterSimplex(fp * 1.55) * fineK;
         float n = coarse * (1.0 - 0.28 * fineK) + fine * 0.28;
-        float mask = smoothstep(0.44, 0.74, n);
-        mask *= 1.0 - abs(2.0 * fph - 1.0) * 0.5;   // fade across the wrap so the reset isn't a pop
+        float mask = inp.droplet > 0.5 ? 1.0 : smoothstep(0.44, 0.74, n);   // 21: spray is white all over
+        if (inp.droplet < 0.5) mask *= 1.0 - abs(2.0 * fph - 1.0) * 0.5;   // fade across the wrap so the reset isn't a pop
         vec3 foamCol = mix(vec3(0.35), ubo.sunColor, clamp(toSun.y * 1.5 + 0.15, 0.0, 1.0))
                      * max(ubo.ambientLight, 0.3);
         color = mix(color, foamCol, clamp(inp.foam * mask, 0.0, 0.85));
@@ -677,6 +762,11 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // background through, so full alpha is correct — this is a compositing surface, not a tint).
     float alpha = smoothstep(0.0, SHORE_FADE, thickness);
     alpha = max(alpha, inp.sideFace * 0.85);   // curtains stay visible even where thin
+    // Simulated water (Phase F2): a 2 cm puddle on stone is seen by its REFLECTION, not its depth, so a
+    // thin film keeps at least its Fresnel share plus a floor instead of fading to nothing (the pad
+    // puddle vanished at thickness 0.02 against SHORE_FADE 0.4, 2026-10-09). The sea keeps the fade:
+    // its thin edge is the shoreline model's job.
+    if (inp.shoreFoam < 0.5) alpha = max(alpha, 0.25 + 0.75 * fres);
     // Foam is opaque spray: it should stay visible even where the water itself is fading out at a
     // shoreline, which is exactly where a stream's whitewater lives.
     alpha = max(alpha, inp.foam * 0.6);

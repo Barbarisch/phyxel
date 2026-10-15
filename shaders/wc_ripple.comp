@@ -1,0 +1,132 @@
+#version 450
+// WaterCore.md 25.34 - the ripple layer's step on the GPU (RippleGpu). The CPU reference is RippleLayer::step / advect /
+// limitSlope (engine/src/core/water/RippleLayer.cpp); every mode below mirrors one piece of it, rule for rule:
+//   mode 0 ADVECT   : both leapfrog levels back-traced along vel by dtAdv, Catmull-Rom sampled (a masked neighbour = 0)
+//   mode 1 COMBINE  : F = c2 r + ci I                (the impulse only on the frame's first substep - impAny)
+//   mode 2 CONV     : C = K * F (13 x 13), masked output 0
+//   mode 3 UPDATE   : next = c0 r - c1 prev - C; a kinematic cell: c0 r - c1 (r - kin ds) - c2 (K * r); rim absorbed
+//   mode 4 COMPSUM  : one workgroup per 256-cell chunk of a body (cells sorted by label): partial = (sum next, sum r)
+//   mode 5 COMPFINAL: one thread per body: its chunks summed in order -> means = (mean next, mean r)
+//   mode 6 COMPAPPLY: next -= mean next, r -= mean r (per body - the zero mean, 22.1)
+// The breaking limit (limitSlope) is wc_ripple_limit.comp: all 16 passes in one dispatch, on tiles in shared memory.
+// No float atomics anywhere: every sum is a fixed tree (the rest decision of 15.11's rule).
+layout(local_size_x = 256) in;
+layout(std430, set = 0, binding = 0)           buffer State  { float st[]; };      // four level slots of n floats
+layout(std430, set = 0, binding = 1)           buffer Tmp    { float tmp[]; };     // [0, n) F, [n, 2n) K * F
+layout(std430, set = 0, binding = 2) readonly  buffer Inp    { float inp[]; };     // impulse [0, n), kin [n, 2n), kin set [2n, 3n)
+layout(std430, set = 0, binding = 3) readonly  buffer Vel    { vec2 vel[]; };
+layout(std430, set = 0, binding = 4) readonly  buffer Kern   { float kern[]; };    // (2R+1)^2, row-major (dz, dx)
+layout(std430, set = 0, binding = 5) readonly  buffer Lab    { int lab[]; };       // the body of each cell, -1 = masked
+layout(std430, set = 0, binding = 6) readonly  buffer Cells  { uint compCells[]; };  // cells sorted by body
+layout(std430, set = 0, binding = 7) readonly  buffer Chunks { uvec4 chunk[]; };   // (body, first, count, 0) per 256-cell chunk
+layout(std430, set = 0, binding = 8)           buffer Part   { vec2 part[]; };     // per chunk partial sums
+layout(std430, set = 0, binding = 9) readonly  buffer Range  { uvec4 compRange[]; };  // per body (first chunk, chunks, cells, 0)
+layout(std430, set = 0, binding = 10)          buffer Means  { vec2 means[]; };
+
+layout(push_constant) uniform P {
+    int nx, nz, mode, n;
+    int oR, oPrev, oOut, oOut2;
+    float c0, c1, c2, ci;
+    float ds, dtAdv, lim0, lim1;
+    float tol, pitch; int openBorder, nComp;
+    int argBase, groups, impAny, kinAny;
+} pc;
+
+const int R = 6, W = 13;
+shared vec2 sh[256];
+
+bool inB(int x, int z) { return x >= 0 && z >= 0 && x < pc.nx && z < pc.nz; }
+
+float atLevel(int o, int x, int z) { return (inB(x, z) && lab[x + pc.nx * z] >= 0) ? st[o + x + pc.nx * z] : 0.0; }
+float cr(float p0, float p1, float p2, float p3, float t) {
+    return p1 + 0.5 * t * (p2 - p0 + t * (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3 + t * (3.0 * (p1 - p2) + p3 - p0)));
+}
+float sampleLevel(int o, float fx, float fz) {
+    const int x1 = int(floor(fx)), z1 = int(floor(fz));
+    const float tx = fx - float(x1), tz = fz - float(z1);
+    float row[4];
+    for (int j = 0; j < 4; ++j) { const int z = z1 - 1 + j; row[j] = cr(atLevel(o, x1 - 1, z), atLevel(o, x1, z), atLevel(o, x1 + 1, z), atLevel(o, x1 + 2, z), tx); }
+    return cr(row[0], row[1], row[2], row[3], tz);
+}
+float convR(int x, int z) {   // K * r at one cell (RippleLayer::convolveAt: every in-bounds cell, masked ones hold 0)
+    float acc = 0.0;
+    for (int dz = -R; dz <= R; ++dz) for (int dx = -R; dx <= R; ++dx)
+        if (inB(x + dx, z + dz)) acc += kern[W * (dz + R) + dx + R] * st[pc.oR + (x + dx) + pc.nx * (z + dz)];
+    return acc;
+}
+
+void main() {
+    const uint gid = gl_GlobalInvocationID.x, lid = gl_LocalInvocationID.x, wg = gl_WorkGroupID.x;
+    const int i = int(gid);
+    const int x = i % max(pc.nx, 1), z = i / max(pc.nx, 1);
+
+    if (pc.mode == 0) {   // ADVECT: r -> oOut, prev -> oOut2
+        if (i >= pc.n) return;
+        if (lab[i] < 0) { st[pc.oOut + i] = 0.0; st[pc.oOut2 + i] = 0.0; return; }
+        const float sx = float(x) - vel[i].x * pc.dtAdv / pc.pitch, sz = float(z) - vel[i].y * pc.dtAdv / pc.pitch;
+        st[pc.oOut + i] = sampleLevel(pc.oR, sx, sz);
+        st[pc.oOut2 + i] = sampleLevel(pc.oPrev, sx, sz);
+        return;
+    }
+    if (pc.mode == 1) {   // COMBINE
+        if (i >= pc.n) return;
+        tmp[i] = pc.c2 * st[pc.oR + i] + (pc.impAny != 0 ? pc.ci * inp[i] : 0.0);
+        return;
+    }
+    if (pc.mode == 2) {   // CONV
+        if (i >= pc.n) return;
+        if (lab[i] < 0) { tmp[pc.n + i] = 0.0; return; }
+        float acc = 0.0;
+        for (int dz = -R; dz <= R; ++dz) {
+            const int zz = z + dz;
+            if (zz < 0 || zz >= pc.nz) continue;
+            for (int dx = -R; dx <= R; ++dx) {
+                const int xx = x + dx;
+                if (xx < 0 || xx >= pc.nx) continue;
+                acc += kern[W * (dz + R) + dx + R] * tmp[xx + pc.nx * zz];
+            }
+        }
+        tmp[pc.n + i] = acc;
+        return;
+    }
+    if (pc.mode == 3) {   // UPDATE -> oOut
+        if (i >= pc.n) return;
+        if (lab[i] < 0) { st[pc.oOut + i] = 0.0; return; }
+        const float r = st[pc.oR + i];
+        float v;
+        if (pc.kinAny != 0 && inp[2 * pc.n + i] > 0.5) v = r * pc.c0 - (r - inp[pc.n + i] * pc.ds) * pc.c1 - pc.c2 * convR(x, z);
+        else v = r * pc.c0 - st[pc.oPrev + i] * pc.c1 - tmp[pc.n + i];
+        if (pc.openBorder != 0) {
+            const int rim = min(min(x, z), min(pc.nx - 1 - x, pc.nz - 1 - z));
+            if (rim < 2) v *= 0.5 * float(rim);
+        }
+        st[pc.oOut + i] = v;
+        return;
+    }
+    if (pc.mode == 4) {   // COMPSUM: workgroup wg = chunk
+        const uvec4 c = chunk[wg];
+        vec2 mine = vec2(0.0);
+        if (lid < c.z) { const uint cell = compCells[c.y + lid]; mine = vec2(st[pc.oOut + cell], st[pc.oR + cell]); }
+        sh[lid] = mine;
+        barrier();
+        for (uint s = 128u; s > 0u; s >>= 1) { if (lid < s) sh[lid] += sh[lid + s]; barrier(); }
+        if (lid == 0u) part[wg] = sh[0];
+        return;
+    }
+    if (pc.mode == 5) {   // COMPFINAL: thread = body
+        if (i >= pc.nComp) return;
+        const uvec4 rg = compRange[i];
+        vec2 sum = vec2(0.0);
+        for (uint k = 0u; k < rg.y; ++k) sum += part[rg.x + k];
+        means[i] = sum / float(max(rg.z, 1u));
+        return;
+    }
+    if (pc.mode == 6) {   // COMPAPPLY
+        if (i >= pc.n) return;
+        const int b = lab[i];
+        if (b < 0) return;
+        st[pc.oOut + i] -= means[b].x;
+        st[pc.oR + i] -= means[b].y;
+        return;
+    }
+}

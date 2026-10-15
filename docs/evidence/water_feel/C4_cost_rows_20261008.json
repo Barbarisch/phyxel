@@ -1,0 +1,53 @@
+{
+ "note": "S3 block (252 m^3) on the Basin at 1/3 m, 60 ticks after placement, Release, wall ms per tick over HTTP; slice 4: both transports on both backends",
+ "rows": [
+  {
+   "transport": "eulerian",
+   "backend": "cpu",
+   "cellSize": 0.3333,
+   "cells": 75816,
+   "particles": 0,
+   "ms_per_tick": 30.42,
+   "substeps_last": 1,
+   "sweeps_or_iters": 76,
+   "residual": 7.180299453891466e-07,
+   "mass": 252.00002898565617
+  },
+  {
+   "transport": "eulerian",
+   "backend": "gpu",
+   "cellSize": 0.3333,
+   "cells": 75816,
+   "particles": 0,
+   "ms_per_tick": 1.33,
+   "substeps_last": 1,
+   "sweeps_or_iters": 117,
+   "residual": 0.0004596710205078125,
+   "mass": 252.00000444606403
+  },
+  {
+   "transport": "flip",
+   "backend": "cpu",
+   "cellSize": 0.3333,
+   "cells": 75816,
+   "particles": 54432,
+   "ms_per_tick": 52.06,
+   "substeps_last": 1,
+   "sweeps_or_iters": 67,
+   "residual": 8.58522392959637e-07,
+   "mass": 252.0000272244215
+  },
+  {
+   "transport": "flip",
+   "backend": "gpu",
+   "cellSize": 0.3333,
+   "cells": 75816,
+   "particles": 54432,
+   "ms_per_tick": 2.41,
+   "substeps_last": 1,
+   "sweeps_or_iters": 117,
+   "residual": 0.001007080078125,
+   "mass": 252.0000272244215
+  }
+ ]
+}

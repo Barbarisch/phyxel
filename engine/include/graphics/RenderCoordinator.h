@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/WaterSpanGridKey.h"
 #include "core/Types.h"
 #include "core/LodService.h"
 #include "core/WorldConstants.h"
@@ -20,6 +21,7 @@
 #include "graphics/TreeLodRenderPipeline.h"
 #include "graphics/FarTerrainRenderPipeline.h"   // TileDraw (far-cascade caster cache)
 #include "graphics/VoxelLightOccupancyGpu.h"     // M1b: sub-voxel occupancy on the GPU
+#include "core/WaterManager.h"               // WaterSurfaceCell (WaterCore debug feed)
 #include <functional>
 #include <future>
 #include <memory>
@@ -67,6 +69,9 @@ namespace Phyxel {
         class VfxRenderPipeline;
         class WaterRenderPipeline;
         class WaterCellRenderPipeline;
+}}
+#include "graphics/WaterSurfaceRenderPipeline.h"
+namespace Phyxel { namespace Graphics {
         class FireEmitterManager;
     }
     namespace Core {
@@ -554,6 +559,47 @@ public:
     bool  isWaterEnabled() const { return m_waterEnabled; }
     void  setSeaLevel(float y) { m_seaLevel = y; }
     float getSeaLevel() const { return m_seaLevel; }
+    // Read-only view of the sea-sheet pipeline for the `water_render_grid` probe (what the renderer
+    // would draw per column). Null before Vulkan init / without a water pipeline.
+    const WaterRenderPipeline* waterRenderPipeline() const { return waterPipeline.get(); }
+    /// The micro occupancy object (three-state query) for the WaterCore solid binding (§15.1).
+    const VoxelLightOccupancyGpu* lightOccupancy() const { return m_lightOccupancy.get(); }
+    /// WaterCore Phase B debug feed: extra surface cells drawn by the cell pipeline (null = none).
+    void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
+    /// Phase F (17): the volumes' surface fields; the mesh is rebuilt from them every frame.
+    void setWaterCoreSurfaceFields(const std::vector<Core::Water::WaterSurfaceField>* fields) { m_waterCoreFields = fields; }
+    void setWaterFineField(const Core::Water::WaterSurfaceField* field) { m_waterFineField = field; }   // G4: the nested fine band
+    void setWaterShoreField(const Core::Water::WaterSurfaceField* field) { m_waterShoreField = field; }   // Phase G: the shore band's surface, meshed with the volumes'
+    /// G3: the per-body look of a world column (the span grid packs it per column, the underwater overlay
+    /// reads it at the eye). Unset = the derived look everywhere.
+    void setWaterLookResolver(std::function<Core::Water::WaterLook(int, int, float)> r) { m_waterLookResolver = std::move(r); ++m_waterLookRevision; }   ///< (x, z, stored top or NaN)
+    void bumpWaterLookRevision() { ++m_waterLookRevision; m_spanGridCooldown = 0; }
+    void setWaterCoreRenderMode(Core::Water::WaterCoreRenderMode m) { m_waterCoreMode = m; }
+    Core::Water::WaterCoreRenderMode waterCoreRenderMode() const { return m_waterCoreMode; }
+    size_t waterCoreMeshVertices() const { return m_waterCoreMesh.vertices.size(); }
+    long waterCoreMeshTopQuads() const { return m_waterCoreMesh.topQuads; }
+    long waterCoreMeshSideQuads() const { return m_waterCoreMesh.sideQuads; }
+    double waterCoreMeshMs() const { return m_waterCoreMeshMs; }
+    bool waterCoreMeshTruncated() const { return waterSurfacePipeline && waterSurfacePipeline->lastTruncated(); }
+    void setWaterCoreDebugMode(int m) { if (waterSurfacePipeline) waterSurfacePipeline->setDebugMode(m); }
+    /// 21: the droplet crown's cubes (xyz centre, w edge) drawn with the water mesh; null = none.
+    void setWaterCoreDroplets(const std::vector<glm::vec4>* d) { m_waterCoreDroplets = d; }
+    /// 22: the ripple layers, parallel to the surface fields (null entries = none); smooth = the bilinear A/B.
+    void setWaterCoreRipples(const std::vector<const Core::Water::RippleLayer*>* r, bool smooth) { if (waterSurfacePipeline) waterSurfacePipeline->setRipples(r, smooth); }
+    void setWaterCoreScatterLegacy(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setScatterLegacy(on); }
+    bool waterCoreScatterLegacy() const { return waterSurfacePipeline && waterSurfacePipeline->scatterLegacy(); }
+    void setWaterCoreHorizonGuard(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setHorizonGuard(on); }
+    bool waterCoreHorizonGuard() const { return waterSurfacePipeline && waterSurfacePipeline->horizonGuard(); }
+    void setWaterCoreDefaultClarity(float m) { if (waterSurfacePipeline) waterSurfacePipeline->setDefaultClarity(m); }
+    float waterCoreDefaultClarity() const { return waterSurfacePipeline ? waterSurfacePipeline->defaultClarity() : 0.0f; }
+    int  waterCoreDebugMode() const { return waterSurfacePipeline ? waterSurfacePipeline->debugMode() : 0; }
+    /// Phase D (16.4): the live volumes' world boxes + their revision; the span grid masks those columns.
+    void setWaterCoreVolumeBoxes(const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, uint64_t revision) { m_waterCoreBoxes = boxes; m_waterCoreBoxRevision = revision; }
+    /// Phase D5 probe self-test: upload an all-dry grid and hold it (frozen) until restore(false), which rebuilds.
+    void injectDrySpanGrid(bool on);
+    /// Phase B2 debug draw: FLIP particles as water-shaded cubes of their cell size through the dynamic
+    /// voxel pipeline (docs/WaterCore.md §15.9). Null or empty = nothing drawn.
+    void setWaterCoreParticles(const std::vector<glm::vec4>* particles) { m_waterCoreParticles = particles; }
 
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
     // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
@@ -1061,8 +1107,15 @@ private:
     // Water-layer P1: identity of the last hydrology bake uploaded to the sea pipeline. Starts
     // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
     // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
-    const void* m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
-    size_t m_spanGridChunkCount = 0;   // rebuild the span water grid when residency changes
+    uint64_t m_waterLookRevision = 0;   // Phase D5: look / wind / wave changes re-pack the span grid (no bake upload exists any more)
+    bool     m_spanGridFrozen = false;  // the probe's self-test injects a dry grid and holds it until restore
+    Core::SpanGridKey m_spanGridKey;    // rebuild the span water grid when the RESIDENT SET, the span revision or the AV set changes (WaterCore.md 16.4)
+    bool   m_spanGridBuilt = false;
+    const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_waterCoreBoxes = nullptr;   // live AV boxes (+ the shore band's): their columns are the AV's, not the grid's
+    const Core::Water::WaterSurfaceField* m_waterShoreField = nullptr;   // Phase G
+    const Core::Water::WaterSurfaceField* m_waterFineField = nullptr;    // G4
+    std::function<Core::Water::WaterLook(int, int, float)> m_waterLookResolver;   // G3
+    uint64_t m_waterCoreBoxRevision = 0;
     int    m_spanGridCooldown = 0;
     // v4 W1 water-look override (see setWaterLook). Neutral values = today's look exactly.
     bool  m_waterLookActive = false;
@@ -1389,12 +1442,25 @@ private:
     // Water surface. Default OFF; enabled + sea level come from the per-world game
     // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
+    const std::vector<Core::WaterSurfaceCell>* m_waterCoreCells = nullptr;   // WaterCore debug feed
+    const std::vector<Core::Water::WaterSurfaceField>* m_waterCoreFields = nullptr;   // Phase F: the volumes' surface fields
+    const std::vector<glm::vec4>* m_waterCoreDroplets = nullptr;   // 21: droplet cubes
+    Core::Water::WaterCoreRenderMode m_waterCoreMode = Core::Water::kWaterCoreRenderModeDefault;
+    Core::Water::WaterSurfaceMesh m_waterCoreMesh;   // rebuilt every frame from the fields
+    double m_waterCoreMeshMs = 0.0;
+    const std::vector<glm::vec4>* m_waterCoreParticles = nullptr;        // WaterCore Phase B2 debug draw (x, y, z, size)
+    VkBuffer       m_flipDebugBuffer = VK_NULL_HANDLE;                   // CPU-fed DynamicSubcubeInstanceData, 6 faces per particle
+    VkDeviceMemory m_flipDebugMemory = VK_NULL_HANDLE;
+    void*          m_flipDebugMapped = nullptr;
+    static constexpr uint32_t kFlipDebugMaxParticles = 32768;            // 12.6 MB of faces; the draw subsamples above it
+    void renderFlipParticlesDebug();
     bool  m_waterEnabled = false;
     float m_seaLevel = Core::kSeaLevelY; // shared default (WorldConstants.h) — must match the
                                          // water sim or the plane draws where no water is
 
     // Per-cell water surface rendering (the CPU sim's actual field).
     std::unique_ptr<WaterCellRenderPipeline> waterCellPipeline;
+    std::unique_ptr<WaterSurfaceRenderPipeline> waterSurfacePipeline;   // WaterCore Phase F
     Core::WaterManager* m_waterManager = nullptr;
     // True for frames where the reflection pass was rendered for the water plane
     // (decided before the scene pass, consumed when the water surface is drawn).

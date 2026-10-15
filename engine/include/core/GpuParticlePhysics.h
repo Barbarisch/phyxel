@@ -181,6 +181,10 @@ public:
     ImpulseQueued applyRadialImpulse(const glm::vec3& center, float radius, float impulse, float upBias = 0.0f);
     ImpulseQueued applyConeImpulse(const glm::vec3& origin, const glm::vec3& dir, float halfAngleDeg,
                                    float range, float impulse, float upBias = 0.0f);
+    /** Wake every SLEEPING body within `radius` of `center` without pushing it (dv = 0). A zero-strength
+     *  impulse - the solver wakes sleepers within IMPULSE_WAKE_SCALE x an impulse's radius. Used by water
+     *  that moves under resting floaters (docs/WaterCore.md 19.6). Shares the MAX_IMPULSES budget. */
+    ImpulseQueued wakeSphere(const glm::vec3& center, float radius);
     /** Phase 6: debris events read back from the GPU (sleep / wake / impact), two frames after the
      *  ticks that produced them. takeEvents() drains what arrived since the last call. A slot is
      *  identified by `slot` + `serial` (the serial changes whenever the slot is (re)spawned, so a
@@ -195,6 +199,23 @@ public:
         uint32_t    serial = 0;          // slotSerial(slot) when the event was READ
     };
     std::vector<DebrisEvent> takeEvents() { std::vector<DebrisEvent> out; out.swap(m_events); return out; }
+    /** WaterCore E2: the water's share of wet bodies' drag + current since the last call (two frames
+     *  late, like events). mass = the body's mass in water units (m^3); the water receives -mass*dv. */
+    struct WaterExchange { glm::vec3 position{0.0f}; float mass = 0.0f; glm::vec3 dv{0.0f}; float radius = 0.0f; };
+    std::vector<WaterExchange> takeWaterExchange() { std::vector<WaterExchange> out; out.swap(m_waterExchange); return out; }
+    uint64_t waterExchangeTotal() const { return m_exchangeTotal; }
+    uint64_t waterExchangeDropped() const { return m_exchangeDropped; }
+    /// WaterCore 20 (moving solids, docs/WaterCore.md 20.4): the water volumes' world boxes (min, max). Up to
+    /// MAX_WATER_BOXES are passed to the integrator; more are counted (their bodies displace nothing).
+    void setWaterVolumeBoxes(const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes);
+    /// The bodies inside those boxes, one per body (its last tick), as of the frame whose slot was last read -
+    /// `ageSeconds` old (two frames: MAX_FRAMES_IN_FLIGHT). A frame with no physics tick keeps the previous
+    /// list (no records is not "no bodies" - read naively, every body would vanish for a frame). `fresh` = the
+    /// body (slot + serial) was not in the previous list.
+    struct WetBody { glm::vec3 centre{0.0f}, halfExtents{0.0f}, velocity{0.0f}; uint32_t slot = 0; uint32_t serial = 0; float ageSeconds = 0.0f; bool fresh = false; };
+    const std::vector<WetBody>& wetBodies() const { return m_wetBodies; }
+    struct WetStats { uint64_t recordsTotal = 0, recordsDropped = 0; uint32_t boxes = 0, boxesDropped = 0; };
+    const WetStats& wetStats() const { return m_wetStats; }
     /** Phase 6a: per owner tag, the impulse (N*s) debris contacts put on its mover boxes, summed
      *  over the frames read back since the last call (two frames late). Normal force only. */
     std::unordered_map<uint32_t, glm::vec3> takeMoverImpulses() {
@@ -397,6 +418,20 @@ private:
     void*            m_eventMapped[OCC_FRAME_SLOTS] = {};
     bool             m_eventsWritten[OCC_FRAME_SLOTS] = {};   // ticks ran into this slot; read after its fence
     std::vector<DebrisEvent> m_events;
+    // WaterCore E2: the water-exchange readback, per frame slot (written by solver_integrate)
+    VkBuffer         m_exchangeBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_exchangeMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_exchangeMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<WaterExchange> m_waterExchange;
+    VkBuffer         m_wetBuffer[OCC_FRAME_SLOTS] = {};   // WaterCore 20: boxes + wet-body records, per frame slot
+    VkDeviceMemory   m_wetMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_wetMapped[OCC_FRAME_SLOTS] = {};
+    bool             m_wetWritten[OCC_FRAME_SLOTS] = {};
+    double           m_wetStampSec[OCC_FRAME_SLOTS] = {};
+    std::vector<std::pair<glm::vec3, glm::vec3>> m_waterBoxes;
+    std::vector<WetBody> m_wetBodies;
+    WetStats         m_wetStats;
+    uint64_t         m_exchangeTotal = 0, m_exchangeDropped = 0;
     // Phase 6a push-back readback: per frame slot, with the owner tag of every kinematic body as
     // staged for that slot (the order changes every frame).
     VkBuffer         m_pushBuffer[OCC_FRAME_SLOTS] = {};
@@ -415,7 +450,7 @@ private:
     uint32_t         m_impulseOverflow       = 0;   // dropped past MAX_IMPULSES (lifetime count)
     uint64_t         m_impulsesSubmitted     = 0;
     ImpulseQueued    queueImpulse(const glm::vec3& c, float radius, const glm::vec3& axis, float cosHalf,
-                                  float impulse, float upBias, float halfAngleDeg);
+                                  float impulse, float upBias, float halfAngleDeg, bool wakeOnly = false);
     uint32_t         m_kinematicCount     = 0;
 
     // Per-material physics properties — host-coherent, persistently mapped

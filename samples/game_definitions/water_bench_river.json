@@ -1,0 +1,54 @@
+{
+  "name": "WaterBench_River",
+  "version": "1.0",
+  "description": "WATER v4 bench #3 (docs/WaterRethink.md WP1, WP2, WP4). Streaming Mountains world, seed 20260729 (the old RiverLab recipe). THE BENCH SITE IS THE ORDER-5 TRUNK RIVER (width 14) running north-south near x~-1728, z -1800..-500, bed y~19 almost flat along 1200 u in a 60-80 u wide valley with banks at 80-100 (measured 2026-10-07 with water_find_river min_order 5 + terrain_height cross-sections). Used to prove river spans exist (WP1), that far tiles carry a river ribbon (WP2) and that water transports things downstream (WP4). The RiverLab-era 'order-3 gorge at (704,-1152)' is a different thing: an alpine spill lake (level 277.56) pouring into a near-vertical chasm (bed 185-226 under 290 banks); kept below as `chasm` for the WP1 overfill red test only. Rivers are procedural - locate them with POST /api/debug/water_find_river, never by guessing.",
+  "world": {
+    "type": "Mountains",
+    "seed": 20260729,
+    "streaming": true,
+    "loadRadius": 7,
+    "unloadRadius": 10,
+    "renderDistance": 384,
+    "params": { "climateFrequency": 0.0012 },
+    "_comment": "Identical recipe to RiverLab (deleted 2026-10-07) so the gorge coordinates reproduce; verify re-locates it with water_find_river before trusting them."
+  },
+  "water": {
+    "enabled": true,
+    "bakedTable": true,
+    "oceanBoundary": false,
+    "_comment": "Default sea 16 (real ocean outlet, min terrain -14.1). oceanBoundary FALSE: the sim region frontier here is mountain terrain, not open sea."
+  },
+  "camera": {
+    "position": { "x": -1728, "y": 115, "z": -1320 },
+    "yaw": 90,
+    "pitch": -28,
+    "_comment": "Above the valley south of the reach, looking north (+Z) along the trunk river. Bank tops measured 88-104 here, so y=115 clears them."
+  },
+  "player": {
+    "type": "animated",
+    "position": { "x": -1716, "y": 28, "z": -1152 },
+    "_comment": "On the east bank 6 u from the channel at z=-1152 (surface_y 26 measured; channel bed 19 at x=-1722). Never teleport into unstreamed terrain; the spawn streams around the player at boot."
+  },
+  "waterBench": {
+    "rig": "river",
+    "trunk": { "x": -1722, "z": -1152, "minOrder": 5, "searchRadius": 300, "_comment": "Channel line measured 2026-10-07 (lowest column per cross-section): x=-1740 at z=-1216, x=-1722 at z=-1152, x=-1728 at z=-1088; bed 19 at all three (flat reach). Width 14 (order 5)." },
+    "chasm": { "x": 704, "z": -1152, "minOrder": 3, "_comment": "The RiverLab-era order-3 site. WP1 overfill red: a 9x9 rect (700,-1156)-(708,-1148) around it held 204 spans with tops 192-325 while its bed is 185-226 (measured 2026-10-07) - the coarse-bake-seeded flood pours the spill lake's level into the gorge. After WP1 a river column's span top must be bed + channel depth, never the lake level." },
+    "spanRect": [-1800, -1216, -1660, -1088],
+    "expectSpans": {
+      "_comment": "WP1's RED baseline, MEASURED 2026-10-07 (record-only until WP1; no min/max so verify passes and archives it). The 140x128 rect holds 128 u of order-5 river whose bed is 19 and whose bake table is DRY (water_table_level level 0, river_channel true, order 5), yet it holds 42,924 chunk spans with tops 32..108.6; water_span_scan: span_wet 18,189 of 18,189 columns vs bake_wet 512, max_depth 89.8, mean_depth 32.5 - the whole valley renders as a 90-deep lake (captures trunk_down/trunk_top are solid water, trees poking through at y~100). CAUSE: a bake lake at level 107.8 occupies the cells around (-1920..-1856, -1280..-1216) just west of the valley; floodBodiesOverGrid fills every connected column lower than the body level and the only thing that stops it walking downhill OUT of the lake's outlet is the 256-step budget, so the outlet valley floods to the lake level out to the budget frontier (the 'floating wall' class, Water.md 2b-FIX, at valley scale). The existing water_span_scan disagreement metric (bake_wet AND terrain_dry) reads 0.0% here - it is blind to span-wet-where-bake-dry.",
+      "redMetric": "span_wet AND NOT bake_wet AND NOT river_channel == 0 columns (today: 17,677 of 18,189 in this rect)",
+      "today": { "spans": 42924, "span_wet_columns": 18189, "bake_wet_columns": 512, "min_top": 32.0, "max_top": 108.59, "max_depth": 89.8 },
+      "afterWP1": "every river column has exactly one span with top = bed + channel depth (order 5: 20.0); no span in a bake-dry, non-river column; the perched lake keeps its own basin only"
+    },
+    "riverColumnRect": [-1730, -1156, -1714, -1148],
+    "expectRiverColumnSpans": { "today": 603, "_comment": "17x9 columns around the channel: 603 spans (several per column from vertical chunk clipping of a 13-90 deep water column over a bed of 19). After WP1: 153 spans or fewer, tops ~20." }
+  },
+  "testVantages": {
+    "_comment": "Poses measured against terrain_height cross-sections on 2026-10-07; a screenshot per pose is owed before they are called final.",
+    "vantages": [
+      { "name": "trunk_down", "x": -1728, "y": 115, "z": -1320, "yaw": 90, "pitch": -28, "tests": "Looking north along the trunk: river ribbon in its valley, bank line, flow direction, far ribbon after WP2." },
+      { "name": "trunk_bank", "x": -1716, "y": 29, "z": -1140, "yaw": -90, "pitch": -6, "tests": "On the east bank beside the water looking south (-Z) along the channel: bank foam, obstacle wakes, a crate drifting past (WP4 L4)." },
+      { "name": "trunk_top", "x": -1722, "y": 110, "z": -1152, "yaw": 90, "pitch": -89, "tests": "Top-down on the channel: span footprint vs carve footprint (WP1 L2), ribbon width." }
+    ]
+  }
+}

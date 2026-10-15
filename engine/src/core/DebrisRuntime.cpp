@@ -108,6 +108,13 @@ void DebrisRuntime::beginFrame(float dt) {
     }
 }
 
+DebrisRuntime::WaterColumnFn DebrisRuntime::composeColumn(WaterColumnFn volume, WaterColumnFn fallback) {
+    return [volume = std::move(volume), fallback = std::move(fallback)](int wx, int wz, float& s, glm::vec2& f) {
+        if (volume && volume(wx, wz, s, f)) return true;
+        return fallback ? fallback(wx, wz, s, f) : false;
+    };
+}
+
 bool DebrisRuntime::buildWaterTile(int chunkX, int chunkZ, const WaterColumnFn& column, bool implicitSea,
                                    float seaLevel, std::vector<uint32_t>& out) {
     using namespace DebrisShared;
@@ -155,7 +162,7 @@ void DebrisRuntime::updateWater() {
     using namespace DebrisShared;
     ++m_waterFrame;
     glm::ivec3 box;
-    const bool ready = m_gpu && m_water && m_gpu->occupancyBoxMinChunk(box);
+    const bool ready = m_gpu && (m_water || m_volumeColumn) && m_gpu->occupancyBoxMinChunk(box);   // E2: a volume alone is a water source
     m_waterStats.ready = ready;
     if (!ready) {
         if (m_waterUploaded) { m_gpu->setWater(glm::ivec2(0), false, 0.0f, {}, {}); m_waterUploaded = false; }
@@ -181,14 +188,24 @@ void DebrisRuntime::updateWater() {
             return ax * ax + az * az < bx * bx + bz * bz;
         });
     }
-    const bool  sea   = m_water->implicitSea();
-    const float seaY  = m_water->seaLevel();
-    const glm::ivec3 ro = m_water->regionOrigin(), rd = m_water->regionDims();
+    const bool  sea   = m_water ? m_water->implicitSea() : false;
+    const float seaY  = m_water ? m_water->seaLevel() : 0.0f;
+    const glm::ivec3 ro = m_water ? m_water->regionOrigin() : glm::ivec3(0), rd = m_water ? m_water->regionDims() : glm::ivec3(0);
+    int volumeTiles = 0;
+    auto underVolume = [&](int cx, int cz) {   // E2: a chunk column an active volume's box touches
+        if (!m_volumeColumn || !m_volumeBoxes) return false;
+        const int x0 = cx * WATER_TILE_CELLS, z0 = cz * WATER_TILE_CELLS;
+        for (const auto& b : *m_volumeBoxes)
+            if (b.first.x < x0 + WATER_TILE_CELLS && b.second.x >= x0 && b.first.z < z0 + WATER_TILE_CELLS && b.second.z >= z0) return true;
+        return false;
+    };
     auto inSim = [&](int cx, int cz) {
+        if (underVolume(cx, cz)) { ++volumeTiles; return true; }   // the volume moves: rebuilt every frame
         const int x0 = cx * WATER_TILE_CELLS, z0 = cz * WATER_TILE_CELLS;
         return x0 < ro.x + rd.x && x0 + WATER_TILE_CELLS > ro.x && z0 < ro.z + rd.z && z0 + WATER_TILE_CELLS > ro.z;
     };
-    const WaterColumnFn column = [this](int wx, int wz, float& s, glm::vec2& f) { return m_water->columnWater(wx, wz, s, f); };
+    const WaterColumnFn fallback = m_water ? WaterColumnFn([this](int wx, int wz, float& s, glm::vec2& f) { return m_water->columnWater(wx, wz, s, f); }) : WaterColumnFn();
+    const WaterColumnFn column = composeColumn(m_volumeColumn, fallback);
     auto key = [](int cx, int cz) { return (static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz); };
     auto build = [&](int cx, int cz) {
         CachedWaterTile t;
@@ -231,6 +248,7 @@ void DebrisRuntime::updateWater() {
     m_waterStats.tilesUploaded = static_cast<int>(tiles);
     m_waterStats.tilesCached   = static_cast<int>(m_waterCache.size());
     m_waterStats.tilesPending  = pending;
+    m_waterStats.volumeTiles   = volumeTiles;
     m_waterStats.minChunk      = minChunk;
     m_gpu->setWater(minChunk, sea, seaY, std::move(dir), std::move(cells));
     m_waterUploaded = true;

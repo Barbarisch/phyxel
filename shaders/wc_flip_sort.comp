@@ -1,0 +1,66 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel F3: counting sort of the FLIP particles by cell, then by creation id within
+// the cell, so p2g gathers in a FIXED order (docs/WaterCore.md §15.11: determinism without atomics
+// on floats). Integer atomics on the counts are order-independent; the within-cell order is
+// restored by the per-cell id sort, so the scatter's atomic cursor does not matter either.
+//   mode 0: clear counts and cursors (per cell)
+//   mode 1: histogram: count[cell(p)]++ (per particle; iparam = particle count)
+//   mode 2: exclusive scan of counts -> start (ONE workgroup of 1024 threads, each a contiguous
+//           chunk; thread 0 serialises the 1024 chunk sums - O(cells / 1024) per thread)
+//   mode 3: scatter: B[start[cell] + cursor[cell]++] = A[p] (per particle)
+//   mode 4: per cell, insertion-sort its range of B by id (per cell; ranges are short)
+#include "water_core.glsl"
+layout(local_size_x = 1024) in;
+layout(std430, set = 0, binding = 0)          buffer PosA { vec4 posA[]; };   // xyz = grid-local cell units, w = mass (m^3)
+layout(std430, set = 0, binding = 1)          buffer VelA { vec4 velA[]; };   // xyz = m/s, w = id (as float bits via floatBitsToUint)
+layout(std430, set = 0, binding = 2)          buffer PosB { vec4 posB[]; };
+layout(std430, set = 0, binding = 3)          buffer VelB { vec4 velB[]; };
+layout(std430, set = 0, binding = 4)          buffer Count { uint count[]; };
+layout(std430, set = 0, binding = 5)          buffer Start { uint start[]; };
+layout(std430, set = 0, binding = 6)          buffer Cursor { uint cursor[]; };
+
+shared uint chunkSum[1024];
+
+uint cellOf(vec4 p) {
+    const ivec3 c = clamp(ivec3(floor(p.xyz)), ivec3(0), ivec3(pc.nx - 1, pc.ny - 1, pc.nz - 1));
+    return cellIdx(c.x, c.y, c.z);
+}
+
+void main() {
+    const uint gid = gl_GlobalInvocationID.x, lid = gl_LocalInvocationID.x;
+    const uint cells = uint(pc.nx * pc.ny * pc.nz);
+    const uint n = uint(pc.iparam);
+    if (pc.mode == 0) {
+        if (gid < cells) { count[gid] = 0u; cursor[gid] = 0u; }
+    } else if (pc.mode == 1) {
+        if (gid < n) atomicAdd(count[cellOf(posA[gid])], 1u);
+    } else if (pc.mode == 2) {
+        const uint chunk = (cells + 1023u) / 1024u;
+        const uint lo = lid * chunk, hi = min(lo + chunk, cells);
+        uint s = 0u;
+        for (uint i = lo; i < hi; ++i) s += count[i];
+        chunkSum[lid] = s;
+        barrier();
+        if (lid == 0u) { uint acc = 0u; for (uint k = 0u; k < 1024u; ++k) { const uint c = chunkSum[k]; chunkSum[k] = acc; acc += c; } }
+        barrier();
+        uint run = chunkSum[lid];
+        for (uint i = lo; i < hi; ++i) { start[i] = run; run += count[i]; }
+    } else if (pc.mode == 3) {
+        if (gid < n) {
+            const uint c = cellOf(posA[gid]);
+            const uint slot = start[c] + atomicAdd(cursor[c], 1u);
+            posB[slot] = posA[gid]; velB[slot] = velA[gid];
+        }
+    } else {
+        if (gid >= cells) return;
+        const uint lo = start[gid], hi = lo + count[gid];
+        for (uint i = lo + 1u; i < hi; ++i) {               // insertion sort by id (velB.w holds the id bits)
+            const vec4 p = posB[i], v = velB[i];
+            const uint id = floatBitsToUint(v.w);
+            uint j = i;
+            while (j > lo && floatBitsToUint(velB[j - 1u].w) > id) { posB[j] = posB[j - 1u]; velB[j] = velB[j - 1u]; --j; }
+            posB[j] = p; velB[j] = v;
+        }
+    }
+}

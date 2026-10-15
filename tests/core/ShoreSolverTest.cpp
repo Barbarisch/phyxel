@@ -1,0 +1,268 @@
+#include <gtest/gtest.h>
+
+#include "core/water/SeaSwell.h"
+#include "core/water/ShoreSolver.h"
+#include "core/water/ColumnWater.h"
+
+#include <cmath>
+#include <cstdio>
+
+// WaterCore Phase G (docs/WaterCore.md 18.4): the shoreline band's column solver. The rows the
+// 3-D fill-fraction core failed (a swell carried into a free channel) and the physics a shore needs
+// (run-up against Hunt's formula, mass-exact wet/dry, a wall reflects).
+
+namespace Phyxel::Core::Water {
+namespace {
+
+constexpr float kDt = 1.0f / 60.0f;
+
+struct Airy {
+    float a, L, d;
+    float k() const { return 6.28318530718f / L; }
+    float omega() const { return k() * std::sqrt(9.81f / k()); }
+    float period() const { return 6.28318530718f / omega(); }
+    float cPhase() const { return omega() / k(); }
+    float eta(float x, float t) const { return a * std::sin(k() * x - omega() * t); }
+    /// depth-averaged horizontal velocity of the progressive wave (linear theory): (eta / d) c_shallow-ish;
+    /// exact Airy: u_avg = a omega / (k d) sin(theta) ... = (eta / d) * (omega / k)
+    float uAvg(float x, float t) const { return eta(x, t) / d * cPhase(); }
+};
+
+ShoreSolver channel(int nx, float h, float still, float bedY = 0.0f) {
+    ShoreSolver s(glm::vec2(0.0f), nx, 1, h);
+    for (int x = 0; x < nx; ++x) { s.col(x, 0).bed = bedY; s.col(x, 0).eta = still; }
+    return s;
+}
+
+TEST(ShoreSolverTest, StillWaterOnASlopeStaysStill) {
+    // a 1:10 beach under still water at 3.0: nothing moves, mass is exact, after 600 ticks
+    ShoreSolver s(glm::vec2(0.0f), 60, 4, 1.0f / 3.0f);
+    for (int z = 0; z < 4; ++z) for (int x = 0; x < 60; ++x) { s.col(x, z).bed = x / 30.0f; s.col(x, z).eta = std::max(3.0f, x / 30.0f); }
+    const double m0 = s.totalMass();
+    ShoreStepReport r;
+    for (int k = 0; k < 600; ++k) r = s.step(kDt);
+    EXPECT_LT(r.maxSpeed, 1e-6f);
+    EXPECT_NEAR(s.totalMass(), m0, 1e-9 * m0);
+    for (int x = 0; x < 60; ++x) EXPECT_NEAR(s.col(x, 1).eta, std::max(3.0f, x / 30.0f), 1e-6f);
+    for (int z = 0; z < 4; ++z) for (int x = 0; x < 60; ++x) EXPECT_EQ(s.col(x, z).foam, 0.0f) << "no motion, no foam (G2)";
+}
+
+TEST(ShoreSolverTest, CarriesTheSwell) {
+    // the row the 3-D core failed (18.4): a 60 m channel, 3 m deep, 1/3 m columns, the first 12 m
+    // prescribed as the ocean carrying a 0.3 m, 14 m Airy wave; the free channel must carry it:
+    // amplitude >= 0.8 a at 24 m and >= 0.6 a at 36 m, arrival within c-travel time + 1 s, the
+    // ledger closes.
+    const float h = 1.0f / 3.0f;
+    const int nx = 180;
+    ShoreSolver s = channel(nx, h, 3.0f);
+    const Airy w{0.3f, 14.0f, 3.0f};
+    const double m0 = s.totalMass();
+    double exchanged = 0.0;
+    float hi24 = -1e9f, lo24 = 1e9f, hi36 = -1e9f, lo36 = 1e9f; int firstArrival = -1;
+    const int ticks = static_cast<int>(12.0f / kDt);
+    for (int k = 1; k <= ticks; ++k) {
+        const float tt = k * kDt;
+        for (int x = 0; x < 36; ++x) { const float wx = (x + 0.5f) * h; s.prescribe(x, 0, 3.0f + w.eta(wx, tt), glm::vec2(w.uAvg(wx, tt), 0.0f)); }
+        const ShoreStepReport r = s.step(kDt);
+        exchanged += r.exchanged;
+        const float e24 = static_cast<float>(s.col(72, 0).eta), e36 = static_cast<float>(s.col(108, 0).eta);
+        if (tt > 4.0f) { hi24 = std::max(hi24, e24); lo24 = std::min(lo24, e24); }
+        if (tt > 7.0f) { hi36 = std::max(hi36, e36); lo36 = std::min(lo36, e36); }
+        if (firstArrival < 0 && std::abs(e24 - 3.0f) > 0.05f) firstArrival = k;
+    }
+    const float a24 = 0.5f * (hi24 - lo24), a36 = 0.5f * (hi36 - lo36);
+    std::printf("  shore swell: amplitude at 24 m %.3f, at 36 m %.3f (driven %.3f), arrival %.2f s (c %.2f m/s), exchanged %.3f m^3\n", a24, a36, w.a, firstArrival * kDt, w.cPhase(), exchanged);
+    EXPECT_GE(a24, 0.8f * w.a);
+    EXPECT_GE(a36, 0.6f * w.a);
+    EXPECT_GT(firstArrival, 0);
+    EXPECT_LT(firstArrival * kDt, 12.0f / w.cPhase() + 1.0f);
+    EXPECT_NEAR(s.totalMass() - m0, exchanged, 1e-5 * m0) << "the flux ledger closes (float32 surfaces)";
+    RecordProperty("amp_24m", a24); RecordProperty("amp_36m", a36);
+}
+
+TEST(ShoreSolverTest, MassExactWithWetDry) {
+    // a 2 m pile of water released onto a dry 1:5 slope with a wall at the end: never negative, never
+    // created, the sum of depths is the initial mass to 1e-9 after 20 s, and the dry slope above the
+    // final waterline stays dry
+    const float h = 1.0f / 3.0f;
+    ShoreSolver s(glm::vec2(0.0f), 90, 3, h);
+    for (int z = 0; z < 3; ++z) for (int x = 0; x < 90; ++x) {
+        s.col(x, z).bed = x < 30 ? 0.0f : (x - 30) * h / 5.0f;
+        s.col(x, z).eta = x < 30 ? 2.0f : s.col(x, z).bed;
+        if (x == 89) s.col(x, z).wall = 1;
+    }
+    const double m0 = s.totalMass();
+    double clamped = 0.0; float vmax = 0.0f; float foamPeak = 0.0f; int foamPeakTick = -1;
+    for (int k = 0; k < 1200; ++k) {
+        const ShoreStepReport r = s.step(kDt); clamped += r.clamped; vmax = std::max(vmax, r.maxSpeed);
+        for (int z = 0; z < 3; ++z) for (int x = 0; x < 90; ++x) if (s.col(x, z).foam > foamPeak) { foamPeak = s.col(x, z).foam; foamPeakTick = k; }
+    }
+    // G2: the released pile's bore front over the dry slope foams (the tongue + the converging front)
+    std::printf("  wet/dry foam: peak %.2f at tick %d\n", foamPeak, foamPeakTick);
+    EXPECT_GT(foamPeak, 0.5f) << "a dam-break bore running onto a dry slope must foam";
+    std::printf("  wet/dry: mass %.9f -> %.9f m^3, clamped %.3g, vmax %.2f\n", m0, s.totalMass(), clamped, vmax);
+    EXPECT_NEAR(s.totalMass(), m0, 1e-9 * m0) << "exact: double surfaces, conservative fluxes";
+    EXPECT_EQ(clamped, 0.0) << "no depth was ever clamped from negative";
+    for (int z = 0; z < 3; ++z) for (int x = 0; x < 90; ++x) EXPECT_GE(s.col(x, z).eta, s.col(x, z).bed - 1e-6f);
+    // the water spread: the pile is lower, the slope holds some
+    EXPECT_LT(s.col(5, 1).eta, 2.0f);
+    EXPECT_GT(s.col(40, 1).eta - s.col(40, 1).bed, 0.0f);
+}
+
+TEST(ShoreSolverTest, WallReflects) {
+    // a wave meeting a vertical wall doubles in height at the wall (standing wave): the max surface
+    // at the wall column is >= 1.6 x the incident amplitude above still level
+    const float h = 1.0f / 3.0f;
+    ShoreSolver s = channel(120, h, 3.0f);
+    s.col(119, 0).wall = 1; s.col(119, 0).eta = 0.0f;
+    const Airy w{0.2f, 10.0f, 3.0f};
+    float peak = -1e9f;
+    for (int k = 1; k <= 900; ++k) {
+        const float tt = k * kDt;
+        for (int x = 0; x < 30; ++x) { const float wx = (x + 0.5f) * h; s.prescribe(x, 0, 3.0f + w.eta(wx, tt), glm::vec2(w.uAvg(wx, tt), 0.0f)); }
+        s.step(kDt);
+        if (tt > 8.0f) peak = std::max(peak, static_cast<float>(s.col(118, 0).eta - 3.0));
+    }
+    std::printf("  wall: peak at the wall %.3f (incident amplitude %.3f)\n", peak, w.a);
+    EXPECT_GE(peak, 1.6f * w.a);
+}
+
+TEST(ShoreSolverTest, RunUpOnTheBeachVsHunt) {
+    // S12 ground: Hunt's formula R = H xi, xi = tan(beta) / sqrt(H / L0), for a 1:20 beach, H = 0.6 m
+    // (2 a), L0 = g T^2 / 2 pi (deep-water length of the 3.0 s period) -> reported against +-20 %.
+    // Measured as the highest bed reached by water deeper than 1 cm, above the still level.
+    const float h = 1.0f / 3.0f;
+    const int nx = 360;   // 120 m: 20 m flat at 3 m depth, then a 1:20 beach from x = 20 m: the bed crosses the still line (0) at 80 m and reaches +2 m at 120 m
+    ShoreSolver s(glm::vec2(0.0f), nx, 1, h);
+    for (int x = 0; x < nx; ++x) { const float wx = (x + 0.5f) * h; s.col(x, 0).bed = wx < 20.0f ? -3.0f : -3.0f + (wx - 20.0f) / 20.0f; s.col(x, 0).eta = std::max(0.0f, s.col(x, 0).bed); }
+    const Airy w{0.3f, 14.0f, 3.0f};
+    const float H = 2.0f * w.a, T = w.period(), L0 = 9.81f * T * T / 6.28318530718f;
+    const float xi = (1.0f / 20.0f) / std::sqrt(H / L0);
+    const float hunt = H * xi;
+    float runUp = -1e9f;
+    for (int k = 1; k <= 2400; ++k) {
+        const float tt = k * kDt;
+        for (int x = 0; x < 36; ++x) { const float wx = (x + 0.5f) * h; s.prescribe(x, 0, w.eta(wx, tt), glm::vec2(w.uAvg(wx, tt), 0.0f)); }
+        const ShoreStepReport rr = s.step(kDt);
+        if (k % 600 == 0) {
+            int front = -1; for (int x = 0; x < nx; ++x) if (s.col(x, 0).eta - s.col(x, 0).bed > 0.01f) front = x;
+            std::printf("    t %5.1f  eta@20m %+.3f @50m %+.3f @70m %+.3f @78m %+.3f  front bed %+.3f  vmax %.2f sub %d\n", tt, s.col(60, 0).eta, s.col(150, 0).eta, s.col(210, 0).eta, s.col(234, 0).eta, s.col(front, 0).bed, rr.maxSpeed, rr.substeps);
+        }
+        if (tt > 25.0f) for (int x = 0; x < nx; ++x) if (s.col(x, 0).eta - s.col(x, 0).bed > 0.01f) runUp = std::max(runUp, s.col(x, 0).bed);
+    }
+    std::printf("  run-up: measured %.3f m, Hunt R = H xi = %.3f m (xi %.2f, H %.2f, L0 %.1f)\n", runUp, hunt, xi, H, L0);
+    RecordProperty("runup_m", runUp); RecordProperty("hunt_m", hunt);
+    EXPECT_GT(runUp, 0.0f) << "water must climb the beach above the still line";
+    EXPECT_NEAR(runUp, hunt, 0.2f * hunt + 0.02f) << "Hunt +-20 % (plus a 2 cm floor for the 1 cm wet threshold)";
+}
+
+// WaterCore 25.32 H1b-T1: the sparse rates (work only where a face has water on a side) equal the dense reference BIT FOR
+// BIT - eta, u, w and foam of every column. Two rigs: (1) the swash of RunUpOnTheBeachVsHunt (a front advancing onto dry
+// ground every substep - the flags' worst case; the prescribed ocean columns of the shore tier), 20 s; (2) a creek in a
+// 100 x 24 m region box (25.31's wide case: 94 % of it dry banks), 60 s. RED: the known-wrong flag rule - "holds water" =
+// deeper than the 1 mm dry threshold - must DIFFER on the swash (a thinner film still sends flux).
+namespace {
+struct ColState { std::vector<double> eta; std::vector<float> u, w, foam; };
+ColState snapshot(const ShoreSolver& s) {
+    ColState c;
+    for (int z = 0; z < s.nz(); ++z) for (int x = 0; x < s.nx(); ++x) {
+        const ShoreColumn& k = s.col(x, z);
+        c.eta.push_back(k.eta); c.u.push_back(k.u); c.w.push_back(k.w); c.foam.push_back(k.foam);
+    }
+    return c;
+}
+long differing(const ColState& a, const ColState& b) {
+    long n = 0;
+    for (size_t i = 0; i < a.eta.size(); ++i)
+        if (a.eta[i] != b.eta[i] || a.u[i] != b.u[i] || a.w[i] != b.w[i] || a.foam[i] != b.foam[i]) ++n;
+    return n;
+}
+ColState runSwash(bool dense, double flag) {
+    const float h = 1.0f / 3.0f;
+    const int nx = 360;
+    ShoreSolver s(glm::vec2(0.0f), nx, 1, h);
+    s.setDenseRatesForTest(dense); s.setWaterFlagThresholdForTest(flag);
+    for (int x = 0; x < nx; ++x) { const float wx = (x + 0.5f) * h; s.col(x, 0).bed = wx < 20.0f ? -3.0f : -3.0f + (wx - 20.0f) / 20.0f; s.col(x, 0).eta = std::max(0.0f, s.col(x, 0).bed); }
+    const Airy w{0.3f, 14.0f, 3.0f};
+    for (int k = 1; k <= 1200; ++k) {
+        const float tt = k * kDt;
+        for (int x = 0; x < 36; ++x) { const float wx = (x + 0.5f) * h; s.prescribe(x, 0, w.eta(wx, tt), glm::vec2(w.uAvg(wx, tt), 0.0f)); }
+        s.step(kDt);
+    }
+    return snapshot(s);
+}
+ColState runCreek(bool dense) {
+    ShoreParams p; p.manningN = 0.035f;
+    ColumnWater cw(1, glm::ivec3(0, 14, 0), glm::ivec3(99, 17, 23), p);
+    cw.solver().setDenseRatesForTest(dense);
+    const int nx = cw.nx(), nz = cw.nz(), c0 = nz / 2 - 3, c1 = nz / 2 + 3;
+    std::vector<float> tops(static_cast<size_t>(nx) * nz); std::vector<uint8_t> walls(tops.size(), 0);
+    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+        const float line = 15.5f - cw.columnCentre(x, z).x / 200.0f;
+        tops[x + static_cast<size_t>(nx) * z] = (z >= c0 && z < c1) ? std::floor(line * 3.0f) / 3.0f : line + 0.6f;
+    }
+    cw.setSolids(tops, walls); cw.setPlane(15.5f, 1.0f / 200.0f, 0.0f); cw.setBedRule(ColumnBedRule::Plane);
+    for (int z = c0; z < c1; ++z) { cw.addSpring(0, z, 0.1 / 6.0); cw.addOutfall(nx - 1, z); }
+    for (int k = 0; k < 60 * 60; ++k) cw.step(1.0f / 60.0f);
+    return snapshot(cw.solver());
+}
+}  // namespace
+
+TEST(ShoreSolverTest, SparseRatesEqualDense) {
+    const ColState swDense = runSwash(true, 0.0), swSparse = runSwash(false, 0.0), swWrong = runSwash(false, 0.001);
+    const ColState crDense = runCreek(true), crSparse = runCreek(false);
+    const long dSw = differing(swDense, swSparse), dWrong = differing(swDense, swWrong), dCr = differing(crDense, crSparse);
+    std::printf("  swash: %ld of %zu columns differ (sparse), %ld with the 1 mm flag rule (the red); creek: %ld of %zu differ\n",
+                dSw, swDense.eta.size(), dWrong, dCr, crDense.eta.size());
+    EXPECT_EQ(dSw, 0) << "sparse rates must equal dense bit for bit (swash)";
+    EXPECT_EQ(dCr, 0) << "sparse rates must equal dense bit for bit (creek)";
+    EXPECT_GT(dWrong, 0) << "the red: flags at the 1 mm dry threshold drop a film's flux - the test must see it";
+}
+
+// WaterCore 25.37: a pond spills as soon as it tops its crest. The dam & pond bench's geometry (25.36): a 6 x 6 m pond, floor
+// 14.0, fed by a creek at 0.2 m^3/s; its spill channel leaves over a 1.1 m step up onto a dry 1:200 channel (crest 15.13).
+// The reconstruction once put the outflow face's bed 0.36 m above both cells' beds next to the step (depth and surface
+// extrapolated with separate slopes): the first spill column filled to 0.38 m and stood still beside a dry column on the
+// same bed for 90 s, and the pond overtopped its crest by 0.41 m before anything left. Prediction: water flows past the crest
+// column with the pond at most 5 cm over the crest; sparse and dense equal (25.32); the ledger exact.
+TEST(ShoreSolverTest, APondSpillsWhenItTopsItsCrest) {
+    double at[2] = {0.0, 0.0};
+    for (bool dense : {true, false}) {
+        ShoreParams p; p.manningN = 0.035f;
+        ColumnWater cw(1, glm::ivec3(100, 13, 27), glm::ivec3(127, 17, 36), p);   // x 100-127, z 27-36
+        cw.solver().setDenseRatesForTest(dense);
+        const int nx = cw.nx(), nz = cw.nz();
+        std::vector<float> tops(static_cast<size_t>(nx) * nz, 16.0f); std::vector<uint8_t> walls(tops.size(), 0);
+        for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+            const glm::vec2 c = cw.columnCentre(x, z);
+            float t = 16.0f;
+            if (c.y >= 31 && c.y < 33 && c.x < 112) t = 15.0f;                       // the creek's end
+            if (c.x >= 112 && c.x < 118 && c.y >= 29 && c.y < 35) t = 14.0f;         // the pond
+            if (c.x >= 118 && c.y >= 31 && c.y < 33) t = 15.0f;                      // the spill
+            tops[x + static_cast<size_t>(nx) * z] = t;
+        }
+        cw.setSolids(tops, walls);
+        cw.setPlane(15.72f, 1.0f / 200.0f, 0.0f);
+        cw.setBedRule(ColumnBedRule::Plane);
+        for (int k = 0; k < 6; ++k) { cw.addSpring(0, 12 + k, 0.2 / 6.0); cw.addOutfall(nx - 1, 12 + k); }
+        const double crest = cw.solver().col((118 - 100) * 3, 15).bed;
+        double spillAt = -1.0, pondAt = 0.0;
+        for (int step = 0; step < 60 * 400 && spillAt < 0.0; ++step) {
+            cw.step(1.0f / 60.0f);
+            // spilling: water 1 cm deep in the channel's SECOND column (past the crest column) - the outfall 10 m on also
+            // counts the front's trip over the dry channel, while the pond keeps rising (the first cut's metric)
+            const ShoreColumn& c2 = cw.solver().col((118 - 100) * 3 + 1, 15);
+            if (c2.eta - c2.bed > 0.01) { spillAt = step / 60.0; pondAt = cw.solver().col((115 - 100) * 3, 15).eta; }
+        }
+        std::printf("  %s: spilling at %.1f s with the pond at %.3f, %.3f m over the crest %.3f; ledger %.2e\n",
+                    dense ? "dense " : "sparse", spillAt, pondAt, pondAt - crest, crest, cw.ledgerError());
+        ASSERT_GT(spillAt, 0.0) << "the pond never spilled";
+        EXPECT_LE(pondAt - crest, 0.05);
+        EXPECT_NEAR(cw.ledgerError(), 0.0, 1e-5);
+        at[dense ? 0 : 1] = pondAt;
+    }
+    EXPECT_EQ(at[0], at[1]) << "sparse and dense equal";
+}
+
+}  // namespace
+}  // namespace Phyxel::Core::Water
