@@ -41,6 +41,10 @@
 #include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
 
+#include <functional>
+
+#include <glm/glm.hpp>
+
 #include "core/KeepClear.h"   // KeepClearBox
 #include "core/StructureBuildService.h"   // M0: Deps::structureDeps()
 
@@ -150,6 +154,26 @@ public:
     /// spurs skip these plots: a refused lot keeps only its cleared terrace. Pure.
     static std::set<int> failedPlots(const nlohmann::json& lotFailures,
                                      const std::vector<int>& lotToPlot);
+
+    /// M0 row 2b ("site prep reordered" follow-up): where a building's DOOR actually is,
+    /// from the forge's front-door marker. The marker sits 2 cells out from the door and is
+    /// not always in front of it (regen #14: house_14's marker sat at the footprint's corner
+    /// column while its door was 4 cells along the wall). `foot` = {x, z, w, d} world cubes;
+    /// `seats(cx, cz)` = the agent seats at that cell at the door's threshold (null = unknown).
+    /// Finds the opening along the marker's wall whose wall cell AND inside cell both seat,
+    /// nearest the marker; falls back to the marker's column (`found` = false). `outside` is
+    /// the first cell outside the door: where a spur starts and a stoop lands. Pure; the spur
+    /// unit, the cluster path network and the walkability gate all use it, so they agree on
+    /// the same door (the spur unit used the marker itself: M0 L4 town spurs 3 of 5 "too steep").
+    struct DoorApproach {
+        glm::ivec2 wall{0, 0};      ///< the wall cube the door is cut through (x, z)
+        glm::ivec2 outside{0, 0};   ///< first cell outside it
+        glm::ivec2 inside{0, 0};    ///< first cell inside it
+        glm::ivec2 normal{0, 0};    ///< outward normal
+        bool found = false;         ///< a seated opening was found (false = marker fallback)
+    };
+    static DoorApproach doorApproach(const glm::ivec3& marker, const glm::ivec4& foot,
+                                     const std::function<bool(int, int)>& seats);
 
     /// M0 ("canopy margin"): the parcel-clearing margin in cubes = the widest crown half-width
     /// among the trees the site's biome can grow (template half-footprints), never below

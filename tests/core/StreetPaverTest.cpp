@@ -158,6 +158,40 @@ TEST(StreetPaverTest, EmptyStreetsReturnNotOk) {
 // ── M0 ("site prep reordered"): spur-only paving from a REALIZED door ───────────────
 // The street is stamped first (its columns + planned surfaces are the input); a spur planned
 // afterwards meets the nearest street column AT ITS SURFACE and never re-emits a street column.
+// ── M0 row 2b (m0_l4_engine.txt, town: "2 planned from 5 realized doors, 3 too steep") ──
+// A terraced lot: the pad sits 3 cubes (27 micro) above the street. The straight spur's
+// grade tube is cap = maxStepUp / halfWidth = 2 micro per micro cell, so the run needs
+// >= 14 cells. From the cell OUTSIDE the door (z cube 6 -> 14 micro off the street edge)
+// it plans; from the forge's marker one cell nearer (z cube 7 -> 5 micro) it is "too
+// steep" - the M0 regression. And a failed spur must say WHY, with its numbers (RED: the
+// planner counts it and says nothing).
+TEST(StreetPaverTest, DoorSpurFromATerracePadIsReportedWithItsNumbers) {
+    auto pad = [](int mx, int mz) {   // pad (cube 19) south of the street, plain (16) elsewhere
+        (void)mx;
+        const int cz = mz >= 0 ? mz / 9 : -((-mz + 8) / 9);
+        return cz <= 7 ? (19 + 1) * 9 : (16 + 1) * 9;
+    };
+    std::vector<glm::ivec4> stamped;   // the street, already paved level at 153 (z cubes 8..12)
+    for (int x = 0; x < 20 * 9; ++x)
+        for (int z = 8 * 9; z < 13 * 9; ++z) stamped.push_back({x, 153, z, 153});
+    const DoorAnchor outsideDoor{5 * 9 + 4, 6 * 9 + 4, pad(5 * 9 + 4, 6 * 9 + 4)};
+    const auto ok = planDoorSpurs({outsideDoor}, {}, stamped, pad, AgentBox{}, "Gravel");
+    EXPECT_EQ(ok.spursPlanned, 1);
+    EXPECT_EQ(ok.spursFailed, 0);
+    EXPECT_FALSE(ok.columns.empty());
+    EXPECT_TRUE(ok.spurFailures.empty());
+    const DoorAnchor marker{5 * 9 + 4, 7 * 9 + 4, pad(5 * 9 + 4, 7 * 9 + 4)};
+    const auto bad = planDoorSpurs({marker}, {}, stamped, pad, AgentBox{}, "Gravel");
+    EXPECT_EQ(bad.spursPlanned, 0);
+    EXPECT_EQ(bad.spursFailed, 1);
+    ASSERT_EQ(bad.spurFailures.size(), 1u) << "a failed spur is reported, not just counted";
+    const std::string& why = bad.spurFailures[0];
+    EXPECT_NE(why.find("too steep"), std::string::npos) << why;
+    EXPECT_NE(why.find("drop 27"), std::string::npos) << why;   // 180 -> 153
+    EXPECT_NE(why.find("6 cells"), std::string::npos) << why;   // micro z 67 -> 72
+    EXPECT_NE(why.find("cap 2"), std::string::npos) << why;
+}
+
 TEST(StreetPaverTest, DoorSpursMeetTheStampedStreetAndNeverRepaveIt) {
     const auto street = planIt();   // the ridge street, no spurs
     ASSERT_TRUE(street.ok);

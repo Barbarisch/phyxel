@@ -312,6 +312,24 @@ retire StructureGenerationV2 P8–P10 with a pointer here; one "next" (this file
 Validation: L2 unit + one L4 Release run on the canonical 8-site world (`WorldForgeStressTest`
 numbers re-recorded). Stress: the 8-site mountain seed. Perf gate: none (no new cost).
 
+**M0 L4 run 1 (2026-10-14, Release, `tools/worldforge_m0_l4.sh`, `docs/evidence/worldforge_v2/m0_l4_summary.json`):**
+6 of 8 sites REFUSED by the now-blocking gate (town, village 6, hamlets 3/4/7: a 1-micro street→door
+pinch at longhouse / blacksmith / hall_house doors — the generator defect F7 shipped twice; hamlet 1:
+no plots once its creek columns were unbuildable), 2 BUILT (village 5 with 2 of its 4 F7 lots dropped as
+water, hamlet 2). The run SURFACED two M0 defects, both fixed as **row 2b** the same day:
+(a) **door-spur regression** — the town logged "2 planned from 5 realized doors, 3 too steep" (F7: 8 ok /
+0): the reordered spur unit started at the forge's front-door MARKER (2 cells out, often on the street
+edge) instead of 1 cell outside the wall, one cell short for the straight-run grade tube on a terraced
+pad. Fix: `SettlementBuildService::doorApproach` — ONE door-finding shared by the spur unit, the cluster
+path network and the walkability gate; spurs start outside the FOUND door; a failed spur reports its
+numbers (`paths.spur_failures`). Red→green: `SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall`,
+`StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers` (`m0_spur_red.txt` → `m0_spur_green.txt`).
+(b) **plan-hash drift** — row 10's `raster_truncated_segments` was hashed, so the lab's F7 hash
+9693137997320541182 came back 10638243061351388589 on an unchanged recipe (every pre-M0 ledger would read
+stale). Fix: `planHash` hashes identity only; `WorldForgePlanTest.RasterCapSurfaces` pins it (same red/green files).
+Not M0's to fix, now visible: the door pinch itself (next generator task); creek-crossing siting (M3).
+Run 2 after the fixes: `m0_l4b_summary.json`.
+
 ### M1 — World Sheet (L) — *the one change that moves the scale ceiling*
 
 Contract: `heightAt / drainageAt / climateAt / rockAt` are served from a **macro sheet** (512 u

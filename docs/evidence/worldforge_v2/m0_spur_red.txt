@@ -1,0 +1,78 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall:WorldForgePlanTest.RasterCapSurfaces:StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers
+[==========] Running 3 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from SettlementBuildServiceTest
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(385): error: Value of: d.found
+  Actual: false
+Expected: true
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(386): error: Expected equality of these values:
+  d.wall
+    Which is: 8-byte object <0A-00 00-00 14-00 00-00>
+  glm::ivec2(14, 20)
+    Which is: 8-byte object <0E-00 00-00 14-00 00-00>
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(387): error: Expected equality of these values:
+  d.outside
+    Which is: 8-byte object <0A-00 00-00 13-00 00-00>
+  glm::ivec2(14, 19)
+    Which is: 8-byte object <0E-00 00-00 13-00 00-00>
+the spur starts one cell outside the DOOR
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(388): error: Expected equality of these values:
+  d.inside
+    Which is: 8-byte object <0A-00 00-00 15-00 00-00>
+  glm::ivec2(14, 21)
+    Which is: 8-byte object <0E-00 00-00 15-00 00-00>
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(392): error: Expected equality of these values:
+  w.wall
+    Which is: 8-byte object <0A-00 00-00 14-00 00-00>
+  glm::ivec2(14, 20)
+    Which is: 8-byte object <0E-00 00-00 14-00 00-00>
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(406): error: Value of: e.found
+  Actual: false
+Expected: true
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(407): error: Expected equality of these values:
+  e.wall
+    Which is: 8-byte object <0F-00 00-00 17-00 00-00>
+  glm::ivec2(15, 22)
+    Which is: 8-byte object <0F-00 00-00 16-00 00-00>
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(408): error: Expected equality of these values:
+  e.outside
+    Which is: 8-byte object <10-00 00-00 17-00 00-00>
+  glm::ivec2(16, 22)
+    Which is: 8-byte object <10-00 00-00 16-00 00-00>
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(409): error: Expected equality of these values:
+  e.inside
+    Which is: 8-byte object <0E-00 00-00 17-00 00-00>
+  glm::ivec2(14, 22)
+    Which is: 8-byte object <0E-00 00-00 16-00 00-00>
+[  FAILED  ] SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall (1 ms)
+[----------] 1 test from SettlementBuildServiceTest (1 ms total)
+[----------] 1 test from StreetPaverTest
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\StreetPaverTest.cpp(187): error: Expected equality of these values:
+  bad.spurFailures.size()
+    Which is: 0
+  1u
+    Which is: 1
+a failed spur is reported, not just counted
+[  FAILED  ] StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers (7 ms)
+[----------] 1 test from StreetPaverTest (7 ms total)
+[----------] 1 test from WorldForgePlanTest
+[32m[23:22:29.344] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 58 ms (hash 11864565375381529958)[0m
+[33m[23:22:29.408] [WARN] [WorldForge] [WORLDFORGE] road raster segment cap (20) reached: 199 segment(s) are NOT indexed - roads past the cap are invisible to roadAt (fewer roads, or a wider raster index, before this plan is used)[0m
+[32m[23:22:29.410] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 20 segments in 54 ms (hash 9137029224346286639)[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgePlanTest.cpp(458): error: Expected equality of these values:
+  capped->planHash()
+    Which is: 9137029224346286639
+  full->planHash()
+    Which is: 11864565375381529958
+a diagnostic must not move the plan hash
+[  FAILED  ] WorldForgePlanTest.RasterCapSurfaces (146 ms)
+[----------] 1 test from WorldForgePlanTest (146 ms total)
+[----------] Global test environment tear-down
+[==========] 3 tests from 3 test suites ran. (155 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 3 tests, listed below:
+[  FAILED  ] SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall
+[  FAILED  ] StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers
+[  FAILED  ] WorldForgePlanTest.RasterCapSurfaces
+ 3 FAILED TESTS

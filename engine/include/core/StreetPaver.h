@@ -49,6 +49,9 @@ struct PavingPlan {
     long cutCols = 0;                      ///< surface below terrain (cut, then cap)
     int  spursPlanned = 0;                 ///< door spurs graded
     int  spursFailed = 0;                  ///< door spurs too steep (surfaced, not silent)
+    /// M0 row 2b: one line per failed spur - door (x,z,S0) -> street (x,z,SG), run length,
+    /// drop, grade cap and the planner's reason - so a "too steep" is never a bare count.
+    std::vector<std::string> spurFailures;
 };
 
 /// Plan paving for a street network. `streets` are settlement-local street rects (cubes);

@@ -14,6 +14,19 @@ inline long long colKey(int x, int z) {
 }
 }  // namespace
 
+// M0 row 2b: a failed spur says WHY, with its numbers (door, street junction, run length,
+// drop, grade cap) - never a bare "too steep" count.
+static std::string spurFailureLine(const glm::ivec3& door, const glm::ivec3& street, long manhattan,
+                                   const AgentBox& box, const std::string& reason) {
+    const int cap = std::max(1, box.maxStepUpMicro / std::max(1, box.halfWidthMicro));
+    return "door (" + std::to_string(door.x) + "," + std::to_string(door.z) + " y" +
+           std::to_string(door.y) + ") -> street (" + std::to_string(street.x) + "," +
+           std::to_string(street.z) + " y" + std::to_string(street.y) + "): " +
+           std::to_string(manhattan + 1) + " cells, drop " +
+           std::to_string(std::abs(door.y - street.y)) + " micro, cap " + std::to_string(cap) +
+           " micro/cell: " + reason;
+}
+
 PavingPlan planStreetPaving(const std::vector<Rect>& streets, glm::ivec2 originCubes,
                             const std::vector<DoorAnchor>& doors,
                             const std::vector<glm::ivec4>& buildingFootprints,
@@ -87,7 +100,12 @@ PavingPlan planStreetPaving(const std::vector<Rect>& streets, glm::ivec2 originC
         const int gS = (it != cols.end()) ? it->second : groundMicroAt(gx, gz);
         const PathPlan spur =
             planTerrainPath(groundMicroAt, {d.x, d.surfaceY, d.z}, {gx, gS, gz}, box);
-        if (!spur.ok) { ++plan.spursFailed; continue; }
+        if (!spur.ok) {
+            ++plan.spursFailed;
+            plan.spurFailures.push_back(spurFailureLine({d.x, d.surfaceY, d.z}, {gx, gS, gz},
+                                                        bestDist, box, spur.reason));
+            continue;
+        }
         ++plan.spursPlanned;
         // carve the spur box.halfWidthMicro wide, perpendicular to travel (the proven ribbon shape)
         const auto& cs = spur.cells;
@@ -171,7 +189,12 @@ PavingPlan planDoorSpurs(const std::vector<DoorAnchor>& doors,
         }
         const PathPlan spur =
             planTerrainPath(groundMicroAt, {d.x, d.surfaceY, d.z}, {gx, gS, gz}, box);
-        if (!spur.ok) { ++plan.spursFailed; continue; }
+        if (!spur.ok) {
+            ++plan.spursFailed;
+            plan.spurFailures.push_back(spurFailureLine({d.x, d.surfaceY, d.z}, {gx, gS, gz},
+                                                        bestDist, box, spur.reason));
+            continue;
+        }
         ++plan.spursPlanned;
         const auto& cs = spur.cells;
         for (size_t i = 0; i < cs.size(); ++i) {

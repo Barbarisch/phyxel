@@ -365,6 +365,50 @@ TEST(SettlementBuildServiceTest, FailedPlotsMapLotFailuresToPlotIndices) {
     EXPECT_TRUE(SettlementBuildService::failedPlots(nlohmann::json::object(), {4}).empty());
 }
 
+// ── M0 row 2b: a door spur starts OUTSIDE THE DOOR, not at the marker ─────────────────
+// M0 L4 (docs/evidence/worldforge_v2/m0_l4_engine.txt): the town's spurs went "2 planned
+// from 5 realized doors, 3 too steep" (F7: 8 ok / 0 too steep). The spur unit started
+// every spur at the forge's MARKER - 2 cells out from the door, often on the street's
+// edge - so a straight run to the street had one cell less than the old start (1 cell
+// outside the wall) to absorb the pad-to-street drop; and the marker is not always in
+// front of the door (regen #14). RED: doorApproach ignores `seats` and answers the
+// marker's column.
+TEST(SettlementBuildServiceTest, DoorApproachFindsTheDoorAlongTheMarkersWall) {
+    // footprint x 10..15, z 20..25 (6x6); the street is SOUTH (z < 20): south wall z = 20.
+    const glm::ivec4 foot{10, 20, 6, 6};
+    // marker at the footprint's corner column, 2 cells out on the street side
+    const glm::ivec3 marker{10, 17, 18};
+    // the only opening: wall cell (14,20) and the cell inside it (14,21) seat; no other wall cell does
+    auto seats = [](int cx, int cz) { return cx == 14 && (cz == 20 || cz == 21); };
+    const auto d = SettlementBuildService::doorApproach(marker, foot, seats);
+    EXPECT_EQ(d.normal, glm::ivec2(0, -1));
+    EXPECT_TRUE(d.found);
+    EXPECT_EQ(d.wall, glm::ivec2(14, 20));
+    EXPECT_EQ(d.outside, glm::ivec2(14, 19)) << "the spur starts one cell outside the DOOR";
+    EXPECT_EQ(d.inside, glm::ivec2(14, 21));
+    // a wall cell that seats but whose inside cell does not (a window bay) is not a door
+    const auto w = SettlementBuildService::doorApproach(marker, foot,
+        [](int cx, int cz) { return (cx == 12 && cz == 20) || (cx == 14 && (cz == 20 || cz == 21)); });
+    EXPECT_EQ(w.wall, glm::ivec2(14, 20));
+    // no seated opening at all -> the marker's column, flagged as the fallback
+    const auto f = SettlementBuildService::doorApproach(marker, foot, [](int, int) { return false; });
+    EXPECT_FALSE(f.found);
+    EXPECT_EQ(f.wall, glm::ivec2(10, 20));
+    EXPECT_EQ(f.outside, glm::ivec2(10, 19));
+    // null predicate (no threshold recorded) -> the same fallback, no crash
+    const auto n = SettlementBuildService::doorApproach(marker, foot, {});
+    EXPECT_FALSE(n.found);
+    EXPECT_EQ(n.outside, glm::ivec2(10, 19));
+    // east wall: marker east of the footprint, door 2 cells along the wall
+    const auto e = SettlementBuildService::doorApproach({17, 17, 23}, foot,
+        [](int cx, int cz) { return cz == 22 && (cx == 15 || cx == 14); });
+    EXPECT_EQ(e.normal, glm::ivec2(1, 0));
+    EXPECT_TRUE(e.found);
+    EXPECT_EQ(e.wall, glm::ivec2(15, 22));
+    EXPECT_EQ(e.outside, glm::ivec2(16, 22));
+    EXPECT_EQ(e.inside, glm::ivec2(14, 22));
+}
+
 // ── M0 (docs/WorldForgeV2Plan.md §5 M0): the era reaches every building ──────────────
 // The settlement program is era-keyed (settlement_program.json eras.<era>), the forge is
 // period-aware and REFUSES an unknown period rather than substitute medieval — but the

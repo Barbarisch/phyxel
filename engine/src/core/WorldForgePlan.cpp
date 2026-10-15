@@ -984,7 +984,13 @@ nlohmann::json WorldForgePlan::toJson() const {
 }
 
 uint64_t WorldForgePlan::planHash() const {
-    const std::string s = toJson().dump();
+    // Plan IDENTITY only: diagnostics (raster_truncated_segments) are reported, never hashed.
+    // Hashing the whole record moved every plan's hash when that field was added (M0 L4,
+    // 2026-10-14: the lab's F7 hash 9693137997320541182 -> 10638243061351388589 on an
+    // unchanged recipe), which marks every earlier ledger stale.
+    nlohmann::json j = toJson();
+    j.erase("raster_truncated_segments");
+    const std::string s = j.dump();
     uint64_t h = 1469598103934665603ull;  // FNV-1a 64
     for (unsigned char c : s) {
         h ^= c;

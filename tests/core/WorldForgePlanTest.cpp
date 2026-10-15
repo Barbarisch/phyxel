@@ -451,4 +451,9 @@ TEST(WorldForgePlanTest, RasterCapSurfaces) {
     ASSERT_TRUE(j.contains("raster_truncated_segments")) << "the plan must RECORD raster truncation";
     EXPECT_EQ(j.value("raster_truncated_segments", 0), static_cast<int>(segments - 20))
         << "every segment past the cap is counted, none silently dropped";
+    // M0 row 2b follow-up: the truncation count is a DIAGNOSTIC, not plan identity. Hashing
+    // the whole JSON moved every plan's hash when the field was added (M0 L4: the lab's F7
+    // hash 9693137997320541182 came back 10638243061351388589 on an unchanged recipe), which
+    // marks every pre-M0 ledger stale. RED: the two plans differ by the diagnostic alone.
+    EXPECT_EQ(capped->planHash(), full->planHash()) << "a diagnostic must not move the plan hash";
 }

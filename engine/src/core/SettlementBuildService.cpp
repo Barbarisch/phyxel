@@ -62,6 +62,38 @@ int settlementTopScan(ChunkManager* cm, int oy, int wx, int wz, bool floraBlind)
     return oy;
 }
 
+// M0 row 2b: "the agent seats at cell (cx, cz) near micro height `hint`" - the walkability
+// gate's seatFeet, shared with the door-spur unit and the cluster path network so all three
+// find the SAME door (SettlementBuildService::doorApproach). Lowest feet level at/above the
+// column's top (scanned from hint+8 down 40 micro) where the whole box fits and is supported.
+static bool settlementSeatsAt(ChunkManager* cm, const Core::AgentBox& box, int cx, int cz,
+                              int hintMicroY) {
+    if (!cm) return false;
+    const std::function<bool(int, int, int)> occ = [cm](int x, int y, int z) {
+        return cm->occupiedMicro(glm::ivec3(x, y, z));
+    };
+    const int mx = cx * 9 + 4, mz = cz * 9 + 4;
+    int top = INT_MIN;
+    for (int my = hintMicroY + 8; my > hintMicroY - 31; --my)
+        if (occ(mx, my, mz)) { top = my; break; }
+    if (top == INT_MIN) return false;
+    Core::TraversalProbe probe(occ, box);
+    for (int y = top + 1; y <= top + 10; ++y)
+        if (probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) return true;
+    return false;
+}
+
+static SettlementBuildService::DoorApproach settlementDoorApproach(
+    ChunkManager* cm, const Core::AgentBox& box, const glm::ivec3& marker, const glm::ivec4& foot,
+    int thresholdMicro) {
+    std::function<bool(int, int)> seats;
+    if (cm && thresholdMicro >= 0)
+        seats = [cm, box, thresholdMicro](int cx, int cz) {
+            return settlementSeatsAt(cm, box, cx, cz, thresholdMicro);
+        };
+    return SettlementBuildService::doorApproach(marker, foot, seats);
+}
+
 // ── M0 (docs/WorldForgeV2Plan.md §5 M0, "site prep reordered") ──────────────────────
 // The paving APPLIER, lifted verbatim out of the street unit so the door-spur unit (which
 // runs AFTER the buildings, from the realized doors) stamps exactly like the streets:
@@ -916,9 +948,15 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                  tierStreetMat = tierP->street.material, bFoot, groundMicro, groundTopAt, fl9, emitMicro, abox,
                  pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp, sharedFrontDoors]() {
             if (!chunkManager) return;
+            // M0 row 2b: the spur starts one cell OUTSIDE THE DOOR (doorApproach - the gate's
+            // door-finding), at the live ground there; not at the forge's marker, 2 cells out
+            // and often on the street's edge, which left the straight run one cell short of
+            // the pad-to-street drop (M0 L4 town: 3 of 5 spurs "too steep"; F7: 0 of 8).
             std::vector<Core::DoorAnchor> doors;
             for (const auto& fd : *sharedFrontDoors) {
-                const int mx = fd.marker.x * 9 + 4, mz = fd.marker.z * 9 + 4;
+                const auto da = settlementDoorApproach(chunkManager, abox, fd.marker, fd.foot,
+                                                       fd.thresholdMicro);
+                const int mx = da.outside.x * 9 + 4, mz = da.outside.y * 9 + 4;
                 doors.push_back({mx, mz, groundMicro(mx, mz)});
             }
             const std::vector<glm::ivec4> streetStamp = *sharedStamp;   // copy: the applier appends
@@ -933,8 +971,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          << doors.size() << " realized doors, " << pave.spursFailed << " too steep, "
                          << ap.placedMicros << " micros over " << pave.columns.size() << " columns, "
                          << static_cast<long>(ap.stampMs) << " ms");
+            for (const auto& f : pave.spurFailures)
+                LOG_WARN_FMT("Settlement", "door spur too steep: " << f);
             (*pathsJsonP)["spurs"] = pave.spursPlanned;
             (*pathsJsonP)["spurs_too_steep"] = pave.spursFailed;
+            (*pathsJsonP)["spur_failures"] = pave.spurFailures;
             (*pathsJsonP)["spur_columns"] = static_cast<long>(pave.columns.size());
             (*pathsJsonP)["spur_doors"] = static_cast<long>(doors.size());
             }});
@@ -950,9 +991,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // M0: the REALIZED doors (a refused lot records none); the network joins doors, not
             // footprint centres.
             std::vector<Core::DoorAnchor> doors;
-            for (const auto& fd : *sharedFrontDoors)
-                doors.push_back({fd.marker.x * 9 + 4, fd.marker.z * 9 + 4,
-                                 (settlementTopScan(chunkManager, oy, fd.marker.x, fd.marker.z, true) + 1) * 9});
+            for (const auto& fd : *sharedFrontDoors) {   // M0 row 2b: outside the FOUND door
+                const auto da = settlementDoorApproach(chunkManager, abox, fd.marker, fd.foot,
+                                                       fd.thresholdMicro);
+                doors.push_back({da.outside.x * 9 + 4, da.outside.y * 9 + 4,
+                                 (settlementTopScan(chunkManager, oy, da.outside.x, da.outside.y, true) + 1) * 9});
+            }
             if (doors.size() < 2) {
                 LOG_INFO_FMT("Settlement", "paths: " << doors.size() << " realized door(s) - no network to grade");
                 pathsJson = {{"edges", 0}, {"connected", 0}, {"doors", static_cast<long>(doors.size())}};
@@ -1733,31 +1777,13 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             for (const auto& fd : *sharedFrontDoors) {
                 if (fd.thresholdMicro < 0) { ++skipped; continue; }
                 const int fx = fd.foot.x, fz = fd.foot.y, fw = fd.foot.z, fdp = fd.foot.w;
-                int nx = 0, nz = 0;
-                if (fd.marker.x < fx)            nx = -1;
-                else if (fd.marker.x >= fx + fw) nx = +1;
-                else if (fd.marker.z < fz)       nz = -1;
-                else                             nz = +1;
-                int wallX = nx < 0 ? fx : nx > 0 ? fx + fw - 1 : fd.marker.x;
-                int wallZ = nz < 0 ? fz : nz > 0 ? fz + fdp - 1 : fd.marker.z;
                 // The marker is not always in front of the door (regen #14: house_14's
                 // location sat at the footprint's corner column, 5 cells out on the street,
-                // while its door is 4 cells along the wall). FIND the door along the marker's
-                // wall: the opening whose wall cell and inside cell both seat the agent at the
-                // threshold, nearest to the marker; the marker column is the fallback.
-                {
-                    int best = INT_MAX;
-                    const int len = (nz != 0) ? fw : fdp;
-                    for (int k = 0; k < len; ++k) {
-                        const int cx = (nz != 0) ? fx + k : wallX;
-                        const int cz = (nz != 0) ? wallZ : fz + k;
-                        if (seatFeet(cx, cz, fd.thresholdMicro) == INT_MIN) continue;
-                        if (seatFeet(cx - nx, cz - nz, fd.thresholdMicro) == INT_MIN) continue;
-                        const int dist = (nz != 0) ? std::abs(cx - fd.marker.x) : std::abs(cz - fd.marker.z);
-                        if (dist < best) { best = dist; wallX = cx; wallZ = cz; }
-                    }
-                }
-                const int passX = wallX - nx, passZ = wallZ - nz;          // one cell inside the door
+                // while its door is 4 cells along the wall). M0 row 2b: ONE door-finding
+                // (doorApproach), shared with the spur unit and the cluster path network.
+                const auto da = SettlementBuildService::doorApproach(fd.marker, fd.foot,
+                    [&](int cx, int cz) { return seatFeet(cx, cz, fd.thresholdMicro) != INT_MIN; });
+                const int passX = da.inside.x, passZ = da.inside.y;      // one cell inside the door
                 const int streetFeet = seatFeet(fd.marker.x, fd.marker.z, fd.thresholdMicro);
                 const int passFeet = seatFeet(passX, passZ, fd.thresholdMicro);
                 const std::string tag = fd.typology + " @" + std::to_string(fx) + "," + std::to_string(fz);
@@ -2032,6 +2058,39 @@ std::set<int> SettlementBuildService::failedPlots(const nlohmann::json& lotFailu
     }
     return out;
 }
+
+SettlementBuildService::DoorApproach SettlementBuildService::doorApproach(
+    const glm::ivec3& marker, const glm::ivec4& foot, const std::function<bool(int, int)>& seats) {
+    DoorApproach d;
+    const int fx = foot.x, fz = foot.y, fw = foot.z, fdp = foot.w;
+    int nx = 0, nz = 0;
+    if (marker.x < fx)            nx = -1;
+    else if (marker.x >= fx + fw) nx = +1;
+    else if (marker.z < fz)       nz = -1;
+    else                          nz = +1;
+    const int wallX = nx < 0 ? fx : nx > 0 ? fx + fw - 1 : marker.x;
+    const int wallZ = nz < 0 ? fz : nz > 0 ? fz + fdp - 1 : marker.z;
+    d.normal = {nx, nz};
+    d.wall = {wallX, wallZ};
+    if (seats) {
+        // The opening along the marker's wall whose wall cell AND inside cell both seat the
+        // agent at the threshold (a window bay seats only the wall cell), nearest the marker.
+        int best = INT_MAX;
+        const int len = (nz != 0) ? fw : fdp;
+        for (int k = 0; k < len; ++k) {
+            const int cx = (nz != 0) ? fx + k : wallX;
+            const int cz = (nz != 0) ? wallZ : fz + k;
+            if (!seats(cx, cz) || !seats(cx - nx, cz - nz)) continue;
+            const int dist = (nz != 0) ? std::abs(cx - marker.x) : std::abs(cz - marker.z);
+            if (dist < best) { best = dist; d.wall = {cx, cz}; d.found = true; }
+        }
+    }
+    const int wx = d.wall.x, wz = d.wall.y;
+    d.outside = {wx + nx, wz + nz};
+    d.inside = {wx - nx, wz - nz};
+    return d;
+}
+
 
 } // namespace Core
 } // namespace Phyxel
