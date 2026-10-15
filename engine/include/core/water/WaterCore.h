@@ -185,6 +185,8 @@ struct SourceSpec {
     double placedTotal = 0.0;        ///< m^3 actually added (or removed, negative)
     double unplaced = 0.0;           ///< m^3 the cell could not accept this tick (reported, not lost)
     double pending = 0.0;            ///< m^3 owed by the pump and placed as soon as the outlet has room (capped at one second of rate)
+    bool   outfall = false;          ///< 26.13: an OUTFALL - takes every drop in its cell and the cells above it up to the first solid, every
+                                     ///< substep (the column outfall's rule at the pond's resolution); rate unused; counted in placedTotal
 };
 
 /// Phase G (docs/WaterCore.md 18.2): a sub-column whose SURFACE is prescribed at the start of
@@ -385,6 +387,7 @@ public:
     void refreshSolids();
 
     SourceSpec& addSource(const glm::ivec3& cellLocal, float rate);
+    SourceSpec& addOutfall(const glm::ivec3& cellLocal);   ///< 26.13: see SourceSpec::outfall
     /// Phase G: set (or update) the prescribed surface of a sub-column; targetY in world units.
     BoundarySpec& setBoundary(const glm::ivec2& columnLocal, float targetY);
     void clearBoundaries() { m_boundaries.clear(); }

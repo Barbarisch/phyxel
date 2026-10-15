@@ -928,6 +928,66 @@ TEST_F(WaterCoreGpuParityTest, GpuBoxedSolidsEqualTheWhole) {
     gpu.destroyVolume(va); gpu.destroyVolume(vb);
 }
 
+// 26.13 P3a: Manning at the bed on the GPU (wc_face_ops mode 10) is the CPU's law. A flat 8 m channel at 1/9 m, water 3 cells
+// deep moving at 0.5 m/s along x (it reflects off the far wall), n = 0.1, 3 s: mean |u| on the GPU within 2 % of the CPU's, and
+// well below the frictionless run (the law acts). RED before: the GPU ignored n and kept pond friction only.
+TEST_F(WaterCoreGpuParityTest, GpuBedManningMatchesCpu) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 9.0f;
+    auto setup = [&](Tank& t) {
+        t.grid.fillBox({0, 0, 0}, {71, 2, 8}, 1.0f);
+        for (int z = 0; z < 9; ++z) for (int y = 0; y < 3; ++y) for (int x = 1; x < 72; ++x) t.grid.u(x, y, z) = 0.5f;
+    };
+    auto meanU = [](const WaterGrid& g) { double s = 0.0; long n = 0; for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < 3; ++y) for (int x = 1; x < 72; ++x) { s += std::abs(const_cast<WaterGrid&>(g).u(x, y, z)); ++n; } return s / n; };
+    SolverParams p; p.pondFriction = 0.0f; p.bedManning = 0.1f;   // rough: the law's effect is large
+    SolverParams p0 = p; p0.bedManning = 0.0f;
+    Tank c(72, 6, 9, h), g(72, 6, 9, h), f(72, 6, 9, h);
+    setup(c); setup(g); setup(f);
+    WaterSolver cpu(c.grid, c.query(), p);
+    auto* vol = make(g); ASSERT_NE(vol, nullptr);
+    auto* vf = make(f); ASSERT_NE(vf, nullptr);
+    for (int k = 0; k < 180; ++k) cpu.step(kDt);
+    gpu.step(*vol, p, kDt, 180, 40);
+    gpu.step(*vf, p0, kDt, 180, 40);
+    gpu.download(*vol, g.grid); gpu.download(*vf, f.grid);
+    const double uc = meanU(c.grid), ug = meanU(g.grid), u0 = meanU(f.grid);
+    std::printf("  mean |u| after 3 s: CPU %.4f, GPU %.4f m/s (%.2f %% apart); GPU without the law %.4f m/s\n", uc, ug, 100.0 * std::abs(ug - uc) / std::abs(uc), u0);
+    EXPECT_NEAR(ug, uc, 0.02 * std::abs(uc));
+    EXPECT_LT(ug, 0.95 * u0) << "the law must act (measured: 10 % off the frictionless slosh at n 0.1)";
+    gpu.destroyVolume(vol); gpu.destroyVolume(vf);
+}
+
+// 26.13 P3a: the GPU outfall (GpuSource kind 1) - the CPU rig of WaterCoreTest.AnOutfallTakesWhatArrives on the device: a
+// pump at one end of a 4 m channel, an outfall across the other end. Steady out = in within 2 % over the last 30 s of 90;
+// the ledger (downloaded fills = in - out) within 1e-5 m^3 (the device's ledger floats).
+TEST_F(WaterCoreGpuParityTest, GpuOutfallTakesWhatArrives) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 9.0f;
+    Tank t(36, 6, 3, h);
+    auto* vol = make(t); ASSERT_NE(vol, nullptr);
+    std::vector<GpuSource> srcs;
+    { GpuSource s; s.cell = static_cast<int32_t>(t.grid.idx(0, 0, 1)); s.rate = 0.002f; srcs.push_back(s); }
+    for (int z = 0; z < 3; ++z) { GpuSource s; s.cell = static_cast<int32_t>(t.grid.idx(35, 0, z)); s.kind = 1.0f; srcs.push_back(s); }
+    std::string err; ASSERT_TRUE(gpu.setSources(*vol, srcs, &err)) << err;
+    SolverParams p; p.pondFriction = 0.0f;
+    auto totals = [&](double& in, double& out) {
+        std::vector<GpuSource> rs; gpu.readSources(*vol, rs); in = 0.0; out = 0.0;
+        for (const auto& s : rs) { if (s.kind == 1.0f) out -= s.placedTotal; else in += s.placedTotal; }
+    };
+    for (int k = 0; k < 60; ++k) gpu.step(*vol, p, kDt, 60, 27);
+    double in30, out30; totals(in30, out30);
+    for (int k = 0; k < 30; ++k) gpu.step(*vol, p, kDt, 60, 27);
+    double in40, out40; totals(in40, out40);
+    gpu.download(*vol, t.grid);
+    const double stored = t.grid.totalMass();
+    std::printf("  GPU: pumped %.5f m^3, out %.5f m^3, stored %.6f m^3 (ledger %+.2e); last 30 s: in %.5f out %.5f m^3\n",
+                in40, out40, stored, stored - (in40 - out40), in40 - in30, out40 - out30);
+    EXPECT_GT(out40, 0.0);
+    EXPECT_NEAR(out40 - out30, in40 - in30, 0.02 * (in40 - in30));
+    EXPECT_NEAR(stored, in40 - out40, 1e-5);
+    gpu.destroyVolume(vol);
+}
+
 // 26.12 P2b measurement: the ENGINE's path (WaterCoreManager + GPU) on the creek bench's box - 100 m x 4 m x 2 m at 1/9 m
 // (900 x 18 x 36 = 583,200 cells), a 2 m channel 1 m deep along x, water 0.3 m deep and tilted so it flows, one 1/3 m body
 // drifting along the surface. Where a frame's time goes: create, update (the step), the body feed, the surface read, a

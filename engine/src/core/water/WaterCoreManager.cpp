@@ -119,7 +119,11 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     r.mass = av.solver->transport().ownsMass() ? av.solver->transport().ownedMass() : ((av.backend == "gpu" && av.gpuStale) ? av.gpuLast.totalMass : av.grid->totalMass());
     r.kineticEnergy = av.grid->kineticEnergy(); r.lastSubsteps = av.last.substeps; r.lastPcgIterations = av.last.pcgIterations;
     r.lastPcgResidual = av.last.pcgResidual; r.quietTicks = av.last.quietTicks; r.sourceUnplaced = av.last.sourceUnplaced; r.residueDropped = av.residueDropped;
-    for (const auto& src : av.solver->sources()) { r.sourcePlaced += src.placedTotal; ++r.sourceCount; }
+    for (const auto& src : av.solver->sources()) {
+        r.sourcePlaced += src.placedTotal; ++r.sourceCount;
+        if (src.outfall) { r.outfallOut -= src.placedTotal; ++r.outfalls; } else if (src.placedTotal > 0.0) r.sourceIn += src.placedTotal;
+    }
+    r.manningN = av.solver->params().bedManning;
     return r;
 }
 
@@ -534,22 +538,29 @@ bool WaterCoreManager::pushSourcesToGpu(Av& av, std::string* err) {
     for (const SourceSpec& s : av.solver->sources()) {
         GpuSource g; g.cell = static_cast<int32_t>(av.grid->idx(s.cell.x, s.cell.y, s.cell.z)); g.rate = s.rate;
         g.pending = static_cast<float>(s.pending); g.placedTotal = static_cast<float>(s.placedTotal); g.unplaced = static_cast<float>(s.unplaced);
+        g.kind = s.outfall ? 1.0f : 0.0f;
         gs.push_back(g);
     }
     return m_gpu->setSources(*av.gpuVol, gs, err);
 }
 
-bool WaterCoreManager::addSource(int id, const glm::vec3& world, float rate, std::string* err) {
+bool WaterCoreManager::addSource(int id, const glm::vec3& world, float rate, std::string* err, bool outfall) {
     for (auto& av : m_avs) {
         if (av->id != id) continue;
         const glm::ivec3 c = av->grid->worldToCell(world);
         if (!av->grid->inBounds(c.x, c.y, c.z)) { if (err) *err = "source position is outside the volume"; return false; }
-        av->solver->addSource(c, rate);
+        if (outfall && av->solver->transport().ownsMass()) { if (err) *err = "an outfall on a particle volume is not built (26.13)"; return false; }
+        if (outfall) av->solver->addOutfall(c); else av->solver->addSource(c, rate);
         if (av->backend == "gpu" && av->solver->transport().ownsMass()) { if (err) *err = "sources on a GPU particle volume are not built yet (particles emit on the CPU transport only)"; return false; }
         if (av->backend == "gpu") return pushSourcesToGpu(*av, err);
         return true;
     }
     if (err) *err = "no such volume";
+    return false;
+}
+
+bool WaterCoreManager::setBedManning(int id, float n) {
+    for (auto& av : m_avs) if (av->id == id) { av->solver->setBedManning(n); av->solver->wake(); if (av->gpuVol) av->gpuVol->asleep = false; return true; }
     return false;
 }
 
@@ -1292,6 +1303,24 @@ std::vector<const RippleLayer*> WaterCoreManager::rippleLayers() const {
     return out;
 }
 
+RippleLayer& WaterCoreManager::rippleWindow(std::unique_ptr<RippleLayer>& layer, const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, bool gpu) {
+    const int boxX = (maxVoxel.x - minVoxel.x + 1) * 9, boxZ = (maxVoxel.z - minVoxel.z + 1) * 9;
+    const int lnx = std::min(kColumnRippleWindow, boxX), lnz = std::min(kColumnRippleWindow, boxZ);
+    const glm::ivec2 lo(minVoxel.x * 9, minVoxel.z * 9);
+    const glm::ivec2 hi((maxVoxel.x + 1) * 9 - lnx, (maxVoxel.z + 1) * 9 - lnz);
+    glm::ivec2 want(static_cast<int>(std::floor(m_view.x * 9.0f)) - lnx / 2, static_cast<int>(std::floor(m_view.z * 9.0f)) - lnz / 2);
+    want = glm::clamp(want, lo, glm::max(lo, hi));
+    if (!layer) layer = std::make_unique<RippleLayer>(want, lnx, lnz, 9.81f);   // the border absorbs (RippleLayer's default - the pond's layer always had it)
+    RippleLayer& L = *layer;
+    // the window moves in 4 m steps (36 cells) - not every frame; the field keeps its world position across a move
+    if (std::abs(want.x - L.origin().x) > 36 || std::abs(want.y - L.origin().y) > 36) {
+        if (gpu) m_rgpu->syncPrev(L, liveRippleLayers());   // 25.34: the shift moves BOTH levels - the ring drained, the previous one back
+        L.shiftOrigin(want);
+        if (gpu) m_rgpu->markDirty(L);
+    }
+    return L;
+}
+
 void WaterCoreManager::stepRipples(float dt) {
     const auto t0 = std::chrono::steady_clock::now();
     m_rstats.layers = 0; m_rstats.awake = 0; m_rstats.cells = 0; m_rstats.kinematicCells = 0;
@@ -1304,13 +1333,13 @@ void WaterCoreManager::stepRipples(float dt) {
         Av& av = *up;
         if (av.transport != "eulerian" || av.solver->transport().ownsMass()) continue;
         if (!av.ripple && !av.rippleRefused) {
-            const int nx = (av.maxVoxel.x - av.minVoxel.x + 1) * 9, nz = (av.maxVoxel.z - av.minVoxel.z + 1) * 9;
             int live = 0; for (const auto& a : m_avs) live += a->ripple ? 1 : 0;
-            if (nx > kRippleMaxCells || nz > kRippleMaxCells || live >= kRippleMaxLayers) { av.rippleRefused = true; ++m_rstats.refused; continue; }   // cost bound: refused, never coarsened (22.5)
-            av.ripple = std::make_unique<RippleLayer>(glm::ivec2(av.minVoxel.x * 9, av.minVoxel.z * 9), nx, nz, av.solver->params().gravity);
+            if (live >= kRippleMaxLayers) { av.rippleRefused = true; ++m_rstats.refused; continue; }   // the renderer's atlas: refused, never coarsened (22.5)
         }
-        if (!av.ripple) continue;
-        RippleLayer& L = *av.ripple;
+        if (av.rippleRefused) continue;
+        // 26.13: a WINDOW over the volume (the regions' rule - one code path); a pond that fits is the whole box,
+        // exactly the layer it had (the 512-cell refusal is gone: a 100 m creek volume gets a window instead of nothing)
+        RippleLayer& L = rippleWindow(av.ripple, av.minVoxel, av.maxVoxel, gpu);
         const WaterSurfaceField& f = av.field;
         if (f.nx <= 0 || f.cols.empty()) continue;
         auto column = [&](float wx, float wz) -> const SurfaceColumn* {
@@ -1358,8 +1387,42 @@ void WaterCoreManager::stepRipples(float dt) {
                 }
             }
         }
+        // 26.13: a volume with a bed roughness (a creek) is CARRIED by its surface velocity and FORCED by the flow's bed shear -
+        // the regions' rule (25.26 RC) read from the volume's surface field; a pond (n = 0) steps exactly as before
+        const float nBed = av.solver->params().bedManning;
+        std::vector<glm::vec2> vel;
+        if (nBed > 0.0f && m_rpattern.slope < 0.0f) {
+            const int nx = L.nx(), nz = L.nz();
+            vel.assign(static_cast<size_t>(nx) * nz, glm::vec2(0.0f));
+            const uint32_t frame = ++av.rippleFrame;
+            std::vector<float> raw;
+            for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+                const size_t i = L.idx(x, z);
+                if (!mask[i]) continue;
+                const SurfaceColumn* c = column((L.origin().x + x + 0.5f) * d, (L.origin().y + z + 0.5f) * d);
+                if (!c) continue;
+                vel[i] = glm::vec2(c->u, c->w);
+                if (m_flowForcing <= 0.0f) continue;
+                const float speed = std::sqrt(c->u * c->u + c->w * c->w);
+                if (speed < 1e-3f) continue;
+                const int top = std::min(static_cast<int>(c->runs + 0.5f), kSurfaceMaxRuns) - 1;
+                const float depth = std::max(c->top[top] - c->bottom[top], 1e-3f);
+                const float ustar = speed * nBed * std::sqrt(9.81f) / std::pow(depth, 1.0f / 6.0f);
+                const float a = m_flowForcing * 1000.0f * ustar * ustar * dt;
+                // fade over the window's outer 8 m where its border is open (the ripples die away before the absorbing rim)
+                const float edge = static_cast<float>(std::min(std::min(x, z), std::min(nx - 1 - x, nz - 1 - z)));
+                const float fade = std::clamp(edge / 72.0f, 0.0f, 1.0f);
+                if (fade <= 0.0f) continue;
+                uint32_t hh = static_cast<uint32_t>(L.origin().x + x) * 73856093u ^ static_cast<uint32_t>(L.origin().y + z) * 19349663u ^ frame * 83492791u;
+                hh ^= hh >> 13; hh *= 0x5bd1e995u; hh ^= hh >> 15;
+                const float xi = (hh & 0xFFFFu) / 32767.5f - 1.0f;
+                if (raw.empty()) raw.assign(static_cast<size_t>(nx) * nz, 0.0f);
+                raw[i] = a * xi * fade;
+            }
+            if (!raw.empty()) L.addImpulseField(raw);
+        }
         L.setBreakSlope(m_rstats.breakSlope);
-        if (m_rpattern.slope < 0.0f) stepLayer(L, dt, nullptr);
+        if (m_rpattern.slope < 0.0f) stepLayer(L, dt, vel.empty() ? nullptr : &vel);
         m_rstats.brokenM3 += L.takeBroken();
         ++m_rstats.layers; m_rstats.cells += static_cast<long>(L.nx()) * L.nz();
         if (!L.asleep()) ++m_rstats.awake;   // the shape stats: refreshRippleShapeStats (on demand)
@@ -1368,19 +1431,7 @@ void WaterCoreManager::stepRipples(float dt) {
     for (ColumnRegion& reg : m_columns) {
         ColumnWater& cw = *reg.cw;
         const ShoreSolver& sv = cw.solver();
-        const int lnx = std::min(kColumnRippleWindow, cw.nx() * 3), lnz = std::min(kColumnRippleWindow, cw.nz() * 3);
-        const glm::ivec2 lo(cw.minVoxel().x * 9, cw.minVoxel().z * 9);
-        const glm::ivec2 hi((cw.maxVoxel().x + 1) * 9 - lnx, (cw.maxVoxel().z + 1) * 9 - lnz);
-        glm::ivec2 want(static_cast<int>(std::floor(m_view.x * 9.0f)) - lnx / 2, static_cast<int>(std::floor(m_view.z * 9.0f)) - lnz / 2);
-        want = glm::clamp(want, lo, glm::max(lo, hi));
-        if (!reg.ripple) { reg.ripple = std::make_unique<RippleLayer>(want, lnx, lnz, 9.81f); reg.ripple->setOpenBorder(true); }
-        RippleLayer& L = *reg.ripple;
-        // the window moves in 4 m steps (36 cells) - not every frame; the field keeps its world position across a move
-        if (std::abs(want.x - L.origin().x) > 36 || std::abs(want.y - L.origin().y) > 36) {
-            if (gpu) m_rgpu->syncPrev(L, liveRippleLayers());   // 25.34: the shift moves BOTH levels - the ring drained, the previous one back
-            L.shiftOrigin(want);
-            if (gpu) m_rgpu->markDirty(L);
-        }
+        RippleLayer& L = rippleWindow(reg.ripple, cw.minVoxel(), cw.maxVoxel(), gpu);   // 26.13: the one window rule
         const int nx = L.nx(), nz = L.nz();
         std::vector<glm::vec2> vel(static_cast<size_t>(nx) * nz, glm::vec2(0.0f));
         auto& mask = L.mask();

@@ -13899,7 +13899,7 @@ void Application::registerWaterCommands() {
                               {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
-                              {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};
+                              {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"source_in_m3", a.sourceIn}, {"outfall_out_m3", a.outfallOut}, {"outfalls", a.outfalls}, {"manning_n", a.manningN}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};
     };
     reg.on("water_av_create", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
@@ -13911,6 +13911,8 @@ void Application::registerWaterCommands() {
         // Phase D: seed:"spans" fills the volume from the chunk spans of its box (a flat start, cell
         // size free); auto_sleep (default true) writes back + frees in realtime when it sleeps.
         waterCore->setAutoSleep(id, cmd.params.value("auto_sleep", true));
+        // 26.13: manning_n > 0 = Manning's law at the bed (a creek) instead of pond friction; clamped 0-0.2, echoed
+        if (cmd.params.contains("manning_n")) waterCore->setBedManning(id, std::clamp(cmd.params.value("manning_n", 0.0f), 0.0f, 0.2f));
         double seeded = 0.0;
         const std::string seed = cmd.params.value("seed", std::string("none"));
         if (seed == "spans") {
@@ -14047,8 +14049,9 @@ void Application::registerWaterCommands() {
             return;
         }
         const float rate = std::clamp(cmd.params.value("rate", 0.0f), -10.0f, 10.0f);   // |rate| <= 10 m^3/s: above it one cell cannot accept the inflow per tick at 1/9
-        const bool ok = waterCore->addSource(cmd.params.value("id", 0), glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f)), rate, &err);
-        r = ok ? nlohmann::json{{"success", true}, {"rate", rate}} : nlohmann::json{{"error", err}};
+        const bool outfall = cmd.params.value("outfall", false);   // 26.13: {outfall: true} takes what arrives at the cell and above it (rate unused)
+        const bool ok = waterCore->addSource(cmd.params.value("id", 0), glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f)), outfall ? 0.0f : rate, &err, outfall);
+        r = ok ? nlohmann::json{{"success", true}, {"rate", outfall ? 0.0f : rate}, {"outfall", outfall}} : nlohmann::json{{"error", err}};
     });
     reg.on("water_av_impulse", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
@@ -14127,6 +14130,21 @@ void Application::registerWaterCommands() {
     // Phase E (docs/WaterCore.md 19): coupling status + the A/B control. {enabled?} -> the echo.
     // 20 (M2) measurement: {points: [[x, z], ...]} starts recording the drawn surface (pond level + highest run)
     // at those world points every frame (up to 8 points, 20000 frames); {} returns the rows; {stop: true} ends it.
+    // 26.13: the drawn surface at voxel columns - {points: [[x, z], ...]} (up to 64) -> per point the surface y (m) and the surface
+    // velocity (u, w m/s; the top cells') from the volumes' surface fields (no read-back; null = no volume water there)
+    reg.on("water_av_column", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        nlohmann::json out = nlohmann::json::array();
+        if (cmd.params.contains("points"))
+            for (const auto& pt : cmd.params["points"]) {
+                if (!pt.is_array() || pt.size() < 2 || out.size() >= 64) continue;
+                float y = 0.0f; glm::vec2 flow(0.0f);
+                const int x = static_cast<int>(std::floor(pt[0].get<float>())), z = static_cast<int>(std::floor(pt[1].get<float>()));
+                if (waterCore->columnWater(x, z, y, flow)) out.push_back({{"x", x}, {"z", z}, {"surface_y", y}, {"u", flow.x}, {"w", flow.y}});
+                else out.push_back({{"x", x}, {"z", z}, {"surface_y", nullptr}});
+            }
+        r = {{"success", true}, {"columns", out}};
+    });
     reg.on("water_av_watch", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("points")) {
             m_watchPoints.clear(); m_watchRows.clear();

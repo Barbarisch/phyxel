@@ -10,7 +10,7 @@
 #define WC_BRICKS_BINDING 4
 #include "water_core.glsl"
 layout(local_size_x = 1) in;
-struct GpuSource { int cell; float rate; float pending; float placedTotal; float unplaced; float pad0, pad1, pad2; };
+struct GpuSource { int cell; float rate; float pending; float placedTotal; float unplaced; float kind, pad1, pad2; };   // 26.13: kind 1 = outfall
 layout(std430, set = 0, binding = 0)          buffer F   { float f[]; };
 layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
 layout(std430, set = 0, binding = 2)          buffer Src { float src[]; };        // m^3/s per cell for the projection
@@ -24,6 +24,14 @@ void main() {
     const int cx = s.cell % pc.nx, cy = (s.cell / pc.nx) % pc.ny, cz = s.cell / (pc.nx * pc.ny);
     if (!air(cx, cy, cz)) return;
     const float vol = pc.h * pc.h * pc.h;
+    if (s.kind == 1.0) {   // 26.13 OUTFALL (WaterSolver::applySources): the cell and the cells above it up to the first solid empty, counted
+        float took = 0.0;
+        for (int y = cy; y < pc.ny && air(cx, y, cz); ++y) { const uint ci = cellIdx(cx, y, cz); if (f[ci] > 0.0) { took += f[ci]; f[ci] = 0.0; } }
+        s.placedTotal -= took * vol;
+        sources[pc.iparam] = s;
+        src[cellIdx(cx, cy, cz)] = 0.0;
+        return;
+    }
     const float owed = min(s.pending, abs(s.rate)) / vol;                       // fill units
     const float want = s.rate * pc.dt / vol + (s.rate >= 0.0 ? owed : -owed);
     if (want >= 0.0) {

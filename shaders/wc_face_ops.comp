@@ -8,6 +8,8 @@
 //   mode 6/7/8: velocity update u/v/w -= dt (p_b - p_a) / dist with the ghost-fluid distance
 //               (project's faceUpdate); binding 4 = pressure, binding 5 = liquid flag per cell
 //   mode 9: vel *= param0 (rest damping, applyRestDamping) - the lattice length is iparam
+//   mode 10: 26.13 Manning at the bed on u (iparam 0) or w (iparam 2) faces (WaterSolver::applyBedManning): param0 = n^2;
+//            u /= 1 + dt g n^2 |u| / d^(4/3), d = the mean of the two sub-columns' water (m), summed bottom-up as the CPU does
 #define WC_BRICKS_BINDING 6
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
@@ -70,6 +72,16 @@ void main() {
     } else if (pc.mode == 5) {
         ivec3 c; if (!threadSite(id, 2, c)) return;
         if (blocked(c.x, c.y, c.z - 1) || blocked(c.x, c.y, c.z) || bodyWall(c.x, c.y, c.z - 1) || bodyWall(c.x, c.y, c.z)) vel[id] = 0.0;
+    } else if (pc.mode == 10) {
+        ivec3 c; if (!threadSite(id, pc.iparam, c)) return;
+        const ivec3 a = pc.iparam == 0 ? ivec3(c.x - 1, c.y, c.z) : ivec3(c.x, c.y, c.z - 1);
+        if (a.x < 0 || a.z < 0 || c.x >= pc.nx || c.z >= pc.nz) return;   // the CPU damps interior faces only
+        float da = 0.0, db = 0.0;
+        for (int y = 0; y < pc.ny; ++y) { da += fAt(a.x, y, a.z); db += fAt(c.x, y, c.z); }
+        const float d = 0.5 * (da * pc.h + db * pc.h);
+        if (d < 1e-3) return;
+        const float v0 = vel[id];
+        vel[id] = v0 / (1.0 + pc.dt * pc.gravity * pc.param0 * abs(v0) / pow(d, 4.0 / 3.0));
     } else if (pc.mode == 9) {
         if (pc.bricked != 0) { ivec3 c; if (!threadSite(id, pc.iparam, c)) return; vel[id] *= pc.param0; }   // iparam = the lattice (26.6)
         else if (id < uint(pc.iparam)) vel[id] *= pc.param0;

@@ -1024,7 +1024,12 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     stamp(cmd, vol, TsExtrapolate);
     push.mode = 0; dispatch(cmd, *vol.pipes[ColumnOps], push, cols);                                        // settle again
     // friction and rest damping (FaceOps mode 9): dense - iparam = the lattice's length; bricked - iparam = the lattice (26.6)
-    if (params.pondFriction > 0.0f) {   // 24.7 pond friction: all motion, every substep (WaterSolver::applyPondFriction)
+    if (params.bedManning > 0.0f) {   // 26.13: Manning at the bed replaces pond friction (WaterSolver::applyBedManning), u and w faces
+        push.mode = 10; push.param0 = params.bedManning * params.bedManning;
+        push.iparam = 0; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU], push, n[0]);
+        push.iparam = 2; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsW], push, n[2]);
+        barrier(cmd);
+    } else if (params.pondFriction > 0.0f) {   // 24.7 pond friction: all motion, every substep (WaterSolver::applyPondFriction)
         push.mode = 9; push.param0 = std::max(0.0f, 1.0f - params.pondFriction * push.dt);
         for (int L = 0; L < 3; ++L) { push.iparam = vol.bricked ? L : static_cast<int32_t>(n[L]); dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }
         barrier(cmd);

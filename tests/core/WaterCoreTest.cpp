@@ -595,3 +595,31 @@ TEST(WaterCoreTest, FlipWallRunupMatchesLiterature) {
     RecordProperty("runup_fills_h0", control);
     RecordProperty("runup_flip_h0", flip);
 }
+
+// 26.13 P3a: an OUTFALL takes whatever arrives. A 4 m channel at 1/9 m (36 x 6 x 3 cells, everything outside solid): a pump
+// at one end, an outfall across the other end's three columns. At steady flow the outfall takes what the pump puts in (the
+// last 30 s of 90, within 2 %), and the ledger closes exactly: the water in the grid = what came in - what went out (1e-6 m^3,
+// float fills). RED before: no outfall kind - a fixed-rate sink cannot follow the inflow, so the water piles up at the foot.
+TEST(WaterCoreTest, AnOutfallTakesWhatArrives) {
+    const float h = 1.0f / 9.0f;
+    Tank t(36, 6, 3, h);
+    WaterSolver s(t.grid, t.query(), numerics());
+    s.addSource(glm::ivec3(0, 0, 1), 0.002f);
+    for (int z = 0; z < 3; ++z) s.addOutfall(glm::ivec3(35, 0, z));
+    auto totals = [&](double& in, double& out) {
+        in = 0.0; out = 0.0;
+        for (const auto& sp : s.sources()) { if (sp.outfall) out -= sp.placedTotal; else in += sp.placedTotal; }
+    };
+    double in30 = 0.0, out30 = 0.0;
+    for (int k = 0; k < 90 * 60; ++k) {
+        s.step(kDt);
+        if (k == 60 * 60 - 1) totals(in30, out30);
+    }
+    double in40 = 0.0, out40 = 0.0; totals(in40, out40);
+    const double stored = t.grid.totalMass();
+    std::printf("  pumped %.5f m^3, out %.5f m^3, stored %.6f m^3 (ledger %+.2e); last 30 s: in %.5f out %.5f m^3\n",
+                in40, out40, stored, stored - (in40 - out40), in40 - in30, out40 - out30);
+    EXPECT_GT(out40, 0.0) << "the outfall took nothing";
+    EXPECT_NEAR(out40 - out30, in40 - in30, 0.02 * (in40 - in30)) << "steady flow: the outfall takes what arrives";
+    EXPECT_NEAR(stored, in40 - out40, 1e-6) << "the ledger";
+}

@@ -58,6 +58,10 @@ struct AvRecord {
     double residueDropped = 0.0;           ///< m^3 dropped by the residue sweep over the volume's life
     double sourcePlaced = 0.0;             ///< m^3 all sources actually added (negative = removed) over the volume's life
     int    sourceCount = 0;
+    double sourceIn = 0.0;                 ///< 26.13: m^3 the pumps put in (placed)
+    double outfallOut = 0.0;               ///< 26.13: m^3 the outfalls took (positive)
+    int    outfalls = 0;                   ///< 26.13
+    float  manningN = 0.0f;                ///< 26.13: the bed roughness (0 = pond friction)
     bool   autoSleep = true;               ///< Phase D: in realtime the volume writes back and frees itself when it sleeps
     double seededMass = 0.0;               ///< Phase D: m^3 the volume was seeded with from spans (0 = placed by hand)
 };
@@ -153,7 +157,8 @@ public:
     /// Set f for every cell inside the world voxel box (replace, not add); wakes the volume.
     /// Returns the number of cells set. Cells outside every volume are ignored (reported).
     long placeBox(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float fill, long* outsideCells);
-    bool addSource(int id, const glm::vec3& world, float rate, std::string* err);
+    bool addSource(int id, const glm::vec3& world, float rate, std::string* err, bool outfall = false);
+    bool setBedManning(int id, float n);   ///< 26.13: Manning n at the bed (0 = pond friction); CPU and GPU   ///< 26.13: outfall = take what arrives (rate unused)
     bool clearSources(int id);   ///< stop every source on the volume (the pump is switched off)
     /// Phase B2: a deterministic sample of up to `max` particles as (x, y, z, vx, vy, vz) in world
     /// metres and m/s (every k-th of the sorted list); empty for a fill volume.
@@ -388,7 +393,8 @@ private:
         double fieldStepSec = -1.0;     // wall time of that step
         bool hadSolids = false;         // 20: fed bodies (or a wake) last frame - keep feeding until it clears
         std::vector<float> pendingDeposit;   // 21: GPU volume - landed droplets (cell fractions) for the next step
-        std::unique_ptr<RippleLayer> ripple;  // 22: the sub-cell wave layer (null = none / refused)
+        std::unique_ptr<RippleLayer> ripple;  // 22: the sub-cell wave layer (null = none / refused); 26.13: a window following the camera
+        uint32_t rippleFrame = 0;             // 26.13: the forcing's hash frame (as a region's)
         bool rippleRefused = false;
         bool hasPendingDeposit = false;
     };
@@ -426,6 +432,10 @@ private:
     std::string m_rgpuErr;
     std::vector<RippleLayer*> liveRippleLayers();
     void stepLayer(RippleLayer& L, float dt, const std::vector<glm::vec2>* vel);
+    /// 26.13: THE ripple window, one rule for volumes and column regions (25.26 RC): min(kColumnRippleWindow, the box) lattice
+    /// cells per axis, centred on the camera and clamped to the box, moved in 4 m steps; created on first use; its border absorbs
+    /// (RippleLayer's default, as every layer always had).
+    RippleLayer& rippleWindow(std::unique_ptr<RippleLayer>& layer, const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, bool gpu);
     void stepGpu(Av& av, int ticks, float dt);
     bool pushSourcesToGpu(Av& av, std::string* err);
     void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)

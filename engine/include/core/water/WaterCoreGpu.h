@@ -40,7 +40,8 @@ struct GpuSource {
     float pending = 0.0f;      ///< m^3 owed
     float placedTotal = 0.0f;  ///< m^3 placed (negative = removed)
     float unplaced = 0.0f;
-    float pad0 = 0.0f, pad1 = 0.0f, pad2 = 0.0f;
+    float kind = 0.0f;         ///< 26.13: 0 = pump / sink, 1 = outfall (takes what arrives: SourceSpec::outfall)
+    float pad1 = 0.0f, pad2 = 0.0f;
 };
 static_assert(sizeof(GpuSource) == 32, "GpuSource must match the GLSL struct");
 

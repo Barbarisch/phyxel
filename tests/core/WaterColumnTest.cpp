@@ -322,3 +322,39 @@ TEST(WaterColumnTest, DISABLED_DiagWindowCarriesTheCreekAlone) {
 }
 
 }  // namespace Phyxel::Core::Water
+
+namespace Phyxel::Core::Water {
+// 26.13 P3a: every volume's ripple layer is THE window the column regions use (one rule). A 100 m volume (900 lattice cells
+// long) gets a 384-cell window that follows the view point in 4 m steps (RED before: refused - over 512 cells, no ripples);
+// a 4 x 4 m pond's layer is its whole box at its corner, as before.
+TEST(WaterColumnTest, EveryVolumeGetsTheRippleWindow) {
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr{state};
+    std::string err;
+    const int creek = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(99, 0, 1), 1.0f / 9.0f, "eulerian", &err, "cpu");
+    ASSERT_NE(creek, 0) << err;
+    const int pond = mgr.create(glm::ivec3(200, 0, 0), glm::ivec3(203, 0, 3), 1.0f / 9.0f, "eulerian", &err, "cpu");
+    ASSERT_NE(pond, 0) << err;
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(99, 0, 1), 0.3f, nullptr);
+    mgr.placeBox(glm::ivec3(200, 0, 0), glm::ivec3(203, 0, 3), 0.3f, nullptr);
+    mgr.setRipples(true);
+    mgr.setRealtime(true);
+    mgr.setViewPoint(glm::vec3(20.0f, 1.0f, 1.0f));
+    mgr.update(1.0f / 60.0f);
+    auto layers = mgr.rippleLayers();
+    ASSERT_EQ(layers.size(), 2u) << "both volumes get a layer";
+    const RippleLayer* c = layers[0]; const RippleLayer* p = layers[1];
+    std::printf("  creek window %d x %d at (%d, %d); pond layer %d x %d at (%d, %d)\n", c->nx(), c->nz(), c->origin().x, c->origin().y, p->nx(), p->nz(), p->origin().x, p->origin().y);
+    EXPECT_EQ(c->nx(), WaterCoreManager::kColumnRippleWindow);
+    EXPECT_EQ(c->nz(), 18);
+    EXPECT_EQ(c->origin().x, std::max(0, 20 * 9 - WaterCoreManager::kColumnRippleWindow / 2)) << "centred on the view, clamped to the box";
+    EXPECT_EQ(p->nx(), 36); EXPECT_EQ(p->nz(), 36);
+    EXPECT_EQ(p->origin(), glm::ivec2(200 * 9, 0));
+    mgr.setViewPoint(glm::vec3(80.0f, 1.0f, 1.0f));   // the camera walks down the creek: the window follows (clamped to the box end)
+    mgr.update(1.0f / 60.0f);
+    layers = mgr.rippleLayers();
+    std::printf("  after the view moves to x 80: creek window at (%d, %d)\n", layers[0]->origin().x, layers[0]->origin().y);
+    EXPECT_EQ(layers[0]->origin().x, std::min(80 * 9 - WaterCoreManager::kColumnRippleWindow / 2, 100 * 9 - WaterCoreManager::kColumnRippleWindow));
+    EXPECT_EQ(layers[1]->origin(), glm::ivec2(200 * 9, 0)) << "the pond's layer never moves (it is its whole box)";
+}
+}  // namespace Phyxel::Core::Water

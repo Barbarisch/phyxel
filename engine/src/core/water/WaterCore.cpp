@@ -641,6 +641,12 @@ SourceSpec& WaterSolver::addSource(const glm::ivec3& cellLocal, float rate) {
     return m_sources.back();
 }
 
+SourceSpec& WaterSolver::addOutfall(const glm::ivec3& cellLocal) {
+    SourceSpec& s = addSource(cellLocal, 0.0f);
+    s.outfall = true;
+    return s;
+}
+
 void WaterSolver::clearSources() { m_sources.clear(); }
 
 void WaterSolver::addImpulse(const glm::vec3& worldPos, float radius, float deltaSpeed, const glm::vec3& dir) {
@@ -793,6 +799,17 @@ void WaterSolver::applySources(float dt, StepReport& r) {
     const float vol = m_grid.cellVolume();
     for (SourceSpec& s : m_sources) {
         if (!m_grid.inBounds(s.cell.x, s.cell.y, s.cell.z) || m_grid.occ(s.cell.x, s.cell.y, s.cell.z) != Occ::Air) continue;
+        if (s.outfall) {   // 26.13: what arrived leaves - the cell and the cells above it up to the first solid, counted exactly
+            if (m_transport->ownsMass()) continue;   // particles: not built (the manager refuses an outfall on a particle volume)
+            double took = 0.0;
+            for (int y = s.cell.y; y < m_grid.ny() && m_grid.occ(s.cell.x, y, s.cell.z) == Occ::Air; ++y) {
+                float& f = m_grid.f(s.cell.x, y, s.cell.z);
+                if (f > 0.0f) took += f;
+                if (f > 0.0f) f = 0.0f;
+            }
+            s.placedTotal -= took * vol; r.sinkRemoved += took * vol;
+            continue;
+        }
         float& fc = m_grid.f(s.cell.x, s.cell.y, s.cell.z);
         if (m_transport->ownsMass()) {   // Phase B2: the particle transport takes or gives the volume itself
             const double owedT = std::min(s.pending, static_cast<double>(std::abs(s.rate)));
