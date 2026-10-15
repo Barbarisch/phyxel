@@ -5918,6 +5918,43 @@ Evidence: `docs/evidence/water_core_h1/creekbench_pond_g9_q{0.2,0.5}.json` + `_s
 the timing split; q 0.5: the 80-sweep run), `creekbench_g9_voxbed_q{0.2,0.5}.json` + `_steady.mp4` (the column model on the voxel bed),
 `creekbench_{pond,column}_g9_q{0.2,0.5}_profile.json`. Tests: GPU water 34 pass (the known FLIP row fails), CPU water 330 / 330.
 
+### 26.16 The water's call not waited on - design and check (2026-10-15). Status: DESIGN, READY
+
+**The problem (26.15, measured live):** each frame the engine records the water's call, submits it to the graphics queue and
+WAITS for its fence. The queue still holds the renderer's frame, so the main thread sits ~4 ms behind the renderer's work plus
+1.85 ms of the water's own: 12.9 ms frames stepping vs 5.6 ms paused. The ripple step met the same thing in 25.34 and does not
+wait (`RippleGpu`: submit now, collect next frame). The water core gets the same protocol.
+
+**The protocol - one call in flight per volume:**
+- `step(vol)` in ASYNC mode: (1) finish the call in flight, if any (`finishCall`: wait on the volume's own fence - normally
+  already signalled, a frame has passed - then everything `step` does today after its fence: stats, sleep rule, the brick
+  record, the halo check, the list-growth copy); (2) record the next call exactly as today (residency from the record just
+  collected, CFL from its max speed); (3) submit with the volume's fence, NO wait; return the stats of the call collected in (1).
+- What the host reads of a call is copied out of staging in `finishCall` into host memory (the surface lists, the birth list,
+  the sources - their copy rides the call itself, so the per-step `readSources` submission goes too). `readSurface`,
+  `readBirths`, `readSources` read those copies and never wait. The staging buffer is touched by the host only between a
+  finish and the next submit - never while a call that writes it is in flight.
+- Every other entry that touches staging or the device state from the host (`upload`, `setSources`, `setSolids`,
+  `setSolidsBox`, `download`, `readCells`, `setParticles`, `readParticles`, `destroyVolume`, switching async off) first
+  finishes the call in flight (`settle`). The body feed runs once a frame before the step: the call it settles was submitted a
+  frame earlier.
+- SYNC mode (the default - every test, every non-realtime call) is the same code with the finish right after the submit:
+  unchanged behaviour. The manager turns ASYNC on for a GPU volume while it steps in realtime.
+
+**What the water looks like - one frame late, nothing else.** The GPU runs the same commands in the same order in both modes:
+call k's residency reads call k-1's record and call k's substep count reads call k-1's max speed in both. So the water's
+STATE is bit-identical; only what the host sees lags one call: the drawn surface is one frame (~16 ms) older (the ripple
+heights already are), droplets are born one frame later, the record's numbers are the previous call's, and a volume falls
+asleep one call later.
+
+**Design keys.** *Look:* unchanged (a 16 ms lag in what is drawn; the renderer already draws the ripple layer up to kRing frames
+behind). *Chunks:* none involved. *Generation:* none. *API:* the record's `gpu_*` timings describe the call collected; a new
+`gpu_async` field echoes the mode; nothing else changes. *Visual test:* the creek bench at q 0.2 - frame time with the water
+stepping vs paused, before / after, and the clip (the water must look the same). *Small rig and control:*
+`WaterCoreGpuParityTest.GpuAsyncEqualsSync` - the 26.13 outfall rig and a sloshing tank, 60 calls each in sync and in async
+mode: every cell's f, every face's velocity and the source totals bit-identical after the last call is settled, and the
+stats returned by async call k equal sync call k-1's (red before: there is no async mode). **Verdict: READY.**
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
