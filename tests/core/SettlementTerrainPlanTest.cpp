@@ -217,3 +217,70 @@ TEST(SettlementTerrainPlanTest, WithAWorldTheSitePrepUnitsAreActuallyPlanned) {
         << "site prep is ordered AFTER the first building - buildings would be seated on "
            "uncleared, ungraded ground (the invariant the handler only stated in a comment)";
 }
+
+// ---------------------------------------------------------------------------
+// M0 (docs/WorldForgeV2Plan.md §5 M0): WATER is unbuildable. `analyzeSite` has had a
+// `waterAt` predicate since SiteAnalysis landed, and plan() passed `{}` for it — so a
+// creek bed or a lake margin inside the site rect was "buildable" and a plot could be
+// planned straight across it (the F7 live plan put 40 order-1 creek crossings in the
+// region; nothing stopped a lot from sitting on one). RED: with a band of water spans
+// across a flat site, today a building straddles the band.
+// ---------------------------------------------------------------------------
+namespace {
+// Mark columns x in [x0, x1] (world cubes, every z) as holding a thin water span on the
+// surface — the chunk's own persisted "water as world data" record, what a loaded world
+// carries. The band runs ACROSS the main street (which lies along x on this site), so the
+// burgage plots on both sides of the street straddle it.
+void floodBandX(HeadlessWorld& w, int chunksX, int x0, int x1, int surfaceY) {
+    for (int cx = 0; cx < chunksX; ++cx) {
+        Phyxel::Chunk* ch = w.cm()->getChunkAtFast(glm::ivec3(cx * 32, surfaceY, 0));
+        ASSERT_NE(ch, nullptr);
+        std::vector<Phyxel::Chunk::WaterSpanLocal> spans;
+        for (int lx = 0; lx < 32; ++lx) {
+            const int wx = cx * 32 + lx;
+            if (wx < x0 || wx > x1) continue;
+            for (int z = 0; z < 32; ++z) {
+                Phyxel::Chunk::WaterSpanLocal s;
+                s.x = static_cast<uint8_t>(lx); s.z = static_cast<uint8_t>(z);
+                s.bottom = static_cast<float>(surfaceY + 1); s.top = static_cast<float>(surfaceY + 1) + 0.6f;
+                spans.push_back(s);
+            }
+        }
+        ch->setWaterSpans(std::move(spans));
+    }
+}
+int buildingsCrossingBandX(const SettlementBuildService::Plan& plan, int x0, int x1) {
+    int n = 0;
+    for (const auto& b : plan.queuedBuilds) {
+        const int bx = b["position"].value("x", 0);
+        const int bw = b["footprint"].is_array() && b["footprint"].size() == 2 ? b["footprint"][0].get<int>() : 0;
+        if (bx <= x1 && bx + bw - 1 >= x0) ++n;
+    }
+    return n;
+}
+}  // namespace
+
+TEST(SettlementTerrainPlanTest, CreekInsideFootprintIsNotBuildable) {
+    // CONTROL: plan the dry flat site first and take the creek band from its FIRST building's
+    // footprint (its middle two columns), so the band is one a planned building provably crosses.
+    HeadlessWorld dry(2, [](int, int) { return 16; });
+    const auto dryPlan = planOn(dry, 48, 28, /*terrain=*/true);
+    ASSERT_TRUE(dryPlan.ok()) << dryPlan.error.dump();
+    ASSERT_FALSE(dryPlan.queuedBuilds.empty());
+    const auto& b0 = dryPlan.queuedBuilds[0];
+    const int bx = b0["position"].value("x", 0), bw = b0["footprint"][0].get<int>();
+    const int x0 = bx + bw / 2 - 1, x1 = bx + bw / 2;   // a 2-cube creek through the building's middle
+    ASSERT_GT(buildingsCrossingBandX(dryPlan, x0, x1), 0)
+        << "control broken: the band was taken from a planned building, it must cross it";
+
+    HeadlessWorld wet(2, [](int, int) { return 16; });
+    floodBandX(wet, 2, x0, x1, 16);
+    const auto plan = planOn(wet, 48, 28, /*terrain=*/true);
+    ASSERT_TRUE(plan.ok()) << plan.error.dump();
+    EXPECT_EQ(buildingsCrossingBandX(plan, x0, x1), 0)
+        << "a building was planned over the creek band x " << x0 << ".." << x1
+        << " (analyzeSite received no water predicate)";
+    EXPECT_GT(plan.program.value("dropped_plots", 0), 0)
+        << "plots over water must be DROPPED and counted, not silently shrunk";
+    EXPECT_GT(plan.settlement.value("buildings", 0), 0) << "the dry parts still host buildings";
+}

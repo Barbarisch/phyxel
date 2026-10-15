@@ -345,6 +345,31 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         auto terrainTopAt = [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, oy](int wx, int wz) -> int {
             return settlementTopScan(chunkManager, oy, wx, wz, /*floraBlind=*/true);
         };
+        // M0 (WorldForgeV2Plan §5 M0): WATER is unbuildable. A column is water when the world
+        // holds a water span on it (the chunk's persisted "water as world data" — loaded and
+        // edited worlds, headless rigs) or when the generator says it is a river channel or an
+        // open-water (lake / sea) column. Until this, analyzeSite received an EMPTY predicate
+        // and a creek bed inside the site rect was "buildable".
+        auto waterAt = [chunkManager, terrainTopAt](int wx, int wz) -> bool {
+            if (!chunkManager) return false;
+            const int top = terrainTopAt(wx, wz);
+            for (int yy : {top, top + 1}) {
+                const glm::ivec3 wp(wx, yy, wz);
+                if (Chunk* ch = chunkManager->getChunkAtFast(wp)) {
+                    const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(wp);
+                    for (const auto& sp : ch->getWaterSpans())
+                        if (sp.x == lp.x && sp.z == lp.z && sp.top > sp.bottom) return true;
+                }
+            }
+            if (WorldGenerator* gen = chunkManager->getStreamingGenerator()) {
+                if (gen->channelHitAt(wx + 0.5f, wz + 0.5f).hit) return true;   // null-safe without a bake
+                if (gen->hydrology()) {
+                    WaterSpan ws;
+                    if (gen->waterSpanAt(wx, wz, ws)) return true;
+                }
+            }
+            return false;
+        };
 
         // TERRAIN MODE: analyse the live world's buildability and place plots on the buildable cells
         // (flat valleys + hilltops), skipping cliffs/steep. Else: the flat-plane grid.
@@ -361,7 +386,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             const Core::BuildabilityMap site =
                 Core::analyzeSite(W, D, maxRelief,
                                   [&](int x, int z) { return terrainTopAt(ox + x, oz + z); },
-                                  {}, 1, window);
+                                  [&](int x, int z) { return waterAt(ox + x, oz + z); },   // M0: water is unbuildable
+                                  1, window);
             if (mainStreetMode) {
                 // The spine picks the FLATTEST straight alignment over the site, then plots whose
                 // footprint touches an unbuildable cell are dropped with a surfaced count

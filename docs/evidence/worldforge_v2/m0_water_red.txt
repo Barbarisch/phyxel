@@ -1,0 +1,33 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementTerrainPlanTest.CreekInsideFootprintIsNotBuildable
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SettlementTerrainPlanTest
+[ RUN      ] SettlementTerrainPlanTest.CreekInsideFootprintIsNotBuildable
+[21:56:31.606] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[21:56:31.611] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[21:56:31.649] [INFO] [Settlement] main_street terrain: axis X offset 11, 4 plots (0 dropped unbuildable)
+[21:56:31.650] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)
+[21:56:31.724] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[21:56:31.729] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[21:56:31.766] [INFO] [Settlement] main_street terrain: axis X offset 11, 4 plots (0 dropped unbuildable)
+[21:56:31.768] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (1 streets)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementTerrainPlanTest.cpp(280): error: Expected equality of these values:
+  buildingsCrossingBandX(plan, x0, x1)
+    Which is: 2
+  0
+a building was planned over the creek band x 7..8 (analyzeSite received no water predicate)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementTerrainPlanTest.cpp(283): error: Expected: (plan.program.value("dropped_plots", 0)) > (0), actual: 0 vs 0
+plots over water must be DROPPED and counted, not silently shrunk
+
+[  FAILED  ] SettlementTerrainPlanTest.CreekInsideFootprintIsNotBuildable (239 ms)
+[----------] 1 test from SettlementTerrainPlanTest (239 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (240 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] SettlementTerrainPlanTest.CreekInsideFootprintIsNotBuildable
+
+ 1 FAILED TEST
