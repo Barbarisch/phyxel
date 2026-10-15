@@ -1,0 +1,149 @@
+{
+ "scenario": "R3",
+ "bench": "small",
+ "engine": "core",
+ "build_config": "Release",
+ "git_head": "f7b6d375",
+ "timestamp": "20261009_010721",
+ "prediction": {
+  "engine": "core",
+  "cell_size": 0.3333,
+  "backend": "auto",
+  "fill_top": 16.5,
+  "cube_displaces_m3": 1.0,
+  "undercut_shift": -1.0,
+  "pit_spans": 0,
+  "wake_seed_equals_stored_tol": 0.0001
+ },
+ "measurement": {
+  "rest_time_s": null,
+  "sleep": {
+   "success": true,
+   "error": null,
+   "columns": 36,
+   "mass_written": 24.000000053000278,
+   "mass_stored": 23.999998092651367,
+   "surface_vs_mass_mm": 28.181076049804688
+  },
+  "cube": {
+   "at": [
+    101,
+    15,
+    13
+   ],
+   "placed": {
+    "position": {
+     "x": 101,
+     "y": 15,
+     "z": 13
+    },
+    "success": true
+   },
+   "depth_before": 1.4978408813476562,
+   "depth_after": 0.49784088134765625,
+   "tops_after": [
+    16.497840881347656
+   ],
+   "ledger_total_before": 24.020000457763672,
+   "ledger_total_after": 23.020000457763672,
+   "displaced_ledger": 1.0,
+   "body_displaced": [
+    0.0,
+    1.0
+   ]
+  },
+  "undercut": {
+   "at": [
+    102,
+    14,
+    13
+   ],
+   "removed": {
+    "position": {
+     "x": 102,
+     "y": 14,
+     "z": 13
+    },
+    "success": true
+   },
+   "depth_before": 1.5080833435058594,
+   "depth_after": 1.5080833435058594,
+   "tops_before": [
+    16.50808334350586
+   ],
+   "tops_after": [
+    15.50808334350586
+   ]
+  },
+  "pit": {
+   "at": [
+    106,
+    16,
+    13
+   ],
+   "removed": {
+    "position": {
+     "x": 106,
+     "y": 16,
+     "z": 13
+    },
+    "success": true
+   },
+   "spans": 0,
+   "ledger_total_after": 23.020000457763672,
+   "held_edits": 0
+  },
+  "control": {
+   "at": [
+    100,
+    12
+   ],
+   "tops_before": [
+    16.503997802734375
+   ],
+   "tops_after": [
+    16.503997802734375
+   ],
+   "depth_before": 1.503997802734375,
+   "depth_after": 1.503997802734375
+  },
+  "wake": {
+   "seeded_mass": 22.999999473492135,
+   "flood_columns": 16,
+   "truncated": false,
+   "box": {
+    "max": [
+     105,
+     18,
+     17
+    ],
+    "min": [
+     98,
+     13,
+     10
+    ]
+   },
+   "mass_after_60": 22.99999979579876,
+   "asleep_after_60": false,
+   "stored_again": 22.99999237060547,
+   "sleep_ok": true,
+   "sleep_error": null,
+   "stored_after": 22.99999237060547
+  },
+  "stored_before_wake": 22.999998092651367
+ },
+ "samples": null,
+ "control_samples": null,
+ "verdict": {
+  "pond_slept": "PASS",
+  "cube_displaces_exactly_1": "PASS",
+  "cube_span_top_unchanged": "PASS",
+  "body_debited": "PASS",
+  "undercut_falls_one_voxel_mass_exact": "PASS",
+  "pit_stays_dry": "PASS",
+  "control_unchanged": "PASS",
+  "wake_seeds_stored_mass": "PASS",
+  "wake_sleep_round_trip": "PASS"
+ },
+ "capture": "G:\\Github\\phyxel\\docs\\evidence\\water_feel\\R3_small_core_h1-3_auto_20261009_010721.png"
+}

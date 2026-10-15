@@ -1,5 +1,25 @@
 # Water — the single defining document
 
+> **2026-10-11 — current status of the new water is [`WaterCore.md`](WaterCore.md) §0a** (phases A-F built on
+> `feat/water-rethink`; the small still pond is signed off; next is small flowing water, §25). The test worlds are
+> the WaterBench projects (`Documents/PhyxelProjects/WaterBench_{Small,Basin,Coast,River}`, ports 8111/8108/8109/8110)
+> - the "NO water test world" note below is history. What follows the 2026-10-08 note describes the OLD CA water,
+> which still ships beside the new core until the WaterCore.md §9 delete ledger retires it.
+> **2026-10-08 — [`WaterCore.md`](WaterCore.md) is the DESIGN OF RECORD** (small-scale function and
+> feel as the core; large bodies on top). Its §12 decisions are settled and **Phase B is live on
+> `feat/water-rethink`**: the `WaterCore` CPU reference (`engine/{include,src}/core/water/`, 15 unit
+> tests) runs inside the editor as active volumes (`WaterCoreManager`, routes `water_av_*`,
+> `target:"core"` on `water_probe_rect`/`place_water_box`), driven by `tools/water_feel.py --engine
+> core` in simulation time; the defect ledgers are WaterCore.md §15.7–15.8. The CA described below
+> is still what ships; it is reference material for the delete ledger (WaterCore.md §9).
+> **2026-10-07 — [`WaterRethink.md`](WaterRethink.md)** is the full stock-take of
+> every water representation, draw and query in the engine, the root-cause diagnosis of why the
+> system has not hit the brief, and the v4 work-package plan (WP0–WP9) that **replaces §6 below as
+> the ordering of record**. This document stays the current-state reference for the code as it
+> exists today. Testbeds: `PhyxelProjects/WaterTest` (§5) no longer exists on disk, and
+> WaterLab/CreekLab/RiverLab were deleted for real on 2026-10-07 (recipes preserved in
+> WaterRethink.md §6) — **there is currently NO water test world**; WP0 creates the WaterBench set.
+>
 > **This is the only water design doc.** It consolidates and supersedes six earlier docs
 > (ledger in §10; every one is recoverable from git history). Written 2026-08-04 from a full
 > read of all six plus the live code. If a statement here contradicts a code comment, the code
@@ -96,7 +116,7 @@ commit `e643a814`, 25 unit tests, mutation-checked):
 
 | Path | Worlds | State |
 |---|---|---|
-| Implicit flat sea (`invCellSize == 0`) | Authored, `water.enabled` | Kept deliberately; retire when spans render. |
+| Implicit flat sea (`invCellSize == 0`) | — | **DELETED 2026-10-09 (WaterCore Phase D5):** nothing bound draws nothing; off-grid is dry in every mode. Authored worlds show water only where spans exist (`water_ground_sync`). |
 | Coarse 128 m hydrology bake | Streaming/baked | **Defective as placement**: `water_validate` measured 606/606 rim leaks, worst 38 voxels. Kills it: rendering from spans. |
 | **Grounded grid** (`invCellSize < 0` = off-grid DRY) | Un-baked/editor | Shipped `7cd72001`. `water_ground_sync` builds per-voxel-column grid from live terrain via `buildOpenWaterSpan`; water cannot draw over void or through rock. Red/green at a camera inside rock; exact-count prediction (1,681) hit. |
 
@@ -223,7 +243,7 @@ reference screenshots (`docs/water-refs/`) were retired 2026-10-07; they are in 
 basin world takes two commands (generate Flat 4×4 + carve — see the WaterBasinTest recipe in
 git history) and should be done fresh when needed rather than kept.
 
-## 6. Open work, in order
+## 6. Open work, in order — SUPERSEDED 2026-10-07 by [`WaterRethink.md`](WaterRethink.md) §4 (kept as history)
 
 0. **⚠️ OPEN — `waterSpanAt` cost after the 48→256 extent raise (found 2026-08-31).**
    TWO tests in `WaterOccupancyTest` dominate the entire unit suite (measured, Debug):
@@ -349,16 +369,21 @@ everywhere; bulk water as particles (particles = splash/spray only).
 6. **Look-first rule for visuals**: keep a reference screenshot at a fixed camera; every
    visual change gets a same-vantage A/B; **a metric improving is not evidence it looks
    better**. Slope (amp×freq), not amplitude, is what the eye sees — corduroy comes from
-   adding octaves without holding slope sum.
+   adding octaves without holding slope sum. The reference set lives in
+   `docs/evidence/water_v4_refs/` (one HUD-free capture per pinned bench vantage,
+   `tools/water_bench.py refshots <bench>`, 2026-10-08).
 7. **Screenshot latency can miss transient effects** (a ripple ring lives 4–6 s — pump
    impulses while capturing); Σ|h| is not monotone for waves; multiplicative verlet damping
    needs `exp(−2k·dt)`.
 
-8b. **The camera-walk probe** (the user's manual detection of the camera invariant, encoded):
-   from a vantage far from a shoreline, record wet/dry for a fixed rect (`water_spans_stored`
-   is camera-independent; the RENDERED extent needs a screenshot or pixel probe); teleport
-   close; diff. Any column that changed is a camera-existence violation. Run it on every
-   placement/render change — three shipped bugs would each have failed it.
+8b. **The camera-walk probe — AUTOMATED 2026-10-08: `python tools/water_camera_probe.py <bench>`**
+   (WaterRethink.md WP0). It poses far, settles, reads `water_render_grid` (what the sheet would
+   DRAW per column, from the pipeline's CPU shadow of the uploaded grid) + `water_spans_stored
+   {columns:true}` (what chunks HOLD + resident chunk columns), poses near, reads again, and
+   reports VIOLATION (resident at both poses, rendered wet/dry or level differs; or rendered ≠
+   spans on a resident column) / COVERAGE (residency moved — allowed) / SOURCE (placement
+   source changed). `--inject-water-look` is its self-test against the real upload-memo hazard.
+   Run it on every placement/render change — three shipped bugs would each have failed it.
 
 **Operational traps:**
 8. `build_shaders.bat` does NOT track `#include` deps — after editing `water_common.glsl`,
@@ -398,6 +423,11 @@ Debug API: `water_stats` · `water_probe` · `water_footprint` · `water_validat
 `water_table_level` · `water_scoop` · `water_ocean_boundary` · `water_gpu` · `water_save`.
 Tests: `WaterOccupancyTest` (25) · `WaterManagerTest` · `WaterProfileTest` · `SeaMeshTest` ·
 `RippleFieldTest` · water+hydrology suites ~200 green as of 2026-08-04.
+**WaterCore (Phase B, 2026-10-08):** `engine/{include,src}/core/water/WaterCore.*` (grid, solver,
+Eulerian transport) · `WaterCoreManager.*` (active volumes in the editor; solids from the micro
+occupancy pool keyed to `packRevision()`) · routes `water_av_{create,destroy,list,step,probe,source,
+impulse,realtime}` · `tests/core/WaterCoreTest.cpp` (15) · harness `tools/water_feel.py` S1–S5 ·
+evidence `docs/evidence/water_feel/`.
 
 ---
 

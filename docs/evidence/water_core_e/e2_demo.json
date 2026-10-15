@@ -1,0 +1,238 @@
+{
+ "pose": {
+  "x": 109.5,
+  "y": 20.5,
+  "z": 13.5,
+  "yaw": 180,
+  "pitch": -38
+ },
+ "backend": "auto",
+ "coupled": {
+  "tag": "e2_coupled",
+  "coupling": true,
+  "mass_before": 23.99999988520573,
+  "mass_after": 23.99999988520573,
+  "rest_dev_before": 0.03363800048828125,
+  "max_dev_after_entry": 0.1687,
+  "frames": [
+   {
+    "t": 0.6,
+    "max_dev_m": 0.1687,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_coupled_t00.60.png"
+   },
+   {
+    "t": 0.9,
+    "max_dev_m": 0.0416,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_coupled_t00.90.png"
+   },
+   {
+    "t": 1.2,
+    "max_dev_m": 0.1678,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_coupled_t01.20.png"
+   },
+   {
+    "t": 1.6,
+    "max_dev_m": 0.0345,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_coupled_t01.60.png"
+   },
+   {
+    "t": 2.5,
+    "max_dev_m": 0.1678,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_coupled_t02.50.png"
+   },
+   {
+    "t": 4.0,
+    "max_dev_m": 0.0406,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_coupled_t04.00.png"
+   },
+   {
+    "t": 8.0,
+    "max_dev_m": 0.0381,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_coupled_t08.00.png"
+   },
+   {
+    "t": 12.0,
+    "max_dev_m": 0.036,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_coupled_t12.00.png"
+   }
+  ],
+  "exchange": {
+   "applied": 4015,
+   "clamped": 0,
+   "dry": 0,
+   "frames": 373,
+   "gpu_records_dropped": 0,
+   "gpu_records_total": 4015,
+   "last_frame_momentum": [
+    6.722720513607783e-07,
+    -5.7157332776114345e-05,
+    -1.3033759387326427e-05
+   ],
+   "momentum_to_water_total": 4.9210035640026035,
+   "outside_volumes": 0,
+   "records": 4015
+  },
+  "exchange_before": {
+   "applied": 0,
+   "clamped": 0,
+   "dry": 0,
+   "frames": 0,
+   "gpu_records_dropped": 0,
+   "gpu_records_total": 0,
+   "last_frame_momentum": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "momentum_to_water_total": 0.0,
+   "outside_volumes": 0,
+   "records": 0
+  },
+  "volume_tiles": 1,
+  "stone_sleep_y": [
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167
+  ],
+  "wood_sleep_y": [
+   16.45,
+   16.469,
+   16.477,
+   16.484,
+   16.484,
+   16.542,
+   16.571,
+   16.572
+  ]
+ },
+ "control": {
+  "tag": "e2_control",
+  "coupling": false,
+  "mass_before": 23.99987893112856,
+  "mass_after": 23.999875554320774,
+  "rest_dev_before": 0.034526824951171875,
+  "max_dev_after_entry": 0.168,
+  "frames": [
+   {
+    "t": 0.6,
+    "max_dev_m": 0.168,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_control_t00.60.png"
+   },
+   {
+    "t": 0.9,
+    "max_dev_m": 0.0342,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_control_t00.90.png"
+   },
+   {
+    "t": 1.2,
+    "max_dev_m": 0.0354,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_control_t01.20.png"
+   },
+   {
+    "t": 1.6,
+    "max_dev_m": 0.0344,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_control_t01.60.png"
+   },
+   {
+    "t": 2.5,
+    "max_dev_m": 0.0343,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_control_t02.50.png"
+   },
+   {
+    "t": 4.0,
+    "max_dev_m": 0.0347,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_control_t04.00.png"
+   },
+   {
+    "t": 8.0,
+    "max_dev_m": 0.035,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_control_t08.00.png"
+   },
+   {
+    "t": 12.0,
+    "max_dev_m": 0.0352,
+    "columns": 32,
+    "png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\e2_control_t12.00.png"
+   }
+  ],
+  "exchange": {
+   "applied": 4703,
+   "clamped": 0,
+   "dry": 0,
+   "frames": 974,
+   "gpu_records_dropped": 0,
+   "gpu_records_total": 4703,
+   "last_frame_momentum": [
+    -6.033038062014384e-06,
+    0.00020363146904855967,
+    2.504008534742752e-06
+   ],
+   "momentum_to_water_total": 5.000613499291148,
+   "outside_volumes": 0,
+   "records": 4703
+  },
+  "exchange_before": {
+   "applied": 4703,
+   "clamped": 0,
+   "dry": 0,
+   "frames": 974,
+   "gpu_records_dropped": 0,
+   "gpu_records_total": 4703,
+   "last_frame_momentum": [
+    -6.033038062014384e-06,
+    0.00020363146904855967,
+    2.504008534742752e-06
+   ],
+   "momentum_to_water_total": 5.000613499291148,
+   "outside_volumes": 0,
+   "records": 4703
+  },
+  "volume_tiles": 1,
+  "stone_sleep_y": [
+   15.166,
+   15.166,
+   15.166,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.232,
+   15.233
+  ],
+  "wood_sleep_y": [
+   15.166,
+   15.166,
+   15.166,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167,
+   15.167
+  ]
+ }
+}

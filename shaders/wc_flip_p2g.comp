@@ -1,0 +1,60 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel F1: particle -> grid as a GATHER from the cell-sorted particle list (sorted
+// by cell, then id), so every sum has a fixed order and no float atomics (docs/WaterCore.md §15.11).
+//   mode 0: per cell: f = sum of the cell's particle masses / h^3
+//   mode 1/2/3: per face of lattice u/v/w: mass-weighted trilinear average of the particle
+//               velocities of the 8 cells around the face sample point (WaterCore.cpp
+//               FlipTransport::particlesToGrid in gather form)
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer Pos   { vec4 pos[]; };   // sorted
+layout(std430, set = 0, binding = 1) readonly buffer Vel   { vec4 vel[]; };
+layout(std430, set = 0, binding = 2) readonly buffer Start { uint start[]; };
+layout(std430, set = 0, binding = 3) readonly buffer Count { uint count[]; };
+layout(std430, set = 0, binding = 4)          buffer F     { float f[]; };
+layout(std430, set = 0, binding = 5)          buffer Lat   { float lat[]; };   // the lattice being written
+
+// trilinear weight of a particle at lattice coords q for the lattice node at integer n
+float w3(vec3 q, ivec3 nd) {
+    const vec3 d = abs(q - vec3(nd));
+    if (d.x >= 1.0 || d.y >= 1.0 || d.z >= 1.0) return 0.0;
+    return (1.0 - d.x) * (1.0 - d.y) * (1.0 - d.z);
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (pc.mode == 0) {
+        if (id >= uint(pc.nx * pc.ny * pc.nz)) return;
+        float m = 0.0;
+        const uint lo = start[id], hi = lo + count[id];
+        for (uint i = lo; i < hi; ++i) m += pos[i].w;
+        f[id] = m / (pc.h * pc.h * pc.h);
+        return;
+    }
+    // the face node in lattice coords, and the cell-space position of that node
+    const int L = pc.mode - 1;
+    const int sx = L == 0 ? pc.nx + 1 : pc.nx, sy = L == 1 ? pc.ny + 1 : pc.ny, sz = L == 2 ? pc.nz + 1 : pc.nz;
+    const ivec3 nd = decode(id, sx, sy);
+    if (nd.z >= sz) return;
+    // a particle at cell-space p has lattice coords: u (p.x, p.y-0.5, p.z-0.5), v (p.x-0.5, p.y, p.z-0.5), w (p.x-0.5, p.y-0.5, p.z)
+    const vec3 shift = L == 0 ? vec3(0.0, 0.5, 0.5) : (L == 1 ? vec3(0.5, 0.0, 0.5) : vec3(0.5, 0.5, 0.0));
+    // the node's cell-space position is nd + shift; particles within one lattice unit live in the
+    // cells whose index is floor(node - 1 + shift) .. floor(node + shift)  (2 cells per axis)
+    const vec3 nodeCell = vec3(nd) + shift;
+    const ivec3 c0 = ivec3(floor(nodeCell - vec3(1.0))), c1 = ivec3(floor(nodeCell));
+    float sumW = 0.0, sumWV = 0.0;
+    for (int z = c0.z; z <= c1.z; ++z) for (int y = c0.y; y <= c1.y; ++y) for (int x = c0.x; x <= c1.x; ++x) {
+        if (!inBounds(x, y, z)) continue;
+        const uint ci = cellIdx(x, y, z);
+        const uint lo = start[ci], hi = lo + count[ci];
+        for (uint i = lo; i < hi; ++i) {
+            const vec3 q = pos[i].xyz - shift;          // lattice coords of the particle
+            const float wt = pos[i].w * w3(q, nd);
+            if (wt <= 0.0) continue;
+            sumW += wt;
+            sumWV += wt * (L == 0 ? vel[i].x : (L == 1 ? vel[i].y : vel[i].z));
+        }
+    }
+    lat[id] = sumW > 0.0 ? sumWV / sumW : 0.0;
+}

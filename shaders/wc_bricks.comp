@@ -1,0 +1,59 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel (docs/WaterCore.md 26.6 P2a): the per-brick WATER RECORD residency is decided from. One workgroup per
+// slot (64 threads x 8 cells). Two records per stored brick, Bricks[counterOff + 2 + 2 slot + r]: r 0 = ANY water (f != 0 -
+// a hair-negative fill counts, so a brick is never freed with anything in it), r 1 = LIQUID (f >= thr: the cells the
+// extrapolation reaches out from, three layers - a film's rules reach one cell). Each: bit 0 = present, bits 1-18 = the
+// distance (cells, 0..7) of the nearest such cell to each face (-x, +x, -y, +y, -z, +z; 3 bits each). Slot 0 (the absent
+// brick) is instead CHECKED: any non-zero f, u, v, w or p there means something wrote where no brick is stored -
+// Bricks[counterOff + 1] = 1.
+#define WC_BRICKS_BINDING 5
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer F { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer U { float u[]; };
+layout(std430, set = 0, binding = 2) readonly buffer V { float v[]; };
+layout(std430, set = 0, binding = 3) readonly buffer W { float w[]; };
+layout(std430, set = 0, binding = 4) readonly buffer P { float p[]; };
+
+shared int sAny[2], sD[12];
+
+void main() {
+    const uint slot = gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
+    if (slot >= uint(pc.slotsUsed)) return;   // uniform per workgroup
+    if (slot == 0u) {
+        bool dirty = false;
+        for (uint k = 0u; k < 8u; ++k) {
+            const uint i = t + 64u * k;
+            dirty = dirty || f[i] != 0.0 || u[i] != 0.0 || v[i] != 0.0 || w[i] != 0.0 || p[i] != 0.0;
+        }
+        if (dirty) atomicOr(bricks[pc.counterOff + 1], 1);
+        return;
+    }
+    if (t == 0u) { sAny[0] = 0; sAny[1] = 0; for (int k = 0; k < 12; ++k) sD[k] = 7; }
+    barrier();
+    if (bricks[pc.slotTableOff + int(slot)] >= 0) {   // a stored brick (a free slot keeps records 0)
+        int any[2] = int[2](0, 0), d[12] = int[12](7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7);
+        for (uint k = 0u; k < 8u; ++k) {
+            const uint local = t + 64u * k;
+            const float fv = f[slot * 512u + local];
+            if (fv == 0.0) continue;
+            const int lx = int(local & 7u), ly = int((local >> 3u) & 7u), lz = int(local >> 6u);
+            const int dd[6] = int[6](lx, 7 - lx, ly, 7 - ly, lz, 7 - lz);
+            for (int r = 0; r < 2; ++r) {
+                if (r == 1 && fv < pc.thr) continue;
+                any[r] = 1;
+                for (int q = 0; q < 6; ++q) d[6 * r + q] = min(d[6 * r + q], dd[q]);
+            }
+        }
+        for (int r = 0; r < 2; ++r) if (any[r] != 0) { atomicOr(sAny[r], 1); for (int q = 0; q < 6; ++q) atomicMin(sD[6 * r + q], d[6 * r + q]); }
+    }
+    barrier();
+    if (t == 0u) {
+        for (int r = 0; r < 2; ++r) {
+            int rec = sAny[r];
+            if (sAny[r] != 0) for (int q = 0; q < 6; ++q) rec |= (sD[6 * r + q] & 7) << (1 + 3 * q);
+            bricks[pc.counterOff + 2 + 2 * int(slot) + r] = rec;
+        }
+    }
+}

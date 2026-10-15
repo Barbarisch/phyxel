@@ -10,6 +10,9 @@
 #include <cmath>
 #include <cstdio>
 #include <set>
+#include <tuple>
+#include <memory>
+#include <map>
 #include <utility>
 #include <vector>
 
@@ -413,6 +416,83 @@ TEST(TerrainRiverTest, CreekBedIsARecessedSubcubeShelf) {
             << "plain bank column is not a plain solid cube — shelf leaked off the creek line";
         break;
     }
+}
+
+// WaterCore.md 25.22 C-T9 + C-T8 - the creek-bed carve (recipe flag on): in EVERY inner-band creek column of a generated
+// stretch, the drawn top (read back from generated chunks) is <= the continuous bedHeight and within 1/3 m of it, and equals
+// WorldGenerator::drawnTop - including the columns on both sides of a chunk seam (the carve is per column, so a chunk and
+// its neighbour agree by construction; the seam columns are counted so the claim is not vacuous). Prints the layer counts.
+TEST(TerrainRiverTest, CreekBedCarvedToAThirdByRoundingDown) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    g.setCreekCarve(true);
+    const auto creeks = creekColumns(g, 300);
+    std::map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> chunks;
+    auto chunkAt = [&](const glm::ivec3& cc) -> Chunk& {
+        auto key = std::make_tuple(cc.x, cc.y, cc.z);
+        auto it = chunks.find(key);
+        if (it == chunks.end()) {
+            auto c = std::make_unique<Chunk>(cc * 32); c->initializeForLoading(); g.generateChunk(*c, cc);
+            it = chunks.emplace(key, std::move(c)).first;
+        }
+        return *it->second;
+    };
+    auto floorAt = [&](int x, int y, int z) {
+        const glm::ivec3 cc(static_cast<int>(std::floor(x / 32.0)), static_cast<int>(std::floor(y / 32.0)), static_cast<int>(std::floor(z / 32.0)));
+        return chunkAt(cc).subVoxelFloor(glm::ivec3(x, y, z) - cc * 32);
+    };
+    int checked = 0, seam = 0, layers[3] = {0, 0, 0};
+    for (const auto& c : creeks) {
+        const auto s = g.sampleSurface(c.first, c.second);
+        if (!s.creekBed) continue;
+        const float f = floorAt(c.first, s.surfaceY, c.second);
+        const float top = f > 1e-4f ? s.surfaceY + f : static_cast<float>(s.surfaceY);
+        if (f <= 1e-4f) EXPECT_NEAR(floorAt(c.first, s.surfaceY - 1, c.second), ChunkVoxelManager::kSolidFloor, 1e-4f) << "under an empty carve voxel the bed voxel is solid";
+        EXPECT_LE(top, s.bedHeight + 1e-4f) << "drawn bed above the continuous height at " << c.first << "," << c.second;
+        EXPECT_LT(s.bedHeight - top, 1.0f / 3.0f + 1e-4f) << "drawn bed more than 1/3 m below the continuous height at " << c.first << "," << c.second;
+        EXPECT_NEAR(top, g.drawnTop(s), 1e-4f) << "drawnTop() disagrees with the generated chunk at " << c.first << "," << c.second;
+        ++layers[WorldGenerator::creekLayers(s)];
+        if (((c.first % 32) + 32) % 32 == 0 || ((c.first % 32) + 32) % 32 == 31 || ((c.second % 32) + 32) % 32 == 0 || ((c.second % 32) + 32) % 32 == 31) ++seam;
+        ++checked;
+    }
+    std::printf("  creek bed columns checked %d (on a chunk seam: %d); carve layers 0/1/2: %d / %d / %d\n", checked, seam, layers[0], layers[1], layers[2]);
+    EXPECT_GT(checked, 20);
+    EXPECT_GT(seam, 0) << "no seam column in the stretch - the seam half of the claim is vacuous";
+    EXPECT_GE((layers[0] > 0) + (layers[1] > 0) + (layers[2] > 0), 2) << "the carve never varies - it would be the old fixed shelf";
+    // C-T10's finding (25.22): the carved band must be FACE-connected - water crosses faces, not corners. Complete 24 x 24
+    // windows around eight creek cells (the window border excluded, so a missing neighbour is never the window's edge):
+    // count creek columns joined to a diagonal creek column by a corner only. The carve's band (flag on: the whole channel
+    // width) against the old 0.15-deep band (flag off) as the control.
+    auto cornerJoins = [&](bool carve) {
+        WorldGenerator gg(WorldGenerator::GenerationType::Mountains, 7u);
+        gg.setCreekCarve(carve);
+        const FlowField* rn = gg.riverNetwork();
+        int joins = 0, cells = 0, bandCols = 0;
+        for (int j = 0; j < rn->cellsZ() && cells < 8; ++j)
+            for (int i = 0; i < rn->cellsX() && cells < 8; ++i) {
+                const float wx = rn->originX() + (i + 0.5f) * rn->cellSize(), wz = rn->originZ() + (j + 0.5f) * rn->cellSize();
+                if (wx < kBoxX0 - 800 || wx > kBoxX1 + 800 || wz < kBoxZ0 - 800 || wz > kBoxZ1 + 800) continue;
+                const int ord = rn->orderAt(wx, wz);
+                if (ord < 1 || ord > 2) continue;
+                ++cells;
+                const int cx = static_cast<int>(std::floor(wx)), cz = static_cast<int>(std::floor(wz));
+                std::set<std::pair<int, int>> band;
+                for (int dz = -12; dz <= 12; ++dz) for (int dx = -12; dx <= 12; ++dx)
+                    if (gg.sampleSurface(cx + dx, cz + dz).creekBed) band.insert({cx + dx, cz + dz});
+                bandCols += static_cast<int>(band.size());
+                for (const auto& c : band) {
+                    if (std::abs(c.first - cx) > 10 || std::abs(c.second - cz) > 10) continue;   // the border is context only
+                    for (int dx : {-1, 1}) for (int dz : {-1, 1}) {
+                        if (!band.count({c.first + dx, c.second + dz})) continue;
+                        if (!band.count({c.first + dx, c.second}) && !band.count({c.first, c.second + dz})) ++joins;
+                    }
+                }
+            }
+        std::printf("  carve %s: %d creek-bed columns in 8 windows, corner-only joins %d\n", carve ? "on " : "off", bandCols, joins);
+        return joins;
+    };
+    const int joinsOld = cornerJoins(false), joinsNew = cornerJoins(true);
+    EXPECT_GT(joinsOld, 0) << "control: the old 0.15 band should show the diagonal steps the live creek hit";
+    EXPECT_EQ(joinsNew, 0) << "the carved creek steps diagonally - water cannot pass a corner";
 }
 
 }  // namespace

@@ -100,6 +100,8 @@
 #include "core/GpuParticlePhysics.h"
 #include "core/DebrisRuntime.h"
 #include "core/WaterManager.h"
+#include "core/water/WaterCoreManager.h"
+#include "core/water/ShoreBand.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -282,7 +284,54 @@ private:
     // (shared with shipped games); gpuParticlePhysics is a non-owning alias (null = disabled).
     std::unique_ptr<DebrisRuntime> debrisRuntime;
     GpuParticlePhysics* gpuParticlePhysics = nullptr;
-    std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim
+    std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim (retires per WaterCore.md sec. 9)
+    std::unique_ptr<Core::Water::WaterCoreManager> waterCore;          // WaterCore active volumes (Phase B; docs/WaterCore.md)
+    void applyWaterSpanEdit(int x, int y, int z, bool solid);          // Phase D2: edits never create water (docs/WaterCore.md 16.3)
+    long m_waterHeldEdits = 0;                                          // Phase D2: edits held because a run reaches into a non-resident chunk
+    // Phase G (docs/WaterCore.md 18.5): the shoreline band - solved water along the shore around the camera
+    std::unique_ptr<Core::Water::ShoreBand> shoreBand;
+    Core::Water::ShoreBandParams shoreParams;
+    bool m_shoreOn = false;
+    glm::vec2 m_shoreLastTry{0.0f};                                      // where the last siting was attempted (retry after half a radius)
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> m_waterMaskBoxes;  // live volumes + the band: columns the span grid / sheet leave alone
+    bool siteShoreBand(std::string* err);                               // (re)site the band at the camera from the voxels + stored spans
+    // G4 (docs/WaterCore.md 18.8): the fine band - 1/3 m columns near the camera, nested in the 1 m band
+    std::unique_ptr<Core::Water::ShoreBand> fineBand;
+    Core::Water::ShoreBandParams fineParams = [] { Core::Water::ShoreBandParams q; q.radius = 16.0f; q.inner = 6; q.ramp = 1.5f; q.cellSize = 1.0f / 3.0f; return q; }();   // 96 x 96 columns, a 2 m ring
+    bool m_fineOn = false;
+    uint64_t m_fineOuterRev = 0;                                         // the 1 m band's siting the fine band was nested in
+    glm::vec2 m_fineLastTry{0.0f};
+    bool siteFineBand(std::string* err);
+    // Phase E (docs/WaterCore.md 19): coupling - small bodies that respond. ON by default; the route's
+    // {enabled:false} is the A/B control.
+    bool m_waterCouplingOn = true;
+    // 20 (M2) measurement: the drawn surface at a few world points every frame (water_av_watch) - no HTTP
+    // sampling jitter (a 25 Hz API poll missed the splash peaks)
+    std::vector<glm::vec2> m_watchPoints;
+    std::vector<std::vector<float>> m_watchRows;   // per frame: t, then (level, top) per point (NaN = dry)
+    double m_watchT0 = 0.0;
+    bool m_jetScanOn = false;                        // water_jet_scan (21.7 S1): detached runs every frame
+    std::vector<std::array<float, 8>> m_jetRows;     // t, bottom x y z, volume m^3, sum f, cells, isolated
+    long m_jetFrames = 0;
+    std::vector<const Core::Water::RippleLayer*> m_rippleLayers;   // 22: this frame's layers, fed to the renderer
+    // 20 (M2): debris displaces water WHILE IT MOVES (hysteresis kDisplaceOnSpeed / kDisplaceOffSpeed). Measured
+    // 2026-10-10: with every wet piece displacing, ten floaters never settled (9-10 awake for 20 s; displacement
+    // off: 1-3 by 7-10 s, the signed-off 19.6 feel) - a slow body and the water drive each other through the
+    // two-frame readback (one-way coupling with a delay); a hold of 3 or 11 cm, skipping the body's own
+    // columns in the debris reading and in the motion signal, and the wake rule off each did NOT stop it. The
+    // cure is the two-way pressure force (20.6 v2, M4); until then a resting / bobbing body is carried by the
+    // table law only, and a resting body does not raise the level (~2 mm per 1/3 m stone in a 4 x 4 m pond).
+    static constexpr float kDisplaceOnSpeed = 0.6f, kDisplaceOffSpeed = 0.3f;   // m/s
+    std::unordered_map<uint64_t, bool> m_displacing;   // body id -> displacing now
+    bool m_waterSolidsOn = true;     // 20 (M2): debris inside a volume's box displaces water (moving solids)
+    Core::Water::WaterCoreManager::SolidsFeed m_solidsFeed;   // the last frame's feed (water_coupling echo)
+    bool m_waterExchangeOn = true;   // E2: debris -> water momentum only (the tiles stay) - a diagnostic split
+    struct WaterKickStats { long blasts = 0; int volumes = 0; long faces = 0; long clamped = 0; float speed = 0.0f, reach = 0.0f; glm::vec3 centre{0.0f}; };
+    WaterKickStats m_lastKick;
+    struct WaterExchangeStats { long frames = 0, records = 0, applied = 0, outside = 0, dry = 0, clamped = 0; glm::vec3 lastTotal{0.0f}; double totalMagnitude = 0.0; };
+    WaterExchangeStats m_exchangeStats;   // E2
+    long m_waterWakes = 0;                 // E2 (19.6): wake requests sent to sleeping debris over moving water
+    Core::Water::BedQuery shoreBedQuery();                              // the micro-occupancy bed both bands use
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction
@@ -506,6 +555,11 @@ private:
 
     // Item Equipper panel — GUI equip/give/spawn for registered items
     bool showItemEquipper = true;
+    // `POST /api/debug/editor_panels {"tool_panels": false}`: hides EVERY floating ImGui tool
+    // panel over the viewport (customizer, tuner, spawner, click actions, spell caster, item
+    // equipper) for reference captures. The individual show* flags are untouched, so restoring
+    // brings back exactly what was open.
+    bool m_hideToolPanels = false;
     char m_itemFilter[64] = {0};
     bool m_itemHoldableOnly = true;
     void renderItemEquipper();

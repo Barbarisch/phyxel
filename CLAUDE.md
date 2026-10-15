@@ -371,8 +371,8 @@ Demo script: `scripts/world_gen.py` (`generate_pyramid`, `generate_platform`, `g
 
 Height-based worlds layer an **art-directable, hydrology-aware terrain system** on top of the base
 noise. Full design: [`docs/TerrainGenerationV2.md`](docs/TerrainGenerationV2.md); the water runtime that
-fills it: [`docs/Water.md`](docs/Water.md) (THE single water doc — architecture, status, traps;
-supersedes the six retired water docs). Two tiers:
+fills it: [`docs/Water.md`](docs/Water.md) (the OLD CA water — architecture, status, traps); the NEW water
+core that replaces it is [`docs/WaterCore.md`](docs/WaterCore.md) (design of record + build ledger; status in its §0a). Two tiers:
 
 - **Layer-0 CoarseWorldModel** (`engine/{include,src}/core/CoarseWorldModel.*`) — a bounded, pure,
   deterministic coarse model of continentalness + base elevation. **Continentalness** (a third climate

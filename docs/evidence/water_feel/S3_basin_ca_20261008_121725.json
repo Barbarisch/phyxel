@@ -1,0 +1,72 @@
+{
+ "scenario": "S3",
+ "bench": "basin",
+ "engine": "ca",
+ "build_config": "Release",
+ "git_head": "a50daea5",
+ "timestamp": "20261008_121725",
+ "prediction": {
+  "ritter_front_speed_mps": 10.849884792015075,
+  "front_time_s": 0.9216687726822184,
+  "L": 10,
+  "h0": 3.0,
+  "mass_expected": 252.0,
+  "still_level_over_flat_floor": 14.235294117647058,
+  "reflected_crest_min_ratio": 0.8,
+  "flat_after_s": 10.0,
+  "flat_tolerance": 0.001,
+  "mass_tolerance": 0.0001
+ },
+ "measurement": {
+  "placed_cells": 252,
+  "mass_after_place": 252.0,
+  "front_hit_time_s": 6.25727105140686,
+  "front_speed_ratio_vs_ritter": 0.14729564455658253,
+  "west_surface_peak": 14.986927032470703,
+  "east_surface_peak_after_1s": 13.911958694458008,
+  "final_surface_spread": 0.42386722564697266,
+  "final_mass": 251.99993896484375,
+  "mass_drift": -6.103515625e-05
+ },
+ "samples": [
+  {
+   "t": 2.137,
+   "front_x": 23,
+   "west_max_surface": 14.986927032470703,
+   "east_max_surface": 13.087117195129395,
+   "row_mass": 20.99686600267887,
+   "total_mass": 252.00009155273438
+  },
+  {
+   "t": 6.257,
+   "front_x": 28,
+   "west_max_surface": 14.712119102478027,
+   "east_max_surface": 13.642794609069824,
+   "row_mass": 20.97436997294426,
+   "total_mass": 252.00003051757812
+  },
+  {
+   "t": 10.362,
+   "front_x": 28,
+   "west_max_surface": 14.534409523010254,
+   "east_max_surface": 13.825507164001465,
+   "row_mass": 20.93443026393652,
+   "total_mass": 251.99996948242188
+  },
+  {
+   "t": 14.454,
+   "front_x": 28,
+   "west_max_surface": 14.436162948608398,
+   "east_max_surface": 13.911958694458008,
+   "row_mass": 20.909215293824673,
+   "total_mass": 251.99989318847656
+  }
+ ],
+ "verdict": {
+  "front_speed": "FAIL",
+  "reflected_crest": "FAIL",
+  "flat_at_rest": "FAIL",
+  "mass": "PASS"
+ },
+ "capture": "G:\\Github\\phyxel\\docs\\evidence\\water_feel\\S3_basin_ca_20261008_121725.png"
+}

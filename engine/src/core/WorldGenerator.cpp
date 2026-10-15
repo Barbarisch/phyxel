@@ -589,6 +589,17 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                 // creek column is a 2-layer subcube shelf, not a full cube — the bed sits 1/3 voxel
                 // below the banks, and the runtime's fractional ribbon pin rests IN the recess
                 // (Chunk::subVoxelFloor reads 2/3; the water sim floors the cell accordingly).
+                if (col.creekBed && wy == col.surfaceY && m_creekCarve) {
+                    // WaterCore.md 25.22: the bed carved to the 1/3 m grid by ROUNDING DOWN the continuous height - the
+                    // drawn top is <= bedHeight and within 1/3 m of it, so water flowing on bedHeight never hides in it
+                    const int layers = creekLayers(col);
+                    const std::string& bedMat = materialForColumn(wy, col);
+                    for (int sy = 0; sy < layers; ++sy)
+                        for (int sx = 0; sx < 3; ++sx)
+                            for (int sz = 0; sz < 3; ++sz)
+                                chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz), bedMat);
+                    continue;   // layers == 0: the voxel is air, the bed is the voxel below
+                }
                 if (col.creekBed && wy == col.surfaceY) {
                     const std::string& shelfMat = materialForColumn(wy, col);
                     for (int sy = 0; sy < 2; ++sy)
@@ -819,8 +830,9 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
     const int px = minX - kWaterBlockMargin, pz = minZ - kWaterBlockMargin;
     const size_t pn = static_cast<size_t>(pw) * static_cast<size_t>(pd);
 
-    std::vector<float> ground(pn), baked(pn), level(pn);
+    std::vector<float> ground(pn), baked(pn), level(pn), filled(pn), rdepth(pn);
     std::vector<int>   surf(pn);
+    std::vector<uint8_t> river(pn, 0);
 
     // ⚑SAMPLED THROUGH THE CHUNK COLUMN CACHE, NOT COLUMN-BY-COLUMN. The margin is a real tax —
     // resolving one 32x32 chunk means sampling a 128x128 padded area, 16x more columns than the
@@ -854,20 +866,35 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
                     const int gx = cx * 32 + lx - px, gz = cz * 32 + lz - pz;   // into the padded grid
                     if (gx < 0 || gz < 0 || gx >= pw || gz >= pd) continue;
                     const size_t i = static_cast<size_t>(gz) * pw + gx;
-                    surf[i]   = (*cols)[static_cast<size_t>(lx) * 32 + lz].surfaceY;  // x-major, z-minor
+                    const ColumnSample& cs = (*cols)[static_cast<size_t>(lx) * 32 + lz];
+                    surf[i]   = cs.surfaceY;  // x-major, z-minor
+                    river[i]  = cs.riverOrder >= 3 ? 1 : 0;   // Phase D4: a carved channel column holds its river span
+                    rdepth[i] = cs.channelDepth;
+                    filled[i] = m_hydro->filledAt(static_cast<float>(cx * 32 + lx) + 0.5f,
+                                                  static_cast<float>(cz * 32 + lz) + 0.5f);
                     ground[i] = static_cast<float>(surf[i]) + 1.0f;   // top face of the solid voxel
                     baked[i]  = m_hydro->waterLevelAt(static_cast<float>(cx * 32 + lx) + 0.5f,
                                                       static_cast<float>(cz * 32 + lz) + 0.5f);
                 }
         }
 
-    floodBodiesOverGrid(pw, pd, ground.data(), baked.data(), level.data(), kWaterExtentSteps);
+    floodBodiesOverGrid(pw, pd, ground.data(), baked.data(), level.data(), kWaterExtentSteps, filled.data(), river.data());
 
     // Keep only the requested block; the margin's answers are under-resolved by construction.
     for (int z = 0; z < d; ++z)
         for (int x = 0; x < w; ++x) {
             const size_t src = static_cast<size_t>(z + kWaterBlockMargin) * pw + (x + kWaterBlockMargin);
             const size_t dst = static_cast<size_t>(z) * w + x;
+            // Phase D4 (WaterRethink 8.8 step 1): a carved channel column holds ONE river span, bed
+            // (the top face of the carved bed voxel) to bed + the parabolic carve depth - the
+            // water that fills the carve back to the valley floor, sloping along the reach as the
+            // per-column representation allows and the flat 128 m grid could not. Orders 1-2
+            // (creek shelves at 2/3) need a float bottom in WaterSpan and stay a logged gap.
+            if (river[src]) {
+                WaterSpan rs; rs.bottomY = surf[src] + 1; rs.topY = static_cast<float>(rs.bottomY) + rdepth[src];
+                if (rs.depth() >= kMinSpanDepthFwd) { spans[dst] = rs; hasSpan[dst] = 1; }
+                continue;
+            }
             if (level[src] <= kNoBody * 0.5f) continue;
             // Containment is still decided by buildOpenWaterSpan against the column's REAL surface,
             // exactly as in the single-column path. The batch pass changes how the LEVEL is found,
@@ -957,6 +984,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // displacement of up to ~kMeanderAmp; smooth, so the meandered channel is continuous (no seam).
         float mwx = static_cast<float>(wx), mwz = static_cast<float>(wz);
         float creekSwale = 0.0f;   // bounded creek dip (water-as-terrain-stage P2), voxels
+        bool nearCreek = false;    // 25.22: within the swale - the only columns the carve's corner fill looks at
         if (m_flow) {
             const glm::vec2 m = meanderedChannelPos(static_cast<float>(wx), static_cast<float>(wz));
             mwx = m.x;
@@ -986,9 +1014,11 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 constexpr float kCreekSwaleDepth = 1.6f;
                 const float t = cs.dist / creekSwaleHalf;
                 creekSwale = kCreekSwaleDepth * (1.0f - t * t);
+                nearCreek = true;
             }
         }
-        col.surfaceY = static_cast<int>(std::floor(coarse.baseHeight + relief * blendScale + blendOffset - creekSwale));
+        col.bedHeight = coarse.baseHeight + relief * blendScale + blendOffset - creekSwale;   // 25.22: the continuous height
+        col.surfaceY = static_cast<int>(std::floor(col.bedHeight));
 
         // P2 river carve: lower the smooth valley floor further where the network runs a channel
         // (order ≥ 3; orders 1-2 are sub-voxel → no bed), a parabolic bed (deepest at the centreline).
@@ -1003,14 +1033,29 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 // to a full-voxel trench here, which is exactly the wrong outcome for a sub-voxel
                 // creek. riverOrder is still recorded for every order: the water runtime and the
                 // flora gate both consume it (no trees standing in the creek line).
-                if (ch.order >= 3) col.surfaceY -= static_cast<int>(std::lround(ch.depth));
+                if (ch.order >= 3) { col.surfaceY -= static_cast<int>(std::lround(ch.depth)); col.bedHeight -= ch.depth; }
                 col.riverOrder = ch.order;
+                col.channelDepth = ch.depth;
                 // Creek BED RECESS (water-as-terrain-stage P2): the inner band of an order 1-2
                 // channel — same 0.15 depth threshold the runtime pin uses (WaterManager::
                 // applyRiverInflows), so every pinned ribbon cell gets a recess and the parabolic
                 // band edges get neither. generateChunk emits the surface voxel as a 2-layer
                 // subcube shelf (floor 2/3): the ribbon rests 1/3 voxel below its banks.
-                col.creekBed = (ch.order <= 2 && ch.depth >= 0.15f);
+                // WaterCore.md 25.22: with the 1/3 m carve on, the WHOLE channel width is bed - the 0.15 band (the old CA ribbon's
+                // pin threshold) is ~0.74 voxel either side of a warped, meandering centreline: a 1-voxel line that steps
+                // DIAGONALLY, and water, which crosses faces not corners, pooled at the first step (C-T10, 2026-10-11)
+                col.creekBed = (ch.order <= 2 && ch.depth >= (m_creekCarve ? 1e-4f : 0.15f));
+            }
+            // 25.22 CORNER FILL: a band around a warped, meandering centreline still pinches to a diagonal step in places (40
+            // corner-only joins in 8 test windows with the full-width band), and water crosses faces, not corners. A column is
+            // also bed when it is a face shared by two diagonal band columns that share no other face. Pure: four channel
+            // queries of neighbouring POSITIONS, no neighbour's sample - a chunk and a whole region agree by construction.
+            if (m_creekCarve && nearCreek && !col.creekBed) {
+                bool fill = false;
+                for (int sx = -1; sx <= 1 && !fill; sx += 2)
+                    for (int dz = -1; dz <= 1 && !fill; dz += 2)
+                        fill = inCreekBand(wx + sx, wz) && inCreekBand(wx, wz + dz) && !inCreekBand(wx + sx, wz + dz);
+                if (fill) { col.creekBed = true; if (col.riverOrder == 0) col.riverOrder = 1; }
             }
         }
 
@@ -1475,7 +1520,26 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     for (const auto& p : m_continentalHeightSpline.points())
         r.heightSpline.push_back({p.x, p.y});
     r.worldforge = m_worldForgeParams;
+    r.creekCarve = true;   // 25.22: new worlds carve creek beds to 1/3 m
     return r;
+}
+
+bool WorldGenerator::inCreekBand(int wx, int wz) const {
+    if (!m_flow) return false;
+    const glm::vec2 m = meanderedChannelPos(static_cast<float>(wx), static_cast<float>(wz));
+    const FlowField::ChannelHit ch = m_flow->channelAt(m.x, m.y);
+    return ch.hit && ch.order <= 2 && ch.depth >= 1e-4f;
+}
+
+int WorldGenerator::creekLayers(const ColumnSample& c) {
+    const float frac = c.bedHeight - static_cast<float>(c.surfaceY);
+    return std::clamp(static_cast<int>(std::floor(3.0f * frac + 1e-5f)), 0, 2);
+}
+
+float WorldGenerator::drawnTop(const ColumnSample& c) const {
+    if (c.creekBed && m_creekCarve) return static_cast<float>(c.surfaceY) + creekLayers(c) / 3.0f;
+    if (c.creekBed) return static_cast<float>(c.surfaceY) + 2.0f / 3.0f;
+    return static_cast<float>(c.surfaceY + 1);
 }
 
 void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
@@ -1486,6 +1550,7 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     // Pinned by WorldForgeRecipeTest.RecipeSeedAuthority (shown red first).
     if (recipe.seed != 0) seed = recipe.seed;
     m_worldForgeParams = recipe.worldforge;
+    m_creekCarve = recipe.creekCarve;   // 25.22
     terrainParams.climateFrequency = recipe.climateFrequency;
     terrainParams.seaLevelY = recipe.seaLevelY;   // rebake below re-floods against this outlet
     // Override per-biome tuning by name; biome category fields (materials, climate) untouched.

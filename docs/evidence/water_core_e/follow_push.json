@@ -1,0 +1,1628 @@
+[
+ {
+  "t": 0.25,
+  "awake": 10,
+  "gap": [
+   -0.263,
+   -0.252,
+   -0.244,
+   -0.237,
+   -0.231,
+   -0.189,
+   -0.165,
+   -0.053,
+   0.127,
+   0.178
+  ],
+  "west_surface": 16.756,
+  "wakes_sent": 230,
+  "motion": {
+   "flow_cols": 141,
+   "max_flow_ms": 1.8695063591003418,
+   "max_rise_m": 0.0177154541015625,
+   "radius_m": 2.947134017944336,
+   "rise_cols": 11,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 0.5,
+  "awake": 10,
+  "gap": [
+   -0.36,
+   -0.089,
+   -0.034,
+   0.064,
+   0.075,
+   0.076,
+   0.091,
+   0.136,
+   0.192,
+   0.291
+  ],
+  "west_surface": 16.69,
+  "wakes_sent": 355,
+  "motion": {
+   "flow_cols": 140,
+   "max_flow_ms": 1.2957708835601807,
+   "max_rise_m": 0.016645431518554688,
+   "radius_m": 2.721245288848877,
+   "rise_cols": 11,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 0.75,
+  "awake": 10,
+  "gap": [
+   -0.172,
+   -0.144,
+   -0.104,
+   -0.085,
+   -0.067,
+   -0.01,
+   0.022,
+   0.08,
+   0.105,
+   0.119
+  ],
+  "west_surface": 16.55,
+  "wakes_sent": 473,
+  "motion": {
+   "flow_cols": 140,
+   "max_flow_ms": 0.9410971403121948,
+   "max_rise_m": 0.017518997192382812,
+   "radius_m": 2.6009743213653564,
+   "rise_cols": 8,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 1.0,
+  "awake": 10,
+  "gap": [
+   -0.219,
+   -0.131,
+   -0.112,
+   -0.048,
+   -0.038,
+   -0.018,
+   0.002,
+   0.013,
+   0.016,
+   0.084
+  ],
+  "west_surface": 16.396,
+  "wakes_sent": 579,
+  "motion": {
+   "flow_cols": 134,
+   "max_flow_ms": 0.9226437211036682,
+   "max_rise_m": 0.017095565795898438,
+   "radius_m": 2.81968092918396,
+   "rise_cols": 6,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 1.25,
+  "awake": 10,
+  "gap": [
+   -0.099,
+   -0.061,
+   -0.056,
+   -0.056,
+   -0.023,
+   -0.008,
+   0.044,
+   0.053,
+   0.098,
+   0.182
+  ],
+  "west_surface": 16.442,
+  "wakes_sent": 671,
+  "motion": {
+   "flow_cols": 135,
+   "max_flow_ms": 1.0305184125900269,
+   "max_rise_m": 0.016368865966796875,
+   "radius_m": 2.425295352935791,
+   "rise_cols": 5,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 1.5,
+  "awake": 10,
+  "gap": [
+   -0.101,
+   -0.082,
+   -0.08,
+   -0.069,
+   -0.061,
+   -0.06,
+   -0.052,
+   -0.043,
+   -0.021,
+   -0.006
+  ],
+  "west_surface": 16.515,
+  "wakes_sent": 782,
+  "motion": {
+   "flow_cols": 143,
+   "max_flow_ms": 0.8058706521987915,
+   "max_rise_m": 0.016027450561523438,
+   "radius_m": 1.824573040008545,
+   "rise_cols": 4,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 1.75,
+  "awake": 10,
+  "gap": [
+   -0.124,
+   -0.119,
+   -0.101,
+   -0.076,
+   -0.059,
+   -0.057,
+   -0.055,
+   -0.023,
+   0.02,
+   0.057
+  ],
+  "west_surface": 16.549,
+  "wakes_sent": 882,
+  "motion": {
+   "flow_cols": 137,
+   "max_flow_ms": 0.5413565039634705,
+   "max_rise_m": 0.015699386596679688,
+   "radius_m": 0.3333333432674408,
+   "rise_cols": 1,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 2.0,
+  "awake": 10,
+  "gap": [
+   -0.038,
+   -0.019,
+   -0.014,
+   -0.006,
+   0.0,
+   0.011,
+   0.012,
+   0.04,
+   0.072,
+   0.083
+  ],
+  "west_surface": 16.565,
+  "wakes_sent": 983,
+  "motion": {
+   "flow_cols": 130,
+   "max_flow_ms": 0.5790063142776489,
+   "max_rise_m": 0.014980316162109375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 2.25,
+  "awake": 10,
+  "gap": [
+   -0.069,
+   -0.066,
+   -0.062,
+   -0.061,
+   -0.06,
+   -0.058,
+   -0.046,
+   -0.046,
+   -0.037,
+   0.001
+  ],
+  "west_surface": 16.536,
+  "wakes_sent": 1059,
+  "motion": {
+   "flow_cols": 135,
+   "max_flow_ms": 0.49148571491241455,
+   "max_rise_m": 0.014951705932617188,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 2.5,
+  "awake": 10,
+  "gap": [
+   -0.064,
+   -0.054,
+   -0.053,
+   -0.045,
+   -0.039,
+   -0.036,
+   -0.033,
+   -0.015,
+   -0.014,
+   0.146
+  ],
+  "west_surface": 16.498,
+  "wakes_sent": 1134,
+  "motion": {
+   "flow_cols": 127,
+   "max_flow_ms": 0.4986818730831146,
+   "max_rise_m": 0.015291213989257812,
+   "radius_m": 2.6912717819213867,
+   "rise_cols": 4,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 2.75,
+  "awake": 10,
+  "gap": [
+   -0.076,
+   -0.05,
+   -0.05,
+   -0.047,
+   -0.046,
+   -0.045,
+   -0.037,
+   0.032,
+   0.127,
+   0.154
+  ],
+  "west_surface": 16.498,
+  "wakes_sent": 1187,
+  "motion": {
+   "flow_cols": 124,
+   "max_flow_ms": 0.48918476700782776,
+   "max_rise_m": 0.014963150024414062,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 3.0,
+  "awake": 8,
+  "gap": [
+   -0.09,
+   -0.075,
+   -0.056,
+   -0.049,
+   -0.045,
+   0.007,
+   0.023,
+   0.08
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1238,
+  "motion": {
+   "flow_cols": 123,
+   "max_flow_ms": 0.4471004009246826,
+   "max_rise_m": 0.015253067016601562,
+   "radius_m": 0.3333333432674408,
+   "rise_cols": 1,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 3.25,
+  "awake": 10,
+  "gap": [
+   -0.061,
+   -0.056,
+   -0.056,
+   -0.054,
+   -0.048,
+   -0.037,
+   -0.032,
+   0.031,
+   0.043,
+   0.106
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1270,
+  "motion": {
+   "flow_cols": 120,
+   "max_flow_ms": 0.39970865845680237,
+   "max_rise_m": 0.01482391357421875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 3.5,
+  "awake": 8,
+  "gap": [
+   -0.065,
+   -0.063,
+   -0.06,
+   -0.05,
+   -0.048,
+   -0.043,
+   0.069,
+   0.11
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1296,
+  "motion": {
+   "flow_cols": 119,
+   "max_flow_ms": 0.39110928773880005,
+   "max_rise_m": 0.014844894409179688,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 3.75,
+  "awake": 7,
+  "gap": [
+   -0.073,
+   -0.062,
+   -0.061,
+   -0.06,
+   -0.05,
+   0.04,
+   0.116
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1317,
+  "motion": {
+   "flow_cols": 119,
+   "max_flow_ms": 0.4148280918598175,
+   "max_rise_m": 0.015054702758789062,
+   "radius_m": 2.196730852127075,
+   "rise_cols": 2,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 4.0,
+  "awake": 8,
+  "gap": [
+   -0.058,
+   -0.057,
+   -0.056,
+   -0.056,
+   -0.053,
+   -0.043,
+   -0.04,
+   -0.038
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1348,
+  "motion": {
+   "flow_cols": 112,
+   "max_flow_ms": 0.381600946187973,
+   "max_rise_m": 0.014234542846679688,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 4.25,
+  "awake": 8,
+  "gap": [
+   -0.063,
+   -0.06,
+   -0.057,
+   -0.055,
+   -0.051,
+   -0.041,
+   -0.034,
+   0.023
+  ],
+  "west_surface": 16.501,
+  "wakes_sent": 1373,
+  "motion": {
+   "flow_cols": 119,
+   "max_flow_ms": 0.374000608921051,
+   "max_rise_m": 0.01433563232421875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 4.5,
+  "awake": 10,
+  "gap": [
+   -0.06,
+   -0.059,
+   -0.055,
+   -0.054,
+   -0.051,
+   -0.05,
+   -0.048,
+   -0.043,
+   0.027,
+   0.105
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1395,
+  "motion": {
+   "flow_cols": 118,
+   "max_flow_ms": 0.3909962475299835,
+   "max_rise_m": 0.014476776123046875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 4.75,
+  "awake": 6,
+  "gap": [
+   -0.065,
+   -0.052,
+   -0.051,
+   -0.05,
+   -0.05,
+   0.123
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1410,
+  "motion": {
+   "flow_cols": 118,
+   "max_flow_ms": 0.3923620581626892,
+   "max_rise_m": 0.014360427856445312,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 5.0,
+  "awake": 4,
+  "gap": [
+   -0.062,
+   -0.052,
+   -0.045,
+   0.02
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1423,
+  "motion": {
+   "flow_cols": 121,
+   "max_flow_ms": 0.39204832911491394,
+   "max_rise_m": 0.01470184326171875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 5.25,
+  "awake": 4,
+  "gap": [
+   -0.065,
+   -0.058,
+   -0.048,
+   -0.036
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1434,
+  "motion": {
+   "flow_cols": 120,
+   "max_flow_ms": 0.3780090808868408,
+   "max_rise_m": 0.01496124267578125,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 5.5,
+  "awake": 1,
+  "gap": [
+   -0.078
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1442,
+  "motion": {
+   "flow_cols": 117,
+   "max_flow_ms": 0.38707321882247925,
+   "max_rise_m": 0.014619827270507812,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 5.75,
+  "awake": 2,
+  "gap": [
+   -0.053,
+   0.009
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1449,
+  "motion": {
+   "flow_cols": 115,
+   "max_flow_ms": 0.4011467695236206,
+   "max_rise_m": 0.014551162719726562,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 6.0,
+  "awake": 4,
+  "gap": [
+   -0.066,
+   -0.054,
+   -0.047,
+   0.003
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1463,
+  "motion": {
+   "flow_cols": 116,
+   "max_flow_ms": 0.3938762843608856,
+   "max_rise_m": 0.014810562133789062,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 6.25,
+  "awake": 4,
+  "gap": [
+   -0.054,
+   -0.051,
+   0.02,
+   0.134
+  ],
+  "west_surface": 16.501,
+  "wakes_sent": 1477,
+  "motion": {
+   "flow_cols": 111,
+   "max_flow_ms": 0.38727810978889465,
+   "max_rise_m": 0.014554977416992188,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 6.5,
+  "awake": 2,
+  "gap": [
+   -0.049,
+   -0.0
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1486,
+  "motion": {
+   "flow_cols": 113,
+   "max_flow_ms": 0.3980717658996582,
+   "max_rise_m": 0.014062881469726562,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 6.75,
+  "awake": 9,
+  "gap": [
+   -0.064,
+   -0.064,
+   -0.063,
+   -0.054,
+   -0.051,
+   -0.048,
+   -0.04,
+   -0.013,
+   0.141
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1506,
+  "motion": {
+   "flow_cols": 114,
+   "max_flow_ms": 0.40605396032333374,
+   "max_rise_m": 0.01422882080078125,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 7.0,
+  "awake": 2,
+  "gap": [
+   -0.066,
+   0.012
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1513,
+  "motion": {
+   "flow_cols": 111,
+   "max_flow_ms": 0.38735368847846985,
+   "max_rise_m": 0.01509857177734375,
+   "radius_m": 0.3333333432674408,
+   "rise_cols": 1,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 7.25,
+  "awake": 6,
+  "gap": [
+   -0.065,
+   -0.06,
+   -0.054,
+   -0.04,
+   -0.003,
+   0.138
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1523,
+  "motion": {
+   "flow_cols": 109,
+   "max_flow_ms": 0.38635140657424927,
+   "max_rise_m": 0.013988494873046875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 7.5,
+  "awake": 4,
+  "gap": [
+   -0.065,
+   -0.064,
+   0.006,
+   0.137
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1535,
+  "motion": {
+   "flow_cols": 113,
+   "max_flow_ms": 0.38676580786705017,
+   "max_rise_m": 0.014984130859375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 7.75,
+  "awake": 5,
+  "gap": [
+   -0.064,
+   -0.058,
+   -0.047,
+   0.004,
+   0.135
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1548,
+  "motion": {
+   "flow_cols": 112,
+   "max_flow_ms": 0.3848344087600708,
+   "max_rise_m": 0.01436614990234375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 8.0,
+  "awake": 2,
+  "gap": [
+   -0.001,
+   0.131
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1555,
+  "motion": {
+   "flow_cols": 113,
+   "max_flow_ms": 0.3937147259712219,
+   "max_rise_m": 0.014547348022460938,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 8.25,
+  "awake": 5,
+  "gap": [
+   -0.062,
+   -0.056,
+   -0.04,
+   0.002,
+   0.133
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1563,
+  "motion": {
+   "flow_cols": 115,
+   "max_flow_ms": 0.3902214467525482,
+   "max_rise_m": 0.014272689819335938,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 8.5,
+  "awake": 2,
+  "gap": [
+   -0.053,
+   -0.038
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1577,
+  "motion": {
+   "flow_cols": 112,
+   "max_flow_ms": 0.3728996217250824,
+   "max_rise_m": 0.014577865600585938,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 8.75,
+  "awake": 3,
+  "gap": [
+   -0.063,
+   0.039,
+   0.127
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1591,
+  "motion": {
+   "flow_cols": 112,
+   "max_flow_ms": 0.40447497367858887,
+   "max_rise_m": 0.014482498168945312,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 9.0,
+  "awake": 3,
+  "gap": [
+   -0.064,
+   0.046,
+   0.128
+  ],
+  "west_surface": 16.5,
+  "wakes_sent": 1603,
+  "motion": {
+   "flow_cols": 112,
+   "max_flow_ms": 0.3940427899360657,
+   "max_rise_m": 0.0146026611328125,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 9.25,
+  "awake": 0,
+  "gap": [],
+  "west_surface": 16.502,
+  "wakes_sent": 1616,
+  "motion": {
+   "flow_cols": 112,
+   "max_flow_ms": 0.37082892656326294,
+   "max_rise_m": 0.0151214599609375,
+   "radius_m": 0.3333333432674408,
+   "rise_cols": 1,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 9.5,
+  "awake": 1,
+  "gap": [
+   0.062
+  ],
+  "west_surface": 16.503,
+  "wakes_sent": 1631,
+  "motion": {
+   "flow_cols": 111,
+   "max_flow_ms": 0.34809041023254395,
+   "max_rise_m": 0.013851165771484375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 9.75,
+  "awake": 7,
+  "gap": [
+   -0.063,
+   -0.062,
+   -0.055,
+   -0.054,
+   -0.053,
+   -0.026,
+   0.078
+  ],
+  "west_surface": 16.509,
+  "wakes_sent": 1640,
+  "motion": {
+   "flow_cols": 107,
+   "max_flow_ms": 0.3383939266204834,
+   "max_rise_m": 0.01320648193359375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 10.0,
+  "awake": 1,
+  "gap": [
+   0.094
+  ],
+  "west_surface": 16.503,
+  "wakes_sent": 1646,
+  "motion": {
+   "flow_cols": 111,
+   "max_flow_ms": 0.3522071838378906,
+   "max_rise_m": 0.01406097412109375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 10.25,
+  "awake": 1,
+  "gap": [
+   0.107
+  ],
+  "west_surface": 16.506,
+  "wakes_sent": 1655,
+  "motion": {
+   "flow_cols": 114,
+   "max_flow_ms": 0.3592505156993866,
+   "max_rise_m": 0.014276504516601562,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 10.5,
+  "awake": 1,
+  "gap": [
+   0.113
+  ],
+  "west_surface": 16.505,
+  "wakes_sent": 1668,
+  "motion": {
+   "flow_cols": 105,
+   "max_flow_ms": 0.3381343185901642,
+   "max_rise_m": 0.014003753662109375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 10.75,
+  "awake": 3,
+  "gap": [
+   -0.065,
+   0.117,
+   0.125
+  ],
+  "west_surface": 16.505,
+  "wakes_sent": 1681,
+  "motion": {
+   "flow_cols": 108,
+   "max_flow_ms": 0.34573283791542053,
+   "max_rise_m": 0.014430999755859375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 11.0,
+  "awake": 9,
+  "gap": [
+   -0.064,
+   -0.064,
+   -0.057,
+   -0.051,
+   -0.049,
+   -0.044,
+   -0.039,
+   0.104,
+   0.125
+  ],
+  "west_surface": 16.507,
+  "wakes_sent": 1694,
+  "motion": {
+   "flow_cols": 102,
+   "max_flow_ms": 0.3310873806476593,
+   "max_rise_m": 0.013227462768554688,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 11.25,
+  "awake": 2,
+  "gap": [
+   -0.064,
+   0.131
+  ],
+  "west_surface": 16.503,
+  "wakes_sent": 1699,
+  "motion": {
+   "flow_cols": 102,
+   "max_flow_ms": 0.33664676547050476,
+   "max_rise_m": 0.01357269287109375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 11.5,
+  "awake": 1,
+  "gap": [
+   0.142
+  ],
+  "west_surface": 16.504,
+  "wakes_sent": 1709,
+  "motion": {
+   "flow_cols": 106,
+   "max_flow_ms": 0.313104510307312,
+   "max_rise_m": 0.014699935913085938,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 11.75,
+  "awake": 10,
+  "gap": [
+   -0.064,
+   -0.063,
+   -0.063,
+   -0.052,
+   -0.051,
+   -0.051,
+   -0.05,
+   -0.047,
+   0.118,
+   0.151
+  ],
+  "west_surface": 16.512,
+  "wakes_sent": 1718,
+  "motion": {
+   "flow_cols": 105,
+   "max_flow_ms": 0.32766634225845337,
+   "max_rise_m": 0.014392852783203125,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 12.0,
+  "awake": 0,
+  "gap": [],
+  "west_surface": 16.509,
+  "wakes_sent": 1727,
+  "motion": {
+   "flow_cols": 103,
+   "max_flow_ms": 0.31996315717697144,
+   "max_rise_m": 0.014890670776367188,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 12.25,
+  "awake": 2,
+  "gap": [
+   -0.064,
+   0.161
+  ],
+  "west_surface": 16.502,
+  "wakes_sent": 1735,
+  "motion": {
+   "flow_cols": 105,
+   "max_flow_ms": 0.32220810651779175,
+   "max_rise_m": 0.014982223510742188,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 12.5,
+  "awake": 2,
+  "gap": [
+   -0.074,
+   0.16
+  ],
+  "west_surface": 16.499,
+  "wakes_sent": 1746,
+  "motion": {
+   "flow_cols": 108,
+   "max_flow_ms": 0.31374624371528625,
+   "max_rise_m": 0.014009475708007812,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 12.75,
+  "awake": 0,
+  "gap": [],
+  "west_surface": 16.506,
+  "wakes_sent": 1752,
+  "motion": {
+   "flow_cols": 108,
+   "max_flow_ms": 0.3250948488712311,
+   "max_rise_m": 0.0151824951171875,
+   "radius_m": 0.3333333432674408,
+   "rise_cols": 1,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 13.0,
+  "awake": 1,
+  "gap": [
+   0.177
+  ],
+  "west_surface": 16.51,
+  "wakes_sent": 1759,
+  "motion": {
+   "flow_cols": 105,
+   "max_flow_ms": 0.2966378331184387,
+   "max_rise_m": 0.014430999755859375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 13.25,
+  "awake": 7,
+  "gap": [
+   -0.072,
+   -0.062,
+   -0.061,
+   -0.061,
+   -0.057,
+   -0.048,
+   -0.047
+  ],
+  "west_surface": 16.516,
+  "wakes_sent": 1771,
+  "motion": {
+   "flow_cols": 104,
+   "max_flow_ms": 0.29286471009254456,
+   "max_rise_m": 0.0150299072265625,
+   "radius_m": 0.3333333432674408,
+   "rise_cols": 1,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 13.5,
+  "awake": 3,
+  "gap": [
+   -0.04,
+   -0.029,
+   0.188
+  ],
+  "west_surface": 16.519,
+  "wakes_sent": 1781,
+  "motion": {
+   "flow_cols": 106,
+   "max_flow_ms": 0.2768668532371521,
+   "max_rise_m": 0.014307022094726562,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 13.75,
+  "awake": 2,
+  "gap": [
+   -0.057,
+   0.192
+  ],
+  "west_surface": 16.526,
+  "wakes_sent": 1793,
+  "motion": {
+   "flow_cols": 104,
+   "max_flow_ms": 0.28010860085487366,
+   "max_rise_m": 0.015628814697265625,
+   "radius_m": 0.3333333432674408,
+   "rise_cols": 1,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 14.0,
+  "awake": 1,
+  "gap": [
+   0.199
+  ],
+  "west_surface": 16.524,
+  "wakes_sent": 1812,
+  "motion": {
+   "flow_cols": 106,
+   "max_flow_ms": 0.3007251024246216,
+   "max_rise_m": 0.014862060546875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 14.25,
+  "awake": 1,
+  "gap": [
+   0.204
+  ],
+  "west_surface": 16.521,
+  "wakes_sent": 1822,
+  "motion": {
+   "flow_cols": 103,
+   "max_flow_ms": 0.3144093453884125,
+   "max_rise_m": 0.0145416259765625,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 14.5,
+  "awake": 2,
+  "gap": [
+   0.103,
+   0.206
+  ],
+  "west_surface": 16.509,
+  "wakes_sent": 1835,
+  "motion": {
+   "flow_cols": 103,
+   "max_flow_ms": 0.29447129368782043,
+   "max_rise_m": 0.014141082763671875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 14.75,
+  "awake": 3,
+  "gap": [
+   -0.035,
+   0.092,
+   0.209
+  ],
+  "west_surface": 16.498,
+  "wakes_sent": 1848,
+  "motion": {
+   "flow_cols": 105,
+   "max_flow_ms": 0.30797529220581055,
+   "max_rise_m": 0.014307022094726562,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 15.0,
+  "awake": 4,
+  "gap": [
+   -0.045,
+   -0.045,
+   -0.034,
+   0.211
+  ],
+  "west_surface": 16.504,
+  "wakes_sent": 1858,
+  "motion": {
+   "flow_cols": 108,
+   "max_flow_ms": 0.3306107521057129,
+   "max_rise_m": 0.01477813720703125,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 15.25,
+  "awake": 1,
+  "gap": [
+   0.202
+  ],
+  "west_surface": 16.509,
+  "wakes_sent": 1867,
+  "motion": {
+   "flow_cols": 104,
+   "max_flow_ms": 0.3029557466506958,
+   "max_rise_m": 0.014934539794921875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 15.5,
+  "awake": 1,
+  "gap": [
+   0.198
+  ],
+  "west_surface": 16.512,
+  "wakes_sent": 1875,
+  "motion": {
+   "flow_cols": 106,
+   "max_flow_ms": 0.3162127137184143,
+   "max_rise_m": 0.014596939086914062,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 15.75,
+  "awake": 9,
+  "gap": [
+   -0.069,
+   -0.061,
+   -0.042,
+   -0.039,
+   -0.035,
+   -0.028,
+   -0.027,
+   0.096,
+   0.196
+  ],
+  "west_surface": 16.518,
+  "wakes_sent": 1883,
+  "motion": {
+   "flow_cols": 110,
+   "max_flow_ms": 0.33680421113967896,
+   "max_rise_m": 0.015027999877929688,
+   "radius_m": 0.3333333432674408,
+   "rise_cols": 1,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 16.0,
+  "awake": 1,
+  "gap": [
+   0.192
+  ],
+  "west_surface": 16.52,
+  "wakes_sent": 1896,
+  "motion": {
+   "flow_cols": 108,
+   "max_flow_ms": 0.3418968915939331,
+   "max_rise_m": 0.01361846923828125,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 16.25,
+  "awake": 1,
+  "gap": [
+   0.195
+  ],
+  "west_surface": 16.516,
+  "wakes_sent": 1902,
+  "motion": {
+   "flow_cols": 109,
+   "max_flow_ms": 0.2990932762622833,
+   "max_rise_m": 0.01419830322265625,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 16.5,
+  "awake": 1,
+  "gap": [
+   0.181
+  ],
+  "west_surface": 16.51,
+  "wakes_sent": 1909,
+  "motion": {
+   "flow_cols": 106,
+   "max_flow_ms": 0.3002779483795166,
+   "max_rise_m": 0.013210296630859375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 16.75,
+  "awake": 1,
+  "gap": [
+   0.163
+  ],
+  "west_surface": 16.507,
+  "wakes_sent": 1919,
+  "motion": {
+   "flow_cols": 106,
+   "max_flow_ms": 0.2977796792984009,
+   "max_rise_m": 0.014883041381835938,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 17.0,
+  "awake": 2,
+  "gap": [
+   -0.065,
+   -0.032
+  ],
+  "west_surface": 16.502,
+  "wakes_sent": 1928,
+  "motion": {
+   "flow_cols": 106,
+   "max_flow_ms": 0.283466637134552,
+   "max_rise_m": 0.014675140380859375,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 17.25,
+  "awake": 1,
+  "gap": [
+   -0.028
+  ],
+  "west_surface": 16.509,
+  "wakes_sent": 1937,
+  "motion": {
+   "flow_cols": 105,
+   "max_flow_ms": 0.28817954659461975,
+   "max_rise_m": 0.014814376831054688,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 17.5,
+  "awake": 2,
+  "gap": [
+   -0.029,
+   0.136
+  ],
+  "west_surface": 16.519,
+  "wakes_sent": 1950,
+  "motion": {
+   "flow_cols": 105,
+   "max_flow_ms": 0.29655513167381287,
+   "max_rise_m": 0.015064239501953125,
+   "radius_m": 0.3333333432674408,
+   "rise_cols": 1,
+   "spheres": 1
+  }
+ },
+ {
+  "t": 17.75,
+  "awake": 5,
+  "gap": [
+   -0.064,
+   -0.031,
+   -0.029,
+   -0.028,
+   0.113
+  ],
+  "west_surface": 16.522,
+  "wakes_sent": 1965,
+  "motion": {
+   "flow_cols": 104,
+   "max_flow_ms": 0.302457720041275,
+   "max_rise_m": 0.014314651489257812,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 18.0,
+  "awake": 2,
+  "gap": [
+   0.082,
+   0.092
+  ],
+  "west_surface": 16.529,
+  "wakes_sent": 1979,
+  "motion": {
+   "flow_cols": 105,
+   "max_flow_ms": 0.32934775948524475,
+   "max_rise_m": 0.014593124389648438,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 18.25,
+  "awake": 5,
+  "gap": [
+   -0.034,
+   -0.028,
+   -0.027,
+   0.057,
+   0.089
+  ],
+  "west_surface": 16.537,
+  "wakes_sent": 1997,
+  "motion": {
+   "flow_cols": 102,
+   "max_flow_ms": 0.29523590207099915,
+   "max_rise_m": 0.014257431030273438,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 18.5,
+  "awake": 3,
+  "gap": [
+   -0.031,
+   0.038,
+   0.074
+  ],
+  "west_surface": 16.53,
+  "wakes_sent": 2012,
+  "motion": {
+   "flow_cols": 102,
+   "max_flow_ms": 0.31034696102142334,
+   "max_rise_m": 0.013675689697265625,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 18.75,
+  "awake": 3,
+  "gap": [
+   -0.051,
+   0.012,
+   0.06
+  ],
+  "west_surface": 16.525,
+  "wakes_sent": 2023,
+  "motion": {
+   "flow_cols": 102,
+   "max_flow_ms": 0.3232824206352234,
+   "max_rise_m": 0.013561248779296875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 19.0,
+  "awake": 3,
+  "gap": [
+   -0.029,
+   0.0,
+   0.048
+  ],
+  "west_surface": 16.531,
+  "wakes_sent": 2031,
+  "motion": {
+   "flow_cols": 104,
+   "max_flow_ms": 0.3264620304107666,
+   "max_rise_m": 0.014255523681640625,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 19.25,
+  "awake": 1,
+  "gap": [
+   -0.014
+  ],
+  "west_surface": 16.536,
+  "wakes_sent": 2041,
+  "motion": {
+   "flow_cols": 104,
+   "max_flow_ms": 0.32720574736595154,
+   "max_rise_m": 0.013980865478515625,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 19.5,
+  "awake": 2,
+  "gap": [
+   -0.026,
+   0.041
+  ],
+  "west_surface": 16.531,
+  "wakes_sent": 2049,
+  "motion": {
+   "flow_cols": 106,
+   "max_flow_ms": 0.3622797727584839,
+   "max_rise_m": 0.014665603637695312,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 19.75,
+  "awake": 1,
+  "gap": [
+   -0.033
+  ],
+  "west_surface": 16.526,
+  "wakes_sent": 2057,
+  "motion": {
+   "flow_cols": 104,
+   "max_flow_ms": 0.32138919830322266,
+   "max_rise_m": 0.014301300048828125,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ },
+ {
+  "t": 20.0,
+  "awake": 3,
+  "gap": [
+   -0.026,
+   -0.024,
+   0.041
+  ],
+  "west_surface": 16.524,
+  "wakes_sent": 2070,
+  "motion": {
+   "flow_cols": 102,
+   "max_flow_ms": 0.3322858512401581,
+   "max_rise_m": 0.01390838623046875,
+   "radius_m": 0.0,
+   "rise_cols": 0,
+   "spheres": 0
+  }
+ }
+]

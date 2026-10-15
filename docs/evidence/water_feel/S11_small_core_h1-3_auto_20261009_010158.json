@@ -1,0 +1,143 @@
+{
+ "scenario": "S11",
+ "bench": "small",
+ "engine": "core",
+ "build_config": "Release",
+ "git_head": "f7b6d375",
+ "timestamp": "20261009_010158",
+ "prediction": {
+  "engine": "core",
+  "transport": "eulerian",
+  "backend": "auto",
+  "cell_size": 0.3333,
+  "time_base": "simulation",
+  "asleep_within_s": 10.0,
+  "surface_vs_mass_mm_max": 1.0,
+  "mass_gate": "max(1e-4, 1e-9*mass*ticks)",
+  "volumes_after_sleep": 0,
+  "stored_depth_equals_written_tol": 0.0001,
+  "rewake_delta_mass_tol": 1e-06,
+  "restart_span_tol": 0.0001
+ },
+ "measurement": {
+  "rest_time_s": 3.600000000000002,
+  "ticks_run": 216,
+  "sleep": {
+   "success": true,
+   "error": null,
+   "columns": 169,
+   "runs": 5,
+   "held_columns": 0,
+   "unwritten_columns": 0,
+   "chunks_touched": 1,
+   "mass_written": 0.020000003048529395,
+   "surface_vs_mass_mm": 0.0,
+   "spread_mm": 2.2182464599609375,
+   "body_id": -1
+  },
+  "residue_dropped_m3": 0.0,
+  "placed": 0.02,
+  "spans_before": 5,
+  "spans_after": 5,
+  "stored_depth_after": 0.020002365112304688,
+  "control_spans_before": 0,
+  "control_spans_after": 0,
+  "volumes_after_sleep": 0,
+  "ledger_after": {
+   "core_cells": 0.0,
+   "spans": 0.020002365112304688,
+   "bodies": 0.039999836751555495,
+   "total": 0.020002365112304688
+  },
+  "body_table": [
+   {
+    "bbox": [
+     7,
+     7,
+     9,
+     9
+    ],
+    "cls": "pond",
+    "columns_checked": 9,
+    "columns_not_resident": 0,
+    "diff": -0.019997471639250808,
+    "displaced": 0.0,
+    "id": -1,
+    "level": 17.003999710083008,
+    "mass": 0.039999836751555495,
+    "origin": "av",
+    "span_sum": 0.020002365112304688
+   }
+  ],
+  "rewake": {
+   "seeded_mass": 0.019999833703026097,
+   "mass_after_60": 0.019999832599236284,
+   "delta_mass": -1.1037898130228374e-09,
+   "asleep_after_60": true,
+   "written_again": 0.019999833703026104,
+   "stored_again": 0.020002365112304688,
+   "depth_after_second_sleep": 0.020002365112304688,
+   "depth_delta_second_sleep": 0.0,
+   "body_table_after": [
+    {
+     "bbox": [
+      7,
+      7,
+      9,
+      9
+     ],
+     "cls": "pond",
+     "columns_checked": 9,
+     "columns_not_resident": 0,
+     "diff": -0.019997471639250808,
+     "displaced": 0.0,
+     "id": -1,
+     "level": 17.003999710083008,
+     "mass": 0.039999836751555495,
+     "origin": "av",
+     "span_sum": 0.020002365112304688
+    }
+   ]
+  },
+  "restart": {
+   "save": {
+    "mode": "dirty",
+    "success": true
+   },
+   "spans": 5,
+   "stored_depth": 0.020002365112304688,
+   "depth_delta": 0.0,
+   "body_table": [
+    {
+     "bbox": [
+      7,
+      7,
+      9,
+      9
+     ],
+     "cls": "pond",
+     "displaced": 0.0,
+     "id": -1,
+     "level": 17.003999710083008,
+     "mass": 0.039999836751555495,
+     "origin": "av"
+    }
+   ]
+  }
+ },
+ "samples": null,
+ "control_samples": null,
+ "verdict": {
+  "asleep_within_10s": "PASS",
+  "write_back_ok": "PASS",
+  "surface_vs_mass_1mm": "PASS",
+  "mass_written_equals_poured": "PASS",
+  "volume_freed": "PASS",
+  "stored_depth_equals_written": "PASS",
+  "control_column_dry": "PASS",
+  "rewake_changes_nothing": "PASS",
+  "body_mass_equals_spans": "FAIL",
+  "restart_identical": "PASS"
+ },
+ "capture": "G:\\Github\\phyxel\\docs\\evidence\\water_feel\\S11_small_core_h1-3_auto_20261009_010158.png"
+}

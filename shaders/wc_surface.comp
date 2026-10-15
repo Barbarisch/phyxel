@@ -1,0 +1,97 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore Phase F (docs/WaterCore.md 17): the SURFACE FIELD of a volume, one thread per (x, z)
+// sub-column, written in the exact layout of Core::Water::SurfaceColumn (16 floats):
+//   top[4] | bottom[4] | solidTopY | runs | foam | u | w | pad | pad | pad      (world units)
+// foam is G2's (the shore band fills it on the CPU; 0 here). u / w (Phase E2, WaterCore.md 19): the
+// top run's top cell's horizontal velocity, the mean of its two x faces and its two z faces - what
+// debris drifts with and what the surface shading advects its ripples along.
+// A run is a maximal vertical stretch of cells with f * h >= 1 mm that are not solid; its top is the
+// highest wet cell's bottom + min(f, 1) * h; solidTopY is the top face of the highest solid cell in
+// the column. Mirrors extractSurfaceField (WaterSurfaceMesh.cpp) - the parity test holds them equal.
+// Only this field crosses back to the host each step (nx * nz * 64 B), never the grid.
+#define WC_BRICKS_BINDING 6
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer F   { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
+layout(std430, set = 0, binding = 2) writeonly buffer Surf { float surf[]; };
+layout(std430, set = 0, binding = 3) readonly buffer U   { float uF[]; };
+layout(std430, set = 0, binding = 4) readonly buffer W   { float wF[]; };
+layout(std430, set = 0, binding = 5) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
+// 26.11 (WaterCore.md): PACKED lists - only what the host needs crosses the bus. A column holding ONE run appends 8 floats to the
+// front of surf (top, bottom, u, w, body, -, -, its dense column index x + nx z); one with several runs appends its full 16-float
+// record behind them (the index in slot 15); a dry column is rebuilt on the host (no water, ground at its solid top). A
+// column with droplet births appends its 8-float record to birthsPacked (the dense index in slot 7, unused in the record). The
+// order is the atomics' - the host scatters by index, so the result is the same whatever the order.
+layout(std430, set = 0, binding = 7) readonly buffer Births  { float births[]; };
+layout(std430, set = 0, binding = 8) writeonly buffer BirthsP { float birthsP[]; };
+layout(std430, set = 0, binding = 9)          buffer Lists   { uint lists[]; };   // [one-run, births, multi-run] counts
+
+// WaterGrid::levelFill (20.5): water + the body volume it surrounds; a body in air (f below the film) is not water
+float levelFill(int x, int y, int z) {
+    const uint i = cellIdx(x, y, z);
+    const float fv = f[i];
+    return min(1.0, fv + (fv >= pc.param0 ? solid[i].x : 0.0));
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    int x, z;
+    if (!threadColumn(id, x, z)) return;
+    const float fMin = pc.param0;   // kSurfaceMinDepth / h
+    const float oy = float(pc.iparam);   // origin.y in cells
+    float top[4], bottom[4];
+    for (int r = 0; r < 4; ++r) { top[r] = 0.0; bottom[r] = 0.0; }
+    float solidTop = -1e30;
+    int runs = 0;
+    int topCell = -1;   // the top run's top cell (E2)
+    int y = 0;
+    while (y < pc.ny) {
+        const bool solid = occ[cellIdx(x, y, z)] == 1u;
+        if (solid) solidTop = (oy + float(y) + 1.0) * pc.h;
+        if (f[cellIdx(x, y, z)] < fMin || solid) { ++y; continue; }
+        const int start = y;
+        int t = y;
+        float sum = 0.0;   // the height function (WaterCore.md 19.5): bottom + the water in the run
+        while (y < pc.ny && f[cellIdx(x, y, z)] >= fMin && occ[cellIdx(x, y, z)] != 1u) { t = y; sum += levelFill(x, y, z); ++y; }
+        // + air trapped under water drawn as water, weighted by the fill of the cell above (19.7;
+        // surfacePocketWeight in WaterSurfaceMesh.h: 0 below 0.2, 1 from 0.7)
+        float pockets = 0.0;
+        for (int k = start; k < t; ++k) pockets += (1.0 - levelFill(x, k, z)) * clamp((levelFill(x, k + 1, z) - 0.2) / 0.5, 0.0, 1.0);
+        const float tTop = (oy + float(start)) * pc.h + (sum + pockets) * pc.h;
+        if (runs < 4) { bottom[runs] = (oy + float(start)) * pc.h; top[runs] = tTop; ++runs; }
+        else top[3] += sum * pc.h;
+        topCell = t;
+    }
+    const uint denseCol = uint(x) + uint(pc.nx) * uint(z);
+    {   // births first (independent of the surface)
+        bool any = false;
+        for (uint k = 0u; k < 7u; ++k) any = any || births[id * 8u + k] != 0.0;
+        if (any) {
+            const uint e = atomicAdd(lists[1], 1u);
+            for (uint k = 0u; k < 7u; ++k) birthsP[e * 8u + k] = births[id * 8u + k];
+            birthsP[e * 8u + 7u] = uintBitsToFloat(denseCol);
+        }
+    }
+    if (runs == 0) return;   // dry: the host rebuilds it
+    float b = 0.0, cu = 0.0, cw = 0.0;
+    if (topCell >= 0) {   // 20: a body at the surface - the level here is the body's (SurfaceColumn::bodyAtSurface); E2: the top cell's velocity
+        b = solid[cellIdx(x, topCell, z)].x;
+        if (topCell + 1 < pc.ny) b = max(b, solid[cellIdx(x, topCell + 1, z)].x);
+        cu = 0.5 * (uF[uIdx(x, topCell, z)] + uF[uIdx(x + 1, topCell, z)]);
+        cw = 0.5 * (wF[wIdx(x, topCell, z)] + wF[wIdx(x, topCell, z + 1)]);
+    }
+    if (runs == 1) {
+        const uint e = atomicAdd(lists[0], 1u) * 8u;
+        surf[e] = top[0]; surf[e + 1u] = bottom[0]; surf[e + 2u] = cu; surf[e + 3u] = cw; surf[e + 4u] = b;
+        surf[e + 5u] = 0.0; surf[e + 6u] = 0.0; surf[e + 7u] = uintBitsToFloat(denseCol);
+        return;
+    }
+    const uint base = uint(pc.param1) * 8u + atomicAdd(lists[2], 1u) * 16u;
+    for (int r = 0; r < 4; ++r) { surf[base + uint(r)] = top[r]; surf[base + 4u + uint(r)] = bottom[r]; }
+    surf[base + 8u] = solidTop;
+    surf[base + 9u] = float(runs);
+    surf[base + 10u] = 0.0; surf[base + 11u] = cu; surf[base + 12u] = cw; surf[base + 13u] = b; surf[base + 14u] = 0.0;
+    surf[base + 15u] = uintBitsToFloat(denseCol);
+}

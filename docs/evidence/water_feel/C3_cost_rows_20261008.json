@@ -1,0 +1,45 @@
+{
+ "note": "S3 block (252 m^3) on the Basin, 60 ticks after placement (the collapse), Release, wall time per tick over HTTP (one round trip per 60 ticks); GPU slice 3 = device-local buffers, one submission per call, download on demand",
+ "rows": [
+  {
+   "backend": "cpu",
+   "cellSize": 1.0,
+   "cells": 2808,
+   "ms_per_tick": 1.11,
+   "substeps_last": 1,
+   "solver_iters_or_sweeps": 23,
+   "residual": 4.4310603456390426e-07,
+   "rbgs_residual": 0.0
+  },
+  {
+   "backend": "gpu",
+   "cellSize": 1.0,
+   "cells": 2808,
+   "ms_per_tick": 0.75,
+   "substeps_last": 1,
+   "solver_iters_or_sweeps": 39,
+   "residual": 0.07804012298583984,
+   "rbgs_residual": 0.07804012298583984
+  },
+  {
+   "backend": "cpu",
+   "cellSize": 0.3333,
+   "cells": 75816,
+   "ms_per_tick": 29.83,
+   "substeps_last": 1,
+   "solver_iters_or_sweeps": 76,
+   "residual": 7.180299453891466e-07,
+   "rbgs_residual": 0.0
+  },
+  {
+   "backend": "gpu",
+   "cellSize": 0.3333,
+   "cells": 75816,
+   "ms_per_tick": 1.86,
+   "substeps_last": 1,
+   "solver_iters_or_sweeps": 117,
+   "residual": 0.0004596710205078125,
+   "rbgs_residual": 0.0004596710205078125
+  }
+ ]
+}

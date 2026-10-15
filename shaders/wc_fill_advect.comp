@@ -1,0 +1,149 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel 2a: donor-cell fill transport (docs/WaterCore.md §15.11).
+// The CPU applies faces one at a time so no two moves touch one cell at once. Here the same
+// exactness comes from CHECKERBOARD passes: mode = direction (0 x, 1 y, 2 z); iparam = parity.
+// A pass handles the faces of one direction whose index along that axis has the given parity:
+// cell c is touched by faces c and c+1, never both in one pass, so every move is
+//   min(desired, donor has, receiver can take)
+// read-modify-write on cells no other thread touches. desired uses the fill at the start of the
+// whole advect (fOrig), the limits use the running f, exactly as the CPU's scratch copy does.
+// Downward moves out of a THIN donor take min(f, |v| dt / h): a film lies on its cell floor and
+// falls as a block (WaterCore.cpp, EulerianTransport::advect).
+#define WC_BRICKS_BINDING 8
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0)          buffer F     { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer FOrig { float fo[]; };
+layout(std430, set = 0, binding = 2) readonly buffer U     { float u[]; };
+layout(std430, set = 0, binding = 3) readonly buffer V     { float v[]; };
+layout(std430, set = 0, binding = 4) readonly buffer W     { float w[]; };
+layout(std430, set = 0, binding = 5) readonly buffer Occ   { uint occ[]; };
+layout(std430, set = 0, binding = 6) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
+layout(std430, set = 0, binding = 7)          buffer Out   { float outSum[]; };   // 26.5: a cell's total outflow (scratch: the projection's residual buffer)
+layout(std430, set = 0, binding = 9)          buffer FLo   { float fLo[]; };      // 26.10: what the float store could not hold, per cell
+
+bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+
+// ---- 26.5 (WaterCore.md): ALL FACES AT ONCE, the CPU's EulerianTransport::s_allFacesAtOnce rule ----
+//   mode 3: per cell, the total outflow its faces want (from the fills at the start: fo)
+//   mode 4: per cell, GATHERED: fo - its own outflows x its scale + its neighbours' flows into it x theirs (no two threads
+//           write one cell; a donor's outflow is scaled to its fill, never clamped after)
+//   mode 5: per column, a cell left over full (1 - s) carries the excess up its column; under a ceiling it stays in the last
+//           open cell for a substep (the deposit rule, 21.2) - exact
+float faceVel(int axis, ivec3 c) { return axis == 0 ? u[uIdx(c.x, c.y, c.z)] : (axis == 1 ? v[vIdx(c.x, c.y, c.z)] : w[wIdx(c.x, c.y, c.z)]); }
+// the face between cells a (lower) and b (upper along `axis`): the amount its donor wants to send, and which cell donates
+float faceDesired(int axis, ivec3 a, ivec3 b, out bool donorIsA) {
+    donorIsA = false;
+    if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z)) return 0.0;
+    const float vel = faceVel(axis, b);
+    if (vel == 0.0) return 0.0;
+    donorIsA = vel > 0.0;
+    const bool absA = absentCell(a.x, a.y, a.z), absB = absentCell(b.x, b.y, b.z);
+    const float fd = donorIsA ? (absA ? 0.0 : fo[cellIdx(a.x, a.y, a.z)]) : (absB ? 0.0 : fo[cellIdx(b.x, b.y, b.z)]);
+    if (fd <= 0.0) return 0.0;
+    // 26.6: water may never move into a brick that is not stored - the face is closed and COUNTED (the halo is wrong if this
+    // is ever non-zero outside the capacity test; WaterBrickTest gates it at 0)
+    if (absA || absB) { if (pc.mode == 3) atomicAdd(bricks[pc.counterOff], 1); return 0.0; }
+    const float sweep = abs(vel) * pc.dt / pc.h;
+    const bool downward = axis == 1 && vel < 0.0;
+    // 26.9: a QUIET partial cell under an emptier one fills itself before water crosses its ceiling (donor-acceptor, the CPU's rule)
+    if (axis == 1 && vel > 0.0 && vel < pc.quietRise && fd < 1.0 && fo[cellIdx(b.x, b.y, b.z)] < fd) return clamp(sweep - (1.0 - fd), 0.0, fd);
+    return (downward && fd < pc.thr) ? min(fd, sweep) : sweep * fd;
+}
+// o > 0: a cell left a hair NEGATIVE by rounding sends nothing (o = 0 > f0) - dividing there made -inf, 0 x inf = NaN, and
+// compaction's min(NaN, cap) turned the NaN into a free-fall cap of water from nowhere (GpuAllFacesRestingPondKeepsItsMass)
+float scaleOf(ivec3 c) { const uint i = cellIdx(c.x, c.y, c.z); const float o = outSum[i], f0 = fo[i]; return (o > 0.0 && o > f0) ? f0 / o : 1.0; }
+
+void allFaces(uint id) {
+    if (pc.mode == 5) {
+        int x, z;
+        if (!threadColumn(id, x, z)) return;
+        float carry = 0.0; int last = -1;
+        for (int y = 0; y < pc.ny; ++y) {
+            const uint i = cellIdx(x, y, z);
+            if (blocked(x, y, z) || absentCell(x, y, z)) {   // an absent brick is never written: the excess parks below it
+                if (carry > 0.0 && absentCell(x, y, z)) atomicAdd(bricks[pc.counterOff], 1);
+                if (carry > 0.0 && last >= 0) { const uint l = uint(last); const float a = f[l]; precise float s = a + carry; f[l] = s; fLo[l] += twoSumErr(a, carry, s); }
+                carry = 0.0; last = -1; continue;
+            }
+            // 26.9/26.10: add only what this cell can HOLD in float - the rest stays in the carry, exactly (two-sum, `precise`)
+            { const float before = f[i]; precise float nf = before + carry; f[i] = nf; carry = twoSumErr(before, carry, nf); }
+            last = int(i);
+            const float room = 1.0 - solid[i].x;
+            if (f[i] > room) {   // the excess joins the carry; what the carry cannot hold of it stays in this cell's fLo
+                const float fi = f[i]; precise float ex = fi - room; fLo[i] += twoSumErr(fi, -room, ex);
+                const float c0 = carry; precise float nc = c0 + ex; fLo[i] += twoSumErr(c0, ex, nc); carry = nc; f[i] = room;
+            }
+        }
+        if (carry > 0.0 && last >= 0) { const uint l = uint(last); const float a = f[l]; precise float s = a + carry; f[l] = s; fLo[l] += twoSumErr(a, carry, s); }
+        return;
+    }
+    ivec3 c;
+    if (!threadSite(id, 3, c)) return;
+    if (blocked(c.x, c.y, c.z)) { if (pc.mode == 3) outSum[id] = 0.0; return; }
+    const ivec3 e[3] = ivec3[3](ivec3(1, 0, 0), ivec3(0, 1, 0), ivec3(0, 0, 1));
+    float outs = 0.0, ins = 0.0;
+    const float myScale = pc.mode == 4 ? scaleOf(c) : 1.0;
+    for (int axis = 0; axis < 3; ++axis) {
+        bool dA;
+        // the face below/behind: c is its upper cell b
+        const ivec3 lo = c - e[axis];
+        if (inBounds(lo.x, lo.y, lo.z)) {
+            const float d = faceDesired(axis, lo, c, dA);
+            if (d > 0.0) { if (!dA) outs += d; else if (pc.mode == 4) ins += d * scaleOf(lo); }
+        }
+        // the face above/ahead: c is its lower cell a
+        const ivec3 hi = c + e[axis];
+        if (inBounds(hi.x, hi.y, hi.z)) {
+            const float d = faceDesired(axis, c, hi, dA);
+            if (d > 0.0) { if (dA) outs += d; else if (pc.mode == 4) ins += d * scaleOf(hi); }
+        }
+    }
+    if (pc.mode == 3) outSum[id] = outs;
+    else {
+        // 26.10 (WaterCore.md): the flows balance exactly; the STORE does not - fo + change rounds to fo's float step, and at the
+        // liquid threshold (f = 0.5) the step below is half the step above, so tiny back-and-forth flows wore a pond down
+        // (DiagRestingBodyKeepsTheWater: -1.8e-4 m^3 in 27 s, all of it here). Two-sum: what the store could not hold stays in
+        // fLo and joins the cell's next change. `precise`: without it the compiler may fold (a + b) - a into b.
+        precise float d = ins - outs * myScale;
+        const float a = fo[id];
+        float keep = fLo[id];
+        // a dry cell nothing reaches keeps its remainder for when water returns (no film from nothing), and never below zero
+        if ((a > 0.0 || ins > 0.0) && a + d + keep >= 0.0) { d = d + keep; keep = 0.0; }
+        precise float sum = a + d;
+        f[id] = sum;
+        fLo[id] = keep + twoSumErr(a, d, sum);
+    }
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (pc.mode >= 3) { allFaces(id); return; }
+    ivec3 a, b; float vel; bool downward = false;
+    if (pc.mode == 0) {                       // u faces: lattice (nx+1, ny, nz), interior x in 1..nx-1
+        ivec3 c;
+        if (!threadSite(id, 0, c) || c.x < 1 || c.x >= pc.nx || (c.x & 1) != pc.iparam) return;
+        a = ivec3(c.x - 1, c.y, c.z); b = c; vel = u[uIdx(c.x, c.y, c.z)];
+    } else if (pc.mode == 1) {                // v faces: lattice (nx, ny+1, nz), interior y in 1..ny-1
+        ivec3 c;
+        if (!threadSite(id, 1, c) || c.y < 1 || c.y >= pc.ny || (c.y & 1) != pc.iparam) return;
+        a = ivec3(c.x, c.y - 1, c.z); b = c; vel = v[vIdx(c.x, c.y, c.z)]; downward = vel < 0.0;
+    } else {                                  // w faces: lattice (nx, ny, nz+1), interior z in 1..nz-1
+        ivec3 c;
+        if (!threadSite(id, 2, c) || c.z < 1 || c.z >= pc.nz || (c.z & 1) != pc.iparam) return;
+        a = ivec3(c.x, c.y, c.z - 1); b = c; vel = w[wIdx(c.x, c.y, c.z)];
+    }
+    if (vel == 0.0) return;
+    if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z) || absentCell(a.x, a.y, a.z) || absentCell(b.x, b.y, b.z)) return;
+    const uint ia = cellIdx(a.x, a.y, a.z), ib = cellIdx(b.x, b.y, b.z);
+    const uint from = vel > 0.0 ? ia : ib, to = vel > 0.0 ? ib : ia;
+    const float fDonorOrig = fo[from];
+    if (fDonorOrig <= 0.0) return;
+    const float sweep = abs(vel) * pc.dt / pc.h;
+    const float desired = (downward && fDonorOrig < pc.thr) ? min(fDonorOrig, sweep) : sweep * fDonorOrig;
+    const float moved = min(min(desired, f[from]), 1.0 - solid[to].x - f[to]);   // 20.5: room is 1 - s - f
+    if (moved <= 0.0) return;
+    f[from] -= moved;
+    f[to]   += moved;
+}

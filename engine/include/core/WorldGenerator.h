@@ -151,8 +151,12 @@ public:
         float continentalness = 0.5f; // [0,1] large-scale land elevation
         int   biomeIndex  = 0;        // dominant biome (index into m_biomes)
         std::string surfaceMat = "Grass"; // resolved surface material (biome surface or scatter)
+        float channelDepth = 0.0f;    // parabolic carve depth at this column (voxels; orders >= 3 carve it,
+                                      // orders 1-2 report it) - the river span's depth (Phase D4)
         int   riverOrder  = 0;        // Strahler order of the river carved here (0 = no channel);
                                       // >0 marks a carved riverbed (for the flora gate + water runtime)
+        float bedHeight   = 16.0f;    // WaterCore.md 25.22: the CONTINUOUS ground height (every terrain term, the river carve
+                                      // as a continuous depth) - surfaceY is its voxel index; the water's bed (option (a))
         bool  creekBed    = false;    // order 1-2 inner channel band (depth >= the runtime pin
                                       // threshold): the surface voxel is emitted as a 2/3 subcube
                                       // shelf so the creek rests in a 1/3-voxel recess
@@ -189,6 +193,14 @@ public:
     // Pure function of world (x,z) + seed/params, so it's seam-free and reusable by the
     // flora decoration pass (which lives outside WorldGenerator).
     ColumnSample sampleSurface(int worldX, int worldZ) { return sampleColumn(worldX, worldZ); }
+    /// WaterCore.md 25.22: is the 1/3 m creek-bed carve on (the recipe's flag)?
+    bool creekCarve() const { return m_creekCarve; }
+    void setCreekCarve(bool on) { m_creekCarve = on; }
+    /// The 1/3 m subcube layers the carve leaves in a creek column's surface voxel (0-2): floor(3 (bedHeight - surfaceY)).
+    static int creekLayers(const ColumnSample& c);
+    /// World Y of the top of the solids generateChunk DRAWS in this column - the carve (creek, flag on), the 2/3 shelf
+    /// (creek, flag off), else the full surface voxel. The water reads it to tell generated ground from edited (25.22).
+    float drawnTop(const ColumnSample& c) const;
 
     // ── THE AUTHORITATIVE WATER QUERY (docs/Water.md §5.2) ─────────────────────────
     // What water does the TERRAIN hold at this column? Returns false when the column is dry.
@@ -337,6 +349,9 @@ public:
 private:
     // The single meander displacement every channel-line consumer shares (see channelHitAt).
     glm::vec2 meanderedChannelPos(float wx, float wz) const;
+    /// WaterCore.md 25.22: is world column (wx, wz) inside an order 1-2 channel band (the carve's band)? Pure - the warp and
+    /// the channel query only, never another column's sample.
+    bool inCreekBand(int wx, int wz) const;
 
     GenerationType generationType;
     uint32_t seed;
@@ -376,6 +391,7 @@ private:
     // process-wide — the bake is cheap and its identity depends on biome tuning the hydro
     // key can't see (see WorldForgePlan::bake).
     WorldForgeParams m_worldForgeParams;
+    bool m_creekCarve = false;   // 25.22: from the recipe (WorldRecipe::creekCarve)
     std::shared_ptr<const WorldForgePlan> m_worldForge;
     void bakeWorldForgePlan();
 

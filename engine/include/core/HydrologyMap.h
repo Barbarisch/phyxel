@@ -32,6 +32,12 @@ public:
 
     // Flat water-surface Y at a world column, or NO_WATER if dry / outside the baked region.
     float waterLevelAt(float worldX, float worldZ) const;
+    // WaterCore Phase D4 (WaterRethink 8.8 1b): the Priority-Flood depression-filled elevation of
+    // the cell, never below sea level (a sub-sea cell is sea-connected). A column may join a lake
+    // flood only where this is >= the lake's level: downstream of the outlet it is lower (the
+    // water drains there by Priority-Flood's own definition), so a perched lake can no longer
+    // drown the valley below it. NO_WATER outside the baked region.
+    float filledAt(float worldX, float worldZ) const;
     bool hasWater(float worldX, float worldZ) const { return waterLevelAt(worldX, worldZ) > NO_WATER * 0.5f; }
 
     int cellsX() const { return m_cellsX; }
@@ -58,6 +64,7 @@ private:
     float m_minTerrain = 1e30f;       // lowest sampled terrain (1e30 = nothing baked)
     int m_cellsX = 0, m_cellsZ = 0;
     std::vector<float> m_waterLevel;  // per cell; NO_WATER = dry
+    std::vector<float> m_filled;      // per cell; max(depression-filled elevation, sea level)
 };
 
 }  // namespace Phyxel

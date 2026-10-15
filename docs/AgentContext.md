@@ -168,20 +168,35 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
-- **▶ WORLDFORGE v2 — PLAN OF RECORD, nothing built (branch `feat/worldforge-v2`, 2026-10-14).**
+- **▶ WORLDFORGE v2 — M0 DONE at L2 + L4, M1 next (branch `feat/worldforge-v2`, 2026-10-15).**
   User goal: terrain, towns, cities, roads and waterways that are **epic in scale and functional at
   small detail**. **Read [`docs/WorldForgeV2Plan.md`](WorldForgeV2Plan.md) before touching
-  WorldForge/CityForge/terrain generation.** Verdict from six code audits: the purity/determinism
-  architecture, PriorityFlood/FlowField, plan→ledger→realize and the structure forge are a
-  foundation; the three planning cores (analytic Layer-0 + 32 km hydro box, 3..8-site siting with
-  128 u A*, rect settlement layout) are prototypes and the ceiling. Order M0 cleanup → M1 world
-  sheet (the only scale-moving item) → M2 hydro geometry → M3 civ → M4 routes → M5 vector
-  settlement map (+ second era) → M6 lazy realization → M7 horizon → M8 lore. Decisions D1–D9 are
-  PROPOSED, not owner-settled. **Boundary with `feat/water-rethink`: shape terrain for water,
-  never fill it** (plan §4). Facts a fresh session must not re-derive: packaged games DO stream
-  (G-177) but have no realizer host; realizers are axis-aligned-rect only; realizing a lot deletes
-  any bbox-overlapping structure; partial placement counts as success; settlement buildings get
-  no `period`; the Stop-hook is unwired (`.claude/settings.json` hooks empty).
+  WorldForge/CityForge/terrain generation** — its M0 section holds the row ledger, the four L4 runs
+  (`docs/evidence/worldforge_v2/m0_l4*_summary.json`, lab `PhyxelProjects/WorldForgeBaseline`, seed
+  20260816, plan hash 9693137997320541182, 5 built / 3 refused for named generator defects), the
+  solution-auditor verdict (FAIL overall for narrative overreach; code rows CONFIRMED) and the
+  still-owed list (row 2d not yet run at L4 or audited; the pad-below-street reading is a hypothesis;
+  hamlets 3/4/7 building after row 2b is observed, not attributed). Decisions D1–D9 are owner-settled
+  (plan §3.1). Order M1 world sheet → M2 hydro geometry → M3 civ → M4 routes → M5 vector settlement
+  map (+ second era) → M6 lazy realization → M7 horizon → M8 lore. **Water: `feat/water-rethink` was
+  merged into main 2026-10-15 (489caee2) on the owner's word, so M1 is unblocked; shape terrain for
+  water, never fill it** (plan §4). Facts a fresh session must not re-derive: packaged games DO stream
+  (G-177) but have no realizer host; realizers are axis-aligned-rect only; the walkability gate is
+  BLOCKING (a refused site keeps its voxels, is not checkpointed, retries next run); the Stop-hook IS
+  wired locally (`.claude/settings.json`, gitignored) and blocks unaudited "works" claims. Scripts:
+  `tools/worldforge_m0_l4.sh` (`PREFIX=` env) and `tools/worldforge_m0_l4_capture.sh`.
+  ⚠️ Known order-dependent unit test since the water merge: `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles`
+  passes alone and among the 346 Water*/Debris*/Shore* tests (near drop 0.284 m) but measured 0.215 m
+  (< 0.27 floor) in the full 4437-test suite — some earlier fixture outside those leaves state behind; not bisected.
+- **▶ WATER CORE — ACTIVE (branch `feat/water-rethink`, pushed after every commit).** The design of record AND
+  build ledger is [`docs/WaterCore.md`](WaterCore.md); **read its §0a first** (where things stand, what is next).
+  As of 2026-10-11: the small still pond is built on a 3-D Eulerian core (CPU reference + GPU default), with debris
+  coupling, moving solids, droplets, a ripple layer, pond friction and size-dependent stone drag; the owner signed off
+  the pond feel (2026-10-09) and the ripples (2026-10-11). **Next: §25 Phase H, small flowing water (a creek in a
+  bench channel)**, then creeks in the world, rivers, shorelines (Phase G, paused). Slime/other liquids (§23) queued.
+  Standing rules: small bodies first; no universal water level; nothing done until the owner sees it in motion;
+  design-check before building; a question from the owner is answered, not acted on. Bench: WaterBench_Small, port
+  8111 (`phyxel up`).
 
 - **▶ PERFORMANCE PROGRAM 2026-09 — ACTIVE (branch `perf/lights-microvoxel-program`).** User goal:
   as fast as possible **without visual loss**, measured at real load (~100-building cities). **The

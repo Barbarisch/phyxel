@@ -72,7 +72,12 @@ PHX_CONST float IMPULSE_WAKE_SCALE = 2.0f;
 //   v.y -= g * f * b * dt                 anti-gravity: b > 1 floats, b < 1 sinks slower
 //   v   *= (1 - WATER_LINEAR_DRAG)^(f dt),  w *= (1 - WATER_ANGULAR_DRAG)^(f dt)
 //   v.xz += (flow - v.xz) * min(1, WATER_CURRENT_COUPLE * f * dt)
-PHX_CONST float WATER_LINEAR_DRAG    = 0.90f;   // strong - water is thick (kills the bob into rest)
+//   (WaterCore.md 24.9) the linear term acts only while the body CROSSES the surface (0 < f < 1) - it stands for the
+//   waves a bobbing body radiates; any wet body also feels FORM drag, v /= 1 + k |v| dt, k = Cd (A / V) b f / 2
+//   (A the box's area across v, V its volume): size-dependent, so a 4 cm pebble settles at ~1 m/s and a 1/3 m stone at
+//   ~3.2 m/s. One linear rate for every size sank all granite at 2.6 m/s (WaterBuoyancy.SmallStonesSinkSlowerThanBigOnes).
+PHX_CONST float WATER_LINEAR_DRAG    = 0.90f;   // strong - kills a floater's bob into rest (waterline only, 24.9)
+PHX_CONST float WATER_FORM_CD        = 1.05f;   // face-on cube drag coefficient (Hoerner, Fluid-Dynamic Drag); a tumbling cube ~0.8-1.05
 PHX_CONST float WATER_ANGULAR_DRAG   = 0.85f;
 PHX_CONST float WATER_CURRENT_COUPLE = 3.0f;    // drift converges to ~ the current's own speed
 // GPU water: a sparse table of per-chunk-column TILES over the same XZ window as the static
@@ -129,6 +134,18 @@ PHX_CONST uint  DEBRIS_EVENT_IMPACT = 3u;     // |dv| in one tick >= IMPACT_EVEN
 // Velocity change in ONE tick that counts as an impact. Gravity alone is g*dt = 0.16 m/s and a
 // resting pile's solver jitter stays under SLEEP_LAX_SPEED (0.15 m/s), so 1.5 m/s is a real hit.
 PHX_CONST float IMPACT_EVENT_DV     = 1.5f;
+// WaterCore E2: the water-exchange readback - same shape as the events ([0] = count, atomic, may exceed
+// the cap; [1..3] pad; then the records). Per frame (all its ticks); more are counted, not stored.
+PHX_CONST uint  MAX_WATER_EXCHANGE  = 4096u;
+PHX_CONST float WATER_EXCHANGE_MIN_DV = 1.0e-4f;   // m/s: smaller changes are not worth a record
+// WaterCore 20 (moving solids, docs/WaterCore.md 20.4): every active body whose box overlaps one of up to
+// MAX_WATER_BOXES water-volume boxes appends a WET-BODY record per tick (sleeping bodies too - a stone resting
+// on a pond floor still takes up room). Buffer: [0] = count (atomic, may exceed the cap), [1..3] pad, [4] =
+// box count (written by the host), [5..7] pad, boxMin[8], boxMax[8] (world units), then the records. The
+// boxes travel in this buffer, not the push block: 8 boxes are 256 B, more than a push block may hold.
+PHX_CONST uint  MAX_WET_BODIES      = 2048u;
+PHX_CONST uint  MAX_WATER_BOXES     = 8u;
+PHX_CONST uint  WET_HEADER_BYTES    = 32u + 2u * MAX_WATER_BOXES * 16u;   // 288
 // Linear falloff: full impulse at the centre, none at the radius.
 PHX_FN float phxImpulseWeight(float d, float radius) {
     return (radius <= 0.0f || d >= radius) ? 0.0f : 1.0f - d / radius;
@@ -213,6 +230,14 @@ PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetCol
 // (0..1, blends the push direction toward +Y), zw unused.
 #define PHX_IMPULSE        vec4 centerRadius; vec4 dirCos; vec4 params;
 
+// WaterCore E2 (docs/WaterCore.md 19): the water's share of each wet body's drag + current, per tick.
+// posMass: xyz = world position, w = the body's mass in WATER units (its volume / the material's
+// buoyancy ratio = rho_body V / rho_water, m^3); dvRadius: xyz = the velocity change the water's drag
+// and current gave the body this tick (buoyancy excluded: a floater's weight is static pressure, not
+// a current), w = the body's bounding radius. The water receives -mass * dv (Newton's third law).
+#define PHX_WATER_EXCHANGE vec4 posMass; vec4 dvRadius;
+#define PHX_WET_BODY vec4 posSlot; vec4 halfExt; vec4 vel;   /* posSlot.w = the body's slot (uint bits); halfExt local (rotation ignored, v1) */
+
 // One debris event (Phase 6). info: x = body slot, y = DEBRIS_EVENT_*, z = materialIndex (incl.
 // the texture-slice bits), w = floatBitsToUint(impact |dv| in m/s, 0 otherwise).
 // posScale: xyz = world position, w = the body's largest scale (1, 1/3, 1/9 ...).
@@ -237,6 +262,8 @@ struct KinematicPC      { PHX_PC_KINEMATIC };
 struct KinematicBoxGpu  { PHX_KINEMATIC_BOX };
 struct ImpulseGpu       { PHX_IMPULSE };
 struct DebrisEventGpu   { PHX_DEBRIS_EVENT };
+struct WaterExchangeGpu { PHX_WATER_EXCHANGE };
+struct WetBodyGpu       { PHX_WET_BODY };
 
 // Sizes as the shaders see them (std430 push-constant packing of 4-byte scalars).
 static_assert(sizeof(GridCountPC)   == 4,  "PHX_PC_COUNT");
@@ -256,6 +283,8 @@ static_assert(sizeof(ExpandPC)      == 12, "PHX_PC_EXPAND");
 static_assert(sizeof(KinematicPC)   == 16, "PHX_PC_KINEMATIC");
 static_assert(sizeof(KinematicBoxGpu) == 64, "PHX_KINEMATIC_BOX");
 static_assert(sizeof(ImpulseGpu)    == 48, "PHX_IMPULSE");
+static_assert(sizeof(WaterExchangeGpu) == 32, "PHX_WATER_EXCHANGE");
+static_assert(sizeof(WetBodyGpu) == 48, "PHX_WET_BODY");
 static_assert(sizeof(DebrisEventGpu) == 32, "PHX_DEBRIS_EVENT");
 static_assert(EVENT_HEADER_UINTS * 4u == 16u, "event records start 16-byte aligned (std430 uvec4)");
 

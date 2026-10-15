@@ -1,0 +1,41 @@
+{
+ "note": "S3 block (252 m^3) on the Basin, 60 ticks after placement (the collapse: the busiest second), Release, wall time per tick incl. one HTTP round trip per 60 ticks",
+ "rows": [
+  {
+   "transport": "eulerian",
+   "cellSize": 1.0,
+   "cells": 2808,
+   "particles": 0,
+   "ms_per_tick": 1.12,
+   "substeps_last": 1,
+   "pcg_last": 23
+  },
+  {
+   "transport": "flip",
+   "cellSize": 1.0,
+   "cells": 2808,
+   "particles": 2016,
+   "ms_per_tick": 1.61,
+   "substeps_last": 1,
+   "pcg_last": 28
+  },
+  {
+   "transport": "eulerian",
+   "cellSize": 0.3333,
+   "cells": 75816,
+   "particles": 0,
+   "ms_per_tick": 30.14,
+   "substeps_last": 1,
+   "pcg_last": 76
+  },
+  {
+   "transport": "flip",
+   "cellSize": 0.3333,
+   "cells": 75816,
+   "particles": 54432,
+   "ms_per_tick": 52.84,
+   "substeps_last": 1,
+   "pcg_last": 67
+  }
+ ]
+}

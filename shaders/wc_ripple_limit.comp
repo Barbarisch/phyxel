@@ -1,0 +1,87 @@
+#version 450
+// WaterCore.md 25.34 - the ripple layer's breaking limit (RippleLayer::limitSlope) on the GPU, ALL passes in one dispatch.
+// One workgroup per 16 x 16 core tile; the tile and a 16-cell halo (48 x 48) live in shared memory and run up to 16
+// Jacobi passes there. An edge's correction moves one cell per pass, so after 16 passes the halo's wrong outer values
+// have reached exactly the core's edge and no further: every core cell has seen exactly what the global passes would
+// show it. The pass gate (any edge steeper than the limit + tol) is the tile's, not the layer's - measured: the gate
+// only spares edges within 0.1 mm of the limit, a 1e-6 m difference (WaterRippleGpuParityTest). Reads level `in`, writes
+// level `out` (two slots: a workgroup never reads another's half-written core). |delta| of the core cells summed per
+// workgroup into broken[] (the whitewater hook, 22.12).
+layout(local_size_x = 256) in;
+layout(std430, set = 0, binding = 0)          buffer State  { float st[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Lab    { int lab[]; };
+layout(std430, set = 0, binding = 2)          buffer Broken { float broken[]; };
+
+layout(push_constant) uniform P {
+    int nx, nz, oIn, oOut;
+    int tilesX, fault, pad0, pad1;   // fault: TEST ONLY - the gather drops the backward edges (the parity test's red)
+    float lim0, lim1, tol, pad2;
+} pc;
+
+const int T = 16, H = 16, S = 48, PASSES = 16;
+shared float tr[S * S];
+shared float td[S * S];
+shared int tl[S * S];
+shared uint tflag;
+shared float tsum[256];
+
+void main() {
+    const uint lid = gl_LocalInvocationID.x, wg = gl_WorkGroupID.x;
+    const int x0 = int(wg % uint(pc.tilesX)) * T - H, z0 = int(wg / uint(pc.tilesX)) * T - H;
+    for (int k = int(lid); k < S * S; k += 256) {
+        const int gx = x0 + k % S, gz = z0 + k / S;
+        const bool in_ = gx >= 0 && gz >= 0 && gx < pc.nx && gz < pc.nz;
+        const int gi = gx + pc.nx * gz;
+        tl[k] = in_ ? lab[gi] : -1;
+        tr[k] = in_ ? st[pc.oIn + gi] : 0.0;
+    }
+    barrier();
+    float moved = 0.0;
+    const ivec3 dirs[4] = ivec3[4](ivec3(1, 0, 0), ivec3(0, 1, 0), ivec3(1, 1, 1), ivec3(1, -1, 1));
+    for (int pass = 0; pass < PASSES; ++pass) {
+        if (lid == 0u) tflag = 0u;
+        barrier();
+        for (int k = int(lid); k < S * S; k += 256) {
+            const int b = tl[k];
+            float d = 0.0;
+            if (b >= 0) {
+                const int lx = k % S, lz = k / S;
+                const float ri = tr[k];
+                bool over = false;
+                for (int q = 0; q < 4; ++q) {
+                    const float lim = dirs[q].z == 0 ? pc.lim0 : pc.lim1;
+                    const int fx = lx + dirs[q].x, fz = lz + dirs[q].y;   // forward edge: this cell moves by -t
+                    if (fx >= 0 && fz >= 0 && fx < S && fz < S && tl[fx + S * fz] == b) {
+                        const float diff = ri - tr[fx + S * fz], ex = abs(diff) - lim;
+                        if (abs(diff) > lim + pc.tol) over = true;
+                        if (ex > 0.0) d -= (diff > 0.0 ? 1.0 : -1.0) * 0.5 * ex * 0.125;
+                    }
+                    const int bx = lx - dirs[q].x, bz = lz - dirs[q].y;   // backward edge: this cell moves by +t
+                    if (pc.fault == 0 && bx >= 0 && bz >= 0 && bx < S && bz < S && tl[bx + S * bz] == b) {
+                        const float diff = tr[bx + S * bz] - ri, ex = abs(diff) - lim;
+                        if (ex > 0.0) d += (diff > 0.0 ? 1.0 : -1.0) * 0.5 * ex * 0.125;
+                    }
+                }
+                if (over) atomicOr(tflag, 1u);
+            }
+            td[k] = d;
+        }
+        barrier();
+        if (tflag == 0u) break;   // uniform: every invocation reads the same shared flag
+        for (int k = int(lid); k < S * S; k += 256) {
+            tr[k] += td[k];
+            const int lx = k % S, lz = k / S;
+            if (lx >= H && lx < H + T && lz >= H && lz < H + T) moved += abs(td[k]);
+        }
+        barrier();
+    }
+    {   // the core back (every cell of the layer is in exactly one core)
+        const int lx = H + int(lid) % T, lz = H + int(lid) / T;
+        const int gx = x0 + lx, gz = z0 + lz;
+        if (gx < pc.nx && gz < pc.nz) st[pc.oOut + gx + pc.nx * gz] = tr[lx + S * lz];
+    }
+    tsum[lid] = moved;
+    barrier();
+    for (uint s = 128u; s > 0u; s >>= 1) { if (lid < s) tsum[lid] += tsum[lid + s]; barrier(); }
+    if (lid == 0u) broken[wg] += tsum[0];
+}

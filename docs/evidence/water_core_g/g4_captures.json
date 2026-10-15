@@ -1,0 +1,150 @@
+{
+ "eye_coarse": {
+  "pose": {
+   "x": 165.0,
+   "y": 18.5,
+   "z": 664.0,
+   "yaw": 90.0,
+   "pitch": -8.0
+  },
+  "look": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\g4_eye_coarse.png",
+  "tap": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\g4_eye_coarse_foamtap.png",
+  "band": {
+   "wet": 3903,
+   "foam_max": 0.5983800888061523,
+   "step_ms": 2.1403,
+   "edge_columns": 161,
+   "edge_foam_columns": 0,
+   "hidden": 0,
+   "centre": [
+    163.789306640625,
+    687.9694213867188
+   ]
+  },
+  "fine": {
+   "active": false,
+   "box": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet": 0,
+   "foam_max": 0.0,
+   "step_ms": 0.0,
+   "edge_columns": 0,
+   "edge_foam_columns": 0
+  }
+ },
+ "elevated_coarse": {
+  "pose": {
+   "x": 165.0,
+   "y": 40.0,
+   "z": 650.0,
+   "yaw": 90.0,
+   "pitch": -35.0
+  },
+  "look": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\g4_elevated_coarse.png",
+  "tap": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\g4_elevated_coarse_foamtap.png",
+  "band": {
+   "wet": 2911,
+   "foam_max": 0.3976263999938965,
+   "step_ms": 1.9055,
+   "edge_columns": 167,
+   "edge_foam_columns": 0,
+   "hidden": 0,
+   "centre": [
+    163.55892944335938,
+    673.9567260742188
+   ]
+  },
+  "fine": {
+   "active": false,
+   "box": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet": 0,
+   "foam_max": 0.0,
+   "step_ms": 0.0,
+   "edge_columns": 0,
+   "edge_foam_columns": 0
+  }
+ },
+ "eye_fine": {
+  "pose": {
+   "x": 165.0,
+   "y": 18.5,
+   "z": 664.0,
+   "yaw": 90.0,
+   "pitch": -8.0
+  },
+  "look": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\g4_eye_fine.png",
+  "tap": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\g4_eye_fine_foamtap.png",
+  "band": {
+   "wet": 4013,
+   "foam_max": 1.0,
+   "step_ms": 2.2466,
+   "edge_columns": 85,
+   "edge_foam_columns": 0,
+   "hidden": 1024,
+   "centre": [
+    163.789306640625,
+    687.9694213867188
+   ]
+  },
+  "fine": {
+   "active": true,
+   "box": [
+    159.33334350585938,
+    669.3333740234375,
+    191.33334350585938,
+    701.3333740234375
+   ],
+   "wet": 5354,
+   "foam_max": 0.8355954885482788,
+   "step_ms": 2.1549,
+   "edge_columns": 260,
+   "edge_foam_columns": 0
+  }
+ },
+ "elevated_fine": {
+  "pose": {
+   "x": 165.0,
+   "y": 40.0,
+   "z": 650.0,
+   "yaw": 90.0,
+   "pitch": -35.0
+  },
+  "look": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\g4_elevated_fine.png",
+  "tap": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\g4_elevated_fine_foamtap.png",
+  "band": {
+   "wet": 3408,
+   "foam_max": 0.7456343173980713,
+   "step_ms": 1.9899,
+   "edge_columns": 120,
+   "edge_foam_columns": 0,
+   "hidden": 1024,
+   "centre": [
+    163.55892944335938,
+    673.9567260742188
+   ]
+  },
+  "fine": {
+   "active": true,
+   "box": [
+    167.0,
+    649.3333740234375,
+    199.0,
+    681.3333740234375
+   ],
+   "wet": 1283,
+   "foam_max": 0.1984201967716217,
+   "step_ms": 1.2941,
+   "edge_columns": 197,
+   "edge_foam_columns": 0
+  }
+ }
+}
