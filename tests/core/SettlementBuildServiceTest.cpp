@@ -292,3 +292,75 @@ TEST(SettlementBuildServiceTest, GateOutcomeBlocksUnlessOverridden) {
     EXPECT_EQ(o.value("gate", ""), "not_run");
     EXPECT_FALSE(o.value("fails_build", true)) << "a gate that never ran is not a refusal";
 }
+
+// ── M0 ("site prep reordered", docs/WorldForgeV2Plan.md §5 M0) ──────────────────────
+// F7 live baseline 2026-10-14 + the M0 design-check: fences, yard props and the door spurs
+// / cluster paths were queued BEFORE the building units, anchored on footprint midpoints.
+// A lot whose building refused twice therefore kept a fence run, a woodpile and a paved spur
+// to nothing. Street GRADING stays before the buildings (they re-sample graded ground);
+// everything that dresses a LOT runs after its building exists and skips refused lots.
+// RED: today "fencing parcels" / "yard props + well" / "grading + paving paths" precede the
+// first "building N/M" unit, and no "door spurs" unit exists.
+TEST(SettlementBuildServiceTest, LotDressingRunsAfterTheBuildingsForEveryMorphology) {
+    Phyxel::ChunkManager cm;
+    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    for (const char* tier : {"hamlet", "village", "town", "city"}) {
+        nlohmann::json params = {{"era", "medieval"}, {"tier", tier}, {"seed", 7},
+                                 {"position", {{"x", 0}, {"y", 16}, {"z", 0}}},
+                                 {"width", 160}, {"depth", 160}, {"allow_ungrounded", true},
+                                 {"terrain", true}};
+        SettlementBuildService::Deps deps;
+        deps.chunkManager = &cm;
+        const auto plan = SettlementBuildService::plan(params, deps);
+        ASSERT_TRUE(plan.ok()) << tier << ": " << plan.error.dump();
+        int firstBuilding = -1, lastBuilding = -1, streets = -1, paths = -1, spurs = -1,
+            fences = -1, props = -1, sweep = -1;
+        for (size_t i = 0; i < plan.units.size(); ++i) {
+            const std::string& l = plan.units[i].label;
+            const int idx = static_cast<int>(i);
+            if (l.rfind("building ", 0) == 0) { if (firstBuilding < 0) firstBuilding = idx; lastBuilding = idx; }
+            if (l == "grading + paving streets") streets = idx;
+            if (l == "grading + paving paths")   paths = idx;
+            if (l == "door spurs")               spurs = idx;
+            if (l == "fencing parcels")          fences = idx;
+            if (l == "yard props + well")        props = idx;
+            if (l == "street sweep")             sweep = idx;
+        }
+        ASSERT_GE(lastBuilding, 0) << tier << ": no building units";
+        const std::string morph = plan.program.value("morphology", std::string("?"));
+        const bool mainStreet = (morph == "main_street" || morph == "semi_organic");
+        if (mainStreet) {
+            ASSERT_GE(streets, 0) << tier << ": no street unit";
+            EXPECT_LT(streets, firstBuilding) << tier << ": streets must be graded before the buildings";
+            ASSERT_GE(spurs, 0) << tier << ": no 'door spurs' unit (spurs still bundled into the street unit?)";
+            EXPECT_GT(spurs, lastBuilding) << tier << ": door spurs must run from the REALIZED doors";
+            // Yard props need a PlacedObjectManager + templates (the headless rig has neither, so
+            // the unit is legitimately absent); when it IS planned it must follow the buildings.
+            if (props >= 0)
+                EXPECT_GT(props, lastBuilding) << tier << ": yard props must not dress a refused lot";
+        } else {
+            ASSERT_GE(paths, 0) << tier << ": no cluster path unit";
+            EXPECT_GT(paths, lastBuilding) << tier << ": paths must run door-to-door from the REALIZED doors";
+        }
+        ASSERT_GE(fences, 0) << tier << ": no fence unit";
+        EXPECT_GT(fences, lastBuilding) << tier << ": fences must not fence a refused lot";
+        if (sweep >= 0) {
+            EXPECT_LT(fences, sweep) << tier;
+            if (spurs >= 0) EXPECT_LT(spurs, sweep) << tier << ": the sweep must see the spur stamp";
+        }
+    }
+}
+
+// A refused lot (both the draw and its re-roll refused) maps to its plot; nothing else does.
+TEST(SettlementBuildServiceTest, FailedPlotsMapLotFailuresToPlotIndices) {
+    const nlohmann::json none = nlohmann::json::array();
+    EXPECT_TRUE(SettlementBuildService::failedPlots(none, {4, 7, 2}).empty());
+    const nlohmann::json one = nlohmann::json::array({{{"lot", 1}, {"typology", "croft"}}});
+    const auto fp = SettlementBuildService::failedPlots(one, {4, 7, 2});
+    ASSERT_EQ(fp.size(), 1u);
+    EXPECT_TRUE(fp.count(7));
+    // out-of-range / malformed entries never map to a plot
+    const nlohmann::json bad = nlohmann::json::array({{{"lot", 9}}, {{"typology", "x"}}});
+    EXPECT_TRUE(SettlementBuildService::failedPlots(bad, {4, 7, 2}).empty());
+    EXPECT_TRUE(SettlementBuildService::failedPlots(nlohmann::json::object(), {4}).empty());
+}

@@ -154,3 +154,39 @@ TEST(StreetPaverTest, EmptyStreetsReturnNotOk) {
     EXPECT_FALSE(plan.ok);
     EXPECT_TRUE(plan.columns.empty());
 }
+
+// ── M0 ("site prep reordered"): spur-only paving from a REALIZED door ───────────────
+// The street is stamped first (its columns + planned surfaces are the input); a spur planned
+// afterwards meets the nearest street column AT ITS SURFACE and never re-emits a street column.
+TEST(StreetPaverTest, DoorSpursMeetTheStampedStreetAndNeverRepaveIt) {
+    const auto street = planIt();   // the ridge street, no spurs
+    ASSERT_TRUE(street.ok);
+    std::vector<glm::ivec4> stamped;
+    for (const auto& c : street.columns) stamped.push_back({c.x, c.surface, c.z, c.surface});
+    const auto sidx = indexPlan(street);
+    // A door 3 cubes north of the street's north edge (street z 8..12 -> edge micro row 116).
+    const DoorAnchor door{5 * 9 + 4, 16 * 9 + 4, groundMicro(5 * 9 + 4, 16 * 9 + 4)};
+    const auto spurs = planDoorSpurs({door}, {}, stamped, groundMicro, AgentBox{}, "Gravel");
+    ASSERT_TRUE(spurs.ok);
+    EXPECT_EQ(spurs.spursPlanned, 1);
+    EXPECT_EQ(spurs.spursFailed, 0);
+    ASSERT_FALSE(spurs.columns.empty()) << "a door 3 cubes off the street needs a spur";
+    for (const auto& c : spurs.columns)
+        EXPECT_FALSE(sidx.count(key(c.x, c.z))) << "street column re-emitted at " << c.x << "," << c.z;
+    // The spur's last column before the street (z = 117, just north of row 116) meets the
+    // street's planned surface at that x.
+    bool met = false;
+    for (const auto& c : spurs.columns)
+        if (c.z == 13 * 9 && sidx.count(key(c.x, 13 * 9 - 1)))
+            met = met || (c.surface == sidx.at(key(c.x, 13 * 9 - 1)).surface);
+    EXPECT_TRUE(met) << "no spur column meets the street at its surface";
+    // A door standing ON the street is trivially connected: no spur columns, still planned.
+    const DoorAnchor onStreet{5 * 9 + 4, 10 * 9 + 4, groundMicro(5 * 9 + 4, 10 * 9 + 4)};
+    const auto trivial = planDoorSpurs({onStreet}, {}, stamped, groundMicro, AgentBox{}, "Gravel");
+    EXPECT_TRUE(trivial.ok);
+    EXPECT_EQ(trivial.spursPlanned, 1);
+    EXPECT_TRUE(trivial.columns.empty());
+    // No street at all -> nothing to meet, not OK, nothing emitted.
+    const auto none = planDoorSpurs({door}, {}, {}, groundMicro, AgentBox{}, "Gravel");
+    EXPECT_FALSE(none.ok);
+}

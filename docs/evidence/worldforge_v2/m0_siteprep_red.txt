@@ -1,0 +1,40 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology:SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices:StreetPaverTest.DoorSpursMeetTheStampedStreetAndNeverRepaveIt
+[==========] Running 3 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from SettlementBuildServiceTest
+[ RUN      ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology
+[21:45:32.617] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[21:45:32.623] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[21:45:33.187] [INFO] [Settlement] terrain analyse 160x160: buildable=1 -> 25 plots
+[21:45:33.193] [INFO] [Settlement] build_settlement: 25 plots, 25 buildings queued (0 streets)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(341): error: Expected: (paths) > (lastBuilding), actual: 27 vs 53
+hamlet: paths must run door-to-door from the REALIZED doors
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(344): error: Expected: (fences) > (lastBuilding), actual: 28 vs 53
+hamlet: fences must not fence a refused lot
+
+[21:45:33.197] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[21:45:33.202] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[21:45:33.756] [INFO] [Settlement] main_street terrain: axis X offset 12, 14 plots (0 dropped unbuildable)
+[21:45:33.760] [INFO] [Settlement] build_settlement: 14 plots, 14 buildings queued (1 streets)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(335): error: Expected: (spurs) >= (0), actual: -1 vs 0
+village: no 'door spurs' unit (spurs still bundled into the street unit?)
+
+[  FAILED  ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology (1147 ms)
+[ RUN      ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices
+[       OK ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices (0 ms)
+[----------] 2 tests from SettlementBuildServiceTest (1147 ms total)
+
+[----------] 1 test from StreetPaverTest
+[ RUN      ] StreetPaverTest.DoorSpursMeetTheStampedStreetAndNeverRepaveIt
+[       OK ] StreetPaverTest.DoorSpursMeetTheStampedStreetAndNeverRepaveIt (17 ms)
+[----------] 1 test from StreetPaverTest (17 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 2 test suites ran. (1165 ms total)
+[  PASSED  ] 2 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology
+
+ 1 FAILED TEST

@@ -66,5 +66,19 @@ PavingPlan planStreetPaving(const std::vector<Rect>& streets, glm::ivec2 originC
                             const std::function<int(int, int)>& groundMicroAt,
                             const AgentBox& box, const std::string& material);
 
+/// M0 (docs/WorldForgeV2Plan.md §5 M0, "site prep reordered"): door spurs ONLY, planned AFTER
+/// the buildings exist so each spur runs from the REALIZED door (the recorded front-door
+/// marker), never from a footprint midpoint, and a refused lot gets no spur at all.
+/// `streetColumns` are the street unit's stamped columns as (x, startRow, z, surface) in world
+/// micro — the spur meets the nearest one AT ITS PLANNED SURFACE (first writer wins: no street
+/// column is re-emitted). Doors already on a street column or within halfWidth+1 of one are
+/// trivially connected (their threshold cell is paved, counted as a planned spur). Columns
+/// inside a building-footprint interior are never paved. Deterministic.
+PavingPlan planDoorSpurs(const std::vector<DoorAnchor>& doors,
+                         const std::vector<glm::ivec4>& buildingFootprints,  // (x, z, w, d) world cubes
+                         const std::vector<glm::ivec4>& streetColumns,       // (x, startRow, z, surface) micro
+                         const std::function<int(int, int)>& groundMicroAt,
+                         const AgentBox& box, const std::string& material);
+
 }  // namespace Core
 }  // namespace Phyxel

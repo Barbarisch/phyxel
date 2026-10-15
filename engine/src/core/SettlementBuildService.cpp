@@ -62,6 +62,134 @@ int settlementTopScan(ChunkManager* cm, int oy, int wx, int wz, bool floraBlind)
     return oy;
 }
 
+// ── M0 (docs/WorldForgeV2Plan.md §5 M0, "site prep reordered") ──────────────────────
+// The paving APPLIER, lifted verbatim out of the street unit so the door-spur unit (which
+// runs AFTER the buildings, from the realized doors) stamps exactly like the streets:
+// cut cubes removed, corridor band-cleared resolution-complete, [startRow..surface] micros
+// placed in one bulk call, grass under paving converted to Dirt, the stamp recorded for the
+// late sweep. Appends to pavedCols / roadBand / stamp.
+struct PavingApply {
+    long placedMicros = 0, grassConverted = 0, cutCubes = 0;
+    int  bandCleared = 0;
+    double stampMs = 0.0;
+};
+template <class GroundMicro, class GroundTop, class Fl9, class Emit>
+static PavingApply applyPavingPlan(ChunkManager* chunkManager, const Core::PavingPlan& pave,
+                                   const GroundMicro& groundMicro, const GroundTop& groundTopAt,
+                                   const Fl9& fl9, const Emit& emitMicro,
+                                   std::set<std::pair<int, int>>& pavedCols,
+                                   std::vector<glm::ivec3>& roadBand, std::vector<glm::ivec4>& stamp,
+                                   const std::string& paveMat) {
+    const auto t0 = std::chrono::steady_clock::now();
+    // Pass A (read): stamp-start row per column against the ORIGINAL terrain.
+    std::vector<int> startRow(pave.columns.size());
+    for (size_t i = 0; i < pave.columns.size(); ++i) {
+        const auto& c = pave.columns[i];
+        startRow[i] = c.cut ? (c.surface / 9) * 9 : groundMicro(c.x, c.z);
+    }
+    // Pass B: remove the terrain cubes whose top face exceeds a cut column's surface,
+    // AND clear the road corridor RESOLUTION-COMPLETE. The old fell was cube-only
+    // (getCubeAt + Log*/Leaf*) but forge flora is multi-res: it left sub/micro
+    // branch litter hovering over the road — collision-solid yet cube-scan
+    // invisible (measured: a road pinch at x98-101 that NPCs treadmilled on
+    // across three sessions). clearCellsBulk wipes every resolution in the full
+    // headroom band above the road surface; only terrain + flora exist at
+    // street time, so no material filter is needed.
+    std::set<std::tuple<int, int, int>> cutCubes;
+    std::set<std::pair<int, int>> clearedCols;
+    std::map<Chunk*, std::vector<glm::ivec3>> bandByChunk;
+    for (const auto& c : pave.columns) {
+        const int cbx = fl9(c.x), cbz = fl9(c.z);
+        if (c.cut) {
+            const int top = groundTopAt(cbx, cbz);
+            for (int y = c.surface / 9; y <= top; ++y) cutCubes.insert({cbx, y, cbz});
+        }
+        if (clearedCols.insert({cbx, cbz}).second) {
+            const int y0 = c.surface / 9;
+            const int y1 = std::max(groundTopAt(cbx, cbz), y0 + 7);
+            for (int y = y0; y <= y1; ++y) {
+                const glm::ivec3 wp(cbx, y, cbz);
+                if (Chunk* ch = chunkManager->getChunkAtFast(wp))
+                    bandByChunk[ch].push_back(wp - ch->getWorldOrigin());
+            }
+            // Walkable headroom band (3 cells over the paving) for the late
+            // street sweep — NOT taller: an eave can legitimately overhang a
+            // door spur at y0+3 and must survive the sweep.
+            for (int y = y0; y <= y0 + 2; ++y)
+                roadBand.push_back(glm::ivec3(cbx, y, cbz));
+        }
+    }
+    int bandCleared = 0;
+    for (auto& [ch, cells] : bandByChunk) {
+        bandCleared += ch->clearCellsBulk(cells);
+        chunkManager->markChunkDirty(ch);
+    }
+    if (!cutCubes.empty()) {
+        std::vector<glm::ivec3> cuts;
+        cuts.reserve(cutCubes.size());
+        for (const auto& t : cutCubes)
+            cuts.push_back({std::get<0>(t), std::get<1>(t), std::get<2>(t)});
+        Core::StructureGenerator::removeVoxels(chunkManager, cuts);
+    }
+    // Pass C (read, post-removal, pre-stamp): a removed cube may sit under a NEIGHBOUR
+    // column's paving (same cube column, different micro surface) — extend that column's
+    // stamp down to the new ground so no paving edge floats over a void.
+    for (size_t i = 0; i < pave.columns.size(); ++i)
+        startRow[i] = std::min(startRow[i], groundMicro(pave.columns[i].x, pave.columns[i].z));
+    // Pass D (write): BATCH every column [startRow .. surface] and place in one bulk call.
+    Core::StructureResult paveBatch;
+    stamp.reserve(pave.columns.size());
+    for (size_t i = 0; i < pave.columns.size(); ++i) {
+        const auto& c = pave.columns[i];
+        pavedCols.insert({fl9(c.x), fl9(c.z)});
+        stamp.push_back(glm::ivec4(c.x, startRow[i], c.z, c.surface));
+        for (int my = startRow[i]; my <= c.surface; ++my)
+            emitMicro(paveBatch, c.x, my, c.z, paveMat);
+    }
+    const long placedMicros =
+        Core::StructureGenerator::place(chunkManager, paveBatch).placed;
+    // Pass E (KI-5e): a road KILLS the grass under it. Thin paving micros don't
+    // suppress the ground cube's exposed-top blade layer, so grass sprouted
+    // through the gravel. Convert the ground cube under every paved column to
+    // Dirt — the same rule building pads already apply (V10 grass_under_house).
+    long grassConverted = 0;
+    {
+        auto isGrassMat = [](const std::string& m) {
+            return m == "Grass" || m == "GrassForest" || m == "GrassSavanna" ||
+                   m == "SnowGrass";
+        };
+        std::vector<glm::ivec3> gcut;
+        Core::StructureResult gfill;
+        for (const auto& [cbx, cbz] : pavedCols) {
+            const int gy = groundMicro(cbx * 9 + 4, cbz * 9 + 4) / 9 - 1;
+            const glm::ivec3 gp(cbx, gy, cbz);
+            if (const auto* cu = chunkManager->getCubeAt(gp))
+                if (isGrassMat(cu->getMaterialName())) {
+                    gcut.push_back(gp);
+                    Core::VoxelPlacement vp;
+                    vp.position = gp;
+                    vp.material = "Dirt";
+                    vp.level = Core::VoxelLevel::Cube;
+                    gfill.voxels.push_back(vp);
+                }
+        }
+        if (!gcut.empty()) {
+            Core::StructureGenerator::removeVoxels(chunkManager, gcut);
+            Core::StructureGenerator::place(chunkManager, gfill);
+        }
+        grassConverted = static_cast<long>(gcut.size());
+    }
+    const double stampMs = std::chrono::duration<double, std::milli>(
+                               std::chrono::steady_clock::now() - t0).count();
+    PavingApply r;
+    r.placedMicros = placedMicros;
+    r.grassConverted = grassConverted;
+    r.cutCubes = static_cast<long>(cutCubes.size());
+    r.bandCleared = bandCleared;
+    r.stampMs = stampMs;
+    return r;
+}
+
 SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& params,
                                                           const Deps& deps) {
     Plan res;
@@ -468,6 +596,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         std::vector<WorkUnit> buildingUnits;
         std::vector<glm::ivec3> doorCenters;  // per-building path anchor (footprint centre at seated ground)
         std::vector<glm::ivec4> bFoot;        // per-building footprint (x,z,w,d) — paths must not pave under it (V7)
+        std::vector<int> lotToPlot;           // M0: lot index -> plot index (failed lots get no dressing)
+        std::vector<WorkUnit> postBuildUnits; // M0: lot dressing (spurs/paths, fences, props) runs AFTER the lots exist
         for (size_t i = 0; i < buildings.size(); ++i) {
             const auto& b = buildings[i];
             const int plotX = ox + b.footprint.x, plotZ = oz + b.footprint.z;
@@ -617,6 +747,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                               {"typology", var.typology}, {"style", var.style}, {"shape", var.footprintShape}});
             doorCenters.push_back(glm::ivec3(bx + bw / 2, by, bz + bd / 2));  // path anchor
             bFoot.push_back(glm::ivec4(bx, bz, bw, bd));                      // footprint for path masking (V7)
+            lotToPlot.push_back(b.plotIndex);
         }
         LOG_INFO_FMT("Settlement", "build_settlement: " << layout.plots.size() << " plots, "
                      << buildings.size() << " buildings queued (" << layout.streets.size() << " streets)");
@@ -656,159 +787,92 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // tier's material, plus a spur from every building's front-wall midpoint. CUT columns
             // honored (terrain removed above the graded surface, then capped).
             units.push_back({"grading + paving streets",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, tierStreetMat = tierP->street.material, msl, streets = layout.streets,
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, tierStreetMat = tierP->street.material, streets = layout.streets,
                  bFoot, ox, oz, groundMicro, groundTopAt, isFloraMat, fl9, emitMicro, abox,
                  pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
             auto& pavedCols = *sharedPaved;
             const std::string paveMat = tierStreetMat;
-            std::vector<Core::DoorAnchor> doors;
-            for (const auto& ap : msl.assigned) {
-                const int fx = ox + ap.footprint.x, fz = oz + ap.footprint.z;
-                const int fw = ap.footprint.w, fdp = ap.footprint.d;
-                int dxm = 0, dzm = 0;   // micro, just OUTSIDE the front wall's midpoint
-                switch (ap.streetSide) {
-                    case 'S': dxm = (fx + fw / 2) * 9 + 4; dzm = fz * 9 - 5; break;
-                    case 'N': dxm = (fx + fw / 2) * 9 + 4; dzm = (fz + fdp) * 9 + 4; break;
-                    case 'W': dxm = fx * 9 - 5; dzm = (fz + fdp / 2) * 9 + 4; break;
-                    default:  dxm = (fx + fw) * 9 + 4; dzm = (fz + fdp / 2) * 9 + 4; break;  // 'E'
-                }
-                doors.push_back({dxm, dzm, groundMicro(dxm, dzm)});
-            }
+            // M0: NO spurs here. The spurs run in the "door spurs" unit AFTER the buildings,
+            // from each REALIZED front door (a refused lot records no door -> no spur).
+            const std::vector<Core::DoorAnchor> doors;
             const Core::PavingPlan pave = Core::planStreetPaving(
                 streets, glm::ivec2(ox, oz), doors, bFoot, groundMicro, abox, paveMat);
-            const auto t0 = std::chrono::steady_clock::now();
-            // Pass A (read): stamp-start row per column against the ORIGINAL terrain.
-            std::vector<int> startRow(pave.columns.size());
-            for (size_t i = 0; i < pave.columns.size(); ++i) {
-                const auto& c = pave.columns[i];
-                startRow[i] = c.cut ? (c.surface / 9) * 9 : groundMicro(c.x, c.z);
-            }
-            // Pass B: remove the terrain cubes whose top face exceeds a cut column's surface,
-            // AND clear the road corridor RESOLUTION-COMPLETE. The old fell was cube-only
-            // (getCubeAt + Log*/Leaf*) but forge flora is multi-res: it left sub/micro
-            // branch litter hovering over the road — collision-solid yet cube-scan
-            // invisible (measured: a road pinch at x98-101 that NPCs treadmilled on
-            // across three sessions). clearCellsBulk wipes every resolution in the full
-            // headroom band above the road surface; only terrain + flora exist at
-            // street time, so no material filter is needed.
-            std::set<std::tuple<int, int, int>> cutCubes;
-            std::set<std::pair<int, int>> clearedCols;
-            std::map<Chunk*, std::vector<glm::ivec3>> bandByChunk;
-            for (const auto& c : pave.columns) {
-                const int cbx = fl9(c.x), cbz = fl9(c.z);
-                if (c.cut) {
-                    const int top = groundTopAt(cbx, cbz);
-                    for (int y = c.surface / 9; y <= top; ++y) cutCubes.insert({cbx, y, cbz});
-                }
-                if (clearedCols.insert({cbx, cbz}).second) {
-                    const int y0 = c.surface / 9;
-                    const int y1 = std::max(groundTopAt(cbx, cbz), y0 + 7);
-                    for (int y = y0; y <= y1; ++y) {
-                        const glm::ivec3 wp(cbx, y, cbz);
-                        if (Chunk* ch = chunkManager->getChunkAtFast(wp))
-                            bandByChunk[ch].push_back(wp - ch->getWorldOrigin());
-                    }
-                    // Walkable headroom band (3 cells over the paving) for the late
-                    // street sweep — NOT taller: an eave can legitimately overhang a
-                    // door spur at y0+3 and must survive the sweep.
-                    for (int y = y0; y <= y0 + 2; ++y)
-                        sharedRoadBand->push_back(glm::ivec3(cbx, y, cbz));
-                }
-            }
-            int bandCleared = 0;
-            for (auto& [ch, cells] : bandByChunk) {
-                bandCleared += ch->clearCellsBulk(cells);
-                chunkManager->markChunkDirty(ch);
-            }
-            if (!cutCubes.empty()) {
-                std::vector<glm::ivec3> cuts;
-                cuts.reserve(cutCubes.size());
-                for (const auto& t : cutCubes)
-                    cuts.push_back({std::get<0>(t), std::get<1>(t), std::get<2>(t)});
-                Core::StructureGenerator::removeVoxels(chunkManager, cuts);
-            }
-            // Pass C (read, post-removal, pre-stamp): a removed cube may sit under a NEIGHBOUR
-            // column's paving (same cube column, different micro surface) — extend that column's
-            // stamp down to the new ground so no paving edge floats over a void.
-            for (size_t i = 0; i < pave.columns.size(); ++i)
-                startRow[i] = std::min(startRow[i], groundMicro(pave.columns[i].x, pave.columns[i].z));
-            // Pass D (write): BATCH every column [startRow .. surface] and place in one bulk call.
-            Core::StructureResult paveBatch;
-            sharedStamp->reserve(pave.columns.size());
-            for (size_t i = 0; i < pave.columns.size(); ++i) {
-                const auto& c = pave.columns[i];
-                pavedCols.insert({fl9(c.x), fl9(c.z)});
-                sharedStamp->push_back(glm::ivec4(c.x, startRow[i], c.z, c.surface));
-                for (int my = startRow[i]; my <= c.surface; ++my)
-                    emitMicro(paveBatch, c.x, my, c.z, paveMat);
-            }
-            const long placedMicros =
-                Core::StructureGenerator::place(chunkManager, paveBatch).placed;
-            // Pass E (KI-5e): a road KILLS the grass under it. Thin paving micros don't
-            // suppress the ground cube's exposed-top blade layer, so grass sprouted
-            // through the gravel. Convert the ground cube under every paved column to
-            // Dirt — the same rule building pads already apply (V10 grass_under_house).
-            long grassConverted = 0;
-            {
-                auto isGrassMat = [](const std::string& m) {
-                    return m == "Grass" || m == "GrassForest" || m == "GrassSavanna" ||
-                           m == "SnowGrass";
-                };
-                std::vector<glm::ivec3> gcut;
-                Core::StructureResult gfill;
-                for (const auto& [cbx, cbz] : pavedCols) {
-                    const int gy = groundMicro(cbx * 9 + 4, cbz * 9 + 4) / 9 - 1;
-                    const glm::ivec3 gp(cbx, gy, cbz);
-                    if (const auto* cu = chunkManager->getCubeAt(gp))
-                        if (isGrassMat(cu->getMaterialName())) {
-                            gcut.push_back(gp);
-                            Core::VoxelPlacement vp;
-                            vp.position = gp;
-                            vp.material = "Dirt";
-                            vp.level = Core::VoxelLevel::Cube;
-                            gfill.voxels.push_back(vp);
-                        }
-                }
-                if (!gcut.empty()) {
-                    Core::StructureGenerator::removeVoxels(chunkManager, gcut);
-                    Core::StructureGenerator::place(chunkManager, gfill);
-                }
-                grassConverted = static_cast<long>(gcut.size());
-            }
-            const double stampMs = std::chrono::duration<double, std::milli>(
-                                       std::chrono::steady_clock::now() - t0).count();
+            const PavingApply ap = applyPavingPlan(chunkManager, pave, groundMicro, groundTopAt, fl9, emitMicro,
+                                                   pavedCols, *sharedRoadBand, *sharedStamp, paveMat);
+            const long placedMicros = ap.placedMicros;
+            const long grassConverted = ap.grassConverted;
+            const long stampMs = static_cast<long>(ap.stampMs);
+            const int bandCleared = ap.bandCleared;
             LOG_INFO_FMT("Settlement", "streets: paved " << placedMicros << " micros over "
                          << pave.columns.size() << " columns (" << pave.levelCols << " level, "
                          << pave.fillCols << " fill, " << pave.cutCols << " cut honored, "
-                         << cutCubes.size() << " cubes removed, " << bandCleared
+                         << ap.cutCubes << " cubes removed, " << bandCleared
                          << " corridor cells band-cleared), spurs " << pave.spursPlanned
                          << " ok / " << pave.spursFailed << " too steep, " << paveMat << ", "
-                         << static_cast<long>(stampMs) << " ms");
+                         << stampMs << " ms");
             pathsJson = {{"paved_columns", static_cast<long>(pave.columns.size())},
                          {"paved_microcubes", placedMicros},
                          {"level_cols", pave.levelCols}, {"fill_cols", pave.fillCols},
                          {"cut_cols_honored", pave.cutCols},
-                         {"cut_cubes_removed", static_cast<long>(cutCubes.size())},
+                         {"cut_cubes_removed", ap.cutCubes},
                          {"cut_cells_unpaved", 0},
                          {"grass_converted", grassConverted},
                          {"spurs", pave.spursPlanned}, {"spurs_too_steep", pave.spursFailed},
-                         {"material", paveMat}, {"stamp_ms", static_cast<long>(stampMs)}};
+                         {"material", paveMat}, {"stamp_ms", stampMs}};
+            }});
+            // M0: DOOR SPURS, after the buildings. Each spur runs from the REALIZED door's
+            // marker (recorded by the building unit) to the nearest stamped street column,
+            // meeting the street at its planned surface; a refused lot has no door -> no
+            // spur to nothing. Same applier as the streets (the sweep re-stamps both).
+            postBuildUnits.push_back({"door spurs",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
+                 tierStreetMat = tierP->street.material, bFoot, groundMicro, groundTopAt, fl9, emitMicro, abox,
+                 pathsJsonP, sharedPaved, sharedRoadBand, sharedStamp, sharedFrontDoors]() {
+            if (!chunkManager) return;
+            std::vector<Core::DoorAnchor> doors;
+            for (const auto& fd : *sharedFrontDoors) {
+                const int mx = fd.marker.x * 9 + 4, mz = fd.marker.z * 9 + 4;
+                doors.push_back({mx, mz, groundMicro(mx, mz)});
+            }
+            const std::vector<glm::ivec4> streetStamp = *sharedStamp;   // copy: the applier appends
+            const Core::PavingPlan pave = Core::planDoorSpurs(doors, bFoot, streetStamp, groundMicro,
+                                                              abox, tierStreetMat);
+            auto& pavedCols = *sharedPaved;
+            PavingApply ap;
+            if (!pave.columns.empty())
+                ap = applyPavingPlan(chunkManager, pave, groundMicro, groundTopAt, fl9, emitMicro,
+                                     pavedCols, *sharedRoadBand, *sharedStamp, tierStreetMat);
+            LOG_INFO_FMT("Settlement", "door spurs: " << pave.spursPlanned << " planned from "
+                         << doors.size() << " realized doors, " << pave.spursFailed << " too steep, "
+                         << ap.placedMicros << " micros over " << pave.columns.size() << " columns, "
+                         << static_cast<long>(ap.stampMs) << " ms");
+            (*pathsJsonP)["spurs"] = pave.spursPlanned;
+            (*pathsJsonP)["spurs_too_steep"] = pave.spursFailed;
+            (*pathsJsonP)["spur_columns"] = static_cast<long>(pave.columns.size());
+            (*pathsJsonP)["spur_doors"] = static_cast<long>(doors.size());
             }});
         } else if (terrain && chunkManager && doorCenters.size() >= 2) {
             // MST door-to-door path network (cluster/legacy morphology), as ONE work unit.
-            units.push_back({"grading + paving paths",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, doorCenters, bFoot, ox, oy, groundMicro, surfMicro, fl9, emitMicro, abox,
+            postBuildUnits.push_back({"grading + paving paths",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, sharedFrontDoors, bFoot, ox, oy, groundMicro, surfMicro, fl9, emitMicro, abox,
                  pathsJsonP, sharedPaved]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
             auto& pavedCols = *sharedPaved;
             const std::string paveMat = "Cobblestone";
+            // M0: the REALIZED doors (a refused lot records none); the network joins doors, not
+            // footprint centres.
             std::vector<Core::DoorAnchor> doors;
-            for (const auto& d : doorCenters)
-                doors.push_back({d.x * 9, d.z * 9,
-                                 (settlementTopScan(chunkManager, oy, d.x, d.z, true) + 1) * 9});
+            for (const auto& fd : *sharedFrontDoors)
+                doors.push_back({fd.marker.x * 9 + 4, fd.marker.z * 9 + 4,
+                                 (settlementTopScan(chunkManager, oy, fd.marker.x, fd.marker.z, true) + 1) * 9});
+            if (doors.size() < 2) {
+                LOG_INFO_FMT("Settlement", "paths: " << doors.size() << " realized door(s) - no network to grade");
+                pathsJson = {{"edges", 0}, {"connected", 0}, {"doors", static_cast<long>(doors.size())}};
+                return;
+            }
             const Core::SettlementPaths net = Core::planSettlementPaths(doors, groundMicro, abox);
             LOG_INFO_FMT("Settlement", "paths: " << net.connected << "/" << net.edges
                          << " edges graded, " << net.failedEdges.size() << " too steep");
@@ -880,9 +944,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // edge (canon picket dims), gate onto the parcel's street (main-street) or toward the
         // settlement centre (scatter). Runs for terrain scatter AND any main-street settlement.
         if ((terrain || mainStreetMode) && chunkManager && !layout.plots.empty()) {
-            units.push_back({"fencing parcels",
+            postBuildUnits.push_back({"fencing parcels",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, layout, msl, doorCenters, ox, oz, terrainTopAt, mainStreetMode,
-                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved, seed,
+                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved, seed, lotFailuresP = res.lotFailures, lotToPlot,
                  fenceFraction = (programMode && tierP ? tierP->fenceFraction : 1.0),
                  coreRing = (programMode && tierP ? tierP->coreRing : 0)]() {
             if (!chunkManager) return;
@@ -917,9 +981,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 fencePol.coreCv = msl.marketSquare.z + msl.marketSquare.d / 2;
             }
             Core::StructureResult fenceBatch;   // bulk emit — one place() for ALL parcels
-            long fenceMicros = 0; int parcels = 0, unfenced = 0, pinchedRuns = 0;
+            long fenceMicros = 0; int parcels = 0, unfenced = 0, pinchedRuns = 0, skippedFailed = 0;
+            const std::set<int> failedPlotSet = SettlementBuildService::failedPlots(*lotFailuresP, lotToPlot);
             for (size_t pi = 0; pi < layout.plots.size(); ++pi) {
                 const auto& pl = layout.plots[pi];
+                if (failedPlotSet.count(static_cast<int>(pi))) { ++skippedFailed; continue; }   // M0: a refused lot gets no fence
                 const Core::Rect& pr = pl.rect;
                 if (pr.w < 2 || pr.d < 2) continue;
                 // Gate side: a main-street parcel opens onto ITS street (the burgage frontage);
@@ -1026,6 +1092,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             pathsJson["fence_runs_dropped_for_alley"] = pinchedRuns;
             pathsJson["parcels"] = parcels;
             pathsJson["unfenced_by_policy"] = unfenced;
+            pathsJson["fence_skipped_failed_lots"] = skippedFailed;
             pathsJson["fence_micros"] = fenceMicros;
             pathsJson["fence_type"] = Core::fenceTypeToString(fenceType);
             }});
@@ -1036,8 +1103,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // `public.well` anchors the market square (town) or the street verge (village).
         // Skips are COUNTED, never silent.
         if (mainStreetMode && placedObjectManager && objectTemplateManager && chunkManager) {
-            units.push_back({"yard props + well",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP]() {
+            postBuildUnits.push_back({"yard props + well",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP,
+                 lotFailuresP = res.lotFailures, lotToPlot]() {
             if (!chunkManager || !placedObjectManager || !objectTemplateManager) return;
             int propsPlaced = 0, propsSkipped = 0;
             auto spawnProp = [&](const std::string& type, int cx, int cz, int rot) -> bool {
@@ -1048,10 +1116,15 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             ->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, gy * 9, cz * 9), rot, "")
                             .empty();
             };
-            for (const auto& ap : msl.assigned)
+            const std::set<int> failedPlotSet = SettlementBuildService::failedPlots(*lotFailuresP, lotToPlot);
+            int propsSkippedFailedLots = 0;
+            for (size_t pi = 0; pi < msl.assigned.size(); ++pi) {
+                if (failedPlotSet.count(static_cast<int>(pi))) { ++propsSkippedFailedLots; continue; }   // M0
+                const auto& ap = msl.assigned[pi];
                 for (const auto& yp : Core::planYardProps(ap, seed))
                     (spawnProp(yp.type, ox + yp.cx, oz + yp.cz, yp.rotDeg) ? ++propsPlaced
                                                                            : ++propsSkipped);
+            }
             // Square features (well/statue/stalls) are NOT placed here: the square is part of
             // the swept road band, and the late "street sweep" unit clears whole cells over it
             // — anything dressed onto the square before the sweep is silently erased (found
@@ -1066,12 +1139,14 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             }
             LOG_INFO_FMT("Settlement", "yard props: " << propsPlaced << " placed, "
                          << propsSkipped << " skipped");
-            (*propsJsonP) = {{"placed", propsPlaced}, {"skipped", propsSkipped}};
+            (*propsJsonP) = {{"placed", propsPlaced}, {"skipped", propsSkipped},
+                             {"skipped_failed_lots", propsSkippedFailedLots}};
             }});
         }
 
         // Buildings LAST (site prep — terrace/streets/fences/props — must precede them).
         for (auto& bu : buildingUnits) units.push_back(std::move(bu));
+        for (auto& pu : postBuildUnits) units.push_back(std::move(pu));   // M0: lot dressing AFTER the lots exist
 
         // Street sweep AFTER the buildings: construction drops debris on finished
         // roads (site prep undermines a roadside tree -> U4 fells it -> the trunk
@@ -1831,6 +1906,18 @@ nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkabi
     }
     return {{"gate", gate}, {"walkable", walkable}, {"blocked", blocked},
             {"fails_build", failsBuild}};
+}
+
+std::set<int> SettlementBuildService::failedPlots(const nlohmann::json& lotFailures,
+                                                  const std::vector<int>& lotToPlot) {
+    std::set<int> out;
+    if (!lotFailures.is_array()) return out;
+    for (const auto& f : lotFailures) {
+        const int lot = f.value("lot", -1);
+        if (lot >= 0 && lot < static_cast<int>(lotToPlot.size()) && lotToPlot[lot] >= 0)
+            out.insert(lotToPlot[lot]);
+    }
+    return out;
 }
 
 } // namespace Core

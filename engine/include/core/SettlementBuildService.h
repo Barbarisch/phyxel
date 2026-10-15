@@ -33,6 +33,7 @@
 
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -136,6 +137,13 @@ public:
     /// blocked  = >0 blocked and allow_unwalkable is false  -> fails_build = true
     /// overridden = >0 blocked and allow_unwalkable is true -> fails_build = false
     static nlohmann::json gateOutcome(const nlohmann::json& walkability, bool allowUnwalkable);
+
+    /// M0 ("site prep reordered"): the plots whose building REFUSED (both the lot and its
+    /// re-roll), as plot indices. `lotFailures` is Plan::lotFailures' array ({lot, ...});
+    /// `lotToPlot[lot]` = the plot index that lot was assigned. Fences, yard props and door
+    /// spurs skip these plots: a refused lot keeps only its cleared terrace. Pure.
+    static std::set<int> failedPlots(const nlohmann::json& lotFailures,
+                                     const std::vector<int>& lotToPlot);
 
     /// Plan a settlement from build_settlement params. Planning (grounding gate, program
     /// resolution, layout, building assignment) runs INLINE and can fail fast; the heavy

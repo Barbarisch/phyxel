@@ -130,5 +130,85 @@ PavingPlan planStreetPaving(const std::vector<Rect>& streets, glm::ivec2 originC
     return plan;
 }
 
+PavingPlan planDoorSpurs(const std::vector<DoorAnchor>& doors,
+                         const std::vector<glm::ivec4>& buildingFootprints,
+                         const std::vector<glm::ivec4>& streetColumns,
+                         const std::function<int(int, int)>& groundMicroAt,
+                         const AgentBox& box, const std::string& material) {
+    PavingPlan plan;
+    plan.material = material;
+    if (doors.empty() || streetColumns.empty()) return plan;
+
+    auto insideFootprintInterior = [&](int mx, int mz) {
+        const int cbx = fl9(mx), cbz = fl9(mz);
+        for (const auto& f : buildingFootprints)
+            if (cbx >= f.x + 1 && cbx <= f.x + f.z - 2 && cbz >= f.y + 1 && cbz <= f.y + f.w - 2)
+                return true;
+        return false;
+    };
+
+    // The street's planned surfaces (already stamped): the spur MEETS these, never re-emits them.
+    std::unordered_map<long long, int> street;
+    street.reserve(streetColumns.size());
+    for (const auto& c : streetColumns) street.emplace(colKey(c.x, c.z), c.w);   // (x, startRow, z, surface)
+
+    std::unordered_map<long long, int> cols;   // spur columns only
+    for (const auto& d : doors) {
+        // nearest street column, Manhattan (the street is a dense set of columns, so the nearest
+        // column IS the nearest point of the paving)
+        long bestDist = -1;
+        int gx = 0, gz = 0, gS = 0;
+        for (const auto& c : streetColumns) {
+            const long dist = std::abs(c.x - d.x) + std::abs(c.z - d.z);
+            if (bestDist < 0 || dist < bestDist) { bestDist = dist; gx = c.x; gz = c.z; gS = c.w; }
+        }
+        if (bestDist < 0) continue;
+        if (bestDist <= box.halfWidthMicro + 1 || street.count(colKey(d.x, d.z))) {
+            if (!street.count(colKey(d.x, d.z)))
+                cols.emplace(colKey(d.x, d.z), groundMicroAt(d.x, d.z));   // pave the threshold cell
+            ++plan.spursPlanned;
+            continue;
+        }
+        const PathPlan spur =
+            planTerrainPath(groundMicroAt, {d.x, d.surfaceY, d.z}, {gx, gS, gz}, box);
+        if (!spur.ok) { ++plan.spursFailed; continue; }
+        ++plan.spursPlanned;
+        const auto& cs = spur.cells;
+        for (size_t i = 0; i < cs.size(); ++i) {
+            bool tX = false, tZ = false;
+            if (i + 1 < cs.size()) { tX |= cs[i + 1].x != cs[i].x; tZ |= cs[i + 1].z != cs[i].z; }
+            if (i > 0)             { tX |= cs[i].x != cs[i - 1].x; tZ |= cs[i].z != cs[i - 1].z; }
+            if (!tX && !tZ) tX = true;
+            for (int o = -box.halfWidthMicro; o <= box.halfWidthMicro; ++o) {
+                const int cx = cs[i].x + (tZ ? o : 0), cz = cs[i].z + (tX ? o : 0);
+                if (street.count(colKey(cx, cz))) continue;   // first writer wins: the street
+                cols.emplace(colKey(cx, cz), cs[i].surfaceY);
+            }
+        }
+    }
+
+    std::vector<PavedColumn> out;
+    out.reserve(cols.size());
+    for (const auto& [k, S] : cols) {
+        const int x = static_cast<int>(k >> 32);
+        const int z = static_cast<int>(static_cast<int32_t>(k & 0xffffffffLL));
+        if (insideFootprintInterior(x, z)) continue;
+        const int terr = groundMicroAt(x, z);
+        PavedColumn pc;
+        pc.x = x; pc.z = z; pc.surface = S;
+        if (S > terr) { ++plan.fillCols; }
+        else if (S == terr) { ++plan.levelCols; }
+        else { pc.cut = true; ++plan.cutCols; }
+        out.push_back(pc);
+    }
+    std::sort(out.begin(), out.end(), [](const PavedColumn& a, const PavedColumn& b) {
+        if (a.z != b.z) return a.z < b.z;
+        return a.x < b.x;
+    });
+    plan.columns = std::move(out);
+    plan.ok = plan.spursPlanned > 0;   // a plan with only trivially-connected doors is still OK
+    return plan;
+}
+
 }  // namespace Core
 }  // namespace Phyxel
