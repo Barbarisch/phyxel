@@ -346,7 +346,14 @@ not settle), a FALSE refusal from probe input. **Row 2c-2:** `reachable()` repor
 the way back starts there (`SettlementWalkabilityTest.TheWayBackStartsWhereTheWalkerArrived`,
 `m0_arrival_red.txt` → `m0_arrival_green.txt`). `terrain_height` chunks vs generator at hamlet 2's centre:
 144 vs 144 (the F7 town's 127/136 split was terracing at the centre). Captures still owed (script float
-arithmetic, fixed). Run 4: `m0_l4d_summary.json`.
+arithmetic, fixed). **Run 4 (`m0_l4d_summary.json`, END-OF-M0 STATE): every prediction held** — hash
+9693137997320541182; **5 built / 3 refused** (town: hall_house pinch + general_store one-way drop; village 6:
+blacksmith pinch; hamlet 1: creek plots), hamlet 7 builds again; `terrain_height` 144/144 at hamlet 2;
+captures pose-verified, and a street-level capture (`tools/worldforge_m0_l4_capture.sh`,
+`m0_l4d_site2_street_capture.png`) shows the engine-built hamlet (houses, doors, picket fences). Versus F7:
+8/8 "built" with two pinched sites shipped → 5/8 built with every refusal a named generator defect. Owed
+after M0: the solution-auditor pass over all rows; the StructGenTest residue L4; then the three generator
+defects now visible (door pinch, pad-below-street, creek siting) before/with M3–M5.
 
 ### M1 — World Sheet (L) — *the one change that moves the scale ceiling*
 

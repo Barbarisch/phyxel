@@ -1,0 +1,3 @@
+site (-1432,-1288) resident surface_y: 144
+cam sent (-1430,152,-1270) yaw -90 pitch -20; read back: {'x': -1430.0, 'y': 152.0, 'z': -1270.0} -90.0 -20.0
+saved m0_l4d_site2_street_capture.png

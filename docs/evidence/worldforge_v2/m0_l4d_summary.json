@@ -1,0 +1,22 @@
+{
+  "what": "WorldForge v2 M0 L4 run 4 (PREFIX=m0_l4d) on the WorldForgeBaseline lab with rows 2b, 2c and 2c-2 (7411b0f8) and the working capture step. Predictions written first: m0_l4d_predictions.json. This is the END-OF-M0 state of record.",
+  "date": "2026-10-15 00:08-00:14 local (capture 00:16)",
+  "binary": "build/editor/Release/phyxel.exe 00:07 (7411b0f8)",
+  "provenance": "every building, fence, path and stoop in the captures was produced by POST /api/worldforge/build (the WorldForge job -> SettlementBuildService -> StructureBuildService), nothing hand-placed; the engine log is m0_l4d_engine.txt",
+  "artifacts": ["m0_l4d_run.txt", "m0_l4d_status_before.json", "m0_l4d_build_start.json", "m0_l4d_job_progress.txt", "m0_l4d_jobs.json", "m0_l4d_status.json", "m0_l4d_terrain_height_chunks.json", "m0_l4d_terrain_height_generator.json", "m0_l4d_after_site2_read.png", "m0_l4d_after_site2_close.png", "m0_l4d_site2_street_capture.png", "m0_l4d_site2_street_capture.txt", "m0_l4d_engine.txt"],
+  "results_vs_predictions": {
+    "P1_plan_hash": "CONFIRMED 9693137997320541182 (before and after; the F7 value).",
+    "P2_town": "CONFIRMED: REFUSED, 2 blocked of 14 - hall_house @-1160,-1091 pinch (gap 1 micro, the F7 class) + general_store @-1146,-1058 ONE-WAY drop (the 18-micro doorstep-below-street finding of run 2). Not checkpointed.",
+    "P3_hamlet_7": "CONFIRMED: BUILT, 4 buildings, 14/14 walkable - the run-3 false refusal is gone.",
+    "P4_other_sites": "CONFIRMED: 5 (2 bld), 2 (3), 3 (3), 4 (3) BUILT; 6 REFUSED (blacksmith @-1004,1404 pinch); 1 REFUSED (no buildable plots). Ledger 5 built / 3 refused.",
+    "P5_capture": "CONFIRMED for the poses: target site 2 (-1432,-1288); camA read back (-1432,181,-1228) yaw -90 pitch -45, camB (-1420,168,-1294) yaw -90 pitch -30, both as sent (mode free). NOT as predicted for content: both section-16 poses (town-relative, 60 u out / 6 u in) show only jungle canopy at this hamlet - the buildings sit under the trees from those vantages. An extra street-level capture (tools/worldforge_m0_l4_capture.sh, camera (-1430,152,-1270) yaw -90 pitch -20, read back as sent) shows the hamlet: a stone-and-log house with its door and picket fence, a timber hall with a lapped roof, grass, jungle behind; three res_* residents listed in the outliner (spawned by the editor's ResidentSpawner from persisted locations, not by the build).",
+    "P6_terrain_height": "CONFIRMED 144 / 144 at (-1432,-1288).",
+    "P7_duration": "303 s (prediction 285-320)."
+  },
+  "end_of_M0_state": {
+    "before_F7": "8/8 'built' with two pinched sites shipped as built, hamlets ungated, 37 buildings",
+    "after_M0": "5 built / 3 refused with the reasons on record (2 door pinches, 1 one-way drop, 1 creek-plot site); every refusal is a GENERATOR defect the gate now surfaces instead of shipping",
+    "generator_defects_now_visible_not_M0": ["the 1-micro street->door pinch at hall_house / blacksmith doors (F7 class)", "terrace pad graded 2 cubes below the adjacent street edge (general_store/bakery/hall_house-1058 at the town; spurs cannot bridge it)", "settlement siting across a creek leaves hamlet 1 with no buildable plots (M3 civ plan)"]
+  },
+  "caveats": ["n=1 per run; four runs on one seed; the hash, outcome set and gate counts were reproduced across runs 2-4 where the code did not change them", "Release only (Debug does not boot this world)", "the pinch at hamlet 7's door that run 1 refused on was closed by the door-anchored path network; whether the marker-anchored network would pinch again on other seeds is untested", "no residents built by the job (residents:false); the three NPCs in the capture come from the editor's load-time spawner"]
+}

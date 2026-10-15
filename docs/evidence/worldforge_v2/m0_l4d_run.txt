@@ -1,0 +1,37 @@
+status before: {"applied":true,"enabled":true,"plan_hash":"9693137997320541182","roads":18,"site_list":[{"depth":60,"id":0,"score":{"biome":1.0,"relief":0.9637749195098877,"total":0.7586987018585205,"water":0.25},"s
+build start: {"job_id":1000000,"plan_hash":"9693137997320541182","sites_queued":8,"success":true}
+job end: complete | complete | 11016/11016 | 303s
+capture target (id x z surfaceY): 2 -1432 -1288 150.66099548339844
+terrain_height site 2: chunks {"max_y":255,"source":"chunks","spawn_y":145,"surface_y":144,"x":-1432,"z":-1288} | generator {"source":"generator","spawn_y":145,"surface_y":144,"x":-1432,"z":-1288}
+camA (site 2): {'x': -1432.0, 'y': 181.0, 'z': -1228.0} -90.0 -45.0
+camB (site 2): {'x': -1420.0, 'y': 168.0, 'z': -1294.0} -90.0 -30.0
+== gate lines ==
+[00:09:38.258] [WARN] [Settlement] walkability: BLOCKED hall_house @-1160,-1091: street -> door pinch (-10355,1320,-9752)->(-10354,1320,-9753) gap 1 micro; reac
+[00:09:38.649] [WARN] [Settlement] walkability: BLOCKED (ONE-WAY, a drop) general_store @-1146,-1058: street -> door pinch (-10308,1287,-9471)->(-10309,1287,-94
+[00:09:39.404] [INFO] [Settlement] walkability gate: 12 walkable, 2 blocked over 14 routes (5 front doors, 1 skipped)
+[00:09:39.530] [WARN] [Settlement] walkability gate BLOCKED the build (2 blocked routes) - nav rebuild skipped; the settlement is a refused outcome
+[00:10:16.305] [INFO] [Settlement] walkability gate: 8 walkable, 0 blocked over 8 routes (2 front doors, 0 skipped)
+[00:10:59.827] [WARN] [Settlement] walkability: BLOCKED blacksmith @-1004,1404: street -> door pinch (-8987,171,12703)->(-8986,171,12702) gap 1 micro; reached 2
+[00:10:59.827] [INFO] [Settlement] walkability gate: 16 walkable, 1 blocked over 17 routes (6 front doors, 0 skipped)
+[00:10:59.853] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes) - nav rebuild skipped; the settlement is a refused outcome
+[00:11:58.067] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[00:12:15.709] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[00:12:41.763] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[00:13:08.875] [INFO] [Settlement] walkability gate: 14 walkable, 0 blocked over 14 routes (4 front doors, 0 skipped)
+== site outcomes ==
+[00:09:39.543] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: unwalkable: 2 of 14 street->door routes blocked (walkability gate) - not checkpointed
+[00:10:17.680] [INFO] [WorldForge] [WORLDFORGE] site 5 (village) BUILT: 2 buildings, 0 residents, 0 lot failures
+[00:10:59.873] [WARN] [WorldForge] [WORLDFORGE] site 6 (village) REFUSED: unwalkable: 1 of 17 street->door routes blocked (walkability gate) - not checkpointed
+[00:11:06.096] [WARN] [WorldForge] [WORLDFORGE] site 1 (hamlet) REFUSED: terrain too steep - no buildable plots
+[00:11:59.966] [INFO] [WorldForge] [WORLDFORGE] site 2 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[00:12:18.000] [INFO] [WorldForge] [WORLDFORGE] site 3 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[00:12:44.618] [INFO] [WorldForge] [WORLDFORGE] site 4 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[00:13:10.346] [INFO] [WorldForge] [WORLDFORGE] site 7 (hamlet) BUILT: 4 buildings, 0 residents, 0 lot failures
+== spurs / fences / props after buildings ==
+[00:09:31.486] [INFO] [Settlement] door spurs: 2 planned from 5 realized doors, 3 too steep, 0 micros over 0 columns, 0 ms
+[00:09:31.533] [INFO] [Settlement] fences: 1 parcels fenced, 4 unfenced by policy, 1 runs dropped (alley < 2 cells to a neighbour wall), 1454 micros (picket, 8-
+[00:09:31.608] [INFO] [Settlement] yard props: 6 placed, 0 skipped
+[00:10:13.420] [INFO] [Settlement] door spurs: 2 planned from 2 realized doors, 0 too steep, 95 micros over 95 columns, 54 ms
+[00:10:13.561] [INFO] [Settlement] fences: 2 parcels fenced, 0 unfenced by policy, 0 runs dropped (alley < 2 cells to a neighbour wall), 8406 micros (picket, 8-
+[00:10:13.668] [INFO] [Settlement] yard props: 5 placed, 0 skipped
+done
