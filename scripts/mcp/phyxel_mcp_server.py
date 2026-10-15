@@ -630,7 +630,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="worldforge_status",
-            description="WorldForge: enabled/applied state, plan hash, and site/road counts for the current world.",
+            description="WorldForge: enabled/applied state, plan hash, site/road counts, the build ledger (per-site built/refused) and site_list (the applied plan's sites with x/z/tier/surfaceY - aim a probe or the camera at a built site) for the current world.",
             inputSchema={"type": "object", "properties": {}}
         ),
         Tool(

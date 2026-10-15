@@ -144,7 +144,7 @@ own siting.
 |---|---|---|
 | `POST /api/worldforge/plan` | `worldforge_plan` | pure preview bake; `{}` → the applied plan |
 | `POST /api/worldforge/apply` | `worldforge_apply` | persist into the recipe; **refuses** if world.db has saved chunks unless `force:true`; applies LIVE (restreams the world, `live_applied` + `evicted_chunks` — shipped 2026-08-21, see "Live apply"); `restart_required` only when a live apply is refused (a build job is active / deferred DB loads pending) |
-| `GET /api/worldforge/status` | `worldforge_status` | enabled/applied/hash/counts (+ ledger, M2) |
+| `GET /api/worldforge/status` | `worldforge_status` | enabled/applied/hash/counts (+ ledger, M2; + `site_list` = the applied plan's sites with x/z/tier/surfaceY, 2026-10-14 — the ledger and job result carry ids only) |
 | `GET /api/worldforge/map?step=4` | `worldforge_map` | ASCII map: `~` water, `r` order≥3 river, `=` road, `T/V/H` sites |
 
 MCP tools of the same names mirror these. All multi-settlement realization (M2) is an

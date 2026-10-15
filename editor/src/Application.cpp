@@ -13640,6 +13640,11 @@ void Application::registerWorldForgeCommands() {
              {"plan_hash", p ? std::to_string(p->planHash()) : ""},
              {"sites", p ? static_cast<int>(p->sites().size()) : 0},
              {"roads", p ? static_cast<int>(p->roads().size()) : 0}};
+        // M0 L4 run 2: the plan's sites themselves ({id, x, z, tier, width, depth, seed, surface,
+        // surfaceY, score}) - until this, nothing told a caller WHERE a site is after the plan was
+        // applied (the job result and the ledger carry ids only), so a probe could not aim at a
+        // built site without re-planning.
+        if (p) r["site_list"] = p->toJson().value("sites", nlohmann::json::array());
         if (Phyxel::WorldStorage* storage = chunkManager->getWorldStorage())
             if (storage->hasMeta("worldforge_ledger"))
                 r["ledger"] = nlohmann::json::parse(

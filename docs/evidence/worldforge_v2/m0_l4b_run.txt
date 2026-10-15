@@ -1,0 +1,38 @@
+status before: {"applied":true,"enabled":true,"plan_hash":"9693137997320541182","roads":18,"site_list":[{"depth":60,"id":0,"score":{"biome":1.0,"relief":0.9637749195098877,"total":0.7586987018585205,"water":0.25},"s
+build start: {"job_id":1000000,"plan_hash":"9693137997320541182","sites_queued":8,"success":true}
+job end: complete | complete | 9789/9789 | 282s
+Traceback (most recent call last):
+  File "<string>", line 2, in <module>
+    st=json.load(open('/c/Users/bpete/Documents/GitHub/phyxel/docs/evidence/worldforge_v2/m0_l4b_status.json'))
+                 ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/c/Users/bpete/Documents/GitHub/phyxel/docs/evidence/worldforge_v2/m0_l4b_status.json'
+capture target (id x z surfaceY): none
+== gate lines ==
+[23:37:05.569] [WARN] [Settlement] walkability: BLOCKED hall_house @-1160,-1091: street -> door pinch (-10355,1320,-9752)->(-10354,1320,-9753) gap 1 micro; reac
+[23:37:06.078] [INFO] [Settlement] walkability gate: 13 walkable, 1 blocked over 14 routes (5 front doors, 1 skipped)
+[23:37:06.196] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes) - nav rebuild skipped; the settlement is a refused outcome
+[23:37:43.090] [INFO] [Settlement] walkability gate: 8 walkable, 0 blocked over 8 routes (2 front doors, 0 skipped)
+[23:38:26.908] [WARN] [Settlement] walkability: BLOCKED blacksmith @-1004,1404: street -> door pinch (-8987,171,12703)->(-8986,171,12702) gap 1 micro; reached 2
+[23:38:26.908] [INFO] [Settlement] walkability gate: 16 walkable, 1 blocked over 17 routes (6 front doors, 0 skipped)
+[23:38:26.932] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes) - nav rebuild skipped; the settlement is a refused outcome
+[23:39:16.421] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[23:39:33.047] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[23:39:58.533] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[23:40:20.224] [INFO] [Settlement] walkability gate: 14 walkable, 0 blocked over 14 routes (4 front doors, 0 skipped)
+== site outcomes ==
+[23:37:06.209] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: unwalkable: 1 of 14 street->door routes blocked (walkability gate) - not checkpointed
+[23:37:44.476] [INFO] [WorldForge] [WORLDFORGE] site 5 (village) BUILT: 2 buildings, 0 residents, 0 lot failures
+[23:38:26.967] [WARN] [WorldForge] [WORLDFORGE] site 6 (village) REFUSED: unwalkable: 1 of 17 street->door routes blocked (walkability gate) - not checkpointed
+[23:38:33.523] [WARN] [WorldForge] [WORLDFORGE] site 1 (hamlet) REFUSED: terrain too steep - no buildable plots
+[23:39:18.629] [INFO] [WorldForge] [WORLDFORGE] site 2 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[23:39:37.251] [INFO] [WorldForge] [WORLDFORGE] site 3 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[23:40:00.142] [INFO] [WorldForge] [WORLDFORGE] site 4 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[23:40:21.332] [INFO] [WorldForge] [WORLDFORGE] site 7 (hamlet) BUILT: 4 buildings, 0 residents, 0 lot failures
+== spurs / fences / props after buildings ==
+[23:36:59.109] [INFO] [Settlement] door spurs: 2 planned from 5 realized doors, 3 too steep, 0 micros over 0 columns, 0 ms
+[23:36:59.156] [INFO] [Settlement] fences: 1 parcels fenced, 4 unfenced by policy, 1 runs dropped (alley < 2 cells to a neighbour wall), 1454 micros (picket, 8-
+[23:36:59.235] [INFO] [Settlement] yard props: 6 placed, 0 skipped
+[23:37:40.787] [INFO] [Settlement] door spurs: 2 planned from 2 realized doors, 0 too steep, 95 micros over 95 columns, 51 ms
+[23:37:40.926] [INFO] [Settlement] fences: 2 parcels fenced, 0 unfenced by policy, 0 runs dropped (alley < 2 cells to a neighbour wall), 8406 micros (picket, 8-
+[23:37:41.017] [INFO] [Settlement] yard props: 5 placed, 0 skipped
+done

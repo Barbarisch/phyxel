@@ -1,0 +1,9 @@
+{
+  "what": "Predictions for M0 L4 run 2 (PREFIX=m0_l4b, tools/worldforge_m0_l4.sh), written while the run was in progress and before any result was read (started 2026-10-14 23:36 local). Binary: Release phyxel.exe 23:34 from the working tree at c646a4f5 + the uncommitted worldforge_status site_list addition.",
+  "P1_plan_hash": "the F7 value 9693137997320541182 comes back (planHash now hashes identity only; run 1 read 10638243061351388589)",
+  "P2_town_spurs": "site 0 'door spurs:' line reads N planned / 0 too steep for its N realized doors (run 1: 2 of 5, 3 too steep); if any spur still fails, a 'door spur too steep:' WARN with door/street/run/drop/cap/reason follows it",
+  "P3_site_outcomes": "unchanged from run 1 unless the spur change moved a pinch: sites 0, 3, 4, 6, 7 REFUSED on the 1-micro street->door pinch, site 1 REFUSED (no buildable plots), sites 5 and 2 BUILT (2 and 3 buildings). The pinch is at the door threshold, not on the spur, so the fix is not expected to clear it.",
+  "P4_capture": "site 0 is expected refused, so the capture target falls back to site 5 (first built in id order); both poses read back as sent (mode free) and the images show the village's buildings",
+  "P5_terrain_height": "chunks and generator both return a surface at the captured site's centre (run 1: chunks null on the refused town)",
+  "P6_duration": "about 290-320 s for the job (run 1: 293 s)"
+}
