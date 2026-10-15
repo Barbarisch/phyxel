@@ -5203,7 +5203,7 @@ the box). P3, P4, P5 **not started**.
   body of water is one set of bricks wherever it lies. **Gates:** a sparse run equals the dense run of the same water
   (the 25.32 equality shape: bit-identical on the CPU reference, parity on the GPU); cost per water cell measured; the
   100 m bench creek (~22,000 cells) inside 25.10's budget.
-- **P3 - creeks and ponds on one model.** [not started] The creek bench, the dam & pond bench and the pond benches all run as pond water;
+- **P3 - creeks and ponds on one model.** [designed - 26.13; P3a building] The creek bench, the dam & pond bench and the pond benches all run as pond water;
   springs and outfalls are the pond core's sources and sinks; the bed is the generator line (option a). **Gates:** the
   numbers the column solver met (25.28 K: speed vs Manning, roughness tuning; 25.38 DP: fill rate Q/A, spill at the crest,
   the dam's dip and the break's surge, the ledger exact across edits) met by the pond model; ripples and splashes as on
@@ -5744,6 +5744,75 @@ before (`slosh_live_p2612.mp4`, `pebble_pair_p2612.mp4`).
 
 **What it opens:** P3 - the creek bench run as pond water in one sparse volume (its box fits; its frame on this rig is ~2.5
 ms with one body, of which the GPU step is 1.5) - once its ripple layer is a camera-following window (above: refused today).
+
+### 26.13 P3 - creeks and ponds on one model: detailed design and design-check (2026-10-14). Status: DESIGN, READY for P3a
+
+**What P3 delivers (26.3):** the creek bench, the dam & pond bench and the pond benches all run as POND water (one sparse
+volume each, 26.12), meeting the numbers the column solver met; ripples and splashes as on the pond; then the column regions
+removed from near water. **Checked against the code before writing this - four things the pond core cannot do yet:**
+1. *Ripples on a long volume.* A volume's ripple layer covers its whole box and is REFUSED above 512 lattice cells per axis
+   (57 m) - the creek bench's 100 m volume would have none. The column regions already have the answer (25.26 RC): a
+   384 x 384 window that follows the camera in 4 m steps, an absorbing (open) border, carried by the current, forced by the
+   flow's bed shear (u* from Manning).
+2. *An outfall.* A volume has pumps and fixed-rate sinks (one cell); nothing takes "whatever water arrives" the way the
+   column outfall does (it removes all depth above the bed at its columns, counted). A fixed-rate sink either starves or
+   floods the foot.
+3. *Manning at the bed on the GPU.* P1's bed law (`WaterSolver::applyBedManning`, u /= 1 + dt g n^2 |u| / d^(4/3) on every
+   horizontal face, d the water over the face) is CPU only; the GPU core has pond friction alone.
+4. *The sweep count.* The automatic count is 1.5 x the longest dimension, clamped at 160 - a 900-cell creek box gets 160
+   sweeps (~2 ms). With the still-water first guess (26.10) the solve starts near the answer; the count is measured, not
+   derived from the box (P3b sets it from the creek's measured residual).
+
+**P3a - the pond core gets what a creek needs (one law each, CPU and GPU; small rigs):**
+- *Ripple window for every volume* - ONE code path for volumes and regions (no ported copy): `stepRipples` builds a
+  volume's layer as a window of min(384, box) lattice cells per axis placed and moved exactly as the regions' (centre on the
+  camera, clamped to the box, 4 m steps, `syncPrev`/`shiftOrigin`/`markDirty` on the GPU ripple step); the border is open
+  only where the window is smaller than the box (a pond that fits keeps its reflecting walls - the signed-off pond look is
+  unchanged); the mask from the volume's surface field (as today); the window is CARRIED by the field's surface velocity
+  (u, w per sub-column - SurfaceColumn already carries them) and FORCED by u* where the volume has a bed roughness (n > 0);
+  a pond (n = 0) is neither forced nor carried differently from today (its surface velocity is ~0 at rest). The refusal at
+  512 goes; the four-layer cap stays (the renderer's atlas).
+- *Outfall* - a source KIND: an outfall at a cell takes every drop in that cell and the cells above it up to the first
+  solid, every substep, after the transport (the column outfall's rule at the pond's resolution), counted in the source's
+  `placedTotal` (negative) and the step's `sinkRemoved` - the ledger stays exact. GPU: `GpuSource.pad0` = kind (1 =
+  outfall) in `wc_sources.comp`; CPU: `SourceSpec::outfall` in `applySources`. No projection inflow term (it removes what
+  arrived, as the column outfall does after its solve).
+- *Manning at the bed on the GPU* - `wc_face_ops` mode 10 on the u and w lattices: each face sums its two columns' water
+  (the CPU's order) and divides as the CPU does; replaces pond friction when n > 0 (as on the CPU).
+- *API* - `water_av_create` takes `manning_n` (default 0 = pond friction, unchanged); `water_av_source` takes
+  `outfall: true` (rate ignored); both echoed in `water_av_list` (`manning_n`, per volume `outfalls`).
+
+**P3a gates (red first where new):** `WaterCoreGpuParityTest.GpuBedManningMatchesCpu` - a flat 1/9 m channel started at
+0.5 m/s, 3 s under n = 0.035: GPU face velocities within 1e-4 of the CPU's (red before: the GPU ignores n, ~10 % apart);
+`WaterCoreTest.AnOutfallTakesWhatArrives` (CPU) and `GpuOutfallTakesWhatArrives` - a pump at one end of a closed channel,
+an outfall at the other: at steady state outflow = inflow within 2 %, the volume's water constant, the ledger
+(stored + out - in) within 1e-6 m^3 (red before: no outfall kind - the water piles up); a ripple-window rig - a 100 m volume
+gets a layer (red: refused today) that moves with the view point, and the bench pond's layer is the same size and border as
+before (the pond unchanged). The pond suite and the GPU parity suite unchanged.
+
+**P3b - the creek bench as pond water (L4, the owner looks):** `tools/water_creek_bench.py --run --pond` creates one sparse
+volume over the creek (x 10-109, z 29-34, y 14-17 at 1/9 m - inside the 2 M cap; the bed is the carved gravel voxels as
+occupancy - the 1/3 m staircase of a 1:200 line, the same ground the column regions ran over), springs as pumps across the
+head, outfalls across the foot, `manning_n` 0.035, the camera on the creek; `--record` writes the same JSON fields as the
+column run (mid depth and speed from `water_av_probe`, in/out/stored/ledger from the sources' totals). **Gates:** mid-reach
+depth and speed within 10 % of Manning at q 0.2 and 0.5 m^3/s (q 0.1's 0.11 m is one cell - reported, the trickle limit
+26.4 risk 2), out/in -> 1 at steady state, ledger <= 1e-4 m^3, frame cost reported against 25.10 (the creek's share);
+ripples visible and carried (the RC clip re-shot at its pose). Old/new A/B clips for the owner: `creekbench_q*` (column)
+vs `creekbench_pond_q*`.
+
+**P3c - the dam & pond bench as pond water** (25.38's FILL / DAM / BREAK numbers: fill rate Q/A, spill at the crest, the
+dam's dip, the break's surge, the ledger exact across edits) - designed in detail when P3b's numbers are in (its box is
+118 x 5 x 10 m (x, y, z) - 4.3 M cells at 1/9 m: OVER the 2 M cap - it needs the sparse CPU copy P2b deferred, or a box per reach).
+**P3d - the column regions removed from near water** once P3b and P3c pass and the owner signs off.
+
+**Design-check (Feature Design Keys).** *Voxel look:* the pond's surface, ripples and droplets, already signed off; the
+window's open border fades the forcing over its outer 8 m so its edge is never seen (25.26). *Chunks:* the window follows
+the CAMERA - a cost bound like the column regions' (its content is a function of world position: lattice cells are world-
+aligned and the forcing hash is per world cell and frame) - the same ruling 25.26 made; the outfall and Manning are per
+cell / per face, world-addressed. *Generation:* none (runtime; the bench's carve is authored). *API:* two new params, both
+echoed, defaults unchanged (`manning_n` 0, no outfall). *Visual test:* the creek bench at its RC pose, old (column) vs new
+(pond) clips, plus the numbers. *Small rigs and controls:* each P3a gate is a unit rig with the CPU (or the old path) as
+its control. **Verdict: READY for P3a.**
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
