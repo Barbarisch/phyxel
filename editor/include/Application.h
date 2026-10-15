@@ -117,6 +117,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "core/SettlementBuildService.h"
+
 namespace Phyxel {
 
 /// Editor mode — Edit for development workflow, Play for game testing.
@@ -569,6 +571,11 @@ private:
     // domain at a time). Called once during init.
     void registerWaterCommands();
     void registerSettlementCommands();   // build_settlement: compose a settlement (subdivide+populate+build each)
+    /// M0 (WorldForgeV2Plan §5 M0): THE one place the editor's services become build
+    /// dependencies (build_settlement, worldforge_build, and - via structureDeps() -
+    /// build_structure). Three hand-filled copies drifted (one lost itemProps: every sign
+    /// fell back to the blank board).
+    Core::SettlementBuildService::Deps makeSettlementBuildDeps();
     void registerWorldForgeCommands();   // worldforge_*: world-scale plan preview/apply/status/map (docs/WorldForge.md)
     void registerDoorCommands();
     void registerLightCommands();

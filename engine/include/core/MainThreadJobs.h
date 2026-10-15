@@ -56,6 +56,11 @@ public:
 
     /// Drop all remaining units (the current unit, if any, finishes — units are not preempted).
     bool cancel(Id id);
+    /// M0 (WorldForgeV2Plan §5 M0): a hook that runs when the job is CANCELLED — on the next
+    /// main-thread tick, never on the thread that called cancel() (the HTTP thread may). A
+    /// job that holds a resource across units (the worldforge residency focus + raised load
+    /// radii) releases it here; completion paths release it in their own final unit.
+    void setCancelHook(Id id, std::function<void()> fn);
 
     /// MAIN THREAD, once per frame: run up to `maxUnitsPerTick` pending units.
     void tick(int maxUnitsPerTick = 1);
@@ -83,6 +88,7 @@ private:
         bool cancelled = false;
         bool complete = false;
         std::deque<Unit> units;
+        std::function<void()> onCancel;   ///< M0: see setCancelHook
         nlohmann::json result = nlohmann::json::object();
         std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
     };
@@ -91,6 +97,7 @@ private:
     Job* find(Id id);
 
     mutable std::mutex m_mutex;
+    std::vector<std::function<void()>> m_pendingCancelHooks;   ///< run by tick(), main thread
     std::vector<Job> m_jobs;             ///< small (few concurrent + short history), linear scan
     Id m_nextId = 1000000;
     static constexpr size_t kMaxHistory = 20;

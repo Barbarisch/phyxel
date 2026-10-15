@@ -13403,33 +13403,37 @@ void Application::registerWaterCommands() {
 // testable and reachable from a shipped game; the editor's only remaining job is to drive
 // the returned work units on MainThreadJobs (one per frame, [no-frozen-engine]) and to
 // supply the undo hook. Pass {"async": false} to run every unit inline.
+Core::SettlementBuildService::Deps Application::makeSettlementBuildDeps() {
+    Core::SettlementBuildService::Deps deps;
+    deps.chunkManager  = chunkManager;
+    deps.placedObjects = placedObjectManager ? &*placedObjectManager : nullptr;
+    deps.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
+    deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
+    deps.npcs          = npcManager ? &*npcManager : nullptr;
+    // M3c: without this every settlement interior loses its item props — tableware AND
+    // the painted trade-sign items (all signs fell back to the blank board).
+    deps.itemProps     = itemPropManager ? &*itemPropManager : nullptr;
+    // The scene's transition regions (a cellar hatch) stay furniture-free.
+    if (triggerSystem)
+        deps.keepClear = Core::keepClearFromRegionTriggers(triggerSystem->regionTriggers());
+    deps.pushUndo = [this](const glm::ivec3& a, const glm::ivec3& b, const std::string& label) {
+        pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
+    };
+    // M5: buildings and settlements light their interiors through the same hook
+    // (engine/core cannot depend on graphics/).
+    if (renderCoordinator)
+        deps.addPointLight = [this](const glm::vec3& p, const glm::vec3& c, float intensity, float radius) {
+            return renderCoordinator->getLightManager()
+                       .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
+        };
+    return deps;
+}
+
 void Application::registerSettlementCommands() {
     auto& reg = m_commandRegistry;
 
     reg.on("build_settlement", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        Core::SettlementBuildService::Deps deps;
-        deps.chunkManager  = chunkManager;
-        deps.placedObjects = placedObjectManager ? &*placedObjectManager : nullptr;
-        deps.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
-        deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
-        deps.npcs          = npcManager ? &*npcManager : nullptr;
-        // M3c: without this every settlement interior loses its item props — tableware AND
-        // the painted trade-sign items (all signs fell back to the blank board).
-        deps.itemProps     = itemPropManager ? &*itemPropManager : nullptr;
-        // The scene's transition regions (a cellar hatch) stay furniture-free.
-        if (triggerSystem)
-            deps.keepClear = Core::keepClearFromRegionTriggers(triggerSystem->regionTriggers());
-        deps.pushUndo      = [this](const glm::ivec3& a, const glm::ivec3& b,
-                                    const std::string& label) {
-            pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
-        };
-        // M5: settlements light their buildings through the same hook.
-        if (renderCoordinator)
-            deps.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
-                                        float intensity, float radius) {
-                return renderCoordinator->getLightManager()
-                           .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
-            };
+        const Core::SettlementBuildService::Deps deps = makeSettlementBuildDeps();   // M0: one factory
 
         auto plan = Core::SettlementBuildService::plan(cmd.params, deps);
         if (!plan.ok()) { r = plan.error; return; }
@@ -13661,24 +13665,8 @@ void Application::registerWorldForgeCommands() {
             return;
         }
         Core::WorldForgeBuildService::Deps d;
-        d.settlement.chunkManager  = chunkManager;
-        d.settlement.placedObjects = placedObjectManager ? &*placedObjectManager : nullptr;
-        d.settlement.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
-        d.settlement.locations     = locationRegistry ? &*locationRegistry : nullptr;
-        d.settlement.npcs          = npcManager ? &*npcManager : nullptr;
-        d.settlement.itemProps     = itemPropManager ? &*itemPropManager : nullptr;   // M3c signs
-
-        d.settlement.pushUndo = [this](const glm::ivec3& a, const glm::ivec3& b,
-                                       const std::string& label) {
-            pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
-        };
-        if (renderCoordinator)
-            d.settlement.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
-                                                float intensity, float radius) {
-                return renderCoordinator->getLightManager().addPointLight(Graphics::LightSource::Fixture, p, c, intensity,
-                                                                          radius);
-            };
-        d.plan = plan;
+        d.settlement = makeSettlementBuildDeps();   // M0: one factory (this copy had lost keepClear)
+        d.plan = g->worldForgeShared();   // M0: shared, never a raw pointer for a job's lifetime
         d.worldSeed = g->getSeed();
         // Residency driver: WALK the streaming anchor toward the site (64 u per call, one
         // call per residency poll) instead of teleporting it — an instant far anchor jump
@@ -17313,27 +17301,8 @@ void Application::processAPICommands() {
                     // orchestration lives in Core::StructureBuildService so the API,
                     // GameDefinitionLoader, and settlements share one engine path.
                     // Primitives (wall/staircase/table/...) place via the shared tail.
-                    Core::StructureBuildService::Deps deps;
-                    deps.chunkManager  = chunkManager;
-                    deps.placedObjects = placedObjectManager ? &*placedObjectManager : nullptr;
-                    deps.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
-                    deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
-                    deps.npcs          = npcManager ? &*npcManager : nullptr;
-                    deps.itemProps     = itemPropManager ? &*itemPropManager : nullptr;
-                    if (triggerSystem)   // designer anchors stay furniture-free
-                        deps.keepClear = Core::keepClearFromRegionTriggers(triggerSystem->regionTriggers());
-                    deps.pushUndo      = [&](const glm::ivec3& a, const glm::ivec3& b,
-                                             const std::string& label) {
-                        pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
-                    };
-                    // M5 place_lights (#18): engine/core cannot depend on graphics/, so
-                    // the lighting pass registers its point lights through this hook.
-                    if (renderCoordinator)
-                        deps.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
-                                                    float intensity, float radius) {
-                            return renderCoordinator->getLightManager()
-                                       .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
-                        };
+                    // M0: one factory; a building's deps derive from the settlement's.
+                    const Core::StructureBuildService::Deps deps = makeSettlementBuildDeps().structureDeps();
 
                     const std::string stype = cmd.params.value("type", std::string());
                     if (cmd.params.value("schema", std::string()) == "v2") {

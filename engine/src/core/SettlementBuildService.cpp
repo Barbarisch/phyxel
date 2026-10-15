@@ -734,7 +734,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                    std::to_string(buildings.size());
             buildingUnits.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager,
                                           locationRegistry, npcManager, pushUndo, addPointLight, keepClear,
-                                          itemPropManager, bp, bp2, seatInUnit,
+                                          itemPropManager, hostDeps = deps, bp, bp2, seatInUnit,
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
                                           lotIndex = static_cast<int>(i),
                                           typ1 = var.typology, typ2 = var2.typology,
@@ -747,16 +747,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     p["position"]["y"] =
                         settlementTopScan(chunkManager, oy, cx, cz, /*floraBlind=*/true);
                 };
-                Core::StructureBuildService::Deps deps;
-                deps.chunkManager  = chunkManager;
-                deps.placedObjects = placedObjectManager ? &*placedObjectManager : nullptr;
-                deps.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
-                deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
-                deps.npcs          = npcManager ? &*npcManager : nullptr;
-                deps.pushUndo      = pushUndo;   // forwarded by the caller (editor: undo snapshot)
-                deps.addPointLight = addPointLight;   // M5: light settlement interiors too
-                deps.itemProps     = itemPropManager; // M3c: sign items + tableware in settlements
-                deps.keepClear     = keepClear;       // designer anchors stay furniture-free
+                // M0: ONE mapping from the settlement's deps to a building's (Deps::structureDeps).
+                Core::StructureBuildService::Deps deps = hostDeps.structureDeps();
                 auto recordDoor = [&](const nlohmann::json& res, const nlohmann::json& prog, int w, int d) {
                     const int x = prog["position"].value("x", 0), z = prog["position"].value("z", 0);
                     if (!res.contains("locations") || !res["locations"].is_array()) return;
@@ -1953,6 +1945,20 @@ nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkabi
     }
     return {{"gate", gate}, {"walkable", walkable}, {"blocked", blocked},
             {"fails_build", failsBuild}};
+}
+
+StructureBuildService::Deps SettlementBuildService::Deps::structureDeps() const {
+    StructureBuildService::Deps d;
+    d.chunkManager  = chunkManager;
+    d.placedObjects = placedObjects;
+    d.templates     = templates;
+    d.locations     = locations;
+    d.npcs          = npcs;
+    d.itemProps     = itemProps;      // M3c: sign items + tableware in settlements
+    d.keepClear     = keepClear;      // designer anchors stay furniture-free
+    d.pushUndo      = pushUndo;       // editor undo snapshot, forwarded
+    d.addPointLight = addPointLight;  // M5: light settlement interiors too
+    return d;
 }
 
 std::set<int> SettlementBuildService::failedPlots(const nlohmann::json& lotFailures,

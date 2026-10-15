@@ -251,6 +251,8 @@ public:
     // hydrology bake (it consumes hydrology). Null when worldforge is disabled (every legacy
     // world) or nothing is baked. Immutable + shared_ptr → worker-copy-safe like m_hydro.
     const WorldForgePlan* worldForge() const { return m_worldForge.get(); }
+    /// M0: shared ownership for long-lived consumers (the worldforge_build job).
+    std::shared_ptr<const WorldForgePlan> worldForgeShared() const { return m_worldForge; }
     const WorldForgeParams& worldForgeParams() const { return m_worldForgeParams; }
     void setWorldForgeParams(const WorldForgeParams& p) { m_worldForgeParams = p; rebuildCoarseModel(); }
     // Bake a plan for arbitrary params WITHOUT storing it (the worldforge_plan preview

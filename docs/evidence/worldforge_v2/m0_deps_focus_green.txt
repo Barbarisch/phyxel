@@ -1,0 +1,167 @@
+[==========] Running 82 tests from 7 test suites.
+[ RUN      ] StructureGroundingTest.RefusesAirBuildsByDefault
+[       OK ] StructureGroundingTest.RefusesAirBuildsByDefault (54 ms)
+[ RUN      ] StructureGroundingTest.ARefusalLeavesNoRemovalsBehind
+[       OK ] StructureGroundingTest.ARefusalLeavesNoRemovalsBehind (17 ms)
+[ RUN      ] StructureGroundingTest.PlacementIntoUngeneratedTerrainIsRefused
+[       OK ] StructureGroundingTest.PlacementIntoUngeneratedTerrainIsRefused (2222 ms)
+[ RUN      ] StructureGroundingTest.MissingRoomProgramRefusesTheBuild
+[       OK ] StructureGroundingTest.MissingRoomProgramRefusesTheBuild (0 ms)
+[ RUN      ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan
+[       OK ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan (40 ms)
+[ RUN      ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans
+[       OK ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans (6 ms)
+[ RUN      ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist
+[       OK ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist (11 ms)
+[ RUN      ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped
+[       OK ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped (10 ms)
+[ RUN      ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty
+[       OK ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty (10 ms)
+[ RUN      ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted
+[       OK ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted (4 ms)
+[ RUN      ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused
+[       OK ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused (7 ms)
+[ RUN      ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused
+[       OK ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused (7 ms)
+[ RUN      ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed
+[       OK ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed (31 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav (10 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology (58 ms)
+[ RUN      ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden
+[       OK ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden (0 ms)
+[ RUN      ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology
+[       OK ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology (4428 ms)
+[ RUN      ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices
+[       OK ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices (0 ms)
+[ RUN      ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod
+[       OK ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod (11 ms)
+[ RUN      ] SettlementBuildServiceTest.MissingRoomProgramRefuses
+[       OK ] SettlementBuildServiceTest.MissingRoomProgramRefuses (2 ms)
+[ RUN      ] GameDefinitionTest.ValidateEmptyDefinitionSucceeds
+[       OK ] GameDefinitionTest.ValidateEmptyDefinitionSucceeds (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateNonObjectFails
+[       OK ] GameDefinitionTest.ValidateNonObjectFails (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateWorldTypePerlin
+[       OK ] GameDefinitionTest.ValidateWorldTypePerlin (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateWorldTypeMountains
+[       OK ] GameDefinitionTest.ValidateWorldTypeMountains (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateWorldTypeInvalid
+[       OK ] GameDefinitionTest.ValidateWorldTypeInvalid (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateWorldNotObject
+[       OK ] GameDefinitionTest.ValidateWorldNotObject (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateNPCsMissingName
+[       OK ] GameDefinitionTest.ValidateNPCsMissingName (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateNPCsWithName
+[       OK ] GameDefinitionTest.ValidateNPCsWithName (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateNPCsNotArray
+[       OK ] GameDefinitionTest.ValidateNPCsNotArray (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateStructuresInvalidType
+[       OK ] GameDefinitionTest.ValidateStructuresInvalidType (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateStructuresFill
+[       OK ] GameDefinitionTest.ValidateStructuresFill (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateStructuresTemplate
+[       OK ] GameDefinitionTest.ValidateStructuresTemplate (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateStructuresMissingType
+[       OK ] GameDefinitionTest.ValidateStructuresMissingType (0 ms)
+[ RUN      ] GameDefinitionTest.ValidatePlayerNotObject
+[       OK ] GameDefinitionTest.ValidatePlayerNotObject (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateAllWorldTypes
+[       OK ] GameDefinitionTest.ValidateAllWorldTypes (0 ms)
+[ RUN      ] GameDefinitionTest.ResultToJsonSuccess
+[       OK ] GameDefinitionTest.ResultToJsonSuccess (0 ms)
+[ RUN      ] GameDefinitionTest.ResultToJsonFailure
+[       OK ] GameDefinitionTest.ResultToJsonFailure (0 ms)
+[ RUN      ] GameDefinitionTest.ResultDefaultValues
+[       OK ] GameDefinitionTest.ResultDefaultValues (0 ms)
+[ RUN      ] GameDefinitionTest.LoadEmptyDefinitionWithNullSubsystems
+[       OK ] GameDefinitionTest.LoadEmptyDefinitionWithNullSubsystems (0 ms)
+[ RUN      ] GameDefinitionTest.LoadWorldWithoutChunkManagerFails
+[       OK ] GameDefinitionTest.LoadWorldWithoutChunkManagerFails (0 ms)
+[ RUN      ] GameDefinitionTest.LoadNPCsWithoutNPCManagerFails
+[       OK ] GameDefinitionTest.LoadNPCsWithoutNPCManagerFails (0 ms)
+[ RUN      ] GameDefinitionTest.LoadPlayerWithoutSpawnerSkips
+[       OK ] GameDefinitionTest.LoadPlayerWithoutSpawnerSkips (0 ms)
+[ RUN      ] GameDefinitionTest.LoadCameraWithoutCameraSkips
+[       OK ] GameDefinitionTest.LoadCameraWithoutCameraSkips (0 ms)
+[ RUN      ] GameDefinitionTest.LoadInvalidDefinitionRejected
+[       OK ] GameDefinitionTest.LoadInvalidDefinitionRejected (0 ms)
+[ RUN      ] GameDefinitionTest.ExportWithNullSubsystems
+[       OK ] GameDefinitionTest.ExportWithNullSubsystems (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateCompleteDefinition
+[       OK ] GameDefinitionTest.ValidateCompleteDefinition (0 ms)
+[ RUN      ] GameDefinitionTest.LoadCameraMode
+[       OK ] GameDefinitionTest.LoadCameraMode (0 ms)
+[ RUN      ] GameDefinitionTest.InlineWorldBlockLoadsSavedChunksInsteadOfRegenerating
+[       OK ] GameDefinitionTest.InlineWorldBlockLoadsSavedChunksInsteadOfRegenerating (378 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightRejectsAnHourThatIsNotOnTheClock
+[       OK ] GameDefinitionTest.ValidateDayNightRejectsAnHourThatIsNotOnTheClock (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightRejectsAZeroLengthDay
+[       OK ] GameDefinitionTest.ValidateDayNightRejectsAZeroLengthDay (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightRejectsANonObject
+[       OK ] GameDefinitionTest.ValidateDayNightRejectsANonObject (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightAcceptsAWellFormedBlock
+[       OK ] GameDefinitionTest.ValidateDayNightAcceptsAWellFormedBlock (0 ms)
+[ RUN      ] GameDefinitionTest.LoadParsesTheDayNightBlockIntoTheResult
+[       OK ] GameDefinitionTest.LoadParsesTheDayNightBlockIntoTheResult (0 ms)
+[ RUN      ] GameDefinitionTest.LoadWithoutADayNightBlockLeavesItUnloaded
+[       OK ] GameDefinitionTest.LoadWithoutADayNightBlockLeavesItUnloaded (0 ms)
+[ RUN      ] GameDefinitionTest.LoadRefusesAnInvalidDayNightBlockInsteadOfClampingIt
+[       OK ] GameDefinitionTest.LoadRefusesAnInvalidDayNightBlockInsteadOfClampingIt (0 ms)
+[ RUN      ] GameDefinitionTest.ParseDayNightReadsTheTopLevelOfAMultiSceneDocument
+[       OK ] GameDefinitionTest.ParseDayNightReadsTheTopLevelOfAMultiSceneDocument (0 ms)
+[ RUN      ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused
+[       OK ] SettlementTerrainPlanTest.ASiteWithUngroundedColumnsIsRefused (73 ms)
+[ RUN      ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured
+[       OK ] SettlementTerrainPlanTest.TheUngroundedOverrideIsHonoured (57 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement
+[       OK ] SettlementTerrainPlanTest.TerrainModeOnFlatGroundPlansAFullSettlement (153 ms)
+[ RUN      ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt
+[       OK ] SettlementTerrainPlanTest.ImpossibleTerrainIsRefusedWithAReasonNotSilentlyBuilt (154 ms)
+[ RUN      ] SettlementTerrainPlanTest.PartlyBuildableTerrainSurfacesTheDroppedPlotCount
+[       OK ] SettlementTerrainPlanTest.PartlyBuildableTerrainSurfacesTheDroppedPlotCount (155 ms)
+[ RUN      ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed
+[       OK ] SettlementTerrainPlanTest.TerrainPlanningIsDeterministicInTheSeed (467 ms)
+[ RUN      ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned
+[       OK ] SettlementTerrainPlanTest.WithAWorldTheSitePrepUnitsAreActuallyPlanned (84 ms)
+[ RUN      ] SettlementTerrainPlanTest.CreekInsideFootprintIsNotBuildable
+[       OK ] SettlementTerrainPlanTest.CreekInsideFootprintIsNotBuildable (312 ms)
+[ RUN      ] StructureBuildServiceTest.AliasHouseSmallFootprintIsCroft
+[       OK ] StructureBuildServiceTest.AliasHouseSmallFootprintIsCroft (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasHouseLargeFootprintIsHallHouse
+[       OK ] StructureBuildServiceTest.AliasHouseLargeFootprintIsHallHouse (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasTavernKeepsTypologyAndStoriesCount
+[       OK ] StructureBuildServiceTest.AliasTavernKeepsTypologyAndStoriesCount (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasRespectsExplicitTypologyAndStyle
+[       OK ] StructureBuildServiceTest.AliasRespectsExplicitTypologyAndStyle (0 ms)
+[ RUN      ] StructureBuildServiceTest.AliasUnknownTypeIsNull
+[       OK ] StructureBuildServiceTest.AliasUnknownTypeIsNull (0 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsDerivedFromSite (11 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis
+[       OK ] WorldForgeBuildFlowTest.SettlementParamsCarryArrivalAxis (8 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RealizationOrderTownFirst
+[       OK ] WorldForgeBuildFlowTest.RealizationOrderTownFirst (9 ms)
+[ RUN      ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger
+[       OK ] WorldForgeBuildFlowTest.AllSitesBuildThroughTheLedger (12 ms)
+[ RUN      ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues
+[       OK ] WorldForgeBuildFlowTest.RefusalRecordedAndJobContinues (10 ms)
+[ RUN      ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite
+[       OK ] WorldForgeBuildFlowTest.ResidencyTimeoutRefusesSite (13 ms)
+[ RUN      ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun
+[       OK ] WorldForgeBuildFlowTest.BuiltSitesSkippedOnRerun (12 ms)
+[ RUN      ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun
+[       OK ] WorldForgeBuildFlowTest.SiteFilterRestrictsRun (11 ms)
+[ RUN      ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed
+[       OK ] WorldForgeBuildFlowTest.UnwalkableSiteIsRefusedNotCheckpointed (11 ms)
+[ RUN      ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled
+[       OK ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled (9 ms)
+[ RUN      ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely
+[       OK ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely (0 ms)
+[ RUN      ] WorldForgeLedgerTest.RoundTrip
+[       OK ] WorldForgeLedgerTest.RoundTrip (0 ms)
+[ RUN      ] WorldForgeLedgerTest.StaleDetection
+[       OK ] WorldForgeLedgerTest.StaleDetection (0 ms)
+[==========] 82 tests from 7 test suites ran. (8891 ms total)
+[  PASSED  ] 82 tests.

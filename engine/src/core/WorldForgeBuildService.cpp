@@ -85,6 +85,13 @@ struct BuildState {
     std::chrono::steady_clock::time_point pollDeadline{};
     WorldForgeLedger ledger;
     nlohmann::json outcomes = nlohmann::json::array();
+    bool focusReleased = false;
+    /// M0: the residency focus (and the editor's raised load radii behind it) is released
+    /// EXACTLY once - by the final unit on completion, by the cancel hook on cancel.
+    void releaseFocusOnce() {
+        if (!focusReleased && deps.releaseFocus) deps.releaseFocus();
+        focusReleased = true;
+    }
 };
 
 void persistLedger(BuildState& s) {
@@ -95,7 +102,7 @@ void queueNextSite(const std::shared_ptr<BuildState>& s);
 
 void queueFinal(const std::shared_ptr<BuildState>& s) {
     s->jobs->addUnit(s->jobId, "worldforge: finalizing", [s] {
-        if (s->deps.releaseFocus) s->deps.releaseFocus();
+        s->releaseFocusOnce();
         persistLedger(*s);
         s->jobs->mergeResult(s->jobId, {{"success", true},
                                         {"sites", s->outcomes},
@@ -284,6 +291,9 @@ MainThreadJobs::Id WorldForgeBuildService::start(MainThreadJobs& jobs, const Dep
     }
     s->jobId = jobs.start("worldforge_build",
                           "worldforge: " + std::to_string(s->queue.size()) + " sites");
+    // M0: a cancelled job releases the focus on the next main-thread tick (never leaks the
+    // raised load radii; WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled).
+    jobs.setCancelHook(s->jobId, [s] { s->releaseFocusOnce(); });
     immediateResult = {{"success", true},
                        {"job_id", s->jobId},
                        {"sites_queued", static_cast<int>(s->queue.size())},

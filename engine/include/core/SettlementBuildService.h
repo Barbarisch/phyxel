@@ -42,6 +42,7 @@
 #include <nlohmann/json.hpp>
 
 #include "core/KeepClear.h"   // KeepClearBox
+#include "core/StructureBuildService.h"   // M0: Deps::structureDeps()
 
 namespace Phyxel {
 class ChunkManager;
@@ -88,6 +89,11 @@ public:
         /// Forwarded to every building: designer anchors (transition-trigger regions)
         /// the furnisher must keep clear - see StructureBuildService::Deps::keepClear.
         std::vector<KeepClearBox> keepClear;
+
+        /// M0 (WorldForgeV2Plan §5 M0, "one Deps factory"): the per-building dependencies,
+        /// derived from these - the ONLY place the settlement -> structure mapping lives
+        /// (it was copied by hand inside the building unit and in three editor sites).
+        StructureBuildService::Deps structureDeps() const;
     };
 
     /// One deferred phase of the build. `label` is the progress name shown to the user.

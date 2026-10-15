@@ -18,6 +18,7 @@
 #include "core/VoxelTemplate.h"
 #include "core/GameEventLog.h"
 #include "core/TriggerSystem.h"
+#include "core/SettlementBuildService.h"   // M0: Deps::structureDeps
 #include "core/HealthComponent.h"
 #include "core/MonsterDefinition.h"
 #include "core/LocationRegistry.h"
@@ -858,12 +859,18 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
             // (Structure Generation v2 via StructureBuildService) — the legacy v1
             // composites were removed. Legacy params (width/depth/int stories) alias
             // onto a v2 typology; materials come from the style, not a palette.
-            StructureBuildService::Deps deps;
-            deps.chunkManager  = sub.chunkManager;
-            deps.placedObjects = sub.placedObjectManager;
-            deps.templates     = sub.templateManager;
-            deps.locations     = sub.locationRegistry;
-            deps.npcs          = sub.npcManager;
+            // M0: derived through the ONE settlement->structure mapping (Deps::structureDeps);
+            // the loader has no item props / undo / lights (host services), but its region
+            // triggers keep furniture out of designer anchors like the editor's do.
+            Core::SettlementBuildService::Deps host;
+            host.chunkManager  = sub.chunkManager;
+            host.placedObjects = sub.placedObjectManager;
+            host.templates     = sub.templateManager;
+            host.locations     = sub.locationRegistry;
+            host.npcs          = sub.npcManager;
+            if (sub.triggerSystem)
+                host.keepClear = Core::keepClearFromRegionTriggers(sub.triggerSystem->regionTriggers());
+            const StructureBuildService::Deps deps = host.structureDeps();
             nlohmann::json v2p = s.value("schema", std::string()) == "v2"
                 ? s : StructureBuildService::aliasLegacyParams(s);
             nlohmann::json resp = StructureBuildService::buildV2(v2p, deps);

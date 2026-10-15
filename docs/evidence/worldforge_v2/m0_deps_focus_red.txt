@@ -1,0 +1,27 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled:WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from WorldForgeBuildFlowTest
+[ RUN      ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled
+[22:20:21.753] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 7 ms (hash 17580432909071824106)
+[22:20:21.756] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites
+[22:20:21.757] [INFO] [MainThreadJobs] job 1000000 cancelled (20/21 units done)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgeBuildFlowTest.cpp(371): error: Expected equality of these values:
+  h.releaseCalls
+    Which is: 0
+  1
+cancelling the job must release the residency focus (and restore the radii) exactly once
+
+[  FAILED  ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled (15 ms)
+[ RUN      ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely
+[       OK ] WorldForgeBuildFlowTest.StructureDepsAreDerivedFromSettlementDepsCompletely (0 ms)
+[----------] 2 tests from WorldForgeBuildFlowTest (15 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (15 ms total)
+[  PASSED  ] 1 test.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] WorldForgeBuildFlowTest.FocusIsReleasedWhenTheJobIsCancelled
+
+ 1 FAILED TEST

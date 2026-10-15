@@ -59,6 +59,7 @@ bool MainThreadJobs::cancel(Id id) {
     if (Job* j = find(id); j && !j->complete) {
         j->cancelled = true;
         j->units.clear();
+        if (j->onCancel) m_pendingCancelHooks.push_back(std::move(j->onCancel));   // runs on tick()
         j->complete = true;
         j->phase = "cancelled";
         LOG_INFO_FMT("MainThreadJobs", "job " << id << " cancelled (" << j->done << "/"
@@ -68,7 +69,19 @@ bool MainThreadJobs::cancel(Id id) {
     return false;
 }
 
+void MainThreadJobs::setCancelHook(Id id, std::function<void()> fn) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (Job* j = find(id)) j->onCancel = std::move(fn);
+}
+
 void MainThreadJobs::tick(int maxUnitsPerTick) {
+    // M0: cancel hooks first, on this (main) thread, outside the mutex.
+    std::vector<std::function<void()>> hooks;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        hooks.swap(m_pendingCancelHooks);
+    }
+    for (auto& h : hooks) if (h) h();
     for (int n = 0; n < maxUnitsPerTick; ++n) {
         Unit unit;
         Id runningId = 0;

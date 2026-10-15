@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 
 #include "core/MainThreadJobs.h"
+#include <memory>
 #include "core/SettlementBuildService.h"
 #include "core/WorldForgeLedger.h"
 #include "core/WorldForgePlan.h"
@@ -37,7 +38,9 @@ public:
         // Settlement realization dependencies (same struct build_settlement fills).
         SettlementBuildService::Deps settlement;
         // The applied plan (required) + the seed echo for the result payload.
-        const WorldForgePlan* plan = nullptr;
+        // M0: SHARED ownership - the job outlives any single frame and must never dangle
+        // (the editor held a raw pointer into the generator for the job's lifetime).
+        std::shared_ptr<const WorldForgePlan> plan;
         uint32_t worldSeed = 0;
 
         // Residency driver. focusResidency(pos, radius): anchor streaming on the site

@@ -54,7 +54,7 @@ struct Harness {
     std::vector<uint32_t> plannedSites;      // seeds, in settlement-planning invocation order
 
     Harness() {
-        deps.plan = plan.get();
+        deps.plan = plan;
         deps.worldSeed = 42;
         deps.loadLedger = [this] { return ledgerStore; };
         deps.saveLedger = [this](const std::string& s) { ledgerStore = s; };
@@ -351,4 +351,53 @@ TEST(WorldForgeBuildFlowTest, UnwalkableSiteIsRefusedNotCheckpointed) {
     for (const auto& s : sites)
         if (s.value("status", "") == "refused") sawGate = s.contains("walkability");
     EXPECT_TRUE(sawGate) << "the refusal outcome must carry the walkability result";
+}
+
+// ── M0 (docs/WorldForgeV2Plan.md §5 M0): the residency focus is ALWAYS released ────────
+// The editor's focus driver raises loadDistance/unloadDistance to the site radius and
+// restores them in releaseFocus - which only the job's final unit called. A job cancelled
+// (or dropped) mid-run leaked the raised radii and the focus hold. RED: cancel -> 0 releases.
+TEST(WorldForgeBuildFlowTest, FocusIsReleasedWhenTheJobIsCancelled) {
+    Harness h;
+    h.deps.residencyReady = [](const WorldForgeSite&) { return false; };   // never ready: polls
+    h.deps.maxResidencyPolls = 1 << 20;
+    h.deps.residencyTimeoutSeconds = 3600;
+    nlohmann::json immediate;
+    const auto id = WorldForgeBuildService::start(h.jobs, h.deps, {}, immediate);
+    for (int i = 0; i < 20; ++i) h.jobs.tick(1);   // a few residency polls, focus acquired
+    ASSERT_GE(h.focusCalls, 1) << "rig: the job must have taken the focus";
+    ASSERT_EQ(h.releaseCalls, 0);
+    ASSERT_TRUE(h.jobs.cancel(id));
+    h.jobs.tick(1);   // the hook runs on the next MAIN-THREAD tick (cancel may come from HTTP)
+    h.jobs.tick(1);   // a second tick must not release twice
+    EXPECT_EQ(h.releaseCalls, 1)
+        << "cancelling the job must release the residency focus (and restore the radii) exactly once";
+}
+
+// The settlement -> structure dependency mapping lives in ONE place (Deps::structureDeps).
+TEST(WorldForgeBuildFlowTest, StructureDepsAreDerivedFromSettlementDepsCompletely) {
+    SettlementBuildService::Deps s;
+    int chunkSentinel = 0, poSentinel = 0, tmSentinel = 0, lrSentinel = 0, npcSentinel = 0, ipSentinel = 0;
+    s.chunkManager  = reinterpret_cast<Phyxel::ChunkManager*>(&chunkSentinel);
+    s.placedObjects = reinterpret_cast<Core::PlacedObjectManager*>(&poSentinel);
+    s.templates     = reinterpret_cast<Phyxel::ObjectTemplateManager*>(&tmSentinel);
+    s.locations     = reinterpret_cast<Core::LocationRegistry*>(&lrSentinel);
+    s.npcs          = reinterpret_cast<Core::NPCManager*>(&npcSentinel);
+    s.itemProps     = reinterpret_cast<Core::ItemPropManager*>(&ipSentinel);
+    s.keepClear.push_back({});
+    int undo = 0, lights = 0;
+    s.pushUndo = [&](const glm::ivec3&, const glm::ivec3&, const std::string&) { ++undo; };
+    s.addPointLight = [&](const glm::vec3&, const glm::vec3&, float, float) { ++lights; return 1; };
+    const auto d = s.structureDeps();
+    EXPECT_EQ(static_cast<void*>(d.chunkManager), static_cast<void*>(s.chunkManager));
+    EXPECT_EQ(static_cast<void*>(d.placedObjects), static_cast<void*>(s.placedObjects));
+    EXPECT_EQ(static_cast<void*>(d.templates), static_cast<void*>(s.templates));
+    EXPECT_EQ(static_cast<void*>(d.locations), static_cast<void*>(s.locations));
+    EXPECT_EQ(static_cast<void*>(d.npcs), static_cast<void*>(s.npcs));
+    EXPECT_EQ(static_cast<void*>(d.itemProps), static_cast<void*>(s.itemProps));
+    EXPECT_EQ(d.keepClear.size(), 1u);
+    ASSERT_TRUE(static_cast<bool>(d.pushUndo));
+    ASSERT_TRUE(static_cast<bool>(d.addPointLight));
+    d.pushUndo({}, {}, "x"); d.addPointLight({}, {}, 1.f, 1.f);
+    EXPECT_EQ(undo, 1); EXPECT_EQ(lights, 1);
 }
