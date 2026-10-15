@@ -116,6 +116,7 @@ public:
         int lastAllocated = 0, lastFreed = 0, lastRings = 0, lastCompacted = 0; long lastHeld = 0;
         double unstoredM3 = 0.0;          ///< water the last upload could not store (counted, never silent)
         Buffer f, fOrig, fPrev, u, v, w, uOld, vOld, wOld, occ, src, liq, diag, rhs, p, res;
+        Buffer fLo;                      ///< 26.10: per cell, the part of the transport's fill change the float store could not hold
         Buffer valA, valB, knownA, knownB, first, keep, dropped, part, part2, out;
         Buffer origLat;                  ///< extrapolation scratch: the lattice before the halo pass (NOT uOld: that is the FLIP base)
         // Phase B2 on the GPU: the particle transport (FlipTransport mirrored on the device)
@@ -131,6 +132,8 @@ public:
         bool  solidRatesPending = false; ///< setSolids uploaded new fields: the next step computes q and the ledger marks first (wc_classify mode 1)
         float solidFrame = 0.0f;         ///< the frame (s) the uploaded bodies cover - q's T
         bool  hasSolids = false;         ///< the buffer holds anything nonzero
+        Buffer stageCap;                 ///< 26.10 test hook: f after each stage of the last tick (host-visible, s_stageCapture)
+        double stageLast = -1.0;         ///< 26.10: the last captured call's end sum (cells), -1 = none
         Buffer births, deposit;          ///< 21 (droplets): per column 8 floats (wc_column_ops mode 4/5); per cell fractions to add
         VkDeviceSize offBirths = 0, offDeposit = 0;
         bool dropletsOn = false;         ///< run the birth pass after every tick
@@ -163,7 +166,15 @@ public:
     void shutdown();
     bool ready() const { return m_device != VK_NULL_HANDLE && m_pool != VK_NULL_HANDLE; }
     /// 26.9: the projection starts from the still-water pressure of the water as it is now (classify mode 2), not 0.
-    static inline bool s_stillWaterGuess = false;   // OFF by default: 26.9 (a resting body loses water with it at 27 sweeps)
+    static inline bool s_stillWaterGuess = true;    // ON (26.10): the resting-body loss was float rounding in the fill store, fixed (fLo)
+    /// 26.10 test hook: copy f after every stage of each single-tick, single-substep call and sum it on the host in double -
+    /// exact per-stage mass changes (the device's own sums are float). s_stageDm[k] accumulates stage k's change in cell
+    /// fractions: 0 between calls, 1 sources, 2 transport gather, 3 transport carry, 4 ledger, 5 compaction, 6 rest of the
+    /// substep, 7 residue sweep, 8 droplet births. s_stageCalls counts the calls captured (multi-substep calls are skipped).
+    static constexpr int kStages = 9;
+    static inline bool s_stageCapture = false;
+    static inline double s_stageDm[kStages] = {};
+    static inline long s_stageCalls = 0;
     void setOmega(float w) { m_omega = w; }
     float omega() const { return m_omega; }
 

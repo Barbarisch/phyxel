@@ -29,7 +29,7 @@
 
 ---
 
-## 0a. Where things stand, and what is next (2026-10-11)
+## 0a. Where things stand, and what is next (2026-10-14)
 
 **Signed off by the owner:** the small-pond feel - blasts, debris both ways, floaters, the drawn surface (2026-10-09,
 §19.8); the ripple layer's black/white-square fix (2026-10-11, "new ripples look really great", §22.12.2). Accepted for
@@ -48,8 +48,8 @@ containers.
 **Open small-body items, by weight** (each with its section):
 - *Feel and correctness:* voids made by moving water are closed by compaction, not prevented - the cure is a volume
   correction in the pressure solve (§24.11); short waves on a half-full cell keep 0.53-0.82 per swing (§24.11); the
-  ±2 cm terraces / cells stuck at f = 0.5 (§19.8 - causes FOUND and fixed 2026-10-14 in §26.9, not signed off); a 0.08-0.10 m/s phantom current on a still GPU
-  pond (§19.6); wood floats high and a floating block's pond never sleeps (§19.3, §24.8; cure M4 two-way force, §20.6);
+  ±2 cm terraces / cells stuck at f = 0.5 (§19.8 - causes FOUND and fixed 2026-10-14 in §26.9, signed off); a 0.08-0.10 m/s phantom current on a still GPU
+  pond (§19.6 - not re-measured since 26.10 made still GPU water settle); wood floats high and a floating block's pond never sleeps (§19.3, §24.8; cure M4 two-way force, §20.6);
   added mass not modelled (§24.10).
 - *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater S4 not wired to the breaking ledger (§21.4, §22.12);
   1.5-2.3 % black facets at steep tilts from a second cause (§22.12.2).
@@ -71,11 +71,13 @@ their numbers (§25.24-25.38), Manning at the bed and the generator-line floor (
 measuring tools. **§26 P1 DONE and signed off (2026-10-13, §26.5):** the cause was the fill transport (face by face, each
 move capped at the receiver's room); the all-faces-at-once transport is the default on CPU and GPU (100.0 % of Manning's
 depth and speed). **§26 P2a BUILT (26.8):** the GPU core stores water in bricks that follow it, bit-identical to a box;
-the creek's cost gate is OPEN. **26.9 (2026-10-14, built, not signed off):** the surface at the liquid threshold fixed in
-BOTH backends (the surface jump, films thrown over a slow surface, float-rounding losses - 19.8's "cells stuck at f = 0.5"),
-ON by default; the still-water first guess built but OFF (with a resting body it loses water at the engine's sweeps), so
-GPU still water still creeps. **Next:** the owner's A/B of 26.9 (videos in 26.9); the guess's body loss; then the cost
-(the sweeps cannot buy it - flat bricks and fewer dispatches), P2b (the engine on bricks), P3. The §23 slime experiment stays queued.
+the creek's cost gate is OPEN. **26.9 SIGNED OFF (owner 2026-10-14, "videos look good"):** the surface at the liquid
+threshold fixed in BOTH backends (the surface jump, films thrown over a slow surface, float-rounding losses - 19.8's "cells
+stuck at f = 0.5"). **26.10 (2026-10-14, built, not signed off):** the still-water first guess is ON - its resting-body loss
+was the float store rounding at f = 0.5 (and the GPU compiler folding every "exact difference"), fixed with a per-cell
+remainder; GPU still water now settles and sleeps (`GpuRestDecisionDeterministic` green, the live pond asleep in 2 s).
+**Next:** the owner's A/B of 26.10 (videos in 26.10); then the cost (the sweeps cannot buy it - flat bricks and fewer
+dispatches), P2b (the engine on bricks), P3. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5176,10 +5178,9 @@ immediate neighbours (where water can move next) - never a box of dry banks and 
 ### 26.3 Phases (each designed in detail and design-checked before it is built; the owner looks in motion)
 
 **Status (2026-10-14):** P1 **DONE** (signed off 2026-10-13, 26.5). P2a **DONE** - storage in bricks, bit-identical (26.8).
-**26.9 surface fixes BUILT, ON by default, not signed off** (the threshold surface, quiet rise, exact moves - CPU and GPU;
-A/B videos recorded). **The still-water guess BUILT, OFF by default** (a resting body loses water with it - 26.9). OPEN:
-GPU still water creeps (needs the guess); the P2 cost gate (1.80 ms at 40 sweeps for one creek; 2 ms is for ALL water).
-P2b, P3, P4, P5 **not started**.
+**26.9 surface fixes DONE** (signed off 2026-10-14). **26.10 still-water guess ON by default, BUILT, not signed off** (the
+resting-body loss found and fixed - a per-cell float remainder; GPU still water settles and sleeps). OPEN: the P2 cost gate
+(1.80 ms at 40 sweeps for one creek; 2 ms is for ALL water). P2b, P3, P4, P5 **not started**.
 
 - **P1 - the pond model carries a creek.** [DONE, signed off 2026-10-13 - 26.5] Find, by measurement, why the pond core runs shallow fast water deep and slow,
   and fix it in the core (CPU reference first, then the GPU kernels - one law, both backends). Rig: the straight 1:100
@@ -5510,16 +5511,15 @@ used 1/60): `WaterBrickTest.DISABLED_DiagSettlingLoss` - 2.8e-4 m^3 in 20 s and 
 liquid threshold - flickering in a CHECKERBOARD (0.49997 / 0.50003, KE 3e-3). The cold start (what the owner signed off)
 holds: 3e-6 m^3 in the same rig. Reverted (`wc_classify.comp` zeroes p every substep again).
 
-**Open rows (honest state after P2a):** (1) [**STILL OPEN after 26.9** - the cure (the still-water guess) is built but OFF:
-with a body resting in the pond it loses water at the engine's sweep count; 26.9 also found and fixed the threshold-surface
-causes the warm start exposed] the GPU's cold-start projection (40 sweeps) leaves still water creeping
+**Open rows (honest state after P2a):** (1) [**CLOSED by 26.10** - the still-water guess is ON; its resting-body loss was
+the float store, fixed; still GPU water settles and sleeps, `GpuRestDecisionDeterministic` green] the GPU's cold-start projection (40 sweeps) leaves still water creeping
 (~1e-5 of a cell per tick per column at dt 1/60) - a still GPU pool never sleeps under the all-faces transport
 (`GpuRestDecisionDeterministic` (a) red) and the live pond drifts ~1e-6 m^3/s (24 s: -2.7e-5 m^3; this predates P2a). The
 fix is a CONVERGED solve that does not destabilise a threshold surface - the warm start alone did; it belongs with the
 cost levers (b)/(c) above (a converged, cheaper solve is both). (2) The creek's cost (above). (3) `GpuFlipBulkParityAndRunup`
 (the known FLIP row).
 
-### 26.9 The surface at the liquid threshold, and a still-water first guess (2026-10-14). Status: surface fixes BUILT + ON (not signed off); the guess BUILT + OFF
+### 26.9 The surface at the liquid threshold, and a still-water first guess (2026-10-14). Status: surface fixes DONE (owner signed off 2026-10-14, "videos look good"); the guess ON since 26.10
 
 **The ask (owner, 2026-10-14: "get it done"):** 26.8's next step - a converged, cheaper GPU solve, for open row (1) (still
 GPU water creeps and never sleeps; the live pond drifts) and the cost. What happened, in order, each step measured:
@@ -5591,9 +5591,61 @@ residual at 40 sweeps: 12 with the guess, 5.7 cold - `DiagSweepsAfterTheGuess`).
 shallow water, (b) fewer, fused dispatches; a solver that converges moving water (multigrid-preconditioned CG, or
 brick-local sweeps in shared memory) if the parity or the feel asks for it.
 
-**API.** `/api/debug/water_transport` echoes and sets `still_water_guess` (GPU, default false), `surface_ghost` (CPU and
+**API.** `/api/debug/water_transport` echoes and sets `still_water_guess` (GPU, default true since 26.10), `surface_ghost` (CPU and
 GPU, default true), `quiet_rise` (fraction, default 0.002; 0 = off) beside `all_faces`. **Design keys.** Pure functions
 of the water now; no chunk or brick dependence (the brick equality tests pass unchanged); no new world-recipe parameters.
+
+### 26.10 Where the resting body's water went: the float store (2026-10-14). Status: guess ON, BUILT, not signed off
+
+**The ask (owner, 2026-10-14: "get it done"):** 26.9's open item - find the still-water guess's resting-body loss, then
+switch the guess on (it is what lets still GPU water settle; 26.8 open row 1).
+
+**1. An exact meter per stage.** The device's own mass sums are float (6e-5 of a cell at ~650 cells) and could not see it.
+Test hook `WaterCoreGpu::s_stageCapture`: on single-tick, single-substep calls the step copies f after every stage into a
+host-visible buffer and the host sums each copy in double - `s_stageDm[k]` per stage (between calls, sources, gather,
+carry, ledger, compaction, rest of the substep, residue sweep, droplet births). Used by `DiagRestingBodyKeepsTheWater`.
+Result with the guess on (27.5 s, 1/3 m stone resting, 27 sweeps, dt 1/165): mass -1.82e-4 m^3, of which the **gather
+(the all-faces fill update) -1.79e-4**, compaction -1.2e-6, residue sweep -2.1e-6, every other stage 0.
+
+**2. The flows balance; the store does not.** A probe writing each cell's `ins - outs x scale` summed it to -1.9e-10 m^3
+over the run: the transport's flows are conservative. So the loss is the float store of `fo + change`. Why one-sided: the
+pond's top layer sits at f = 0.5 and the float step just below 0.5 is half the step just above, so the tiny back-and-forth
+flows of a partly converged solve near a body round down more than up, tick after tick. (Why the guess and not the cold
+start: the cold start at 27 sweeps is so far from converged that its flows are not tiny; at 160 sweeps both were fine.)
+
+**3. Why 26.9's compensated sum "did nothing", and why the residue sweep counted 0.** The GPU compiler folds `(a + b) - a`
+into `b` unless the arithmetic is `precise` (GLSL NoContraction). Every "exact difference" in the kernels was the rounded
+one: compaction's `fa - (nb - fb)`, the sweep's count of the unheld part (`fc - (sum - fn)`, always 0 - 2.4e-6 m^3 went
+uncounted in 27 s), and 26.9's Kahan remainder.
+
+**4. The fix (GPU, `precise` two-sum).** `twoSumErr(a, b, s)` in `water_core.glsl` (Knuth: a + b == s + err exactly). A new
+per-cell buffer `fLo` holds what the float store could not hold:
+- the gather (`wc_fill_advect` mode 4) adds the cell's remainder to its change and keeps the new rounding error in `fLo`; a
+  dry cell nothing reaches keeps its remainder (no film from nothing), and a remainder that would take a cell below zero
+  waits;
+- the column carry (mode 5), compaction, the ledger, deposits and droplet sprays move water with `addExact` (rounding error
+  into the cell's `fLo`); the residue sweep merges exactly and the emptied cell's remainder follows its water down (a
+  dropped residue counts its remainder too);
+- `fLo` is zeroed on create and upload (it belonged to the water that was there), zeroed for a fresh brick, and moves with
+  a brick when slots are compacted. It is never drawn or reported: it is below one float step of its cell.
+The CPU is unchanged (it accumulates the transport in double; its still pond was already exact).
+
+**5. Measured.** `DiagRestingBodyKeepsTheWater` (27.5 s): guess on **-1.5e-7 m^3** (was -1.82e-4; ~1200x less), cold
++3e-8; the stage table shows compaction and the sweep now handing their rounding to `fLo` and the gather paying
+it back. All GPU water tests pass except the known FLIP row - **`GpuRestDecisionDeterministic` is green** (still GPU water
+settles and sleeps); CPU water tests 302/302. Live (WaterBench_Small, the 4 x 4 pond at the threshold): the still pond on the
+GPU is quiet within 2 s and its mass flat for 30 s (was never still, +7e-6 m^3 in 24 s); with auto-sleep it sleeps into
+spans. The slosh (25 s): guess off +-0, on -4.5e-7 m^3; the solve's worst residual in the moving slosh 0.06-0.2 with the
+guess vs 2-3 without; the waves calm on the same schedule (KE 3e-4 vs 3e-5 at 25 s, one noisy sample each). Pebble pair:
+both stones settle at 1.50 m down either way.
+
+**6. On by default.** `WaterCoreGpu::s_stillWaterGuess = true`. A/B: `/api/debug/water_transport {still_water_guess}`.
+**For the owner:** `docs/evidence/water_core_e/slosh_live_p2610_ab.mp4` and `pebble_pair_p2610_ab.mp4` (left = guess off,
+as signed off; right = guess on), plus the `_off` / `_on` clips and JSON.
+
+**Still open:** the cost (26.9 point 6 - about 1.2 ms of a creek call is not the solve; flat bricks and fewer dispatches);
+the FLIP row. **Design keys:** a per-cell storage detail, a pure function of the water; no chunk or brick dependence (the
+remainder moves with its brick); no new parameters.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

@@ -67,6 +67,9 @@ uint vIdx(int x, int y, int z)    { return WC_DENSE ? uint(x) + uint(pc.nx) * (u
 uint wIdx(int x, int y, int z)    { return WC_DENSE ? uint(x) + uint(pc.nx) * (uint(y) + uint(pc.ny) * uint(z)) : brickIdx(x, y, z); }
 uint latIdx(int L, ivec3 c)       { return L == 0 ? uIdx(c.x, c.y, c.z) : (L == 1 ? vIdx(c.x, c.y, c.z) : wIdx(c.x, c.y, c.z)); }
 bool inBounds(int x, int y, int z) { return x >= 0 && y >= 0 && z >= 0 && x < pc.nx && y < pc.ny && z < pc.nz; }
+// 26.10: the rounding error of s = a + b (Knuth two-sum: a + b == s + err exactly). `precise` keeps the compiler from folding
+// (a + b) - a into b - it did, so every "exact difference" in these kernels was the rounded one (WaterCore.md 26.10).
+float twoSumErr(float a, float b, float s) { precise float bv = s - a; precise float e = (a - (s - bv)) + (b - bv); return e; }
 
 // Decode a flat thread id into lattice coordinates for a lattice of size (sx, sy, sz) - the DENSE layout only.
 ivec3 decode(uint id, int sx, int sy) { return ivec3(int(id % uint(sx)), int((id / uint(sx)) % uint(sy)), int(id / uint(sx * sy))); }

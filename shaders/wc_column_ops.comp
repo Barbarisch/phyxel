@@ -30,6 +30,9 @@ layout(std430, set = 0, binding = 5)          buffer Dropped { float dropped[]; 
 layout(std430, set = 0, binding = 6) readonly buffer Solid { vec4 solid[]; };        // 20: (s, q, wake, ledger) per cell
 layout(std430, set = 0, binding = 7)          buffer Births  { float births[]; };   // 21: 8 floats per column
 layout(std430, set = 0, binding = 8)          buffer Deposit { float deposit[]; };  // 21: cell fractions to add
+layout(std430, set = 0, binding = 10)         buffer FLo     { float fLo[]; };      // 26.10: what a cell's float could not hold (wc_fill_advect)
+// 26.10: f[i] += d with what the float store cannot hold kept in fLo[i] - every move below is exact
+void addExact(uint i, float d) { const float a = f[i]; precise float s = a + d; f[i] = s; fLo[i] += twoSumErr(a, d, s); }
 
 // 21.2 birth helpers (mirror WaterDroplets.cpp: airCell / supported / cellVelocity)
 bool airC(int x, int y, int z, float film) {
@@ -90,10 +93,9 @@ void main() {
             if (uc * uc + wc * wc > 0.01 * vfall * vfall) continue;
             const float moved = min(min(fa, 1.0 - sb - fb), pc.param0 == 1.0 ? cap : min(cap, pc.param1 * pc.dt / pc.h));   // 24.11: slowly in moving water (param1 m/s)
             if (moved <= 0.0) continue;
-            // 26.9: the exact difference leaves the donor (fb + moved rounds to fb's resolution - WaterSolver::compactSubmergedPartials)
-            const float nb = fb + moved;
-            f[cellIdx(x, y, z)] = nb;
-            f[cellIdx(x, y + 1, z)] = fa - (nb - fb);
+            // 26.9/26.10: exact - what either float cannot hold stays in its fLo (the old nb - fb was folded to `moved` by the compiler)
+            addExact(cellIdx(x, y, z), moved);
+            addExact(cellIdx(x, y + 1, z), -moved);
         }
     } else if (pc.mode == 3) {
         for (int y = 0; y < pc.ny; ++y) {
@@ -109,8 +111,8 @@ void main() {
                 const float room = 1.0 - solid[j].x - f[j];
                 if (room <= 0.0) continue;
                 const float take = min(room, carry);
-                f[j] += take;
-                f[i] -= take;
+                addExact(j, take);   // 26.10: exact
+                addExact(i, -take);
                 carry -= take;
             }
         }
@@ -153,7 +155,7 @@ void main() {
             if (vUp <= vc) continue;
             const float frac = min(ft * (vUp - vc) * dt / pc.h, ft - film);
             if (frac <= 0.0) continue;
-            f[i] = ft - frac;
+            addExact(i, -frac);   // 26.10: exact
             vec3 vel = cellVel(x, y, z); vel.y = vUp;
             addBirth(col, frac, float(y) + 1.0, vel);
             births[col * 8u + 6u] += 1.0;
@@ -175,7 +177,7 @@ void main() {
             lastOpen = y;
             const float room = max(0.0, 1.0 - solid[i].x - f[i]);
             const float put = min(room, carry);
-            f[i] += put; carry -= put;
+            addExact(i, put); carry -= put;   // 26.10: exact
         }
         if (carry > 0.0) addBirth(id, carry, float(max(lastOpen, 0)) + 0.5, vec3(0.0));
     } else {
@@ -190,10 +192,11 @@ void main() {
             // difference is a documented parity tolerance: residue below 1e-6 of a cell)
             if (y > 0 && !blocked(x, y - 1, z)) {
                 const float fn = f[cellIdx(x, y - 1, z)];
-                // 26.9: what float cannot hold in the receiver is counted as dropped, never lost (WaterSolver::sweepResidue)
-                if (fn + fc <= 1.0) { const float sum = fn + fc; f[cellIdx(x, y - 1, z)] = sum; drop += max(0.0, fc - (sum - fn)) * pc.h * pc.h * pc.h; placed = true; }
+                // 26.10: exact - what the receiver's float cannot hold stays in its fLo, and the emptied cell's remainder follows the
+                // water down (the old count of the unheld part was folded to 0 by the compiler: 2.4e-6 m^3 in 27 s went uncounted)
+                if (fn + fc <= 1.0) { const uint j = cellIdx(x, y - 1, z), i = cellIdx(x, y, z); addExact(j, fc); fLo[j] += fLo[i]; fLo[i] = 0.0; placed = true; }
             }
-            if (!placed) drop += fc * pc.h * pc.h * pc.h;
+            if (!placed) { drop += (fc + fLo[cellIdx(x, y, z)]) * pc.h * pc.h * pc.h; fLo[cellIdx(x, y, z)] = 0.0; }
             f[cellIdx(x, y, z)] = 0.0;
             v[vIdx(x, y, z)] = 0.0;
             v[vIdx(x, y + 1, z)] = 0.0;

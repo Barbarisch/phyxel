@@ -796,6 +796,8 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagRestingBodyKeepsTheWater) {
         std::printf("  %s (cube half %.2f m)\n", guess ? "GUESS" : "cold ", half);
         const int n = static_cast<int>(27.5f / dt);
         double dropped = 0.0, births = 0.0;
+        WaterCoreGpu::s_stageCapture = true; WaterCoreGpu::s_stageCalls = 0;
+        for (double& d : WaterCoreGpu::s_stageDm) d = 0.0;
         for (int k = 0; k < n; ++k) {
             b.centre.y = std::max(half + 0.001f, 2.6f - 0.5f * (k + 1) * dt);
             aux.updateSolidFields({b}, dt);
@@ -816,9 +818,16 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagRestingBodyKeepsTheWater) {
                     std::printf("      negative f: %d cells, %.3e; over-full (f + s > 1): %d cells, %.3e; water in body cells %.4f cells\n", nNeg, neg, nOver, over, inBody);
                 }
                 std::printf("    t %5.1f s: body y %.2f, mass %+.3e m^3 (residue dropped, counted %.3e; droplet births %.3e), ke %.1e, asleep %d, residual %.2e\n", (k + 1) * dt, b.centre.y, w.totalMass() - m0, dropped, births, st.kineticEnergy, int(st.asleep), st.rbgsResidualMax);
+                {   // 26.10: exact stage sums (cells -> m^3)
+                    static const char* nm[WaterCoreGpu::kStages] = {"between calls", "sources", "gather", "carry", "ledger", "compaction", "rest", "residue", "births"};
+                    std::printf("      stages (%ld calls):", WaterCoreGpu::s_stageCalls);
+                    for (int q = 0; q < WaterCoreGpu::kStages; ++q) std::printf(" %s %+.2e", nm[q], WaterCoreGpu::s_stageDm[q] * kH3 * kH3 * kH3);
+                    std::printf("\n");
+                }
             }
         }
         gpu.destroyVolume(vol);
+        WaterCoreGpu::s_stageCapture = false;
     }
     WaterCoreGpu::s_stillWaterGuess = guessWas;
 }

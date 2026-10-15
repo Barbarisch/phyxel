@@ -21,6 +21,7 @@ layout(std430, set = 0, binding = 4) readonly buffer W     { float w[]; };
 layout(std430, set = 0, binding = 5) readonly buffer Occ   { uint occ[]; };
 layout(std430, set = 0, binding = 6) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
 layout(std430, set = 0, binding = 7)          buffer Out   { float outSum[]; };   // 26.5: a cell's total outflow (scratch: the projection's residual buffer)
+layout(std430, set = 0, binding = 9)          buffer FLo   { float fLo[]; };      // 26.10: what the float store could not hold, per cell
 
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
 
@@ -63,17 +64,19 @@ void allFaces(uint id) {
             const uint i = cellIdx(x, y, z);
             if (blocked(x, y, z) || absentCell(x, y, z)) {   // an absent brick is never written: the excess parks below it
                 if (carry > 0.0 && absentCell(x, y, z)) atomicAdd(bricks[pc.counterOff], 1);
-                if (carry > 0.0 && last >= 0) f[uint(last)] += carry;
+                if (carry > 0.0 && last >= 0) { const uint l = uint(last); const float a = f[l]; precise float s = a + carry; f[l] = s; fLo[l] += twoSumErr(a, carry, s); }
                 carry = 0.0; last = -1; continue;
             }
-            // 26.9: add only what this cell can HOLD in float - the rest stays in the carry (f + carry rounds to f's resolution:
-            // excess carried into nearly full cells beside a body vanished, 1.6e-6 of a cell a tick - DiagRestingBodyKeepsTheWater)
-            { const float before = f[i]; f[i] = before + carry; carry -= f[i] - before; }
+            // 26.9/26.10: add only what this cell can HOLD in float - the rest stays in the carry, exactly (two-sum, `precise`)
+            { const float before = f[i]; precise float nf = before + carry; f[i] = nf; carry = twoSumErr(before, carry, nf); }
             last = int(i);
             const float room = 1.0 - solid[i].x;
-            if (f[i] > room) { carry += f[i] - room; f[i] = room; }
+            if (f[i] > room) {   // the excess joins the carry; what the carry cannot hold of it stays in this cell's fLo
+                const float fi = f[i]; precise float ex = fi - room; fLo[i] += twoSumErr(fi, -room, ex);
+                const float c0 = carry; precise float nc = c0 + ex; fLo[i] += twoSumErr(c0, ex, nc); carry = nc; f[i] = room;
+            }
         }
-        if (carry > 0.0 && last >= 0) f[uint(last)] += carry;
+        if (carry > 0.0 && last >= 0) { const uint l = uint(last); const float a = f[l]; precise float s = a + carry; f[l] = s; fLo[l] += twoSumErr(a, carry, s); }
         return;
     }
     ivec3 c;
@@ -98,7 +101,20 @@ void allFaces(uint id) {
         }
     }
     if (pc.mode == 3) outSum[id] = outs;
-    else f[id] = fo[id] - outs * myScale + ins;
+    else {
+        // 26.10 (WaterCore.md): the flows balance exactly; the STORE does not - fo + change rounds to fo's float step, and at the
+        // liquid threshold (f = 0.5) the step below is half the step above, so tiny back-and-forth flows wore a pond down
+        // (DiagRestingBodyKeepsTheWater: -1.8e-4 m^3 in 27 s, all of it here). Two-sum: what the store could not hold stays in
+        // fLo and joins the cell's next change. `precise`: without it the compiler may fold (a + b) - a into b.
+        precise float d = ins - outs * myScale;
+        const float a = fo[id];
+        float keep = fLo[id];
+        // a dry cell nothing reaches keeps its remainder for when water returns (no film from nothing), and never below zero
+        if ((a > 0.0 || ins > 0.0) && a + d + keep >= 0.0) { d = d + keep; keep = 0.0; }
+        precise float sum = a + d;
+        f[id] = sum;
+        fLo[id] = keep + twoSumErr(a, d, sum);
+    }
 }
 
 void main() {

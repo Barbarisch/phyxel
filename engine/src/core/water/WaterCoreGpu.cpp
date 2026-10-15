@@ -19,7 +19,7 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {9, 5, 5, 5, 7, 7, 7, 10, 12, 6, 10, 10, 10, 11, 5, 7, 6, 7, 6, 9};
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 7, 6, 7, 6, 9};
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge
 int floorMod8(int v) { return ((v % kB) + kB) % kB; }
@@ -95,14 +95,14 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
         uint32_t i = 0; for (const Buffer* b : bufs) { p.bindBuffer(i++, b->buf, b->bytes); } p.updateDescriptors();
     };
     const Buffer* br = &vol.bricks;
-    bindAll(*vol.pipes[FillAdvect], {&vol.f, &vol.fOrig, &vol.u, &vol.v, &vol.w, &vol.occ, &vol.solid, &vol.res, br});   // res: 26.5's scratch (the projection rewrites it later in the substep)
+    bindAll(*vol.pipes[FillAdvect], {&vol.f, &vol.fOrig, &vol.u, &vol.v, &vol.w, &vol.occ, &vol.solid, &vol.res, br, &vol.fLo});   // res: 26.5's scratch (the projection rewrites it later in the substep)
     bindAll(*vol.pipes[VelAdvectU], {&vol.uOld, &vol.vOld, &vol.wOld, &vol.u, br});
     bindAll(*vol.pipes[VelAdvectV], {&vol.uOld, &vol.vOld, &vol.wOld, &vol.v, br});
     bindAll(*vol.pipes[VelAdvectW], {&vol.uOld, &vol.vOld, &vol.wOld, &vol.w, br});
     bindAll(*vol.pipes[FaceOpsU],   {&vol.f, &vol.occ, &vol.u, &vol.p, &vol.liq, &vol.solid, br});
     bindAll(*vol.pipes[FaceOpsV],   {&vol.f, &vol.occ, &vol.v, &vol.p, &vol.liq, &vol.solid, br});
     bindAll(*vol.pipes[FaceOpsW],   {&vol.f, &vol.occ, &vol.w, &vol.p, &vol.liq, &vol.solid, br});
-    bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped, &vol.solid, &vol.births, &vol.deposit, br});   // 21: + births, deposit
+    bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped, &vol.solid, &vol.births, &vol.deposit, br, &vol.fLo});   // 21: + births, deposit; 26.10: + fLo
     bindAll(*vol.pipes[Surface],    {&vol.f, &vol.occ, &vol.surf, &vol.u, &vol.w, &vol.solid, br});   // Phase F (+ u, w: E2 surface velocity; + solid: 20)
     bindAll(*vol.pipes[Classify],   {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.src, &vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.solid, br});
     bindAll(*vol.pipes[Rbgs],       {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res, br});
@@ -189,7 +189,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     vol->latticeMax = std::max({vol->nu, vol->nv, vol->nw});
     vol->groups = std::max((std::max({vol->cells, vol->latticeMax, vol->columns}) + 255) / 256, 2 * vol->mapCount) + 1;
     const VkDeviceSize F4 = sizeof(float);
-    bool ok = createBuffer(vol->f, vol->cells * F4, false, err) && createBuffer(vol->fOrig, vol->cells * F4, false, err) && createBuffer(vol->fPrev, vol->cells * F4, false, err)
+    bool ok = createBuffer(vol->f, vol->cells * F4, false, err) && createBuffer(vol->fLo, vol->cells * F4, false, err) && createBuffer(vol->fOrig, vol->cells * F4, false, err) && createBuffer(vol->fPrev, vol->cells * F4, false, err)
            && createBuffer(vol->u, vol->nu * F4, false, err) && createBuffer(vol->v, vol->nv * F4, false, err) && createBuffer(vol->w, vol->nw * F4, false, err)
            && createBuffer(vol->uOld, vol->nu * F4, false, err) && createBuffer(vol->vOld, vol->nv * F4, false, err) && createBuffer(vol->wOld, vol->nw * F4, false, err)
            && createBuffer(vol->occ, vol->cells * 4, false, err) && createBuffer(vol->src, vol->cells * F4, false, err) && createBuffer(vol->liq, vol->cells * 4, false, err)
@@ -229,7 +229,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         VkCommandBuffer cmd = beginCommands();
         for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                           &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep,
-                          &vol->origLat, &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks})
+                          &vol->origLat, &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->fLo})
             vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
         submitAndWait(cmd);
     }
@@ -252,7 +252,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     vkDeviceWaitIdle(m_device);
     for (auto& p : vol->pipes) if (p) { p->cleanup(); p.reset(); }
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
-                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->origLat, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->staging})
+                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->origLat, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->fLo, &vol->staging})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -483,7 +483,7 @@ void WaterCoreGpu::recordSlotUploads(VkCommandBuffer cmd, Volume& vol, const std
         if (zero)
             for (Buffer* b : {&vol.f, &vol.fOrig, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.uOld, &vol.vOld, &vol.wOld, &vol.src, &vol.liq,
                               &vol.diag, &vol.rhs, &vol.p, &vol.res, &vol.valA, &vol.valB, &vol.knownA, &vol.knownB, &vol.first, &vol.keep,
-                              &vol.origLat, &vol.deposit})
+                              &vol.origLat, &vol.deposit, &vol.fLo})
                 vkCmdFillBuffer(cmd, b->buf, first * 4, count * 4, 0);
         copy(cmd, vol.staging, vol.occ, count * 4, vol.offOcc + first * 4, first * 4);
         copy(cmd, vol.staging, vol.solid, count * 16, vol.offSolid + first * 16, first * 16);
@@ -514,13 +514,13 @@ int WaterCoreGpu::compactSlots(VkCommandBuffer cmd, Volume& vol) {
         r.srcOffset = top * 512 * 16; r.dstOffset = hole * 512 * 16; r.size = 512 * 16; c16.push_back(r);
         ++moved;
     }
-    for (Buffer* bf : {&vol.f, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src})
+    for (Buffer* bf : {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src})
         vkCmdCopyBuffer(cmd, bf->buf, bf->buf, static_cast<uint32_t>(c4.size()), c4.data());
     vkCmdCopyBuffer(cmd, vol.solid.buf, vol.solid.buf, static_cast<uint32_t>(c16.size()), c16.data());
     // the vacated slots go back to dry air (a later allocation zeroes them again; the absent-brick check must never see them)
     for (const VkBufferCopy& r : c4) {
         const VkDeviceSize off = r.srcOffset;
-        for (Buffer* bf : {&vol.f, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src}) vkCmdFillBuffer(cmd, bf->buf, off, 512 * 4, 0);
+        for (Buffer* bf : {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src}) vkCmdFillBuffer(cmd, bf->buf, off, 512 * 4, 0);
         vkCmdFillBuffer(cmd, vol.solid.buf, off * 4, 512 * 16, 0);
     }
     int topUsed = 0;
@@ -593,6 +593,7 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     copy(cmd, vol.staging, vol.occ, vol.cells * 4, vol.offOcc);
     vkCmdFillBuffer(cmd, vol.src.buf, 0, vol.src.bytes, 0);
     vkCmdFillBuffer(cmd, vol.p.buf, 0, vol.p.bytes, 0);   // 26.5: a replaced state starts its solve fresh (deterministic, as a new volume)
+    vkCmdFillBuffer(cmd, vol.fLo.buf, 0, vol.fLo.bytes, 0);   // 26.10: the remainders belonged to the water that was there
     submitAndWait(cmd);
 }
 
@@ -871,7 +872,9 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     const size_t n[3] = {liveLattice(vol, 0), liveLattice(vol, 1), liveLattice(vol, 2)};
     const size_t cells = liveCells(vol), cols = liveColumns(vol);
     auto enforceSolids = [&]() { for (int L = 0; L < 3; ++L) { push.mode = 3 + L; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); } barrier(cmd); };
+    auto cap = [&](int k) { if (!vol.stageCap.buf) return; barrier(cmd); copy(cmd, vol.f, vol.stageCap, cells * sizeof(float), 0, k * cells * sizeof(float)); barrier(cmd); };   // 26.10 test hook
     for (int i = 0; i < vol.sourceCount; ++i) { push.iparam = i; dispatch(cmd, *vol.pipes[Sources], push, 1, 1); }   // one source per dispatch: no shared-neighbour races
+    cap(1);
     enforceSolids();
     if (vol.particles) {
         // Phase B2 on the GPU: g2p + move (in the sorted list B), then B -> A, sort A -> B, gather p2g
@@ -889,8 +892,8 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
         barrier(cmd);
         if (EulerianTransport::s_allFacesAtOnce) {   // 26.5: the CPU's rule - all faces at once, gathered, the excess carried up
             push.mode = 3; dispatch(cmd, *vol.pipes[FillAdvect], push, cells);
-            push.mode = 4; dispatch(cmd, *vol.pipes[FillAdvect], push, cells);
-            push.mode = 5; dispatch(cmd, *vol.pipes[FillAdvect], push, cols);
+            push.mode = 4; dispatch(cmd, *vol.pipes[FillAdvect], push, cells); cap(2);
+            push.mode = 5; dispatch(cmd, *vol.pipes[FillAdvect], push, cols); cap(3);
         } else
         for (int dir = 0; dir < 3; ++dir) for (int parity = 0; parity < 2; ++parity) {
             push.mode = dir; push.iparam = parity;
@@ -899,6 +902,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
         for (int L = 0; L < 3; ++L) { push.mode = L; dispatchNoBarrier(cmd, *vol.pipes[VelAdvectU + L], push, n[L]); }   // read old, write new: disjoint
         barrier(cmd);
         if (vol.hasSolids) { push.mode = 3; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); }   // 20.5 ledger: fresh / walled-in water up its column
+        cap(4);
         enforceSolids();
         {   // compaction (fills only, 24.11): voids under liquid always - slowly (param1 m/s) in moving water, at free fall while
             // settling; under a thin film only while settling (param0 = 1)
@@ -907,6 +911,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
             dispatch(cmd, *vol.pipes[ColumnOps], push, cols);
             push.param0 = p0; push.param1 = p1;
         }
+        cap(5);
     }
     push.mode = 0; dispatch(cmd, *vol.pipes[FaceOpsV], push, n[1]);                                         // gravity
     push.mode = 1; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU], push, n[0]);                                // film slope x
@@ -937,6 +942,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
         for (int L = 0; L < 3; ++L) { push.iparam = vol.bricked ? L : static_cast<int32_t>(n[L]); dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }
         barrier(cmd);
     }
+    cap(6);
 }
 
 void WaterCoreGpu::recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush push) {
@@ -1071,12 +1077,19 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         push.mode = 1; push.param0 = vol.solidFrame; dispatch(cmd, *vol.pipes[Classify], push, liveCells(vol)); push.mode = 0; push.param0 = 0.0f;
         vol.solidRatesPending = false;
     }
+    const bool capture = s_stageCapture && ticks == 1 && n == 1;   // 26.10 test hook
+    if (capture && !vol.stageCap.buf && !createBuffer(vol.stageCap, kStages * vol.cells * sizeof(float), true, nullptr)) vol.stageCap = Buffer{};
+    Buffer capBuf; if (!capture) std::swap(capBuf, vol.stageCap);   // the substep captures only when the buffer is there
+    auto capAt = [&](int k) { if (!vol.stageCap.buf) return; barrier(cmd); copy(cmd, vol.f, vol.stageCap, liveCells(vol) * sizeof(float), 0, k * liveCells(vol) * sizeof(float)); barrier(cmd); };
     for (int t = 0; t < ticks; ++t) {
         copy(cmd, vol.f, vol.fPrev, liveCells(vol) * sizeof(float));
         barrier(cmd);
+        capAt(0);
         for (int s = 0; s < n; ++s) recordSubstep(cmd, vol, push, params, sweeps, vol.quietBefore);
         if (!vol.particles) { push.mode = 2; push.param0 = 1e-6f; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.param0 = 0.0f; }   // sweep (fills only)
+        capAt(7);
         if (vol.dropletsOn) { push.mode = 4; push.param0 = dt; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.param0 = 0.0f; push.mode = 0; }   // 21: droplet births, once per tick
+        capAt(8);
     }
     if (vol.bricked) {   // 26.6: the water record residency reads next call, and the absent brick's check
         dispatch(cmd, *vol.pipes[Bricks], push, static_cast<size_t>(vol.slotsUsed) * 64, 64);
@@ -1094,6 +1107,16 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const auto tSubmit = std::chrono::steady_clock::now();
     submitAndWait(cmd);
     const auto tFence = std::chrono::steady_clock::now();
+    if (capture && vol.stageCap.buf) {   // 26.10 test hook: exact stage sums (double on the host)
+        const auto* sc = static_cast<const float*>(vol.stageCap.mapped);
+        const size_t lc = liveCells(vol);
+        double sum[kStages];
+        for (int k = 0; k < kStages; ++k) { double a = 0.0; for (size_t i = 0; i < lc; ++i) a += sc[k * lc + i]; sum[k] = a; }
+        if (vol.stageLast >= 0.0) s_stageDm[0] += sum[0] - vol.stageLast;
+        for (int k = 1; k < kStages; ++k) s_stageDm[k] += sum[k] - sum[k - 1];
+        vol.stageLast = sum[kStages - 1]; ++s_stageCalls;
+    } else vol.stageLast = -1.0;
+    if (!capture) std::swap(capBuf, vol.stageCap);
     st.hostResidencyMs = std::chrono::duration<double, std::milli>(tResidency - t0).count();
     st.submitWaitMs = std::chrono::duration<double, std::milli>(tFence - tSubmit).count();
     vol.surfaceValid = true;
