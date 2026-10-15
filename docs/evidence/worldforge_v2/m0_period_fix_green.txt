@@ -1,0 +1,86 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[13:19:56.101] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.108] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.113] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.116] [INFO] [RoomProgram] Loaded 1 'georgian' room programs from test_georgian_pack.json[0m
+[32m[13:19:56.121] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.127] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.129] [INFO] [RoomLayout] entrance moved off the stair shaft: (0,3) -> (3,0)[0m
+[32m[13:19:56.138] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.144] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.149] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.154] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.159] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)[0m
+[32m[13:19:56.162] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.167] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.170] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[13:19:56.173] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.178] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.180] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (8 streets)[0m
+[32m[13:19:56.183] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.188] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.192] [INFO] [Settlement] build_settlement: 12 plots, 12 buildings queued (3 streets)[0m
+[32m[13:19:56.198] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.199] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)[0m
+[32m[13:19:56.206] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.211] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.214] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[13:19:56.217] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.222] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.224] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[13:19:56.227] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.233] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.235] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[13:19:56.238] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.241] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.243] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.248] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.251] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.256] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.259] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.264] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.266] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[13:19:56.269] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.274] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.277] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[13:19:56.279] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.284] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.287] [INFO] [Settlement] build_settlement: 11 plots, 11 buildings queued (1 streets)[0m
+[32m[13:19:56.292] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.297] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.300] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (1 streets)[0m
+[32m[13:19:56.308] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.313] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.314] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)[0m
+[32m[13:19:56.317] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.321] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.325] [INFO] [Settlement] build_settlement: 14 plots, 14 buildings queued (1 streets)[0m
+[32m[13:19:56.328] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.334] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.341] [INFO] [Settlement] build_settlement: 28 plots, 28 buildings queued (8 streets)[0m
+[32m[13:19:56.345] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.350] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:56.364] [INFO] [Settlement] build_settlement: 48 plots, 48 buildings queued (17 streets)[0m
+[32m[13:19:56.372] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:56.377] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:57.525] [INFO] [Settlement] terrain analyse 160x160: buildable=1 -> 25 plots[0m
+[32m[13:19:57.532] [INFO] [Settlement] build_settlement: 25 plots, 25 buildings queued (0 streets)[0m
+[32m[13:19:57.537] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:57.542] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:58.677] [INFO] [Settlement] main_street terrain: axis X offset 12, 14 plots (0 dropped unbuildable)[0m
+[32m[13:19:58.681] [INFO] [Settlement] build_settlement: 14 plots, 14 buildings queued (1 streets)[0m
+[32m[13:19:58.684] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:58.690] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:19:59.828] [INFO] [Settlement] main_street terrain: axis X offset 14, 28 plots (0 dropped unbuildable)[0m
+[32m[13:19:59.836] [INFO] [Settlement] build_settlement: 28 plots, 28 buildings queued (8 streets)[0m
+[32m[13:19:59.840] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:19:59.845] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:20:00.986] [INFO] [Settlement] main_street terrain: axis X offset 12, 48 plots (0 dropped unbuildable)[0m
+[32m[13:20:01.000] [INFO] [Settlement] build_settlement: 48 plots, 48 buildings queued (17 streets)[0m
+[32m[13:20:01.007] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[13:20:01.012] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[13:20:01.015] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (1 streets)[0m
+[32m[13:20:01.018] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[33m[13:20:01.018] [WARN] [RoomProgram] room_program not found at resources/does_not_exist_room_program.json[0m
+[==========] 54 tests from 7 test suites ran. (4948 ms total)
+[  PASSED  ] 54 tests.

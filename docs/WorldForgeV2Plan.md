@@ -403,7 +403,15 @@ targeted site 1, not site 2, as a consequence of (1). **Also found this day:** `
 CanonicalStageSequence` had been RED since row 4 (1a2ffe32) — neither row 4 nor the M0 auditor pass ran
 that fixture; fixed in 2e78d1df (test + placers doc). The merged main's full Debug suite: 4437 tests, 4415
 pass, 19 skip, the 2 pre-existing fails + ONE order-dependent water test (`WaterCouplingTest.BlastBeside
-ThePondMovesItAndItSettles`, 0.215 < 0.27 inside the full run, 0.284 alone; not bisected). **Still owed,
+ThePondMovesItAndItSettles`, 0.215 < 0.27 inside the full run, 0.284 alone; not bisected). **The merged
+branch's full Debug suite (b15a3144, 2026-10-15): 4458 tests, 4435 pass, 19 skip, 4 fails** — the same 3
+plus `PeriodAxis.AnUnknownPeriodRefusesRatherThanSubstituting`, RED since row 6 (76f2529c): the
+missing-pack refusal I added emitted `requested_period` + `room_program_pack` but dropped the
+`known_periods` list the test's contract requires ("the refusal must say what IS available"); row 6's
+"51/51" did not include that fixture. Fixed the same day (both the forge intake and the settlement-side era
+refusal now carry `known_periods`); PeriodAxis + ForgeStageOrder + StructureForge/Build + SettlementBuild +
+RoomProgram/BuildingProgram = 54/54 (`m0_period_fix_green.txt`). Second red-since-a-row contract test in two
+days — the rule stands: after a row, run every fixture that names the thing changed. **Still owed,
 updated:** the unseated-only L4 proof (a site with skipped>0, blocked==0 — the town once its two blocked
 routes are fixed, or a lab); a unit test that drives the probe loop to produce `skipped`; the generator A/B
 for hamlet 1 (old vs merged flood on this seed); the plan-time `site_list.surfaceY` vs chunk `surface_y`

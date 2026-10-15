@@ -378,7 +378,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             if (!roomReg.loadPeriodPack(pack, era)) {
                 res.error = {{"error", "no room-program pack for era '" + era + "': " + pack +
                                       " (the engine never substitutes another era's buildings)"},
-                             {"era", era}, {"room_program_pack", pack}};
+                             {"era", era}, {"room_program_pack", pack},
+                             {"known_periods", roomReg.periods()}};
                 return res;
             }
         }

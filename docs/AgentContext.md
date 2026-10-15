@@ -188,6 +188,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   ⚠️ Known order-dependent unit test since the water merge: `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles`
   passes alone and among the 346 Water*/Debris*/Shore* tests (near drop 0.284 m) but measured 0.215 m
   (< 0.27 floor) in the full 4437-test suite — some earlier fixture outside those leaves state behind; not bisected.
+  The merged worldforge branch's full suite (2026-10-15): 4458 tests, 4435 pass, 19 skip, the 2 pre-existing
+  fails + that water test (+ a PeriodAxis refusal-shape test, red since M0 row 6, fixed the same day).
 - **▶ WATER CORE — ACTIVE (branch `feat/water-rethink`, pushed after every commit).** The design of record AND
   build ledger is [`docs/WaterCore.md`](WaterCore.md); **read its §0a first** (where things stand, what is next).
   As of 2026-10-11: the small still pond is built on a 3-D Eulerian core (CPU reference + GPU default), with debris

@@ -237,10 +237,12 @@ StructureForge::StageReport StructureForge::stageIntake(Context& ctx) {
     if (period != "medieval") {
         const std::string pack = "resources/room_programs/" + period + ".json";
         if (!ctx.roomReg.loadPeriodPack(pack, period)) {
+            // The refusal says what IS available (PeriodAxisTest pins known_periods).
             rep.action = StageReport::Action::Refused;
             rep.refusal = {{"error", "no room-program pack for period '" + period + "': " + pack +
                                      " (the engine never substitutes another era)"},
-                           {"requested_period", period}, {"room_program_pack", pack}};
+                           {"requested_period", period}, {"room_program_pack", pack},
+                           {"known_periods", ctx.roomReg.periods()}};
             return rep;
         }
     }
