@@ -1,0 +1,14 @@
+Phyxel crash report
+Exception 0xC0000005 ACCESS_VIOLATION at 0x00007ff75e3f17d1  (phyxel.exe+0x8f17d1)
+Access violation: read of address 0x00000d3500001156
+Thread 37868   Minidump: crashes/crash_20261015_143809.dmp
+
+Stack (faulting thread):
+#0  0x00007ff75e3f17d1 phyxel.exe+0x8f17d1
+#1  0x00007ff75dd4bfd5 phyxel.exe+0x24bfd5
+#2  0x00007ff75dd46d58 phyxel.exe+0x246d58
+#3  0x00007ff75dd1474a phyxel.exe+0x21474a
+#4  0x00007ff75db09171 phyxel.exe+0x9171
+#5  0x00007ff75e57db8c phyxel.exe+0xa7db8c
+#6  0x00007ff922d6dda7 KERNEL32.DLL+0x2dda7  BaseThreadInitThunk+0x17
+#7  0x00007ff92417ee4c ntdll.dll+0x7ee4c  RtlUserThreadStart+0x2c

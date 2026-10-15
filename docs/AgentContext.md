@@ -192,6 +192,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   fails + that water test (+ a PeriodAxis refusal-shape test, red since M0 row 6, fixed the same day).
   **M1 design check run 2026-10-15 (NEEDS WORK → resolutions in the plan's M1 section); owner rulings D10-D12:
   version-1 recipes keep the analytic terrain, one branch for everything, water tests untouched for now.**
+  M1 pre-step measured: 11.4 chunks/s Release on the laptop at a never-stored woodland pose (saturated queue;
+  `m1_stream_baseline.json`); a sea-pose teleport CRASHED Release 0xC0000005 on a worker thread (plan §12 R0).
 - **▶ WATER CORE — ACTIVE (branch `feat/water-rethink`, pushed after every commit).** The design of record AND
   build ledger is [`docs/WaterCore.md`](WaterCore.md); **read its §0a first** (where things stand, what is next).
   As of 2026-10-11: the small still pond is built on a 3-D Eulerian core (CPU reference + GPU default), with debris

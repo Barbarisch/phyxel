@@ -731,7 +731,7 @@ grounding-auditor; `ValidationLedger.md` gets a row per new placer/field.
 | Meso tile bake 256² | — | < 50 ms on a worker (record) |
 | Civ + routes plan, 300 sites | all-pairs A* O(n²) at 8 sites today | < 10 s Release, off the main thread |
 | Settlement map, 200-lot city | — | < 2 s headless |
-| Streaming, dense forest | 7 chunks/min Debug (only number on file) | ≥ 2× Release baseline measured in M1 |
+| Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
 | Realization | 0.9 s per furnished tavern place | 0 frames > 33 ms during lazy realization |
 
 Both the RTX 4090 desktop and the RTX 1000 Ada laptop are stated on every evidence row.
@@ -787,6 +787,34 @@ and the wall trigger from the repose table and the parcel margin, and replaces `
 the three per-class caps (0.05 / 0.08 / 0.15) once the Roman PDF is verified (F4b). The ford row
 has no new number. Everything else in M0 is number-free.
 
+**F4c — M1 drainage-density grounding (grounding-auditor, 2026-10-15; nothing below is typed as a
+constant until its row says GROUNDED).** Raw verdict: *"GROUNDED are only the principle that Dd depends on
+the channel-initiation threshold and the m/n range 0.35-0.6 (Whipple & Tucker 1999, via an ESurf preprint).
+REASONED are the absolute Dd range, the 2.7 km/km2 grid ceiling, Rb 3-5, m=0.4/n=1 and the Rb sample-size
+rule. NEEDS-RESEARCH are the Dd x sqrt(A_c) band, Rl, and K and uplift. STRIKE are absolute Dd and
+valley-count constants."*
+
+| Value | Source | Engine value / range | Verdict |
+|---|---|---|---|
+| Drainage density Dd = ΣL/A, humid-temperate | Horton 1932/1945 (definition); Gregory & Walling 1973 *Drainage Basin Form and Process* (⚠ table unread); NetMap help page quotes 2–5 km/km² typical all-channel, other guides 2–12 semi-arid→humid | wide, ~1–12 km/km²; set by the extraction threshold, never one number | REASONED |
+| Dd depends on the channel-initiation threshold | Montgomery & Dietrich 1989 WRR 25 (⚠verify year); Tucker & Bras 1998 WRR 34(10); Tucker, Catani, Rinaldo & Bras 2001 Geomorphology 36 (DOI 10.1016/S0169-555X(00)00056-8); channel-head review Frontiers Earth Sci 10.3389/feart.2021.755197 | any Dd band is a function of `hydro.minChannelDrainage` (unit stated at the clamp) | GROUNDED (principle) |
+| Dd × √A_c dimensionless band | Horton 1945 length-of-overland-flow Lo ≈ 1/(2Dd) ⇒ Dd ∝ 1/√A_c (auditor's derivation) | no sourced constant | NEEDS-RESEARCH: Tarboton, Bras & Rodríguez-Iturbe 1992 WRR 28(4); Tucker 2001 §3; Gregory & Walling ch. 4 |
+| Dd ceiling on a 512 u grid | arithmetic: ≤ ~1.4 cell-widths of channel per cell ⇒ ≤ 1.4/0.512 km | ≤ ~2.7 km/km² — sanity assert only | REASONED |
+| Horton bifurcation ratio Rb | Horton 1945; Strahler 1957 Trans. AGU 38:913–920 (⚠unread); modern checks Peckham 1995, Tarboton 1996 J. Hydrol. (unread) | natural dendritic 3–5, mean ~4; min 2 | REASONED (→ GROUNDED after Strahler 1957 or Tarboton 1996 is read) |
+| Length ratio Rl | Horton 1945; no numeric band found | none | NEEDS-RESEARCH (Strahler 1957) — do not assert |
+| Rb sample-size floor | auditor's design choice: ≥ 3 Strahler orders and ≥ 10 streams in the lowest order; an 8 km lab sheet (16×16 macro cells) has ~2 orders | assert Rb on the 200×200 continent only | REASONED (unsourced floor) |
+| Stream-power m/n (concavity) | Whipple & Tucker 1999 JGR 104(B8), DOI 10.1029/1999JB900120; ESurf preprint esurf-2018-7 reads 0.35–0.6 | m/n ∈ [0.35, 0.6], clamp with this reason | GROUNDED (range) |
+| m = 0.4, n = 1 | inside the band; Landlab defaults m = 0.5, n = 1; Cordonnier 2016 / Veloren `erosion.rs` values NOT confirmed (unread) | 0.4 / 1 as a recipe default — not "derived", not "Veloren's value" until read | REASONED |
+| m/n = 0.4 vs 0.5 | ESurf 5:807 (2017): without hillslope diffusion, 0.5 gives stretch-invariant landscapes | keep 0.4; the macro bake has no diffusion term (confirm) | REASONED |
+| Erodibility K, uplift U | none | recipe fields, no grounded value | NEEDS-RESEARCH (Whipple & Tucker 1999 K calibration; Cordonnier 2016 Table 1) |
+| Absolute valley/channel count per km² on the 8 km lab | — | — | STRIKE (scales with threshold, grid, seed; sample too small) |
+| Absolute Dd constant (e.g. "3 km/km²") | the 2–12 range above | — | STRIKE as a constant; relative form only |
+
+**What `MacroErosionTest` may assert today:** structure (tree, no sinks, every receiver ≤ its donor);
+Dd ∈ [0, 2.7] km/km² at 512 u; Dd decreases monotonically as `minChannelDrainage` rises over ≥ 3
+thresholds; Rb ∈ [3, 5] as a soft continent-scale assert under the sample-size floor. The first red run
+PRINTS the measured Dd × √A_c; the numeric band is chosen from the NEEDS-RESEARCH reads, never from that run.
+
 ## 11. Research basis (what each borrowed idea is and where it came from)
 
 - **Génevaux 2013** (hydrology-first analytic terrain) → L0/L1 ordering and "evaluable at any LOD".
@@ -814,6 +842,18 @@ has no new number. Everything else in M0 is number-free.
 ---
 
 ## 12. Risks and open questions
+
+**R0 (found 2026-10-15 measuring the M1 baseline, Release 2e78d1df = the merged water core):** a free-camera
+teleport to a never-stored OPEN-SEA pose (1200, 25, 1200; generator surface −15) crashed the engine with
+`0xC0000005` on a worker thread (`phyxel.exe+0x8f17d1`, read of `0x00000d3500001156`) ~10 s after the
+teleport while streaming chunk (37,−1,36); the same procedure at a land pose did not crash. Report:
+`docs/evidence/worldforge_v2/m1_stream_baseline_sea_crash.txt`; minidump `crashes/crash_20261015_143809.dmp`
+(58 MB, not committed; no Release PDB on disk so the frames are unsymbolized). n = 1, not bisected, matches
+the shape of the parked "post-teleport streaming APPCRASH" in `water-system-v2` memory. It is in the water
+boundary's territory (sea body streaming), so it is logged for the owner; M1's own L4 poses stay on land
+until it is understood.
+
+
 
 1. **Erosion determinism across platforms.** Implicit solvers with float accumulation can differ by
    compiler/CPU; pin with a bit-exact fixed-step formulation or an integer-scaled solver, and a

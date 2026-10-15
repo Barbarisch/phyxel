@@ -1,0 +1,44 @@
+{
+ "label": "M1 pre-step: Release streaming throughput BEFORE any M1 code (plan \u00a75 M1 resolution 8)",
+ "exe": "build/editor/Release/phyxel.exe 2026-10-15 11:41 = commit 2e78d1df (generator unchanged through 2be0db88)",
+ "machine": "NVIDIA RTX 1000 Ada Generation Laptop GPU (laptop)",
+ "config": "Release",
+ "world": "PhyxelProjects/WorldForgeBaseline (Perlin seed 20260816, streaming, loadRadius 8 / unloadRadius 11 = game.json defaults)",
+ "pose": {
+  "x": 300,
+  "y": 109,
+  "z": -1400,
+  "yaw": -90,
+  "pitch": -45,
+  "chosen_by": "first generator probe east of the stored chunk extent with surface_y >= 60",
+  "generator_surface_y": 69,
+  "chunk_surface_y_after_stream": 82,
+  "surface_voxel_material": "Grass"
+ },
+ "instrument": "POST/GET /api/debug/record (PerfCapture rows: streaming.resident_chunks, pending_generation per frame); dump paged at 2048 rows = the first 76.0 s after the teleport (the remaining frames were not paged before the engine was stopped)",
+ "result": {
+  "resident_chunks_at_teleport": 254,
+  "resident_min_after_unload": 0,
+  "resident_at_76s": 854,
+  "pending_generation_saturated": "44-48 for the whole window (generation-bound, the queue never drained)",
+  "chunks_per_second_saturated_ramp": 11.41,
+  "fit_window_s": [
+   1.5,
+   76.0
+  ],
+  "fit_points": 1971,
+  "frame_ms_p50": 34.0,
+  "frame_ms_p95": 92.6,
+  "frame_ms_max": 472.7,
+  "frames_over_33ms": 1088,
+  "frames": 2048
+ },
+ "gate": "M1 \u00a79: >= 2x this number on the same pose/machine/config",
+ "first_attempt": "pose (1200,1200) was open sea (generator surface_y -15); the Release engine crashed 0xC0000005 (phyxel.exe+0x8f17d1, worker thread, read of 0x00000d3500001156) ~10 s after the teleport while streaming chunk (37,-1,36): m1_stream_baseline_sea_crash.txt, minidump crashes/crash_20261015_143809.dmp (no Release PDB on disk, unsymbolized). Not reproduced at the land pose.",
+ "caveats": [
+  "single run, n=1",
+  "the first 2048 frames only",
+  "the lab's vertical band is the shipped +-1 chunk surface band",
+  "frame-time numbers include the remesh/upload cost of a saturated queue on the laptop"
+ ]
+}
