@@ -13459,8 +13459,8 @@ void Application::registerSettlementCommands() {
                                              {"gate", gate}};
                     if (gate.value("fails_build", false)) {
                         merged["success"] = false;
-                        merged["error"] = "unwalkable: " + std::to_string(gate.value("blocked", 0))
-                            + " street->door routes blocked (walkability gate); pass allow_unwalkable:true to keep it";
+                        merged["error"] = gate.value("error", std::string("unwalkable (walkability gate)"))
+                            + "; pass allow_unwalkable:true to keep it";
                     }
                     mainThreadJobs->mergeResult(jobId, merged);
                 });
@@ -13483,8 +13483,8 @@ void Application::registerSettlementCommands() {
                  {"gate", gate},
                  {"queued_builds", plan.queuedBuilds}};
             if (gate.value("fails_build", false))
-                r["error"] = "unwalkable: " + std::to_string(gate.value("blocked", 0))
-                    + " street->door routes blocked (walkability gate); pass allow_unwalkable:true to keep it";
+                r["error"] = gate.value("error", std::string("unwalkable (walkability gate)"))
+                    + "; pass allow_unwalkable:true to keep it";
         }
     });
 }

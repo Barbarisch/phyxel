@@ -2017,15 +2017,27 @@ nlohmann::json SettlementBuildService::gateOutcome(const nlohmann::json& walkabi
     const bool ran = walkability.is_object() && walkability.contains("blocked");
     const int walkable = ran ? walkability.value("walkable", 0) : 0;
     const int blocked  = ran ? walkability.value("blocked", 0) : 0;
+    // M0 row 2d (solution-auditor 2026-10-15): a SKIPPED front door - one whose street or
+    // passage endpoint does not seat the agent at the threshold, or that recorded no
+    // threshold - is a door nobody can use. The gate used to skip it as "probe input" and
+    // pass (the town's tavern: "5 front doors, 1 skipped" shipped). It now fails the build
+    // like a blocked route ("unseated"), with the same override.
+    const int skipped  = ran ? walkability.value("skipped", 0) : 0;
     std::string gate = "not_run";
     bool failsBuild = false;
     if (ran) {
-        if (blocked <= 0)            gate = "passed";
-        else if (allowUnwalkable)    gate = "overridden";
-        else { gate = "blocked";     failsBuild = true; }
+        if (blocked <= 0 && skipped <= 0) gate = "passed";
+        else if (allowUnwalkable)         gate = "overridden";
+        else if (blocked > 0) { gate = "blocked";  failsBuild = true; }
+        else                  { gate = "unseated"; failsBuild = true; }
     }
-    return {{"gate", gate}, {"walkable", walkable}, {"blocked", blocked},
-            {"fails_build", failsBuild}};
+    nlohmann::json out = {{"gate", gate}, {"walkable", walkable}, {"blocked", blocked},
+                          {"skipped", skipped}, {"fails_build", failsBuild}};
+    if (failsBuild)   // ONE wording for the editor response, the job result and the ledger
+        out["error"] = "unwalkable: " + std::to_string(blocked) + " of " + std::to_string(blocked + walkable)
+                       + " street->door routes blocked, " + std::to_string(skipped)
+                       + " front door(s) unseated (walkability gate)";
+    return out;
 }
 
 StructureBuildService::Deps SettlementBuildService::Deps::structureDeps() const {

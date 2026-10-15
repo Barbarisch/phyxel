@@ -168,9 +168,7 @@ void queuePlanAndBuild(const std::shared_ptr<BuildState>& s) {
                                                            : nlohmann::json::object();
             const nlohmann::json gate = SettlementBuildService::gateOutcome(walk, plan->allowUnwalkable);
             if (gate.value("fails_build", false)) {
-                const std::string err = "unwalkable: " + std::to_string(gate.value("blocked", 0)) + " of "
-                    + std::to_string(gate.value("blocked", 0) + gate.value("walkable", 0))
-                    + " street->door routes blocked (walkability gate)";
+                const std::string err = gate.value("error", std::string("unwalkable (walkability gate)"));
                 auto& re = s->ledger.ensure(st.id, st.tier);
                 re.status = "refused";
                 re.error = err;

@@ -317,20 +317,24 @@ numbers re-recorded). Stress: the 8-site mountain seed. Perf gate: none (no new 
 pinch at longhouse / blacksmith / hall_house doors — the generator defect F7 shipped twice; hamlet 1:
 no plots once its creek columns were unbuildable), 2 BUILT (village 5 with 2 of its 4 F7 lots dropped as
 water, hamlet 2). The run SURFACED two M0 defects, both fixed as **row 2b** the same day:
-(a) **door-spur regression** — the town logged "2 planned from 5 realized doors, 3 too steep" (F7: 8 ok /
-0): the reordered spur unit started at the forge's front-door MARKER (2 cells out, often on the street
-edge) instead of 1 cell outside the wall, one cell short for the straight-run grade tube on a terraced
-pad. Fix: `SettlementBuildService::doorApproach` — ONE door-finding shared by the spur unit, the cluster
-path network and the walkability gate; spurs start outside the FOUND door; a failed spur reports its
-numbers (`paths.spur_failures`). Red→green: `SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall`,
+(a) **door-spur count** — the town logged "2 planned from 5 realized doors, 3 too steep" (F7: 8 ok /
+0, on a different lot set: 8 parcels then, 5 now). **My first hypothesis (the reordered spur unit starting
+at the forge's MARKER, one cell short for the grade tube) was WRONG for these lots** — run 2's loud
+numbers show the doorstep ground 18 micro below the street edge 5 micro away, which no spur start can
+bridge; the count is unchanged in runs 2–4. What row 2b did deliver: `SettlementBuildService::doorApproach`
+(ONE door-finding shared by the spur unit, the cluster path network and the gate; spurs start outside the
+FOUND door, not the marker, which also fixes the regen-#14 marker-off-the-door case) and `paths.spur_failures`
+with door/street/run/drop/cap/reason. The "pad 2 cubes below the street" reading of those numbers is a
+HYPOTHESIS (not A/B'd, not L3-tested — owed, see auditor). Red→green:
+`SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall`,
 `StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers` (`m0_spur_red.txt` → `m0_spur_green.txt`).
 (b) **plan-hash drift** — row 10's `raster_truncated_segments` was hashed, so the lab's F7 hash
 9693137997320541182 came back 10638243061351388589 on an unchanged recipe (every pre-M0 ledger would read
 stale). Fix: `planHash` hashes identity only; `WorldForgePlanTest.RasterCapSurfaces` pins it (same red/green files).
 Not M0's to fix, now visible: the door pinch itself (next generator task); creek-crossing siting (M3).
 **Run 2 (`m0_l4b_summary.json`, predictions in `m0_l4b_predictions.json`):** F7 hash back
-(9693137997320541182); **5 built / 3 refused** (hamlets 3/4/7 now build — the path network meeting the
-FOUND door's outside cell closed their 1-micro longhouse pinches; town and village 6 still refused on a
+(9693137997320541182); **5 built / 3 refused** (hamlets 3/4/7 now build — PLAUSIBLY because the path network now meets the
+FOUND door's outside cell (the only hamlet-path change), but no marker-vs-door A/B was run, so this is not isolated; town and village 6 still refused on a
 hall_house / blacksmith pinch; hamlet 1 still plot-less). The town's three spurs still fail, now loudly:
 `door y1296 -> street y1314, 6 cells, drop 18 micro, cap 2` — the doorstep is **2 cubes below the street
 edge** (a terrace-pad / street-grade mismatch, upstream of the spur; logged as a generator finding, M5
@@ -354,6 +358,24 @@ captures pose-verified, and a street-level capture (`tools/worldforge_m0_l4_capt
 8/8 "built" with two pinched sites shipped → 5/8 built with every refusal a named generator defect. Owed
 after M0: the solution-auditor pass over all rows; the StructGenTest residue L4; then the three generator
 defects now visible (door pinch, pad-below-street, creek siting) before/with M3–M5.
+
+**Solution-auditor over the whole M0 batch — RUN 2026-10-15, raw verdict: "VERDICT: FAIL (overall).
+The code-level gate, reorder, water, forge-gate and placement rows are real red->green. The M0 write-up
+overstates the spur story and one L4 causal claim. Some named rows and tests have no evidence at all.
+Nothing was fabricated outright."** Per item: rows 1, 2c/2c-2, 3, 4, 5 CONFIRMED; row 2 partly (only 1 of
+3 named tests was seen red; the refused-lot cell census is still owed); row 2b split (code+tests
+CONFIRMED, narrative FAIL — corrected above); rows 6–10 CONFIRMED at L2 with weaknesses (canopy/materials
+reds are key-presence assertions, the deps test has no seen-red, `terrain_height?source` and the MCP
+mirrors are BUILT but unaudited); L4 claims mostly CONFIRMED. **Findings acted on the same day:** (1) the
+gate silently SKIPPED a front door whose endpoint did not seat (town tavern: passage cell unseated at the
+threshold; "5 front doors, 1 skipped" passed) — **row 2d**: `gateOutcome` fails the build on `skipped > 0`
+(`gate:"unseated"`, overridable) — `SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden`
+(`m0_unseated_red.txt` → `m0_unseated_green.txt`); (2) the spur narrative retracted above; (3) the
+hamlet-3/4/7 causal claim downgraded above. **Still owed from the audit:** an L3 test of the town lot
+(terrace + street + TraversalProbe doorstep→street) to settle the pad-vs-street hypothesis; a marker-vs-door
+A/B on hamlets 3/4/7; the refused-lot cell census (`RefusalIsClean`); world-level canopy-overhang and
+material scans for rows 8–9; a live round-trip of the six MCP mirrors; rows named in the table without a
+test (`SweepNeverErasesPlacedObjectCells`, `SecondRoadGetsASpur`, earthworks/ford) stay NOT GREEN.
 
 ### M1 — World Sheet (L) — *the one change that moves the scale ceiling*
 

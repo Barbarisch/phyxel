@@ -291,6 +291,18 @@ TEST(SettlementBuildServiceTest, GateOutcomeBlocksUnlessOverridden) {
     o = SettlementBuildService::gateOutcome(notRun, false);
     EXPECT_EQ(o.value("gate", ""), "not_run");
     EXPECT_FALSE(o.value("fails_build", true)) << "a gate that never ran is not a refusal";
+
+    // M0 row 2d (solution-auditor 2026-10-15): a SKIPPED front door is a door nobody can use -
+    // the gate skipped routes whose endpoint did not seat (the town's tavern: passage cell
+    // unseated at the threshold) and "5 front doors, 1 skipped" PASSED. RED: skipped > 0 passes.
+    const nlohmann::json unseated = {{"walkable", 13}, {"blocked", 0}, {"skipped", 1}};
+    o = SettlementBuildService::gateOutcome(unseated, false);
+    EXPECT_EQ(o.value("gate", ""), "unseated");
+    EXPECT_TRUE(o.value("fails_build", false)) << "a door whose endpoint does not seat is unusable";
+    EXPECT_EQ(o.value("skipped", 0), 1);
+    o = SettlementBuildService::gateOutcome(unseated, true);
+    EXPECT_EQ(o.value("gate", ""), "overridden");
+    EXPECT_FALSE(o.value("fails_build", true));
 }
 
 // ── M0 ("site prep reordered", docs/WorldForgeV2Plan.md §5 M0) ──────────────────────

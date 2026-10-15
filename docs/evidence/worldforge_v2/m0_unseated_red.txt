@@ -1,0 +1,29 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SettlementBuildServiceTest
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(300): error: Expected equality of these values:
+  o.value("gate", "")
+    Which is: "passed"
+  "unseated"
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(301): error: Value of: o.value("fails_build", false)
+  Actual: false
+Expected: true
+a door whose endpoint does not seat is unusable
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(302): error: Expected equality of these values:
+  o.value("skipped", 0)
+    Which is: 0
+  1
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(304): error: Expected equality of these values:
+  o.value("gate", "")
+    Which is: "passed"
+  "overridden"
+[  FAILED  ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden (5 ms)
+[----------] 1 test from SettlementBuildServiceTest (5 ms total)
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (5 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden
+ 1 FAILED TEST
