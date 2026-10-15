@@ -1,0 +1,46 @@
+{
+  "what": "WorldForge v2 M0 end-of-milestone L4 on the WorldForgeBaseline lab (docs/WorldForgeV2Plan.md section 5 M0 / section 16) - the F7 8-site build re-run on the M0 binary, 'after' next to the F7 'before' (f7_l4_baseline.json). Run 1 of 2: this run SURFACED a regression (door spurs) and a hash drift, both fixed afterwards (row 2b) and re-measured in m0_l4b_summary.json.",
+  "date": "2026-10-14 23:03-23:09 local",
+  "machine": "laptop, RTX 1000 Ada (dev-hardware-laptop-rtx1000)",
+  "binary": "build/editor/Release/phyxel.exe built 22:59 from the working tree at 5b1b9db9 (M0 rows 1-12 committed)",
+  "script": "tools/worldforge_m0_l4.sh (pristine DB reset, worldforge_build, poll /api/jobs, terrain_height A/B, two free-camera poses, save, kill)",
+  "artifacts": ["m0_l4_status_before.json", "m0_l4_build_start.json", "m0_l4_job_progress.txt", "m0_l4_jobs.json", "m0_l4_status.json", "m0_l4_terrain_height_chunks.json", "m0_l4_terrain_height_generator.json", "m0_l4_after_site0_town_read.png", "m0_l4_after_site0_hallhouse_pinch.png", "m0_l4_engine.txt"],
+  "predictions_written_before_the_run": {
+    "P1_sites_0_and_5_refused": "F7 shipped sites 0 (town) and 5 (village) with a blocked street->door route; M0's blocking gate must REFUSE them and not checkpoint them",
+    "P2_hamlets_gated": "every hamlet (1,2,3,4,7) logs a 'walkability gate:' line (F7: none did)",
+    "P3_plan_hash": "9693137997320541182 (F7) comes back on the pristine DB",
+    "P4_terrain_height": "chunks vs generator at the town centre (-1096,-1064): 127 vs 136 (F7)",
+    "P5_site_prep_order": "door spurs / fences / props run AFTER the buildings (log order)"
+  },
+  "results": {
+    "job": "complete, 292.9 s, 11919/11919 units (F7: 541 s for 8 built sites - not comparable, 6 sites refused here)",
+    "sites": {
+      "0_town": "REFUSED - unwalkable: 1 of 14 street->door routes blocked (walkability gate) - not checkpointed. Pinch: hall_house @-1160,-1091 street->door, gap 1 micro at (-10355,1320,-9752)->(-10354,1320,-9753), reached 35542/40052. 5 plots (1 dropped unbuildable by the new water predicate); F7 had 8 parcels.",
+      "5_village": "BUILT 2 buildings (F7: 4). 2 plots dropped unbuildable (water predicate); gate 8 walkable / 0 blocked over 8 routes. F7's blocked hall_house @(-1492,1381) is not among the 2 built lots - whether it was one of the dropped plots is NOT established by this run.",
+      "6_village": "REFUSED - 2 of 17 routes blocked: longhouse @-989,1380 and blacksmith @-1004,1404, both 'street -> door' gap 1 micro (F7: 17/17 walkable, 6 buildings). 6 plots, 0 dropped.",
+      "1_hamlet": "REFUSED - 'terrain too steep - no buildable plots' (F7: 4 buildings). The water predicate removed its plots: a creek runs through the site rect (siting must avoid creeks - M3 item).",
+      "2_hamlet": "BUILT 3 buildings (F7: 4); gate 10 walkable / 0 blocked; paths 2/2 edges graded.",
+      "3_hamlet": "REFUSED - 1 of 10 routes blocked: longhouse @-776,-762 street->door gap 1 micro (F7: 3 buildings, ungated).",
+      "4_hamlet": "REFUSED - 1 of 10 routes blocked: longhouse @-1239,655 street->door gap 1 micro (F7: 4 buildings, ungated).",
+      "7_hamlet": "REFUSED - 1 of 14 routes blocked: longhouse @-650,1243 street->door gap 1 micro (F7: 4 buildings, ungated)."
+    },
+    "ledger": "persisted in world_meta.worldforge_ledger with status refused/built per site and the gate error text; refused sites hold 0 buildings; placed_objects holds the 2 built sites' registry only",
+    "P1": "site 0: CONFIRMED (refused, not checkpointed). site 5: NOT CONFIRMED - it BUILT, with 2 of its 4 F7 lots dropped as water columns before any building ran; the F7 pinch lot cannot be identified in this run.",
+    "P2": "CONFIRMED for sites 2,3,4,7 (gate lines logged, three of them BLOCKED and refused). Site 1 never reached the gate (no plots).",
+    "P3": "FAILED: plan_hash 10638243061351388589 before and after the build (stable across the run, but not the F7 value). CAUSE FOUND: M0 row 10 added 'raster_truncated_segments' to WorldForgePlan::toJson and planHash hashes the whole record, so every plan's hash moved and every pre-M0 ledger reads stale. Fixed in row 2b (planHash hashes identity only; WorldForgePlanTest.RasterCapSurfaces pins it red->green).",
+    "P4": "chunks: surface_y null (the town was refused -> evicted on focus release; the column was not resident when queried) vs generator: 136. The A/B could not be read on a refused site; re-run on a built site.",
+    "P5": "CONFIRMED by log order at every main-street site: terrace -> streets -> buildings -> 'door spurs:' -> fences -> yard props -> doorsteps -> gate. Hamlets: buildings -> 'paths:' network -> fences -> props -> gate.",
+    "captures": "both after-poses were taken (files above) but the camera read-back lines (camA/camB) were not captured in the saved output, so the poses are NOT verified against the F7 poses; the town image shows terrain + trees and no buildings (the refused site was evicted). Not usable as a before/after pair until re-captured on a built site with read-back."
+  },
+  "regression_found": {
+    "door_spurs": "town: 'door spurs: 2 planned from 5 realized doors, 3 too steep, 0 micros over 0 columns' (F7: 'spurs 8 ok / 0 too steep'). Cause: the M0 spur unit started every spur at the forge's front-door MARKER (2 cells out from the door, often on the street's edge) instead of 1 cell outside the wall; the straight-run grade tube (cap = maxStepUp/halfWidth = 2 micro per cell) then had one cell less to absorb the terrace pad-to-street drop. StreetPaverTest.DoorSpurFromATerracePadIsReportedWithItsNumbers reproduces it (27-micro pad: plans from the outside-door cell, 'too steep' from the marker cell). Fix (row 2b): SettlementBuildService::doorApproach - ONE door-finding shared by the spur unit, the cluster path network and the walkability gate; spurs start one cell outside the FOUND door; a failed spur logs its numbers (door, street junction, run, drop, cap, reason) and lands in paths.spur_failures.",
+    "sites_5_and_6": "site 5 '2 planned from 2, 0 too steep' and site 6 '6 planned from 6, 0 too steep' - the regression hit the terraced town only."
+  },
+  "defect_surfaced_everywhere": "the 1-micro street->door pinch at longhouse / blacksmith / hall_house doors blocks 6 of the 7 gated sites. It is the generator defect the F7 baseline shipped twice (hall_house, gap 1 micro); M0's gate now refuses it instead of shipping it. Its fix (door threshold / fence gate / stoop geometry at those typologies' doors) is the next generator task and is NOT part of M0's rows.",
+  "water_predicate_consequence": "plots on creek columns are now unbuildable (site 1 lost all plots, sites 0 and 5 lost 1 and 2). Siting a settlement across a creek is an M3 (civ plan) concern; M0 only made the columns honest.",
+  "caveats": [
+    "one run (n=1) on one seed; the unit tests carry the geometry, this run carries the integration",
+    "Release binary; the Debug build was not exercised at this scale (debug-build-wedges-large-worlds)",
+    "no residents (worldforge builds pass residents:false)"
+  ]
+}
