@@ -182,3 +182,27 @@ TEST(StructureGroundingTest, PlacementIntoUngeneratedTerrainIsRefused) {
     const auto ok = StructureBuildService::buildV2(params, dryDeps);
     EXPECT_FALSE(ok.contains("error")) << "control: a bounded world's air chunk is a legitimate target: " << ok.dump().substr(0, 300);
 }
+
+// M0: the forge's room-program load is a hard dependency too (StructureForge ignored the
+// result and fell through to "no room program for typology"). The path is overridable so
+// the failure is testable headless; a missing file must refuse naming it.
+TEST(StructureGroundingTest, MissingRoomProgramRefusesTheBuild) {
+    ChunkManager cm;
+    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(96, 0, 192));
+    owned->initializeForLoading();
+    for (int x = 100; x < 112; ++x)
+        for (int z = 200; z < 210; ++z)
+            owned->addCube(glm::ivec3(x - 96, 15, z - 192));
+    cm.chunkMap[glm::ivec3(3, 0, 6)] = owned.get();
+    cm.chunks.push_back(std::move(owned));
+    StructureBuildService::Deps deps;
+    deps.chunkManager = &cm;
+    nlohmann::json params = croftParams(102, 202);
+    params["room_program"] = "resources/does_not_exist_room_program.json";
+    const auto res = StructureBuildService::buildV2(params, deps);
+    ASSERT_TRUE(res.contains("error")) << res.dump().substr(0, 300);
+    const std::string err = res.value("error", std::string());
+    EXPECT_NE(err.find("room program"), std::string::npos) << err;
+    EXPECT_NE(err.find("does_not_exist_room_program.json"), std::string::npos) << "must name the file: " << err;
+}

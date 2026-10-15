@@ -220,13 +220,30 @@ StructureForge::StageReport StructureForge::stageIntake(Context& ctx) {
     // Resolve the grounded room-program typology ONCE: it drives both the purposed
     // room layout (autofill) and the validation gate. Declared typology wins, else
     // a coarse function default (croft/hall_house/...).
-    ctx.roomReg.loadFromFile("resources/room_program.json");
+    // M0 (WorldForgeV2Plan §5 M0): the room program is a HARD dependency; its load result
+    // was ignored. Path overridable ({"room_program": path}) so the failure is testable.
+    const std::string roomProgramPath = ctx.params.value("room_program", std::string("resources/room_program.json"));
+    if (!ctx.roomReg.loadFromFile(roomProgramPath)) {
+        rep.action = StageReport::Action::Refused;
+        rep.refusal = {{"error", "room program not loadable: " + roomProgramPath +
+                                 " (the typology's room program drives the floorplan; refusing)"},
+                       {"room_program", roomProgramPath}};
+        return rep;
+    }
     // M8 PERIOD AXIS: medieval is the shipped default and lives in the legacy file;
     // any other era is a DATA PACK under resources/room_programs/<period>.json. No
-    // code change adds an era.
+    // code change adds an era. A missing pack refuses by name (M0).
     const std::string period = ctx.params.value("period", std::string("medieval"));
-    if (period != "medieval")
-        ctx.roomReg.loadPeriodPack("resources/room_programs/" + period + ".json", period);
+    if (period != "medieval") {
+        const std::string pack = "resources/room_programs/" + period + ".json";
+        if (!ctx.roomReg.loadPeriodPack(pack, period)) {
+            rep.action = StageReport::Action::Refused;
+            rep.refusal = {{"error", "no room-program pack for period '" + period + "': " + pack +
+                                     " (the engine never substitutes another era)"},
+                           {"requested_period", period}, {"room_program_pack", pack}};
+            return rep;
+        }
+    }
     ctx.typ = ctx.program.typology.empty()
         ? RoomProgramRegistry::defaultTypologyForFunction(ctx.program.function)
         : ctx.program.typology;

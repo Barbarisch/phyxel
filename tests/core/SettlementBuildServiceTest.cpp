@@ -364,3 +364,35 @@ TEST(SettlementBuildServiceTest, FailedPlotsMapLotFailuresToPlotIndices) {
     EXPECT_TRUE(SettlementBuildService::failedPlots(bad, {4, 7, 2}).empty());
     EXPECT_TRUE(SettlementBuildService::failedPlots(nlohmann::json::object(), {4}).empty());
 }
+
+// ── M0 (docs/WorldForgeV2Plan.md §5 M0): the era reaches every building ──────────────
+// The settlement program is era-keyed (settlement_program.json eras.<era>), the forge is
+// period-aware and REFUSES an unknown period rather than substitute medieval — but the
+// settlement never passed `period`, so every building of every era was built medieval and
+// the era hook never reached a wall. RED: no queued build carries a period today.
+TEST(SettlementBuildServiceTest, BuildingsCarryTheEraPeriod) {
+    nlohmann::json params = {{"era", "medieval"}, {"tier", "village"}, {"seed", 7},
+                             {"width", 80}, {"depth", 48}};
+    SettlementBuildService::Deps deps;   // planning only
+    const auto plan = SettlementBuildService::plan(params, deps);
+    ASSERT_TRUE(plan.ok()) << plan.error.dump();
+    ASSERT_FALSE(plan.queuedBuilds.empty());
+    for (const auto& b : plan.queuedBuilds)
+        EXPECT_EQ(b.value("period", std::string()), "medieval")
+            << "a queued building carries no period - the era never reaches the forge: " << b.dump();
+}
+
+// The room program is a hard dependency: a load failure must refuse with the file named,
+// never drop every plot and report "footprint too small" (the symptom seen when the load
+// result was ignored). The path is overridable so the failure is testable.
+TEST(SettlementBuildServiceTest, MissingRoomProgramRefuses) {
+    nlohmann::json params = {{"era", "medieval"}, {"tier", "village"}, {"seed", 7},
+                             {"width", 80}, {"depth", 48},
+                             {"room_program", "resources/does_not_exist_room_program.json"}};
+    SettlementBuildService::Deps deps;
+    const auto plan = SettlementBuildService::plan(params, deps);
+    ASSERT_FALSE(plan.ok()) << "a missing room program must refuse the plan";
+    const std::string err = plan.error.value("error", plan.error.dump());
+    EXPECT_NE(err.find("room program"), std::string::npos) << err;
+    EXPECT_NE(err.find("does_not_exist_room_program.json"), std::string::npos) << "the refusal must name the file: " << err;
+}

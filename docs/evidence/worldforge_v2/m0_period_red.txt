@@ -1,0 +1,111 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementBuildServiceTest.BuildingsCarryTheEraPeriod:SettlementBuildServiceTest.MissingRoomProgramRefuses:StructureGroundingTest.MissingRoomProgramRefusesTheBuild
+[==========] Running 3 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from StructureGroundingTest
+[ RUN      ] StructureGroundingTest.MissingRoomProgramRefusesTheBuild
+[22:10:53.013] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[22:10:53.015] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[22:10:53.016] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[22:10:53.017] [INFO] [StructureBuild] place_hearths: sited 1 vented built-in(s) as program fixtures (the shell builds them)
+[22:10:53.018] [INFO] [StructureBuild] program validation: OK [typology croft]
+[22:10:53.087] [INFO] [StructureRealizer] place_chimney: 1 stack(s) painted into the shell, apex 64 -> cap 70 (micro)
+[22:10:53.109] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=15 (cut 48, fill 48)
+[22:10:53.332] [INFO] [StructureGenerator] Placing 30859 voxels in 2 steps
+[22:10:54.029] [INFO] [StructureGenerator]   step 1: 25000/30859 (25000 placed, 0 failed)
+[22:10:54.398] [INFO] [StructureBuild] [perf] phases ms: setup=9 overlap=2 realize=69 pad=19 excav=221 place+register=1066 (place=1065 grass=0 nav=0) fixtures=0 TOTAL=1386
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\StructureGroundingTest.cpp(204): error: Value of: res.contains("error")
+  Actual: false
+Expected: true
+{"failed":0,"floor_top_micro":147,"gates":[{"ms":7,"outcome":"proceeded","stage":"intake"},{"ms":1,"outcome":"proceeded","stage":"floorplan"},{"ms":0,"outcome":"proceeded","stage":"validate_program"},{"ms":2,"outcome":"proceeded","stage":"validate_assets"},{"ms":20,"outcome":"proceeded","stage":"gro
+
+[  FAILED  ] StructureGroundingTest.MissingRoomProgramRefusesTheBuild (1424 ms)
+[----------] 1 test from StructureGroundingTest (1425 ms total)
+
+[----------] 2 tests from SettlementBuildServiceTest
+[ RUN      ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod
+[22:10:54.434] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[22:10:54.439] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[22:10:54.441] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (1 streets)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[16,6],"plot":0,"position":{"x":5,"y":16,"z":28},"shape":"rect","style":"stone_keep","typology":"longhouse"}
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[8,6],"plot":1,"position":{"x":4,"y":16,"z":14},"shape":"rect","style":"stone_manor","typology":"croft"}
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[7,16],"plot":2,"position":{"x":25,"y":16,"z":27},"shape":"rect","style":"timber_cottage","typology":"tavern"}
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[16,8],"plot":3,"position":{"x":16,"y":16,"z":11},"shape":"rect","style":"stone_manor","typology":"hall_house"}
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[6,8],"plot":4,"position":{"x":36,"y":16,"z":28},"shape":"rect","style":"timber_cottage","typology":"blacksmith"}
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[16,8],"plot":5,"position":{"x":37,"y":16,"z":11},"shape":"L","style":"stone_keep","typology":"hall_house"}
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[16,8],"plot":6,"position":{"x":47,"y":16,"z":28},"shape":"rect","style":"stone_keep","typology":"hall_house"}
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[7,16],"plot":7,"position":{"x":57,"y":16,"z":4},"shape":"L","style":"stone_keep","typology":"tavern"}
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[7,16],"plot":8,"position":{"x":68,"y":16,"z":28},"shape":"rect","style":"timber_cottage","typology":"tavern"}
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(381): error: Expected equality of these values:
+  b.value("period", std::string())
+    Which is: ""
+  "medieval"
+a queued building carries no period - the era never reaches the forge: {"footprint":[8,6],"plot":9,"position":{"x":67,"y":16,"z":14},"shape":"rect","style":"stone_manor","typology":"croft"}
+
+[  FAILED  ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod (10 ms)
+[ RUN      ] SettlementBuildServiceTest.MissingRoomProgramRefuses
+[22:10:54.444] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[22:10:54.449] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json
+[22:10:54.451] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (1 streets)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(394): error: Value of: plan.ok()
+  Actual: true
+Expected: false
+a missing room program must refuse the plan
+
+[  FAILED  ] SettlementBuildServiceTest.MissingRoomProgramRefuses (9 ms)
+[----------] 2 tests from SettlementBuildServiceTest (19 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 2 test suites ran. (1445 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 3 tests, listed below:
+[  FAILED  ] StructureGroundingTest.MissingRoomProgramRefusesTheBuild
+[  FAILED  ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod
+[  FAILED  ] SettlementBuildServiceTest.MissingRoomProgramRefuses
+
+ 3 FAILED TESTS

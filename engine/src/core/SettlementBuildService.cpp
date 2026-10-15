@@ -329,7 +329,27 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // hall) — main-street mode sizes the PLOT from the typology up front (the burgage principle);
         // legacy mode centres the natural footprint in its uniform plot below.
         Core::RoomProgramRegistry roomReg;
-        roomReg.loadFromFile("resources/room_program.json");
+        // M0 (WorldForgeV2Plan §5 M0): the room program is a HARD dependency - its load result
+        // was ignored, so a missing file dropped every plot and reported "footprint too small".
+        // The path is overridable ({"room_program": path}) so the failure is testable, and the
+        // settlement's era loads its data pack (resources/room_programs/<era>.json) - an era
+        // without a pack refuses here instead of building medieval houses and calling them <era>.
+        const std::string roomProgramPath = p.value("room_program", std::string("resources/room_program.json"));
+        if (!roomReg.loadFromFile(roomProgramPath)) {
+            res.error = {{"error", "room program not loadable: " + roomProgramPath +
+                                  " (every typology's size comes from it; nothing was planned)"},
+                         {"room_program", roomProgramPath}};
+            return res;
+        }
+        if (era != "medieval") {
+            const std::string pack = "resources/room_programs/" + era + ".json";
+            if (!roomReg.loadPeriodPack(pack, era)) {
+                res.error = {{"error", "no room-program pack for era '" + era + "': " + pack +
+                                      " (the engine never substitutes another era's buildings)"},
+                             {"era", era}, {"room_program_pack", pack}};
+                return res;
+            }
+        }
 
         // ground top at a WORLD column = the top solid voxel (the seatStructure primitive). Shared by
         // the terrain buildability scan AND per-building seating.
@@ -692,6 +712,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             auto makeBp = [&](const Core::BuildingVariant& v, int w, int d, int x, int z) {
                 return nlohmann::json{
                     {"schema", "v2"}, {"type", "house"}, {"style", v.style}, {"typology", v.typology},
+                    {"period", era}, {"room_program", roomProgramPath},   // M0: the era reaches every building
                     {"footprint_shape", v.footprintShape}, {"front", front},
                     {"position", {{"x", x}, {"y", by}, {"z", z}}},
                     {"footprint", nlohmann::json::array({w, d})},
@@ -768,7 +789,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                             {"error", res1.value("error", std::string())},
                                             {"retry_error", res2.value("error", std::string())}});
             }});
-            queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
+            queued.push_back({{"plot", b.plotIndex}, {"period", era}, {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
                               {"footprint", nlohmann::json::array({bw, bd})},
                               {"typology", var.typology}, {"style", var.style}, {"shape", var.footprintShape}});
             doorCenters.push_back(glm::ivec3(bx + bw / 2, by, bz + bd / 2));  // path anchor
