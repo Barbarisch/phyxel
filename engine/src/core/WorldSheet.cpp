@@ -22,6 +22,13 @@ SheetParams SheetParams::clamped(SheetParams p) {
     if (p.thermalRate > 0.5f) p.thermalRate = 0.5f;      // > 0.5 lets a pair swap past each other and oscillate
     if (p.pagerTiles < 4) p.pagerTiles = 4;              // a column's climate warp can read a neighbouring tile: keep a 2x2 at least
     if (p.pagerTiles > 512) p.pagerTiles = 512;          // 512 x ~0.9 MB = ~460 MB resident: past the laptop's budget (laptop-memory-kill)
+    if (p.erosionSteps < 0) p.erosionSteps = 0;
+    if (p.erosionSteps > 500) p.erosionSteps = 500;      // each step is a full-grid flood + solve; 500 x 200^2 is the bake budget's ceiling
+    if (p.erosionDt < 0.0f) p.erosionDt = 0.0f;
+    if (p.erosionK < 0.0f) p.erosionK = 0.0f;            // negative erodibility deposits uphill
+    if (p.erosionM < 0.35f) p.erosionM = 0.35f;          // m/n outside [0.35, 0.6] is outside Whipple & Tucker 1999's
+    if (p.erosionM > 0.6f) p.erosionM = 0.6f;            // concavity band (§10 F4c, GROUNDED range; n = 1 here)
+    if (p.erosionUpliftMax < 0.0f) p.erosionUpliftMax = 0.0f;
     return p;
 }
 

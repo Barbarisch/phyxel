@@ -39,6 +39,14 @@ struct SheetParams {
                                       // pair never overshoots (each side moves at most half the excess)
     int   pagerTiles       = 64;      // resident meso tiles in the shared LRU (a 256-cell tile with its
                                       // apron is ~0.9 MB over three planes: 64 tiles ~ 55 MB)
+    // M1c macro stream-power erosion (core/MacroErosion.h). OFF by default (steps = 0): the
+    // erodibility / uplift constants are §10 NEEDS-RESEARCH rows; a recipe that names them runs
+    // them, nothing is shipped as a default. Units in MacroErosionParams.
+    int   erosionSteps     = 0;
+    float erosionDt        = 1000.0f; // years per step
+    float erosionK         = 0.0f;    // m^(1-2m)/yr, n = 1
+    float erosionM         = 0.4f;    // drainage-area exponent; clamped to the GROUNDED m/n band [0.35, 0.6]
+    float erosionUpliftMax = 0.0f;    // m/yr at the uplift field's maximum (the field = normalised base elevation)
     /// Clamped copy, reasons at each clamp; a pager echoes the copy it runs with.
     static SheetParams clamped(SheetParams p);
     /// DERIVED, never set: steps x stencil radius so every interior cell's cone is inside the
@@ -48,7 +56,9 @@ struct SheetParams {
     bool operator==(const SheetParams& o) const {
         return macroCellU == o.macroCellU && continentCells == o.continentCells && mesoCellU == o.mesoCellU &&
                mesoTileCells == o.mesoTileCells && mesoSteps == o.mesoSteps && diffusion == o.diffusion &&
-               talusSlope == o.talusSlope && thermalRate == o.thermalRate && pagerTiles == o.pagerTiles;
+               talusSlope == o.talusSlope && thermalRate == o.thermalRate && pagerTiles == o.pagerTiles &&
+               erosionSteps == o.erosionSteps && erosionDt == o.erosionDt && erosionK == o.erosionK &&
+               erosionM == o.erosionM && erosionUpliftMax == o.erosionUpliftMax;
     }
 };
 

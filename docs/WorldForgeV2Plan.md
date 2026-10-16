@@ -587,6 +587,33 @@ outside the band, worst in-column span 5 bands (`m1d_surface_band_red.txt`) → 
 samples could still escape); the test is the measurement, and widening the grid, never the pad, is
 the lever if a miss ever appears.
 
+**M1c BUILT 2026-10-15 — macro stream-power erosion, machinery only; constants stay recipe knobs,
+default OFF.** `core/MacroErosion.{h,cpp}`: per step, `PriorityFlood::fillWithFlow` (sea = base level)
+→ D8 receivers → a Braun & Willett stack (base level first, donors after receivers, deterministic
+donor order) → drainage area by reverse stack → the implicit n = 1 update along the stack,
+h_i = (h_i + dt·U_i + f_i·h_r) / (1 + f_i), f_i = K·dt·A_i^m / d(i, r), never below the receiver
+— the form the grounding read CONFIRMED in Fastscapelib `spl.hpp` and Landlab's FastscapeEroder (the
+Braun & Willett 2013 text itself is still unread). Single-receiver D8, a deliberate deviation from
+Veloren's 8-receiver MFD (simpler; revisit if valleys read too straight). `SheetParams.erosion{Steps,
+Dt, K, M, UpliftMax}` (recipe `sheet.erosion*`, clamped; `erosionM` to the GROUNDED [0.35, 0.6] band)
+drive it from `rebuildSheet` with the uplift field = normalised base elevation above sea; **the
+shipped default is `erosionSteps = 0`** because K and U are not groundable to a value (§10 F4d).
+`MacroErosionTest` 6/6 on a stated RIG (96² cells at 512 u, a 300 u dome + hash roughness, K = 1e-5
+m^0.2/yr — inside Stock & Montgomery's volcaniclastic band — m = 0.4, dt = 1000 yr, 20 steps, U =
+1e-3 m/yr at the dome centre): steps = 0 is the bit-identity; receivers form a forest rooted at base
+level and the stack orders donors after receivers; no receiver sits above its donor on the filled
+surface; drainage area is conserved at base level; Dd falls monotonically with the threshold and
+stays under the 2.7 km/km² grid ceiling; erosion lowers the mean without uplift, uplift raises it,
+10× K erodes more; a receiver chain crosses the old +16384 box edge (`HydroEdgeTest`'s M1 scope).
+Measured, NOT asserted (the band is NEEDS-RESEARCH): Dd × √A_c = 0.587 / 0.625 / 0.640 at thresholds
+of 2 / 8 / 32 cells, then 0.292 at 128 cells where the 96² sample runs out — the near-constancy over
+the first three is what the GROUNDED exponent Dd ∝ A_c^−0.5 predicts, and the one real-catchment
+point the read found (Brushy, ρ√A ≈ 0.36) is the same order. Not yet: the lab experiment "valley
+density rises with erosion steps" at L4 (M1e, with the lab's game.json carrying rig knobs, never a
+shipped default), the two-layer bedrock/sediment model and rock strength → max slope (plan text;
+deferred until K/U are grounded — Veloren's tan 15°–60° bound is game-tuned, not a geoscience
+source), the orographic climate.
+
 Validation: L2 (`MacroErosionTest`: drainage is a tree, no sinks, dendritic density within a
 grounded band; `MesoSeamTest`; `ColumnCostBench`), L4 Release fly-through at a fixed pose set
 before/after (same seed is NOT comparable — new terrain; compare *statistics*: slope histogram,
@@ -897,6 +924,35 @@ valley-count constants."*
 | Erodibility K, uplift U | none | recipe fields, no grounded value | NEEDS-RESEARCH (Whipple & Tucker 1999 K calibration; Cordonnier 2016 Table 1) |
 | Absolute valley/channel count per km² on the 8 km lab | — | — | STRIKE (scales with threshold, grid, seed; sample too small) |
 | Absolute Dd constant (e.g. "3 km/km²") | the 2–12 range above | — | STRIKE as a constant; relative form only |
+
+**F4d — primary-source read for M1c (grounding-auditor, 2026-10-15, 61 tool calls).** Raw verdict:
+*"GROUNDING VERDICT: PARTIAL. Grounded: K units, the K lithology range (abstract), m/n in [0.35, 0.6],
+Dd ∝ A_c^-η (η ≈ 0.5, secondary), and all Veloren values as code readings. The implicit n = 1 update
+is confirmed only through Fastscapelib and Landlab code. Not grounded: K and U as engine constants,
+any Cordonnier value, any Dd × √A_c band, and the Braun & Willett, Whipple & Tucker, Tarboton and
+Tucker primary text."* What failed to open, so nothing is quoted from it: Whipple & Tucker 1999 (a
+scanned image PDF, no text layer — needs OCR), Cordonnier 2016 (every mirror over the fetch size cap
+or access-denied), Braun & Willett 2013 (paywalled), Tarboton 1992 / Tucker 2001 (abstracts only).
+**Owner ask:** a locally saved copy of any of those four lets the rows below close.
+
+| Value | Source | Engine value / range | Verdict |
+|---|---|---|---|
+| K units L^(1−2m)/T | Fastscape docs ("meters (to the power 1−2m) per year"); Harel et al. 2016 abstract; Landlab | m^(1−2m)/yr with A in m²; m^0.2/yr at m = 0.4 | GROUNDED (units, secondary) |
+| K magnitude by lithology (m = 0.4) | Stock & Montgomery 1999 JGR 104, abstract (earthref.org/ERR/42355): "10⁻⁷–10⁻⁶ m^0.2/yr granite/metamorphic, 10⁻⁵–10⁻⁴ volcaniclastic, 10⁻⁴–10⁻² mudstones" | any typed K must fall inside the lithology it names | GROUNDED (range); lithology→material mapping NEEDS-RESEARCH |
+| m = 0.4, n = 1 | Veloren `sim/mod.rs` `theta_func = 0.4`, `n_func = 1.0` ("we choose m = 0.4 and n = 1"); Landlab/Wikipedia "m/n around 0.5" | 0.4 / 1 | GROUNDED as Veloren's choice; still REASONED as physics |
+| Implicit n = 1 update | Fastscapelib `spl.hpp` (`factor = k·dt·A^m / dist`, `h = (num + factor·h_r)/(1+factor)`, bottom-up over receivers first); Landlab `fastscape_stream_power.py` (`alpha = K dt A^m / L^n`, downstream-to-upstream order) | the engine's form | CONFIRMED in two implementations; the paper's own equation unread |
+| Steady-state slope S = (U/K)^(1/n) A^(−m/n) | one-line rearrangement of ∂h/∂t = U − K A^m S^n | sizes K from U and a target slope | REASONED |
+| Veloren K / U / dt / steps | `kf_func` land 1e-6 × grid_scale^(−2m); `dt = max_uplift / 1e-3` (⇒ peak U 1e-3 m/yr, an inference); `n_steps = 100`, Gauss-Seidel ≤ 99 sweeps to tol; 8-receiver MFD; slope cap tan 15°–tan 60° by rock strength; kd 1e-2/4 m²/yr | reference only; Veloren's units are game units | GROUNDED (code reading), not physics |
+| Dd ∝ A_c^−η | HESS 28:3119 (2024) quoting Tarboton 1991 ("inversely related to A_o") and Moglen 1998 (η = 0.45 ± 0.04 over 14 networks; η = 0.5 by dimensional consistency) | Dd × √A_c ≈ constant per landscape | GROUNDED (exponent, secondary) |
+| Dd × √A_c constant | one catchment (Brushy: A_o 0.14 km², ρ 0.97 km⁻¹ ⇒ ≈ 0.36) | do not assert | NEEDS-RESEARCH |
+| U (rock uplift rate), engine default | none | recipe knob only | NEEDS-RESEARCH |
+
+**Recommended, as design choices labelled as such (not sourced):** type a target steady-state slope and
+a reference area in the recipe and DERIVE K (worked example: U = 2e-4 m/yr, S_ref = 0.1 at
+100 km² ⇒ K ≈ 1.3e-6 m^0.2/yr, inside the granite–volcaniclastic bands); carry which unit A is in
+(cell² vs m²: K_cell = K × 512^−0.2 ≈ 0.287 K at 512 m cells); run to steady state with a tolerance and
+RECORD the step count rather than fixing it; a slope cap must handle 1-cell sources (U/(K·A^0.4) is
+unphysical there). None of that is typed yet.
 
 **What `MacroErosionTest` may assert today:** structure (tree, no sinks, every receiver ≤ its donor);
 Dd ∈ [0, 2.7] km/km² at 512 u; Dd decreases monotonically as `minChannelDrainage` rises over ≥ 3

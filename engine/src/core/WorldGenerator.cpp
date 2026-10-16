@@ -2,6 +2,7 @@
 #include "core/WorldForgePlan.h"
 #include "core/WorldRecipe.h"
 #include "core/MapCoarseSource.h"
+#include "core/MacroErosion.h"
 #include "core/Chunk.h"
 #include "core/Cube.h"
 #include "core/HydrologyMap.h"
@@ -1633,7 +1634,10 @@ uint64_t sheetHashOf(const SheetBakeKey& k) {
                       "|" + std::to_string(k.sheet.macroCellU) + "|" + std::to_string(k.sheet.continentCells) +
                       "|" + std::to_string(k.sheet.mesoCellU) + "|" + std::to_string(k.sheet.mesoTileCells) +
                       "|" + std::to_string(k.sheet.mesoSteps) + "|" + std::to_string(k.sheet.diffusion) +
-                      "|" + std::to_string(k.sheet.talusSlope) + "|" + std::to_string(k.sheet.thermalRate);
+                      "|" + std::to_string(k.sheet.talusSlope) + "|" + std::to_string(k.sheet.thermalRate) +
+                      "|" + std::to_string(k.sheet.erosionSteps) + "|" + std::to_string(k.sheet.erosionDt) +
+                      "|" + std::to_string(k.sheet.erosionK) + "|" + std::to_string(k.sheet.erosionM) +
+                      "|" + std::to_string(k.sheet.erosionUpliftMax);
     for (const auto& p : k.spline) txt += "|" + std::to_string(p.x) + "," + std::to_string(p.y);
     uint64_t h = 1469598103934665603ull;
     for (unsigned char c : txt) { h ^= c; h *= 1099511628211ull; }
@@ -1669,6 +1673,37 @@ void WorldGenerator::rebuildSheet() {
             c.continentalness = expandContrast(to01(tnFbm(cx * contF, 300.0f, cz * contF, 2, 0.5f, 2.0f, s)));
             c.baseHeight = hspline.eval(c.continentalness);
         }
+    }
+    // M1c: stream-power erosion on the macro grid (core/MacroErosion.h). The uplift field is the
+    // normalised base elevation above sea (the spline says where the continent rises); the eroded
+    // heights replace baseHeight. Inert at the default erosionSteps = 0.
+    if (m_sheetParams.erosionSteps > 0) {
+        const int nc = macro->cells();
+        std::vector<float> hgt(static_cast<size_t>(nc) * nc), up(hgt.size());
+        float maxAbove = 0.0f;
+        for (int j = 0; j < nc; ++j)
+            for (int i = 0; i < nc; ++i) {
+                const float b = macro->cell(i, j).baseHeight;
+                hgt[static_cast<size_t>(j) * nc + i] = b;
+                maxAbove = std::max(maxAbove, b - terrainParams.seaLevelY);
+            }
+        for (size_t i = 0; i < hgt.size(); ++i)
+            up[i] = maxAbove > 0.0f ? std::max(0.0f, hgt[i] - terrainParams.seaLevelY) / maxAbove : 0.0f;
+        MacroErosionParams ep;
+        ep.steps = m_sheetParams.erosionSteps;
+        ep.dt = m_sheetParams.erosionDt;
+        ep.k = m_sheetParams.erosionK;
+        ep.m = m_sheetParams.erosionM;
+        ep.upliftMax = m_sheetParams.erosionUpliftMax;
+        ep.cellU = m_sheetParams.macroCellU;
+        ep.seaLevel = terrainParams.seaLevelY;
+        const MacroErosionResult er = runMacroErosion(hgt, nc, nc, up, ep);
+        for (int j = 0; j < nc; ++j)
+            for (int i = 0; i < nc; ++i)
+                macro->cell(i, j).baseHeight = er.height[static_cast<size_t>(j) * nc + i];
+        LOG_INFO_FMT("WorldGenerator", "[WORLD_SHEET] macro erosion " << ep.steps << " steps x " << ep.dt
+                     << " yr: mean height " << er.meanHeightBefore << " -> " << er.meanHeightAfter
+                     << ", base-level cells " << er.baseLevelCells);
     }
     // MESO baker: h0 = macro base (bicubic) + the BROAD ridged band at the cell centre; raw climate
     // planes from the same fbm the v1 column evaluates (contrast expansion stays per column).
