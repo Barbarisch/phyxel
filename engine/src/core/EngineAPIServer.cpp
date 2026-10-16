@@ -2318,6 +2318,26 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/crash — DELIBERATE access violation on the HTTP thread (dev instrument,
+    // D14 / plan §12 R0): proves the crash handler's report carries symbol names for THIS build
+    // (Release crashes shipped as bare offsets until Release got a PDB). Refuses without the
+    // explicit confirmation so a stray call cannot take the engine down.
+    // ====================================================================
+    srv.Post("/api/debug/crash", [](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        try { if (!req.body.empty()) params = json::parse(req.body); } catch (const json::exception&) {}
+        if (params.value("confirm", std::string()) != "crash") {
+            res.status = 400;
+            res.set_content(R"({"error":"refused: send {\"confirm\":\"crash\"} to deliberately crash the engine"})",
+                            "application/json");
+            return;
+        }
+        volatile int* nowhere = reinterpret_cast<volatile int*>(static_cast<uintptr_t>(0xD15EA5E0));
+        *nowhere = 1;   // ACCESS_VIOLATION, caught by CrashHandler, report written with names if a PDB is present
+        res.set_content("{}", "application/json");
+    });
+
+    // ====================================================================
     // POST /api/world/save — Save dirty chunks to database
     // Body: { "all": false }  (optional, default saves only dirty chunks)
     // ====================================================================

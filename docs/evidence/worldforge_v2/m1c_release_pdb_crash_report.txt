@@ -1,0 +1,16 @@
+Phyxel crash report
+Exception 0xC0000005 ACCESS_VIOLATION at 0x00007ff6dbf5ac14  (phyxel.exe+0x63ac14)
+Access violation: write of address 0x00000000d15ea5e0
+Thread 5224   Minidump: crashes/crash_20261015_225643.dmp
+
+Stack (faulting thread):
+#0  0x00007ff6dbf5ac14 phyxel.exe+0x63ac14  <lambda_bdcd1ae2286e829966d255d43a30ac2c>::operator()+0x314  (C:\Users\bpete\Documents\GitHub\phyxel\engine\src\core\EngineAPIServer.cpp:2336)
+#1  0x00007ff6dbf80955 phyxel.exe+0x660955  httplib::Server::dispatch_request+0x75  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:6913)
+#2  0x00007ff6dbf8b5d4 phyxel.exe+0x66b5d4  httplib::Server::routing+0x814  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:6890)
+#3  0x00007ff6dbf8801b phyxel.exe+0x66801b  httplib::Server::process_request+0x123b  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:7139)
+#4  0x00007ff6dbf15240 phyxel.exe+0x5f5240  httplib::detail::process_server_socket_core<<lambda_dae1371173ae184bd1d747ef106e9038> >+0x310  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-s
+#5  0x00007ff6dbf86cf8 phyxel.exe+0x666cf8  httplib::Server::process_and_close_socket+0x2b8  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:7228)
+#6  0x00007ff6dbf7248c phyxel.exe+0x65248c  httplib::ThreadPool::worker::operator()+0x16c  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:813)
+#7  0x00007ff6dbf1003e phyxel.exe+0x5f003e  std::thread::_Invoke<std::tuple<httplib::ThreadPool::worker>,0>+0xe  (C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.42.34433\incl
+#8  0x00007ff92144cd30 ucrtbase.dll+0x2cd30  wcsrchr+0x150
+#9  0x00007ff922d6dda7 KERNEL32.DLL+0x2dda7  BaseThreadInitThunk+0x17

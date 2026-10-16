@@ -1,0 +1,3 @@
+[22:53:51.159] [INFO] [GameDefinitionLoader] World: sheet params from game.json -> recipe version 2 (continentCells=16, mesoSteps=4)
+[22:53:51.162] [INFO] [WorldGenerator] [WORLD_SHEET] macro erosion 200 steps x 250000 yr: mean height 43.8753 -> 273.76, base-level cells 100, eroded max above sea 1228.41 u remapped x0.064632 into the spline range (79.3947 u)
+[22:53:51.162] [INFO] [WorldGenerator] [WORLD_SHEET] macro 16x16 @ 512 u baked (hash 11100415125800839046); meso tiles 256 @ 32 u, apron 6, LRU 64

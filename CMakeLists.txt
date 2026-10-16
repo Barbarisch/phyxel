@@ -39,6 +39,13 @@ endif()
 # bug-candidate warnings under /W4 stay visible.
 if(MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+    # Release builds carry a PDB (D14 / docs/WorldForgeV2Plan.md §12 R0): the crash handler
+    # (CrashHandler.cpp, dbghelp) can only name frames when phyxel.pdb sits beside phyxel.exe, and
+    # two Release crashes on 2026-10-15 shipped as bare offsets. /Zi does not change codegen;
+    # /DEBUG would switch off the linker's /OPT:REF,/OPT:ICF defaults, so they are restated.
+    string(APPEND CMAKE_CXX_FLAGS_RELEASE " /Zi")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_RELEASE " /DEBUG /OPT:REF /OPT:ICF")
+    string(APPEND CMAKE_SHARED_LINKER_FLAGS_RELEASE " /DEBUG /OPT:REF /OPT:ICF")
 endif()
 
 # Prevent pybind11 from auto-linking python library via pragma

@@ -624,9 +624,16 @@ into the spline range makes that moot for the engine.** Measured, NOT
 asserted (the band is NEEDS-RESEARCH): Dd × √A_c = 0.587 / 0.625 / 0.640 at thresholds
 of 2 / 8 / 32 cells, then 0.292 at 128 cells where the 96² sample runs out — the near-constancy over
 the first three is what the GROUNDED exponent Dd ∝ A_c^−0.5 predicts, and the one real-catchment
-point the read found (Brushy, ρ√A ≈ 0.36) is the same order. Not yet: the lab experiment "valley
-density rises with erosion steps" at L4 (M1e, with the lab's game.json carrying rig knobs, never a
-shipped default), the two-layer bedrock/sediment model and rock strength → max slope (plan text;
+point the read found (Brushy, ρ√A ≈ 0.36) is the same order. **Lab L4 with erosion ON (Release cc305588, `m1c_lab_l4_run.txt`, `m1c_lab_sheet_log.txt`):** the
+loader promoted the lab's `world.sheet` (erosionSteps 200) to a version-2 recipe; the generator logged
+`macro erosion 200 steps x 250000 yr: mean height 43.9 -> 273.8, base-level cells 100, eroded max above
+sea 1228 u remapped x0.0646 into the spline range (79.4 u)`; the generator profile along z = 40 over
+±4 km (`m1c_lab_profile_z40.txt`) rises 20 → 60 → 40 u in smooth lobes; the elevated capture
+(`m1c_lab_erosion_capture.png`, (0, 238, 600) pitch −30) shows terraced rolling hills with a snow
+line on the far plateau and no tile seam at x = 0. Finding: on this 16-cell lab the continent noise
+never reaches high continentalness, so the height spline's range is only 79 u and the 1228 u of eroded
+relief is compressed 15×; to SEE the mountains the lab needs the "how tall" knob raised (a taller
+`heightSpline`, or Mountains type) — the next lab run, not a code change. Not yet: the two-layer bedrock/sediment model and rock strength → max slope (plan text;
 deferred until K/U are grounded — Veloren's tan 15°–60° bound is game-tuned, not a geoscience
 source), the orographic climate.
 
@@ -1066,8 +1073,16 @@ same stack shape (worker thread via BaseThreadInitThunk, five phyxel.exe frames 
 offsets: `m1e_profile_land_crash.txt`, minidump `crashes/crash_20261015_205202.dmp`). So it is NOT
 sea-specific: an intermittent post-teleport streaming crash on a worker thread (2 of 5 teleport runs
 today). The last log lines before it are off-thread `TreeLodMesh` LOD-set builds and the water region
-follow. A RelWithDebInfo build (same sources, PDB) is the next step so the frames get names; until
-then no M1 L4 number taken after a teleport is trusted without the engine surviving the run.
+follow. **Hunt, 2026-10-15 evening (D14):** three 12-pose teleport loops (RelWithDebInfo recorder-off,
+Release recorder-off, RelWithDebInfo recorder-on; `r0a_run.txt`, `r0rel_run.txt`, `r0rec_run.txt`)
+survived 36 teleports; the only remaining difference from the two crashing runs is luck, so the crash
+is intermittent at a rate the loops did not reach. What changed so the NEXT occurrence is useful:
+**Release builds now carry a PDB** (`CMakeLists.txt`: `/Zi` + `/DEBUG /OPT:REF /OPT:ICF`, codegen
+unchanged) and `POST /api/debug/crash {"confirm":"crash"}` proves it — red: every report before
+today was bare `phyxel.exe+0x…` offsets; green (`m1c_release_pdb_crash_report.txt`): the deliberate
+crash reports `EngineAPIServer.cpp:2336` through `httplib::ThreadPool::worker` with file:line on every
+frame. The two archived minidumps stay unsymbolized (no PDB for those binaries). Every L4 script keeps
+its "ENGINE DIED" check.
 
 
 

@@ -1,0 +1,29 @@
+exe: 2026-10-15_22:52:01  pdb: 2026-10-15_22:52:01 C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Release/phyxel.pdb  HEAD: cc305588
+[22:53:51.159] [INFO] [GameDefinitionLoader] World: sheet params from game.json -> recipe version 2 (continentCells=16, mesoSteps=4)
+[22:53:51.162] [INFO] [WorldGenerator] [WORLD_SHEET] macro erosion 200 steps x 250000 yr: mean height 43.8753 -> 273.76, base-level cells 100, eroded max above sea 1228.41 u remapped x0.064632 into the spline range (79.3947 u)
+[22:53:51.162] [INFO] [WorldGenerator] [WORLD_SHEET] macro 16x16 @ 512 u baked (hash 11100415125800839046); meso tiles 256 @ 32 u, apron 6, LRU 64
+profile z=40, x -4096..4096 step 64 (generator surface_y):
+ -4096:20 -4032:22 -3968:24 -3904:23 -3840:28 -3776:31 -3712:32 -3648:37 -3584:37 -3520:38 -3456:38 -3392:42 -3328:45 -3264:47 -3200:48 -3136:53 -3072:57 -3008:58 -2944:59 -2880:59 -2816:60 -2752:60 -2688:57 -2624:52 -2560:50 -2496:47 -2432:44 -2368:40 -2304:37 -2240:34 -2176:32 -2112:30 -2048:28 -1984:26 -1920:26 -1856:25 -1792:24 -1728:24 -1664:21 -1600:21 -1536:19 -1472:18 -1408:17 -1344:17 -12
+cam: {'x': 0.0, 'y': 238.0, 'z': 600.0} -90.0 -30.0
+shot: screenshots/screenshot_20261015_225642_986.png
+== deliberate crash (Release PDB proof)
+{"error":"refused: send {\"confirm\":\"crash\"} to deliberately crash the engine"} (refusal expected)
+C:\Users\bpete\AppData\Local\Temp/claude/C--Users-bpete-Documents-GitHub-phyxel/f3c1eb44-5225-42be-9ba1-295ea5d465cb/scratchpad/m1c_lab_l4.sh: line 31:   576 Segmentation fault      "$ROOT/build/editor/Release/phyxel.exe" --project "$PROJ" --port "$PORT" > "$LOG" 2>&1
+report: C:/Users/bpete/Documents/GitHub/phyxel/crashes/crash_20261015_225643.txt (reports before: 4)
+Phyxel crash report
+Exception 0xC0000005 ACCESS_VIOLATION at 0x00007ff6dbf5ac14  (phyxel.exe+0x63ac14)
+Access violation: write of address 0x00000000d15ea5e0
+Thread 5224   Minidump: crashes/crash_20261015_225643.dmp
+
+Stack (faulting thread):
+#0  0x00007ff6dbf5ac14 phyxel.exe+0x63ac14  <lambda_bdcd1ae2286e829966d255d43a30ac2c>::operator()+0x314  (C:\Users\bpete\Documents\GitHub\phyxel\engine\src\core\EngineAPIServer.cpp:2336)
+#1  0x00007ff6dbf80955 phyxel.exe+0x660955  httplib::Server::dispatch_request+0x75  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:6913)
+#2  0x00007ff6dbf8b5d4 phyxel.exe+0x66b5d4  httplib::Server::routing+0x814  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:6890)
+#3  0x00007ff6dbf8801b phyxel.exe+0x66801b  httplib::Server::process_request+0x123b  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:7139)
+#4  0x00007ff6dbf15240 phyxel.exe+0x5f5240  httplib::detail::process_server_socket_core<<lambda_dae1371173ae184bd1d747ef106e9038> >+0x310  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-s
+#5  0x00007ff6dbf86cf8 phyxel.exe+0x666cf8  httplib::Server::process_and_close_socket+0x2b8  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:7228)
+#6  0x00007ff6dbf7248c phyxel.exe+0x65248c  httplib::ThreadPool::worker::operator()+0x16c  (C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\httplib-src\httplib.h:813)
+#7  0x00007ff6dbf1003e phyxel.exe+0x5f003e  std::thread::_Invoke<std::tuple<httplib::ThreadPool::worker>,0>+0xe  (C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.42.34433\incl
+#8  0x00007ff92144cd30 ucrtbase.dll+0x2cd30  wcsrchr+0x150
+#9  0x00007ff922d6dda7 KERNEL32.DLL+0x2dda7  BaseThreadInitThunk+0x17
+done
