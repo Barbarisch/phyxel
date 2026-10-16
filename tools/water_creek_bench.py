@@ -79,6 +79,7 @@ def main():
     ap.add_argument("--record", type=float, default=0.0, help="seconds of clip + polling (0 = just start it and leave it running)")
     ap.add_argument("--pond", action="store_true", help="26.13 P3b: run the creek as pond-core water (one sparse volume)")
     ap.add_argument("--sweeps", type=int, default=40, help="--pond: the pressure sweeps per substep")
+    ap.add_argument("--brick-height", type=int, default=0, help="--pond: GPU brick height 2 / 4 / 8 (26.17; 0 = the engine default); tags the outputs _h<H>")
     ap.add_argument("--bed", default="plane", choices=("plane", "voxel"), help="the column run's bed: the 1:200 line (25.22 option (a)) or the carve's voxels (26.15: the same bed the pond run flows over)")
     ap.add_argument("--grid", type=int, default=9, choices=(3, 9), help="the carve's grid per metre (26.15: 9; 25.22: 3) - --build carves it, the numbers read it")
     args = ap.parse_args()
@@ -141,17 +142,17 @@ def run_pond(api, args):
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
     h = 1.0 / 9.0
     r = api.debug("water_av_create", {"x1": X0, "y1": 14, "z1": Z0 - 2, "x2": X1, "y2": 17, "z2": Z1 + 2, "cellSize": h, "backend": "gpu",
-                                       "sweeps": args.sweeps, "auto_sleep": False, "manning_n": N})
+                                       "sweeps": args.sweeps, "auto_sleep": False, "manning_n": N, "brick_height": args.brick_height})
     if "error" in r: raise SystemExit(r)
     vid = r["volume"]["id"]
-    print("volume", {k: r["volume"].get(k) for k in ("id", "cells", "backend", "gpu_sweeps", "manning_n", "gpu_bricks", "gpu_brick_capacity")})
+    print("volume", {k: r["volume"].get(k) for k in ("id", "cells", "backend", "gpu_sweeps", "manning_n", "gpu_bricks", "gpu_brick_capacity", "gpu_brick_height")})
     cells_z = [Z0 + (k + 0.5) * h for k in range(int(round((Z1 - Z0 + 1) / h)))]   # the creek's 1/9 m cells across
     for z in cells_z:
         api.debug("water_av_source", {"id": vid, "x": X1 + 1 - h / 2, "y": bed_top(X1) + h / 2, "z": z, "outfall": True})
     camera_set(api, {"x": X0 + 2.0, "y": 18.2, "z": Z0 + 3.5, "yaw": -12.0, "pitch": -16.0})
     time.sleep(2.0)
     rec, t0 = None, time.time()
-    name = f"creekbench_pond{TAG}_q{args.q:g}"
+    name = f"creekbench_pond{TAG}_q{args.q:g}" + (f"_h{args.brick_height}" if args.brick_height else "")
     if args.record > 0 and shutil.which("ffmpeg"):
         EV.mkdir(parents=True, exist_ok=True)
         rec = subprocess.Popen([shutil.which("ffmpeg"), "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-t", str(args.record),
@@ -170,7 +171,8 @@ def run_pond(api, args):
         wet = [c for c in cols if c.get("surface_y") is not None]
         depth = sum(c["surface_y"] - bed_top(c["x"]) for c in wet) / len(wet) if wet else 0.0
         us = sum(c["u"] for c in wet) / len(wet) if wet else 0.0
-        polls.append({"t": round(time.time() - t0, 2), "in_m3": v.get("source_in_m3", 0.0), "out_m3": v.get("outfall_out_m3", 0.0), "stored_m3": v["mass"],
+        et = api.get("/api/debug/engine_timing")   # 26.17 (GET only): the frame, beside the water's own time
+        polls.append({"t": round(time.time() - t0, 2), "fps": et.get("fps", 0.0), "brick_height": v.get("gpu_brick_height", 0), "in_m3": v.get("source_in_m3", 0.0), "out_m3": v.get("outfall_out_m3", 0.0), "stored_m3": v["mass"],
                       "ledger_error_m3": v["mass"] - (v.get("source_in_m3", 0.0) - v.get("outfall_out_m3", 0.0)), "gpu_ms": v.get("gpu_ms_last_call", 0.0), "gpu_device_ms": v.get("gpu_device_ms", 0.0), "gpu_host_ms": v.get("gpu_host_ms", 0.0), "gpu_wait_ms": v.get("gpu_wait_ms", 0.0), "gpu_ticks": v.get("gpu_ticks", 0),
                       "bricks": v.get("gpu_bricks"), "mid_depth_m": depth, "mid_surface_speed_ms": us, "mid_wet_columns": len(wet)})
         time.sleep(0.5)
@@ -185,6 +187,10 @@ def run_pond(api, args):
                "mid_depth_m": last["mid_depth_m"], "mid_speed_by_continuity_ms": args.q / (width * max(last["mid_depth_m"], 1e-6)),
                "mid_surface_speed_ms": last["mid_surface_speed_ms"], "ledger_error_m3": last["ledger_error_m3"],
                "gpu_ms_median": sorted(p["gpu_ms"] for p in polls)[len(polls) // 2], "gpu_ms_max": max(p["gpu_ms"] for p in polls), "gpu_device_ms_median": sorted(p["gpu_device_ms"] for p in polls)[len(polls) // 2], "gpu_host_ms_median": sorted(p["gpu_host_ms"] for p in polls)[len(polls) // 2], "gpu_wait_ms_median": sorted(p["gpu_wait_ms"] for p in polls)[len(polls) // 2], "gpu_ticks_median": sorted(p["gpu_ticks"] for p in polls)[len(polls) // 2], "bricks": last["bricks"]}
+    tail = [p for p in polls if p["t"] >= args.record - 60.0]   # 26.17: the cost at steady flow (the last minute)
+    med = lambda k: sorted(p[k] for p in tail)[len(tail) // 2]
+    summary.update({"brick_height": last["brick_height"], "stored_cells_last60s": med("bricks") * 64 * max(1, last["brick_height"]),
+                    "gpu_device_ms_median_last60s": med("gpu_device_ms"), "fps_median_last60s": med("fps")})
     (EV / f"{name}.json").write_text(json.dumps({"summary": summary, "polls": polls}, indent=1))
     print(json.dumps(summary))
     print("the creek keeps running")

@@ -64,7 +64,7 @@ protected:
                          BrickOptions sparseOpts = BrickOptions{true, 0, false}, bool strict = true) {
         SceneResult r;
         std::string err;
-        WaterCoreGpu::Volume* dv = gpu.createVolume(start, &err);
+        WaterCoreGpu::Volume* dv = gpu.createVolume(start, &err, BrickOptions{false, 0, false, 8});   // every 8^3 brick kept (26.17: named, not the default)
         EXPECT_NE(dv, nullptr) << err;
         WaterCoreGpu::Volume* sv = gpu.createVolume(start, &err, sparseOpts);
         EXPECT_NE(sv, nullptr) << err;
@@ -202,7 +202,7 @@ void WaterBrickTest::seamScenes(BrickOptions sparseOpts, const char* tag) {
 // 26.6 P2a GATE: sparse == dense, bit for bit, across chunk and brick seams; the halo never too thin; the absent brick clean.
 TEST_F(WaterBrickTest, SparseEqualsDenseAcrossSeams) {
     if (!isVulkanAvailable()) GTEST_SKIP();
-    seamScenes(BrickOptions{true, 0, false}, "8^3");
+    seamScenes(BrickOptions{true, 0, false, 8}, "8^3");
 }
 
 // 26.17 GATE: FLAT bricks (8 x 2 x 8, 8 x 4 x 8) stored sparse == every 8^3 brick kept, bit for bit - the brick's shape is storage
@@ -227,7 +227,7 @@ TEST_F(WaterBrickTest, AFrozenResidencyIsCaught) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     WaterGrid g = makeGrid();
     g.fillBox({0, 0, 0}, {7, 7, kDims.z - 1}, 1.0f);
-    const SceneResult r = runScene(g, 120, nullptr, BrickOptions{true, 0, true}, false);
+    const SceneResult r = runScene(g, 120, nullptr, BrickOptions{true, 0, true, 8}, false);
     report("frozen residency", r);
     EXPECT_GT(r.haloShort, 0) << "control: the halo check must see water next to bricks that are not stored";
     EXPECT_GT(r.ticksDiffering, 0) << "control: the frozen run must differ from the dense one";
@@ -242,12 +242,12 @@ TEST_F(WaterBrickTest, CapacityHoldsWater) {
     WaterGrid g = makeGrid();
     g.fillBox({0, 0, 0}, {7, 7, kDims.z - 1}, 1.0f);
     std::string err;
-    WaterCoreGpu::Volume* tooSmall = gpu.createVolume(g, &err, BrickOptions{true, 10, false});
+    WaterCoreGpu::Volume* tooSmall = gpu.createVolume(g, &err, BrickOptions{true, 10, false, 8});
     EXPECT_EQ(tooSmall, nullptr) << "a capacity below the water must be refused";
     std::printf("  capacity 10 (the water needs 16): %s\n", err.c_str());
     if (tooSmall) gpu.destroyVolume(tooSmall);
     err.clear();
-    WaterCoreGpu::Volume* v = gpu.createVolume(g, &err, BrickOptions{true, 24, false});
+    WaterCoreGpu::Volume* v = gpu.createVolume(g, &err, BrickOptions{true, 24, false, 8});
     ASSERT_NE(v, nullptr) << err;
     SolverParams prm;
     long held = 0, flux = 0, shortBy = 0; bool dirty = false;
@@ -376,7 +376,8 @@ TEST_F(WaterBrickTest, DISABLED_ACreekStoredSparseFitsTheBudget) {
 // sanity bound (1e-2: the GPU's 40 cold-start sweeps vs the CPU's converged PCG - 5.0e-3 measured at 2 s).
 TEST_F(WaterBrickTest, AnyOriginKeepsTheWater) {
     if (!isVulkanAvailable()) GTEST_SKIP();
-    std::vector<float> aligned;
+    std::vector<float> aligned;   // the first run's fills: every origin AND every brick height must give the same water (26.17)
+    for (int height : {8, 4, 2})
     for (glm::ivec3 origin : {glm::ivec3(0), glm::ivec3(3, 0, 0), glm::ivec3(0, 5, 0), glm::ivec3(0, 0, 6), glm::ivec3(299, 47, -21)}) {
         WaterGrid g(GridSpec{origin, glm::ivec3(18, 9, 18), 1.0f / 3.0f}), c(GridSpec{origin, glm::ivec3(18, 9, 18), 1.0f / 3.0f});
         for (WaterGrid* x : {&g, &c}) {
@@ -387,7 +388,7 @@ TEST_F(WaterBrickTest, AnyOriginKeepsTheWater) {
         const glm::ivec3 o = origin; const glm::ivec3 d(18, 9, 18);
         WaterSolver cpu(c, [o, d](const glm::ivec3& cw) { const glm::ivec3 l = cw - o; return (l.x < 0 || l.y < 0 || l.z < 0 || l.x >= d.x || l.y >= d.y || l.z >= d.z) ? Occ::Solid : Occ::Air; });
         std::string err;
-        WaterCoreGpu::Volume* v = gpu.createVolume(g, &err);
+        WaterCoreGpu::Volume* v = gpu.createVolume(g, &err, BrickOptions{false, 0, false, height});
         ASSERT_NE(v, nullptr) << err;
         SolverParams prm;
         const double m0 = g.totalMass();
@@ -404,8 +405,8 @@ TEST_F(WaterBrickTest, AnyOriginKeepsTheWater) {
                 long differ = 0;
                 if (aligned.empty()) aligned = out.fData();
                 else for (size_t i = 0; i < aligned.size(); ++i) differ += (aligned[i] == out.fData()[i]) ? 0 : 1;
-                std::printf("  origin (%d,%d,%d): fills vs CPU at 2 s max|df| %.2e; cells differing from the aligned run %ld\n", origin.x, origin.y, origin.z, df, differ);
-                EXPECT_EQ(differ, 0) << "the brick layout changed the water at origin " << origin.x << "," << origin.y << "," << origin.z;
+                std::printf("  h %d origin (%d,%d,%d): fills vs CPU at 2 s max|df| %.2e; cells differing from the aligned 8^3 run %ld\n", height, origin.x, origin.y, origin.z, df, differ);
+                EXPECT_EQ(differ, 0) << "the brick layout changed the water at height " << height << ", origin " << origin.x << "," << origin.y << "," << origin.z;
                 EXPECT_LT(df, 1e-2);
             }
         }

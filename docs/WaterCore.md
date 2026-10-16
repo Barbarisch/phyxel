@@ -92,7 +92,9 @@ because the main thread WAITS at the fence behind the renderer.
 **26.16 (2026-10-15): the water's call is no longer waited on** - submitted each frame, collected the next (bit-identical
 water, one frame of lag in what the host sees): the creek bench's frame 12.9 -> 7.4 ms (77 -> 135 fps; 5.5 ms with the water
 paused); a lost-count fault found on the way (re-sending sources in async) and fixed.
-**Next:** flat bricks (the creek's GPU 1.7 ms -> under the budget with room for ripples); the pond's extra drag on the stepped
+**26.17 (2026-10-15): flat bricks** - bricks 8 x 2 x 8 by default, bit-identical to 8^3: the creek bench stores 34 % fewer cells,
+GPU 1.83 -> 1.57 ms a call, the water the same to the fourth digit; the frame unchanged (the water no longer holds it up).
+**Next:** not storing the bed under the water (26.18, predicted 458 k -> ~262 k cells); the pond's extra drag on the stepped
 bed; then P3c. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
@@ -5981,7 +5983,7 @@ share of the frame is now ~1.9 ms, about its GPU time. Steady out/in 1.003, ledg
 is the cells stepped - the creek's water is 2-3 cells deep but stored in 8-cell-tall bricks (~4 brick layers per column with
 the halo): flat bricks (8 x 2 x 8 or 8 x 4 x 8), measured on this bench.
 
-### 26.17 Flat bricks - design and check (2026-10-15). Status: DESIGN, READY
+### 26.17 Flat bricks - design, check, build (2026-10-15). Status: BUILT, default 2-tall; not signed off
 
 **The ask (owner, 2026-10-15: "get it done"):** cut the creek's GPU time (26.16: ~1.7-1.9 ms of a 2 ms budget that must cover
 ALL water) by storing shallow water in flat bricks.
@@ -6047,6 +6049,37 @@ over solid ground, the case flat bricks are for).
 - `SparseEqualsDenseAcrossSeams`, `AnyOriginKeepsTheWater` (+ origins for 2- and 4-tall), the GPU parity suite, CPU 330: unchanged.
 - **Cost, on the bench, live:** `gpu_bricks`, stored cells and `gpu_device_ms` for 8, 4 and 2 at q 0.2, same carve, same
   flow; prediction above written before the run. Then the clip, for the owner: the look must not change.
+
+**Built (2026-10-15).** As designed: `BrickOptions::height`, `WaterCoreGpu::s_brickHeight`, `pc.bly`, bricks laid y-slowest,
+mode-0 sums per 8 x 2 x 8 unit gathered into the world-aligned unit map, `markNeed` walking each axis to the reach (its `rings`
+argument is gone), `water_av_create brick_height` / `gpu_brick_height`.
+- **Red first:** `FlatBricksEqualCubic` with the single ring count: 8 x 2 x 8 differed in every scene (the dam break 153 of 180
+  ticks, halo short 42 bricks, 114 faces of flux into absent bricks; the stepped bed 240 of 240). 8 x 4 x 8 already passed - one
+  4-cell ring covers these slow scenes' reach.
+- **Green:** per-axis rings - all six scenes at 2 and 4 tall: 0 differing ticks (every f, u, v, w, p ==), the surface field byte
+  for byte, the rest decisions equal, halo short 0, the absent brick clean. The 8^3 run is still bit-identical under the new
+  layout and reduction order. `AnyOriginKeepsTheWater` now runs heights 8, 4 and 2 at five origins: every run's fills equal the
+  first (aligned 8^3) run's, cell for cell. GPU water 37 pass (the known FLIP row fails, run-up 1.19 h0 as before); CPU 330 / 330 -
+  on the 8 default and again on the 2 default.
+
+**Measured live - the bench, q 0.2, 40 sweeps, the same carve, 7 min each, the last minute's median**
+(`creekbench_pond_g9_q0.2_h{8,4,2}.json`, `_steady.mp4`):
+
+| brick | stored cells | GPU per call | mid depth | mid surface speed | out / in | frame |
+|---|---|---|---|---|---|---|
+| 8 x 8 x 8 | 691,200 | 1.83 ms | 0.2189 m | 0.624 m/s | 1.0005 | 128 fps |
+| 8 x 4 x 8 | 517,120 | 1.62 ms | 0.2189 m | 0.624 m/s | 1.0034 | 129 fps |
+| **8 x 2 x 8** | **457,984 (-34 %)** | **1.57 ms (-0.26)** | 0.2189 m | 0.624 m/s | 1.0026 | 129 fps |
+
+Predicted -35 % cells and -0.35 ms; measured -34 % and -0.26 ms (live, a call costs ~1.1 ms per million stored cells, against
+1.44 headless). The water is the same at every height (depth and speed to the fourth digit; ledger 0). **The frame did not move**:
+since 26.16 the water's GPU work no longer holds the frame up, so this buys budget (room for more water and the ripples inside
+the 2 ms), not frames. **The default is now 2** (`s_brickHeight`); tests that mean 8^3 name it.
+
+**What is left of the cost (the creek, 1.57 ms):** the bed under the water - with 2-tall bricks, bricks that hold only ground
+are still stored for the halo; not storing them is predicted at 457,984 -> ~262,000 cells (26.18, next to design: an
+all-Solid brick must read as Solid where it is absent, not as air); the fixed ~0.4 ms of a call (80 sweep dispatches with a
+barrier each - fusing them changes the solve and needs its own gate).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
