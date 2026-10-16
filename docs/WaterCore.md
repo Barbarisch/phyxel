@@ -5983,7 +5983,7 @@ share of the frame is now ~1.9 ms, about its GPU time. Steady out/in 1.003, ledg
 is the cells stepped - the creek's water is 2-3 cells deep but stored in 8-cell-tall bricks (~4 brick layers per column with
 the halo): flat bricks (8 x 2 x 8 or 8 x 4 x 8), measured on this bench.
 
-### 26.17 Flat bricks - design, check, build (2026-10-15). Status: BUILT, default 2-tall; not signed off
+### 26.17 Flat bricks - design, check, build (2026-10-15). Status: DONE, default 2-tall; signed off by the owner 2026-10-16 ("signed off. looks good")
 
 **The ask (owner, 2026-10-15: "get it done"):** cut the creek's GPU time (26.16: ~1.7-1.9 ms of a 2 ms budget that must cover
 ALL water) by storing shallow water in flat bricks.
@@ -6078,7 +6078,11 @@ the 2 ms), not frames. **The default is now 2** (`s_brickHeight`); tests that me
 
 **What is left of the cost (the creek, 1.57 ms):** the bed under the water - with 2-tall bricks, bricks that hold only ground
 are still stored for the halo; not storing them is predicted at 457,984 -> ~262,000 cells (26.18, next to design: an
-all-Solid brick must read as Solid where it is absent, not as air); the fixed ~0.4 ms of a call (80 sweep dispatches with a
+all-Solid brick must read as Solid where it is absent, not as air). **Owner's constraint (2026-10-16):** everything in the world
+is destructible - a buried voxel can be dug, mined or blasted open at any time. So "all bed" can never be a fixed property of a
+place: it must be read from the world's CURRENT occupancy every time that changes, and a brick that a dig opens must be stored
+again (and water must be able to run into the hole) before the next step reads it. 26.18's gate must dig under and beside a
+running creek; the fixed ~0.4 ms of a call (80 sweep dispatches with a
 barrier each - fusing them changes the solve and needs its own gate).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
