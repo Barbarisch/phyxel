@@ -1,0 +1,49 @@
+{
+ "label": "M1e section 9 streaming gate: the v1 baseline procedure on the SAME pose/machine/config with a version-2 (sheet) recipe",
+ "exe": "build/editor/Release/phyxel.exe 2026-10-15 20:31 = commit 46dd3b03 (M1a-M1d: sheet + band)",
+ "machine": "NVIDIA RTX 1000 Ada Generation Laptop GPU (laptop)",
+ "config": "Release",
+ "world": "PhyxelProjects/WorldForgeBaselineV2 = WorldForgeBaseline recipe (Perlin seed 20260816, worldforge 8 sites, loadRadius 8 / unloadRadius 11) + world.sheet (continentCells 200, mesoSteps 4, erosion off); fresh world.db",
+ "pose": {
+  "x": 300,
+  "y": 109,
+  "z": -1400,
+  "yaw": -90,
+  "pitch": -45,
+  "generator_surface_y": 69,
+  "chunk_surface_y_after_stream": 81,
+  "surface_voxel_material": "Grass"
+ },
+ "baseline": {
+  "file": "m1_stream_baseline.json",
+  "chunks_per_second": 11.41,
+  "frame_ms_p50": 34.0,
+  "frame_ms_p95": 92.6
+ },
+ "result": {
+  "chunks_per_second_saturated_ramp": 18.86,
+  "fit_window_s": [
+   0.9,
+   53.8
+  ],
+  "fit_points": 1899,
+  "resident_min_after_unload": 0,
+  "resident_at_end": 1033,
+  "t_end_s": 56.8,
+  "pending_generation_min_max": [
+   4,
+   48
+  ],
+  "frame_ms_p50": 17.4,
+  "frame_ms_p95": 98.1,
+  "frames_in_dump": 2048
+ },
+ "gate": "section 9: >= 2 x 11.41 = 22.8 chunks/s",
+ "gate_result": "FAIL",
+ "ratio_vs_baseline": 1.65,
+ "caveats": [
+  "n=1 each side",
+  "the band change (M1d) widens the vertical wanted set on flanks, which can LOWER chunks/s at the same generation throughput: this number includes it",
+  "the dump is the recorder's first page only if rows < frames"
+ ]
+}

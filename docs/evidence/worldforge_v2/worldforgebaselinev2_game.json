@@ -1,0 +1,60 @@
+{
+  "name": "WorldForgeBaselineV2",
+  "description": "M1e gate lab: the WorldForgeBaseline recipe (Perlin seed 20260816, worldforge 8 sites) with a world.sheet block = a version-2 recipe, so the section 9 streaming gate (>= 2x the 11.4 chunks/s v1 baseline at the SAME pose (300,109,-1400)) is measured apples to apples. Erosion off (default).",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 20260816,
+    "streaming": true,
+    "loadRadius": 8,
+    "unloadRadius": 11,
+    "from": {
+      "x": -1,
+      "y": 0,
+      "z": -1
+    },
+    "to": {
+      "x": 1,
+      "y": 0,
+      "z": 1
+    },
+    "worldforge": {
+      "siteCount": 8,
+      "regionRadius": 2048,
+      "minSpacing": 400
+    },
+    "sheet": {
+      "macroCellU": 512,
+      "continentCells": 200,
+      "mesoCellU": 32,
+      "mesoTileCells": 256,
+      "mesoSteps": 4,
+      "diffusion": 0.1,
+      "talusSlope": 0.7,
+      "thermalRate": 0.5,
+      "pagerTiles": 64
+    }
+  },
+  "camera": {
+    "position": {
+      "x": 16,
+      "y": 80,
+      "z": 80
+    },
+    "yaw": -90,
+    "pitch": -30
+  },
+  "player": {
+    "type": "animated",
+    "position": {
+      "x": 16,
+      "y": 40,
+      "z": 16
+    }
+  },
+  "dayNight": {
+    "enabled": true,
+    "timeOfDay": 9.0,
+    "dayLengthSeconds": 1200
+  }
+}

@@ -614,6 +614,23 @@ shipped default), the two-layer bedrock/sediment model and rock strength → max
 deferred until K/U are grounded — Veloren's tan 15°–60° bound is game-tuned, not a geoscience
 source), the orographic climate.
 
+**M1e, first measurement 2026-10-15 — the §9 streaming gate is RED at 1.65×.** The v1 baseline
+procedure (same pose (300, 109, −1400), same laptop, Release, fresh world.db) on
+`PhyxelProjects/WorldForgeBaselineV2` (the baseline recipe + a `world.sheet` block, erosion off):
+`[WORLD_SHEET] macro 200x200 @ 512 u baked`, generator surface at the pose 69 (= v1: plains, relief
+mask 0, the 512 u bicubic and the 32 u bilinear of the same continent noise agree to under a voxel
+there), **18.86 chunks/s** over the saturated ramp vs 11.41 (`m1e_stream_gate.json`,
+`m1e_stream_gate_run.txt`); frame p50 17.4 ms (was 34.0), p95 98.1 (was 92.6). The gate needs
+22.8. What this says: the column sampler is now 7× cheaper (136.6 → 18.6 evals) but chunk
+generation did not get 7× faster, so the column was not the only cost — the per-voxel fill, flora
+planning and meshing share the worker. The next step is a measurement (a per-chunk generation
+profile on the worker), not a tuning guess; M1d's wider wanted set (closing the flank hole) is also
+in this number. Pending at the end of the window dropped to 4: the wanted set filled, so the ramp
+window is the honest part. Remaining M1 items after this: the generation profile and whatever it
+names; the Release meso bake (76 ms vs 50); the lab erosion experiment (valley density vs steps);
+far-mesher `configure` on every rebuild path (13.1); Flat/heightmap trivial sheets; the DB tile
+cache (not needed at 76 ms/tile so far).
+
 Validation: L2 (`MacroErosionTest`: drainage is a tree, no sinks, dendritic density within a
 grounded band; `MesoSeamTest`; `ColumnCostBench`), L4 Release fly-through at a fixed pose set
 before/after (same seed is NOT comparable — new terrain; compare *statistics*: slope histogram,
@@ -846,7 +863,7 @@ grounding-auditor; `ValidationLedger.md` gets a row per new placer/field.
 | Meso tile bake 256² | **76.2 ms Release** / 201.5 ms Debug (laptop, `WorldSheetGeneratorTest.MesoTileBakeTimeRecorded`, 2026-10-15) | < 50 ms on a worker, Release — **RED** (lever: the climate planes are 8 of the 18 evals per cell) |
 | Civ + routes plan, 300 sites | all-pairs A* O(n²) at 8 sites today | < 10 s Release, off the main thread |
 | Settlement map, 200-lot city | — | < 2 s headless |
-| Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (v1 baseline; the M1b sheet on the WorldSheetLab pose measured 17.3 — a different world, not the gate pose) (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
+| Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (v1 baseline) → **18.9 chunks/s on the sheet at the SAME pose/machine/config (M1e, `m1e_stream_gate.json`, Release 46dd3b03, WorldForgeBaselineV2 = the baseline recipe + a sheet block): 1.65×, frame p50 34 → 17 ms, p95 93 → 98 ms — GATE RED (≥ 2× = 22.8 needed).** The number includes M1d's wider vertical wanted set (1033 resident at 57 s vs 854 at 76 s for v1). Next measurement, not a guess: a per-chunk generation profile (column sample vs voxel fill vs flora vs mesh) to see where the remaining time goes (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
 | Realization | 0.9 s per furnished tavern place | 0 frames > 33 ms during lazy realization |
 
 Both the RTX 4090 desktop and the RTX 1000 Ada laptop are stated on every evidence row.
