@@ -214,8 +214,9 @@ public:
     /// 26.17: the brick height (cells) a volume gets when its BrickOptions name none - 2, 4 or 8 (bricks are 8 x h x 8). 2 since
     /// 26.17's bench run: the creek at q 0.2 stored 691,200 -> 457,984 cells, GPU 1.83 -> 1.57 ms a call, the water identical
     static inline int s_brickHeight = 2;
-    /// 26.18: sparse volumes read halo bricks that are all ground from the GROUND sentinel instead of stepping them
-    static inline bool s_groundBricks = false;
+    /// 26.18: sparse volumes read halo bricks that are all ground from the GROUND sentinel instead of stepping them. ON since the
+    /// bench run: the creek at q 0.2 stored 456,192 -> 282,240 cells, GPU 1.56 -> 1.35 ms a call, the water identical
+    static inline bool s_groundBricks = true;
     /// 26.10 test hook: copy f after every stage of each single-tick, single-substep call and sum it on the host in double -
     /// exact per-stage mass changes (the device's own sums are float). s_stageDm[k] accumulates stage k's change in cell
     /// fractions: 0 between calls, 1 sources, 2 transport gather, 3 transport carry, 4 ledger, 5 compaction, 6 rest of the

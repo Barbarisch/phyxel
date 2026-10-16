@@ -94,7 +94,11 @@ water, one frame of lag in what the host sees): the creek bench's frame 12.9 -> 
 paused); a lost-count fault found on the way (re-sending sources in async) and fixed.
 **26.17 (2026-10-15): flat bricks** - bricks 8 x 2 x 8 by default, bit-identical to 8^3: the creek bench stores 34 % fewer cells,
 GPU 1.83 -> 1.57 ms a call, the water the same to the fourth digit; the frame unchanged (the water no longer holds it up).
-**Next:** not storing the bed under the water (26.18, predicted 458 k -> ~262 k cells); the pond's extra drag on the stepped
+**26.18 (2026-10-16): ground bricks** - halo bricks that are all ground are read from a sentinel, not stepped; which ones is
+re-read from the world on every change (everything is destructible): creek GPU 1.56 -> 1.35 ms, the water identical; digs under
+and beside the running creek drain into the holes, books exact. Found: every world change freezes the frame ~145 ms per volume
+(the whole box re-read and re-uploaded) - and any edit anywhere triggers it.
+**Next:** 26.19 - a world change seen locally (only the touched bricks, no read-back); the pond's extra drag on the stepped
 bed; then P3c. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
@@ -6085,7 +6089,7 @@ again (and water must be able to run into the hole) before the next step reads i
 running creek; the fixed ~0.4 ms of a call (80 sweep dispatches with a
 barrier each - fusing them changes the solve and needs its own gate).
 
-### 26.18 The ground under the water, not stepped - design and check (2026-10-16). Status: DESIGN, READY
+### 26.18 The ground under the water, not stepped - design, check, build (2026-10-16). Status: BUILT, ON by default; not signed off
 
 **The ask (owner, 2026-10-16: "keep going", after agreeing the constraint below).** The next cost lever from 26.17: with 2-tall
 bricks the creek still steps bricks that hold nothing but ground, kept only because they lie within the halo's reach of the
@@ -6144,6 +6148,44 @@ field, one switch. *Default change:* after the gate and the bench, in the same c
   frame time and the re-upload's time (new record field `gpu_upload_ms`) are logged - the water must drain into each pit, the
   ledger hold, and the frame's hitch per dig is reported as measured. If the re-upload is what costs, the follow-up is to
   refresh only the bricks a dig touches (designed then, not now).
+
+**Built (2026-10-16).** As designed: slot 1 is the GROUND sentinel (occupancy Solid, filled at create and in every upload's
+staging, never written, checked by `wc_bricks.comp` like slot 0); `Volume::allSolid` recomputed from the upload's occupancy;
+`applyResidency` stores need-2 bricks for real, makes need-1 all-ground bricks ground, handles every transition; the column table
+lists real bricks only; real slots start at 2. `BrickOptions::ground` / `s_groundBricks` (now ON), `water_av_create ground_bricks`,
+record `gpu_ground_bricks`, plus `gpu_upload_ms`, `gpu_uploads`, `occ_refresh_ms` (below).
+- `GroundBricksEqualStored`: the six 26.17 scenes + an overhang, a dig under the flowing creek at tick 60 and a pit filled in -
+  0 differing ticks (every f, u, v, w, p ==, the surface byte for byte, the rest decisions), halo short 0, both sentinels clean;
+  210 cells of water ran into the dug pit (both runs). The same new scenes with ground off: equal too.
+- `AGroundReadAsAirIsCaught` (the control, red by design): the sentinel's occupancy left as air - 120 of 120 ticks differ, 1,260
+  faces of flux into absent cells.
+- GPU water 39 pass (the known FLIP row fails); CPU 330 / 330 - with ground off and again with it on by default.
+
+**Measured live - the bench, q 0.2, 2-tall bricks, 7 min each** (`creekbench_pond_g9_q0.2_gb{0,1}.json`, `_steady.mp4`):
+
+| ground bricks | stored cells | ground (not stepped) | GPU per call | mid depth | mid surface speed | out / in |
+|---|---|---|---|---|---|---|
+| off | 456,192 | 0 | 1.56 ms | 0.2189 m | 0.624 m/s | 0.995 |
+| **on** | **282,240 (-38 %)** | 1,364 bricks | **1.35 ms** | 0.2189 m | 0.624 m/s | 1.002 |
+
+Predicted ~262 k cells; measured 282 k. With 26.17: the creek's GPU per call 1.83 -> 1.35 ms (-26 %), the water unchanged.
+
+**Digging under the running creek - measured** (`tools/water_creek_dig.py`; `creekbench_dig_gb1.json`,
+`creekbench_dig_bank_trench{,_top}.json`, `creekbench_dig_bank_trench_top.mp4` - the clip to watch):
+- **Every dig reached the water**: 20 pits in the bed under the flow, then two 12-voxel trenches in the banks beside it - one
+  re-read per dig, every time (`gpu_uploads`). The water ran into every hole: all pit and trench columns wet; the overhead clip
+  shows the bank turn to water as the trench opens. The books held through all of it (worst 2.2e-5 m^3 during a dig, 1e-6 at the
+  end). No water appeared that the springs did not put in (stored rise = net inflow, to 1e-6).
+- **But each dig froze the frame for ~145 ms**: `occ_refresh_ms` 67 (the WHOLE box, 1.75 M cells, re-sampled from the world)
+  + `gpu_upload_ms` 77-89 (the water read back from the GPU and the whole volume re-uploaded). This path is not new - it is how
+  the water has always seen a world change; 26.18 only made it measurable (the `allSolid` pass inside the upload is a small part
+  of it). And it is triggered by the occupancy pool's pack revision, which is GLOBAL: an edit anywhere in the world - not only
+  in the box - re-reads every volume. Whether chunk streaming also bumps it is not yet checked.
+
+**Next - 26.19, a world change seen locally.** In a game where the player digs, a 145 ms freeze per dig near water is a defect,
+and one per dig anywhere is worse. The design to write: re-read only what an edit touched (the edited voxels' cells, if they lie
+in a volume's box), update those bricks' occupancy, ground status and residency on the device in place, and never download the
+water for it - with the same equality gate (a local re-read == the full re-read, bit for bit) and the dig bench as the measure.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
