@@ -517,6 +517,8 @@ nlohmann::json recordDump(const PerfCapture* pc, const nlohmann::json& params) {
                         {"streaming", {{"resident_chunks", row.residentChunks},
                                        {"pending_generation", row.pendingGeneration},
                                        {"pending_remesh", row.pendingRemesh},
+                                       {"finalize_ms", row.finalizeMs},
+                                       {"finalized_chunks", row.finalizedChunks},
                                        {"camera_chunk_resident",
                                         row.cameraChunkResident < 0 ? nlohmann::json(nullptr)
                                                                     : nlohmann::json(row.cameraChunkResident == 1)}}}});

@@ -222,6 +222,8 @@ void ChunkStreamingManager::drainGeneratedChunks(const glm::vec3& position, floa
 
         auto tsD1 = std::chrono::steady_clock::now();
         const double drainMs = std::chrono::duration<double, std::milli>(tsD1 - tsD0).count();
+        m_frameFinalizeMs += drainMs;   // M1e instrument: the recorder reads the per-frame total
+        ++m_frameFinalized;
         if (drainMs > 60.0) {
             LOG_WARN_FMT("ChunkStreaming", "Slow async chunk finalize at (" << chunkCoord.x << ","
                          << chunkCoord.y << "," << chunkCoord.z << "): " << drainMs

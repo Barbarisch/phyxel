@@ -1010,9 +1010,14 @@ teleport to a never-stored OPEN-SEA pose (1200, 25, 1200; generator surface −1
 teleport while streaming chunk (37,−1,36); the same procedure at a land pose did not crash. Report:
 `docs/evidence/worldforge_v2/m1_stream_baseline_sea_crash.txt`; minidump `crashes/crash_20261015_143809.dmp`
 (58 MB, not committed; no Release PDB on disk so the frames are unsymbolized). n = 1, not bisected, matches
-the shape of the parked "post-teleport streaming APPCRASH" in `water-system-v2` memory. It is in the water
-boundary's territory (sea body streaming), so it is logged for the owner; M1's own L4 poses stay on land
-until it is understood.
+the shape of the parked "post-teleport streaming APPCRASH" in `water-system-v2` memory. **Second occurrence 2026-10-15 20:52, at a LAND pose** (the gate pose (300, 109, −1400) that had
+run clean twice that day), Release 812f47f0 with the M1e profile instrument, ~10 s after the teleport,
+same stack shape (worker thread via BaseThreadInitThunk, five phyxel.exe frames at the same relative
+offsets: `m1e_profile_land_crash.txt`, minidump `crashes/crash_20261015_205202.dmp`). So it is NOT
+sea-specific: an intermittent post-teleport streaming crash on a worker thread (2 of 5 teleport runs
+today). The last log lines before it are off-thread `TreeLodMesh` LOD-set builds and the water region
+follow. A RelWithDebInfo build (same sources, PDB) is the next step so the frames get names; until
+then no M1 L4 number taken after a teleport is trusted without the engine surviving the run.
 
 
 

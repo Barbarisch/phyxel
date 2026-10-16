@@ -166,6 +166,16 @@ public:
     /// (m_genPending is a main-thread set). 0 = the streaming inflow is caught up.
     size_t pendingGenerationCount() const { return m_genPending.size(); }
 
+    /// M1e profile instrument: main-thread finalize cost (chunk->initialize + createVulkanBuffer +
+    /// finalizeGenerated + onChunkLoaded) accumulated since the last take, and how many chunks
+    /// landed. The perf recorder takes it once per frame. Main thread only.
+    std::pair<double, uint32_t> takeFinalizeStats() const {
+        const std::pair<double, uint32_t> out(m_frameFinalizeMs, m_frameFinalized);
+        m_frameFinalizeMs = 0.0;
+        m_frameFinalized = 0;
+        return out;
+    }
+
     /// Join the worker and drop queued/finished work (world switch, shutdown).
     void stopAsyncGeneration();
 
@@ -298,6 +308,8 @@ private:
     std::condition_variable m_genCv;
     std::deque<glm::ivec3> m_genRequests;               // guarded by m_genRequestMutex
     SurfaceBandFunc m_surfaceBand;                      // null = camera-band-only (legacy)
+    mutable double   m_frameFinalizeMs = 0.0;           // M1e instrument (takeFinalizeStats)
+    mutable uint32_t m_frameFinalized = 0;
     glm::vec3 m_viewDir{0.0f, 0.0f, -1.0f};
     // Surface band per column, cached forever (terrain is static per world): the band
     // query runs per column per pump — uncached that is thousands of generator column

@@ -4492,6 +4492,7 @@ void Application::update(float deltaTime) {
         // Stream-in boot (Phase 2): land deferred DB chunks in the background.
         // No-op once the boot backlog has drained.
         if (chunkManager->hasDeferredDbLoads() && camera) {
+            PROFILE_SCOPE(*performanceProfiler, "Deferred DB Loads");
             chunkManager->pumpDeferredDbLoads(camera->getPosition());
         }
         auto tChunk2 = std::chrono::steady_clock::now();
@@ -4524,9 +4525,11 @@ void Application::update(float deltaTime) {
     // from this frame's transform delta. The same boxes become CPU kinematic obstacles (doors now
     // block furniture) and GPU debris movers, staged after the character limbs. Runs after every
     // owner set its transform this frame (held items, doors, animator) and before the CPU step.
-    if (kinematicVoxelManager && debrisRuntime)
+    if (kinematicVoxelManager && debrisRuntime) {
+        PROFILE_SCOPE(*performanceProfiler, "Debris Feed");
         debrisRuntime->feedKinematicObjects(kinematicVoxelManager.get(), deltaTime,
                                             camera ? camera->getPosition() : glm::vec3(0.0f));
+    }
 
     // Run physics in fixed timesteps — CAPPED per frame. Uncapped, a slow
     // frame demanded proportionally more physics next frame (60fps→1 step,
@@ -4535,6 +4538,7 @@ void Application::update(float deltaTime) {
     static const int MAX_PHYSICS_STEPS_PER_FRAME = 3;
     int physicsSteps = 0;
     while (physicsDeltaAccumulator >= FIXED_TIMESTEP && physicsSteps < MAX_PHYSICS_STEPS_PER_FRAME) {
+        PROFILE_SCOPE(*performanceProfiler, "Physics Step");
         physicsWorld->stepSimulation(FIXED_TIMESTEP, 1, FIXED_TIMESTEP); // Pure fixed timestep
         physicsDeltaAccumulator -= FIXED_TIMESTEP;
         ++physicsSteps;

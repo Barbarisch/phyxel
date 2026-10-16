@@ -54,6 +54,8 @@ public:
         float pathProgress = -1.0f;  // -1 = no path playing
         uint32_t residentChunks = 0, pendingGeneration = 0, pendingRemesh = 0;
         int8_t cameraChunkResident = -1;   // is the chunk under the camera loaded? -1 = unknown
+        float    finalizeMs = 0.0f;        // M1e: main-thread chunk finalize time spent THIS frame
+        uint32_t finalizedChunks = 0;      //      (vk buffer + physics + onLoaded) and how many landed
     };
 
     // Per-frame input. `phases` are the frame-pacing samples of this frame (key = scope path).
@@ -68,6 +70,8 @@ public:
         float pathProgress = -1.0f;
         uint32_t residentChunks = 0, pendingGeneration = 0, pendingRemesh = 0;
         int8_t cameraChunkResident = -1;
+        float    finalizeMs = 0.0f;
+        uint32_t finalizedChunks = 0;
     };
 
     // Starts a recording of up to `maxFrames` rows (clamped to 1..kMaxFrames; the value used is
@@ -114,6 +118,8 @@ public:
         r.pendingGeneration = in.pendingGeneration;
         r.pendingRemesh = in.pendingRemesh;
         r.cameraChunkResident = in.cameraChunkResident;
+        r.finalizeMs = in.finalizeMs;
+        r.finalizedChunks = in.finalizedChunks;
         if (in.gpuSerial != 0) bySerial_[in.gpuSerial] = count_;
         ++count_;
     }
