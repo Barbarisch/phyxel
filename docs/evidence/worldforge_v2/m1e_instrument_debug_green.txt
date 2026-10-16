@@ -1,0 +1,277 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[21:23:04.741] [INFO] [AI] ConversationMemory initialized[0m
+[32m[21:23:05.333] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_0.db[0m
+[32m[21:23:05.339] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.339] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_0.db[0m
+[32m[21:23:05.340] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:05.342] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_1.db[0m
+[32m[21:23:05.346] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.346] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_1.db[0m
+[32m[21:23:05.348] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:05.348] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_2.db[0m
+[32m[21:23:05.353] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.353] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_2.db[0m
+[32m[21:23:05.354] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:05.355] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_3.db[0m
+[32m[21:23:05.360] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.360] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_3.db[0m
+[32m[21:23:05.362] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:05.364] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_4.db[0m
+[32m[21:23:05.369] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.369] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_4.db[0m
+[32m[21:23:05.372] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:05.373] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_5.db[0m
+[32m[21:23:05.378] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.378] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_5.db[0m
+[32m[21:23:05.381] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:05.382] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_6.db[0m
+[32m[21:23:05.387] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.387] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_6.db[0m
+[32m[21:23:05.396] [INFO] [ChunkStreaming] Saved 1 chunks to storage[0m
+[32m[21:23:05.398] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:05.398] [INFO] [ChunkStreaming] World storage disconnected[0m
+[32m[21:23:05.399] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_6.db[0m
+[32m[21:23:05.400] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.400] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_6.db[0m
+[33m[21:23:05.407] [WARN] [ChunkManager] createChunk(-32,0,0): chunk is saved in the world DB - LOADED it instead of creating an empty one[0m
+[32m[21:23:05.408] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:05.408] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[21:23:05.415] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.416] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[21:23:05.664] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:05.666] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[21:23:05.667] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.667] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[21:23:05.668] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[21:23:05.682] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:05.682] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_7.db[0m
+[32m[21:23:08.301] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.303] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.304] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_8.db[0m
+[32m[21:23:08.311] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:08.311] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_8.db[0m
+[32m[21:23:08.311] [INFO] [ChunkStreaming] Saved 0 chunks to storage[0m
+[32m[21:23:08.313] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.314] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_9.db[0m
+[32m[21:23:08.319] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:08.319] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_9.db[0m
+[32m[21:23:08.320] [INFO] [ChunkStreaming] Saved 2 chunks to storage[0m
+[32m[21:23:08.321] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.322] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_10.db[0m
+[32m[21:23:08.327] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:08.327] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_10.db[0m
+[32m[21:23:08.328] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.329] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_11.db[0m
+[32m[21:23:08.334] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:08.334] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_11.db[0m
+[32m[21:23:08.334] [INFO] [ChunkStreaming] Attempting to save 1 dirty chunks[0m
+[32m[21:23:08.336] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.337] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_12.db[0m
+[32m[21:23:08.341] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:08.341] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_12.db[0m
+[32m[21:23:08.343] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.343] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_13.db[0m
+[32m[21:23:08.348] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:08.348] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_13.db[0m
+[32m[21:23:08.349] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.350] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_14.db[0m
+[32m[21:23:08.355] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:08.355] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_14.db[0m
+[32m[21:23:08.357] [INFO] [WorldStorage] [WORLD_STORAGE] Found 5 chunks in database[0m
+[32m[21:23:08.358] [INFO] [ChunkStreaming] Stream-in boot: 1 chunk(s) loaded near anchor (0 empty), 4 deferred to background[0m
+[32m[21:23:08.358] [INFO] [ChunkStreaming] Async chunk-generation (3 worker(s)) + disposal workers started (pure DB-load mode, no generator)[0m
+[32m[21:23:08.375] [INFO] [ChunkStreaming] Stream-in boot complete: deferred background load finished[0m
+[32m[21:23:08.394] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.396] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\csm_test_15.db[0m
+[32m[21:23:08.403] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[21:23:08.403] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\csm_test_15.db[0m
+[32m[21:23:08.404] [INFO] [WorldStorage] [WORLD_STORAGE] Found 1 chunks in database[0m
+[32m[21:23:08.404] [INFO] [ChunkStreaming] Stream-in boot: 0 chunk(s) loaded near anchor (0 empty), 0 deferred to background [streaming world: far chunks load on approach][0m
+[32m[21:23:08.405] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[21:23:08.416] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:09.054] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[21:23:09.055] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[21:23:09.064] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:09.075] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 12792943215262796106); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[21:23:12.799] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 945 bodies[0m
+[32m[21:23:12.799] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2500 maxOrder=5 drainageComplete=1[0m
+[32m[21:23:12.799] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M1 section 9 ] sheet column cost: 18.625 base-noise evals per fresh column (gate <= 25)
+[32m[21:23:13.008] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:13.014] [INFO] [PlayerTurn] Move to (2, 0, 6) refused: the route passes through a region that is out of bounds for this turn[0m
+[32m[21:23:13.020] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[ D10 golden ] Perlin 4242 x 2000 columns: 11413304086647064455
+[32m[21:23:13.102] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:13.744] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[21:23:13.744] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[ D10 golden ] Mountains 4242 x 2000 columns: 5521812291101006622
+[ M1c Dd ] threshold   2 cells (0.52 km2): Dd = 0.810 km/km2, Dd*sqrt(Ac) = 0.587
+[ M1c Dd ] threshold   8 cells (2.10 km2): Dd = 0.431 km/km2, Dd*sqrt(Ac) = 0.625
+[ M1c Dd ] threshold  32 cells (8.39 km2): Dd = 0.221 km/km2, Dd*sqrt(Ac) = 0.640
+[ M1c Dd ] threshold 128 cells (33.55 km2): Dd = 0.050 km/km2, Dd*sqrt(Ac) = 0.292
+[32m[21:23:14.725] [INFO] [PlacedObjectManager] Registered structure 'house' as 'house_1' bbox (0,16,0)-(6,22,6)[0m
+[32m[21:23:14.725] [INFO] [PlacedObjectManager] Registered structure 'shed' as 'shed_1' bbox (20,16,0)-(24,20,4)[0m
+[32m[21:23:14.732] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:14.737] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:14.738] [INFO] [Chunk] Streaming generation ENABLED (type=2, seed=1, asyncGen=1)[0m
+[32m[21:23:14.738] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[21:23:14.742] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:14.743] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[21:23:14.746] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:14.747] [INFO] [Chunk] Streaming generation ENABLED (type=2, seed=7, asyncGen=1)[0m
+[32m[21:23:14.747] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[21:23:14.747] [INFO] [GameDefinitionLoader] World: streaming terrain ENABLED (loadDist=256.000000, unloadDist=352.000000)[0m
+[32m[21:23:16.390] [INFO] [GameDefinitionLoader] World: generated 9 chunks (Flat, seed=7)[0m
+[32m[21:23:16.391] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=9, structures=0, locations=0, npcs=0)[0m
+[32m[21:23:16.392] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[21:23:16.396] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:16.397] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[21:23:16.400] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:16.401] [INFO] [Chunk] Streaming generation ENABLED (type=2, seed=7, asyncGen=1)[0m
+[32m[21:23:16.401] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[21:23:16.401] [INFO] [GameDefinitionLoader] World: streaming terrain ENABLED (loadDist=256.000000, unloadDist=352.000000)[0m
+[32m[21:23:16.510] [INFO] [GameDefinitionLoader] World: generated 1 chunks (Flat, seed=7)[0m
+[32m[21:23:16.511] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=1, structures=0, locations=0, npcs=0)[0m
+[32m[21:23:16.511] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[21:23:16.515] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:16.515] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[21:23:16.515] [INFO] [Chunk] Streaming generation disabled (type=1, seed=0, asyncGen=0)[0m
+[32m[21:23:16.515] [INFO] [GameDefinitionLoader] World: streaming terrain OFF (explicit or non-terrain type)[0m
+[32m[21:23:16.564] [INFO] [GameDefinitionLoader] World: generated 1 chunks (Flat, seed=7)[0m
+[32m[21:23:16.564] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=1, structures=0, locations=0, npcs=0)[0m
+[32m[21:23:16.567] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[31m[21:23:16.568] [ERROR] [NPCManager] Cannot spawn NPC 'Dunstan': PhysicsWorld not set[0m
+[33m[21:23:16.568] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Dunstan[0m
+[31m[21:23:16.568] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf': PhysicsWorld not set[0m
+[33m[21:23:16.568] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf[0m
+[31m[21:23:16.568] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf2': PhysicsWorld not set[0m
+[33m[21:23:16.568] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf2[0m
+[31m[21:23:16.568] [ERROR] [NPCManager] Cannot spawn NPC 'AlphaWolf': PhysicsWorld not set[0m
+[33m[21:23:16.568] [WARN] [GameDefinitionLoader] Failed to spawn NPC: AlphaWolf[0m
+[32m[21:23:16.568] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[32m[21:23:16.568] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[31m[21:23:16.569] [ERROR] [NPCManager] Cannot spawn NPC 'Dunstan': PhysicsWorld not set[0m
+[33m[21:23:16.569] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Dunstan[0m
+[31m[21:23:16.569] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf': PhysicsWorld not set[0m
+[33m[21:23:16.569] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf[0m
+[31m[21:23:16.569] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf2': PhysicsWorld not set[0m
+[33m[21:23:16.569] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf2[0m
+[31m[21:23:16.569] [ERROR] [NPCManager] Cannot spawn NPC 'AlphaWolf': PhysicsWorld not set[0m
+[33m[21:23:16.569] [WARN] [GameDefinitionLoader] Failed to spawn NPC: AlphaWolf[0m
+[32m[21:23:16.569] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[32m[21:23:16.573] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:17.219] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[21:23:17.219] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[ M1d ] 120 chunk columns, worst surface span 5 bands, 0 chunk columns with a miss, 0 columns outside the band
+[32m[21:23:21.534] [INFO] [ObjectTemplateManager] Loaded template: phasec0b_movable_only with 3 cubes, 0 subcubes, 0 microcubes, 0 fine voxels, 0 interaction points, 2 parts[0m
+[32m[21:23:21.535] [INFO] [KinematicVoxelManager] Added 'phasec0b_movable_only_lid_1': 3 voxels, 16 faces, 0 foliage sprigs[0m
+[32m[21:23:21.535] [INFO] [ObjectTemplateManager] Spawned kinematic part 'lid' from template 'phasec0b_movable_only' (id=phasec0b_movable_only_lid_1, hingeLocal=(1.5,1,1), axis=x)[0m
+[32m[21:23:21.589] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 2 roads, 0 bridges, 47 segments in 9 ms (hash 17580432909071824106)[0m
+[32m[21:23:21.592] [INFO] [MainThreadJobs] job 1000000 started: worldforge: 3 sites[0m
+[33m[21:23:21.592] [WARN] [WorldForge] [WORLDFORGE] site 0 (town) REFUSED: terrain too steep - no buildable plot[0m
+[33m[21:23:21.593] [WARN] [WorldForge] [WORLDFORGE] site 1 (village) REFUSED: terrain too steep - no buildable plot[0m
+[33m[21:23:21.593] [WARN] [WorldForge] [WORLDFORGE] site 2 (village) REFUSED: terrain too steep - no buildable plot[0m
+[32m[21:23:21.593] [INFO] [MainThreadJobs] job 1000000 complete: worldforge: 3 sites (7 units)[0m
+[32m[21:23:21.657] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 5 roads, 1 bridges, 219 segments in 53 ms (hash 14223618455714071673)[0m
+[32m[21:23:21.693] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:21.694] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[21:23:21.698] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:21.698] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[21:23:21.702] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:21.703] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[21:23:21.713] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:21.713] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[21:23:21.718] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:21.718] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[21:23:21.728] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 9115116111659846016); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[21:23:25.446] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2556 bodies[0m
+[32m[21:23:25.446] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4883 maxOrder=5 drainageComplete=1[0m
+[32m[21:23:25.450] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[21:23:25.450] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M1 §9 ] meso tile 256x256 (+apron 6) bake: 200.7 ms (this build config)
+[33m[21:23:26.038] [WARN] [AStarPathfinder] A* exhausted: 10 iterations, openSet empty=1, closedSet size=10[0m
+[32m[21:23:26.101] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.108] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.120] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.180] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.187] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.200] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.256] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\ChunkTransparentCullingTest.cpp(462): Skipped
+R4 only adds
+
+[32m[21:23:26.276] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.284] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.296] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.363] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.371] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.383] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.444] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.452] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.464] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.524] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.532] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.544] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.598] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\ChunkTransparentCullingTest.cpp(472): Skipped
+R4 only adds
+
+[32m[21:23:26.619] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.627] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.639] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.705] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.713] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.725] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.787] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.795] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.807] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.862] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\ChunkTransparentCullingTest.cpp(481): Skipped
+route cannot place glass
+
+[32m[21:23:26.884] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\ChunkTransparentCullingTest.cpp(481): Skipped
+route cannot place glass
+
+[32m[21:23:26.904] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.912] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:26.924] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:26.984] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:26.992] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:27.004] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:27.058] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:27.066] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:27.079] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:27.133] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\ChunkTransparentCullingTest.cpp(490): Skipped
+R3 only removes
+
+[32m[21:23:27.154] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:27.161] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:27.173] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:27.229] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:27.237] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:27.250] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:27.310] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:27.317] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:27.329] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:27.383] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:27.391] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:27.403] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:27.466] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\ChunkTransparentCullingTest.cpp(500): Skipped
+needs remove + place-with-material
+
+[32m[21:23:27.487] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\ChunkTransparentCullingTest.cpp(500): Skipped
+needs remove + place-with-material
+
+[32m[21:23:27.507] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:27.515] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:27.526] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[32m[21:23:27.599] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[32m[21:23:27.606] [INFO] [ChunkManager] Created new chunk at (0, 0, 0) for placement[0m
+[32m[21:23:27.618] [INFO] [ChunkManager] Created new chunk at (32, 0, 0) for placement[0m
+[==========] 102 tests from 33 test suites ran. (22926 ms total)
+[  PASSED  ] 95 tests.
+[  SKIPPED ] 7 tests.
