@@ -56,6 +56,9 @@ public:
         int8_t cameraChunkResident = -1;   // is the chunk under the camera loaded? -1 = unknown
         float    finalizeMs = 0.0f;        // M1e: main-thread chunk finalize time spent THIS frame
         uint32_t finalizedChunks = 0;      //      (vk buffer + physics + onLoaded) and how many landed
+        float    workerGenMs = 0.0f;       // M1e: worker-thread generate+decorate ms since last frame (all workers)
+        uint32_t generatedChunks = 0;
+        float    workerDecorateMs = 0.0f;  // M1e: the decorate (flora) share of workerGenMs
     };
 
     // Per-frame input. `phases` are the frame-pacing samples of this frame (key = scope path).
@@ -72,6 +75,9 @@ public:
         int8_t cameraChunkResident = -1;
         float    finalizeMs = 0.0f;
         uint32_t finalizedChunks = 0;
+        float    workerGenMs = 0.0f;
+        uint32_t generatedChunks = 0;
+        float    workerDecorateMs = 0.0f;
     };
 
     // Starts a recording of up to `maxFrames` rows (clamped to 1..kMaxFrames; the value used is
@@ -120,6 +126,9 @@ public:
         r.cameraChunkResident = in.cameraChunkResident;
         r.finalizeMs = in.finalizeMs;
         r.finalizedChunks = in.finalizedChunks;
+        r.workerGenMs = in.workerGenMs;
+        r.generatedChunks = in.generatedChunks;
+        r.workerDecorateMs = in.workerDecorateMs;
         if (in.gpuSerial != 0) bySerial_[in.gpuSerial] = count_;
         ++count_;
     }

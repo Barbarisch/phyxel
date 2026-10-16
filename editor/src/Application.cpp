@@ -4465,7 +4465,10 @@ void Application::update(float deltaTime) {
         // Slow-frame triage timers (streamed worlds hitch in this block; the profiler
         // doesn't cover it). Warn per stage above 100ms so the culprit is attributable.
         auto tChunk0 = std::chrono::steady_clock::now();
-        chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
+        {
+            PROFILE_SCOPE(*performanceProfiler, "Dirty Remesh");   // M1e: was the unattributed 95 % of Update
+            chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
+        }
         auto tChunk1 = std::chrono::steady_clock::now();
         // Player position anchors chunk streaming (see ChunkManager::streamingAnchor)
         if (camera) chunkManager->setPlayerPosition(camera->getPosition());

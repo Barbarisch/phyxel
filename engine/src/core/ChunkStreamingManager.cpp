@@ -143,10 +143,18 @@ void ChunkStreamingManager::genWorkerLoop(WorldGenerator* workerGen) {
             if (fromDb) {
                 chunk->markClean();  // loaded state is by definition persisted
             } else if (workerGen) {
+                const auto tsW0 = std::chrono::steady_clock::now();
                 workerGen->generateChunk(*chunk, chunkCoord);
+                const auto tsWd = std::chrono::steady_clock::now();
                 // Flora before maps/grid so canopy voxels are included in both. DB-loaded
                 // chunks were saved WITH their flora — no re-decoration.
                 if (m_workerDecorate) m_workerDecorate(*chunk, chunkCoord, *workerGen);
+                const auto tsW1 = std::chrono::steady_clock::now();
+                m_workerGenUs.fetch_add(static_cast<uint64_t>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(tsW1 - tsW0).count()));
+                m_workerDecorateUs.fetch_add(static_cast<uint64_t>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(tsW1 - tsWd).count()));
+                m_workerGenCount.fetch_add(1);
             } else {
                 // Pure-DB mode: a miss means the coord has no saved data — drop it
                 // (report via m_genFailed so the pending mark is cleared; DB-only

@@ -1,0 +1,33 @@
+exe: 2026-10-15_20:48:31  commit: 812f47f0
+sheet log: [20:51:52.859] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 9147210020528562939); meso tiles 256 @ 32 u, apron 6, LRU 64
+gpu: NVIDIA RTX 1000 Ada Generation Laptop GPU (discrete, 2 device(s) enumerated)
+{"source":"generator","spawn_y":70,"surface_y":69,"x":300,"z":-1400}
+{"max_y":255,"message":"No terrain found (resident chunks only; try source=generator)","source":"chunks","spawn_y":null,"surface_y":null,"x":300,"z":-1400}
+surface_y(generator)=69 cam=(300,109,-1400)
+{"capacity":6000,"frames":0,"recording":true,"success":true,"truncated":false}
+{"control_scheme":"tank","path_stopped":false,"rig":"","success":true}
+cam readback: {"activeSlot":"","front":{"x":-3.090862321641907e-08,"y":-0.7071068286895752,"z":-0.7071068286895752},"pitch":-45.0,"position":{"x":300.0,"y":109.0,"z":-1400.0},"slots":[{"followEntityId":"","name":"default","pitch":-30.0,"position":{"x":45.0,"y":55.0,"z":45.0},"yaw":-135.0}],"yaw":-90.0}
+C:\Users\bpete\AppData\Local\Temp/claude/C--Users-bpete-Documents-GitHub-phyxel/f3c1eb44-5225-42be-9ba1-295ea5d465cb/scratchpad/m1e_profile.sh: line 24:  1018 Segmentation fault      "$ROOT/build/editor/Release/phyxel.exe" --project "$PROJ" --port "$PORT" > "$LOG" 2>&1
+ENGINE DIED at t+10s
+
+dump bytes: 0
+
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import json,sys;print(json.load(sys.stdin).get('path',''))
+                          ~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\__init__.py", line 293, in load
+    return loads(fp.read(),
+        cls=cls, object_hook=object_hook,
+        parse_float=parse_float, parse_int=parse_int,
+        parse_constant=parse_constant, object_pairs_hook=object_pairs_hook, **kw)
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+done

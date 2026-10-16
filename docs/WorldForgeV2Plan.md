@@ -621,12 +621,24 @@ procedure (same pose (300, 109, −1400), same laptop, Release, fresh world.db) 
 mask 0, the 512 u bicubic and the 32 u bilinear of the same continent noise agree to under a voxel
 there), **18.86 chunks/s** over the saturated ramp vs 11.41 (`m1e_stream_gate.json`,
 `m1e_stream_gate_run.txt`); frame p50 17.4 ms (was 34.0), p95 98.1 (was 92.6). The gate needs
-22.8. What this says: the column sampler is now 7× cheaper (136.6 → 18.6 evals) but chunk
-generation did not get 7× faster, so the column was not the only cost — the per-voxel fill, flora
-planning and meshing share the worker. The next step is a measurement (a per-chunk generation
-profile on the worker), not a tuning guess; M1d's wider wanted set (closing the flank hole) is also
-in this number. Pending at the end of the window dropped to 4: the wanted set filled, so the ramp
-window is the honest part. Remaining M1 items after this: the generation profile and whatever it
+22.8. **Profiled the same day (RelWithDebInfo b768801d + the M1e instrument, three runs, the third with
+the generate/decorate split: `m1e_rwdi3_profile_summary.json`, 47 s saturated ramp, 786 chunks
+generated, 773 landed, 17.8 chunks/s):** per chunk on the WORKER, `generateChunk` = **138 ms** and
+flora decorate = **42 ms** (180 ms summed over the three workers ⇒ a 16.7 chunks/s ceiling, which is
+the number measured); the column sampler at 18.6 evals × 1024 columns is ≈ 1 ms of that. On the MAIN
+thread per landed chunk: Dirty Remesh ≈ 12 ms, Dirty Chunk Flush ≈ 13 ms, Light Occupancy ≈ 9 ms,
+plus Fence Wait 10 s over the ramp; the async finalize itself is 0.1 ms. The 313–848 ms update frames
+were the budgeted dirty remesh (`Frame/update/Update/Dirty Remesh`, now a scope; it was "the block
+the profiler doesn't cover"). **Verdict on the §9 gate: RED, and mis-targeted.** It assumed column
+sampling dominated chunk generation; the measurement says the per-voxel fill inside `generateChunk`
+dominates (138 of 180 ms) and the column term was never more than ~10 % of it even at 136 evals.
+M1's own deliverable (≤ 25 evals per column) is GREEN; the 1.65× is what that deliverable buys.
+Recommendation for the owner (a plan change, not taken unilaterally): keep "chunks/s on the baseline
+pose" as a REPORTED number, and give the voxel-fill path its own perf milestone with its own
+red-before-green profile (what inside `generateChunk` costs 138 ms per 32³ chunk: material
+resolution, subcube shelves, occupancy grids), since it is shared by v1 and v2 and outside M1's scope.
+M1d's wider wanted set (closing the flank hole) is also in the number. Pending at the end of the
+window dropped to 4: the wanted set filled, so the ramp window is the honest part. Remaining M1 items after this: the generation profile and whatever it
 names; the Release meso bake (76 ms vs 50); the lab erosion experiment (valley density vs steps);
 far-mesher `configure` on every rebuild path (13.1); Flat/heightmap trivial sheets; the DB tile
 cache (not needed at 76 ms/tile so far).
@@ -863,7 +875,8 @@ grounding-auditor; `ValidationLedger.md` gets a row per new placer/field.
 | Meso tile bake 256² | **76.2 ms Release** / 201.5 ms Debug (laptop, `WorldSheetGeneratorTest.MesoTileBakeTimeRecorded`, 2026-10-15) | < 50 ms on a worker, Release — **RED** (lever: the climate planes are 8 of the 18 evals per cell) |
 | Civ + routes plan, 300 sites | all-pairs A* O(n²) at 8 sites today | < 10 s Release, off the main thread |
 | Settlement map, 200-lot city | — | < 2 s headless |
-| Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (v1 baseline) → **18.9 chunks/s on the sheet at the SAME pose/machine/config (M1e, `m1e_stream_gate.json`, Release 46dd3b03, WorldForgeBaselineV2 = the baseline recipe + a sheet block): 1.65×, frame p50 34 → 17 ms, p95 93 → 98 ms — GATE RED (≥ 2× = 22.8 needed).** The number includes M1d's wider vertical wanted set (1033 resident at 57 s vs 854 at 76 s for v1). Next measurement, not a guess: a per-chunk generation profile (column sample vs voxel fill vs flora vs mesh) to see where the remaining time goes (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
+| Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (v1 baseline) → **18.9 chunks/s on the sheet at the SAME pose/machine/config (M1e, `m1e_stream_gate.json`, Release 46dd3b03): 1.65×, frame p50 34 → 17 ms — GATE RED (≥ 2× = 22.8 needed).** PROFILED (`m1e_rwdi3_profile_summary.json`): worker `generateChunk` 138 ms + flora decorate 42 ms per chunk (3 workers ⇒ 16.7 chunks/s ceiling); column sampling ≈ 1 ms of it. The gate targeted the wrong cost; see the M1e paragraph for the recommendation |
+| Worker time per chunk (NEW, measured) | **generateChunk 138 ms, flora decorate 42 ms** (RelWithDebInfo, laptop, baseline pose, `m1e_rwdi3_profile_summary.json`); main thread per landed chunk: remesh ≈ 12 ms, flush ≈ 13 ms, light occupancy ≈ 9 ms | no gate yet — proposed as its own perf milestone (owner's call) | (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
 | Realization | 0.9 s per furnished tavern place | 0 frames > 33 ms during lazy realization |
 
 Both the RTX 4090 desktop and the RTX 1000 Ada laptop are stated on every evidence row.

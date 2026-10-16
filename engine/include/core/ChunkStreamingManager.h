@@ -169,6 +169,16 @@ public:
     /// M1e profile instrument: main-thread finalize cost (chunk->initialize + createVulkanBuffer +
     /// finalizeGenerated + onChunkLoaded) accumulated since the last take, and how many chunks
     /// landed. The perf recorder takes it once per frame. Main thread only.
+    /// M1e profile instrument, worker side: microseconds spent in generateChunk + decorate on
+    /// the generation workers since the last take, and how many chunks they produced (summed
+    /// over all workers; per-chunk mean = ms / count). Atomic, any thread.
+    std::pair<double, uint32_t> takeWorkerGenStats() const {
+        const uint64_t us = m_workerGenUs.exchange(0);
+        const uint32_t n = static_cast<uint32_t>(m_workerGenCount.exchange(0));
+        return {static_cast<double>(us) * 0.001, n};
+    }
+    /// The decorate (flora) share of the above, ms since the last take.
+    double takeWorkerDecorateMs() const { return static_cast<double>(m_workerDecorateUs.exchange(0)) * 0.001; }
     std::pair<double, uint32_t> takeFinalizeStats() const {
         const std::pair<double, uint32_t> out(m_frameFinalizeMs, m_frameFinalized);
         m_frameFinalizeMs = 0.0;
@@ -310,6 +320,9 @@ private:
     SurfaceBandFunc m_surfaceBand;                      // null = camera-band-only (legacy)
     mutable double   m_frameFinalizeMs = 0.0;           // M1e instrument (takeFinalizeStats)
     mutable uint32_t m_frameFinalized = 0;
+    mutable std::atomic<uint64_t> m_workerGenUs{0};     // M1e instrument (takeWorkerGenStats)
+    mutable std::atomic<uint64_t> m_workerGenCount{0};
+    mutable std::atomic<uint64_t> m_workerDecorateUs{0};
     glm::vec3 m_viewDir{0.0f, 0.0f, -1.0f};
     // Surface band per column, cached forever (terrain is static per world): the band
     // query runs per column per pump — uncached that is thousands of generator column
