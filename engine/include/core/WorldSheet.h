@@ -39,14 +39,19 @@ struct SheetParams {
                                       // pair never overshoots (each side moves at most half the excess)
     int   pagerTiles       = 64;      // resident meso tiles in the shared LRU (a 256-cell tile with its
                                       // apron is ~0.9 MB over three planes: 64 tiles ~ 55 MB)
-    // M1c macro stream-power erosion (core/MacroErosion.h). OFF by default (steps = 0): the
-    // erodibility / uplift constants are §10 NEEDS-RESEARCH rows; a recipe that names them runs
-    // them, nothing is shipped as a default. Units in MacroErosionParams.
-    int   erosionSteps     = 0;
-    float erosionDt        = 1000.0f; // years per step
-    float erosionK         = 0.0f;    // m^(1-2m)/yr, n = 1
-    float erosionM         = 0.4f;    // drainage-area exponent; clamped to the GROUNDED m/n band [0.35, 0.6]
-    float erosionUpliftMax = 0.0f;    // m/yr at the uplift field's maximum (the field = normalised base elevation)
+    // M1c macro stream-power erosion (core/MacroErosion.h). The constants are Cordonnier et al.
+    // 2016's published configuration (plan §10 F4e, quoted): n = 1, m = 0.5 ("as in most
+    // geomorphological studies"), k = 5.61e-7 /yr, U = 5.0e-4 m/yr ("the average uplift among
+    // earth mountains"), dt = 2.5e5 yr, convergence ~200 steps. They are a published DESIGN
+    // configuration, not measurements (K is calibrated, never measured: W&T 1999). Steps default to
+    // 0 (off) until the lab L4 experiment has run; the lab recipe turns it on.
+    int   erosionSteps     = 0;        // Cordonnier: ~200 to converge (50 for shape, 100-300 to stop evolving)
+    float erosionDt        = 2.5e5f;   // years per step (Cordonnier §6: "to ensure a fast convergence")
+    float erosionK         = 5.61e-7f; // /yr at m = 0.5 with A in m² (units m^(1-2m)/yr: re-derive if m changes)
+    float erosionM         = 0.5f;     // drainage-area exponent; n = 1; clamped to the measured concavity band
+    float erosionUpliftMax = 5.0e-4f;  // m/yr at the uplift field's maximum (the field = normalised base elevation)
+    float erosionMaxSlope  = 0.577f;   // tan 30°: Cordonnier §5 reduces the elevation change so slopes stay below
+                                       // the talus angle (regularises valleys; their 6°-54° noise modulation is M2)
     /// Clamped copy, reasons at each clamp; a pager echoes the copy it runs with.
     static SheetParams clamped(SheetParams p);
     /// DERIVED, never set: steps x stencil radius so every interior cell's cone is inside the
@@ -58,7 +63,7 @@ struct SheetParams {
                mesoTileCells == o.mesoTileCells && mesoSteps == o.mesoSteps && diffusion == o.diffusion &&
                talusSlope == o.talusSlope && thermalRate == o.thermalRate && pagerTiles == o.pagerTiles &&
                erosionSteps == o.erosionSteps && erosionDt == o.erosionDt && erosionK == o.erosionK &&
-               erosionM == o.erosionM && erosionUpliftMax == o.erosionUpliftMax;
+               erosionM == o.erosionM && erosionUpliftMax == o.erosionUpliftMax && erosionMaxSlope == o.erosionMaxSlope;
     }
 };
 

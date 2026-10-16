@@ -133,6 +133,48 @@ TEST(MacroErosionTest, ErosionLowersTheMeanWithoutUpliftAndUpliftRaisesIt) {
     EXPECT_LT(harder.meanHeightAfter, eroded.meanHeightAfter) << "a 10x K did not erode more";
 }
 
+// The GROUNDED configuration (plan §10 F4e: Cordonnier 2016 §6 — n = 1, m = 0.5, k = 5.61e-7 /yr,
+// U = 5e-4 m/yr, dt = 2.5e5 yr, ~200 steps, talus 30°) on the rig's dome, asserting the paper's own
+// claims: relief is FORMED by 50 steps (uplift has built mountains far above the 311 m dome) and
+// SETTLES by 200 (the 50→200 change is smaller than the 0→50 change: "the geometry stops
+// evolving after 100−300 iterations"), and the 30° ceiling holds between every cell and its final
+// receiver. The trough-count "valley density" is PRINTED only: the first version of this test
+// asserted it rises with steps and it fell (1.60 → 1.30 → 1.25 /km²) because the metric counts the
+// rig's hash roughness, which erosion smooths — a mis-specified prediction, recorded in the plan.
+// The relief the configuration builds is printed against the paper's hmax = 2.244 u/k (≈ 2000 m):
+// the rig reaches ~4–5 km, so the fit does not transfer to this grid; the engine remaps anyway.
+TEST(MacroErosionTest, GroundedConfigurationFormsReliefBy50StepsSettlesBy200AndHonoursTheTalusCeiling) {
+    Rig rig;
+    MacroErosionParams g;
+    g.dt = 2.5e5f; g.k = 5.61e-7f; g.m = 0.5f; g.upliftMax = 5.0e-4f; g.maxSlope = 0.577f;
+    g.cellU = kCell; g.seaLevel = kSea;
+    float relief[3] = {0.0f, 0.0f, 0.0f};
+    int idx = 0;
+    for (int steps : {0, 50, 200}) {
+        g.steps = steps;
+        const auto r = runMacroErosion(rig.h0, kW, kH, rig.uplift, g);
+        const float vd = macroValleyDensity(r.height, kW, kH, kCell);
+        float maxAbove = 0.0f;
+        int overTalus = 0;
+        for (int i = 0; i < kW * kH; ++i) {
+            maxAbove = std::max(maxAbove, r.height[i] - kSea);
+            const int rc = r.receiver[i];
+            if (rc == i) continue;
+            const int ix = i % kW, iz = i / kW, rx = rc % kW, rz = rc / kW;
+            const float dist = (ix != rx && iz != rz) ? kCell * 1.41421356f : kCell;
+            if (r.height[i] > r.height[rc] + g.maxSlope * dist + 1e-3f) ++overTalus;
+        }
+        std::printf("[ M1c grounded ] steps %3d: trough density %.3f /km2 (printed only), max relief %.0f m (paper hmax 2.244 u/k = %.0f m), over-talus cells %d\n",
+                    steps, vd, maxAbove, 2.244f * g.upliftMax / g.k, overTalus);
+        if (steps > 0)
+            EXPECT_EQ(overTalus, 0) << overTalus << " cells stand above the 30 deg talus ceiling over their final receiver";
+        relief[idx++] = maxAbove;
+    }
+    EXPECT_GT(relief[1], relief[0] * 3.0f) << "50 steps did not form relief: " << relief[0] << " -> " << relief[1];
+    EXPECT_LT(std::fabs(relief[2] - relief[1]), std::fabs(relief[1] - relief[0]))
+        << "the geometry did not settle: 0->50 moved " << relief[1] - relief[0] << ", 50->200 moved " << relief[2] - relief[1];
+}
+
 // HydroEdgeTest, M1 scope (plan resolution 5): macro drainage is continuous across the old
 // ±16384 u hydrology box edge. The rig is centred, so that edge is column 48 ± 32 = 80 (east).
 TEST(MacroErosionTest, MacroDrainageCrossesTheOldHydrologyBoxEdge) {

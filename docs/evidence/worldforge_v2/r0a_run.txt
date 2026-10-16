@@ -1,0 +1,14 @@
+exe: 2026-10-15_21:14:13 HEAD 331d58e9; crashes before: 4
+pose 1 (1200,40,1200) surface -15  22:13:13
+pose 2 (300,109,-1400) surface 69  22:13:41
+pose 3 (-2600,61,2900) surface 21  22:14:08
+pose 4 (3300,40,900) surface -12  22:14:36
+pose 5 (-3400,91,-3100) surface 51  22:15:03
+pose 6 (2800,40,-2700) surface -12  22:15:31
+pose 7 (-900,46,3400) surface 6  22:15:58
+pose 8 (3900,41,-300) surface 1  22:16:25
+pose 9 (-3800,40,1500) surface 0  22:16:53
+pose 10 (600,76,3800) surface 36  22:17:20
+pose 11 (-2200,109,-3700) surface 69  22:17:48
+pose 12 (3500,97,3500) surface 57  22:18:16
+survived 12 poses

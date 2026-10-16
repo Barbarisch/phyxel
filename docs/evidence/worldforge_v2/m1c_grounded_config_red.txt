@@ -1,0 +1,90 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[22:39:22.061] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:22.700] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[22:39:22.701] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[22:39:22.710] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:22.721] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 6301989061899736865); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[22:39:26.380] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 945 bodies[0m
+[32m[22:39:26.380] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2500 maxOrder=5 drainageComplete=1[0m
+[32m[22:39:26.380] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M1 section 9 ] sheet column cost: 18.625 base-noise evals per fresh column (gate <= 25)
+[32m[22:39:26.586] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:26.593] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[ D10 golden ] Perlin 4242 x 2000 columns: 11413304086647064455
+[32m[22:39:26.674] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:27.304] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[22:39:27.304] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[ D10 golden ] Mountains 4242 x 2000 columns: 5521812291101006622
+[ M1c Dd ] threshold   2 cells (0.52 km2): Dd = 0.810 km/km2, Dd*sqrt(Ac) = 0.587
+[ M1c Dd ] threshold   8 cells (2.10 km2): Dd = 0.431 km/km2, Dd*sqrt(Ac) = 0.625
+[ M1c Dd ] threshold  32 cells (8.39 km2): Dd = 0.221 km/km2, Dd*sqrt(Ac) = 0.640
+[ M1c Dd ] threshold 128 cells (33.55 km2): Dd = 0.050 km/km2, Dd*sqrt(Ac) = 0.292
+[ M1c grounded ] steps   0: valley density 1.602 /km2, max relief 311 m (paper hmax 2.244 u/k = 2000 m), over-talus cells 0
+[ M1c grounded ] steps  50: valley density 1.298 /km2, max relief 5086 m (paper hmax 2.244 u/k = 2000 m), over-talus cells 16
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\MacroErosionTest.cpp(164): error: Expected: (vd) > (prev), actual: 1.29847062 vs 1.60228872
+valley density did not rise from the previous step count at 50
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\MacroErosionTest.cpp(165): error: Expected equality of these values:
+  overTalus
+    Which is: 16
+  0
+16 cells stand above the 30 deg talus ceiling over their receiver
+
+[ M1c grounded ] steps 200: valley density 1.253 /km2, max relief 4222 m (paper hmax 2.244 u/k = 2000 m), over-talus cells 4
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\MacroErosionTest.cpp(164): error: Expected: (vd) > (prev), actual: 1.25335324 vs 1.29847062
+valley density did not rise from the previous step count at 200
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\MacroErosionTest.cpp(165): error: Expected equality of these values:
+  overTalus
+    Which is: 4
+  0
+4 cells stand above the 30 deg talus ceiling over their receiver
+
+[  FAILED  ] MacroErosionTest.GroundedConfigurationGrowsValleysWithStepsAndHonoursTheTalusCeiling (1505 ms)
+[32m[22:39:29.781] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:30.398] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 981 bodies[0m
+[32m[22:39:30.398] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2660 maxOrder=4 drainageComplete=1[0m
+[32m[22:39:31.377] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1589 bodies[0m
+[32m[22:39:31.377] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=17935 maxOrder=5 drainageComplete=1[0m
+[33m[22:39:31.378] [WARN] [WorldGenerator] [WORLD_GENERATOR] Hydrology bake has NO sea outlet: min terrain 220 sits ABOVE seaLevel 16. Every basin fills to its spill (perched hillside lakes). Set game.json water.seaLevel to a level the terrain actually reaches.[0m
+[32m[22:39:31.378] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[22:39:31.742] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:32.365] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2687 bodies[0m
+[32m[22:39:32.365] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5288 maxOrder=5 drainageComplete=1[0m
+[32m[22:39:33.006] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2647 bodies[0m
+[32m[22:39:33.006] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=120, maxAccum=1520 maxOrder=4 drainageComplete=1[0m
+[32m[22:39:33.006] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[22:39:33.010] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:33.639] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2695 bodies[0m
+[32m[22:39:33.639] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=40, maxAccum=3337 maxOrder=5 drainageComplete=1[0m
+[32m[22:39:33.639] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[22:39:33.644] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:34.266] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2687 bodies[0m
+[32m[22:39:34.266] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=5288 maxOrder=5 drainageComplete=1[0m
+[32m[22:39:34.895] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2443 bodies[0m
+[32m[22:39:34.895] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=6280 maxOrder=5 drainageComplete=1[0m
+[32m[22:39:34.895] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[22:39:34.905] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:34.906] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[22:39:34.924] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:35.552] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[22:39:35.552] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[22:39:35.552] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[22:39:35.556] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:36.016] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 945 bodies[0m
+[32m[22:39:36.016] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2500 maxOrder=5 drainageComplete=1[0m
+[32m[22:39:36.016] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[22:39:36.020] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:36.020] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[22:39:36.031] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:36.031] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[22:39:36.036] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:36.036] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[22:39:36.047] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 17396655183301918443); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[22:39:39.685] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2556 bodies[0m
+[32m[22:39:39.685] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4883 maxOrder=5 drainageComplete=1[0m
+[32m[22:39:39.689] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[22:39:39.689] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M1 §9 ] meso tile 256x256 (+apron 6) bake: 197.2 ms (this build config)
+[==========] 22 tests from 5 test suites ran. (17830 ms total)
+[  PASSED  ] 21 tests.

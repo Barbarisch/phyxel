@@ -1695,15 +1695,27 @@ void WorldGenerator::rebuildSheet() {
         ep.k = m_sheetParams.erosionK;
         ep.m = m_sheetParams.erosionM;
         ep.upliftMax = m_sheetParams.erosionUpliftMax;
+        ep.maxSlope = m_sheetParams.erosionMaxSlope;
         ep.cellU = m_sheetParams.macroCellU;
         ep.seaLevel = terrainParams.seaLevelY;
         const MacroErosionResult er = runMacroErosion(hgt, nc, nc, up, ep);
+        // Vertical budget (plan §10 F4e, DESIGN choice a): Cordonnier's configuration builds ~2000 m
+        // ranges (hmax = 2.244 u/k in metres) and the engine's spline range is the "how tall" knob,
+        // so the eroded relief is remapped monotonically into the spline's own [sea, max] range:
+        // the drainage and ridge pattern come from the receivers, not the absolute height.
+        float erodedMax = 0.0f;
+        for (float v : er.height) erodedMax = std::max(erodedMax, v - terrainParams.seaLevelY);
+        const float scale = (erodedMax > 0.0f && maxAbove > 0.0f) ? maxAbove / erodedMax : 1.0f;
         for (int j = 0; j < nc; ++j)
-            for (int i = 0; i < nc; ++i)
-                macro->cell(i, j).baseHeight = er.height[static_cast<size_t>(j) * nc + i];
+            for (int i = 0; i < nc; ++i) {
+                const float v = er.height[static_cast<size_t>(j) * nc + i];
+                macro->cell(i, j).baseHeight = v > terrainParams.seaLevelY
+                    ? terrainParams.seaLevelY + (v - terrainParams.seaLevelY) * scale : v;
+            }
         LOG_INFO_FMT("WorldGenerator", "[WORLD_SHEET] macro erosion " << ep.steps << " steps x " << ep.dt
                      << " yr: mean height " << er.meanHeightBefore << " -> " << er.meanHeightAfter
-                     << ", base-level cells " << er.baseLevelCells);
+                     << ", base-level cells " << er.baseLevelCells << ", eroded max above sea " << erodedMax
+                     << " u remapped x" << scale << " into the spline range (" << maxAbove << " u)");
     }
     // MESO baker: h0 = macro base (bicubic) + the BROAD ridged band at the cell centre; raw climate
     // planes from the same fbm the v1 column evaluates (contrast expansion stays per column).

@@ -21,8 +21,9 @@ struct MacroErosionParams {
     int   steps    = 0;      // implicit steps; 0 = no erosion (the inert default until grounded)
     float dt       = 0.0f;   // years per step
     float k        = 0.0f;   // erodibility, m^(1-2m)/yr for n = 1 (its unit depends on m)
-    float m        = 0.4f;   // drainage-area exponent (m/n concavity; §10: 0.35–0.6 GROUNDED range)
+    float m        = 0.5f;   // drainage-area exponent (Cordonnier 2016 §3.1: n = 1, m = 0.5; W&T 1999 concavity 0.40-0.50)
     float upliftMax = 0.0f;  // m/yr at the uplift field's maximum (uplift[i] in [0,1] scales it)
+    float maxSlope  = 0.577f;// rise/run ceiling between a cell and its receiver (Cordonnier §5: tan 30°); 0 = off
     float cellU    = 512.0f; // metres per cell (1 u = 1 m)
     float seaLevel = 16.0f;  // base level
 };
@@ -41,6 +42,10 @@ struct MacroErosionResult {
 /// drainage structure (receivers, areas, stack) for the tests and for M2's channel work.
 MacroErosionResult runMacroErosion(const std::vector<float>& height, int w, int h,
                                    const std::vector<float>& uplift, const MacroErosionParams& params);
+
+/// Valley cells per km²: a cell lower than BOTH its east-west or BOTH its north-south neighbours
+/// (a local trough), the structural "valley density" the lab predicts rises with erosion steps.
+float macroValleyDensity(const std::vector<float>& height, int w, int h, float cellU);
 
 /// Drainage density (km of channel per km²) of a receiver/area structure: a cell is channel when
 /// its drainage area is >= `thresholdArea` (m²); its channel length is the distance to its

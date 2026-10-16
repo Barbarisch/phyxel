@@ -67,7 +67,24 @@ MacroErosionResult runMacroErosion(const std::vector<float>& height, int w, int 
         }
         out.baseLevelCells = 0;
         for (int i = 0; i < n; ++i) if (out.receiver[i] == i) ++out.baseLevelCells;
-        if (step == steps) break;   // the last pass only refreshes the drainage structure
+        if (step == steps) {
+            // The last pass refreshes the drainage structure on the FINAL heights; the talus
+            // ceiling is re-applied along that final routing (the per-step ceiling holds against the
+            // step's receivers, and re-routing can leave a cell above its NEW receiver by more
+            // than the ceiling: 16 of 9216 rig cells did, MacroErosionTest red 2026-10-15).
+            if (steps > 0 && p.maxSlope > 0.0f) {
+                for (int s = 0; s < n; ++s) {
+                    const int i = out.stack[s];
+                    const int r = out.receiver[i];
+                    if (r == i) continue;
+                    const int ix = i % w, iz = i / w, rx = r % w, rz = r / w;
+                    const float dist = (ix != rx && iz != rz) ? diag : p.cellU;
+                    const float cap = out.height[r] + p.maxSlope * dist;
+                    if (out.height[i] > cap) out.height[i] = cap;
+                }
+            }
+            break;
+        }
 
         // Implicit stream-power update along the stack (receivers already updated).
         for (int s = 0; s < n; ++s) {
@@ -81,6 +98,10 @@ MacroErosionResult runMacroErosion(const std::vector<float>& height, int w, int 
             const float hr = out.height[r];
             float hn = (out.height[i] + p.dt * u + f * hr) / (1.0f + f);
             if (hn < hr) hn = hr;   // never erode below the receiver (no new pits from the solve)
+            // Cordonnier §5: "if the result of the stream power equation leads to slopes higher
+            // than 30°, we reduce the change of elevation so as to keep slopes in the prescribed
+            // range" — the talus ceiling between a cell and its receiver.
+            if (p.maxSlope > 0.0f && hn > hr + p.maxSlope * dist) hn = hr + p.maxSlope * dist;
             out.height[i] = hn;
         }
     }
@@ -89,6 +110,20 @@ MacroErosionResult runMacroErosion(const std::vector<float>& height, int w, int 
     for (float v : out.height) sum += v;
     out.meanHeightAfter = static_cast<float>(sum / n);
     return out;
+}
+
+float macroValleyDensity(const std::vector<float>& height, int w, int h, float cellU) {
+    if (w < 3 || h < 3 || height.size() != static_cast<size_t>(w) * h) return 0.0f;
+    int troughs = 0;
+    for (int z = 1; z < h - 1; ++z)
+        for (int x = 1; x < w - 1; ++x) {
+            const float c = height[static_cast<size_t>(z) * w + x];
+            const bool ew = c < height[static_cast<size_t>(z) * w + x - 1] && c < height[static_cast<size_t>(z) * w + x + 1];
+            const bool ns = c < height[static_cast<size_t>(z - 1) * w + x] && c < height[static_cast<size_t>(z + 1) * w + x];
+            if (ew || ns) ++troughs;
+        }
+    const double areaKm2 = static_cast<double>(w) * h * cellU * cellU * 1e-6;
+    return static_cast<float>(troughs / areaKm2);
 }
 
 float macroDrainageDensity(const MacroErosionResult& r, int w, int h, float cellU, float thresholdArea) {

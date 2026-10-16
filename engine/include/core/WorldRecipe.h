@@ -78,7 +78,8 @@ struct WorldRecipe {
                 {"talusSlope", s.talusSlope}, {"thermalRate", s.thermalRate},
                 {"pagerTiles", s.pagerTiles},
                 {"erosionSteps", s.erosionSteps}, {"erosionDt", s.erosionDt}, {"erosionK", s.erosionK},
-                {"erosionM", s.erosionM}, {"erosionUpliftMax", s.erosionUpliftMax}};
+                {"erosionM", s.erosionM}, {"erosionUpliftMax", s.erosionUpliftMax},
+                {"erosionMaxSlope", s.erosionMaxSlope}};
     }
     static SheetParams sheetFromJson(const nlohmann::json& j) {
         SheetParams s;
@@ -96,6 +97,7 @@ struct WorldRecipe {
         s.erosionK         = j.value("erosionK", s.erosionK);
         s.erosionM         = j.value("erosionM", s.erosionM);
         s.erosionUpliftMax = j.value("erosionUpliftMax", s.erosionUpliftMax);
+        s.erosionMaxSlope  = j.value("erosionMaxSlope", s.erosionMaxSlope);
         return SheetParams::clamped(s);   // the clamped copy is what the generator runs with
     }
 
