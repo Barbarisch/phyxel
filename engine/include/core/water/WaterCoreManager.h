@@ -49,6 +49,7 @@ struct AvRecord {
     bool gpuAsync = false;                 ///< 26.16: the call is collected next frame (realtime) - the gpu_* numbers are the previous call's
     int gpuBricks = 0;                     ///< 26.12: bricks the GPU volume steps (stored: water + its halo); 0 = not on the GPU
     int gpuBrickCapacity = 0;              ///< 26.12: bricks it could store (the whole box)
+    int gpuBrickHeight = 0;                ///< 26.17: cells per brick along y (bricks are 8 x h x 8); 0 = not on the GPU
     double surfaceAgeMs = -1.0;            ///< Phase F: age of the surface field the renderer last read (ms since the step that produced it; -1 = never)
     size_t particles = 0;                  ///< Phase B2: FLIP particles alive (0 for fills)
     size_t cells = 0;
@@ -119,7 +120,8 @@ public:
     /// fraction of a voxel (1, 1/3, 1/9, 1/27, 1/81); `transport` is "eulerian" (Phase B).
     /// Refuses (returns 0, fills `err`) when the cell count would exceed `maxCells`.
     int create(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
-               const std::string& transport, std::string* err, const std::string& backend = "auto" /* auto: gpu for fills when ready, else cpu */, int gpuSweeps = 0 /* <= 0: auto, 1.5 x the longest dimension */);
+               const std::string& transport, std::string* err, const std::string& backend = "auto" /* auto: gpu for fills when ready, else cpu */, int gpuSweeps = 0 /* <= 0: auto, 1.5 x the longest dimension */,
+               int brickHeight = 0 /* 26.17: GPU brick height 2 / 4 / 8; 0 = WaterCoreGpu::s_brickHeight */);
     /// Phase C: give the manager a device; GPU volumes are refused until this succeeds (loudly).
     bool initGpu(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t queueFamily, const std::string& shaderDir, std::string* err);
     bool gpuReady() const { return m_gpu && m_gpu->ready(); }

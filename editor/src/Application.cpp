@@ -13896,7 +13896,7 @@ void Application::registerWaterCommands() {
     auto noCore = [](nlohmann::json& r) { r = {{"error", "WaterCore not available"}}; };
     auto avJson = [](const Core::Water::AvRecord& a) {
         return nlohmann::json{{"id", a.id}, {"box", {{"min", {a.minVoxel.x, a.minVoxel.y, a.minVoxel.z}}, {"max", {a.maxVoxel.x, a.maxVoxel.y, a.maxVoxel.z}}}},
-                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_device_ms", a.gpuDeviceMs}, {"gpu_host_ms", a.gpuHostMs}, {"gpu_wait_ms", a.gpuWaitMs}, {"gpu_ticks", a.gpuTicks}, {"gpu_async", a.gpuAsync}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
+                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_device_ms", a.gpuDeviceMs}, {"gpu_host_ms", a.gpuHostMs}, {"gpu_wait_ms", a.gpuWaitMs}, {"gpu_ticks", a.gpuTicks}, {"gpu_async", a.gpuAsync}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"gpu_brick_height", a.gpuBrickHeight}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
                               {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"source_in_m3", a.sourceIn}, {"outfall_out_m3", a.outfallOut}, {"outfalls", a.outfalls}, {"manning_n", a.manningN}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};
@@ -13906,7 +13906,7 @@ void Application::registerWaterCommands() {
         const glm::ivec3 lo(cmd.params.value("x1", 0), cmd.params.value("y1", 0), cmd.params.value("z1", 0));
         const glm::ivec3 hi(cmd.params.value("x2", 0), cmd.params.value("y2", 0), cmd.params.value("z2", 0));
         std::string err;
-        const int id = waterCore->create(lo, hi, cmd.params.value("cellSize", 1.0f / 3.0f), cmd.params.value("transport", std::string("eulerian")), &err, cmd.params.value("backend", std::string("auto")), cmd.params.value("sweeps", 0));   // auto = gpu for fills when the device is ready, else cpu; echoed as backend   // 0 = auto (1.5 x the longest dimension), else clamped 8-160 and echoed
+        const int id = waterCore->create(lo, hi, cmd.params.value("cellSize", 1.0f / 3.0f), cmd.params.value("transport", std::string("eulerian")), &err, cmd.params.value("backend", std::string("auto")), cmd.params.value("sweeps", 0), cmd.params.value("brick_height", 0));   // 26.17: brick_height 2 / 4 / 8 (0 = the default), echoed as gpu_brick_height   // auto = gpu for fills when the device is ready, else cpu; echoed as backend   // 0 = auto (1.5 x the longest dimension), else clamped 8-160 and echoed
         if (!id) { r = {{"error", err}}; return; }
         // Phase D: seed:"spans" fills the volume from the chunk spans of its box (a flat start, cell
         // size free); auto_sleep (default true) writes back + frees in realtime when it sleeps.

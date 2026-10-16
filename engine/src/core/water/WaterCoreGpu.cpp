@@ -21,8 +21,8 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
 // ColumnOps, Classify, Surface
 const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9};
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
-constexpr int kB = 8;          // 26.6: cells per brick edge
-int floorMod8(int v) { return ((v % kB) + kB) % kB; }
+constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
+int floorMod(int v, int n) { return ((v % n) + n) % n; }
 } // namespace
 
 WaterCoreGpu::~WaterCoreGpu() { shutdown(); }
@@ -176,17 +176,22 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     if (particles && opts.sparse) { if (err) *err = "a particle (FLIP) volume cannot be sparse (26.6: the particle transport stays dense)"; return nullptr; }
     if (vol->bricked) {
         vol->sparse = opts.sparse; vol->freezeForTest = opts.freezeForTest;
-        vol->o = glm::ivec3(floorMod8(spec.origin.x), floorMod8(spec.origin.y), floorMod8(spec.origin.z));
+        // 26.17: bricks 8 x by x 8 - a flat brick follows shallow water (and the bed under it) closer than a cube
+        const int height = opts.height > 0 ? opts.height : s_brickHeight;
+        if (height != 2 && height != 4 && height != 8) { if (err) *err = "brick height " + std::to_string(height) + " is not 2, 4 or 8 (26.17)"; return nullptr; }
+        vol->by = height; vol->bly = height == 2 ? 1 : (height == 4 ? 2 : 3); vol->bc = static_cast<size_t>(64 * height);
+        vol->o = glm::ivec3(floorMod(spec.origin.x, kB), floorMod(spec.origin.y, vol->by), floorMod(spec.origin.z, kB));
         // the brick box covers every cell: q = local + o in [0, n + o). A box's upper wall faces (lattice index n) lie in the
         // next brick when n + o is a multiple of 8 - absent, so they read 0, which a wall face always is (the dense grid
         // forced them to 0 every substep). An extra layer of bricks to hold them stepped 27 bricks for a 16^3 box (13,824
         // cells for 4,096) - measured 2026-10-13.
-        vol->bn = (spec.dims + vol->o + glm::ivec3(kB - 1)) / kB;
+        vol->bn = (spec.dims + vol->o + vol->bs() - glm::ivec3(1)) / vol->bs();
+        vol->nuy = static_cast<size_t>((spec.dims.y + (vol->o.y & 1) + 1) / 2);   // the reductions' unit map (x 8, y 2, z 8)
         vol->mapCount = static_cast<size_t>(vol->bn.x) * vol->bn.y * vol->bn.z;
         if (vol->mapCount > kMaxMapEntries || vol->bn.x > 1023 || vol->bn.y > 1023 || vol->bn.z > 1023) {
             // the 15.11 refusal shape: the reason AND the byte count (the brick map alone, and every brick of the box stored)
             const unsigned long long mapBytes = static_cast<unsigned long long>(vol->mapCount) * 4ull;
-            const unsigned long long fullBytes = static_cast<unsigned long long>(vol->mapCount) * 512ull * 100ull;   // ~25 floats a cell
+            const unsigned long long fullBytes = static_cast<unsigned long long>(vol->mapCount) * vol->bc * 100ull;   // ~25 floats a cell
             if (err) *err = "a bricked WaterCore volume's brick box holds at most " + std::to_string(kMaxMapEntries) + " bricks and 1023 a side ("
                             + std::to_string(vol->bn.x) + " x " + std::to_string(vol->bn.y) + " x " + std::to_string(vol->bn.z) + " requested: a "
                             + std::to_string(mapBytes) + " bytes map, " + std::to_string(fullBytes) + " bytes with every brick stored; world scale is 26.3 P5)";
@@ -194,7 +199,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         }
         vol->capacity = 1 + (opts.capacity > 0 ? std::min(opts.capacity, vol->mapCount) : vol->mapCount);   // slot 0 = the absent brick
         vol->colCap = static_cast<size_t>(vol->bn.x) * vol->bn.z;
-        vol->cells = vol->capacity * 512; vol->nu = vol->nv = vol->nw = vol->cells;
+        vol->cells = vol->capacity * vol->bc; vol->nu = vol->nv = vol->nw = vol->cells;
         vol->columns = vol->colCap * 64;
         vol->slotTableOff = vol->mapCount; vol->colTableOff = vol->slotTableOff + vol->capacity;
         vol->counterOff = vol->colTableOff + vol->colCap; vol->infoOff = vol->counterOff + 2;
@@ -205,7 +210,9 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         vol->brickInts = 4;
     }
     vol->latticeMax = std::max({vol->nu, vol->nv, vol->nw});
-    vol->groups = std::max((std::max({vol->cells, vol->latticeMax, vol->columns}) + 255) / 256, 2 * vol->mapCount) + 1;
+    // partials: two per 256-wide group (26.17: mode 0 folds per 128-cell unit), and the bricked unit map they are gathered into
+    vol->groups = std::max(2 * ((std::max({vol->cells, vol->latticeMax, vol->columns}) + 255) / 256),
+                           static_cast<size_t>(vol->bn.x) * vol->nuy * static_cast<size_t>(vol->bn.z)) + 1;
     const VkDeviceSize F4 = sizeof(float);
     bool ok = createBuffer(vol->f, vol->cells * F4, false, err) && createBuffer(vol->fLo, vol->cells * F4, false, err) && createBuffer(vol->fOrig, vol->cells * F4, false, err) && createBuffer(vol->fPrev, vol->cells * F4, false, err)
            && createBuffer(vol->u, vol->nu * F4, false, err) && createBuffer(vol->v, vol->nv * F4, false, err) && createBuffer(vol->w, vol->nw * F4, false, err)
@@ -310,11 +317,11 @@ long WaterCoreGpu::storageIndex(const Volume& vol, int x, int y, int z) const {
     if (!vol.bricked) return static_cast<long>(x + vol.spec.dims.x * (y + vol.spec.dims.y * z));
     const glm::ivec3 q = glm::ivec3(x, y, z) + vol.o;
     if (q.x < 0 || q.y < 0 || q.z < 0) return -1;
-    const glm::ivec3 b = q / kB;
+    const glm::ivec3 b = q / vol.bs();
     if (b.x >= vol.bn.x || b.y >= vol.bn.y || b.z >= vol.bn.z) return -1;
     const int slot = vol.map[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)];
     if (slot == 0) return -1;
-    return static_cast<long>(slot) * 512 + (q.x & 7) + 8 * ((q.y & 7) + 8 * (q.z & 7));
+    return static_cast<long>(slot) * static_cast<long>(vol.bc) + (q.x & 7) + 8 * (q.z & 7) + 64 * (q.y & (vol.by - 1));   // y slowest (26.17)
 }
 
 long WaterCoreGpu::columnStorage(const Volume& vol, int x, int z) const {
@@ -335,25 +342,26 @@ void WaterCoreGpu::fillPushBricks(const Volume& vol, WcPush& push) const {
     push.bricked = vol.bricked ? 1 : 0;
     push.slotsUsed = vol.slotsUsed;
     push.ox = vol.o.x; push.oy = vol.o.y; push.oz = vol.o.z;
-    push.bnx = vol.bn.x; push.bny = vol.bn.y; push.bnz = vol.bn.z;
+    push.bnx = vol.bn.x; push.bny = vol.bn.y; push.bnz = vol.bn.z; push.bly = vol.bly;
     push.slotTableOff = static_cast<int32_t>(vol.slotTableOff); push.colTableOff = static_cast<int32_t>(vol.colTableOff);
     push.counterOff = static_cast<int32_t>(vol.counterOff); push.colCount = vol.colCount;
 }
 
-// A brick is needed when water lies within `reach` cells of it: for each neighbour offset d (within `rings`), the gap along
-// an axis is 0 (d = 0) or the water's distance to that face + 1 + 8 (|d| - 1); the neighbour is needed when every axis's gap
+// A brick is needed when water lies within `reach` cells of it: for each neighbour offset d, the gap along
+// an axis is 0 (d = 0) or the water's distance to that face + 1 + size (|d| - 1) (size: 8 along x and z, the brick height along
+// y - 26.17); the neighbour is needed when every axis's gap
 // is <= reach (Chebyshev). The per-face distances are minima over the brick's water taken separately per face, so the test
 // is conservative: it may keep a brick it did not need, never drop one it did.
-void WaterCoreGpu::markNeed(const Volume& vol, std::vector<char>& need, const glm::ivec3& b, const int dist[6], int reach, int rings) const {
+void WaterCoreGpu::markNeed(const Volume& vol, std::vector<char>& need, const glm::ivec3& b, const int dist[6], int reach) const {
     // per axis, the offsets whose gap is within reach (0 always; -k / +k while face + 1 + 8 (k - 1) <= reach and in the box)
     int lo[3], hi[3];
-    const int bmax[3] = {vol.bn.x - 1, vol.bn.y - 1, vol.bn.z - 1}, bc[3] = {b.x, b.y, b.z};
+    const int bmax[3] = {vol.bn.x - 1, vol.bn.y - 1, vol.bn.z - 1}, bc[3] = {b.x, b.y, b.z}, size[3] = {kB, vol.by, kB};
     for (int a = 0; a < 3; ++a) {
         lo[a] = 0; hi[a] = 0;
-        for (int k = 1; k <= rings; ++k) {
-            if (dist[2 * a] + 1 + (k - 1) * kB <= reach && bc[a] - k >= 0) lo[a] = -k;
-            if (dist[2 * a + 1] + 1 + (k - 1) * kB <= reach && bc[a] + k <= bmax[a]) hi[a] = k;
-        }
+        // 26.17: as many rings as the reach needs ALONG THIS AXIS - a 2-tall brick needs three up and down for a reach of 6
+        // (one ring count for all axes left the dam break's halo short by 42 bricks: FlatBricksEqualCubic's red run)
+        for (int k = 1; dist[2 * a] + 1 + (k - 1) * size[a] <= reach && bc[a] - k >= 0; ++k) lo[a] = -k;
+        for (int k = 1; dist[2 * a + 1] + 1 + (k - 1) * size[a] <= reach && bc[a] + k <= bmax[a]; ++k) hi[a] = k;
     }
     // Chebyshev: a neighbour is needed when EVERY axis's gap is within reach - the box of per-axis ranges
     const size_t sx = static_cast<size_t>(vol.bn.x), sxy = sx * static_cast<size_t>(vol.bn.y);
@@ -364,22 +372,22 @@ void WaterCoreGpu::markNeed(const Volume& vol, std::vector<char>& need, const gl
 }
 
 // The bricks of a list of dense cells (pumps), each as a point of water: stored, and their halo.
-static void cellToRecord(const glm::ivec3& o, int x, int y, int z, glm::ivec3& b, int dist[6]) {
-    const glm::ivec3 q = glm::ivec3(x, y, z) + o, l = q % 8;
-    b = q / 8;
-    dist[0] = l.x; dist[1] = 7 - l.x; dist[2] = l.y; dist[3] = 7 - l.y; dist[4] = l.z; dist[5] = 7 - l.z;
+static void cellToRecord(const glm::ivec3& o, const glm::ivec3& bs, int x, int y, int z, glm::ivec3& b, int dist[6]) {
+    const glm::ivec3 q = glm::ivec3(x, y, z) + o, l = q % bs;
+    b = q / bs;
+    dist[0] = l.x; dist[1] = bs.x - 1 - l.x; dist[2] = l.y; dist[3] = bs.y - 1 - l.y; dist[4] = l.z; dist[5] = bs.z - 1 - l.z;
 }
 
-void WaterCoreGpu::needFromDenseFill(const Volume& vol, const std::vector<float>& f, std::vector<char>& need, int reach, int rings) const {
+void WaterCoreGpu::needFromDenseFill(const Volume& vol, const std::vector<float>& f, std::vector<char>& need, int reach) const {
     const glm::ivec3 n = vol.spec.dims;
     std::vector<int> rec(vol.mapCount * 7, -1);   // per map entry: wet flag + 6 distances (-1 = dry)
     for (int z = 0; z < n.z; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
         const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z);
         if (i >= f.size() || f[i] == 0.0f) continue;
-        const glm::ivec3 q = glm::ivec3(x, y, z) + vol.o, b = q / kB, l = q % kB;
+        const glm::ivec3 q = glm::ivec3(x, y, z) + vol.o, b = q / vol.bs(), l = q % vol.bs();
         int* r = &rec[(static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)) * 7];
         if (r[0] < 0) { r[0] = 1; for (int k = 1; k < 7; ++k) r[k] = 7; }
-        const int dd[6] = {l.x, 7 - l.x, l.y, 7 - l.y, l.z, 7 - l.z};
+        const int dd[6] = {l.x, 7 - l.x, l.y, vol.by - 1 - l.y, l.z, 7 - l.z};
         for (int k = 0; k < 6; ++k) r[1 + k] = std::min(r[1 + k], dd[k]);
     }
     for (size_t m = 0; m < vol.mapCount; ++m) {
@@ -387,7 +395,7 @@ void WaterCoreGpu::needFromDenseFill(const Volume& vol, const std::vector<float>
         if (r[0] < 0) continue;
         need[m] = 2;   // holds water: stored first
         const glm::ivec3 b(static_cast<int>(m % vol.bn.x), static_cast<int>((m / vol.bn.x) % vol.bn.y), static_cast<int>(m / (static_cast<size_t>(vol.bn.x) * vol.bn.y)));
-        markNeed(vol, need, b, r + 1, reach, rings);
+        markNeed(vol, need, b, r + 1, reach);
     }
 }
 
@@ -413,7 +421,7 @@ long WaterCoreGpu::haloShortAfterCall(const Volume& vol) const {
             const int rec = info[2 * s + r];
             if (!(rec & 1)) continue;
             int dist[6]; for (int k = 0; k < 6; ++k) dist[k] = (rec >> (1 + 3 * k)) & 7;
-            markNeed(vol, need, b, dist, r == 0 ? kReachFilm : kReachLiquid, 1);
+            markNeed(vol, need, b, dist, r == 0 ? kReachFilm : kReachLiquid);
         }
     }
     long shortBy = 0;
@@ -474,9 +482,9 @@ void WaterCoreGpu::scatterSlots(Volume& vol, const std::vector<int>& slots, cons
     for (int slot : slots) {
         const int packed = vol.slotBrick[static_cast<size_t>(slot)];
         const glm::ivec3 b(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
-        for (int l = 0; l < 512; ++l) {
-            const glm::ivec3 c = b * kB + glm::ivec3(l & 7, (l >> 3) & 7, l >> 6) - vol.o;
-            const size_t i = static_cast<size_t>(slot) * 512 + l;
+        for (int l = 0; l < static_cast<int>(vol.bc); ++l) {
+            const glm::ivec3 c = b * vol.bs() + glm::ivec3(l & 7, l >> 6, (l >> 3) & 7) - vol.o;   // local = x + 8 z + 64 y (26.17)
+            const size_t i = static_cast<size_t>(slot) * vol.bc + l;
             const bool in = c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < n.x && c.y < n.y && c.z < n.z;
             const size_t d = in ? static_cast<size_t>(c.x) + static_cast<size_t>(n.x) * (c.y + static_cast<size_t>(n.y) * c.z) : 0;
             so[i] = in ? (d < vol.hostOcc.size() ? vol.hostOcc[d] : 0u) : 1u;
@@ -500,7 +508,7 @@ void WaterCoreGpu::recordSlotUploads(VkCommandBuffer cmd, Volume& vol, const std
     for (size_t a = 0; a < s.size();) {
         size_t e = a + 1;
         while (e < s.size() && s[e] == s[e - 1] + 1) ++e;
-        const VkDeviceSize first = static_cast<VkDeviceSize>(s[a]) * 512, count = static_cast<VkDeviceSize>(e - a) * 512;
+        const VkDeviceSize first = static_cast<VkDeviceSize>(s[a]) * vol.bc, count = static_cast<VkDeviceSize>(e - a) * vol.bc;
         if (zero)
             for (Buffer* b : {&vol.f, &vol.fOrig, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.uOld, &vol.vOld, &vol.wOld, &vol.src, &vol.liq,
                               &vol.diag, &vol.rhs, &vol.p, &vol.res, &vol.valA, &vol.valB, &vol.knownA, &vol.knownB, &vol.first, &vol.keep,
@@ -531,8 +539,9 @@ int WaterCoreGpu::compactSlots(VkCommandBuffer cmd, Volume& vol) {
         const glm::ivec3 b(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
         vol.map[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = static_cast<int>(hole);
         vol.slotBrick[hole] = packed; vol.slotBrick[top] = -1;
-        VkBufferCopy r{}; r.srcOffset = top * 512 * 4; r.dstOffset = hole * 512 * 4; r.size = 512 * 4; c4.push_back(r);
-        r.srcOffset = top * 512 * 16; r.dstOffset = hole * 512 * 16; r.size = 512 * 16; c16.push_back(r);
+        const VkDeviceSize bc = vol.bc;
+        VkBufferCopy r{}; r.srcOffset = top * bc * 4; r.dstOffset = hole * bc * 4; r.size = bc * 4; c4.push_back(r);
+        r.srcOffset = top * bc * 16; r.dstOffset = hole * bc * 16; r.size = bc * 16; c16.push_back(r);
         ++moved;
     }
     for (Buffer* bf : {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src})
@@ -541,8 +550,8 @@ int WaterCoreGpu::compactSlots(VkCommandBuffer cmd, Volume& vol) {
     // the vacated slots go back to dry air (a later allocation zeroes them again; the absent-brick check must never see them)
     for (const VkBufferCopy& r : c4) {
         const VkDeviceSize off = r.srcOffset;
-        for (Buffer* bf : {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src}) vkCmdFillBuffer(cmd, bf->buf, off, 512 * 4, 0);
-        vkCmdFillBuffer(cmd, vol.solid.buf, off * 4, 512 * 16, 0);
+        for (Buffer* bf : {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src}) vkCmdFillBuffer(cmd, bf->buf, off, vol.bc * 4, 0);
+        vkCmdFillBuffer(cmd, vol.solid.buf, off * 4, vol.bc * 16, 0);
     }
     int topUsed = 0;
     for (size_t s = 1; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) topUsed = static_cast<int>(s);
@@ -575,15 +584,15 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
         // not known yet; a ring of 8 cells is more than any one tick moves at the CFL the step will use)
         std::vector<char> need(vol.mapCount, vol.sparse ? 0 : 1);
         if (vol.sparse) {
-            needFromDenseFill(vol, gm.fData(), need, kB, 1);
+            needFromDenseFill(vol, gm.fData(), need, kB);
             for (int c : vol.sourceCells) {
                 if (c < 0 || static_cast<size_t>(c) >= vol.dCells) continue;
                 glm::ivec3 b; int dist[6];
-                cellToRecord(vol.o, c % vol.spec.dims.x, (c / vol.spec.dims.x) % vol.spec.dims.y, c / (vol.spec.dims.x * vol.spec.dims.y), b, dist);
+                cellToRecord(vol.o, vol.bs(), c % vol.spec.dims.x, (c / vol.spec.dims.x) % vol.spec.dims.y, c / (vol.spec.dims.x * vol.spec.dims.y), b, dist);
                 need[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 2;
-                markNeed(vol, need, b, dist, kB, 1);
+                markNeed(vol, need, b, dist, kB);
             }
-            if (!vol.hostDeposit.empty()) needFromDenseFill(vol, vol.hostDeposit, need, kB, 1);
+            if (!vol.hostDeposit.empty()) needFromDenseFill(vol, vol.hostDeposit, need, kB);
         }
         std::fill(vol.map.begin(), vol.map.end(), 0);
         std::fill(vol.slotBrick.begin(), vol.slotBrick.end(), -1);
@@ -696,7 +705,7 @@ void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const 
     }
     std::vector<int> slots;   // the stored bricks the box touches (an absent brick takes its bodies from hostSolid when it is stored)
     if (!emptyBox) {
-        const glm::ivec3 b0 = (lo + vol.o) / kB, b1 = (hi + vol.o) / kB;
+        const glm::ivec3 b0 = (lo + vol.o) / vol.bs(), b1 = (hi + vol.o) / vol.bs();
         for (int bz = b0.z; bz <= b1.z; ++bz) for (int by = b0.y; by <= b1.y; ++by) for (int bx = b0.x; bx <= b1.x; ++bx) {
             if (bx < 0 || by < 0 || bz < 0 || bx >= vol.bn.x || by >= vol.bn.y || bz >= vol.bn.z) continue;
             const int slot = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)];
@@ -710,7 +719,7 @@ void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const 
         for (size_t a = 0; a < slots.size();) {   // contiguous slots in one copy
             size_t e = a + 1;
             while (e < slots.size() && slots[e] == slots[e - 1] + 1) ++e;
-            const VkDeviceSize first = static_cast<VkDeviceSize>(slots[a]) * 512 * 16, bytes = static_cast<VkDeviceSize>(e - a) * 512 * 16;
+            const VkDeviceSize first = static_cast<VkDeviceSize>(slots[a]) * vol.bc * 16, bytes = static_cast<VkDeviceSize>(e - a) * vol.bc * 16;
             copy(cmd, vol.staging, vol.solid, bytes, vol.offSolid + first, first);
             a = e;
         }
@@ -800,9 +809,9 @@ void WaterCoreGpu::download(Volume& vol, WaterGrid& g) const {
         const int packed = vol.slotBrick[slot];
         if (packed < 0) continue;
         const glm::ivec3 b(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
-        for (int l = 0; l < 512; ++l) {
-            const glm::ivec3 c = b * kB + glm::ivec3(l & 7, (l >> 3) & 7, l >> 6) - vol.o;
-            const size_t i = slot * 512 + l;
+        for (int l = 0; l < static_cast<int>(vol.bc); ++l) {
+            const glm::ivec3 c = b * vol.bs() + glm::ivec3(l & 7, l >> 6, (l >> 3) & 7) - vol.o;   // local = x + 8 z + 64 y (26.17)
+            const size_t i = slot * vol.bc + l;
             if (c.x < 0 || c.y < 0 || c.z < 0) continue;
             if (c.x < n.x && c.y < n.y && c.z < n.z) g.f(c.x, c.y, c.z) = sf[i];
             if (c.x <= n.x && c.y < n.y && c.z < n.z) g.u(c.x, c.y, c.z) = su[i];
@@ -1071,10 +1080,12 @@ void WaterCoreGpu::recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush pus
     if (vol.bricked) {
         // 26.6: the per-half-brick partials into MAP order (absent bricks as zero), then the fold - the same tree whichever
         // bricks are stored, so the sums the rest and settle decisions read are the dense run's bit for bit
-        push.mode = 6; dispatch(cmd, *vol.pipes[Reduce], push, 2 * vol.mapCount, 256);
-        fold(2 * vol.mapCount, 0, 3);
+        // 26.17: per 128-cell unit, gathered into the world-aligned unit map - the same tree for every brick height
+        const size_t units = static_cast<size_t>(vol.bn.x) * vol.nuy * static_cast<size_t>(vol.bn.z);
+        push.mode = 6; push.param0 = static_cast<float>(vol.nuy); dispatch(cmd, *vol.pipes[Reduce], push, units, 256);
+        fold(units, 0, 3);
     } else {
-        fold((cells + 255) / 256, 0, 2);
+        fold(2 * ((cells + 255) / 256), 0, 2);   // 26.17: mode 0 writes a partial per 128-cell half
     }
     for (int L = 0; L < 3; ++L) {
         const size_t n = liveLattice(vol, L);
@@ -1090,6 +1101,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     settle(vol);   // 26.16: the call in flight is collected first (its record decides this call's residency, its speed the substeps)
     GpuStepStats st; st.ticks = ticks; st.sweeps = sweeps;
     st.capacity = vol.bricked ? static_cast<int>(vol.capacity) - 1 : 0;
+    st.brickHeight = vol.by;   // 26.17
     if (vol.asleep || ticks <= 0) {
         st.asleep = vol.asleep; st.quietTicks = vol.quietTicks;
         if (vol.bricked) st.bricks = vol.storedCount;
@@ -1126,7 +1138,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         // (vmax over every tick of the call, + 1). Needs > one ring (8 cells) only for fast water.
         const int travel = static_cast<int>(std::ceil(vmax * dt * ticks / vol.spec.h)) + 1;
         const int reach = kReachLiquid + travel;                 // the larger of the two (liquid); films get kReachFilm + travel
-        const int rings = std::max(1, (reach + kB - 2) / kB);   // ring k reaches 1 + 8 (k - 1) cells past the face at the least
+        const int rings = std::max(1, (reach + vol.by - 2) / vol.by);   // reported only: the rings up/down (markNeed walks each axis to the reach)
         std::vector<char> need(vol.mapCount, 0);
         if (vol.recordValid && !vol.freezeForTest) {
             const int32_t* info = vol.hostInfo.data();
@@ -1139,7 +1151,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
                     const int rec = info[2 * s + r];
                     if (!(rec & 1)) continue;
                     int dist[6]; for (int k = 0; k < 6; ++k) dist[k] = (rec >> (1 + 3 * k)) & 7;
-                    markNeed(vol, need, b, dist, (r == 0 ? kReachFilm : kReachLiquid) + travel, rings);
+                    markNeed(vol, need, b, dist, (r == 0 ? kReachFilm : kReachLiquid) + travel);
                 }
             }
         } else {
@@ -1149,11 +1161,11 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
             if (c < 0 || static_cast<size_t>(c) >= vol.dCells) continue;
             const int nx = vol.spec.dims.x, ny = vol.spec.dims.y;
             glm::ivec3 b; int dist[6];
-            cellToRecord(vol.o, c % nx, (c / nx) % ny, c / (nx * ny), b, dist);
+            cellToRecord(vol.o, vol.bs(), c % nx, (c / nx) % ny, c / (nx * ny), b, dist);
             need[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 2;
-            markNeed(vol, need, b, dist, reach, rings);
+            markNeed(vol, need, b, dist, reach);
         }
-        if (vol.depositPending && !vol.hostDeposit.empty()) needFromDenseFill(vol, vol.hostDeposit, need, reach, rings);
+        if (vol.depositPending && !vol.hostDeposit.empty()) needFromDenseFill(vol, vol.hostDeposit, need, reach);
         const std::vector<int> fresh = applyResidency(vol, need);
         vol.lastRings = rings;
         if (!fresh.empty()) { scatterSlots(vol, fresh, nullptr); recordSlotUploads(cmd, vol, fresh, true); }

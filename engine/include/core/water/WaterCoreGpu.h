@@ -31,8 +31,9 @@ struct WcPush {
     int32_t slotTableOff = 0, colTableOff = 0, counterOff = 0, colCount = 0;
     int32_t surfaceGhost = 1;   ///< 26.9: the hydrostatic ghost at a clamped surface (WaterSolver::surfaceGhost)
     float quietRise = 0.0f;     ///< 26.9: m/s under which a partial cell's surface rises by filling (EulerianTransport::s_quietRiseFraction)
+    int32_t bly = 3;            ///< 26.17: log2 of the brick height (bricks are 8 x (1 << bly) x 8)
 };
-static_assert(sizeof(WcPush) == 108, "WcPush must match the GLSL push block");
+static_assert(sizeof(WcPush) == 112, "WcPush must match the GLSL push block");
 
 /// A pump or sink on the device (shaders/wc_sources.comp GpuSource, 32 bytes).
 struct GpuSource {
@@ -68,6 +69,7 @@ struct GpuStepStats {
     double deviceMs = 0.0;           ///< 26.15: the GPU's own time for the call's main submission (timestamps; 0 = unsupported)
     // 26.6 P2a: brick storage
     int    bricks = 0;               ///< bricks stored after this call (a dense volume: all of its brick box)
+    int    brickHeight = 8;          ///< 26.17: cells per brick along y (a brick is 8 x brickHeight x 8)
     int    capacity = 0;             ///< slots (bricks) the volume can hold
     int    allocated = 0, freed = 0; ///< bricks allocated / freed by this call's residency update
     int    haloRings = 0;            ///< neighbour rings the residency took (1 unless the water is fast)
@@ -85,6 +87,7 @@ struct BrickOptions {
     bool   sparse = false;
     size_t capacity = 0;             ///< slots for bricks (0 = every brick of the box: never full)
     bool   freezeForTest = false;    ///< TEST ONLY (the equality test's red control): residency never follows the water
+    int    height = 0;               ///< 26.17: brick height in cells (2, 4 or 8; 0 = WaterCoreGpu::s_brickHeight); x and z are 8
 };
 
 class WaterCoreGpu {
@@ -98,12 +101,15 @@ public:
     struct Volume {
         GridSpec spec;
         /// STORAGE counts (what the buffers hold and the kernels address): dense volumes - the grid's own sizes; bricked
-        /// volumes - capacity x 512 for cells and every lattice, column capacity x 64 for columns (26.6).
+        /// volumes - capacity x bc for cells and every lattice, column capacity x 64 for columns (26.6).
         size_t cells = 0, nu = 0, nv = 0, nw = 0, latticeMax = 0, columns = 0, groups = 0;
         size_t dCells = 0, dNu = 0, dNv = 0, dNw = 0, dColumns = 0;   ///< the grid's own (dense) counts - the host API's layout
         // 26.6 P2a bricks
         bool bricked = false, sparse = false;
         glm::ivec3 o{0}, bn{0};          ///< origin offset in its first brick (cells); the brick box (bricks)
+        int by = 8, bly = 3;             ///< 26.17: brick height (cells) and its log2; bricks are 8 x by x 8
+        size_t bc = 512, nuy = 0;        ///< 26.17: cells per brick; the unit map's y count (units are 8 x 2 x 8, the reductions')
+        glm::ivec3 bs() const { return glm::ivec3(8, by, 8); }
         size_t mapCount = 0, capacity = 0, colCap = 0;   ///< capacity counts slot 0 (the absent brick)
         int slotsUsed = 1, colCount = 0;
         std::vector<int> map, slotBrick, colEntries;   ///< host mirrors: map entry -> slot (0 absent); slot -> packed brick (-1 free)
@@ -197,6 +203,8 @@ public:
     bool ready() const { return m_device != VK_NULL_HANDLE && m_pool != VK_NULL_HANDLE; }
     /// 26.9: the projection starts from the still-water pressure of the water as it is now (classify mode 2), not 0.
     static inline bool s_stillWaterGuess = true;    // ON (26.10): the resting-body loss was float rounding in the fill store, fixed (fLo)
+    /// 26.17: the brick height (cells) a volume gets when its BrickOptions name none - 2, 4 or 8 (bricks are 8 x h x 8)
+    static inline int s_brickHeight = 8;
     /// 26.10 test hook: copy f after every stage of each single-tick, single-substep call and sum it on the host in double -
     /// exact per-stage mass changes (the device's own sums are float). s_stageDm[k] accumulates stage k's change in cell
     /// fractions: 0 between calls, 1 sources, 2 transport gather, 3 transport carry, 4 ledger, 5 compaction, 6 rest of the
@@ -286,15 +294,15 @@ private:
     // 26.6 P2a bricks (host side)
     long storageIndex(const Volume& vol, int x, int y, int z) const;   ///< -1 = absent / outside the brick box
     void fillPushBricks(const Volume& vol, WcPush& push) const;
-    size_t liveCells(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.slotsUsed) * 512 : vol.cells; }
+    size_t liveCells(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.slotsUsed) * vol.bc : vol.cells; }
     size_t liveLattice(const Volume& vol, int L) const { return vol.bricked ? liveCells(vol) : (L == 0 ? vol.nu : (L == 1 ? vol.nv : vol.nw)); }
     size_t liveColumns(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.colCount) * 64 : vol.columns; }
     long columnStorage(const Volume& vol, int x, int z) const;          ///< storage index of a column's thread, -1 = none
     /// Residency: `need` (per map entry: 2 = holds water, 1 = within reach of it, 0 = not needed) -> slots. Bricks holding
     /// water are stored FIRST, then the halo; returns the new slots (to be zeroed and filled); counts refusals.
     std::vector<int> applyResidency(Volume& vol, const std::vector<char>& need);
-    void markNeed(const Volume& vol, std::vector<char>& need, const glm::ivec3& brick, const int dist[6], int reach, int rings) const;
-    void needFromDenseFill(const Volume& vol, const std::vector<float>& f, std::vector<char>& need, int reach, int rings) const;
+    void markNeed(const Volume& vol, std::vector<char>& need, const glm::ivec3& brick, const int dist[6], int reach) const;
+    void needFromDenseFill(const Volume& vol, const std::vector<float>& f, std::vector<char>& need, int reach) const;
     long haloShortAfterCall(const Volume& vol) const;   ///< from the staging water record: bricks within 4 cells of water not stored
     void writeTablesToStaging(Volume& vol) const;
     void scatterSlots(Volume& vol, const std::vector<int>& slots, const WaterGrid* g) const;   ///< staging <- grid / host copies

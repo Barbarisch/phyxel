@@ -55,6 +55,7 @@ protected:
     void TearDown() override { gpu.shutdown(); VulkanTestFixture::TearDown(); }
 
     struct SceneResult { long ticksCompared = 0, ticksDiffering = 0, flux = 0, haloShort = 0; bool sentinel = false; int minBricks = 1 << 30, maxBricks = 0, denseBricks = 0;
+                         int sparseHeight = 8, denseHeight = 8;   // 26.17: brick heights (a brick is 8 x h x 8 cells)
                          long allocated = 0, freed = 0; Diff diff; double massDense = 0, massSparse = 0;
                          long surfaceColumnsDiffering = 0; std::string surfaceFirst; };   // 26.11: the surface field the renderer gets, byte for byte
     /// Run `ticks` ticks of the same water in a dense and a sparse volume. `perTick(k, dense, sparse)` may feed bodies or
@@ -75,7 +76,7 @@ protected:
             if (perTick) perTick(k, *dv, *sv);
             const GpuStepStats a = gpu.step(*dv, prm, kDt, 1, 40);
             const GpuStepStats b = gpu.step(*sv, prm, kDt, 1, 40);
-            r.denseBricks = a.bricks;
+            r.denseBricks = a.bricks; r.denseHeight = a.brickHeight; r.sparseHeight = b.brickHeight;
             r.minBricks = std::min(r.minBricks, b.bricks); r.maxBricks = std::max(r.maxBricks, b.bricks);
             r.flux += b.fluxIntoAbsent; r.haloShort += b.haloShort; r.sentinel = r.sentinel || b.sentinelDirty || a.sentinelDirty;
             r.allocated += b.allocated; r.freed += b.freed;
@@ -109,8 +110,9 @@ protected:
         return r;
     }
     void report(const char* name, const SceneResult& r) {
-        std::printf("  %-22s %ld ticks, differing %ld (first: %s); bricks stored %d..%d of %d, allocated %ld freed %ld; halo short %ld; flux into absent %ld; sentinel %s; mass %.6f / %.6f\n",
-                    name, r.ticksCompared, r.ticksDiffering, r.diff.first.empty() ? "-" : r.diff.first.c_str(), r.minBricks, r.maxBricks, r.denseBricks,
+        std::printf("  %-22s %ld ticks, differing %ld (first: %s); bricks (8x%dx8) stored %d..%d (cells %ld..%ld of %ld), allocated %ld freed %ld; halo short %ld; flux into absent %ld; sentinel %s; mass %.6f / %.6f\n",
+                    name, r.ticksCompared, r.ticksDiffering, r.diff.first.empty() ? "-" : r.diff.first.c_str(), r.sparseHeight, r.minBricks, r.maxBricks,
+                    64L * r.sparseHeight * r.minBricks, 64L * r.sparseHeight * r.maxBricks, 64L * r.denseHeight * r.denseBricks,
                     r.allocated, r.freed, r.haloShort, r.flux, r.sentinel ? "DIRTY" : "clean", r.massDense, r.massSparse);
     }
     void expectEqual(const char* name, const SceneResult& r) {
@@ -120,17 +122,20 @@ protected:
         EXPECT_EQ(r.haloShort, 0) << name << ": water came within 4 cells of a brick that was not stored (the halo is too thin)";
         EXPECT_EQ(r.flux, 0) << name << ": water tried to move into a brick that was not stored";
         EXPECT_FALSE(r.sentinel) << name << ": something wrote into the absent brick";
-        EXPECT_LT(r.minBricks, r.denseBricks) << name << ": the sparse run stored every brick - the test would prove nothing";
+        EXPECT_LT(64L * r.sparseHeight * r.minBricks, 64L * r.denseHeight * r.denseBricks) << name << ": the sparse run stored every cell - the test would prove nothing";
     }
+    /// The 26.8 scenes (+ 26.17's stepped bed), a dense 8^3 volume against a sparse one stored as `sparseOpts` says.
+    void seamScenes(BrickOptions sparseOpts, const char* tag);
 };
 
-// 26.6 P2a GATE: sparse == dense, bit for bit, across chunk and brick seams; the halo never too thin; the absent brick clean.
-TEST_F(WaterBrickTest, SparseEqualsDenseAcrossSeams) {
-    if (!isVulkanAvailable()) GTEST_SKIP();
+// The equality scenes: each runs a dense 8^3 volume (every brick kept) and a sparse one, and compares every tick.
+void WaterBrickTest::seamScenes(BrickOptions sparseOpts, const char* tag) {
+    std::string label;
+    auto name = [&](const char* scene) { label = std::string(tag) + " " + scene; return label.c_str(); };
     {   // a dam break whose front runs across brick seams and the chunk seam (local x 13 -> world 288)
         WaterGrid g = makeGrid();
         g.fillBox({0, 0, 0}, {7, 7, kDims.z - 1}, 1.0f);
-        expectEqual("dam break", runScene(g, 180, nullptr));
+        expectEqual(name("dam break"), runScene(g, 180, nullptr, sparseOpts));
     }
     {   // a slosh in a corner pond (a tilted surface), crossing the chunk seam
         WaterGrid g = makeGrid();
@@ -140,7 +145,7 @@ TEST_F(WaterBrickTest, SparseEqualsDenseAcrossSeams) {
         }
         for (int z = 0; z < kDims.z; ++z) for (int y = 0; y < kDims.y; ++y) for (int x = 0; x < kDims.x; ++x)   // the pond's walls
             if ((x == 5 || x == 22 || z == 12) && x >= 5 && x <= 22 && z <= 12) g.occ(x, y, z) = Occ::Solid;
-        expectEqual("slosh", runScene(g, 150, nullptr));
+        expectEqual(name("slosh"), runScene(g, 150, nullptr, sparseOpts));
     }
     {   // a 1/3 m stone dropped into a pond: moving solids (s, the wake, fresh) fed to both every frame
         WaterGrid g = makeGrid();
@@ -156,7 +161,7 @@ TEST_F(WaterBrickTest, SparseEqualsDenseAcrossSeams) {
             gpu.setSolids(a, fieldGrid.sData(), fields.solidWake(), fields.solidFresh(), kDt);
             gpu.setSolids(b, fieldGrid.sData(), fields.solidWake(), fields.solidFresh(), kDt);
         };
-        expectEqual("stone entry", runScene(g, 120, feed));
+        expectEqual(name("stone entry"), runScene(g, 120, feed, sparseOpts));
     }
     {   // a pump pouring into DRY bricks (allocation as the water arrives), across the chunk seam
         WaterGrid g = makeGrid();
@@ -168,7 +173,7 @@ TEST_F(WaterBrickTest, SparseEqualsDenseAcrossSeams) {
             std::string err;
             gpu.setSources(a, {s}, &err); gpu.setSources(b, {s}, &err);
         };
-        expectEqual("pump into dry bricks", runScene(g, 240, pump));
+        expectEqual(name("pump into dry bricks"), runScene(g, 240, pump, sparseOpts));
     }
     {   // a sink draining a small pond dry (bricks FREED as it empties): 0.18 m^3 at 0.1 m^3/s
         WaterGrid g = makeGrid();
@@ -180,9 +185,37 @@ TEST_F(WaterBrickTest, SparseEqualsDenseAcrossSeams) {
             std::string err;
             gpu.setSources(a, {s}, &err); gpu.setSources(b, {s}, &err);
         };
-        const SceneResult r = runScene(g, 360, sink);
-        expectEqual("sink draining", r);
+        const SceneResult r = runScene(g, 360, sink, sparseOpts);
+        expectEqual(name("sink draining"), r);
         EXPECT_GT(r.freed, 0) << "the drain must free bricks (else the free path is untested)";
+    }
+    {   // 26.17: water over a STEPPED solid bed (the creek's case - bricks under the water hold only ground): 3 cells of water
+        // released over a floor 4 cells deep that drops one cell at x 20, across the chunk seam
+        WaterGrid g = makeGrid();
+        for (int z = 0; z < kDims.z; ++z) for (int y = 0; y < kDims.y; ++y) for (int x = 0; x < kDims.x; ++x)
+            if (y < (x < 20 ? 4 : 3)) g.occ(x, y, z) = Occ::Solid;
+        for (int z = 0; z < kDims.z; ++z) for (int x = 0; x < 12; ++x) for (int y = 4; y < 7; ++y) g.f(x, y, z) = 1.0f;
+        expectEqual(name("stepped bed"), runScene(g, 240, nullptr, sparseOpts));
+    }
+}
+
+// 26.6 P2a GATE: sparse == dense, bit for bit, across chunk and brick seams; the halo never too thin; the absent brick clean.
+TEST_F(WaterBrickTest, SparseEqualsDenseAcrossSeams) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    seamScenes(BrickOptions{true, 0, false}, "8^3");
+}
+
+// 26.17 GATE: FLAT bricks (8 x 2 x 8, 8 x 4 x 8) stored sparse == every 8^3 brick kept, bit for bit - the brick's shape is storage
+// only. The box's y origin (3) is odd, so 2- and 4-tall bricks start part-way into a brick; the reductions fold per 8 x 2 x 8 unit
+// in one world order whatever the height, so the rest decisions match too.
+TEST_F(WaterBrickTest, FlatBricksEqualCubic) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    seamScenes(BrickOptions{true, 0, false, 2}, "8x2x8");
+    seamScenes(BrickOptions{true, 0, false, 4}, "8x4x8");
+    {   // a height that is not 2, 4 or 8 is refused with the reason, never rounded
+        std::string err;
+        EXPECT_EQ(gpu.createVolume(makeGrid(), &err, BrickOptions{true, 0, false, 3}), nullptr);
+        EXPECT_NE(err.find("brick height 3"), std::string::npos) << err;
     }
 }
 

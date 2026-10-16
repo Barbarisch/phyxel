@@ -5,8 +5,9 @@
 //
 // STORAGE (26.6 P2a). Two layouts, chosen per volume by pc.bricked:
 //  * dense (bricked = 0; the particle transport only): the grid's own index formulas (WaterGrid::idx/uIdx/vIdx/wIdx).
-//  * bricked (bricked = 1): world-aligned bricks of 8^3 cells held in SLOTS of 512; a cell's index is slot x 512 + local,
-//    and a face lattice stores each cell's LOWER face at its cell's index. A brick map (one int per brick of the volume's
+//  * bricked (bricked = 1): world-aligned bricks of 8 x BY x 8 cells (26.17: BY = 1 << bly, 2 / 4 / 8 per volume) held in
+//    SLOTS of 64 BY; a cell's index is slot x 64 BY + local, local = lx + 8 lz + 64 ly (y slowest: a brick is BY/2 128-cell
+//    UNITS, each laid the same whatever BY is), and a face lattice stores each cell's LOWER face at its cell's index. A brick map (one int per brick of the volume's
 //    brick box: slot, 0 = absent) and a slot table live in the Bricks buffer. Slot 0 is the ABSENT brick: all zero, never
 //    written - an absent cell reads as dry air (f 0, velocity 0, p 0, occupancy Air). A thread's id IS its storage index,
 //    so `x[id]` addresses the thread's own cell or face in both layouts.
@@ -38,19 +39,20 @@ layout(push_constant) uniform WcPush {
     int   colCount;      // resident brick columns (column dispatches: 64 threads each)
     int   surfaceGhost;  // 26.9: 1 = the hydrostatic ghost at a clamped surface (wc_theta.glsl wcSurfaceGhost); 0 = p_air = 0
     float quietRise;     // 26.9: m/s - under it a partial cell under an emptier one fills before water crosses its ceiling
+    int   bly;           // 26.17: log2 of the brick height (1, 2, 3); x and z are always 8
 } pc;
 
 #ifdef WC_BRICKS_BINDING
 layout(std430, set = 0, binding = WC_BRICKS_BINDING) buffer Bricks { int bricks[]; };
 
 int brickSlot(ivec3 q) {   // q = cell + origin offset (brick-box cell coords)
-    const ivec3 b = q >> 3;
+    const ivec3 b = ivec3(q.x >> 3, q.y >> pc.bly, q.z >> 3);
     if (b.x < 0 || b.y < 0 || b.z < 0 || b.x >= pc.bnx || b.y >= pc.bny || b.z >= pc.bnz) return 0;
     return bricks[b.x + pc.bnx * (b.y + pc.bny * b.z)];
 }
 uint brickIdx(int x, int y, int z) {
     const ivec3 q = ivec3(x + pc.ox, y + pc.oy, z + pc.oz);
-    return uint(brickSlot(q)) * 512u + uint((q.x & 7) + 8 * ((q.y & 7) + 8 * (q.z & 7)));
+    return (uint(brickSlot(q)) << uint(6 + pc.bly)) + uint((q.x & 7) + 8 * (q.z & 7) + 64 * (q.y & ((1 << pc.bly) - 1)));
 }
 // a cell inside the box whose brick is not stored (sparse residency) - never the case in a dense (all-kept) volume
 bool absentCell(int x, int y, int z) { return pc.bricked != 0 && brickSlot(ivec3(x + pc.ox, y + pc.oy, z + pc.oz)) == 0; }
@@ -80,12 +82,12 @@ bool threadSite(uint id, int lattice, out ivec3 c) {
     const int sx = pc.nx + (lattice == 0 ? 1 : 0), sy = pc.ny + (lattice == 1 ? 1 : 0), sz = pc.nz + (lattice == 2 ? 1 : 0);
 #ifdef WC_BRICKS_BINDING
     if (pc.bricked != 0) {
-        const uint slot = id >> 9u, local = id & 511u;
+        const uint slot = id >> uint(6 + pc.bly), local = id & ((64u << uint(pc.bly)) - 1u);
         if (slot == 0u || slot >= uint(pc.slotsUsed)) { c = ivec3(-1); return false; }
         const int packed = bricks[pc.slotTableOff + int(slot)];
         if (packed < 0) { c = ivec3(-1); return false; }   // a free slot
         const ivec3 b = ivec3(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
-        c = b * 8 + ivec3(int(local & 7u), int((local >> 3u) & 7u), int(local >> 6u)) - ivec3(pc.ox, pc.oy, pc.oz);
+        c = ivec3(b.x * 8, b.y << pc.bly, b.z * 8) + ivec3(int(local & 7u), int(local >> 6u), int((local >> 3u) & 7u)) - ivec3(pc.ox, pc.oy, pc.oz);
         return c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < sx && c.y < sy && c.z < sz;
     }
 #endif
