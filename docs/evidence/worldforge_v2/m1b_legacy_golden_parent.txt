@@ -1,0 +1,10 @@
+worktree: C:/Users/bpete/Documents/GitHub/phyxel_parent_wt at 4961a277 plan(worldforge): M1 pre-steps - drainage-density grounding rows (F4c) + Release 
+test file: tests/core/LegacyTerrainGoldenTest.cpp copied verbatim from d4c3390f (constants recorded at HEAD f958af2f+)
+submodules: populated by copying the main tree's external/* (the worktree's submodule clone stalled)
+configure exit=0
+build exit=0
+2026-10-15_20:45:26 build/tests/Debug/phyxel_tests.exe
+[ D10 golden ] Perlin 4242 x 2000 columns: 11413304086647064455
+[ D10 golden ] Mountains 4242 x 2000 columns: 5521812291101006622
+[==========] 2 tests from 1 test suite ran. (1447 ms total)
+[  PASSED  ] 2 tests.

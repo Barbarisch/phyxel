@@ -545,9 +545,9 @@ file; and `setGenerationType` after `applyRecipe` leaves a stale sheet."** Close
 (a) `LegacyTerrainGoldenTest` pins the bit patterns of 2000 scattered columns (surfaceY, bedHeight,
 temperature, moisture, continentalness, biomeIndex, surfaceMat) for Perlin and Mountains at seed
 4242 as one FNV-1a hash each (Perlin 11413304086647064455, Mountains 5521812291101006622); the file
-uses only the v1 API so the SAME file is built at the pre-M1 commit 4961a277 in a worktree — the
-"before" run is `m1b_legacy_golden_parent.txt` (if it disagrees, D10 is broken and this paragraph is
-wrong); (b) `MesoSeamTest.ClimateAndGradientStraddlingTheSeamMatchTheWholeRegion`: the climate planes
+uses only the v1 API so the SAME file was built at the pre-M1 commit 4961a277 in a worktree — the
+"before" run (`m1b_legacy_golden_parent.txt`, 2026-10-15 20:45) produced the SAME two hashes, so the
+v1 freeze is MEASURED across M1a–M1d, not read; (b) `MesoSeamTest.ClimateAndGradientStraddlingTheSeamMatchTheWholeRegion`: the climate planes
 and the analytic gradient served by a pager from two tiles == one 2N×2N window, bit-exact, with a
 non-constant control; (c) `setGenerationType` now rebuilds Layer-0 (coarse model, hydrology, sheet)
 — `SetGenerationTypeAfterRecipeRebuildsTheSheet`; it had no callers, the hole was latent and
