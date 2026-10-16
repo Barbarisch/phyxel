@@ -188,7 +188,12 @@ public:
     /// band. Without it, an elevated camera (editor flight, zoom-out) hovers above the
     /// ±2-band vertical clamp and the ground under it NEVER loads (measured: 4 visible
     /// chunks, flat, for 72 s at a y=150 hover over y≈65 terrain).
-    using SurfaceBandFunc = std::function<int(int worldX, int worldZ)>;
+    /// M1d (WorldForgeV2Plan resolution 9): the query answers for the whole CHUNK COLUMN
+    /// containing (worldX, worldZ) with a {lowest, highest} surface band, so a column whose
+    /// surface spans several bands (a mountain flank) streams every one of them; the single
+    /// centre sample it replaced left the flank's upper/lower chunks unstreamed. x == INT_MIN
+    /// means unknown.
+    using SurfaceBandFunc = std::function<glm::ivec2(int worldX, int worldZ)>;
     void setSurfaceBandFn(SurfaceBandFunc fn) { m_surfaceBand = std::move(fn); }
 
     /// Camera view direction for load prioritization: chunks in the view cone load
@@ -297,7 +302,7 @@ private:
     // Surface band per column, cached forever (terrain is static per world): the band
     // query runs per column per pump — uncached that is thousands of generator column
     // samples per second on the main thread.
-    std::unordered_map<glm::ivec2, int, ChunkCoordHash2D> m_surfaceBandCache;
+    std::unordered_map<glm::ivec2, glm::ivec2, ChunkCoordHash2D> m_surfaceBandCache;
     std::mutex m_genResultMutex;
     std::vector<std::unique_ptr<Chunk>> m_genResults;   // guarded by m_genResultMutex
     std::unordered_set<glm::ivec3, ChunkCoordHash> m_genPending;  // main thread only

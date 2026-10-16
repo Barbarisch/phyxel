@@ -198,6 +198,11 @@ public:
     // flora decoration pass (which lives outside WorldGenerator).
     ColumnSample sampleSurface(int worldX, int worldZ) { return sampleColumn(worldX, worldZ); }
 
+    /// M1d: the {lowest, highest} chunk band (floor(surfaceY / 32)) the SURFACE of chunk column
+    /// (cx, cz) touches, for the streaming manager's vertical wanted set. Pure function of the
+    /// column's world position (SurfaceBandTest pins that every column's band lies inside it).
+    glm::ivec2 surfaceBandForChunkColumn(int cx, int cz);
+
     /// M1 cost instrument: base 3-D noise evaluations performed on the CALLING thread so far (an
     /// fbm of N octaves counts N). Monotonic; diff two reads around the work you want to cost.
     /// Pinned by ColumnCostBench (docs/WorldForgeV2Plan.md §9: <= 25 per column after M1).

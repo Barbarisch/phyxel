@@ -1,0 +1,14 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[20:12:18.990] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[20:12:19.615] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[20:12:19.619] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[ M1d ] 120 chunk columns, worst surface span 5 bands, 4 chunk columns with a miss, 1042 columns outside the band
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SurfaceBandTest.cpp(54): error: Expected equality of these values:
+  chunkColumnsWithAMiss
+    Which is: 4
+  0
+4 of 120 chunk columns have surface columns outside the reported band +-1 (1042 columns; first at chunk (-126,-183)): those chunks never stream from the surface band
+
+[  FAILED  ] SurfaceBandTest.EveryColumnOfEveryChunkColumnLiesInsideTheReportedBand (5033 ms)
+[==========] 1 test from 1 test suite ran. (5033 ms total)
+[  PASSED  ] 0 tests.

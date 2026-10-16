@@ -1983,6 +1983,24 @@ bool WorldGenerator::generateCity(const glm::ivec3& chunkCoord, const glm::ivec3
 // deliberately-unmasked lattice index that keeps noise continuous across chunk edges / x=z=0.
 uint64_t WorldGenerator::noiseEvalsThisThread() { return t_noiseEvals; }
 
+glm::ivec2 WorldGenerator::surfaceBandForChunkColumn(int cx, int cz) {
+    // A 5x5 sample grid at stride 8 u including both edges (0, 8, 16, 24, 31), min/max of the
+    // real surface. The single centre sample this replaces missed on 4 of 120 Mountains chunk
+    // columns (1042 columns outside the band, worst in-column span 5 bands:
+    // docs/evidence/worldforge_v2/m1d_surface_band_red.txt). Cached per chunk column by the
+    // streaming manager, so the 25 samples are paid once per column per world.
+    auto band = [](int y) { return y >= 0 ? y / 32 : (y - 31) / 32; };
+    static constexpr int kOff[5] = {0, 8, 16, 24, 31};
+    int lo = INT_MAX, hi = INT_MIN;
+    for (int ox : kOff)
+        for (int oz : kOff) {
+            const int b = band(sampleColumn(cx * 32 + ox, cz * 32 + oz).surfaceY);
+            lo = std::min(lo, b);
+            hi = std::max(hi, b);
+        }
+    return glm::ivec2(lo, hi);
+}
+
 float WorldGenerator::perlinNoise3D(float x, float y, float z, int octaves, float persistence, float lacunarity) {
     return tnFbm(x, y, z, octaves, persistence, lacunarity, seed);
 }

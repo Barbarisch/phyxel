@@ -257,10 +257,9 @@ void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::Ge
     // thread against the live streaming generator — safe: workers use private copies, and
     // the streaming manager caches per column so steady-state cost is a hash lookup.
     if (enabled) {
-        m_streamingManager.setSurfaceBandFn([this](int wx, int wz) -> int {
-            if (!m_worldGenerator) return INT_MIN;
-            const int surfaceY = m_worldGenerator->sampleSurface(wx, wz).surfaceY;
-            return surfaceY >= 0 ? surfaceY / 32 : (surfaceY - 31) / 32;
+        m_streamingManager.setSurfaceBandFn([this](int wx, int wz) -> glm::ivec2 {
+            if (!m_worldGenerator) return glm::ivec2(INT_MIN, INT_MIN);
+            return m_worldGenerator->surfaceBandForChunkColumn(wx >> 5, wz >> 5);   // M1d
         });
     } else {
         m_streamingManager.setSurfaceBandFn(nullptr);

@@ -572,6 +572,21 @@ the macro orographic model comes with erosion (M1c). Not yet: erosion/drainage o
 (M1c), the streaming band min/max (M1d), the lab L4 + Release perf gates (M1e), Flat/heightmap trivial
 sheets, the DB tile cache (measure first: a 200 ms Debug bake per tile may not need it).
 
+**M1d BUILT 2026-10-15 — the streaming surface band is a {lowest, highest} span per chunk column
+(resolution 9, audit §5's latent flank hole).** `ChunkStreamingManager::SurfaceBandFunc` now returns
+`glm::ivec2 {lo, hi}` and the wanted set spans `[lo − 1, hi + 1]`; `WorldGenerator::surfaceBandForChunkColumn`
+samples the REAL surface on a 5×5 grid at stride 8 u (both edges included) and takes min/max —
+chosen over the plan's "bicubic + overshoot margin" because the real surface (fine band, biome
+blend, carve) is what streams, and the manager caches the answer per chunk column so 25 samples
+are paid once. Applies to v1 worlds too (D10 freezes terrain VALUES; which chunks stream is the
+manager's business, and Ravenmere's flanks benefit). **Red first:** `SurfaceBandTest.
+EveryColumnOfEveryChunkColumnLiesInsideTheReportedBand` on Mountains 424242, 120 scattered chunk
+columns: the centre-only band (the exact lambda it replaces) missed on 4 chunk columns, 1042 columns
+outside the band, worst in-column span 5 bands (`m1d_surface_band_red.txt`) → 0 misses with the grid
+(`m1d_surface_band_green.txt`, 35/35 with the streaming suites). Not a strict bound (a spike between
+samples could still escape); the test is the measurement, and widening the grid, never the pad, is
+the lever if a miss ever appears.
+
 Validation: L2 (`MacroErosionTest`: drainage is a tree, no sinks, dendritic density within a
 grounded band; `MesoSeamTest`; `ColumnCostBench`), L4 Release fly-through at a fixed pose set
 before/after (same seed is NOT comparable — new terrain; compare *statistics*: slope histogram,

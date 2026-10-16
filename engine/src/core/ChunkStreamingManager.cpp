@@ -334,12 +334,12 @@ void ChunkStreamingManager::loadChunksAroundPosition(const glm::vec3& position, 
     };
 
     // Surface band per column, cached (terrain is static per world). INT_MIN = unknown.
-    auto surfaceBandAt = [&](int wx, int wz) -> int {
-        if (!m_surfaceBand) return INT_MIN;
+    auto surfaceBandAt = [&](int wx, int wz) -> glm::ivec2 {
+        if (!m_surfaceBand) return glm::ivec2(INT_MIN, INT_MIN);
         const glm::ivec2 col(wx >> 5, wz >> 5);   // cache per chunk column
         auto it = m_surfaceBandCache.find(col);
         if (it != m_surfaceBandCache.end()) return it->second;
-        const int band = m_surfaceBand(wx, wz);
+        const glm::ivec2 band = m_surfaceBand(wx, wz);   // {lowest, highest} band of the column
         m_surfaceBandCache.emplace(col, band);
         return band;
     };
@@ -355,8 +355,8 @@ void ChunkStreamingManager::loadChunksAroundPosition(const glm::vec3& position, 
             const int cx = centerChunk.x + dx, cz = centerChunk.z + dz;
             int lo[2] = {centerChunk.y - vRadius, 0};
             int hi[2] = {centerChunk.y + vRadius, -1};
-            const int sb = surfaceBandAt(cx * 32 + 16, cz * 32 + 16);
-            if (sb != INT_MIN) { lo[1] = sb - 1; hi[1] = sb + 1; }
+            const glm::ivec2 sb = surfaceBandAt(cx * 32 + 16, cz * 32 + 16);
+            if (sb.x != INT_MIN) { lo[1] = sb.x - 1; hi[1] = sb.y + 1; }
             for (int range = 0; range < 2; ++range) {
                 for (int cy = lo[range]; cy <= hi[range]; ++cy) {
                     if (range == 1 && cy >= lo[0] && cy <= hi[0]) continue;   // dedupe
