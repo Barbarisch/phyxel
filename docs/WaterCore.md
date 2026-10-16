@@ -6085,6 +6085,66 @@ again (and water must be able to run into the hole) before the next step reads i
 running creek; the fixed ~0.4 ms of a call (80 sweep dispatches with a
 barrier each - fusing them changes the solve and needs its own gate).
 
+### 26.18 The ground under the water, not stepped - design and check (2026-10-16). Status: DESIGN, READY
+
+**The ask (owner, 2026-10-16: "keep going", after agreeing the constraint below).** The next cost lever from 26.17: with 2-tall
+bricks the creek still steps bricks that hold nothing but ground, kept only because they lie within the halo's reach of the
+water (6 cells round it, which reaches down into the bed). Predicted (`tools/water_brick_predict.py`): 457,984 -> ~262,000
+stored cells on the bench.
+
+**The owner's constraint (2026-10-16), the first rule of this design:** everything in the world is destructible. Ground that is
+buried and unseen today can be dug, mined or blasted open at any time, and water must then behave exactly as if that ground
+had been open from the start. So "this brick is all ground" is never a property of a PLACE - it is read from the world's current
+occupancy, every time the occupancy changes, and nothing the water does may depend on a stale answer.
+
+**What exists (read, not assumed).** The GPU volume's ground is the grid's occupancy, sampled from the world by
+`WaterCoreManager::refreshOccupancy`. That runs whenever the world's occupancy pool changes (its pack revision - ANY voxel
+edit anywhere, not only in the box) or an edit callback fires; it re-samples the whole box, marks the GPU volume dirty, and the
+next `stepGpu` downloads the water, re-uploads the grid (occupancy and water) and rebuilds the brick map from scratch. So a
+dig is seen by the water on its next step today. **Its cost has never been measured** (a full box re-sample, a fenced
+read-back and a full upload - on the creek 1.75 M cells) - and in a game where the player digs, it runs on every dig. Measured as
+part of this work (below), whatever 26.18 does.
+
+**The design.**
+1. **A second sentinel: the GROUND brick (slot 1).** Slot 0 stays the absent brick (reads as dry air). Slot 1 is new: its
+   occupancy is Solid in every cell, every other field zero; no thread owns it (its slot-table entry is -1, so `threadSite`
+   skips it as it skips a free slot) and nothing writes it - `wc_bricks.comp` checks it as it checks slot 0 (any non-zero f, u,
+   v, w or p = dirty). A map entry of 1 means "this brick is ground": every read of it returns what a stored all-Solid brick
+   would hold after the solid faces are enforced.
+2. **Which bricks are ground - a pure function of the current occupancy.** At every upload (that is, after every occupancy
+   change) the host computes, per brick of the box, `allSolid` = every cell Solid (cells outside the box count as Solid, as
+   `scatterSlots` already writes them). Nothing else marks it; nothing caches it across uploads.
+3. **Residency.** A brick that holds water, or that a pump or a deposit needs, is always stored for real. A brick wanted only
+   for the halo is GROUND (map 1) when `allSolid`, stored for real otherwise. Transitions handled both ways (real -> ground,
+   ground -> real, ground -> absent). The column table lists brick columns with a REAL brick only.
+4. **A dig.** The occupancy changes -> the volume is re-uploaded -> `allSolid` is recomputed -> the dug brick is no longer
+   ground; if the water's halo reaches it, it is stored for real before the next step, with its new air, so water runs into the
+   hole on that step. Digging never creates water (the standing rule): an opened brick is stored dry.
+5. **Bit-identity.** The claim to test: every kernel reads a ground brick exactly as it reads a stored all-Solid one. Faces
+   stored at a solid cell (its lower faces) are forced to zero by `enforceSolids`; if any kernel reads one between a write and
+   that enforcement, the equality gate shows it and the design changes - it is not assumed.
+6. **Switch:** `BrickOptions::groundBricks` (default `WaterCoreGpu::s_groundBricks`, ON once measured), so the gate compares
+   with and without. The record echoes `gpu_ground_bricks` (map entries that are ground this call).
+
+**Design check (Feature Design Keys).** *Voxel look / destructibility:* the ground's state is the world's, re-read on every
+change; the water reads ground exactly as before (gated). *Chunks:* `allSolid` and residency are world-aligned and decide cost
+only; the equality scenes straddle the chunk seam at world x 288 and negative z. *Generation pipeline:* none. *API:* one echo
+field, one switch. *Default change:* after the gate and the bench, in the same commit as the numbers.
+
+**Gates (red first):**
+- `GroundBricksEqualStored` - dense 8^3 (every brick stored) against sparse 2-tall with ground bricks: the six 26.17 scenes plus
+  (a) a pond under an OVERHANG (a solid ceiling over water: ground above water, its lower faces against water), (b) a creek over
+  a stepped bed DUG mid-run: at tick 60 a pit is cut in the bed under the flowing water (the same occupancy change and re-upload
+  for both volumes) - every f, u, v, w, p equal every tick before and after the dig, the water DRAINS into the pit (water in the
+  pit cells > 0 after), mass equal; (c) the reverse - a pit FILLED with ground mid-run beside dry ground. RED first: the ground
+  slot left reading as air (its occupancy not set) must differ and leak.
+- `FlatBricksEqualCubic`, `SparseEqualsDenseAcrossSeams`, the parity suite, CPU 330: unchanged.
+- **Live:** the bench at q 0.2 with ground bricks on vs off - stored cells, GPU per call, the water's depth/speed/ledger (same
+  as 26.17's table); then **a dig under the running creek**: a microcube-wide pit cut in the bed every 0.5 s for 30 s while the
+  frame time and the re-upload's time (new record field `gpu_upload_ms`) are logged - the water must drain into each pit, the
+  ledger hold, and the frame's hitch per dig is reported as measured. If the re-upload is what costs, the follow-up is to
+  refresh only the bricks a dig touches (designed then, not now).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
