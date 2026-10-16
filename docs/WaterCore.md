@@ -5981,6 +5981,73 @@ share of the frame is now ~1.9 ms, about its GPU time. Steady out/in 1.003, ledg
 is the cells stepped - the creek's water is 2-3 cells deep but stored in 8-cell-tall bricks (~4 brick layers per column with
 the halo): flat bricks (8 x 2 x 8 or 8 x 4 x 8), measured on this bench.
 
+### 26.17 Flat bricks - design and check (2026-10-15). Status: DESIGN, READY
+
+**The ask (owner, 2026-10-15: "get it done"):** cut the creek's GPU time (26.16: ~1.7-1.9 ms of a 2 ms budget that must cover
+ALL water) by storing shallow water in flat bricks.
+
+**What the cost scales with - measured first** (`DISABLED_ACreekStoredSparseFitsTheBudget`, 40 sweeps, Release, timestamps per
+stage): the same creek stored sparse (303,104 cells) costs 0.86 ms of GPU a call, stored dense (7,102,464 cells) 10.65 ms. So a
+call is about **0.42 ms fixed + 1.44 ms per million stored cells** (the sweeps alone: 0.20 ms fixed for 80 dispatches + 0.56 ms per
+million). Flat bricks cut only the second term. That test's creek rests on the box floor (the water in brick layer 0 only):
+flat bricks would store exactly what 8^3 bricks store there - the saving is not in the water's own layers.
+
+**Where the bench's cells go - predicted, then checked against the live count.** A predictor
+(`tools/water_brick_predict.py`) applies the residency rule (liquid reach 4 + travel; per-face distances; Chebyshev rings) to
+the bench's carve and its measured q 0.2 depth profile. It predicts 1,316 bricks of 8^3 at travel 2; the live record holds 1,351
+(within 3 %). Stored cells for the same water (34,344 water cells):
+
+| brick (x y z) | stored cells | per water cell | + bricks that are all bed not stored (26.18) |
+|---|---|---|---|
+| 8 x 8 x 8 (today) | 673,792 | 19.6 | 442,368 |
+| 8 x 4 x 8 | 492,544 | 14.3 | 310,272 |
+| **8 x 2 x 8** | **436,736 (-35 %)** | 12.7 | **262,144 (-61 %)** |
+| 4 x 4 x 4 | 487,424 | 14.2 | 256,896 |
+
+The halo is what costs: reach 6 cells round the water, which is 6 cells up into air and 6 cells DOWN into the bed. An 8-tall
+brick rounds both up to whole layers (3 layers = 24 cells for a 15-cell span); a 2-tall one follows them. The bed bricks under
+the water (all Solid, no water) are a second lever of the same size (26.18, next). Predicted GPU on the bench: -0.35 ms for flat
+bricks, -0.6 ms with both.
+
+**The design - storage only, nothing about the water changes.**
+1. **A brick is 8 x BY x 8, BY in {2, 4, 8}, per volume** (`BrickOptions::height`; 0 = the engine default
+   `WaterCoreGpu::s_brickHeight`). x and z stay 8, so a brick COLUMN is still 8 x 8 columns: the column table, the column
+   kernels (64 threads per brick column), the surface and birth lists are untouched. The shader reads `pc.bly` = log2 BY (a new
+   push field; the block grows 108 -> 112 bytes, under the 128-byte floor).
+2. **A brick's cells are laid y-slowest:** local = lx + 8 lz + 64 ly (was lx + 8 (ly + 8 lz)). A brick of height BY is BY/2
+   consecutive 128-cell UNITS (8 x 2 x 8 slabs), each in the same order whatever BY is.
+3. **Reductions per unit, folded in a fixed world order.** The sums the rest and settle decisions read (kinetic energy, total
+   fill; mode 0) are taken per 128-cell unit (each 256-thread group folds its two halves separately) and gathered into
+   the volume's UNIT map (x 8 cells, y 2 cells, z 8 cells, world-aligned; an absent unit as zero) before the fixed tree.
+   The tree is then the same for every brick height and every residency, so 8 x 2 x 8 equals 8^3 bit for bit - the same
+   argument 26.8 used for sparse vs dense. (The maxima are order-free. The dropped-residue sum - a ledger figure, read by
+   no decision - folds in column-table order, which can differ by an empty column: equal to 1e-12, not bit for bit.)
+4. **The halo per axis.** `markNeed` walks rings per axis until the reach is covered (ring k reaches dist + 1 + BY (k - 1) cells),
+   instead of one ring count for all axes: a 2-tall brick needs 3 rings up and down for reach 6.
+5. **Host addressing follows** (`storageIndex`, `scatterSlots`, `recordSlotUploads`, `compactSlots`, `setSolidsBox`,
+   `download`, `needFromDenseFill`, `cellToRecord`, `liveCells`, the allocation): the brick size is the volume's, never a
+   constant. `wc_bricks.comp`: 64 threads x BY cells, distances 0..BY-1 (3 bits still hold them).
+6. **API:** `water_av_create` takes `brick_height` (2, 4 or 8; other values refused with the reason); the record echoes
+   `gpu_brick_height`. The default stays 8 until the bench measures the change; then the measured best becomes the default
+   in the same commit as its numbers.
+
+**Design check (Feature Design Keys).** *Voxel look:* unchanged - storage only; the water is the same 1/9 m cells (one water
+model). *Chunks:* brick shape and residency are world-aligned and decide COST only; what a cell holds never depends on them -
+pinned by the equality gate below (bricks of every height straddle the chunk seam at world cell x 288 and negative z, as in
+26.8). *Generation pipeline:* none. *API:* `brick_height` in, echoed out; an unknown height is refused, never rounded. *Default
+change:* only after measurement, with the pinned tests run on it. *Test world:* the 26.8 scenes (40 x 16 x 24 cells, one
+seam, odd y origin so 2- and 4-tall bricks are offset in their brick), plus one new scene - a creek over a stepped bed (water
+over solid ground, the case flat bricks are for).
+
+**Gates (red first):**
+- `FlatBricksEqualCubic` - the six scenes, 8^3 with every brick kept vs 8 x 2 x 8 and 8 x 4 x 8 sparse: every f, u, v, w, p
+  equal with ==, every tick; the rest decision and the substeps equal; the drawn surface byte for byte; halo short 0; the
+  absent brick clean; fewer cells stepped than the dense run. RED first: built with today's single ring count (one ring of
+  2 cells up and down), it must show a short halo and differing fields.
+- `SparseEqualsDenseAcrossSeams`, `AnyOriginKeepsTheWater` (+ origins for 2- and 4-tall), the GPU parity suite, CPU 330: unchanged.
+- **Cost, on the bench, live:** `gpu_bricks`, stored cells and `gpu_device_ms` for 8, 4 and 2 at q 0.2, same carve, same
+  flow; prediction above written before the run. Then the clip, for the owner: the look must not change.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
