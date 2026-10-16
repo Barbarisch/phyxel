@@ -50,6 +50,10 @@ struct AvRecord {
     int gpuBricks = 0;                     ///< 26.12: bricks the GPU volume steps (stored: water + its halo); 0 = not on the GPU
     int gpuBrickCapacity = 0;              ///< 26.12: bricks it could store (the whole box)
     int gpuBrickHeight = 0;                ///< 26.17: cells per brick along y (bricks are 8 x h x 8); 0 = not on the GPU
+    int gpuGroundBricks = 0;               ///< 26.18: halo bricks read as ground (all Solid at the last re-read), not stepped
+    double gpuUploadMs = 0.0;              ///< 26.18: the last re-read after a world change (download + occupancy + upload), ms
+    int gpuUploads = 0;                    ///< 26.18: re-reads since the volume was made
+    double occRefreshMs = 0.0;             ///< 26.18: the last re-sample of the box's occupancy from the world, ms
     double surfaceAgeMs = -1.0;            ///< Phase F: age of the surface field the renderer last read (ms since the step that produced it; -1 = never)
     size_t particles = 0;                  ///< Phase B2: FLIP particles alive (0 for fills)
     size_t cells = 0;
@@ -121,7 +125,8 @@ public:
     /// Refuses (returns 0, fills `err`) when the cell count would exceed `maxCells`.
     int create(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
                const std::string& transport, std::string* err, const std::string& backend = "auto" /* auto: gpu for fills when ready, else cpu */, int gpuSweeps = 0 /* <= 0: auto, 1.5 x the longest dimension */,
-               int brickHeight = 0 /* 26.17: GPU brick height 2 / 4 / 8; 0 = WaterCoreGpu::s_brickHeight */);
+               int brickHeight = 0 /* 26.17: GPU brick height 2 / 4 / 8; 0 = WaterCoreGpu::s_brickHeight */,
+               int groundBricks = -1 /* 26.18: 1 / 0; -1 = WaterCoreGpu::s_groundBricks */);
     /// Phase C: give the manager a device; GPU volumes are refused until this succeeds (loudly).
     bool initGpu(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t queueFamily, const std::string& shaderDir, std::string* err);
     bool gpuReady() const { return m_gpu && m_gpu->ready(); }
@@ -386,6 +391,8 @@ private:
         WaterCoreGpu::Volume* gpuVol = nullptr;
         bool gpuDirty = true;          // the grid (fills, velocities or occupancy) is newer than the GPU copy
         GpuStepStats gpuLast;
+        double gpuUploadMs = 0.0; int gpuUploads = 0;   ///< 26.18: the last re-read's time, and how many
+        double occRefreshMs = 0.0;                      ///< 26.18: the last occupancy re-sample of the box, ms
         int gpuSweeps = kGpuSweeps;
         bool gpuStale = false;         // the GPU copy is newer than the grid (a step ran, no download yet)
         double gpuLastDownloadSec = -1.0;

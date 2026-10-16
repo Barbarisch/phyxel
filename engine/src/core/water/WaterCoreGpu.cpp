@@ -22,6 +22,8 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
 const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9};
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
+constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
+constexpr int kFirstSlot = 2;  // 26.18: the first slot a real brick can take
 int floorMod(int v, int n) { return ((v % n) + n) % n; }
 } // namespace
 
@@ -176,6 +178,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     if (particles && opts.sparse) { if (err) *err = "a particle (FLIP) volume cannot be sparse (26.6: the particle transport stays dense)"; return nullptr; }
     if (vol->bricked) {
         vol->sparse = opts.sparse; vol->freezeForTest = opts.freezeForTest;
+        vol->groundOn = opts.sparse && (opts.ground < 0 ? s_groundBricks : opts.ground != 0); vol->groundAsAir = opts.groundAsAirForTest;
         // 26.17: bricks 8 x by x 8 - a flat brick follows shallow water (and the bed under it) closer than a cube
         const int height = opts.height > 0 ? opts.height : s_brickHeight;
         if (height != 2 && height != 4 && height != 8) { if (err) *err = "brick height " + std::to_string(height) + " is not 2, 4 or 8 (26.17)"; return nullptr; }
@@ -197,7 +200,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
                             + std::to_string(mapBytes) + " bytes map, " + std::to_string(fullBytes) + " bytes with every brick stored; world scale is 26.3 P5)";
             return nullptr;
         }
-        vol->capacity = 1 + (opts.capacity > 0 ? std::min(opts.capacity, vol->mapCount) : vol->mapCount);   // slot 0 = the absent brick
+        vol->capacity = kFirstSlot + (opts.capacity > 0 ? std::min(opts.capacity, vol->mapCount) : vol->mapCount);   // slot 0 = the absent brick, slot 1 = ground (26.18)
         vol->colCap = static_cast<size_t>(vol->bn.x) * vol->bn.z;
         vol->cells = vol->capacity * vol->bc; vol->nu = vol->nv = vol->nw = vol->cells;
         vol->columns = vol->colCap * 64;
@@ -255,6 +258,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
                           &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep,
                           &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->fLo, &vol->birthsPacked, &vol->lists})
             vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
+        if (vol->bricked && !vol->groundAsAir) vkCmdFillBuffer(cmd, vol->occ.buf, kGround * vol->bc * 4, vol->bc * 4, 1u);   // 26.18: the ground sentinel: Solid
         submitAndWait(cmd);
     }
     if (vol->bricked && !vol->sparse) {   // dense: every brick of the box is kept from the start
@@ -432,9 +436,20 @@ long WaterCoreGpu::haloShortAfterCall(const Volume& vol) const {
 std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<char>& need) {
     std::vector<int> fresh;
     int freed = 0; long held = 0;
-    for (size_t m = 0; m < vol.mapCount; ++m)
-        if (vol.map[m] != 0 && !need[m]) { vol.slotBrick[static_cast<size_t>(vol.map[m])] = -1; vol.map[m] = 0; ++freed; }
-    size_t next = 1;
+    // 26.18: a brick wanted only for the halo (need 1) that is all ground at the last upload reads the GROUND sentinel; a brick
+    // holding water, or that a pump or a deposit needs (need 2), is always stored for real
+    const bool ground = vol.groundOn && vol.allSolid.size() == vol.mapCount;
+    auto wantGround = [&](size_t m) { return ground && need[m] == 1 && vol.allSolid[m]; };
+    bool groundChanged = false;
+    for (size_t m = 0; m < vol.mapCount; ++m) {
+        if (vol.map[m] >= kFirstSlot && (!need[m] || wantGround(m))) { vol.slotBrick[static_cast<size_t>(vol.map[m])] = -1; vol.map[m] = 0; ++freed; }
+        else if (vol.map[m] == kGround && !wantGround(m)) { vol.map[m] = 0; groundChanged = true; }
+        if (vol.map[m] == 0 && wantGround(m)) { vol.map[m] = kGround; groundChanged = true; }
+    }
+    vol.groundCount = 0;
+    if (ground) for (size_t m = 0; m < vol.mapCount; ++m) vol.groundCount += vol.map[m] == kGround ? 1 : 0;
+    if (groundChanged) vol.tablesDirty = true;
+    size_t next = kFirstSlot;
     for (char pass : {char(2), char(1)}) {   // bricks holding water first, then the halo (a capacity refusal never strands water)
         for (size_t m = 0; m < vol.mapCount; ++m) {
             if (need[m] != pass || vol.map[m] != 0) continue;
@@ -450,12 +465,12 @@ std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<cha
     vol.storedCount += static_cast<int>(fresh.size()) - freed;
     if (fresh.empty() && freed == 0 && !vol.colEntries.empty()) return fresh;   // the steady state: tables, range and columns unchanged
     int top = 0;
-    for (size_t s = 1; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) top = static_cast<int>(s);
-    vol.slotsUsed = top + 1;
+    for (size_t s = kFirstSlot; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) top = static_cast<int>(s);
+    vol.slotsUsed = std::max(top + 1, kFirstSlot);   // slots 0 and 1 always addressed (the sentinels' check)
     vol.colEntries.clear();
     for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
-        bool any = false;
-        for (int by = 0; by < vol.bn.y && !any; ++by) any = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)] != 0;
+        bool any = false;   // a REAL brick (26.18: ground alone holds no water - its column has nothing to do)
+        for (int by = 0; by < vol.bn.y && !any; ++by) any = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)] >= kFirstSlot;
         if (any) vol.colEntries.push_back(bx | (bz << 10));
     }
     vol.colCount = static_cast<int>(vol.colEntries.size());
@@ -529,7 +544,7 @@ int WaterCoreGpu::compactSlots(VkCommandBuffer cmd, Volume& vol) {
     const int stored = vol.storedCount;
     if (vol.slotsUsed - 1 <= stored + stored / 4) return 0;
     int moved = 0;
-    size_t hole = 1, top = static_cast<size_t>(vol.slotsUsed) - 1;
+    size_t hole = kFirstSlot, top = static_cast<size_t>(vol.slotsUsed) - 1;
     std::vector<VkBufferCopy> c4, c16;
     while (true) {
         while (hole < top && vol.slotBrick[hole] >= 0) ++hole;
@@ -554,8 +569,8 @@ int WaterCoreGpu::compactSlots(VkCommandBuffer cmd, Volume& vol) {
         vkCmdFillBuffer(cmd, vol.solid.buf, off * 4, vol.bc * 16, 0);
     }
     int topUsed = 0;
-    for (size_t s = 1; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) topUsed = static_cast<int>(s);
-    vol.slotsUsed = topUsed + 1;
+    for (size_t s = kFirstSlot; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) topUsed = static_cast<int>(s);
+    vol.slotsUsed = std::max(topUsed + 1, kFirstSlot);
     vol.tablesDirty = true;
     return moved;
 }
@@ -594,6 +609,17 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
             }
             if (!vol.hostDeposit.empty()) needFromDenseFill(vol, vol.hostDeposit, need, kB);
         }
+        // 26.18: which bricks are all ground - from THIS upload's occupancy (an upload follows every occupancy change: a dig
+        // opens its brick here, before the next step reads it). Out-of-box cells count as Solid (scatterSlots writes them so).
+        if (vol.groundOn) {
+            vol.allSolid.assign(vol.mapCount, 1);
+            const glm::ivec3 n = vol.spec.dims;
+            for (int z = 0; z < n.z; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
+                if (vol.hostOcc[g.idx(x, y, z)] == static_cast<uint32_t>(Occ::Solid)) continue;
+                const glm::ivec3 b = (glm::ivec3(x, y, z) + vol.o) / vol.bs();
+                vol.allSolid[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 0;
+            }
+        }
         std::fill(vol.map.begin(), vol.map.end(), 0);
         std::fill(vol.slotBrick.begin(), vol.slotBrick.end(), -1);
         vol.storedCount = 0; vol.colEntries.clear();
@@ -603,8 +629,9 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
             if (g.f(x, y, z) != 0.0f && storageIndex(vol, x, y, z) < 0) vol.unstoredM3 += static_cast<double>(g.f(x, y, z)) * g.cellVolume();
         std::memset(st, 0, static_cast<size_t>(vol.offOcc + vol.cells * 4));   // f, u, v, w, occ regions
         std::memset(st + vol.offSolid, 0, vol.cells * 16);
+        if (!vol.groundAsAir) { auto* so = reinterpret_cast<uint32_t*>(st + vol.offOcc); std::fill(so + kGround * vol.bc, so + (kGround + 1) * vol.bc, 1u); }   // 26.18: the ground sentinel
         std::vector<int> all;
-        for (size_t s = 1; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) all.push_back(static_cast<int>(s));
+        for (size_t s = kFirstSlot; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) all.push_back(static_cast<int>(s));
         scatterSlots(vol, all, &g);
         writeTablesToStaging(vol);
         for (Buffer* b : {&vol.fOrig, &vol.uOld, &vol.vOld, &vol.wOld, &vol.liq, &vol.diag, &vol.rhs, &vol.res, &vol.valA, &vol.valB,
@@ -667,7 +694,7 @@ void WaterCoreGpu::setSolids(Volume& vol, const std::vector<float>& s, const std
     if (vol.bricked) {
         std::memset(st, 0, vol.cells * 16);
         std::vector<int> all;
-        for (size_t sl = 1; sl < vol.capacity; ++sl) if (vol.slotBrick[sl] >= 0) all.push_back(static_cast<int>(sl));
+        for (size_t sl = kFirstSlot; sl < vol.capacity; ++sl) if (vol.slotBrick[sl] >= 0) all.push_back(static_cast<int>(sl));
         // scatter the solid field only (occupancy staging is rewritten from hostOcc - unchanged)
         scatterSlots(vol, all, nullptr);
     } else {
@@ -709,7 +736,7 @@ void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const 
         for (int bz = b0.z; bz <= b1.z; ++bz) for (int by = b0.y; by <= b1.y; ++by) for (int bx = b0.x; bx <= b1.x; ++bx) {
             if (bx < 0 || by < 0 || bz < 0 || bx >= vol.bn.x || by >= vol.bn.y || bz >= vol.bn.z) continue;
             const int slot = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)];
-            if (slot > 0) slots.push_back(slot);
+            if (slot >= kFirstSlot) slots.push_back(slot);   // 26.18: never the sentinels
         }
     }
     std::sort(slots.begin(), slots.end());
@@ -1104,7 +1131,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     st.brickHeight = vol.by;   // 26.17
     if (vol.asleep || ticks <= 0) {
         st.asleep = vol.asleep; st.quietTicks = vol.quietTicks;
-        if (vol.bricked) st.bricks = vol.storedCount;
+        if (vol.bricked) { st.bricks = vol.storedCount; st.groundBricks = vol.groundCount; }
         return st;
     }
     WcPush push; push.nx = vol.spec.dims.x; push.ny = vol.spec.dims.y; push.nz = vol.spec.dims.z;
@@ -1273,7 +1300,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     if (!vol.async) { finishCall(vol); return vol.lastStats; }
     if (vol.haveLast) return vol.lastStats;   // the call before this one (collected at the top)
     st.asleep = vol.asleep; st.quietTicks = vol.quietTicks;   // the first call: nothing collected yet
-    if (vol.bricked) st.bricks = vol.storedCount;
+    if (vol.bricked) { st.bricks = vol.storedCount; st.groundBricks = vol.groundCount; }
     return st;
 }
 
@@ -1361,7 +1388,7 @@ void WaterCoreGpu::finishCall(Volume& vol) {
         vol.hostInfo.resize(2 * vol.capacity);
         std::memcpy(vol.hostInfo.data(), bi + vol.infoOff, 2 * static_cast<size_t>(vol.slotsUsed) * 4);   // one bulk read of uncached memory
         st.fluxIntoAbsent = counters[0]; st.sentinelDirty = counters[1] != 0;
-        st.bricks = vol.storedCount;
+        st.bricks = vol.storedCount; st.groundBricks = vol.groundCount;
         st.allocated = vol.lastAllocated; st.freed = vol.lastFreed; st.heldByCapacity = vol.lastHeld; st.haloRings = vol.lastRings;
         st.compacted = vol.lastCompacted;
         st.unstoredWater = vol.unstoredM3;

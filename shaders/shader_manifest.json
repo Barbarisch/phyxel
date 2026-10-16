@@ -398,7 +398,7 @@
     },
     "wc_bricks.comp": {
       "built": true,
-      "sources": "e8b5fef710a961f33f11d5fb6f2e8d78021ad6d11016825b9a0cabf595f976cf",
+      "sources": "45bf43247e503348fd691282cd97374d2ce759c6554ca73922698405118d930e",
       "spv_present": true
     },
     "wc_classify.comp": {

@@ -6,7 +6,7 @@
 // extrapolation reaches out from, three layers - a film's rules reach one cell). Each: bit 0 = present, bits 1-18 = the
 // distance (cells, 0..7; 0..BY-1 along y) of the nearest such cell to each face (-x, +x, -y, +y, -z, +z; 3 bits each). Slot 0 (the absent
 // brick) is instead CHECKED: any non-zero f, u, v, w or p there means something wrote where no brick is stored -
-// Bricks[counterOff + 1] = 1.
+// Bricks[counterOff + 1] = 1. 26.18: so is slot 1 (the GROUND sentinel: Solid everywhere, nothing else, never written).
 #define WC_BRICKS_BINDING 5
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
@@ -21,10 +21,10 @@ shared int sAny[2], sD[12];
 void main() {
     const uint slot = gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
     if (slot >= uint(pc.slotsUsed)) return;   // uniform per workgroup
-    if (slot == 0u) {
+    if (slot <= 1u) {
         bool dirty = false;
         for (uint k = 0u; k < (1u << uint(pc.bly)); ++k) {
-            const uint i = t + 64u * k;
+            const uint i = (slot << uint(6 + pc.bly)) + t + 64u * k;   // 26.18: either sentinel
             dirty = dirty || f[i] != 0.0 || u[i] != 0.0 || v[i] != 0.0 || w[i] != 0.0 || p[i] != 0.0;
         }
         if (dirty) atomicOr(bricks[pc.counterOff + 1], 1);

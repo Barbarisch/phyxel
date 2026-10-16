@@ -29,7 +29,7 @@ bool WaterCoreManager::snapCellSize(float requested, float* snapped) {
 }
 
 int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
-                             const std::string& transport, std::string* err, const std::string& backend, int gpuSweeps, int brickHeight) {
+                             const std::string& transport, std::string* err, const std::string& backend, int gpuSweeps, int brickHeight, int groundBricks) {
     float h = 1.0f;
     if (!snapCellSize(cellSize, &h)) { if (err) *err = "cellSize must be 1, 1/3, 1/9, 1/27 or 1/81 (a cell that does not divide a microcube would sit half inside a wall)"; return 0; }
     const int per = static_cast<int>(std::lround(1.0f / h));
@@ -78,7 +78,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
             av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
         // 26.12 P2b: a fill volume is SPARSE - it stores and steps only the bricks holding water and their halo (26.6), bit-identical
         // to keeping every brick (WaterBrickTest); the particle transport stays dense (26.6 point 7)
-        av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, BrickOptions{transport != "flip", 0, false, brickHeight});   // 26.17: the brick height (refused with the reason unless 2 / 4 / 8)
+        av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, BrickOptions{transport != "flip", 0, false, brickHeight, groundBricks});   // 26.17: the brick height (refused with the reason unless 2 / 4 / 8)
         if (!av->gpuVol) return 0;   // the refusal carries the byte count
         m_gpu->upload(*av->gpuVol, *av->grid);
         av->gpuDirty = false;
@@ -108,7 +108,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
     r.cells = av.grid->cellCount();
     r.autoSleep = av.autoSleep; r.seededMass = av.seededMass;
     r.surfaceAgeMs = av.fieldStepSec < 0.0 ? -1.0 : (std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - av.fieldStepSec) * 1000.0;
@@ -181,6 +181,7 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
         if (rev != av.occRevision) { av.occDirty = true; av.occRevision = rev; av.solver->wake(); }
     }
     if (!av.occDirty) return;
+    const auto tOcc = std::chrono::steady_clock::now();   // 26.18: measured - it runs on every world change
     const WaterGrid& g = *av.grid;
     for (int z = 0; z < g.nz(); ++z)
         for (int y = 0; y < g.ny(); ++y)
@@ -191,6 +192,7 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
     for (int z = 0; z < av.grid->nz(); ++z) for (int y = 0; y < av.grid->ny(); ++y) for (int x = 0; x < av.grid->nx(); ++x)
         av.grid->occ(x, y, z) = av.occCache[av.grid->idx(x, y, z)];
     if (av.gpuVol) av.gpuDirty = true;
+    av.occRefreshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tOcc).count();
 }
 
 void WaterCoreManager::markSolidsDirty() {
@@ -496,7 +498,9 @@ void WaterCoreManager::syncFromGpu(Av& av, bool rateLimited) {
 void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     if (!av.gpuVol || !m_gpu) return;
     if (av.gpuDirty) {
+        const auto tUp = std::chrono::steady_clock::now();   // 26.18: what a world change costs the water (measured, reported)
         syncFromGpu(av); m_gpu->upload(*av.gpuVol, *av.grid);
+        av.gpuUploadMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tUp).count(); ++av.gpuUploads;
         if (av.solver->transport().ownsMass()) {
             const auto* flip = dynamic_cast<const FlipTransport*>(&av.solver->transport());
             std::string perr;

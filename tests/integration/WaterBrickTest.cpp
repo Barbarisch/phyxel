@@ -56,6 +56,8 @@ protected:
 
     struct SceneResult { long ticksCompared = 0, ticksDiffering = 0, flux = 0, haloShort = 0; bool sentinel = false; int minBricks = 1 << 30, maxBricks = 0, denseBricks = 0;
                          int sparseHeight = 8, denseHeight = 8;   // 26.17: brick heights (a brick is 8 x h x 8 cells)
+                         int maxGround = 0;                        // 26.18: most halo bricks read as ground in one call
+                         WaterGrid sparseEnd{GridSpec{glm::ivec3(0), glm::ivec3(1), 1.0f}};   // the sparse run's last state
                          long allocated = 0, freed = 0; Diff diff; double massDense = 0, massSparse = 0;
                          long surfaceColumnsDiffering = 0; std::string surfaceFirst; };   // 26.11: the surface field the renderer gets, byte for byte
     /// Run `ticks` ticks of the same water in a dense and a sparse volume. `perTick(k, dense, sparse)` may feed bodies or
@@ -76,7 +78,7 @@ protected:
             if (perTick) perTick(k, *dv, *sv);
             const GpuStepStats a = gpu.step(*dv, prm, kDt, 1, 40);
             const GpuStepStats b = gpu.step(*sv, prm, kDt, 1, 40);
-            r.denseBricks = a.bricks; r.denseHeight = a.brickHeight; r.sparseHeight = b.brickHeight;
+            r.denseBricks = a.bricks; r.denseHeight = a.brickHeight; r.sparseHeight = b.brickHeight; r.maxGround = std::max(r.maxGround, b.groundBricks);
             r.minBricks = std::min(r.minBricks, b.bricks); r.maxBricks = std::max(r.maxBricks, b.bricks);
             r.flux += b.fluxIntoAbsent; r.haloShort += b.haloShort; r.sentinel = r.sentinel || b.sentinelDirty || a.sentinelDirty;
             r.allocated += b.allocated; r.freed += b.freed;
@@ -96,6 +98,7 @@ protected:
                 if (r.diff.first.empty()) { r.diff = d; r.diff.first = "tick " + std::to_string(k) + ": " + d.first; }
             }
             r.massDense = gd.totalMass(); r.massSparse = gs.totalMass();
+            if (k == ticks - 1) r.sparseEnd = gs;
             {   // 26.11: the surface field (packed lists, dry columns rebuilt on the host) - a bricked volume draws what the dense box draws
                 std::vector<SurfaceColumn> sd(static_cast<size_t>(start.nx()) * start.nz()), ss(sd.size());
                 const bool okD = gpu.readSurface(*dv, reinterpret_cast<float*>(sd.data())), okS = gpu.readSurface(*sv, reinterpret_cast<float*>(ss.data()));
@@ -126,6 +129,14 @@ protected:
     }
     /// The 26.8 scenes (+ 26.17's stepped bed), a dense 8^3 volume against a sparse one stored as `sparseOpts` says.
     void seamScenes(BrickOptions sparseOpts, const char* tag);
+    /// 26.18: scenes where the ground matters - an overhang, a dig under flowing water, a pit filled in.
+    void groundScenes(BrickOptions sparseOpts, const char* tag);
+    /// 26.18: a world edit mid-run, as the engine does it: the water read back, the new occupancy, both re-uploaded.
+    void reshape(WaterCoreGpu::Volume& v, const WaterGrid& world) {
+        WaterGrid t = world;
+        gpu.download(v, t);   // the water; the occupancy stays the world's (the edit)
+        gpu.upload(v, t);
+    }
 };
 
 // The equality scenes: each runs a dense 8^3 volume (every brick kept) and a sparse one, and compares every tick.
@@ -197,6 +208,76 @@ void WaterBrickTest::seamScenes(BrickOptions sparseOpts, const char* tag) {
         for (int z = 0; z < kDims.z; ++z) for (int x = 0; x < 12; ++x) for (int y = 4; y < 7; ++y) g.f(x, y, z) = 1.0f;
         expectEqual(name("stepped bed"), runScene(g, 240, nullptr, sparseOpts));
     }
+}
+
+void WaterBrickTest::groundScenes(BrickOptions sparseOpts, const char* tag) {
+    std::string label;
+    auto name = [&](const char* scene) { label = std::string(tag) + " " + scene; return label.c_str(); };
+    {   // (a) a pond under an OVERHANG: a solid ceiling (y 7-9, x 8-31) over water that touches it - ground ABOVE water, its lower
+        // faces against the water; the water released sideways
+        WaterGrid g = makeGrid();
+        for (int z = 0; z < kDims.z; ++z) for (int y = 0; y < kDims.y; ++y) for (int x = 0; x < kDims.x; ++x)
+            if (y < 2 || (y >= 7 && y <= 9 && x >= 8 && x < 32)) g.occ(x, y, z) = Occ::Solid;
+        g.fillBox({8, 2, 0}, {20, 6, kDims.z - 1}, 1.0f);
+        expectEqual(name("overhang"), runScene(g, 180, nullptr, sparseOpts));
+    }
+    {   // (b) a creek over a deep stepped bed, DUG under the flowing water at tick 60: a pit x 14-19, z 8-15, y 3-8 opened in the
+        // bed (the same edit and re-upload for both volumes) - the water must drain into it
+        WaterGrid g = makeGrid();
+        for (int z = 0; z < kDims.z; ++z) for (int y = 0; y < kDims.y; ++y) for (int x = 0; x < kDims.x; ++x)
+            if (y < (x < 20 ? 9 : 8)) g.occ(x, y, z) = Occ::Solid;
+        for (int z = 0; z < kDims.z; ++z) for (int x = 0; x < 12; ++x) for (int y = 9; y < 12; ++y) g.f(x, y, z) = 1.0f;
+        WaterGrid world = g;
+        auto dig = [&](int k, WaterCoreGpu::Volume& a, WaterCoreGpu::Volume& b) {
+            if (k != 60) return;
+            for (int z = 8; z < 16; ++z) for (int y = 3; y < 9; ++y) for (int x = 14; x < 20; ++x) world.occ(x, y, z) = Occ::Air;
+            reshape(a, world); reshape(b, world);
+        };
+        const SceneResult r = runScene(g, 240, dig, sparseOpts);
+        expectEqual(name("dig under the creek"), r);
+        double inPit = 0.0;
+        for (int z = 8; z < 16; ++z) for (int y = 3; y < 9; ++y) for (int x = 14; x < 20; ++x) inPit += r.sparseEnd.f(x, y, z);
+        std::printf("    water in the dug pit at the end: %.2f cells\n", inPit);
+        EXPECT_GT(inPit, 1.0) << name("dig under the creek") << ": the water must run into the hole the dig opened";
+    }
+    {   // (c) the reverse: a pit beside the flow FILLED with ground at tick 10 (before the water reaches it)
+        WaterGrid g = makeGrid();
+        for (int z = 0; z < kDims.z; ++z) for (int y = 0; y < kDims.y; ++y) for (int x = 0; x < kDims.x; ++x)
+            if (y < 9 && !(x >= 30 && x < 35 && z >= 6 && z < 18 && y >= 4)) g.occ(x, y, z) = Occ::Solid;
+        for (int z = 0; z < kDims.z; ++z) for (int x = 0; x < 12; ++x) for (int y = 9; y < 12; ++y) g.f(x, y, z) = 1.0f;
+        WaterGrid world = g;
+        auto fill = [&](int k, WaterCoreGpu::Volume& a, WaterCoreGpu::Volume& b) {
+            if (k != 10) return;
+            for (int z = 6; z < 18; ++z) for (int y = 4; y < 9; ++y) for (int x = 30; x < 35; ++x) world.occ(x, y, z) = Occ::Solid;
+            reshape(a, world); reshape(b, world);
+        };
+        expectEqual(name("pit filled in"), runScene(g, 240, fill, sparseOpts));
+    }
+}
+
+// 26.18 GATE: halo bricks that are all ground, read from the GROUND sentinel and not stepped, == every 8^3 brick stored - bit for
+// bit, in the 26.17 scenes and in three where the ground matters (an overhang, a dig under flowing water, a pit filled in). The
+// world is destructible: which bricks are ground is re-read at every upload, and the dug brick is stored before the next step.
+TEST_F(WaterBrickTest, GroundBricksEqualStored) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    seamScenes(BrickOptions{true, 0, false, 2, 1}, "ground");
+    groundScenes(BrickOptions{true, 0, false, 2, 1}, "ground");
+    groundScenes(BrickOptions{true, 0, false, 2, 0}, "no ground");   // the same new scenes with every halo brick stored
+}
+
+// The control (RED by design): the ground sentinel's occupancy left as AIR - the bed under the creek reads as open air where it
+// is not stepped: the fields must differ (the equality test sees a wrong ground).
+TEST_F(WaterBrickTest, AGroundReadAsAirIsCaught) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    WaterGrid g = makeGrid();
+    for (int z = 0; z < kDims.z; ++z) for (int y = 0; y < kDims.y; ++y) for (int x = 0; x < kDims.x; ++x)
+        if (y < (x < 20 ? 9 : 8)) g.occ(x, y, z) = Occ::Solid;
+    for (int z = 0; z < kDims.z; ++z) for (int x = 0; x < 12; ++x) for (int y = 9; y < 12; ++y) g.f(x, y, z) = 1.0f;
+    BrickOptions o{true, 0, false, 2, 1}; o.groundAsAirForTest = true;
+    const SceneResult r = runScene(g, 120, nullptr, o, false);
+    report("ground read as air", r);
+    EXPECT_GT(r.maxGround, 0) << "control: ground bricks must be in use (else the control is vacuous)";
+    EXPECT_GT(r.ticksDiffering, 0) << "control: ground read as air must change the water";
 }
 
 // 26.6 P2a GATE: sparse == dense, bit for bit, across chunk and brick seams; the halo never too thin; the absent brick clean.

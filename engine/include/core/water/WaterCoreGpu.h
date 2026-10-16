@@ -70,6 +70,7 @@ struct GpuStepStats {
     // 26.6 P2a: brick storage
     int    bricks = 0;               ///< bricks stored after this call (a dense volume: all of its brick box)
     int    brickHeight = 8;          ///< 26.17: cells per brick along y (a brick is 8 x brickHeight x 8)
+    int    groundBricks = 0;         ///< 26.18: bricks of the halo that are all ground, read from the GROUND sentinel (not stepped)
     int    capacity = 0;             ///< slots (bricks) the volume can hold
     int    allocated = 0, freed = 0; ///< bricks allocated / freed by this call's residency update
     int    haloRings = 0;            ///< neighbour rings the residency took (1 unless the water is fast)
@@ -88,6 +89,8 @@ struct BrickOptions {
     size_t capacity = 0;             ///< slots for bricks (0 = every brick of the box: never full)
     bool   freezeForTest = false;    ///< TEST ONLY (the equality test's red control): residency never follows the water
     int    height = 0;               ///< 26.17: brick height in cells (2, 4 or 8; 0 = WaterCoreGpu::s_brickHeight); x and z are 8
+    int    ground = -1;              ///< 26.18: halo bricks that are all ground read the GROUND sentinel (1 on, 0 off, -1 = s_groundBricks); sparse only
+    bool   groundAsAirForTest = false;   ///< TEST ONLY (the red control): the ground sentinel's occupancy left as air
 };
 
 class WaterCoreGpu {
@@ -109,6 +112,11 @@ public:
         glm::ivec3 o{0}, bn{0};          ///< origin offset in its first brick (cells); the brick box (bricks)
         int by = 8, bly = 3;             ///< 26.17: brick height (cells) and its log2; bricks are 8 x by x 8
         size_t bc = 512, nuy = 0;        ///< 26.17: cells per brick; the unit map's y count (units are 8 x 2 x 8, the reductions')
+        // 26.18: slot 1 is the GROUND sentinel (every cell Solid, nothing else, never written); a map entry of 1 = "this brick is
+        // all ground". Which bricks are is read from the CURRENT occupancy at every upload (the world is destructible).
+        bool groundOn = false, groundAsAir = false;
+        std::vector<char> allSolid;      ///< per map entry: every cell Solid at the last upload (out-of-box cells count as Solid)
+        int groundCount = 0;             ///< map entries that are ground
         glm::ivec3 bs() const { return glm::ivec3(8, by, 8); }
         size_t mapCount = 0, capacity = 0, colCap = 0;   ///< capacity counts slot 0 (the absent brick)
         int slotsUsed = 1, colCount = 0;
@@ -206,6 +214,8 @@ public:
     /// 26.17: the brick height (cells) a volume gets when its BrickOptions name none - 2, 4 or 8 (bricks are 8 x h x 8). 2 since
     /// 26.17's bench run: the creek at q 0.2 stored 691,200 -> 457,984 cells, GPU 1.83 -> 1.57 ms a call, the water identical
     static inline int s_brickHeight = 2;
+    /// 26.18: sparse volumes read halo bricks that are all ground from the GROUND sentinel instead of stepping them
+    static inline bool s_groundBricks = false;
     /// 26.10 test hook: copy f after every stage of each single-tick, single-substep call and sum it on the host in double -
     /// exact per-stage mass changes (the device's own sums are float). s_stageDm[k] accumulates stage k's change in cell
     /// fractions: 0 between calls, 1 sources, 2 transport gather, 3 transport carry, 4 ledger, 5 compaction, 6 rest of the
