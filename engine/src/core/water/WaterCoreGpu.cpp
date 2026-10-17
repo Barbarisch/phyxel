@@ -15,11 +15,11 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_face_ops.comp.spv", "wc_face_ops.comp.spv", "wc_face_ops.comp.spv",
     "wc_column_ops.comp.spv", "wc_classify.comp.spv", "wc_rbgs.comp.spv",
     "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv", "wc_sources.comp.spv", "wc_surface.comp.spv",
-    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv"};
+    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv"};
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9};
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9, 7};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -89,7 +89,7 @@ void WaterCoreGpu::destroyBuffer(Buffer& b) {
 
 bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     for (int k = 0; k < KernelCount; ++k) {
-        if (!vol.particles && k >= FlipSort) break;
+        if (!vol.particles && k >= FlipSort && k <= FlipG2p) continue;   // 26.26: skip only the particle kernels (Momentum comes after them)
         auto pipe = std::make_unique<Vulkan::ComputePipeline>();
         if (!pipe->create(m_device, m_shaderDir + "/" + kKernelFiles[k], kKernelBindings[k], sizeof(WcPush), k == FlipP2g ? 3u : (k >= ExtrapU && k <= ExtrapW) ? 4u : 1u)) {
             if (err) *err = std::string("failed to create pipeline ") + kKernelFiles[k] + " from " + m_shaderDir; return false;
@@ -134,6 +134,7 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     }
     bindAll(*vol.pipes[Reduce],  {&vol.f, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.part, &vol.out, &vol.part2, &vol.res, &vol.dropped, br});
     bindAll(*vol.pipes[Sources], {&vol.f, &vol.occ, &vol.src, &vol.sources, br});
+    bindAll(*vol.pipes[Momentum], {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, br, &vol.momentum});   // 26.26
     bindAll(*vol.pipes[Bricks],  {&vol.f, &vol.u, &vol.v, &vol.w, &vol.p, br});
     if (vol.particles) {
         bindAll(*vol.pipes[FlipSort], {&vol.posA, &vol.velA, &vol.posB, &vol.velB, &vol.pcount, &vol.pstart, &vol.pcursor});
@@ -230,7 +231,8 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
            && createBuffer(vol->surf, vol->columns * (32 + sizeof(Core::Water::SurfaceColumn)), false, err)    // Phase F: the surface field (G2: 64 B)
            && createBuffer(vol->solid, vol->cells * 16, false, err)                                     // 20: (s, q, wake, ledger) per cell
            && createBuffer(vol->births, vol->columns * 32, false, err) && createBuffer(vol->birthsPacked, vol->columns * 32, false, err) && createBuffer(vol->lists, 16, false, err) && createBuffer(vol->deposit, vol->cells * F4, false, err)   // 21: droplets
-           && createBuffer(vol->bricks, vol->brickInts * 4, false, err);                                // 26.6
+           && createBuffer(vol->bricks, vol->brickInts * 4, false, err)                                 // 26.6
+           && createBuffer(vol->momentum, kMaxMomentum * 32, true, err);                                 // 26.26: written by the host each call
     // staging: [f | u | v | w | occ | src | out | p | sources | surf | solid | births | deposit | bricks | particles]
     vol->offU = vol->cells * F4; vol->offV = vol->offU + vol->nu * F4; vol->offW = vol->offV + vol->nv * F4;
     vol->offOcc = vol->offW + vol->nw * F4; vol->offSrc = vol->offOcc + vol->cells * 4; vol->offOut = vol->offSrc + vol->cells * F4;
@@ -284,7 +286,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
-                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging})
+                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -687,6 +689,31 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     vkCmdFillBuffer(cmd, vol.p.buf, 0, vol.p.bytes, 0);   // 26.5: a replaced state starts its solve fresh (deterministic, as a new volume)
     vkCmdFillBuffer(cmd, vol.fLo.buf, 0, vol.fLo.bytes, 0);   // 26.10: the remainders belonged to the water that was there
     submitAndWait(cmd);
+}
+
+void WaterCoreGpu::queueMomentum(Volume& vol, const glm::vec3& pos, float radius, const glm::vec3& momentum, float maxSpeed) {
+    if (vol.pendingMomentum.size() / 8 >= static_cast<size_t>(kMaxMomentum)) { ++vol.momentumDropped; return; }
+    const glm::vec3 local = pos - glm::vec3(vol.spec.origin) * vol.spec.h;   // the kernel works in metres from the grid's origin
+    const float r[8] = {local.x, local.y, local.z, radius, momentum.x, momentum.y, momentum.z, maxSpeed};
+    vol.pendingMomentum.insert(vol.pendingMomentum.end(), r, r + 8);
+    vol.asleep = false; vol.quietTicks = 0;   // moving water wakes, as the CPU path's re-upload did
+}
+
+int WaterCoreGpu::applyQueuedMomentumForTest(Volume& vol) {
+    settle(vol);
+    const size_t n = vol.pendingMomentum.size() / 8;
+    if (n == 0) return 0;
+    WcPush push; push.nx = vol.spec.dims.x; push.ny = vol.spec.dims.y; push.nz = vol.spec.dims.z; push.h = vol.spec.h;
+    push.thr = 0.5f; push.gravity = 9.81f;
+    fillPushBricks(vol, push);
+    std::memcpy(vol.momentum.mapped, vol.pendingMomentum.data(), vol.pendingMomentum.size() * sizeof(float));
+    VkCommandBuffer cmd = beginCommands();
+    barrier(cmd);
+    for (size_t i = 0; i < n; ++i) { push.iparam = static_cast<int32_t>(i); dispatch(cmd, *vol.pipes[Momentum], push, 64); }
+    submitAndWait(cmd);
+    vol.momentumApplied += static_cast<long>(n);
+    vol.pendingMomentum.clear();
+    return static_cast<int>(n);
 }
 
 bool WaterCoreGpu::setSources(Volume& vol, const std::vector<GpuSource>& sources, std::string* err) {
@@ -1310,6 +1337,17 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     stamp(cmd, vol, TsResidency);
     const auto tResidency = std::chrono::steady_clock::now();
     fillPushBricks(vol, push);
+    if (!vol.pendingMomentum.empty()) {
+        // 26.26: the debris exchange - before the first substep (where the CPU path's change landed), one workgroup per record, in
+        // order (each dispatch ends with a barrier: deterministic). The call before has settled, so the host buffer is free.
+        const size_t n = vol.pendingMomentum.size() / 8;
+        std::memcpy(vol.momentum.mapped, vol.pendingMomentum.data(), vol.pendingMomentum.size() * sizeof(float));
+        barrier(cmd);
+        for (size_t i = 0; i < n; ++i) { push.iparam = static_cast<int32_t>(i); dispatch(cmd, *vol.pipes[Momentum], push, 64); }
+        push.iparam = 0;
+        st.momentumRecords = static_cast<int>(n); vol.momentumApplied += static_cast<long>(n);
+        vol.pendingMomentum.clear();
+    }
     if (vol.bricked) vkCmdFillBuffer(cmd, vol.bricks.buf, vol.counterOff * 4, 8, 0);   // this call's counters
     vkCmdFillBuffer(cmd, vol.dropped.buf, 0, vol.dropped.bytes, 0);
     vkCmdFillBuffer(cmd, vol.births.buf, 0, vol.births.bytes, 0);   // 21: this call's birth records

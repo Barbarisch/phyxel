@@ -125,7 +125,8 @@ tools ported to pond water (`--pond`); porting them found (26.25) floats driftin
 damping braked them toward the ground and the debris -> water exchange handed the brake to the water; fixed (floats now ride at
 1.000 of the water) - which exposed (26.26) that the exchange reads back and re-uploads a whole GPU volume every frame anything
 moves in it: 4 floats in the creek, 124 -> 7 FPS. Pre-existing.
-**Next:** 26.26 the exchange on the device (designed); then P3d-2 (the removal). The §23 slime experiment stays queued.
+26.26 BUILT: the exchange on the device - 4 floats 7 -> 123 FPS, floats at 1.002 of the water.
+**Next:** the owner's look at the floats (`current_floats_pond.mp4`); then P3d-2 (the removal). The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6862,7 +6863,7 @@ SETTLE; drop_pile, blast, box_through_pile FAIL as before (drop_pile's numbers i
 **Status of 26.25:** the damping rule and the relative-speed displacement BUILT; floats ride the pond current exactly; the frame
 cost of moving debris in a GPU pond is 26.26.
 
-### 26.26 The debris -> water exchange on the device - design (2026-10-17). Status: DESIGN
+### 26.26 The debris -> water exchange on the device - design, build (2026-10-17). Status: BUILT, not signed off
 
 **What it must do (unchanged):** each record (position, radius, momentum m^3 x m/s) gives the water inside a sphere of the radius
 (>= 1.5 cells) the momentum: per axis, du = momentum / W over the faces of the chosen cells, W = the sum of each face's fill-
@@ -6882,6 +6883,34 @@ has no such path - the test reads the round trip today and would pass by constru
 **Design check:** *Look:* none (the same momentum, no stall). *Chunks:* world-positioned records into world-aligned bricks - an
 absent brick takes nothing (counted, as the CPU's `dry`). *Generation:* none. *API:* `water_coupling {exchange}` unchanged;
 its stats gain `gpu_records`. *Visual test:* L2 the parity + cost rows, L4 the bench. **READY.**
+
+**Built - simpler than designed.** `shaders/wc_momentum.comp`: one workgroup per record; pass 1 sums Wu / Wv / Ww over the record's
+face set in shared memory, pass 2 adds du to each face of the set ONCE (the faces are enumerated, not the cells - no duplicates
+within a record). The records are dispatched one after another (each dispatch ends with a barrier), so two records touching one
+face add in a fixed order: deterministic WITHOUT the fixed-point scratch the design proposed. The records live in a host-visible
+buffer written at the start of the volume's next call (`WaterCoreGpu::queueMomentum`, applied after the residency, before the
+first substep; <= 256 a call, more counted as dropped); a face whose storage is an absent brick is skipped in W and in the add
+alike. `WaterCoreManager::applyMomentum` queues for GPU volumes (no read-back, no re-upload); CPU volumes as before.
+Found on the way: `createPipelines` stopped at the first particle kernel for a volume without particles (`break`), so a kernel
+listed after them was never made - an access violation in the first test run; now only the particle kernels are skipped.
+
+**Measured:**
+- `WaterCoreGpuParityTest.GpuMomentumMatchesCpu` (20 overlapping records, one at the 20 m/s cap; dense and sparse): worst face
+  difference **3.0e-8 m/s**, the momentum given the water identical to the CPU's (0.83134, -4.18000, -0.11860) in both storages.
+- The bench, four 1/9 m floats in the creek at q 0.2:
+
+| | FPS | CPU ms | water GPU ms | bricks |
+|---|---|---|---|---|
+| no floats | 127.6 | 7.9 | 1.58 | 2,010 |
+| 4 floats, exchange ON | **123.5** (was 7.4) | 8.2 | 1.42 | 2,018 (was 3,418) |
+| 4 floats, exchange OFF | 119.8 | 9.1 | 1.32 | 2,018 |
+
+  and the floats in simulation time **1.002** of the water at their columns (0.630 / 0.629 m/s, 243 samples), FPS 118 meanwhile.
+  Clip: `current_floats_pond.mp4` (the floats riding the creek, recorded at a healthy frame rate).
+- Tests: `phyxel_tests` water / buoyancy / debris / dynamics 379 / 379; `phyxel_integration_tests` Water / Debris / Gpu 44 / 46 - the
+  two known failures (the particle run-up, the 4-tall halo).
+All the predictions held. **Status: BUILT, not signed off** (with 26.25: floats ride the pond current, and moving debris in a
+GPU pond costs ~4 FPS, not ~115 ms a frame).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

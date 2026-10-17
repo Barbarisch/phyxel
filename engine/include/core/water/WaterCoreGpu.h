@@ -55,6 +55,7 @@ struct GpuStepStats {
     int    ticks = 0;
     int    substepsLast = 0;         ///< the substep count used for every tick of the call (CFL from the last known max speed, see step())
     int    sweeps = 0;
+    int    momentumRecords = 0;     ///< 26.26: debris momentum records applied on the device this call
     float  rbgsResidualMax = 0.0f;   ///< max |A p - b| over liquid cells after the last substep's sweeps
     double kineticEnergy = 0.0;
     double maxDeltaF = 0.0;          ///< over the LAST tick of the call
@@ -148,6 +149,9 @@ public:
         Buffer posA, velA, posB, velB, pcount, pstart, pcursor;
         VkDeviceSize offParticles = 0;   ///< staging region for pos+vel (capacity x 32 B)
         Buffer sources;                  ///< GpuSource array (device-local; kMaxSources)
+        Buffer momentum;                 ///< 26.26: HOST-VISIBLE, 2 vec4 per record (pos rel. to the origin, radius | momentum, max speed)
+        std::vector<float> pendingMomentum;   ///< 26.26: records queued since the last call (8 floats each), applied at its start
+        long momentumApplied = 0, momentumDropped = 0;   ///< 26.26: records dispatched / refused past kMaxMomentum, since create
         Buffer surf;                     ///< Phase F: the surface field, 26.11 PACKED - only the columns holding water: [one-run records, 32 B x
                                          ///< columns | multi-run records, 64 B x columns]; a dry column is rebuilt on the host (ground at hostSolidTop)
         Buffer birthsPacked, lists;      ///< 26.11: the columns with droplet births (8 floats, the dense column index in slot 7); [one-run, births, multi-run] counts
@@ -198,9 +202,10 @@ public:
         std::vector<GpuSource> hostSources;              ///< the sources' totals as the collected call left them (or as set)
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
-                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, KernelCount };
+                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, KernelCount };
     static constexpr size_t kMaxMapEntries = 4u << 20;   ///< 26.6: brick-map cap (16 MB) - a larger box is refused (world scale is P5)
     static constexpr int kMaxSources = 64;
+    static constexpr int kMaxMomentum = 256;   ///< 26.26: momentum records a call can take (more are counted as dropped)
     static_assert(KernelCount <= 32, "Volume::pipes must hold every kernel");
 
     WaterCoreGpu() = default;
@@ -271,6 +276,11 @@ public:
     void updateOccupancy(Volume& vol, const WaterGrid& g, const std::vector<int>& cells);
     /// Replace the volume's pumps/sinks (fenced); the projection's per-cell rate buffer is reset.
     bool setSources(Volume& vol, const std::vector<GpuSource>& sources, std::string* err);
+    /// 26.26: give the water `momentum` (m^3 x m/s - density 1) inside a sphere at `pos` (world metres) - WaterSolver::addMomentum's
+    /// rule, applied ON THE DEVICE at the start of the volume's next call (no read-back, no re-upload). Wakes the volume.
+    void queueMomentum(Volume& vol, const glm::vec3& pos, float radius, const glm::vec3& momentum, float maxSpeed = 20.0f);
+    /// TEST ONLY (26.26 parity): apply the queued records now - only them, no substep - and wait.
+    int applyQueuedMomentumForTest(Volume& vol);
     void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending as the last collected call left them (26.16: no submission)
     /// Phase F: the surface field as the last step() left it in the staging ring (no submission: a memcpy).
     /// `out` must hold columns * 16 floats (SurfaceColumn). Returns false when no step has run since the upload.

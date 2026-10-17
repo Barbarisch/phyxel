@@ -1,0 +1,100 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore 26.26: the debris -> water momentum exchange ON THE DEVICE - WaterSolver::addMomentum's rule, exactly. One workgroup
+// per record (iparam = its index); the host dispatches the records one after another (a barrier between), so two records that
+// touch one face add in a fixed order - deterministic, no atomics. The CPU path read the whole volume back and re-uploaded it for
+// every frame with a record (4 floats in the creek: 124 -> 7 FPS, 26.25).
+// Record (two vec4): (position in metres RELATIVE TO THE GRID'S ORIGIN, radius m), (momentum m^3 m/s, max speed m/s).
+// The rule: the cells inside the sphere (radius >= 1.5 cells) that hold water (f >= 1 mm of depth) and are not rock; every face of
+// those cells once; per axis W = sum over the faces of 0.5 (f_left + f_right) h^3 (f clamped to 1, 0 outside / absent); du =
+// momentum / W, clamped to the max speed; du added to each face. A face whose storage is an absent brick is skipped in W and in
+// the add alike, so the water still gains exactly what was asked of the faces it has.
+#define WC_BRICKS_BINDING 5
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer F   { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
+layout(std430, set = 0, binding = 2)          buffer U   { float u[]; };
+layout(std430, set = 0, binding = 3)          buffer V   { float v[]; };
+layout(std430, set = 0, binding = 4)          buffer W   { float w[]; };
+layout(std430, set = 0, binding = 6) readonly buffer Rec { vec4 rec[]; };
+
+shared float sW[3][64];
+shared vec3 sDu;
+
+vec3  gPos; float gR2; ivec3 gLo, gHi; float gWet;
+
+bool chosen(int x, int y, int z) {
+    if (!inBounds(x, y, z) || absentCell(x, y, z)) return false;
+    const uint i = cellIdx(x, y, z);
+    if (occ[i] == 1u || f[i] < gWet) return false;
+    const vec3 c = (vec3(x, y, z) + 0.5) * pc.h - gPos;
+    return dot(c, c) <= gR2;
+}
+float fAt(int x, int y, int z) { return (inBounds(x, y, z) && !absentCell(x, y, z)) ? min(f[cellIdx(x, y, z)], 1.0) : 0.0; }
+// the face's storage exists: its owner cell (the face's +side index along its axis) is stored; the dense far face (index n) too
+bool faceStored(int L, int x, int y, int z) {
+    if (pc.bricked == 0) return true;
+    return x < pc.nx && y < pc.ny && z < pc.nz && !absentCell(x, y, z);
+}
+// face k of lattice L inside the record's box: decode, test, and return its weight (0 = not in the set)
+float faceWeight(int L, int k, out ivec3 c) {
+    const ivec3 n = gHi - gLo + 1 + ivec3(L == 0 ? 1 : 0, L == 1 ? 1 : 0, L == 2 ? 1 : 0);
+    c = gLo + ivec3(k % n.x, (k / n.x) % n.y, k / (n.x * n.y));
+    const ivec3 d = ivec3(L == 0 ? 1 : 0, L == 1 ? 1 : 0, L == 2 ? 1 : 0);
+    const ivec3 a = c - d;   // the face sits between cell a (the -side) and cell c (the +side)
+    if (!(chosen(a.x, a.y, a.z) || chosen(c.x, c.y, c.z))) return 0.0;
+    if (!faceStored(L, c.x, c.y, c.z)) return 0.0;
+    return 0.5 * (fAt(a.x, a.y, a.z) + fAt(c.x, c.y, c.z)) * pc.h * pc.h * pc.h;
+}
+int faceCount(int L) {
+    const ivec3 n = gHi - gLo + 1 + ivec3(L == 0 ? 1 : 0, L == 1 ? 1 : 0, L == 2 ? 1 : 0);
+    return n.x * n.y * n.z;
+}
+
+void main() {
+    const uint t = gl_LocalInvocationID.x;
+    const vec4 r0 = rec[2 * pc.iparam], r1 = rec[2 * pc.iparam + 1];
+    gPos = r0.xyz;
+    const float r = max(r0.w, 1.5 * pc.h);
+    gR2 = r * r;
+    gWet = 0.001 / pc.h;   // WaterGrid::kSurfaceMinDepth / h
+    gLo = max(ivec3(floor(gPos / pc.h - r / pc.h)) - 1, ivec3(0));
+    gHi = min(ivec3(floor(gPos / pc.h + r / pc.h)) + 1, ivec3(pc.nx - 1, pc.ny - 1, pc.nz - 1));
+    // pass 1: the face weights per axis
+    for (int L = 0; L < 3; ++L) {
+        float s = 0.0;
+        const int nf = faceCount(L);
+        for (int k = int(t); k < nf; k += 64) { ivec3 c; s += faceWeight(L, k, c); }
+        sW[L][t] = s;
+    }
+    barrier();
+    for (uint stride = 32u; stride > 0u; stride >>= 1) {
+        if (t < stride) for (int L = 0; L < 3; ++L) sW[L][t] += sW[L][t + stride];
+        barrier();
+    }
+    if (t == 0u) {
+        vec3 du = vec3(sW[0][0] > 0.0 ? r1.x / sW[0][0] : 0.0, sW[1][0] > 0.0 ? r1.y / sW[1][0] : 0.0, sW[2][0] > 0.0 ? r1.z / sW[2][0] : 0.0);
+        const float sp = length(du);
+        if (sp > r1.w) du *= r1.w / sp;
+        sDu = du;
+    }
+    barrier();
+    // pass 2: every face of the set gets its axis's du, once
+    const vec3 du = sDu;
+    for (int L = 0; L < 3; ++L) {
+        if (du[L] == 0.0) continue;
+        const int nf = faceCount(L);
+        const ivec3 d = ivec3(L == 0 ? 1 : 0, L == 1 ? 1 : 0, L == 2 ? 1 : 0);
+        const ivec3 n = gHi - gLo + 1 + d;
+        for (int k = int(t); k < nf; k += 64) {
+            // the set test, not the weight: a face of a chosen cell is in the CPU's set even when its weight is 0
+            const ivec3 c = gLo + ivec3(k % n.x, (k / n.x) % n.y, k / (n.x * n.y));
+            const ivec3 a = c - d;
+            if (!(chosen(a.x, a.y, a.z) || chosen(c.x, c.y, c.z)) || !faceStored(L, c.x, c.y, c.z)) continue;
+            if (L == 0) u[uIdx(c.x, c.y, c.z)] += du.x;
+            else if (L == 1) v[vIdx(c.x, c.y, c.z)] += du.y;
+            else w[wIdx(c.x, c.y, c.z)] += du.z;
+        }
+    }
+}

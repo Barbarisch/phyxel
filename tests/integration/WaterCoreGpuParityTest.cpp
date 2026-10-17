@@ -1307,3 +1307,52 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagSweepsOneStep) {
         gpu.destroyVolume(ref);
     }
 }
+
+// 26.26: the debris -> water momentum exchange on the device equals WaterSolver::addMomentum. The same pond on both backends, the
+// same 20 records - overlapping on purpose (two records share faces: the device applies them in order, as the CPU does), some
+// reaching past the water's edge, one clamped at the 20 m/s cap - then every face velocity compared, and the water's momentum
+// gain against the records' sum. Dense storage and sparse bricks (every brick holding water stored) alike.
+TEST_F(WaterCoreGpuParityTest, GpuMomentumMatchesCpu) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 3.0f;
+    struct Rec { glm::vec3 pos; float r; glm::vec3 m; };
+    std::vector<Rec> recs;
+    for (int k = 0; k < 20; ++k) {
+        const float a = 0.37f * k;
+        recs.push_back({glm::vec3(1.2f + 0.08f * k, 0.6f + 0.05f * (k % 7), 1.5f + 0.9f * std::sin(a)), 0.2f + 0.04f * (k % 9),
+                        glm::vec3(0.02f * std::cos(a), -0.01f * (k % 3), 0.015f * std::sin(1.3f * a)) * (k == 13 ? 400.0f : 1.0f)});
+    }
+    for (bool sparse : {false, true}) {
+        Tank c(12, 9, 12, h), g(12, 9, 12, h);
+        c.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f); g.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f);
+        WaterSolver cpu(c.grid, c.query());
+        double gotCpu[3] = {0, 0, 0};
+        for (const Rec& r : recs) { cpu.addMomentum(r.pos, r.r, r.m); }
+        g.bakeOcc();
+        std::string err;
+        WaterCoreGpu::Volume* vol = gpu.createVolume(g.grid, &err, BrickOptions{sparse, 0, false});
+        ASSERT_NE(vol, nullptr) << err;
+        for (const Rec& r : recs) gpu.queueMomentum(*vol, r.pos, r.r, r.m);
+        EXPECT_EQ(gpu.applyQueuedMomentumForTest(*vol), 20);
+        WaterGrid out = g.grid; gpu.download(*vol, out);
+        float worst = 0.0f;
+        for (size_t i = 0; i < out.uData().size(); ++i) worst = std::max(worst, std::abs(out.uData()[i] - c.grid.uData()[i]));
+        for (size_t i = 0; i < out.vData().size(); ++i) worst = std::max(worst, std::abs(out.vData()[i] - c.grid.vData()[i]));
+        for (size_t i = 0; i < out.wData().size(); ++i) worst = std::max(worst, std::abs(out.wData()[i] - c.grid.wData()[i]));
+        // the momentum each backend gave the water: per axis, sum over faces of the face velocity x its two cells' mean fill x h^3
+        auto momentum = [&](WaterGrid& gr, double m[3]) {
+            const double h3 = static_cast<double>(h) * h * h;
+            auto fa = [&](int x, int y, int z) -> double { return gr.inBounds(x, y, z) ? std::min(gr.f(x, y, z), 1.0f) : 0.0; };
+            m[0] = m[1] = m[2] = 0.0;
+            for (int z = 0; z < 12; ++z) for (int y = 0; y < 9; ++y) for (int x = 0; x <= 12; ++x) m[0] += gr.u(x, y, z) * 0.5 * (fa(x - 1, y, z) + fa(x, y, z)) * h3;
+            for (int z = 0; z < 12; ++z) for (int y = 0; y <= 9; ++y) for (int x = 0; x < 12; ++x) m[1] += gr.v(x, y, z) * 0.5 * (fa(x, y - 1, z) + fa(x, y, z)) * h3;
+            for (int z = 0; z <= 12; ++z) for (int y = 0; y < 9; ++y) for (int x = 0; x < 12; ++x) m[2] += gr.w(x, y, z) * 0.5 * (fa(x, y, z - 1) + fa(x, y, z)) * h3;
+        };
+        double mGpu[3]; momentum(out, mGpu); momentum(c.grid, gotCpu);
+        std::printf("  %s: worst face difference %.2e m/s; momentum gained CPU (%.5f, %.5f, %.5f) GPU (%.5f, %.5f, %.5f)\n", sparse ? "sparse" : "dense ",
+                    worst, gotCpu[0], gotCpu[1], gotCpu[2], mGpu[0], mGpu[1], mGpu[2]);
+        EXPECT_LT(worst, 1e-5f) << (sparse ? "sparse" : "dense") << ": the device's faces differ from addMomentum's";
+        for (int a = 0; a < 3; ++a) EXPECT_NEAR(mGpu[a], gotCpu[a], 1e-5 * std::max(1.0, std::abs(gotCpu[a])));
+        gpu.destroyVolume(vol);
+    }
+}

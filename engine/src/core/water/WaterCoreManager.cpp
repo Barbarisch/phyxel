@@ -821,6 +821,14 @@ WaterCoreManager::MomentumReport WaterCoreManager::applyMomentum(const std::vect
         }
         if (which < 0) { ++rep.outside; continue; }
         Av& av = *m_avs[which];
+        if (av.gpuVol && m_gpu) {
+            // 26.26: on the device, applied at the start of the volume's next call - the CPU path below read the whole volume back
+            // and re-uploaded it for every frame with a record (4 floats in the creek: 124 -> 7 FPS). Whether the sphere found water
+            // is the device's to know: counted as applied (the CPU's `dry` is not known here).
+            m_gpu->queueMomentum(*av.gpuVol, rec.pos, rec.radius, rec.momentum);
+            ++rep.applied; rep.total += rec.momentum;
+            continue;
+        }
         if (!synced[which]) { syncFromGpu(av); synced[which] = 1; }
         const WaterSolver::RadialKick k = av.solver->addMomentum(rec.pos, rec.radius, rec.momentum);
         if (k.faces == 0) { ++rep.dry; continue; }
