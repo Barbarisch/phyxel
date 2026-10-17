@@ -1344,6 +1344,23 @@ void WaterSolver::applyBedManning(float dt) {
         if (d < 1e-3f) return;
         v /= 1.0f + dt * g * n2 * std::abs(v) / std::pow(d, 4.0f / 3.0f);
     };
+    if (s_bedManningColumnSpeedForTest) {   // 26.20 diagnostic: one factor per face column, from its depth-mean speed
+        auto column = [&](auto faceAt, auto fillL, auto fillR, float d) {
+            if (d < 1e-3f) return;
+            double q = 0.0, f = 0.0;
+            for (int y = 0; y < ny; ++y) { const double w = 0.5 * (fillL(y) + fillR(y)); q += w * faceAt(y); f += w; }
+            if (f <= 0.0) return;
+            const float k = 1.0f / (1.0f + dt * g * n2 * static_cast<float>(std::abs(q / f)) / std::pow(d, 4.0f / 3.0f));
+            for (int y = 0; y < ny; ++y) faceAt(y) *= k;
+        };
+        for (int z = 0; z < nz; ++z) for (int x = 1; x < nx; ++x)
+            column([&](int y) -> float& { return m_grid.u(x, y, z); }, [&](int y) { return m_grid.f(x - 1, y, z); }, [&](int y) { return m_grid.f(x, y, z); },
+                   0.5f * (depth[static_cast<size_t>(x - 1) + static_cast<size_t>(nx) * z] + depth[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]));
+        for (int z = 1; z < nz; ++z) for (int x = 0; x < nx; ++x)
+            column([&](int y) -> float& { return m_grid.w(x, y, z); }, [&](int y) { return m_grid.f(x, y, z - 1); }, [&](int y) { return m_grid.f(x, y, z); },
+                   0.5f * (depth[static_cast<size_t>(x) + static_cast<size_t>(nx) * (z - 1)] + depth[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]));
+        return;
+    }
     for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 1; x < nx; ++x)
         damp(m_grid.u(x, y, z), 0.5f * (depth[static_cast<size_t>(x - 1) + static_cast<size_t>(nx) * z] + depth[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]));
     for (int z = 1; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x)

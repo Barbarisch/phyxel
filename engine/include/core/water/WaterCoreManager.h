@@ -294,6 +294,13 @@ public:
     /// E2: one world voxel column's water from the last surface fields - the highest top over the
     /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
     bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
+    /// 26.20 measurement: the same column's top run over its WET sub-columns - the mean, the lowest and the highest top, and how
+    /// many sub-columns are wet. A depth gauge reads the mean; the highest (columnWater's) reads a sloped or rippled surface high.
+    struct ColumnSurfaceStats { float mean = 0.0f, lowest = 0.0f, highest = 0.0f; int wet = 0, sub = 0; };
+    bool columnSurfaceStats(int wx, int wz, ColumnSurfaceStats& out) const;
+    /// 26.20 measurement: the water IN world voxel column (wx, wz) as a depth (m^3 over its 1 m^2) - the quantity a mass
+    /// gauge reads, not a surface. Reads a GPU volume back (rate-limited to once a second in realtime): a debug cost.
+    bool columnMassDepth(int wx, int wz, double& depthM);
     /// Measurement (20, M2): the drawn surface of the volume sub-column under world (x, z) from the last
     /// surfaceFields(): `level` = the top of the run that starts lowest (the pond itself), `top` = the highest
     /// run's top (a splash thrown above it). False when no volume owns the column or it is dry.

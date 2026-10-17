@@ -21,6 +21,9 @@ def main():
     ap.add_argument("--q", type=float, default=0.2)
     ap.add_argument("--samples", type=int, default=10)
     ap.add_argument("--model", default="pond", choices=("pond", "column"), help="the running pond volume, or the running column region")
+    ap.add_argument("--stat", default="highest", choices=("highest", "mean", "mass"),
+                    help="pond only (26.20): the voxel column's HIGHEST wet sub-column (water_av_column's surface_y, what 26.15 read) "
+                         "or the MEAN over its wet sub-columns (a depth gauge), or MASS: the water in the column as a depth (a GPU read-back)")
     args = ap.parse_args()
     B.GRID = args.grid
     api = Api(args.url)
@@ -31,7 +34,12 @@ def main():
         cols = []
         if args.model == "pond":
             for i in range(0, len(pts), 64):   # the route answers at most 64 points a call
-                cols += api.debug("water_av_column", {"points": pts[i:i + 64]}).get("columns", [])
+                got = api.debug("water_av_column", {"points": pts[i:i + 64], "mass": args.stat == "mass"}).get("columns", [])
+                for c in got:
+                    if c.get("surface_y") is None: continue
+                    if args.stat == "mean": c["surface_y"] = c["surface_mean"]
+                    if args.stat == "mass": c["surface_y"] = B.bed_top(int(math.floor(c["x"]))) + c["mass_depth"]
+                cols += got
         else:
             rid = api.debug("water_columns", {}).get("regions", [])[0]["id"]
             for z in (B.Z0 + 0.5, B.Z1 + 0.5):
@@ -52,11 +60,11 @@ def main():
     width = B.Z1 - B.Z0 + 1
     dn = (args.q / width * B.N / math.sqrt(B.SLOPE)) ** 0.6
     mean = sum(r["mean_depth"] * (r["x1"] - r["x0"] + 1) for r in whole) / max(1, sum(r["x1"] - r["x0"] + 1 for r in whole))
-    out = {"q": args.q, "grid": args.grid, "manning_depth": dn, "whole_reach_mean_depth": mean, "ratio": mean / dn,
+    out = {"q": args.q, "grid": args.grid, "stat": args.stat if args.model == "pond" else "point", "manning_depth": dn, "whole_reach_mean_depth": mean, "ratio": mean / dn,
            "speed_by_continuity": args.q / (width * mean), "manning_speed": args.q / (width * dn), "reaches": reaches, "profile": prof}
     for r in reaches: print(f"reach bed {r['bed']:.3f}  x {r['x0']}-{r['x1']}  mean {r['mean_depth']:.3f}  head {r['head_depth']:.3f}  edge {r['edge_depth']:.3f}")
     print(json.dumps({k: v for k, v in out.items() if k not in ("reaches", "profile")}))
-    (B.EV / f"creekbench_{args.model}_g{args.grid}_q{args.q:g}_profile.json").write_text(json.dumps(out, indent=1))
+    (B.EV / f"creekbench_{args.model}_g{args.grid}_q{args.q:g}{'_' + args.stat if args.model == 'pond' and args.stat != 'highest' else ''}_profile.json").write_text(json.dumps(out, indent=1))
 
 
 if __name__ == "__main__":

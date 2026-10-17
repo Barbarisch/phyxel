@@ -1666,6 +1666,39 @@ bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& f
     return false;
 }
 
+bool WaterCoreManager::columnSurfaceStats(int wx, int wz, ColumnSurfaceStats& out) const {
+    for (const auto& f : m_fields) {
+        const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
+        const int bx = wx * per - f.origin.x, bz = wz * per - f.origin.z;
+        if (bx < 0 || bz < 0 || bx + per > f.nx || bz + per > f.nz) continue;
+        double sum = 0.0; out = ColumnSurfaceStats{}; out.lowest = 1e30f; out.highest = -1e30f; out.sub = per * per;
+        for (int k = 0; k < per; ++k) for (int i = 0; i < per; ++i) {
+            const SurfaceColumn& c = f.at(bx + i, bz + k);
+            const int runs = static_cast<int>(c.runs + 0.5f);
+            if (runs <= 0) continue;
+            const float t = c.top[std::min(runs, kSurfaceMaxRuns) - 1];
+            sum += t; ++out.wet; out.lowest = std::min(out.lowest, t); out.highest = std::max(out.highest, t);
+        }
+        if (out.wet == 0) return false;
+        out.mean = static_cast<float>(sum / out.wet);
+        return true;
+    }
+    return false;
+}
+
+bool WaterCoreManager::columnMassDepth(int wx, int wz, double& depthM) {
+    for (auto& av : m_avs) {
+        if (wx < av->minVoxel.x || wx > av->maxVoxel.x || wz < av->minVoxel.z || wz > av->maxVoxel.z) continue;
+        syncFromGpu(*av, m_realtime);
+        const int bx = wx * av->per - av->grid->spec().origin.x, bz = wz * av->per - av->grid->spec().origin.z;
+        double mass = 0.0;
+        for (int k = 0; k < av->per; ++k) for (int i = 0; i < av->per; ++i) mass += av->grid->columnMass(bx + i, bz + k);
+        depthM = mass;   // m^3 over the voxel column's 1 m^2
+        return true;
+    }
+    return false;
+}
+
 const std::vector<WaterSurfaceCell>& WaterCoreManager::surfaceCells() {
     for (auto& av : m_avs) syncFromGpu(*av, m_realtime);   // the renderer: once a second in realtime, every step otherwise
     m_surface.clear();

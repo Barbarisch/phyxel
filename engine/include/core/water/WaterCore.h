@@ -370,6 +370,9 @@ public:
     /// 26.9: the hydrostatic ghost at a clamped surface (surfaceGhost), CPU and GPU; false = the old p_air = 0 (the A/B,
     /// `/api/debug/water_transport {surface_ghost}`)
     static inline bool s_surfaceGhost = true;
+    /// 26.20 diagnostic: the bed's Manning factor from the column's DEPTH-MEAN speed (one factor for every layer of a face column,
+    /// the column law exactly) instead of each face's own speed. false = today. The stepped-bed rig's one variable.
+    static inline bool s_bedManningColumnSpeedForTest = false;
     WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params = SolverParams{});
 
     void setTransport(std::unique_ptr<IWaterTransport> t);

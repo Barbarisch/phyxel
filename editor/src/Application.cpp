@@ -14150,8 +14150,16 @@ void Application::registerWaterCommands() {
                 if (!pt.is_array() || pt.size() < 2 || out.size() >= 64) continue;
                 float y = 0.0f; glm::vec2 flow(0.0f);
                 const int x = static_cast<int>(std::floor(pt[0].get<float>())), z = static_cast<int>(std::floor(pt[1].get<float>()));
-                if (waterCore->columnWater(x, z, y, flow)) out.push_back({{"x", x}, {"z", z}, {"surface_y", y}, {"u", flow.x}, {"w", flow.y}});
-                else out.push_back({{"x", x}, {"z", z}, {"surface_y", nullptr}});
+                if (waterCore->columnWater(x, z, y, flow)) {
+                    nlohmann::json c = {{"x", x}, {"z", z}, {"surface_y", y}, {"u", flow.x}, {"w", flow.y}};
+                    // 26.20: surface_y is the HIGHEST wet sub-column (what debris reads); a depth gauge wants the mean
+                    Core::Water::WaterCoreManager::ColumnSurfaceStats st;
+                    if (waterCore->columnSurfaceStats(x, z, st))
+                        c.update({{"surface_mean", st.mean}, {"surface_lowest", st.lowest}, {"wet_sub", st.wet}, {"sub", st.sub}});
+                    double md = 0.0;   // {mass: true}: the water in the column as a depth (a GPU read-back - debug only)
+                    if (cmd.params.value("mass", false) && waterCore->columnMassDepth(x, z, md)) c["mass_depth"] = md;
+                    out.push_back(c);
+                } else out.push_back({{"x", x}, {"z", z}, {"surface_y", nullptr}});
             }
         r = {{"success", true}, {"columns", out}};
     });

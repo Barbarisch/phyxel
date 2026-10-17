@@ -103,7 +103,10 @@ API's whole-world NPC nav rebuild (fixed: the touched columns only) and ~148 ms 
 records which cubes changed, the water re-reads and patches only those, in place.
 Built 2026-10-17: the same trench clip went from 38 freezes (~1.27 s per dig) to 0; worst frame per dig ~22 ms; the water's
 part 1.5-5 ms; walking across chunks costs the water nothing. **Signed off by the owner 2026-10-17** ("wow that looks way better").
-**Next (started 2026-10-17):** 26.20 - why the pond model runs 6-10 % deeper than the column model on the stepped bed; then P3c, then P3d. The §23 slime experiment stays queued.
+**26.20 (2026-10-17) ANSWERED:** the pond's water is at the textbook depth on the stepped bed (0.187 / 0.306 m vs 0.190 /
+0.306); 26.15's "deeper" was the gauge (the highest sub-column) plus AIR inside flowing water (cells under the surface 4-10 %
+empty, CPU and GPU) - the drawn creek stands 9-26 mm above its water.
+**Next:** the owner's call - the air in moving water (§24.11's volume correction) or P3c; then P3d. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5213,8 +5216,8 @@ are open - the cost 3x, the bed comparison; 26.14). P4, P5 **not started**.
 **Status (2026-10-17):** P3's cost work since: 26.15 the bench re-carved at 1/9 m, both models on the same bed (built); 26.16 the
 water's call not waited on, frame 12.9 -> 7.4 ms (built); 26.17 flat 8 x 2 x 8 bricks, GPU 1.83 -> 1.57 ms (**signed off**
 2026-10-16); 26.18 ground bricks, GPU 1.56 -> 1.35 ms (built); 26.19 a dig without a freeze, 38 freezes -> 0 (**signed off**
-2026-10-17). **P3 open, in order:** (1) the pond model 6 % / 10 % deeper than the column model on the same stepped bed (26.15) -
-26.20; (2) P3c, the dam & pond bench as pond water against 25.38's numbers; (3) P3d, the column regions and windows removed from
+2026-10-17). **P3 open, in order:** (1) ~~the pond model 6 % / 10 % deeper on the stepped bed~~ CLOSED by 26.20 - its water is at the
+reference depth; the drawn surface stands 5-7 % high on air inside moving water (to design, owner's call); (2) P3c, the dam & pond bench as pond water against 25.38's numbers; (3) P3d, the column regions and windows removed from
 near water.
 
 - **P1 - the pond model carries a creek.** [DONE, signed off 2026-10-13 - 26.5] Find, by measurement, why the pond core runs shallow fast water deep and slow,
@@ -5911,7 +5914,8 @@ walls (hydraulic radius):
 
 - Both models run DEEPER than Manning on this bed: the 1/9 m drops cost head (the flow draws down to ~0.11-0.14 m at each
   edge (q 0.2) and expands below it) - the column model, which has no wall friction, is 1.14x / 1.07x Manning-wide.
-- The pond model is 6 % / 10 % deeper than the column model on the same ground, and its reaches deepen slightly downstream at
+- **[Corrected by 26.20: the gauge below read the highest drawn sub-column; the WATER is at the column model's depth - 0.187 /
+  0.306 m - and the drawn surface stands high on air inside the moving water.]** The pond model is 6 % / 10 % deeper than the column model on the same ground, and its reaches deepen slightly downstream at
   q 0.5 (0.324 -> 0.340 m; the column's stay at 0.306). The pressure solve is NOT the cause: 80 sweeps gives the same depth as
   40 (0.337 vs 0.336 m). Nor is the bed law: `applyBedManning` (and GPU mode 10) divides every layer's face velocity by the
   same depth-averaged factor, which is the column law exactly. Open: where the extra drag comes from (the 3-D core resolves
@@ -6312,6 +6316,84 @@ creek had run ~6 min before this dig, the earlier clip's longer: 36.7 vs 46.8 m^
 **The walk:** the camera flown across 11 chunk boundaries beside the creek - 11 pool revisions, 0 whole-box re-reads, 0 cells
 re-sampled, worst frame 6.5 ms. (Not measured before the change: that each crossing cost a full re-read follows from the code.)
 The 60 s clip to watch: `creekbench_dig_bank_trench_top_2619.mp4` beside the old `creekbench_dig_bank_trench_top.mp4`.
+
+### 26.20 Why the pond model runs deeper on the stepped bed - measured (2026-10-17). Status: ANSWERED - it does not; its flowing water holds air
+
+**The question (26.15, open):** on the creek bench's 1/9 m carve the pond model runs 6 % (q 0.2 m^3/s) / 10 % (q 0.5) deeper
+than the column model on the same ground. Physics the column model cannot hold (the 3-D flow over each drop), or a defect?
+
+**A 1-D reference first** (`tools/water_stepped_reference.py`; the standard gradually-varied-flow march, Manning n 0.035, upstream
+from the channel's free overfall; at each drop either energy conserved or momentum with a hydrostatic riser). On the bench's bed
+(flat 22.2 m reaches, 1/9 m drops, 1:200 overall) **every drop is a free overfall** - the tailwater is too low to drown it, the
+flow passes critical depth at each brink - so each reach is the backwater from its brink and the rule at the drop does not
+matter (the two agree to 0.3 %):
+
+| unit q (m^2/s) | Manning (smooth 1:200) | 1-D reference, stepped | column model, bench (26.15) | pond model, bench (26.15) |
+|---|---|---|---|---|
+| 0.1 (bench q 0.2) | 0.165 m | **0.190 m** (1.155x) | 0.189 | 0.199 (+5 % over the reference) |
+| 0.25 (bench q 0.5) | 0.285 m | **0.306 m** (1.07x) | 0.305 | 0.336 (+10 %) |
+
+The column model IS the textbook answer on this bed; the pond model is the one off it. So the question becomes which part of
+the pond model adds the depth. Critical depth at q 0.1 is 0.10 m - under one 1/9 m cell - so the brink is barely resolved.
+
+**The rig** (`tests/core/WaterSteppedBedTest.cpp`, diagnostics): the bench's bed in a straight 1/3 m wide channel, five reaches
+plus a pit, both models ALONE on the same ground, frictionless side walls, measured over reaches 1-3 at steady state; every
+setting from the environment (`SB_*`) so one variable moves per run.
+
+**Predictions (written before the first run):**
+1. Smooth control (no drops, the slope a tilted frame): both models at Manning (P1 measured the pond at 100.0 %).
+2. The bench's bed: the rig reproduces 26.15 - column ~0.189 / pond ~0.199 at q 0.1.
+3. Candidate A - `applyBedManning` brakes each face by its OWN speed (`v / (1 + dt g n^2 |v| / d^(4/3))`). Manning's law is
+   written for the depth-mean speed; over a drop the layers differ (a fast jet over slow or reversed water near the bed), and
+   the per-face form then adds drag (mean of v|v| over the column >= U|U|). If A is the cause, the depth-mean form
+   (`WaterSolver::s_bedManningColumnSpeedForTest`, one factor per face column) brings the pond to the reference within ~2 % on
+   the steps and changes nothing on the smooth control (a uniform profile).
+4. Candidate B - the brink under-resolved at 1/9 m: if B, the pond at 1/18 m cells on the same bed moves toward the
+   reference, and the gap is larger at q 0.1 (dc < 1 cell) than its share at q 0.25 would suggest.
+
+**Results on the rig** (depth = the water IN each column, as the P1 rig measures; raw runs `steppedbed_2620.txt`):
+
+| unit q | 1-D reference | column 1/3 m | column 1/9 m | pond (today) | pond, depth-mean Manning (A) | smooth control: pond / column |
+|---|---|---|---|---|---|---|
+| 0.1 | 0.190 | 0.188 | 0.189 | **0.188** | 0.188 | 1.000x / 0.999x Manning |
+| 0.25 | 0.306 | 0.306 | 0.306 | **0.310** (+1.3 %) | 0.309 | 0.998x Manning |
+
+- Prediction 1 held (both at Manning on the smooth bed). **Prediction 2 FAILED:** on the rig the pond model is NOT deeper - it
+  carries the stepped creek at the reference depth. Candidate A changes nothing (0.1880 vs 0.1882) - rejected. Candidate B's
+  1/18 m runs were stopped unfinished once the live gauge below answered the question (the depth is right at 1/9 m).
+- So the bench's 6-10 % had to come from something the bench has and the rig does not: the GPU, the 2 m channel, or the GAUGE.
+
+**The gauge.** `tools/water_creek_profile.py` (26.15) read `water_av_column`'s `surface_y` - the HIGHEST wet sub-column of the
+voxel column's 81 (what debris reads, `WaterCoreManager::columnWater`) - minus the carve. `water_av_column` now also returns
+`surface_mean`, `surface_lowest`, `wet_sub` / `sub`, and with `{mass: true}` `mass_depth` (the water in the column over its 1 m^2,
+`columnMassDepth`, a GPU read-back); the profile tool takes `--stat highest|mean|mass`. Live, the same running creek, steady:
+
+| bench q (m^3/s) | highest sub-column (26.15's gauge) | mean drawn surface | **water in the column** | 1-D reference | column model (26.15) |
+|---|---|---|---|---|---|
+| 0.2 | 0.1985 | 0.1958 | **0.1873** | 0.190 | 0.189 |
+| 0.5 | 0.3306 | 0.3274 | **0.3058** | 0.306 | 0.305 |
+
+**Answer: the pond model's WATER is at the textbook depth on the stepped bed (-1.4 % / 0.0 %), as the column model's is.**
+26.15's "6 % / 10 % deeper" was the gauge: the highest sub-column adds 1-1.5 %, the rest is the drawn surface standing above the
+water it holds.
+
+**Why the surface stands high - air inside flowing water (a defect, both backends).** Probed live (x 40 / 60 / 70, one
+sub-column, bottom up): fills 0.93 0.90 0.02 / 0.92 0.88 0.09 / 0.89 0.67 0.00 - cells with water above them 7-11 % empty. The
+rig shows the same on the CPU reference, and on the SMOOTH channel too:
+
+| rig (CPU) | cells with water above them, mean fill | the water's top above its amount |
+|---|---|---|
+| smooth, q 0.1 / 0.25 | 0.92 / 0.96 | 9 / 9 mm |
+| steps, q 0.1 / 0.25 | 0.90 / 0.91 | 16 / 26 mm |
+
+Moving water in the pond model is bulked with 4-10 % air below its surface: the amount and the flow are right (Manning, the books
+exact), but what is DRAWN stands 9-26 mm (5-7 %) high, more over drops and at higher flow. This is §24.11's open row ("voids made
+by moving water are closed by compaction, not prevented - the cure is a volume correction in the pressure solve"), measured at
+last on flowing water. P1's "100.0 % of Manning" (26.5) measured the water, not the surface; it stands.
+
+**Consequences.** P3's depth gate (26.13) is met when depth means the water: both flows within 1.5 % of the reference and the
+column model - the bed comparison is CLOSED. Open, to design if the owner wants it before P3c: the air in moving water (a volume
+correction in the projection, CPU + GPU) - it would bring the drawn creek down onto its water. P3c's gauges read `--stat mass`.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
