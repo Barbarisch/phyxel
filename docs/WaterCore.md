@@ -6526,6 +6526,22 @@ with the rule always on (the default) the air never builds, so there is no step 
 not apply). From this pose the change reads mostly as the bright reflection blocks moving; it is 1-2 cm on a 31 cm creek.
 Rig runs: `steppedbed_2621.txt`; live A/B: `creekbench_pond_g9_q{0.2,0.5}_vc_ab.json`.
 
+**CORRECTION (found 2026-10-17, after sign-off).** The report to the owner said "the full CPU and GPU water suite passes (343)".
+The 343 were `phyxel_tests` only; the GPU water tests (`WaterCoreGpuParityTest`, `WaterBrickTest`, `WaterRippleGpuParityTest`)
+are in `phyxel_integration_tests`, which was not run. Run since (from the repo root - it reads `shaders/` relative to the working
+directory; from its own folder every GPU test fails to load a pipeline): **40 of 42 pass**, two fail:
+- `WaterCoreGpuParityTest.GpuFlipBulkParityAndRunup` - the GPU particle run-up 1.19 h0 (bound > 1.22). **Not 26.21's:** the same
+  1.19 with the correction off (rebuilt with time 0), and the correction never runs for particle transport. Pre-existing, open.
+- `WaterBrickTest.FlatBricksEqualCubic` - the 8 x 4 x 8 (four-tall) dam break: "halo short 3" (water within reach of a brick that
+  was not stored). **26.21's:** 0 with the correction off. Everything else in the scene is exact (sparse = dense, 0 differing
+  ticks, no flux into absent bricks, mass 2.106996 both); the shipped 8 x 2 x 8 bricks (26.17) and the 8^3 pass every scene.
+  Diagnosed with test-only hooks (`WaterCoreGpu::s_haloShort*ForTest`): all 3 come from FILM records (none from liquid, none
+  from film turning liquid in place), each needing the brick diagonally (-x, +y) from a film brick whose film lies 1 cell from
+  both those faces, travel 2. Either the halo check's per-face minima pair two different film cells into a corner that is not
+  wet (a false alarm - the check is conservative by design), or the column carry (21.2, over-full water moved UP its column,
+  not bounded by velocity) lifted a film past the travel allowance. **Open, not fixed; the test stays red** (its bound is a
+  guard, not edited). Next step when it is taken up: per-cell positions of the film at the short calls.
+
 ### 26.22 P3c - the dam & pond bench as pond water: design, check, run (2026-10-17). Status: DONE; signed off by the owner 2026-10-17 ("video looks good")
 
 **The question.** 25.38 ran the dam & pond bench on the COLUMN model: a creek fills a 6 x 6 m pond, the pond spills, a dam

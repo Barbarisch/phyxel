@@ -135,6 +135,8 @@ public:
         std::vector<float> hostDeposit;  ///< dense deposits pending for the next step
         std::vector<int> sourceCells;    ///< dense indices of the pumps (their bricks stay stored)
         int lastAllocated = 0, lastFreed = 0, lastRings = 0, lastCompacted = 0; long lastHeld = 0;
+        std::vector<int> liquidAtStartForTest;
+        int lastTravelForTest = 0;   ///< 26.23 diagnostic: the travel the residency allowed this call (cells)   ///< 26.23 diagnostic: packed bricks holding LIQUID at the call's start
         double unstoredM3 = 0.0;          ///< water the last upload could not store (counted, never silent)
         Buffer f, fOrig, fPrev, u, v, w, uOld, vOld, wOld, occ, src, liq, diag, rhs, p, res;
         Buffer fLo;                      ///< 26.10: per cell, the part of the transport's fill change the float store could not hold
@@ -221,6 +223,11 @@ public:
     /// 26.19 TEST ONLY (the red control): updateOccupancy leaves the bricks' all-ground flags as they were (a dug ground brick
     /// stays ground)
     static inline bool s_patchStaleGroundForTest = false;
+    /// 26.23 diagnostic (WaterBrickTest): each halo-short brick by the record that needed it - a LIQUID record in a brick that
+    /// held liquid at the call's start (water moved past the travel allowance), one that held only film then (film became liquid
+    /// in place), or a FILM record
+    static inline long s_haloShortLiquidOldForTest = 0, s_haloShortLiquidNewForTest = 0, s_haloShortFilmForTest = 0;
+    static inline std::string s_haloShortDetailForTest;   ///< 26.23: per short brick - the film brick's offset, its face distances, the call's travel
     /// 26.10 test hook: copy f after every stage of each single-tick, single-substep call and sum it on the host in double -
     /// exact per-stage mass changes (the device's own sums are float). s_stageDm[k] accumulates stage k's change in cell
     /// fractions: 0 between calls, 1 sources, 2 transport gather, 3 transport carry, 4 ledger, 5 compaction, 6 rest of the

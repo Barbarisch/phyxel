@@ -117,6 +117,12 @@ protected:
                     name, r.ticksCompared, r.ticksDiffering, r.diff.first.empty() ? "-" : r.diff.first.c_str(), r.sparseHeight, r.minBricks, r.maxBricks,
                     64L * r.sparseHeight * r.minBricks, 64L * r.sparseHeight * r.maxBricks, 64L * r.denseHeight * r.denseBricks,
                     r.allocated, r.freed, r.haloShort, r.flux, r.sentinel ? "DIRTY" : "clean", r.massDense, r.massSparse);
+        if (r.haloShort > 0)   // 26.23 diagnostic: what needed the short bricks
+            std::printf("    halo short by cause: liquid that was liquid at the call's start %ld, liquid that was only film then %ld, film %ld\n",
+                        WaterCoreGpu::s_haloShortLiquidOldForTest, WaterCoreGpu::s_haloShortLiquidNewForTest, WaterCoreGpu::s_haloShortFilmForTest);
+        if (r.haloShort > 0) std::printf("    %s\n", WaterCoreGpu::s_haloShortDetailForTest.c_str());
+        WaterCoreGpu::s_haloShortDetailForTest.clear();
+        WaterCoreGpu::s_haloShortLiquidOldForTest = WaterCoreGpu::s_haloShortLiquidNewForTest = WaterCoreGpu::s_haloShortFilmForTest = 0;
     }
     void expectEqual(const char* name, const SceneResult& r) {
         report(name, r);

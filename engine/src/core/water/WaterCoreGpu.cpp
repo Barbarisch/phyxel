@@ -430,6 +430,35 @@ long WaterCoreGpu::haloShortAfterCall(const Volume& vol) const {
     }
     long shortBy = 0;
     for (size_t m = 0; m < vol.mapCount; ++m) if (need[m] && vol.map[m] == 0) ++shortBy;
+    if (shortBy > 0) {   // 26.23 diagnostic: which record needed each short brick
+        std::vector<char> nOld(vol.mapCount, 0), nNew(vol.mapCount, 0), nFilm(vol.mapCount, 0);
+        for (size_t s = 1; s < static_cast<size_t>(vol.slotsUsed); ++s) {
+            const int packed = vol.slotBrick[s];
+            if (packed < 0) continue;
+            const glm::ivec3 b(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
+            const bool wasLiquid = std::find(vol.liquidAtStartForTest.begin(), vol.liquidAtStartForTest.end(), packed) != vol.liquidAtStartForTest.end();
+            for (int r = 0; r < 2; ++r) {
+                const int rec = info[2 * s + r];
+                if (!(rec & 1)) continue;
+                int dist[6]; for (int k = 0; k < 6; ++k) dist[k] = (rec >> (1 + 3 * k)) & 7;
+                markNeed(vol, r == 0 ? nFilm : (wasLiquid ? nOld : nNew), b, dist, r == 0 ? kReachFilm : kReachLiquid);
+                if (r == 0) {   // which unstored bricks this film record alone needs, with its distances
+                    std::vector<char> one(vol.mapCount, 0);
+                    markNeed(vol, one, b, dist, kReachFilm);
+                    for (size_t m = 0; m < vol.mapCount; ++m) if (one[m] && vol.map[m] == 0) {
+                        const int mx = static_cast<int>(m % vol.bn.x), my = static_cast<int>((m / vol.bn.x) % vol.bn.y), mz = static_cast<int>(m / (static_cast<size_t>(vol.bn.x) * vol.bn.y));
+                        char buf[200];
+                        std::snprintf(buf, sizeof buf, "[film brick (%d,%d,%d) -> short (%+d,%+d,%+d); face dist -x%d +x%d -y%d +y%d -z%d +z%d; travel %d] ",
+                                      b.x, b.y, b.z, mx - b.x, my - b.y, mz - b.z, dist[0], dist[1], dist[2], dist[3], dist[4], dist[5], vol.lastTravelForTest);
+                        s_haloShortDetailForTest += buf;
+                    }
+                }
+            }
+        }
+        for (size_t m = 0; m < vol.mapCount; ++m) if (need[m] && vol.map[m] == 0) {
+            if (nOld[m]) ++s_haloShortLiquidOldForTest; else if (nNew[m]) ++s_haloShortLiquidNewForTest; else if (nFilm[m]) ++s_haloShortFilmForTest;
+        }
+    }
     return shortBy;
 }
 
@@ -1232,8 +1261,12 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         // (vmax over every tick of the call, + 1). Needs > one ring (8 cells) only for fast water.
         const int travel = static_cast<int>(std::ceil(vmax * dt * ticks / vol.spec.h)) + 1;
         const int reach = kReachLiquid + travel;                 // the larger of the two (liquid); films get kReachFilm + travel
+        vol.lastTravelForTest = travel;
         const int rings = std::max(1, (reach + vol.by - 2) / vol.by);   // reported only: the rings up/down (markNeed walks each axis to the reach)
         std::vector<char> need(vol.mapCount, 0);
+        vol.liquidAtStartForTest.clear();
+        if (vol.recordValid) for (size_t s = 1; s < static_cast<size_t>(vol.slotsUsed); ++s)   // 26.23 diagnostic
+            if (vol.slotBrick[s] >= 0 && (vol.hostInfo[2 * s + 1] & 1)) vol.liquidAtStartForTest.push_back(vol.slotBrick[s]);
         if (vol.recordValid && !vol.freezeForTest) {
             const int32_t* info = vol.hostInfo.data();
             for (size_t s = 1; s < static_cast<size_t>(vol.slotsUsed); ++s) {
