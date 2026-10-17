@@ -30,15 +30,24 @@ POND_AREA = (POND[1] - POND[0] + 1) * (POND[3] - POND[2] + 1)
 
 
 def build(api):
-    # the creek's last metres, carved like the creek (25.22: the line floored to the 1/3 m grid)
+    # the creek's last metres, carved like the creek (cb.bed_top: the line floored to the carve's grid - 1/9 m since 26.15;
+    # gravel subcubes for whole thirds, microcubes for the rest, as water_creek_bench.py --build)
     world_job(api, "/api/world/clear", {"x1": 110, "y1": 15, "z1": cb.Z0, "x2": 111, "y2": 15, "z2": cb.Z1})
+    subs, micros = [], []
     for x in (110, 111):
-        top = math.floor(cb.line(x + 0.5) * 3 + 1e-4) / 3.0
+        nine = int(round((cb.bed_top(x) - 15.0) * 9))
+        layers, rem = nine // 3, nine % 3
         for z in range(cb.Z0, cb.Z1 + 1):
-            for sy in range(int(round((top - 15.0) * 3))):
-                for sx in range(3):
-                    for sz in range(3):
-                        api.post("/api/world/subcube", {"x": x, "y": 15, "z": z, "sx": sx, "sy": sy, "sz": sz, "material": "Gravel"})
+            for sx in range(3):
+                for sz in range(3):
+                    for sy in range(layers):
+                        subs.append({"x": x, "y": 15, "z": z, "sx": sx, "sy": sy, "sz": sz, "material": "Gravel"})
+                    for my in range(rem):
+                        for mx in range(3):
+                            for mz in range(3):
+                                micros.append({"x": x, "y": 15, "z": z, "sx": sx, "sy": layers, "sz": sz, "mx": mx, "my": my, "mz": mz, "material": "Gravel"})
+    if subs: api.post("/api/world/subcubes/batch", {"subcubes": subs})
+    if micros: api.post("/api/world/microcubes/batch", {"microcubes": micros})
     world_job(api, "/api/world/clear", {"x1": POND[0], "y1": 14, "z1": POND[2], "x2": POND[1], "y2": 15, "z2": POND[3]})
     world_job(api, "/api/world/fill", {"x1": POND[0], "y1": 13, "z1": POND[2], "x2": POND[1], "y2": 13, "z2": POND[3], "material": "Gravel"})
     world_job(api, "/api/world/clear", {"x1": SPILL[0], "y1": 15, "z1": SPILL[2], "x2": SPILL[1], "y2": 15, "z2": SPILL[3]})
@@ -71,6 +80,8 @@ def main():
     ap.add_argument("--dam-seconds", type=float, default=240.0)
     ap.add_argument("--break-seconds", type=float, default=150.0)
     ap.add_argument("--record", action="store_true")
+    ap.add_argument("--pond", action="store_true", help="26.22 P3c: the bench as POND water (one sparse GPU volume), not a column region")
+    ap.add_argument("--sweeps", type=int, default=0, help="--pond: pressure sweeps per substep (0 = the engine's automatic count; the creek bench runs 40); tags the outputs _s<N>")
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(120)
     if args.build: build(api)
@@ -79,6 +90,7 @@ def main():
     if not args.run: return
     EV.mkdir(parents=True, exist_ok=True)
     api.debug("water_av_realtime", {"on": True})
+    if args.pond: return run_pond_water(api, args)
     for old in api.debug("water_columns", {}).get("regions", []): api.debug("water_columns", {"id": old["id"], "destroy": True})
     r = api.debug("water_columns", {"create": REGION, "manning_n": cb.N})
     if "error" in r: raise SystemExit(r)
@@ -184,6 +196,137 @@ def main():
         "step_ms_max": max(r["step_ms"] for r in rows),
     }
     (EV / "dam_pond.json").write_text(json.dumps({"summary": summary, "rows": rows}, indent=1))
+    print(json.dumps(summary, indent=1))
+
+
+AV_BOX = {"x1": 10, "y1": 14, "z1": 29, "x2": 127, "y2": 16, "z2": 34}   # 26.22: 1062 x 27 x 54 cells at 1/9 m (1.55 M, under the 2 M cap)
+POND_COLS = [[x + 0.5, z + 0.5] for x in range(POND[0], POND[1] + 1) for z in range(POND[2], POND[3] + 1)]
+SPILL_COLS = [[x + 0.5, z + 0.5] for x in range(SPILL[0], SPILL[1] + 1) for z in range(SPILL[2], SPILL[3] + 1)]
+
+
+def run_pond_water(api, args):
+    """26.22 P3c - the same three phases on POND water: one sparse GPU volume over creek + pond + spill, springs across the
+    head's 1/9 m cells, outfalls across the spill channel's end. Gauges: pond and pool levels = the drawn surface's mean (still
+    water: 26.21), the flow INTO the pond by the books = d(pond + spill-channel water)/dt + the outfall rate (5 s windows),
+    the ledger from the volume's record. Writes dam_pond_pondwater.json (+ .mp4 with --record)."""
+    for old in api.debug("water_columns", {}).get("regions", []): api.debug("water_columns", {"id": old["id"], "destroy": True})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    h = 1.0 / 9.0
+    r = api.debug("water_av_create", {**AV_BOX, "cellSize": h, "backend": "gpu", "auto_sleep": False, "manning_n": cb.N, **({"sweeps": args.sweeps} if args.sweeps else {})})
+    tag = f"_s{args.sweeps}" if args.sweeps else ""
+    sweeps_used = r["volume"].get("gpu_sweeps")
+    if "error" in r: raise SystemExit(r)
+    vid = r["volume"]["id"]
+    print("volume", {k: r["volume"].get(k) for k in ("id", "cells", "backend", "gpu_sweeps", "manning_n", "gpu_brick_height")}, flush=True)
+    for k in range(int(round((SPILL[3] - SPILL[2] + 1) / h))):
+        api.debug("water_av_source", {"id": vid, "x": SPILL[1] + 1 - h / 2, "y": SPILL_FLOOR + h / 2, "z": SPILL[2] + (k + 0.5) * h, "outfall": True})
+    pond_c = ((POND[0] + POND[1] + 1) / 2.0, (POND[2] + POND[3] + 1) / 2.0)
+    zc = cb.Z0 + 0.5 + 1.0 / 6.0
+    cam_pond = {"x": pond_c[0] - 9.0, "y": 19.5, "z": pond_c[1] + 7.0, "yaw": -38.0, "pitch": -24.0}
+    cam_dam = {"x": DAM_X - 9.0, "y": 18.2, "z": zc + 5.0, "yaw": -28.0, "pitch": -20.0}
+    camera_set(api, cam_pond)
+    time.sleep(2.0)
+    rec = None
+    total = args.fill_max + args.dam_seconds + args.break_seconds + 10
+    if args.record and shutil.which("ffmpeg"):
+        rec = subprocess.Popen([shutil.which("ffmpeg"), "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "15", "-t", str(total),
+                                "-i", "title=WaterBench_Creek", "-vf", "crop=960:630:240:42,scale=640:-2", "-c:v", "libx264", "-crf", "32", "-pix_fmt", "yuv420p",
+                                str(EV / f"dam_pond_pondwater{tag}.mp4")], stdin=subprocess.PIPE)
+    cells_z = [cb.Z0 + (k + 0.5) * h for k in range(int(round((cb.Z1 - cb.Z0 + 1) / h)))]
+    for z in cells_z:
+        api.debug("water_av_source", {"id": vid, "x": cb.X0 + h / 2, "y": cb.bed_top(cb.X0) + h / 2, "z": z, "rate": args.q / len(cells_z)})
+    t0 = time.time(); rows = []; events = []
+
+    def vol():
+        return next(x for x in api.debug("water_av_list")["volumes"] if x["id"] == vid)
+
+    def ledger(v):
+        return v["mass"] - (v.get("source_in_m3", 0.0) - v.get("outfall_out_m3", 0.0))
+
+    def poll(phase):
+        v = vol()
+        lv = api.debug("water_av_column", {"points": [list(pond_c), [DAM_X - 5.0 + 0.5, zc], [SPILL[0] + 0.5, zc]]}).get("columns", [])
+        m = api.debug("water_av_column", {"points": POND_COLS + SPILL_COLS, "mass": True}).get("columns", [])
+        store = sum(c.get("mass_depth", 0.0) for c in m)
+        et = api.get("/api/debug/engine_timing")
+        row = {"t": round(time.time() - t0, 2), "phase": phase,
+               "pond_level": lv[0].get("surface_mean") if lv and lv[0].get("surface_y") is not None else None,
+               "pool_level": lv[1].get("surface_mean") if len(lv) > 1 and lv[1].get("surface_y") is not None else None,
+               "spill_level": lv[2].get("surface_mean") if len(lv) > 2 and lv[2].get("surface_y") is not None else None,
+               "pond_store_m3": store, "in_m3": v.get("source_in_m3", 0.0), "out_m3": v.get("outfall_out_m3", 0.0), "mass_m3": v["mass"],
+               "ledger": ledger(v), "gpu_device_ms": v.get("gpu_device_ms", 0.0), "fps": et.get("fps", 0.0)}
+        rows.append(row)
+        return row
+
+    def rate(key, window, upto=None):
+        rs = [r for r in rows if upto is None or r["t"] <= upto]
+        if not rs: return None
+        w = [r for r in rs if r["t"] >= rs[-1]["t"] - window]
+        if len(w) < 2 or w[-1]["t"] - w[0]["t"] < window * 0.6: return None
+        return (w[-1][key] - w[0][key]) / (w[-1]["t"] - w[0]["t"])
+
+    # FILL
+    while time.time() - t0 < args.fill_max:
+        poll("fill"); time.sleep(0.5)
+        o = rate("out_m3", 30.0)
+        if o is not None and o >= 0.98 * args.q: break
+    # DAM
+    subs, crest = dam_subcubes()
+    camera_set(api, cam_dam)
+    before = ledger(vol())
+    for s in subs: api.post("/api/world/subcube", {**s, "material": "Stone"})
+    t_dam = round(time.time() - t0, 2)
+    time.sleep(2.0)
+    events.append({"t": t_dam, "event": "dam placed", "crest": crest, "ledger_before": before, "ledger_2s_after": ledger(vol())})
+    t_end = time.time() + args.dam_seconds
+    while time.time() < t_end: poll("dam"); time.sleep(0.5)
+    # BREAK
+    before = ledger(vol())
+    for s in subs: api.post("/api/world/subcube/remove", {"x": s["x"], "y": s["y"], "z": s["z"], "sx": s["sx"], "sy": s["sy"], "sz": s["sz"]})
+    t_break = round(time.time() - t0, 2)
+    time.sleep(2.0)
+    events.append({"t": t_break, "event": "dam removed", "ledger_before": before, "ledger_2s_after": ledger(vol())})
+    camera_set(api, cam_pond)
+    t_end = time.time() + args.break_seconds
+    while time.time() < t_end: poll("break"); time.sleep(0.5)
+    if rec:
+        try: rec.communicate(b"q", timeout=30)
+        except Exception: rec.kill()
+
+    # ---- the numbers ----
+    for i, r in enumerate(rows):   # the flow into the pond by the books, centred 5 s windows
+        w = [x for x in rows if abs(x["t"] - r["t"]) <= 2.5]
+        dt = w[-1]["t"] - w[0]["t"]
+        r["q_pond"] = ((w[-1]["pond_store_m3"] - w[0]["pond_store_m3"]) + (w[-1]["out_m3"] - w[0]["out_m3"])) / dt if dt > 2.0 else None
+    fill = [r for r in rows if r["phase"] == "fill"]
+    rise = [r for r in fill if r["pond_level"] is not None and 0.2 <= (r["pond_level"] - POND_FLOOR) <= 0.8]
+    rate_rise = ((rise[-1]["pond_level"] - rise[0]["pond_level"]) / (rise[-1]["t"] - rise[0]["t"])) if len(rise) >= 2 and rise[-1]["t"] > rise[0]["t"] else None
+    qs = [r["q_pond"] for r in rise if r["q_pond"] is not None]
+    w = [r for r in fill if r["t"] >= fill[-1]["t"] - 30.0] if fill else []
+    o = (w[-1]["out_m3"] - w[0]["out_m3"]) / (w[-1]["t"] - w[0]["t"]) / args.q if len(w) >= 2 else None
+    dam = [r for r in rows if r["phase"] == "dam" and r["q_pond"] is not None]
+    brk = [r for r in rows if r["phase"] == "break" and r["q_pond"] is not None]
+    steady = [r for r in rows if r["phase"] == "fill" and r["t"] >= fill[-1]["t"] - 30.0] if fill else []
+    med = lambda xs: sorted(xs)[len(xs) // 2] if xs else None
+    first_spill = next((r for r in fill if r["spill_level"] is not None and r["spill_level"] - SPILL_FLOOR > 0.01), None)
+    dmin = min(dam, key=lambda r: r["q_pond"]) if dam else None
+    summary = {
+        "model": "pond (26.22 P3c)", "sweeps": sweeps_used, "q": args.q, "pond_area_m2": POND_AREA, "predicted_rise_mm_s": 1000.0 * args.q / POND_AREA,
+        "measured_rise_mm_s": rate_rise * 1000.0 if rate_rise else None,
+        "q_arriving_during_rise": sum(qs) / len(qs) if qs else None,
+        "fill_seconds": fill[-1]["t"] if fill else None, "out_over_in_last30s": o,
+        "pond_over_spill_floor_when_spilling": (first_spill["pond_level"] - SPILL_FLOOR) if first_spill and first_spill["pond_level"] else None,
+        "dam_crest": crest, "pond_inflow_min_after_dam_over_q": dmin["q_pond"] / args.q if dmin else None,
+        "pond_inflow_min_t_after_dam": dmin["t"] - t_dam if dmin else None,
+        "pond_inflow_end_of_dam_over_q": dam[-1]["q_pond"] / args.q if dam else None,
+        "pool_level_max": max((r["pool_level"] or 0.0) for r in rows if r["phase"] == "dam"),
+        "overtop_t_after_dam": next((r["t"] - t_dam for r in rows if r["phase"] == "dam" and (r["pool_level"] or 0.0) > crest + 0.02), None),
+        "pond_inflow_max_after_break_over_q": max(r["q_pond"] for r in brk) / args.q if brk else None,
+        "ledger_max_abs": max(abs(r["ledger"]) for r in rows), "events": events,
+        "gpu_device_ms_median_steady_spill": med([r["gpu_device_ms"] for r in steady]), "gpu_device_ms_median_all": med([r["gpu_device_ms"] for r in rows]),
+        "gpu_device_ms_max": max(r["gpu_device_ms"] for r in rows), "fps_median": med([r["fps"] for r in rows]),
+    }
+    (EV / f"dam_pond_pondwater{tag}.json").write_text(json.dumps({"summary": summary, "rows": rows}, indent=1))
     print(json.dumps(summary, indent=1))
 
 

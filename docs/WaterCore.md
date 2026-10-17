@@ -112,7 +112,11 @@ sides asks for the inflow that refills it over 0.5 s (only what the water above 
 cells under water 0.90-0.96 -> 0.98-1.00 full, the water's top 9-26 -> 0-2.9 mm above its amount, the water's depth within 1 %.
 Live: the drawn creek 8.5 / 21.4 -> 1.5 / 2.4 mm above its water at q 0.2 / 0.5, GPU cost unchanged. Clip
 `creekbench_pond_g9_q0.5_airfix.mp4` (off -> on at 15 s).
-**Next:** P3c (26.22, the dam & pond bench as pond water) - designed, building; then P3d. The §23 slime experiment stays queued.
+**26.22 (2026-10-17) P3c RUN, not signed off:** the dam & pond bench on pond water (one 1.55 M-cell GPU volume, no engine
+change): pond rise 5.42-5.45 mm/s (Q/A 5.56), spilling out/in 0.981, the dam's pool 15.824, break surge 1.95 Q, books exact
+(1.4e-5 m^3; edits inside float noise) - the column model's numbers, except a deeper dip after the dam (27 % vs 46 %). Cost:
+3.17 ms at the automatic 160 sweeps, 1.73 ms at 40 with the same numbers. Clip `dam_pond_pondwater.mp4`.
+**Next:** the owner's look at 26.22; the automatic sweep count's rule (a default change: design + measure); then P3d. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6522,7 +6526,7 @@ with the rule always on (the default) the air never builds, so there is no step 
 not apply). From this pose the change reads mostly as the bright reflection blocks moving; it is 1-2 cm on a 31 cm creek.
 Rig runs: `steppedbed_2621.txt`; live A/B: `creekbench_pond_g9_q{0.2,0.5}_vc_ab.json`.
 
-### 26.22 P3c - the dam & pond bench as pond water: design and check (2026-10-17). Status: DESIGN
+### 26.22 P3c - the dam & pond bench as pond water: design, check, run (2026-10-17). Status: RUN, not signed off
 
 **The question.** 25.38 ran the dam & pond bench on the COLUMN model: a creek fills a 6 x 6 m pond, the pond spills, a dam
 across the creek at x 60 holds the flow back and overtops, the dam is broken and the held water surges down. P3c runs the same
@@ -6564,6 +6568,39 @@ volume; edits reach it by the pool's change list (26.19), not by chunk. *Generat
 only (`water_av_*`, `/api/world/subcube`). *Visual test:* L4 on the bench - a clip over the pond and the dam (FILL, DAM, BREAK)
 for the owner; the control is 25.38's column run on the same bench and gauges. Rig vs shipped: the bench's shipped GPU path;
 Manning in the pond is the one stated difference from a still pond's defaults. **READY.**
+
+**Built:** `tools/water_dam_pond.py --run --pond [--sweeps N] [--record]` (no engine change). `--build` re-carved the pond: the
+26.15 rebuild of the world had removed it; its last creek metres (x 110-111) now follow the 1/9 m carve (`cb.bed_top`).
+
+**Measured (two full runs, q 0.2; `dam_pond_pondwater.json` + `.mp4` at the automatic 160 sweeps, `dam_pond_pondwater_s40.json`
+at 40):**
+
+| | prediction | pond model, 160 sweeps | pond model, 40 sweeps | column model (25.38) |
+|---|---|---|---|---|
+| DP-T1 pond rise, 0.2-0.8 m | 5.56 mm/s +- 10 % | **5.45** (the creek delivering 0.197) | **5.42** (0.197) | 5.43 |
+| spill starts | <= 3 cm over the floor | **5.4 cm** - MISSED (see below) | 5.4 cm | 1.8 cm |
+| DP-T1 spilling, out / in last 30 s | 1.00 +- 0.02 | **0.981** | **0.981** | 0.980 |
+| DP-T2 the pond's inflow after the dam | 40-60 % at 60-90 s, back >= 80 % | **27 % at 85 s** - deeper than predicted; back to 94 % | 27 % at 84 s; 95 % | 46 % at 78 s; 82-94 % |
+| the dam's pool | 15.82 +- 0.03 | **15.824** | **15.824** | 15.83 |
+| DP-T3 break | 1.5-1.9 Q | **1.96 Q** - just over | 1.95 Q | 1.7-1.75 Q |
+| ledger, max over the run | <= 1e-4 m^3 | **1.4e-5** | **1.4e-5** | 1.6e-6 |
+| ledger change across dam / break (2 s) | < 1e-5 | 6.7e-6 / 1.1e-5 | 5.3e-6 / 1.6e-6 | - |
+| water GPU ms, median at steady spill | <= 2 ms | **3.17** - MISSED | **1.73** | - |
+
+- **The spill reading.** The spill channel's first column reads dry, then 3.2 cm deep: at 1/9 m the front crossing the dry
+  lip is a few cm thick, so the gauge cannot see a 1 cm spill; the pond was ~3 cm over the floor when it first wet and 5.4 cm
+  at the first sample past 1 cm. At steady spill the pond stands 17.2 cm over the floor (a broad-crested weir needs 15 cm for
+  0.2 m^3/s over 2 m - consistent). The prediction copied the column model's film-scale number; it was the wrong yardstick.
+- **The deeper dip** (27 % vs 46 %): the timing matches (the kinematic wave down 50 m of creek, 25.38), the dam's pool rises
+  the same, and the books are exact - the pond model's creek below the dam drains further before the overtopping flow
+  arrives. A difference from the column model, not a defect found; the owner's look decides.
+- **Edits never create water:** the ledger's change over the 2 s around each edit (1.6e-6 - 1.1e-5 m^3) is inside its ordinary
+  2 s wander with no edit (median 2.2e-6, max 2.1e-5) - float noise, no water made or lost by placing or removing the dam.
+- **The cost.** The automatic sweep count (1.5 x the box's longest side, clamped at 160 - right for a compact pool, 2026-10-08)
+  gives this 1062-cell-long box 160 sweeps: 3.17 ms, over the 2 ms all-water budget. At 40 (what the creek bench has run since
+  P3b) every number above is the same to 0.6 % and the cost is 1.73 ms. The still-water first guess (26.10) carries a long
+  shallow box; its sweeps only have to cross the depth and the width. **Open: the automatic count's rule** - a default change,
+  to be designed and measured on the pond rigs (the signed-off pond, the dam break, the run-up) before it changes.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
