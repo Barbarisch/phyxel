@@ -88,6 +88,14 @@ public:
     }
     uint64_t packRevision() const { return m_packRevision; }
 
+    /// WaterCore.md 26.19: an inclusive box of WORLD CUBES whose occupancy may differ from the pack before.
+    using CubeBox = OccupancyChangeLog::CubeBox;
+    /// The boxes packed after revision `since`, appended to `out`. FALSE means "assume everything changed": the history no
+    /// longer reaches back to `since`, a pack in between dropped chunks (the pool was full, so states changed with no chunk
+    /// set), or recorded more than OccupancyChangeLog::kMaxBoxesPerPack boxes. A chunk set with unchanged contents records
+    /// nothing; a chunk that arrives, leaves or falls out of the box records its whole 32^3.
+    bool changesSince(uint64_t since, std::vector<CubeBox>& out) const { return m_changes.changesSince(since, m_packRevision, out); }
+
     /// Chunks currently held, updated immediately by setChunk/removeChunk/setViewCentre — unlike
     /// stats().residentChunks, which reflects the last flush. Lets residency and eviction be tested
     /// without a Vulkan device (none of those three methods touch Vulkan).
@@ -170,6 +178,7 @@ private:
                              -PackedOccupancyPool::kDirChunksZ / 2};
     PackedOccupancyPool m_packed;
     bool  m_dirty = false;
+    OccupancyChangeLog m_changes;   // 26.19: which cubes each pack changed
     Stats m_stats;
 
     bool createHostBuffer(VkPhysicalDevice phys, VkDeviceSize size, VkBuffer& buf,

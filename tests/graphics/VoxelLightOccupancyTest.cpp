@@ -1177,3 +1177,79 @@ TEST(VoxelLightOccupancy, RepackOrderTakesEditsBeforeFirstTimeResidency) {
     }
     EXPECT_TRUE(chooseRepackOrder({}, 24).order.empty());
 }
+
+// ---- WaterCore.md 26.19: what changed, per cube ----
+
+TEST(VoxelLightOccupancy, ChunkOccupancyDiffReportsExactlyTheChangedCubes) {
+    using Phyxel::Graphics::diffChunkOccupancy;
+    VoxelOccupancyGrid base;
+    for (int x = 0; x < 32; ++x) for (int z = 0; z < 32; ++z) for (int y = 0; y < 4; ++y) addSolidCube(base, {x, y, z});
+    addSubcube(base, {7, 8, 9}, {1, 1, 1});
+    addMicrocube(base, {12, 5, 6}, {0, 0, 0}, {2, 2, 2});
+    const ChunkLightOccupancy before = buildLightOccupancy(base);
+    glm::ivec3 lo, hi;
+    EXPECT_FALSE(diffChunkOccupancy(before, buildLightOccupancy(base), lo, hi)) << "identical contents (a remesh) record nothing";
+
+    {   // one cube cleared
+        VoxelOccupancyGrid g = base; g.setCube({3, 2, 5}, false);
+        ASSERT_TRUE(diffChunkOccupancy(before, buildLightOccupancy(g), lo, hi));
+        EXPECT_EQ(lo, glm::ivec3(3, 2, 5)); EXPECT_EQ(hi, glm::ivec3(3, 2, 5));
+    }
+    {   // one micro added inside a mixed cube (its micro mask is all that differs)
+        VoxelOccupancyGrid g = base; addMicrocube(g, {12, 5, 6}, {0, 0, 0}, {0, 1, 2});
+        ASSERT_TRUE(diffChunkOccupancy(before, buildLightOccupancy(g), lo, hi));
+        EXPECT_EQ(lo, glm::ivec3(12, 5, 6)); EXPECT_EQ(hi, glm::ivec3(12, 5, 6));
+    }
+    {   // a mixed cube made solid
+        VoxelOccupancyGrid g = base; g.markSubdivided({7, 8, 9}, false); g.setCube({7, 8, 9}, true);
+        ASSERT_TRUE(diffChunkOccupancy(before, buildLightOccupancy(g), lo, hi));
+        EXPECT_EQ(lo, glm::ivec3(7, 8, 9)); EXPECT_EQ(hi, glm::ivec3(7, 8, 9));
+    }
+    {   // two changes at opposite corners: the box spans them
+        VoxelOccupancyGrid g = base; g.setCube({0, 0, 0}, false); addSolidCube(g, {31, 31, 31});
+        ASSERT_TRUE(diffChunkOccupancy(before, buildLightOccupancy(g), lo, hi));
+        EXPECT_EQ(lo, glm::ivec3(0, 0, 0)); EXPECT_EQ(hi, glm::ivec3(31, 31, 31));
+    }
+    {   // against an empty chunk: every solid or mixed cube
+        ASSERT_TRUE(diffChunkOccupancy(ChunkLightOccupancy{}, before, lo, hi));
+        EXPECT_EQ(lo, glm::ivec3(0, 0, 0)); EXPECT_EQ(hi, glm::ivec3(31, 8, 31));
+    }
+}
+
+TEST(VoxelLightOccupancy, ChangeLogAnswersOnlyWhatItCanVouchFor) {
+    using Log = Phyxel::Graphics::OccupancyChangeLog;
+    Log log;
+    std::vector<Log::CubeBox> out;
+    log.note({1, 2, 3}, {1, 2, 3}); log.pack(1, 0);
+    log.pack(2, 0);                                   // a pack with nothing changed (a remesh)
+    ASSERT_TRUE(log.changesSince(0, 2, out)); ASSERT_EQ(out.size(), 1u); EXPECT_EQ(out[0].lo, glm::ivec3(1, 2, 3));
+    out.clear(); EXPECT_TRUE(log.changesSince(1, 2, out)); EXPECT_TRUE(out.empty());
+    EXPECT_TRUE(log.changesSince(2, 2, out)); EXPECT_TRUE(out.empty());
+    EXPECT_FALSE(log.changesSince(3, 2, out)) << "a revision from before a reset";
+    log.note({0, 0, 0}, {0, 0, 0}); log.pack(3, /*dropped*/ 1);
+    EXPECT_FALSE(log.changesSince(2, 3, out)) << "a pack that dropped chunks changed states nobody recorded";
+    EXPECT_TRUE(log.changesSince(3, 3, out));
+    log.noteEverything(); log.pack(4, 0);
+    EXPECT_FALSE(log.changesSince(3, 4, out));
+    for (size_t k = 0; k <= Log::kMaxBoxesPerPack; ++k) log.note({0, 0, 0}, {0, 0, 0});
+    log.pack(5, 0);
+    EXPECT_FALSE(log.changesSince(4, 5, out)) << "more boxes than the cap";
+    for (uint64_t r = 6; r < 6 + Log::kHistoryPacks; ++r) log.pack(r, 0);
+    const uint64_t cur = 5 + Log::kHistoryPacks;
+    EXPECT_FALSE(log.changesSince(4, cur, out)) << "the history no longer reaches back (pack 5 is gone)";
+    EXPECT_TRUE(log.changesSince(5, cur, out)) << "packs 6.. are all held";
+    out.clear(); EXPECT_TRUE(log.changesSince(cur - 10, cur, out)); EXPECT_TRUE(out.empty());
+}
+
+TEST(VoxelLightOccupancy, APoolThatDropsChunksSaysEverythingChanged) {
+    // No initialize(): the pool has no capacity, so the pack drops the chunk - the change list must not vouch for that pack.
+    Phyxel::Graphics::VoxelLightOccupancyGpu occ;
+    occ.setViewCentre(glm::vec3(16.0f));
+    VoxelOccupancyGrid g; addSolidCube(g, {1, 1, 1});
+    const uint64_t r0 = occ.packRevision();
+    ASSERT_TRUE(occ.setChunk({0, 0, 0}, buildLightOccupancy(g)));
+    occ.flushIfDirty();
+    ASSERT_GT(occ.packRevision(), r0);
+    std::vector<Phyxel::Graphics::VoxelLightOccupancyGpu::CubeBox> out;
+    EXPECT_FALSE(occ.changesSince(r0, out));
+}

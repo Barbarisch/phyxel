@@ -109,6 +109,8 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
     r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
+    r.occFullRefreshes = av.occFullRefreshes; r.occLocalRefreshes = av.occLocalRefreshes; r.occCellsResampled = av.occCellsResampled;
+    r.occCellsChanged = av.occCellsChanged; r.gpuPatchMs = av.gpuPatchMs; r.gpuPatches = av.gpuPatches;
     r.cells = av.grid->cellCount();
     r.autoSleep = av.autoSleep; r.seededMass = av.seededMass;
     r.surfaceAgeMs = av.fieldStepSec < 0.0 ? -1.0 : (std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - av.fieldStepSec) * 1000.0;
@@ -178,7 +180,18 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
     // keyed to the occupancy pool's pack revision.
     if (m_revision) {
         const uint64_t rev = m_revision();
-        if (rev != av.occRevision) { av.occDirty = true; av.occRevision = rev; av.solver->wake(); }
+        if (rev != av.occRevision) {
+            const uint64_t since = av.occRevision;
+            av.occRevision = rev;
+            // 26.19: the cache is current up to `since` - re-read only where the pool says solids changed after it. Anything the
+            // list cannot vouch for (no list, history gone, pool full) is the whole box, as before.
+            std::vector<SolidsChangeBox> boxes;
+            if (!av.occDirty && since != ~0ull && m_changes && !s_forceFullRefreshForTest && m_changes(since, boxes)) {
+                refreshOccupancyLocal(av, boxes);
+                return;
+            }
+            av.occDirty = true; av.solver->wake();
+        }
     }
     if (!av.occDirty) return;
     const auto tOcc = std::chrono::steady_clock::now();   // 26.18: measured - it runs on every world change
@@ -193,6 +206,48 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
         av.grid->occ(x, y, z) = av.occCache[av.grid->idx(x, y, z)];
     if (av.gpuVol) av.gpuDirty = true;
     av.occRefreshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tOcc).count();
+    ++av.occFullRefreshes; av.occCellsResampled = static_cast<long>(av.occCache.size()); av.occCellsChanged = -1;   // -1: not compared
+}
+
+void WaterCoreManager::refreshOccupancyLocal(Av& av, const std::vector<SolidsChangeBox>& boxes) {
+    const auto t0 = std::chrono::steady_clock::now();
+    WaterGrid& g = *av.grid;
+    const glm::ivec3 o = g.spec().origin, n(g.nx(), g.ny(), g.nz());
+    const int per = av.per;   // cells per voxel per axis (cells are 1 / per of a voxel: exact integer ranges)
+    std::vector<int> changed;
+    long resampled = 0;
+    for (const SolidsChangeBox& b : boxes) {
+        // the cells that overlap world voxels [lo, hi + 1), padded one cell each side (a cell's sample can reach its neighbour's
+        // voxel only through the 25.39 creek-window floor, which is not a world edit - the pad is margin, not a dependency)
+        glm::ivec3 lo, hi;
+        for (int a = 0; a < 3; ++a) {
+            lo[a] = b.lo[a] * per - o[a] - 1;
+            hi[a] = (b.hi[a] + 1) * per - 1 - o[a] + 1;
+            lo[a] = std::max(lo[a], 0); hi[a] = std::min(hi[a], n[a] - 1);
+        }
+        if (lo.x > hi.x || lo.y > hi.y || lo.z > hi.z) continue;   // not in this volume
+        for (int z = lo.z; z <= hi.z; ++z) for (int y = lo.y; y <= hi.y; ++y) for (int x = lo.x; x <= hi.x; ++x) {
+            const size_t i = g.idx(x, y, z);
+            const Occ s = sampleOccupancy(av, glm::ivec3(x, y, z));
+            ++resampled;
+            if (s == av.occCache[i]) continue;
+            av.occCache[i] = s; g.occ(x, y, z) = s;
+            changed.push_back(static_cast<int>(i));
+        }
+    }
+    ++av.occLocalRefreshes; av.occCellsResampled = resampled; av.occCellsChanged = static_cast<long>(changed.size());
+    av.occRefreshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    av.gpuPatchMs = 0.0;
+    if (changed.empty()) return;   // a remesh, a far edit, a chunk streamed beside the box: nothing for this water
+    av.solver->wake();
+    // a pending full upload carries the grid anyway; otherwise patch the device in place (no read-back, no re-upload)
+    if (av.gpuVol && m_gpu && !av.gpuDirty) {
+        const auto tp = std::chrono::steady_clock::now();
+        m_gpu->updateOccupancy(*av.gpuVol, g, changed);
+        av.gpuPatchMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tp).count();
+        ++av.gpuPatches;
+        av.gpuLast.asleep = false;
+    }
 }
 
 void WaterCoreManager::markSolidsDirty() {

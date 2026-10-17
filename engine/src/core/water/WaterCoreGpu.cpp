@@ -1124,6 +1124,72 @@ void WaterCoreGpu::recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush pus
     push.mode = 5; dispatch(cmd, *vol.pipes[Reduce], push, cols, 256); fold((cols + 255) / 256, 5, 2);
 }
 
+void WaterCoreGpu::updateOccupancy(Volume& vol, const WaterGrid& g, const std::vector<int>& cells) {
+    if (cells.empty() || vol.hostOcc.size() != vol.dCells) return;
+    settle(vol);   // 26.16: the call in flight reads the occupancy we are about to write
+    const glm::ivec3 n = vol.spec.dims;
+    std::vector<size_t> bricks; std::vector<size_t> cols;
+    for (int d : cells) {
+        if (d < 0 || static_cast<size_t>(d) >= vol.dCells) continue;
+        const int x = d % n.x, y = (d / n.x) % n.y, z = d / (n.x * n.y);
+        vol.hostOcc[static_cast<size_t>(d)] = static_cast<uint32_t>(g.occ(x, y, z));
+        cols.push_back(static_cast<size_t>(x) + static_cast<size_t>(n.x) * z);
+        if (vol.bricked) {
+            const glm::ivec3 b = (glm::ivec3(x, y, z) + vol.o) / vol.bs();
+            bricks.push_back(static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z));
+        }
+    }
+    std::sort(cols.begin(), cols.end()); cols.erase(std::unique(cols.begin(), cols.end()), cols.end());
+    std::sort(bricks.begin(), bricks.end()); bricks.erase(std::unique(bricks.begin(), bricks.end()), bricks.end());
+    // the solid top of each touched column, as upload computes it (a dry column's record is rebuilt from it)
+    if (vol.hostSolidTop.size() == vol.dColumns)
+        for (size_t c : cols) {
+            const int x = static_cast<int>(c % static_cast<size_t>(n.x)), z = static_cast<int>(c / static_cast<size_t>(n.x));
+            float top = -1e30f;
+            for (int y = n.y - 1; y >= 0; --y)
+                if (g.occ(x, y, z) == Occ::Solid) { top = (static_cast<float>(g.spec().origin.y) + static_cast<float>(y) + 1.0f) * g.spec().h; break; }
+            vol.hostSolidTop[c] = top;
+        }
+    auto* st = static_cast<char*>(vol.staging.mapped);
+    VkCommandBuffer cmd = beginCommands();
+    if (vol.bricked) {
+        // 26.18: which bricks are all ground, re-read for the touched ones (out-of-box cells count as Solid, as upload's)
+        if (vol.groundOn && vol.allSolid.size() == vol.mapCount && !s_patchStaleGroundForTest)
+            for (size_t m : bricks) {
+                const glm::ivec3 b(static_cast<int>(m % static_cast<size_t>(vol.bn.x)), static_cast<int>((m / static_cast<size_t>(vol.bn.x)) % static_cast<size_t>(vol.bn.y)),
+                                   static_cast<int>(m / (static_cast<size_t>(vol.bn.x) * static_cast<size_t>(vol.bn.y))));
+                char all = 1;
+                for (int l = 0; l < static_cast<int>(vol.bc) && all; ++l) {
+                    const glm::ivec3 c = b * vol.bs() + glm::ivec3(l & 7, l >> 6, (l >> 3) & 7) - vol.o;   // local = x + 8 z + 64 y (26.17)
+                    if (c.x < 0 || c.y < 0 || c.z < 0 || c.x >= n.x || c.y >= n.y || c.z >= n.z) continue;
+                    if (vol.hostOcc[static_cast<size_t>(c.x) + static_cast<size_t>(n.x) * (c.y + static_cast<size_t>(n.y) * c.z)] != static_cast<uint32_t>(Occ::Solid)) all = 0;
+                }
+                vol.allSolid[m] = all;
+            }
+        // the stored bricks among them: their occupancy, staged and copied (a ground or absent brick takes its occupancy from the
+        // host copy when the next call's residency stores it)
+        std::vector<int> slots;
+        for (size_t m : bricks) if (vol.map[m] >= kFirstSlot) slots.push_back(vol.map[m]);
+        std::sort(slots.begin(), slots.end());
+        if (!slots.empty()) {
+            scatterSlots(vol, slots, nullptr);
+            for (size_t a = 0; a < slots.size();) {   // contiguous slots in one copy
+                size_t e = a + 1;
+                while (e < slots.size() && slots[e] == slots[e - 1] + 1) ++e;
+                const VkDeviceSize first = static_cast<VkDeviceSize>(slots[a]) * vol.bc * 4, bytes = static_cast<VkDeviceSize>(e - a) * vol.bc * 4;
+                copy(cmd, vol.staging, vol.occ, bytes, vol.offOcc + first, first);
+                a = e;
+            }
+        }
+    } else {
+        // the dense layout (FLIP volumes): the whole occupancy buffer
+        std::memcpy(st + vol.offOcc, vol.hostOcc.data(), vol.cells * 4);
+        copy(cmd, vol.staging, vol.occ, vol.cells * 4, vol.offOcc);
+    }
+    submitAndWait(cmd);
+    vol.asleep = false; vol.quietTicks = 0;   // the ground moved: the water must look again
+}
+
 GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float dt, int ticks, int sweeps) {
     settle(vol);   // 26.16: the call in flight is collected first (its record decides this call's residency, its speed the substeps)
     GpuStepStats st; st.ticks = ticks; st.sweeps = sweeps;

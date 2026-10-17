@@ -90,19 +90,27 @@ void VoxelLightOccupancyGpu::cleanup() {
     m_chunks.clear();
     m_packed = {};
     m_dirty = false;
+    m_changes.reset();   // 26.19: a consumer's revision is now meaningless
 }
 
 bool VoxelLightOccupancyGpu::setChunk(const glm::ivec3& chunkWorldOrigin,
                                       ChunkLightOccupancy blob) {
     if (PackedOccupancyPool::directoryIndex(chunkWorldOrigin, m_boxMinChunk) < 0)
         return false;                        // outside the covered box
+    // 26.19: record which cubes changed - a re-set with the same contents (a remesh) records nothing
+    const auto it = m_chunks.find(chunkWorldOrigin);
+    if (it == m_chunks.end()) m_changes.noteWholeChunk(chunkWorldOrigin);   // Unknown -> known
+    else {
+        glm::ivec3 lo, hi;
+        if (diffChunkOccupancy(it->second, blob, lo, hi)) m_changes.note(chunkWorldOrigin + lo, chunkWorldOrigin + hi);
+    }
     m_chunks[chunkWorldOrigin] = std::move(blob);
     m_dirty = true;
     return true;
 }
 
 void VoxelLightOccupancyGpu::removeChunk(const glm::ivec3& chunkWorldOrigin) {
-    if (m_chunks.erase(chunkWorldOrigin) > 0) m_dirty = true;
+    if (m_chunks.erase(chunkWorldOrigin) > 0) { m_dirty = true; m_changes.noteWholeChunk(chunkWorldOrigin); }   // 26.19: known -> Unknown
 }
 
 std::vector<glm::ivec3> VoxelLightOccupancyGpu::sampleMixedCubes(size_t maxN) const {
@@ -128,9 +136,10 @@ void VoxelLightOccupancyGpu::setViewCentre(const glm::vec3& worldPos) {
     // Forget what the new box no longer covers, so the pool does not carry chunks the shader can
     // never address. They are re-added by the normal residency scan if the box comes back.
     for (auto it = m_chunks.begin(); it != m_chunks.end(); ) {
-        if (PackedOccupancyPool::directoryIndex(it->first, m_boxMinChunk) < 0)
+        if (PackedOccupancyPool::directoryIndex(it->first, m_boxMinChunk) < 0) {
+            m_changes.noteWholeChunk(it->first);   // 26.19: forgotten - its cells read Unknown now
             it = m_chunks.erase(it);
-        else
+        } else
             ++it;
     }
     m_dirty = true;
@@ -140,6 +149,7 @@ void VoxelLightOccupancyGpu::clear() {
     if (m_chunks.empty()) return;
     m_chunks.clear();
     m_dirty = true;
+    m_changes.noteEverything();   // 26.19
 }
 
 void VoxelLightOccupancyGpu::flushIfDirty() {
@@ -162,6 +172,7 @@ void VoxelLightOccupancyGpu::flushIfDirty() {
     }
 
     ++m_packRevision;   // uploaded to each slot after that slot's fence (uploadToSlot)
+    m_changes.pack(m_packRevision, dropped);   // 26.19: a pack that dropped chunks changed states no setChunk recorded
 
     size_t mixed = 0;
     for (const auto& [origin, blob] : m_chunks) mixed += blob.mixedCubeIdx.size();

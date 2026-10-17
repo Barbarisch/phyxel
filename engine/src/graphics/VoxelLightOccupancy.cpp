@@ -39,6 +39,63 @@ bool ChunkLightOccupancy::solidAtMicro(const glm::ivec3& microLocal) const {
     return (microWords[base + static_cast<size_t>(bit >> 5)] >> (bit & 31)) & 1u;
 }
 
+namespace {
+int lowestBit(uint32_t m) {   // m != 0 (C++17: no std::countr_zero)
+    int i = 0;
+    while (!(m & 1u)) { m >>= 1; ++i; }
+    return i;
+}
+}  // namespace
+
+bool diffChunkOccupancy(const ChunkLightOccupancy& before, const ChunkLightOccupancy& after, glm::ivec3& lo, glm::ivec3& hi) {
+    bool any = false;
+    auto add = [&](int ci) {
+        const glm::ivec3 c(ci / 1024, (ci / 32) % 32, ci % 32);   // the inverse of cubeIndex: z + y*32 + x*1024
+        if (!any) { lo = hi = c; any = true; return; }
+        lo = glm::min(lo, c); hi = glm::max(hi, c);
+    };
+    for (int w = 0; w < ChunkLightOccupancy::kCubeWords; ++w) {
+        // a cube whose solid or mixed bit changed
+        uint32_t d = (before.solid[w] ^ after.solid[w]) | (before.mixed[w] ^ after.mixed[w]);
+        // a cube mixed (and not solid) in both: its micro mask decides
+        const uint32_t both = before.mixed[w] & after.mixed[w] & ~before.solid[w] & ~after.solid[w] & ~d;
+        for (uint32_t m = both; m != 0; m &= m - 1) {
+            const int ci = w * 32 + lowestBit(m);
+            const int sa = before.mixedSlot(ci), sb = after.mixedSlot(ci);
+            bool same = sa < 0 && sb < 0;
+            if (sa >= 0 && sb >= 0)
+                same = std::equal(before.microWords.begin() + static_cast<ptrdiff_t>(sa) * ChunkLightOccupancy::kMicroWordsPerCube,
+                                  before.microWords.begin() + static_cast<ptrdiff_t>(sa + 1) * ChunkLightOccupancy::kMicroWordsPerCube,
+                                  after.microWords.begin() + static_cast<ptrdiff_t>(sb) * ChunkLightOccupancy::kMicroWordsPerCube);
+            if (!same) d |= m & (~m + 1);
+        }
+        for (; d != 0; d &= d - 1) add(w * 32 + lowestBit(d));
+    }
+    return any;
+}
+
+void OccupancyChangeLog::pack(uint64_t revision, size_t droppedChunks) {
+    Pack p;
+    p.revision = revision;
+    p.everything = m_pendingEverything || droppedChunks > 0 || m_pending.size() > kMaxBoxesPerPack;
+    if (!p.everything) p.boxes.swap(m_pending);
+    m_pending.clear(); m_pendingEverything = false;
+    m_history.push_back(std::move(p));
+    if (m_history.size() > kHistoryPacks) m_history.erase(m_history.begin(), m_history.begin() + static_cast<ptrdiff_t>(m_history.size() - kHistoryPacks));
+}
+
+bool OccupancyChangeLog::changesSince(uint64_t since, uint64_t current, std::vector<CubeBox>& out) const {
+    if (since == current) return true;                                               // nothing packed since
+    if (since > current) return false;                                               // from before a reset
+    if (m_history.empty() || m_history.front().revision > since + 1) return false;   // the history no longer reaches back
+    for (const Pack& p : m_history) {
+        if (p.revision <= since) continue;
+        if (p.everything) return false;
+        out.insert(out.end(), p.boxes.begin(), p.boxes.end());
+    }
+    return true;
+}
+
 ChunkLightOccupancy buildLightOccupancy(const Physics::VoxelOccupancyGrid& grid) {
     ChunkLightOccupancy out;
 

@@ -447,6 +447,15 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
             return occ ? occ->packRevision() : 0;
         });
+    // 26.19: WHERE solids changed between pack revisions - the water re-reads only those cells and patches them in place
+    waterCore->setSolidsChangesQuery([this](uint64_t since, std::vector<Core::Water::SolidsChangeBox>& out) -> bool {
+        const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
+        if (!occ) return false;
+        std::vector<Graphics::VoxelLightOccupancyGpu::CubeBox> boxes;
+        if (!occ->changesSince(since, boxes)) return false;
+        for (const auto& b : boxes) out.push_back({b.lo, b.hi});
+        return true;
+    });
     // WaterCore.md 25.22 option (a): column regions flow on the generator's continuous height where the ground is as generated
     waterCore->setGeneratorBedQuery([this](int wx, int wz, float& bedHeight, float& drawnTop) -> bool {
         WorldGenerator* sg = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
@@ -569,7 +578,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // newly-removed voxels (break / spell / blast) without a manual water_sync.
     chunkManager->setVoxelOccupancyCallback([this](int x, int y, int z, bool solid) {
         if (waterManager) waterManager->setSolidWorld(x, y, z, solid);
-        if (waterCore) waterCore->markSolidsDirty();
+        // 26.19: the water core is NOT marked dirty here - it reads the occupancy pool, and the pool's change list tells it
+        // which cells changed once the pool holds the edit (marking here re-read the whole box, before the pool had it)
     });
     // Phase D2 (docs/WaterCore.md 16.3): edits never create water - the stored spans follow rule 3.
     chunkManager->setVoxelEditCallback([this](int x, int y, int z, bool solid) { applyWaterSpanEdit(x, y, z, solid); });
@@ -13896,7 +13906,7 @@ void Application::registerWaterCommands() {
     auto noCore = [](nlohmann::json& r) { r = {{"error", "WaterCore not available"}}; };
     auto avJson = [](const Core::Water::AvRecord& a) {
         return nlohmann::json{{"id", a.id}, {"box", {{"min", {a.minVoxel.x, a.minVoxel.y, a.minVoxel.z}}, {"max", {a.maxVoxel.x, a.maxVoxel.y, a.maxVoxel.z}}}},
-                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_device_ms", a.gpuDeviceMs}, {"gpu_host_ms", a.gpuHostMs}, {"gpu_wait_ms", a.gpuWaitMs}, {"gpu_ticks", a.gpuTicks}, {"gpu_async", a.gpuAsync}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"gpu_brick_height", a.gpuBrickHeight}, {"gpu_ground_bricks", a.gpuGroundBricks}, {"gpu_upload_ms", a.gpuUploadMs}, {"gpu_uploads", a.gpuUploads}, {"occ_refresh_ms", a.occRefreshMs}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
+                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_device_ms", a.gpuDeviceMs}, {"gpu_host_ms", a.gpuHostMs}, {"gpu_wait_ms", a.gpuWaitMs}, {"gpu_ticks", a.gpuTicks}, {"gpu_async", a.gpuAsync}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"gpu_brick_height", a.gpuBrickHeight}, {"gpu_ground_bricks", a.gpuGroundBricks}, {"gpu_upload_ms", a.gpuUploadMs}, {"gpu_uploads", a.gpuUploads}, {"occ_refresh_ms", a.occRefreshMs}, {"occ_full_refreshes", a.occFullRefreshes}, {"occ_local_refreshes", a.occLocalRefreshes}, {"occ_cells_resampled", a.occCellsResampled}, {"occ_cells_changed", a.occCellsChanged}, {"gpu_patch_ms", a.gpuPatchMs}, {"gpu_patches", a.gpuPatches}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
                               {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"source_in_m3", a.sourceIn}, {"outfall_out_m3", a.outfallOut}, {"outfalls", a.outfalls}, {"manning_n", a.manningN}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};

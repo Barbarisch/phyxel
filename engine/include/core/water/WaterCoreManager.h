@@ -32,6 +32,11 @@ namespace Water {
 using MicroStateQuery = std::function<int(const glm::ivec3& worldMicro)>;
 /// The occupancy pool's pack revision (any monotonic counter that changes when solids change).
 using SolidsRevisionQuery = std::function<uint64_t()>;
+/// 26.19: an inclusive box of WORLD voxels (cubes) whose solids may have changed.
+struct SolidsChangeBox { glm::ivec3 lo, hi; };
+/// 26.19: the boxes changed after revision `since` (appended to `out`), or false = "assume everything changed" (the occupancy
+/// pool's VoxelLightOccupancyGpu::changesSince).
+using SolidsChangesQuery = std::function<bool(uint64_t since, std::vector<SolidsChangeBox>& out)>;
 
 struct AvRecord {
     int id = 0;
@@ -54,6 +59,12 @@ struct AvRecord {
     double gpuUploadMs = 0.0;              ///< 26.18: the last re-read after a world change (download + occupancy + upload), ms
     int gpuUploads = 0;                    ///< 26.18: re-reads since the volume was made
     double occRefreshMs = 0.0;             ///< 26.18: the last re-sample of the box's occupancy from the world, ms
+    long occFullRefreshes = 0;             ///< 26.19: whole-box re-reads since the volume was made (creation is one)
+    long occLocalRefreshes = 0;            ///< 26.19: re-reads of only the changed cubes' cells
+    long occCellsResampled = 0;            ///< 26.19: cells the last re-read sampled
+    long occCellsChanged = 0;              ///< 26.19: of them, cells whose occupancy changed
+    double gpuPatchMs = 0.0;               ///< 26.19: the last in-place GPU occupancy patch, ms (0 = none needed)
+    int gpuPatches = 0;                    ///< 26.19: in-place patches since the volume was made
     double surfaceAgeMs = -1.0;            ///< Phase F: age of the surface field the renderer last read (ms since the step that produced it; -1 = never)
     size_t particles = 0;                  ///< Phase B2: FLIP particles alive (0 for fills)
     size_t cells = 0;
@@ -119,6 +130,10 @@ using BakeBodyQuery = std::function<int(int x, int z)>;   ///< bake body id of a
 class WaterCoreManager {
 public:
     explicit WaterCoreManager(MicroStateQuery state, SolidsRevisionQuery revision = nullptr);
+    /// 26.19: where solids changed between revisions. Without it (or when it answers false) every change re-reads the whole box.
+    void setSolidsChangesQuery(SolidsChangesQuery q) { m_changes = std::move(q); }
+    /// 26.19 TEST ONLY: ignore the change list (every change re-reads the whole box), so the two can be compared.
+    static inline bool s_forceFullRefreshForTest = false;
 
     /// Create a volume over an inclusive world voxel box. `cellSize` must be a power-of-three
     /// fraction of a voxel (1, 1/3, 1/9, 1/27, 1/81); `transport` is "eulerian" (Phase B).
@@ -155,6 +170,8 @@ public:
     /// Realtime auto-sleep records since the last drain (the application logs them).
     std::vector<WriteBackRecord> drainAutoSleepRecords() { std::vector<WriteBackRecord> r; r.swap(m_autoSlept); return r; }
     std::vector<AvRecord> list() const;
+    /// TEST ONLY (26.19): a volume's grid as the solver reads it (its occupancy is the refreshed cache), or null.
+    const WaterGrid* gridForTest(int id) const { for (const auto& av : m_avs) if (av->id == id) return av->grid.get(); return nullptr; }
     const AvRecord* find(int id) const;
 
     /// Step one volume `ticks` times (explicit, simulation time).
@@ -393,6 +410,8 @@ private:
         GpuStepStats gpuLast;
         double gpuUploadMs = 0.0; int gpuUploads = 0;   ///< 26.18: the last re-read's time, and how many
         double occRefreshMs = 0.0;                      ///< 26.18: the last occupancy re-sample of the box, ms
+        long occFullRefreshes = 0, occLocalRefreshes = 0, occCellsResampled = 0, occCellsChanged = 0;   ///< 26.19
+        double gpuPatchMs = 0.0; int gpuPatches = 0;    ///< 26.19
         int gpuSweeps = kGpuSweeps;
         bool gpuStale = false;         // the GPU copy is newer than the grid (a step ran, no download yet)
         double gpuLastDownloadSec = -1.0;
@@ -441,6 +460,9 @@ private:
 
     MicroStateQuery m_state;
     SolidsRevisionQuery m_revision;
+    SolidsChangesQuery m_changes;   // 26.19
+    /// 26.19: re-sample only the cells of the changed boxes; patch what differs (grid, cache, GPU in place)
+    void refreshOccupancyLocal(Av& av, const std::vector<SolidsChangeBox>& boxes);
     std::unique_ptr<WaterCoreGpu> m_gpu;
     std::unique_ptr<RippleGpu> m_rgpu;   // 25.34 (declared after m_gpu: torn down first)
     bool m_rgpuOn = true;

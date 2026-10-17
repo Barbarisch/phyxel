@@ -217,6 +217,9 @@ public:
     /// 26.18: sparse volumes read halo bricks that are all ground from the GROUND sentinel instead of stepping them. ON since the
     /// bench run: the creek at q 0.2 stored 456,192 -> 282,240 cells, GPU 1.56 -> 1.35 ms a call, the water identical
     static inline bool s_groundBricks = true;
+    /// 26.19 TEST ONLY (the red control): updateOccupancy leaves the bricks' all-ground flags as they were (a dug ground brick
+    /// stays ground)
+    static inline bool s_patchStaleGroundForTest = false;
     /// 26.10 test hook: copy f after every stage of each single-tick, single-substep call and sum it on the host in double -
     /// exact per-stage mass changes (the device's own sums are float). s_stageDm[k] accumulates stage k's change in cell
     /// fractions: 0 between calls, 1 sources, 2 transport gather, 3 transport carry, 4 ledger, 5 compaction, 6 rest of the
@@ -252,6 +255,12 @@ public:
     /// setSolids' (WaterCoreGpuParityTest.GpuBoxedSolidsEqualTheWhole).
     void setSolidsBox(Volume& vol, const std::vector<float>& s, const std::vector<float>& wake, const std::vector<uint8_t>& fresh, float frameSeconds,
                       const glm::ivec3& lo, const glm::ivec3& hi);
+    /// 26.19: the world changed under the water at `cells` (dense grid indices; `g` holds their new occupancy). Patched IN
+    /// PLACE: the host copy, the all-ground flags of their bricks, the solid top of their columns, and the occupancy of the
+    /// stored bricks among them on the device. Nothing else is touched - the water, faces, pressure and remainders keep their
+    /// values; the next call's residency stores a dug ground brick (dry) or lets a filled one become ground. Wakes the volume.
+    /// A volume never uploaded (no host copy yet) is left for its first upload.
+    void updateOccupancy(Volume& vol, const WaterGrid& g, const std::vector<int>& cells);
     /// Replace the volume's pumps/sinks (fenced); the projection's per-cell rate buffer is reset.
     bool setSources(Volume& vol, const std::vector<GpuSource>& sources, std::string* err);
     void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending as the last collected call left them (26.16: no submission)

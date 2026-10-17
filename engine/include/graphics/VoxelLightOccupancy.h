@@ -96,6 +96,36 @@ struct ChunkLightOccupancy {
 /// to their microcube mask.
 ChunkLightOccupancy buildLightOccupancy(const Physics::VoxelOccupancyGrid& grid);
 
+/// WaterCore.md 26.19: the cubes whose occupancy differs between two blobs of one chunk, as the box of them in chunk-local
+/// cube coordinates (inclusive). False when nothing differs - a chunk re-set with the same contents. Conservative: a cube
+/// whose ENCODING changed (solid bit, mixed bit, or a mixed cube's micro mask) counts even if it holds the same matter.
+bool diffChunkOccupancy(const ChunkLightOccupancy& before, const ChunkLightOccupancy& after, glm::ivec3& lo, glm::ivec3& hi);
+
+/// WaterCore.md 26.19: which world cubes changed in each pack, for a short history of packs. Pure (no Vulkan) so it is
+/// unit-tested; VoxelLightOccupancyGpu owns one. Boxes are recorded between packs; `pack` closes them under a revision.
+class OccupancyChangeLog {
+public:
+    struct CubeBox { glm::ivec3 lo, hi; };   ///< inclusive, world cubes
+    static constexpr size_t kHistoryPacks = 64, kMaxBoxesPerPack = 4096;
+
+    void note(const glm::ivec3& lo, const glm::ivec3& hi) { m_pending.push_back({lo, hi}); }
+    void noteWholeChunk(const glm::ivec3& origin) { note(origin, origin + glm::ivec3(31)); }
+    void noteEverything() { m_pendingEverything = true; }
+    /// Closes the boxes noted since the last pack under `revision` (consecutive revisions). `droppedChunks` > 0 (a full pool:
+    /// states changed with no chunk set) or too many boxes make the pack "everything".
+    void pack(uint64_t revision, size_t droppedChunks);
+    /// The boxes packed after `since`, appended to `out`; FALSE = "assume everything changed" (history gone, or a pack in
+    /// between was "everything", or `since` is from before a reset). `since == current` is true with nothing.
+    bool changesSince(uint64_t since, uint64_t current, std::vector<CubeBox>& out) const;
+    void reset() { m_pending.clear(); m_pendingEverything = false; m_history.clear(); }
+
+private:
+    struct Pack { uint64_t revision = 0; bool everything = false; std::vector<CubeBox> boxes; };
+    std::vector<CubeBox> m_pending;
+    bool m_pendingEverything = false;
+    std::vector<Pack> m_history;   ///< oldest first, at most kHistoryPacks
+};
+
 // ---------------------------------------------------------------------------------------------
 // THE PACKED POOL — what actually reaches the GPU.
 //

@@ -137,6 +137,33 @@ protected:
         gpu.download(v, t);   // the water; the occupancy stays the world's (the edit)
         gpu.upload(v, t);
     }
+    /// 26.19: a world edit patched IN PLACE, as the engine now does it: the cells whose occupancy differs from the volume's host
+    /// copy, handed to updateOccupancy - no read-back, no re-upload.
+    void patch(WaterCoreGpu::Volume& v, const WaterGrid& world) {
+        std::vector<int> cells;
+        for (int z = 0; z < world.nz(); ++z) for (int y = 0; y < world.ny(); ++y) for (int x = 0; x < world.nx(); ++x) {
+            const size_t i = world.idx(x, y, z);
+            if (i < v.hostOcc.size() && v.hostOcc[i] != static_cast<uint32_t>(world.occ(x, y, z))) cells.push_back(static_cast<int>(i));
+        }
+        gpu.updateOccupancy(v, world, cells);
+    }
+    /// 26.19: after a patch and one call's residency - every STORED cell's device occupancy is the world's, and every GROUND brick
+    /// is all ground in the current world. Returns the mismatches.
+    long occupancyMismatches(WaterCoreGpu::Volume& v, const WaterGrid& world) {
+        std::vector<float> dev;
+        gpu.readCells(v, "occ", dev);
+        long bad = 0;
+        for (int z = 0; z < world.nz(); ++z) for (int y = 0; y < world.ny(); ++y) for (int x = 0; x < world.nx(); ++x) {
+            const glm::ivec3 b = (glm::ivec3(x, y, z) + v.o) / v.bs();
+            const int slot = v.map[static_cast<size_t>(b.x) + static_cast<size_t>(v.bn.x) * (b.y + static_cast<size_t>(v.bn.y) * b.z)];
+            const Occ want = world.occ(x, y, z);
+            if (slot >= 2) bad += dev[world.idx(x, y, z)] != static_cast<float>(static_cast<uint32_t>(want)) ? 1 : 0;   // a real brick
+            else if (slot == 1) bad += want != Occ::Solid ? 1 : 0;                                                       // the ground sentinel
+        }
+        return bad;
+    }
+    /// 26.19: the same edits as groundScenes and more, patched in place.
+    void patchScenes(BrickOptions sparseOpts, const char* tag, bool expectEqualRuns = true);
 };
 
 // The equality scenes: each runs a dense 8^3 volume (every brick kept) and a sparse one, and compares every tick.
@@ -263,6 +290,84 @@ TEST_F(WaterBrickTest, GroundBricksEqualStored) {
     seamScenes(BrickOptions{true, 0, false, 2, 1}, "ground");
     groundScenes(BrickOptions{true, 0, false, 2, 1}, "ground");
     groundScenes(BrickOptions{true, 0, false, 2, 0}, "no ground");   // the same new scenes with every halo brick stored
+}
+
+void WaterBrickTest::patchScenes(BrickOptions sparseOpts, const char* tag, bool expectEqualRuns) {
+    std::string label;
+    auto name = [&](const char* scene) { label = std::string(tag) + " " + scene; return label.c_str(); };
+    // the creek over the stepped bed (groundScenes (b)): one edit at tick 60, checked after the next call's residency
+    auto creek = [] {
+        WaterGrid g = makeGrid();
+        for (int z = 0; z < kDims.z; ++z) for (int y = 0; y < kDims.y; ++y) for (int x = 0; x < kDims.x; ++x)
+            if (y < (x < 20 ? 9 : 8)) g.occ(x, y, z) = Occ::Solid;
+        for (int z = 0; z < kDims.z; ++z) for (int x = 0; x < 12; ++x) for (int y = 9; y < 12; ++y) g.f(x, y, z) = 1.0f;
+        return g;
+    };
+    struct Edit { const char* scene; glm::ivec3 lo, hi; Occ to; const char* pit; };
+    const Edit edits[] = {
+        {"dig under the creek",              {14, 3, 8}, {19, 8, 15}, Occ::Air,   "pit"},
+        {"deep shaft opening ground bricks", {14, 0, 8}, {17, 8, 11}, Occ::Air,   "pit"},
+        {"ground placed into the water",     {4, 9, 4},  {7, 10, 12}, Occ::Solid, nullptr},
+        {"a pit beside the flow filled",     {30, 4, 6}, {34, 8, 17}, Occ::Solid, nullptr},
+    };
+    for (const Edit& e : edits) {
+        WaterGrid g = creek();
+        if (e.to == Occ::Solid && e.lo.x == 30)   // the pit exists from the start; filled at tick 60
+            for (int z = e.lo.z; z <= e.hi.z; ++z) for (int y = e.lo.y; y <= e.hi.y; ++y) for (int x = e.lo.x; x <= e.hi.x; ++x) g.occ(x, y, z) = Occ::Air;
+        WaterGrid world = g;
+        long mismatchD = 0, mismatchS = 0;
+        auto edit = [&](int k, WaterCoreGpu::Volume& a, WaterCoreGpu::Volume& b) {
+            if (k == 60) {
+                for (int z = e.lo.z; z <= e.hi.z; ++z) for (int y = e.lo.y; y <= e.hi.y; ++y) for (int x = e.lo.x; x <= e.hi.x; ++x) world.occ(x, y, z) = e.to;
+                patch(a, world); patch(b, world);
+            }
+            if (k == 61 || k == 120) { mismatchD += occupancyMismatches(a, world); mismatchS += occupancyMismatches(b, world); }
+        };
+        const SceneResult r = runScene(g, 240, edit, sparseOpts);
+        if (expectEqualRuns) expectEqual(name(e.scene), r); else report(name(e.scene), r);
+        std::printf("    device occupancy != world (stored cells) or ground brick not all ground: dense %ld, sparse %ld\n", mismatchD, mismatchS);
+        if (expectEqualRuns) { EXPECT_EQ(mismatchD, 0) << name(e.scene); EXPECT_EQ(mismatchS, 0) << name(e.scene); }
+        if (e.pit) {
+            double inPit = 0.0;
+            for (int z = e.lo.z; z <= e.hi.z; ++z) for (int y = e.lo.y; y <= e.hi.y; ++y) for (int x = e.lo.x; x <= e.hi.x; ++x) inPit += r.sparseEnd.f(x, y, z);
+            std::printf("    water in the dug cells at the end: %.2f cells\n", inPit);
+            if (expectEqualRuns) EXPECT_GT(inPit, 1.0) << name(e.scene) << ": the water must run into the hole";
+        }
+    }
+}
+
+// 26.19 GATE: a world edit patched IN PLACE (updateOccupancy: no read-back, no re-upload) - every 8^3 brick stored against
+// 2-tall bricks with ground, bit for bit every tick, through a dig under the flowing creek, a deep shaft that opens ground bricks,
+// ground placed into the water and a pit filled; the device's occupancy is the world's after each edit; water runs into the holes.
+TEST_F(WaterBrickTest, OccupancyPatchedInPlace) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    patchScenes(BrickOptions{true, 0, false, 2, 1}, "patched");
+}
+
+// The control (RED by design): the patch leaves the bricks' all-ground flags stale - a dug ground brick stays GROUND, so the
+// water cannot enter it: the sparse volume must differ from the dense one (and the occupancy check must see the stale ground).
+TEST_F(WaterBrickTest, APatchLeavingGroundStaleIsCaught) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    WaterCoreGpu::s_patchStaleGroundForTest = true;
+    WaterGrid g = makeGrid();
+    for (int z = 0; z < kDims.z; ++z) for (int y = 0; y < kDims.y; ++y) for (int x = 0; x < kDims.x; ++x)
+        if (y < (x < 20 ? 9 : 8)) g.occ(x, y, z) = Occ::Solid;
+    for (int z = 0; z < kDims.z; ++z) for (int x = 0; x < 12; ++x) for (int y = 9; y < 12; ++y) g.f(x, y, z) = 1.0f;
+    WaterGrid world = g;
+    long mismatch = 0;
+    auto edit = [&](int k, WaterCoreGpu::Volume& a, WaterCoreGpu::Volume& b) {
+        if (k == 60) {
+            for (int z = 8; z < 12; ++z) for (int y = 0; y < 9; ++y) for (int x = 14; x < 18; ++x) world.occ(x, y, z) = Occ::Air;
+            patch(a, world); patch(b, world);
+        }
+        if (k == 120) mismatch += occupancyMismatches(b, world);
+    };
+    const SceneResult r = runScene(g, 200, edit, BrickOptions{true, 0, false, 2, 1}, false);
+    WaterCoreGpu::s_patchStaleGroundForTest = false;
+    report("stale ground after a patch", r);
+    std::printf("    ground bricks that are not all ground: %ld cells\n", mismatch);
+    EXPECT_GT(r.ticksDiffering, 0) << "control: a dug brick left as ground must change the water";
+    EXPECT_GT(mismatch, 0) << "control: the occupancy check must see the stale ground";
 }
 
 // The control (RED by design): the ground sentinel's occupancy left as AIR - the bed under the creek reads as open air where it
