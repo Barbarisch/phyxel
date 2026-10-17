@@ -1,0 +1,30 @@
+{
+ "floats": [
+  {
+   "slot": 0,
+   "drift_speed_ms": null,
+   "x_last": 56.1768,
+   "note": "did not cross x 25-65 inside the window"
+  },
+  {
+   "slot": 1,
+   "drift_speed_ms": null,
+   "x_last": 58.4239,
+   "note": "did not cross x 25-65 inside the window"
+  },
+  {
+   "slot": 2,
+   "drift_speed_ms": null,
+   "x_last": 61.2958,
+   "note": "did not cross x 25-65 inside the window"
+  },
+  {
+   "slot": 3,
+   "drift_speed_ms": null,
+   "x_last": 61.7683,
+   "note": "did not cross x 25-65 inside the window"
+  }
+ ],
+ "water_mid_speed_ms": 0.5408735861123489,
+ "water_mid_surface_speed_ms": 0.6400890822211901
+}
