@@ -1184,3 +1184,126 @@ TEST_F(WaterCoreGpuParityTest, GpuLoweredCubeRaisesTheLevel) {
     EXPECT_NEAR(g.grid.totalMass(), m0, 1e-4);
     gpu.destroyVolume(vol);
 }
+
+// 26.23 diagnostic: how many pressure sweeps a scene NEEDS. Each scene runs at 10 / 20 / 40 / 80 / 160 / 320 sweeps and against a
+// 640-sweep reference; reported: the largest difference of a column's water depth (m) and the water in the wrong place (m^3,
+// half the summed |df| x cell volume), the solve's residual, and the automatic count the manager would pick (1.5 x the longest
+// side, 8-160). Every scene starts identical; kicks use the same WaterSolver kicker as GpuKickedPondParity.
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagSweepsNeeded) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Scene { const char* name; int nx, ny, nz; float h; int ticks; std::function<void(Tank&)> build; bool pump; float kick; glm::vec3 kickAt; };
+    const std::vector<Scene> scenes = {
+        {"dam break 1 m (60x6x3)", 60, 6, 3, 1.0f, 120, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {9, 2, 2}, 1.0f); }, false, 0.0f, {}},
+        {"kicked pond 1/3 m (12x9x12)", 12, 9, 12, 1.0f / 3.0f, 60, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f); }, false, 3.0f, {7.0f, 2.0f, 2.0f}},
+        {"dam break 1/9 m (180x27x9)", 180, 27, 9, 1.0f / 9.0f, 120, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {29, 17, 8}, 1.0f); }, false, 0.0f, {}},
+        {"pond 6x6x1 m at 1/9 m, kicked", 54, 18, 54, 1.0f / 9.0f, 120, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {53, 8, 53}, 1.0f); }, false, 2.0f, {20.0f, 6.0f, 20.0f}},
+        {"tank 4x3 m deep at 1/9 m, kicked", 36, 30, 36, 1.0f / 9.0f, 120, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {35, 26, 35}, 1.0f); }, false, 2.0f, {12.0f, 20.0f, 12.0f}},
+        {"channel 60 m at 1/9 m, pumped", 540, 9, 9, 1.0f / 9.0f, 600, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {539, 2, 8}, 1.0f); }, true, 0.0f, {}},
+    };
+    for (const Scene& sc : scenes) {
+        auto run = [&](int sweeps, WaterGrid& out, double& residual) {
+            Tank t(sc.nx, sc.ny, sc.nz, sc.h);
+            sc.build(t);
+            if (sc.kick > 0.0f) { WaterSolver kicker(t.grid, t.query()); kicker.addRadialImpulse(sc.kickAt, 6.0f, sc.kick, 0.3f); }
+            auto* vol = make(t);
+            if (!vol) return;
+            if (sc.pump) {
+                std::vector<GpuSource> srcs;
+                for (int z = 0; z < sc.nz; ++z) for (int y = 0; y < 3; ++y) { GpuSource s; s.cell = static_cast<int32_t>(t.grid.idx(0, y, z)); s.rate = 0.1f / 27.0f; srcs.push_back(s); }
+                for (int z = 0; z < sc.nz; ++z) { GpuSource s; s.cell = static_cast<int32_t>(t.grid.idx(sc.nx - 1, 0, z)); s.kind = 1.0f; srcs.push_back(s); }
+                std::string err; EXPECT_TRUE(gpu.setSources(*vol, srcs, &err)) << err;
+            }
+            SolverParams prm;
+            if (sc.pump) prm.bedManning = 0.035f;
+            residual = 0.0;
+            for (int k = 0; k < sc.ticks; ++k) { const auto st = gpu.step(*vol, prm, kDt, 1, sweeps); residual = std::max(residual, static_cast<double>(st.rbgsResidualMax)); }
+            gpu.download(*vol, t.grid);
+            out = t.grid;
+            gpu.destroyVolume(vol);
+        };
+        WaterGrid ref{GridSpec{glm::ivec3(0), glm::ivec3(1), 1.0f}}; double rr = 0.0;
+        run(640, ref, rr);
+        const int longest = std::max({sc.nx, sc.ny, sc.nz});
+        std::printf("  %-34s auto %d sweeps (longest %d); reference 640 residual %.2e, KE-free check: mass %.4f\n", sc.name,
+                    std::clamp(static_cast<int>(std::lround(1.5 * longest)), 8, 160), longest, rr, ref.totalMass());
+        for (int sw : {10, 20, 40, 80, 160, 320}) {
+            WaterGrid g{GridSpec{glm::ivec3(0), glm::ivec3(1), 1.0f}}; double res = 0.0;
+            run(sw, g, res);
+            double worstCol = 0.0, misplaced = 0.0;
+            for (int z = 0; z < sc.nz; ++z) for (int x = 0; x < sc.nx; ++x) worstCol = std::max(worstCol, std::abs(g.columnMass(x, z) - ref.columnMass(x, z)) / (static_cast<double>(sc.h) * sc.h));
+            for (size_t i = 0; i < g.fData().size(); ++i) misplaced += std::abs(g.fData()[i] - ref.fData()[i]);
+            misplaced *= 0.5 * static_cast<double>(sc.h) * sc.h * sc.h;
+            std::printf("    %3d sweeps: worst column depth %+.4f m off, water misplaced %.5f m^3 (of %.3f), residual max %.2e\n", sw, worstCol, misplaced, ref.totalMass(), res);
+        }
+    }
+}
+
+// 26.23 diagnostic, the solve's own error: splashing scenes diverge from ANY difference (DiagSweepsNeeded: the dam breaks differ
+// 3-12 cm from a 640-sweep run even at 320), so the end state cannot say how many sweeps a solve needs. Here the 640-sweep run is
+// stopped at checkpoints; from each checkpoint's state ONE tick is taken at each sweep count and at 640, and the velocity fields
+// compared: the largest face-speed difference (m/s) against the fastest face. Kick positions are in metres (WaterSolver world).
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagSweepsOneStep) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Scene { const char* name; int nx, ny, nz; float h; std::vector<int> checkpoints; std::function<void(Tank&)> build; bool pump; float kick; glm::vec3 kickAt; };
+    const std::vector<Scene> scenes = {
+        {"dam break 1 m (60x6x3)", 60, 6, 3, 1.0f, {5, 30, 90}, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {9, 2, 2}, 1.0f); }, false, 0.0f, {}},
+        {"kicked pond 1/3 m (12x9x12)", 12, 9, 12, 1.0f / 3.0f, {2, 20, 60}, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f); }, false, 3.0f, {7.0f, 2.0f, 2.0f}},
+        {"dam break 1/9 m (180x27x9)", 180, 27, 9, 1.0f / 9.0f, {5, 30, 90}, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {29, 17, 8}, 1.0f); }, false, 0.0f, {}},
+        {"pond 6x6x1 m at 1/9 m, kicked", 54, 18, 54, 1.0f / 9.0f, {2, 20, 60}, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {53, 8, 53}, 1.0f); }, false, 2.0f, {1.5f, 0.8f, 1.5f}},
+        {"tank 4x3 m deep at 1/9 m, kicked", 36, 30, 36, 1.0f / 9.0f, {2, 20, 60}, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {35, 26, 35}, 1.0f); }, false, 2.0f, {1.0f, 2.6f, 1.0f}},
+        {"channel 60 m at 1/9 m, pumped", 540, 9, 9, 1.0f / 9.0f, {60, 300, 600}, [](Tank& t) { t.grid.fillBox({0, 0, 0}, {539, 2, 8}, 1.0f); }, true, 0.0f, {}},
+    };
+    for (const Scene& sc : scenes) {
+        auto setPump = [&](WaterCoreGpu::Volume* vol, const WaterGrid& g) {
+            if (!sc.pump) return;
+            std::vector<GpuSource> srcs;
+            for (int z = 0; z < sc.nz; ++z) for (int y = 0; y < 3; ++y) { GpuSource s; s.cell = static_cast<int32_t>(g.idx(0, y, z)); s.rate = 0.1f / 27.0f; srcs.push_back(s); }
+            for (int z = 0; z < sc.nz; ++z) { GpuSource s; s.cell = static_cast<int32_t>(g.idx(sc.nx - 1, 0, z)); s.kind = 1.0f; srcs.push_back(s); }
+            std::string err; EXPECT_TRUE(gpu.setSources(*vol, srcs, &err)) << err;
+        };
+        SolverParams prm;
+        if (sc.pump) prm.bedManning = 0.035f;
+        Tank t(sc.nx, sc.ny, sc.nz, sc.h);
+        sc.build(t);
+        if (sc.kick > 0.0f) { WaterSolver kicker(t.grid, t.query()); kicker.addRadialImpulse(sc.kickAt, 6.0f, sc.kick, 0.3f); }
+        auto* ref = make(t); ASSERT_NE(ref, nullptr);
+        setPump(ref, t.grid);
+        const int longest = std::max({sc.nx, sc.ny, sc.nz});
+        std::printf("  %-34s auto %d sweeps (longest %d)\n", sc.name, std::clamp(static_cast<int>(std::lround(1.5 * longest)), 8, 160), longest);
+        int done = 0;
+        for (int cp : sc.checkpoints) {
+            for (; done < cp; ++done) gpu.step(*ref, prm, kDt, 1, 640);
+            WaterGrid state = t.grid; gpu.download(*ref, state);
+            auto oneTick = [&](int sweeps, WaterGrid& out, double& residual) {
+                Tank c(sc.nx, sc.ny, sc.nz, sc.h); c.grid = state;
+                auto* v = make(c); if (!v) return;
+                setPump(v, c.grid);
+                residual = gpu.step(*v, prm, kDt, 1, sweeps).rbgsResidualMax;
+                out = c.grid; gpu.download(*v, out);
+                gpu.destroyVolume(v);
+            };
+            WaterGrid best = state; double r640 = 0.0; oneTick(640, best, r640);
+            const float vmax = std::max(maxSpeed(best), 1e-6f);
+            std::printf("    tick %4d (fastest face %.3f m/s, residual at 640 %.1e):", cp, vmax, r640);
+            for (int sw : {10, 20, 40, 80, 160, 640}) {   // 640 = the CONTROL: the same solve twice must agree exactly
+                WaterGrid g = state; double res = 0.0; oneTick(sw, g, res);
+                // faces touching a LIQUID cell (f >= 0.5 on either side, in the state the tick started from) - the pressure domain;
+                // faces out in the air hold extrapolated velocities and spray, not the solve
+                float du = 0.0f, dAll = 0.0f;
+                auto liq = [&](int x, int y, int z) { return x >= 0 && y >= 0 && z >= 0 && x < sc.nx && y < sc.ny && z < sc.nz && state.f(x, y, z) >= 0.5f; };
+                for (int z = 0; z < sc.nz; ++z) for (int y = 0; y < sc.ny; ++y) for (int x = 0; x <= sc.nx; ++x) {
+                    const float d = std::abs(g.u(x, y, z) - best.u(x, y, z)); dAll = std::max(dAll, d);
+                    if (liq(x - 1, y, z) || liq(x, y, z)) du = std::max(du, d); }
+                for (int z = 0; z < sc.nz; ++z) for (int y = 0; y <= sc.ny; ++y) for (int x = 0; x < sc.nx; ++x) {
+                    const float d = std::abs(g.v(x, y, z) - best.v(x, y, z)); dAll = std::max(dAll, d);
+                    if (liq(x, y - 1, z) || liq(x, y, z)) du = std::max(du, d); }
+                for (int z = 0; z <= sc.nz; ++z) for (int y = 0; y < sc.ny; ++y) for (int x = 0; x < sc.nx; ++x) {
+                    const float d = std::abs(g.w(x, y, z) - best.w(x, y, z)); dAll = std::max(dAll, d);
+                    if (liq(x, y, z - 1) || liq(x, y, z)) du = std::max(du, d); }
+                std::printf("  %d: %.4f (%.1f %%; any face %.3f)", sw, du, 100.0f * du / vmax, dAll);
+            }
+            std::printf("\n");
+        }
+        gpu.destroyVolume(ref);
+    }
+}

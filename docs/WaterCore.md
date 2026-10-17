@@ -116,7 +116,11 @@ Live: the drawn creek 8.5 / 21.4 -> 1.5 / 2.4 mm above its water at q 0.2 / 0.5,
 change): pond rise 5.42-5.45 mm/s (Q/A 5.56), spilling out/in 0.981, the dam's pool 15.824, break surge 1.95 Q, books exact
 (1.4e-5 m^3; edits inside float noise) - the column model's numbers, except a deeper dip after the dam (27 % vs 46 %). Cost:
 3.17 ms at the automatic 160 sweeps, 1.73 ms at 40 with the same numbers. Clip `dam_pond_pondwater.mp4`.
-**Next:** 26.23 the automatic sweep count's rule (a default change: measure, design, check); then P3d. The §23 slime experiment stays queued.
+**26.23 (2026-10-17) BUILT, not signed off - the automatic sweep count:** measured the solve's own one-step error: water with a
+free surface is within 0.4 % of converged at 40 sweeps whatever the box's length (12-540 cells); water under a solid lid does not
+converge at 160 either. The automatic count now stops at 40 (was 1.5 x the longest side, up to 160): the dam & pond bench 3.17 ->
+1.46 ms with the same numbers; the signed-off demo ponds unchanged (27). Open: an enclosed-water solver for lidded water.
+**Next:** P3d - the column regions removed from near water (design first). The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6588,7 +6592,7 @@ Manning in the pond is the one stated difference from a still pond's defaults. *
 **Built:** `tools/water_dam_pond.py --run --pond [--sweeps N] [--record]` (no engine change). `--build` re-carved the pond: the
 26.15 rebuild of the world had removed it; its last creek metres (x 110-111) now follow the 1/9 m carve (`cb.bed_top`).
 
-**Measured (two full runs, q 0.2; `dam_pond_pondwater.json` + `.mp4` at the automatic 160 sweeps, `dam_pond_pondwater_s40.json`
+**Measured (two full runs, q 0.2; `dam_pond_pondwater_s160.json` + `dam_pond_pondwater.mp4` at the then-automatic 160 sweeps, `dam_pond_pondwater_s40.json`
 at 40):**
 
 | | prediction | pond model, 160 sweeps | pond model, 40 sweeps | column model (25.38) |
@@ -6617,6 +6621,69 @@ at 40):**
   P3b) every number above is the same to 0.6 % and the cost is 1.73 ms. The still-water first guess (26.10) carries a long
   shallow box; its sweeps only have to cross the depth and the width. **Open: the automatic count's rule** - a default change,
   to be designed and measured on the pond rigs (the signed-off pond, the dam break, the run-up) before it changes.
+
+### 26.23 The automatic sweep count - measured, designed, checked, built (2026-10-17). Status: BUILT, ON; not signed off
+
+**The question.** `WaterCoreManager::create` gives a volume without an explicit `sweeps` 1.5 x its longest side, clamped 8-160
+(2026-10-08: SOR needs O(N) sweeps for a Poisson problem N cells across; 40 left a residual of 0.48 on the 1/3 m Basin, before
+the still-water first guess of 26.10). On the dam & pond bench (1062 cells long) that is 160 sweeps and 3.17 ms - over the 2 ms
+budget - where 40 gave the same numbers at 1.73 ms (26.22). How many sweeps does a solve NEED, and on what does it depend?
+
+**Measured - the end state cannot say** (`WaterCoreGpuParityTest.DISABLED_DiagSweepsNeeded`, 6 scenes x 10-320 sweeps vs a
+640-sweep run): splashing scenes diverge from any difference - the dam breaks end 3-12 cm apart from the 640 run even at 320
+sweeps. Only the steady channel (60 m at 1/9 m, pumped) reads cleanly: worst column 1.8 mm off at 40 sweeps, 1.7-2.4 mm at
+80-320 (its own noise), 3.9 mm at 20, 14 mm at 10.
+
+**Measured - the solve's own error** (`DISABLED_DiagSweepsOneStep`): the 640-sweep run stopped at three checkpoints per scene;
+from each checkpoint's state ONE tick at each count and at 640, the face velocities compared on the faces touching liquid (the
+pressure domain). CONTROL: 640 vs 640 = 0.0000 at every checkpoint (the solve is deterministic; the numbers are the solve's).
+Worst checkpoint per scene, error / the fastest face:
+
+| scene (cells: longest, height) | auto today | 10 | 20 | **40** | 80 | 160 |
+|---|---|---|---|---|---|---|
+| dam break 1 m (60, 6) | 90 | 4.6 % | 0.7 % | **0.0 %** | 0 | 0 |
+| kicked pond 1/3 m (12, 9) | 18 | 2.7 % | 0.6 % | **0.0 %** | 0 | 0 |
+| dam break 1/9 m (180, 27) | 160 | 17 % | 3.1 % | **0.4 %** | 0.04 % | 0 |
+| pond 6 x 6 x 1 m at 1/9 m, kicked (54, 18), ticks 20 / 60 | 81 | 4.1 % | 0.6 % | **0.0 %** | 0 | 0 |
+| channel 60 m at 1/9 m, pumped (540, 9) | 160 | 1.4 % | 0.5 % | **0.0 %** | 0 | 0 |
+| tank 4 x 3 m deep at 1/9 m, kicked to its LID (36, 30) | 54 | 31-39 % | 28-39 % | 14-32 % | 29-39 % | 15-31 % |
+| pond 6 x 6 x 1 m, tick 2 (spray at its lid) | 81 | 78 % | 20 % | 80 % | 80 % | 74 % |
+
+- **Water with a free surface needs ~40 sweeps whatever the box's length** (12 to 540 cells): the free surface is a fixed
+  pressure all along the top, so an error only travels ~a depth before it is pinned; the still-water guess (26.10) starts the
+  solve at the hydrostatic answer. 40 is within 0.4 % of converged in every free-surface scene, 80 exact.
+- **Water pressed against a solid lid converges at NO count here** (the 3 m tank kicked into its lid, the pond's spray at tick 2:
+  14-80 % at 40 AND at 160; 640's own residual 1e-2). With no free surface over it, SOR needs O(N^2) sweeps - 160 does not buy
+  it either. Not this item's to fix (a multigrid or a PCG pass for enclosed water - logged open).
+- So the 1.5 x longest rule buys nothing past 40: on free-surface water it is wasted, on lidded water it is not enough.
+
+**The rule.** The AUTOMATIC count = clamp(1.5 x longest, 8, **40**) (`WaterCoreManager::kGpuSweepsAutoMax`). An explicit `sweeps`
+keeps 8-160 (a caller who measured a need can still ask). Volumes that change: every auto volume longer than 27 cells (the dam &
+pond bench 160 -> 40, a 1/9 m pond 6 m across 81 -> 40, the 1 m dam-break rig 90 -> 40); the compact ponds (<= 27 cells) are
+untouched (the 1/3 m kicked pond 18; the signed-off bench ponds - checked live below).
+
+**Predictions:** (1) every CPU and GPU water test unchanged (the GPU parity tests pass their sweeps explicitly; the ones going
+through the manager are compact) - both exes, counts stated; (2) the dam & pond bench at auto: the 26.22 numbers of the 40-sweep
+run within 1 % and the water's GPU ms <= 2 (1.73 measured at 40); (3) the signed-off ponds on WaterBench_Small: their auto count
+before / after, and if it changes, the slosh's KE decay and the surface within the run-to-run noise.
+
+**Design check (FeatureDesignKeys):** *Look:* unchanged where the count is unchanged; elsewhere the solve stays within 0.4 % of
+converged (measured above). *Chunks:* the box's size, not chunks. *Generation:* none. *API:* `water_av_create {sweeps}` unchanged
+(explicit 8-160); `gpu_sweeps` in `water_av_list` echoes the count in effect; the default (auto) changes - stated here, the
+header comment at the clamp says why 40. *Visual test:* L2 (the one-step table) + L4 on the benches (prediction 2, 3). **READY.**
+
+**Built** (`WaterCoreManager::kGpuSweepsAutoMax` = 40; explicit counts still 8-160). **Measured:**
+1. Tests: `phyxel_tests` Water* + Occupancy 343 / 343; `phyxel_integration_tests` Water* 40 / 42 - the same two failures as
+   before the change, unchanged in their numbers (the GPU particle run-up 1.19 h0; the 4-tall dam break's halo short 3 - 26.21's
+   CORRECTION). Held.
+2. The dam & pond bench at the automatic count (now 40; `dam_pond_pondwater.json`, the 160-sweep run kept as
+   `dam_pond_pondwater_s160.json`): rise 5.42 mm/s, out/in 0.984, dip 27 % at 84 s, pool 15.824, surge 1.96 Q, ledger 1.2e-5
+   m^3 - the explicit-40 run's numbers within 1 % - and the water's GPU ms **1.46** at steady spill (160 sweeps: 3.17). Held.
+3. The signed-off ponds: the demo ponds (x 99-104, 1/3 m: 18 cells) keep their 27 automatic sweeps - unchanged; at 1/9 m a 6 m
+   pond goes 81 -> 40, which is the bench's 36 m^2 pond above (the same numbers) and the kicked 6 x 6 m pond of the one-step table
+   (0.0 % at 40 from tick 20). Held.
+**Open (logged, not this item's):** water pressed under a solid lid does not converge at any affordable count (14-80 % one-step
+error at 40 and at 160) - an enclosed-water solver (multigrid / PCG) when a cave or a covered channel needs it.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

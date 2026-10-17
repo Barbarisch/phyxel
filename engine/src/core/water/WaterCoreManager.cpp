@@ -67,10 +67,11 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     av->backend = be;
     // SOR needs O(N) sweeps for a Poisson problem N cells across: 1.5 x the longest grid dimension
     // (40 on the 1 m Basin, 117 at 1/3 m where 40 left a residual of 0.48 and 100 gave 5e-4 for
-    // +0.2 ms, 2026-10-08). An explicit `sweeps` overrides; both are clamped and echoed.
+    // +0.2 ms, 2026-10-08). An explicit `sweeps` overrides; both are clamped and echoed. 26.23: the automatic count stops at 40
+    // (kGpuSweepsAutoMax - past it free-surface water gains nothing and lidded water too little).
     const int longest = std::max({dims.x, dims.y, dims.z});
     const int autoSweeps = static_cast<int>(std::lround(1.5 * longest));
-    av->gpuSweeps = std::clamp(gpuSweeps > 0 ? gpuSweeps : autoSweeps, kGpuSweepsMin, kGpuSweepsMax);
+    av->gpuSweeps = gpuSweeps > 0 ? std::clamp(gpuSweeps, kGpuSweepsMin, kGpuSweepsMax) : std::clamp(autoSweeps, kGpuSweepsMin, kGpuSweepsAutoMax);   // 26.23
     refreshOccupancy(*av);
     av->solver->refreshSolids();
     if (be == "gpu") {

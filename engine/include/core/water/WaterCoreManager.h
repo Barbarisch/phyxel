@@ -147,6 +147,11 @@ public:
     bool gpuReady() const { return m_gpu && m_gpu->ready(); }
     static constexpr int kGpuSweeps = 40;   ///< default red-black SOR sweeps per projection (docs/WaterCore.md 15.12: omega 1.85, measured)
     static constexpr int kGpuSweepsMin = 8, kGpuSweepsMax = 160;   ///< fewer never converges a 26 m basin; more is the whole dispatch budget (15.11)
+    /// 26.23: the AUTOMATIC count's ceiling (an explicit `sweeps` may still ask for up to kGpuSweepsMax). Measured one-step velocity
+    /// error vs a 640-sweep solve: free-surface water is within 0.4 % at 40 whatever the box's length (12-540 cells) - the surface
+    /// pins the pressure along the top - and water pressed under a solid lid does not converge at 160 either (14-80 % off).
+    /// 1.5 x longest up to 160 cost the dam & pond bench 3.17 ms where 40 gave the same answer at 1.73 ms.
+    static constexpr int kGpuSweepsAutoMax = 40;
     bool destroy(int id);
     // ── Phase D (16.2): rest, write-back, wake ────────────────────────────────────────────
     void setSpanIo(SpanWriter writer, SpanReader reader) { m_spanWriter = std::move(writer); m_spanReader = std::move(reader); }
