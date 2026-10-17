@@ -106,13 +106,13 @@ part 1.5-5 ms; walking across chunks costs the water nothing. **Signed off by th
 **26.20 (2026-10-17) ANSWERED:** the pond's water is at the textbook depth on the stepped bed (0.187 / 0.306 m vs 0.190 /
 0.306); 26.15's "deeper" was the gauge (the highest sub-column) plus AIR inside flowing water (cells under the surface 4-10 %
 empty, CPU and GPU) - the drawn creek stands 9-26 mm above its water.
-**26.21 (2026-10-17) BUILT, not signed off - the air in moving water:** the owner chose "fix the air first". A volume
+**26.21 (2026-10-17) DONE, signed off by the owner ("looks good") - the air in moving water:** the owner chose "fix the air first". A volume
 correction in the pressure solve (CPU + GPU, on by default): a part-full cell with water above it and water or rock on all four
 sides asks for the inflow that refills it over 0.5 s (only what the water above can give; deficits under 2 % left alone). Rig:
 cells under water 0.90-0.96 -> 0.98-1.00 full, the water's top 9-26 -> 0-2.9 mm above its amount, the water's depth within 1 %.
 Live: the drawn creek 8.5 / 21.4 -> 1.5 / 2.4 mm above its water at q 0.2 / 0.5, GPU cost unchanged. Clip
 `creekbench_pond_g9_q0.5_airfix.mp4` (off -> on at 15 s).
-**Next:** the owner's look at 26.21; then P3c (the dam & pond bench as pond water); then P3d. The §23 slime experiment stays queued.
+**Next:** P3c (26.22, the dam & pond bench as pond water) - designed, building; then P3d. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6401,7 +6401,7 @@ last on flowing water. P1's "100.0 % of Manning" (26.5) measured the water, not 
 column model - the bed comparison is CLOSED. Open, to design if the owner wants it before P3c: the air in moving water (a volume
 correction in the projection, CPU + GPU) - it would bring the drawn creek down onto its water. P3c's gauges read `--stat mass`.
 
-### 26.21 The air in moving water - design, check, build (2026-10-17). Status: BUILT, ON by default (CPU + GPU); not signed off
+### 26.21 The air in moving water - design, check, build (2026-10-17). Status: DONE, ON by default (CPU + GPU); signed off by the owner 2026-10-17 ("looks good")
 
 **Where the air comes from (read off the code, 2026-10-17).** The projection makes every LIQUID cell (f >= 0.5)
 divergence-free, as if it were full. The fill moves by donor cell: a face carries `|v| dt / h x f_donor`. So a liquid cell
@@ -6521,6 +6521,49 @@ frame. Drawn surface at three columns ahead: 15.711-15.714 m while off; within ~
 with the rule always on (the default) the air never builds, so there is no step in play (24.11's "level drops in one jerk" does
 not apply). From this pose the change reads mostly as the bright reflection blocks moving; it is 1-2 cm on a 31 cm creek.
 Rig runs: `steppedbed_2621.txt`; live A/B: `creekbench_pond_g9_q{0.2,0.5}_vc_ab.json`.
+
+### 26.22 P3c - the dam & pond bench as pond water: design and check (2026-10-17). Status: DESIGN
+
+**The question.** 25.38 ran the dam & pond bench on the COLUMN model: a creek fills a 6 x 6 m pond, the pond spills, a dam
+across the creek at x 60 holds the flow back and overtops, the dam is broken and the held water surges down. P3c runs the same
+bench, the same edits and the same gauges on the POND model (one water everywhere, 26), so P3d can retire the column regions.
+
+**The volume - one, no engine change.** 26.13 wrote P3c's box as 118 x 5 x 10 m (4.3 M cells, over the 2 M cap of the CPU copy).
+The water never leaves z 29-34 (the pond's width; the creek and the spill channel are 2 m inside it) nor rises above ~16.0, and
+the pond's floor is y 14.0: **x 10-127, y 14-16, z 29-34 at 1/9 m = 1062 x 27 x 54 = 1,548,396 cells** - inside the cap
+(y to 17 would be 2.06 M). GPU, sparse bricks (dry ground costs nothing, 26.18), Manning n 0.035 over the whole volume (it
+replaces pond friction; in the pond's ~1 m of slow water it brakes far less than pond friction would - stated, measured below),
+springs across the head's 1/9 m cells (as the creek bench), outfalls across the spill channel's end (x 127).
+
+**The edits.** The bed at the dam (x 60) is 15.333 m - on the 1/3 m grid even after 26.15's 1/9 m carve - so 25.38's dam is
+unchanged: one layer of Stone subcubes (y 15, sy 1) across z 31-32, crest 15.667; removed the same way. The pond volume
+re-reads only the touched cubes (26.19's local re-read) and patches the GPU occupancy in place; water in a cell that turns
+solid moves up its column (ledger rule 19.1), never deleted.
+
+**Gauges (26.20: depth means the water, not the highest sub-column):** pond level = `water_av_column` `surface_mean` at the
+pond's centre (still water: the drawn surface is the water's; 26.21); the dam's pool the same 5 m upstream of the dam; the
+flow INTO the pond by the books - d(pond storage)/dt + d(outfall total)/dt, the pond storage the mass depth summed over its
+36 columns (one `{mass: true}` call) - smoothed over 5 s; ledger = mass - (springs in - outfalls out) from `water_av_list`;
+the water's GPU ms and the frame rate.
+
+**Predictions (written before the first run; the column model's 25.38 numbers beside them):**
+
+| | prediction (pond model) | column model, 25.38 |
+|---|---|---|
+| DP-T1 pond rise, 0.2-0.8 m of depth | Q / A = 5.56 mm/s +- 10 % (the creek delivers Q once its own storage is full) | 5.43 mm/s |
+| spill | starts with the pond <= 3 cm over the channel's floor (15.0) | 1.8 cm |
+| DP-T1 spilling | out / in 1.00 +- 0.02 over the last 30 s | 0.980 (still settling) |
+| DP-T2 dam | the pond's inflow dips to 40-60 % of Q 60-90 s after the dam (the kinematic wave down 50 m, 25.38's physics), back to >= 80 % as the pool overtops | 46 % at 78 s, then 82-94 % |
+| the dam's pool | crest 15.667 + the weir head of 0.2 m^3/s over 2 m (0.15 m) = 15.82 +- 0.03 | 15.83 |
+| DP-T3 break | the pond's inflow 1.5-1.9 Q, decaying over ~2 min | 1.7-1.75 Q |
+| ledger | <= 1e-4 m^3 at all times; unchanged within 1e-5 m^3 across each edit (edits never create water) | 1.6e-6 |
+| cost | the water's GPU ms <= 2 ms median at steady spill (the creek alone: 1.4-1.7 ms; the pond adds ~36 m^2 of deep water) | - |
+
+**Design check (FeatureDesignKeys).** *Look:* the pond model's water as signed off (26.14, 26.21). *Chunks:* one world-aligned
+volume; edits reach it by the pool's change list (26.19), not by chunk. *Generation:* none (a bench). *API:* existing routes
+only (`water_av_*`, `/api/world/subcube`). *Visual test:* L4 on the bench - a clip over the pond and the dam (FILL, DAM, BREAK)
+for the owner; the control is 25.38's column run on the same bench and gauges. Rig vs shipped: the bench's shipped GPU path;
+Manning in the pond is the one stated difference from a still pond's defaults. **READY.**
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
