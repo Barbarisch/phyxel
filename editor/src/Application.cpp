@@ -14008,6 +14008,15 @@ void Application::registerWaterCommands() {
         for (const auto& a : waterCore->list()) list.push_back(avJson(a));
         r = {{"success", ok}, {"volumes", list}};
     });
+    reg.on("water_av_manning", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 26.24
+        if (!waterCore) return noCore(r);
+        // n in [0, 0.2]: 0 = pond friction (as at create); 0.2 is a very rough bed (Chow's floodplain brush ~0.1-0.16) - above it
+        // the bed alone stops a 0.1 m creek, which is a wall, not a roughness
+        const int id = cmd.params.value("id", 0);
+        const float n = std::clamp(cmd.params.value("n", 0.035f), 0.0f, 0.2f);
+        if (!waterCore->setBedManning(id, n)) { r = {{"error", "no volume " + std::to_string(id)}}; return; }
+        for (const auto& a : waterCore->list()) if (a.id == id) r = {{"success", true}, {"volume", avJson(a)}};
+    });
     reg.on("water_av_list", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
         (void)cmd;
         if (!waterCore) return noCore(r);

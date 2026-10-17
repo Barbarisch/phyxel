@@ -6718,8 +6718,8 @@ error at 40 and at 160) - an enclosed-water solver (multigrid / PCG) when a cave
   m^3 - they carry water, unlike the columns' crown), the volume's ripple layer, the ledger exact across the splash.
 - `water_creek_ripples.py --pond`: the forcing A/B on the volume's layer (forcing 0 = the control, the layer asleep).
 **Predictions (P3d-1):** current - the profile at Manning within 10 % on the reaches' mid points as P3b measured (0.19 m at
-q 0.2 on the stepped bed), floats drifting at 0.8-1.1 x the surface speed (K-T2's band); tune n 0.035 -> 0.05: speed down by
-~0.035/0.05 at the same q (Manning's v ~ 1/n at fixed depth; depth rises ~(0.05/0.035)^0.6 = 1.24x). Splash - a 1/3 m stone
+q 0.2 on the stepped bed), floats drifting at 0.8-1.1 x the surface speed (K-T2's band); tune n 0.035 -> 0.05: at the same q the
+mean speed x (0.035/0.05)^0.6 = 0.81 and the depth x 1.24 (Manning, wide channel: d ~ n^0.6 at fixed q). Splash - a 1/3 m stone
 from 1.5 m: droplets born (> 0, the pond's real splash; the columns made 5-30 cosmetic ones), ripple layer wakes, ledger
 change across the splash inside float noise (<= 2e-5 m^3). Ripples - forcing 0: the layer asleep (exact zero); forcing 200:
 a visible flow pattern - its peak and slope histogram reported beside the column-era `ripples_sweep.json`. Clips for the owner.
@@ -6743,6 +6743,27 @@ numbers (mass depth 0.186 m; rise 5.42 mm/s, pool 15.824, surge 1.96 Q) - the po
 bench scripts, all ported); `water_av_manning {id, n}` added, echoing the state; no default changes. *Visual test:* L4 - the three
 ported tools' clips on the pond creek for the owner (current floats, the stone's splash, the forcing A/B); L2 - both test exes and
 the two benches' numbers after the removal. **READY.**
+
+**P3d-1 run (2026-10-17; the creek bench at q 0.2 as pond water, 300 s settled; `--pond` on the three tools; `water_av_manning`
+built).** Evidence `current_{profile,floats,tuned}_pond.*`, `ripples_pond_{sweep.json,ff0.mp4,ff200.mp4}`, `splash_pond_stone.*`.
+
+| gauge | prediction | measured | column era (25.28 / 25.29 / 25.30) |
+|---|---|---|---|
+| profile, mid depth | the stepped bed's reference 0.190 m | **0.188 m** (mean speed 0.54, surface 0.64 m/s, Froude 0.40) | 0.109 m on the then 1/3 m carve |
+| profile, wet stations | 40 / 40 | **32 / 40** - 8 stations read dry on a wet creek: OPEN, the gauge or the field | - |
+| floats (1/9 m wood) | 0.8-1.1 x the water | **~0.23 m/s = 0.43 x the mean, 0.36 x the surface**, steady (5 m / ~21 s, riding at the surface) - MISSED | 0.40 m/s = 0.88 x |
+| tune n 0.035 -> 0.05, 150 s | speed x 0.81, depth x 1.24 | speed x **0.93**, depth x **1.08** - MISSED (two candidates, unchecked: not settled - 24 % more depth over 100 m is ~9 m^3, > 45 s of inflow, and the wave takes longer; or the stepped bed - its drops hold part of the depth at critical flow, which n does not change; to check against the 1-D reference) | x 0.821 (smooth line) |
+| ripples, forcing 0 | the layer asleep | **awake, 60 mm peak** - the prediction copied the columns (whose layer only the forcing fed); the volume's layer is also driven by its own 3-D surface motion | asleep |
+| ripples, forcing 200 | a flow pattern | 107 mm peak, slopes p50 0.2 / p95 0.5 | `ripples_sweep.json` |
+| splash, 1/3 m stone from 1.5 m | droplets > 0, the ledger unchanged | **0 droplets** (the stone in the clip reaches the bed through 19 cm; a small splash shows, no births), ripple 13 mm, ledger change **7.8e-7 m^3** | 5-30 COSMETIC droplets (the crown) |
+
+**What this says.** The pond creek's DEPTH is right; its floats are not: they drift at ~0.4 of the water, the number the debris
+law gave before 25.28's fix (0.24 of 0.50 m/s, waterline drag toward rest) - on the column water the fix holds (0.88), on pond
+water something still brakes them. The debris reads the volume's surface velocity per column (`WaterCoreManager::columnWater`,
+the mean of the wet sub-columns' u, w - the same field the profile reads at 0.64 m/s), so the brake is further along: OPEN,
+investigated next (26.25). The splash and the ripple control are not defects shown, but predictions copied from the column
+model's cosmetic crown and forced-only layer; the owner's look at the clips decides. **P3d-2 (the removal) waits** until the
+floats ride the pond current: removing the columns now would remove the only water the current tools read right.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
