@@ -385,11 +385,13 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
             // rest instead of a perpetual oscillator. Query is read-only + thread-safe (see
             // setWaterQuery); null query = bit-identical dry behavior.
             float wet = 0.0f;
+            glm::vec3 dampRef(0.0f);   // 26.25: what the material damping pulls toward - the ground, or (touching water) the current
             if (m_waterQuery) {
                 glm::vec3 mn, mx;
                 body->getWorldAABB(mn, mx);
                 wet = m_waterQuery(mn, mx);
                 if (wet > 0.0f) {
+                    if (m_waterFlowQuery) { const glm::vec3 fl = m_waterFlowQuery(0.5f * (mn + mx)); dampRef = glm::vec3(fl.x, 0.0f, fl.z); }
                     body->linearVelocity -= m_gravity * (wet * body->buoyancy) * dt;
                     // One water law for both worlds (solver_shared.h, Phase 6c).
                     constexpr float kWaterLinearDrag  = Phyxel::DebrisShared::WATER_LINEAR_DRAG;
@@ -435,7 +437,12 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
             }
             float ld = std::pow(1.0f - body->linearDamping,  dt);
             float ad = std::pow(1.0f - body->angularDamping, dt);
-            body->linearVelocity  *= ld;
+            // 26.25: in water the air resistance acts on the velocity RELATIVE TO THE WATER (the 25.28 / 24.10 rule, a third time):
+            // against the ground it held a float at 0.490 of a 0.5 m/s current, and on the GPU - where the body's velocity change
+            // goes back into the pond water - it made every float a momentum sink that slowed its own patch of water (0.47 of the
+            // creek). The WHOLE damping, not a submerged share: weighted by f a half-sunk float kept half the brake (0.4952 of 0.5)
+            // - and air drag on a slow float is negligible beside the water's own laws above. Dry: dampRef = 0, the old law exactly.
+            body->linearVelocity  = dampRef + (body->linearVelocity - dampRef) * ld;
             body->angularVelocity *= ad;
             // Anti-tunneling (docs/DestructionSystemV2.md §15.6 A): this solver integrates
             // plain Euler and generates terrain contacts only from a body's current AABB —

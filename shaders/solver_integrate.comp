@@ -104,9 +104,22 @@ void main() {
     const float MOVE_SQ = 1.0;      // (1.0 m/s)²
     float accelWeight = clamp((speedSq - REST_SQ) / (MOVE_SQ - REST_SQ), 0.0, 1.0);
 
-    // Apply external forces: gravity + damping
+    // Apply external forces: gravity + damping. 26.25: in water the material damping (air resistance) acts on the velocity
+    // RELATIVE TO THE WATER (w = the current while the body touches water - the WHOLE damping: a submerged share left half the
+    // brake on a half-sunk float, and air drag on a slow float is nothing beside the water's laws): against the ground every float riding a current was
+    // braked below it, and the water exchange below handed that brake back to the pond water as momentum taken from it - each
+    // float slowed its own patch of water and read that as the current (0.47 of the creek; 1.05 with the exchange off).
+    // Dry (f = 0): w = 0, the old law exactly.
+    vec3 dampRef = vec3(0.0);
+    if ((pc.flags & SOLVER_FLAG_WATER) != 0u) {
+        vec2 flowD;
+        const float surfD = waterSurface(b.pos, flowD);
+        const float rD = max(b.radius, 1e-3);
+        const float fD = clamp((surfD - (b.pos.y - rD)) / (2.0 * rD), 0.0, 1.0);
+        if (fD > 0.0) dampRef = vec3(flowD.x, 0.0, flowD.y);
+    }
     b.vel.y   += pc.gravity * pc.dt;
-    b.vel     *= mat.linearDamp  * GAMMA;
+    b.vel      = dampRef + (b.vel - dampRef) * (mat.linearDamp * GAMMA);
     b.angVel  *= mat.angularDamp * GAMMA;
 
     // ---- Water (Phase 6c): the same law VoxelDynamicsWorld applies to CPU bodies

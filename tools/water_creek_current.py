@@ -149,6 +149,34 @@ def main():
     api.debug("water_columns", {"id": rid, "manning_n": n0})
 
 
+def floats_pond(api, count, seconds, size, tag):
+    """26.25: the floats measured in SIMULATION time - each wet body's own reported velocity beside the water's surface speed at
+    its column, sampled ~1 s apart while it is in x 25-65. The wall-clock crossing time (floats()) read the frame rate when the
+    engine ran slow (the debris clamps its step: at 7 FPS its clock ran at ~half the wall's)."""
+    camera_set(api, {"x": 20.0, "y": 19.0, "z": 36.0, "yaw": -15.0, "pitch": -22.0}); time.sleep(1.5)
+    ff = shutil.which("ffmpeg")
+    rec = subprocess.Popen([ff, "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-t", str(min(seconds, 60)), "-i", "title=WaterBench_Creek",
+                            "-vf", "crop=960:630:240:42", "-c:v", "libx264", "-crf", "30", "-pix_fmt", "yuv420p", str(EV / f"current_floats{tag}.mp4")]) if ff else None
+    api.debug("clear_dynamics"); time.sleep(1.0)
+    for k in range(count):
+        api.debug("spawn_gpu_particle", {"x": 14.0 + 1.5 * k, "y": 16.4, "z": ZC - 0.5 + 0.3 * (k % 3), "material": "Wood", "scale": size, "lifetime": 900.0})
+    t0 = time.time(); samples = []; fps = []
+    while time.time() - t0 < seconds:
+        r = api.debug("water_coupling", {})
+        bodies = [b for b in (r.get("wet_body_list") or []) if 25.0 <= b["centre"][0] <= 65.0]
+        if bodies:
+            cols = api.debug("water_av_column", {"points": [[b["centre"][0], b["centre"][2]] for b in bodies]}).get("columns", [])
+            for b, c in zip(bodies, cols):
+                if c.get("surface_y") is not None: samples.append({"x": b["centre"][0], "vx": b["velocity"][0], "u_water": c.get("u", 0.0)})
+        fps.append(api.get("/api/debug/engine_timing").get("fps", 0.0))
+        time.sleep(1.0)
+    if rec: rec.wait()
+    mean = lambda k: sum(x[k] for x in samples) / max(1, len(samples))
+    fps.sort()
+    return {"samples": samples, "n": len(samples), "float_mean_vx": mean("vx"), "water_mean_u": mean("u_water"),
+            "ratio": mean("vx") / max(1e-6, mean("u_water")), "fps_median": fps[len(fps) // 2] if fps else None}
+
+
 def main_pond(api, args):
     vid, n0 = volume_id(api)
     tag = "_pond"
@@ -158,13 +186,10 @@ def main_pond(api, args):
           f"Froude {base['mid_froude']:.2f}, wet stations {base['wet_stations']}")
     (EV / f"current_profile{tag}.json").write_text(json.dumps(base, indent=1))
     if "floats" in args.parts:
-        fl = floats(api, None, args.floats, args.float_seconds, args.float_size)
-        for f in ("current_floats.csv", "current_floats.mp4"):
-            if (EV / f).exists(): (EV / f).replace(EV / f.replace("current_floats", f"current_floats{tag}"))
-        speeds = [f["drift_speed_ms"] for f in fl if f.get("drift_speed_ms")]
-        print(f"K-T2 floats: {len(speeds)} of {len(fl)} crossed x 25-65; drift speeds {[round(x, 3) for x in speeds]} vs the water's mean {base['mid_speed_ms']:.3f} "
-              f"/ surface {base['mid_surface_speed_ms']:.3f} m/s")
-        (EV / f"current_floats{tag}.json").write_text(json.dumps({"floats": fl, "water_mid_speed_ms": base["mid_speed_ms"], "water_mid_surface_speed_ms": base["mid_surface_speed_ms"]}, indent=1))
+        fl = floats_pond(api, args.floats, args.float_seconds, args.float_size, tag)
+        print(f"K-T2 floats (simulation time, {fl['n']} samples in x 25-65): float {fl['float_mean_vx']:.3f} m/s vs the water at their columns "
+              f"{fl['water_mean_u']:.3f} m/s = {fl['ratio']:.3f}; FPS median {fl['fps_median']}")
+        (EV / f"current_floats{tag}.json").write_text(json.dumps({**fl, "water_mid_speed_ms": base["mid_speed_ms"], "water_mid_surface_speed_ms": base["mid_surface_speed_ms"]}, indent=1))
     if "tune" not in args.parts: return
     r = api.debug("water_av_manning", {"id": vid, "n": args.tune_n})
     if "error" in r: raise SystemExit(r)

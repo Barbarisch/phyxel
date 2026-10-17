@@ -111,6 +111,22 @@ TEST(WaterBuoyancy, FloatDriftsAtTheCurrentsSpeed) {
     EXPECT_NEAR(b->linearVelocity.x, 0.5f, 0.05f);
 }
 
+// WaterCore.md 26.25: the material damping (air resistance) acts on the velocity RELATIVE TO THE WATER in water. Against the
+// ground it held a float below the current (0.490 of 0.500 here), and on pond water - where the debris hands its velocity change
+// back to the water - that brake became a momentum sink that slowed the water round every float (live: 0.47 of the current).
+// Prediction: within 0.002 m/s of a 0.5 m/s current after 40 s. RED with the ground-relative damping (~0.490).
+TEST(WaterBuoyancy, FloatDriftsExactlyAtTheCurrent) {
+    VoxelDynamicsWorld w;
+    w.setThreadCount(1);
+    w.setFallThreshold(-1000.0f);
+    w.setWaterQuery(flatWater(50.0f));
+    w.setWaterFlowQuery([](const glm::vec3&) { return glm::vec3(0.5f, 0.0f, 0.0f); });
+    VoxelRigidBody* b = unitBody(w, glm::vec3(0.0f, 49.5f, 0.0f), 2.0f);
+    for (int i = 0; i < 2400; ++i) w.stepSimulation(1.0f / 60.0f, 1);
+    std::printf("  drift %.4f m/s in a 0.5000 m/s current\n", b->linearVelocity.x);
+    EXPECT_NEAR(b->linearVelocity.x, 0.5f, 0.002f) << "the float is braked below the current it rides";
+}
+
 TEST(WaterBuoyancy, NullFlowQueryChangesNothing) {
     VoxelDynamicsWorld a, b;
     for (VoxelDynamicsWorld* w : {&a, &b}) {

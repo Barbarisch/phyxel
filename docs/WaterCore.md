@@ -120,7 +120,12 @@ change): pond rise 5.42-5.45 mm/s (Q/A 5.56), spilling out/in 0.981, the dam's p
 free surface is within 0.4 % of converged at 40 sweeps whatever the box's length (12-540 cells); water under a solid lid does not
 converge at 160 either. The automatic count now stops at 40 (was 1.5 x the longest side, up to 160): the dam & pond bench 3.17 ->
 1.46 ms with the same numbers; the signed-off demo ponds unchanged (27). Open: an enclosed-water solver for lidded water.
-**Next:** P3d (26.24) - designed: (1) port the creek's current / splash / ripple tools to pond water and measure; (2) remove the column regions, windows and their route. The §23 slime experiment stays queued.
+**26.24-26.26 (2026-10-17):** P3d designed (no normal session creates a column region); the creek's current / splash / ripple
+tools ported to pond water (`--pond`); porting them found (26.25) floats drifting at ~0.4 of the pond current - the material
+damping braked them toward the ground and the debris -> water exchange handed the brake to the water; fixed (floats now ride at
+1.000 of the water) - which exposed (26.26) that the exchange reads back and re-uploads a whole GPU volume every frame anything
+moves in it: 4 floats in the creek, 124 -> 7 FPS. Pre-existing.
+**Next:** 26.26 the exchange on the device (designed); then P3d-2 (the removal). The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6764,6 +6769,115 @@ the mean of the wet sub-columns' u, w - the same field the profile reads at 0.64
 investigated next (26.25). The splash and the ripple control are not defects shown, but predictions copied from the column
 model's cosmetic crown and forced-only layer; the owner's look at the clips decides. **P3d-2 (the removal) waits** until the
 floats ride the pond current: removing the columns now would remove the only water the current tools read right.
+
+### 26.25 Floats drift at 0.4 of the pond current - found, measured, built (2026-10-17). Status: BUILT, not signed off (the frame cost: 26.26)
+
+**Measured, one switch at a time** (`water_coupling {exchange, solids}`, the creek bench at q 0.2 as pond water, four 1/9 m wood
+floats, x 20 -> 40; `current_floats_pond_{exchange_off,solids_off,both_on}.*`):
+
+| coupling | float drift | / the water's mean 0.54 m/s |
+|---|---|---|
+| both on (shipped) | 0.26 m/s | 0.47 |
+| debris displacing water OFF | 0.30 m/s | 0.55 |
+| **debris -> water momentum exchange OFF** | **0.57 m/s** (4 / 4 floats, 0.570-0.577) | **1.05** (0.89 of the surface; the column era 0.88) |
+
+**Cause (read off the code, confirmed by the switch).** Every substep the GPU solver damps each body's velocity toward the
+GROUND (`solver_integrate.comp`: `b.vel *= mat.linearDamp * GAMMA`, ~0.995 for wood - the material's air resistance); the water
+block then pulls it back toward the current, and the water EXCHANGE (E2) hands that pull back to the pond water as momentum
+taken from it (`exchanges[]` -> `WaterCoreManager::addMomentum`). So a float riding a current is a steady momentum sink on its
+own patch of water - it slows the water around it, and reads that slowed water (`columnWater`, its own voxel column) as the
+current: a self-consistent ~0.45. The column water took no exchange, so floats there were limited only by the damping
+(0.88). Physically a float moving WITH the water feels no air resistance relative to it worth the name, and gives the water
+nothing.
+
+**The rule (the 25.28 / 24.10 pattern, a third time):** in water the material damping acts on the velocity RELATIVE TO THE WATER,
+`v = w + (v - w) d`, w = (flow.x, 0, flow.z) while the body touches water (f > 0), d the material's damping factor; out of water
+(f = 0) w = 0 - the old law exactly. (First built weighted by f, as the other water laws are: the red test went 0.4904 -> 0.4952
+only - a half-sunk float kept half the brake. The material damping is air resistance standing in for numerical calm; on a slow
+float it is nothing beside the water's own drag, so touching water replaces it whole.) GPU (`solver_integrate.comp`: the water surface and f read BEFORE the damping) and CPU
+(`VoxelDynamicsWorld`, its wet bodies) alike (solver_shared.h: one law).
+
+**Predictions.** (1) RED first, CPU: `WaterBuoyancy.FloatDriftsExactlyAtTheCurrent` - the 25.28 rig (a unit wood body in a
+0.5 m/s current, flat water), 40 s: drift within 0.002 m/s of 0.5 - red today at ~0.490 (the damping's share), green after.
+(2) The bench, exchange ON: floats >= 0.9 of the water's mean (today 0.47), and within 10 % of the exchange-off run (0.57).
+(3) Nothing else moves: the CPU water / buoyancy / debris / dynamics tests and the GPU water tests as before (both exes); bodies
+out of water bit-identical (f = 0 is the old law); `tools/debris_settle_bench.py` on DebrisLab (CLAUDE.md: required for any
+`solver_*.comp` change) - the same verdicts as its baseline.
+**Design check (FeatureDesignKeys):** *Look:* floats ride the current again (the clip for the owner). *Chunks:* a per-body law
+on the tile's world-position flow - no chunk quantity. *Generation:* none. *API:* none; `water_coupling {exchange}` stays the
+A/B. *Visual test:* L4 the float clip at the bench pose; L2 the red unit test; the settle bench. **READY.**
+
+**Built (the damping rule, CPU + GPU).** Red -> green: `FloatDriftsExactlyAtTheCurrent` 0.4904 -> 0.4952 (weighted by f - see the
+rule) -> **0.5000**. Unit suite 4279 pass; the failures besides it: `AtlasManagerTest.BuildAtlasFromSourcePNGs`,
+`TransparentCullingCrossChunk.T16_...` (a cost ratio 0.0503 vs 0.05), `FineFaceMerge.SubcubeMerge_CrossCube...` - rendering and
+assets, untouched by this session, not checked against an older build - and `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles`,
+which passes alone (0.290 m, every run) and fails only after the `*Damage*` tests (0.221 m, KE 0.51 vs 0.95): a damage test
+leaves the blast's reference material changed - a test-ORDER defect, not this change's; open. GPU: 43 / 45, the two known.
+
+**Then the live check MISSED (floats 0.30 m/s, predicted >= 0.9 x 0.54) - and the miss was the measurement.** Sampled during
+steady drift (the float's reported velocity, the water's surface speed at its column and 2 m ahead, the exchange this frame):
+every float moves AT the water round it (0.54-0.86 m/s, within a few % of the local surface speed; the exchange per frame ~0) -
+the rule works. But its position advanced at only ~0.26 m/s of WALL time: **the engine ran at 7.4 FPS** (CPU 138 ms a frame,
+GPU 16 ms), and the debris clamps its step, so its clock ran at ~half the wall's. `water_creek_current.py` times floats by the
+wall clock - it measured the frame rate. Removing the four floats: **81.7 FPS**, CPU 12 ms; the volume's stored bricks 3,656 ->
+2,111.
+
+**Why four small floats cost 125 ms (a second defect, unmasked by the first fix):** debris displaces water while it moves faster
+than 0.6 m/s (`Application.cpp`, `kDisplaceOnSpeed` 0.6 / off 0.3) - measured against the GROUND. Floats that now ride the
+current at 0.55-0.86 m/s cross it and become moving solids in the pond (the body raster, the wake, the solid box over the
+bricks they span, every frame) though they move WITH the water and displace nothing as they go. Before the damping rule the
+floats were truly slow (0.26 m/s, under the threshold) - which is why the frame rate then was fine.
+
+**Fixes (the same commit):**
+1. **Displacement on the speed RELATIVE TO THE WATER** at the body (`WaterCoreManager::columnWater` - its own column's flow,
+   the body's sub-column excluded). A float riding the current displaces nothing; a stone dropped into it still does (falling
+   at metres a second relative to the water); a body at rest in still water - unchanged (flow 0).
+2. **The tool measures in simulation time:** each float's drift = its own reported velocity averaged over x 25-65, beside the
+   water's surface speed at its column - independent of the frame rate; the frame rate is printed with it.
+**Predictions:** with four floats in the creek the frame rate stays within 10 % of none (~80 FPS); bricks ~2,100; floats at
+0.9-1.1 x the water's surface speed at their columns; the dam & pond and creek numbers unchanged (no floats there).
+
+**Measured after both fixes (the creek bench, q 0.2, four 1/9 m wood floats):** the floats in SIMULATION time **1.000** of the water
+at their columns (0.629 / 0.629 m/s, 378 samples in x 25-65) - held; no body displacing (moving solids 0) - held. The frame rate
+with the floats **still 8.6 FPS** (CPU 117 ms; 122.6 FPS before them) - MISSED: displacement was not the cost. One switch:
+
+| | FPS | CPU ms | bricks stored |
+|---|---|---|---|
+| no floats | 124.7 | 8.0 | 2,000 |
+| 4 floats, exchange ON | 7.4 | 135.9 | 3,418 |
+| 4 floats, exchange OFF | 108.9 | 9.2 | 2,008 |
+| 4 floats, exchange ON again | 8.0 | 124.3 | 3,417 |
+
+**The cost is the exchange's path on a GPU volume** (`WaterCoreManager::applyMomentum`): on every frame with a record it reads the
+WHOLE volume back to the CPU (`syncFromGpu` - 1.75 M cells here), applies the momentum on the CPU copy, and re-uploads it all
+(`markWritten` - the stored bricks jump by the re-upload's dense residency). Written for the CPU ponds of §19 (E2); on the GPU it
+costs ~115 ms a frame while anything moves in the water. Floats riding the current still send small records every frame (they
+bob; the creek's speed changes along it). Pre-existing - the floats only made it visible. Fixed in **26.26**: the momentum applied
+ON THE DEVICE, no round trip. (The 0.6 m/s displacement switch on the relative speed stays - it is right on its own: a float
+riding a creek pushes nothing aside.)
+**Status of 26.25:** the damping rule and the relative-speed displacement BUILT; floats ride the pond current exactly; the frame
+cost of moving debris in a GPU pond is 26.26.
+
+### 26.26 The debris -> water exchange on the device - design (2026-10-17). Status: DESIGN
+
+**What it must do (unchanged):** each record (position, radius, momentum m^3 x m/s) gives the water inside a sphere of the radius
+(>= 1.5 cells) the momentum: per axis, du = momentum / W over the faces of the chosen cells, W = the sum of each face's fill-
+weighted cell volume (`WaterSolver::addMomentum` - exact: the water gains exactly what the body lost), clamped at 20 m/s.
+**How:** the records go up to the device each frame (a small buffer - ~10-50 records a frame, 32 bytes each) and a new mode of
+`wc_face_ops` applies them inside the volume's next call, before the projection (where the CPU path's change landed):
+- pass 1 - one workgroup per record: its threads walk the sphere's cells (<= 7^3 at the 1.5-cell minimum; bigger bodies more),
+  sum Wu / Wv / Ww in shared memory (the same face rule as the CPU: each face once per record);
+- pass 2 - the same walk adds du to each face. Two records touching one face: their adds race - applied with integer atomics on
+  a fixed-point accumulator per touched face (a scratch lattice), then folded into the float faces in pass 3 - order-independent,
+  so deterministic (the 26.6 rule: no reduction-order leak).
+**Gates (red first):** `WaterCoreGpuParityTest.GpuMomentumMatchesCpu` - a pond on both backends, the same 20 records (overlapping
+on purpose): faces within 1e-6 m/s of the CPU's, the volume's momentum gain = the records' sum to float precision (red: the GPU
+has no such path - the test reads the round trip today and would pass by construction, so its red is the COST row below);
+`DISABLED_DiagMomentumCost` - 4 floats' worth of records a frame into the creek's volume: < 0.2 ms (today ~115 ms); the bench:
+4 floats in the creek, frame rate within 10 % of none; floats 0.9-1.1 x the water (26.25's sim-time tool); the GPU suite as before.
+**Design check:** *Look:* none (the same momentum, no stall). *Chunks:* world-positioned records into world-aligned bricks - an
+absent brick takes nothing (counted, as the CPU's `dry`). *Generation:* none. *API:* `water_coupling {exchange}` unchanged;
+its stats gain `gpu_records`. *Visual test:* L2 the parity + cost rows, L4 the bench. **READY.**
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

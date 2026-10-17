@@ -3733,7 +3733,16 @@ void Application::update(float deltaTime) {
                 if (!boxes.empty())
                     for (const auto& w : debrisRuntime->gpu()->wetBodies()) {
                         const uint64_t id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);
-                        const float speed = glm::length(w.velocity);
+                        // 26.25: the speed RELATIVE TO THE WATER - a float riding a creek at 0.6-0.9 m/s moves WITH the water and
+                        // displaces nothing as it goes; on the ground speed every float in the creek became a moving solid (4 floats:
+                        // 82 -> 7 FPS, +1,545 bricks). A stone dropped in still displaces; a body in still water is unchanged.
+                        glm::vec3 rel = w.velocity;
+                        {
+                            const glm::vec3 c = w.centre + w.velocity * w.ageSeconds;
+                            float s = 0.0f; glm::vec2 fl(0.0f);
+                            if (waterCore->columnWater(static_cast<int>(std::floor(c.x)), static_cast<int>(std::floor(c.z)), s, fl)) rel -= glm::vec3(fl.x, 0.0f, fl.y);
+                        }
+                        const float speed = glm::length(rel);
                         const auto prev = m_displacing.find(id);
                         const bool on = speed > kDisplaceOnSpeed || (prev != m_displacing.end() && prev->second && speed > kDisplaceOffSpeed);
                         displacing[id] = on;
