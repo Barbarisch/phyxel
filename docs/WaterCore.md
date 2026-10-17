@@ -112,11 +112,11 @@ sides asks for the inflow that refills it over 0.5 s (only what the water above 
 cells under water 0.90-0.96 -> 0.98-1.00 full, the water's top 9-26 -> 0-2.9 mm above its amount, the water's depth within 1 %.
 Live: the drawn creek 8.5 / 21.4 -> 1.5 / 2.4 mm above its water at q 0.2 / 0.5, GPU cost unchanged. Clip
 `creekbench_pond_g9_q0.5_airfix.mp4` (off -> on at 15 s).
-**26.22 (2026-10-17) P3c RUN, not signed off:** the dam & pond bench on pond water (one 1.55 M-cell GPU volume, no engine
+**26.22 (2026-10-17) P3c DONE, signed off by the owner ("video looks good"):** the dam & pond bench on pond water (one 1.55 M-cell GPU volume, no engine
 change): pond rise 5.42-5.45 mm/s (Q/A 5.56), spilling out/in 0.981, the dam's pool 15.824, break surge 1.95 Q, books exact
 (1.4e-5 m^3; edits inside float noise) - the column model's numbers, except a deeper dip after the dam (27 % vs 46 %). Cost:
 3.17 ms at the automatic 160 sweeps, 1.73 ms at 40 with the same numbers. Clip `dam_pond_pondwater.mp4`.
-**Next:** the owner's look at 26.22; the automatic sweep count's rule (a default change: design + measure); then P3d. The §23 slime experiment stays queued.
+**Next:** 26.23 the automatic sweep count's rule (a default change: measure, design, check); then P3d. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6526,7 +6526,7 @@ with the rule always on (the default) the air never builds, so there is no step 
 not apply). From this pose the change reads mostly as the bright reflection blocks moving; it is 1-2 cm on a 31 cm creek.
 Rig runs: `steppedbed_2621.txt`; live A/B: `creekbench_pond_g9_q{0.2,0.5}_vc_ab.json`.
 
-### 26.22 P3c - the dam & pond bench as pond water: design, check, run (2026-10-17). Status: RUN, not signed off
+### 26.22 P3c - the dam & pond bench as pond water: design, check, run (2026-10-17). Status: DONE; signed off by the owner 2026-10-17 ("video looks good")
 
 **The question.** 25.38 ran the dam & pond bench on the COLUMN model: a creek fills a 6 x 6 m pond, the pond spills, a dam
 across the creek at x 60 holds the flow back and overtops, the dam is broken and the held water surges down. P3c runs the same
