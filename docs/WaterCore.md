@@ -98,8 +98,10 @@ GPU 1.83 -> 1.57 ms a call, the water the same to the fourth digit; the frame un
 re-read from the world on every change (everything is destructible): creek GPU 1.56 -> 1.35 ms, the water identical; digs under
 and beside the running creek drain into the holes, books exact. Found: every world change freezes the frame ~145 ms per volume
 (the whole box re-read and re-uploaded) - and any edit anywhere triggers it.
-**Next:** 26.19 - a world change seen locally (only the touched bricks, no read-back); the pond's extra drag on the stepped
-bed; then P3c. The §23 slime experiment stays queued.
+**26.19 (2026-10-16): a dig without a freeze** - the owner saw the dig clip stutter: measured, 1,051 ms of each dig was the
+API's whole-world NPC nav rebuild (fixed: the touched columns only) and ~148 ms the water's full re-read; designed: the pool
+records which cubes changed, the water re-reads and patches only those, in place.
+**Next:** build 26.19; the pond's extra drag on the stepped bed; then P3c. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6186,6 +6188,88 @@ Predicted ~262 k cells; measured 282 k. With 26.17: the creek's GPU per call 1.8
 and one per dig anywhere is worse. The design to write: re-read only what an edit touched (the edited voxels' cells, if they lie
 in a volume's box), update those bricks' occupancy, ground status and residency on the device in place, and never download the
 water for it - with the same equality gate (a local re-read == the full re-read, bit for bit) and the dig bench as the measure.
+
+### 26.19 A dig without a freeze - measured, designed, checked (2026-10-16). Status: DESIGN, READY
+
+**The ask (owner, 2026-10-16, on `creekbench_dig_bank_trench_top.mp4`): "that video certainly seems very very stuttery. we
+need to fix that".**
+
+**Measured first** (the clip, then the frame-pacing history around one dig):
+- The clip: 38 freezes over 80 s, the long ones 0.7-1.1 s, one at every dig (frames unchanged, `mpdecimate`). The control,
+  `creekbench_pond_g9_q0.2_gb1_steady.mp4` (the same creek, no digs): 0 freezes over 60 s. The stutter is the digs.
+- One one-voxel dig on the main loop (`/api/debug/frame_pacing`): a frame of **1,116 ms in "API Drain"** (the dig command), then
+  a frame of **148 ms in "Water"** (the re-read 26.18 measured). The clear command's own stage times (new `timing_ms` echo on
+  `clear_region`): undo snapshot 0.05 ms, the voxel removal 0.09 ms, **the NPC navigation rebuild 1,051 ms** - the WHOLE world's
+  nav grid rebuilt after every API fill or clear, in a world with no NPCs.
+
+So the freeze has two causes, and only the second is the water's:
+1. **The dig tool's nav rebuild (1,051 ms).** `fill_region` / `clear_region` (the routes the bench digs with) rebuilt the whole
+   nav grid; a player's own dig (B key) and every other edit route already update only the touched columns
+   (`NPCManager::onVoxelChanged` / `onRegionChanged`). **Fixed:** the two routes now call `onRegionChanged` for their box.
+2. **The water's re-read (~148 ms per volume per world change),** and three things make it worse than "a dig near water":
+   - it is triggered by the occupancy pool's pack revision, which bumps on ANY change - an edit anywhere, a chunk streaming in
+     or out, and the camera crossing a chunk boundary (the pool's box re-centres: `setViewCentre`) - so walking around costs
+     the water a freeze per chunk crossed;
+   - every voxel edit also calls `markSolidsDirty()` (the occupancy callback, `Application.cpp`), a second full re-read, at a
+     moment the pool may not yet hold the edit;
+   - the full re-read is not only slow, it disturbs the water: the re-upload zeroes the pressure solve's warm start, the
+     sub-cell remainders and the source rates, and rebuilds residency from the water plus one ring.
+
+**The design - the world tells the water WHAT changed, and the water patches only that, in place.**
+1. **The pool records what changed, per cube.** `VoxelLightOccupancyGpu::setChunk` diffs the new blob against the one it
+   replaces, cube by cube (the solid bit, the mixed bit, and for cubes mixed in both, their 729 micro bits) - a pure function,
+   `diffChunkOccupancy`, unit-tested - and records the box of the changed cubes (none: nothing recorded; a chunk re-set with
+   the same contents - a remesh, a neighbour's edit - costs the water nothing). A chunk that arrives, leaves, or is forgotten by a
+   box move records its whole 32^3 box (its cells go known <-> Unknown). Every pack keeps its list in a short history (64
+   packs); `changesSince(rev, boxes)` returns the boxes packed after `rev`, or **false** - "re-read everything" - when the
+   history no longer reaches back that far, when a pack dropped chunks (the pool was full: states changed with no chunk set), or
+   when a pack recorded more boxes than the cap.
+2. **The water re-reads only those cells.** `refreshOccupancy`, on a new revision, asks for the boxes since its last one. Each
+   box that meets the volume's box becomes a cell range (padded one cell on every side: rounding can only add cells); those cells
+   are re-sampled exactly as the full re-read samples them, compared with the cache, and only the ones that differ go on. No
+   change: nothing more happens - no GPU work. `false`: today's full re-read (kept, and still what a new volume does).
+3. **The GPU patches in place: no read-back, no re-upload.** `WaterCoreGpu::updateOccupancy(vol, cells, grid)` finishes the call
+   in flight, writes the new occupancy into the host copy, recomputes `allSolid` for the bricks those cells lie in and the solid
+   top of their columns, and copies the occupancy of the stored bricks among them to the device. Nothing else is touched - the
+   water, the faces, the pressure, the remainders keep their values, as they would if the ground had changed under water that
+   was not being re-read at all. A brick that was GROUND and is now not all ground stops being ground at the next call's
+   residency (26.18 rule 4, unchanged: it is stored with its new air, dry); one that became all ground can become ground. The
+   volume wakes.
+4. **One signal.** The occupancy callback no longer calls `markSolidsDirty()` on the water volumes: the pool's change list is
+   the one signal, and it arrives when the pool - which is what the water samples - actually holds the edit. The debug
+   `water_av_*` `refresh` flag and volume creation keep the full re-read.
+5. **What does not change.** Water in a cell that becomes solid stays where it is (as today's re-upload leaves it); digging
+   never creates water (an opened cell is dry air until water flows in). The record gains `occ_local_refreshes`,
+   `occ_full_refreshes`, `occ_cells_resampled` and `occ_cells_changed` next to `occ_refresh_ms` / `gpu_upload_ms`.
+
+**Design check (Feature Design Keys).**
+- *Destructibility (the owner's rule, 26.18):* which cells are ground is still read from the current world on every change; the
+  change list only says WHERE to read. Anything the list cannot vouch for (history gone, pool full, cap passed) falls back to the
+  full re-read - a slow answer, never a stale one.
+- *Chunks:* the change list is keyed by world cubes; a chunk boundary bounds what a pack records (cost), never what the water
+  reads. A dig across a chunk seam records one box per chunk; the gate digs across one.
+- *Generation pipeline:* none. *API:* `timing_ms` on `clear_region`; four record fields. *Defaults:* the local path is the
+  default once its gates pass - no switch is kept that leaves the slow path live, but the test hook `forceFullRefresh` keeps the
+  comparison runnable.
+- *Visual test:* the same dig clip, re-recorded at the same pose, with the freezes counted by the same `mpdecimate` measure.
+
+**Gates (red first):**
+- `ChunkOccupancyDiff` (unit): one cube cleared / one micro changed / a mixed cube made solid / identical blobs / a chunk with
+  nothing before - the reported box is exactly the changed cubes (empty for identical).
+- `LocalRefreshEqualsFull` (manager, CPU): a fake world edited at single cubes, a micro, a box across a chunk seam, a chunk
+  arriving and leaving - after each, the local re-read's occupancy == a full re-read's, every cell. RED control: one change
+  withheld from the list - they must differ.
+- `OccupancyPatchedInPlace` (GPU): dense 8^3 (every brick stored) against sparse 2-tall + ground, both edited mid-run by
+  `updateOccupancy` - a dig under the flowing creek, a deep dig opening a ground brick, a pit filled, ground placed into water -
+  every f, u, v, w, p equal every tick; after each edit the device occupancy of every stored cell == the world, and every
+  ground brick is all ground in the current world; the water drains into the dug pit. RED control: the sparse volume's
+  `allSolid` left stale - the dug brick stays ground, the water must not reach the pit, and the equality fails.
+- All existing GPU (39 + the known FLIP row) and CPU (330) water tests unchanged.
+- **Live:** `tools/water_creek_dig.py` again, same digs, same pose: per dig `occ_refresh_ms`, `gpu_upload_ms`, the clear's
+  `timing_ms`, the worst frame around it (frame pacing); the ledger; the water in every pit; then the clip's freezes counted.
+  Prediction: the dig frame's water cost falls from ~148 ms to under 2 ms (729 cells re-sampled, a few kB copied, one settle),
+  the API dig from ~1,051 ms to under 1 ms, and the clip shows no freeze at the digs. Plus a walk: the camera flown across 10
+  chunk boundaries beside the running creek, `occ_full_refreshes` must not move.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

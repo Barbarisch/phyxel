@@ -17647,7 +17647,9 @@ void Application::processAPICommands() {
                             });
                         }
                         if (placed > 0 && npcManager) {
-                            npcManager->buildNavGrid();
+                            // Only the filled columns: a whole-world rebuild here froze the frame ~1 s
+                            // per call (measured, WaterCore.md 26.19). Every other edit path does this.
+                            npcManager->onRegionChanged(glm::ivec3(minX, minY, minZ), glm::ivec3(maxX, maxY, maxZ));
                         }
                     }
                 }
@@ -17731,10 +17733,18 @@ void Application::processAPICommands() {
                         response = {{"error", "Region too large"},
                                     {"volume", volume}, {"max_volume", 100000}};
                     } else {
+                        // Stage times, echoed in the response: this runs on the main thread, so its
+                        // cost is a frame hitch (WaterCore.md 26.19: a one-voxel dig froze ~1.1 s).
+                        using StageClock = std::chrono::steady_clock;
+                        const auto tStage0 = StageClock::now();
+                        auto stageMs = [](StageClock::time_point a, StageClock::time_point b) {
+                            return std::chrono::duration<double, std::milli>(b - a).count();
+                        };
                         // Auto-snapshot for undo
                         pushUndoSnapshot(chunkManager, snapshotManager.get(),
                                          glm::ivec3(minX, minY, minZ), glm::ivec3(maxX, maxY, maxZ),
                                          "clear_region");
+                        const auto tStage1 = StageClock::now();
                         int removed = 0, skipped = 0;
 
                         // Group positions by chunk for batch removal
@@ -17776,6 +17786,7 @@ void Application::processAPICommands() {
                                 skipped += static_cast<int>(positions.size()) - batchRemoved - subRemoved;
                             }
                         }
+                        const auto tStage2 = StageClock::now();
                         response = {{"success", true}, {"removed", removed}, {"skipped", skipped},
                                     {"volume", volume},
                                     {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
@@ -17787,9 +17798,18 @@ void Application::processAPICommands() {
                                 {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}
                             });
                         }
+                        const auto tStage3 = StageClock::now();
                         if (removed > 0 && npcManager) {
-                            npcManager->buildNavGrid();
+                            // Only the cleared columns: a whole-world rebuild here was 1,051 ms of a
+                            // 1,051 ms one-voxel clear (measured, WaterCore.md 26.19).
+                            npcManager->onRegionChanged(glm::ivec3(minX, minY, minZ), glm::ivec3(maxX, maxY, maxZ));
                         }
+                        const auto tStage4 = StageClock::now();
+                        response["timing_ms"] = {{"undo_snapshot", stageMs(tStage0, tStage1)},
+                                                 {"remove", stageMs(tStage1, tStage2)},
+                                                 {"event", stageMs(tStage2, tStage3)},
+                                                 {"nav_rebuild", stageMs(tStage3, tStage4)},
+                                                 {"total", stageMs(tStage0, tStage4)}};
                     }
                 }
 
