@@ -6395,6 +6395,63 @@ last on flowing water. P1's "100.0 % of Manning" (26.5) measured the water, not 
 column model - the bed comparison is CLOSED. Open, to design if the owner wants it before P3c: the air in moving water (a volume
 correction in the projection, CPU + GPU) - it would bring the drawn creek down onto its water. P3c's gauges read `--stat mass`.
 
+### 26.21 The air in moving water - design, check, build (2026-10-17). Status: DESIGN (owner: "fix the air first")
+
+**Where the air comes from (read off the code, 2026-10-17).** The projection makes every LIQUID cell (f >= 0.5)
+divergence-free, as if it were full. The fill moves by donor cell: a face carries `|v| dt / h x f_donor`. So a liquid cell
+that takes water from a part-full donor (the surface cell above it on a falling surface, over every drop) and passes it on
+at its own fill loses the difference every substep, and once it is under 1 nothing in moving water gives it back:
+- the projection asks it for no net inflow (divergence-free = "already full");
+- compaction (24.11) refills it only through a QUIET face in a QUIET cell (lateral speed < 0.1 x the one-cell free fall,
+  0.15 m/s at 1/9 m) - a creek runs 0.6-1 m/s, so compaction never runs in it;
+- the ceiling target, the wake rule (20.5) and the FLIP density pull (15.9) are for other cases (a solid above, a body's
+  wake, particle transport).
+On the smooth rig the air is frozen in from the spin-up (uniform flow neither makes it nor clears it: 0.92 / 0.96 full);
+over the drops it is made all the time (0.90 / 0.91).
+
+**The rule (the volume correction §24.11 named).** In the Eulerian projection, a BURIED part-full liquid cell asks for a
+net inflow that returns its missing volume over a relaxation time T:
+
+    buried:  fc = f + s < 1,  the cell above is liquid (fa + sa >= thr and fa >= the surface minimum depth),
+             and no LATERAL face of the cell is to air (each of its 4 side neighbours is liquid or solid/body wall)
+    rhs  -=  df / dt^2,   df = (1 - fc) x dt / T            (the missing fraction, a share of it per substep)
+
+`SolverParams::volumeCorrectionTime` T (s; 0 = off). Water then moves DOWN into the cell from the liquid around it, and the
+pressure field takes the volume out at the free surface: the surface falls by the air it held, mass exact (the transport
+moves only what donors have - the rule asks for velocity, never writes f).
+
+**Why each gate (each is a case that broke an earlier pull, read off 15.9 / 20.5 / 24.11 / #17 / #20):**
+- *a liquid cell above:* the cell under a thin film (f_above < 0.5) is the SURFACE cell - its part-fullness is where the
+  surface is, not air (the 24.11 distinction; the wave drain of 24.6).
+- *no lateral air face:* a part-full cell beside air is a surface crossing the cell at a slope - a sheet over a sill (#17,
+  the weir lost 15 % to compaction there), a climbing sheet (#20, the run-up), a falling jet thinner than a cell. Its
+  part-fullness is shape, not air. A buried cell in a creek or a pond has water or rock on all four sides.
+- *a relaxation, not a speed:* the 20.5 attempts pulled every buried void at a fixed speed (0.25 m/s) and the blasted pond
+  rang (KE plateau 0.4-0.8) and the pump lost a tenth; a share of the deficit per substep is the standard volume-control
+  form (Kim et al. 2007) and asks for (1 - f) h / T: 22 mm/s for a 10 % void at 1/9 m and T = 0.5 s.
+- *no quiet gate:* the point is moving water.
+
+**Predictions (written before the first run; rig `WaterSteppedBedTest`, CPU, SB_T 400):**
+1. Smooth, q 0.1 / 0.25: buried cells 0.92 / 0.96 -> >= 0.99; the water's top above its amount 9 / 9 mm -> <= 2 mm;
+   depth by mass unchanged within 1 % (1.000 / 0.998 x Manning).
+2. Steps, q 0.1 / 0.25: 0.90 / 0.91 -> >= 0.98; 16 / 26 mm -> <= 5 mm; mass depth 0.188 / 0.310 within 2 %.
+3. T: 0.5 s first. If the steps keep more than 5 mm at 0.5 s, 0.2 s, stated.
+4. The CPU water suite (342) stays green unchanged - the weir (#17), the submerged pump, the run-up, the wave-energy rows,
+   `TheLevelNeverJerks`, the droplets, mass exactness. Any test that moves gets its numbers stated here, not its bound edited.
+5. Red test first: `WaterSteppedBedTest.MovingWaterHoldsNoAir` - the smooth rig at q 0.1, buried cells >= 0.99 and the top
+   within 2 mm of the water; red today at 0.92 / 9 mm.
+6. GPU: the same three gates in `wc_classify.comp` mode 0 (Eulerian branch), T in `param1`; the bench creek's mean drawn
+   surface (`--stat mean`) comes down to within 3 mm of its mass depth (today +8.5 / +21.6 mm at q 0.2 / 0.5); the GPU water
+   suite green; the frame cost unchanged within noise (a few flops per liquid cell in a kernel that already reads these).
+
+**Design check (FeatureDesignKeys):** *voxel look* - water is the standing exception (14.1), unchanged; the surface now sits
+where the water is. *Chunks* - a per-cell rule on the cell and its six neighbours, no chunk-derived quantity; the existing
+seam / residency equality tests cover it (14.2). *Generation* - none (runtime). *API* - no new route; T is a solver param
+(default 0.5 s once measured; 0 turns it off, for bisecting), `water_av_column {mass:true}` and `--stat mean|mass` already
+read the result. *Visual test* - L2 on the rig (the air numbers above), L4 on the creek bench (mean drawn surface vs mass,
+a side-by-side clip for the owner: before / after at the same pose). Rig vs shipped: the rig is the CPU reference on a
+straight 1/3 m channel with frictionless walls (stated in 26.20); the bench is the shipped GPU path. **READY.**
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

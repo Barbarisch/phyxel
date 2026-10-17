@@ -32,8 +32,9 @@ struct WcPush {
     int32_t surfaceGhost = 1;   ///< 26.9: the hydrostatic ghost at a clamped surface (WaterSolver::surfaceGhost)
     float quietRise = 0.0f;     ///< 26.9: m/s under which a partial cell's surface rises by filling (EulerianTransport::s_quietRiseFraction)
     int32_t bly = 3;            ///< 26.17: log2 of the brick height (bricks are 8 x (1 << bly) x 8)
+    float vcBand = 0.02f;       ///< 26.21: SolverParams::volumeCorrectionBand (wc_classify mode 0)
 };
-static_assert(sizeof(WcPush) == 112, "WcPush must match the GLSL push block");
+static_assert(sizeof(WcPush) == 116, "WcPush must match the GLSL push block");
 
 /// A pump or sink on the device (shaders/wc_sources.comp GpuSource, 32 bytes).
 struct GpuSource {

@@ -134,6 +134,26 @@ void main() {
                 }
             }
         }
+        // 26.21 THE VOLUME CORRECTION (param1 = T, s; 0 = off): a BURIED part-full liquid cell - water above it, no side
+        // face to air - is air inside the water; it asks for the net inflow that returns its missing share over T. Same rule
+        // as WaterSolver::project (why each gate: there).
+        if (pc.param1 > 0.0 && fc < 1.0 - pc.vcBand && c.y + 1 < pc.ny && !blocked(c.x, c.y + 1, c.z) && !bodyWall(c.x, c.y + 1, c.z)) {
+            const float fa = f[cellIdx(c.x, c.y + 1, c.z)], sa = solid[cellIdx(c.x, c.y + 1, c.z)].x;
+            if (fa >= 0.001 / pc.h) {   // any water above (the CPU's s_volumeCorrectionUnderFilm, the default)
+                bool sideAir = false;
+                for (int k = 0; k < 6; ++k) {
+                    if (k == 2 || k == 3) continue;
+                    const ivec3 n = c + d[k];
+                    if (blocked(n.x, n.y, n.z) || bodyWall(n.x, n.y, n.z)) continue;
+                    if (!isLiqCell(n.x, n.y, n.z)) sideAir = true;
+                }
+                if (!sideAir) {
+                    const float gap = min(1.0 - fc, fa);   // only what the water above can give (26.21)
+                    const float df = min(gap * pc.dt / pc.param1, gap);
+                    r -= df / (pc.dt * pc.dt);
+                }
+            }
+        }
     } else {
         if (fc > 1.0) {
             const float df = min(fc - 1.0, vfall * pc.dt / pc.h);

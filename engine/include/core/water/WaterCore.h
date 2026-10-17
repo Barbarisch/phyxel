@@ -164,6 +164,16 @@ struct SolverParams {
     /// waves at their turning points (a 4 m wave kept 0.69 of itself per swing on a half-full cell); 0.01 kept 0.91. In the
     /// settle band compaction runs at free fall (slow closing at rest left the S3 / spawn / cavity rows unsettled).
     float  compactionSpeed = 0.01f;
+    /// s - the VOLUME CORRECTION (WaterCore.md 26.21): a buried part-full liquid cell (a liquid cell above, no side face to air)
+    /// asks the projection for the net inflow that returns its missing volume over this time. Without it moving water kept
+    /// 4-10 % air below its surface (26.20: the drawn creek 9-26 mm above its water) - the projection treats a liquid cell as
+    /// full, and compaction only runs in quiet water. 0 = off (bisecting only).
+    float  volumeCorrectionTime = 0.5f;
+    /// cell fraction - a deficit under this is left alone (26.21): wave motion makes deficits of a few per cent that come and
+    /// go each swing, and pulling them cost the short wave on a half-full cell (mode 4 at 0.5: 0.66 -> 0.48-0.58 at bands of
+    /// 0 - 1 %) and drove float rounding in the transport (the pump's books 2e-6 -> 3e-5). At 2 %: 0.62, the books 1e-6; the
+    /// creek's air was 7-21 %.
+    float  volumeCorrectionBand = 0.02f;
     static float pondFrictionForHalfLife(float seconds) { return seconds > 0.0f ? 1.38629436f / seconds : 0.0f; }
     /// DIAGNOSTIC ONLY (bisecting a measured defect, never shipped on): bits disable a stage of
     /// the substep. 1 compaction · 2 thin-film slope · 4 thin-film settle · 8 "first halo layer only"
@@ -373,6 +383,8 @@ public:
     /// 26.20 diagnostic: the bed's Manning factor from the column's DEPTH-MEAN speed (one factor for every layer of a face column,
     /// the column law exactly) instead of each face's own speed. false = today. The stepped-bed rig's one variable.
     static inline bool s_bedManningColumnSpeedForTest = false;
+    /// 26.21 A/B: the volume correction also under a THIN surface cell (any water above, not only a liquid cell)
+    static inline bool s_volumeCorrectionUnderFilm = true;
     WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params = SolverParams{});
 
     void setTransport(std::unique_ptr<IWaterTransport> t);

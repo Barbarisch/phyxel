@@ -1056,7 +1056,8 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     enforceSolids();
     // projection
     stamp(cmd, vol, TsForces);
-    push.mode = 0; push.param0 = vol.particles ? 1.0f : 0.0f; dispatch(cmd, *vol.pipes[Classify], push, cells); push.param0 = 0.0f;
+    push.mode = 0; push.param0 = vol.particles ? 1.0f : 0.0f; push.param1 = params.volumeCorrectionTime; push.vcBand = params.volumeCorrectionBand;   // 26.21: the volume correction
+    dispatch(cmd, *vol.pipes[Classify], push, cells); push.param0 = 0.0f; push.param1 = 0.0f;
     if (s_stillWaterGuess) { push.mode = 2; dispatch(cmd, *vol.pipes[Classify], push, cols); }   // 26.9: the still-water first guess
     stamp(cmd, vol, TsClassify);
     for (int s = 0; s < sweeps; ++s) for (int colour = 0; colour < 2; ++colour) {

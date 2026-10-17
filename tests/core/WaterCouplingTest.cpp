@@ -312,7 +312,9 @@ TEST(WaterCouplingTest, SurfaceDoesNotOutrunTheWater) {
         prev = cur;
     }
     std::printf("  surface vs water: %ld column-ticks, %ld where the surface outran the water (worst jump %.4f m vs bound %.4f m); control (old fill-line rule): %ld\n", checks, violations, worst, worstBound, oldRule);
-    EXPECT_GT(oldRule, 250) << "control: the old fill-line rule must still fail this bound (the test can still see flicker) - measured 524";
+    // 26.21: 524 -> 222 once the volume correction took the air out of the blasted pond (fewer pockets and films for the old rule
+    // to trip on); 222 against the new rule's 0 still shows the test sees flicker
+    EXPECT_GT(oldRule, 100) << "control: the old fill-line rule must still fail this bound (the test can still see flicker) - measured 222";
     EXPECT_EQ(violations, 0) << "the rendered surface jumped further in one tick than the water could move";
 }
 

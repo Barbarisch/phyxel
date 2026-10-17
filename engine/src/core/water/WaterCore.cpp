@@ -1137,6 +1137,34 @@ void WaterSolver::project(float dt, StepReport& r) {
                 }
             }
         }
+        // 26.21 THE VOLUME CORRECTION. A BURIED part-full liquid cell - water above it and no side face to air - is air
+        // inside the water: projected as full and divergence-free it never takes back what the donor-cell flux lost it (a liquid
+        // cell fed by a part-full donor passes on more than it gets), and compaction only runs in quiet water, so a creek kept
+        // 4-10 % air under its surface and its drawn top stood 9-26 mm above its water (26.20). Ask for the net inflow that
+        // returns the missing share over volumeCorrectionTime. Under a thin surface cell too (s_volumeCorrectionUnderFilm): with only a
+        // liquid cell above, the last 7 % stayed in the cell under the surface cell (0.93 under 0.41 - the water belongs below). Why the other gates:
+        // beside air it is a surface crossing the cell at a slope - a sheet over a sill (#17), a climbing sheet (#20), a thin jet;
+        // a relaxation, not a fixed speed (the 0.25 m/s pull of 20.5 made a blasted pond ring and cost the pump a tenth).
+        if (m_params.volumeCorrectionTime > 0.0f && !m_transport->ownsMass() && y + 1 < ny && !blocked(m_grid, x, y + 1, z) && !bodyWall(x, y + 1, z)) {
+            const float fc = m_grid.f(x, y, z) + m_grid.s(x, y, z);
+            const float fa = m_grid.f(x, y + 1, z), sa = m_grid.s(x, y + 1, z);
+            if (fc < 1.0f - m_params.volumeCorrectionBand && (s_volumeCorrectionUnderFilm || fa + sa >= m_params.liquidThreshold) && fa >= WaterGrid::kSurfaceMinDepth / h) {
+                bool sideAir = false;
+                for (int k = 0; k < 6 && !sideAir; ++k) {
+                    if (k == 2 || k == 3) continue;
+                    const int xn = x + dx[k], zn = z + dz[k];
+                    if (blocked(m_grid, xn, y, zn) || bodyWall(xn, y, zn)) continue;
+                    if (row[m_grid.idx(xn, y, zn)] < 0) sideAir = true;
+                }
+                if (!sideAir) {
+                    // only what the water ABOVE can give: a surface cell under the film the transport smears up (a few mm) is not
+                    // a void - asking it for its whole missing share drove the velocity field and woke small waves (26.21)
+                    const double gap = std::min(1.0 - static_cast<double>(fc), static_cast<double>(fa));
+                    const double df = std::min(gap * dt / m_params.volumeCorrectionTime, gap);
+                    rhs[i] -= df / (static_cast<double>(dt) * dt);
+                }
+            }
+        }
         // A partial liquid cell under a SOLID ceiling has no face its surface could rise through:
         // projected as full and divergence-free it can never take the water that would fill it, so
         // a sealed cavity filling through a hole stalled with its top layer at ~0.5 (41.9 of 48 m^3,
