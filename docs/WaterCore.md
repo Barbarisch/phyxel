@@ -102,8 +102,8 @@ and beside the running creek drain into the holes, books exact. Found: every wor
 API's whole-world NPC nav rebuild (fixed: the touched columns only) and ~148 ms the water's full re-read; designed: the pool
 records which cubes changed, the water re-reads and patches only those, in place.
 Built 2026-10-17: the same trench clip went from 38 freezes (~1.27 s per dig) to 0; worst frame per dig ~22 ms; the water's
-part 1.5-5 ms; walking across chunks costs the water nothing.
-**Next:** the pond's extra drag on the stepped bed; then P3c. The §23 slime experiment stays queued.
+part 1.5-5 ms; walking across chunks costs the water nothing. **Signed off by the owner 2026-10-17** ("wow that looks way better").
+**Next (started 2026-10-17):** 26.20 - why the pond model runs 6-10 % deeper than the column model on the stepped bed; then P3c, then P3d. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -5210,6 +5210,12 @@ median** (26.11: the creek 1.02 ms a call at 27 sweeps, GPU 0.79 ms; p90 2.06 ms
 does not vary). **P2b BUILT** (26.12: the engine's volumes sparse, the per-frame paths bounded by the water and the bodies, not
 the box). **P3a BUILT; P3b's look signed off 2026-10-15** (the creek bench as pond water, fill and steady clips; its numbers
 are open - the cost 3x, the bed comparison; 26.14). P4, P5 **not started**.
+**Status (2026-10-17):** P3's cost work since: 26.15 the bench re-carved at 1/9 m, both models on the same bed (built); 26.16 the
+water's call not waited on, frame 12.9 -> 7.4 ms (built); 26.17 flat 8 x 2 x 8 bricks, GPU 1.83 -> 1.57 ms (**signed off**
+2026-10-16); 26.18 ground bricks, GPU 1.56 -> 1.35 ms (built); 26.19 a dig without a freeze, 38 freezes -> 0 (**signed off**
+2026-10-17). **P3 open, in order:** (1) the pond model 6 % / 10 % deeper than the column model on the same stepped bed (26.15) -
+26.20; (2) P3c, the dam & pond bench as pond water against 25.38's numbers; (3) P3d, the column regions and windows removed from
+near water.
 
 - **P1 - the pond model carries a creek.** [DONE, signed off 2026-10-13 - 26.5] Find, by measurement, why the pond core runs shallow fast water deep and slow,
   and fix it in the core (CPU reference first, then the GPU kernels - one law, both backends). Rig: the straight 1:100
@@ -6191,7 +6197,7 @@ and one per dig anywhere is worse. The design to write: re-read only what an edi
 in a volume's box), update those bricks' occupancy, ground status and residency on the device in place, and never download the
 water for it - with the same equality gate (a local re-read == the full re-read, bit for bit) and the dig bench as the measure.
 
-### 26.19 A dig without a freeze - measured, designed, checked, built (2026-10-16/17). Status: BUILT, ON; not signed off
+### 26.19 A dig without a freeze - measured, designed, checked, built (2026-10-16/17). Status: DONE, ON; signed off by the owner 2026-10-17 ("wow that looks way better" / "looks good")
 
 **The ask (owner, 2026-10-16, on `creekbench_dig_bank_trench_top.mp4`): "that video certainly seems very very stuttery. we
 need to fix that".**
