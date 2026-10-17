@@ -120,7 +120,7 @@ change): pond rise 5.42-5.45 mm/s (Q/A 5.56), spilling out/in 0.981, the dam's p
 free surface is within 0.4 % of converged at 40 sweeps whatever the box's length (12-540 cells); water under a solid lid does not
 converge at 160 either. The automatic count now stops at 40 (was 1.5 x the longest side, up to 160): the dam & pond bench 3.17 ->
 1.46 ms with the same numbers; the signed-off demo ponds unchanged (27). Open: an enclosed-water solver for lidded water.
-**Next:** P3d - the column regions removed from near water (design first). The §23 slime experiment stays queued.
+**Next:** P3d (26.24) - designed: (1) port the creek's current / splash / ripple tools to pond water and measure; (2) remove the column regions, windows and their route. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6684,6 +6684,65 @@ header comment at the clamp says why 40. *Visual test:* L2 (the one-step table) 
    (0.0 % at 40 from tick 20). Held.
 **Open (logged, not this item's):** water pressed under a solid lid does not converge at any affordable count (14-80 % one-step
 error at 40 and at 160) - an enclosed-water solver (multigrid / PCG) when a cave or a covered channel needs it.
+
+### 26.24 P3d - the column regions removed: survey, design, check (2026-10-17). Status: DESIGN
+
+**Survey (every creator and reader of the column water, by file and line: `docs/evidence/water_core_h1/p3d_column_survey.md`).**
+- **Nothing in a normal session makes a column region.** The only creator is the debug route `water_columns` (`Application.cpp`
+  handler -> `WaterCoreManager::createColumns`); boot, streaming, world generation, game.json and the MCP server never call it.
+  Only bench scripts do. So removing them changes nothing a player sees; it removes a second kind of water from the code.
+- **What reads regions each frame (all go with them):** the column step and its solids refresh; the SC load (bodies pressing
+  on columns) and the SC cosmetic splash crown (droplets with a negative volume id that carry no water); the RC ripple forcing
+  on region layers; region surface fields appended after the volumes' (`surfaceFields`, `rippleLayers` - removed together, so
+  the volumes' layer indices stay valid); `columnBoxes()` fed to the debris as wet boxes; `|| !columnRegions().empty()` in the
+  render gate; the H2 windows (`openWindow` / `closeWindow`, ghosts, transfers, held columns, `Av::window`, `Av::floorY`).
+- **Shared with the pond model - KEPT:** `rippleWindow` and its 384-cell window (every volume's since 26.13), the view point,
+  the flow forcing (`m_flowForcing`, volumes are forced at 1464-1497), `WaterSolver::setBedManning` (the pond's bed law), and
+  the test `EveryVolumeGetsTheRippleWindow` (volumes only; moved out of `WaterColumnTest.cpp`).
+- **`ShoreSolver` STAYS:** the sea's surf band (`ShoreBand`, `water_shore`, off by default, 10 tests) runs on it. It is the
+  far / shore question of P5, not P3d. Only `ColumnWater`, the regions and the windows are column-only.
+- **Not touched by P3d, stated:** the old CA water (`WaterManager`, sea level, the hydrology table) still runs in every normal
+  session (`Application.cpp` 432-435) - that is the world's water today, retired by P4/P5 (the world record, far water), not
+  here. Regions never read it.
+- **Three measuring tools exist only on the column model:** `water_creek_current.py` (the current: profile, floats, Manning
+  tuning - the owner's standing "tools to measure and tune current speed"), `water_creek_splash.py` (a stone into the creek -
+  measured the columns' COSMETIC crown), `water_creek_ripples.py` (the flow-forcing A/B). Removing the columns without porting
+  them would lose the creek's current, splash and ripple gauges (the owner's standing rule: ripples and splashes carry forward).
+
+**P3d-1 - the three tools on pond water, measured, BEFORE anything is removed.**
+- `water_creek_current.py --pond`: the profile from `water_av_column` (`surface_mean`, `mass_depth`, the surface `u`) against
+  Manning; the floats as today (debris drifting on the pond creek - the debris already reads the volume's water); the tune step
+  through a new route `water_av_manning {id, n}` (echoes the n in effect; clamped 0-0.2: 0 = pond friction, above 0.2 the bed
+  stops a 0.1 m creek - stated at the clamp).
+- `water_creek_splash.py --pond`: the stone into the pond creek; real droplets (`water_droplets` stats: born / landed / alive,
+  m^3 - they carry water, unlike the columns' crown), the volume's ripple layer, the ledger exact across the splash.
+- `water_creek_ripples.py --pond`: the forcing A/B on the volume's layer (forcing 0 = the control, the layer asleep).
+**Predictions (P3d-1):** current - the profile at Manning within 10 % on the reaches' mid points as P3b measured (0.19 m at
+q 0.2 on the stepped bed), floats drifting at 0.8-1.1 x the surface speed (K-T2's band); tune n 0.035 -> 0.05: speed down by
+~0.035/0.05 at the same q (Manning's v ~ 1/n at fixed depth; depth rises ~(0.05/0.035)^0.6 = 1.24x). Splash - a 1/3 m stone
+from 1.5 m: droplets born (> 0, the pond's real splash; the columns made 5-30 cosmetic ones), ripple layer wakes, ledger
+change across the splash inside float noise (<= 2e-5 m^3). Ripples - forcing 0: the layer asleep (exact zero); forcing 200:
+a visible flow pattern - its peak and slope histogram reported beside the column-era `ripples_sweep.json`. Clips for the owner.
+
+**P3d-2 - the removal.** Delete `ColumnWater.{h,cpp}`, the regions and windows and every per-frame reader above, the
+`water_columns` route and handler, `creek_splash` (the crown's knob) and the cosmetic-droplet branch, `Av::window`, `Av::floorY`
+(set only by windows; volumes stand on voxel occupancy since 26.15's 1/9 m carve - the owner's option b superseded the line
+bed of 25.21 a), `setGeneratorBedQuery` (its only user). Tests: `WaterColumnTest.cpp` goes (its ripple-window test moves to
+`WaterRippleTest`), `ShoreSolverTest.APondSpillsWhenItTopsItsCrest` goes (a column-region regression); `ShoreSolverTest`'s
+solver tests, `WaterCreekH0Test` and `WaterSteppedBedTest.DISABLED_DiagColumn` stay (ShoreSolver as the 1-D reference).
+Tools: the column paths of `water_creek_bench.py`, `water_dam_pond.py`, `water_creek_rig.py`, `water_creek_live.py`,
+`water_creek_profile.py` go; `--pond` becomes their only mode (the flag still accepted). Docs: §25's column items get a one-line
+"removed in 26.24" pointer, not rewritten (Keep Docs Lean).
+**Predictions (P3d-2):** both test exes as before minus the deleted tests (CPU 343 - 11 WaterColumn + 1 moved - 1 ShoreSolver;
+GPU 40 / 42 with the two known failures); the creek bench `--pond` at q 0.2 and the dam & pond bench reproduce 26.21 / 26.23's
+numbers (mass depth 0.186 m; rise 5.42 mm/s, pool 15.824, surge 1.96 Q) - the pond path never touched a region; a normal session
+(WaterBench_Small pond demo) unchanged.
+
+**Design check (FeatureDesignKeys).** *Look:* unchanged in play (no session made regions); the bench tools' clips are the pond's.
+*Chunks:* removes code; adds a per-volume n (world-independent). *Generation:* none. *API:* `water_columns` retired (its users are
+bench scripts, all ported); `water_av_manning {id, n}` added, echoing the state; no default changes. *Visual test:* L4 - the three
+ported tools' clips on the pond creek for the owner (current floats, the stone's splash, the forcing A/B); L2 - both test exes and
+the two benches' numbers after the removal. **READY.**
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
