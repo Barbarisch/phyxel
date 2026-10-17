@@ -101,7 +101,9 @@ and beside the running creek drain into the holes, books exact. Found: every wor
 **26.19 (2026-10-16): a dig without a freeze** - the owner saw the dig clip stutter: measured, 1,051 ms of each dig was the
 API's whole-world NPC nav rebuild (fixed: the touched columns only) and ~148 ms the water's full re-read; designed: the pool
 records which cubes changed, the water re-reads and patches only those, in place.
-**Next:** build 26.19; the pond's extra drag on the stepped bed; then P3c. The §23 slime experiment stays queued.
+Built 2026-10-17: the same trench clip went from 38 freezes (~1.27 s per dig) to 0; worst frame per dig ~22 ms; the water's
+part 1.5-5 ms; walking across chunks costs the water nothing.
+**Next:** the pond's extra drag on the stepped bed; then P3c. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6189,7 +6191,7 @@ and one per dig anywhere is worse. The design to write: re-read only what an edi
 in a volume's box), update those bricks' occupancy, ground status and residency on the device in place, and never download the
 water for it - with the same equality gate (a local re-read == the full re-read, bit for bit) and the dig bench as the measure.
 
-### 26.19 A dig without a freeze - measured, designed, checked (2026-10-16). Status: DESIGN, READY
+### 26.19 A dig without a freeze - measured, designed, checked, built (2026-10-16/17). Status: BUILT, ON; not signed off
 
 **The ask (owner, 2026-10-16, on `creekbench_dig_bank_trench_top.mp4`): "that video certainly seems very very stuttery. we
 need to fix that".**
@@ -6270,6 +6272,40 @@ So the freeze has two causes, and only the second is the water's:
   Prediction: the dig frame's water cost falls from ~148 ms to under 2 ms (729 cells re-sampled, a few kB copied, one settle),
   the API dig from ~1,051 ms to under 1 ms, and the clip shows no freeze at the digs. Plus a walk: the camera flown across 10
   chunk boundaries beside the running creek, `occ_full_refreshes` must not move.
+
+**Built (2026-10-17).** As designed: `diffChunkOccupancy` + `OccupancyChangeLog` (pure, in `VoxelLightOccupancy`), owned by the
+pool (`VoxelLightOccupancyGpu::changesSince`); `WaterCoreManager::setSolidsChangesQuery` + `refreshOccupancyLocal` (exact
+integer cell ranges from the volume's cells-per-voxel, padded one cell); `WaterCoreGpu::updateOccupancy`; the occupancy callback
+no longer marks the water dirty. Record: `occ_full_refreshes`, `occ_local_refreshes`, `occ_cells_resampled`, `occ_cells_changed`,
+`gpu_patch_ms`, `gpu_patches`.
+- `ChunkOccupancyDiffReportsExactlyTheChangedCubes`, `ChangeLogAnswersOnlyWhatItCanVouchFor`,
+  `APoolThatDropsChunksSaysEverythingChanged`: pass (the history test's first draft expected the wrong answer for "since 5"
+  with packs 6.. held - the test was corrected, not the log).
+- `LocalRefreshEqualsFull`: 0 differing cells in all 8 scenes at 1/9 m and 1/3 m (one cube dug / added, one micro, an empty
+  pack, a dig outside the box, a chunk arriving, a trench across the chunk seam, a chunk leaving). A one-cube dig re-samples
+  1,331 of 336,798 cells at 1/9 m. Control: an unreported dig - 729 cells differ (1/3 m: 27). First run failed its own cost
+  bound at 1/3 m (216 > 125 cells: float rounding added a cell) - fixed with integer ranges.
+- `OccupancyPatchedInPlace`: 0 differing ticks in 4 scenes (dig under the creek, a deep shaft opening ground bricks, ground
+  placed into the water, a pit filled); device occupancy == world in every stored cell and every ground brick all ground; 209
+  and 100 cells of water ran into the dug holes. Control `APatchLeavingGroundStaleIsCaught`: 140 ticks differ, 96 stale cells.
+- CPU 366 / 366 (water + occupancy), GPU water 41 pass (the known FLIP row fails).
+
+**Measured live - the same trench, the same pose** (`creekbench_dig_bank_trench_top_2619.{json,mp4}`, 12 one-voxel digs 1.5 s
+apart beside the running creek at q 0.2):
+
+| | before 26.19 (+ the nav rebuild) | after |
+|---|---|---|
+| the dig command (`clear_region`) | ~1,051 ms (nav rebuild 1,051) | ~5 ms (nav 0.8) |
+| the water's re-read | 67 ms (1.75 M cells) + 77-89 ms read-back + upload | 0.07 ms (1,331 cells, 729 changed) + 1.5-5 ms patch |
+| worst frame around a dig | ~1,265 ms | 22-23 ms (14-15 ms of it the API drain) |
+| freezes in the 80 s clip (`mpdecimate`, gaps > 90 ms) | 38 | **0** (30.0 changed frames/s) |
+| whole-box re-reads during the digs | 12 | 0 |
+
+The water ran into all 12 trench columns; the books: stored rise 3.053611 = net inflow 3.053614 m^3, ledger -6e-6 m^3. (The
+creek had run ~6 min before this dig, the earlier clip's longer: 36.7 vs 46.8 m^3 stored at the start.)
+**The walk:** the camera flown across 11 chunk boundaries beside the creek - 11 pool revisions, 0 whole-box re-reads, 0 cells
+re-sampled, worst frame 6.5 ms. (Not measured before the change: that each crossing cost a full re-read follows from the code.)
+The 60 s clip to watch: `creekbench_dig_bank_trench_top_2619.mp4` beside the old `creekbench_dig_bank_trench_top.mp4`.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

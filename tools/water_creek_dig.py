@@ -1,4 +1,4 @@
-"""WaterCore.md 26.18 - dig under the running creek and measure what it costs and where the water goes.
+"""WaterCore.md 26.18 / 26.19 - dig under the running creek and measure what it costs and where the water goes.
 
 With the pond creek running on the bench (tools/water_creek_bench.py --run --pond), clears the bed voxel (x, 15, z) under the
 water - the gravel the carve put there, a pit down to y 15 m - one column at a time, every --every s. After each dig it logs
@@ -8,6 +8,10 @@ waits --settle s and reports the stored water against the pits' volume (the wate
 makes water: stored mass may only rise by what flowed in from the springs).
 
     python tools/water_creek_dig.py [--digs 20] [--every 1.0] [--x0 40] [--z 31] [--record 90]
+
+26.19: the water now sees a dig by patching only the changed cells in place (gpu_patches) instead of a full re-read
+(gpu_uploads); both count as "seen". Each dig also logs the clear command's own stage times (timing_ms), the re-read's cells,
+and the slowest main-loop frame in the 240 frames after it (frame_pacing: its total and its largest stage).
 
 Writes docs/evidence/water_core_h1/creekbench_dig<tag>.json (+ .mp4 when --record > 0).
 """
@@ -53,11 +57,21 @@ def main():
         pit_m3 += B.bed_top(x) - 15.0          # the gravel above y 15 m in this 1 m x 1 m column
         before = vol(api)
         t0 = time.time()
-        world_job(api, "/api/world/clear", {"x1": x, "y1": 15, "z1": args.z, "x2": x, "y2": 15, "z2": args.z})
-        while vol(api)["gpu_uploads"] == before["gpu_uploads"] and time.time() - t0 < 5.0: time.sleep(0.05)   # the water saw it
+        seen = lambda w: w["gpu_uploads"] + w.get("gpu_patches", 0)
+        cr = world_job(api, "/api/world/clear", {"x1": x, "y1": 15, "z1": args.z, "x2": x, "y2": 15, "z2": args.z})
+        while seen(vol(api)) == seen(before) and time.time() - t0 < 5.0: time.sleep(0.05)   # the water saw it
         v = vol(api)
         et = api.get("/api/debug/engine_timing")
-        log.append({"k": k, "x": x, "seen_s": round(time.time() - t0, 3), "uploads": v["gpu_uploads"] - before["gpu_uploads"],
+        fp = api.get("/api/debug/frame_pacing?frames=240").get("series", [])
+        worst = max(fp, key=lambda f: f["values"].get("Frame", 0.0)) if fp else {"values": {}}
+        wv = worst["values"]
+        stages = sorted(((k, ms) for k, ms in wv.items() if k.count("/") >= 1 and k not in ("Frame/update", "Frame/update/Update")), key=lambda kv: -kv[1])
+        log.append({"k": k, "x": x, "removed": cr.get("removed"), "clear_timing_ms": cr.get("timing_ms"),
+                    "seen_s": round(time.time() - t0, 3), "uploads": v["gpu_uploads"] - before["gpu_uploads"],
+                    "patches": v.get("gpu_patches", 0) - before.get("gpu_patches", 0), "gpu_patch_ms": v.get("gpu_patch_ms"),
+                    "occ_cells_resampled": v.get("occ_cells_resampled"), "occ_cells_changed": v.get("occ_cells_changed"),
+                    "occ_full_refreshes": v.get("occ_full_refreshes"), "occ_local_refreshes": v.get("occ_local_refreshes"),
+                    "worst_frame_ms": wv.get("Frame"), "worst_frame_stage": stages[0] if stages else None,
                     "occ_refresh_ms": v.get("occ_refresh_ms"), "gpu_upload_ms": v.get("gpu_upload_ms"), "cpu_frame_ms_after": et.get("cpuFrameTime"),
                     "fps_after": et.get("fps"), "ground_bricks": v.get("gpu_ground_bricks"), "bricks": v.get("gpu_bricks"),
                     "ledger_m3": v["mass"] - (v["source_in_m3"] - v["outfall_out_m3"])})
@@ -75,7 +89,10 @@ def main():
                "pit_columns_wet": sum(1 for c in cols if c.get("surface_y") is not None),
                "occ_refresh_ms_median": med([e["occ_refresh_ms"] for e in log]), "occ_refresh_ms_max": max(e["occ_refresh_ms"] for e in log),
                "gpu_upload_ms_median": med([e["gpu_upload_ms"] for e in log]), "gpu_upload_ms_max": max(e["gpu_upload_ms"] for e in log),
-               "every_dig_seen": all(e["uploads"] >= 1 for e in log), "ground_bricks_end": v1.get("gpu_ground_bricks")}
+               "every_dig_seen": all(e["uploads"] + e["patches"] >= 1 for e in log), "ground_bricks_end": v1.get("gpu_ground_bricks"),
+               "worst_frame_ms_median": med([e["worst_frame_ms"] or 0.0 for e in log]), "worst_frame_ms_max": max(e["worst_frame_ms"] or 0.0 for e in log),
+               "occ_full_refreshes_during": (v1.get("occ_full_refreshes", 0) - v0.get("occ_full_refreshes", 0)),
+               "removed_total": sum(e["removed"] or 0 for e in log)}
     (B.EV / f"{name}.json").write_text(json.dumps({"summary": summary, "digs": log}, indent=1))
     print(json.dumps(summary))
 
