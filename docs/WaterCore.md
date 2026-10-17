@@ -6855,6 +6855,10 @@ costs ~115 ms a frame while anything moves in the water. Floats riding the curre
 bob; the creek's speed changes along it). Pre-existing - the floats only made it visible. Fixed in **26.26**: the momentum applied
 ON THE DEVICE, no round trip. (The 0.6 m/s displacement switch on the relative speed stays - it is right on its own: a float
 riding a creek pushes nothing aside.)
+**The debris settle bench** (CLAUDE.md's gate for a `solver_*.comp` change; DebrisLab, `docs/evidence/debris_settle/water26_25`): the
+same verdict in every scenario as its last baseline `water25_k` - drop_layer, packed, crater, crater_subcube, box_single_straddle
+SETTLE; drop_pile, blast, box_through_pile FAIL as before (drop_pile's numbers identical; blast 39 -> 41 rebounds, box_through_pile
+19 -> 18 - run to run). Dry bodies take the old law exactly (f = 0); the lab is dry. Held.
 **Status of 26.25:** the damping rule and the relative-speed displacement BUILT; floats ride the pond current exactly; the frame
 cost of moving debris in a GPU pond is 26.26.
 
