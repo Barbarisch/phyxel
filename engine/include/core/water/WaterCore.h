@@ -396,6 +396,8 @@ public:
     /// |u| / d^(4/3), d the water's depth over the face (the mean of the two sub-columns). Replaces pond friction when > 0.
     /// CPU only in H2a (the GPU core does not read it - a window is a CPU volume).
     void setBedManning(float n) { m_params.bedManning = std::max(0.0f, n); }
+    /// 26.21 the volume correction: time (s, 0 = off) and dead band (cell fraction); the GPU backend reads params() each step
+    void setVolumeCorrection(float seconds, float band) { m_params.volumeCorrectionTime = std::max(0.0f, seconds); m_params.volumeCorrectionBand = std::clamp(band, 0.0f, 1.0f); }
 
     /// Re-query every cell's occupancy (Unknown -> hold). Called by step(); call after the world
     /// changed to apply it before the next tick.

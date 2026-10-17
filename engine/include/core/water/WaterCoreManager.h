@@ -367,6 +367,10 @@ public:
     /// 24.7 pond friction (1/s) for every volume, now and created later.
     void setPondFriction(float perSecond) { m_pondFriction = std::max(0.0f, perSecond); for (auto& av : m_avs) av->solver->setPondFriction(m_pondFriction); }
     float pondFriction() const { return m_pondFriction; }
+    /// 26.21: the session's volume correction (applied to every volume now and to new ones)
+    void setVolumeCorrection(float seconds, float band) { m_vcTime = std::max(0.0f, seconds); m_vcBand = std::clamp(band, 0.0f, 1.0f); for (auto& av : m_avs) av->solver->setVolumeCorrection(m_vcTime, m_vcBand); }
+    float volumeCorrectionTime() const { return m_vcTime; }
+    float volumeCorrectionBand() const { return m_vcBand; }
     const RippleStats& rippleStats() const { return m_rstats; }
     /// 25.34: the SHAPE stats (max |r|, max slope, the slope histogram) are measurement only - computed when asked (the
     /// water_ripples route), not every frame (0.15 ms per frame on the creek window, measured).
@@ -448,6 +452,7 @@ private:
     RippleStats m_rstats;
     RipplePattern m_rpattern;
     float m_pondFriction = SolverParams{}.pondFriction;   // 24.7
+    float m_vcTime = SolverParams{}.volumeCorrectionTime, m_vcBand = SolverParams{}.volumeCorrectionBand;   // 26.21
     void stepRipples(float dt);
     void collectBirths(Av& av, float dt);          // after a step: births -> the pool
     void stepDroplets(float dt);                   // flight + landing for every volume

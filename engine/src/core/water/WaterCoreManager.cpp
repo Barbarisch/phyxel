@@ -61,6 +61,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     };
     av->solver = std::make_unique<WaterSolver>(*av->grid, q);
     av->solver->setPondFriction(m_pondFriction);   // 24.7: the session's setting, not just the default
+    av->solver->setVolumeCorrection(m_vcTime, m_vcBand);   // 26.21: likewise
     if (transport == "flip") av->solver->setTransport(std::make_unique<FlipTransport>());   // empty until water is placed
     av->occDirty = true;
     av->backend = be;

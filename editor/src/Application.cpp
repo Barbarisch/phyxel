@@ -14348,6 +14348,17 @@ void Application::registerWaterCommands() {
         r = {{"rate_per_s", a}, {"half_life_s", a > 0.0f ? 1.38629436f / a : 0.0f}, {"enabled", a > 0.0f},
              {"note", "half_life_s is nominal; the test pond measures 1.3-1.9x longer (WaterCore.md 24.7)"}};
     });
+    reg.on("water_volume_correction", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 26.21
+        if (!waterCore) { r = {{"error", "no water core"}}; return; }
+        float t = waterCore->volumeCorrectionTime(), b = waterCore->volumeCorrectionBand();
+        // time_s 0 = off (the A/B control); otherwise [0.05, 10] s - faster closes a void in a few substeps, the free-fall
+        // compaction that drained waves (24.11); slower leaves a creek's air for tens of seconds. band [0, 0.2] of a cell -
+        // under 2 % the short waves pay (26.21), over a fifth it leaves visible air.
+        if (cmd.params.contains("time_s")) { const float v = cmd.params.value("time_s", t); t = v <= 0.0f ? 0.0f : std::clamp(v, 0.05f, 10.0f); }
+        if (cmd.params.contains("band")) b = std::clamp(cmd.params.value("band", b), 0.0f, 0.2f);
+        waterCore->setVolumeCorrection(t, b);
+        r = {{"time_s", waterCore->volumeCorrectionTime()}, {"band", waterCore->volumeCorrectionBand()}, {"enabled", waterCore->volumeCorrectionTime() > 0.0f}};
+    });
     reg.on("water_droplets", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setDroplets(cmd.params.value("enabled", true));

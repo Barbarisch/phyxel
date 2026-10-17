@@ -106,7 +106,13 @@ part 1.5-5 ms; walking across chunks costs the water nothing. **Signed off by th
 **26.20 (2026-10-17) ANSWERED:** the pond's water is at the textbook depth on the stepped bed (0.187 / 0.306 m vs 0.190 /
 0.306); 26.15's "deeper" was the gauge (the highest sub-column) plus AIR inside flowing water (cells under the surface 4-10 %
 empty, CPU and GPU) - the drawn creek stands 9-26 mm above its water.
-**Next:** the owner's call - the air in moving water (§24.11's volume correction) or P3c; then P3d. The §23 slime experiment stays queued.
+**26.21 (2026-10-17) BUILT, not signed off - the air in moving water:** the owner chose "fix the air first". A volume
+correction in the pressure solve (CPU + GPU, on by default): a part-full cell with water above it and water or rock on all four
+sides asks for the inflow that refills it over 0.5 s (only what the water above can give; deficits under 2 % left alone). Rig:
+cells under water 0.90-0.96 -> 0.98-1.00 full, the water's top 9-26 -> 0-2.9 mm above its amount, the water's depth within 1 %.
+Live: the drawn creek 8.5 / 21.4 -> 1.5 / 2.4 mm above its water at q 0.2 / 0.5, GPU cost unchanged. Clip
+`creekbench_pond_g9_q0.5_airfix.mp4` (off -> on at 15 s).
+**Next:** the owner's look at 26.21; then P3c (the dam & pond bench as pond water); then P3d. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6395,7 +6401,7 @@ last on flowing water. P1's "100.0 % of Manning" (26.5) measured the water, not 
 column model - the bed comparison is CLOSED. Open, to design if the owner wants it before P3c: the air in moving water (a volume
 correction in the projection, CPU + GPU) - it would bring the drawn creek down onto its water. P3c's gauges read `--stat mass`.
 
-### 26.21 The air in moving water - design, check, build (2026-10-17). Status: DESIGN (owner: "fix the air first")
+### 26.21 The air in moving water - design, check, build (2026-10-17). Status: BUILT, ON by default (CPU + GPU); not signed off
 
 **Where the air comes from (read off the code, 2026-10-17).** The projection makes every LIQUID cell (f >= 0.5)
 divergence-free, as if it were full. The fill moves by donor cell: a face carries `|v| dt / h x f_donor`. So a liquid cell
@@ -6451,6 +6457,70 @@ seam / residency equality tests cover it (14.2). *Generation* - none (runtime). 
 read the result. *Visual test* - L2 on the rig (the air numbers above), L4 on the creek bench (mean drawn surface vs mass,
 a side-by-side clip for the owner: before / after at the same pose). Rig vs shipped: the rig is the CPU reference on a
 straight 1/3 m channel with frictionless walls (stated in 26.20); the bench is the shipped GPU path. **READY.**
+
+**Built (CPU `WaterSolver::project`, GPU `wc_classify.comp` mode 0; `SolverParams::volumeCorrectionTime` 0.5 s,
+`volumeCorrectionBand` 0.02; live `water_volume_correction {time_s, band}`, echoes the setting, time 0 = off).** Three changes
+to the rule as designed, each forced by a measurement:
+1. **Under a thin surface cell too** (`WaterSolver::s_volumeCorrectionUnderFilm`, the default). With only a liquid cell above,
+   the short rig went 0.79 -> 0.93 full / 29 -> 8 mm, and every cell left part-full sat under a THIN cell: 0.93 under 0.41
+   (should be 1.0 under 0.33 - the top cell held the water the one below lacked). Gated only on water above: 1.000 / 0.0 mm.
+2. **The pull capped at the water above** (`gap = min(1 - fc, fa)`). Uncapped, a surface cell under the few-mm film the
+   transport smears upward counted as buried and was asked for its whole missing share: the tiny-wave rows woke 10-13x
+   (5 mm wave at top 0.50: peak KE 2.6e-5 -> 2.2e-4, over the settle band). Capped: every tiny-wave row back to its value.
+3. **A dead band** (deficits under 2 % left alone). With none, the pump's books drifted 3e-5 m^3 (bound 1e-5; off: 2.3e-6) and
+   the pocket/slosh run 9.9e-6 (bound 2e-6) - not a leak: `DiagPumpMassByStage` shows every stage but the transport moves the
+   total by exactly 0, and the transport's own float rounding (once per cell per substep) grows with the near-full cells the
+   pull keeps changing. And the short wave on a half-full cell (mode 4, top 0.50; off 0.66 per swing, bound 0.60) read
+   0.48-0.58 at bands 0-1 %, 0.62 at 2 %, 0.68 at 3 % - noisy, not monotonic in T (0.3 / 0.5 / 1 / 2 s).
+
+**Measured (rig, CPU, SB_T 400; the 26.20 runs as the "before"):**
+
+| case | cells with water above them | the water's top above its amount | the water's depth (mass) |
+|---|---|---|---|
+| smooth q 0.1 | 0.92 -> **1.000** | 9 -> **0.0 mm** | 0.1647 -> 0.1655 m (1.005 x Manning) |
+| smooth q 0.25 | 0.96 -> **0.988** | 9 -> **2.7 mm** | 0.2849 -> 0.2838 (0.994 x) |
+| steps q 0.1 | 0.90 -> **0.977** | 16 -> **2.9 mm** | 0.1882 -> 0.1867 (reference 0.190) |
+| steps q 0.25 | 0.91 -> **0.990** | 26 -> **2.5 mm** | 0.3104 -> 0.3079 (reference 0.306) |
+
+Against the predictions: (1) smooth q 0.25 2.7 mm, over the 2 mm predicted; (2) steps q 0.1 0.977 full, under the 0.98
+predicted; the rest held. Both misses are the 2 % band (2.2 mm at 1/9 m) - the price of item 3. The water's depth moved
+-0.8 % to +0.5 %, inside the 1-2 % predicted.
+
+**Red test** `WaterSteppedBedTest.MovingWaterHoldsNoAir` (10 m smooth channel, 60 s): RED 0.79 full / 29 mm (correction off),
+GREEN 0.982 / 2.0 mm; the control (the same channel, off) must still show > 10 mm and the depth must match it within 2 %
+(0.1465 vs 0.1476). Its bounds are 0.98 / 2.5 mm, not the 0.99 / 2 mm predicted - the band, stated in the test.
+
+**Tests that moved (CPU water + occupancy suite, 343):** all pass. `WaterCouplingTest.SurfaceDoesNotOutrunTheWater` - its
+CONTROL (the pre-19.5 surface rule must still fail the kinematic bound, proving the test sees flicker) fell 524 -> 222 because
+the blasted pond now carries fewer pockets and films to trip it; the new rule still reads 0 violations; the control's
+threshold 250 -> 100. Wave rows (top 0.50): mode 1 1.11 -> 1.07 kept per period (the spurious GAIN shrinks: the old pocket
+collapse fed it), mode 4 0.66 -> 0.62 (bound 0.60). The droplet scrap's apex 2.607 -> 2.601 m (bound 2.6 - 1 mm of margin, a row to watch; it failed at 2.578
+before the cap).
+
+**Live, GPU (WaterBench_Creek, the shipped path; on / OFF / on again on the SAME running engine via
+`water_volume_correction`, 150 s settle per phase; `creekbench_pond_g9_q{0.2,0.5}_vc_ab.json`):**
+
+| bench q | phase | mean drawn surface - the water in the column | the water (mass depth) | water GPU ms (median) |
+|---|---|---|---|---|
+| 0.2 | on / off / on | **1.5** / 8.5 / **1.6 mm** | 0.1862 / 0.1873 / 0.1862 m | 1.66 / 1.68 / 1.42 |
+| 0.5 | on / off / on | **2.4** / 21.4 / **2.4 mm** | 0.3053 / 0.3059 / 0.3054 m | 1.73 / 1.59 / 1.58 |
+
+Prediction 6 held: the drawn creek sits within 3 mm of its water (it stood 8.5 / 21.4 mm high), the water itself moves
+0.2-0.6 %, and the GPU cost is unchanged within its own phase-to-phase noise (1.42-1.73 ms with the rule on, 1.59-1.68 off; the
+1.34 ms of 26.18's run is a different session, matched by "off" here). The FPS dip in the q 0.5 OFF phase (55 vs 96-100) was my
+screenshot and window captures during that window, not the solver (its GPU time did not move).
+
+**Capture trap found on the way:** `GET /api/screenshot` on this bench returns the frame WITHOUT the pond water (a dry gravel bed
+where the window shows the creek); the window capture (`ffmpeg gdigrab`, what every clip uses) shows it. Judge pond water from
+window captures only.
+
+**Clip for the owner** (`creekbench_pond_g9_q0.5_airfix.mp4`, + `.json`): q 0.5, a fixed low pose over the centreline 2-3 m
+before the x 55 drop, the correction OFF for 150 s (the air built back), switched ON 15 s into a 40 s recording, labelled in
+frame. Drawn surface at three columns ahead: 15.711-15.714 m while off; within ~1 s of the switch 11-22 mm lower, then a further
+~3-4 mm over 25 s (15.700 / 15.700 / 15.685). The one-second step is the demo's switch releasing 150 s of built-up air at once -
+with the rule always on (the default) the air never builds, so there is no step in play (24.11's "level drops in one jerk" does
+not apply). From this pose the change reads mostly as the bright reflection blocks moving; it is 1-2 cm on a 31 cm creek.
+Rig runs: `steppedbed_2621.txt`; live A/B: `creekbench_pond_g9_q{0.2,0.5}_vc_ab.json`.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

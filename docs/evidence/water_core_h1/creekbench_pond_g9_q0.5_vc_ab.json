@@ -1,0 +1,44 @@
+[
+ {
+  "phase": "on",
+  "echo": {
+   "band": 0.019999999552965164,
+   "enabled": true,
+   "time_s": 0.5
+  },
+  "gpu_device_ms_median": 1.7324639999999998,
+  "gpu_device_ms_max": 3.55328,
+  "fps_median": 96.18893705063354,
+  "mean_surface_depth_m": 0.30774207985025537,
+  "mass_depth_m": 0.3053463700876802,
+  "surface_above_water_mm": 2.3957097625751933
+ },
+ {
+  "phase": "off",
+  "echo": {
+   "band": 0.019999999552965164,
+   "enabled": false,
+   "time_s": 0.0
+  },
+  "gpu_device_ms_median": 1.5855519999999999,
+  "gpu_device_ms_max": 3.387456,
+  "fps_median": 55.23208269331094,
+  "mean_surface_depth_m": 0.3273107907467616,
+  "mass_depth_m": 0.305877658650069,
+  "surface_above_water_mm": 21.43313209669262
+ },
+ {
+  "phase": "on again",
+  "echo": {
+   "band": 0.019999999552965164,
+   "enabled": true,
+   "time_s": 0.5
+  },
+  "gpu_device_ms_median": 1.5789119999999999,
+  "gpu_device_ms_max": 3.323616,
+  "fps_median": 100.5121284378244,
+  "mean_surface_depth_m": 0.3078402890890194,
+  "mass_depth_m": 0.30543833401024595,
+  "surface_above_water_mm": 2.4019550787734434
+ }
+]
