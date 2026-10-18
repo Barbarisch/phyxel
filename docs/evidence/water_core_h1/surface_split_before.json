@@ -1,0 +1,88 @@
+{
+ "control": {
+  "facing": {
+   "surface_pass_ms": 0.0,
+   "frame_gpu_ms": 2.826,
+   "cpu_frame_ms": 2.875,
+   "mesh_build_ms": 0.0,
+   "mesh_vertices": 0,
+   "fps": 332.5
+  },
+  "away": {
+   "surface_pass_ms": 0.0,
+   "frame_gpu_ms": 1.835,
+   "cpu_frame_ms": 1.898,
+   "mesh_build_ms": 0.0,
+   "mesh_vertices": 0,
+   "fps": 573.5
+  }
+ },
+ "ponds": [
+  {
+   "size_m": [
+    10,
+    10
+   ],
+   "facing": {
+    "surface_pass_ms": 1.019,
+    "frame_gpu_ms": 4.199,
+    "cpu_frame_ms": 4.232,
+    "mesh_build_ms": 0.86,
+    "mesh_vertices": 32400,
+    "fps": 225.6
+   },
+   "away": {
+    "surface_pass_ms": 0.95,
+    "frame_gpu_ms": 2.935,
+    "cpu_frame_ms": 3.069,
+    "mesh_build_ms": 0.873,
+    "mesh_vertices": 32400,
+    "fps": 353.1
+   }
+  },
+  {
+   "size_m": [
+    20,
+    20
+   ],
+   "facing": {
+    "surface_pass_ms": 3.598,
+    "frame_gpu_ms": 6.735,
+    "cpu_frame_ms": 7.388,
+    "mesh_build_ms": 3.471,
+    "mesh_vertices": 129600,
+    "fps": 123.4
+   },
+   "away": {
+    "surface_pass_ms": 3.454,
+    "frame_gpu_ms": 5.454,
+    "cpu_frame_ms": 7.424,
+    "mesh_build_ms": 3.567,
+    "mesh_vertices": 129600,
+    "fps": 140.5
+   }
+  },
+  {
+   "size_m": [
+    32,
+    28
+   ],
+   "facing": {
+    "surface_pass_ms": 7.901,
+    "frame_gpu_ms": 11.312,
+    "cpu_frame_ms": 14.562,
+    "mesh_build_ms": 7.854,
+    "mesh_vertices": 290304,
+    "fps": 73.4
+   },
+   "away": {
+    "surface_pass_ms": 7.607,
+    "frame_gpu_ms": 9.846,
+    "cpu_frame_ms": 14.213,
+    "mesh_build_ms": 7.712,
+    "mesh_vertices": 290304,
+    "fps": 72.4
+   }
+  }
+ ]
+}

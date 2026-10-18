@@ -134,7 +134,10 @@ a DEBUG build, not the other application.
 corner; the nearest water was 4 cells away, reach 2) - the test now checks by cell; integration 45 / 46 (the particle run-up).
 **26.29 (2026-10-18) MEASURED:** the pond size ladder - one awake pond fits the 2 ms budget to ~10 x 10 m, a sleeping one to ~15 x
 15 m; the drawn surface (~8.8 us per m^2, paid asleep and off-screen) is the larger cost; deep ponds never fall asleep.
-**Next:** the owner's call on the order - the surface pass's cost first (it limits every body), then sleep at depth, then P4. The §23 slime experiment stays queued.
+**26.30 (2026-10-18) DESIGN:** the owner chose (a) first. Measured: a resting pond's surface costs ~27 ns per vertex on the GPU
+and ~27 ns per vertex to rebuild on the CPU every frame, seen or not (32 x 28 m: 7.9 ms GPU, +12.3 ms CPU). Design: kept
+device-local tiles rebuilt only when changed (1), culled to the view (2), then awake water (3), then distance (4, a look change).
+**Next:** step 1 - the tile test red, then the tiles. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7046,6 +7049,50 @@ stone-sized impulse at the centre (STONE). Read: the solver's call (`gpu_device_
 **So, pond vs lake for this engine:** today ~10 m across awake and ~15 m asleep. Lakes need, in order: (a) the surface pass
 costed by what is seen and by distance, not by area; (b) water that sleeps when it is still, at any depth; (c) a disturbance
 that wakes a patch, not the whole body (P4); (d) volumes beyond the 2 M-cell box cap.
+
+### 26.30 The drawn surface costed by what is seen - measure, then design (2026-10-18). Status: DESIGN (step 1 next)
+
+**The owner's call (2026-10-18):** "start with A" - of 26.29's four needs, (a) first: the surface costed by what is seen and by
+distance, not by the pond's area.
+
+**What the surface does today** (`RenderCoordinator.cpp` ~4364, `WaterSurfaceMesh.cpp`, `WaterSurfaceRenderPipeline.cpp`):
+every frame, the CPU rebuilds ONE mesh from every volume's surface field - a quad (4 vertices x 48 B, 6 indices) per 1/9 m column
+plus side quads - and copies it into a HOST-VISIBLE buffer (system memory), which the GPU then reads to draw it all, seen or not.
+The buffer holds 524,288 vertices: a surface over ~1,600 m^2 is cut off (`truncated`). The vertex shader only projects.
+
+**Measured** (`tools/water_surface_split.py`, Release, idle GPU, resting 1 m ponds, the solver at 0;
+`surface_split_before.json`):
+
+| pond | vertices | surface pass GPU, facing / away | CPU mesh build | CPU frame, away (no pond 1.90) | GPU frame, away (no pond 1.84) |
+|---|---|---|---|---|---|
+| 10 x 10 m | 32,400 | 1.02 / 0.95 ms | 0.86 ms | 3.07 ms | 2.94 ms |
+| 20 x 20 m | 129,600 | 3.60 / 3.45 ms | 3.47 ms | 7.42 ms | 5.45 ms |
+| 32 x 28 m | 290,304 | 7.90 / 7.61 ms | 7.85 ms | 14.21 ms | 9.85 ms |
+
+~27 ns per vertex on the GPU and ~27 ns per vertex to build on the CPU, plus the copy - for water that has not changed, drawn
+whether it is seen or not. (Why the GPU's draw is that slow is a hypothesis, not measured: it reads 14 MB a frame from system
+memory. Step 1 measures it by moving the data, one variable.)
+
+**The design - in steps, each measured, the look unchanged until step 4:**
+1. **Tiles, kept.** The surface is cut into world-aligned TILES of 4 x 4 m (36 x 36 columns; a cost structure only - a tile never
+   changes what is drawn). Each tile's mesh is built by the same mesher over the same field (its corners read neighbours across
+   the tile's edge, so the vertices are the ones the whole mesh has) and kept in DEVICE-LOCAL memory. A tile is rebuilt and
+   re-uploaded only when its columns changed since its last build (the field's columns compared, or a per-volume step counter
+   when the volume is asleep). Prediction: a sleeping pond costs ~0 CPU (nothing rebuilt) and its draw stops reading system memory.
+2. **Culled.** Per frame, a tile is drawn only if its box is in the view frustum (and within the draw distance). Prediction:
+   camera away -> the surface pass ~0; facing -> the pass follows the tiles on screen.
+3. **Awake water.** A woken pond's columns change every frame, so every tile rebuilds: measured after step 2; if the CPU build is
+   over the budget, the mesher moves to the GPU (the field is already there - the CPU reads it back today).
+4. **By distance.** Far tiles drawn with fewer quads (a tile's columns merged 2 x 2, 4 x 4 ...), its edges matched to the finer
+   neighbour so no seam opens. This one changes the look at distance - designed and shown to the owner on its own.
+
+**Gate for steps 1-2 (red first):**
+- `WaterSurfaceTileTest.TilesEqualTheWholeMesh` (the chunked-vs-whole shape of `FloraMarginTest`): the tiles' meshes together are
+  the whole mesh's quads, vertex for vertex (positions, normals, depth, foam, flow, ripple), for fields that straddle tile edges,
+  with side faces, several runs per column, and two volumes. Red: built before the tiler, failing on a tiler that cuts corners.
+- `...AnUnchangedTileIsNotRebuilt` / `...AChangedColumnRebuildsItsTileOnly` (and the tiles whose corners read it).
+- Live (L4): `water_surface_split.py --tag tiles` against `before`: asleep facing / away, the pass, the CPU frame; the look by
+  pixels at a fixed pose (a capture before and after, no difference allowed in steps 1-2); `truncated` gone for 46 x 28 m.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
