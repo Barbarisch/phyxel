@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <cstddef>
+#include <vector>
 
 namespace Phyxel {
 namespace Graphics {
@@ -56,6 +57,7 @@ void WaterSurfaceRenderPipeline::cleanup() {
         vkDestroyBuffer(m_device, m_indexBuffer[i], nullptr);  vkFreeMemory(m_device, m_indexMemory[i], nullptr);
         m_vertexMapped[i] = m_indexMapped[i] = nullptr;
     }
+    destroyTileStore();
     if (m_rippleMapped) vkUnmapMemory(m_device, m_rippleMemory);
     vkDestroyBuffer(m_device, m_rippleBuffer, nullptr); vkFreeMemory(m_device, m_rippleMemory, nullptr);
     m_rippleMapped = nullptr; m_rippleBuffer = VK_NULL_HANDLE; m_rippleMemory = VK_NULL_HANDLE;
@@ -71,6 +73,7 @@ void WaterSurfaceRenderPipeline::initialize(VkDevice device, VkPhysicalDevice ph
                                             VkDescriptorSetLayout uboLayout) {
     m_device = device; m_physicalDevice = physicalDevice;
     createBuffers();
+    createTileStore();
     createDescriptorSetLayout(uboLayout);
     createDescriptorPool();
     createPipeline(renderPass, swapChainExtent);
@@ -199,6 +202,41 @@ void WaterSurfaceRenderPipeline::createPipeline(VkRenderPass renderPass, VkExten
     vkDestroyShaderModule(m_device, vs, nullptr); vkDestroyShaderModule(m_device, fs, nullptr);
 }
 
+void WaterSurfaceRenderPipeline::writeRipples(uint32_t slot) {
+    // 22: this frame's ripple heights into the slot (header: geo = world origin xz + 1/pitch; meta = offset, nx, nz, smooth)
+    char* base = static_cast<char*>(m_rippleMapped) + slot * m_rippleSlotBytes;
+    auto* geo = reinterpret_cast<float*>(base); auto* meta = reinterpret_cast<int32_t*>(base + kRippleIndices * 16);
+    auto* heights = reinterpret_cast<float*>(base + kRippleIndices * 32);
+    std::memset(base, 0, static_cast<size_t>(kRippleIndices) * 32);
+    size_t used = 0;
+    if (m_ripples)
+        for (size_t li = 0; li < m_ripples->size() && li < static_cast<size_t>(kRippleIndices); ++li) {
+            const Core::Water::RippleLayer* L = (*m_ripples)[li];
+            if (!L) continue;
+            const size_t n = static_cast<size_t>(L->nx()) * L->nz();
+            if (used + n > kRippleFloats) break;   // over the slot: the rest draw without ripples (the manager's budget prevents it)
+            std::memcpy(heights + used, L->heights().data(), n * sizeof(float));
+            geo[li * 4 + 0] = L->origin().x * Core::Water::RippleLayer::kPitch; geo[li * 4 + 1] = L->origin().y * Core::Water::RippleLayer::kPitch;
+            geo[li * 4 + 2] = 1.0f / Core::Water::RippleLayer::kPitch;
+            meta[li * 4 + 0] = static_cast<int32_t>(used); meta[li * 4 + 1] = L->nx(); meta[li * 4 + 2] = L->nz(); meta[li * 4 + 3] = m_rippleSmooth ? 1 : 0;
+            used += n;
+        }
+}
+
+void WaterSurfaceRenderPipeline::pushLook(VkCommandBuffer commandBuffer, const Camera& camera, const glm::mat4& projectionMatrix, VkExtent2D screenExtent,
+                                          const Core::Water::WaterLookPacked* look) {
+    WaterSurfacePush pc{};
+    pc.viewProj = projectionMatrix * camera.getViewMatrix();   // absolute world space, like the sheet and the cells
+    const float t = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_startTime).count();
+    pc.camPosTime = glm::vec4(camera.getPosition(), t);
+    pc.screen = glm::vec4(static_cast<float>(screenExtent.width), static_cast<float>(screenExtent.height), static_cast<float>(m_debugMode), m_scatterLegacy ? 1.0f : 0.0f);
+    const float guardOff = m_horizonGuard ? 0.0f : 1.0f;   // 22.12 B2 rides look1.z (unused by the look: 0 = guard on)
+    const Core::Water::WaterLookPacked neutral;
+    const Core::Water::WaterLookPacked& lk = look ? *look : neutral;
+    pc.look0 = lk.look0; pc.look1 = lk.look1; pc.look1.z = guardOff; pc.look1.w = m_defaultClarity;
+    vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(WaterSurfacePush), &pc);
+}
+
 void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet, const Camera& camera,
                                         const glm::mat4& projectionMatrix, const Core::Water::WaterSurfaceMesh& mesh,
                                         VkExtent2D screenExtent, uint32_t frame) {
@@ -214,26 +252,7 @@ void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescrip
     std::memcpy(m_vertexMapped[slot], mesh.vertices.data(), nv * sizeof(Core::Water::WaterSurfaceVertex));
     std::memcpy(m_indexMapped[slot], mesh.indices.data(), ni * sizeof(uint32_t));
     m_lastVertices = static_cast<uint32_t>(nv);
-
-    {   // 22: this frame's ripple heights into the slot (header: geo = world origin xz + 1/pitch; meta = offset, nx, nz, smooth)
-        char* base = static_cast<char*>(m_rippleMapped) + slot * m_rippleSlotBytes;
-        auto* geo = reinterpret_cast<float*>(base); auto* meta = reinterpret_cast<int32_t*>(base + kRippleIndices * 16);
-        auto* heights = reinterpret_cast<float*>(base + kRippleIndices * 32);
-        std::memset(base, 0, static_cast<size_t>(kRippleIndices) * 32);
-        size_t used = 0;
-        if (m_ripples)
-            for (size_t li = 0; li < m_ripples->size() && li < static_cast<size_t>(kRippleIndices); ++li) {
-                const Core::Water::RippleLayer* L = (*m_ripples)[li];
-                if (!L) continue;
-                const size_t n = static_cast<size_t>(L->nx()) * L->nz();
-                if (used + n > kRippleFloats) break;   // over the slot: the rest draw without ripples (the manager's budget prevents it)
-                std::memcpy(heights + used, L->heights().data(), n * sizeof(float));
-                geo[li * 4 + 0] = L->origin().x * Core::Water::RippleLayer::kPitch; geo[li * 4 + 1] = L->origin().y * Core::Water::RippleLayer::kPitch;
-                geo[li * 4 + 2] = 1.0f / Core::Water::RippleLayer::kPitch;
-                meta[li * 4 + 0] = static_cast<int32_t>(used); meta[li * 4 + 1] = L->nx(); meta[li * 4 + 2] = L->nz(); meta[li * 4 + 3] = m_rippleSmooth ? 1 : 0;
-                used += n;
-            }
-    }
+    writeRipples(slot);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
     VkDescriptorSet sets[] = {uboSet, m_descriptorSet};
     const uint32_t dynOff = static_cast<uint32_t>(slot * m_rippleSlotBytes);
@@ -241,26 +260,173 @@ void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescrip
     VkDeviceSize off = 0;
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBuffer[slot], &off);
     vkCmdBindIndexBuffer(commandBuffer, m_indexBuffer[slot], 0, VK_INDEX_TYPE_UINT32);
-    WaterSurfacePush pc{};
-    pc.viewProj = projectionMatrix * camera.getViewMatrix();   // absolute world space, like the sheet and the cells
-    const float t = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_startTime).count();
-    pc.camPosTime = glm::vec4(camera.getPosition(), t);
-    pc.screen = glm::vec4(static_cast<float>(screenExtent.width), static_cast<float>(screenExtent.height), static_cast<float>(m_debugMode), m_scatterLegacy ? 1.0f : 0.0f);
-    const float guardOff = m_horizonGuard ? 0.0f : 1.0f;   // 22.12 B2 rides look1.z (unused by the look: 0 = guard on)
-    { const Core::Water::WaterLookPacked neutral; pc.look0 = neutral.look0; pc.look1 = neutral.look1; pc.look1.z = guardOff; pc.look1.w = m_defaultClarity; }
     // G3: one draw per field so each body's look reaches the shader; a mesh without ranges (older
     // callers) draws once with the neutral look. Ranges past a truncation are clipped.
     if (mesh.ranges.empty()) {
-        vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(WaterSurfacePush), &pc);
+        pushLook(commandBuffer, camera, projectionMatrix, screenExtent, nullptr);
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(ni), 1, 0, 0, 0);
     } else {
         for (const auto& rg : mesh.ranges) {
             if (rg.firstIndex >= ni) break;
             const uint32_t cnt = static_cast<uint32_t>(std::min<size_t>(rg.indexCount, ni - rg.firstIndex));
-            pc.look0 = rg.look.look0; pc.look1 = rg.look.look1; pc.look1.z = guardOff; pc.look1.w = m_defaultClarity;
-            vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(WaterSurfacePush), &pc);
+            pushLook(commandBuffer, camera, projectionMatrix, screenExtent, &rg.look);
             vkCmdDrawIndexed(commandBuffer, cnt, 1, rg.firstIndex, 0, 0);
         }
+    }
+}
+
+// ---- 26.30 the tile store ----------------------------------------------------------------------------------------------------
+
+bool WaterSurfaceRenderPipeline::Arena::alloc(VkDeviceSize bytes, VkDeviceSize& off) {
+    bytes = (bytes + 255) & ~VkDeviceSize(255);
+    for (auto it = freeList.begin(); it != freeList.end(); ++it) {
+        if (it->second < bytes) continue;
+        off = it->first;
+        const VkDeviceSize rest = it->second - bytes;
+        freeList.erase(it);
+        if (rest > 0) freeList[off + bytes] = rest;
+        used += bytes;
+        return true;
+    }
+    return false;
+}
+
+void WaterSurfaceRenderPipeline::Arena::release(VkDeviceSize off, VkDeviceSize bytes) {
+    bytes = (bytes + 255) & ~VkDeviceSize(255);
+    used -= bytes;
+    auto it = freeList.emplace(off, bytes).first;
+    auto next = std::next(it);
+    if (next != freeList.end() && it->first + it->second == next->first) { it->second += next->second; freeList.erase(next); }
+    if (it != freeList.begin()) {
+        auto prev = std::prev(it);
+        if (prev->first + prev->second == it->first) { prev->second += it->second; freeList.erase(it); }
+    }
+}
+
+void WaterSurfaceRenderPipeline::createTileStore() {
+    auto make = [&](VkBuffer& buf, VkDeviceMemory& mem, VkDeviceSize bytes, VkBufferUsageFlags usage, VkMemoryPropertyFlags props) {
+        VkBufferCreateInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO; bi.size = bytes; bi.usage = usage; bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &buf) != VK_SUCCESS) throw std::runtime_error("failed to create water-surface tile buffer");
+        VkMemoryRequirements mr; vkGetBufferMemoryRequirements(m_device, buf, &mr);
+        VkMemoryAllocateInfo ai{}; ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO; ai.allocationSize = mr.size;
+        ai.memoryTypeIndex = findMemoryType(m_physicalDevice, mr.memoryTypeBits, props);
+        if (vkAllocateMemory(m_device, &ai, nullptr, &mem) != VK_SUCCESS) throw std::runtime_error("failed to allocate water-surface tile memory");
+        vkBindBufferMemory(m_device, buf, mem, 0);
+    };
+    make(m_vArena.buffer, m_vArena.memory, kArenaVertexBytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    make(m_iArena.buffer, m_iArena.memory, kArenaIndexBytes, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    m_vArena.size = kArenaVertexBytes; m_vArena.freeList = {{0, kArenaVertexBytes}};
+    m_iArena.size = kArenaIndexBytes;  m_iArena.freeList = {{0, kArenaIndexBytes}};
+    for (uint32_t i = 0; i < kFrames; ++i) {
+        make(m_staging[i], m_stagingMemory[i], kStagingBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        vkMapMemory(m_device, m_stagingMemory[i], 0, kStagingBytes, 0, &m_stagingMapped[i]);
+    }
+}
+
+void WaterSurfaceRenderPipeline::destroyTileStore() {
+    for (uint32_t i = 0; i < kFrames; ++i) {
+        if (m_stagingMapped[i]) vkUnmapMemory(m_device, m_stagingMemory[i]);
+        vkDestroyBuffer(m_device, m_staging[i], nullptr); vkFreeMemory(m_device, m_stagingMemory[i], nullptr);
+        m_staging[i] = VK_NULL_HANDLE; m_stagingMemory[i] = VK_NULL_HANDLE; m_stagingMapped[i] = nullptr;
+    }
+    for (Arena* a : {&m_vArena, &m_iArena}) { vkDestroyBuffer(m_device, a->buffer, nullptr); vkFreeMemory(m_device, a->memory, nullptr); *a = Arena{}; }
+    m_gpuTiles.clear(); m_pendingFree.clear();
+}
+
+void WaterSurfaceRenderPipeline::uploadTiles(VkCommandBuffer cmd, const Core::Water::WaterSurfaceTiler& tiler, uint32_t frame) {
+    using Core::Water::WaterSurfaceVertex;
+    ++m_frameCounter;
+    m_tileStats = TileStats{};
+    // frees whose frames are done: a frame in flight may still draw from a region for kFrames frames after it was replaced
+    for (auto it = m_pendingFree.begin(); it != m_pendingFree.end();) {
+        if (it->frame + kFrames + 1 <= m_frameCounter) { m_vArena.release(it->vOff, it->vBytes); m_iArena.release(it->iOff, it->iBytes); it = m_pendingFree.erase(it); }
+        else ++it;
+    }
+    auto retire = [&](const GpuTile& g) { if (g.vBytes || g.iBytes) m_pendingFree.push_back({m_frameCounter, g.vOff, g.vBytes, g.iOff, g.iBytes}); };
+    for (auto it = m_gpuTiles.begin(); it != m_gpuTiles.end();) {   // tiles that are gone
+        if (!tiler.tiles().count(it->first)) { retire(it->second); it = m_gpuTiles.erase(it); } else ++it;
+    }
+    const uint32_t slot = frame % kFrames;
+    char* staging = static_cast<char*>(m_stagingMapped[slot]);
+    VkDeviceSize stagingUsed = 0;
+    std::vector<VkBufferCopy> vCopies, iCopies;
+    for (const auto& [key, t] : tiler.tiles()) {
+        ++m_tileStats.tiles;
+        auto found = m_gpuTiles.find(key);
+        if (found != m_gpuTiles.end() && found->second.generation == t.generation) continue;
+        const VkDeviceSize vb = t.mesh.vertices.size() * sizeof(WaterSurfaceVertex), ib = t.mesh.indices.size() * sizeof(uint32_t);
+        if (stagingUsed + vb + ib > kStagingBytes) { ++m_tileStats.deferred; continue; }   // next frame; the old version (if any) still draws
+        GpuTile g; g.generation = t.generation; g.indexCount = static_cast<uint32_t>(t.mesh.indices.size());
+        if (vb > 0) {
+            VkDeviceSize vo = 0, io = 0;
+            if (!m_vArena.alloc(vb, vo)) { ++m_tileStats.overArena; continue; }
+            if (!m_iArena.alloc(ib, io)) { m_vArena.release(vo, vb); ++m_tileStats.overArena; continue; }
+            g.vOff = vo; g.vBytes = vb; g.iOff = io; g.iBytes = ib;
+            std::memcpy(staging + stagingUsed, t.mesh.vertices.data(), vb); vCopies.push_back({stagingUsed, vo, vb}); stagingUsed += vb;
+            std::memcpy(staging + stagingUsed, t.mesh.indices.data(), ib);  iCopies.push_back({stagingUsed, io, ib}); stagingUsed += ib;
+        }
+        if (found != m_gpuTiles.end()) retire(found->second);
+        m_gpuTiles[key] = g;
+        ++m_tileStats.uploaded;
+    }
+    m_tileStats.uploadBytes = stagingUsed;
+    m_tileStats.arenaVertexBytes = m_vArena.used; m_tileStats.arenaIndexBytes = m_iArena.used;
+    if (vCopies.empty()) return;
+    vkCmdCopyBuffer(cmd, m_staging[slot], m_vArena.buffer, static_cast<uint32_t>(vCopies.size()), vCopies.data());
+    vkCmdCopyBuffer(cmd, m_staging[slot], m_iArena.buffer, static_cast<uint32_t>(iCopies.size()), iCopies.data());
+    VkMemoryBarrier mb{}; mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    mb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; mb.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDEX_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+}
+
+void WaterSurfaceRenderPipeline::renderTiles(VkCommandBuffer cmd, VkDescriptorSet uboSet, const Camera& camera, const glm::mat4& projectionMatrix,
+                                             const Core::Water::WaterSurfaceTiler& tiler, const Core::Water::WaterSurfaceMesh& extra,
+                                             VkExtent2D screenExtent, uint32_t frame) {
+    m_lastVertices = 0; m_lastTruncated = false;
+    if (!m_texturesBound || uboSet == VK_NULL_HANDLE) return;
+    const uint32_t slot = frame % kFrames;
+    writeRipples(slot);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+    VkDescriptorSet sets[] = {uboSet, m_descriptorSet};
+    const uint32_t dynOff = static_cast<uint32_t>(slot * m_rippleSlotBytes);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 2, sets, 1, &dynOff);
+    // the view's four side planes (row 3 +- rows 0 and 1 of viewProj) do not depend on the depth convention (reverse-Z); a tile
+    // wholly outside one is not drawn. Near and far are not tested.
+    const glm::mat4 vp = projectionMatrix * camera.getViewMatrix();
+    auto row = [&](int r) { return glm::vec4(vp[0][r], vp[1][r], vp[2][r], vp[3][r]); };
+    const glm::vec4 planes[4] = {row(3) + row(0), row(3) - row(0), row(3) + row(1), row(3) - row(1)};
+    auto visible = [&](const glm::vec3& lo, const glm::vec3& hi) {
+        for (const glm::vec4& p : planes) {
+            const glm::vec3 c(p.x >= 0 ? hi.x : lo.x, p.y >= 0 ? hi.y : lo.y, p.z >= 0 ? hi.z : lo.z);   // the corner furthest along the normal
+            if (p.x * c.x + p.y * c.y + p.z * c.z + p.w < 0.0f) return false;
+        }
+        return true;
+    };
+    VkDeviceSize off = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &m_vArena.buffer, &off);
+    vkCmdBindIndexBuffer(cmd, m_iArena.buffer, 0, VK_INDEX_TYPE_UINT32);
+    for (const auto& [key, t] : tiler.tiles()) {
+        auto g = m_gpuTiles.find(key);
+        if (g == m_gpuTiles.end() || g->second.indexCount == 0) continue;
+        if (m_cull && !visible(t.lo, t.hi)) { ++m_tileStats.culled; continue; }
+        pushLook(cmd, camera, projectionMatrix, screenExtent, &t.look);
+        vkCmdDrawIndexed(cmd, g->second.indexCount, 1, static_cast<uint32_t>(g->second.iOff / sizeof(uint32_t)),
+                         static_cast<int32_t>(g->second.vOff / sizeof(Core::Water::WaterSurfaceVertex)), 0);
+        ++m_tileStats.drawn; m_tileStats.drawnVertices += static_cast<uint32_t>(g->second.vBytes / sizeof(Core::Water::WaterSurfaceVertex));
+    }
+    m_lastVertices = m_tileStats.drawnVertices;
+    if (!extra.vertices.empty() && !extra.indices.empty()) {   // the droplets: small, every frame, through the ring
+        const size_t nv = std::min(extra.vertices.size(), kMaxVertices), ni = std::min(extra.indices.size(), kMaxIndices);
+        std::memcpy(m_vertexMapped[slot], extra.vertices.data(), nv * sizeof(Core::Water::WaterSurfaceVertex));
+        std::memcpy(m_indexMapped[slot], extra.indices.data(), ni * sizeof(uint32_t));
+        vkCmdBindVertexBuffers(cmd, 0, 1, &m_vertexBuffer[slot], &off);
+        vkCmdBindIndexBuffer(cmd, m_indexBuffer[slot], 0, VK_INDEX_TYPE_UINT32);
+        for (const auto& rg : extra.ranges) {
+            if (rg.firstIndex >= ni) break;
+            pushLook(cmd, camera, projectionMatrix, screenExtent, &rg.look);
+            vkCmdDrawIndexed(cmd, static_cast<uint32_t>(std::min<size_t>(rg.indexCount, ni - rg.firstIndex)), 1, rg.firstIndex, 0, 0);
+        }
+        m_lastVertices += static_cast<uint32_t>(nv);
     }
 }
 

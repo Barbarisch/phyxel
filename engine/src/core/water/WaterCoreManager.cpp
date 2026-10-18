@@ -821,6 +821,7 @@ const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
             }
             if (!got) { syncFromGpu(*av, false); extractSurfaceField(*av->grid, av->field); }
             av->fieldStep = av->stepCount;
+            av->field.source = av->id; av->field.version = av->fieldStep + 1;   // 26.30: the tiler skips a field whose version stands (an asleep volume)
             av->field.look = packLook(lookAt((av->minVoxel.x + av->maxVoxel.x) / 2, (av->minVoxel.z + av->maxVoxel.z) / 2));   // G3
             av->fieldStepSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         }

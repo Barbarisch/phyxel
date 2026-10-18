@@ -574,6 +574,13 @@ public:
     long waterCoreMeshSideQuads() const { return m_waterCoreMesh.sideQuads; }
     double waterCoreMeshMs() const { return m_waterCoreMeshMs; }
     bool waterCoreMeshTruncated() const { return waterSurfacePipeline && waterSurfacePipeline->lastTruncated(); }
+    // 26.30: the surface in kept, culled tiles (default) or the per-frame whole mesh (the A/B control)
+    void setWaterCoreTiles(bool on) { m_waterTilesOn = on; if (!on) m_waterTiler.clear(); }
+    bool waterCoreTiles() const { return m_waterTilesOn; }
+    void setWaterCoreCull(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setCull(on); }
+    bool waterCoreCull() const { return waterSurfacePipeline && waterSurfacePipeline->cull(); }
+    const Core::Water::WaterSurfaceTiler& waterCoreTiler() const { return m_waterTiler; }
+    const WaterSurfaceRenderPipeline::TileStats* waterCoreTileStats() const { return waterSurfacePipeline ? &waterSurfacePipeline->tileStats() : nullptr; }
     void setWaterCoreDebugMode(int m) { if (waterSurfacePipeline) waterSurfacePipeline->setDebugMode(m); }
     /// 21: the droplet crown's cubes (xyz centre, w edge) drawn with the water mesh; null = none.
     void setWaterCoreDroplets(const std::vector<glm::vec4>* d) { m_waterCoreDroplets = d; }
@@ -1427,6 +1434,8 @@ private:
     Core::Water::WaterCoreRenderMode m_waterCoreMode = Core::Water::kWaterCoreRenderModeDefault;
     Core::Water::WaterSurfaceMesh m_waterCoreMesh;   // rebuilt every frame from the fields
     double m_waterCoreMeshMs = 0.0;
+    Core::Water::WaterSurfaceTiler m_waterTiler;   // 26.30
+    bool m_waterTilesOn = true;
     const std::vector<glm::vec4>* m_waterCoreParticles = nullptr;        // WaterCore Phase B2 debug draw (x, y, z, size)
     VkBuffer       m_flipDebugBuffer = VK_NULL_HANDLE;                   // CPU-fed DynamicSubcubeInstanceData, 6 faces per particle
     VkDeviceMemory m_flipDebugMemory = VK_NULL_HANDLE;

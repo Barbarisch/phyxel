@@ -4363,18 +4363,32 @@ void RenderCoordinator::drawFrame() {
     bool drawCoreMesh = false;
     m_waterCoreMesh.clear(); m_waterCoreMeshMs = 0.0;
     const bool anyField = (m_waterCoreDroplets && !m_waterCoreDroplets->empty()) || (m_waterCoreFields && !m_waterCoreFields->empty()) || (m_waterShoreField && m_waterShoreField->nx > 0) || (m_waterFineField && m_waterFineField->nx > 0);
+    bool drawCoreTiles = false;
     if (waterSurfacePipeline && m_waterCoreMode == WaterCoreRenderMode::Mesh && anyField) {
         const auto tm0 = std::chrono::steady_clock::now();
-        if (m_waterCoreFields) for (const auto& f : *m_waterCoreFields) Core::Water::appendFieldToMesh(f, m_waterCoreMesh);   // G3: one draw range (look) per field
-        if (m_waterFineField && m_waterFineField->nx > 0) Core::Water::appendFieldToMesh(*m_waterFineField, m_waterCoreMesh);   // G4: the fine band (the 1 m band hides these columns)
-        if (m_waterShoreField && m_waterShoreField->nx > 0) Core::Water::appendFieldToMesh(*m_waterShoreField, m_waterCoreMesh);   // Phase G: the shore band
-        if (m_waterCoreDroplets) Core::Water::appendDropletsToMesh(*m_waterCoreDroplets, m_waterCoreMesh);   // 21: the droplet crown
+        if (m_waterTilesOn) {   // 26.30: tiles rebuilt only where the field changed, kept on the device; the droplets per frame
+            std::vector<const Core::Water::WaterSurfaceField*> fs;
+            if (m_waterCoreFields) for (const auto& f : *m_waterCoreFields) fs.push_back(&f);
+            if (m_waterFineField && m_waterFineField->nx > 0) fs.push_back(m_waterFineField);
+            if (m_waterShoreField && m_waterShoreField->nx > 0) fs.push_back(m_waterShoreField);
+            m_waterTiler.update(fs);
+            if (m_waterCoreDroplets) Core::Water::appendDropletsToMesh(*m_waterCoreDroplets, m_waterCoreMesh);   // 21: the droplet crown
+            drawCoreTiles = true;
+        } else {
+            if (m_waterCoreFields) for (const auto& f : *m_waterCoreFields) Core::Water::appendFieldToMesh(f, m_waterCoreMesh);   // G3: one draw range (look) per field
+            if (m_waterFineField && m_waterFineField->nx > 0) Core::Water::appendFieldToMesh(*m_waterFineField, m_waterCoreMesh);   // G4: the fine band (the 1 m band hides these columns)
+            if (m_waterShoreField && m_waterShoreField->nx > 0) Core::Water::appendFieldToMesh(*m_waterShoreField, m_waterCoreMesh);   // Phase G: the shore band
+            if (m_waterCoreDroplets) Core::Water::appendDropletsToMesh(*m_waterCoreDroplets, m_waterCoreMesh);   // 21: the droplet crown
+        }
         m_waterCoreMeshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tm0).count();
-        drawCoreMesh = !m_waterCoreMesh.indices.empty();
+        drawCoreMesh = drawCoreTiles || !m_waterCoreMesh.indices.empty();
+    } else if (m_waterTilesOn) {
+        m_waterTiler.clear();
     }
     const bool drawWaterCells = (m_waterManager && waterCellPipeline &&
                                  !m_waterManager->surfaceCells().empty()) || drawCoreCells;
     if (drawWaterPlane || drawWaterCells || drawCoreMesh || m_uiSystem) {
+        if (drawCoreTiles) waterSurfacePipeline->uploadTiles(vulkanDevice->getCommandBuffer(currentFrame), m_waterTiler, static_cast<uint32_t>(currentFrame));   // 26.30: outside any pass
         // Snapshot the scene colour for refraction BEFORE the pass begins (outside any pass).
         if (drawWaterPlane || drawWaterCells || drawCoreMesh) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterRefractCapture");
@@ -4424,7 +4438,10 @@ void RenderCoordinator::drawFrame() {
         }
         if (drawCoreMesh) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterSurface");
-            waterSurfacePipeline->render(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getDescriptorSet(currentFrame), *camera, cachedProjectionMatrix, m_waterCoreMesh, vulkanDevice->getSwapChainExtent(), static_cast<uint32_t>(currentFrame));
+            if (drawCoreTiles)
+                waterSurfacePipeline->renderTiles(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getDescriptorSet(currentFrame), *camera, cachedProjectionMatrix, m_waterTiler, m_waterCoreMesh, vulkanDevice->getSwapChainExtent(), static_cast<uint32_t>(currentFrame));
+            else
+                waterSurfacePipeline->render(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getDescriptorSet(currentFrame), *camera, cachedProjectionMatrix, m_waterCoreMesh, vulkanDevice->getSwapChainExtent(), static_cast<uint32_t>(currentFrame));
         }
 
         // Underwater fog (WaterSystemV3 Phase 1 item 5) — AFTER the surfaces so it also fogs the

@@ -1,0 +1,51 @@
+{
+ "pose": {
+  "position": {
+   "x": 12.0,
+   "y": 22.0,
+   "z": 30.0
+  },
+  "yaw": -90.0,
+  "pitch": -22.0
+ },
+ "size_m": [
+  20,
+  20
+ ],
+ "tiles": {
+  "arena_index_bytes": 780800,
+  "arena_vertex_bytes": 6220800,
+  "cull": true,
+  "culled": 0,
+  "deferred": 0,
+  "drawn": 30,
+  "drawn_vertices": 129600,
+  "fields_skipped": 1,
+  "kept": 30,
+  "on": true,
+  "over_arena": 0,
+  "rebuilt": 0,
+  "removed": 0,
+  "tiler_ms": 0.0018,
+  "tiles": 30,
+  "upload_bytes": 0,
+  "uploaded": 0
+ },
+ "water_vs_nowater": {
+  "mean_abs": 4.8327,
+  "share_over_8": 0.117458
+ },
+ "control_whole_vs_whole": {
+  "mean_abs": 0.3408,
+  "share_over_8": 0.010835
+ },
+ "tiles_vs_tiles": {
+  "mean_abs": 0.3538,
+  "share_over_8": 0.011317
+ },
+ "whole_vs_tiles": {
+  "mean_abs": 0.3668,
+  "share_over_8": 0.01161
+ },
+ "pass": true
+}

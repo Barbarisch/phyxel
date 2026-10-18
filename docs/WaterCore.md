@@ -137,7 +137,9 @@ corner; the nearest water was 4 cells away, reach 2) - the test now checks by ce
 **26.30 (2026-10-18) DESIGN:** the owner chose (a) first. Measured: a resting pond's surface costs ~27 ns per vertex on the GPU
 and ~27 ns per vertex to rebuild on the CPU every frame, seen or not (32 x 28 m: 7.9 ms GPU, +12.3 ms CPU). Design: kept
 device-local tiles rebuilt only when changed (1), culled to the view (2), then awake water (3), then distance (4, a look change).
-**Next:** step 1 - the tile test red, then the tiles. The §23 slime experiment stays queued.
+**26.30 steps 1-2 BUILT (2026-10-18), not signed off:** kept device-local tiles + view culling - a resting 32 x 28 m pond's
+surface pass 7.9 -> 0.35 ms facing and 0 ms away, its CPU frame 14.2 -> 4.75 ms; the look unchanged by pixels (2 runs).
+**Next:** step 3 (awake water: the tiler 9 ms on a 32 x 28 m awake pond; the CPU left at rest) - then the owner's look. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7050,7 +7052,7 @@ stone-sized impulse at the centre (STONE). Read: the solver's call (`gpu_device_
 costed by what is seen and by distance, not by area; (b) water that sleeps when it is still, at any depth; (c) a disturbance
 that wakes a patch, not the whole body (P4); (d) volumes beyond the 2 M-cell box cap.
 
-### 26.30 The drawn surface costed by what is seen - measure, then design (2026-10-18). Status: DESIGN (step 1 next)
+### 26.30 The drawn surface costed by what is seen - measure, then design (2026-10-18). Status: steps 1-2 BUILT, not signed off
 
 **The owner's call (2026-10-18):** "start with A" - of 26.29's four needs, (a) first: the surface costed by what is seen and by
 distance, not by the pond's area.
@@ -7093,6 +7095,49 @@ memory. Step 1 measures it by moving the data, one variable.)
 - `...AnUnchangedTileIsNotRebuilt` / `...AChangedColumnRebuildsItsTileOnly` (and the tiles whose corners read it).
 - Live (L4): `water_surface_split.py --tag tiles` against `before`: asleep facing / away, the pass, the CPU frame; the look by
   pixels at a fixed pose (a capture before and after, no difference allowed in steps 1-2); `truncated` gone for 46 x 28 m.
+
+**Steps 1-2 BUILT (2026-10-18).** `WaterSurfaceTiler` (`WaterSurfaceMesh.{h,cpp}`: `buildWaterSurfaceMeshRect`, tiles keyed by the
+field's `source` = the volume's id, skipped whole while its `version` = the volume's step stands); `WaterSurfaceRenderPipeline`
+keeps the tiles in two device-local arenas (96 MB vertices, 16 MB indices, first-fit, frees held back kFrames + 1 frames),
+uploads only rebuilt tiles through a 24 MB-per-frame staging slot (the rest waits a frame, counted), and draws a tile only when
+its box is inside the view's four side planes. The droplets stay on the per-frame ring. `water_render_core` gains
+`{tiles: bool}` (off = the old whole mesh, the A/B control), `{cull: bool}` and a `tiles` record (tiles, rebuilt, kept,
+fields_skipped, tiler_ms, drawn, culled, uploaded, upload_bytes, arena bytes).
+
+- **Suites (Release, timed):** `phyxel_tests` water filter **360 / 360 in 4 min 36 s** (356 + the 4 tile tests); `phyxel_integration_tests`
+  Water / Debris / Gpu **45 / 46 in 45 s** (the known particle run-up). (A Debug run of the unit filter was stopped after 46 min.)
+- **Red first:** `WaterSurfaceTileTest` against a tiler that built each tile as its own little field: 6,612 quads differed from
+  the whole mesh (the corners and side faces at tile edges). Green with the rect build: 4 / 4, `WaterSurfaceMeshTest` 6 / 6.
+- **Measured** (`water_surface_split.py`, Release, idle GPU; `surface_split_tiles_nocull.json`, `surface_split_tiles_cull.json`):
+
+| resting 1 m pond | surface pass GPU, facing / away | CPU frame, away | rebuilt a frame |
+|---|---|---|---|
+| 10 x 10 m before | 1.02 / 0.95 ms | 3.07 ms | all (0.86 ms) |
+| 10 x 10 m tiles, no cull | 0.061 / 0.003 ms | 1.89 ms | 0 (the field skipped) |
+| 10 x 10 m tiles, culled | 0.059 / 0.000 ms (0 of 9 tiles drawn) | 1.95 ms | 0 |
+| 20 x 20 m before | 3.60 / 3.45 ms | 7.42 ms | all (3.47 ms) |
+| 20 x 20 m tiles, culled | 0.157 / 0.000 ms | 3.25 ms | 0 |
+| 32 x 28 m before | 7.90 / 7.61 ms | 14.21 ms | all (7.85 ms) |
+| 32 x 28 m tiles, culled | 0.351 / 0.000 ms | 4.75 ms | 0 |
+
+  The hypothesis held: with the vertices on the device the same draw costs ~0.003 ms off-screen (it was 0.95) - the old cost was
+  the GPU reading the mesh from system memory. Facing, what is left is shading the pixels the pond covers.
+- **Awake** (the 32 x 28 m pond in the no-cull run stayed awake - see below): every tile rebuilds every frame, tiler 9.0 ms CPU
+  (the old build 7.85 ms + the comparison and the snapshot copy), 15.7 MB uploaded a frame; the pass 0.35 ms (was 7.9).
+  Step 3's subject.
+- **Left over at rest:** the CPU frame is still +1.35 ms (20 x 20) and +2.9 ms (32 x 28) above no pond with the tiler at ~0 -
+  per-frame work over every column elsewhere (candidates, not measured: `surfaceFields()` copies every field each frame,
+  `takeMotion` scans every column). Step 3 measures it.
+- **The look** (`water_surface_ab.py`, 20 x 20 m resting, a fixed pose, window captures at one cadence): whole vs tiles 0.73 mean
+  abs (controls: whole vs whole 0.65, tiles vs tiles 0.70; the water in frame: 5.6 without it) - PASS; repeated: 0.37 against
+  0.34 / 0.35 - PASS. The difference images show the same time-moving shading noise everywhere, no tile edges. (A first run
+  failed, 2.04 against 0.62: its whole-vs-tiles pair was ~2 s apart, the controls 0.5 s - the gap, not the tiles; the tool now
+  keeps one cadence.)
+- **Found on the way, for (b):** whether a still pond sleeps depends on timing. Water placed into an AWAKE volume, 1 m deep and 32
+  x 28 m, never sleeps (kinetic energy ~2e-9, yet `quiet_ticks` stays 0 - another rest test fails at depth). Water placed into a
+  volume that had already slept EMPTY is uploaded and never stepped - it stays asleep with the water in it until something (a
+  stone) wakes it: a placement does not wake a GPU volume. So some of 26.29's "slept in 0.5 s" rows may be that race.
+
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

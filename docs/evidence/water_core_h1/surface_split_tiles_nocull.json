@@ -1,0 +1,240 @@
+{
+ "control": {
+  "facing": {
+   "surface_pass_ms": 0.0,
+   "frame_gpu_ms": 2.84,
+   "cpu_frame_ms": 2.846,
+   "mesh_build_ms": 0.0,
+   "mesh_vertices": 0,
+   "fps": 398.8,
+   "tiles": {
+    "arena_index_bytes": 0,
+    "arena_vertex_bytes": 0,
+    "cull": false,
+    "culled": 0,
+    "deferred": 0,
+    "drawn": 0,
+    "drawn_vertices": 0,
+    "fields_skipped": 0,
+    "kept": 0,
+    "on": true,
+    "over_arena": 0,
+    "rebuilt": 0,
+    "removed": 0,
+    "tiler_ms": 0.0,
+    "tiles": 0,
+    "upload_bytes": 0,
+    "uploaded": 0
+   }
+  },
+  "away": {
+   "surface_pass_ms": 0.0,
+   "frame_gpu_ms": 1.797,
+   "cpu_frame_ms": 1.82,
+   "mesh_build_ms": 0.0,
+   "mesh_vertices": 0,
+   "fps": 521.6,
+   "tiles": {
+    "arena_index_bytes": 0,
+    "arena_vertex_bytes": 0,
+    "cull": false,
+    "culled": 0,
+    "deferred": 0,
+    "drawn": 0,
+    "drawn_vertices": 0,
+    "fields_skipped": 0,
+    "kept": 0,
+    "on": true,
+    "over_arena": 0,
+    "rebuilt": 0,
+    "removed": 0,
+    "tiler_ms": 0.0,
+    "tiles": 0,
+    "upload_bytes": 0,
+    "uploaded": 0
+   }
+  }
+ },
+ "ponds": [
+  {
+   "size_m": [
+    10,
+    10
+   ],
+   "facing": {
+    "surface_pass_ms": 0.061,
+    "frame_gpu_ms": 2.966,
+    "cpu_frame_ms": 3.094,
+    "mesh_build_ms": 0.002,
+    "mesh_vertices": 32400,
+    "fps": 348.4,
+    "tiles": {
+     "arena_index_bytes": 195328,
+     "arena_vertex_bytes": 1555200,
+     "cull": false,
+     "culled": 0,
+     "deferred": 0,
+     "drawn": 9,
+     "drawn_vertices": 32400,
+     "fields_skipped": 1,
+     "kept": 9,
+     "on": true,
+     "over_arena": 0,
+     "rebuilt": 0,
+     "removed": 0,
+     "tiler_ms": 0.0009,
+     "tiles": 9,
+     "upload_bytes": 0,
+     "uploaded": 0
+    }
+   },
+   "away": {
+    "surface_pass_ms": 0.003,
+    "frame_gpu_ms": 1.799,
+    "cpu_frame_ms": 1.89,
+    "mesh_build_ms": 0.001,
+    "mesh_vertices": 32400,
+    "fps": 504.3,
+    "tiles": {
+     "arena_index_bytes": 195328,
+     "arena_vertex_bytes": 1555200,
+     "cull": false,
+     "culled": 0,
+     "deferred": 0,
+     "drawn": 9,
+     "drawn_vertices": 32400,
+     "fields_skipped": 1,
+     "kept": 9,
+     "on": true,
+     "over_arena": 0,
+     "rebuilt": 0,
+     "removed": 0,
+     "tiler_ms": 0.0008,
+     "tiles": 9,
+     "upload_bytes": 0,
+     "uploaded": 0
+    }
+   }
+  },
+  {
+   "size_m": [
+    20,
+    20
+   ],
+   "facing": {
+    "surface_pass_ms": 0.158,
+    "frame_gpu_ms": 3.001,
+    "cpu_frame_ms": 3.167,
+    "mesh_build_ms": 0.003,
+    "mesh_vertices": 129600,
+    "fps": 294.9,
+    "tiles": {
+     "arena_index_bytes": 780800,
+     "arena_vertex_bytes": 6220800,
+     "cull": false,
+     "culled": 0,
+     "deferred": 0,
+     "drawn": 30,
+     "drawn_vertices": 129600,
+     "fields_skipped": 1,
+     "kept": 30,
+     "on": true,
+     "over_arena": 0,
+     "rebuilt": 0,
+     "removed": 0,
+     "tiler_ms": 0.0025,
+     "tiles": 30,
+     "upload_bytes": 0,
+     "uploaded": 0
+    }
+   },
+   "away": {
+    "surface_pass_ms": 0.007,
+    "frame_gpu_ms": 1.701,
+    "cpu_frame_ms": 3.241,
+    "mesh_build_ms": 0.003,
+    "mesh_vertices": 129600,
+    "fps": 310.3,
+    "tiles": {
+     "arena_index_bytes": 780800,
+     "arena_vertex_bytes": 6220800,
+     "cull": false,
+     "culled": 0,
+     "deferred": 0,
+     "drawn": 30,
+     "drawn_vertices": 129600,
+     "fields_skipped": 1,
+     "kept": 30,
+     "on": true,
+     "over_arena": 0,
+     "rebuilt": 0,
+     "removed": 0,
+     "tiler_ms": 0.0021,
+     "tiles": 30,
+     "upload_bytes": 0,
+     "uploaded": 0
+    }
+   }
+  },
+  {
+   "size_m": [
+    32,
+    28
+   ],
+   "facing": {
+    "surface_pass_ms": 0.346,
+    "frame_gpu_ms": 6.509,
+    "cpu_frame_ms": 17.91,
+    "mesh_build_ms": 9.058,
+    "mesh_vertices": 290304,
+    "fps": 55.9,
+    "tiles": {
+     "arena_index_bytes": 6995968,
+     "arena_vertex_bytes": 55738368,
+     "cull": false,
+     "culled": 0,
+     "deferred": 0,
+     "drawn": 63,
+     "drawn_vertices": 290304,
+     "fields_skipped": 0,
+     "kept": 0,
+     "on": true,
+     "over_arena": 0,
+     "rebuilt": 63,
+     "removed": 0,
+     "tiler_ms": 9.0332,
+     "tiles": 63,
+     "upload_bytes": 15676416,
+     "uploaded": 63
+    }
+   },
+   "away": {
+    "surface_pass_ms": 0.013,
+    "frame_gpu_ms": 5.118,
+    "cpu_frame_ms": 18.064,
+    "mesh_build_ms": 9.084,
+    "mesh_vertices": 290304,
+    "fps": 56.3,
+    "tiles": {
+     "arena_index_bytes": 6995968,
+     "arena_vertex_bytes": 55738368,
+     "cull": false,
+     "culled": 0,
+     "deferred": 0,
+     "drawn": 63,
+     "drawn_vertices": 290304,
+     "fields_skipped": 0,
+     "kept": 0,
+     "on": true,
+     "over_arena": 0,
+     "rebuilt": 63,
+     "removed": 0,
+     "tiler_ms": 8.9567,
+     "tiles": 63,
+     "upload_bytes": 15676416,
+     "uploaded": 63
+    }
+   }
+  }
+ ]
+}

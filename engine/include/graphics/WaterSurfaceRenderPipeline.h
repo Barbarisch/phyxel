@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <chrono>
+#include <map>
 #include <vector>
 
 #include "core/water/WaterSurfaceMesh.h"
@@ -36,6 +37,20 @@ public:
                 const glm::mat4& projectionMatrix, const Core::Water::WaterSurfaceMesh& mesh,
                 VkExtent2D screenExtent, uint32_t frame);
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
+
+    // 26.30: the surface in TILES kept on the device (docs/WaterCore.md 26.30). uploadTiles records the copies of the tiles that
+    // were rebuilt since they were last uploaded - OUTSIDE a render pass, before the water pass; renderTiles draws the tiles whose
+    // box is inside the view (all of them with culling off) and then `extra` (the droplets) through the per-frame ring.
+    void uploadTiles(VkCommandBuffer commandBuffer, const Core::Water::WaterSurfaceTiler& tiler, uint32_t frame);
+    void renderTiles(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet, const Camera& camera, const glm::mat4& projectionMatrix,
+                     const Core::Water::WaterSurfaceTiler& tiler, const Core::Water::WaterSurfaceMesh& extra, VkExtent2D screenExtent, uint32_t frame);
+    void setCull(bool on) { m_cull = on; }
+    bool cull() const { return m_cull; }
+    struct TileStats { long tiles = 0, drawn = 0, culled = 0, uploaded = 0, deferred = 0, overArena = 0; size_t uploadBytes = 0, arenaVertexBytes = 0, arenaIndexBytes = 0; uint32_t drawnVertices = 0; };
+    const TileStats& tileStats() const { return m_tileStats; }
+    static constexpr VkDeviceSize kArenaVertexBytes = 96ull << 20;   ///< 2 M vertices (48 B) on the device
+    static constexpr VkDeviceSize kArenaIndexBytes  = 16ull << 20;   ///< 4 M indices
+    static constexpr VkDeviceSize kStagingBytes     = 24ull << 20;   ///< per frame slot: what one frame may upload (the rest waits a frame)
 
     bool lastTruncated() const { return m_lastTruncated; }
     void setDebugMode(int m) { m_debugMode = m; }
@@ -90,6 +105,28 @@ private:
     bool m_rippleSmooth = false;
     uint32_t m_lastVertices = 0;
     std::chrono::high_resolution_clock::time_point m_startTime;
+    void pushLook(VkCommandBuffer commandBuffer, const Camera& camera, const glm::mat4& projectionMatrix, VkExtent2D screenExtent, const Core::Water::WaterLookPacked* look);
+    void writeRipples(uint32_t slot);
+
+    // 26.30 the tile store: two device-local arenas, a first-fit free list each (offset -> bytes), frees held back until no frame
+    // in flight can still read them
+    struct Arena {
+        VkBuffer buffer = VK_NULL_HANDLE; VkDeviceMemory memory = VK_NULL_HANDLE; VkDeviceSize size = 0, used = 0;
+        std::map<VkDeviceSize, VkDeviceSize> freeList;
+        bool alloc(VkDeviceSize bytes, VkDeviceSize& off);
+        void release(VkDeviceSize off, VkDeviceSize bytes);
+    };
+    struct GpuTile { VkDeviceSize vOff = 0, vBytes = 0, iOff = 0, iBytes = 0; uint32_t indexCount = 0; uint64_t generation = 0; };
+    struct PendingFree { uint64_t frame; VkDeviceSize vOff, vBytes, iOff, iBytes; };
+    Arena m_vArena, m_iArena;
+    VkBuffer m_staging[kFrames] = {}; VkDeviceMemory m_stagingMemory[kFrames] = {}; void* m_stagingMapped[kFrames] = {};
+    std::map<Core::Water::SurfaceTileKey, GpuTile> m_gpuTiles;
+    std::vector<PendingFree> m_pendingFree;
+    uint64_t m_frameCounter = 0;
+    bool m_cull = true;
+    TileStats m_tileStats;
+    void createTileStore();
+    void destroyTileStore();
 };
 
 } // namespace Graphics

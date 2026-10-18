@@ -1,6 +1,9 @@
 #include "core/water/WaterSurfaceMesh.h"
 
 #include <algorithm>
+#include <chrono>
+#include <climits>
+#include <cstring>
 #include <cmath>
 
 namespace Phyxel::Core::Water {
@@ -67,7 +70,9 @@ inline int overlappingRun(const SurfaceColumn& c, float lo, float hi) {
 
 }  // namespace
 
-void buildWaterSurfaceMesh(const WaterSurfaceField& f, WaterSurfaceMesh& out) {
+void buildWaterSurfaceMesh(const WaterSurfaceField& f, WaterSurfaceMesh& out) { buildWaterSurfaceMeshRect(f, 0, 0, f.nx, f.nz, out); }
+
+void buildWaterSurfaceMeshRect(const WaterSurfaceField& f, int rx0, int rz0, int rx1, int rz1, WaterSurfaceMesh& out) {
     const float h = f.h;
     const float ox = static_cast<float>(f.origin.x) * h, oz = static_cast<float>(f.origin.z) * h;
     auto col = [&](int x, int z) -> const SurfaceColumn* {
@@ -98,8 +103,8 @@ void buildWaterSurfaceMesh(const WaterSurfaceField& f, WaterSurfaceMesh& out) {
         for (const glm::vec3& p : {a, b, c, d}) out.vertices.push_back({p, depth, nrm, side, foam, flow, static_cast<float>(f.rippleLayer + 1)});
         out.indices.insert(out.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
     };
-    for (int z = 0; z < f.nz; ++z)
-        for (int x = 0; x < f.nx; ++x) {
+    for (int z = std::max(rz0, 0); z < std::min(rz1, f.nz); ++z)
+        for (int x = std::max(rx0, 0); x < std::min(rx1, f.nx); ++x) {
             const SurfaceColumn& c = f.at(x, z);
             const int n = runCount(c);
             const float x0 = ox + x * h, x1 = x0 + h, z0 = oz + z * h, z1 = z0 + h;
@@ -166,6 +171,76 @@ void appendFieldToMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out) {
     buildWaterSurfaceMesh(field, out);
     const uint32_t count = static_cast<uint32_t>(out.indices.size()) - first;
     if (count > 0) out.ranges.push_back({first, count, field.look});
+}
+
+}  // namespace Phyxel::Core::Water
+
+namespace Phyxel::Core::Water {
+namespace {
+int floorDiv(int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); }
+bool sameLook(const WaterLookPacked& a, const WaterLookPacked& b) { return std::memcmp(&a, &b, sizeof a) == 0; }
+}  // namespace
+
+void WaterSurfaceTiler::update(const std::vector<const WaterSurfaceField*>& fields) {
+    const auto t0 = std::chrono::steady_clock::now();
+    m_stats = Stats{};
+    for (auto& [k, t] : m_tiles) t.seen = false;
+    for (size_t fi = 0; fi < fields.size(); ++fi) {
+        if (!fields[fi]) continue;
+        const WaterSurfaceField& f = *fields[fi];
+        if (f.nx <= 0 || f.nz <= 0) continue;
+        const int source = f.source != 0 ? f.source : -(1000 + static_cast<int>(fi));
+        // a known source at an unchanged version: its tiles stand as they are (nothing read)
+        FieldMark& mark = m_fieldVersion[source];
+        const bool sameField = mark.origin == f.origin && mark.nx == f.nx && mark.nz == f.nz && mark.h == f.h && mark.rippleLayer == f.rippleLayer && sameLook(mark.look, f.look);
+        if (f.source != 0 && f.version != 0 && sameField && mark.version == f.version) {
+            for (auto it = m_tiles.lower_bound(SurfaceTileKey{source, INT_MIN, INT_MIN}); it != m_tiles.end() && it->first.source == source; ++it) { it->second.seen = true; ++m_stats.kept; }
+            ++m_stats.fieldsSkipped;
+            continue;
+        }
+        mark = FieldMark{f.version, f.origin, f.nx, f.nz, f.h, f.rippleLayer, f.look};
+        const int tx0 = floorDiv(f.origin.x, kSurfaceTileCols), tx1 = floorDiv(f.origin.x + f.nx - 1, kSurfaceTileCols);
+        const int tz0 = floorDiv(f.origin.z, kSurfaceTileCols), tz1 = floorDiv(f.origin.z + f.nz - 1, kSurfaceTileCols);
+        for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
+            // the tile's columns, field-local, and the snapshot rect (a one-column ring, clipped to the field)
+            const int x0 = std::max(0, tx * kSurfaceTileCols - f.origin.x), x1 = std::min(f.nx, (tx + 1) * kSurfaceTileCols - f.origin.x);
+            const int z0 = std::max(0, tz * kSurfaceTileCols - f.origin.z), z1 = std::min(f.nz, (tz + 1) * kSurfaceTileCols - f.origin.z);
+            const int sx0 = std::max(0, x0 - 1), sx1 = std::min(f.nx, x1 + 1), sz0 = std::max(0, z0 - 1), sz1 = std::min(f.nz, z1 + 1);
+            const SurfaceTileKey key{source, tx, tz};
+            SurfaceTile& t = m_tiles[key];
+            t.seen = true;
+            bool same = t.generation != 0 && t.origin == f.origin && t.nx == f.nx && t.nz == f.nz && t.h == f.h && t.rippleLayer == f.rippleLayer && sameLook(t.look, f.look)
+                        && t.rx0 == sx0 && t.rz0 == sz0 && t.rx1 == sx1 && t.rz1 == sz1;
+            const size_t w = static_cast<size_t>(sx1 - sx0);
+            if (same) {
+                for (int z = sz0; z < sz1 && same; ++z)
+                    same = std::memcmp(&t.input[static_cast<size_t>(z - sz0) * w], &f.at(sx0, z), w * sizeof(SurfaceColumn)) == 0;
+            }
+            if (same) { ++m_stats.kept; continue; }
+            t.origin = f.origin; t.nx = f.nx; t.nz = f.nz; t.h = f.h; t.rippleLayer = f.rippleLayer; t.look = f.look;
+            t.rx0 = sx0; t.rz0 = sz0; t.rx1 = sx1; t.rz1 = sz1;
+            t.input.resize(w * static_cast<size_t>(sz1 - sz0));
+            for (int z = sz0; z < sz1; ++z) std::memcpy(&t.input[static_cast<size_t>(z - sz0) * w], &f.at(sx0, z), w * sizeof(SurfaceColumn));
+            t.mesh.clear();
+            buildWaterSurfaceMeshRect(f, x0, z0, x1, z1, t.mesh);   // the whole mesh's quads for these columns (the corners read across the edge)
+            if (!t.mesh.indices.empty()) t.mesh.ranges.push_back({0, static_cast<uint32_t>(t.mesh.indices.size()), f.look});
+            t.lo = glm::vec3(1e30f); t.hi = glm::vec3(-1e30f);
+            for (const auto& v : t.mesh.vertices) { t.lo = glm::min(t.lo, v.pos); t.hi = glm::max(t.hi, v.pos); }
+            ++t.generation;
+            ++m_stats.rebuilt;
+        }
+    }
+    for (auto it = m_tiles.begin(); it != m_tiles.end();) {
+        if (!it->second.seen) { it = m_tiles.erase(it); ++m_stats.removed; } else ++it;
+    }
+    for (auto it = m_fieldVersion.begin(); it != m_fieldVersion.end();) {   // forget sources with no tiles left
+        bool any = false;
+        auto t = m_tiles.lower_bound(SurfaceTileKey{it->first, INT_MIN, INT_MIN});
+        any = t != m_tiles.end() && t->first.source == it->first;
+        it = any ? std::next(it) : m_fieldVersion.erase(it);
+    }
+    m_stats.tiles = static_cast<long>(m_tiles.size());
+    m_stats.ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }
 
 }  // namespace Phyxel::Core::Water

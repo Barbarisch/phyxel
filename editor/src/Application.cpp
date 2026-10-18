@@ -14346,7 +14346,21 @@ void Application::registerWaterCommands() {
         // 25.26 M: the default Secchi depth (m) of simulated water without its own clarity; 0 = the derived clear water (the old look).
         // Clamped to 100 m: past it the water is as clear as the derived default anyway.
         if (cmd.params.contains("default_clarity")) renderCoordinator->setWaterCoreDefaultClarity(std::clamp(cmd.params.value("default_clarity", 5.0f), 0.0f, 100.0f));
-        r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())},
+        // 26.30: {tiles: bool} the kept, culled tiles (default) or the per-frame whole mesh (the A/B control); {cull: bool} the view test
+        if (cmd.params.contains("tiles")) renderCoordinator->setWaterCoreTiles(cmd.params.value("tiles", true));
+        if (cmd.params.contains("cull")) renderCoordinator->setWaterCoreCull(cmd.params.value("cull", true));
+        nlohmann::json tiles = {{"on", renderCoordinator->waterCoreTiles()}, {"cull", renderCoordinator->waterCoreCull()}};
+        {
+            const auto& ts = renderCoordinator->waterCoreTiler().stats();
+            tiles["tiles"] = ts.tiles; tiles["rebuilt"] = ts.rebuilt; tiles["kept"] = ts.kept; tiles["removed"] = ts.removed;
+            tiles["fields_skipped"] = ts.fieldsSkipped; tiles["tiler_ms"] = ts.ms;
+            if (const auto* gs = renderCoordinator->waterCoreTileStats()) {
+                tiles["drawn"] = gs->drawn; tiles["culled"] = gs->culled; tiles["uploaded"] = gs->uploaded; tiles["deferred"] = gs->deferred;
+                tiles["over_arena"] = gs->overArena; tiles["upload_bytes"] = gs->uploadBytes; tiles["drawn_vertices"] = gs->drawnVertices;
+                tiles["arena_vertex_bytes"] = gs->arenaVertexBytes; tiles["arena_index_bytes"] = gs->arenaIndexBytes;
+            }
+        }
+        r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())}, {"tiles", tiles},
              {"mesh_vertices", renderCoordinator->waterCoreMeshVertices()}, {"top_quads", renderCoordinator->waterCoreMeshTopQuads()},
              {"side_quads", renderCoordinator->waterCoreMeshSideQuads()}, {"mesh_build_ms", renderCoordinator->waterCoreMeshMs()},
              {"truncated", renderCoordinator->waterCoreMeshTruncated()}, {"debug", renderCoordinator->waterCoreDebugMode()},

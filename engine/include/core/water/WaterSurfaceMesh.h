@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 #include "core/water/WaterLook.h"
+#include <map>
 #include <vector>
 
 // WaterCore Phase F (docs/WaterCore.md 17): the simulated water's own surface, at the volume's own
@@ -62,6 +63,8 @@ struct WaterSurfaceField {
     std::vector<SurfaceColumn> cols;   ///< nx * nz, index x + nx * z
     WaterLookPacked look;              ///< G3: the body's look, resolved at the field's centre by its producer
     int rippleLayer = -1;              ///< 22: the ripple layer drawn on this field (an index the renderer's atlas uses); -1 = none
+    int source = 0;                    ///< 26.30: who made it (a volume's id; 0 = unknown) - the tiler's key for its tiles
+    uint64_t version = 0;              ///< 26.30: the producer's step counter; same source + version = same columns (0 = unknown: compared)
     const SurfaceColumn& at(int x, int z) const { return cols[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]; }
 };
 
@@ -94,6 +97,45 @@ struct WaterSurfaceMesh {
 
 /// Pure. Appends the volume's mesh to `out`.
 void buildWaterSurfaceMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out);
+/// 26.30: the quads of the columns [x0, x1) x [z0, z1) only (field-local), exactly as the whole mesh has them - corners and side
+/// faces still read the neighbours outside the rect.
+void buildWaterSurfaceMeshRect(const WaterSurfaceField& field, int x0, int z0, int x1, int z1, WaterSurfaceMesh& out);
+
+/// 26.30: the surface in TILES - world-aligned squares of kSurfaceTileCols x kSurfaceTileCols columns of a field's lattice (4 m at
+/// 1/9 m). A COST structure: a tile's quads are the whole mesh's quads for its columns, nothing else (WaterSurfaceTileTest). A tile
+/// is rebuilt only when what it reads changed: its columns plus a one-column ring (corners and side faces read the neighbours),
+/// the field's lattice, look and ripple layer. A field whose source and version are unchanged is skipped without reading it.
+constexpr int kSurfaceTileCols = 36;
+struct SurfaceTileKey {
+    int source = 0, tx = 0, tz = 0;   ///< the field's source (or -(1000 + its index) when it has none); the tile, in world tiles
+    bool operator<(const SurfaceTileKey& o) const { return source != o.source ? source < o.source : (tx != o.tx ? tx < o.tx : tz < o.tz); }
+    bool operator==(const SurfaceTileKey& o) const { return source == o.source && tx == o.tx && tz == o.tz; }
+};
+struct SurfaceTile {
+    WaterSurfaceMesh mesh;                 ///< its own vertices from 0 (one range, the field's look)
+    glm::vec3 lo{0.0f}, hi{0.0f};          ///< world bounds of its vertices (empty mesh: lo > hi)
+    uint64_t generation = 0;               ///< bumped on every rebuild - the renderer re-uploads when it changes
+    // what it was built from
+    glm::ivec3 origin{0}; int nx = 0, nz = 0; float h = 0.0f; int rippleLayer = -1; WaterLookPacked look;
+    int rx0 = 0, rz0 = 0, rx1 = 0, rz1 = 0;   ///< the snapshot rect (its columns + the ring, clipped to the field)
+    std::vector<SurfaceColumn> input;
+    bool seen = false;
+};
+class WaterSurfaceTiler {
+public:
+    struct Stats { long tiles = 0, rebuilt = 0, kept = 0, removed = 0, fieldsSkipped = 0; double ms = 0.0; };
+    /// Brings the tiles up to date with this frame's fields. Pure CPU; no GPU state.
+    void update(const std::vector<const WaterSurfaceField*>& fields);
+    void update(const std::vector<WaterSurfaceField>& fields) { std::vector<const WaterSurfaceField*> p; for (const auto& f : fields) p.push_back(&f); update(p); }
+    const std::map<SurfaceTileKey, SurfaceTile>& tiles() const { return m_tiles; }
+    const Stats& stats() const { return m_stats; }
+    void clear() { m_tiles.clear(); m_fieldVersion.clear(); }
+private:
+    std::map<SurfaceTileKey, SurfaceTile> m_tiles;
+    struct FieldMark { uint64_t version = 0; glm::ivec3 origin{0}; int nx = 0, nz = 0; float h = 0.0f; int rippleLayer = -1; WaterLookPacked look; };
+    std::map<int, FieldMark> m_fieldVersion;
+    Stats m_stats;
+};
 /// G3: appends the field's mesh AND a draw range carrying the field's look (empty fields add no range).
 void appendFieldToMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out);
 /// 21: the droplet crown as cubes (xyz centre, w edge) - six outward quads each, side = 2 (the shader's droplet
