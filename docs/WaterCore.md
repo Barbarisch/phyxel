@@ -125,8 +125,9 @@ tools ported to pond water (`--pond`); porting them found (26.25) floats driftin
 damping braked them toward the ground and the debris -> water exchange handed the brake to the water; fixed (floats now ride at
 1.000 of the water) - which exposed (26.26) that the exchange reads back and re-uploads a whole GPU volume every frame anything
 moves in it: 4 floats in the creek, 124 -> 7 FPS. Pre-existing.
-26.26 BUILT: the exchange on the device - 4 floats 7 -> 123 FPS, floats at 1.002 of the water.
-**Next:** the owner's look at the floats (`current_floats_pond.mp4`); then P3d-2 (the removal). The §23 slime experiment stays queued.
+26.26 BUILT: the exchange on the device - 4 floats 7 -> 123 FPS, floats at 1.002 of the water. **26.25 + 26.26 signed off by the
+owner 2026-10-17** (`current_floats_pond.mp4`: "the video looks really good").
+**Next:** P3d-2 (the removal). The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6771,7 +6772,7 @@ investigated next (26.25). The splash and the ripple control are not defects sho
 model's cosmetic crown and forced-only layer; the owner's look at the clips decides. **P3d-2 (the removal) waits** until the
 floats ride the pond current: removing the columns now would remove the only water the current tools read right.
 
-### 26.25 Floats drift at 0.4 of the pond current - found, measured, built (2026-10-17). Status: BUILT, not signed off (the frame cost: 26.26)
+### 26.25 Floats drift at 0.4 of the pond current - found, measured, built (2026-10-17). Status: DONE, signed off by the owner 2026-10-17 (with 26.26)
 
 **Measured, one switch at a time** (`water_coupling {exchange, solids}`, the creek bench at q 0.2 as pond water, four 1/9 m wood
 floats, x 20 -> 40; `current_floats_pond_{exchange_off,solids_off,both_on}.*`):
@@ -6863,7 +6864,7 @@ SETTLE; drop_pile, blast, box_through_pile FAIL as before (drop_pile's numbers i
 **Status of 26.25:** the damping rule and the relative-speed displacement BUILT; floats ride the pond current exactly; the frame
 cost of moving debris in a GPU pond is 26.26.
 
-### 26.26 The debris -> water exchange on the device - design, build (2026-10-17). Status: BUILT, not signed off
+### 26.26 The debris -> water exchange on the device - design, build (2026-10-17). Status: DONE, signed off by the owner 2026-10-17 ("the video looks really good")
 
 **What it must do (unchanged):** each record (position, radius, momentum m^3 x m/s) gives the water inside a sphere of the radius
 (>= 1.5 cells) the momentum: per axis, du = momentum / W over the faces of the chosen cells, W = the sum of each face's fill-
