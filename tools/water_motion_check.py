@@ -23,7 +23,7 @@ ap.add_argument("--tag", default=None)
 ap.add_argument("--cell", type=float, default=1.0 / 3.0, help="the pond's cell size in voxels (1/3 shipped; 1/9 finer)")
 ap.add_argument("--solids", choices=["on", "off"], default="on", help="debris displaces water (WaterCore.md 20); off = the A/B control")
 ap.add_argument("--ripples", choices=["on", "off"], default="on", help="the ripple layer (WaterCore.md 22); off = the A/B control")
-ap.add_argument("--droplet-size", type=float, default=None, help="droplet edge as a fraction of a cell (21.11 default 1/9; clamped [1/27, 1])")
+ap.add_argument("--droplet-size", type=float, default=None, help="droplet edge as a fraction of a cell (default 1 = a microcube at 1/9 m since 2026-10-18, was 1/9; clamped [1/27, 1])")
 ap.add_argument("--pose", default=None, help="x,y,z,yaw,pitch (default: the high pose over the pond)")
 args = ap.parse_args()
 tag = args.tag or f"motion_{args.scenario}"

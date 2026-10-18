@@ -14316,7 +14316,7 @@ void Application::registerWaterCommands() {
     reg.on("water_droplets", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setDroplets(cmd.params.value("enabled", true));
-        if (cmd.params.contains("size")) waterCore->setDropletSize(std::clamp(cmd.params.value("size", 1.0f / 9.0f), 1.0f / 27.0f, 1.0f));
+        if (cmd.params.contains("size")) waterCore->setDropletSize(std::clamp(cmd.params.value("size", 1.0f), 1.0f / 27.0f, 1.0f));
         if (cmd.params.contains("lateral")) Core::Water::DropletPool::s_lateralSpread = std::clamp(cmd.params.value("lateral", 1.0f), 0.0f, 1.0f);   // 26.31 look A/B
         const auto& d = waterCore->dropletStats();
         r = {{"enabled", d.on}, {"size", d.size}, {"lateral", Core::Water::DropletPool::s_lateralSpread}, {"alive", d.alive}, {"cap", Core::Water::DropletPool::kCap},

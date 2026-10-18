@@ -50,6 +50,10 @@ ScrapRun launchScrap(size_t cap, float seconds) {
     const int id = mgr.create({0, 0, 0}, {3, 3, 3}, kH, "eulerian", &err, "cpu");
     EXPECT_NE(id, 0) << err;
     if (cap) mgr.setDropletCap(cap);
+    // the 21 rig's droplet size (1/9 of a cell): these tests pin the MECHANISM (the rise, the refusal) on a known split - since
+    // 2026-10-18 the default is a whole cell (microcube drops, the owner's look), which splits this scrap into 9 drops: they all
+    // fit a pool of 10 (no refusal to test) and fly lower (apex 2.39 m against the 2.6 m bound measured at 1/9)
+    mgr.setDropletSize(1.0f / 9.0f);
     mgr.placeBox({1, 2, 1}, {1, 2, 1}, 0.2f, nullptr);
     mgr.addImpulse(glm::vec3(1.5f, 2.5f, 1.5f), 0.6f, 3.0f, glm::vec3(0.0f, 1.0f, 0.0f));
     ScrapRun r; r.m0 = ledger(mgr);
@@ -321,4 +325,14 @@ TEST(WaterDropletTest, ARisingSurfaceSpraysOnlyAboveTheGridLimit) {
 }
 
 }  // namespace
+}  // namespace Phyxel::Core::Water
+
+// The owner's look, 2026-10-18 ("bottom left looks the best" - tools/water_splash_variants_video.py): a droplet is a whole cell
+// by default - a microcube at the pond's 1/9 m - and the burst stays isotropic. A change here is a look change: ask the owner.
+namespace Phyxel::Core::Water {
+TEST(WaterDropletTest, TheDefaultDropletIsAMicrocube) {
+    WaterCoreManager mgr(stoneBox({0, 0, 0}, {3, 3, 3}));
+    EXPECT_EQ(mgr.dropletStats().size, 1.0f) << "droplet edge = one cell (11 cm at 1/9 m)";
+    EXPECT_EQ(DropletPool::s_lateralSpread, 1.0f) << "the spread stays a ball (the directional variant was not chosen)";
+}
 }  // namespace Phyxel::Core::Water

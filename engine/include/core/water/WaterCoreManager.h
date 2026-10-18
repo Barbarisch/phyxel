@@ -297,7 +297,10 @@ public:
     /// conserved: a refused birth (pool full) or a deposit that does not fit goes straight back. A volume with
     /// droplets in flight does not auto-sleep; sleep() lands them first; destroy() discards them with its water.
     struct DropletStats {
-        bool on = true; float size = 1.0f / 9.0f; int alive = 0;
+        // size: a droplet's edge as a fraction of the volume's cell. 1 = one cell - at the pond's 1/9 m a droplet is a microcube
+        // (11 cm). The owner's pick, 2026-10-18 (tools/water_splash_variants_video.py: 375 droplets at a 1 m stone's peak against
+        // 11,304 at the old 1/9 - "way too round and numerous"); the burst stays isotropic (DropletPool::s_lateralSpread 1).
+        bool on = true; float size = 1.0f; int alive = 0;
         double bornM3 = 0.0, landedM3 = 0.0, refusedM3 = 0.0, relocatedM3 = 0.0, flushedM3 = 0.0, destroyedM3 = 0.0;
         long births = 0, landings = 0; int scraps = 0, sprays = 0;   // scraps / sprays: CPU volumes (the GPU counts per column record)
     };

@@ -15,9 +15,9 @@ from water_bench import Api, camera_set, world_job
 
 EV = pathlib.Path(__file__).resolve().parent.parent / "docs" / "evidence" / "water_core_h1"
 VARIANTS = [   # (label, size fraction, lateral)
-    ("NOW: 1.2 cm drops, burst in a ball", 1 / 9, 1.0),
+    ("OLD: 1.2 cm drops, burst in a ball", 1 / 9, 1.0),
     ("3.7 cm drops, ball", 1 / 3, 1.0),
-    ("11 cm drops (microcube), ball", 1.0, 1.0),
+    ("NOW: 11 cm drops (microcube), ball", 1.0, 1.0),
     ("3.7 cm drops, thrown along the splash", 1 / 3, 0.2),
 ]
 
@@ -75,7 +75,7 @@ def main():
         print(label, "peak droplets", peak, flush=True)
         (EV / f"{args.tag}_{i}.txt").write_text(f"{label}  |  {peak} droplets at the peak", encoding="utf-8")
         time.sleep(1.0)
-    api.debug("water_droplets", {"enabled": True, "size": 1 / 9, "lateral": 1.0})   # back to the default
+    api.debug("water_droplets", {"enabled": True, "size": 1.0, "lateral": 1.0})   # back to the default (microcube drops, the owner's pick 2026-10-18)
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
     (EV / f"{args.tag}.json").write_text(json.dumps({"pose": pose, "variants": out}, indent=1))
     # 2 x 2, each captioned (drawtext from a file: no escaping of the label)

@@ -7357,6 +7357,20 @@ look only: a sand bed under the pond (grass blades showed through the water) and
 - The final take (both fixes): OFF 4.1-5.8 ms after the impact (20.6 ms on it), ON 2.8-4.4 ms while the awake columns grow 262
   -> 1,580, the impact itself 4.0 ms; no holes (`pw_look_frame3.png`, `pw_look_frame11.png`).
 
+**The owner's splash look (2026-10-18) - DECIDED: microcube droplets.** The owner on the video: "the splashes seem way too round
+and numerous - really overdid it with the splash particles"; and "the water pulls away from the edges". Measured: a 1 m stone
+throws ~20 L; at the 21.11 droplet size (1/9 of a cell = 1.2 cm at 1/9 m) that is ~11,000 droplets, each parcel bursting
+isotropically into a ball. `tools/water_splash_variants_video.py` showed four variants side by side (`splash_look_grid.mp4`,
+`splash_look_grid_2.6.png`): 1.2 cm ball 11,304 at the peak; 3.7 cm ball 745; **11 cm (one microcube) ball 375**; 3.7 cm thrown
+along the splash (`water_droplets {lateral: 0.2}`) 502. **The owner chose the microcube** ("bottom left looks the best") - the
+droplet size default is now 1 (a whole cell; `DropletStats::size`), the spread stays isotropic (`lateral` 1, kept as a knob).
+The "edges" were the rig: the water filled exactly to the kerb's top, so a trough of a few mm showed the kerb's lit inner face as a
+bright line - the probes read the water level at the wall; the kerb is now two blocks high.
+**Open (the owner, same review): "the water looks a little spiky while it settles on top of the dropped stone"** - confirmed in
+the frames (`splash_look_2.mp4`, 2.8-3.6 s): thin transparent blades above the stone at impact, triangles on its top face while
+the film drains, gone by ~3.5 s. Not yet measured; the suspicion is the mesher's corner averaging across very different run
+heights (the film on the stone, the splash column beside it, the pond) - to be checked against the field before any change.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
