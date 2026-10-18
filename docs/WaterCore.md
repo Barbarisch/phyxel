@@ -7370,6 +7370,22 @@ bright line - the probes read the water level at the wall; the kerb is now two b
 the frames (`splash_look_2.mp4`, 2.8-3.6 s): thin transparent blades above the stone at impact, triangles on its top face while
 the film drains, gone by ~3.5 s. Not yet measured; the suspicion is the mesher's corner averaging across very different run
 heights (the film on the stone, the splash column beside it, the pond) - to be checked against the field before any change.
+**Measured (2026-10-18) - the suspicion was WRONG; the spikes are in the solver's water, not the mesher.**
+`tools/water_stone_spikes.py` (the splash rig; `water_surface_dump {x1, z1, x2, z2, cells}` = the field the mesher reads per
+sub-column, plus the tallest column's cells read back the same frame; `spikes*.json`):
+- The FIELD stands up to ~1 m above the pond for ~1.5 s after the impact (`field_rise` 0.95-1.06 m, 2.0-3.6 s); the mesh only
+  follows it (`mesh_rise` <= `field_rise` every sample). The ripple layer peaks at 7 cm - not it.
+- The tall columns are not the stone counted as water (20.5's levelFill): their cells hold real water, f 0.85-1.0 all the way up,
+  and the volume's top cell at the box's lid is OVER FULL - f 1.7, 3.6, 6.2, 7.3, 8.6 in successive samples.
+- They follow the lid: the same stone on a 20 x 20 m pond, the box 2 m tall (1 m of air) vs 4 m (3 m of air) - the tallest column
+  0.98 m vs **1.66 m** above the pond, and in the tall box it is a solid 11 cm pillar of full cells 17.06 -> 18.7 m standing on
+  the stone 1.5 s after the impact, still GROWING (0.69 -> 1.66 m between 2.9 and 3.5 s) while the stone rests on the bed. A free
+  11 cm pillar falls in ~0.5 s; this one is being fed from below.
+- Suspect (not yet proven): the over-full carry (21.2 / 26.9, `wc_fill_advect` mode 5) - a cell with f > 1 - s sends the excess
+  straight UP its column, and a settling stone's body fraction moving under water keeps making its cells over full, so the
+  displaced water is pumped up the stone's columns to the lid instead of out to the sides. Next: count the carry per tick on the
+  stone's columns (red: it rises with the pillar), then the fix candidate - the displaced excess goes to the neighbours, up only
+  where nothing beside it can take it.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

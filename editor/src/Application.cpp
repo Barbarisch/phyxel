@@ -14218,6 +14218,46 @@ void Application::registerWaterCommands() {
             }
         r = {{"success", true}, {"columns", out}};
     });
+    // the spiky water on a settling stone (2026-10-18, measurement): the surface field the mesher reads, per sub-column over a
+    // world rect {x1, z1, x2, z2} (metres, at most 64 x 64 sub-columns): runs, then each run's bottom and top, the solid's top
+    // and the body fraction at the surface. No read-back beyond the frame's own field.
+    reg.on("water_surface_dump", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        const float x1 = cmd.params.value("x1", 0.0f), z1 = cmd.params.value("z1", 0.0f), x2 = cmd.params.value("x2", 1.0f), z2 = cmd.params.value("z2", 1.0f);
+        nlohmann::json fields = nlohmann::json::array();
+        for (const Core::Water::WaterSurfaceField* f : waterCore->surfaceFields()) {
+            if (!f || f->nx <= 0) continue;
+            const int cx0 = std::max(0, static_cast<int>(std::floor(x1 / f->h)) - f->origin.x), cx1 = std::min(f->nx, static_cast<int>(std::ceil(x2 / f->h)) - f->origin.x);
+            const int cz0 = std::max(0, static_cast<int>(std::floor(z1 / f->h)) - f->origin.z), cz1 = std::min(f->nz, static_cast<int>(std::ceil(z2 / f->h)) - f->origin.z);
+            if (cx1 <= cx0 || cz1 <= cz0 || cx1 - cx0 > 64 || cz1 - cz0 > 64) continue;
+            nlohmann::json cols = nlohmann::json::array();
+            for (int z = cz0; z < cz1; ++z) for (int x = cx0; x < cx1; ++x) {
+                const auto& c = f->at(x, z);
+                const int n = static_cast<int>(c.runs + 0.5f);
+                nlohmann::json runs = nlohmann::json::array();
+                for (int k = 0; k < n && k < Core::Water::kSurfaceMaxRuns; ++k) runs.push_back({c.bottom[k], c.top[k]});
+                cols.push_back({runs, c.solidTopY < -1e29f ? nlohmann::json() : nlohmann::json(c.solidTopY), c.bodyAtSurface});
+            }
+            nlohmann::json cells;
+            if (cmd.params.value("cells", false)) {   // {cells: true}: the tallest column's cells, [f, s] bottom-up (a read-back)
+                int bx = cx0, bz = cz0; float best = -1e30f;
+                for (int z = cz0; z < cz1; ++z) for (int x = cx0; x < cx1; ++x) {
+                    const auto& c = f->at(x, z); const int n = static_cast<int>(c.runs + 0.5f);
+                    if (n > 0 && c.top[n - 1] > best) { best = c.top[n - 1]; bx = x; bz = z; }
+                }
+                std::vector<glm::vec2> fs; float y0 = 0.0f, ch = f->h;
+                const float wx = (static_cast<float>(f->origin.x + bx) + 0.5f) * f->h, wz = (static_cast<float>(f->origin.z + bz) + 0.5f) * f->h;
+                if (waterCore->columnCells(wx, wz, fs, y0, ch)) {
+                    nlohmann::json arr = nlohmann::json::array();
+                    for (const auto& v : fs) arr.push_back({v.x, v.y});
+                    cells = {{"x", wx}, {"z", wz}, {"top", best}, {"y0", y0}, {"h", ch}, {"fs", arr}};
+                }
+            }
+            fields.push_back({{"source", f->source}, {"h", f->h}, {"x0", f->origin.x + cx0}, {"z0", f->origin.z + cz0},
+                              {"nx", cx1 - cx0}, {"nz", cz1 - cz0}, {"cols", cols}, {"cells", cells}, {"columns", "[[bottom, top] per run], solid top (null = none), body at surface"}});
+        }
+        r = {{"success", true}, {"fields", fields}};
+    });
     reg.on("water_av_watch", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("points")) {
             m_watchPoints.clear(); m_watchRows.clear();

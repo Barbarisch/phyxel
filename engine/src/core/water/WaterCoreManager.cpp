@@ -1311,6 +1311,19 @@ bool WaterCoreManager::columnMassDepth(int wx, int wz, double& depthM) {
     return false;
 }
 
+bool WaterCoreManager::columnCells(float wx, float wz, std::vector<glm::vec2>& fs, float& y0, float& h) {
+    for (auto& av : m_avs) {
+        const glm::ivec3 c = av->grid->worldToCell(glm::vec3(wx, static_cast<float>(av->grid->spec().origin.y) * av->h, wz));
+        if (!av->grid->inBounds(c.x, 0, c.z)) continue;
+        syncFromGpu(*av);
+        fs.clear();
+        for (int y = 0; y < av->grid->ny(); ++y) fs.push_back({av->grid->f(c.x, y, c.z), av->grid->s(c.x, y, c.z)});
+        y0 = static_cast<float>(av->grid->spec().origin.y) * av->h; h = av->h;
+        return true;
+    }
+    return false;
+}
+
 const std::vector<WaterSurfaceCell>& WaterCoreManager::surfaceCells() {
     for (auto& av : m_avs) syncFromGpu(*av, m_realtime);   // the renderer: once a second in realtime, every step otherwise
     m_surface.clear();

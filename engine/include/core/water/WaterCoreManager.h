@@ -281,6 +281,9 @@ public:
     /// 26.20 measurement: the water IN world voxel column (wx, wz) as a depth (m^3 over its 1 m^2) - the quantity a mass
     /// gauge reads, not a surface. Reads a GPU volume back (rate-limited to once a second in realtime): a debug cost.
     bool columnMassDepth(int wx, int wz, double& depthM);
+    /// Measurement (the spiky stone, 2026-10-18): the cells of the sub-column at world (x, z) - water fill f and body fraction s,
+    /// bottom-up from the grid's floor at world y0. A GPU read-back - debug only.
+    bool columnCells(float wx, float wz, std::vector<glm::vec2>& fs, float& y0, float& h);
     /// Measurement (20, M2): the drawn surface of the volume sub-column under world (x, z) from the last
     /// surfaceFields(): `level` = the top of the run that starts lowest (the pond itself), `top` = the highest
     /// run's top (a splash thrown above it). False when no volume owns the column or it is dry.
