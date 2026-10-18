@@ -835,28 +835,43 @@ bool WaterCoreGpu::readBirths(Volume& vol, std::vector<float>& out) const {
     return true;
 }
 
+bool WaterCoreGpu::readBirthRecords(Volume& vol, std::vector<float>& out) const {
+    if (!vol.birthsFresh || !vol.staging.mapped) return false;
+    vol.birthsFresh = false;
+    const auto* st = reinterpret_cast<const float*>(vol.hostBirths.data());   // 26.16: the collected call's copy
+    out.assign(st, st + static_cast<size_t>(vol.hostCount[1]) * 8);
+    return true;
+}
+
 bool WaterCoreGpu::readSurface(const Volume& vol, float* out) const {
     if (!vol.surfaceValid || !vol.staging.mapped) return false;
     // 26.11: every column starts dry - no water, ground at the host's solid top (a pure function of the grid: a bricked volume reads
     // what the dense box reads, absent bricks included) - and the packed wet columns are scattered over it
+    // 26.30 step 3: one pass over the columns - each wet column is written whole and marked, then only the unmarked (dry) ones are
+    // reset (it reset all, then wrote the wet ones over: twice the 4.6 MB of a 32 x 28 m pond, every step)
     auto* cols = reinterpret_cast<Core::Water::SurfaceColumn*>(out);
-    for (size_t c = 0; c < vol.dColumns; ++c) { cols[c] = Core::Water::SurfaceColumn{}; cols[c].solidTopY = c < vol.hostSolidTop.size() ? vol.hostSolidTop[c] : -1e30f; }
+    auto solidTop = [&](size_t c) { return c < vol.hostSolidTop.size() ? vol.hostSolidTop[c] : -1e30f; };
+    std::vector<uint8_t> wet(vol.dColumns, 0);
     const char* st = vol.hostSurf.data();   // 26.16: the collected call's copy: [one-run records | multi-run records]
     for (uint32_t k = 0; k < vol.hostCount[0]; ++k) {   // one run: top, bottom, u, w, body, -, -, column
         float r[8]; std::memcpy(r, st + static_cast<size_t>(k) * 32, 32);
         uint32_t c; std::memcpy(&c, &r[7], 4);
         if (c >= vol.dColumns) continue;
-        Core::Water::SurfaceColumn& o = cols[c];
+        Core::Water::SurfaceColumn o;
+        o.solidTopY = solidTop(c);
         o.top[0] = r[0]; o.bottom[0] = r[1]; o.runs = 1.0f; o.u = r[2]; o.w = r[3]; o.bodyAtSurface = r[4];
+        cols[c] = o; wet[c] = 1;
     }
     const char* sm = st + static_cast<size_t>(vol.hostCount[0]) * 32;
     for (uint32_t k = 0; k < vol.hostCount[2]; ++k) {   // several runs: the full record, the column in pad2
         Core::Water::SurfaceColumn rec; std::memcpy(&rec, sm + static_cast<size_t>(k) * sizeof(rec), sizeof(rec));
         uint32_t c; std::memcpy(&c, &rec.pad2, 4);
         if (c >= vol.dColumns) continue;
-        rec.pad2 = 0.0f; rec.solidTopY = cols[c].solidTopY;
-        cols[c] = rec;
+        rec.pad2 = 0.0f; rec.solidTopY = solidTop(c);
+        cols[c] = rec; wet[c] = 1;
     }
+    for (size_t c = 0; c < vol.dColumns; ++c)
+        if (!wet[c]) { cols[c] = Core::Water::SurfaceColumn{}; cols[c].solidTopY = solidTop(c); }
     return true;
 }
 

@@ -3,6 +3,7 @@
 #include "core/water/WaterDroplets.h"
 #include <array>
 #include <algorithm>
+#include <cstring>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -96,6 +97,7 @@ bool WaterCoreManager::destroy(int id) {
     for (const Droplet& d : m_pool.take(id)) m_dstats.destroyedM3 += d.volume;   // 21: discarded with the volume's water
     if ((*it)->gpuVol && m_gpu) m_gpu->destroyVolume((*it)->gpuVol);
     m_avs.erase(it);
+    m_fields.clear(); for (const auto& a : m_avs) m_fields.push_back(&a->field);   // 26.30 step 3: no pointer to the destroyed field survives
     refreshBoxes();
     return true;
 }
@@ -268,16 +270,26 @@ bool WaterCoreManager::step(int id, int ticks, float dt, AvRecord* out) {
 
 void WaterCoreManager::update(float dt) {
     if (!m_realtime) return;
+    using UClock = std::chrono::steady_clock;
+    auto ums = [](UClock::time_point a) { return std::chrono::duration<double, std::milli>(UClock::now() - a).count(); };
+    m_updateCpu = UpdateCpu{};
     for (auto& av : m_avs) {
-        refreshOccupancy(*av);
+        { const auto t = UClock::now(); refreshOccupancy(*av); m_updateCpu.occupancy += ums(t); }
+        const auto t = UClock::now();
         if (av->backend == "gpu") {
             if (av->gpuVol && m_gpu) m_gpu->setDroplets(*av->gpuVol, m_dstats.on);
-            if (!av->gpuLast.asleep || (av->gpuVol && !av->gpuVol->asleep)) { stepGpu(*av, 1, dt); ++av->stepCount; collectBirths(*av, dt); }
+            if (!av->gpuLast.asleep || (av->gpuVol && !av->gpuVol->asleep)) {
+                { const auto tc = UClock::now(); stepGpu(*av, 1, dt); m_updateCpu.stepCall += ums(tc); }
+                ++av->stepCount;
+                { const auto tb = UClock::now(); collectBirths(*av, dt); m_updateCpu.births += ums(tb); }
+            }
         }
         else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; ++av->stepCount; collectBirths(*av, dt); }
+        m_updateCpu.step += ums(t);
     }
-    stepDroplets(dt);   // 21: flight + landing (deposits reach a GPU volume at its next step)
-    stepRipples(dt);    // 22: the sub-cell wave layer
+    { const auto t = UClock::now(); stepDroplets(dt); m_updateCpu.droplets = ums(t); }   // 21: flight + landing (deposits reach a GPU volume at its next step)
+    { const auto t = UClock::now(); stepRipples(dt); m_updateCpu.ripples = ums(t); }     // 22: the sub-cell wave layer
+    const auto tSleep = UClock::now();
     // Phase D (16.2): a volume that slept this tick writes back and frees itself (auto_sleep). Ids
     // first - sleep() destroys. A refused write-back (held or non-resident columns) leaves the
     // volume alive and is reported through the drained records, never silent.
@@ -288,6 +300,7 @@ void WaterCoreManager::update(float dt) {
         if (!rec.ok) { for (auto& av : m_avs) if (av->id == id) av->autoSleep = false; }   // once: do not retry every tick
         m_autoSlept.push_back(std::move(rec));
     }
+    m_updateCpu.sleep = ums(tSleep);
 }
 
 bool WaterCoreManager::setAutoSleep(int id, bool on) {
@@ -808,9 +821,12 @@ size_t WaterCoreManager::totalCells() const {
     return n;
 }
 
-const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
-    m_fields.clear();
-    for (auto& av : m_avs) {
+const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
+    // 26.30 step 3: the volumes' own fields - no copy (it was cleared and every field copied each call, up to three calls a frame:
+    // 0.42 ms a frame on a sleeping 20 x 20 m pond, ~1 ms on an awake 32 x 28 m one)
+    m_fields.resize(m_avs.size());
+    for (size_t i = 0; i < m_avs.size(); ++i) {
+        auto& av = m_avs[i];
         if (av->fieldStep != av->stepCount) {
             bool got = false;
             if (av->gpuVol && m_gpu && m_gpu->surfaceReady(*av->gpuVol)) {
@@ -825,8 +841,8 @@ const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
             av->field.look = packLook(lookAt((av->minVoxel.x + av->maxVoxel.x) / 2, (av->minVoxel.z + av->maxVoxel.z) / 2));   // G3
             av->fieldStepSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         }
-        av->field.rippleLayer = (av->ripple && m_rstats.on) ? static_cast<int>(m_fields.size()) : -1;   // 22: parallel to rippleLayers()
-        m_fields.push_back(av->field);
+        av->field.rippleLayer = (av->ripple && m_rstats.on) ? static_cast<int>(i) : -1;   // 22: parallel to rippleLayers()
+        m_fields[i] = &av->field;
     }
     return m_fields;
 }
@@ -834,9 +850,18 @@ const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
 std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float moveM) {
     std::vector<std::pair<glm::vec3, float>> out;
     m_motionStats = MotionStats{};
-    if (m_motionPrevTops.size() != m_fields.size()) m_motionPrevTops.assign(m_fields.size(), {});
+    if (m_motionPrevTops.size() != m_fields.size()) { m_motionPrevTops.assign(m_fields.size(), {}); m_motionSeen.assign(m_fields.size(), {}); }
     for (size_t fi = 0; fi < m_fields.size(); ++fi) {
-        const WaterSurfaceField& f = m_fields[fi];
+        const WaterSurfaceField& f = *m_fields[fi];
+        // 26.30 step 3: the same field as the last scan (source + version): no column moved since, so nothing rose; its flow
+        // figures stand (the scan cost 0.24 ms a frame on a sleeping 20 x 20 m pond)
+        MotionSeen& seen = m_motionSeen[fi];
+        if (f.version != 0 && seen.source == f.source && seen.version == f.version) {
+            m_motionStats.maxFlow = std::max(m_motionStats.maxFlow, seen.maxFlow); m_motionStats.flowCols += seen.flowCols;
+            continue;
+        }
+        const float maxFlowBefore = m_motionStats.maxFlow; const int flowColsBefore = m_motionStats.flowCols;
+        m_motionStats.maxFlow = 0.0f;
         std::vector<float>& prev = m_motionPrevTops[fi];
         const bool havePrev = prev.size() == f.cols.size();
         std::vector<float> cur(f.cols.size(), std::numeric_limits<float>::quiet_NaN());
@@ -863,6 +888,8 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
             lo = glm::min(lo, wc); hi = glm::max(hi, wc); yLo = std::min(yLo, top); yHi = std::max(yHi, top); any = true;
         }
         prev.swap(cur);
+        seen = MotionSeen{f.source, f.version, m_motionStats.maxFlow, m_motionStats.flowCols - flowColsBefore};
+        m_motionStats.maxFlow = std::max(m_motionStats.maxFlow, maxFlowBefore);
         if (!any) continue;
         const glm::vec3 c(0.5f * (lo.x + hi.x), 0.5f * (yLo + yHi), 0.5f * (lo.y + hi.y));
         const float r = 0.5f * glm::length(glm::vec3(hi.x - lo.x, yHi - yLo, hi.y - lo.y)) + f.h;
@@ -876,17 +903,23 @@ void WaterCoreManager::collectBirths(Av& av, float dt) {
     std::vector<DropletBirth> births;
     if (av.backend == "gpu") {
         std::vector<float> rec;
-        if (!av.gpuVol || !m_gpu || !m_gpu->readBirths(*av.gpuVol, rec)) return;
+        // 26.30 step 3: the packed list - only the columns with births (it spread them over every column and scanned them all)
+        if (!av.gpuVol || !m_gpu || !m_gpu->readBirthRecords(*av.gpuVol, rec)) return;
         const GridSpec& sp = av.grid->spec();
         const double V = static_cast<double>(av.h) * av.h * av.h;
-        for (int z = 0; z < sp.dims.z; ++z) for (int x = 0; x < sp.dims.x; ++x) {
-            const size_t c = static_cast<size_t>(x + sp.dims.x * z);
-            const float vol = rec[c * 8];
+        std::vector<std::pair<uint32_t, size_t>> order;   // column order, as the dense scan visited them (the pool's spawn order)
+        for (size_t k = 0; k + 7 < rec.size(); k += 8) { uint32_t c; std::memcpy(&c, &rec[k + 7], 4); if (c < static_cast<uint32_t>(sp.dims.x * sp.dims.z)) order.push_back({c, k}); }
+        std::sort(order.begin(), order.end());
+        for (size_t oi = 0; oi < order.size(); ++oi) {
+            if (oi + 1 < order.size() && order[oi + 1].first == order[oi].first) continue;   // a column listed twice: the later record (as readBirths)
+            const uint32_t c = order[oi].first; const size_t k = order[oi].second;
+            const float vol = rec[k];
             if (vol <= 0.0f) continue;
+            const int x = static_cast<int>(c % static_cast<uint32_t>(sp.dims.x)), z = static_cast<int>(c / static_cast<uint32_t>(sp.dims.x));
             DropletBirth b;
             b.volume = static_cast<float>(vol * V);
-            b.pos = glm::vec3((sp.origin.x + x + 0.5f) * av.h, (sp.origin.y + rec[c * 8 + 1] / vol) * av.h, (sp.origin.z + z + 0.5f) * av.h);
-            b.vel = glm::vec3(rec[c * 8 + 2], rec[c * 8 + 3], rec[c * 8 + 4]) / vol;
+            b.pos = glm::vec3((sp.origin.x + x + 0.5f) * av.h, (sp.origin.y + rec[k + 1] / vol) * av.h, (sp.origin.z + z + 0.5f) * av.h);
+            b.vel = glm::vec3(rec[k + 2], rec[k + 3], rec[k + 4]) / vol;
             b.column = static_cast<int>(c);
             births.push_back(b);
         }
@@ -1008,7 +1041,9 @@ void WaterCoreManager::stepRipples(float dt) {
     if (!m_rstats.on) { m_rstats.ms = 0.0; return; }
     surfaceFields();   // masks and body waterlines read each volume's field (cached per step)
     const bool gpu = rippleGpuOn();
-    if (gpu) m_rgpu->collect(liveRippleLayers());   // 25.34: last frame's GPU step into the layers (heights, sleep)
+    using RClock = std::chrono::steady_clock;
+    auto rms = [](RClock::time_point a) { return std::chrono::duration<double, std::milli>(RClock::now() - a).count(); };
+    { const auto tc = RClock::now(); if (gpu) m_rgpu->collect(liveRippleLayers()); m_updateCpu.rCollect = rms(tc); }   // 25.34: last frame's GPU step into the layers (heights, sleep)
     const float d = RippleLayer::kPitch;
     for (auto& up : m_avs) {
         Av& av = *up;
@@ -1029,10 +1064,29 @@ void WaterCoreManager::stepRipples(float dt) {
         };
         // the mask: water where the field's sub-column holds a run (solid and dry are masked: rings reflect)
         auto& mask = L.mask();
-        for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) {
-            const SurfaceColumn* c = column((L.origin().x + x + 0.5f) * d, (L.origin().y + z + 0.5f) * d);
-            mask[L.idx(x, z)] = (c && c->runs >= 0.5f) ? 1 : 0;
+        const auto tMask = RClock::now();
+        // 26.30 step 3: only when the window moved or a column gained or lost its water - 0.70 ms a frame on a sleeping 20 x 20 m
+        // pond, ~1.5 ms on an awake 32 x 28 m one (a new field every step, the same water columns)
+        const glm::ivec4 maskKey(L.origin().x, L.origin().y, L.nx(), L.nz());
+        bool wetChanged = f.version == 0 || av.rippleMaskVersion != f.version;
+        if (wetChanged && av.rippleMaskVersion != 0 && av.rippleWet.size() == f.cols.size()) {
+            wetChanged = false;
+            for (size_t i = 0; i < f.cols.size(); ++i) {
+                const uint8_t wet = f.cols[i].runs >= 0.5f ? 1 : 0;
+                if (wet != av.rippleWet[i]) { wetChanged = true; break; }
+            }
+            av.rippleMaskVersion = f.version;
         }
+        if (wetChanged || av.rippleMaskKey != maskKey || mask.size() != static_cast<size_t>(L.nx()) * L.nz()) {
+            av.rippleWet.resize(f.cols.size());
+            for (size_t i = 0; i < f.cols.size(); ++i) av.rippleWet[i] = f.cols[i].runs >= 0.5f ? 1 : 0;
+            for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) {
+                const SurfaceColumn* c = column((L.origin().x + x + 0.5f) * d, (L.origin().y + z + 0.5f) * d);
+                mask[L.idx(x, z)] = (c && c->runs >= 0.5f) ? 1 : 0;
+            }
+            av.rippleMaskVersion = f.version; av.rippleMaskKey = maskKey;
+        }
+        m_updateCpu.rMask += rms(tMask);
         if (m_rpattern.slope >= 0.0f) {   // 22.11 measurement: a uniform tilt, held (no bodies, no step)
             const float a = glm::radians(m_rpattern.azimuthDeg), gx = m_rpattern.slope * std::cos(a) * d, gz = m_rpattern.slope * std::sin(a) * d;
             std::vector<float> hp(static_cast<size_t>(L.nx()) * L.nz());
@@ -1103,14 +1157,14 @@ void WaterCoreManager::stepRipples(float dt) {
             if (!raw.empty()) L.addImpulseField(raw);
         }
         L.setBreakSlope(m_rstats.breakSlope);
-        if (m_rpattern.slope < 0.0f) stepLayer(L, dt, vel.empty() ? nullptr : &vel);
+        { const auto tl = RClock::now(); if (m_rpattern.slope < 0.0f) stepLayer(L, dt, vel.empty() ? nullptr : &vel); m_updateCpu.rLayer += rms(tl); }
         m_rstats.brokenM3 += L.takeBroken();
         ++m_rstats.layers; m_rstats.cells += static_cast<long>(L.nx()) * L.nz();
         if (!L.asleep()) ++m_rstats.awake;   // the shape stats: refreshRippleShapeStats (on demand)
     }
     m_rstats.gpu = gpu;
     if (gpu) {
-        m_rgpu->submit();   // 25.34: no wait - the next frame collects it
+        { const auto ts = RClock::now(); m_rgpu->submit(); m_updateCpu.rSubmit = rms(ts); }   // 25.34: no wait - the next frame collects it
         const auto& g = m_rgpu->stats();
         m_rstats.gpuMs = g.gpuMs; m_rstats.gpuWaitMs = g.waitMs; m_rstats.gpuRecordMs = g.recordMs; m_rstats.gpuCollectMs = g.collectMs; m_rstats.gpuDispatches = g.dispatches; m_rstats.gpuLayers = g.layers;
     }
@@ -1138,7 +1192,8 @@ std::vector<WaterCoreManager::JetRun> WaterCoreManager::scanDetachedRuns() {
 }
 
 bool WaterCoreManager::surfaceAtWorld(float x, float z, float& level, float& top) const {
-    for (const auto& f : m_fields) {
+    for (const WaterSurfaceField* fp : m_fields) {
+        const WaterSurfaceField& f = *fp;
         const int cx = static_cast<int>(std::floor(x / f.h)) - f.origin.x, cz = static_cast<int>(std::floor(z / f.h)) - f.origin.z;
         if (cx < 0 || cz < 0 || cx >= f.nx || cz >= f.nz) continue;
         const SurfaceColumn& c = f.at(cx, cz);
@@ -1151,7 +1206,8 @@ bool WaterCoreManager::surfaceAtWorld(float x, float z, float& level, float& top
 }
 
 bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const {
-    for (const auto& f : m_fields) {
+    for (const WaterSurfaceField* fp : m_fields) {
+        const WaterSurfaceField& f = *fp;
         const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
         const int bx = wx * per - f.origin.x, bz = wz * per - f.origin.z;
         if (bx < 0 || bz < 0 || bx + per > f.nx || bz + per > f.nz) continue;
@@ -1178,7 +1234,8 @@ bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& f
 }
 
 bool WaterCoreManager::columnSurfaceStats(int wx, int wz, ColumnSurfaceStats& out) const {
-    for (const auto& f : m_fields) {
+    for (const WaterSurfaceField* fp : m_fields) {
+        const WaterSurfaceField& f = *fp;
         const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
         const int bx = wx * per - f.origin.x, bz = wz * per - f.origin.z;
         if (bx < 0 || bz < 0 || bx + per > f.nx || bz + per > f.nz) continue;

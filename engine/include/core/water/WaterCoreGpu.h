@@ -292,6 +292,9 @@ public:
     void setDeposits(Volume& vol, const std::vector<float>& cellFractions);
     /// 21: the last step's birth records (columns x 8 floats, see wc_column_ops mode 4): a memcpy of the staging copy.
     bool readBirths(Volume& vol, std::vector<float>& out) const;
+    /// 26.30 step 3: the same births as the packed list (8 floats a column WITH births, its dense column index in slot 7 as
+    /// uint bits) - readBirths spreads them over every column (2.3 MB zeroed and scanned a step on a 32 x 28 m pond, 0.44 ms).
+    bool readBirthRecords(Volume& vol, std::vector<float>& out) const;
     /// Phase B2: replace the volume's particles (fenced) and rebuild the grid's f and faces from them.
     bool setParticles(Volume& vol, const std::vector<FlipParticle>& ps, std::string* err);
     void readParticles(Volume& vol, std::vector<FlipParticle>& out) const;     ///< the sorted list (fenced)

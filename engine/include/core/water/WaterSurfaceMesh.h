@@ -5,7 +5,9 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 #include "core/water/WaterLook.h"
+#include <algorithm>
 #include <map>
+#include <memory>
 #include <vector>
 
 // WaterCore Phase F (docs/WaterCore.md 17): the simulated water's own surface, at the volume's own
@@ -123,14 +125,48 @@ struct SurfaceTile {
 };
 class WaterSurfaceTiler {
 public:
-    struct Stats { long tiles = 0, rebuilt = 0, kept = 0, removed = 0, fieldsSkipped = 0; double ms = 0.0; };
+    struct Stats {
+        long tiles = 0, rebuilt = 0, kept = 0, removed = 0, fieldsSkipped = 0; double ms = 0.0;
+        double buildMs = 0.0; int threads = 1;   ///< 26.30 step 3: the rebuilds' share of ms (wall), and the threads they ran on
+        // 26.30 step 3 (measurement): how much a rebuilt tile's columns moved since its snapshot - the largest change of
+        // any height (top/bottom/solid, m), of the flow (u/w, m/s), of foam and the body fraction; tiles whose run COUNT
+        // changed; and the rebuilt tiles binned by their largest height change: < 1e-5, < 1e-4, < 1e-3, < 1e-2, larger (m)
+        float maxDHeight = 0.0f, maxDFlow = 0.0f, maxDFoam = 0.0f, maxDBody = 0.0f;
+        long runsChanged = 0;
+        long keptWithin = 0;   ///< kept although not bit-equal: only flow/foam moved, within the tolerances
+        long heightBins[5] = {0, 0, 0, 0, 0};
+    };
     /// Brings the tiles up to date with this frame's fields. Pure CPU; no GPU state.
     void update(const std::vector<const WaterSurfaceField*>& fields);
     void update(const std::vector<WaterSurfaceField>& fields) { std::vector<const WaterSurfaceField*> p; for (const auto& f : fields) p.push_back(&f); update(p); }
     const std::map<SurfaceTileKey, SurfaceTile>& tiles() const { return m_tiles; }
     const Stats& stats() const { return m_stats; }
-    void clear() { m_tiles.clear(); m_fieldVersion.clear(); }
+    void clear() { m_tiles.clear(); m_fieldVersion.clear(); m_stats = Stats{}; }
+    /// 26.30 step 3: a tile whose heights are bit-equal is kept while its surface flow (m/s) and foam (0..1) moved no more than
+    /// these since it was built (0 = exact). 1 mm/s and 0.001 of foam are far below what the shading can show.
+    void setTolerances(float flow, float foam) { m_flowTolerance = std::max(0.0f, flow); m_foamTolerance = std::max(0.0f, foam); }
+    float flowTolerance() const { return m_flowTolerance; }
+    float foamTolerance() const { return m_foamTolerance; }
+    static constexpr float kDefaultFlowTolerance = 1e-3f, kDefaultFoamTolerance = 1e-3f;
+    /// 26.30 step 3: the rebuilds of one update are shared over this many threads (1 = the calling thread alone, the control;
+    /// 0 = the default: the hardware's threads less two, at most 8). Each tile is built from the field alone, so the result is
+    /// the same for any count (WaterSurfaceTileTest pins it).
+    void setThreads(int n);
+    /// 26.30 step 3: fill the stats' movement figures (maxD*, runsChanged, heightBins) - a full scan of every changed tile; off,
+    /// the keep test stops at the first column that rebuilds the tile
+    void setMeasure(bool on) { m_measure = on; }
+    bool measure() const { return m_measure; }
+    int threads() const { return m_threads; }
+    WaterSurfaceTiler();
+    ~WaterSurfaceTiler();
+    WaterSurfaceTiler(const WaterSurfaceTiler&) = delete;
+    WaterSurfaceTiler& operator=(const WaterSurfaceTiler&) = delete;
 private:
+    float m_flowTolerance = kDefaultFlowTolerance, m_foamTolerance = kDefaultFoamTolerance;
+    int m_threads = 1;
+    bool m_measure = false;
+    struct Pool;
+    std::unique_ptr<Pool> m_pool;
     std::map<SurfaceTileKey, SurfaceTile> m_tiles;
     struct FieldMark { uint64_t version = 0; glm::ivec3 origin{0}; int nx = 0, nz = 0; float h = 0.0f; int rippleLayer = -1; WaterLookPacked look; };
     std::map<int, FieldMark> m_fieldVersion;

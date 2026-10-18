@@ -1,0 +1,90 @@
+{
+ "pose": {
+  "position": {
+   "x": 12.0,
+   "y": 22.0,
+   "z": 30.0
+  },
+  "yaw": -90.0,
+  "pitch": -22.0
+ },
+ "size_m": [
+  20,
+  20
+ ],
+ "tiles": {
+  "arena_index_bytes": 780800,
+  "arena_vertex_bytes": 6220800,
+  "build_ms": 0.0,
+  "cull": true,
+  "culled": 0,
+  "deferred": 0,
+  "drawn": 30,
+  "drawn_vertices": 129600,
+  "fields_skipped": 0,
+  "flow_tolerance": 0.0010000000474974513,
+  "foam_tolerance": 0.0010000000474974513,
+  "kept": 0,
+  "moved": {
+   "height_bins": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "kept_within": 0,
+   "max_d_body": 0.0,
+   "max_d_flow": 0.0,
+   "max_d_foam": 0.0,
+   "max_d_height_m": 0.0,
+   "runs_changed": 0
+  },
+  "on": true,
+  "over_arena": 0,
+  "rebuilt": 0,
+  "removed": 0,
+  "threads": 8,
+  "threads_used": 1,
+  "tiler_ms": 0.0,
+  "tiles": 0,
+  "upload_bytes": 0,
+  "uploaded": 0,
+  "water_cpu_ms": {
+   "feed": 0.0016,
+   "in_update": {
+    "births": 0.0,
+    "droplets": 0.0011,
+    "occupancy": 0.0013,
+    "r_collect": 0.0013,
+    "r_layer": 0.0012,
+    "r_mask": 0.0005,
+    "r_submit": 0.0002,
+    "ripples": 0.0069,
+    "sleep": 0.0008,
+    "step": 0.0007,
+    "step_call": 0.0
+   },
+   "motion": 0.0005,
+   "total": 0.0187,
+   "update": 0.0119
+  }
+ },
+ "water_vs_nowater": {
+  "mean_abs": 6.2695,
+  "share_over_8": 0.161857
+ },
+ "control_whole_vs_whole": {
+  "mean_abs": 0.7507,
+  "share_over_8": 0.02677
+ },
+ "tiles_vs_tiles": {
+  "mean_abs": 0.9273,
+  "share_over_8": 0.034811
+ },
+ "whole_vs_tiles": {
+  "mean_abs": 0.8428,
+  "share_over_8": 0.030144
+ },
+ "pass": true
+}

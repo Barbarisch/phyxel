@@ -1,0 +1,268 @@
+{
+ "control": {
+  "cpu_frame_ms": 1.947,
+  "tiler_ms": 9.106,
+  "tile_build_ms": 7.904,
+  "threads_used": 1,
+  "rebuilt": 50,
+  "water_cpu_ms": {
+   "total": 0.006,
+   "update": 0.002,
+   "feed": 0.001,
+   "motion": 0.0,
+   "in_update": {
+    "occupancy": 0.0,
+    "step": 0.0,
+    "droplets": 0.0,
+    "ripples": 0.001,
+    "sleep": 0.0
+   }
+  },
+  "asleep": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "upload_bytes": 13716864,
+  "moved": [
+   {
+    "height_bins": [
+     29,
+     14,
+     2,
+     5,
+     0
+    ],
+    "kept_within": 13,
+    "max_d_body": 0.0,
+    "max_d_flow": 0.00046136067248880863,
+    "max_d_foam": 0.0,
+    "max_d_height_m": 0.0010776519775390625,
+    "runs_changed": 0
+   },
+   {
+    "height_bins": [
+     29,
+     14,
+     2,
+     5,
+     0
+    ],
+    "kept_within": 13,
+    "max_d_body": 0.0,
+    "max_d_flow": 0.00046136067248880863,
+    "max_d_foam": 0.0,
+    "max_d_height_m": 0.0010776519775390625,
+    "runs_changed": 0
+   },
+   {
+    "height_bins": [
+     29,
+     14,
+     2,
+     5,
+     0
+    ],
+    "kept_within": 13,
+    "max_d_body": 0.0,
+    "max_d_flow": 0.00046136067248880863,
+    "max_d_foam": 0.0,
+    "max_d_height_m": 0.0010776519775390625,
+    "runs_changed": 0
+   }
+  ]
+ },
+ "ponds": [
+  {
+   "size_m": [
+    20,
+    20
+   ],
+   "cpu_frame_ms": 5.776,
+   "tiler_ms": 1.191,
+   "tile_build_ms": 0.63,
+   "threads_used": 8,
+   "rebuilt": 30,
+   "water_cpu_ms": {
+    "total": 1.69,
+    "update": 1.45,
+    "feed": 0.002,
+    "motion": 0.255,
+    "in_update": {
+     "occupancy": 0.001,
+     "step": 1.014,
+     "droplets": 0.0,
+     "ripples": 0.458,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+   ],
+   "upload_bytes": 6998400,
+   "moved": [
+    {
+     "height_bins": [
+      18,
+      6,
+      0,
+      6,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.00028330227360129356,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0010242462158203125,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      18,
+      5,
+      3,
+      4,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0002946570748463273,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.00102996826171875,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      14,
+      9,
+      1,
+      6,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.000293594115646556,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.001026153564453125,
+     "runs_changed": 0
+    }
+   ]
+  },
+  {
+   "size_m": [
+    32,
+    28
+   ],
+   "cpu_frame_ms": 8.639,
+   "tiler_ms": 1.864,
+   "tile_build_ms": 0.669,
+   "threads_used": 8,
+   "rebuilt": 37,
+   "water_cpu_ms": {
+    "total": 3.923,
+    "update": 3.387,
+    "feed": 0.002,
+    "motion": 0.518,
+    "in_update": {
+     "occupancy": 0.001,
+     "step": 2.098,
+     "droplets": 0.0,
+     "ripples": 1.31,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+   ],
+   "upload_bytes": 10357632,
+   "moved": [
+    {
+     "height_bins": [
+      5,
+      12,
+      0,
+      9,
+      0
+     ],
+     "kept_within": 37,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0003485201159492135,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.001071929931640625,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      17,
+      11,
+      0,
+      9,
+      0
+     ],
+     "kept_within": 26,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.00035366660449653864,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.001068115234375,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      28,
+      0,
+      4,
+      5,
+      0
+     ],
+     "kept_within": 26,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.00039828024455346167,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0010547637939453125,
+     "runs_changed": 0
+    }
+   ]
+  }
+ ],
+ "depth_m": 1,
+ "wake": true,
+ "tiler": {
+  "threads": 8,
+  "flow_tolerance": 0.0010000000474974513,
+  "foam_tolerance": 0.0010000000474974513
+ }
+}

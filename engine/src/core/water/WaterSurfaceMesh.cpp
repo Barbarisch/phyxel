@@ -5,6 +5,11 @@
 #include <climits>
 #include <cstring>
 #include <cmath>
+#include <atomic>
+#include <condition_variable>
+#include <functional>
+#include <mutex>
+#include <thread>
 
 namespace Phyxel::Core::Water {
 
@@ -181,9 +186,52 @@ int floorDiv(int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); }
 bool sameLook(const WaterLookPacked& a, const WaterLookPacked& b) { return std::memcmp(&a, &b, sizeof a) == 0; }
 }  // namespace
 
+// 26.30 step 3: a small persistent pool - run(n, fn) calls fn(0..n-1) over the workers and the caller, and returns when all ran
+struct WaterSurfaceTiler::Pool {
+    std::vector<std::thread> workers;
+    std::mutex m; std::condition_variable go, done;
+    std::function<void(size_t)> fn; size_t count = 0; std::atomic<size_t> next{0};
+    uint64_t generation = 0; int busy = 0; bool quit = false;
+    explicit Pool(int n) { for (int i = 0; i < n; ++i) workers.emplace_back([this] { loop(); }); }
+    ~Pool() { { std::lock_guard<std::mutex> l(m); quit = true; } go.notify_all(); for (auto& w : workers) w.join(); }
+    void drain() { for (size_t i; (i = next.fetch_add(1)) < count;) fn(i); }
+    void loop() {
+        uint64_t seen = 0;
+        for (;;) {
+            std::unique_lock<std::mutex> l(m);
+            go.wait(l, [&] { return quit || generation != seen; });
+            if (quit) return;
+            seen = generation; ++busy; l.unlock();
+            drain();
+            l.lock(); if (--busy == 0) done.notify_all();
+        }
+    }
+    void run(size_t n, std::function<void(size_t)> f) {
+        { std::lock_guard<std::mutex> l(m); fn = std::move(f); count = n; next = 0; ++generation; }
+        go.notify_all();
+        drain();
+        std::unique_lock<std::mutex> l(m);
+        done.wait(l, [&] { return busy == 0 && next.load() >= count; });
+    }
+};
+
+WaterSurfaceTiler::WaterSurfaceTiler() { setThreads(0); }
+WaterSurfaceTiler::~WaterSurfaceTiler() = default;
+
+void WaterSurfaceTiler::setThreads(int n) {
+    if (n <= 0) n = std::clamp(static_cast<int>(std::thread::hardware_concurrency()) - 2, 1, 8);
+    n = std::clamp(n, 1, 32);
+    if (n == m_threads && (n == 1 || m_pool)) return;
+    m_pool.reset();
+    m_threads = n;
+    if (n > 1) m_pool = std::make_unique<Pool>(n - 1);
+}
+
 void WaterSurfaceTiler::update(const std::vector<const WaterSurfaceField*>& fields) {
     const auto t0 = std::chrono::steady_clock::now();
     m_stats = Stats{};
+    struct Job { SurfaceTile* t; const WaterSurfaceField* f; int x0, z0, x1, z1; };
+    std::vector<Job> jobs;
     for (auto& [k, t] : m_tiles) t.seen = false;
     for (size_t fi = 0; fi < fields.size(); ++fi) {
         if (!fields[fi]) continue;
@@ -209,27 +257,64 @@ void WaterSurfaceTiler::update(const std::vector<const WaterSurfaceField*>& fiel
             const SurfaceTileKey key{source, tx, tz};
             SurfaceTile& t = m_tiles[key];
             t.seen = true;
-            bool same = t.generation != 0 && t.origin == f.origin && t.nx == f.nx && t.nz == f.nz && t.h == f.h && t.rippleLayer == f.rippleLayer && sameLook(t.look, f.look)
-                        && t.rx0 == sx0 && t.rz0 == sz0 && t.rx1 == sx1 && t.rz1 == sz1;
             const size_t w = static_cast<size_t>(sx1 - sx0);
-            if (same) {
-                for (int z = sz0; z < sz1 && same; ++z)
-                    same = std::memcmp(&t.input[static_cast<size_t>(z - sz0) * w], &f.at(sx0, z), w * sizeof(SurfaceColumn)) == 0;
-            }
+            const bool header = t.generation != 0 && t.origin == f.origin && t.nx == f.nx && t.nz == f.nz && t.h == f.h && t.rippleLayer == f.rippleLayer && sameLook(t.look, f.look)
+                                && t.rx0 == sx0 && t.rz0 == sz0 && t.rx1 == sx1 && t.rz1 == sz1 && t.input.size() == w * static_cast<size_t>(sz1 - sz0);
+            bool same = header;
+            for (int z = sz0; z < sz1 && same; ++z)
+                same = std::memcmp(&t.input[static_cast<size_t>(z - sz0) * w], &f.at(sx0, z), w * sizeof(SurfaceColumn)) == 0;
             if (same) { ++m_stats.kept; continue; }
+            if (header) {
+                // 26.30 step 3: how far the columns moved since the snapshot. Measured on a 32 x 28 m pond awake at rest: every
+                // height EXACTLY equal, only the flow jittering by ~3e-7 m/s - and every tile rebuilt every frame (9 ms). A tile
+                // whose run counts, heights and body fractions are bit-equal and whose flow and foam moved less than the
+                // tolerances below is KEPT (the snapshot stays, so the drawn flow is never more than the tolerance off).
+                float dH = 0.0f, dF = 0.0f, dFo = 0.0f, dB = 0.0f; bool runs = false;
+                bool keep = true;   // without the measurement the scan stops at the first column that forbids keeping the tile
+                for (int z = sz0; z < sz1 && (keep || m_measure); ++z) for (int x = sx0; x < sx1 && (keep || m_measure); ++x) {
+                    const SurfaceColumn& a = t.input[static_cast<size_t>(z - sz0) * w + (x - sx0)];
+                    const SurfaceColumn& b = f.at(x, z);
+                    if (a.runs != b.runs) runs = true;
+                    for (int r = 0; r < kSurfaceMaxRuns; ++r) dH = std::max(dH, std::max(std::abs(a.top[r] - b.top[r]), std::abs(a.bottom[r] - b.bottom[r])));
+                    if (a.solidTopY != b.solidTopY) dH = std::max(dH, std::abs(a.solidTopY - b.solidTopY));
+                    dF = std::max(dF, std::max(std::abs(a.u - b.u), std::abs(a.w - b.w)));
+                    dFo = std::max(dFo, std::abs(a.foam - b.foam)); dB = std::max(dB, std::abs(a.bodyAtSurface - b.bodyAtSurface));
+                    keep = !runs && dH == 0.0f && dB == 0.0f && dF <= m_flowTolerance && dFo <= m_foamTolerance;
+                }
+                if (m_measure) {
+                    m_stats.maxDHeight = std::max(m_stats.maxDHeight, dH); m_stats.maxDFlow = std::max(m_stats.maxDFlow, dF);
+                    m_stats.maxDFoam = std::max(m_stats.maxDFoam, dFo); m_stats.maxDBody = std::max(m_stats.maxDBody, dB);
+                }
+                if (keep) { ++m_stats.kept; ++m_stats.keptWithin; continue; }
+                if (m_measure) {
+                    m_stats.runsChanged += runs;
+                    ++m_stats.heightBins[dH < 1e-5f ? 0 : dH < 1e-4f ? 1 : dH < 1e-3f ? 2 : dH < 1e-2f ? 3 : 4];
+                }
+            }
             t.origin = f.origin; t.nx = f.nx; t.nz = f.nz; t.h = f.h; t.rippleLayer = f.rippleLayer; t.look = f.look;
             t.rx0 = sx0; t.rz0 = sz0; t.rx1 = sx1; t.rz1 = sz1;
-            t.input.resize(w * static_cast<size_t>(sz1 - sz0));
-            for (int z = sz0; z < sz1; ++z) std::memcpy(&t.input[static_cast<size_t>(z - sz0) * w], &f.at(sx0, z), w * sizeof(SurfaceColumn));
-            t.mesh.clear();
-            buildWaterSurfaceMeshRect(f, x0, z0, x1, z1, t.mesh);   // the whole mesh's quads for these columns (the corners read across the edge)
-            if (!t.mesh.indices.empty()) t.mesh.ranges.push_back({0, static_cast<uint32_t>(t.mesh.indices.size()), f.look});
-            t.lo = glm::vec3(1e30f); t.hi = glm::vec3(-1e30f);
-            for (const auto& v : t.mesh.vertices) { t.lo = glm::min(t.lo, v.pos); t.hi = glm::max(t.hi, v.pos); }
             ++t.generation;
             ++m_stats.rebuilt;
+            jobs.push_back({&t, &f, x0, z0, x1, z1});   // built below, over the pool (each from the field alone)
         }
     }
+    const auto tb = std::chrono::steady_clock::now();
+    auto build = [&](size_t i) {
+        const Job& j = jobs[i];
+        SurfaceTile& t = *j.t; const WaterSurfaceField& f = *j.f;
+        const size_t w = static_cast<size_t>(t.rx1 - t.rx0);
+        t.input.resize(w * static_cast<size_t>(t.rz1 - t.rz0));
+        for (int z = t.rz0; z < t.rz1; ++z) std::memcpy(&t.input[static_cast<size_t>(z - t.rz0) * w], &f.at(t.rx0, z), w * sizeof(SurfaceColumn));
+        t.mesh.clear();
+        buildWaterSurfaceMeshRect(f, j.x0, j.z0, j.x1, j.z1, t.mesh);   // the whole mesh's quads for these columns (the corners read across the edge)
+        if (!t.mesh.indices.empty()) t.mesh.ranges.push_back({0, static_cast<uint32_t>(t.mesh.indices.size()), f.look});
+        t.lo = glm::vec3(1e30f); t.hi = glm::vec3(-1e30f);
+        for (const auto& v : t.mesh.vertices) { t.lo = glm::min(t.lo, v.pos); t.hi = glm::max(t.hi, v.pos); }
+    };
+    if (m_pool && jobs.size() > 1) m_pool->run(jobs.size(), build);
+    else for (size_t i = 0; i < jobs.size(); ++i) build(i);
+    m_stats.threads = (m_pool && jobs.size() > 1) ? m_threads : 1;
+    m_stats.buildMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tb).count();
     for (auto it = m_tiles.begin(); it != m_tiles.end();) {
         if (!it->second.seen) { it = m_tiles.erase(it); ++m_stats.removed; } else ++it;
     }

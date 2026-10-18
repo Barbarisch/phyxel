@@ -242,7 +242,9 @@ public:
     /// Phase F (17.1): one surface field per volume, from the last step (GPU: the field the step
     /// wrote into its staging ring, a memcpy; CPU: extracted from the grid). Rebuilt on every call
     /// that follows a step; a volume that did not step since the last call keeps its field.
-    const std::vector<WaterSurfaceField>& surfaceFields();
+    /// 26.30 step 3: the volumes' own fields (pointers, parallel to the volumes; valid until a volume is destroyed - destroy()
+    /// drops its pointer at once). Was a copy of every field, made on every call (4.6 MB a 32 x 28 m pond, ~1 ms a frame awake).
+    const std::vector<const WaterSurfaceField*>& surfaceFields();
     /// 25.26 RC: where the camera is - a volume's ripple window (kColumnRippleWindow lattice cells square) follows it.
     void setViewPoint(const glm::vec3& p) { m_view = p; }
     static constexpr int kColumnRippleWindow = 384;   ///< 42.7 m at 1/9 m: the renderer's atlas holds <= 512 per axis; 1/9 m facets
@@ -353,6 +355,11 @@ public:
     /// The last takeMotion(): largest per-column rise/fall (m) and surface flow (m/s), columns over each bar.
     struct MotionStats { float maxRise = 0.0f, maxFlow = 0.0f; int riseCols = 0, flowCols = 0, spheres = 0; float lastRadius = 0.0f; };
     const MotionStats& motionStats() const { return m_motionStats; }
+    /// 26.30 step 3: the last update()'s CPU by part (ms): occupancy refresh, the volumes' steps, droplets, ripples
+    struct UpdateCpu { double occupancy = 0, step = 0, droplets = 0, ripples = 0, sleep = 0;
+                       double stepCall = 0, births = 0;                                  // of step: the GPU call, the births read
+                       double rCollect = 0, rMask = 0, rLayer = 0, rSubmit = 0; };       // of ripples: collect, the mask, the layer's step, submit
+    const UpdateCpu& updateCpu() const { return m_updateCpu; }
 
     static constexpr size_t kMaxCellsPerVolume = 2'000'000;   ///< CPU reference ceiling (§15.4)
     static bool snapCellSize(float requested, float* snapped);  ///< power-of-three fractions only
@@ -397,6 +404,9 @@ private:
         bool hadSolids = false;         // 20: fed bodies (or a wake) last frame - keep feeding until it clears
         std::vector<float> pendingDeposit;   // 21: GPU volume - landed droplets (cell fractions) for the next step
         std::unique_ptr<RippleLayer> ripple;  // 22: the sub-cell wave layer (null = none / refused); 26.13: a window following the camera
+        uint64_t rippleMaskVersion = 0;       // 26.30 step 3: the field version the ripple mask was built from
+        glm::ivec4 rippleMaskKey{0};          //   and the window (origin x/z, nx, nz)
+        std::vector<uint8_t> rippleWet;       //   and which of the field's columns held water
         uint32_t rippleFrame = 0;             // 26.13: the forcing's hash frame (as a region's)
         bool rippleRefused = false;
         bool hasPendingDeposit = false;
@@ -455,10 +465,13 @@ private:
     void refreshBoxes();
     bool m_realtime = false;
     std::vector<WaterSurfaceCell> m_surface;
-    std::vector<WaterSurfaceField> m_fields;   // Phase F, parallel to m_avs
+    std::vector<const WaterSurfaceField*> m_fields;   // Phase F, parallel to m_avs (26.30 step 3: each volume's own field)
     std::unordered_map<uint64_t, glm::vec3> m_solidHold;   // 20: body id -> the centre it is rasterized at
     bool m_solidWakeRule = true;
     MotionStats m_motionStats;
+    struct MotionSeen { int source = 0; uint64_t version = 0; float maxFlow = 0.0f; int flowCols = 0; };
+    std::vector<MotionSeen> m_motionSeen;   // 26.30 step 3: the field each takeMotion() slot last scanned
+    UpdateCpu m_updateCpu;
     std::vector<std::vector<float>> m_motionPrevTops;   // E2: per field, the held reference top per column (NaN = dry)
     std::vector<glm::vec4> m_particleDraw;
 };

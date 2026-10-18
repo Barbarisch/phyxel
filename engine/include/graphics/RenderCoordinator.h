@@ -560,7 +560,7 @@ public:
     /// WaterCore Phase B debug feed: extra surface cells drawn by the cell pipeline (null = none).
     void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
     /// Phase F (17): the volumes' surface fields; the mesh is rebuilt from them every frame.
-    void setWaterCoreSurfaceFields(const std::vector<Core::Water::WaterSurfaceField>* fields) { m_waterCoreFields = fields; }
+    void setWaterCoreSurfaceFields(const std::vector<const Core::Water::WaterSurfaceField*>* fields) { m_waterCoreFields = fields; }
     void setWaterFineField(const Core::Water::WaterSurfaceField* field) { m_waterFineField = field; }   // G4: the nested fine band
     void setWaterShoreField(const Core::Water::WaterSurfaceField* field) { m_waterShoreField = field; }   // Phase G: the shore band's surface, meshed with the volumes'
     /// G3: the per-body look of a world column (the span grid packs it per column, the underwater overlay
@@ -580,6 +580,7 @@ public:
     void setWaterCoreCull(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setCull(on); }
     bool waterCoreCull() const { return waterSurfacePipeline && waterSurfacePipeline->cull(); }
     const Core::Water::WaterSurfaceTiler& waterCoreTiler() const { return m_waterTiler; }
+    Core::Water::WaterSurfaceTiler& waterCoreTilerMutable() { return m_waterTiler; }
     const WaterSurfaceRenderPipeline::TileStats* waterCoreTileStats() const { return waterSurfacePipeline ? &waterSurfacePipeline->tileStats() : nullptr; }
     void setWaterCoreDebugMode(int m) { if (waterSurfacePipeline) waterSurfacePipeline->setDebugMode(m); }
     /// 21: the droplet crown's cubes (xyz centre, w edge) drawn with the water mesh; null = none.
@@ -1429,7 +1430,7 @@ private:
     // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
     const std::vector<Core::WaterSurfaceCell>* m_waterCoreCells = nullptr;   // WaterCore debug feed
-    const std::vector<Core::Water::WaterSurfaceField>* m_waterCoreFields = nullptr;   // Phase F: the volumes' surface fields
+    const std::vector<const Core::Water::WaterSurfaceField*>* m_waterCoreFields = nullptr;   // Phase F: the volumes' surface fields
     const std::vector<glm::vec4>* m_waterCoreDroplets = nullptr;   // 21: droplet cubes
     Core::Water::WaterCoreRenderMode m_waterCoreMode = Core::Water::kWaterCoreRenderModeDefault;
     Core::Water::WaterSurfaceMesh m_waterCoreMesh;   // rebuilt every frame from the fields

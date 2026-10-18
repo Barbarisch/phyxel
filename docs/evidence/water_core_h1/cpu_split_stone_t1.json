@@ -1,0 +1,222 @@
+{
+ "control": {
+  "cpu_frame_ms": 1.785,
+  "tiler_ms": 0.003,
+  "tile_build_ms": 0.0,
+  "threads_used": 1,
+  "rebuilt": 0,
+  "water_cpu_ms": {
+   "total": 0.004,
+   "update": 0.002,
+   "feed": 0.0,
+   "motion": 0.0,
+   "in_update": {
+    "occupancy": 0.0,
+    "step": 0.0,
+    "droplets": 0.0,
+    "ripples": 0.001,
+    "sleep": 0.0
+   }
+  },
+  "asleep": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "upload_bytes": 0,
+  "moved": []
+ },
+ "ponds": [
+  {
+   "size_m": [
+    20,
+    20
+   ],
+   "cpu_frame_ms": 8.626,
+   "tiler_ms": 4.062,
+   "tile_build_ms": 3.459,
+   "threads_used": 1,
+   "rebuilt": 30,
+   "water_cpu_ms": {
+    "total": 1.716,
+    "update": 1.457,
+    "feed": 0.002,
+    "motion": 0.234,
+    "in_update": {
+     "occupancy": 0.001,
+     "step": 0.989,
+     "droplets": 0.0,
+     "ripples": 0.454,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+   ],
+   "upload_bytes": 6998400,
+   "moved": [
+    {
+     "height_bins": [
+      13,
+      10,
+      0,
+      6,
+      0
+     ],
+     "kept_within": 1,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.00042208004742860794,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.00106048583984375,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      18,
+      5,
+      1,
+      6,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.00036462361458688974,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0010528564453125,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      14,
+      8,
+      2,
+      6,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0003399351262487471,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.001064300537109375,
+     "runs_changed": 0
+    }
+   ]
+  },
+  {
+   "size_m": [
+    32,
+    28
+   ],
+   "cpu_frame_ms": 11.725,
+   "tiler_ms": 5.19,
+   "tile_build_ms": 4.043,
+   "threads_used": 1,
+   "rebuilt": 47,
+   "water_cpu_ms": {
+    "total": 3.873,
+    "update": 3.308,
+    "feed": 0.002,
+    "motion": 0.542,
+    "in_update": {
+     "occupancy": 0.001,
+     "step": 2.135,
+     "droplets": 0.0,
+     "ripples": 1.215,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+   ],
+   "upload_bytes": 13017024,
+   "moved": [
+    {
+     "height_bins": [
+      5,
+      12,
+      0,
+      9,
+      0
+     ],
+     "kept_within": 37,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0005336557514965534,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.001079559326171875,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      22,
+      12,
+      0,
+      9,
+      0
+     ],
+     "kept_within": 20,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0005438923835754395,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0011081695556640625,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      26,
+      12,
+      2,
+      7,
+      0
+     ],
+     "kept_within": 16,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0006664650281891227,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0010986328125,
+     "runs_changed": 0
+    }
+   ]
+  }
+ ],
+ "depth_m": 1,
+ "wake": true,
+ "tiler": {
+  "threads": 1,
+  "flow_tolerance": 0.0010000000474974513,
+  "foam_tolerance": 0.0010000000474974513
+ }
+}

@@ -87,6 +87,30 @@ TEST(WaterSurfaceTileTest, TilesEqualTheWholeMesh) {
     }
 }
 
+// 26.30 step 3: the rebuilds are shared over a pool; each tile is built from the field alone, so any thread count gives the same
+// tiles, vertex for vertex and in the same order (the control: 1 thread, the calling thread alone)
+TEST(WaterSurfaceTileTest, AnyThreadCountBuildsTheSameTiles) {
+    const auto fs = scene();
+    WaterSurfaceTiler one; one.setThreads(1); one.update(fs);
+    EXPECT_EQ(one.stats().threads, 1);
+    for (int n : {2, 4, 7}) {
+        WaterSurfaceTiler many; many.setThreads(n);
+        for (int rep = 0; rep < 20; ++rep) {   // churn: the pool reused across updates, every tile rebuilt each time
+            auto moved = fs; for (auto& f : moved) for (auto& c : f.cols) c.top[0] += 0.001f * rep;
+            many.update(rep == 19 ? fs : moved);
+        }
+        EXPECT_EQ(many.stats().threads, n);
+        ASSERT_EQ(many.tiles().size(), one.tiles().size());
+        for (auto a = one.tiles().begin(), b = many.tiles().begin(); a != one.tiles().end(); ++a, ++b) {
+            ASSERT_FALSE(a->first < b->first || b->first < a->first);
+            ASSERT_EQ(a->second.mesh.vertices.size(), b->second.mesh.vertices.size());
+            EXPECT_EQ(std::memcmp(a->second.mesh.vertices.data(), b->second.mesh.vertices.data(), a->second.mesh.vertices.size() * sizeof(a->second.mesh.vertices[0])), 0) << n << " threads";
+            EXPECT_EQ(a->second.mesh.indices, b->second.mesh.indices);
+        }
+        EXPECT_EQ(differing(tileQuads(many), wholeQuads(fs)), 0);
+    }
+}
+
 TEST(WaterSurfaceTileTest, AnUnchangedTileIsNotRebuilt) {
     auto fs = scene();
     WaterSurfaceTiler tiler; tiler.update(fs);
@@ -113,6 +137,30 @@ TEST(WaterSurfaceTileTest, AChangedColumnRebuildsItsTileOnly) {
     EXPECT_EQ(differing(tileQuads(tiler), wholeQuads(fs)), 0);
     fs[0].rippleLayer = 3; tiler.update(fs);
     EXPECT_EQ(tiler.stats().rebuilt, 6) << "the ripple layer rides in every vertex: the field's tiles all rebuild";
+}
+
+// 26.30 step 3: a pond awake at rest kept every height bit-equal while its flow jittered by ~3e-7 m/s - and rebuilt every tile
+// every frame. Flow (and foam) moving less than the tolerance keeps the tile; the drift is measured from the tile's snapshot, so
+// it can never add up past the tolerance; any height change, however small, still rebuilds; tolerance 0 is the exact control.
+TEST(WaterSurfaceTileTest, FlowJitterWithinTheToleranceKeepsTheTile) {
+    auto fs = scene();
+    WaterSurfaceTiler tiler; tiler.update(fs);
+    const long tiles = tiler.stats().tiles;
+    auto jitterFlow = [&](float du) { for (auto& f : fs) for (auto& c : f.cols) c.u += du; tiler.update(fs); return tiler.stats().rebuilt; };
+    EXPECT_EQ(jitterFlow(3e-7f), 0) << "the measured jitter: no tile rebuilt";
+    EXPECT_EQ(tiler.stats().keptWithin, tiles);
+    // the drift adds up from the snapshot: 4e-4 a frame passes 1e-3 on the third frame, and every tile rebuilds then (not never)
+    long rebuilt = 0; int firstFrame = -1;
+    for (int k = 0; k < 4; ++k) { const long r = jitterFlow(4e-4f); rebuilt += r; if (r > 0 && firstFrame < 0) firstFrame = k; }
+    EXPECT_EQ(firstFrame, 2) << "rebuilt once the flow had moved 1.2e-3 from the snapshot";
+    EXPECT_EQ(rebuilt, tiles);
+    // a height change of a micrometre rebuilds its tile
+    fs[0].cols[static_cast<size_t>(45) + static_cast<size_t>(fs[0].nx) * 40].top[0] += 1e-6f; tiler.update(fs);
+    EXPECT_EQ(tiler.stats().rebuilt, 1) << "heights are compared exactly";
+    // the control: tolerance 0, the same jitter rebuilds everything
+    tiler.setTolerances(0.0f, 0.0f);
+    EXPECT_EQ(jitterFlow(3e-7f), tiles) << "control: exact comparison rebuilds every tile on the jitter";
+    EXPECT_EQ(differing(tileQuads(tiler), wholeQuads(fs)), 0) << "all rebuilt: the tiles are the whole mesh again";
 }
 
 TEST(WaterSurfaceTileTest, ARemovedFieldRemovesItsTiles) {

@@ -589,7 +589,7 @@ TEST_F(WaterCoreGpuParityTest, GpuImpulseMatchesCpu) {
         for (int chunk = 0; chunk < 3; ++chunk) {
             ASSERT_TRUE(mgr.step(id, 10, 1.0f / 60.0f, &rec));
             float dev = 0.0f; double nearM = 0, farM = 0; int nn = 0, nf = 0;
-            const auto& f0 = mgr.surfaceFields()[0];
+            const auto& f0 = *mgr.surfaceFields()[0];
             for (int z = 0; z < f0.nz; ++z) for (int x = 0; x < f0.nx; ++x) {
                 const auto& c = f0.at(x, z); if (c.runs < 0.5f) continue;
                 dev = std::max(dev, std::abs(c.top[0] - 2.0f));
@@ -601,7 +601,7 @@ TEST_F(WaterCoreGpuParityTest, GpuImpulseMatchesCpu) {
         const auto& fields = mgr.surfaceFields();
         ASSERT_EQ(fields.size(), 1u);
         tops.clear();
-        for (const auto& c : fields[0].cols) tops.push_back(c.runs > 0.5f ? c.top[0] : -1.0f);
+        for (const auto& c : fields[0]->cols) tops.push_back(c.runs > 0.5f ? c.top[0] : -1.0f);
     };
     std::vector<float> cpu, gpu2; double cm0 = 0, cm1 = 0, gm0 = 0, gm1 = 0;
     run("cpu", cpu, cm0, cm1);

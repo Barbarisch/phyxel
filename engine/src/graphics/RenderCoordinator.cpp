@@ -4368,14 +4368,14 @@ void RenderCoordinator::drawFrame() {
         const auto tm0 = std::chrono::steady_clock::now();
         if (m_waterTilesOn) {   // 26.30: tiles rebuilt only where the field changed, kept on the device; the droplets per frame
             std::vector<const Core::Water::WaterSurfaceField*> fs;
-            if (m_waterCoreFields) for (const auto& f : *m_waterCoreFields) fs.push_back(&f);
+            if (m_waterCoreFields) for (const auto* f : *m_waterCoreFields) fs.push_back(f);
             if (m_waterFineField && m_waterFineField->nx > 0) fs.push_back(m_waterFineField);
             if (m_waterShoreField && m_waterShoreField->nx > 0) fs.push_back(m_waterShoreField);
             m_waterTiler.update(fs);
             if (m_waterCoreDroplets) Core::Water::appendDropletsToMesh(*m_waterCoreDroplets, m_waterCoreMesh);   // 21: the droplet crown
             drawCoreTiles = true;
         } else {
-            if (m_waterCoreFields) for (const auto& f : *m_waterCoreFields) Core::Water::appendFieldToMesh(f, m_waterCoreMesh);   // G3: one draw range (look) per field
+            if (m_waterCoreFields) for (const auto* f : *m_waterCoreFields) Core::Water::appendFieldToMesh(*f, m_waterCoreMesh);   // G3: one draw range (look) per field
             if (m_waterFineField && m_waterFineField->nx > 0) Core::Water::appendFieldToMesh(*m_waterFineField, m_waterCoreMesh);   // G4: the fine band (the 1 m band hides these columns)
             if (m_waterShoreField && m_waterShoreField->nx > 0) Core::Water::appendFieldToMesh(*m_waterShoreField, m_waterCoreMesh);   // Phase G: the shore band
             if (m_waterCoreDroplets) Core::Water::appendDropletsToMesh(*m_waterCoreDroplets, m_waterCoreMesh);   // 21: the droplet crown

@@ -1,0 +1,131 @@
+{
+ "control": {
+  "cpu_frame_ms": 1.722,
+  "tiler_ms": 0.0,
+  "tile_build_ms": 0.0,
+  "threads_used": 1,
+  "rebuilt": 0,
+  "water_cpu_ms": {
+   "total": 0.003,
+   "update": 0.001,
+   "feed": 0.0,
+   "motion": 0.0,
+   "in_update": {
+    "occupancy": 0.0,
+    "step": 0.0,
+    "droplets": 0.0,
+    "ripples": 0.001,
+    "sleep": 0.0
+   }
+  },
+  "asleep": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "upload_bytes": 0,
+  "moved": []
+ },
+ "ponds": [
+  {
+   "size_m": [
+    20,
+    20
+   ],
+   "cpu_frame_ms": 2.122,
+   "tiler_ms": 0.002,
+   "tile_build_ms": 0.0,
+   "threads_used": 1,
+   "rebuilt": 0,
+   "water_cpu_ms": {
+    "total": 0.007,
+    "update": 0.005,
+    "feed": 0.001,
+    "motion": 0.0,
+    "in_update": {
+     "occupancy": 0.001,
+     "step": 0.0,
+     "droplets": 0.0,
+     "ripples": 0.003,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+   ],
+   "upload_bytes": 0,
+   "moved": []
+  },
+  {
+   "size_m": [
+    32,
+    28
+   ],
+   "cpu_frame_ms": 2.219,
+   "tiler_ms": 0.003,
+   "tile_build_ms": 0.0,
+   "threads_used": 1,
+   "rebuilt": 0,
+   "water_cpu_ms": {
+    "total": 0.009,
+    "update": 0.005,
+    "feed": 0.001,
+    "motion": 0.0,
+    "in_update": {
+     "occupancy": 0.001,
+     "step": 0.0,
+     "droplets": 0.0,
+     "ripples": 0.003,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+   ],
+   "upload_bytes": 0,
+   "moved": []
+  }
+ ],
+ "depth_m": 1,
+ "wake": false,
+ "tiler": {
+  "threads": 8,
+  "flow_tolerance": 0.0010000000474974513,
+  "foam_tolerance": 0.0010000000474974513
+ }
+}

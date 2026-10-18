@@ -139,7 +139,10 @@ and ~27 ns per vertex to rebuild on the CPU every frame, seen or not (32 x 28 m:
 device-local tiles rebuilt only when changed (1), culled to the view (2), then awake water (3), then distance (4, a look change).
 **26.30 steps 1-2 BUILT (2026-10-18), not signed off:** kept device-local tiles + view culling - a resting 32 x 28 m pond's
 surface pass 7.9 -> 0.35 ms facing and 0 ms away, its CPU frame 14.2 -> 4.75 ms; the look unchanged by pixels (2 runs).
-**Next:** step 3 (awake water: the tiler 9 ms on a 32 x 28 m awake pond; the CPU left at rest) - then the owner's look. The §23 slime experiment stays queued.
+**26.30 step 3 BUILT (2026-10-18), not signed off:** the water's CPU measured part by part - a sleeping pond's water now 0.01 ms (was
+1.36 ms at 20 x 20 m; its frame 1.93 ms against 1.85 with no pond); a 32 x 28 m pond after a stone 15.9 -> 8.3 ms CPU frame (tiles
+kept within a flow tolerance, rebuilt over 8 threads, births and readback cut). Awake water's rest: the GPU solver 3.0 ms (needs (c)).
+**Next:** the owner's look at steps 1-3, then step 4 (distance, a look change) or (c). The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7052,7 +7055,7 @@ stone-sized impulse at the centre (STONE). Read: the solver's call (`gpu_device_
 costed by what is seen and by distance, not by area; (b) water that sleeps when it is still, at any depth; (c) a disturbance
 that wakes a patch, not the whole body (P4); (d) volumes beyond the 2 M-cell box cap.
 
-### 26.30 The drawn surface costed by what is seen - measure, then design (2026-10-18). Status: steps 1-2 BUILT, not signed off
+### 26.30 The drawn surface costed by what is seen - measure, then design (2026-10-18). Status: steps 1-3 BUILT, not signed off
 
 **The owner's call (2026-10-18):** "start with A" - of 26.29's four needs, (a) first: the surface costed by what is seen and by
 distance, not by the pond's area.
@@ -7137,6 +7140,50 @@ fields_skipped, tiler_ms, drawn, culled, uploaded, upload_bytes, arena bytes).
   x 28 m, never sleeps (kinetic energy ~2e-9, yet `quiet_ticks` stays 0 - another rest test fails at depth). Water placed into a
   volume that had already slept EMPTY is uploaded and never stepped - it stays asleep with the water in it until something (a
   stone) wakes it: a placement does not wake a GPU volume. So some of 26.29's "slept in 0.5 s" rows may be that race.
+
+**Step 3 BUILT (2026-10-18), not signed off - the water's CPU, measured part by part.** `water_render_core`'s tiles record now
+carries `water_cpu_ms` (the frame's whole water block; the manager's update and in it occupancy / step (the GPU call, the births) /
+droplets / ripples (collect, the mask, the layer, submit) / sleep; the renderer feed; the motion scan) and the tiler's `build_ms`,
+`threads`, `kept_within`; `tools/water_cpu_split.py` reads it on resting ponds and after a stone (`--wake`), the controls behind
+switches (`tile_threads: 1`, `tile_flow_tolerance: 0`, `tile_measure` for the movement figures).
+
+- **At rest, where the +1.35 / +2.9 ms went** (20 x 20 m asleep, measured before any change): the ripple mask rebuilt every frame
+  0.70 ms, the fields copied to the renderer 0.42 ms, the motion scan 0.24 ms - 1.36 ms, the whole gap. Each now runs only when the
+  field changed (its version): the mask also only when a column gained or lost water; the motion scan keeps a field's last result
+  while its version stands; the renderer gets the volumes' own fields (pointers - no copy; `destroy` drops its pointer at once).
+- **Awake at rest, why every tile rebuilt** (`tile_measure`): on the 32 x 28 m pond that never sleeps every height was bit-equal
+  frame to frame - only the surface flow jittered, ~3e-7 m/s. A tile whose run counts, heights and body fractions are bit-equal is
+  now kept while its flow and foam moved less than 1e-3 (m/s; foam 0..1) from its snapshot - the drift can never add up past it.
+- **After a stone, the rebuilds** run over a small pool (the hardware's threads less two, at most 8); each tile is built from the
+  field alone, so the tiles are the same for any count (pinned). The births were read as a 2.3 MB dense array zeroed and scanned
+  every step (0.44 ms): now the packed list. The surface readback reset every column and then wrote the wet ones over: now once.
+- **Red first:** `FlowJitterWithinTheToleranceKeepsTheTile` (control: tolerance 0 rebuilds every tile on the jitter);
+  `AnyThreadCountBuildsTheSameTiles` (1 thread the control; 2/4/7 threads, 20 churned updates, vertex for vertex);
+  `KeptSurfaceFieldsFollowStepsAndRemovals` (a stepped volume's field moves, the other's stands, a removed volume's field is gone
+  before the next refresh). Its first run failed on the rig, not the code: the second pond sat outside the test's solid-free area
+  and held no water - the test now asserts that control first.
+- **Suites (Release):** `phyxel_tests --gtest_filter=*Water*` **308 / 308 in 3 min 27 s** (this filter; the 360 of steps 1-2 was a
+  wider one); `phyxel_integration_tests` Water/Debris/Gpu **45 / 46 in 45 s** (the pre-existing FLIP run-up). **The look:**
+  `water_surface_ab.py --tag 2630s3` whole vs tiles 0.84 mean abs against the controls 0.75 / 0.93 (water in frame: 6.27) - PASS.
+- **Measured** (`cpu_split_*.json`, Release, idle GPU, 1 m deep, camera away; the CPU frame with no pond 1.85 ms):
+
+| | CPU frame | water (update+feed+motion) | tiles (build) | upload a frame |
+|---|---|---|---|---|
+| 20 x 20 m asleep, before | 3.46 ms | 1.36 ms | 0 | 0 |
+| 20 x 20 m asleep, step 3 | **1.93 ms** | **0.008 ms** | 0 | 0 |
+| 32 x 28 m asleep, step 3 | **2.05 ms** | **0.01 ms** | 0 | 0 |
+| 32 x 28 m awake at rest, before | 18.1 ms | 5.24 ms | 9.0 ms (all 63) | 15.7 MB |
+| 32 x 28 m after a stone, exact + 1 thread (control) | 15.9 ms | 3.40 ms | 8.96 ms (63) | 15.7 MB |
+| 32 x 28 m after a stone, tolerance, 1 thread | 10.3 ms | 3.01 ms | 4.62 ms (46) | 12.9 MB |
+| 32 x 28 m after a stone, step 3 (8 threads) | **8.3 ms** | 3.69 ms | **1.56 ms** (45; build 0.77) | 12.6 MB |
+| 20 x 20 m after a stone, step 3 | **5.5 ms** | 2.10 ms | 0.78 ms (30) | 7.0 MB |
+
+  (The control's 3.40 ms water already has the births and readback cuts; the awake-at-rest row is the one 26.30 steps 1-2 left.)
+- **What an awake 32 x 28 m pond still costs the CPU** (after a stone, 8.3 - 1.85 = 6.5 ms): the GPU call ~1.0-1.5 ms (0.65 ms of
+  it the host's residency work), the surface readback ~1.1 ms (billed to ripples: the first reader after a step), the tiles 1.56 ms
+  (0.8 of it the comparisons), the motion scan 0.5 ms, the tile upload's copy of 12.6 MB (~1.2 ms, the rest of the frame). The GPU
+  solver itself runs 3.0 ms awake on this pond - over the 2 ms budget on its own (26.29) - so (c), the partial wake, is the larger
+  lever for awake water; these CPU parts are next after it, or with it.
 
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)

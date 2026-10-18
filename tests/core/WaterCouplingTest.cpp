@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <functional>
 
 // WaterCore Phase E (docs/WaterCore.md 19): coupling - small bodies that respond. E1: a blast's shock
@@ -352,6 +353,54 @@ TEST(WaterCouplingTest, MotionIsReportedWhereTheWaterMoves) {
 
 // Diagnostic (19.7): after a blast, which compaction gate leaves each submerged partial cell (an air
 // pocket under water: f < 1 with water above) alone. Printed only.
+// 26.30 step 3: surfaceFields() hands out the volumes' own fields (no copy) and refreshes one only when its volume stepped;
+// takeMotion() skips a field it has already scanned. Each must still follow every step and every removal: the field after a
+// step holds the moved columns, a removed volume's slot goes to the next one (no pointer to the dead field), and an unchanged
+// field is reported as still.
+TEST(WaterCouplingTest, KeptSurfaceFieldsFollowStepsAndRemovals) {
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };   // open ground: both ponds hold water
+    WaterCoreManager mgr(state);
+    std::string err;
+    const int a = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(3, 2, 3), 1.0f / 3.0f, "eulerian", &err, "cpu");
+    const int b = mgr.create(glm::ivec3(10, 0, 0), glm::ivec3(13, 2, 3), 1.0f / 3.0f, "eulerian", &err, "cpu");
+    ASSERT_NE(a, 0); ASSERT_NE(b, 0);
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(3, 1, 3), 1.0f, nullptr);
+    mgr.placeBox(glm::ivec3(10, 0, 0), glm::ivec3(13, 0, 3), 1.0f, nullptr);
+    AvRecord rec;
+    auto same = [](const WaterSurfaceField& x, const WaterSurfaceField& y) {
+        return x.source == y.source && x.version == y.version && x.nx == y.nx && x.nz == y.nz && x.cols.size() == y.cols.size()
+               && std::memcmp(x.cols.data(), y.cols.data(), x.cols.size() * sizeof(SurfaceColumn)) == 0;
+    };
+    auto snap = [&] { std::vector<WaterSurfaceField> v; for (const auto* p : mgr.surfaceFields()) v.push_back(*p); return v; };
+    const std::vector<WaterSurfaceField> first = snap();
+    ASSERT_EQ(first.size(), 2u);
+    EXPECT_EQ(first[0].source, a); EXPECT_EQ(first[1].source, b);
+    float lv0 = 0.0f, tp0 = 0.0f;
+    ASSERT_TRUE(mgr.surfaceAtWorld(10.5f, 0.5f, lv0, tp0)) << "control: b holds water (the removal check below reads it)";
+    mgr.addImpulse(glm::vec3(1.5f, 1.0f, 0.6f), 1.0f, 2.0f, glm::vec3(1.0f, 0.0f, 0.0f));
+    for (int k = 0; k < 3; ++k) mgr.step(a, 1, kDt, &rec);
+    const std::vector<WaterSurfaceField> second = snap();
+    EXPECT_NE(second[0].version, first[0].version) << "the stepped volume's copy was refreshed";
+    EXPECT_FALSE(same(second[0], first[0])) << "... and holds its moved columns";
+    EXPECT_TRUE(same(second[1], first[1])) << "the volume that did not step keeps its field";
+    EXPECT_TRUE(same(*mgr.surfaceFields()[0], second[0])) << "a repeat call returns the same field";
+    // motion: the moved field reports; scanned again unchanged, it is still (and keeps its flow figures)
+    mgr.takeMotion();
+    const auto again = mgr.takeMotion();
+    EXPECT_TRUE(again.empty()) << "the same field scanned twice has not moved";
+    EXPECT_EQ(mgr.motionStats().riseCols, 0);
+    // a removal: b's field moves to slot 0, refreshed from b (not a's stale copy)
+    ASSERT_TRUE(mgr.destroy(a));
+    float lv = 0.0f, tp = 0.0f;
+    EXPECT_FALSE(mgr.surfaceAtWorld(0.5f, 0.5f, lv, tp)) << "the destroyed volume's field is gone at once (read before the next surfaceFields())";
+    EXPECT_TRUE(mgr.surfaceAtWorld(10.5f, 0.5f, lv, tp)) << "the other volume's is still read";
+    const std::vector<WaterSurfaceField> third = snap();
+    ASSERT_EQ(third.size(), 1u);
+    EXPECT_EQ(third[0].source, b);
+    EXPECT_TRUE(same(third[0], first[1])) << "slot 0 now holds b's field";
+    EXPECT_EQ(mgr.surfaceFields()[0], mgr.surfaceFields()[0]) << "the same pointer: no copy";
+}
+
 TEST(WaterCouplingTest, DiagPockets) {
     const float h = 1.0f / 3.0f;
     Pond p(12, 9, 12, h, 0);

@@ -1,0 +1,267 @@
+{
+ "control": {
+  "cpu_frame_ms": 1.839,
+  "tiler_ms": 1.549,
+  "tile_build_ms": 1.171,
+  "threads_used": 8,
+  "rebuilt": 46,
+  "water_cpu_ms": {
+   "total": 0.003,
+   "update": 0.001,
+   "feed": 0.0,
+   "motion": 0.0,
+   "in_update": {
+    "occupancy": 0.0,
+    "step": 0.0,
+    "droplets": 0.0,
+    "ripples": 0.001,
+    "sleep": 0.0
+   }
+  },
+  "asleep": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "upload_bytes": 12737088,
+  "moved": [
+   {
+    "height_bins": [
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "kept_within": 17,
+    "max_d_body": 0.0,
+    "max_d_flow": 0.0,
+    "max_d_foam": 0.0,
+    "max_d_height_m": 0.0,
+    "runs_changed": 0
+   },
+   {
+    "height_bins": [
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "kept_within": 17,
+    "max_d_body": 0.0,
+    "max_d_flow": 0.0,
+    "max_d_foam": 0.0,
+    "max_d_height_m": 0.0,
+    "runs_changed": 0
+   },
+   {
+    "height_bins": [
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "kept_within": 17,
+    "max_d_body": 0.0,
+    "max_d_flow": 0.0,
+    "max_d_foam": 0.0,
+    "max_d_height_m": 0.0,
+    "runs_changed": 0
+   }
+  ]
+ },
+ "ponds": [
+  {
+   "size_m": [
+    20,
+    20
+   ],
+   "cpu_frame_ms": 8.268,
+   "tiler_ms": 3.947,
+   "tile_build_ms": 3.932,
+   "threads_used": 1,
+   "rebuilt": 30,
+   "water_cpu_ms": {
+    "total": 1.705,
+    "update": 1.472,
+    "feed": 0.001,
+    "motion": 0.223,
+    "in_update": {
+     "occupancy": 0.001,
+     "step": 0.857,
+     "droplets": 0.0,
+     "ripples": 0.578,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+   ],
+   "upload_bytes": 6998400,
+   "moved": [
+    {
+     "height_bins": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0,
+     "runs_changed": 0
+    }
+   ]
+  },
+  {
+   "size_m": [
+    32,
+    28
+   ],
+   "cpu_frame_ms": 15.945,
+   "tiler_ms": 8.963,
+   "tile_build_ms": 8.939,
+   "threads_used": 1,
+   "rebuilt": 63,
+   "water_cpu_ms": {
+    "total": 3.398,
+    "update": 2.912,
+    "feed": 0.002,
+    "motion": 0.488,
+    "in_update": {
+     "occupancy": 0.001,
+     "step": 1.506,
+     "droplets": 0.0,
+     "ripples": 1.325,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+   ],
+   "upload_bytes": 15676416,
+   "moved": [
+    {
+     "height_bins": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "kept_within": 0,
+     "max_d_body": 0.0,
+     "max_d_flow": 0.0,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0,
+     "runs_changed": 0
+    }
+   ]
+  }
+ ],
+ "depth_m": 1,
+ "wake": true,
+ "tiler": {
+  "threads": 1,
+  "flow_tolerance": 0.0,
+  "foam_tolerance": 0.0
+ }
+}

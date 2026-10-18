@@ -3703,6 +3703,9 @@ void Application::update(float deltaTime) {
         // WaterCore active volumes: realtime stepping is opt-in (water_av_realtime); the harness
         // steps explicitly. The debug feed is rebuilt every frame while any volume exists.
         if (waterCore) {
+            using WClock = std::chrono::steady_clock;
+            auto wms = [](WClock::time_point a) { return std::chrono::duration<double, std::milli>(WClock::now() - a).count(); };
+            const auto wt0 = WClock::now();
             // 20 (M2): debris inside a volume's box is a moving solid - it displaces water. The integrator
             // reports the bodies inside the boxes two frames late; predict each forward by its own age.
             if (debrisRuntime && debrisRuntime->gpu()) {
@@ -3746,7 +3749,8 @@ void Application::update(float deltaTime) {
                 m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f));
             }
             if (camera) waterCore->setViewPoint(camera->getPosition());   // 25.26 RC: ripple windows follow the camera
-            waterCore->update(std::min(deltaTime, 0.05f));
+            { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
+            const auto wtFeed = WClock::now();
             if (renderCoordinator) {
                 // 26.12: the per-voxel cell list feeds only the Cells debug draw - building it read the whole volume back once a second
                 // (a 257 ms hitch on a creek-sized box); the shipped Mesh mode never asks
@@ -3774,6 +3778,7 @@ void Application::update(float deltaTime) {
                         m_jetRows.push_back({t, j.bottom.x, j.bottom.y, j.bottom.z, j.volume, j.sumF, static_cast<float>(j.cells), j.isolated ? 1.0f : 0.0f});
                 }
             }
+            m_waterCpu.feed = wms(wtFeed);
             // Phase G: the shore band follows the camera along the shore and is stepped every frame at the
             // sheet's clock; its box joins the volumes' in the span-grid mask (D3) and its surface is meshed (F1)
             if (m_shoreOn && shoreBand && camera) {
@@ -3820,10 +3825,13 @@ void Application::update(float deltaTime) {
             }
             // E2 (docs/WaterCore.md 19.6): sleeping debris over MOVING water wakes - a floater frozen while
             // the water swings under it hangs in air or sinks into the water (measured: 40 cm swings, 0 woke)
+            m_waterCpu.motion = 0.0;
             if (debrisRuntime && debrisRuntime->gpu() && m_waterCouplingOn && waterCore->totalCells()) {
+                const auto t = WClock::now();
                 for (const auto& [c, r] : waterCore->takeMotion()) {
                     if (debrisRuntime->gpu()->wakeSphere(c, r).queued) ++m_waterWakes;
                 }
+                m_waterCpu.motion = wms(t);
             }
             // E2 (docs/WaterCore.md 19): wet debris gives the water the momentum the water took from it
             if (debrisRuntime) {
@@ -3838,6 +3846,7 @@ void Application::update(float deltaTime) {
                     m_exchangeStats.lastTotal = rep.total; m_exchangeStats.totalMagnitude += glm::length(rep.total);
                 }
             }
+            m_waterCpu.total = wms(wt0);
             for (const auto& rec : waterCore->drainAutoSleepRecords()) {
                 if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId);
                 else LOG_WARN("WaterCore", "volume {} could not write back: {} (held {}, unwritten {}); auto_sleep is off for it", rec.id, rec.error, rec.heldColumns, rec.unwrittenColumns);
@@ -14349,17 +14358,30 @@ void Application::registerWaterCommands() {
         // 26.30: {tiles: bool} the kept, culled tiles (default) or the per-frame whole mesh (the A/B control); {cull: bool} the view test
         if (cmd.params.contains("tiles")) renderCoordinator->setWaterCoreTiles(cmd.params.value("tiles", true));
         if (cmd.params.contains("cull")) renderCoordinator->setWaterCoreCull(cmd.params.value("cull", true));
-        nlohmann::json tiles = {{"on", renderCoordinator->waterCoreTiles()}, {"cull", renderCoordinator->waterCoreCull()}};
+        if (cmd.params.contains("tile_measure")) renderCoordinator->waterCoreTilerMutable().setMeasure(cmd.params.value("tile_measure", false));   // 26.30 step 3: the movement figures
+        if (cmd.params.contains("tile_threads")) renderCoordinator->waterCoreTilerMutable().setThreads(cmd.params.value("tile_threads", 0));   // 26.30 step 3 (1 = the control; 0 = default)
+        if (cmd.params.contains("tile_flow_tolerance") || cmd.params.contains("tile_foam_tolerance")) {   // 26.30 step 3 (0 = exact, the A/B control)
+            auto& tl = renderCoordinator->waterCoreTilerMutable();
+            tl.setTolerances(cmd.params.value("tile_flow_tolerance", tl.flowTolerance()), cmd.params.value("tile_foam_tolerance", tl.foamTolerance()));
+        }
+        nlohmann::json tiles = {{"on", renderCoordinator->waterCoreTiles()}, {"cull", renderCoordinator->waterCoreCull()},
+                                {"flow_tolerance", renderCoordinator->waterCoreTiler().flowTolerance()}, {"foam_tolerance", renderCoordinator->waterCoreTiler().foamTolerance()}};
         {
             const auto& ts = renderCoordinator->waterCoreTiler().stats();
             tiles["tiles"] = ts.tiles; tiles["rebuilt"] = ts.rebuilt; tiles["kept"] = ts.kept; tiles["removed"] = ts.removed;
-            tiles["fields_skipped"] = ts.fieldsSkipped; tiles["tiler_ms"] = ts.ms;
+            tiles["fields_skipped"] = ts.fieldsSkipped; tiles["tiler_ms"] = ts.ms; tiles["build_ms"] = ts.buildMs;
+            tiles["threads"] = renderCoordinator->waterCoreTiler().threads(); tiles["threads_used"] = ts.threads;
+            tiles["moved"] = {{"max_d_height_m", ts.maxDHeight}, {"max_d_flow", ts.maxDFlow}, {"max_d_foam", ts.maxDFoam}, {"max_d_body", ts.maxDBody},
+                              {"runs_changed", ts.runsChanged}, {"kept_within", ts.keptWithin}, {"height_bins", {ts.heightBins[0], ts.heightBins[1], ts.heightBins[2], ts.heightBins[3], ts.heightBins[4]}}};   // 26.30 step 3
             if (const auto* gs = renderCoordinator->waterCoreTileStats()) {
                 tiles["drawn"] = gs->drawn; tiles["culled"] = gs->culled; tiles["uploaded"] = gs->uploaded; tiles["deferred"] = gs->deferred;
                 tiles["over_arena"] = gs->overArena; tiles["upload_bytes"] = gs->uploadBytes; tiles["drawn_vertices"] = gs->drawnVertices;
                 tiles["arena_vertex_bytes"] = gs->arenaVertexBytes; tiles["arena_index_bytes"] = gs->arenaIndexBytes;
             }
         }
+        tiles["water_cpu_ms"] = {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}};   // 26.30 step 3
+        if (waterCore) { const auto& u = waterCore->updateCpu(); tiles["water_cpu_ms"]["in_update"] = {{"occupancy", u.occupancy}, {"step", u.step}, {"droplets", u.droplets}, {"ripples", u.ripples}, {"sleep", u.sleep},
+                                                                                       {"step_call", u.stepCall}, {"births", u.births}, {"r_collect", u.rCollect}, {"r_mask", u.rMask}, {"r_layer", u.rLayer}, {"r_submit", u.rSubmit}}; }
         r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())}, {"tiles", tiles},
              {"mesh_vertices", renderCoordinator->waterCoreMeshVertices()}, {"top_quads", renderCoordinator->waterCoreMeshTopQuads()},
              {"side_quads", renderCoordinator->waterCoreMeshSideQuads()}, {"mesh_build_ms", renderCoordinator->waterCoreMeshMs()},

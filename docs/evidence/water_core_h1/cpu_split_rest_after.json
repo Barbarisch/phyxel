@@ -1,0 +1,163 @@
+{
+ "control": {
+  "cpu_frame_ms": 1.877,
+  "tiler_ms": 0.0,
+  "rebuilt": 0,
+  "water_cpu_ms": {
+   "total": 0.003,
+   "update": 0.001,
+   "feed": 0.0,
+   "motion": 0.0,
+   "in_update": {
+    "occupancy": 0.0,
+    "step": 0.0,
+    "droplets": 0.0,
+    "ripples": 0.001,
+    "sleep": 0.0
+   }
+  },
+  "asleep": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "upload_bytes": 0,
+  "moved": []
+ },
+ "ponds": [
+  {
+   "size_m": [
+    20,
+    20
+   ],
+   "cpu_frame_ms": 1.967,
+   "tiler_ms": 0.002,
+   "rebuilt": 0,
+   "water_cpu_ms": {
+    "total": 0.006,
+    "update": 0.003,
+    "feed": 0.0,
+    "motion": 0.0,
+    "in_update": {
+     "occupancy": 0.0,
+     "step": 0.0,
+     "droplets": 0.0,
+     "ripples": 0.002,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+   ],
+   "upload_bytes": 0,
+   "moved": []
+  },
+  {
+   "size_m": [
+    32,
+    28
+   ],
+   "cpu_frame_ms": 17.383,
+   "tiler_ms": 9.355,
+   "rebuilt": 63,
+   "water_cpu_ms": {
+    "total": 4.725,
+    "update": 4.183,
+    "feed": 0.001,
+    "motion": 0.537,
+    "in_update": {
+     "occupancy": 0.001,
+     "step": 2.062,
+     "droplets": 0.0,
+     "ripples": 2.008,
+     "sleep": 0.0
+    }
+   },
+   "asleep": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+   ],
+   "upload_bytes": 15676416,
+   "moved": [
+    {
+     "height_bins": [
+      63,
+      0,
+      0,
+      0,
+      0
+     ],
+     "max_d_body": 0.0,
+     "max_d_flow": 3.4037478258142073e-07,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      63,
+      0,
+      0,
+      0,
+      0
+     ],
+     "max_d_body": 0.0,
+     "max_d_flow": 3.202961522674741e-07,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0,
+     "runs_changed": 0
+    },
+    {
+     "height_bins": [
+      63,
+      0,
+      0,
+      0,
+      0
+     ],
+     "max_d_body": 0.0,
+     "max_d_flow": 3.007427267220919e-07,
+     "max_d_foam": 0.0,
+     "max_d_height_m": 0.0,
+     "runs_changed": 0
+    }
+   ]
+  }
+ ],
+ "depth_m": 1,
+ "wake": false
+}
