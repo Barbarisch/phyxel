@@ -34,6 +34,7 @@ struct WakeRun {
     std::vector<double> books;              // per tick: mass + residue dropped (m^3) - what no transport may change
     double frozenShareFirst = 0.0;          // mean frozen / stored columns over the first 30 ticks after the stone
     int wakeColumnsMax = 0;
+    int stepSlotsMin = 1 << 30, bricksAtMin = 0;   // 26.31 step 2: the fewest slots a call stepped (the partition at work)
     bool ok = false;
 };
 
@@ -65,6 +66,7 @@ public:
             const AvRecord* r = mgr.find(id);
             if (k < 30 && r && r->awakeColumns + r->frozenColumns > 0) frozenSum += static_cast<double>(r->frozenColumns) / (r->awakeColumns + r->frozenColumns);
             if (r) out.wakeColumnsMax = std::max(out.wakeColumnsMax, r->awakeColumns);
+            if (r && r->stepSlots > 0 && r->stepSlots < out.stepSlotsMin) { out.stepSlotsMin = r->stepSlots; out.bricksAtMin = r->gpuBricks; }
             out.awake.push_back(r ? r->awakeColumns : -1);
             const WaterSurfaceField& f = *mgr.surfaceFields()[0];
             std::vector<float> t(f.cols.size(), std::nanf(""));
@@ -122,7 +124,8 @@ TEST_F(WaterPartialWakeTest, AStoneWakesAPatchAndTheSurfaceMatchesTheWholeBody) 
         Verdict v{compare(on, off), compare(offP, off), compare(open, off)};
         const std::string name = strength < 1.0f ? "PUSH 0.4" : "STONE 4";
         report(name.c_str(), v);
-        std::printf("    frozen share over the first 0.5 s %.1f %%, most awake columns %d\n", 100.0 * on.frozenShareFirst, on.wakeColumnsMax);
+        std::printf("    frozen share over the first 0.5 s %.1f %%, most awake columns %d; fewest slots stepped %d (of %d bricks)\n", 100.0 * on.frozenShareFirst, on.wakeColumnsMax, on.stepSlotsMin, on.bricksAtMin);
+        EXPECT_LT(on.stepSlotsMin, on.bricksAtMin) << name << ": step 2 - the step covered fewer slots than bricks stored (frozen bricks get no threads)";
         const float surfBound = 2.0f * v.floor.maxSurf + 1e-3f, farBound = 2.0f * v.floor.maxFar + 1e-3f;
         const double massBound = 2.0 * v.floor.maxMassRel + 1e-7;
         EXPECT_GT(on.frozenShareFirst, 0.5) << name << ": the push wakes a patch - most of the pond stays frozen at first";

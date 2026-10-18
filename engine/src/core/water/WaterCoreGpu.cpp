@@ -288,7 +288,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
-                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum})
+                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->scratch, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -682,13 +682,13 @@ int WaterCoreGpu::compactSlots(VkCommandBuffer cmd, Volume& vol) {
         r.srcOffset = top * bc * 16; r.dstOffset = hole * bc * 16; r.size = bc * 16; c16.push_back(r);
         ++moved;
     }
-    for (Buffer* bf : {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src})
+    for (Buffer* bf : {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src, &vol.fPrev})
         vkCmdCopyBuffer(cmd, bf->buf, bf->buf, static_cast<uint32_t>(c4.size()), c4.data());
     vkCmdCopyBuffer(cmd, vol.solid.buf, vol.solid.buf, static_cast<uint32_t>(c16.size()), c16.data());
     // the vacated slots go back to dry air (a later allocation zeroes them again; the absent-brick check must never see them)
     for (const VkBufferCopy& r : c4) {
         const VkDeviceSize off = r.srcOffset;
-        for (Buffer* bf : {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src}) vkCmdFillBuffer(cmd, bf->buf, off, vol.bc * 4, 0);
+        for (Buffer* bf : {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src, &vol.fPrev}) vkCmdFillBuffer(cmd, bf->buf, off, vol.bc * 4, 0);
         vkCmdFillBuffer(cmd, vol.solid.buf, off * 4, vol.bc * 16, 0);
     }
     int topUsed = 0;
@@ -696,6 +696,81 @@ int WaterCoreGpu::compactSlots(VkCommandBuffer cmd, Volume& vol) {
     vol.slotsUsed = std::max(topUsed + 1, kFirstSlot);
     vol.tablesDirty = true;
     return moved;
+}
+
+// 26.31 step 2: every awake brick into slots [kFirstSlot, kFirstSlot + A) (A = awake bricks), so the step dispatches and copies
+// only those - a frozen brick then costs no thread at all. Bricks are SWAPPED through a scratch buffer (the same per-cell buffers
+// compactSlots moves); a frozen brick takes the awake one's old slot. The awake column entries go first in the column table.
+int WaterCoreGpu::partitionSlots(VkCommandBuffer cmd, Volume& vol) {
+    vol.stepSlots = 0; vol.stepCols = 0;
+    if (!vol.anyFrozen || !vol.bricked) return 0;
+    const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
+    if (vol.colFrozen.size() != nc) return 0;
+    auto frozenPacked = [&](int packed) { return vol.colFrozen[static_cast<size_t>(packed & 1023) + static_cast<size_t>(vol.bn.x) * static_cast<size_t>((packed >> 20) & 1023)] != 0; };
+    int awake = 0;
+    for (size_t s = kFirstSlot; s < static_cast<size_t>(vol.slotsUsed); ++s) if (vol.slotBrick[s] >= 0 && !frozenPacked(vol.slotBrick[s])) ++awake;
+    const size_t end = kFirstSlot + static_cast<size_t>(awake);
+    std::vector<size_t> into, from;   // region slots needing an awake brick; awake bricks outside the region
+    for (size_t s = kFirstSlot; s < end; ++s) if (vol.slotBrick[s] < 0 || frozenPacked(vol.slotBrick[s])) into.push_back(s);
+    for (size_t s = end; s < static_cast<size_t>(vol.slotsUsed); ++s) if (vol.slotBrick[s] >= 0 && !frozenPacked(vol.slotBrick[s])) from.push_back(s);
+    const size_t k = std::min(into.size(), from.size());   // equal by construction
+    if (k > 0) {
+        // 26.31 step 2: fPrev too - the step refreshes it for the awake bricks only, and the rest test reads |f - fPrev| of every
+        // brick (a moved brick without its fPrev read as moving and woke its neighbours: the whole pond awake in 1 s, measured)
+        Buffer* per4[9] = {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, &vol.p, &vol.occ, &vol.src, &vol.fPrev};
+        const VkDeviceSize bc = vol.bc, brickBytes = bc * (9 * 4 + 16);
+        if (vol.scratch.bytes < k * brickBytes) { destroyBuffer(vol.scratch); if (!createBuffer(vol.scratch, k * brickBytes, false, nullptr)) { vol.scratch = Buffer{}; vol.anyFrozen = false; return 0; } }
+        // 1. the awake bricks outside the region -> scratch
+        for (int b = 0; b < 10; ++b) {
+            const Buffer& src = b < 9 ? *per4[b] : vol.solid;
+            const VkDeviceSize bytes = b < 9 ? bc * 4 : bc * 16, base = b < 9 ? k * bc * 4 * b : k * bc * 36;
+            std::vector<VkBufferCopy> c;
+            for (size_t i = 0; i < k; ++i) { VkBufferCopy r{}; r.srcOffset = from[i] * bytes; r.dstOffset = base + i * bytes; r.size = bytes; c.push_back(r); }
+            vkCmdCopyBuffer(cmd, src.buf, vol.scratch.buf, static_cast<uint32_t>(c.size()), c.data());
+        }
+        barrier(cmd);
+        // 2. the frozen bricks in the region -> the awake bricks' old slots (a free region slot leaves the old slot dry)
+        for (int b = 0; b < 10; ++b) {
+            const Buffer& bf = b < 9 ? *per4[b] : vol.solid;
+            const VkDeviceSize bytes = b < 9 ? bc * 4 : bc * 16;
+            std::vector<VkBufferCopy> c;
+            for (size_t i = 0; i < k; ++i) {
+                if (vol.slotBrick[into[i]] >= 0) { VkBufferCopy r{}; r.srcOffset = into[i] * bytes; r.dstOffset = from[i] * bytes; r.size = bytes; c.push_back(r); }
+                else vkCmdFillBuffer(cmd, bf.buf, from[i] * bytes, bytes, 0);
+            }
+            if (!c.empty()) vkCmdCopyBuffer(cmd, bf.buf, bf.buf, static_cast<uint32_t>(c.size()), c.data());
+        }
+        barrier(cmd);
+        // 3. scratch -> the region
+        for (int b = 0; b < 10; ++b) {
+            const Buffer& dst = b < 9 ? *per4[b] : vol.solid;
+            const VkDeviceSize bytes = b < 9 ? bc * 4 : bc * 16, base = b < 9 ? k * bc * 4 * b : k * bc * 36;
+            std::vector<VkBufferCopy> c;
+            for (size_t i = 0; i < k; ++i) { VkBufferCopy r{}; r.srcOffset = base + i * bytes; r.dstOffset = into[i] * bytes; r.size = bytes; c.push_back(r); }
+            vkCmdCopyBuffer(cmd, vol.scratch.buf, dst.buf, static_cast<uint32_t>(c.size()), c.data());
+        }
+        barrier(cmd);
+        // the host's map and slot table follow
+        for (size_t i = 0; i < k; ++i) {
+            const int a = vol.slotBrick[from[i]], z = vol.slotBrick[into[i]];
+            auto mapOf = [&](int packed) -> int& { return vol.map[static_cast<size_t>(packed & 1023) + static_cast<size_t>(vol.bn.x) * (static_cast<size_t>((packed >> 10) & 1023) + static_cast<size_t>(vol.bn.y) * static_cast<size_t>((packed >> 20) & 1023))]; };
+            vol.slotBrick[into[i]] = a; mapOf(a) = static_cast<int>(into[i]);
+            vol.slotBrick[from[i]] = z; if (z >= 0) mapOf(z) = static_cast<int>(from[i]);
+        }
+        int topUsed = 0;
+        for (size_t s = kFirstSlot; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) topUsed = static_cast<int>(s);
+        vol.slotsUsed = std::max(topUsed + 1, kFirstSlot);
+        vol.tablesDirty = true;
+    }
+    // the column table: awake entries first (column data - births, residue, the surface - is rebuilt every call)
+    std::stable_partition(vol.colEntries.begin(), vol.colEntries.end(), [&](int packed) {
+        return vol.colFrozen[static_cast<size_t>(packed & 1023) + static_cast<size_t>(vol.bn.x) * static_cast<size_t>((packed >> 10) & 1023)] == 0; });
+    int awakeCols = 0;
+    for (int packed : vol.colEntries) if (!vol.colFrozen[static_cast<size_t>(packed & 1023) + static_cast<size_t>(vol.bn.x) * static_cast<size_t>((packed >> 10) & 1023)]) ++awakeCols;
+    vol.tablesDirty = true;
+    vol.stepSlots = static_cast<int>(end); vol.stepCols = awakeCols;
+    vol.lastPartitionMoves = static_cast<int>(k);
+    return static_cast<int>(k);
 }
 
 void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
@@ -1455,6 +1530,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         barrier(cmd);
         vol.lastCompacted = compactSlots(cmd, vol);
         if (vol.lastCompacted > 0) barrier(cmd);
+        vol.lastPartitionMoves = partitionSlots(cmd, vol);   // 26.31 step 2: the awake bricks first (after residency + compaction)
         if (vol.tablesDirty) {   // the steady state (nothing allocated, freed or moved) uploads nothing
             writeTablesToStaging(vol);
             copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks);
@@ -1465,6 +1541,15 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     }
     stamp(cmd, vol, TsResidency);
     const auto tResidency = std::chrono::steady_clock::now();
+    // 26.31 step 2: the step covers the awake bricks only (slots [0, stepSlots), the awake column entries) - restored before the
+    // record, the reductions and the surface, which cover every stored brick
+    const int fullSlots = vol.slotsUsed, fullCols = vol.colCount;
+    if (vol.stepSlots > 0) {
+        // the frozen bricks' liq to 0 (they lie in [stepSlots, slotsUsed) after the partition): the sweeps read no pressure from them
+        if (fullSlots > vol.stepSlots) vkCmdFillBuffer(cmd, vol.liq.buf, static_cast<VkDeviceSize>(vol.stepSlots) * vol.bc * 4, static_cast<VkDeviceSize>(fullSlots - vol.stepSlots) * vol.bc * 4, 0);
+        vol.slotsUsed = vol.stepSlots; vol.colCount = vol.stepCols;
+    }
+    st.stepSlots = vol.stepSlots; st.partitionMoves = vol.lastPartitionMoves;
     fillPushBricks(vol, push);
     if (!vol.pendingMomentum.empty()) {
         // 26.26: the debris exchange - before the first substep (where the CPU path's change landed), one workgroup per record, in
@@ -1521,7 +1606,10 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         stamp(cmd, vol, TsSweepBirths);
     }
     if (!capture) std::swap(capBuf, vol.stageCap);   // the capture buffer is back in place (only the recording needed it hidden)
+    vol.slotsUsed = fullSlots; vol.colCount = fullCols;   // 26.31 step 2: every stored brick from here
+    fillPushBricks(vol, push);
     push.frozenOn = 0;   // 26.31: the record, the reductions and the surface cover every stored brick (a frozen column is still drawn and weighed)
+    const size_t colsAll = liveColumns(vol);
     if (vol.bricked) {   // 26.6: the water record residency reads next call, and the absent brick's check
         dispatch(cmd, *vol.pipes[Bricks], push, static_cast<size_t>(vol.slotsUsed) * 64, 64);
         copy(cmd, vol.bricks, vol.staging, (vol.infoOff + 2 * static_cast<size_t>(vol.slotsUsed) - vol.counterOff) * 4, vol.counterOff * 4, vol.offBricks + vol.counterOff * 4);
@@ -1534,7 +1622,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     // solid - never the grid), so the renderer sees every step's surface
     push.param0 = WaterGrid::kSurfaceMinDepth / vol.spec.h; push.iparam = vol.spec.origin.y;
     push.param1 = static_cast<float>(vol.columns);   // 26.11: where the multi-run records start in surf (x 8 floats)
-    dispatch(cmd, *vol.pipes[Surface], push, cols);
+    dispatch(cmd, *vol.pipes[Surface], push, colsAll);
     stamp(cmd, vol, TsSurfaceKernel);
     // 26.11: only the packed lists cross to the host - the counts, then as many entries as the last call's lists + 25 % + 64 (all of
     // them on a first call); a longer list is completed after the fence. Copying every column cost 0.57 ms of the creek's 1.6.
@@ -1543,7 +1631,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const VkDeviceSize dstOff[3] = {vol.offSurf + 64, vol.offBirths, vol.offSurf + 64 + vol.columns * 32};
     const Buffer* src[3] = {&vol.surf, &vol.birthsPacked, &vol.surf};
     for (int l = 0; l < 3; ++l) {
-        vol.copied[l] = vol.listsSized ? std::min<uint32_t>(static_cast<uint32_t>(cols), vol.lastCount[l] + vol.lastCount[l] / 4 + 64) : static_cast<uint32_t>(cols);
+        vol.copied[l] = vol.listsSized ? std::min<uint32_t>(static_cast<uint32_t>(colsAll), vol.lastCount[l] + vol.lastCount[l] / 4 + 64) : static_cast<uint32_t>(colsAll);
         copy(cmd, *src[l], vol.staging, vol.copied[l] * kRec[l], srcOff[l], dstOff[l]);
     }
     copy(cmd, vol.lists, vol.staging, 16, 0, vol.offSurf);

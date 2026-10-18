@@ -49,6 +49,7 @@ struct AvRecord {
     double gpuDeviceMs = 0.0;              ///< 26.15: of it, the GPU's own time (timestamps round the main submission)
     bool partialWake = false;              ///< 26.31: quiet brick columns freeze (GPU, sparse)
     int awakeColumns = 0, frozenColumns = 0, movingColumns = 0;   ///< 26.31: the last call's (WaterCoreGpu GpuStepStats)
+    int stepSlots = 0, partitionMoves = 0;                        ///< 26.31 step 2: slots the step dispatched (0 = all); bricks moved
     double gpuHostMs = 0.0;                ///< 26.15: of it, the host's residency work before recording
     double gpuWaitMs = 0.0;                ///< 26.15: of it, submission + fence wait (device time + queue contention + overhead)
     int gpuTicks = 0;                      ///< 26.15: ticks the last call stepped

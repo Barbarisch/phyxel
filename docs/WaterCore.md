@@ -148,7 +148,10 @@ throughout today. Design: brick columns frozen when quiet (the volume's own test
 **26.31 step 1 BUILT (2026-10-18), default off:** frozen brick columns, a wall to the awake ones; the gate passes against the
 measured floor (a splash amplifies any change: the whole body against itself with the stone 1e-5 stronger differs by 273 mm);
 the cost barely moves (2.41 vs 3.06 ms with 84 % frozen) - frozen bricks still get threads and whole-buffer copies.
-**Next:** (c) step 2 - the awake bricks into the low slots, the step over those only. The owner's look at 26.30 steps 1-3 still due. The §23 slime experiment stays queued.
+**26.31 step 2 BUILT (2026-10-18), default off:** the awake bricks partitioned into the low slots, the step over those only - a
+46 x 28 m pond after a corner stone 4.81 -> 2.76 ms over 15 s (1.75-2.0 ms the first 4 s against 4.5-6.2); a walled 32 x 28 m
+box gains only the first 2 s (its reflections wake it all); the fully-awake pond costs what it did. Left: ~2 ms of whole-volume work.
+**Next:** the owner's look (26.30 steps 1-3; the partial wake ON vs OFF on a stone), then the whole-volume remainder or the default. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7192,7 +7195,7 @@ switches (`tile_threads: 1`, `tile_flow_tolerance: 0`, `tile_measure` for the mo
   lever for awake water; these CPU parts are next after it, or with it.
 
 
-### 26.31 (c) The partial wake - a disturbance steps a patch, not the whole body (2026-10-18). Status: step 1 BUILT (default off), not signed off
+### 26.31 (c) The partial wake - a disturbance steps a patch, not the whole body (2026-10-18). Status: steps 1-2 BUILT (default off), not signed off
 
 **The owner's call (2026-10-18):** "keep going with (c)" - of 26.29's needs, (c) after (a): a stone in a big pond must not wake
 (and pay for) the whole body.
@@ -7303,6 +7306,40 @@ awake (+2 columns) / frozen, bit 30 of the slot and column tables; `water_core.g
 - Suites: `WaterPartialWakeTest` 1 / 1; `phyxel_integration_tests` Water/Debris/Gpu 46 / 47 (the FLIP run-up) with the switch
   off everywhere else - the shaders changed, the default path is the old one (frozenOn 0). GPU tests must run with the bench
   engine stopped: sharing the GPU, the gate took > 10 min (9 s alone).
+
+**Step 2 BUILT (2026-10-18), not signed off - the awake bricks first; the step covers only them.** `partitionSlots` (after the
+residency and the compaction, every call with a frozen column): the awake bricks are swapped into slots [2, 2 + awake) through a
+scratch buffer (f, fLo, u, v, w, p, occ, src, fPrev, the bodies' field), the awake column entries go first; the step's
+dispatches and copies then run over those slots and columns only (`stepSlots`, `stepCols`), the brick record, the reductions
+and the surface over every stored brick. The sweeps' wall became one fill (the frozen bricks' liq to 0, once a call - they lie
+together above the awake ones) instead of a frozen test per neighbour per sweep. Reported: `step_slots`, `partition_moves`.
+
+- **Found on the way (red, then fixed):** the partition first moved a brick's water but not its fPrev - the rest test reads
+  |f - fPrev| of every brick and the step now refreshes fPrev for the awake ones only, so a moved frozen brick read as moving
+  and woke its neighbours: the whole 32 x 28 m pond awake 1.4 s after the stone where step 1 had 471 columns. fPrev moves with
+  the brick now (the compaction too). And the per-neighbour frozen test in the sweeps cost ~0.4 ms with every column awake
+  (3.44 against 3.06 ms) - the liq fill made the fully-awake pond cost what it did without the partial wake (3.03 vs 3.04).
+- **Gate:** `WaterPartialWakeTest` unchanged and still at the floor (push: far 0.245 mm, books 1.9e-7; stone: far 1.69 mm, books
+  2.2e-6; the red control breaks it), plus: the fewest slots a call stepped, 272 of 2,484 stored bricks (asserted below).
+- **Measured** (`water_wake_map.py --partial on|off`, Release, idle GPU, 1 m deep, the solver's device ms, medians;
+  `wake_map_c4_*.json`):
+
+| after a stone | 0-1 s | 1-2 s | 2-4 s | 4-8 s | 8-12 s | 12-15 s | mean, 15 s |
+|---|---|---|---|---|---|---|---|
+| 32 x 28 m centre, OFF | 3.09 | 3.03 | 3.04 | 3.04 | 3.03 | 3.05 | 3.17 |
+| 32 x 28 m centre, ON | **2.10** | **2.01** | 2.84 | 3.03 | 3.23 | 3.02 | 3.05 |
+| (awake columns of 1,184) | 237 | 485 | 806 | 1,182 | 1,174 | 1,108 | |
+| 46 x 28 m corner, OFF | 6.23 | 5.04 | 4.53 | 4.56 | 4.28 | 4.15 | 4.81 |
+| 46 x 28 m corner, ON | **2.00** | **1.75** | **1.92** | **2.57** | 3.23 | 3.27 | **2.76** |
+| (slots stepped of 13,320) | 916 | 1,586 | 2,410 | 4,794 | 7,658 | 8,854 | |
+
+  In the walled 32 x 28 m box the waves fill it in ~4 s and reflect: from then on nearly every column moves by the test and
+  the partial wake saves nothing (nor costs anything now). The 46 x 28 m pond, a corner stone: -43 % over 15 s, -60 to -70 %
+  in the first 4 s. **What is left with 7 % of the bricks stepped (2.0 ms):** the work that still covers the whole volume each
+  call - the surface field and its copy to the host (~0.45 ms), the brick record and the reductions, the 80 sweep dispatches'
+  launches whatever their size, the per-call buffer clears; and the moving share itself, which the volume's own test keeps
+  high (a tenth of a millimetre a second is "moving"). Next levers, measured first: the surface over the awake columns only
+  (a frozen column's field is unchanged), the sweep count from the awake extent, the test's thresholds (a look decision).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

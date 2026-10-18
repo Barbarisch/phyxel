@@ -69,7 +69,9 @@ def main():
         ratio = np.where(wet, ke / np.maximum(mass, 1e-9), 0.0)
         vv = vol()
         row = {"t": round(time.time() - t0, 2), "wet_cols": int(wet.sum()), "solver_ms": vv.get("gpu_device_ms"), "asleep": vv.get("asleep"),
-               "awake_columns": vv.get("awake_columns"), "frozen_columns": vv.get("frozen_columns"), "moving_columns": vv.get("moving_columns")}
+               "awake_columns": vv.get("awake_columns"), "frozen_columns": vv.get("frozen_columns"), "moving_columns": vv.get("moving_columns"),
+               "step_slots": vv.get("step_slots"), "partition_moves": vv.get("partition_moves"), "bricks": vv.get("gpu_bricks"),
+               "substeps": (vv.get("last") or {}).get("substeps"), "sweeps": vv.get("gpu_sweeps")}
         for name, s in (("x1", 1.0), ("x0.1", 0.1), ("x10", 10.0)):
             moving = wet & ((ratio >= KE_WAKE * s) | (df >= DF_QUIET * s))
             r = {"moving": round(float(moving.sum()) / max(1, wet.sum()), 4)}
@@ -82,7 +84,7 @@ def main():
             row["map_x1"] = ["".join("#" if (wet & ((ratio >= KE_WAKE) | (df >= DF_QUIET)))[z, x] else ("." if wet[z, x] else " ") for x in range(nx)) for z in range(nz)]
         rows.append(row)
         print(f"t {row['t']:5.2f}s  moving {row['x1']['moving']:.3f}  +1 {row['x1']['margin1']:.3f}  +2 {row['x1']['margin2']:.3f} (cells {row['x1']['margin2_cells']:.3f})"
-              f"  | x0.1: +2 {row['x0.1']['margin2']:.3f}  x10: +2 {row['x10']['margin2']:.3f}  | solver {row['solver_ms']:.2f} ms  awake {row['awake_columns']} frozen {row['frozen_columns']} asleep {row['asleep']}", flush=True)
+              f"  | x0.1: +2 {row['x0.1']['margin2']:.3f}  x10: +2 {row['x10']['margin2']:.3f}  | solver {row['solver_ms']:.2f} ms  awake {row['awake_columns']} frozen {row['frozen_columns']} slots {row['step_slots']}/{row['bricks']} moves {row['partition_moves']} asleep {row['asleep']}", flush=True)
         time.sleep(0.25)
     api.debug("water_av_units", {"capture": False})
     api.debug("water_av_destroy", {"id": vid})

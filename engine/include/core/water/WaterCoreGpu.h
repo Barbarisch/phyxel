@@ -86,6 +86,8 @@ struct GpuStepStats {
     int    awakeColumns = 0;         ///< 26.31: brick columns stepped by this call (the partial wake; all stored columns without it)
     int    frozenColumns = 0;        ///< 26.31: brick columns frozen this call (not stepped; a wall to the awake ones)
     int    movingColumns = 0;        ///< 26.31: of the awake, those failing the sleep test themselves (the rest is the margin)
+    int    stepSlots = 0;            ///< 26.31 step 2: slots the step dispatched (the awake bricks + the two sentinels; 0 = all)
+    int    partitionMoves = 0;       ///< 26.31 step 2: bricks moved to keep the awake ones first
 };
 
 /// 26.6 P2a: how a volume stores its cells. Dense = every brick of its box kept (the engine default); sparse = only the
@@ -180,6 +182,11 @@ public:
         std::vector<char> colFrozen, colWake;   ///< frozen now; a wake asked for since the last call
         bool wakeAllPending = false, anyFrozen = false;
         int awakeCols = 0, frozenCols = 0, movingCols = 0;
+        // 26.31 step 2: the awake bricks held in slots [kFirstSlot, stepSlots) and the awake column entries first (stepCols) - the
+        // step's dispatches and copies cover only those (frozen bricks get no threads); 0 = every stored brick (no partial wake)
+        int stepSlots = 0, stepCols = 0;
+        int lastPartitionMoves = 0;      ///< bricks moved by the last call's partition
+        Buffer scratch;                  ///< the partition's swap space (grown on demand)
         double stageLast = -1.0;         ///< 26.10: the last captured call's end sum (cells), -1 = none
         VkQueryPool tsPool = VK_NULL_HANDLE;   ///< 26.11 test hook: GPU timestamps per stage (s_kernelTiming)
         VkQueryPool callTs = VK_NULL_HANDLE;   ///< 26.15: two timestamps round every step call - the device's own time, live
@@ -366,6 +373,7 @@ private:
     long storageIndex(const Volume& vol, int x, int y, int z) const;   ///< -1 = absent / outside the brick box
     void fillPushBricks(const Volume& vol, WcPush& push) const;
     void updatePartialWake(Volume& vol, const SolverParams& params);   // 26.31: the columns' state from the last unit map + wakes
+    int partitionSlots(VkCommandBuffer cmd, Volume& vol);              // 26.31 step 2: awake bricks into the low slots (returns moves)
     size_t liveCells(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.slotsUsed) * vol.bc : vol.cells; }
     size_t liveLattice(const Volume& vol, int L) const { return vol.bricked ? liveCells(vol) : (L == 0 ? vol.nu : (L == 1 ? vol.nv : vol.nw)); }
     size_t liveColumns(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.colCount) * 64 : vol.columns; }

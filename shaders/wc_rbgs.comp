@@ -14,7 +14,9 @@ layout(std430, set = 0, binding = 2) readonly buffer Rhs  { float rhs[]; };
 layout(std430, set = 0, binding = 3)          buffer P    { float p[]; };
 layout(std430, set = 0, binding = 4)          buffer Res  { float res[]; };
 
-float pn(int x, int y, int z) { return (inBounds(x, y, z) && liq[cellIdx(x, y, z)] != 0u && !frozenCell(x, y, z)) ? p[cellIdx(x, y, z)] : 0.0; }   // 26.31: no pressure from a frozen column (a wall)
+// 26.31: no pressure from a frozen column (a wall) - its liq is 0: the step clears the frozen bricks' liq once a call (they sit above
+// the awake ones after the partition, one fill); a frozenCell test here, per neighbour per sweep, cost ~0.4 ms on a 32 x 28 m pond
+float pn(int x, int y, int z) { return (inBounds(x, y, z) && liq[cellIdx(x, y, z)] != 0u) ? p[cellIdx(x, y, z)] : 0.0; }
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
