@@ -145,7 +145,10 @@ kept within a flow tolerance, rebuilt over 8 threads, births and readback cut). 
 **26.31 (2026-10-18) DESIGN, measured:** (c) the partial wake - after a stone the moving share (+2 columns margin) is 10 % at
 0.1 s, 81-96 % at 4-10 s in a 32 x 28 m box (the waves fill it and reflect), ~20 % from 11 s; the whole body pays 3-5.7 ms
 throughout today. Design: brick columns frozen when quiet (the volume's own test), a wall to the awake ones, wakes local.
-**Next:** (c) step 1 - `WaterPartialWakeTest` red, then the frozen columns. The owner's look at 26.30 steps 1-3 still due. The §23 slime experiment stays queued.
+**26.31 step 1 BUILT (2026-10-18), default off:** frozen brick columns, a wall to the awake ones; the gate passes against the
+measured floor (a splash amplifies any change: the whole body against itself with the stone 1e-5 stronger differs by 273 mm);
+the cost barely moves (2.41 vs 3.06 ms with 84 % frozen) - frozen bricks still get threads and whole-buffer copies.
+**Next:** (c) step 2 - the awake bricks into the low slots, the step over those only. The owner's look at 26.30 steps 1-3 still due. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7189,7 +7192,7 @@ switches (`tile_threads: 1`, `tile_flow_tolerance: 0`, `tile_measure` for the mo
   lever for awake water; these CPU parts are next after it, or with it.
 
 
-### 26.31 (c) The partial wake - a disturbance steps a patch, not the whole body (2026-10-18). Status: DESIGN, measured
+### 26.31 (c) The partial wake - a disturbance steps a patch, not the whole body (2026-10-18). Status: step 1 BUILT (default off), not signed off
 
 **The owner's call (2026-10-18):** "keep going with (c)" - of 26.29's needs, (c) after (a): a stone in a big pond must not wake
 (and pay for) the whole body.
@@ -7258,6 +7261,48 @@ longer bit-equality - the first cost structure that may change results, by at mo
 none. API: `water_av_units` (measurement); `water_av_create {partial_wake}` + a manager default; the record reports
 `awake_columns`, `frozen_columns`. Visual test: the gate above, the rig small (a 20 x 10 m pond fits in two chunks), the one
 variable the switch.
+
+**Step 1 BUILT (2026-10-18), not signed off - the frozen columns; the gate passes; the cost barely moves (measured).**
+`WaterCoreGpu`: per brick column a quiet count from the unit map (now read every call when the partial wake is on), moving /
+awake (+2 columns) / frozen, bit 30 of the slot and column tables; `water_core.glsl` `frozenCell` + the bit in `threadSite` /
+`threadColumn`; the wall in `wc_classify` (blocked, liquid, the divergence through a face a frozen neighbour holds),
+`wc_rbgs` (no pressure from it), `wc_fill_advect` and `wc_face_ops` (blocked). Every whole-volume wake now goes through
+`wakeAll`; an impulse, a momentum record and a droplet's landing wake their own columns (`wakeBox`). API: `water_av_create
+{partial_wake}`, `water_av_partial_wake {id, on | default}`, the record's `partial_wake`, `awake_columns`, `frozen_columns`,
+`moving_columns`; `water_av_kernel_timing {on, reset}` (the GPU's per-stage stamps, a measurement). Default OFF.
+
+- **The gate's predictions MISSED - and the floor showed why.** Written first: the surface within 1 mm of the whole-body run,
+  mass equal to 1e-6. Measured: 214 mm and 1.8e-6. The control that was missing: the whole body against ITSELF is bit-equal
+  (0), but against itself with the stone 1e-5 stronger it differs by 273 mm at the splash, 1.6 mm far from it (> 3 m) and
+  2.8e-6 in mass - a splash amplifies any change at all. And the whole body LOSES water steadily (199.999726 ->
+  199.998461 m^3 in 5 s on the still 20 x 10 m pond, ~0.25 L a tick) to the residue sweep, which a frozen column does not run:
+  the "mass" difference was the frozen columns keeping water the whole body drops. So the gate compares the BOOKS (mass +
+  residue dropped) and bounds each case by 2 x that floor (+ 1 mm, + 1e-7):
+
+| `WaterPartialWakeTest` (20 x 10 m, 1 m, sync) | surface max | far (> 3 m) | books | frozen, first 0.5 s |
+|---|---|---|---|---|
+| push 0.4 (small waves): floor (OFF vs OFF, push +1e-5) | 6.34 mm | 0.238 mm | 2.2e-7 | |
+| push 0.4: ON vs OFF | 6.48 mm | **0.245 mm** | **1.9e-7** | 63 % |
+| push 0.4: OPEN interface (red) | 33.1 mm | **33.1 mm** | 2.1e-7 | |
+| stone 4: floor | 273 mm | 1.59 mm | 2.8e-6 | |
+| stone 4: ON vs OFF | 214 mm | **1.72 mm** | **2.2e-6** | 55 % |
+| stone 4: OPEN interface (red) | 255 mm | **24.5 mm** | **2.2e-5** | |
+
+  PASS: ON sits at the floor; the red control breaks it (the far field 33 / 24 mm, the books 10x). The 1 mm / 1e-6 bound of
+  the design was not a measurement - the floor is.
+- **Found and fixed on the way:** with the partial wake a stone's splash raining back (droplet deposits) woke the WHOLE
+  volume ~1 s after the stone (`setDeposits` called the whole-volume wake): every column awake at 3.5 s; now the landing's
+  column wakes - the awake set grows smoothly with the wave (216 -> 856 columns over 6 s).
+- **The cost, live** (`water_wake_map.py --partial on|off`, 32 x 28 m, centre stone, Release): with 84 % of the columns
+  frozen at 0.16 s the solver took 2.41 ms against 3.06 ms - a fifth, not four fifths. Per stage (`water_av_kernel_timing`,
+  the whole body awake, ms a call): sweeps 1.4-1.5, the copies at the start of the substep (f -> fPrev / fOrig, u / v / w ->
+  old: whole buffers) 0.74-0.82, the surface copy 0.41-0.43, transport 0.2-0.27, extrapolation 0.22-0.24, velocity advection
+  0.10-0.14, the reductions 0.10-0.13, the rest < 0.1 each. A frozen brick's threads still launch and return, the whole-buffer
+  copies cover it, and the 80 sweep dispatches launch over every brick. **Step 2:** the awake bricks moved into the low slots
+  (a partition, the compaction's copies through a scratch buffer), the step's dispatches and copies over those only.
+- Suites: `WaterPartialWakeTest` 1 / 1; `phyxel_integration_tests` Water/Debris/Gpu 46 / 47 (the FLIP run-up) with the switch
+  off everywhere else - the shaders changed, the default path is the old one (frozenOn 0). GPU tests must run with the bench
+  engine stopped: sharing the GPU, the gate took > 10 min (9 s alone).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

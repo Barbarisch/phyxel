@@ -43,13 +43,14 @@ def main():
     ap.add_argument("--strength", type=float, default=4.0)
     ap.add_argument("--seconds", type=float, default=15.0)
     ap.add_argument("--tag", default=None)
+    ap.add_argument("--partial", choices=["on", "off"], default="off", help="26.31: the partial wake on the volume (on = frozen columns are not stepped)")
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(120)
     api.debug("water_av_realtime", {"on": True})
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
     l, w = (int(v) for v in args.size.split("x"))
     box = {"x1": 2, "y1": 16, "z1": 0, "x2": 2 + l - 1, "y2": 16 + args.depth, "z2": w - 1}
-    vid = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False})["volume"]["id"]
+    vid = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False, "partial_wake": args.partial == "on"})["volume"]["id"]
     api.debug("place_water_box", {"target": "core", **{**box, "y2": 16 + args.depth - 1}, "mass": 1.0})
     api.debug("water_av_units", {"capture": True})
     time.sleep(4.0)
@@ -66,7 +67,9 @@ def main():
         mass = np.array(u["mass"]).reshape(nz, nx); ke = np.array(u["ke"]).reshape(nz, nx); df = np.array(u["max_df"]).reshape(nz, nx)
         wet = mass > 1e-3
         ratio = np.where(wet, ke / np.maximum(mass, 1e-9), 0.0)
-        row = {"t": round(time.time() - t0, 2), "wet_cols": int(wet.sum()), "solver_ms": vol().get("gpu_device_ms")}
+        vv = vol()
+        row = {"t": round(time.time() - t0, 2), "wet_cols": int(wet.sum()), "solver_ms": vv.get("gpu_device_ms"), "asleep": vv.get("asleep"),
+               "awake_columns": vv.get("awake_columns"), "frozen_columns": vv.get("frozen_columns"), "moving_columns": vv.get("moving_columns")}
         for name, s in (("x1", 1.0), ("x0.1", 0.1), ("x10", 10.0)):
             moving = wet & ((ratio >= KE_WAKE * s) | (df >= DF_QUIET * s))
             r = {"moving": round(float(moving.sum()) / max(1, wet.sum()), 4)}
@@ -79,11 +82,11 @@ def main():
             row["map_x1"] = ["".join("#" if (wet & ((ratio >= KE_WAKE) | (df >= DF_QUIET)))[z, x] else ("." if wet[z, x] else " ") for x in range(nx)) for z in range(nz)]
         rows.append(row)
         print(f"t {row['t']:5.2f}s  moving {row['x1']['moving']:.3f}  +1 {row['x1']['margin1']:.3f}  +2 {row['x1']['margin2']:.3f} (cells {row['x1']['margin2_cells']:.3f})"
-              f"  | x0.1: +2 {row['x0.1']['margin2']:.3f}  x10: +2 {row['x10']['margin2']:.3f}  | solver {row['solver_ms']:.2f} ms", flush=True)
+              f"  | x0.1: +2 {row['x0.1']['margin2']:.3f}  x10: +2 {row['x10']['margin2']:.3f}  | solver {row['solver_ms']:.2f} ms  awake {row['awake_columns']} frozen {row['frozen_columns']} asleep {row['asleep']}", flush=True)
         time.sleep(0.25)
     api.debug("water_av_units", {"capture": False})
     api.debug("water_av_destroy", {"id": vid})
-    out = {"size_m": [l, w], "depth_m": args.depth, "at": args.at, "strength": args.strength, "before_stone": {k: pre.get(k) for k in ("asleep", "gpu_device_ms", "kinetic_energy")},
+    out = {"size_m": [l, w], "depth_m": args.depth, "partial": args.partial, "at": args.at, "strength": args.strength, "before_stone": {k: pre.get(k) for k in ("asleep", "gpu_device_ms", "kinetic_energy")},
            "thresholds": {"ke_wake": KE_WAKE, "df_quiet": DF_QUIET}, "rows": rows}
     EV.mkdir(parents=True, exist_ok=True)
     tag = args.tag or f"{args.size}_{args.at}"

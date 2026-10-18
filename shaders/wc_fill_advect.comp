@@ -23,7 +23,7 @@ layout(std430, set = 0, binding = 6) readonly buffer Solid { vec4 solid[]; };   
 layout(std430, set = 0, binding = 7)          buffer Out   { float outSum[]; };   // 26.5: a cell's total outflow (scratch: the projection's residual buffer)
 layout(std430, set = 0, binding = 9)          buffer FLo   { float fLo[]; };      // 26.10: what the float store could not hold, per cell
 
-bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u || frozenCell(x, y, z); }   // 26.31: nothing crosses into a frozen column
 
 // ---- 26.5 (WaterCore.md): ALL FACES AT ONCE, the CPU's EulerianTransport::s_allFacesAtOnce rule ----
 //   mode 3: per cell, the total outflow its faces want (from the fills at the start: fo)

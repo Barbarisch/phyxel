@@ -20,7 +20,7 @@ layout(std430, set = 0, binding = 3) readonly buffer P   { float p[]; };
 layout(std430, set = 0, binding = 4) readonly buffer Liq { uint liq[]; };
 layout(std430, set = 0, binding = 5) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
 
-bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u || frozenCell(x, y, z); }   // 26.31: a face to a frozen column is held at 0
 float fAt(int x, int y, int z) { return inBounds(x, y, z) ? f[cellIdx(x, y, z)] : 0.0; }
 bool isLiq(int x, int y, int z) { return inBounds(x, y, z) && liq[cellIdx(x, y, z)] != 0u; }
 // 20.5: a cell full of body with no real water is a wall, not air (WaterSolver::bodyWall)

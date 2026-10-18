@@ -47,6 +47,8 @@ struct AvRecord {
     int   gpuSweeps = 0;
     double gpuMs = 0.0;                    ///< wall time of the last GPU step call (all its ticks)
     double gpuDeviceMs = 0.0;              ///< 26.15: of it, the GPU's own time (timestamps round the main submission)
+    bool partialWake = false;              ///< 26.31: quiet brick columns freeze (GPU, sparse)
+    int awakeColumns = 0, frozenColumns = 0, movingColumns = 0;   ///< 26.31: the last call's (WaterCoreGpu GpuStepStats)
     double gpuHostMs = 0.0;                ///< 26.15: of it, the host's residency work before recording
     double gpuWaitMs = 0.0;                ///< 26.15: of it, submission + fence wait (device time + queue contention + overhead)
     int gpuTicks = 0;                      ///< 26.15: ticks the last call stepped
@@ -171,11 +173,18 @@ public:
     /// Fill the volume from the chunk spans of its box (replace); returns m^3 seeded, < 0 without a reader.
     double seedFromSpans(int id);
     bool setAutoSleep(int id, bool on);
+    /// 26.31 the partial wake for one volume (GPU, sparse; false = no such volume or not one) and the default for new volumes.
+    bool setPartialWake(int id, bool on);
+    static inline bool s_partialWakeDefault = false;
     /// 26.31 measurement: the GPU volume's last unit map (WaterCoreGpu::s_unitCapture), per 8 x 2 x 8 cells: x = KE sum, y = max
     /// |df| (last tick), z = mass (cells). dims = units (x, y, z); cellOffset = unit (0,0,0)'s first cell in grid cells. false =
     /// no GPU volume, not bricked, or nothing captured yet.
     bool unitMap(int id, std::vector<glm::vec4>& units, glm::ivec3& dims, glm::ivec3& cellOffset, float& h) const;
     static void setUnitCapture(bool on);
+    /// 26.31 measurement: the GPU's per-stage timestamps (WaterCoreGpu::s_kernelTiming; single-tick, single-substep calls) -
+    /// {label, ms summed} and the calls summed; reset clears them.
+    static void setKernelTiming(bool on, bool reset);
+    static std::vector<std::pair<std::string, double>> kernelTiming(long& calls);
     static bool unitCapture();
     /// Realtime auto-sleep records since the last drain (the application logs them).
     std::vector<WriteBackRecord> drainAutoSleepRecords() { std::vector<WriteBackRecord> r; r.swap(m_autoSlept); return r; }
@@ -458,7 +467,7 @@ private:
     void stepGpu(Av& av, int ticks, float dt);
     bool pushSourcesToGpu(Av& av, std::string* err);
     void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)
-    void markWritten(Av& av);   // Phase E1: a CPU-side write to a volume's grid: upload it, wake it
+    void markWritten(Av& av, const glm::vec3* wakeCentre = nullptr, float wakeRadius = 0.0f);   // Phase E1: a CPU-side write to a volume's grid: upload it, wake it (26.31: only the columns round wakeCentre when given - the partial wake)
     std::vector<std::unique_ptr<Av>> m_avs;
     glm::vec3 m_view{0.0f};       // 25.26 RC
     float m_flowForcing = 200.0f; // 25.26 RC: C_f - calibrated live 2026-10-12 (25.29): facet slope p95 0.1-0.2 on the 100 L/s bench creek

@@ -10,6 +10,8 @@
 namespace Phyxel { namespace Core { namespace Water {
 
 namespace {
+constexpr int32_t kFrozenBit = 0x40000000;   // 26.31: water_core.glsl WC_FROZEN_BIT
+
 const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_fill_advect.comp.spv", "wc_vel_advect.comp.spv", "wc_vel_advect.comp.spv", "wc_vel_advect.comp.spv",
     "wc_face_ops.comp.spv", "wc_face_ops.comp.spv", "wc_face_ops.comp.spv",
@@ -351,6 +353,7 @@ void WaterCoreGpu::fillPushBricks(const Volume& vol, WcPush& push) const {
     push.bnx = vol.bn.x; push.bny = vol.bn.y; push.bnz = vol.bn.z; push.bly = vol.bly;
     push.slotTableOff = static_cast<int32_t>(vol.slotTableOff); push.colTableOff = static_cast<int32_t>(vol.colTableOff);
     push.counterOff = static_cast<int32_t>(vol.counterOff); push.colCount = vol.colCount;
+    push.frozenOn = vol.anyFrozen ? (s_partialWakeOpenInterfaceForTest ? 2 : 1) : 0;   // 26.31 (2: skipped, not a wall - the test's red control)
 }
 
 // A brick is needed when water lies within `reach` cells of it: for each neighbour offset d, the gap along
@@ -515,6 +518,95 @@ void WaterCoreGpu::writeTablesToStaging(Volume& vol) const {
     std::memcpy(st + vol.slotTableOff, vol.slotBrick.data(), vol.capacity * 4);
     std::fill(st + vol.colTableOff, st + vol.colTableOff + vol.colCap, 0);
     if (!vol.colEntries.empty()) std::memcpy(st + vol.colTableOff, vol.colEntries.data(), vol.colEntries.size() * 4);
+    if (vol.anyFrozen && vol.colFrozen.size() == static_cast<size_t>(vol.bn.x) * vol.bn.z) {   // 26.31: the frozen bit (bit 30; water_core.glsl)
+        auto frozen = [&](int bx, int bz) { return bx >= 0 && bz >= 0 && bx < vol.bn.x && bz < vol.bn.z && vol.colFrozen[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]; };
+        for (size_t s = 2; s < vol.capacity; ++s) {
+            const int packed = vol.slotBrick[s];
+            if (packed >= 0 && frozen(packed & 1023, (packed >> 20) & 1023)) st[vol.slotTableOff + s] = packed | kFrozenBit;
+        }
+        for (size_t e = 0; e < vol.colEntries.size(); ++e) {
+            const int packed = vol.colEntries[e];
+            if (frozen(packed & 1023, (packed >> 10) & 1023)) st[vol.colTableOff + e] = packed | kFrozenBit;
+        }
+    }
+}
+
+void WaterCoreGpu::setPartialWake(Volume& vol, bool on) {
+    vol.partialWake = on && vol.bricked && vol.sparse;
+    wakeAll(vol);
+}
+
+void WaterCoreGpu::wakeAll(Volume& vol) {
+    vol.asleep = false; vol.quietTicks = 0;
+    vol.wakeAllPending = true;
+}
+
+void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi) {
+    vol.asleep = false; vol.quietTicks = 0;
+    if (!vol.partialWake) return;
+    const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
+    if (vol.colWake.size() != nc) vol.colWake.assign(nc, 0);
+    const int bx0 = std::max(0, (lo.x + vol.o.x) >> 3), bx1 = std::min(vol.bn.x - 1, (hi.x + vol.o.x) >> 3);
+    const int bz0 = std::max(0, (lo.z + vol.o.z) >> 3), bz1 = std::min(vol.bn.z - 1, (hi.z + vol.o.z) >> 3);
+    for (int bz = bz0; bz <= bz1; ++bz) for (int bx = bx0; bx <= bx1; ++bx) vol.colWake[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz] = 1;
+}
+
+// 26.31 THE PARTIAL WAKE (docs/WaterCore.md 26.31). Per brick column: the volume's own sleep test on the last collected unit map
+// (KE / mass < keWake and max |df| < maxDeltaFQuiet), counted in ticks; MOVING = not yet quiet for restTicks, or woken since
+// the last call; AWAKE = moving grown by kPartialWakeMargin columns (Chebyshev); the rest FROZEN. A change re-uploads the tables
+// (the frozen bit). No awake column: the volume is asleep (nothing steps) until a wake.
+void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
+    const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
+    if (!vol.partialWake || !vol.bricked || !vol.sparse || nc == 0) {
+        if (vol.anyFrozen) { std::fill(vol.colFrozen.begin(), vol.colFrozen.end(), 0); vol.anyFrozen = false; vol.tablesDirty = true; }
+        vol.awakeCols = vol.movingCols = vol.colCount; vol.frozenCols = 0;
+        return;
+    }
+    if (vol.colQuiet.size() != nc) { vol.colQuiet.assign(nc, 0); vol.colFrozen.assign(nc, 0); vol.anyFrozen = false; }
+    if (vol.colWake.size() != nc) vol.colWake.assign(nc, 0);
+    if (vol.unitsFresh && vol.hostUnits.size() == nc * vol.nuy) {
+        for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+            double m = 0.0, k = 0.0; float d = 0.0f;
+            for (size_t uy = 0; uy < vol.nuy; ++uy) {
+                const glm::vec4& q = vol.hostUnits[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (uy + vol.nuy * static_cast<size_t>(bz))];
+                k += q.x; d = std::max(d, q.y); m += q.z;
+            }
+            const bool quiet = m < 1e-3 || (k / m < params.keWake && d < params.maxDeltaFQuiet);
+            int& qt = vol.colQuiet[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz];
+            qt = quiet ? std::min(qt + vol.unitsTicks, 1 << 30) : 0;
+        }
+        vol.unitsFresh = false;
+    }
+    if (vol.wakeAllPending) { std::fill(vol.colQuiet.begin(), vol.colQuiet.end(), 0); vol.wakeAllPending = false; }
+    for (size_t c = 0; c < nc; ++c) if (vol.colWake[c]) { vol.colQuiet[c] = 0; vol.colWake[c] = 0; }
+    // moving -> awake: grown along x, then along z (separable Chebyshev dilation)
+    const int M = kPartialWakeMargin;
+    std::vector<char> moving(nc), rowGrown(nc, 0), awake(nc, 0);
+    int nMoving = 0;
+    for (size_t c = 0; c < nc; ++c) { moving[c] = vol.colQuiet[c] < params.restTicks; nMoving += moving[c]; }
+    for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+        if (!moving[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]) continue;
+        for (int x = std::max(0, bx - M); x <= std::min(vol.bn.x - 1, bx + M); ++x) rowGrown[static_cast<size_t>(x) + static_cast<size_t>(vol.bn.x) * bz] = 1;
+    }
+    for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+        if (!rowGrown[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]) continue;
+        for (int z = std::max(0, bz - M); z <= std::min(vol.bn.z - 1, bz + M); ++z) awake[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * z] = 1;
+    }
+    bool changed = false; int nFrozen = 0, nAwake = 0;
+    for (size_t c = 0; c < nc; ++c) {
+        const char fz = awake[c] ? 0 : 1;
+        if (fz != vol.colFrozen[c]) { vol.colFrozen[c] = fz; changed = true; }
+    }
+    // counted over the STORED columns (the column table), not the box
+    for (const int packed : vol.colEntries) {
+        const size_t c = static_cast<size_t>(packed & 1023) + static_cast<size_t>(vol.bn.x) * static_cast<size_t>((packed >> 10) & 1023);
+        if (c >= nc) continue;
+        if (vol.colFrozen[c]) ++nFrozen; else ++nAwake;
+    }
+    vol.anyFrozen = nFrozen > 0;
+    if (changed) vol.tablesDirty = true;
+    vol.awakeCols = nAwake; vol.frozenCols = nFrozen; vol.movingCols = nMoving;
+    if (nAwake == 0 && !vol.colEntries.empty()) vol.asleep = true;   // every stored column frozen: nothing to step
 }
 
 // staging <- the given slots' cells: fills and faces from `g` (when given), occupancy (out-of-box cells are Solid, as the
@@ -697,6 +789,10 @@ void WaterCoreGpu::queueMomentum(Volume& vol, const glm::vec3& pos, float radius
     const float r[8] = {local.x, local.y, local.z, radius, momentum.x, momentum.y, momentum.z, maxSpeed};
     vol.pendingMomentum.insert(vol.pendingMomentum.end(), r, r + 8);
     vol.asleep = false; vol.quietTicks = 0;   // moving water wakes, as the CPU path's re-upload did
+    {   // 26.31: the sphere's columns (the margin grows round them)
+        const float h = vol.spec.h;
+        wakeBox(vol, glm::ivec3(glm::floor((local - glm::vec3(radius)) / h)), glm::ivec3(glm::floor((local + glm::vec3(radius)) / h)));
+    }
 }
 
 int WaterCoreGpu::applyQueuedMomentumForTest(Volume& vol) {
@@ -726,7 +822,7 @@ bool WaterCoreGpu::setSources(Volume& vol, const std::vector<GpuSource>& sources
     vol.hostSources = sources;   // 26.16: readSources answers from this until a call is collected
     vol.sourceCells.clear();
     for (const GpuSource& s : sources) vol.sourceCells.push_back(s.cell);   // 26.6: a pump's brick is always stored
-    if (!sources.empty()) { vol.asleep = false; vol.quietTicks = 0; }   // 26.13: a pump added to a sleeping (e.g. empty) volume must run it - it never woke (the creek bench)
+    if (!sources.empty()) wakeAll(vol);   // 26.13: a pump added to a sleeping (e.g. empty) volume must run it - it never woke (the creek bench)
     VkCommandBuffer cmd = beginCommands();
     copy(cmd, vol.staging, vol.sources, kMaxSources * sizeof(GpuSource), vol.offSources);
     vkCmdFillBuffer(cmd, vol.src.buf, 0, vol.src.bytes, 0);   // the projection's per-cell rates are rebuilt by the kernel
@@ -763,7 +859,7 @@ void WaterCoreGpu::setSolids(Volume& vol, const std::vector<float>& s, const std
     vol.hasSolids = any;
     vol.solidRatesPending = any;
     vol.solidFrame = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
-    vol.asleep = false; vol.quietTicks = 0;           // a body is there (or just left): the water must move
+    wakeAll(vol);           // a body is there (or just left): the water must move
 }
 
 void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const std::vector<float>& wake, const std::vector<uint8_t>& fresh, float frameSeconds,
@@ -811,7 +907,7 @@ void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const 
     vol.hasSolids = any;
     vol.solidRatesPending = any;
     vol.solidFrame = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
-    vol.asleep = false; vol.quietTicks = 0;           // a body is there (or just left): the water must move
+    wakeAll(vol);           // a body is there (or just left): the water must move
 }
 
 void WaterCoreGpu::setDeposits(Volume& vol, const std::vector<float>& cellFractions) {
@@ -819,7 +915,9 @@ void WaterCoreGpu::setDeposits(Volume& vol, const std::vector<float>& cellFracti
     if (vol.depositPending && vol.hostDeposit.size() == vol.dCells) { for (size_t i = 0; i < vol.dCells; ++i) vol.hostDeposit[i] += cellFractions[i]; }   // two frames' deposits before a step: add
     else vol.hostDeposit = cellFractions;
     vol.depositPending = true;
-    vol.asleep = false; vol.quietTicks = 0;   // water arrived: the volume must step
+    // water arrived: the volume must step. 26.31: with the partial wake only the columns it landed in wake (the caller's wakeBox per
+    // landing; a stone's splash raining back woke the whole pond 1 s after the stone, measured) - without it, the whole volume
+    if (vol.partialWake) { vol.asleep = false; vol.quietTicks = 0; } else wakeAll(vol);
 }
 
 bool WaterCoreGpu::readBirths(Volume& vol, std::vector<float>& out) const {
@@ -1191,7 +1289,7 @@ void WaterCoreGpu::recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush pus
         const size_t units = static_cast<size_t>(vol.bn.x) * vol.nuy * static_cast<size_t>(vol.bn.z);
         push.mode = 6; push.param0 = static_cast<float>(vol.nuy); dispatch(cmd, *vol.pipes[Reduce], push, units, 256);
         vol.unitPending = false;
-        if (s_unitCapture) {   // 26.31 measurement: the map before the fold overwrites its head
+        if (s_unitCapture || vol.partialWake) {   // 26.31: the map before the fold overwrites its head (the partial wake reads it every call)
             if (vol.unitCap.buf && vol.unitCap.bytes < units * 16) destroyBuffer(vol.unitCap);
             if (!vol.unitCap.buf && !createBuffer(vol.unitCap, units * 16, true, nullptr)) vol.unitCap = Buffer{};
             if (vol.unitCap.buf) { copy(cmd, vol.part2, vol.unitCap, units * 16); barrier(cmd); vol.unitPending = true; }
@@ -1273,7 +1371,7 @@ void WaterCoreGpu::updateOccupancy(Volume& vol, const WaterGrid& g, const std::v
         copy(cmd, vol.staging, vol.occ, vol.cells * 4, vol.offOcc);
     }
     submitAndWait(cmd);
-    vol.asleep = false; vol.quietTicks = 0;   // the ground moved: the water must look again
+    wakeAll(vol);   // the ground moved: the water must look again
 }
 
 GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float dt, int ticks, int sweeps) {
@@ -1281,6 +1379,8 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     GpuStepStats st; st.ticks = ticks; st.sweeps = sweeps;
     st.capacity = vol.bricked ? static_cast<int>(vol.capacity) - 1 : 0;
     st.brickHeight = vol.by;   // 26.17
+    if (!vol.asleep) updatePartialWake(vol, params);   // 26.31: may freeze every column (asleep)
+    st.awakeColumns = vol.awakeCols; st.frozenColumns = vol.frozenCols; st.movingColumns = vol.movingCols;
     if (vol.asleep || ticks <= 0) {
         st.asleep = vol.asleep; st.quietTicks = vol.quietTicks;
         if (vol.bricked) { st.bricks = vol.storedCount; st.groundBricks = vol.groundCount; }
@@ -1421,6 +1521,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         stamp(cmd, vol, TsSweepBirths);
     }
     if (!capture) std::swap(capBuf, vol.stageCap);   // the capture buffer is back in place (only the recording needed it hidden)
+    push.frozenOn = 0;   // 26.31: the record, the reductions and the surface cover every stored brick (a frozen column is still drawn and weighed)
     if (vol.bricked) {   // 26.6: the water record residency reads next call, and the absent brick's check
         dispatch(cmd, *vol.pipes[Bricks], push, static_cast<size_t>(vol.slotsUsed) * 64, 64);
         copy(cmd, vol.bricks, vol.staging, (vol.infoOff + 2 * static_cast<size_t>(vol.slotsUsed) - vol.counterOff) * 4, vol.counterOff * 4, vol.offBricks + vol.counterOff * 4);
@@ -1509,6 +1610,7 @@ void WaterCoreGpu::finishCall(Volume& vol) {
         const auto* u = static_cast<const glm::vec4*>(vol.unitCap.mapped);
         vol.hostUnits.assign(u, u + units);
         vol.unitPending = false;
+        vol.unitsFresh = true; vol.unitsTicks = ticks;   // 26.31
     }
     if (capture && vol.stageCap.buf) {   // 26.10 test hook: exact stage sums (double on the host)
         const auto* sc = static_cast<const float*>(vol.stageCap.mapped);

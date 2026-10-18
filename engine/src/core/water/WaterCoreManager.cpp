@@ -88,6 +88,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     }
     m_avs.push_back(std::move(av));
     refreshBoxes();
+    if (s_partialWakeDefault && raw->gpuVol && m_gpu && raw->gpuVol->sparse) m_gpu->setPartialWake(*raw->gpuVol, true);   // 26.31
     return raw->id;
 }
 
@@ -112,7 +113,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.partialWake = av.gpuVol && av.gpuVol->partialWake; r.awakeColumns = av.gpuLast.awakeColumns; r.frozenColumns = av.gpuLast.frozenColumns; r.movingColumns = av.gpuLast.movingColumns; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
     r.occFullRefreshes = av.occFullRefreshes; r.occLocalRefreshes = av.occLocalRefreshes; r.occCellsResampled = av.occCellsResampled;
     r.occCellsChanged = av.occCellsChanged; r.gpuPatchMs = av.gpuPatchMs; r.gpuPatches = av.gpuPatches;
     r.cells = av.grid->cellCount();
@@ -313,6 +314,19 @@ bool WaterCoreManager::unitMap(int id, std::vector<glm::vec4>& units, glm::ivec3
     return false;
 }
 void WaterCoreManager::setUnitCapture(bool on) { WaterCoreGpu::s_unitCapture = on; }
+void WaterCoreManager::setKernelTiming(bool on, bool reset) {
+    WaterCoreGpu::s_kernelTiming = on;
+    if (reset) { for (double& m : WaterCoreGpu::s_tsMs) m = 0.0; WaterCoreGpu::s_tsCalls = 0; }
+}
+std::vector<std::pair<std::string, double>> WaterCoreManager::kernelTiming(long& calls) {
+    static const char* names[] = {"start", "residency", "sources", "transport", "vel_advect", "compaction", "forces", "classify", "sweeps",
+                                  "vel_update", "extrapolate", "settle", "sweep_births", "brick_record", "reduce", "surface_kernel", "surface_copy", "reduce_surface"};
+    static_assert(sizeof(names) / sizeof(names[0]) == WaterCoreGpu::TsLabelCount, "one name per label");
+    calls = WaterCoreGpu::s_tsCalls;
+    std::vector<std::pair<std::string, double>> out;
+    for (int k = 1; k < WaterCoreGpu::TsLabelCount; ++k) out.push_back({names[k], WaterCoreGpu::s_tsMs[k]});
+    return out;
+}
 bool WaterCoreManager::unitCapture() { return WaterCoreGpu::s_unitCapture; }
 
 bool WaterCoreManager::setAutoSleep(int id, bool on) {
@@ -694,10 +708,27 @@ WaterCoreManager::SolidsFeed WaterCoreManager::setMovingSolids(const std::vector
     return out;
 }
 
-void WaterCoreManager::markWritten(Av& av) {
+void WaterCoreManager::markWritten(Av& av, const glm::vec3* wakeCentre, float wakeRadius) {
     av.solver->wake();
     av.gpuDirty = true; av.gpuLast.asleep = false;
-    if (av.gpuVol) { av.gpuVol->asleep = false; av.gpuVol->quietTicks = 0; }
+    if (av.gpuVol && m_gpu) {
+        if (wakeCentre) {   // 26.31: the columns the write touched (grid cells), the margin grows round them
+            const glm::vec3 c = *wakeCentre / av.h - glm::vec3(av.grid->spec().origin);
+            const float r = wakeRadius / av.h + 1.0f;
+            m_gpu->wakeBox(*av.gpuVol, glm::ivec3(glm::floor(c - glm::vec3(r))), glm::ivec3(glm::floor(c + glm::vec3(r))));
+        } else m_gpu->wakeAll(*av.gpuVol);
+    }
+}
+
+bool WaterCoreManager::setPartialWake(int id, bool on) {
+    for (auto& av : m_avs) {
+        if (av->id != id) continue;
+        if (!av->gpuVol || !m_gpu || !av->gpuVol->sparse) return false;
+        m_gpu->setPartialWake(*av->gpuVol, on);
+        av->gpuLast.asleep = false;
+        return true;
+    }
+    return false;
 }
 
 namespace {
@@ -716,7 +747,7 @@ bool WaterCoreManager::addImpulse(const glm::vec3& world, float radius, float de
         if (!sphereTouchesBox(world, radius, av->minVoxel, av->maxVoxel)) continue;
         syncFromGpu(*av);
         av->solver->addImpulse(world, radius, deltaSpeed, dir);
-        markWritten(*av);
+        markWritten(*av, &world, radius);   // 26.31: an impulse wakes its own columns
         any = true;
     }
     return any;
@@ -958,6 +989,7 @@ void WaterCoreManager::depositDroplet(Av& av, const glm::vec3& at, double volume
         if (av.pendingDeposit.size() != g.cellCount()) av.pendingDeposit.assign(g.cellCount(), 0.0f);
         av.pendingDeposit[g.idx(c.x, c.y, c.z)] += static_cast<float>(volume / g.cellVolume());
         av.hasPendingDeposit = true;
+        m_gpu->wakeBox(*av.gpuVol, c, c);   // 26.31: the landing's column (the partial wake; a no-op without it)
         return;
     }
     const double left = depositIntoGrid(*av.grid, at, volume);

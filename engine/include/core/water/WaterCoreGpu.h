@@ -33,8 +33,9 @@ struct WcPush {
     float quietRise = 0.0f;     ///< 26.9: m/s under which a partial cell's surface rises by filling (EulerianTransport::s_quietRiseFraction)
     int32_t bly = 3;            ///< 26.17: log2 of the brick height (bricks are 8 x (1 << bly) x 8)
     float vcBand = 0.02f;       ///< 26.21: SolverParams::volumeCorrectionBand (wc_classify mode 0)
+    int32_t frozenOn = 0;       ///< 26.31: honour the frozen bit of the slot / column tables (the partial wake)
 };
-static_assert(sizeof(WcPush) == 116, "WcPush must match the GLSL push block");
+static_assert(sizeof(WcPush) == 120, "WcPush must match the GLSL push block");
 
 /// A pump or sink on the device (shaders/wc_sources.comp GpuSource, 32 bytes).
 struct GpuSource {
@@ -82,6 +83,9 @@ struct GpuStepStats {
     long   haloShort = 0;            ///< after the call: bricks within 4 cells of water that are NOT stored, from one distance per brick face - an UPPER bound (two films in different cells can read as one in a corner; WaterBrickTest checks by cell, 26.28)
     double unstoredWater = 0.0;      ///< m^3 the last upload could not store (capacity smaller than the water itself; must be 0)
     bool   sentinelDirty = false;    ///< something wrote into the absent brick (must be false)
+    int    awakeColumns = 0;         ///< 26.31: brick columns stepped by this call (the partial wake; all stored columns without it)
+    int    frozenColumns = 0;        ///< 26.31: brick columns frozen this call (not stepped; a wall to the awake ones)
+    int    movingColumns = 0;        ///< 26.31: of the awake, those failing the sleep test themselves (the rest is the margin)
 };
 
 /// 26.6 P2a: how a volume stores its cells. Dense = every brick of its box kept (the engine default); sparse = only the
@@ -168,6 +172,14 @@ public:
         Buffer unitCap;                  ///< 26.31 measurement: the unit map (per 8 x 2 x 8 unit: KE, max |df|, mass) of the last call (s_unitCapture)
         bool unitPending = false;        ///<   the call in flight copies it
         std::vector<glm::vec4> hostUnits; ///<   the collected call's map (bn.x x nuy x bn.z, x fastest), empty = none
+        // 26.31 THE PARTIAL WAKE (docs/WaterCore.md 26.31): per brick column of the brick box (bn.x x bn.z)
+        bool partialWake = false;        ///< on: quiet columns away from moving ones freeze (sparse volumes only)
+        bool unitsFresh = false;         ///< hostUnits holds a call not yet counted
+        int unitsTicks = 0;              ///<   its ticks
+        std::vector<int> colQuiet;       ///< ticks each column has passed the sleep test in a row
+        std::vector<char> colFrozen, colWake;   ///< frozen now; a wake asked for since the last call
+        bool wakeAllPending = false, anyFrozen = false;
+        int awakeCols = 0, frozenCols = 0, movingCols = 0;
         double stageLast = -1.0;         ///< 26.10: the last captured call's end sum (cells), -1 = none
         VkQueryPool tsPool = VK_NULL_HANDLE;   ///< 26.11 test hook: GPU timestamps per stage (s_kernelTiming)
         VkQueryPool callTs = VK_NULL_HANDLE;   ///< 26.15: two timestamps round every step call - the device's own time, live
@@ -253,6 +265,15 @@ public:
     static inline bool s_unitCapture = false;
     /// The last collected unit map; dims = (bn.x, nuy, bn.z), cellOffset = the grid cell of unit (0, 0, 0)'s first cell (-o).
     bool readUnits(const Volume& vol, std::vector<glm::vec4>& out, glm::ivec3& dims, glm::ivec3& cellOffset) const;
+    /// 26.31 the partial wake: on/off per volume (sparse only; off = every stored brick steps, as before). The margin (brick
+    /// columns grown round the moving ones) is kPartialWakeMargin.
+    void setPartialWake(Volume& vol, bool on);
+    static constexpr int kPartialWakeMargin = 2;
+    /// TEST ONLY (WaterPartialWakeTest's red control): frozen columns are skipped but NOT a wall - their awake neighbours read them as water.
+    static inline bool s_partialWakeOpenInterfaceForTest = false;
+    /// 26.31: wake the brick columns touching grid cells [lo, hi] (the margin grows round them next call) / every column.
+    void wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi);
+    void wakeAll(Volume& vol);
     static inline double s_tsMs[TsLabelCount] = {};
     static inline long s_tsCalls = 0;
     void setOmega(float w) { m_omega = w; }
@@ -344,6 +365,7 @@ private:
     // 26.6 P2a bricks (host side)
     long storageIndex(const Volume& vol, int x, int y, int z) const;   ///< -1 = absent / outside the brick box
     void fillPushBricks(const Volume& vol, WcPush& push) const;
+    void updatePartialWake(Volume& vol, const SolverParams& params);   // 26.31: the columns' state from the last unit map + wakes
     size_t liveCells(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.slotsUsed) * vol.bc : vol.cells; }
     size_t liveLattice(const Volume& vol, int L) const { return vol.bricked ? liveCells(vol) : (L == 0 ? vol.nu : (L == 1 ? vol.nv : vol.nw)); }
     size_t liveColumns(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.colCount) * 64 : vol.columns; }

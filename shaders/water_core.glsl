@@ -41,7 +41,15 @@ layout(push_constant) uniform WcPush {
     float quietRise;     // 26.9: m/s - under it a partial cell under an emptier one fills before water crosses its ceiling
     int   bly;           // 26.17: log2 of the brick height (1, 2, 3); x and z are always 8
     float vcBand;        // 26.21: the volume correction's dead band (SolverParams::volumeCorrectionBand)
+    int   frozenOn;      // 26.31: 1 = honour the FROZEN bit of the slot / column tables (the partial wake); 0 = every stored brick; 2 = TEST: skipped, not a wall
 } pc;
+
+// 26.31 THE PARTIAL WAKE: bit 30 of a slot-table or column-table entry marks a FROZEN brick column - quiet by the volume's own
+// sleep test, more than the margin from any moving column. With pc.frozenOn its threads return at once (threadSite /
+// threadColumn) and, to the awake cells beside it, it is a WALL: the step kernels' blocked() tests include frozenCell, the
+// sweeps read no pressure from it, transport moves nothing across. The surface, the reductions and the brick record run with
+// frozenOn 0 (every stored brick). Bits 0-29 keep the packed brick coordinates.
+const int WC_FROZEN_BIT = 0x40000000;
 
 #ifdef WC_BRICKS_BINDING
 layout(std430, set = 0, binding = WC_BRICKS_BINDING) buffer Bricks { int bricks[]; };
@@ -50,6 +58,11 @@ int brickSlot(ivec3 q) {   // q = cell + origin offset (brick-box cell coords)
     const ivec3 b = ivec3(q.x >> 3, q.y >> pc.bly, q.z >> 3);
     if (b.x < 0 || b.y < 0 || b.z < 0 || b.x >= pc.bnx || b.y >= pc.bny || b.z >= pc.bnz) return 0;
     return bricks[b.x + pc.bnx * (b.y + pc.bny * b.z)];
+}
+bool frozenCell(int x, int y, int z) {   // 26.31: a cell of a frozen brick column (never an absent or GROUND brick)
+    if (pc.frozenOn != 1 || pc.bricked == 0) return false;   // 2 = the test's red control: skipped but not a wall
+    const int slot = brickSlot(ivec3(x + pc.ox, y + pc.oy, z + pc.oz));
+    return slot >= 2 && (bricks[pc.slotTableOff + slot] & WC_FROZEN_BIT) != 0;
 }
 uint brickIdx(int x, int y, int z) {
     const ivec3 q = ivec3(x + pc.ox, y + pc.oy, z + pc.oz);
@@ -61,6 +74,7 @@ bool absentCell(int x, int y, int z) { return pc.bricked != 0 && brickSlot(ivec3
 #else
 uint brickIdx(int x, int y, int z) { return 0u; }
 bool absentCell(int x, int y, int z) { return false; }
+bool frozenCell(int x, int y, int z) { return false; }
 #define WC_DENSE true
 #endif
 
@@ -87,6 +101,7 @@ bool threadSite(uint id, int lattice, out ivec3 c) {
         if (slot == 0u || slot >= uint(pc.slotsUsed)) { c = ivec3(-1); return false; }
         const int packed = bricks[pc.slotTableOff + int(slot)];
         if (packed < 0) { c = ivec3(-1); return false; }   // a free slot
+        if (pc.frozenOn != 0 && (packed & WC_FROZEN_BIT) != 0) { c = ivec3(-1); return false; }   // 26.31: a frozen column
         const ivec3 b = ivec3(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
         c = ivec3(b.x * 8, b.y << pc.bly, b.z * 8) + ivec3(int(local & 7u), int(local >> 6u), int((local >> 3u) & 7u)) - ivec3(pc.ox, pc.oy, pc.oz);
         return c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < sx && c.y < sy && c.z < sz;
@@ -103,6 +118,7 @@ bool threadColumn(uint id, out int x, out int z) {
         const int e = int(id >> 6u), local = int(id & 63u);
         if (e >= pc.colCount) { x = -1; z = -1; return false; }
         const int packed = bricks[pc.colTableOff + e];
+        if (pc.frozenOn != 0 && (packed & WC_FROZEN_BIT) != 0) { x = -1; z = -1; return false; }   // 26.31: a frozen column
         x = (packed & 1023) * 8 + (local & 7) - pc.ox;
         z = ((packed >> 10) & 1023) * 8 + (local >> 3) - pc.oz;
         return x >= 0 && z >= 0 && x < pc.nx && z < pc.nz;

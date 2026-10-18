@@ -13914,7 +13914,7 @@ void Application::registerWaterCommands() {
     auto noCore = [](nlohmann::json& r) { r = {{"error", "WaterCore not available"}}; };
     auto avJson = [](const Core::Water::AvRecord& a) {
         return nlohmann::json{{"id", a.id}, {"box", {{"min", {a.minVoxel.x, a.minVoxel.y, a.minVoxel.z}}, {"max", {a.maxVoxel.x, a.maxVoxel.y, a.maxVoxel.z}}}},
-                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_device_ms", a.gpuDeviceMs}, {"gpu_host_ms", a.gpuHostMs}, {"gpu_wait_ms", a.gpuWaitMs}, {"gpu_ticks", a.gpuTicks}, {"gpu_async", a.gpuAsync}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"gpu_brick_height", a.gpuBrickHeight}, {"gpu_ground_bricks", a.gpuGroundBricks}, {"gpu_upload_ms", a.gpuUploadMs}, {"gpu_uploads", a.gpuUploads}, {"occ_refresh_ms", a.occRefreshMs}, {"occ_full_refreshes", a.occFullRefreshes}, {"occ_local_refreshes", a.occLocalRefreshes}, {"occ_cells_resampled", a.occCellsResampled}, {"occ_cells_changed", a.occCellsChanged}, {"gpu_patch_ms", a.gpuPatchMs}, {"gpu_patches", a.gpuPatches}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
+                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_device_ms", a.gpuDeviceMs}, {"partial_wake", a.partialWake}, {"awake_columns", a.awakeColumns}, {"frozen_columns", a.frozenColumns}, {"moving_columns", a.movingColumns}, {"gpu_host_ms", a.gpuHostMs}, {"gpu_wait_ms", a.gpuWaitMs}, {"gpu_ticks", a.gpuTicks}, {"gpu_async", a.gpuAsync}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"gpu_brick_height", a.gpuBrickHeight}, {"gpu_ground_bricks", a.gpuGroundBricks}, {"gpu_upload_ms", a.gpuUploadMs}, {"gpu_uploads", a.gpuUploads}, {"occ_refresh_ms", a.occRefreshMs}, {"occ_full_refreshes", a.occFullRefreshes}, {"occ_local_refreshes", a.occLocalRefreshes}, {"occ_cells_resampled", a.occCellsResampled}, {"occ_cells_changed", a.occCellsChanged}, {"gpu_patch_ms", a.gpuPatchMs}, {"gpu_patches", a.gpuPatches}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
                               {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"source_in_m3", a.sourceIn}, {"outfall_out_m3", a.outfallOut}, {"outfalls", a.outfalls}, {"manning_n", a.manningN}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};
@@ -13929,6 +13929,7 @@ void Application::registerWaterCommands() {
         // Phase D: seed:"spans" fills the volume from the chunk spans of its box (a flat start, cell
         // size free); auto_sleep (default true) writes back + frees in realtime when it sleeps.
         waterCore->setAutoSleep(id, cmd.params.value("auto_sleep", true));
+        if (cmd.params.contains("partial_wake")) waterCore->setPartialWake(id, cmd.params.value("partial_wake", false));   // 26.31 (GPU, sparse): echoed as partial_wake
         // 26.13: manning_n > 0 = Manning's law at the bed (a creek) instead of pond friction; clamped 0-0.2, echoed
         if (cmd.params.contains("manning_n")) waterCore->setBedManning(id, std::clamp(cmd.params.value("manning_n", 0.0f), 0.0f, 0.2f));
         double seeded = 0.0;
@@ -14034,6 +14035,24 @@ void Application::registerWaterCommands() {
     });
     // 26.31 measurement: {capture: bool} copies every GPU call's unit map to the host; {id} returns it per unit COLUMN (8 x 8 cells,
     // all heights): mass (cells), ke (sum f |v|^2 / 2, cells m^2/s^2), max_df (largest |f - fPrev| in the column, last tick)
+    // 26.31: {id, on} the partial wake for one volume; {default: bool} for new volumes. Echoes the state.
+    reg.on("water_av_partial_wake", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        if (cmd.params.contains("default")) Core::Water::WaterCoreManager::s_partialWakeDefault = cmd.params.value("default", false);
+        r = {{"default", Core::Water::WaterCoreManager::s_partialWakeDefault}};
+        if (cmd.params.contains("id")) r["applied"] = waterCore->setPartialWake(cmd.params.value("id", 0), cmd.params.value("on", true));
+    });
+    // 26.31 measurement: {on, reset} the GPU's per-stage timestamps; replies ms per call by stage (single-tick, single-substep calls)
+    reg.on("water_av_kernel_timing", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        if (cmd.params.contains("on") || cmd.params.value("reset", false))
+            Core::Water::WaterCoreManager::setKernelTiming(cmd.params.value("on", true), cmd.params.value("reset", false));
+        long calls = 0;
+        const auto t = Core::Water::WaterCoreManager::kernelTiming(calls);
+        nlohmann::json st = nlohmann::json::object(); double sum = 0.0;
+        for (const auto& [n, ms] : t) { st[n] = calls ? ms / calls : 0.0; sum += ms; }
+        r = {{"calls", calls}, {"ms_per_call", st}, {"total_ms_per_call", calls ? sum / calls : 0.0}};
+    });
     reg.on("water_av_units", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         if (cmd.params.contains("capture")) Core::Water::WaterCoreManager::setUnitCapture(cmd.params.value("capture", false));

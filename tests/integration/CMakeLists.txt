@@ -17,6 +17,7 @@ set(INTEGRATION_TEST_SOURCES
     WaterCoreGpuParityTest.cpp
     WaterBrickTest.cpp
     WaterRippleGpuParityTest.cpp
+    WaterPartialWakeTest.cpp
 )
 
 # Create integration test executable

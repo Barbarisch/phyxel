@@ -14,7 +14,7 @@ layout(std430, set = 0, binding = 2) readonly buffer Rhs  { float rhs[]; };
 layout(std430, set = 0, binding = 3)          buffer P    { float p[]; };
 layout(std430, set = 0, binding = 4)          buffer Res  { float res[]; };
 
-float pn(int x, int y, int z) { return (inBounds(x, y, z) && liq[cellIdx(x, y, z)] != 0u) ? p[cellIdx(x, y, z)] : 0.0; }
+float pn(int x, int y, int z) { return (inBounds(x, y, z) && liq[cellIdx(x, y, z)] != 0u && !frozenCell(x, y, z)) ? p[cellIdx(x, y, z)] : 0.0; }   // 26.31: no pressure from a frozen column (a wall)
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
