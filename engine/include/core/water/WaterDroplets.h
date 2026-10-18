@@ -66,6 +66,10 @@ public:
     /// cell around `b.pos`, velocity +-15 % zero-sum per birth. Returns the volume that did NOT fit the pool (the
     /// caller puts it straight back - never dropped).
     double spawn(const DropletBirth& b, int volumeId, float h, float sizeFraction, uint32_t tick);
+    /// 26.31 look (the owner, 2026-10-18: "splashes way too round"): the share of the +-15 % velocity spread that goes SIDEWAYS
+    /// to the birth's own velocity (1 = isotropic, the 21 default - each parcel bursts into a ball; < 1 = thrown along its
+    /// direction). The pair stays zero-sum either way: the parcel's mean velocity is unchanged.
+    static inline float s_lateralSpread = 1.0f;
     /// Advance every droplet by dt (gravity, quadratic air drag); `land(pos, prevPos, volumeId)` returns true when
     /// the droplet reached water or ground - the droplet is then removed and reported in `landed`.
     template <class LandFn> void step(float dt, float gravity, LandFn land, std::vector<Droplet>& landed);

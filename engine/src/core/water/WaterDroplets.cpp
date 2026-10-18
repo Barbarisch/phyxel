@@ -164,6 +164,10 @@ double DropletPool::spawn(const DropletBirth& b, int volumeId, float h, float si
         glm::vec3 J(unit(hash3(hh, 4, 0)) - 0.5f, unit(hash3(hh, 5, 0)) - 0.5f, unit(hash3(hh, 6, 0)) - 0.5f);
         const float jl = glm::length(J);
         J = jl > 1e-6f ? J / jl * spread : glm::vec3(0.0f);
+        if (s_lateralSpread < 1.0f) {   // 26.31: the sideways part of the spread scaled (the along-velocity part kept)
+            const float vl = glm::length(b.vel);
+            if (vl > 1e-6f) { const glm::vec3 u = b.vel / vl; const glm::vec3 along = glm::dot(J, u) * u; J = along + (J - along) * std::max(0.0f, s_lateralSpread); }
+        }
         const bool lastOdd = (fit % 2 == 1) && i == fit - 1;   // fit, not n: a part-refused birth keeps its mean too
         d.vel = b.vel + (lastOdd ? glm::vec3(0.0f) : ((i % 2 == 0) ? J : -J));
         d.volume = static_cast<float>(each); d.edge = edge; d.volumeId = volumeId;

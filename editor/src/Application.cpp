@@ -14317,8 +14317,9 @@ void Application::registerWaterCommands() {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setDroplets(cmd.params.value("enabled", true));
         if (cmd.params.contains("size")) waterCore->setDropletSize(std::clamp(cmd.params.value("size", 1.0f / 9.0f), 1.0f / 27.0f, 1.0f));
+        if (cmd.params.contains("lateral")) Core::Water::DropletPool::s_lateralSpread = std::clamp(cmd.params.value("lateral", 1.0f), 0.0f, 1.0f);   // 26.31 look A/B
         const auto& d = waterCore->dropletStats();
-        r = {{"enabled", d.on}, {"size", d.size}, {"alive", d.alive}, {"cap", Core::Water::DropletPool::kCap},
+        r = {{"enabled", d.on}, {"size", d.size}, {"lateral", Core::Water::DropletPool::s_lateralSpread}, {"alive", d.alive}, {"cap", Core::Water::DropletPool::kCap},
              {"born_m3", d.bornM3}, {"landed_m3", d.landedM3}, {"in_flight_m3", waterCore->dropletVolume()},
              {"refused_m3", d.refusedM3}, {"relocated_m3", d.relocatedM3}, {"flushed_m3", d.flushedM3}, {"destroyed_m3", d.destroyedM3},
              {"births", d.births}, {"landings", d.landings}, {"cpu_scraps", d.scraps}, {"cpu_sprays", d.sprays}};

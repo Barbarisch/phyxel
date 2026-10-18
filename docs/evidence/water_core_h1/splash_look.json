@@ -1,0 +1,35 @@
+{
+ "pose": {
+  "x": -1.0,
+  "y": 21.5,
+  "z": 32.0,
+  "yaw": -49.0,
+  "pitch": -22.0
+ },
+ "variants": [
+  {
+   "label": "NOW: 1.2 cm drops, burst in a ball",
+   "size": 0.1111111111111111,
+   "lateral": 1.0,
+   "peak_droplets": 11304
+  },
+  {
+   "label": "3.7 cm drops, ball",
+   "size": 0.3333333333333333,
+   "lateral": 1.0,
+   "peak_droplets": 745
+  },
+  {
+   "label": "11 cm drops (microcube), ball",
+   "size": 1.0,
+   "lateral": 1.0,
+   "peak_droplets": 375
+  },
+  {
+   "label": "3.7 cm drops, thrown along the splash",
+   "size": 0.3333333333333333,
+   "lateral": 0.2,
+   "peak_droplets": 502
+  }
+ ]
+}

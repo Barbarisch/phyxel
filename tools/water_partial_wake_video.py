@@ -41,11 +41,11 @@ def main():
     try: api.debug("editor_panels", {"item_equipper": False, "tool_panels": False})   # the viewport clear (water_bench refshots)
     except Exception as e: print("editor_panels:", e)
     # the look of the rig (not the water): a sand bed instead of grass under the pond (blades showed through the water) and a
-    # stone kerb round it (the volume's box walls are invisible) - world edits, re-laid every run (an engine restart drops them)
+    # stone kerb two blocks high round it (the volume's box walls are invisible) - world edits, re-laid every run (an engine restart drops them)
     world_job(api, "/api/world/clear", {"x1": x0, "y1": 15, "z1": z0, "x2": x0 + l - 1, "y2": 15, "z2": z0 + w - 1})
     world_job(api, "/api/world/fill", {"x1": x0, "y1": 15, "z1": z0, "x2": x0 + l - 1, "y2": 15, "z2": z0 + w - 1}, material="Sand")
     for b in ((x0 - 1, z0 - 1, x0 - 1, z0 + w), (x0 + l, z0 - 1, x0 + l, z0 + w), (x0 - 1, z0 - 1, x0 + l, z0 - 1), (x0 - 1, z0 + w, x0 + l, z0 + w)):
-        world_job(api, "/api/world/fill", {"x1": b[0], "y1": 16, "z1": b[1], "x2": b[2], "y2": 16, "z2": b[3]}, material="StoneBricks")
+        world_job(api, "/api/world/fill", {"x1": b[0], "y1": 16, "z1": b[1], "x2": b[2], "y2": 17, "z2": b[3]}, material="StoneBricks")   # two high: the water sits inside the rim (level with its top, a trough of a few mm showed the kerb's face as a bright line - "the water pulls away from the edges", the owner)
     api.debug("water_av_realtime", {"on": True})
     api.debug("water_coupling", {"enabled": True, "solids": True})
     out = {"pose": pose, "size_m": [l, w], "stone_at": [sx, sz], "stone_edge_m": args.stone, "runs": {}}
