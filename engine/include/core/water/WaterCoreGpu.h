@@ -79,7 +79,7 @@ struct GpuStepStats {
     int    compacted = 0;            ///< bricks moved to lower slots this call (fragmentation repair)
     long   fluxIntoAbsent = 0;       ///< faces where water would have moved into a brick that is not stored (must be 0)
     long   heldByCapacity = 0;       ///< bricks the residency wanted but the capacity refused (their faces stay closed)
-    long   haloShort = 0;            ///< after the call: bricks within 4 cells of water that are NOT stored (must be 0 unless capacity-held)
+    long   haloShort = 0;            ///< after the call: bricks within 4 cells of water that are NOT stored, from one distance per brick face - an UPPER bound (two films in different cells can read as one in a corner; WaterBrickTest checks by cell, 26.28)
     double unstoredWater = 0.0;      ///< m^3 the last upload could not store (capacity smaller than the water itself; must be 0)
     bool   sentinelDirty = false;    ///< something wrote into the absent brick (must be false)
 };

@@ -54,12 +54,35 @@ protected:
     }
     void TearDown() override { gpu.shutdown(); VulkanTestFixture::TearDown(); }
 
-    struct SceneResult { long ticksCompared = 0, ticksDiffering = 0, flux = 0, haloShort = 0; bool sentinel = false; int minBricks = 1 << 30, maxBricks = 0, denseBricks = 0;
+    struct SceneResult { long ticksCompared = 0, ticksDiffering = 0, flux = 0, haloShort = 0, cellShort = 0; bool sentinel = false; int minBricks = 1 << 30, maxBricks = 0, denseBricks = 0;
                          int sparseHeight = 8, denseHeight = 8;   // 26.17: brick heights (a brick is 8 x h x 8 cells)
                          int maxGround = 0;                        // 26.18: most halo bricks read as ground in one call
                          WaterGrid sparseEnd{GridSpec{glm::ivec3(0), glm::ivec3(1), 1.0f}};   // the sparse run's last state
                          long allocated = 0, freed = 0; Diff diff; double massDense = 0, massSparse = 0;
                          long surfaceColumnsDiffering = 0; std::string surfaceFirst; };   // 26.11: the surface field the renderer gets, byte for byte
+    /// 26.28: the halo checked CELL BY CELL - every brick that a water cell needs (any water: 2 cells round it; liquid: 4, the
+    /// same reaches as the engine's check) must be stored. The engine's own check (`haloShort`) works from one minimum distance
+    /// per brick FACE, so two films in different cells - one near -x, one near +y - read as water in the (-x, +y) corner: an
+    /// upper bound. Measured 2026-10-18: the 4-tall dam break's 3 "short" bricks had no water nearer than 4 cells (reach 2).
+    static long cellHaloShort(const WaterCoreGpu::Volume& v, const WaterGrid& w, float thr) {
+        std::vector<char> need(v.mapCount, 0);
+        const glm::ivec3 bs = v.bs();
+        auto lo = [](int q, int s) { return q >= 0 ? q / s : -((-q + s - 1) / s); };
+        for (int z = 0; z < w.nz(); ++z) for (int y = 0; y < w.ny(); ++y) for (int x = 0; x < w.nx(); ++x) {
+            const float f = w.f(x, y, z);
+            if (f == 0.0f) continue;
+            const int reach = f >= thr ? 4 : 2;
+            const glm::ivec3 q = glm::ivec3(x, y, z) + v.o;
+            const int x0 = std::max(0, lo(q.x - reach, bs.x)), x1 = std::min(v.bn.x - 1, (q.x + reach) / bs.x);
+            const int y0 = std::max(0, lo(q.y - reach, bs.y)), y1 = std::min(v.bn.y - 1, (q.y + reach) / bs.y);
+            const int z0 = std::max(0, lo(q.z - reach, bs.z)), z1 = std::min(v.bn.z - 1, (q.z + reach) / bs.z);
+            for (int bz = z0; bz <= z1; ++bz) for (int by = y0; by <= y1; ++by) for (int bx = x0; bx <= x1; ++bx)
+                need[static_cast<size_t>(bx) + static_cast<size_t>(v.bn.x) * (by + static_cast<size_t>(v.bn.y) * bz)] = 1;
+        }
+        long shortBy = 0;
+        for (size_t m = 0; m < v.mapCount; ++m) if (need[m] && v.map[m] == 0) ++shortBy;
+        return shortBy;
+    }
     /// Run `ticks` ticks of the same water in a dense and a sparse volume. `perTick(k, dense, sparse)` may feed bodies or
     /// sources before each step. `sparseOpts` lets the control freeze the residency.
     SceneResult runScene(const WaterGrid& start, int ticks, const std::function<void(int, WaterCoreGpu::Volume&, WaterCoreGpu::Volume&)>& perTick,
@@ -88,6 +111,7 @@ protected:
             }
             gpu.download(*dv, gd); gpu.download(*sv, gs);
             gpu.readPressure(*dv, pd); gpu.readPressure(*sv, ps);
+            r.cellShort += cellHaloShort(*sv, gs, prm.liquidThreshold);
             Diff d;
             compare("f", gd.fData(), gs.fData(), d.f, d); compare("u", gd.uData(), gs.uData(), d.u, d);
             compare("v", gd.vData(), gs.vData(), d.v, d); compare("w", gd.wData(), gs.wData(), d.w, d);
@@ -113,10 +137,10 @@ protected:
         return r;
     }
     void report(const char* name, const SceneResult& r) {
-        std::printf("  %-22s %ld ticks, differing %ld (first: %s); bricks (8x%dx8) stored %d..%d (cells %ld..%ld of %ld), allocated %ld freed %ld; halo short %ld; flux into absent %ld; sentinel %s; mass %.6f / %.6f\n",
+        std::printf("  %-22s %ld ticks, differing %ld (first: %s); bricks (8x%dx8) stored %d..%d (cells %ld..%ld of %ld), allocated %ld freed %ld; halo short %ld by cell (%ld by the face check, an upper bound); flux into absent %ld; sentinel %s; mass %.6f / %.6f\n",
                     name, r.ticksCompared, r.ticksDiffering, r.diff.first.empty() ? "-" : r.diff.first.c_str(), r.sparseHeight, r.minBricks, r.maxBricks,
                     64L * r.sparseHeight * r.minBricks, 64L * r.sparseHeight * r.maxBricks, 64L * r.denseHeight * r.denseBricks,
-                    r.allocated, r.freed, r.haloShort, r.flux, r.sentinel ? "DIRTY" : "clean", r.massDense, r.massSparse);
+                    r.allocated, r.freed, r.cellShort, r.haloShort, r.flux, r.sentinel ? "DIRTY" : "clean", r.massDense, r.massSparse);
         if (r.haloShort > 0)   // 26.23 diagnostic: what needed the short bricks
             std::printf("    halo short by cause: liquid that was liquid at the call's start %ld, liquid that was only film then %ld, film %ld\n",
                         WaterCoreGpu::s_haloShortLiquidOldForTest, WaterCoreGpu::s_haloShortLiquidNewForTest, WaterCoreGpu::s_haloShortFilmForTest);
@@ -128,7 +152,7 @@ protected:
         report(name, r);
         EXPECT_EQ(r.surfaceColumnsDiffering, 0) << name << ": the surface field differs, first at " << r.surfaceFirst;
         EXPECT_EQ(r.ticksDiffering, 0) << name << ": " << r.diff.first << " (f " << r.diff.f << ", u " << r.diff.u << ", v " << r.diff.v << ", w " << r.diff.w << ", p " << r.diff.p << " sites)";
-        EXPECT_EQ(r.haloShort, 0) << name << ": water came within 4 cells of a brick that was not stored (the halo is too thin)";
+        EXPECT_EQ(r.cellShort, 0) << name << ": water came within its reach (2 cells, liquid 4) of a brick that was not stored (the halo is too thin)";
         EXPECT_EQ(r.flux, 0) << name << ": water tried to move into a brick that was not stored";
         EXPECT_FALSE(r.sentinel) << name << ": something wrote into the absent brick";
         EXPECT_LT(64L * r.sparseHeight * r.minBricks, 64L * r.denseHeight * r.denseBricks) << name << ": the sparse run stored every cell - the test would prove nothing";
@@ -422,6 +446,7 @@ TEST_F(WaterBrickTest, AFrozenResidencyIsCaught) {
     const SceneResult r = runScene(g, 120, nullptr, BrickOptions{true, 0, true, 8}, false);
     report("frozen residency", r);
     EXPECT_GT(r.haloShort, 0) << "control: the halo check must see water next to bricks that are not stored";
+    EXPECT_GT(r.cellShort, 0) << "control: the cell-by-cell halo check must see it too";
     EXPECT_GT(r.ticksDiffering, 0) << "control: the frozen run must differ from the dense one";
     EXPECT_NEAR(r.massSparse, r.massDense, 1e-3) << "a closed face holds water - it never drops it";
 }
@@ -897,3 +922,4 @@ TEST_F(WaterBrickTest, DISABLED_DiagSweepsAfterTheGuess) {
     }
     WaterCoreGpu::s_stillWaterGuess = guessWas;
 }
+

@@ -130,7 +130,9 @@ owner 2026-10-17** (`current_floats_pond.mp4`: "the video looks really good").
 **26.27 (2026-10-17/18) BUILT, not signed off:** P3d-2 - the column water removed; tests, the creek bench and the dam & pond
 bench (Release: rise 5.42 mm/s, out/in 0.98, surge 1.95 Q, 1.44 ms GPU, 119 FPS) all as predicted. The first dam runs' miss was
 a DEBUG build, not the other application.
-**Next:** the owner's look; then the open items (26.27 lists them). The §23 slime experiment stays queued.
+**26.28 (2026-10-18) DONE:** the 4-tall halo failure was a false alarm in the check (two films in different cells read as one in a
+corner; the nearest water was 4 cells away, reach 2) - the test now checks by cell; integration 45 / 46 (the particle run-up).
+**Next:** the owner's look at 26.27; P4 (rest and the world record) on a small lake. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6560,6 +6562,7 @@ directory; from its own folder every GPU test fails to load a pipeline): **40 of
   wet (a false alarm - the check is conservative by design), or the column carry (21.2, over-full water moved UP its column,
   not bounded by velocity) lifted a film past the travel allowance. **Open, not fixed; the test stays red** (its bound is a
   guard, not edited). Next step when it is taken up: per-cell positions of the film at the short calls.
+  **Resolved by 26.28:** a false alarm - no water within reach by cell; the test now checks by cell.
 
 ### 26.22 P3c - the dam & pond bench as pond water: design, check, run (2026-10-17). Status: DONE; signed off by the owner 2026-10-17 ("video looks good")
 
@@ -6958,6 +6961,28 @@ springs and outfalls supplied by the test as `WaterCreekH0` does.
   repo-root `phyxel.exe`, which is a copy of whichever configuration was built last, and that was Debug. I blamed another
   application sharing the GPU; that was wrong. A third run with the GPU idle and Debug still gave 4.21 mm/s, 8.8 ms, 12 FPS. Check
   the root exe (`md5sum phyxel.exe build/editor/*/phyxel.exe`) before any wall-clock bench.
+
+### 26.28 The 4-tall halo failure - a false alarm in the check, not missing bricks (2026-10-18). Status: DONE (a test change; nothing for the owner to watch)
+
+**The question (26.21's correction note):** the 8 x 4 x 8 dam break reported 3 bricks "halo short" - film within 2 cells of a
+brick that was not stored - while every field matched the dense run bit for bit. Either the water really came near an unstored
+brick, or the check paired two films into a corner.
+
+**Measured** (a temporary diagnostic, the dam break at 4-tall, the downloaded cells at every call the check fired): the bricks
+named short were (2,3,0) and (2,3,1) at ticks 149 and 153. The nearest water to each, cell by cell, was **4 cells** away (needed:
+2); at the call's start, 5. The check had read the film brick's record as "-x 1, +y 1": one film cell 1 from the -x face, another
+1 from the +y face - two different cells, which the per-face minima put together in the (-x, +y) corner. **No water was ever
+within reach of an unstored brick.** The residency works from the same per-face record plus the travel, so it errs the same
+(safe) way: it stores too much, never too little.
+
+**The change (test only):** `WaterBrickTest` now checks the halo CELL BY CELL from the cells it already downloads every tick
+(`cellHaloShort`: every water cell marks the bricks within 2 cells, liquid within 4 - the engine's reaches) and asserts that
+count is 0. The engine's `haloShort` stays as it was, reported beside it and documented as an upper bound. The control still
+catches a wrong halo: the frozen residency is short by **1060** by cell (1080 by the face check).
+
+**Results:** `WaterBrickTest` 10 / 10; the 8 x 4 x 8 dam break 0 short by cell (3 by the face check). `phyxel_integration_tests`
+(Water / Debris / Gpu) **45 / 46**; the one failure is the GPU particle run-up (1.19 h0, pre-existing - 26.21's correction note).
+No engine code or shader changed (a header comment), so the unit suite and the benches are untouched.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
