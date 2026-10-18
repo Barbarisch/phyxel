@@ -14032,6 +14032,25 @@ void Application::registerWaterCommands() {
         for (const auto& a : waterCore->list()) list.push_back(avJson(a));
         r = {{"volumes", list}, {"total_mass", waterCore->totalMass()}, {"total_cells", waterCore->totalCells()}, {"realtime", waterCore->realtime()}};
     });
+    // 26.31 measurement: {capture: bool} copies every GPU call's unit map to the host; {id} returns it per unit COLUMN (8 x 8 cells,
+    // all heights): mass (cells), ke (sum f |v|^2 / 2, cells m^2/s^2), max_df (largest |f - fPrev| in the column, last tick)
+    reg.on("water_av_units", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        if (cmd.params.contains("capture")) Core::Water::WaterCoreManager::setUnitCapture(cmd.params.value("capture", false));
+        r = {{"capture", Core::Water::WaterCoreManager::unitCapture()}};
+        if (!cmd.params.contains("id")) return;
+        std::vector<glm::vec4> u; glm::ivec3 dims(0), off(0); float h = 0.0f;
+        if (!waterCore->unitMap(cmd.params.value("id", 0), u, dims, off, h)) { r["error"] = "no unit map (a bricked GPU volume, capture on, one call collected)"; return; }
+        std::vector<float> mass, ke, df;
+        mass.reserve(static_cast<size_t>(dims.x) * dims.z); ke.reserve(mass.capacity()); df.reserve(mass.capacity());
+        for (int z = 0; z < dims.z; ++z) for (int x = 0; x < dims.x; ++x) {
+            float m = 0.0f, k = 0.0f, d = 0.0f;
+            for (int y = 0; y < dims.y; ++y) { const glm::vec4& q = u[static_cast<size_t>(x) + static_cast<size_t>(dims.x) * (y + static_cast<size_t>(dims.y) * z)]; m += q.z; k += q.x; d = std::max(d, q.y); }
+            mass.push_back(m); ke.push_back(k); df.push_back(d);
+        }
+        r["nx"] = dims.x; r["ny"] = dims.y; r["nz"] = dims.z; r["cell_offset"] = {off.x, off.y, off.z}; r["h"] = h; r["unit_cells"] = 8;
+        r["mass"] = mass; r["ke"] = ke; r["max_df"] = df;
+    });
     reg.on("water_av_step", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         const int ticks = std::clamp(cmd.params.value("ticks", 1), 1, 6000);   // <= 100 s of sim: the game loop blocks for this call

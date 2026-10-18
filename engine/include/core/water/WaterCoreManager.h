@@ -171,6 +171,12 @@ public:
     /// Fill the volume from the chunk spans of its box (replace); returns m^3 seeded, < 0 without a reader.
     double seedFromSpans(int id);
     bool setAutoSleep(int id, bool on);
+    /// 26.31 measurement: the GPU volume's last unit map (WaterCoreGpu::s_unitCapture), per 8 x 2 x 8 cells: x = KE sum, y = max
+    /// |df| (last tick), z = mass (cells). dims = units (x, y, z); cellOffset = unit (0,0,0)'s first cell in grid cells. false =
+    /// no GPU volume, not bricked, or nothing captured yet.
+    bool unitMap(int id, std::vector<glm::vec4>& units, glm::ivec3& dims, glm::ivec3& cellOffset, float& h) const;
+    static void setUnitCapture(bool on);
+    static bool unitCapture();
     /// Realtime auto-sleep records since the last drain (the application logs them).
     std::vector<WriteBackRecord> drainAutoSleepRecords() { std::vector<WriteBackRecord> r; r.swap(m_autoSlept); return r; }
     std::vector<AvRecord> list() const;

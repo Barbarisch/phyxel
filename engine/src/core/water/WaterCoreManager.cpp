@@ -303,6 +303,18 @@ void WaterCoreManager::update(float dt) {
     m_updateCpu.sleep = ums(tSleep);
 }
 
+bool WaterCoreManager::unitMap(int id, std::vector<glm::vec4>& units, glm::ivec3& dims, glm::ivec3& cellOffset, float& h) const {
+    for (const auto& av : m_avs) {
+        if (av->id != id) continue;
+        if (!av->gpuVol || !m_gpu) return false;
+        h = av->h;
+        return m_gpu->readUnits(*av->gpuVol, units, dims, cellOffset);
+    }
+    return false;
+}
+void WaterCoreManager::setUnitCapture(bool on) { WaterCoreGpu::s_unitCapture = on; }
+bool WaterCoreManager::unitCapture() { return WaterCoreGpu::s_unitCapture; }
+
 bool WaterCoreManager::setAutoSleep(int id, bool on) {
     for (auto& av : m_avs) if (av->id == id) { av->autoSleep = on; return true; }
     return false;

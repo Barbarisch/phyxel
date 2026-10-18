@@ -142,7 +142,10 @@ surface pass 7.9 -> 0.35 ms facing and 0 ms away, its CPU frame 14.2 -> 4.75 ms;
 **26.30 step 3 BUILT (2026-10-18), not signed off:** the water's CPU measured part by part - a sleeping pond's water now 0.01 ms (was
 1.36 ms at 20 x 20 m; its frame 1.93 ms against 1.85 with no pond); a 32 x 28 m pond after a stone 15.9 -> 8.3 ms CPU frame (tiles
 kept within a flow tolerance, rebuilt over 8 threads, births and readback cut). Awake water's rest: the GPU solver 3.0 ms (needs (c)).
-**Next:** the owner's look at steps 1-3, then step 4 (distance, a look change) or (c). The §23 slime experiment stays queued.
+**26.31 (2026-10-18) DESIGN, measured:** (c) the partial wake - after a stone the moving share (+2 columns margin) is 10 % at
+0.1 s, 81-96 % at 4-10 s in a 32 x 28 m box (the waves fill it and reflect), ~20 % from 11 s; the whole body pays 3-5.7 ms
+throughout today. Design: brick columns frozen when quiet (the volume's own test), a wall to the awake ones, wakes local.
+**Next:** (c) step 1 - `WaterPartialWakeTest` red, then the frozen columns. The owner's look at 26.30 steps 1-3 still due. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7185,6 +7188,76 @@ switches (`tile_threads: 1`, `tile_flow_tolerance: 0`, `tile_measure` for the mo
   solver itself runs 3.0 ms awake on this pond - over the 2 ms budget on its own (26.29) - so (c), the partial wake, is the larger
   lever for awake water; these CPU parts are next after it, or with it.
 
+
+### 26.31 (c) The partial wake - a disturbance steps a patch, not the whole body (2026-10-18). Status: DESIGN, measured
+
+**The owner's call (2026-10-18):** "keep going with (c)" - of 26.29's needs, (c) after (a): a stone in a big pond must not wake
+(and pay for) the whole body.
+
+**Today** (mapped from the code): every pass of every step runs over every stored brick (cells over the slot list, columns over
+the column table); sleep is one flag per volume, decided on the host from three whole-volume sums (KE / mass < 1e-6 and max
+|df| < 1e-5 for 30 ticks); every wake (impulse, momentum record, deposit, moving solid, placement, occupancy patch, source)
+wakes it all. The GPU already sums the rest test per 8 x 2 x 8 unit, world-aligned (`wc_reduce` modes 0 / 6) - and never reads
+it back. An awake pond's cost is ~0.42 ms fixed + ~1.44 ms per million stored cells (26.16), the pressure sweeps a third of it.
+
+**Measured first** (`tools/water_wake_map.py` - `water_av_units` copies the per-unit partials to the host, opt-in; Release,
+idle GPU, 1 m deep, box-walled ponds; `wake_map_c_*.json`). Per brick COLUMN (8 x 8 cells, 0.89 m square, all its heights) the
+volume's own sleep test; "+2" = those columns grown by 2 columns - what would be stepped:
+
+| after a stone | 0.1 s | 1 s | 2 s | 4-10 s | 11 s | 15 s | whole volume today |
+|---|---|---|---|---|---|---|---|
+| 32 x 28 m, centre: +2 share | 10 % | 31 % | 49 % | 81-96 % | 24 % | 19 % | 3.0-3.6 ms, all 15 s |
+| 46 x 28 m, corner: +2 share | 4 % | 10 % | 59 % (a reflection) | 37-72 % | 47 % | 23 % | 4.1-5.7 ms, all 15 s |
+| 32 x 28 m, no stone | 0 | 0 | 0 | 0 | | | slept at ~1 s |
+
+- In a walled box the waves fill it in ~4 s (sqrt(g h) = 3.1 m/s at 1 m) and reflect: for ~6 s most of a 32 x 28 m pond is
+  moving and a partial wake saves little; it saves most of the first seconds and the long tail (moving 1-2 % of columns from
+  11 s on, the margin making it ~20 %), where today the whole body pays until it sleeps - and a deep one did not (26.29).
+  A lake larger than the waves' reach (they decay as they spread) is where it pays most; a box this size is near the worst.
+- The test is sensitive: at a tenth of the thresholds ~80-100 % moves throughout; at 10x, 0-30 %. The thresholds stay the
+  volume's own (a column sleeps by the test the whole body sleeps by today) - changing them is a separate, look-affecting call.
+- The still pond (no stone) moved nowhere and slept at ~1 s: 26.29 / 26.30's "deep placed water never sleeps" did not repeat
+  here - the placement race of 26.30, not water that keeps moving. (b) stays open for the race itself.
+
+**The design.**
+1. **The unit of activity is a brick column** (8 x 8 cells, all heights): a water column is awake or frozen whole - no frozen
+   layer under moving water. Per call the host reads the unit map (as `water_av_units`, always on for sparse volumes: ~12 bytes
+   a unit, ~160 KB a call at 46 x 28 m) and keeps a quiet count per column; a column is MOVING until it has passed the
+   volume's test (KE / mass < keWake, max |df| < maxDeltaFQuiet) for restTicks. AWAKE = moving grown by a margin of 2 columns
+   (1.8 m: a 3.1 m/s wave crosses it in ~0.6 s, ~35 calls - it wakes the columns ahead of it long before it reaches them).
+   The volume is asleep when no column is awake (the whole-body test becomes the per-column one, the same thresholds).
+2. **A frozen column is not stepped and is a wall to the awake ones.** Its threads return at once (a flag in the slot and
+   column tables - every kernel already starts with `threadSite` / `threadColumn`), its f, velocities and pressure stay as
+   they were. Between an awake and a frozen cell the face is closed: the matrix leaves the frozen neighbour out
+   (`wc_classify`'s blocked test - Neumann, as a wall), the sweeps read no pressure from it, the face velocity is held at 0
+   (as `enforceSolids`), transport carries nothing across (as a solid face). Mass is exact by construction: no flux crosses.
+   The error is what the frozen columns would have done - by the test, below keWake / maxDeltaFQuiet - and the wall sits two
+   columns beyond any moving water.
+3. **Wakes are local.** An impulse, a momentum record, a deposit, a source, a moving solid or a placement wakes the columns it
+   touches (grown by the margin) - not the body. A frozen column's own reads stay valid: the surface field, the reductions and
+   the residency's water record still run over every stored brick (the surface is drawn, the mass is the whole body's).
+4. **What does not change:** residency (which bricks are stored), the CPU reference (no partial wake - it is the parity
+   oracle), the look of any column that moves. **Cost:** frozen threads still launch and return (a first build; slot ordering
+   so frozen bricks are skipped by the dispatch is a later step if the measured share says so); the sweep count stays the
+   volume's (the active extent's count is a later, measured step).
+
+**Gate (red first):**
+- `WaterPartialWakeTest` (integration, GPU): a 20 x 10 m pond, 1 m deep, a stone at one end; the same run with the partial
+  wake ON and OFF (the control: the whole body). Predictions, written now: **mass equal** (relative 1e-6); **every column's
+  surface within 1 mm** of the whole-body run at every sampled tick; **frozen share > 50 %** of columns over the first 0.5 s
+  (the far end untouched); the far end's columns WAKE before the wave reaches them (their height never jumps by more than the
+  1 mm bound). Red first: the interface faces left OPEN (frozen neighbours read as liquid) - mass drifts / the bound breaks.
+- Live: `water_wake_map.py`-style run with solver ms against time, ON vs OFF, on 32 x 28 and 46 x 28 m; a pixel A/B of the
+  first seconds after a stone (ON vs OFF at one cadence, as `water_surface_ab.py`); then the owner watches a stone in a big
+  pond, both ways. The look must not change; the cost must follow the moving share.
+- `debris_settle_bench.py` is not affected (no `solver_*.comp`); floaters read `columnWater` from the field, unchanged.
+
+**Design keys.** Voxel look: unchanged (same cells, same surface). Chunks: the brick column is a COST structure; what is frozen
+follows the water's own motion (world-derived), never a chunk; the bound above is what the equality test measures (it is no
+longer bit-equality - the first cost structure that may change results, by at most the sleep test's own threshold). Generation:
+none. API: `water_av_units` (measurement); `water_av_create {partial_wake}` + a manager default; the record reports
+`awake_columns`, `frozen_columns`. Visual test: the gate above, the rig small (a 20 x 10 m pond fits in two chunks), the one
+variable the switch.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

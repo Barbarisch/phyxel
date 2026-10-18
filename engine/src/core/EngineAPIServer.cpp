@@ -2184,6 +2184,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_destroy",     waterEndpoint("water_av_destroy"));
     srv.Post("/api/debug/water_av_step",        waterEndpoint("water_av_step"));
     srv.Post("/api/debug/water_av_list",        waterEndpoint("water_av_list"));
+    srv.Post("/api/debug/water_av_units",       waterEndpoint("water_av_units"));   // 26.31 measurement: the unit map
     srv.Post("/api/debug/water_av_probe",       waterEndpoint("water_av_probe"));
     srv.Post("/api/debug/water_av_source",      waterEndpoint("water_av_source"));
     srv.Post("/api/debug/water_av_impulse",     waterEndpoint("water_av_impulse"));

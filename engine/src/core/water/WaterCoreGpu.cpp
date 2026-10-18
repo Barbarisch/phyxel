@@ -286,7 +286,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
-                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum})
+                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -843,6 +843,14 @@ bool WaterCoreGpu::readBirthRecords(Volume& vol, std::vector<float>& out) const 
     return true;
 }
 
+bool WaterCoreGpu::readUnits(const Volume& vol, std::vector<glm::vec4>& out, glm::ivec3& dims, glm::ivec3& cellOffset) const {
+    if (!vol.bricked || vol.hostUnits.empty()) return false;
+    out = vol.hostUnits;
+    dims = glm::ivec3(vol.bn.x, static_cast<int>(vol.nuy), vol.bn.z);
+    cellOffset = -vol.o;
+    return true;
+}
+
 bool WaterCoreGpu::readSurface(const Volume& vol, float* out) const {
     if (!vol.surfaceValid || !vol.staging.mapped) return false;
     // 26.11: every column starts dry - no water, ground at the host's solid top (a pure function of the grid: a bricked volume reads
@@ -1182,6 +1190,12 @@ void WaterCoreGpu::recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush pus
         // 26.17: per 128-cell unit, gathered into the world-aligned unit map - the same tree for every brick height
         const size_t units = static_cast<size_t>(vol.bn.x) * vol.nuy * static_cast<size_t>(vol.bn.z);
         push.mode = 6; push.param0 = static_cast<float>(vol.nuy); dispatch(cmd, *vol.pipes[Reduce], push, units, 256);
+        vol.unitPending = false;
+        if (s_unitCapture) {   // 26.31 measurement: the map before the fold overwrites its head
+            if (vol.unitCap.buf && vol.unitCap.bytes < units * 16) destroyBuffer(vol.unitCap);
+            if (!vol.unitCap.buf && !createBuffer(vol.unitCap, units * 16, true, nullptr)) vol.unitCap = Buffer{};
+            if (vol.unitCap.buf) { copy(cmd, vol.part2, vol.unitCap, units * 16); barrier(cmd); vol.unitPending = true; }
+        }
         fold(units, 0, 3);
     } else {
         fold(2 * ((cells + 255) / 256), 0, 2);   // 26.17: mode 0 writes a partial per 128-cell half
@@ -1489,6 +1503,12 @@ void WaterCoreGpu::finishCall(Volume& vol) {
             for (int k = 1; k < vol.tsCount; ++k) s_tsMs[vol.tsLabel[static_cast<size_t>(k)]] += static_cast<double>(q[static_cast<size_t>(k)] - q[static_cast<size_t>(k - 1)]) * pp.limits.timestampPeriod * 1e-6;
             ++s_tsCalls;
         }
+    }
+    if (vol.unitPending && vol.unitCap.mapped) {   // 26.31 measurement
+        const size_t units = static_cast<size_t>(vol.bn.x) * vol.nuy * static_cast<size_t>(vol.bn.z);
+        const auto* u = static_cast<const glm::vec4*>(vol.unitCap.mapped);
+        vol.hostUnits.assign(u, u + units);
+        vol.unitPending = false;
     }
     if (capture && vol.stageCap.buf) {   // 26.10 test hook: exact stage sums (double on the host)
         const auto* sc = static_cast<const float*>(vol.stageCap.mapped);

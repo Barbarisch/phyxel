@@ -165,6 +165,9 @@ public:
         float solidFrame = 0.0f;         ///< the frame (s) the uploaded bodies cover - q's T
         bool  hasSolids = false;         ///< the buffer holds anything nonzero
         Buffer stageCap;                 ///< 26.10 test hook: f after each stage of the last tick (host-visible, s_stageCapture)
+        Buffer unitCap;                  ///< 26.31 measurement: the unit map (per 8 x 2 x 8 unit: KE, max |df|, mass) of the last call (s_unitCapture)
+        bool unitPending = false;        ///<   the call in flight copies it
+        std::vector<glm::vec4> hostUnits; ///<   the collected call's map (bn.x x nuy x bn.z, x fastest), empty = none
         double stageLast = -1.0;         ///< 26.10: the last captured call's end sum (cells), -1 = none
         VkQueryPool tsPool = VK_NULL_HANDLE;   ///< 26.11 test hook: GPU timestamps per stage (s_kernelTiming)
         VkQueryPool callTs = VK_NULL_HANDLE;   ///< 26.15: two timestamps round every step call - the device's own time, live
@@ -245,6 +248,11 @@ public:
     enum TsLabel : int { TsStart = 0, TsResidency, TsSources, TsTransport, TsVelAdvect, TsCompaction, TsForces, TsClassify, TsSweeps,
                          TsVelUpdate, TsExtrapolate, TsSettle, TsSweepBirths, TsBrickRecord, TsReduce, TsSurfaceKernel, TsSurfaceCopy, TsReduceSurface, TsLabelCount };
     static inline bool s_kernelTiming = false;
+    /// 26.31 measurement: copy each call's unit map (the rest reductions' per-unit partials: x = sum f |v|^2 / 2, y = max |f - fPrev|
+    /// over the call's last tick, z = sum f; per 8 x 2 x 8 cells, world-aligned) to the host - what a partial wake would read.
+    static inline bool s_unitCapture = false;
+    /// The last collected unit map; dims = (bn.x, nuy, bn.z), cellOffset = the grid cell of unit (0, 0, 0)'s first cell (-o).
+    bool readUnits(const Volume& vol, std::vector<glm::vec4>& out, glm::ivec3& dims, glm::ivec3& cellOffset) const;
     static inline double s_tsMs[TsLabelCount] = {};
     static inline long s_tsCalls = 0;
     void setOmega(float w) { m_omega = w; }
