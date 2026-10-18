@@ -132,7 +132,9 @@ bench (Release: rise 5.42 mm/s, out/in 0.98, surge 1.95 Q, 1.44 ms GPU, 119 FPS)
 a DEBUG build, not the other application.
 **26.28 (2026-10-18) DONE:** the 4-tall halo failure was a false alarm in the check (two films in different cells read as one in a
 corner; the nearest water was 4 cells away, reach 2) - the test now checks by cell; integration 45 / 46 (the particle run-up).
-**Next:** the owner's look at 26.27; P4 (rest and the world record) on a small lake. The §23 slime experiment stays queued.
+**26.29 (2026-10-18) MEASURED:** the pond size ladder - one awake pond fits the 2 ms budget to ~10 x 10 m, a sleeping one to ~15 x
+15 m; the drawn surface (~8.8 us per m^2, paid asleep and off-screen) is the larger cost; deep ponds never fall asleep.
+**Next:** the owner's call on the order - the surface pass's cost first (it limits every body), then sleep at depth, then P4. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6983,6 +6985,67 @@ catches a wrong halo: the frozen residency is short by **1060** by cell (1080 by
 **Results:** `WaterBrickTest` 10 / 10; the 8 x 4 x 8 dam break 0 short by cell (3 by the face check). `phyxel_integration_tests`
 (Water / Debris / Gpu) **45 / 46**; the one failure is the GPU particle run-up (1.19 h0, pre-existing - 26.21's correction note).
 No engine code or shader changed (a header comment), so the unit suite and the benches are untouched.
+
+### 26.29 The pond size ladder - where one pond stops fitting the 2 ms budget (2026-10-18). Status: MEASURED
+
+**The question (owner):** "at what point a pond becomes a lake and more importantly when a pond becomes too big to fit into the
+allotted frame budget" - then "we need to be sure. lets take some measurements." My estimate from the 26.11 cost law (the
+solver only) was ~26 m (0.3 m deep), ~20 m (1 m), ~16 m (2 m) on a side. It counted the wrong cost.
+
+**The rig:** `tools/water_pond_ladder.py` on WaterBench_Creek, **Release** (`md5sum` of the root exe = `build/editor/Release`),
+the GPU otherwise idle (checked with `nvidia-smi` before the run; a first smoke run with another game holding the GPU at ~40 %
+was discarded). One rectangular pond on the slab (z 0-27, clear of the creek), floor = the grass top, walls = the volume's box
+faces (no shore - differs from a real pond); one sparse GPU volume at 1/9 m, pond friction, the default 8 x 2 x 8 bricks and
+sweeps, auto-sleep off. Per rung: the water placed flat (REST; it sleeps within 0.5-1.2 s when it sleeps at all), then a
+stone-sized impulse at the centre (STONE). Read: the solver's call (`gpu_device_ms`), the GPU's own pass timings
+(`/api/debug/gpu_timing`: the whole frame and the `WaterSurface` pass), substeps, bricks. Control (no pond): frame 2.96 ms,
+349 FPS. Evidence: `docs/evidence/water_core_h1/pond_ladder.json`.
+
+| depth | pond | bricks | surface pass, ms | solver after a stone, median / max ms | surface + solver | FPS rest / stone |
+|---|---|---|---|---|---|---|
+| 0.3 m | 5 x 5 | 180 | 0.27 | 0.45 / 0.54 | 0.72 | 312 / 267 |
+| 0.3 m | 10 x 10 | 720 | 1.01 | 0.74 / 0.99 | 1.75 | 247 / 211 |
+| 0.3 m | 15 x 15 | 1,530 | 2.13 | 0.90 / 1.21 | 3.03 | 190 / 166 |
+| 0.3 m | 20 x 20 | 2,645 | 3.64 | 1.26 / 2.09 | 4.90 | 136 / 117 |
+| 0.3 m | 25 x 25 | 4,205 | 5.57 | 1.82 / 2.76 | 7.39 | 96 / 83 |
+| 0.3 m | 32 x 28 | 5,920 | 7.92 | 2.08 / 3.10 | 10.0 | 73 / 64 |
+| 0.3 m | 46 x 28 | 8,320 | 11.24 | 3.04 / 3.73 | 14.3 | 53 / 45 |
+| 1 m | 5 x 5 | 294 | 0.27 | 0.72 / 1.13 | 0.99 | 296 / 250 |
+| 1 m | 10 x 10 | 1,296 | 1.01 | 0.87 / 1.39 | 1.88 | 242 / 194 |
+| 1 m | 15 x 15 | 2,754 | 2.12 | 1.22 / 1.79 | 3.34 | 185 / 152 |
+| 1 m | 20 x 20 | 4,761 | 3.59 | 1.63 / 2.46 | 5.22 | 136 / 112 |
+| 1 m | 25 x 25 | 7,569 | 5.59 | 2.24 / 3.46 | 7.83 | 96 / 83 |
+| 1 m | 32 x 28 | 10,656 | 7.88 | 3.35 / 4.65 | 11.2 | 73 / 59 |
+| 1 m | 46 x 28 | 14,976 | 11.41 | 4.65 / 8.11 (2 substeps) | 16.1 | 43 / 42 |
+| 2 m | 5 x 5 | 504 | 0.28 | 0.75 / 1.15 | 1.03 | 312 / 236 |
+| 2 m | 10 x 10 | 1,874 | 1.03 | 1.11 / 1.62 | 2.14 | 232 / 192 |
+| 2 m | 15 x 15 | 4,284 | 2.22 | 1.62 / 2.88 | 3.84 | 144 / 142 |
+| 2 m | 20 x 20 | 7,406 | 3.73 | 2.29 / 3.39 | 6.02 | 104 / 101 |
+| 2 m | 25 x 25 | 11,774 | 5.69 | 3.68 / 5.45 | 9.37 | 79 / 76 |
+| 2 m | 32 x 28 | 16,576 | 8.04 | 5.20 / 9.12 (2 substeps) | 13.2 | 59 / 58 |
+| 2 m | 46 x 28 | - | refused: 2.8 M cells, over the 2 M volume cap | | | |
+
+**What it says:**
+1. **The drawn surface is the larger cost, and it is paid asleep.** The `WaterSurface` pass grows with the pond's AREA,
+   ~**8.8 us per m^2** (~0.11 us per 1/9 m column), the same at every depth, the same asleep or awake, and (smoke run, 20 x 20)
+   ~90 % of it with the camera turned away. Alone it passes 2 ms at ~**15 x 15 m**. A sleeping 1 km^2 lake would cost ~9 s
+   of GPU a frame. Whatever it does per column, it does for every column of the pond, seen or not.
+2. **The solver, awake, passes 2 ms** at ~30 m (0.3 m deep), ~23 m (1 m), ~16 m (2 m) - close to the estimate; it grows with
+   the stored cells (depth) and only for water that is awake.
+3. **Both together: the 2 ms budget holds one awake pond of ~10 x 10 m** (0.3-1 m deep: 1.75-1.88 ms; 2 m deep: 2.14). A
+   sleeping pond fits to ~15 x 15 m - limited by the surface alone.
+4. **Deep water does not fall asleep.** Placed flat and still, the 2 m ponds from 15 x 15 m up and the 1 m 46 x 28 m pond were
+   still awake 30 s later; after a stone, the 1 m ponds from 15 x 15 m and every 2 m pond from 15 x 15 m were still awake 30 s
+   later (the 0.3 m ponds re-slept in 12-14 s). In a box with vertical walls the waves reflect; a sloped shore would damp them.
+   That part is a rig difference - but "never sleeps" at rest is not.
+5. **One volume holds at most ~900 m^2 at 2 m depth** (the 2 M-cell box cap, a CPU-reference ceiling that the GPU path still
+   applies).
+6. The smoke run's "~1.8 ms more outside the named passes" (26.29 first look) was the other game's: on an idle GPU the frame
+   grows by the surface pass and nothing else (the solver runs in its own submission).
+
+**So, pond vs lake for this engine:** today ~10 m across awake and ~15 m asleep. Lakes need, in order: (a) the surface pass
+costed by what is seen and by distance, not by area; (b) water that sleeps when it is still, at any depth; (c) a disturbance
+that wakes a patch, not the whole body (P4); (d) volumes beyond the 2 M-cell box cap.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
