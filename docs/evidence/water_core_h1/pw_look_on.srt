@@ -1,0 +1,207 @@
+1
+00:00:01,560 --> 00:00:01,840
+PARTIAL WAKE ON  |  solver 0.00 ms  |  stepping 0 of 1664 columns
+
+2
+00:00:01,840 --> 00:00:02,100
+PARTIAL WAKE ON  |  solver 0.00 ms  |  stepping 0 of 1664 columns
+
+3
+00:00:02,100 --> 00:00:02,400
+PARTIAL WAKE ON  |  solver 4.35 ms  |  stepping 1664 of 1664 columns
+
+4
+00:00:02,400 --> 00:00:02,730
+PARTIAL WAKE ON  |  solver 2.00 ms  |  stepping 100 of 1664 columns
+
+5
+00:00:02,730 --> 00:00:02,990
+PARTIAL WAKE ON  |  solver 4.41 ms  |  stepping 214 of 1664 columns
+
+6
+00:00:02,990 --> 00:00:03,280
+PARTIAL WAKE ON  |  solver 3.99 ms  |  stepping 262 of 1664 columns
+
+7
+00:00:03,280 --> 00:00:03,550
+PARTIAL WAKE ON  |  solver 5.23 ms  |  stepping 293 of 1664 columns
+
+8
+00:00:03,550 --> 00:00:03,870
+PARTIAL WAKE ON  |  solver 3.32 ms  |  stepping 330 of 1664 columns
+
+9
+00:00:03,870 --> 00:00:04,160
+PARTIAL WAKE ON  |  solver 8.48 ms  |  stepping 362 of 1664 columns
+
+10
+00:00:04,160 --> 00:00:04,440
+PARTIAL WAKE ON  |  solver 5.03 ms  |  stepping 421 of 1664 columns
+
+11
+00:00:04,440 --> 00:00:04,720
+PARTIAL WAKE ON  |  solver 3.75 ms  |  stepping 449 of 1664 columns
+
+12
+00:00:04,720 --> 00:00:05,050
+PARTIAL WAKE ON  |  solver 6.91 ms  |  stepping 519 of 1664 columns
+
+13
+00:00:05,050 --> 00:00:05,350
+PARTIAL WAKE ON  |  solver 4.13 ms  |  stepping 544 of 1664 columns
+
+14
+00:00:05,350 --> 00:00:05,630
+PARTIAL WAKE ON  |  solver 4.51 ms  |  stepping 605 of 1664 columns
+
+15
+00:00:05,630 --> 00:00:05,930
+PARTIAL WAKE ON  |  solver 5.88 ms  |  stepping 644 of 1664 columns
+
+16
+00:00:05,930 --> 00:00:06,260
+PARTIAL WAKE ON  |  solver 3.20 ms  |  stepping 685 of 1664 columns
+
+17
+00:00:06,260 --> 00:00:06,520
+PARTIAL WAKE ON  |  solver 3.29 ms  |  stepping 734 of 1664 columns
+
+18
+00:00:06,520 --> 00:00:06,810
+PARTIAL WAKE ON  |  solver 3.46 ms  |  stepping 841 of 1664 columns
+
+19
+00:00:06,810 --> 00:00:07,090
+PARTIAL WAKE ON  |  solver 3.47 ms  |  stepping 848 of 1664 columns
+
+20
+00:00:07,090 --> 00:00:07,410
+PARTIAL WAKE ON  |  solver 5.33 ms  |  stepping 901 of 1664 columns
+
+21
+00:00:07,410 --> 00:00:07,690
+PARTIAL WAKE ON  |  solver 2.84 ms  |  stepping 921 of 1664 columns
+
+22
+00:00:07,690 --> 00:00:07,940
+PARTIAL WAKE ON  |  solver 4.35 ms  |  stepping 1012 of 1664 columns
+
+23
+00:00:07,940 --> 00:00:08,210
+PARTIAL WAKE ON  |  solver 2.96 ms  |  stepping 1024 of 1664 columns
+
+24
+00:00:08,210 --> 00:00:08,520
+PARTIAL WAKE ON  |  solver 2.86 ms  |  stepping 1062 of 1664 columns
+
+25
+00:00:08,520 --> 00:00:08,790
+PARTIAL WAKE ON  |  solver 3.05 ms  |  stepping 1102 of 1664 columns
+
+26
+00:00:08,790 --> 00:00:09,080
+PARTIAL WAKE ON  |  solver 4.22 ms  |  stepping 1160 of 1664 columns
+
+27
+00:00:09,080 --> 00:00:09,350
+PARTIAL WAKE ON  |  solver 3.14 ms  |  stepping 1161 of 1664 columns
+
+28
+00:00:09,350 --> 00:00:09,670
+PARTIAL WAKE ON  |  solver 3.21 ms  |  stepping 1190 of 1664 columns
+
+29
+00:00:09,670 --> 00:00:09,940
+PARTIAL WAKE ON  |  solver 3.77 ms  |  stepping 1246 of 1664 columns
+
+30
+00:00:09,940 --> 00:00:10,230
+PARTIAL WAKE ON  |  solver 3.38 ms  |  stepping 1300 of 1664 columns
+
+31
+00:00:10,230 --> 00:00:10,490
+PARTIAL WAKE ON  |  solver 3.39 ms  |  stepping 1303 of 1664 columns
+
+32
+00:00:10,490 --> 00:00:10,820
+PARTIAL WAKE ON  |  solver 3.43 ms  |  stepping 1330 of 1664 columns
+
+33
+00:00:10,820 --> 00:00:11,090
+PARTIAL WAKE ON  |  solver 3.57 ms  |  stepping 1386 of 1664 columns
+
+34
+00:00:11,090 --> 00:00:11,350
+PARTIAL WAKE ON  |  solver 3.61 ms  |  stepping 1439 of 1664 columns
+
+35
+00:00:11,350 --> 00:00:11,620
+PARTIAL WAKE ON  |  solver 3.61 ms  |  stepping 1447 of 1664 columns
+
+36
+00:00:11,620 --> 00:00:11,940
+PARTIAL WAKE ON  |  solver 4.41 ms  |  stepping 1465 of 1664 columns
+
+37
+00:00:11,940 --> 00:00:12,200
+PARTIAL WAKE ON  |  solver 3.76 ms  |  stepping 1505 of 1664 columns
+
+38
+00:00:12,200 --> 00:00:12,480
+PARTIAL WAKE ON  |  solver 4.96 ms  |  stepping 1571 of 1664 columns
+
+39
+00:00:12,480 --> 00:00:12,740
+PARTIAL WAKE ON  |  solver 3.87 ms  |  stepping 1574 of 1664 columns
+
+40
+00:00:12,740 --> 00:00:13,070
+PARTIAL WAKE ON  |  solver 3.89 ms  |  stepping 1567 of 1664 columns
+
+41
+00:00:13,070 --> 00:00:13,360
+PARTIAL WAKE ON  |  solver 5.17 ms  |  stepping 1580 of 1664 columns
+
+42
+00:00:13,360 --> 00:00:13,620
+PARTIAL WAKE ON  |  solver 5.62 ms  |  stepping 1639 of 1664 columns
+
+43
+00:00:13,620 --> 00:00:13,890
+PARTIAL WAKE ON  |  solver 5.21 ms  |  stepping 1636 of 1664 columns
+
+44
+00:00:13,890 --> 00:00:14,210
+PARTIAL WAKE ON  |  solver 5.10 ms  |  stepping 1634 of 1664 columns
+
+45
+00:00:14,210 --> 00:00:14,490
+PARTIAL WAKE ON  |  solver 5.57 ms  |  stepping 1651 of 1664 columns
+
+46
+00:00:14,490 --> 00:00:14,750
+PARTIAL WAKE ON  |  solver 5.15 ms  |  stepping 1662 of 1664 columns
+
+47
+00:00:14,750 --> 00:00:15,010
+PARTIAL WAKE ON  |  solver 4.55 ms  |  stepping 1660 of 1664 columns
+
+48
+00:00:15,010 --> 00:00:15,320
+PARTIAL WAKE ON  |  solver 5.26 ms  |  stepping 1661 of 1664 columns
+
+49
+00:00:15,320 --> 00:00:15,590
+PARTIAL WAKE ON  |  solver 4.53 ms  |  stepping 1659 of 1664 columns
+
+50
+00:00:15,590 --> 00:00:15,850
+PARTIAL WAKE ON  |  solver 5.10 ms  |  stepping 1664 of 1664 columns
+
+51
+00:00:15,850 --> 00:00:16,150
+PARTIAL WAKE ON  |  solver 5.12 ms  |  stepping 1664 of 1664 columns
+
+52
+00:00:16,150 --> 00:00:16,400
+PARTIAL WAKE ON  |  solver 4.47 ms  |  stepping 1664 of 1664 columns

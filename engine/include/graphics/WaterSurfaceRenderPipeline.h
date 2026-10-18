@@ -22,6 +22,20 @@ class Camera;
 // previous frame's command buffer is still reading.
 class WaterSurfaceRenderPipeline {
 public:
+    // 26.30 the tile store: two device-local arenas, a first-fit free list each (offset -> bytes), frees held back until no frame
+    // in flight can still read them. Every offset is a multiple of `align`: a tile is drawn from vertexOffset = offset / the
+    // vertex size, so the VERTEX arena's alignment must be a whole number of vertices (kVertexArenaAlign) - at 256 a wavy tile
+    // (any vertex count) landed mid-vertex and drew garbage: holes in the pond after a stone (found in the owner's video,
+    // 2026-10-18; a resting tile, 5,184 vertices, kept every offset a multiple of 48 by chance - the still-pond A/B passed).
+    struct Arena {
+        VkBuffer buffer = VK_NULL_HANDLE; VkDeviceMemory memory = VK_NULL_HANDLE; VkDeviceSize size = 0, used = 0;
+        VkDeviceSize align = 256;
+        std::map<VkDeviceSize, VkDeviceSize> freeList;
+        bool alloc(VkDeviceSize bytes, VkDeviceSize& off);
+        void release(VkDeviceSize off, VkDeviceSize bytes);
+    };
+    static constexpr VkDeviceSize kVertexArenaAlign = 768;   // lcm(256, sizeof(WaterSurfaceVertex) = 48)
+
     WaterSurfaceRenderPipeline();
     ~WaterSurfaceRenderPipeline();
 
@@ -108,14 +122,6 @@ private:
     void pushLook(VkCommandBuffer commandBuffer, const Camera& camera, const glm::mat4& projectionMatrix, VkExtent2D screenExtent, const Core::Water::WaterLookPacked* look);
     void writeRipples(uint32_t slot);
 
-    // 26.30 the tile store: two device-local arenas, a first-fit free list each (offset -> bytes), frees held back until no frame
-    // in flight can still read them
-    struct Arena {
-        VkBuffer buffer = VK_NULL_HANDLE; VkDeviceMemory memory = VK_NULL_HANDLE; VkDeviceSize size = 0, used = 0;
-        std::map<VkDeviceSize, VkDeviceSize> freeList;
-        bool alloc(VkDeviceSize bytes, VkDeviceSize& off);
-        void release(VkDeviceSize off, VkDeviceSize bytes);
-    };
     struct GpuTile { VkDeviceSize vOff = 0, vBytes = 0, iOff = 0, iBytes = 0; uint32_t indexCount = 0; uint64_t generation = 0; };
     struct PendingFree { uint64_t frame; VkDeviceSize vOff, vBytes, iOff, iBytes; };
     Arena m_vArena, m_iArena;

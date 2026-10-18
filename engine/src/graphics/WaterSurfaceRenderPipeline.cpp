@@ -25,6 +25,8 @@ struct WaterSurfacePush {
     glm::vec4 look1;   // G3: turbidity (< 0 unset), roughness (< 0 unset)
 };
 static_assert(sizeof(WaterSurfacePush) == 128, "push block must stay within the 128-byte guarantee");
+static_assert(WaterSurfaceRenderPipeline::kVertexArenaAlign % sizeof(Core::Water::WaterSurfaceVertex) == 0 && WaterSurfaceRenderPipeline::kVertexArenaAlign % 256 == 0,
+              "26.30: a vertex-arena offset must be a whole number of vertices (vertexOffset = offset / vertex size)");
 
 std::vector<char> readFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
@@ -278,7 +280,7 @@ void WaterSurfaceRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescrip
 // ---- 26.30 the tile store ----------------------------------------------------------------------------------------------------
 
 bool WaterSurfaceRenderPipeline::Arena::alloc(VkDeviceSize bytes, VkDeviceSize& off) {
-    bytes = (bytes + 255) & ~VkDeviceSize(255);
+    bytes = (bytes + align - 1) / align * align;   // every block a multiple of align, so every offset is (the free list starts at 0)
     for (auto it = freeList.begin(); it != freeList.end(); ++it) {
         if (it->second < bytes) continue;
         off = it->first;
@@ -292,7 +294,7 @@ bool WaterSurfaceRenderPipeline::Arena::alloc(VkDeviceSize bytes, VkDeviceSize& 
 }
 
 void WaterSurfaceRenderPipeline::Arena::release(VkDeviceSize off, VkDeviceSize bytes) {
-    bytes = (bytes + 255) & ~VkDeviceSize(255);
+    bytes = (bytes + align - 1) / align * align;
     used -= bytes;
     auto it = freeList.emplace(off, bytes).first;
     auto next = std::next(it);
@@ -315,7 +317,7 @@ void WaterSurfaceRenderPipeline::createTileStore() {
     };
     make(m_vArena.buffer, m_vArena.memory, kArenaVertexBytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     make(m_iArena.buffer, m_iArena.memory, kArenaIndexBytes, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    m_vArena.size = kArenaVertexBytes; m_vArena.freeList = {{0, kArenaVertexBytes}};
+    m_vArena.size = kArenaVertexBytes; m_vArena.align = kVertexArenaAlign; m_vArena.freeList = {{0, kArenaVertexBytes / kVertexArenaAlign * kVertexArenaAlign}};
     m_iArena.size = kArenaIndexBytes;  m_iArena.freeList = {{0, kArenaIndexBytes}};
     for (uint32_t i = 0; i < kFrames; ++i) {
         make(m_staging[i], m_stagingMemory[i], kStagingBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);

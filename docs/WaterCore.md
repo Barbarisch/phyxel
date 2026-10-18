@@ -7341,6 +7341,22 @@ together above the awake ones) instead of a frozen test per neighbour per sweep.
   high (a tenth of a millimetre a second is "moving"). Next levers, measured first: the surface over the awake columns only
   (a frozen column's field is unchanged), the sweep count from the awake extent, the test's thresholds (a look decision).
 
+**The owner's video (2026-10-18) - and two defects it caught.** `tools/water_partial_wake_video.py`: a 1 m stone
+(`spawn_gpu_particle`) dropped into the 46 x 28 m pond twice, the partial wake OFF and ON, recorded from the window and put side
+by side with the solver's live time and the awake columns burned in (`pw_look_side_by_side.mp4`, `pw_look.json`). The rig's
+look only: a sand bed under the pond (grass blades showed through the water) and a stone kerb round it, re-laid every run.
+- **A real stone woke the whole pond every frame.** A moving solid's upload (`setSolidsBox`) called the whole-volume wake: with
+  the stone in the water all 1,664 columns stayed awake for the whole take (the impulse "stone" of the measurements never
+  showed it). Now its box's columns wake (`wakeBox`; the box holds the bodies and the cells they left).
+- **26.30 (steps 1-2): tile-shaped HOLES in the drawn water after a stone** (`hole_ab_2.5.png`: tiles left, the whole-mesh path
+  right - same water, the probes read 17.0 m everywhere). The tile arenas handed out offsets in 256-byte steps but drew each tile
+  from vertexOffset = offset / 48 (the vertex size): a wavy tile's arbitrary vertex count put the next tile mid-vertex and it
+  drew garbage. A RESTING tile has 5,184 vertices - every offset a multiple of 48 by chance - so 26.30's still-pond A/B passed.
+  The vertex arena now aligns to 768 bytes (lcm(256, 48); a `static_assert`); red first:
+  `WaterSurfaceTileTest.EveryVertexArenaOffsetIsAWholeVertex` - 0 of 1,915 offsets mid-vertex, the 256-byte control 1,294 of 1,911.
+- The final take (both fixes): OFF 4.1-5.8 ms after the impact (20.6 ms on it), ON 2.8-4.4 ms while the awake columns grow 262
+  -> 1,580, the impact itself 4.0 ms; no holes (`pw_look_frame3.png`, `pw_look_frame11.png`).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

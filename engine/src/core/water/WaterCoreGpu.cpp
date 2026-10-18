@@ -982,7 +982,11 @@ void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const 
     vol.hasSolids = any;
     vol.solidRatesPending = any;
     vol.solidFrame = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
-    wakeAll(vol);           // a body is there (or just left): the water must move
+    // a body is there (or just left): the water must move. 26.31: with the partial wake, the box's columns (it holds the bodies and
+    // the cells they left - the caller's contract); a stone in the pond woke all of it every frame it moved (measured: 1,664 of
+    // 1,664 columns awake for the whole 15 s of the owner's video take)
+    if (vol.partialWake) { if (!emptyBox) wakeBox(vol, lo, hi); else { vol.asleep = false; vol.quietTicks = 0; } }
+    else wakeAll(vol);
 }
 
 void WaterCoreGpu::setDeposits(Volume& vol, const std::vector<float>& cellFractions) {

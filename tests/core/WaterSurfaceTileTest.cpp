@@ -174,3 +174,40 @@ TEST(WaterSurfaceTileTest, ARemovedFieldRemovesItsTiles) {
 }
 
 }  // namespace Phyxel::Core::Water
+
+// 26.30 (found in the owner's video, 2026-10-18): the tile arenas drew each tile from vertexOffset = offset / sizeof(vertex), but
+// handed out offsets in 256-byte steps - a wavy tile's vertex count is arbitrary, so its offset fell mid-vertex and the tile drew
+// garbage (tile-shaped holes after a stone; the whole-mesh path drew the same water whole). Every vertex-arena offset must be a
+// whole number of vertices, through allocations and frees of any size. Control: the old 256-byte arena must fail it.
+#include "graphics/WaterSurfaceRenderPipeline.h"
+namespace Phyxel::Core::Water {
+TEST(WaterSurfaceTileTest, EveryVertexArenaOffsetIsAWholeVertex) {
+    using Arena = Phyxel::Graphics::WaterSurfaceRenderPipeline::Arena;
+    const VkDeviceSize vsz = sizeof(WaterSurfaceVertex);
+    auto run = [&](VkDeviceSize align) {
+        Arena a; a.align = align; a.size = 64ull << 20; a.freeList = {{0, a.size / align * align}};
+        uint32_t h = 7u; long bad = 0, allocs = 0;
+        std::vector<std::pair<VkDeviceSize, VkDeviceSize>> live;
+        for (int k = 0; k < 4000; ++k) {
+            h = h * 1664525u + 1013904223u;
+            if (!live.empty() && (h >> 28) < 6) {   // free one (as tiles rebuild)
+                const size_t i = (h >> 8) % live.size();
+                a.release(live[i].first, live[i].second); live.erase(live.begin() + static_cast<long>(i));
+                continue;
+            }
+            const VkDeviceSize bytes = vsz * (1 + (h >> 12) % 9000);   // any vertex count, as a wavy tile's
+            VkDeviceSize off = 0;
+            if (!a.alloc(bytes, off)) continue;
+            ++allocs; live.push_back({off, bytes});
+            if (off % vsz != 0) ++bad;
+        }
+        return std::make_pair(bad, allocs);
+    };
+    const auto fixed = run(Phyxel::Graphics::WaterSurfaceRenderPipeline::kVertexArenaAlign);
+    const auto old = run(256);
+    std::printf("  offsets mid-vertex: %ld of %ld (aligned to %llu), control (256): %ld of %ld\n", fixed.first, fixed.second,
+                static_cast<unsigned long long>(Phyxel::Graphics::WaterSurfaceRenderPipeline::kVertexArenaAlign), old.first, old.second);
+    EXPECT_EQ(fixed.first, 0) << "every tile's vertices start on a whole vertex";
+    EXPECT_GT(old.first, 0) << "control: the 256-byte arena put tiles mid-vertex (the test sees the defect)";
+}
+}  // namespace Phyxel::Core::Water
