@@ -127,9 +127,10 @@ damping braked them toward the ground and the debris -> water exchange handed th
 moves in it: 4 floats in the creek, 124 -> 7 FPS. Pre-existing.
 26.26 BUILT: the exchange on the device - 4 floats 7 -> 123 FPS, floats at 1.002 of the water. **26.25 + 26.26 signed off by the
 owner 2026-10-17** (`current_floats_pond.mp4`: "the video looks really good").
-**26.27 (2026-10-17) BUILT, not signed off:** P3d-2 - the column water removed; tests and the creek bench as predicted; the dam
-& pond bench to re-measure on an idle GPU (the first runs shared it with another application).
-**Next:** the dam & pond bench re-run; then the owner's look. The §23 slime experiment stays queued.
+**26.27 (2026-10-17/18) BUILT, not signed off:** P3d-2 - the column water removed; tests, the creek bench and the dam & pond
+bench (Release: rise 5.42 mm/s, out/in 0.98, surge 1.95 Q, 1.44 ms GPU, 119 FPS) all as predicted. The first dam runs' miss was
+a DEBUG build, not the other application.
+**Next:** the owner's look; then the open items (26.27 lists them). The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -6920,7 +6921,7 @@ listed after them was never made - an access violation in the first test run; no
 All the predictions held. **Status: BUILT, not signed off** (with 26.25: floats ride the pond current, and moving debris in a
 GPU pond costs ~4 FPS, not ~115 ms a frame).
 
-### 26.27 P3d-2 - the column water removed (2026-10-17). Status: BUILT, not signed off (the dam & pond bench not yet re-measured)
+### 26.27 P3d-2 - the column water removed (2026-10-17). Status: BUILT, not signed off
 
 **Removed** (as designed in 26.24): `ColumnWater.{h,cpp}`; the regions and windows in `WaterCoreManager` (the column step and
 its solids refresh, the SC load, the cosmetic crown and its droplet branch, the region ripple forcing, the region surface fields,
@@ -6940,11 +6941,23 @@ springs and outfalls supplied by the test as `WaterCreekH0` does.
   (364) - unexplained, stated.
 - `phyxel_integration_tests` (Water / Debris / Gpu): **44 / 46**, the two known failures (the particle run-up, the 4-tall halo).
 - The creek bench at q 0.2, 300 s: water depth by mass **0.186 m** (prediction 0.186, 26.21), the highest sub-column 0.190.
-- The dam & pond bench: **not yet re-measured.** Two runs gave rise 4.06 / 4.08 mm/s, no steady spill in 600 s, GPU 4.5-4.9 ms,
-  11 FPS (26.23: 5.42 mm/s, 1.46 ms, 106 FPS). Found during them: another 3-D application was running on the same GPU (36 %
-  busy). The bench measures against the wall clock, so at 11 FPS the water's clock runs at ~0.74 of it (the inflow arriving
-  0.148 of 0.2 m^3/s) - most of the miss. Nothing removed runs without a column region, but that is an argument, not a
-  measurement: the bench is re-run on an idle GPU before this is called done.
+- The dam & pond bench (2026-10-18, **Release**, idle GPU, `python tools/water_dam_pond.py --build` then `--run --q 0.2`;
+  `docs/evidence/water_core_h1/dam_pond_pondwater.json`), against 26.23:
+
+  | | 26.23 | 26.27 |
+  |---|---|---|
+  | pond rise, mm/s (prediction 5.56) | 5.42 | **5.42** |
+  | out / in, last 30 s | 0.98 | **0.98** |
+  | pool level max | 15.824 | **15.824** |
+  | surge after the dam breaks, x Q | 1.96 | **1.95** |
+  | ledger max abs, m^3 | - | **1.5e-5** |
+  | GPU device ms, median steady spill | 1.46 | **1.44** |
+  | FPS median | 106 | **119** |
+
+  **Correction:** the first two runs (rise 4.06 / 4.08, 4.5-4.9 ms, 11 FPS) ran the **Debug** build: `phyxel up` starts the
+  repo-root `phyxel.exe`, which is a copy of whichever configuration was built last, and that was Debug. I blamed another
+  application sharing the GPU; that was wrong. A third run with the GPU idle and Debug still gave 4.21 mm/s, 8.8 ms, 12 FPS. Check
+  the root exe (`md5sum phyxel.exe build/editor/*/phyxel.exe`) before any wall-clock bench.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
