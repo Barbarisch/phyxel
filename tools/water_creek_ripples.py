@@ -4,9 +4,10 @@ creek running at steady flow - `python tools/water_creek_bench.py --run` first a
 For each forcing value: set `water_ripples {flow_forcing}`, let the field reach its steady state (the layer's film damping
 time is ~20 s), read the ripple stats five times (peak height, the facet-slope histogram the shader draws, the step's cost)
 and record a clip from the bench camera. Forcing 0 is the control: the creek's ripple layer must stay asleep (exact zero).
+The ripple layer is the pond volume's (the only water model since WaterCore 26.27; --pond is accepted and does nothing).
 
     python tools/water_creek_ripples.py [--forcing 0 200] [--settle 40] [--clip 15]
-Writes docs/evidence/water_core_h1/ripples_ff<F>.mp4 and ripples_sweep.json.
+Writes docs/evidence/water_core_h1/ripples_pond_ff<F>.mp4 and ripples_pond_sweep.json.
 """
 import argparse, json, pathlib, shutil, subprocess, sys, time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -32,15 +33,11 @@ def main():
     ap.add_argument("--forcing", type=float, nargs="+", default=[0.0, 200.0])
     ap.add_argument("--settle", type=float, default=40.0)
     ap.add_argument("--clip", type=float, default=15.0)
-    ap.add_argument("--pond", action="store_true", help="26.24: the creek as POND water (its volume's ripple layer) - the only model after P3d")
+    ap.add_argument("--pond", action="store_true", help="accepted, pond water is the only mode since WaterCore 26.27")
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(60)
-    tag = "_pond" if args.pond else ""
-    if args.pond:
-        if not api.debug("water_av_list").get("volumes"): raise SystemExit("start the creek first: python tools/water_creek_bench.py --run --pond, and let it settle")
-    else:
-        regs = api.debug("water_columns", {}).get("regions", [])
-        if not regs or regs[0]["wet_columns"] < 200: raise SystemExit("start the creek first: python tools/water_creek_bench.py --run, and let it settle")
+    tag = "_pond"
+    if not api.debug("water_av_list").get("volumes"): raise SystemExit("start the creek first: python tools/water_creek_bench.py --run, and let it settle")
     EV.mkdir(parents=True, exist_ok=True)
     camera_set(api, {"x": bench.X0 + 2.0, "y": 18.2, "z": bench.Z0 + 3.5, "yaw": -12.0, "pitch": -16.0})
     ff = shutil.which("ffmpeg")

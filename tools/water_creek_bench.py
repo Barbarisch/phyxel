@@ -4,17 +4,16 @@ carve out a simple mostly straight creak so we have a much more simple testing p
 WaterBench_Creek (port 8114), an empty world: a flat 128 x 64 m slab (dirt, a grass top layer; the ground's top at y 16) and
 one straight creek carved into it - x 10-109 (100 m), z 31-32 (2 m wide), its bed a 1:200 line from 15.67 m floored to the
 1/9 m grid (26.15, the owner's choice (b): gravel subcubes for whole thirds, gravel microcubes for the rest - drops of 1/9 m
-every ~22 m; the 1/3 m carve of 25.22 is `--build --grid 3`), so it starts 1/3 m below the grass and ends ~0.9 m below. A
-column-water region over it flows on the carve's line (option (a): the `plane` rule on authored ground), a spring at the
-head, an outfall at the foot.
+every ~22 m; the 1/3 m carve of 25.22 is `--build --grid 3`), so it starts 1/3 m below the grass and ends ~0.9 m below. Pond
+water flows over it (the only water model since WaterCore 26.27), a spring at the head, an outfall at the foot.
 
     python tools/water_creek_bench.py --build                 # author + save the ground and the creek (once)
     python tools/water_creek_bench.py --run [--q 0.1]          # start the creek and LEAVE IT RUNNING (no clip)
-    python tools/water_creek_bench.py --run --record 90        # ... and record a clip + numbers
-    python tools/water_creek_bench.py --run --pond [--q 0.2] [--record 120]   # 26.13 P3b: the creek as POND water
-Writes docs/evidence/water_core_h1/creekbench_g9_q<Q>.{json,mp4} when recording (creekbench_pond_g9_q<Q> with --pond; no _g9 on the --grid 3 carve).
+    python tools/water_creek_bench.py --run --q 0.2 --record 120   # ... and record a clip + numbers
+Writes docs/evidence/water_core_h1/creekbench_pond_g9_q<Q>.{json,mp4} when recording (no _g9 on the --grid 3 carve).
+(--pond is still accepted and does nothing: pond water is the only mode since WaterCore 26.27.)
 
---pond (WaterCore.md 26.13 P3b): ONE sparse pond-core volume over the creek (x 10-109, y 14-17, z 29-34 at 1/9 m), Manning n
+The creek (WaterCore.md 26.13 P3b): ONE sparse pond-core volume over the creek (x 10-109, y 14-17, z 29-34 at 1/9 m), Manning n
 at the bed, springs = pumps across the head's 1/9 m cells, outfalls across the foot's; the bed is the carved gravel itself
 (occupancy). The numbers: mid-reach depth from the drawn surface (water_av_column) minus the carve, mean speed by continuity
 (q / width depth at steady flow - out/in reports how steady), the surface speed, in / out / stored and the ledger from the
@@ -77,11 +76,10 @@ def main():
     ap.add_argument("--run", action="store_true")
     ap.add_argument("--q", type=float, default=0.1)
     ap.add_argument("--record", type=float, default=0.0, help="seconds of clip + polling (0 = just start it and leave it running)")
-    ap.add_argument("--pond", action="store_true", help="26.13 P3b: run the creek as pond-core water (one sparse volume)")
-    ap.add_argument("--sweeps", type=int, default=40, help="--pond: the pressure sweeps per substep")
-    ap.add_argument("--ground-bricks", type=int, default=-1, choices=(-1, 0, 1), help="--pond: 26.18 ground bricks on/off (-1 = the engine default); tags the outputs _gb<0|1>")
-    ap.add_argument("--brick-height", type=int, default=0, help="--pond: GPU brick height 2 / 4 / 8 (26.17; 0 = the engine default); tags the outputs _h<H>")
-    ap.add_argument("--bed", default="plane", choices=("plane", "voxel"), help="the column run's bed: the 1:200 line (25.22 option (a)) or the carve's voxels (26.15: the same bed the pond run flows over)")
+    ap.add_argument("--pond", action="store_true", help="accepted, pond water is the only mode since WaterCore 26.27")
+    ap.add_argument("--sweeps", type=int, default=40, help="the pressure sweeps per substep")
+    ap.add_argument("--ground-bricks", type=int, default=-1, choices=(-1, 0, 1), help="26.18 ground bricks on/off (-1 = the engine default); tags the outputs _gb<0|1>")
+    ap.add_argument("--brick-height", type=int, default=0, help="GPU brick height 2 / 4 / 8 (26.17; 0 = the engine default); tags the outputs _h<H>")
     ap.add_argument("--grid", type=int, default=9, choices=(3, 9), help="the carve's grid per metre (26.15: 9; 25.22: 3) - --build carves it, the numbers read it")
     args = ap.parse_args()
     global GRID; GRID = args.grid; TAG = "" if GRID == 3 else f"_g{GRID}"
@@ -91,46 +89,7 @@ def main():
     if bad: raise SystemExit("the creek bench is not built (run --build): " + "; ".join(bad))
     if not args.run: return
     api.debug("water_av_realtime", {"on": True})
-    if args.pond: return run_pond(api, args)
-    for old in api.debug("water_columns", {}).get("regions", []): api.debug("water_columns", {"id": old["id"], "destroy": True})
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})   # one creek at a time
-    r = api.debug("water_columns", {"create": {"x1": X0, "y1": 14, "z1": Z0 - 2, "x2": X1, "y2": 17, "z2": Z1 + 2}, "manning_n": N})
-    if "error" in r: raise SystemExit(r)
-    rid = r["id"]
-    if args.bed == "plane":
-        api.debug("water_columns", {"id": rid, "plane": {"y0": LINE0 + SLOPE * X0, "slope": SLOPE, "dir_deg": 0.0}})
-    api.debug("water_columns", {"id": rid, "bed": args.bed})
-    if args.bed == "voxel": TAG = TAG + "_voxbed"
-    cols = [Z0 + (k + 0.5) / 3.0 for k in range(3 * (Z1 - Z0 + 1))]
-    for z in cols: api.debug("water_columns", {"id": rid, "outfall": {"x": X1 + 1 - 1.0 / 6.0, "z": z}})
-    camera_set(api, {"x": X0 + 2.0, "y": 18.2, "z": Z0 + 3.5, "yaw": -12.0, "pitch": -16.0})
-    time.sleep(2.0)
-    rec, t0 = None, time.time()
-    if args.record > 0 and shutil.which("ffmpeg"):
-        EV.mkdir(parents=True, exist_ok=True)
-        rec = subprocess.Popen([shutil.which("ffmpeg"), "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-t", str(args.record),
-                                "-i", "title=WaterBench_Creek", "-vf", "crop=960:630:240:42", "-c:v", "libx264", "-crf", "28",
-                                "-pix_fmt", "yuv420p", str(EV / f"creekbench{TAG}_q{args.q:g}.mp4")])
-    for z in cols: api.debug("water_columns", {"id": rid, "spring": {"x": X0 + 1.0 / 6.0, "z": z, "rate": args.q / len(cols)}})
-    if args.record <= 0:
-        print(f"creek running: region {rid}, {args.q} m^3/s; it keeps running until the engine stops or water_columns destroy")
-        return
-    polls = []
-    while time.time() - t0 < args.record:
-        g = next(x for x in api.debug("water_columns", {}).get("regions", []) if x["id"] == rid)
-        polls.append({"t": round(time.time() - t0, 2), **{k: g[k] for k in ("in_m3", "out_m3", "stored_m3", "ledger_error_m3", "step_ms", "wet_columns")}, **g["stats"]})
-        time.sleep(0.5)
-    if rec: rec.wait()
-    w = [p for p in polls if p["t"] >= args.record - 20.0]
-    width = Z1 - Z0 + 1
-    dn = (args.q / width * N / math.sqrt(SLOPE)) ** 0.6
-    summary = {"q": args.q, "manning_depth": dn, "manning_speed": args.q / (width * dn),
-               "out_over_in_last20s": (w[-1]["out_m3"] - w[0]["out_m3"]) / max(1e-6, w[-1]["t"] - w[0]["t"]) / args.q,
-               "first_outflow_s": next((p["t"] for p in polls if p["out_m3"] > 1e-4), None), **{k: polls[-1][k] for k in ("mid_depth_m", "mid_speed_ms", "wet", "hidden", "ledger_error_m3")},
-               "step_ms_max": max(p["step_ms"] for p in polls)}
-    (EV / f"creekbench{TAG}_q{args.q:g}.json").write_text(json.dumps({"summary": summary, "polls": polls}, indent=1))
-    print(json.dumps(summary))
-    print("the creek keeps running")
+    return run_pond(api, args)
 
 
 def bed_top(x):
@@ -139,8 +98,7 @@ def bed_top(x):
 
 
 def run_pond(api, args):
-    for old in api.debug("water_columns", {}).get("regions", []): api.debug("water_columns", {"id": old["id"], "destroy": True})
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})   # one creek at a time
     h = 1.0 / 9.0
     r = api.debug("water_av_create", {"x1": X0, "y1": 14, "z1": Z0 - 2, "x2": X1, "y2": 17, "z2": Z1 + 2, "cellSize": h, "backend": "gpu",
                                        "sweeps": args.sweeps, "auto_sleep": False, "manning_n": N, "brick_height": args.brick_height, **({"ground_bricks": bool(args.ground_bricks)} if args.ground_bricks >= 0 else {})})

@@ -13,7 +13,6 @@
 #include "core/water/WaterDroplets.h"      // 21: the droplet crown
 #include "core/water/RippleLayer.h"        // 22: ripples
 #include "core/water/RippleGpu.h"          // 25.34: the ripple step on the GPU
-#include "core/water/ColumnWater.h"        // 25.18 H1: the column tier
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <unordered_map>
 #include <glm/glm.hpp>
@@ -244,49 +243,7 @@ public:
     /// wrote into its staging ring, a memcpy; CPU: extracted from the grid). Rebuilt on every call
     /// that follows a step; a volume that did not step since the last call keeps its field.
     const std::vector<WaterSurfaceField>& surfaceFields();
-    // ---- 25.18 H1: column-water regions ----
-    struct ColumnRegion { std::unique_ptr<ColumnWater> cw; uint64_t occRevision = ~0ull; WaterSurfaceField field;
-                          std::unique_ptr<RippleLayer> ripple; uint32_t rippleFrame = 0;     // 25.26 RC: the region's ripple window
-                          std::vector<float> load;                                            // 25.30 SC: the bodies' load per column (m)
-                          int windowAv = 0; glm::ivec2 wLo{0}, wHi{0};                        // 25.39 H2: the 3-D window (voxel xz box)
-                          double windowShortfall = 0.0, windowIn = 0.0, windowOut = 0.0; };
-    /// 25.30 SC: the column regions' boxes (voxels, inclusive) - the debris integrator reports the bodies inside them as wet.
-    std::vector<std::pair<glm::ivec3, glm::ivec3>> columnBoxes() const;
-    /// 25.39 H2a - a 3-D window inside a column region over the voxel box [lo, hi] (x, z; clipped to the region): a CPU 1/9 m
-    /// volume whose floor is the region's bed, seeded from the columns, holding them (the hand-off of 25.39). Returns the
-    /// window's volume id, 0 = refused (err: outside the region, over a spring or an outfall, a second window).
-    int openWindow(int regionId, const glm::ivec2& lo, const glm::ivec2& hi, std::string* err);
-    /// Write the window's water back into its columns (exact) and remove it. False = the region has none.
-    bool closeWindow(int regionId);
-    struct WindowInfo { int av = 0; glm::ivec2 lo{0}, hi{0}; long cells = 0; int held = 0; double mass = 0.0, in = 0.0, out = 0.0, shortfall = 0.0, residue = 0.0, droplets = 0.0; };
-    bool windowInfo(int regionId, WindowInfo& out) const;
-    /// TEST ONLY (25.39 H2-T3's control): the window's bed Manning n (0 = pond friction at the session's rate instead).
-    void windowSolverForTest(int regionId, float bedManning) {
-        ColumnRegion* r = regionById(regionId); if (!r || !r->windowAv) return;
-        Av* av = volumeById(r->windowAv); if (!av) return;
-        av->solver->setBedManning(bedManning); av->solver->setPondFriction(bedManning > 0.0f ? 0.0f : m_pondFriction);
-    }
-    /// 25.30 SC: a body leaving (or coming to rest - it stops displacing, M2's gate) releases its load over this time, so a
-    /// stone settling on the bed does not throw the water it held back as a wave.
-    static constexpr float kLoadReleaseSeconds = 0.3f;
-    /// 25.30 SC cosmetic splash (owner, 0a: "a few splash particles for affect", not taken from the water): a body crossing a
-    /// creek's surface downward faster than kSplashMinSpeed throws `creekSplash` x its displaced volume rate as droplets from
-    /// its waterline (up at 0.8 of its entry speed, out at 0.4 - look parameters). Their landings ripple the creek; they carry
-    /// no water. `water_droplets {creek_splash}` (0 = off).
-    static constexpr float kSplashMinSpeed = 0.5f;   // m/s
-    void setCreekSplash(float f) { m_creekSplash = f < 0.0f ? 0.0f : f; }
-    float creekSplash() const { return m_creekSplash; }
-    /// A region over voxels [minVoxel, maxVoxel]; beds and walls read from the world's solids. Returns its id (0 = refused, `err`).
-    int createColumns(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float manningN, std::string* err);
-    bool destroyColumns(int id);
-    ColumnWater* columns(int id);
-    const std::vector<ColumnRegion>& columnRegions() const { return m_columns; }
-    void stepColumns(float dt);
-    /// 25.22: the generator's continuous bed height and its DRAWN top for a voxel column (world x, z); false = unknown
-    /// (no generator - an authored or flat world). With it, new regions default to the `generator` bed (option (a)).
-    using GeneratorBedQuery = std::function<bool(int wx, int wz, float& bedHeight, float& drawnTop)>;
-    void setGeneratorBedQuery(GeneratorBedQuery q) { m_genBed = std::move(q); }
-    /// 25.26 RC: where the camera is - a column region's ripple window (kColumnRippleWindow lattice cells square) follows it.
+    /// 25.26 RC: where the camera is - a volume's ripple window (kColumnRippleWindow lattice cells square) follows it.
     void setViewPoint(const glm::vec3& p) { m_view = p; }
     static constexpr int kColumnRippleWindow = 384;   ///< 42.7 m at 1/9 m: the renderer's atlas holds <= 512 per axis; 1/9 m facets
                                                       ///< are sub-pixel well before 40 m, so a window - not the whole creek - is drawn
@@ -325,7 +282,6 @@ public:
         bool on = true; float size = 1.0f / 9.0f; int alive = 0;
         double bornM3 = 0.0, landedM3 = 0.0, refusedM3 = 0.0, relocatedM3 = 0.0, flushedM3 = 0.0, destroyedM3 = 0.0;
         long births = 0, landings = 0; int scraps = 0, sprays = 0;   // scraps / sprays: CPU volumes (the GPU counts per column record)
-        double cosmeticM3 = 0.0; long cosmeticBirths = 0, cosmeticLandings = 0;   // 25.30 SC: creek splash droplets (no water, no ledger)
     };
     void setDroplets(bool on) { m_dstats.on = on; }
     /// Droplet edge as a fraction of the volume's cell (21.11 default 1/9); clamped [1/27, 1] where it is used (DropletPool::spawn).
@@ -333,7 +289,7 @@ public:
     /// Test hook (D-T4): lower the pool cap; a refused birth goes straight back into the grid.
     void setDropletCap(size_t c) { m_pool.setCap(c); }
     const DropletStats& dropletStats() { m_dstats.alive = static_cast<int>(m_pool.droplets().size()); return m_dstats; }
-    double dropletVolume() const { double v = 0.0; for (const Droplet& d : m_pool.droplets()) if (d.volumeId > 0) v += d.volume; return v; }   ///< water in flight (cosmetic creek droplets excluded)
+    double dropletVolume() const { double v = 0.0; for (const Droplet& d : m_pool.droplets()) v += d.volume; return v; }   ///< water in flight
     /// Droplet cubes for the renderer (xyz centre, w edge), rebuilt every update.
     const std::vector<glm::vec4>& dropletDrawList() const { return m_dropletDraw; }
 
@@ -433,8 +389,6 @@ private:
         double gpuLastDownloadSec = -1.0;
         bool autoSleep = true;         // Phase D
         double seededMass = 0.0;
-        std::vector<float> floorY;     ///< 25.39 H2: a creek window's floor per cell column (world y; empty = none): cells below are solid
-        bool window = false;           ///< 25.39 H2: a creek window (never written back to spans; its region owns its lifecycle)
         std::vector<WaterBodyTable::ColumnMass> seededColumns;   // per-column seed for the body credit
         WaterSurfaceField field;        // Phase F: the last surface field
         uint64_t fieldStep = ~0ull;     // the step counter the field was built from
@@ -463,11 +417,6 @@ private:
     void stepDroplets(float dt);                   // flight + landing for every volume
     void depositDroplet(Av& av, const glm::vec3& at, double volume);
     Av* volumeById(int id) { for (auto& a : m_avs) if (a->id == id) return a.get(); return nullptr; }
-    ColumnRegion* regionById(int id) { for (auto& r : m_columns) if (r.cw->id() == id) return &r; return nullptr; }
-    void windowGhosts(ColumnRegion& r, Av& av);           // 25.39: the window's water -> its held columns
-    void windowTransfers(ColumnRegion& r, Av& av);        // 25.39: what crossed the edge -> the window
-    void stepColumnSplashes(float dt);   // 25.30 SC: the cosmetic entry crown
-    float m_creekSplash = 0.05f;         // 25.30 SC
     bool isAsleep(const Av& av) const { return av.backend == "gpu" ? av.gpuLast.asleep : av.solver->asleep(); }
     void refreshOccupancy(Av& av);
     Occ sampleOccupancy(const Av& av, const glm::ivec3& cellLocal) const;
@@ -486,7 +435,7 @@ private:
     std::string m_rgpuErr;
     std::vector<RippleLayer*> liveRippleLayers();
     void stepLayer(RippleLayer& L, float dt, const std::vector<glm::vec2>* vel);
-    /// 26.13: THE ripple window, one rule for volumes and column regions (25.26 RC): min(kColumnRippleWindow, the box) lattice
+    /// 26.13: THE ripple window of every volume (25.26 RC): min(kColumnRippleWindow, the box) lattice
     /// cells per axis, centred on the camera and clamped to the box, moved in 4 m steps; created on first use; its border absorbs
     /// (RippleLayer's default, as every layer always had).
     RippleLayer& rippleWindow(std::unique_ptr<RippleLayer>& layer, const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, bool gpu);
@@ -495,13 +444,8 @@ private:
     void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)
     void markWritten(Av& av);   // Phase E1: a CPU-side write to a volume's grid: upload it, wake it
     std::vector<std::unique_ptr<Av>> m_avs;
-    // 25.18 H1: column-water regions (the T2 tier, step 1 - placed by hand over a creek)
-    std::vector<ColumnRegion> m_columns;
-    int m_nextColumnId = 1;
-    GeneratorBedQuery m_genBed;   // 25.22
     glm::vec3 m_view{0.0f};       // 25.26 RC
     float m_flowForcing = 200.0f; // 25.26 RC: C_f - calibrated live 2026-10-12 (25.29): facet slope p95 0.1-0.2 on the 100 L/s bench creek
-    void refreshColumnSolids(ColumnRegion& r, bool force = false);
     SpanWriter m_spanWriter; SpanReader m_spanReader; BakeBodyQuery m_bakeBodyAt;
     WaterBodyTable m_bodies;
     std::vector<WriteBackRecord> m_autoSlept;

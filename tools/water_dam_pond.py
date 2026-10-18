@@ -2,8 +2,9 @@
 
   --build : carve the pond (x 112-117, z 29-34, floor y 14.0), the creek's last metres (x 110-111) and the spill channel
             (x 118-127, z 31-32, floor y 15.0) into WaterBench_Creek's world, and save it
-  --run   : one column region over the creek + pond + spill (x 10-127, z 27-36, y 13-17), the spring at the head, outfalls
-            at the slab's edge; then three phases, polled every 0.5 s and recorded:
+  --run   : one sparse GPU pond-water volume over the creek + pond + spill (x 10-127, z 29-34, y 14-16 at 1/9 m; the only
+            water model since WaterCore 26.27 - --pond is accepted and does nothing), springs across the head, outfalls
+            across the spill channel's end; then three phases, polled every 0.5 s and recorded:
               FILL  until the outfall carries the inflow (out/in >= 0.98 over 30 s) or --fill-max seconds
               DAM   Stone subcubes across the creek at x 60 (crest 1/3 m above the bed), --dam-seconds
               BREAK the dam removed, --break-seconds
@@ -13,7 +14,7 @@ pond's inflow < 10 % of Q within 20 s of the dam; the inflow ABOVE Q for a while
 
     python tools/water_dam_pond.py --build
     python tools/water_dam_pond.py --run [--q 0.2] [--record]
-Writes docs/evidence/water_core_h1/dam_pond.json (+ dam_pond.mp4 with --record).
+Writes docs/evidence/water_core_h1/dam_pond_pondwater[_s<N>].json (+ .mp4 with --record).
 """
 import argparse, json, math, pathlib, shutil, subprocess, sys, time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -24,7 +25,6 @@ EV = pathlib.Path(__file__).resolve().parent.parent / "docs" / "evidence" / "wat
 POND = (112, 117, 29, 34)          # x0, x1, z0, z1 (voxels)
 POND_FLOOR, SPILL_FLOOR = 14.0, 15.0
 SPILL = (118, 127, 31, 32)
-REGION = {"x1": 10, "y1": 13, "z1": 27, "x2": 127, "y2": 17, "z2": 36}
 DAM_X = 60
 POND_AREA = (POND[1] - POND[0] + 1) * (POND[3] - POND[2] + 1)
 
@@ -80,8 +80,8 @@ def main():
     ap.add_argument("--dam-seconds", type=float, default=240.0)
     ap.add_argument("--break-seconds", type=float, default=150.0)
     ap.add_argument("--record", action="store_true")
-    ap.add_argument("--pond", action="store_true", help="26.22 P3c: the bench as POND water (one sparse GPU volume), not a column region")
-    ap.add_argument("--sweeps", type=int, default=0, help="--pond: pressure sweeps per substep (0 = the engine's automatic count; the creek bench runs 40); tags the outputs _s<N>")
+    ap.add_argument("--pond", action="store_true", help="accepted, pond water is the only mode since WaterCore 26.27")
+    ap.add_argument("--sweeps", type=int, default=0, help="pressure sweeps per substep (0 = the engine's automatic count; the creek bench runs 40); tags the outputs _s<N>")
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(120)
     if args.build: build(api)
@@ -90,113 +90,7 @@ def main():
     if not args.run: return
     EV.mkdir(parents=True, exist_ok=True)
     api.debug("water_av_realtime", {"on": True})
-    if args.pond: return run_pond_water(api, args)
-    for old in api.debug("water_columns", {}).get("regions", []): api.debug("water_columns", {"id": old["id"], "destroy": True})
-    r = api.debug("water_columns", {"create": REGION, "manning_n": cb.N})
-    if "error" in r: raise SystemExit(r)
-    rid = r["id"]
-    api.debug("water_columns", {"id": rid, "plane": {"y0": cb.LINE0 + cb.SLOPE * cb.X0, "slope": cb.SLOPE, "dir_deg": 0.0}})
-    api.debug("water_columns", {"id": rid, "bed": "plane"})
-    cols = [cb.Z0 + (k + 0.5) / 3.0 for k in range(3 * (cb.Z1 - cb.Z0 + 1))]
-    for z in cols: api.debug("water_columns", {"id": rid, "outfall": {"x": SPILL[1] + 1 - 1.0 / 6.0, "z": z}})
-    for z in cols: api.debug("water_columns", {"id": rid, "spring": {"x": cb.X0 + 1.0 / 6.0, "z": z, "rate": args.q / len(cols)}})
-    pond_c = ((POND[0] + POND[1] + 1) / 2.0, (POND[2] + POND[3] + 1) / 2.0)
-    zc = cb.Z0 + 0.5 + 1.0 / 6.0
-    cam_pond = {"x": pond_c[0] - 9.0, "y": 19.5, "z": pond_c[1] + 7.0, "yaw": -38.0, "pitch": -24.0}
-    cam_dam = {"x": DAM_X - 9.0, "y": 18.2, "z": zc + 5.0, "yaw": -28.0, "pitch": -20.0}
-    camera_set(api, cam_pond)
-    rec = None
-    total = args.fill_max + args.dam_seconds + args.break_seconds + 10
-    if args.record and shutil.which("ffmpeg"):
-        rec = subprocess.Popen([shutil.which("ffmpeg"), "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "15", "-t", str(total),
-                                "-i", "title=WaterBench_Creek", "-vf", "crop=960:630:240:42,scale=640:-2", "-c:v", "libx264", "-crf", "32", "-pix_fmt", "yuv420p",
-                                str(EV / "dam_pond.mp4")], stdin=subprocess.PIPE)
-    t0 = time.time(); rows = []; events = []
-
-    def region():
-        return next(x for x in api.debug("water_columns", {})["regions"] if x["id"] == rid)
-
-    def probe(x, z):
-        p = api.debug("water_columns", {"id": rid, "probe": {"x": x, "z": z}})["probe"]
-        return p
-    last = {"t": None, "out": None}
-
-    def poll(phase):
-        g = region()
-        pp = probe(pond_c[0], pond_c[1]); pd = probe(DAM_X - 5.0, zc); pe = probe(110.5, zc); ps = probe(SPILL[0] + 0.5, zc)
-        t = round(time.time() - t0, 2)
-        # flow arriving at the pond: the creek's last metre, depth x speed x 2 m (its width)
-        q_pond = (pe.get("depth_m") or 0.0) * (pe.get("u") or 0.0) * 2.0 if pe.get("wet") else 0.0
-        row = {"t": t, "phase": phase, "pond_level": pp.get("surface_y"), "pond_depth": pp.get("depth_m") if pp.get("wet") else 0.0,
-               "pool_level": pd.get("surface_y"), "q_pond": q_pond, "in_m3": g["in_m3"], "out_m3": g["out_m3"], "stored_m3": g["stored_m3"],
-               "ledger": g["ledger_error_m3"], "step_ms": g["step_ms"], "wet": g["wet_columns"],
-               "spill_depth": ps.get("depth_m") if ps.get("wet") else 0.0, "spill_bed": ps.get("bed_y")}
-        rows.append(row)
-        return row
-
-    def out_rate(window):
-        w = [r for r in rows if r["t"] >= rows[-1]["t"] - window]
-        if len(w) < 2 or w[-1]["t"] - w[0]["t"] < window * 0.8: return None
-        return (w[-1]["out_m3"] - w[0]["out_m3"]) / (w[-1]["t"] - w[0]["t"])
-
-    # FILL
-    while time.time() - t0 < args.fill_max:
-        poll("fill"); time.sleep(0.5)
-        o = out_rate(30.0)
-        if o is not None and o >= 0.98 * args.q: break
-    # DAM
-    subs, crest = dam_subcubes()
-    camera_set(api, cam_dam)
-    before = region()["ledger_error_m3"]
-    for s in subs: api.post("/api/world/subcube", {**s, "material": "Stone"})
-    t_dam = round(time.time() - t0, 2)
-    events.append({"t": t_dam, "event": "dam placed", "crest": crest, "ledger_before": before})
-    t_end = time.time() + args.dam_seconds
-    while time.time() < t_end: poll("dam"); time.sleep(0.5)
-    # BREAK
-    before = region()["ledger_error_m3"]
-    for s in subs: api.post("/api/world/subcube/remove", {"x": s["x"], "y": s["y"], "z": s["z"], "sx": s["sx"], "sy": s["sy"], "sz": s["sz"]})
-    t_break = round(time.time() - t0, 2)
-    events.append({"t": t_break, "event": "dam removed", "ledger_before": before})
-    camera_set(api, cam_pond)
-    t_end = time.time() + args.break_seconds
-    while time.time() < t_end: poll("break"); time.sleep(0.5)
-    if rec:   # ffmpeg must finish the file ('q'): a killed ffmpeg leaves an mp4 with no index (the first run's 64 MB was unreadable)
-        try: rec.communicate(b"q", timeout=30)
-        except Exception: rec.kill()
-
-    # ---- the numbers ----
-    fill = [r for r in rows if r["phase"] == "fill"]
-    rise = [r for r in fill if r["pond_depth"] is not None and 0.2 <= (r["pond_level"] - POND_FLOOR) <= 0.8]
-    rate = ((rise[-1]["pond_level"] - rise[0]["pond_level"]) / (rise[-1]["t"] - rise[0]["t"])) if len(rise) >= 2 and rise[-1]["t"] > rise[0]["t"] else None
-    q_in = (rise[-1]["q_pond"] + rise[0]["q_pond"]) / 2.0 if rise else None
-    o = None
-    if fill:
-        w = [r for r in fill if r["t"] >= fill[-1]["t"] - 30.0]
-        if len(w) >= 2: o = (w[-1]["out_m3"] - w[0]["out_m3"]) / (w[-1]["t"] - w[0]["t"]) / args.q
-    dam = [r for r in rows if r["phase"] == "dam"]
-    after20 = [r for r in dam if r["t"] - t_dam >= 20.0]
-    brk = [r for r in rows if r["phase"] == "break"]
-    summary = {
-        "q": args.q, "pond_area_m2": POND_AREA, "predicted_rise_mm_s": 1000.0 * args.q / POND_AREA,
-        "measured_rise_mm_s": rate * 1000.0 if rate else None, "q_arriving_during_rise": q_in,
-        "rise_vs_q_arriving_mm_s": 1000.0 * q_in / POND_AREA if q_in else None,
-        "fill_seconds": fill[-1]["t"] if fill else None, "out_over_in_last30s": o,
-        "spill_crest": next((r["spill_bed"] for r in rows if r["spill_bed"]), None),
-        "pond_over_crest_when_spilling": next(((r["pond_level"] - r["spill_bed"]) for r in fill if (r["spill_depth"] or 0.0) > 0.01), None),
-        "pond_inflow_min_after_dam": min((r["q_pond"] for r in dam), default=None),
-        "pond_inflow_min_t_after_dam": min(dam, key=lambda r: r["q_pond"])["t"] - t_dam if dam else None,
-        "pond_inflow_end_of_dam": dam[-1]["q_pond"] if dam else None,
-        "dam_crest": crest, "pond_inflow_20s_after_dam": after20[0]["q_pond"] if after20 else None,
-        "pool_level_max": max((r["pool_level"] or 0.0) for r in dam) if dam else None,
-        "overtop_t_after_dam": next((r["t"] - t_dam for r in dam if (r["pool_level"] or 0.0) > crest + 0.02), None),
-        "pond_inflow_max_after_break": max((r["q_pond"] for r in brk), default=None),
-        "ledger_max_abs": max(abs(r["ledger"]) for r in rows), "events": events,
-        "ledger_after_dam": next((r["ledger"] for r in dam), None), "ledger_after_break": next((r["ledger"] for r in brk), None),
-        "step_ms_max": max(r["step_ms"] for r in rows),
-    }
-    (EV / "dam_pond.json").write_text(json.dumps({"summary": summary, "rows": rows}, indent=1))
-    print(json.dumps(summary, indent=1))
+    return run_pond_water(api, args)
 
 
 AV_BOX = {"x1": 10, "y1": 14, "z1": 29, "x2": 127, "y2": 16, "z2": 34}   # 26.22: 1062 x 27 x 54 cells at 1/9 m (1.55 M, under the 2 M cap)
@@ -209,7 +103,6 @@ def run_pond_water(api, args):
     head's 1/9 m cells, outfalls across the spill channel's end. Gauges: pond and pool levels = the drawn surface's mean (still
     water: 26.21), the flow INTO the pond by the books = d(pond + spill-channel water)/dt + the outfall rate (5 s windows),
     the ledger from the volume's record. Writes dam_pond_pondwater.json (+ .mp4 with --record)."""
-    for old in api.debug("water_columns", {}).get("regions", []): api.debug("water_columns", {"id": old["id"], "destroy": True})
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
     h = 1.0 / 9.0
     r = api.debug("water_av_create", {**AV_BOX, "cellSize": h, "backend": "gpu", "auto_sleep": False, "manning_n": cb.N, **({"sweeps": args.sweeps} if args.sweeps else {})})

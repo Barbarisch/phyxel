@@ -456,14 +456,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         for (const auto& b : boxes) out.push_back({b.lo, b.hi});
         return true;
     });
-    // WaterCore.md 25.22 option (a): column regions flow on the generator's continuous height where the ground is as generated
-    waterCore->setGeneratorBedQuery([this](int wx, int wz, float& bedHeight, float& drawnTop) -> bool {
-        WorldGenerator* sg = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
-        if (!sg) return false;
-        const WorldGenerator::ColumnSample c = sg->sampleSurface(wx, wz);
-        bedHeight = c.bedHeight; drawnTop = sg->drawnTop(c);
-        return true;
-    });
     // Phase D (docs/WaterCore.md 16.2): the chunk I/O of the write-back. A column's water is ONE
     // world-space object stored as clips in every vertical chunk it crosses: the writer assembles
     // the chunk column, merges the volume's runs in world space, clips back, marks dirty, bumps the
@@ -3717,8 +3709,6 @@ void Application::update(float deltaTime) {
                 std::vector<std::pair<glm::vec3, glm::vec3>> boxes;
                 if (m_waterCouplingOn && m_waterSolidsOn)
                     for (const auto& [lo, hi] : waterCore->volumeBoxes()) boxes.push_back({glm::vec3(lo), glm::vec3(hi) + glm::vec3(1.0f)});
-                if (m_waterCouplingOn && m_waterSolidsOn)   // 25.30 SC: creek regions - their bodies displace, ripple and splash
-                    for (const auto& [lo, hi] : waterCore->columnBoxes()) boxes.push_back({glm::vec3(lo), glm::vec3(hi) + glm::vec3(1.0f)});
                 debrisRuntime->gpu()->setWaterVolumeBoxes(boxes);
                 std::vector<Core::Water::MovingSolid> solids;
                 std::vector<Core::Water::MovingSolid> rippleBodies;   // 22: every wet body, resting and bobbing ones too
@@ -3763,7 +3753,7 @@ void Application::update(float deltaTime) {
                 const bool cellsMode = renderCoordinator->waterCoreRenderMode() == Core::Water::WaterCoreRenderMode::Cells;
                 renderCoordinator->setWaterCoreSurfaceCells((cellsMode && waterCore->totalCells()) ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
-                renderCoordinator->setWaterCoreSurfaceFields((waterCore->totalCells() || !waterCore->columnRegions().empty()) ? &waterCore->surfaceFields() : nullptr);   // 25.18: column regions draw too   // Phase F: the surface mesh feed
+                renderCoordinator->setWaterCoreSurfaceFields(waterCore->totalCells() ? &waterCore->surfaceFields() : nullptr);   // Phase F: the surface mesh feed
                 renderCoordinator->setWaterCoreDroplets(&waterCore->dropletDrawList());   // 21: the droplet crown
                 m_rippleLayers = waterCore->rippleLayers();   // 22
                 renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
@@ -14239,107 +14229,6 @@ void Application::registerWaterCommands() {
              {"pattern", rp.slope >= 0.0f ? nlohmann::json{{"slope", rp.slope}, {"azimuth_deg", rp.azimuthDeg}} : nlohmann::json(false)},
              {"pitch_m", Core::Water::RippleLayer::kPitch}};
     });
-    // WaterCore 25.18 H1 - column-water regions (the T2 tier, step 1). Every field optional; omitted = unchanged.
-    //   create {x1,y1,z1,x2,y2,z2} (voxels) [manning_n]   -> a new region, beds/walls read from the world's solids
-    //   id + destroy:true | bed:"voxel|hydraulic|plane" | plane:{y0,slope,dir_deg} | spring:{x,z,rate} (world m, m^3/s)
-    //        | outfall:{x,z} (world m) | clear_flows:true | refresh:true (re-read the solids now)
-    // Reply: every region with its box, bed rule, columns, wet columns, ledger (in / out / stored / error, m^3), step ms.
-    reg.on("water_columns", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        using Core::Water::ColumnWater; using Core::Water::ColumnBedRule;
-        if (!waterCore) { r = {{"error", "no water core"}}; return; }
-        auto& p = cmd.params;
-        int id = p.value("id", 0);
-        if (p.contains("create")) {
-            const auto& c = p["create"];
-            // Manning n of a natural channel: 0.01 (smooth wood/concrete) .. 0.15 (heavy brush); outside it is not a bed
-            const float n = std::clamp(p.value("manning_n", 0.035f), 0.01f, 0.15f);
-            std::string err;
-            id = waterCore->createColumns(glm::ivec3(c.value("x1", 0), c.value("y1", 0), c.value("z1", 0)),
-                                          glm::ivec3(c.value("x2", 0), c.value("y2", 0), c.value("z2", 0)), n, &err);
-            if (!id) { r = {{"error", err}}; return; }
-        }
-        if (id && p.value("destroy", false)) { waterCore->destroyColumns(id); id = 0; }
-        if (ColumnWater* cw = id ? waterCore->columns(id) : nullptr) {
-            if (p.value("refresh", false)) waterCore->markSolidsDirty();
-            if (p.contains("plane")) { const auto& pl = p["plane"]; cw->setPlane(pl.value("y0", 0.0f), std::clamp(pl.value("slope", 0.0f), -1.0f, 1.0f), pl.value("dir_deg", 0.0f)); }
-            if (p.contains("bed")) {
-                ColumnBedRule rule;
-                if (!Core::Water::parseColumnBedRule(p.value("bed", std::string("voxel")), rule)) { r = {{"error", "bed must be voxel, hydraulic or plane"}}; return; }
-                cw->setBedRule(rule);
-            }
-            if (p.value("clear_flows", false)) cw->clearSpringsAndOutfalls();
-            // 25.26 K - tuning, live: bed roughness (Manning n of a natural channel 0.01-0.15, as at create) and the springs'
-            // total rate (0-10 m^3/s, as one spring - above it a column cannot take the inflow in a step)
-            if (p.contains("manning_n") && !p.contains("create")) cw->setManningN(std::clamp(p.value("manning_n", 0.035f), 0.01f, 0.15f));
-            if (p.contains("spring_rate")) cw->setSpringTotal(std::clamp(p.value("spring_rate", 0.0), 0.0, 10.0));
-            // 25.26 K - measuring: one point, or n stations along a line (world m); points outside the region are refused
-            auto probeJson = [&](float x, float z) {
-                const auto pr = cw->probe(x, z);
-                return nlohmann::json{{"x", x}, {"z", z}, {"inside", pr.inside}, {"wet", pr.wet}, {"depth_m", pr.depth}, {"u", pr.u}, {"w", pr.w},
-                                      {"speed_ms", pr.speed}, {"surface_y", pr.surface}, {"bed_y", pr.bed}, {"bed_slope", pr.slope}, {"froude", pr.froude},
-                                      {"manning_depth_m", pr.manningDepth}, {"manning_speed_ms", pr.manningSpeed}};
-            };
-            if (p.contains("probe")) {
-                const auto& q = p["probe"];
-                const auto j = probeJson(q.value("x", 0.0f), q.value("z", 0.0f));
-                if (!j["inside"].get<bool>()) { r = {{"error", "probe outside the region"}}; return; }
-                r["probe"] = j;
-            }
-            if (p.contains("profile")) {
-                const auto& q = p["profile"];
-                const int n = std::clamp(q.value("n", 10), 2, 512);   // 512 stations: a 170 m line at the 1/3 m column pitch
-                const float x0 = q.value("x0", 0.0f), z0 = q.value("z0", 0.0f), x1 = q.value("x1", 0.0f), z1 = q.value("z1", 0.0f);
-                nlohmann::json st = nlohmann::json::array();
-                for (int i = 0; i < n; ++i) { const float t = static_cast<float>(i) / static_cast<float>(n - 1); st.push_back(probeJson(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t)); }
-                r["profile"] = st;
-            }
-            if (p.contains("spring")) {
-                const auto& s = p["spring"]; int x, z;
-                // |rate| <= 10 m^3/s, as water_av_source: above it one column cannot take the inflow in a step
-                if (!cw->columnAt(s.value("x", 0.0f), s.value("z", 0.0f), x, z)) { r = {{"error", "spring outside the region"}}; return; }
-                cw->addSpring(x, z, std::clamp(s.value("rate", 0.0), 0.0, 10.0));
-            }
-            if (p.contains("outfall")) {
-                const auto& o = p["outfall"]; int x, z;
-                if (!cw->columnAt(o.value("x", 0.0f), o.value("z", 0.0f), x, z)) { r = {{"error", "outfall outside the region"}}; return; }
-                cw->addOutfall(x, z);
-            }
-            // 25.39 H2a: a 3-D window over a voxel box of the region (x, z; clipped to it), or closing it (written back, exact)
-            if (p.contains("window")) {
-                const auto& wd = p["window"]; std::string werr;
-                if (!waterCore->openWindow(id, glm::ivec2(wd.value("x1", 0), wd.value("z1", 0)), glm::ivec2(wd.value("x2", 0), wd.value("z2", 0)), &werr)) { r = {{"error", werr}}; return; }
-            }
-            if (p.value("window_close", false) && !waterCore->closeWindow(id)) { r = {{"error", "the region has no window"}}; return; }
-        }
-        nlohmann::json regions = nlohmann::json::array();
-        for (const auto& reg_ : waterCore->columnRegions()) {
-            const ColumnWater& c = *reg_.cw;
-            regions.push_back({{"id", c.id()}, {"min", {c.minVoxel().x, c.minVoxel().y, c.minVoxel().z}}, {"max", {c.maxVoxel().x, c.maxVoxel().y, c.maxVoxel().z}},
-                               {"bed", Core::Water::columnBedRuleName(c.bedRule())}, {"columns", c.nx() * c.nz()}, {"wet_columns", c.wetColumns()},
-                               {"in_m3", c.inflow()}, {"out_m3", c.outflow()}, {"stored_m3", c.stored()}, {"ledger_error_m3", c.ledgerError()},
-                               {"step_ms", c.lastStepMs()}, {"manning_n", c.manningN()}, {"spring_total_m3s", c.springTotal()}});
-            const auto st = c.stats();
-            regions.back()["stats"] = {{"mid_depth_m", st.midDepth}, {"mid_speed_ms", st.midSpeed}, {"wet", st.wet},
-                                       {"hidden", st.hidden}, {"worst_hidden_m", st.worstHidden}};
-            Core::Water::WaterCoreManager::WindowInfo wi;
-            if (waterCore->windowInfo(c.id(), wi))   // 25.39: the window echoed - box, cells, held columns, its water and what crossed its edge
-                regions.back()["window"] = {{"volume", wi.av}, {"min", {wi.lo.x, wi.lo.y}}, {"max", {wi.hi.x, wi.hi.y}}, {"cells", wi.cells}, {"held_columns", wi.held},
-                                            {"mass_m3", wi.mass}, {"in_m3", wi.in}, {"out_m3", wi.out}, {"shortfall_m3", wi.shortfall}, {"droplets_m3", wi.droplets}};
-            if (p.value("wet_list", false) && (!id || c.id() == id)) {   // measurement: every wet column (world x, z of its centre, depth, bed, load, foam)
-                nlohmann::json wl = nlohmann::json::array();
-                const auto& sv = c.solver();
-                for (int z = 0; z < c.nz(); ++z) for (int x = 0; x < c.nx(); ++x) {
-                    const double d = sv.depth(x, z);
-                    if (sv.col(x, z).wall || d <= sv.params().dryDepth) continue;
-                    const glm::vec2 cc = c.columnCentre(x, z);
-                    wl.push_back({cc.x, cc.y, d, sv.col(x, z).bed, sv.load(x, z), sv.col(x, z).foam});   // 25.30 SC: + the bodies' load (m), foam (0-1)
-                }
-                regions.back()["wet_list"] = wl;
-            }
-        }
-        r["regions"] = regions; r["realtime"] = waterCore->realtime();
-        if (id) r["id"] = id;
-    });
     reg.on("water_transport", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 26.5 - the owner's A/B
         // all_faces: the all-faces-at-once fill transport (the fixed creek) on every volume, CPU and GPU, from the next step;
         // false = the face-by-face rule the signed-off pond was tuned on. Omitted = unchanged; the reply echoes it.
@@ -14381,14 +14270,11 @@ void Application::registerWaterCommands() {
         if (!waterCore) { r = {{"error", "no water core"}}; return; }
         if (cmd.params.contains("enabled")) waterCore->setDroplets(cmd.params.value("enabled", true));
         if (cmd.params.contains("size")) waterCore->setDropletSize(std::clamp(cmd.params.value("size", 1.0f / 9.0f), 1.0f / 27.0f, 1.0f));
-        // 25.30 SC: creek splash, as a fraction of a body's displaced volume rate (look only - no water); 0 = off, 1 = a guard
-        if (cmd.params.contains("creek_splash")) waterCore->setCreekSplash(std::clamp(cmd.params.value("creek_splash", 0.05f), 0.0f, 1.0f));
         const auto& d = waterCore->dropletStats();
         r = {{"enabled", d.on}, {"size", d.size}, {"alive", d.alive}, {"cap", Core::Water::DropletPool::kCap},
              {"born_m3", d.bornM3}, {"landed_m3", d.landedM3}, {"in_flight_m3", waterCore->dropletVolume()},
              {"refused_m3", d.refusedM3}, {"relocated_m3", d.relocatedM3}, {"flushed_m3", d.flushedM3}, {"destroyed_m3", d.destroyedM3},
-             {"births", d.births}, {"landings", d.landings}, {"cpu_scraps", d.scraps}, {"cpu_sprays", d.sprays},
-             {"creek_splash", waterCore->creekSplash()}, {"cosmetic_m3", d.cosmeticM3}, {"cosmetic_births", d.cosmeticBirths}, {"cosmetic_landings", d.cosmeticLandings}};
+             {"births", d.births}, {"landings", d.landings}, {"cpu_scraps", d.scraps}, {"cpu_sprays", d.sprays}};
     });
     reg.on("water_jet_scan", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("on")) {

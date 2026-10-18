@@ -151,10 +151,6 @@ Occ WaterCoreManager::sampleOccupancy(const Av& av, const glm::ivec3& cellLocal)
     // solid, else Air. A cell finer than a micro cell samples the micro cell holding its centre.
     const glm::ivec3 cellWorld = av.grid->spec().origin + cellLocal;
     const double h = av.h;
-    if (!av.floorY.empty()) {   // 25.39 H2: a creek window stands on the region's bed (the line on the carve), not on the voxel staircase
-        const float floorY = av.floorY[static_cast<size_t>(cellLocal.x) + static_cast<size_t>(av.grid->nx()) * cellLocal.z];
-        if ((cellWorld.y + 0.5) * h < floorY) return Occ::Solid;
-    }
     const double x0 = cellWorld.x * h, y0 = cellWorld.y * h, z0 = cellWorld.z * h;
     bool anyUnknown = false;
     if (h <= 1.0 / kMicroPerVoxel + 1e-6) {
@@ -219,8 +215,8 @@ void WaterCoreManager::refreshOccupancyLocal(Av& av, const std::vector<SolidsCha
     std::vector<int> changed;
     long resampled = 0;
     for (const SolidsChangeBox& b : boxes) {
-        // the cells that overlap world voxels [lo, hi + 1), padded one cell each side (a cell's sample can reach its neighbour's
-        // voxel only through the 25.39 creek-window floor, which is not a world edit - the pad is margin, not a dependency)
+        // the cells that overlap world voxels [lo, hi + 1), padded one cell each side (margin, not a dependency: a cell samples
+        // only the voxels it overlaps)
         glm::ivec3 lo, hi;
         for (int a = 0; a < 3; ++a) {
             lo[a] = b.lo[a] * per - o[a] - 1;
@@ -254,7 +250,6 @@ void WaterCoreManager::refreshOccupancyLocal(Av& av, const std::vector<SolidsCha
 
 void WaterCoreManager::markSolidsDirty() {
     for (auto& av : m_avs) { av->occDirty = true; av->solver->wake(); }
-    for (auto& r : m_columns) r.occRevision = ~0ull;   // 25.18: column regions re-read their beds next step
 }
 
 bool WaterCoreManager::step(int id, int ticks, float dt, AvRecord* out) {
@@ -281,10 +276,8 @@ void WaterCoreManager::update(float dt) {
         }
         else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; ++av->stepCount; collectBirths(*av, dt); }
     }
-    stepColumnSplashes(dt);   // 25.30 SC: the creek's cosmetic entry crown
     stepDroplets(dt);   // 21: flight + landing (deposits reach a GPU volume at its next step)
     stepRipples(dt);    // 22: the sub-cell wave layer
-    stepColumns(dt);    // 25.18 H1: column-water regions
     // Phase D (16.2): a volume that slept this tick writes back and frees itself (auto_sleep). Ids
     // first - sleep() destroys. A refused write-back (held or non-resident columns) leaves the
     // volume alive and is reported through the drained records, never silent.
@@ -505,7 +498,6 @@ void WaterCoreManager::refreshRippleShapeStats() {
 std::vector<RippleLayer*> WaterCoreManager::liveRippleLayers() {
     std::vector<RippleLayer*> out;
     for (auto& av : m_avs) if (av->ripple) out.push_back(av->ripple.get());
-    for (auto& r : m_columns) if (r.ripple) out.push_back(r.ripple.get());
     return out;
 }
 
@@ -674,110 +666,7 @@ WaterCoreManager::SolidsFeed WaterCoreManager::setMovingSolids(const std::vector
         out.freshCells += rep.freshCells; out.rateCells += rep.rateCells; out.clamped += rep.clamped; out.wakeCells += rep.wakeCells; out.rate += rep.rate;
         av.hadSolids = !mine.empty() || rep.wakeCells > 0;
     }
-    // 25.30 SC - column regions: each displacing body's submerged thickness over the columns it covers is the region's LOAD
-    // (ShoreSolver::setSurfaceLoad - it presses the water aside and holds it there). Submerged = the body's span between the
-    // bed and the free surface AROUND it (its footprint's ring, last step). Entering applies at once (the crater); a body leaving or coming
-    // to rest releases over kLoadReleaseSeconds.
-    const float H = ColumnWater::kH;
-    for (ColumnRegion& reg : m_columns) {
-        ColumnWater& cw = *reg.cw;
-        const ShoreSolver& sv = cw.solver();
-        const int nx = cw.nx(), nz = cw.nz();
-        const glm::vec3 lo(cw.minVoxel()), hi = glm::vec3(cw.maxVoxel()) + glm::vec3(1.0f);
-        const glm::vec2 org = sv.origin();
-        std::vector<float> target(static_cast<size_t>(nx) * nz, 0.0f);
-        int mine = 0;
-        for (const MovingSolid& b : bodies) {
-            const glm::vec3 bl = b.centre - b.halfExtents, bh = b.centre + b.halfExtents;
-            if (!glm::all(glm::greaterThanEqual(bh, lo)) || !glm::all(glm::lessThanEqual(bl, hi))) continue;
-            ++mine;
-            const int x0 = std::max(0, static_cast<int>(std::floor((bl.x - org.x) / H))), x1 = std::min(nx - 1, static_cast<int>(std::floor((bh.x - org.x) / H)));
-            const int z0 = std::max(0, static_cast<int>(std::floor((bl.z - org.y) / H))), z1 = std::min(nz - 1, static_cast<int>(std::floor((bh.z - org.y) / H)));
-            // the free surface the body is measured against: the mean over the RING of wet columns around its footprint. Its
-            // own columns' free surface (water + load) includes the load it is setting - read there, each frame's load lifted
-            // the surface it was measured against and it ratcheted up to the body's top: water drawn 23 cm up a stone in an
-            // 11 cm creek (live, 2026-10-12)
-            double ringSum = 0.0; int ringN = 0;
-            for (int z = z0 - 1; z <= z1 + 1; ++z) for (int x = x0 - 1; x <= x1 + 1; ++x) {
-                if (x >= x0 && x <= x1 && z >= z0 && z <= z1) continue;
-                if (x < 0 || z < 0 || x >= nx || z >= nz) continue;
-                const ShoreColumn& c = sv.col(x, z);
-                if (c.wall || c.eta - c.bed <= sv.params().dryDepth) continue;
-                ringSum += c.eta + sv.load(x, z); ++ringN;
-            }
-            if (ringN == 0) continue;
-            const double S = ringSum / ringN;
-            for (int z = z0; z <= z1; ++z) for (int x = x0; x <= x1; ++x) {
-                const ShoreColumn& c = sv.col(x, z);
-                if (c.wall) continue;
-                const float cx0 = org.x + x * H, cz0 = org.y + z * H;
-                const float ox = std::max(0.0f, std::min(cx0 + H, bh.x) - std::max(cx0, bl.x)), oz = std::max(0.0f, std::min(cz0 + H, bh.z) - std::max(cz0, bl.z));
-                const double subm = std::max(0.0, std::min(static_cast<double>(bh.y), S) - std::max(static_cast<double>(bl.y), static_cast<double>(c.bed)));
-                target[x + static_cast<size_t>(nx) * z] += static_cast<float>(ox * oz / (H * H) * subm);
-            }
-        }
-        if (reg.load.empty() && mine == 0) continue;
-        reg.load.resize(target.size(), 0.0f);
-        const float rel = std::min(1.0f, std::max(0.0f, frameSeconds) / kLoadReleaseSeconds);
-        bool any = false;
-        for (size_t i = 0; i < target.size(); ++i) {
-            float& s = reg.load[i];
-            s = target[i] >= s ? target[i] : s + (target[i] - s) * rel;
-            if (s < 1e-5f) s = 0.0f;
-            any = any || s > 0.0f;
-        }
-        if (!any) reg.load.clear();
-        cw.setLoad(reg.load);
-    }
     return out;
-}
-
-std::vector<std::pair<glm::ivec3, glm::ivec3>> WaterCoreManager::columnBoxes() const {
-    std::vector<std::pair<glm::ivec3, glm::ivec3>> out;
-    for (const auto& r : m_columns) out.push_back({r.cw->minVoxel(), r.cw->maxVoxel()});
-    return out;
-}
-
-void WaterCoreManager::stepColumnSplashes(float dt) {
-    if (!m_dstats.on || m_creekSplash <= 0.0f || dt <= 0.0f) return;
-    bool any = false;
-    for (ColumnRegion& reg : m_columns) {
-        ColumnWater& cw = *reg.cw;
-        const ShoreSolver& sv = cw.solver();
-        for (const MovingSolid& b : m_rippleBodies) {
-            const float speed = -b.velocity.y;
-            if (speed < kSplashMinSpeed) continue;
-            int cx, cz;
-            if (!cw.columnAt(b.centre.x, b.centre.z, cx, cz)) continue;
-            const ShoreColumn& c = sv.col(cx, cz);
-            if (c.wall || c.eta - c.bed <= sv.params().dryDepth) continue;
-            const float S = static_cast<float>(c.eta) + sv.load(cx, cz);
-            if (!(b.centre.y - b.halfExtents.y < S && b.centre.y + b.halfExtents.y > S)) continue;   // not crossing the surface
-            const float V = m_creekSplash * 4.0f * b.halfExtents.x * b.halfExtents.z * speed * dt;
-            // COUNT from the volume: one droplet per droplet volume (the pool's size knob x the column pitch), the remainder by a
-            // deterministic hash - the first cut threw 8 directions every frame whatever the volume, ~60 droplets per stone and
-            // as many for a 1/9 m pebble as for a 1/3 m stone (20-stone stress, 2026-10-12)
-            const float edge = std::clamp(m_dstats.size, 1.0f / 27.0f, 1.0f) * ColumnWater::kH;
-            const float vd = edge * edge * edge;
-            if (!any) { ++m_dropletTick; any = true; }
-            uint32_t h = static_cast<uint32_t>(std::floor(b.centre.x * 9.0f)) * 73856093u ^ static_cast<uint32_t>(std::floor(b.centre.z * 9.0f)) * 19349663u ^ m_dropletTick * 83492791u;
-            h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
-            const float frac = (h & 0xFFFFu) / 65536.0f, turn = ((h >> 16) & 0xFFFFu) / 65536.0f;
-            const int K = std::min(16, static_cast<int>(std::floor(V / vd + frac)));
-            for (int k = 0; k < K; ++k) {
-                const float a = 6.2831853f * (k + turn) / K;
-                const glm::vec2 dir(std::cos(a), std::sin(a));
-                DropletBirth bb;
-                bb.pos = glm::vec3(b.centre.x + dir.x * (b.halfExtents.x + 0.02f), S + 0.01f, b.centre.z + dir.y * (b.halfExtents.z + 0.02f));
-                bb.vel = glm::vec3(dir.x * 0.4f * speed + c.u, 0.8f * speed, dir.y * 0.4f * speed + c.w);
-                bb.volume = 0.999f * vd;   // ONE droplet: the pool splits ceil(V / vd), and vd's own float rounding gave 2 (706 for 353)
-                bb.column = k + 16 * static_cast<int>(m_dropletTick & 0xFFFFu);
-                const size_t before = m_pool.droplets().size();
-                m_pool.spawn(bb, -cw.id(), ColumnWater::kH, m_dstats.size, m_dropletTick);   // a refused share is simply not drawn (no water)
-                m_dstats.cosmeticM3 += bb.volume; m_dstats.cosmeticBirths += static_cast<long>(m_pool.droplets().size() - before);   // droplets, as landed
-            }
-        }
-    }
 }
 
 void WaterCoreManager::markWritten(Av& av) {
@@ -938,269 +827,7 @@ const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
         av->field.rippleLayer = (av->ripple && m_rstats.on) ? static_cast<int>(m_fields.size()) : -1;   // 22: parallel to rippleLayers()
         m_fields.push_back(av->field);
     }
-    for (ColumnRegion& r : m_columns) {   // 25.18 H1 (25.15 F1): the column tier drawn by the same mesher and shader
-        r.cw->publish(r.field);
-        r.field.rippleLayer = (r.ripple && m_rstats.on) ? static_cast<int>(m_fields.size()) : -1;   // 25.26 RC (publish resets it)
-        const glm::ivec3 c = (r.cw->minVoxel() + r.cw->maxVoxel()) / 2;
-        r.field.look = packLook(lookAt(c.x, c.z));
-        m_fields.push_back(r.field);
-    }
     return m_fields;
-}
-
-// ---- 25.18 H1: column-water regions ----
-void WaterCoreManager::refreshColumnSolids(ColumnRegion& r, bool force) {
-    const uint64_t rev = m_revision ? m_revision() : 0;
-    if (!force && rev == r.occRevision) return;
-    r.occRevision = rev;
-    ColumnWater& cw = *r.cw;
-    const int nx = cw.nx(), nz = cw.nz();
-    const int yLo = cw.minVoxel().y * kMicroPerVoxel, yHi = (cw.maxVoxel().y + 1) * kMicroPerVoxel - 1;
-    std::vector<float> tops(static_cast<size_t>(nx) * nz, static_cast<float>(cw.minVoxel().y));
-    std::vector<uint8_t> walls(tops.size(), 0);
-    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
-        // the column's centre micro column (1/9 m) - the bed is the top of the highest solid micro cell in the box's range
-        const glm::vec2 cc = cw.columnCentre(x, z);
-        const int mx = static_cast<int>(std::floor(cc.x * kMicroPerVoxel)), mz = static_cast<int>(std::floor(cc.y * kMicroPerVoxel));
-        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(nx) * z;
-        if (m_state && m_state(glm::ivec3(mx, yHi, mz)) == 1) { walls[i] = 1; continue; }   // solid to the box top: a bank
-        for (int my = yHi; my >= yLo; --my) {
-            if (m_state && m_state(glm::ivec3(mx, my, mz)) == 1) { tops[i] = static_cast<float>(my + 1) / kMicroPerVoxel; break; }
-        }
-    }
-    cw.setSolids(tops, walls);
-    // 25.22 option (a): the generator's continuous height where the ground is as generated (its drawn top matches what the
-    // generator draws there), bilinear between voxel centres so a 1/3 m column is not a 1 m staircase sideways, and never
-    // below the drawn top (a neighbour's lower height must not sink the bed under this voxel's subcubes). Edited ground:
-    // the voxel top.
-    if (!m_genBed) return;
-    const glm::ivec3 lo = cw.minVoxel() - glm::ivec3(1, 0, 1), hi = cw.maxVoxel() + glm::ivec3(1, 0, 1);
-    const int vx = hi.x - lo.x + 1, vz = hi.z - lo.z + 1;
-    std::vector<float> H(static_cast<size_t>(vx) * vz, 0.0f), drawn(H.size(), 0.0f);
-    std::vector<uint8_t> known(H.size(), 0);
-    for (int z = 0; z < vz; ++z) for (int x = 0; x < vx; ++x) {
-        float bh = 0.0f, dt = 0.0f;
-        const size_t k = static_cast<size_t>(x) + static_cast<size_t>(vx) * z;
-        if (m_genBed(lo.x + x, lo.z + z, bh, dt)) { H[k] = bh; drawn[k] = dt; known[k] = 1; }
-    }
-    std::vector<float> beds(tops.size());
-    for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
-        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(nx) * z;
-        beds[i] = tops[i];
-        if (walls[i]) continue;
-        const glm::vec2 c = cw.columnCentre(x, z);
-        const int ox = static_cast<int>(std::floor(c.x)) - lo.x, oz = static_cast<int>(std::floor(c.y)) - lo.z;
-        const size_t own = static_cast<size_t>(ox) + static_cast<size_t>(vx) * oz;
-        if (!known[own] || std::abs(drawn[own] - tops[i]) > 1e-3f) continue;   // edited (or unknown): the voxels
-        const float fx = c.x - 0.5f - lo.x, fz = c.y - 0.5f - lo.z;           // in voxel-centre coordinates
-        const int x0 = std::clamp(static_cast<int>(std::floor(fx)), 0, vx - 2), z0 = std::clamp(static_cast<int>(std::floor(fz)), 0, vz - 2);
-        const float tx = std::clamp(fx - x0, 0.0f, 1.0f), tz = std::clamp(fz - z0, 0.0f, 1.0f);
-        auto at = [&](int xx, int zz) { const size_t k = static_cast<size_t>(xx) + static_cast<size_t>(vx) * zz; return known[k] ? H[k] : H[own]; };
-        const float h = (at(x0, z0) * (1 - tx) + at(x0 + 1, z0) * tx) * (1 - tz) + (at(x0, z0 + 1) * (1 - tx) + at(x0 + 1, z0 + 1) * tx) * tz;
-        beds[i] = std::max(h, tops[i]);
-    }
-    cw.setGeneratorBeds(std::move(beds));
-}
-
-int WaterCoreManager::createColumns(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float manningN, std::string* err) {
-    const glm::ivec3 lo = glm::min(minVoxel, maxVoxel), hi = glm::max(minVoxel, maxVoxel);
-    const glm::ivec3 span = hi - lo + 1;
-    // 600 x 600 columns (200 m square at 1/3 m) is the CPU step's ceiling here (H0: ~150-285 ns per column-tick)
-    if (span.x * 3 > 600 || span.z * 3 > 600 || span.y > 64) { if (err) *err = "box too large (max 200 x 64 x 200 voxels)"; return 0; }
-    ShoreParams p; p.manningN = manningN;
-    ColumnRegion r;
-    r.cw = std::make_unique<ColumnWater>(m_nextColumnId++, lo, hi, p);
-    refreshColumnSolids(r, true);
-    if (r.cw->hasGeneratorBeds()) r.cw->setBedRule(ColumnBedRule::Generator);   // 25.21: option (a) is the default where it exists
-    m_columns.push_back(std::move(r));
-    return m_columns.back().cw->id();
-}
-
-bool WaterCoreManager::destroyColumns(int id) {
-    for (size_t i = 0; i < m_columns.size(); ++i) if (m_columns[i].cw->id() == id) { m_columns.erase(m_columns.begin() + static_cast<long>(i)); return true; }
-    return false;
-}
-
-ColumnWater* WaterCoreManager::columns(int id) {
-    for (ColumnRegion& r : m_columns) if (r.cw->id() == id) return r.cw.get();
-    return nullptr;
-}
-
-void WaterCoreManager::stepColumns(float dt) {
-    for (ColumnRegion& r : m_columns) {
-        refreshColumnSolids(r);
-        Av* win = r.windowAv ? volumeById(r.windowAv) : nullptr;
-        if (r.windowAv && !win) { r.cw->setHeld({}); r.windowAv = 0; }   // the volume was removed elsewhere: its columns keep their last ghosts
-        if (win) windowGhosts(r, *win);      // 1. the held columns from the window (it stepped earlier this frame)
-        r.cw->step(dt);                      // 2. T2, frozen inside the window: a held column's change is what crossed the edge
-        if (win) windowTransfers(r, *win);   // 3. that water into (or out of) the window, column by column
-    }
-}
-
-namespace {
-// 25.39: one held column's 3 x 3 sub-columns in a window's grid (1/9 m cells, 3 per 1/3 m column)
-inline glm::ivec2 windowCell(const WaterGrid& g, const ColumnWater& cw, int cx, int cz) {
-    return glm::ivec2(cw.minVoxel().x * 9 + cx * 3 - g.spec().origin.x, cw.minVoxel().z * 9 + cz * 3 - g.spec().origin.z);
-}
-}  // namespace
-
-void WaterCoreManager::windowGhosts(ColumnRegion& r, Av& av) {
-    ColumnWater& cw = *r.cw;
-    const WaterGrid& g = *av.grid;
-    const double V = g.cellVolume(), A = ColumnWater::kH * ColumnWater::kH;
-    for (int cz = 0; cz < cw.nz(); ++cz) for (int cx = 0; cx < cw.nx(); ++cx) {
-        if (!cw.isHeld(cx, cz)) continue;
-        const glm::ivec2 c0 = windowCell(g, cw, cx, cz);
-        double m = 0.0, mu = 0.0, mw = 0.0;
-        for (int dz = 0; dz < 3; ++dz) for (int dx = 0; dx < 3; ++dx) {
-            const int x = c0.x + dx, z = c0.y + dz;
-            if (x < 0 || z < 0 || x >= g.nx() || z >= g.nz()) continue;
-            for (int y = 0; y < g.ny(); ++y) {
-                const float f = g.f(x, y, z);
-                if (f <= 0.0f) continue;
-                m += f; mu += f * 0.5 * (g.u(x, y, z) + g.u(x + 1, y, z)); mw += f * 0.5 * (g.w(x, y, z) + g.w(x, y, z + 1));
-            }
-        }
-        cw.setGhost(cx, cz, m * V / A, m > 0.0 ? glm::vec2(static_cast<float>(mu / m), static_cast<float>(mw / m)) : glm::vec2(0.0f));
-    }
-}
-
-void WaterCoreManager::windowTransfers(ColumnRegion& r, Av& av) {
-    ColumnWater& cw = *r.cw;
-    WaterGrid& g = *av.grid;
-    const double V = g.cellVolume();
-    const auto& tr = cw.transfers();
-    bool any = false;
-    for (int cz = 0; cz < cw.nz(); ++cz) for (int cx = 0; cx < cw.nx(); ++cx) {
-        const double t = tr.empty() ? 0.0 : tr[static_cast<size_t>(cx) + static_cast<size_t>(cw.nx()) * cz];
-        if (t == 0.0) continue;
-        any = true;
-        if (t > 0.0) r.windowIn += t; else r.windowOut -= t;
-        const glm::ivec2 c0 = windowCell(g, cw, cx, cz);
-        double left = std::abs(t) / V;   // in cell fills
-        // spread over the column's 9 sub-columns: each in turn takes (or gives) up to an equal share, then whoever can
-        for (int pass = 0; pass < 2 && left > 1e-12; ++pass) {
-            const double share = pass == 0 ? left / 9.0 : left;
-            for (int k = 0; k < 9 && left > 1e-12; ++k) {
-                const int x = c0.x + k % 3, z = c0.y + k / 3;
-                if (x < 0 || z < 0 || x >= g.nx() || z >= g.nz()) continue;
-                double want = std::min(share, left);
-                if (t > 0.0) {   // into the topmost water, upward (the floor's first air cell when the sub-column is dry)
-                    int y = g.ny() - 1;
-                    while (y > 0 && !(g.f(x, y - 1, z) > 0.0f || av.occCache[g.idx(x, y - 1, z)] != Occ::Air)) --y;
-                    for (; y < g.ny() && want > 1e-12; ++y) {
-                        if (av.occCache[g.idx(x, y, z)] != Occ::Air) continue;
-                        float& f = g.f(x, y, z);
-                        const double add = std::min(want, 1.0 - static_cast<double>(f));
-                        f += static_cast<float>(add); want -= add; left -= add;
-                    }
-                } else {         // out of the topmost water, downward
-                    for (int y = g.ny() - 1; y >= 0 && want > 1e-12; --y) {
-                        float& f = g.f(x, y, z);
-                        if (f <= 0.0f) continue;
-                        const double take = std::min(want, static_cast<double>(f));
-                        f -= static_cast<float>(take); want -= take; left -= take;
-                    }
-                }
-            }
-        }
-        if (left > 1e-9) r.windowShortfall += left * V;   // counted, never silent (asserted 0 in the tests)
-    }
-    if (any) av.solver->wake();
-}
-
-int WaterCoreManager::openWindow(int regionId, const glm::ivec2& loIn, const glm::ivec2& hiIn, std::string* err) {
-    ColumnRegion* rp = regionById(regionId);
-    if (!rp) { if (err) *err = "no column region " + std::to_string(regionId); return 0; }
-    ColumnRegion& r = *rp;
-    if (r.windowAv) { if (err) *err = "the region already has a window (one per region in H2a)"; return 0; }
-    ColumnWater& cw = *r.cw;
-    const glm::ivec2 lo(std::max(std::min(loIn.x, hiIn.x), cw.minVoxel().x), std::max(std::min(loIn.y, hiIn.y), cw.minVoxel().z));
-    const glm::ivec2 hi(std::min(std::max(loIn.x, hiIn.x), cw.maxVoxel().x), std::min(std::max(loIn.y, hiIn.y), cw.maxVoxel().z));
-    if (lo.x > hi.x || lo.y > hi.y) { if (err) *err = "the window is outside the region"; return 0; }
-    // the held columns, and the window's floor: the lowest bed under it
-    const int nx = cw.nx();
-    std::vector<uint8_t> held(static_cast<size_t>(nx) * cw.nz(), 0);
-    float lowBed = 1e30f;
-    for (int cz = (lo.y - cw.minVoxel().z) * 3; cz < (hi.y - cw.minVoxel().z + 1) * 3; ++cz)
-        for (int cx = (lo.x - cw.minVoxel().x) * 3; cx < (hi.x - cw.minVoxel().x + 1) * 3; ++cx) {
-            held[static_cast<size_t>(cx) + static_cast<size_t>(nx) * cz] = 1;
-            const ShoreColumn& c = cw.solver().col(cx, cz);
-            if (!c.wall) lowBed = std::min(lowBed, c.bed);
-        }
-    if (cw.overlapsSpringOrOutfall(held)) { if (err) *err = "the window covers a spring or an outfall (they belong to the column tier)"; return 0; }
-    if (lowBed > 1e29f) { if (err) *err = "the window covers no water-bearing column"; return 0; }
-    const int yLo = std::max(cw.minVoxel().y, static_cast<int>(std::floor(lowBed)) - 1);
-    const int id = create(glm::ivec3(lo.x, yLo, lo.y), glm::ivec3(hi.x, cw.maxVoxel().y, hi.y), 1.0f / 9.0f, "eulerian", err, "cpu");
-    if (!id) return 0;
-    Av& av = *volumeById(id);
-    av.window = true; av.autoSleep = false;
-    av.solver->setPondFriction(0.0f);
-    av.solver->setBedManning(cw.manningN());
-    // the floor: each cell column stands on its 1/3 m column's bed (walls: the box top - solid all the way up)
-    const WaterGrid& g = *av.grid;
-    av.floorY.assign(static_cast<size_t>(g.nx()) * g.nz(), 0.0f);
-    for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) {
-        const int cx = (g.spec().origin.x + x) / 3 - cw.minVoxel().x * 3, cz = (g.spec().origin.z + z) / 3 - cw.minVoxel().z * 3;
-        const ShoreColumn& c = cw.solver().col(cx, cz);
-        av.floorY[static_cast<size_t>(x) + static_cast<size_t>(g.nx()) * z] = c.wall ? static_cast<float>(cw.maxVoxel().y + 2) : c.bed;
-    }
-    av.occDirty = true;
-    refreshOccupancy(av);
-    av.solver->refreshSolids();
-    // seed: each held column's depth into its 9 sub-columns from the floor up (mass-exact), its velocity on their faces
-    WaterGrid& gw = *av.grid;
-    const double V = gw.cellVolume();
-    for (int cz = 0; cz < cw.nz(); ++cz) for (int cx = 0; cx < nx; ++cx) {
-        if (!held[static_cast<size_t>(cx) + static_cast<size_t>(nx) * cz]) continue;
-        const ShoreColumn& c = cw.solver().col(cx, cz);
-        if (c.wall) continue;
-        const double depth = std::max(c.eta - static_cast<double>(c.bed), 0.0);
-        if (depth <= 0.0) continue;
-        const glm::ivec2 c0 = windowCell(gw, cw, cx, cz);
-        double left = depth * ColumnWater::kH * ColumnWater::kH / V;   // the column's water in cell fills
-        for (int k = 0; k < 9; ++k) {
-            const int x = c0.x + k % 3, z = c0.y + k / 3;
-            double want = left / static_cast<double>(9 - k);
-            for (int y = 0; y < gw.ny() && want > 1e-12; ++y) {
-                if (av.occCache[gw.idx(x, y, z)] != Occ::Air) continue;
-                const double add = std::min(want, 1.0);
-                gw.f(x, y, z) = static_cast<float>(add); want -= add; left -= add;
-                gw.u(x, y, z) = c.u; gw.u(x + 1, y, z) = c.u; gw.w(x, y, z) = c.w; gw.w(x, y, z + 1) = c.w;
-            }
-        }
-        if (left > 1e-9) r.windowShortfall += left * V;
-    }
-    av.solver->wake();
-    cw.setHeld(held);   // the held water is the window's now (the ledger moves with it)
-    r.windowAv = id; r.wLo = lo; r.wHi = hi; r.windowIn = r.windowOut = 0.0;
-    return id;
-}
-
-bool WaterCoreManager::closeWindow(int regionId) {
-    ColumnRegion* rp = regionById(regionId);
-    if (!rp || !rp->windowAv) return false;
-    ColumnRegion& r = *rp;
-    if (Av* av = volumeById(r.windowAv)) windowGhosts(r, *av);   // the window's water into its columns, exactly
-    r.cw->setHeld({});                                           // ... and back in the region's count
-    destroy(r.windowAv);
-    r.windowAv = 0;
-    return true;
-}
-
-bool WaterCoreManager::windowInfo(int regionId, WindowInfo& out) const {
-    for (const ColumnRegion& r : m_columns) {
-        if (r.cw->id() != regionId || !r.windowAv) continue;
-        for (const auto& a : m_avs) {
-            if (a->id != r.windowAv) continue;
-            out.av = a->id; out.lo = r.wLo; out.hi = r.wHi; out.cells = static_cast<long>(a->grid->cellCount());
-            out.mass = a->grid->totalMass() + m_pool.volumeInFlight(a->id); out.in = r.windowIn;   // the grid + its droplets in flight
-            out.residue = a->residueDropped; out.droplets = m_pool.volumeInFlight(a->id); out.out = r.windowOut; out.shortfall = r.windowShortfall;
-            int held = 0; for (uint8_t h : r.cw->heldMask()) held += h; out.held = held;
-            return true;
-        }
-    }
-    return false;
 }
 
 std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float moveM) {
@@ -1305,24 +932,6 @@ void WaterCoreManager::stepDroplets(float dt) {
     std::vector<glm::vec3> landAt;
     auto land = [&](Droplet& d, const glm::vec3& prev) -> bool {
         (void)prev;
-        if (d.volumeId < 0) {   // 25.30 SC: a creek's cosmetic droplet - lands on its region's free surface or ground
-            ColumnRegion* reg = regionById(-d.volumeId);
-            if (!reg) { landAt.push_back(d.pos); return true; }
-            const ColumnWater& cw = *reg->cw;
-            int cx, cz;
-            if (!cw.columnAt(d.pos.x, d.pos.z, cx, cz)) {   // flew off the region: gone at its floor (no water to put back)
-                if (d.pos.y < static_cast<float>(cw.minVoxel().y) || d.age > 10.0f) { landAt.push_back(d.pos); return true; }
-                return false;
-            }
-            const ShoreSolver& sv = cw.solver();
-            const ShoreColumn& c = sv.col(cx, cz);
-            const float ground = cw.voxelTops()[static_cast<size_t>(cx) + static_cast<size_t>(cw.nx()) * cz];
-            const bool wet = !c.wall && c.eta - c.bed > sv.params().dryDepth;
-            const float S = static_cast<float>(c.eta) + sv.load(cx, cz);
-            if (wet && d.vel.y <= 0.0f && d.pos.y <= S) { landAt.push_back(glm::vec3(d.pos.x, S - 0.01f, d.pos.z)); return true; }
-            if (d.pos.y <= std::max(ground, wet ? -1e30f : static_cast<float>(c.bed)) || d.age > 10.0f) { landAt.push_back(d.pos); return true; }
-            return false;
-        }
         Av* av = volumeById(d.volumeId);
         if (!av) { landAt.push_back(d.pos); return true; }   // its volume is gone (destroy already discarded it; defensive)
         const WaterSurfaceField& f = av->field;
@@ -1352,16 +961,6 @@ void WaterCoreManager::stepDroplets(float dt) {
     };
     m_pool.step(dt, g, land, landed);
     for (size_t i = 0; i < landed.size(); ++i) {
-        if (landed[i].volumeId < 0) {   // 25.30 SC: no water lands - only its momentum, into the creek's ripple window
-            ++m_dstats.cosmeticLandings;
-            ColumnRegion* reg = regionById(-landed[i].volumeId);
-            if (reg && reg->ripple && m_rstats.on && landed[i].vel.y < 0.0f) {
-                const float d = RippleLayer::kPitch;
-                reg->ripple->addImpulse(landAt[i].x, landAt[i].z, 1000.0f * landed[i].volume * -landed[i].vel.y / (d * d));
-                ++m_rstats.impulses;
-            }
-            continue;
-        }
         Av* av = volumeById(landed[i].volumeId);
         if (!av) continue;
         m_dstats.landedM3 += landed[i].volume; ++m_dstats.landings;
@@ -1381,7 +980,6 @@ void WaterCoreManager::stepDroplets(float dt) {
 std::vector<const RippleLayer*> WaterCoreManager::rippleLayers() const {
     std::vector<const RippleLayer*> out;
     for (const auto& av : m_avs) out.push_back(m_rstats.on ? av->ripple.get() : nullptr);
-    for (const auto& r : m_columns) out.push_back(m_rstats.on ? r.ripple.get() : nullptr);   // 25.26 RC: parallel to the regions' fields
     return out;
 }
 
@@ -1508,104 +1106,6 @@ void WaterCoreManager::stepRipples(float dt) {
         m_rstats.brokenM3 += L.takeBroken();
         ++m_rstats.layers; m_rstats.cells += static_cast<long>(L.nx()) * L.nz();
         if (!L.asleep()) ++m_rstats.awake;   // the shape stats: refreshRippleShapeStats (on demand)
-    }
-    // ---- 25.26 RC: column regions - a ripple window following the camera, carried by the current, forced by the flow ----
-    for (ColumnRegion& reg : m_columns) {
-        ColumnWater& cw = *reg.cw;
-        const ShoreSolver& sv = cw.solver();
-        RippleLayer& L = rippleWindow(reg.ripple, cw.minVoxel(), cw.maxVoxel(), gpu);   // 26.13: the one window rule
-        const int nx = L.nx(), nz = L.nz();
-        std::vector<glm::vec2> vel(static_cast<size_t>(nx) * nz, glm::vec2(0.0f));
-        auto& mask = L.mask();
-        const float dry = sv.params().dryDepth, n = sv.params().manningN;
-        const uint32_t frame = ++reg.rippleFrame;
-        int forced = 0;
-        // per COLUMN first (9 lattice cells share one 1/3 m column): wet, velocity, the forcing's amplitude
-        // C_f rho u*^2 dt (-1 = no water) - then the lattice from integer column indices (25.34: the per-cell float lookup
-        // and pow were 0.49 ms per frame of the creek window, measured)
-        auto fdiv3 = [](int a) { return a >= 0 ? a / 3 : -((-a + 2) / 3); };
-        const int colX0 = cw.minVoxel().x * 3, colZ0 = cw.minVoxel().z * 3;
-        const int cxa = fdiv3(L.origin().x) - colX0, cza = fdiv3(L.origin().y) - colZ0;
-        const int ncx = fdiv3(L.origin().x + nx - 1) - colX0 - cxa + 1, ncz = fdiv3(L.origin().y + nz - 1) - colZ0 - cza + 1;
-        std::vector<float> colAmp(static_cast<size_t>(ncx) * ncz, -1.0f);
-        std::vector<glm::vec2> colVel(colAmp.size(), glm::vec2(0.0f));
-        const bool forcing = m_flowForcing > 0.0f && m_rpattern.slope < 0.0f;
-        for (int k = 0; k < ncz; ++k) for (int j2 = 0; j2 < ncx; ++j2) {
-            const int cx = cxa + j2, cz = cza + k;
-            if (cx < 0 || cz < 0 || cx >= cw.nx() || cz >= cw.nz()) continue;
-            const ShoreColumn& col = sv.col(cx, cz);
-            const double depth = col.eta - col.bed;
-            if (col.wall || depth <= dry) continue;
-            const size_t ci = static_cast<size_t>(j2) + static_cast<size_t>(ncx) * k;
-            colVel[ci] = glm::vec2(col.u, col.w);
-            colAmp[ci] = 0.0f;
-            if (!forcing) continue;
-            const float speed = std::sqrt(col.u * col.u + col.w * col.w);
-            if (speed < 1e-3f) continue;
-            const float ustar = speed * n * std::sqrt(9.81f) / std::pow(static_cast<float>(std::max(depth, 1e-3)), 1.0f / 6.0f);
-            colAmp[ci] = m_flowForcing * 1000.0f * ustar * ustar * dt;
-        }
-        std::vector<float> raw;
-        for (int z = 0; z < nz; ++z) {
-            const int k = fdiv3(L.origin().y + z) - colZ0 - cza;
-            for (int x = 0; x < nx; ++x) {
-                const size_t i = L.idx(x, z);
-                const size_t ci = static_cast<size_t>(fdiv3(L.origin().x + x) - colX0 - cxa) + static_cast<size_t>(ncx) * k;
-                const float a = colAmp[ci];
-                if (a < 0.0f) { mask[i] = 0; continue; }
-                mask[i] = 1;
-                vel[i] = colVel[ci];
-                if (a <= 0.0f) continue;
-                // fade over the window's outer 8 m so its edge is never seen (the ripples die away before the absorbing rim)
-                const float edge = static_cast<float>(std::min(std::min(x, z), std::min(nx - 1 - x, nz - 1 - z)));
-                const float fade = std::clamp(edge / 72.0f, 0.0f, 1.0f);
-                if (fade <= 0.0f) continue;
-                uint32_t h = static_cast<uint32_t>(L.origin().x + x) * 73856093u ^ static_cast<uint32_t>(L.origin().y + z) * 19349663u ^ frame * 83492791u;
-                h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
-                const float xi = (h & 0xFFFFu) / 32767.5f - 1.0f;
-                if (raw.empty()) raw.assign(static_cast<size_t>(nx) * nz, 0.0f);
-                raw[i] = a * xi * fade;
-                ++forced;
-            }
-        }
-        if (!raw.empty()) L.addImpulseField(raw);
-        // 25.30 SC: bodies crossing the region's surface - the pond's sharp-edge remainder (22.3.2) at the column pitch
-        // (3 lattice cells per 1/3 m column, world-aligned as on the pond)
-        for (const MovingSolid& b : m_rippleBodies) {
-            if (std::abs(b.velocity.y) < 0.01f || m_rpattern.slope >= 0.0f) continue;
-            int bx, bz;
-            if (!cw.columnAt(b.centre.x, b.centre.z, bx, bz)) continue;
-            const ShoreColumn& bc = sv.col(bx, bz);
-            if (bc.wall || bc.eta - bc.bed <= dry) continue;
-            const float S = static_cast<float>(bc.eta) + sv.load(bx, bz);
-            if (!(b.centre.y - b.halfExtents.y < S && b.centre.y + b.halfExtents.y > S)) continue;
-            const float Hc = ColumnWater::kH;
-            const int per = 3;
-            const glm::vec2 blo(b.centre.x - b.halfExtents.x, b.centre.z - b.halfExtents.z), bhi(b.centre.x + b.halfExtents.x, b.centre.z + b.halfExtents.z);
-            const int gx0 = static_cast<int>(std::floor(blo.x / Hc)), gx1 = static_cast<int>(std::floor(bhi.x / Hc));
-            const int gz0 = static_cast<int>(std::floor(blo.y / Hc)), gz1 = static_cast<int>(std::floor(bhi.y / Hc));
-            for (int gz = gz0; gz <= gz1; ++gz) for (int gx = gx0; gx <= gx1; ++gx) {
-                float fine[9]; float sum = 0.0f;
-                for (int j = 0; j < per; ++j) for (int i = 0; i < per; ++i) {
-                    const float x0 = (gx * per + i) * d, z0 = (gz * per + j) * d;
-                    const float ox = std::max(0.0f, std::min(x0 + d, bhi.x) - std::max(x0, blo.x)), oz = std::max(0.0f, std::min(z0 + d, bhi.y) - std::max(z0, blo.y));
-                    fine[j * per + i] = ox * oz / (d * d); sum += fine[j * per + i];
-                }
-                const float coarse = sum / static_cast<float>(per * per);
-                for (int j = 0; j < per; ++j) for (int i = 0; i < per; ++i) {
-                    const float vhp = b.velocity.y * (fine[j * per + i] - coarse);
-                    if (std::abs(vhp) < 1e-5f) continue;
-                    L.setKinematic(gx * per + i - L.origin().x, gz * per + j - L.origin().y, vhp);
-                    ++m_rstats.kinematicCells;
-                }
-            }
-        }
-        L.setBreakSlope(m_rstats.breakSlope);
-        if (m_rpattern.slope < 0.0f) stepLayer(L, dt, &vel);
-        ++m_rstats.layers; m_rstats.cells += static_cast<long>(nx) * nz;
-        if (!L.asleep()) ++m_rstats.awake;
-        m_rstats.brokenM3 += L.takeBroken();
-        (void)forced;
     }
     m_rstats.gpu = gpu;
     if (gpu) {

@@ -2,7 +2,6 @@
 
 #include "core/water/SeaSwell.h"
 #include "core/water/ShoreSolver.h"
-#include "core/water/ColumnWater.h"
 
 #include <cmath>
 #include <cstdio>
@@ -191,20 +190,28 @@ ColState runSwash(bool dense, double flag) {
     }
     return snapshot(s);
 }
+// a 100 x 8 m box at 1/3 m columns, a 2 m channel down its middle on a 1:200 line, dry banks 0.6 m up; springs in the first
+// column and outfalls in the last, supplied here as WaterCreekH0's harness does (26.27: ColumnWater, which supplied them, is gone)
 ColState runCreek(bool dense) {
     ShoreParams p; p.manningN = 0.035f;
-    ColumnWater cw(1, glm::ivec3(0, 14, 0), glm::ivec3(99, 17, 23), p);
-    cw.solver().setDenseRatesForTest(dense);
-    const int nx = cw.nx(), nz = cw.nz(), c0 = nz / 2 - 3, c1 = nz / 2 + 3;
-    std::vector<float> tops(static_cast<size_t>(nx) * nz); std::vector<uint8_t> walls(tops.size(), 0);
+    const float h = 1.0f / 3.0f;
+    const int nx = 300, nz = 72, c0 = nz / 2 - 3, c1 = nz / 2 + 3;
+    ShoreSolver s(glm::vec2(0.0f), nx, nz, h, p);
+    s.setDenseRatesForTest(dense);
     for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
-        const float line = 15.5f - cw.columnCentre(x, z).x / 200.0f;
-        tops[x + static_cast<size_t>(nx) * z] = (z >= c0 && z < c1) ? std::floor(line * 3.0f) / 3.0f : line + 0.6f;
+        const float line = 15.5f - (x + 0.5f) * h / 200.0f;
+        ShoreColumn& c = s.col(x, z);
+        c.bed = (z >= c0 && z < c1) ? line : line + 0.6f;
+        c.eta = c.bed;
     }
-    cw.setSolids(tops, walls); cw.setPlane(15.5f, 1.0f / 200.0f, 0.0f); cw.setBedRule(ColumnBedRule::Plane);
-    for (int z = c0; z < c1; ++z) { cw.addSpring(0, z, 0.1 / 6.0); cw.addOutfall(nx - 1, z); }
-    for (int k = 0; k < 60 * 60; ++k) cw.step(1.0f / 60.0f);
-    return snapshot(cw.solver());
+    const double dEta = 0.1 / 6.0 / (h * h);
+    for (int k = 0; k < 60 * 60; ++k) {
+        const float dt = 1.0f / 60.0f;
+        for (int z = c0; z < c1; ++z) s.col(0, z).eta += dEta * dt;
+        s.step(dt);
+        for (int z = c0; z < c1; ++z) { ShoreColumn& c = s.col(nx - 1, z); if (c.eta > c.bed) { c.eta = c.bed; c.u = c.w = 0.0f; } }
+    }
+    return snapshot(s);
 }
 }  // namespace
 
@@ -217,51 +224,6 @@ TEST(ShoreSolverTest, SparseRatesEqualDense) {
     EXPECT_EQ(dSw, 0) << "sparse rates must equal dense bit for bit (swash)";
     EXPECT_EQ(dCr, 0) << "sparse rates must equal dense bit for bit (creek)";
     EXPECT_GT(dWrong, 0) << "the red: flags at the 1 mm dry threshold drop a film's flux - the test must see it";
-}
-
-// WaterCore 25.37: a pond spills as soon as it tops its crest. The dam & pond bench's geometry (25.36): a 6 x 6 m pond, floor
-// 14.0, fed by a creek at 0.2 m^3/s; its spill channel leaves over a 1.1 m step up onto a dry 1:200 channel (crest 15.13).
-// The reconstruction once put the outflow face's bed 0.36 m above both cells' beds next to the step (depth and surface
-// extrapolated with separate slopes): the first spill column filled to 0.38 m and stood still beside a dry column on the
-// same bed for 90 s, and the pond overtopped its crest by 0.41 m before anything left. Prediction: water flows past the crest
-// column with the pond at most 5 cm over the crest; sparse and dense equal (25.32); the ledger exact.
-TEST(ShoreSolverTest, APondSpillsWhenItTopsItsCrest) {
-    double at[2] = {0.0, 0.0};
-    for (bool dense : {true, false}) {
-        ShoreParams p; p.manningN = 0.035f;
-        ColumnWater cw(1, glm::ivec3(100, 13, 27), glm::ivec3(127, 17, 36), p);   // x 100-127, z 27-36
-        cw.solver().setDenseRatesForTest(dense);
-        const int nx = cw.nx(), nz = cw.nz();
-        std::vector<float> tops(static_cast<size_t>(nx) * nz, 16.0f); std::vector<uint8_t> walls(tops.size(), 0);
-        for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
-            const glm::vec2 c = cw.columnCentre(x, z);
-            float t = 16.0f;
-            if (c.y >= 31 && c.y < 33 && c.x < 112) t = 15.0f;                       // the creek's end
-            if (c.x >= 112 && c.x < 118 && c.y >= 29 && c.y < 35) t = 14.0f;         // the pond
-            if (c.x >= 118 && c.y >= 31 && c.y < 33) t = 15.0f;                      // the spill
-            tops[x + static_cast<size_t>(nx) * z] = t;
-        }
-        cw.setSolids(tops, walls);
-        cw.setPlane(15.72f, 1.0f / 200.0f, 0.0f);
-        cw.setBedRule(ColumnBedRule::Plane);
-        for (int k = 0; k < 6; ++k) { cw.addSpring(0, 12 + k, 0.2 / 6.0); cw.addOutfall(nx - 1, 12 + k); }
-        const double crest = cw.solver().col((118 - 100) * 3, 15).bed;
-        double spillAt = -1.0, pondAt = 0.0;
-        for (int step = 0; step < 60 * 400 && spillAt < 0.0; ++step) {
-            cw.step(1.0f / 60.0f);
-            // spilling: water 1 cm deep in the channel's SECOND column (past the crest column) - the outfall 10 m on also
-            // counts the front's trip over the dry channel, while the pond keeps rising (the first cut's metric)
-            const ShoreColumn& c2 = cw.solver().col((118 - 100) * 3 + 1, 15);
-            if (c2.eta - c2.bed > 0.01) { spillAt = step / 60.0; pondAt = cw.solver().col((115 - 100) * 3, 15).eta; }
-        }
-        std::printf("  %s: spilling at %.1f s with the pond at %.3f, %.3f m over the crest %.3f; ledger %.2e\n",
-                    dense ? "dense " : "sparse", spillAt, pondAt, pondAt - crest, crest, cw.ledgerError());
-        ASSERT_GT(spillAt, 0.0) << "the pond never spilled";
-        EXPECT_LE(pondAt - crest, 0.05);
-        EXPECT_NEAR(cw.ledgerError(), 0.0, 1e-5);
-        at[dense ? 0 : 1] = pondAt;
-    }
-    EXPECT_EQ(at[0], at[1]) << "sparse and dense equal";
 }
 
 }  // namespace

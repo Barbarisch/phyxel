@@ -127,7 +127,9 @@ damping braked them toward the ground and the debris -> water exchange handed th
 moves in it: 4 floats in the creek, 124 -> 7 FPS. Pre-existing.
 26.26 BUILT: the exchange on the device - 4 floats 7 -> 123 FPS, floats at 1.002 of the water. **26.25 + 26.26 signed off by the
 owner 2026-10-17** (`current_floats_pond.mp4`: "the video looks really good").
-**Next:** P3d-2 (the removal). The §23 slime experiment stays queued.
+**26.27 (2026-10-17) BUILT, not signed off:** P3d-2 - the column water removed; tests and the creek bench as predicted; the dam
+& pond bench to re-measure on an idle GPU (the first runs shared it with another application).
+**Next:** the dam & pond bench re-run; then the owner's look. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -4280,6 +4282,7 @@ the 512 m radius needs the GPU (or threads, or a slower step away from the view)
 4. **Cost** - GPU port vs threads vs a slower step away from the view, measured against the 0.6 ms allotment.
 
 ### 25.18 H1 design - the column tier on real terrain, and the bed comparison (2026-10-11)
+> **Removed in 26.27 (P3d-2):** `ColumnWater`, the column regions and the `water_columns` route are gone; pond water (§26) is the only water. `ShoreSolver` stays (the sea's surf band).
 
 **The owner (2026-10-11), on the bed question:** "i think so [(a)]. would be nice to compare both to see what is better
 though". **A fact that sharpens it:** natural terrain is FULL 1 m cubes - `WorldGenerator::ColumnSample::surfaceY` is an
@@ -4426,6 +4429,7 @@ setting, not a rebuild:**
 count as "the step above"; a slope estimate for the head run), then the 25.20 rig and a generated creek re-run; (c) - nothing
 (it exists); changing the default is one line in `WaterCoreManager::createColumns` plus the pinned test (25.22 C-T9).
 ### 25.22 H1c design - creek beds carved to the 1/3 m grid, and the water's generator bed (2026-10-11)
+> **Removed in 26.27:** the regions' generator bed (`setGeneratorBedQuery`); the 1/3 m carve stays in the generator.
 
 **What the generator does today** (`WorldGenerator::sampleColumn` / `generateChunk`): a column's continuous height H
 (`coarse.baseHeight + relief * blendScale + blendOffset - creekSwale`) is floored to a VOXEL INDEX, `surfaceY = floor(H)`,
@@ -4729,6 +4733,7 @@ reads a near-side drop of 0.287 m (passes >= 0.28); after `DamageSystemBreakProf
 should load the registry itself and re-derive its prediction.
 
 ### 25.30 SC built - stones in the creek: displacement, rings, a cosmetic splash (2026-10-12). Status: built, not signed off
+> **Removed in 26.27:** the region load and the cosmetic crown (`creek_splash`, the `cosmetic_*` stats); pond water's displacement and real droplets replace them.
 
 **Displacement - realised as a LOAD, not the design's sink-and-ring move.** The design (25.26) moved each step's change of
 submerged volume from the footprint to its ring. That shoves water once and lets it flow straight back; a body that stays
@@ -5041,6 +5046,7 @@ is the one edit; controls - the ledger and the stored volume across each edit. *
 is planned; any change the runs force is designed and checked on its own).
 
 ### 25.37 Found by the dam & pond bench: a pond overtopped its crest by 0.41 m before it spilled - fixed (2026-10-12)
+> **Removed in 26.27:** its regression test (`APondSpillsWhenItTopsItsCrest`, a column-region rig); the reconstruction fix stays in `ShoreSolver`.
 
 **What the first run showed.** The pond rose to 15.5 - 0.4 m over its spill crest (15.13) - before any water left; the
 spill channel stayed dry for ~60 s with a 0.37 m head behind it. Reproduced offline on the bench's geometry
@@ -5084,6 +5090,7 @@ so the creek's own storage drained into it on the way); after the fix the rise m
 ffmpeg is now stopped with 'q'.
 
 ### 25.39 H2 design - a 3-D window inside a creek (owner, 2026-10-12: "lets get to h2")
+> **Removed in 26.27:** the windows (`openWindow` / `closeWindow`, `Av::window`, `Av::floorY`) - the creek is one pond-water volume (26.14).
 
 **Scope - H2a, the hand-off done right on the CPU.** A T1 window (a CPU 3-D volume, 1/9 m cells) placed over a box of a
 creek region's columns: seeded from them, exchanging water with the creek through its edge MASS-EXACTLY, no visible seam,
@@ -6912,6 +6919,32 @@ listed after them was never made - an access violation in the first test run; no
   two known failures (the particle run-up, the 4-tall halo).
 All the predictions held. **Status: BUILT, not signed off** (with 26.25: floats ride the pond current, and moving debris in a
 GPU pond costs ~4 FPS, not ~115 ms a frame).
+
+### 26.27 P3d-2 - the column water removed (2026-10-17). Status: BUILT, not signed off (the dam & pond bench not yet re-measured)
+
+**Removed** (as designed in 26.24): `ColumnWater.{h,cpp}`; the regions and windows in `WaterCoreManager` (the column step and
+its solids refresh, the SC load, the cosmetic crown and its droplet branch, the region ripple forcing, the region surface fields,
+`columnBoxes`, `openWindow` / `closeWindow` / `windowInfo`, `Av::window`, `Av::floorY`, `setGeneratorBedQuery`); the
+`water_columns` route and handler; `creek_splash` and the `cosmetic_*` stats of `water_droplets`; the column paths of six tools
+(`--pond` still accepted, a no-op); `water_creek_rig.py` and `water_creek_live.py`, which only compared the column model's bed
+rules (removed with the owner's permission). Kept: `ShoreSolver` (the sea's surf band), the ripple window, the flow forcing.
+Tests: `WaterColumnTest.cpp` goes, its `EveryVolumeGetsTheRippleWindow` moved to `WaterRippleTest`;
+`ShoreSolverTest.APondSpillsWhenItTopsItsCrest` goes. Found on the way (the survey missed it):
+`ShoreSolverTest.SparseRatesEqualDense` also built its creek on `ColumnWater` - rewritten on `ShoreSolver` directly, with the
+springs and outfalls supplied by the test as `WaterCreekH0` does.
+
+**Measured:**
+- `phyxel_tests` (filter `Water*:*Shore*:*Buoyancy*:*Debris*:*Dynamics*:*Ripple*:*Creek*:*SteppedBed*`): **356 / 356**. The
+  source count of matching enabled tests is 364 at HEAD and 356 now: exactly the 8 enabled `WaterColumnTest` tests and the one
+  ShoreSolver test, plus the one moved. 26.26's "379" with the same filter is not reproduced by a source count of that commit
+  (364) - unexplained, stated.
+- `phyxel_integration_tests` (Water / Debris / Gpu): **44 / 46**, the two known failures (the particle run-up, the 4-tall halo).
+- The creek bench at q 0.2, 300 s: water depth by mass **0.186 m** (prediction 0.186, 26.21), the highest sub-column 0.190.
+- The dam & pond bench: **not yet re-measured.** Two runs gave rise 4.06 / 4.08 mm/s, no steady spill in 600 s, GPU 4.5-4.9 ms,
+  11 FPS (26.23: 5.42 mm/s, 1.46 ms, 106 FPS). Found during them: another 3-D application was running on the same GPU (36 %
+  busy). The bench measures against the wall clock, so at 11 FPS the water's clock runs at ~0.74 of it (the inflow arriving
+  0.148 of 0.2 m^3/s) - most of the miss. Nothing removed runs without a column region, but that is an argument, not a
+  measurement: the bench is re-run on an idle GPU before this is called done.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

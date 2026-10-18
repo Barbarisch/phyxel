@@ -169,7 +169,7 @@ Profile runPond(const Rig& rig) {
     return pr;
 }
 
-// The column model (ShoreSolver - what ColumnWater steps: springs add depth, outfalls drain to the bed).
+// The column model (ShoreSolver - what the retired ColumnWater stepped, 26.27: springs add depth, outfalls drain to the bed).
 Profile runColumn(const Rig& rig) {
     const int per = static_cast<int>(env("SB_HC", 3.0));
     const float hc = 1.0f / static_cast<float>(per);
