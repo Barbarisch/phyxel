@@ -49,6 +49,7 @@ struct AvRecord {
     double gpuDeviceMs = 0.0;              ///< 26.15: of it, the GPU's own time (timestamps round the main submission)
     bool partialWake = false;              ///< 26.31: quiet brick columns freeze (GPU, sparse)
     int awakeColumns = 0, frozenColumns = 0, movingColumns = 0;   ///< 26.31: the last call's (WaterCoreGpu GpuStepStats)
+    double carryBodyM3 = 0.0, carryRateM3 = 0.0, carryFlowM3 = 0.0, carryParkedM3 = 0.0;   ///< 26.32: the over-full carry since creation (m^3): made in a body's cells without / with a displacement rate, made elsewhere, parked at a ceiling
     int stepSlots = 0, partitionMoves = 0;                        ///< 26.31 step 2: slots the step dispatched (0 = all); bricks moved
     double gpuHostMs = 0.0;                ///< 26.15: of it, the host's residency work before recording
     double gpuWaitMs = 0.0;                ///< 26.15: of it, submission + fence wait (device time + queue contention + overhead)
@@ -409,6 +410,7 @@ private:
         WaterCoreGpu::Volume* gpuVol = nullptr;
         bool gpuDirty = true;          // the grid (fills, velocities or occupancy) is newer than the GPU copy
         GpuStepStats gpuLast;
+        double carryBodyM3 = 0.0, carryRateM3 = 0.0, carryFlowM3 = 0.0, carryParkedM3 = 0.0;   // 26.32: the over-full carry since the volume was made (m^3)
         double gpuUploadMs = 0.0; int gpuUploads = 0;   ///< 26.18: the last re-read's time, and how many
         double occRefreshMs = 0.0;                      ///< 26.18: the last occupancy re-sample of the box, ms
         long occFullRefreshes = 0, occLocalRefreshes = 0, occCellsResampled = 0, occCellsChanged = 0;   ///< 26.19

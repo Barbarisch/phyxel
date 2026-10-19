@@ -26,6 +26,7 @@ constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
 constexpr int kFirstSlot = 2;  // 26.18: the first slot a real brick can take
+constexpr int kCounters = 6;   // Bricks[counterOff + k]: 0 flux into absent, 1 sentinel dirty, 2-5 the over-full carry (26.32); = water_core.glsl WC_COUNTERS
 int floorMod(int v, int n) { return ((v % n) + n) % n; }
 } // namespace
 
@@ -208,7 +209,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         vol->cells = vol->capacity * vol->bc; vol->nu = vol->nv = vol->nw = vol->cells;
         vol->columns = vol->colCap * 64;
         vol->slotTableOff = vol->mapCount; vol->colTableOff = vol->slotTableOff + vol->capacity;
-        vol->counterOff = vol->colTableOff + vol->colCap; vol->infoOff = vol->counterOff + 2;
+        vol->counterOff = vol->colTableOff + vol->colCap; vol->infoOff = vol->counterOff + kCounters;
         vol->brickInts = vol->infoOff + 2 * vol->capacity;   // two water records per slot (any water, liquid)
         vol->map.assign(vol->mapCount, 0); vol->slotBrick.assign(vol->capacity, -1); vol->colEntries.clear();
     } else {
@@ -1566,7 +1567,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         st.momentumRecords = static_cast<int>(n); vol.momentumApplied += static_cast<long>(n);
         vol.pendingMomentum.clear();
     }
-    if (vol.bricked) vkCmdFillBuffer(cmd, vol.bricks.buf, vol.counterOff * 4, 8, 0);   // this call's counters
+    if (vol.bricked) vkCmdFillBuffer(cmd, vol.bricks.buf, vol.counterOff * 4, kCounters * 4, 0);   // this call's counters
     vkCmdFillBuffer(cmd, vol.dropped.buf, 0, vol.dropped.bytes, 0);
     vkCmdFillBuffer(cmd, vol.births.buf, 0, vol.births.bytes, 0);   // 21: this call's birth records
     vkCmdFillBuffer(cmd, vol.lists.buf, 0, vol.lists.bytes, 0);     // 26.11: the packed lists start empty
@@ -1751,7 +1752,9 @@ void WaterCoreGpu::finishCall(Volume& vol) {
     st.residueDropped = out[20];
     if (vol.bricked) {
         const auto* bi = reinterpret_cast<const int32_t*>(static_cast<const char*>(vol.staging.mapped) + vol.offBricks);
-        int32_t counters[2]; std::memcpy(counters, bi + vol.counterOff, sizeof(counters));
+        int32_t counters[kCounters]; std::memcpy(counters, bi + vol.counterOff, sizeof(counters));
+        const double cellM3 = static_cast<double>(vol.spec.h) * vol.spec.h * vol.spec.h * 1e-3;   // the carry counters are 1e-3 cells
+        st.carryBodyM3 = counters[2] * cellM3; st.carryFlowM3 = counters[3] * cellM3; st.carryParkedM3 = counters[4] * cellM3; st.carryRateM3 = counters[5] * cellM3;
         vol.hostInfo.resize(2 * vol.capacity);
         std::memcpy(vol.hostInfo.data(), bi + vol.infoOff, 2 * static_cast<size_t>(vol.slotsUsed) * 4);   // one bulk read of uncached memory
         st.fluxIntoAbsent = counters[0]; st.sentinelDirty = counters[1] != 0;

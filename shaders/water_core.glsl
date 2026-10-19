@@ -35,7 +35,7 @@ layout(push_constant) uniform WcPush {
     int   bnx, bny, bnz; // the brick box (bricks)
     int   slotTableOff;  // Bricks[] offsets: the slot table (packed brick coords per slot) and the column table
     int   colTableOff;
-    int   counterOff;    // Bricks[counterOff + k]: k 0 = flux into absent cells (faces), 1 = sentinel dirty
+    int   counterOff;    // Bricks[counterOff + k]: k 0 = flux into absent cells (faces), 1 = sentinel dirty, 2-4 = the over-full carry (wc_fill_advect mode 5)
     int   colCount;      // resident brick columns (column dispatches: 64 threads each)
     int   surfaceGhost;  // 26.9: 1 = the hydrostatic ghost at a clamped surface (wc_theta.glsl wcSurfaceGhost); 0 = p_air = 0
     float quietRise;     // 26.9: m/s - under it a partial cell under an emptier one fills before water crosses its ceiling
@@ -52,6 +52,7 @@ layout(push_constant) uniform WcPush {
 const int WC_FROZEN_BIT = 0x40000000;
 
 #ifdef WC_BRICKS_BINDING
+#define WC_COUNTERS 6   // Bricks[counterOff + k], k < WC_COUNTERS (WaterCoreGpu.cpp kCounters); the water records follow
 layout(std430, set = 0, binding = WC_BRICKS_BINDING) buffer Bricks { int bricks[]; };
 
 int brickSlot(ivec3 q) {   // q = cell + origin offset (brick-box cell coords)

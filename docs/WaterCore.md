@@ -7387,6 +7387,35 @@ sub-column, plus the tallest column's cells read back the same frame; `spikes*.j
   stone's columns (red: it rises with the pillar), then the fix candidate - the displaced excess goes to the neighbours, up only
   where nothing beside it can take it.
 
+**26.32 - proved, three fixes tried, none kept (2026-10-18, the owner: "go ahead, prove it then try the fix").** Built, not
+signed off; no behaviour change is left in the code.
+- **The counter** (kept): `wc_fill_advect` mode 5 now adds up the excess each cell MAKES (its own fill over its room, before the
+  carry from below reaches it) by kind, and what parks at a ceiling - `water_av_list` `carry_rate_m3` (a body's cell with a
+  displacement rate q), `carry_body_m3` (a body's cell without one: fresh, walled in, or s >= 0.999), `carry_flow_m3` (no
+  body: the gather over-filled it), `carry_parked_m3`, all since the volume was made; Bricks[counterOff + 2..5] (WC_COUNTERS 6;
+  the brick records moved up behind them - leaving wc_bricks at counterOff + 2 first broke four WaterBrickTest equalities).
+  `tools/water_stone_spikes.py` logs it; `tools/water_stone_spikes_summary.py` sums a run.
+- **Proved:** the carry happens only while the stone moves and the field's columns stand only then - 20 x 20 m pond, 3 m of
+  air: 1,654 L carried up out of the stone's cells in the half second after impact (137 L of flow over-fill, 211 L parked at
+  the lid) for a 1,000 L stone; nothing once it rests. Split by kind (two drops): with a rate 1,247 / 880 L, without 1,331 /
+  819 L. So it is the 26.5 carry, every substep, taking a moving body's displacement straight up its column - through the
+  stone and out on its top - for the half the rate (20.2) was meant to shed sideways through the projection over the frame,
+  and the column ledger (20.5 rule a, by design) for the other half.
+- **Tried, and why each failed** (3 drops each way, 20 x 20 m, 3 m of air; peak m / s over 30 cm, OFF vs ON):
+  1. *Excess of a body's cell to the four beside it first* (a two-pass exact gather): no better (OFF 0.94-1.08 m, 0.9-1.5 s;
+     ON 0.85-1.21 m, 1.4-1.9 s). Under water the cells beside the stone are full - there is no room beside it.
+  2. *A body's cell takes in only its room* (20.5's transport rule, which the 26.5 gather dropped): no better (OFF 0.88-3.02 m,
+     ON 0.96-1.06 m; the carry out of the stone 1,800-3,000 L either way). The excess is not inflow; it is the stone moving
+     into cells that hold water.
+  3. *The carry leaves a cell with a rate alone* (the projection sheds it): no better (OFF 0.96-1.46 m, 1.0-2.0 s; ON
+     0.75-2.87 m, 0.9-1.4 s).
+- **Why the A/Bs cannot decide:** the stone (a GPU debris body) tumbles differently every drop - the same setting gave 0.75 and
+  2.87 m. Three drops a side cannot resolve a fix from that spread. **Next, before any further fix:** a rig that repeats - a
+  body moved through the water on a fixed path at a fixed speed (no tumbling), the pillar's height and lifetime its metric, the
+  carry counter the mechanism's check.
+- **Also seen:** a 0.84 m single-column jet 4 s after impact with NO carry at all (the stone at rest) - flow, probably the
+  cavity closing behind the stone; its own item.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

@@ -1,0 +1,21 @@
+26.32 A/B runs (tools/water_stone_spikes.py --size 20x20 --lid 19 --no-video; summary by tools/water_stone_spikes_summary.py).
+ab_ = fix 1 (excess to the four beside it), br_ = fix 2 (a body's cell takes only its room), rh_ = fix 3 (the carry leaves a rate cell alone). off = the shipped rule. None kept.
+ab_ and br_ ran before the counter split the body carry by rate: their "body" is both kinds and "rate" reads 0.
+ab_lid19_off_1           peak  1.08 m  >30 cm for 1.52 s  after 4 s 0.07 m  quad 1.11 m  carry L body  1709.1 rate     0.0 flow   224.9 parked  275.8
+ab_lid19_on_1            peak  1.21 m  >30 cm for 1.92 s  after 4 s 0.37 m  quad 0.85 m  carry L body  2762.5 rate     0.0 flow   963.7 parked  167.1
+ab_lid19_off_2           peak  0.98 m  >30 cm for 0.90 s  after 4 s 0.06 m  quad 1.10 m  carry L body  1550.5 rate     0.0 flow   332.1 parked  280.0
+ab_lid19_on_2            peak  0.96 m  >30 cm for 1.60 s  after 4 s 0.24 m  quad 1.02 m  carry L body  1920.8 rate     0.0 flow   208.7 parked  225.9
+ab_lid19_off_3           peak  0.94 m  >30 cm for 1.07 s  after 4 s 0.12 m  quad 1.18 m  carry L body  2173.7 rate     0.0 flow   118.7 parked  154.7
+ab_lid19_on_3            peak  0.85 m  >30 cm for 1.39 s  after 4 s 0.74 m  quad 0.82 m  carry L body  1653.2 rate     0.0 flow   171.3 parked  186.4
+br_lid19_off_1           peak  0.90 m  >30 cm for 0.36 s  after 4 s 0.04 m  quad 0.88 m  carry L body  1262.5 rate     0.0 flow   301.0 parked  308.4
+br_lid19_on_1            peak  0.96 m  >30 cm for 2.10 s  after 4 s 0.73 m  quad 0.89 m  carry L body  3008.1 rate     0.0 flow   541.4 parked  262.4
+br_lid19_off_2           peak  3.02 m  >30 cm for 4.94 s  after 4 s 3.02 m  quad 1.67 m  carry L body  6371.2 rate     0.0 flow 27470.4 parked 27842.6
+br_lid19_on_2            peak  1.02 m  >30 cm for 1.22 s  after 4 s 0.06 m  quad 0.95 m  carry L body  1798.7 rate     0.0 flow   405.1 parked  240.5
+br_lid19_off_3           peak  0.88 m  >30 cm for 0.75 s  after 4 s 0.06 m  quad 0.80 m  carry L body  1513.5 rate     0.0 flow  3820.6 parked  197.2
+br_lid19_on_3            peak  1.06 m  >30 cm for 1.28 s  after 4 s 0.13 m  quad 0.89 m  carry L body  1883.5 rate     0.0 flow   306.8 parked  247.9
+rh_lid19_off_1           peak  0.96 m  >30 cm for 1.00 s  after 4 s 0.17 m  quad 1.02 m  carry L body  1456.0 rate   944.4 flow    57.0 parked    0.0
+rh_lid19_on_1            peak  2.87 m  >30 cm for 1.36 s  after 4 s 0.12 m  quad 0.83 m  carry L body  1578.3 rate  1748.4 flow    91.2 parked   93.6
+rh_lid19_off_2           peak  1.46 m  >30 cm for 1.48 s  after 4 s 0.07 m  quad 1.17 m  carry L body  1374.3 rate   895.2 flow    43.4 parked   43.1
+rh_lid19_on_2            peak  0.86 m  >30 cm for 0.93 s  after 4 s 0.16 m  quad 0.83 m  carry L body  1477.4 rate  3310.3 flow   272.6 parked  306.1
+rh_lid19_off_3           peak  1.11 m  >30 cm for 2.03 s  after 4 s 0.24 m  quad 1.17 m  carry L body  2219.8 rate  1114.8 flow    83.6 parked  198.8
+rh_lid19_on_3            peak  0.75 m  >30 cm for 1.32 s  after 4 s 0.15 m  quad 0.72 m  carry L body  1270.8 rate  1959.6 flow    60.1 parked    0.0

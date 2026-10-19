@@ -79,6 +79,10 @@ struct GpuStepStats {
     int    haloRings = 0;            ///< neighbour rings the residency took (1 unless the water is fast)
     int    compacted = 0;            ///< bricks moved to lower slots this call (fragmentation repair)
     long   fluxIntoAbsent = 0;       ///< faces where water would have moved into a brick that is not stored (must be 0)
+    double carryBodyM3 = 0.0;        ///< 26.32: the over-full carry this call - excess made in a body's cells (its fill over 1 - s) WITHOUT a displacement rate, m^3
+    double carryRateM3 = 0.0;        ///< 26.32: the same in a body's cells WITH a rate (q > 0: the projection was to shed it), m^3
+    double carryFlowM3 = 0.0;        ///< 26.32: the same in cells without a body (the transport over-filled them), m^3
+    double carryParkedM3 = 0.0;      ///< 26.32: carry that reached a ceiling or the box top and parked over full there, m^3
     long   heldByCapacity = 0;       ///< bricks the residency wanted but the capacity refused (their faces stay closed)
     long   haloShort = 0;            ///< after the call: bricks within 4 cells of water that are NOT stored, from one distance per brick face - an UPPER bound (two films in different cells can read as one in a corner; WaterBrickTest checks by cell, 26.28)
     double unstoredWater = 0.0;      ///< m^3 the last upload could not store (capacity smaller than the water itself; must be 0)

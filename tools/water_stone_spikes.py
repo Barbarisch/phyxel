@@ -8,6 +8,7 @@ Per sample, over the dump rect:
   mesh_rise   - the highest top-quad corner above the pond's level, the corners rebuilt exactly as buildWaterSurfaceMeshRect does
   quad_span   - the largest corner-to-corner height inside one 11 cm top quad (a tall thin triangle)
   ripple_max  - the ripple layer's largest |height| (added in the vertex shader, not in the field)
+  carry_l     - the over-full carry since the volume was made (litres): made in a body's cells without a displacement rate / made elsewhere / parked at a ceiling / made in a body's cells WITH a rate
 
     python tools/water_stone_spikes.py [--seconds 7] [--tag spikes]
 Writes docs/evidence/water_core_h1/<tag>.mp4 and <tag>.json.
@@ -90,6 +91,7 @@ def main():
     box = {"x1": x0, "y1": 16, "z1": z0, "x2": x0 + l - 1, "y2": args.lid, "z2": z0 + w - 1}
     cr = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False, "partial_wake": True})
     if "error" in cr: sys.exit(f"water_av_create: {cr['error']}")
+    vid = cr["volume"]["id"]
     api.debug("place_water_box", {"target": "core", **{**box, "y2": 16}, "mass": 1.0})
     p = [float(v) for v in args.pose.split(",")]
     camera_set(api, {"x": p[0], "y": p[1], "z": p[2], "yaw": p[3], "pitch": p[4]})
@@ -109,11 +111,13 @@ def main():
     while time.time() - t0 < args.seconds:
         d = api.debug("water_surface_dump", {**rect, "cells": args.probe})
         rp = api.debug("water_ripples", {})
+        vrec = next((v for v in api.debug("water_av_list").get("volumes", []) if v["id"] == vid), {})
         t = round(time.time() - t0, 2)
+        carry = [vrec.get(k, 0.0) * 1000.0 for k in ("carry_body_m3", "carry_flow_m3", "carry_parked_m3", "carry_rate_m3")]   # litres since creation
         for f in d.get("fields", []):
             a = analyse(f)
             if a:
-                a.update({"t": t, "ripple_max": rp.get("max_abs_m"), "ripple_slope": rp.get("max_slope")})
+                a.update({"t": t, "ripple_max": rp.get("max_abs_m"), "ripple_slope": rp.get("max_slope"), "carry_l": carry})
                 c = f.get("cells")
                 if args.probe and c and a["field_rise"] > 0.3:   # the tallest column's cells, read the same frame: water f and body s
                     k0 = max(0, int(round((a["level"] - 0.45 - c["y0"]) / c["h"])))
@@ -121,7 +125,8 @@ def main():
                         f"{c['y0'] + (k + 0.5) * c['h']:.2f}:f{v[0]:.3f}/s{v[1]:.2f}" for k, v in enumerate(c["fs"]) if k >= k0 and (v[0] > 1e-4 or v[1] > 1e-4)), flush=True)
                 rows.append(a); dumps.append({"t": t, "field": f})
                 print(f"t {t:5.2f}  level {a['level']:.3f}  field_rise {a['field_rise']:.3f}  mesh_rise {a['mesh_rise']:.3f}  "
-                      f"quad_span {a['quad_span']:.3f}  runs {a['runs_max']}  ripple {a['ripple_max']}", flush=True)
+                      f"quad_span {a['quad_span']:.3f}  runs {a['runs_max']}  ripple {(a['ripple_max'] or 0):.3f}  carry L body/flow/parked/rate "
+                      f"{carry[0]:.1f} {carry[1]:.1f} {carry[2]:.1f} {carry[3]:.1f}", flush=True)
         time.sleep(0.08)
     if rec: rec.wait()
     if args.ripples == "off": api.debug("water_ripples", {"enabled": True})
