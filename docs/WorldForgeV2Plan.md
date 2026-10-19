@@ -709,8 +709,18 @@ Two measurements replace it: a timer around the column loop in `columnsForChunk`
 (`streaming.worker_column_ms` per recorder row, the column share of `generateChunk` in ms, no assumed
 ns/eval), and the SAME instrument applied to the pre-M1 commit 4961a277 in a worktree so v1's
 per-chunk `generateChunk` and column ms are measured at the same pose (`m1e_v1_profile_*`, below).
-D13 stands as the owner's policy (chunks/s is reported, the voxel fill gets its own milestone); its
-premise is settled by those two numbers, not by this paragraph.
+**MEASURED the same day (Release ea59df15, gate pose, free port, `m1e_colshare_profile_summary.json`,
+`m1e_colshare_record.json`): column sampling = 148.7 ms of the 157.7 ms per chunk in `generateChunk`
+(flora decorate 51.6 ms on top; 794 chunks over a 56 s saturated ramp at 14.8 chunks/s — run-to-run
+variance against the 18.9 of 10/15 is large, n = 1 each). The voxel fill is ≈ 9 ms. So the D13 premise
+("the per-voxel fill dominates, the column term never owned the cost") was WRONG and the auditor was
+right: the column sampler owns ~94 % of generation. The noise-eval counter (18.6 per column) measured only
+the noise; at ≈ 0.4 ms per fresh column the cost sits elsewhere in `sampleColumn` — the channel searches
+(`nearestChannel`, `channelAt`, the meander warp, `inCreekBand` corner checks), the 8-biome exp() blend,
+the worldforge road/bridge queries, the macro bicubic + three pager locks per column. D13's POLICY stands
+(the owner's: chunks/s is reported; the generation cost gets its own milestone with a profile first);
+its premise is replaced by this number, and the milestone's first step is a per-phase timer INSIDE
+`sampleColumn`, below. The v1 per-chunk column time (the worktree profile) remains owed.
 M1's own deliverable (≤ 25 evals per column) is GREEN; the 1.65× is what that deliverable buys.
 Recommendation for the owner (a plan change, not taken unilaterally): keep "chunks/s on the baseline
 pose" as a REPORTED number, and give the voxel-fill path its own perf milestone with its own
@@ -955,7 +965,7 @@ grounding-auditor; `ValidationLedger.md` gets a row per new placer/field.
 | Civ + routes plan, 300 sites | all-pairs A* O(n²) at 8 sites today | < 10 s Release, off the main thread |
 | Settlement map, 200-lot city | — | < 2 s headless |
 | Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (v1 baseline, 76 s decaying window) → **18.9 chunks/s on the sheet at the SAME pose/machine/config (M1e, `m1e_stream_gate.json`, Release 46dd3b03): 1.65× on the headline windows, 1.48× like-for-like over the same 52 s (auditor re-fit); frame p50 34 → 17 ms; n = 1 per side.** Was "≥ 2×" and RED; **re-scoped by D13 to a REPORTED number** (the gate named a cost the column work does not own). PROFILED (`m1e_rwdi3_profile_summary.json`): worker `generateChunk` 138 ms + flora decorate 42 ms per chunk (3 workers ⇒ 16.7 chunks/s ceiling); column sampling ≈ 1 ms of it. The gate targeted the wrong cost; see the M1e paragraph for the recommendation |
-| Worker time per chunk (NEW, measured) | **generateChunk 138 ms, flora decorate 42 ms** per chunk on one worker (RelWithDebInfo, laptop, baseline pose, `m1e_rwdi3_profile_summary.json`; 3 workers ⇒ a 16.6 chunks/s ceiling that the 17.8 measured EXCEEDS by ~10 %, so the per-chunk wall-clock includes pre-emption); main thread per landed chunk: remesh ≈ 11.3 ms, flush ≈ 12.9 ms, light occupancy ≈ 11.8 ms; the column-sampling share is measured by `worker_column_ms` (next run) | its own perf milestone (D13): a profile INSIDE `generateChunk` first (material resolution / subcube shelves / occupancy grids), then a gate set from that profile | (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
+| Worker time per chunk (NEW, measured) | **generateChunk 138–158 ms, of which column sampling 148.7 ms (measured 2026-10-19, `worker_column_ms`), flora decorate 42–52 ms** per chunk on one worker (RelWithDebInfo, laptop, baseline pose, `m1e_rwdi3_profile_summary.json`; 3 workers ⇒ a 16.6 chunks/s ceiling that the 17.8 measured EXCEEDS by ~10 %, so the per-chunk wall-clock includes pre-emption); main thread per landed chunk: remesh ≈ 11.3 ms, flush ≈ 12.9 ms, light occupancy ≈ 11.8 ms; the column-sampling share is measured by `worker_column_ms` (next run) | its own perf milestone (D13): a profile INSIDE `generateChunk` first (material resolution / subcube shelves / occupancy grids), then a gate set from that profile | (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
 | Realization | 0.9 s per furnished tavern place | 0 frames > 33 ms during lazy realization |
 
 Both the RTX 4090 desktop and the RTX 1000 Ada laptop are stated on every evidence row.

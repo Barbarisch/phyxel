@@ -1,0 +1,26 @@
+exe: 2026-10-19_10:08:16  commit: ea59df15
+sheet log: [11:03:29.363] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 9147210020528562939); meso tiles 256 @ 32 u, apron 6, LRU 64
+gpu: NVIDIA RTX 1000 Ada Generation Laptop GPU (discrete, 2 device(s) enumerated)
+{"source":"generator","spawn_y":70,"surface_y":69,"x":300,"z":-1400}
+{"max_y":255,"message":"No terrain found (resident chunks only; try source=generator)","source":"chunks","spawn_y":null,"surface_y":null,"x":300,"z":-1400}
+surface_y(generator)=69 cam=(300,109,-1400)
+{"capacity":6000,"frames":0,"recording":true,"success":true,"truncated":false}
+{"control_scheme":"tank","path_stopped":false,"rig":"","success":true}
+cam readback: {"activeSlot":"","front":{"x":-3.090862321641907e-08,"y":-0.7071068286895752,"z":-0.7071068286895752},"pitch":-45.0,"position":{"x":300.0,"y":109.0,"z":-1400.0},"slots":[{"followEntityId":"","name":"default","pitch":-30.0,"position":{"x":45.0,"y":55.0,"z":45.0},"yaw":-135.0}],"yaw":-90.0}
+t+10s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+20s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+30s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+40s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+50s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+60s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+70s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+80s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+90s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+100s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+110s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+t+120s chunks@pose: {"max_y":255,"source":"chunks","spawn_y":82,"surface_y":81,"x":300,"z":-1400}
+{"capacity":6000,"frames":3681,"recording":false,"success":true,"truncated":false}
+dump bytes: 3034838
+{"damage01":0.0,"damage_energy":0.0,"damage_stage":0,"damage_stage_bits":0,"damage_stages_max":7,"damage_tracked":true,"exists":true,"material":"Grass","position":{"x":300,"y":69,"z":-1400},"toughness":54.0}
+shot: screenshots/screenshot_20261019_110551_378.png
+done
