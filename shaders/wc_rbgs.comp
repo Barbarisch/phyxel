@@ -17,6 +17,13 @@ layout(std430, set = 0, binding = 4)          buffer Res  { float res[]; };
 // 26.31: no pressure from a frozen column (a wall) - its liq is 0: the step clears the frozen bricks' liq once a call (they sit above
 // the awake ones after the partition, one fill); a frozenCell test here, per neighbour per sweep, cost ~0.4 ms on a 32 x 28 m pond
 float pn(int x, int y, int z) { return (inBounds(x, y, z) && liq[cellIdx(x, y, z)] != 0u) ? p[cellIdx(x, y, z)] : 0.0; }
+// 26.35: a neighbour in the thread's own brick sits at id + step - the index brickIdx would return, without its brick-map read
+float pnNear(ivec3 n, bool sameBrick, int step, uint id) {
+    if (!sameBrick) return pn(n.x, n.y, n.z);
+    if (!inBounds(n.x, n.y, n.z)) return 0.0;
+    const uint j = uint(int(id) + step);
+    return liq[j] != 0u ? p[j] : 0.0;
+}
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
@@ -24,7 +31,17 @@ void main() {
     if (!threadSite(id, 3, c)) return;
     if (liq[id] == 0u) { if (pc.mode == 1) res[id] = 0.0; return; }
     const float invh2 = 1.0 / (pc.h * pc.h);
-    const float nb = (pn(c.x - 1, c.y, c.z) + pn(c.x + 1, c.y, c.z) + pn(c.x, c.y - 1, c.z) + pn(c.x, c.y + 1, c.z) + pn(c.x, c.y, c.z - 1) + pn(c.x, c.y, c.z + 1)) * invh2;
+    float nbSum;
+    if (pc.bricked != 0) {
+        const uint local = id & ((64u << uint(pc.bly)) - 1u);
+        const int lx = int(local & 7u), lz = int((local >> 3u) & 7u), ly = int(local >> 6u), top = (1 << pc.bly) - 1;
+        nbSum = pnNear(c + ivec3(-1, 0, 0), lx > 0, -1, id) + pnNear(c + ivec3(1, 0, 0), lx < 7, 1, id)
+              + pnNear(c + ivec3(0, -1, 0), ly > 0, -64, id) + pnNear(c + ivec3(0, 1, 0), ly < top, 64, id)
+              + pnNear(c + ivec3(0, 0, -1), lz > 0, -8, id) + pnNear(c + ivec3(0, 0, 1), lz < 7, 8, id);
+    } else {
+        nbSum = pn(c.x - 1, c.y, c.z) + pn(c.x + 1, c.y, c.z) + pn(c.x, c.y - 1, c.z) + pn(c.x, c.y + 1, c.z) + pn(c.x, c.y, c.z - 1) + pn(c.x, c.y, c.z + 1);
+    }
+    const float nb = nbSum * invh2;
     if (pc.mode == 1) { res[id] = abs(diag[id] * p[id] - nb - rhs[id]); return; }
     if (((c.x + c.y + c.z) & 1) != pc.iparam) return;
     // successive over-relaxation: omega (param1) in (1, 2) cuts the sweep count from O(N^2) to O(N)
