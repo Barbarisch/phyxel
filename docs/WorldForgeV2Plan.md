@@ -645,8 +645,24 @@ the paper's hmax fit belongs to its painted uplift maps; (4) convergence is a RA
 inequality: p95 |Δh| per 50 steps on the dome rig = 4.23 % of relief at 100→150, 1.64 % at 150→200,
 **0.00 % at 300→350** (`…ConvergenceRateFallsAndIsUnderOnePercentBy350Steps`), so Cordonnier's
 "converges after around 200 time steps" does not hold here at 1 % — their count is their setup's;
-the lab recipe stays at 200 (fully shaped), the fact is recorded; (5) the lab L4 control
-(erosionSteps 0 at the same pose and spline) is the next lab run, below. Measured, NOT
+the lab recipe stays at 200 (fully shaped), the fact is recorded; (5) **the lab L4 control ran
+(2026-10-19, Release 6e099e5e, `m1c_lab_ab_run4.txt` + `m1c_lab_eroded_run.txt`):** WorldSheetLab at the
+RAISED height spline (game.json `world.heightSpline`, a new loader key: 16 at continentalness 0.30 →
+380 at 0.80, so the lab's low-continentalness noise spans the vertical budget; rig delta stated), two
+fresh boots at the same pose: **control** `erosionSteps 0` vs **eroded** `erosionSteps 200`
+(`macro erosion 200 steps x 250000 yr: mean height 172.9 -> 410.9, base-level cells 79, eroded max above
+sea 1395 u remapped x0.259 into the spline range (361 u)`). Generator profile along z = 40 over ±4 km,
+129 columns: control range 64..402 u, eroded range 24..427 u, **127 of 129 columns changed by ≥ 2 u,
+mean −59.7 u, max |Δ| 190 u** — erosion reshapes the terrain, it is not a rescale (`m1c_lab_control_
+profile_z40.txt`, `m1c_lab_eroded_profile_z40.txt`). Captures at (0, surface+220, 700) pitch −32:
+`m1c_lab_control_capture.png` is a long snow-capped forested flank; `m1c_lab_eroded_capture.png` at the
+same pose (75 u lower, the local surface dropped) is a carved grassy valley slope with the snowy ridge
+behind it. Both boots logged `Configured far-terrain mesher` once (the epoch wiring did not fire a
+reconfigure, correctly: nothing rebuilt Layer-0 after load). Two operational findings on the way: every
+engine boot that morning failed with "Port 8090 is already in use" because the 10/16 reboot put 8051–8150
+in a Windows excluded port range (AgentContext gotcha; the lab scripts now pick a free port), and one
+"ENGINE DIED" in the A/B run was a STALE backgrounded script's `taskkill` by image name, not a crash — the
+scripts no longer kill by name. Measured, NOT
 asserted (the band is NEEDS-RESEARCH): Dd × √A_c = 0.587 / 0.625 / 0.640 at thresholds
 of 2 / 8 / 32 cells, then 0.292 at 128 cells where the 96² sample runs out — the near-constancy over
 the first three is what the GROUNDED exponent Dd ∝ A_c^−0.5 predicts, and the one real-catchment

@@ -199,6 +199,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   engine launch failed with "Port 8090 is already in use" while nothing listened. Check the ranges before
   blaming a stray engine; launch on a port outside them (`--port`, `PHYXEL_API_PORT`) or release the reservation
   (admin: restart winnat). Scripts in this workstream pick a free port from the ranges automatically.
+  ⚠️ Never `taskkill /IM phyxel.exe` from a script: a stale backgrounded script's cleanup killed a later run's
+  engine ("ENGINE DIED" with no crash report). Kill the PID the script launched (`$!`), nothing else.
 - **▶ WATER CORE — ACTIVE (branch `feat/water-rethink`, pushed after every commit).** The design of record AND
   build ledger is [`docs/WaterCore.md`](WaterCore.md); **read its §0a first** (where things stand, what is next).
   As of 2026-10-11: the small still pond is built on a 3-D Eulerian core (CPU reference + GPU default), with debris

@@ -1,0 +1,11 @@
+exe: 2026-10-19_10:08:16 HEAD: ea59df15
+game.json erosionSteps = 200
+[11:00:47.458] [INFO] [GameDefinitionLoader] World: heightSpline from game.json (5 points)
+[11:00:47.461] [INFO] [WorldGenerator] [WORLD_SHEET] macro erosion 200 steps x 250000 yr: mean height 172.866 -> 410.866, base-level cells 79, eroded max above sea 1395.34 u remapped x0.259127 into the spline range (361.
+[11:00:47.461] [INFO] [WorldGenerator] [WORLD_SHEET] macro 16x16 @ 512 u baked (hash 7294669760342581693); meso tiles 256 @ 32 u, apron 6, LRU 64
+[11:00:50.095] [INFO] [FarTerrain] Configured far-terrain mesher (threaded=1)
+profile (eroded):  -4096:61 -4032:63 -3968:65 -3904:64 -3840:72 -3776:80 -3712:87 -3648:99 -3584:107 -3520:116 -3456:124 -3392:136 -3328:147 -3264:157 -3200:167 -3136:180 -3072:193 -3008:203 -2944:210 -2880:214 -2816:2 ...
+cam (eroded): {'x': 0.0, 'y': 341.0, 'z': 700.0} -90.0 -32.0
+shot (eroded): screenshots/screenshot_20261019_110310_075.png
+profile A/B over 129 columns: control range 64..402, eroded range 24..427, mean diff -59.7, max |diff| 190, columns changed by >= 2 u: 127
+done

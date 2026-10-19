@@ -1,0 +1,4 @@
+[11:00:47.458] [INFO] [GameDefinitionLoader] World: heightSpline from game.json (5 points)
+[11:00:47.461] [INFO] [WorldGenerator] [WORLD_SHEET] macro erosion 200 steps x 250000 yr: mean height 172.866 -> 410.866, base-level cells 79, eroded max above sea 1395.34 u remapped x0.259127 into the spline range (361.
+[11:00:47.461] [INFO] [WorldGenerator] [WORLD_SHEET] macro 16x16 @ 512 u baked (hash 7294669760342581693); meso tiles 256 @ 32 u, apron 6, LRU 64
+[11:00:50.095] [INFO] [FarTerrain] Configured far-terrain mesher (threaded=1)

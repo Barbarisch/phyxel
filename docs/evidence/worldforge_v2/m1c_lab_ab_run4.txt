@@ -1,0 +1,29 @@
+exe: 2026-10-19_10:08:16 HEAD: 6e099e5e
+game.json erosionSteps = 0
+[10:56:08.471] [INFO] [GameDefinitionLoader] World: heightSpline from game.json (5 points)
+[10:56:08.472] [INFO] [WorldGenerator] [WORLD_SHEET] macro 16x16 @ 512 u baked (hash 11180512351518298859); meso tiles 256 @ 32 u, apron 6, LRU 64
+[10:56:11.194] [INFO] [FarTerrain] Configured far-terrain mesher (threaded=1)
+profile (control):  -4096:198 -4032:200 -3968:202 -3904:205 -3840:205 -3776:207 -3712:207 -3648:210 -3584:208 -3520:207 -3456:205 -3392:207 -3328:208 -3264:208 -3200:207 -3136:209 -3072:211 -3008:210 -2944:209 -2880:207 ...
+cam (control): {'x': 0.0, 'y': 416.0, 'z': 700.0} -90.0 -32.0
+shot (control): screenshots/screenshot_20261019_105832_680.png
+game.json erosionSteps = 200
+[10:58:41.195] [INFO] [GameDefinitionLoader] World: heightSpline from game.json (5 points)
+[10:58:41.198] [INFO] [WorldGenerator] [WORLD_SHEET] macro erosion 200 steps x 250000 yr: mean height 172.866 -> 410.866, base-level cells 79, eroded max above sea 1395.34 u remapped x0.259127 into the spline range (361.
+[10:58:41.198] [INFO] [WorldGenerator] [WORLD_SHEET] macro 16x16 @ 512 u baked (hash 7294669760342581693); meso tiles 256 @ 32 u, apron 6, LRU 64
+[10:58:44.543] [INFO] [FarTerrain] Configured far-terrain mesher (threaded=1)
+profile (eroded):  -4096:61 -4032:63 -3968:65 -3904:64 -3840:72 -3776:80 -3712:87 -3648:99 -3584:107 -3520:116 -3456:124 -3392:136 -3328:147 -3264:157 -3200:167 -3136:180 -3072:193 -3008:203 -2944:210 -2880:214 -2816:2 ...
+ENGINE DIED (eroded)
+Phyxel crash report
+Exception 0xC0000005 ACCESS_VIOLATION at 0x0000780100007800  (<unknown>+0x0)
+Access violation: execute of address 0x0000780100007800
+Thread 29116   Minidump: crashes/crash_20261019_095152.dmp
+
+Stack (faulting thread):
+#0  0x0000780100007800 <unknown>+0x0
+#1  0x00007ffa6548bc68 nvoglv64.dll+0xe0bc68  vk_gr2608GetInstanceProcAddr+0x37a18
+#2  0x00007ffa6548be55 nvoglv64.dll+0xe0be55  vk_gr2608GetInstanceProcAddr+0x37c05
+#3  0x00007ff634e01156 phyxel.exe+0x281156  Phyxel::Vulkan::VulkanDevice::cleanupSwapChain+0x136  (C:\Users\bpete\Documents\GitHub\phyxel\engine\src\vulkan\VulkanDevice.cpp:3361)
+#4  0x00007ff634e0e592 phyxel.exe+0x28e592  Phyxel::Vulkan::VulkanDevice::recreateSwapChain+0x142  (C:\Users\bpete\Documents\GitHub\phyxel\engine\src\vulkan\VulkanDevice.cpp:3309)
+#5  0x00007ff634eaac1b phyxel.exe+0x32ac1b  Phyxel::Graphics::RenderCoordinator::drawFrame+0x557b  (C:\Users\bpete\Documents\GitHub\phyxel\engine\src\graphics\RenderCoordinator.cpp:3470)
+profile A/B over 129 columns: control range 64..402, eroded range 24..427, mean diff -59.7, max |diff| 190, columns changed by >= 2 u: 127
+done

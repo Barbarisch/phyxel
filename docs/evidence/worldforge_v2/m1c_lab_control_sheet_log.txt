@@ -1,0 +1,3 @@
+[10:56:08.471] [INFO] [GameDefinitionLoader] World: heightSpline from game.json (5 points)
+[10:56:08.472] [INFO] [WorldGenerator] [WORLD_SHEET] macro 16x16 @ 512 u baked (hash 11180512351518298859); meso tiles 256 @ 32 u, apron 6, LRU 64
+[10:56:11.194] [INFO] [FarTerrain] Configured far-terrain mesher (threaded=1)
