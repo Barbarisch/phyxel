@@ -14041,7 +14041,11 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("default")) Core::Water::WaterCoreManager::s_partialWakeDefault = cmd.params.value("default", false);
         // surface (26.33): the surface kernel and its copy over the awake columns only; false = every column (the A/B)
         if (cmd.params.contains("surface")) Core::Water::WaterCoreGpu::s_partialSurface = cmd.params.value("surface", true);
-        r = {{"default", Core::Water::WaterCoreManager::s_partialWakeDefault}, {"surface", Core::Water::WaterCoreGpu::s_partialSurface}};
+        // quiet_scale (26.34): the per-column freeze test's thresholds x this (1 = the volume's sleep test); clamped [0.1, 1000]:
+        // below 0.1 no column ever freezes (float noise moves more), above 1000 a visible wave (cm/s) would count as still
+        if (cmd.params.contains("quiet_scale")) Core::Water::WaterCoreGpu::s_columnQuietScale = std::clamp(cmd.params.value("quiet_scale", 1.0f), 0.1f, 1000.0f);
+        r = {{"default", Core::Water::WaterCoreManager::s_partialWakeDefault}, {"surface", Core::Water::WaterCoreGpu::s_partialSurface},
+             {"quiet_scale", Core::Water::WaterCoreGpu::s_columnQuietScale}};
         if (cmd.params.contains("id")) r["applied"] = waterCore->setPartialWake(cmd.params.value("id", 0), cmd.params.value("on", true));
     });
     // 26.31 measurement: {on, reset} the GPU's per-stage timestamps; replies ms per call by stage (single-tick, single-substep calls)

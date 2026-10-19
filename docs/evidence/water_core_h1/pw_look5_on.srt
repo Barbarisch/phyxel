@@ -1,0 +1,263 @@
+1
+00:00:01,760 --> 00:00:02,030
+PARTIAL WAKE ON (freeze x3)  |  solver 0.00 ms  |  stepping 36 of 1664 columns
+
+2
+00:00:02,030 --> 00:00:02,310
+PARTIAL WAKE ON (freeze x3)  |  solver 0.96 ms  |  stepping 161 of 1664 columns
+
+3
+00:00:02,310 --> 00:00:02,570
+PARTIAL WAKE ON (freeze x3)  |  solver 1.19 ms  |  stepping 190 of 1664 columns
+
+4
+00:00:02,570 --> 00:00:02,900
+PARTIAL WAKE ON (freeze x3)  |  solver 1.25 ms  |  stepping 213 of 1664 columns
+
+5
+00:00:02,900 --> 00:00:03,170
+PARTIAL WAKE ON (freeze x3)  |  solver 1.14 ms  |  stepping 238 of 1664 columns
+
+6
+00:00:03,170 --> 00:00:03,430
+PARTIAL WAKE ON (freeze x3)  |  solver 1.22 ms  |  stepping 302 of 1664 columns
+
+7
+00:00:03,430 --> 00:00:03,710
+PARTIAL WAKE ON (freeze x3)  |  solver 1.18 ms  |  stepping 271 of 1664 columns
+
+8
+00:00:03,710 --> 00:00:04,040
+PARTIAL WAKE ON (freeze x3)  |  solver 1.23 ms  |  stepping 303 of 1664 columns
+
+9
+00:00:04,040 --> 00:00:04,320
+PARTIAL WAKE ON (freeze x3)  |  solver 1.26 ms  |  stepping 322 of 1664 columns
+
+10
+00:00:04,320 --> 00:00:04,580
+PARTIAL WAKE ON (freeze x3)  |  solver 1.39 ms  |  stepping 402 of 1664 columns
+
+11
+00:00:04,580 --> 00:00:04,860
+PARTIAL WAKE ON (freeze x3)  |  solver 1.40 ms  |  stepping 401 of 1664 columns
+
+12
+00:00:04,860 --> 00:00:05,180
+PARTIAL WAKE ON (freeze x3)  |  solver 1.44 ms  |  stepping 418 of 1664 columns
+
+13
+00:00:05,180 --> 00:00:05,440
+PARTIAL WAKE ON (freeze x3)  |  solver 1.47 ms  |  stepping 440 of 1664 columns
+
+14
+00:00:05,440 --> 00:00:05,700
+PARTIAL WAKE ON (freeze x3)  |  solver 1.65 ms  |  stepping 526 of 1664 columns
+
+15
+00:00:05,700 --> 00:00:05,990
+PARTIAL WAKE ON (freeze x3)  |  solver 1.60 ms  |  stepping 507 of 1664 columns
+
+16
+00:00:05,990 --> 00:00:06,300
+PARTIAL WAKE ON (freeze x3)  |  solver 1.67 ms  |  stepping 546 of 1664 columns
+
+17
+00:00:06,300 --> 00:00:06,570
+PARTIAL WAKE ON (freeze x3)  |  solver 1.71 ms  |  stepping 571 of 1664 columns
+
+18
+00:00:06,570 --> 00:00:06,860
+PARTIAL WAKE ON (freeze x3)  |  solver 1.89 ms  |  stepping 664 of 1664 columns
+
+19
+00:00:06,860 --> 00:00:07,140
+PARTIAL WAKE ON (freeze x3)  |  solver 2.03 ms  |  stepping 630 of 1664 columns
+
+20
+00:00:07,140 --> 00:00:07,450
+PARTIAL WAKE ON (freeze x3)  |  solver 1.91 ms  |  stepping 669 of 1664 columns
+
+21
+00:00:07,450 --> 00:00:07,710
+PARTIAL WAKE ON (freeze x3)  |  solver 1.92 ms  |  stepping 682 of 1664 columns
+
+22
+00:00:07,710 --> 00:00:07,980
+PARTIAL WAKE ON (freeze x3)  |  solver 2.12 ms  |  stepping 790 of 1664 columns
+
+23
+00:00:07,980 --> 00:00:08,240
+PARTIAL WAKE ON (freeze x3)  |  solver 3.14 ms  |  stepping 754 of 1664 columns
+
+24
+00:00:08,240 --> 00:00:08,570
+PARTIAL WAKE ON (freeze x3)  |  solver 2.12 ms  |  stepping 776 of 1664 columns
+
+25
+00:00:08,570 --> 00:00:08,840
+PARTIAL WAKE ON (freeze x3)  |  solver 2.17 ms  |  stepping 802 of 1664 columns
+
+26
+00:00:08,840 --> 00:00:09,120
+PARTIAL WAKE ON (freeze x3)  |  solver 2.35 ms  |  stepping 913 of 1664 columns
+
+27
+00:00:09,120 --> 00:00:09,380
+PARTIAL WAKE ON (freeze x3)  |  solver 2.31 ms  |  stepping 885 of 1664 columns
+
+28
+00:00:09,380 --> 00:00:09,690
+PARTIAL WAKE ON (freeze x3)  |  solver 2.49 ms  |  stepping 867 of 1664 columns
+
+29
+00:00:09,690 --> 00:00:09,950
+PARTIAL WAKE ON (freeze x3)  |  solver 2.41 ms  |  stepping 815 of 1664 columns
+
+30
+00:00:09,950 --> 00:00:10,210
+PARTIAL WAKE ON (freeze x3)  |  solver 3.79 ms  |  stepping 972 of 1664 columns
+
+31
+00:00:10,210 --> 00:00:10,470
+PARTIAL WAKE ON (freeze x3)  |  solver 2.52 ms  |  stepping 894 of 1664 columns
+
+32
+00:00:10,470 --> 00:00:10,800
+PARTIAL WAKE ON (freeze x3)  |  solver 2.48 ms  |  stepping 871 of 1664 columns
+
+33
+00:00:10,800 --> 00:00:11,060
+PARTIAL WAKE ON (freeze x3)  |  solver 2.09 ms  |  stepping 711 of 1664 columns
+
+34
+00:00:11,060 --> 00:00:11,320
+PARTIAL WAKE ON (freeze x3)  |  solver 2.22 ms  |  stepping 839 of 1664 columns
+
+35
+00:00:11,320 --> 00:00:11,580
+PARTIAL WAKE ON (freeze x3)  |  solver 2.21 ms  |  stepping 832 of 1664 columns
+
+36
+00:00:11,580 --> 00:00:11,910
+PARTIAL WAKE ON (freeze x3)  |  solver 3.35 ms  |  stepping 724 of 1664 columns
+
+37
+00:00:11,910 --> 00:00:12,190
+PARTIAL WAKE ON (freeze x3)  |  solver 2.02 ms  |  stepping 663 of 1664 columns
+
+38
+00:00:12,190 --> 00:00:12,450
+PARTIAL WAKE ON (freeze x3)  |  solver 1.95 ms  |  stepping 690 of 1664 columns
+
+39
+00:00:12,450 --> 00:00:12,720
+PARTIAL WAKE ON (freeze x3)  |  solver 3.03 ms  |  stepping 685 of 1664 columns
+
+40
+00:00:12,720 --> 00:00:13,020
+PARTIAL WAKE ON (freeze x3)  |  solver 1.81 ms  |  stepping 577 of 1664 columns
+
+41
+00:00:13,020 --> 00:00:13,300
+PARTIAL WAKE ON (freeze x3)  |  solver 1.75 ms  |  stepping 550 of 1664 columns
+
+42
+00:00:13,300 --> 00:00:13,560
+PARTIAL WAKE ON (freeze x3)  |  solver 1.65 ms  |  stepping 498 of 1664 columns
+
+43
+00:00:13,560 --> 00:00:13,840
+PARTIAL WAKE ON (freeze x3)  |  solver 1.51 ms  |  stepping 445 of 1664 columns
+
+44
+00:00:13,840 --> 00:00:14,170
+PARTIAL WAKE ON (freeze x3)  |  solver 1.31 ms  |  stepping 345 of 1664 columns
+
+45
+00:00:14,170 --> 00:00:14,440
+PARTIAL WAKE ON (freeze x3)  |  solver 1.18 ms  |  stepping 274 of 1664 columns
+
+46
+00:00:14,440 --> 00:00:14,700
+PARTIAL WAKE ON (freeze x3)  |  solver 1.37 ms  |  stepping 378 of 1664 columns
+
+47
+00:00:14,700 --> 00:00:14,980
+PARTIAL WAKE ON (freeze x3)  |  solver 1.22 ms  |  stepping 295 of 1664 columns
+
+48
+00:00:14,980 --> 00:00:15,290
+PARTIAL WAKE ON (freeze x3)  |  solver 1.22 ms  |  stepping 270 of 1664 columns
+
+49
+00:00:15,290 --> 00:00:15,550
+PARTIAL WAKE ON (freeze x3)  |  solver 1.22 ms  |  stepping 259 of 1664 columns
+
+50
+00:00:15,550 --> 00:00:15,820
+PARTIAL WAKE ON (freeze x3)  |  solver 1.20 ms  |  stepping 286 of 1664 columns
+
+51
+00:00:15,820 --> 00:00:16,100
+PARTIAL WAKE ON (freeze x3)  |  solver 1.19 ms  |  stepping 244 of 1664 columns
+
+52
+00:00:16,100 --> 00:00:16,410
+PARTIAL WAKE ON (freeze x3)  |  solver 1.19 ms  |  stepping 267 of 1664 columns
+
+53
+00:00:16,410 --> 00:00:16,670
+PARTIAL WAKE ON (freeze x3)  |  solver 1.24 ms  |  stepping 281 of 1664 columns
+
+54
+00:00:16,670 --> 00:00:16,950
+PARTIAL WAKE ON (freeze x3)  |  solver 1.21 ms  |  stepping 283 of 1664 columns
+
+55
+00:00:16,950 --> 00:00:17,210
+PARTIAL WAKE ON (freeze x3)  |  solver 1.17 ms  |  stepping 266 of 1664 columns
+
+56
+00:00:17,210 --> 00:00:17,540
+PARTIAL WAKE ON (freeze x3)  |  solver 1.18 ms  |  stepping 260 of 1664 columns
+
+57
+00:00:17,540 --> 00:00:17,820
+PARTIAL WAKE ON (freeze x3)  |  solver 1.15 ms  |  stepping 261 of 1664 columns
+
+58
+00:00:17,820 --> 00:00:18,070
+PARTIAL WAKE ON (freeze x3)  |  solver 1.24 ms  |  stepping 308 of 1664 columns
+
+59
+00:00:18,070 --> 00:00:18,350
+PARTIAL WAKE ON (freeze x3)  |  solver 1.03 ms  |  stepping 193 of 1664 columns
+
+60
+00:00:18,350 --> 00:00:18,670
+PARTIAL WAKE ON (freeze x3)  |  solver 1.06 ms  |  stepping 203 of 1664 columns
+
+61
+00:00:18,670 --> 00:00:18,950
+PARTIAL WAKE ON (freeze x3)  |  solver 0.95 ms  |  stepping 156 of 1664 columns
+
+62
+00:00:18,950 --> 00:00:19,210
+PARTIAL WAKE ON (freeze x3)  |  solver 1.08 ms  |  stepping 223 of 1664 columns
+
+63
+00:00:19,210 --> 00:00:19,480
+PARTIAL WAKE ON (freeze x3)  |  solver 1.08 ms  |  stepping 216 of 1664 columns
+
+64
+00:00:19,480 --> 00:00:19,800
+PARTIAL WAKE ON (freeze x3)  |  solver 2.08 ms  |  stepping 172 of 1664 columns
+
+65
+00:00:19,800 --> 00:00:20,060
+PARTIAL WAKE ON (freeze x3)  |  solver 1.01 ms  |  stepping 174 of 1664 columns
+
+66
+00:00:20,060 --> 00:00:20,310
+PARTIAL WAKE ON (freeze x3)  |  solver 1.04 ms  |  stepping 193 of 1664 columns

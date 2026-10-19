@@ -1,0 +1,2436 @@
+{
+ "size_m": [
+  46,
+  28
+ ],
+ "depth_m": 1,
+ "partial": "on",
+ "quiet_scale": 10.0,
+ "at": "corner",
+ "strength": 4.0,
+ "before_stone": {
+  "asleep": true,
+  "gpu_device_ms": 0.0,
+  "kinetic_energy": 2.6219249823520135e-10
+ },
+ "thresholds": {
+  "ke_wake": 1e-06,
+  "df_quiet": 1e-05
+ },
+ "rows": [
+  {
+   "t": 0.2,
+   "wet_cols": 1664,
+   "solver_ms": 2.220224,
+   "asleep": false,
+   "awake_columns": 48,
+   "frozen_columns": 1616,
+   "moving_columns": 24,
+   "step_slots": 386,
+   "partition_moves": 141,
+   "bricks": 13359,
+   "substeps": 4,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.018,
+    "margin1": 0.0252,
+    "margin1_cells": 0.0248,
+    "margin2": 0.0337,
+    "margin2_cells": 0.0333
+   },
+   "x0.1": {
+    "moving": 0.018,
+    "margin1": 0.0252,
+    "margin1_cells": 0.0248,
+    "margin2": 0.0337,
+    "margin2_cells": 0.0333
+   },
+   "x10": {
+    "moving": 0.0144,
+    "margin1": 0.021,
+    "margin1_cells": 0.0206,
+    "margin2": 0.0288,
+    "margin2_cells": 0.0284
+   },
+   "map_x1": [
+    "######..............................................",
+    "######..............................................",
+    "######..............................................",
+    "######..............................................",
+    "######..............................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "....................................................",
+    "...................................................."
+   ]
+  },
+  {
+   "t": 0.48,
+   "wet_cols": 1664,
+   "solver_ms": 0.813824,
+   "asleep": false,
+   "awake_columns": 71,
+   "frozen_columns": 1593,
+   "moving_columns": 41,
+   "step_slots": 576,
+   "partition_moves": 0,
+   "bricks": 13318,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.0391,
+    "margin1": 0.0499,
+    "margin1_cells": 0.0495,
+    "margin2": 0.0619,
+    "margin2_cells": 0.0617
+   },
+   "x0.1": {
+    "moving": 0.0457,
+    "margin1": 0.0571,
+    "margin1_cells": 0.0567,
+    "margin2": 0.0697,
+    "margin2_cells": 0.0695
+   },
+   "x10": {
+    "moving": 0.0246,
+    "margin1": 0.0331,
+    "margin1_cells": 0.0327,
+    "margin2": 0.0427,
+    "margin2_cells": 0.0423
+   }
+  },
+  {
+   "t": 0.76,
+   "wet_cols": 1664,
+   "solver_ms": 1.04176,
+   "asleep": false,
+   "awake_columns": 92,
+   "frozen_columns": 1572,
+   "moving_columns": 56,
+   "step_slots": 747,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.0487,
+    "margin1": 0.0607,
+    "margin1_cells": 0.0604,
+    "margin2": 0.0739,
+    "margin2_cells": 0.0738
+   },
+   "x0.1": {
+    "moving": 0.0553,
+    "margin1": 0.0679,
+    "margin1_cells": 0.0676,
+    "margin2": 0.0817,
+    "margin2_cells": 0.0816
+   },
+   "x10": {
+    "moving": 0.0288,
+    "margin1": 0.0385,
+    "margin1_cells": 0.038,
+    "margin2": 0.0493,
+    "margin2_cells": 0.0489
+   }
+  },
+  {
+   "t": 1.06,
+   "wet_cols": 1664,
+   "solver_ms": 0.930496,
+   "asleep": false,
+   "awake_columns": 94,
+   "frozen_columns": 1570,
+   "moving_columns": 58,
+   "step_slots": 763,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.0565,
+    "margin1": 0.0691,
+    "margin1_cells": 0.0689,
+    "margin2": 0.0829,
+    "margin2_cells": 0.0828
+   },
+   "x0.1": {
+    "moving": 0.0565,
+    "margin1": 0.0691,
+    "margin1_cells": 0.0689,
+    "margin2": 0.0829,
+    "margin2_cells": 0.0828
+   },
+   "x10": {
+    "moving": 0.0312,
+    "margin1": 0.0415,
+    "margin1_cells": 0.0409,
+    "margin2": 0.0529,
+    "margin2_cells": 0.0524
+   }
+  },
+  {
+   "t": 1.39,
+   "wet_cols": 1664,
+   "solver_ms": 1.0556159999999999,
+   "asleep": false,
+   "awake_columns": 107,
+   "frozen_columns": 1557,
+   "moving_columns": 67,
+   "step_slots": 867,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.0643,
+    "margin1": 0.0781,
+    "margin1_cells": 0.0779,
+    "margin2": 0.0931,
+    "margin2_cells": 0.0931
+   },
+   "x0.1": {
+    "moving": 0.0643,
+    "margin1": 0.0781,
+    "margin1_cells": 0.0779,
+    "margin2": 0.0931,
+    "margin2_cells": 0.0931
+   },
+   "x10": {
+    "moving": 0.03,
+    "margin1": 0.0403,
+    "margin1_cells": 0.0399,
+    "margin2": 0.0511,
+    "margin2_cells": 0.0508
+   }
+  },
+  {
+   "t": 1.71,
+   "wet_cols": 1664,
+   "solver_ms": 1.1412799999999999,
+   "asleep": false,
+   "awake_columns": 146,
+   "frozen_columns": 1518,
+   "moving_columns": 80,
+   "step_slots": 1179,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.0757,
+    "margin1": 0.0907,
+    "margin1_cells": 0.0906,
+    "margin2": 0.107,
+    "margin2_cells": 0.107
+   },
+   "x0.1": {
+    "moving": 0.0907,
+    "margin1": 0.107,
+    "margin1_cells": 0.107,
+    "margin2": 0.1244,
+    "margin2_cells": 0.1247
+   },
+   "x10": {
+    "moving": 0.0391,
+    "margin1": 0.0499,
+    "margin1_cells": 0.0495,
+    "margin2": 0.0619,
+    "margin2_cells": 0.0617
+   }
+  },
+  {
+   "t": 2.02,
+   "wet_cols": 1664,
+   "solver_ms": 1.1524159999999999,
+   "asleep": false,
+   "awake_columns": 154,
+   "frozen_columns": 1510,
+   "moving_columns": 82,
+   "step_slots": 1243,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.0865,
+    "margin1": 0.1028,
+    "margin1_cells": 0.1028,
+    "margin2": 0.1202,
+    "margin2_cells": 0.1204
+   },
+   "x0.1": {
+    "moving": 0.0938,
+    "margin1": 0.11,
+    "margin1_cells": 0.1101,
+    "margin2": 0.1274,
+    "margin2_cells": 0.1278
+   },
+   "x10": {
+    "moving": 0.0379,
+    "margin1": 0.0487,
+    "margin1_cells": 0.0483,
+    "margin2": 0.0607,
+    "margin2_cells": 0.0604
+   }
+  },
+  {
+   "t": 2.31,
+   "wet_cols": 1664,
+   "solver_ms": 1.174272,
+   "asleep": false,
+   "awake_columns": 163,
+   "frozen_columns": 1501,
+   "moving_columns": 84,
+   "step_slots": 1315,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.0974,
+    "margin1": 0.1154,
+    "margin1_cells": 0.1156,
+    "margin2": 0.134,
+    "margin2_cells": 0.1345
+   },
+   "x0.1": {
+    "moving": 0.098,
+    "margin1": 0.1154,
+    "margin1_cells": 0.1156,
+    "margin2": 0.134,
+    "margin2_cells": 0.1345
+   },
+   "x10": {
+    "moving": 0.0421,
+    "margin1": 0.0535,
+    "margin1_cells": 0.0531,
+    "margin2": 0.0661,
+    "margin2_cells": 0.0658
+   }
+  },
+  {
+   "t": 2.65,
+   "wet_cols": 1664,
+   "solver_ms": 1.2045759999999999,
+   "asleep": false,
+   "awake_columns": 183,
+   "frozen_columns": 1481,
+   "moving_columns": 95,
+   "step_slots": 1475,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1082,
+    "margin1": 0.128,
+    "margin1_cells": 0.1284,
+    "margin2": 0.1472,
+    "margin2_cells": 0.1478
+   },
+   "x0.1": {
+    "moving": 0.11,
+    "margin1": 0.128,
+    "margin1_cells": 0.1284,
+    "margin2": 0.1472,
+    "margin2_cells": 0.1478
+   },
+   "x10": {
+    "moving": 0.0427,
+    "margin1": 0.0559,
+    "margin1_cells": 0.0554,
+    "margin2": 0.0697,
+    "margin2_cells": 0.0693
+   }
+  },
+  {
+   "t": 2.95,
+   "wet_cols": 1664,
+   "solver_ms": 1.272224,
+   "asleep": false,
+   "awake_columns": 215,
+   "frozen_columns": 1449,
+   "moving_columns": 104,
+   "step_slots": 1731,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1184,
+    "margin1": 0.1388,
+    "margin1_cells": 0.1393,
+    "margin2": 0.1587,
+    "margin2_cells": 0.1593
+   },
+   "x0.1": {
+    "moving": 0.1346,
+    "margin1": 0.1544,
+    "margin1_cells": 0.155,
+    "margin2": 0.1755,
+    "margin2_cells": 0.1764
+   },
+   "x10": {
+    "moving": 0.0493,
+    "margin1": 0.0931,
+    "margin1_cells": 0.0929,
+    "margin2": 0.128,
+    "margin2_cells": 0.1282
+   }
+  },
+  {
+   "t": 3.23,
+   "wet_cols": 1664,
+   "solver_ms": 1.308576,
+   "asleep": false,
+   "awake_columns": 220,
+   "frozen_columns": 1444,
+   "moving_columns": 115,
+   "step_slots": 1771,
+   "partition_moves": 32,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1286,
+    "margin1": 0.1496,
+    "margin1_cells": 0.1501,
+    "margin2": 0.1707,
+    "margin2_cells": 0.1715
+   },
+   "x0.1": {
+    "moving": 0.1364,
+    "margin1": 0.1562,
+    "margin1_cells": 0.1569,
+    "margin2": 0.1773,
+    "margin2_cells": 0.1782
+   },
+   "x10": {
+    "moving": 0.0469,
+    "margin1": 0.0613,
+    "margin1_cells": 0.0609,
+    "margin2": 0.0757,
+    "margin2_cells": 0.0754
+   }
+  },
+  {
+   "t": 3.52,
+   "wet_cols": 1664,
+   "solver_ms": 1.333696,
+   "asleep": false,
+   "awake_columns": 245,
+   "frozen_columns": 1419,
+   "moving_columns": 108,
+   "step_slots": 1971,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.131,
+    "margin1": 0.1605,
+    "margin1_cells": 0.1612,
+    "margin2": 0.1821,
+    "margin2_cells": 0.1831
+   },
+   "x0.1": {
+    "moving": 0.1478,
+    "margin1": 0.1689,
+    "margin1_cells": 0.1696,
+    "margin2": 0.1911,
+    "margin2_cells": 0.1922
+   },
+   "x10": {
+    "moving": 0.0469,
+    "margin1": 0.0595,
+    "margin1_cells": 0.059,
+    "margin2": 0.0733,
+    "margin2_cells": 0.073
+   }
+  },
+  {
+   "t": 3.86,
+   "wet_cols": 1664,
+   "solver_ms": 1.3233279999999998,
+   "asleep": false,
+   "awake_columns": 230,
+   "frozen_columns": 1434,
+   "moving_columns": 94,
+   "step_slots": 1851,
+   "partition_moves": 24,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1442,
+    "margin1": 0.1695,
+    "margin1_cells": 0.1702,
+    "margin2": 0.1917,
+    "margin2_cells": 0.1928
+   },
+   "x0.1": {
+    "moving": 0.1514,
+    "margin1": 0.1737,
+    "margin1_cells": 0.1745,
+    "margin2": 0.1971,
+    "margin2_cells": 0.1983
+   },
+   "x10": {
+    "moving": 0.0487,
+    "margin1": 0.0613,
+    "margin1_cells": 0.0609,
+    "margin2": 0.0751,
+    "margin2_cells": 0.0748
+   }
+  },
+  {
+   "t": 4.14,
+   "wet_cols": 1664,
+   "solver_ms": 1.137152,
+   "asleep": false,
+   "awake_columns": 198,
+   "frozen_columns": 1466,
+   "moving_columns": 93,
+   "step_slots": 1595,
+   "partition_moves": 183,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.155,
+    "margin1": 0.1791,
+    "margin1_cells": 0.18,
+    "margin2": 0.2019,
+    "margin2_cells": 0.2032
+   },
+   "x0.1": {
+    "moving": 0.1761,
+    "margin1": 0.1989,
+    "margin1_cells": 0.2001,
+    "margin2": 0.223,
+    "margin2_cells": 0.2245
+   },
+   "x10": {
+    "moving": 0.0523,
+    "margin1": 0.0661,
+    "margin1_cells": 0.0656,
+    "margin2": 0.0811,
+    "margin2_cells": 0.0808
+   }
+  },
+  {
+   "t": 4.46,
+   "wet_cols": 1664,
+   "solver_ms": 1.1570559999999999,
+   "asleep": false,
+   "awake_columns": 251,
+   "frozen_columns": 1413,
+   "moving_columns": 112,
+   "step_slots": 2019,
+   "partition_moves": 16,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1623,
+    "margin1": 0.1869,
+    "margin1_cells": 0.1879,
+    "margin2": 0.2103,
+    "margin2_cells": 0.2116
+   },
+   "x0.1": {
+    "moving": 0.1779,
+    "margin1": 0.2013,
+    "margin1_cells": 0.2024,
+    "margin2": 0.226,
+    "margin2_cells": 0.2274
+   },
+   "x10": {
+    "moving": 0.0535,
+    "margin1": 0.0709,
+    "margin1_cells": 0.0704,
+    "margin2": 0.0919,
+    "margin2_cells": 0.0917
+   }
+  },
+  {
+   "t": 4.77,
+   "wet_cols": 1664,
+   "solver_ms": 1.309504,
+   "asleep": false,
+   "awake_columns": 230,
+   "frozen_columns": 1434,
+   "moving_columns": 109,
+   "step_slots": 1851,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1581,
+    "margin1": 0.1899,
+    "margin1_cells": 0.1908,
+    "margin2": 0.2139,
+    "margin2_cells": 0.2152
+   },
+   "x0.1": {
+    "moving": 0.1791,
+    "margin1": 0.2025,
+    "margin1_cells": 0.2037,
+    "margin2": 0.2272,
+    "margin2_cells": 0.2287
+   },
+   "x10": {
+    "moving": 0.0511,
+    "margin1": 0.0649,
+    "margin1_cells": 0.0644,
+    "margin2": 0.0799,
+    "margin2_cells": 0.0796
+   }
+  },
+  {
+   "t": 5.13,
+   "wet_cols": 1664,
+   "solver_ms": 1.246432,
+   "asleep": false,
+   "awake_columns": 202,
+   "frozen_columns": 1462,
+   "moving_columns": 101,
+   "step_slots": 1627,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1599,
+    "margin1": 0.1905,
+    "margin1_cells": 0.1914,
+    "margin2": 0.2145,
+    "margin2_cells": 0.2158
+   },
+   "x0.1": {
+    "moving": 0.1791,
+    "margin1": 0.2025,
+    "margin1_cells": 0.2037,
+    "margin2": 0.2272,
+    "margin2_cells": 0.2287
+   },
+   "x10": {
+    "moving": 0.0541,
+    "margin1": 0.0685,
+    "margin1_cells": 0.0681,
+    "margin2": 0.0835,
+    "margin2_cells": 0.0833
+   }
+  },
+  {
+   "t": 5.4,
+   "wet_cols": 1664,
+   "solver_ms": 1.3801919999999999,
+   "asleep": false,
+   "awake_columns": 267,
+   "frozen_columns": 1397,
+   "moving_columns": 168,
+   "step_slots": 2147,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1683,
+    "margin1": 0.1983,
+    "margin1_cells": 0.1994,
+    "margin2": 0.223,
+    "margin2_cells": 0.2244
+   },
+   "x0.1": {
+    "moving": 0.1803,
+    "margin1": 0.2037,
+    "margin1_cells": 0.2049,
+    "margin2": 0.2284,
+    "margin2_cells": 0.2299
+   },
+   "x10": {
+    "moving": 0.0493,
+    "margin1": 0.0625,
+    "margin1_cells": 0.0621,
+    "margin2": 0.0763,
+    "margin2_cells": 0.0761
+   }
+  },
+  {
+   "t": 5.69,
+   "wet_cols": 1664,
+   "solver_ms": 1.303968,
+   "asleep": false,
+   "awake_columns": 177,
+   "frozen_columns": 1487,
+   "moving_columns": 93,
+   "step_slots": 1427,
+   "partition_moves": 192,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1695,
+    "margin1": 0.2001,
+    "margin1_cells": 0.2012,
+    "margin2": 0.2248,
+    "margin2_cells": 0.2262
+   },
+   "x0.1": {
+    "moving": 0.1809,
+    "margin1": 0.2043,
+    "margin1_cells": 0.2055,
+    "margin2": 0.229,
+    "margin2_cells": 0.2305
+   },
+   "x10": {
+    "moving": 0.0499,
+    "margin1": 0.0709,
+    "margin1_cells": 0.0705,
+    "margin2": 0.0883,
+    "margin2_cells": 0.0882
+   }
+  },
+  {
+   "t": 5.97,
+   "wet_cols": 1664,
+   "solver_ms": 1.360128,
+   "asleep": false,
+   "awake_columns": 221,
+   "frozen_columns": 1443,
+   "moving_columns": 95,
+   "step_slots": 1779,
+   "partition_moves": 137,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1731,
+    "margin1": 0.2001,
+    "margin1_cells": 0.2012,
+    "margin2": 0.2248,
+    "margin2_cells": 0.2262
+   },
+   "x0.1": {
+    "moving": 0.1809,
+    "margin1": 0.2043,
+    "margin1_cells": 0.2055,
+    "margin2": 0.229,
+    "margin2_cells": 0.2305
+   },
+   "x10": {
+    "moving": 0.0475,
+    "margin1": 0.0649,
+    "margin1_cells": 0.0644,
+    "margin2": 0.0823,
+    "margin2_cells": 0.082
+   }
+  },
+  {
+   "t": 6.34,
+   "wet_cols": 1664,
+   "solver_ms": 1.199168,
+   "asleep": false,
+   "awake_columns": 175,
+   "frozen_columns": 1489,
+   "moving_columns": 87,
+   "step_slots": 1411,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1743,
+    "margin1": 0.2043,
+    "margin1_cells": 0.2055,
+    "margin2": 0.229,
+    "margin2_cells": 0.2305
+   },
+   "x0.1": {
+    "moving": 0.1857,
+    "margin1": 0.2091,
+    "margin1_cells": 0.2104,
+    "margin2": 0.2338,
+    "margin2_cells": 0.2354
+   },
+   "x10": {
+    "moving": 0.0463,
+    "margin1": 0.0673,
+    "margin1_cells": 0.0669,
+    "margin2": 0.0938,
+    "margin2_cells": 0.0937
+   }
+  },
+  {
+   "t": 6.62,
+   "wet_cols": 1664,
+   "solver_ms": 1.2509759999999999,
+   "asleep": false,
+   "awake_columns": 202,
+   "frozen_columns": 1462,
+   "moving_columns": 90,
+   "step_slots": 1627,
+   "partition_moves": 408,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1701,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1863,
+    "margin1": 0.2097,
+    "margin1_cells": 0.211,
+    "margin2": 0.2344,
+    "margin2_cells": 0.236
+   },
+   "x10": {
+    "moving": 0.0349,
+    "margin1": 0.0487,
+    "margin1_cells": 0.0482,
+    "margin2": 0.0619,
+    "margin2_cells": 0.0615
+   }
+  },
+  {
+   "t": 6.91,
+   "wet_cols": 1664,
+   "solver_ms": 1.085056,
+   "asleep": false,
+   "awake_columns": 112,
+   "frozen_columns": 1552,
+   "moving_columns": 66,
+   "step_slots": 907,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1755,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.024,
+    "margin1": 0.0433,
+    "margin1_cells": 0.0429,
+    "margin2": 0.0559,
+    "margin2_cells": 0.0555
+   }
+  },
+  {
+   "t": 7.2,
+   "wet_cols": 1664,
+   "solver_ms": 1.048576,
+   "asleep": false,
+   "awake_columns": 99,
+   "frozen_columns": 1565,
+   "moving_columns": 48,
+   "step_slots": 803,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0096,
+    "margin1": 0.027,
+    "margin1_cells": 0.0271,
+    "margin2": 0.0403,
+    "margin2_cells": 0.0403
+   }
+  },
+  {
+   "t": 7.52,
+   "wet_cols": 1664,
+   "solver_ms": 1.02704,
+   "asleep": false,
+   "awake_columns": 77,
+   "frozen_columns": 1587,
+   "moving_columns": 29,
+   "step_slots": 627,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1755,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0036,
+    "margin1": 0.0132,
+    "margin1_cells": 0.013,
+    "margin2": 0.0216,
+    "margin2_cells": 0.0215
+   }
+  },
+  {
+   "t": 7.81,
+   "wet_cols": 1664,
+   "solver_ms": 1.027968,
+   "asleep": false,
+   "awake_columns": 69,
+   "frozen_columns": 1595,
+   "moving_columns": 16,
+   "step_slots": 563,
+   "partition_moves": 40,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0006,
+    "margin1": 0.0036,
+    "margin1_cells": 0.0037,
+    "margin2": 0.009,
+    "margin2_cells": 0.0092
+   }
+  },
+  {
+   "t": 8.12,
+   "wet_cols": 1664,
+   "solver_ms": 0.731904,
+   "asleep": false,
+   "awake_columns": 31,
+   "frozen_columns": 1633,
+   "moving_columns": 4,
+   "step_slots": 259,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 8.41,
+   "wet_cols": 1664,
+   "solver_ms": 0.728704,
+   "asleep": false,
+   "awake_columns": 16,
+   "frozen_columns": 1648,
+   "moving_columns": 1,
+   "step_slots": 139,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 1,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 8.74,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 9.02,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 9.3,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 9.59,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 9.87,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 10.17,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 10.45,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 10.72,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 11.0,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 11.28,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 11.57,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 11.85,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 12.13,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 12.42,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 12.71,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 12.99,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 13.27,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 13.55,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 13.83,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 14.12,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 14.38,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 14.68,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 14.95,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 15.24,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 15.52,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 15.82,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 16.1,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 16.37,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 16.66,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 16.95,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 17.22,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 17.51,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 17.79,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 18.08,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 18.38,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 18.67,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 18.96,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 19.25,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 19.53,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  },
+  {
+   "t": 19.83,
+   "wet_cols": 1664,
+   "solver_ms": 0.0,
+   "asleep": true,
+   "awake_columns": 0,
+   "frozen_columns": 1664,
+   "moving_columns": 0,
+   "step_slots": 0,
+   "partition_moves": 0,
+   "bricks": 13321,
+   "substeps": 0,
+   "sweeps": 40,
+   "x1": {
+    "moving": 0.1749,
+    "margin1": 0.2049,
+    "margin1_cells": 0.2061,
+    "margin2": 0.2296,
+    "margin2_cells": 0.2311
+   },
+   "x0.1": {
+    "moving": 0.1869,
+    "margin1": 0.2103,
+    "margin1_cells": 0.2116,
+    "margin2": 0.235,
+    "margin2_cells": 0.2366
+   },
+   "x10": {
+    "moving": 0.0,
+    "margin1": 0.0,
+    "margin1_cells": 0.0,
+    "margin2": 0.0,
+    "margin2_cells": 0.0
+   }
+  }
+ ]
+}

@@ -573,7 +573,8 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
                 const glm::vec4& q = vol.hostUnits[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (uy + vol.nuy * static_cast<size_t>(bz))];
                 k += q.x; d = std::max(d, q.y); m += q.z;
             }
-            const bool quiet = m < 1e-3 || (k / m < params.keWake && d < params.maxDeltaFQuiet);
+            const double qs = static_cast<double>(s_columnQuietScale);   // 26.34: the freeze test's thresholds (1 = the volume's own)
+            const bool quiet = m < 1e-3 || (k / m < params.keWake * qs && d < params.maxDeltaFQuiet * qs);
             int& qt = vol.colQuiet[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz];
             qt = quiet ? std::min(qt + vol.unitsTicks, 1 << 30) : 0;
         }

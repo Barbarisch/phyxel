@@ -162,8 +162,10 @@ within the drop-to-drop spread; the measurement kept (`water_av_list` carry_*_m3
 **26.33 BUILT (2026-10-18), not signed off:** with the partial wake the surface kernel and its copy cover the awake columns only (the
 host keeps the frozen ones; byte-equal heights, gated): the copy 0.6 -> 0.07-0.10 ms, a call after a stone 2.0-2.2 -> 1.3-1.6 ms.
 The owner's look re-recorded on an idle GPU (`pw_look3_side_by_side.mp4`: OFF median 4.80 ms, ON 3.69).
-**Next:** the owner's look (26.30 steps 1-3; the partial wake ON vs OFF, close: `pw_look4`), then the rest of the remainder (the sweeps'
-launches, the reductions) or the default. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
+**The partial wake's look SIGNED OFF by the owner 2026-10-18 (`pw_look4`).** **26.34 (2026-10-18):** the awake patch creeps over the
+whole pond at the sleep test's thresholds (sub-0.1 mm waves count as moving); a knob for the freeze test (`quiet_scale`): at x3 the
+mean solver time over 20 s after a push 2.34 -> 0.72 ms, the waves the same within run noise, the frozen pond flat to 0.08 mm.
+**Next:** the owner's call on `pw_look5` (x3) and on the partial wake's default; then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7453,6 +7455,26 @@ partition, clears: the "sources" stamp) 0.23, the reductions 0.19, everything el
   tumbles differently every drop. Re-shot `pw_look4_side_by_side.mp4`: low, inside the kerb, ~5 m from the same IMPULSE in both
   takes (`water_partial_wake_video.py --push impulse --pose 11,18.3,27.3,-150,-14`); the halves match frame for frame, OFF 3.9-4.9
   ms, ON 1.2-2.4 ms. The global turbidity override (`water_look {active, turbidity}`) barely changed the clear water - not used.
+- **SIGNED OFF by the owner (2026-10-18) on pw_look4 - the partial wake's look** (26.31 + 26.33): "yeah. looks good. i can barely
+  tell the difference. keep going". The default stays OFF until the owner says otherwise.
+
+**26.34 MEASURED + a knob (2026-10-18), default unchanged - why the awake patch grows over the whole pond.** With the partial wake
+ON a call costs 1.1-1.4 ms in the first 2 s after a push but 2.8-2.9 ms by 10-20 s (`wake_map_qs1.json`): the awake columns climb
+145 -> 1,206 of 1,664 while the waves out there are 0.5 mm at 8 m and nothing at 16 m (`wave_reach_*.json`). The volume's own
+instantaneous test says only 1-8 % of the columns move from 11 s on (`wake_map_c4_thresh.json`): a column that wakes lets the
+sub-0.1 mm waves in, they pass the sleep test's thresholds (KE / mass >= 1e-6, max |df| >= 1e-5 a tick - ~0.07 mm/s of level),
+the column counts as moving for 30 more ticks and wakes its 2-column margin: the patch creeps. At thresholds x 10 nothing moves
+after ~11 s.
+- **The knob:** `WaterCoreGpu::s_columnQuietScale` - the per-column FREEZE test's thresholds x this (the volume's own sleep test
+  unchanged); `water_av_partial_wake {quiet_scale}` (clamped 0.1-1000, the reasons at the clamp); `--quiet-scale` on
+  `water_wake_map.py`, `water_wave_reach.py`, `water_partial_wake_video.py`. Default 1 (today's test).
+- **Measured, 46 x 28 m pond, the repeatable push, 20 s** (solver ms medians 0-2 / 2-5 / 5-10 / 10-15 / 15-20 s; mean):
+  x1: 1.09 1.40 2.24 2.79 2.94, mean **2.34**, never asleep; x3: 1.00 1.41 1.54 0 0, mean **0.72**, asleep by ~10 s; x10: 1.05
+  1.24 1.03 0 0, mean **0.48**. The waves (rms at 1 / 2 / 4 / 8 m, x3 ON vs OFF): 10.6 / 4.7 / 1.4 / 0.11 vs 11.8 / 4.9 / 1.5 /
+  0.12 mm (OFF itself runs 10.4-11.8 at 1 m); x10: 9.2 / 4.6 / 1.4 / 0.11 vs 10.4 / 4.7 / 1.5 / 0.13. The frozen pond's level
+  after 20 s: spread 0.08 mm (x3), 0.10 mm (x10), 0.01 mm (x1).
+- **For the owner (a look decision):** `pw_look5_side_by_side.mp4` - OFF vs ON at x3, close, the same push, 20 s: the halves match
+  frame for frame; OFF 3.9-4.6 ms throughout, ON 1.2-2.5 ms falling to ~1.0 ms as the patch shrinks (802 -> 174 columns).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
