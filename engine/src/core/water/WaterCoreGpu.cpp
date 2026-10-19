@@ -355,6 +355,7 @@ void WaterCoreGpu::fillPushBricks(const Volume& vol, WcPush& push) const {
     push.slotTableOff = static_cast<int32_t>(vol.slotTableOff); push.colTableOff = static_cast<int32_t>(vol.colTableOff);
     push.counterOff = static_cast<int32_t>(vol.counterOff); push.colCount = vol.colCount;
     push.frozenOn = vol.anyFrozen ? (s_partialWakeOpenInterfaceForTest ? 2 : 1) : 0;   // 26.31 (2: skipped, not a wall - the test's red control)
+    push.carryMeasure = (vol.bricked && s_carryMeasure) ? 1 : 0;   // 26.32
 }
 
 // A brick is needed when water lies within `reach` cells of it: for each neighbour offset d, the gap along

@@ -34,8 +34,9 @@ struct WcPush {
     int32_t bly = 3;            ///< 26.17: log2 of the brick height (bricks are 8 x (1 << bly) x 8)
     float vcBand = 0.02f;       ///< 26.21: SolverParams::volumeCorrectionBand (wc_classify mode 0)
     int32_t frozenOn = 0;       ///< 26.31: honour the frozen bit of the slot / column tables (the partial wake)
+    int32_t carryMeasure = 0;   ///< 26.32: count the over-full carry (WaterCoreGpu::s_carryMeasure, bricked volumes only)
 };
-static_assert(sizeof(WcPush) == 120, "WcPush must match the GLSL push block");
+static_assert(sizeof(WcPush) == 124, "WcPush must match the GLSL push block");
 
 /// A pump or sink on the device (shaders/wc_sources.comp GpuSource, 32 bytes).
 struct GpuSource {
@@ -244,6 +245,9 @@ public:
     void shutdown();
     bool ready() const { return m_device != VK_NULL_HANDLE && m_pool != VK_NULL_HANDLE; }
     /// 26.9: the projection starts from the still-water pressure of the water as it is now (classify mode 2), not 0.
+    /// 26.32 measurement: count the over-full carry by kind (water_av_list carry_*_m3). Off by default - the step's atomics on
+    /// four shared words cost it when a splash over-fills thousands of cells. water_transport {carry_measure}.
+    static inline bool s_carryMeasure = false;
     static inline bool s_stillWaterGuess = true;    // ON (26.10): the resting-body loss was float rounding in the fill store, fixed (fLo)
     /// 26.17: the brick height (cells) a volume gets when its BrickOptions name none - 2, 4 or 8 (bricks are 8 x h x 8). 2 since
     /// 26.17's bench run: the creek at q 0.2 stored 691,200 -> 457,984 cells, GPU 1.83 -> 1.57 ms a call, the water identical

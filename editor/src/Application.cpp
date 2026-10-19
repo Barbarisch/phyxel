@@ -14326,7 +14326,9 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("surface_ghost")) Core::Water::WaterSolver::s_surfaceGhost = cmd.params.value("surface_ghost", true);
         // quiet_rise (26.9): fraction of the one-cell free-fall speed under which a partial cell fills before water crosses its ceiling (0 = off)
         if (cmd.params.contains("quiet_rise")) Core::Water::EulerianTransport::s_quietRiseFraction = std::max(0.0f, cmd.params.value("quiet_rise", 0.002f));
-        r = {{"all_faces", Core::Water::EulerianTransport::s_allFacesAtOnce}, {"still_water_guess", Core::Water::WaterCoreGpu::s_stillWaterGuess},
+        // carry_measure (26.32): count the over-full carry by kind on GPU volumes (water_av_list carry_*_m3); off by default (it costs)
+        if (cmd.params.contains("carry_measure")) Core::Water::WaterCoreGpu::s_carryMeasure = cmd.params.value("carry_measure", false);
+        r = {{"all_faces", Core::Water::EulerianTransport::s_allFacesAtOnce}, {"carry_measure", Core::Water::WaterCoreGpu::s_carryMeasure}, {"still_water_guess", Core::Water::WaterCoreGpu::s_stillWaterGuess},
              {"surface_ghost", Core::Water::WaterSolver::s_surfaceGhost}, {"quiet_rise", Core::Water::EulerianTransport::s_quietRiseFraction}};
     });
     reg.on("water_pond_friction", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 24.7

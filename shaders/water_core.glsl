@@ -42,6 +42,7 @@ layout(push_constant) uniform WcPush {
     int   bly;           // 26.17: log2 of the brick height (1, 2, 3); x and z are always 8
     float vcBand;        // 26.21: the volume correction's dead band (SolverParams::volumeCorrectionBand)
     int   frozenOn;      // 26.31: 1 = honour the FROZEN bit of the slot / column tables (the partial wake); 0 = every stored brick; 2 = TEST: skipped, not a wall
+    int   carryMeasure;  // 26.32: 1 = count the over-full carry (Bricks[counterOff + 2..5]); 0 = off (the default: the atomics cost)
 } pc;
 
 // 26.31 THE PARTIAL WAKE: bit 30 of a slot-table or column-table entry marks a FROZEN brick column - quiet by the volume's own
