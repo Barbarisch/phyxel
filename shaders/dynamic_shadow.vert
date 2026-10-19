@@ -39,7 +39,10 @@ void main() {
     else if (inFaceID == 4u) faceOffset = vec3(float((cornerID >> 0) & 1u), 1.0, 1.0 - float((cornerID >> 1) & 1u));
     else                     faceOffset = vec3(float((cornerID >> 0) & 1u), 0.0, float((cornerID >> 1) & 1u));
 
+    // Must be the SAME position as dynamic_voxel.vert: inWorldPosition is the body CENTRE.
+    // An extra `+ inScale * 0.5` sat here from 2026-05-11 until 2026-10-19 and shifted every
+    // caster half a voxel along +X+Y+Z, so each piece shadowed its own sunlit top face.
     vec3 localOffset = rotateByQuaternion((faceOffset - 0.5) * inScale, inRotation);
-    vec3 worldPos = (inWorldPosition - pc.cameraWorld.xyz) + localOffset + inScale * 0.5;
+    vec3 worldPos = (inWorldPosition - pc.cameraWorld.xyz) + localOffset;
     gl_Position = pc.lightSpaceMatrix * vec4(worldPos, 1.0);
 }
