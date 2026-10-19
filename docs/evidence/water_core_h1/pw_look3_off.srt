@@ -1,0 +1,207 @@
+1
+00:00:01,560 --> 00:00:01,810
+PARTIAL WAKE OFF  |  solver 0.00 ms  |  stepping the whole pond
+
+2
+00:00:01,810 --> 00:00:02,110
+PARTIAL WAKE OFF  |  solver 0.00 ms  |  stepping the whole pond
+
+3
+00:00:02,110 --> 00:00:02,390
+PARTIAL WAKE OFF  |  solver 0.00 ms  |  stepping the whole pond
+
+4
+00:00:02,390 --> 00:00:02,710
+PARTIAL WAKE OFF  |  solver 4.04 ms  |  stepping the whole pond
+
+5
+00:00:02,710 --> 00:00:02,990
+PARTIAL WAKE OFF  |  solver 14.29 ms  |  stepping the whole pond
+
+6
+00:00:02,990 --> 00:00:03,260
+PARTIAL WAKE OFF  |  solver 28.74 ms  |  stepping the whole pond
+
+7
+00:00:03,260 --> 00:00:03,530
+PARTIAL WAKE OFF  |  solver 26.19 ms  |  stepping the whole pond
+
+8
+00:00:03,530 --> 00:00:03,860
+PARTIAL WAKE OFF  |  solver 9.81 ms  |  stepping the whole pond
+
+9
+00:00:03,860 --> 00:00:04,120
+PARTIAL WAKE OFF  |  solver 4.21 ms  |  stepping the whole pond
+
+10
+00:00:04,120 --> 00:00:04,410
+PARTIAL WAKE OFF  |  solver 5.99 ms  |  stepping the whole pond
+
+11
+00:00:04,410 --> 00:00:04,680
+PARTIAL WAKE OFF  |  solver 4.54 ms  |  stepping the whole pond
+
+12
+00:00:04,680 --> 00:00:04,990
+PARTIAL WAKE OFF  |  solver 4.48 ms  |  stepping the whole pond
+
+13
+00:00:04,990 --> 00:00:05,260
+PARTIAL WAKE OFF  |  solver 5.21 ms  |  stepping the whole pond
+
+14
+00:00:05,260 --> 00:00:05,540
+PARTIAL WAKE OFF  |  solver 6.13 ms  |  stepping the whole pond
+
+15
+00:00:05,540 --> 00:00:05,800
+PARTIAL WAKE OFF  |  solver 3.98 ms  |  stepping the whole pond
+
+16
+00:00:05,800 --> 00:00:06,130
+PARTIAL WAKE OFF  |  solver 4.54 ms  |  stepping the whole pond
+
+17
+00:00:06,130 --> 00:00:06,400
+PARTIAL WAKE OFF  |  solver 4.61 ms  |  stepping the whole pond
+
+18
+00:00:06,400 --> 00:00:06,690
+PARTIAL WAKE OFF  |  solver 4.93 ms  |  stepping the whole pond
+
+19
+00:00:06,690 --> 00:00:06,960
+PARTIAL WAKE OFF  |  solver 5.00 ms  |  stepping the whole pond
+
+20
+00:00:06,960 --> 00:00:07,290
+PARTIAL WAKE OFF  |  solver 4.00 ms  |  stepping the whole pond
+
+21
+00:00:07,290 --> 00:00:07,560
+PARTIAL WAKE OFF  |  solver 4.26 ms  |  stepping the whole pond
+
+22
+00:00:07,560 --> 00:00:07,820
+PARTIAL WAKE OFF  |  solver 5.21 ms  |  stepping the whole pond
+
+23
+00:00:07,820 --> 00:00:08,100
+PARTIAL WAKE OFF  |  solver 4.15 ms  |  stepping the whole pond
+
+24
+00:00:08,100 --> 00:00:08,420
+PARTIAL WAKE OFF  |  solver 4.37 ms  |  stepping the whole pond
+
+25
+00:00:08,420 --> 00:00:08,690
+PARTIAL WAKE OFF  |  solver 4.46 ms  |  stepping the whole pond
+
+26
+00:00:08,690 --> 00:00:08,980
+PARTIAL WAKE OFF  |  solver 6.16 ms  |  stepping the whole pond
+
+27
+00:00:08,980 --> 00:00:09,250
+PARTIAL WAKE OFF  |  solver 4.75 ms  |  stepping the whole pond
+
+28
+00:00:09,250 --> 00:00:09,590
+PARTIAL WAKE OFF  |  solver 4.12 ms  |  stepping the whole pond
+
+29
+00:00:09,590 --> 00:00:09,870
+PARTIAL WAKE OFF  |  solver 4.37 ms  |  stepping the whole pond
+
+30
+00:00:09,870 --> 00:00:10,130
+PARTIAL WAKE OFF  |  solver 4.89 ms  |  stepping the whole pond
+
+31
+00:00:10,130 --> 00:00:10,400
+PARTIAL WAKE OFF  |  solver 6.14 ms  |  stepping the whole pond
+
+32
+00:00:10,400 --> 00:00:10,730
+PARTIAL WAKE OFF  |  solver 5.08 ms  |  stepping the whole pond
+
+33
+00:00:10,730 --> 00:00:11,020
+PARTIAL WAKE OFF  |  solver 4.74 ms  |  stepping the whole pond
+
+34
+00:00:11,020 --> 00:00:11,300
+PARTIAL WAKE OFF  |  solver 4.40 ms  |  stepping the whole pond
+
+35
+00:00:11,300 --> 00:00:11,580
+PARTIAL WAKE OFF  |  solver 5.20 ms  |  stepping the whole pond
+
+36
+00:00:11,580 --> 00:00:11,910
+PARTIAL WAKE OFF  |  solver 4.16 ms  |  stepping the whole pond
+
+37
+00:00:11,910 --> 00:00:12,180
+PARTIAL WAKE OFF  |  solver 5.00 ms  |  stepping the whole pond
+
+38
+00:00:12,180 --> 00:00:12,450
+PARTIAL WAKE OFF  |  solver 4.29 ms  |  stepping the whole pond
+
+39
+00:00:12,450 --> 00:00:12,720
+PARTIAL WAKE OFF  |  solver 5.82 ms  |  stepping the whole pond
+
+40
+00:00:12,720 --> 00:00:13,060
+PARTIAL WAKE OFF  |  solver 6.30 ms  |  stepping the whole pond
+
+41
+00:00:13,060 --> 00:00:13,310
+PARTIAL WAKE OFF  |  solver 4.93 ms  |  stepping the whole pond
+
+42
+00:00:13,310 --> 00:00:13,590
+PARTIAL WAKE OFF  |  solver 4.67 ms  |  stepping the whole pond
+
+43
+00:00:13,590 --> 00:00:13,880
+PARTIAL WAKE OFF  |  solver 5.05 ms  |  stepping the whole pond
+
+44
+00:00:13,880 --> 00:00:14,190
+PARTIAL WAKE OFF  |  solver 4.17 ms  |  stepping the whole pond
+
+45
+00:00:14,190 --> 00:00:14,460
+PARTIAL WAKE OFF  |  solver 4.19 ms  |  stepping the whole pond
+
+46
+00:00:14,460 --> 00:00:14,720
+PARTIAL WAKE OFF  |  solver 4.80 ms  |  stepping the whole pond
+
+47
+00:00:14,720 --> 00:00:14,980
+PARTIAL WAKE OFF  |  solver 5.87 ms  |  stepping the whole pond
+
+48
+00:00:14,980 --> 00:00:15,290
+PARTIAL WAKE OFF  |  solver 5.02 ms  |  stepping the whole pond
+
+49
+00:00:15,290 --> 00:00:15,570
+PARTIAL WAKE OFF  |  solver 4.19 ms  |  stepping the whole pond
+
+50
+00:00:15,570 --> 00:00:15,850
+PARTIAL WAKE OFF  |  solver 4.81 ms  |  stepping the whole pond
+
+51
+00:00:15,850 --> 00:00:16,120
+PARTIAL WAKE OFF  |  solver 4.94 ms  |  stepping the whole pond
+
+52
+00:00:16,120 --> 00:00:16,370
+PARTIAL WAKE OFF  |  solver 5.47 ms  |  stepping the whole pond

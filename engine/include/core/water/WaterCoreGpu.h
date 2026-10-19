@@ -221,11 +221,15 @@ public:
             SolverParams params;
             std::chrono::steady_clock::time_point t0, tResidency, tSubmit;
             GpuStepStats st;
+            std::vector<int> surfCols;   ///< 26.33: the column entries this call's surface covered (empty = every column)
         } pend;
         GpuStepStats lastStats; bool haveLast = false;   ///< the last collected call's stats (ASYNC returns them)
         std::vector<char> hostSurf;                      ///< the collected call's packed surface lists (one-run, multi-run records)
         std::vector<char> hostBirths;                    ///< the collected call's packed birth list
         std::array<uint32_t, 3> hostCount{};             ///< their lengths (one-run, births, multi-run)
+        std::vector<int> hostSurfCols;                   ///< 26.33: the column entries the collected surface covers (empty = every column)
+        uint64_t surfCollected = 0;                      ///< 26.33: calls collected; readSurface keeps the rest of a field only if it read the call before
+        mutable uint64_t surfReadAt = 0;                 ///< 26.33: the collected call the host last read the surface of
         std::vector<GpuSource> hostSources;              ///< the sources' totals as the collected call left them (or as set)
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
@@ -286,6 +290,13 @@ public:
     static constexpr int kPartialWakeMargin = 2;
     /// TEST ONLY (WaterPartialWakeTest's red control): frozen columns are skipped but NOT a wall - their awake neighbours read them as water.
     static inline bool s_partialWakeOpenInterfaceForTest = false;
+    /// 26.33: with the partial wake, the surface kernel and its copy to the host cover the AWAKE columns only (a frozen column's
+    /// surface cannot change); false = every column every call (the A/B, water_av_partial_wake {surface}).
+    static inline bool s_partialSurface = true;
+    /// 26.33 measurement: surface reads that kept the frozen columns (WaterPartialWakeTest asserts they happened).
+    static inline long s_partialSurfaceReads = 0;
+    /// TEST ONLY (the red control): a partial read resets every column it did not cover, as the whole read does - frozen ones too.
+    static inline bool s_partialSurfaceResetAllForTest = false;
     /// 26.31: wake the brick columns touching grid cells [lo, hi] (the margin grows round them next call) / every column.
     void wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi);
     void wakeAll(Volume& vol);
@@ -328,7 +339,10 @@ public:
     void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending as the last collected call left them (26.16: no submission)
     /// Phase F: the surface field as the last step() left it in the staging ring (no submission: a memcpy).
     /// `out` must hold columns * 16 floats (SurfaceColumn). Returns false when no step has run since the upload.
-    bool readSurface(const Volume& vol, float* out) const;
+    /// `keep`: `out` already holds this volume's whole field (the caller's last read). With the partial wake (26.33) a call's surface
+    /// covers only its awake columns; they are written over `out` and the rest kept - refused (false: the caller extracts the whole
+    /// field) without `keep` or if a collected call's surface was never read (its columns would be lost).
+    bool readSurface(const Volume& vol, float* out, bool keep = false) const;
     bool surfaceReady(const Volume& vol) const { return vol.surfaceValid; }
     /// 21 (droplets): births on/off for the next steps.
     void setDroplets(Volume& vol, bool on) { vol.dropletsOn = on && !vol.particles; }

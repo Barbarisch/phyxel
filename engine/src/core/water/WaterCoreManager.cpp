@@ -875,9 +875,12 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
             bool got = false;
             if (av->gpuVol && m_gpu && m_gpu->surfaceReady(*av->gpuVol)) {
                 WaterSurfaceField& f = av->field;
+                // 26.33: the field already holds this volume's whole surface (its last read) - a partial-wake call may update only its awake columns
+                const bool keep = f.source == av->id && f.origin == av->grid->spec().origin && f.nx == av->grid->nx() && f.nz == av->grid->nz()
+                                  && f.cols.size() == static_cast<size_t>(f.nx) * f.nz;
                 f.origin = av->grid->spec().origin; f.nx = av->grid->nx(); f.nz = av->grid->nz(); f.h = av->h;
                 f.cols.resize(static_cast<size_t>(f.nx) * f.nz);
-                got = m_gpu->readSurface(*av->gpuVol, reinterpret_cast<float*>(f.cols.data()));
+                got = m_gpu->readSurface(*av->gpuVol, reinterpret_cast<float*>(f.cols.data()), keep);
             }
             if (!got) { syncFromGpu(*av, false); extractSurfaceField(*av->grid, av->field); }
             av->fieldStep = av->stepCount;

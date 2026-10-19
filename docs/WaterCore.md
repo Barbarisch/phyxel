@@ -159,7 +159,11 @@ box gains only the first 2 s (its reflections wake it all); the fully-awake pond
 carry, every substep, sends a moving body's displacement straight up its column (1,654 L out of a 1,000 L stone's cells in half a
 second; half where the body had a rate the projection was to shed, half the column ledger by design). Three fixes, no better
 within the drop-to-drop spread; the measurement kept (`water_av_list` carry_*_m3, `water_surface_dump`, `water_stone_spikes.py`).
-**Next:** the owner's look (26.30 steps 1-3; the partial wake ON vs OFF on a stone), then the whole-volume remainder or the default. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
+**26.33 BUILT (2026-10-18), not signed off:** with the partial wake the surface kernel and its copy cover the awake columns only (the
+host keeps the frozen ones; byte-equal heights, gated): the copy 0.6 -> 0.07-0.10 ms, a call after a stone 2.0-2.2 -> 1.3-1.6 ms.
+The owner's look re-recorded on an idle GPU (`pw_look3_side_by_side.mp4`: OFF median 4.80 ms, ON 3.69).
+**Next:** the owner's look (26.30 steps 1-3; the partial wake ON vs OFF, `pw_look3`), then the rest of the remainder (the sweeps'
+launches, the reductions) or the default. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7423,6 +7427,24 @@ signed off; no behaviour change is left in the code.
   carry counter the mechanism's check.
 - **Also seen:** a 0.84 m single-column jet 4 s after impact with NO carry at all (the stone at rest) - flow, probably the
   cavity closing behind the stone; its own item.
+
+**26.33 BUILT (2026-10-18), not signed off - the surface over the awake columns only.** The owner's order: "1 and 2 next" (the
+look, then the partial wake's whole-volume remainder). Measured first, on an idle GPU (the evening's first numbers were taken while
+another application held the GPU at 98 % - discarded): the 46 x 28 m pond, a 1 m stone, the partial wake ON, 0.2-3 s after it
+(~14 % of the columns awake), per call - the surface copy to the host **0.63 ms**, the sweeps 0.57, the call's start (residency,
+partition, clears: the "sources" stamp) 0.23, the reductions 0.19, everything else under 0.11 each; 2.17 ms in all.
+- **Built:** with frozen columns the surface kernel and its copy cover the awake column entries only (they lie first after the
+  partition); the call records which, and `readSurface` updates those columns and keeps the rest of the host's field - a frozen
+  column's surface cannot change. It refuses (the caller extracts the whole field) when the host's field is not this volume's last
+  read, or a collected call's surface was never read (its columns would be lost). A/B: `water_av_partial_wake {surface}`.
+- **Gate (red first):** `WaterPartialWakeTest.TheSurfaceOverTheAwakeColumnsKeepsTheFrozenOnes` - the stone run read every column vs
+  awake-only: 180 of 180 reads partial; heights, runs, ground, body and foam BYTE-equal at every tick; the surface velocity within
+  8.0e-7 m/s (a frozen column's u, w average the face it shares with an awake neighbour, which the awake side still moves - inside
+  the tiler's 1e-3 m/s flow tolerance, asserted). Red: resetting the uncovered columns as the whole read does - 180 ticks differ.
+  The first run caught exactly that velocity difference (880 columns over 100 ticks, all ~1e-6 m/s, all at awake/frozen borders).
+- **Measured** (2 runs each, the same window): the surface copy 0.59-0.60 -> **0.07-0.10 ms**; the call 2.00-2.22 -> **1.29-1.61 ms**.
+- **Left** (same window): the sweeps 0.46-0.56 (40 dispatches over the awake slots - launches more than work), the call's start
+  0.14-0.21, the reductions 0.17-0.19 (whole volume), extrapolation 0.08-0.10.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

@@ -19,6 +19,7 @@
 #include "core/water/WaterCoreManager.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 #include <vector>
 
@@ -135,4 +136,62 @@ TEST_F(WaterPartialWakeTest, AStoneWakesAPatchAndTheSurfaceMatchesTheWholeBody) 
         EXPECT_TRUE(v.open.maxSurf > surfBound || v.open.maxFar > farBound || v.open.maxMassRel > massBound)
             << name << ": control - without the wall the bound must break (the test must see the interface)";
     }
+}
+
+// 26.33 (WaterCore.md): with the partial wake the surface kernel and its copy to the host cover the AWAKE columns only; the host
+// keeps every frozen column's last surface. The water is the same either way (only what the host reads changes) and the run is
+// bit-repeatable, so the host's field must be BYTE-equal to the every-column read at every tick of the stone run - but for the
+// surface velocity of a frozen column beside an awake one (within the tiler's 1e-3 m/s; measured ~1e-6). Red: the
+// partial read resetting the columns it did not cover (the whole read's rule) must differ - the frozen columns are what it keeps.
+TEST_F(WaterPartialWakeTest, TheSurfaceOverTheAwakeColumnsKeepsTheFrozenOnes) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto record = [&](bool partialSurface, bool resetAll, long& partialReads) {
+        std::vector<std::vector<SurfaceColumn>> fields;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { ADD_FAILURE() << err; return fields; }
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(19, 1, 9), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        if (!id || !mgr.setPartialWake(id, true)) { ADD_FAILURE() << err; return fields; }
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(19, 0, 9), 1.0f, nullptr);
+        WaterCoreGpu::s_partialSurface = partialSurface;
+        WaterCoreGpu::s_partialSurfaceResetAllForTest = resetAll;
+        const long reads0 = WaterCoreGpu::s_partialSurfaceReads;
+        AvRecord rec;
+        const float dt = 1.0f / 60.0f;
+        for (int k = 0; k < 120; ++k) { mgr.step(id, 1, dt, &rec); (void)mgr.surfaceFields(); }
+        mgr.addImpulse(glm::vec3(2.0f, 0.9f, 5.0f), 1.0f / 3.0f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        for (int k = 0; k < 180; ++k) { mgr.step(id, 1, dt, &rec); fields.push_back(mgr.surfaceFields()[0]->cols); }
+        partialReads = WaterCoreGpu::s_partialSurfaceReads - reads0;
+        WaterCoreGpu::s_partialSurface = true; WaterCoreGpu::s_partialSurfaceResetAllForTest = false;
+        return fields;
+    };
+    // every field but the surface velocity BYTE-equal; the velocity within the tiler's flow tolerance (26.30 step 3, 1e-3 m/s): a
+    // frozen column's u, w average the face it shares with an awake neighbour, which the awake side still moves (measured ~1e-6 m/s)
+    struct Cmp { int ticks = 0; long cols = 0; float maxFlow = 0.0f; };
+    auto compareFields = [](const std::vector<std::vector<SurfaceColumn>>& a, const std::vector<std::vector<SurfaceColumn>>& b) {
+        Cmp r;
+        for (size_t k = 0; k < a.size() && k < b.size(); ++k) {
+            long c = a[k].size() != b[k].size() ? 1 : 0;
+            for (size_t i = 0; i < a[k].size() && i < b[k].size(); ++i) {
+                SurfaceColumn x = a[k][i], y = b[k][i];
+                r.maxFlow = std::max(r.maxFlow, std::max(std::abs(x.u - y.u), std::abs(x.w - y.w)));
+                x.u = y.u = 0.0f; x.w = y.w = 0.0f;
+                c += std::memcmp(&x, &y, sizeof(SurfaceColumn)) != 0;
+            }
+            r.cols += c; r.ticks += c > 0;
+        }
+        return r;
+    };
+    long readsAll = 0, readsPart = 0, readsRed = 0;
+    const auto all = record(false, false, readsAll), part = record(true, false, readsPart), red = record(true, true, readsRed);
+    ASSERT_EQ(all.size(), 180u); ASSERT_EQ(part.size(), 180u); ASSERT_EQ(red.size(), 180u);
+    const Cmp cp = compareFields(part, all), cr = compareFields(red, all);
+    std::printf("  partial surface reads %ld of 180 (every column: %ld); ticks differing %d (columns %ld), largest flow difference %.2e m/s; "
+                "RED (reset all) ticks %d (columns %ld)\n", readsPart, readsAll, cp.ticks, cp.cols, cp.maxFlow, cr.ticks, cr.cols);
+    EXPECT_EQ(readsAll, 0) << "the control read every column";
+    EXPECT_GT(readsPart, 90) << "most reads covered the awake columns only (the stone wakes a patch)";
+    EXPECT_EQ(cp.ticks, 0) << "the kept field (heights, runs, ground, body, foam) is byte-equal to the every-column read at every tick";
+    EXPECT_LE(cp.maxFlow, 1e-3f) << "the kept surface velocity within the tiler's flow tolerance";
+    EXPECT_GT(cr.ticks, 0) << "control: without keeping the frozen columns the field must differ";
 }

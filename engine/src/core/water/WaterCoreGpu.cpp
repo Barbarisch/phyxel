@@ -1030,8 +1030,13 @@ bool WaterCoreGpu::readUnits(const Volume& vol, std::vector<glm::vec4>& out, glm
     return true;
 }
 
-bool WaterCoreGpu::readSurface(const Volume& vol, float* out) const {
+bool WaterCoreGpu::readSurface(const Volume& vol, float* out, bool keep) const {
     if (!vol.surfaceValid || !vol.staging.mapped) return false;
+    // 26.33: a call that covered only its awake columns updates those and keeps the rest of `out` - which must be this volume's
+    // field as of the call before (the caller's last read: `keep`, and no collected call skipped)
+    const bool partial = !vol.hostSurfCols.empty();
+    if (partial && (!keep || vol.surfReadAt + 1 < vol.surfCollected)) return false;
+    vol.surfReadAt = vol.surfCollected;
     // 26.11: every column starts dry - no water, ground at the host's solid top (a pure function of the grid: a bricked volume reads
     // what the dense box reads, absent bricks included) - and the packed wet columns are scattered over it
     // 26.30 step 3: one pass over the columns - each wet column is written whole and marked, then only the unmarked (dry) ones are
@@ -1056,6 +1061,20 @@ bool WaterCoreGpu::readSurface(const Volume& vol, float* out) const {
         if (c >= vol.dColumns) continue;
         rec.pad2 = 0.0f; rec.solidTopY = solidTop(c);
         cols[c] = rec; wet[c] = 1;
+    }
+    if (partial && !s_partialSurfaceResetAllForTest) {   // 26.33: only the covered columns that are dry now are reset; a frozen column keeps what it was
+        ++s_partialSurfaceReads;
+        const int nx = vol.spec.dims.x, nz = vol.spec.dims.z;
+        for (int e : vol.hostSurfCols) {
+            const int bx = e & 1023, bz = (e >> 10) & 1023;
+            for (int lz = 0; lz < 8; ++lz) for (int lx = 0; lx < 8; ++lx) {
+                const int x = bx * 8 + lx - vol.o.x, z = bz * 8 + lz - vol.o.z;
+                if (x < 0 || z < 0 || x >= nx || z >= nz) continue;
+                const size_t c = static_cast<size_t>(x) + static_cast<size_t>(nx) * static_cast<size_t>(z);
+                if (c < vol.dColumns && !wet[c]) { cols[c] = Core::Water::SurfaceColumn{}; cols[c].solidTopY = solidTop(c); }
+            }
+        }
+        return true;
     }
     for (size_t c = 0; c < vol.dColumns; ++c)
         if (!wet[c]) { cols[c] = Core::Water::SurfaceColumn{}; cols[c].solidTopY = solidTop(c); }
@@ -1628,7 +1647,16 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     // solid - never the grid), so the renderer sees every step's surface
     push.param0 = WaterGrid::kSurfaceMinDepth / vol.spec.h; push.iparam = vol.spec.origin.y;
     push.param1 = static_cast<float>(vol.columns);   // 26.11: where the multi-run records start in surf (x 8 floats)
-    dispatch(cmd, *vol.pipes[Surface], push, colsAll);
+    // 26.33: with frozen columns the surface covers the awake column entries only (they lie first after the partition); the host
+    // keeps the frozen columns' last surface (readSurface) - it cannot change while they are frozen
+    const bool surfPartial = s_partialSurface && vol.stepSlots > 0 && vol.stepCols > 0 && vol.stepCols < fullCols;
+    vol.pend.surfCols.clear();
+    if (surfPartial) {
+        vol.pend.surfCols.assign(vol.colEntries.begin(), vol.colEntries.begin() + vol.stepCols);
+        vol.colCount = vol.stepCols; fillPushBricks(vol, push); push.frozenOn = 0;
+    }
+    const size_t colsSurf = surfPartial ? liveColumns(vol) : colsAll;
+    dispatch(cmd, *vol.pipes[Surface], push, colsSurf);
     stamp(cmd, vol, TsSurfaceKernel);
     // 26.11: only the packed lists cross to the host - the counts, then as many entries as the last call's lists + 25 % + 64 (all of
     // them on a first call); a longer list is completed after the fence. Copying every column cost 0.57 ms of the creek's 1.6.
@@ -1637,10 +1665,11 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const VkDeviceSize dstOff[3] = {vol.offSurf + 64, vol.offBirths, vol.offSurf + 64 + vol.columns * 32};
     const Buffer* src[3] = {&vol.surf, &vol.birthsPacked, &vol.surf};
     for (int l = 0; l < 3; ++l) {
-        vol.copied[l] = vol.listsSized ? std::min<uint32_t>(static_cast<uint32_t>(colsAll), vol.lastCount[l] + vol.lastCount[l] / 4 + 64) : static_cast<uint32_t>(colsAll);
+        vol.copied[l] = vol.listsSized ? std::min<uint32_t>(static_cast<uint32_t>(colsSurf), vol.lastCount[l] + vol.lastCount[l] / 4 + 64) : static_cast<uint32_t>(colsSurf);
         copy(cmd, *src[l], vol.staging, vol.copied[l] * kRec[l], srcOff[l], dstOff[l]);
     }
     copy(cmd, vol.lists, vol.staging, 16, 0, vol.offSurf);
+    if (surfPartial) { vol.colCount = fullCols; fillPushBricks(vol, push); push.frozenOn = 0; }
     stamp(cmd, vol, TsSurfaceCopy);
     push.param0 = 0.0f; push.param1 = 0.0f; push.iparam = 0;
     stamp(cmd, vol, TsReduceSurface);
@@ -1730,6 +1759,7 @@ void WaterCoreGpu::finishCall(Volume& vol) {
         // 26.16: the host's copies - the next call writes the staging lists while the renderer reads these
         const char* sm = static_cast<const char*>(vol.staging.mapped);
         vol.hostCount = {counts[0], counts[1], counts[2]};
+        vol.hostSurfCols = std::move(vol.pend.surfCols); vol.pend.surfCols.clear(); ++vol.surfCollected;   // 26.33
         vol.hostSurf.resize(static_cast<size_t>(counts[0]) * 32 + static_cast<size_t>(counts[2]) * kRec[2]);
         if (counts[0]) std::memcpy(vol.hostSurf.data(), sm + dstOff[0], static_cast<size_t>(counts[0]) * 32);
         if (counts[2]) std::memcpy(vol.hostSurf.data() + static_cast<size_t>(counts[0]) * 32, sm + dstOff[2], static_cast<size_t>(counts[2]) * kRec[2]);

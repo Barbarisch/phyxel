@@ -14039,7 +14039,9 @@ void Application::registerWaterCommands() {
     reg.on("water_av_partial_wake", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         if (cmd.params.contains("default")) Core::Water::WaterCoreManager::s_partialWakeDefault = cmd.params.value("default", false);
-        r = {{"default", Core::Water::WaterCoreManager::s_partialWakeDefault}};
+        // surface (26.33): the surface kernel and its copy over the awake columns only; false = every column (the A/B)
+        if (cmd.params.contains("surface")) Core::Water::WaterCoreGpu::s_partialSurface = cmd.params.value("surface", true);
+        r = {{"default", Core::Water::WaterCoreManager::s_partialWakeDefault}, {"surface", Core::Water::WaterCoreGpu::s_partialSurface}};
         if (cmd.params.contains("id")) r["applied"] = waterCore->setPartialWake(cmd.params.value("id", 0), cmd.params.value("on", true));
     });
     // 26.31 measurement: {on, reset} the GPU's per-stage timestamps; replies ms per call by stage (single-tick, single-substep calls)
