@@ -2,7 +2,8 @@
 wake OFF and ON, recorded from the window (gdigrab - /api/screenshot omits pond water) and put side by side with the solver's
 time and the awake columns written on each half (polled live, ~4 a second).
 
-    python tools/water_partial_wake_video.py [--size 46x28] [--at corner|centre] [--seconds 16] [--tag pw_look]
+    python tools/water_partial_wake_video.py [--size 46x28] [--at corner|centre] [--seconds 16] [--tag pw_look] [--push impulse]
+    the owner's close view (2026-10-18, "too far away"): --push impulse --pose 11,18.3,27.3,-150,-14 (low, inside the kerb, ~5 m off)
 Writes docs/evidence/water_core_h1/<tag>_off.mp4, <tag>_on.mp4 and <tag>_side_by_side.mp4 (+ .json with the polled rows).
 """
 import argparse, json, pathlib, shutil, subprocess, sys, time
@@ -25,6 +26,8 @@ def main():
     ap.add_argument("--at", choices=["corner", "near", "centre"], default="near", help="corner = the far (north-west) corner; near = the south-west corner, nearest the camera")
     ap.add_argument("--seconds", type=float, default=16.0)
     ap.add_argument("--stone", type=float, default=1.0, help="the stone's edge (m; spawn_gpu_particle scale)")
+    ap.add_argument("--push", choices=["stone", "impulse"], default="stone", help="impulse = the same push in both takes (water_av_impulse; the GPU stone tumbles differently every drop - the owner read that as a difference)")
+    ap.add_argument("--strength", type=float, default=4.0, help="the impulse's strength (--push impulse)")
     ap.add_argument("--pose", default=None, help="x,y,z,yaw,pitch")
     ap.add_argument("--still", action="store_true", help="only set up the pond and the camera, grab one frame (framing check)")
     ap.add_argument("--tag", default="pw_look")
@@ -71,7 +74,10 @@ def main():
                                 "-i", f"title={args.window}", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(mp4)])
         t0 = time.time()
         time.sleep(1.5)
-        api.debug("spawn_gpu_particle", {"x": sx, "y": 20.0, "z": sz, "material": "Stone", "scale": args.stone, "lifetime": args.seconds - 1.0})   # gone before the next take
+        if args.push == "impulse":
+            api.debug("water_av_impulse", {"x": sx, "y": 16.9, "z": sz, "radius": 0.5, "strength": args.strength, "dy": -1.0})
+        else:
+            api.debug("spawn_gpu_particle", {"x": sx, "y": 20.0, "z": sz, "material": "Stone", "scale": args.stone, "lifetime": args.seconds - 1.0})   # gone before the next take
         t_stone = time.time() - t0
         rows = []
         while rec.poll() is None:

@@ -162,7 +162,7 @@ within the drop-to-drop spread; the measurement kept (`water_av_list` carry_*_m3
 **26.33 BUILT (2026-10-18), not signed off:** with the partial wake the surface kernel and its copy cover the awake columns only (the
 host keeps the frozen ones; byte-equal heights, gated): the copy 0.6 -> 0.07-0.10 ms, a call after a stone 2.0-2.2 -> 1.3-1.6 ms.
 The owner's look re-recorded on an idle GPU (`pw_look3_side_by_side.mp4`: OFF median 4.80 ms, ON 3.69).
-**Next:** the owner's look (26.30 steps 1-3; the partial wake ON vs OFF, `pw_look3`), then the rest of the remainder (the sweeps'
+**Next:** the owner's look (26.30 steps 1-3; the partial wake ON vs OFF, close: `pw_look4`), then the rest of the remainder (the sweeps'
 launches, the reductions) or the default. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
@@ -7445,6 +7445,14 @@ partition, clears: the "sources" stamp) 0.23, the reductions 0.19, everything el
 - **Measured** (2 runs each, the same window): the surface copy 0.59-0.60 -> **0.07-0.10 ms**; the call 2.00-2.22 -> **1.29-1.61 ms**.
 - **Left** (same window): the sweeps 0.46-0.56 (40 dispatches over the awake slots - launches more than work), the call's start
   0.14-0.21, the reductions 0.17-0.19 (whole volume), extrapolation 0.08-0.10.
+- **The owner on pw_look3 (2026-10-18):** "really hard to see. the water is too clear, the camera is too far away, and it looks like
+  the left one is better visually, but i really cant see much going on on the right one". Measured before re-shooting
+  (`tools/water_wave_reach.py`, the same repeatable push, single columns at 1-16 m, two runs a side): OFF vs ON rms 11.3-11.6 vs
+  11.5-12.1 mm at 1 m, 5.2-5.3 vs 5.4-5.5 at 2, 1.6 vs 1.7 at 4, 0.13 vs 0.14 at 8 - the same waves (`wave_reach_1/2.json`). Both
+  sides looked empty because the waves die within ~4 m and the camera was ~30 m away; the halves differed because the GPU stone
+  tumbles differently every drop. Re-shot `pw_look4_side_by_side.mp4`: low, inside the kerb, ~5 m from the same IMPULSE in both
+  takes (`water_partial_wake_video.py --push impulse --pose 11,18.3,27.3,-150,-14`); the halves match frame for frame, OFF 3.9-4.9
+  ms, ON 1.2-2.4 ms. The global turbidity override (`water_look {active, turbidity}`) barely changed the clear water - not used.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
