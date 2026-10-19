@@ -1,0 +1,37 @@
+{
+ "tag": "after",
+ "pose": {
+  "mode": "free",
+  "position": {
+   "x": 24.5,
+   "y": 27,
+   "z": 19.5
+  },
+  "yaw": 90,
+  "pitch": -55
+ },
+ "dynamic_stats": {
+  "gpu_active": 48,
+  "gpu_cap": 10000
+ },
+ "static_top_CONTROL": {
+  "box": [
+   1015,
+   315,
+   1150,
+   370
+  ],
+  "mean_luma": 177.0,
+  "frac_black(<20)": 0.018
+ },
+ "aligned_debris_top": {
+  "box": [
+   790,
+   290,
+   895,
+   360
+  ],
+  "mean_luma": 199.1,
+  "frac_black(<20)": 0.0
+ }
+}

@@ -53,7 +53,7 @@
     },
     "dynamic_shadow.vert": {
       "built": true,
-      "sources": "14c8b7e1a134a813869b3d843bf205c4248611d28ed791a9c09de3da29ba16ad",
+      "sources": "fb8820f53cfd414ce11f0ea0b020cf64c95615925108256aacb06197b74a4ee8",
       "spv_present": true
     },
     "dynamic_voxel.vert": {
