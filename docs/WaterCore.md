@@ -50,7 +50,11 @@ containers.
   correction in the pressure solve (§24.11); short waves on a half-full cell keep 0.53-0.82 per swing (§24.11); the
   ±2 cm terraces / cells stuck at f = 0.5 (§19.8 - causes FOUND and fixed 2026-10-14 in §26.9, signed off); a 0.08-0.10 m/s phantom current on a still GPU
   pond (§19.6 - not re-measured since 26.10 made still GPU water settle); wood floats high and a floating block's pond never sleeps (§19.3, §24.8; cure M4 two-way force, §20.6);
-  added mass not modelled (§24.10).
+  added mass not modelled (§24.10); **OPEN (the owner, 2026-10-18): spiky water on a dropped stone while it settles** -
+  cause PROVED (§13 end, 26.32): the over-full carry takes a moving body's displaced water straight up its column, out on the
+  stone's top (11 cm pillars to the box's lid for ~1-2 s); three fixes tried, none better, none kept; blocked on a repeatable
+  rig (a body on a fixed path - the tumbling GPU stone gave 0.75 and 2.87 m at one setting). A 0.84 m late jet with no carry
+  (the cavity closing?) is a second, unmeasured item.
 - *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater S4 not wired to the breaking ledger (§21.4, §22.12);
   1.5-2.3 % black facets at steep tilts from a second cause (§22.12.2).
 - *Parity and tests:* the CPU-GPU kick gap was not re-measured after the theta fix (§19.2, §24.5 F2); D-T5 droplet GPU
@@ -151,7 +155,11 @@ the cost barely moves (2.41 vs 3.06 ms with 84 % frozen) - frozen bricks still g
 **26.31 step 2 BUILT (2026-10-18), default off:** the awake bricks partitioned into the low slots, the step over those only - a
 46 x 28 m pond after a corner stone 4.81 -> 2.76 ms over 15 s (1.75-2.0 ms the first 4 s against 4.5-6.2); a walled 32 x 28 m
 box gains only the first 2 s (its reflections wake it all); the fully-awake pond costs what it did. Left: ~2 ms of whole-volume work.
-**Next:** the owner's look (26.30 steps 1-3; the partial wake ON vs OFF on a stone), then the whole-volume remainder or the default. The §23 slime experiment stays queued.
+**26.32 (2026-10-18) PROVED, NOT FIXED - the spiky water on the stone** (the owner's open item, see the list above): the 26.5
+carry, every substep, sends a moving body's displacement straight up its column (1,654 L out of a 1,000 L stone's cells in half a
+second; half where the body had a rate the projection was to shed, half the column ledger by design). Three fixes, no better
+within the drop-to-drop spread; the measurement kept (`water_av_list` carry_*_m3, `water_surface_dump`, `water_stone_spikes.py`).
+**Next:** the owner's look (26.30 steps 1-3; the partial wake ON vs OFF on a stone), then the whole-volume remainder or the default. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
