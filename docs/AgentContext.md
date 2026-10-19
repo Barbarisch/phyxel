@@ -194,6 +194,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   version-1 recipes keep the analytic terrain, one branch for everything, water tests untouched for now.**
   M1 pre-step measured: 11.4 chunks/s Release on the laptop at a never-stored woodland pose (saturated queue;
   `m1_stream_baseline.json`); a sea-pose teleport CRASHED Release 0xC0000005 on a worker thread (plan §12 R0).
+  ⚠️ **Port 8090 can be UNBINDABLE after a reboot (2026-10-19):** Windows/Hyper-V excluded port ranges
+  (`netsh interface ipv4 show excludedportrange protocol=tcp`) covered 8051–8150 after the 10/16 boot, so every
+  engine launch failed with "Port 8090 is already in use" while nothing listened. Check the ranges before
+  blaming a stray engine; launch on a port outside them (`--port`, `PHYXEL_API_PORT`) or release the reservation
+  (admin: restart winnat). Scripts in this workstream pick a free port from the ranges automatically.
 - **▶ WATER CORE — ACTIVE (branch `feat/water-rethink`, pushed after every commit).** The design of record AND
   build ledger is [`docs/WaterCore.md`](WaterCore.md); **read its §0a first** (where things stand, what is next).
   As of 2026-10-11: the small still pond is built on a 3-D Eulerian core (CPU reference + GPU default), with debris
