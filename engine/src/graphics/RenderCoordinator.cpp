@@ -1668,6 +1668,18 @@ void RenderCoordinator::renderFarTerrain() {
             });
         farTerrainManager->configure(*chunkManager->getStreamingGenerator());
     }
+    // M1 (plan 13.1): the mesher samples through a PRIVATE generator copy. Any Layer-0 rebuild on
+    // the live generator (recipe, type, heightmap, worldforge params) bumps its epoch; reconfigure
+    // and drop the resident tiles, exactly as the worldforge live-apply path does by hand, so the
+    // far field never keeps drawing a stale bake (the one-shot above only covered the first time).
+    if (farTerrainManager->isConfigured() && chunkManager && chunkManager->getStreamingGenerator() &&
+        farTerrainManager->configuredEpoch() != chunkManager->getStreamingGenerator()->layer0Epoch()) {
+        if (vulkanDevice) vkDeviceWaitIdle(vulkanDevice->getDevice());   // tile buffers may be in flight
+        farTerrainManager->configure(*chunkManager->getStreamingGenerator());
+        farTerrainManager->clearTiles();
+        LOG_INFO("FarTerrain", "Reconfigured far-terrain mesher: the generator's Layer-0 epoch moved (epoch {})",
+                 chunkManager->getStreamingGenerator()->layer0Epoch());
+    }
 
     // Covered-tile suppression is gated to the guaranteed-complete interior of the
     // near field (see FarTerrainManager::setNearFieldRadius). Cheap; set per frame so

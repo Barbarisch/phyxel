@@ -587,7 +587,13 @@ columns: the centre-only band (the exact lambda it replaces) missed on 4 chunk c
 outside the band, worst in-column span 5 bands (`m1d_surface_band_red.txt`) → 0 misses with the grid
 (`m1d_surface_band_green.txt`, 35/35 with the streaming suites). Not a strict bound (a spike between
 samples could still escape); the test is the measurement, and widening the grid, never the pad, is
-the lever if a miss ever appears.
+the lever if a miss ever appears. **Solution-auditor (2026-10-19, raw): "VERDICT: PASS (with caveats
+on Q4 and Q5). The core claim is real: I reran SurfaceBandTest and it passes, and it fails with the
+old centre-only band. The cost of the wider band is not measured."** Caveats taken: the test now
+prints the mean reported band spread (each column streams spread + 3 chunks) and the L4 cost of the
+wider wanted set is UNMEASURED (the 1033 vs 854 resident counts are different runs, not an A/B);
+`clearSurfaceBandCache()`'s only caller is `restreamWorldLive()`, so a recipe change that does not
+restream keeps stale bands (pre-existing; the Layer-0 epoch now exists to hang that on).
 
 **M1c BUILT 2026-10-15 — macro stream-power erosion, machinery only; constants stay recipe knobs,
 default OFF.** `core/MacroErosion.{h,cpp}`: per step, `PriorityFlood::fillWithFlow` (sea = base level)
@@ -620,7 +626,27 @@ metric must be drainage-based (M2's channels), not a trough count; (2) the per-s
 held against each step's receivers but re-routing left 16 of 9216 cells above their FINAL receiver by
 more than the ceiling — the solver now re-applies the ceiling along the final routing. The rig's
 relief (~4–5 km) is 2× the paper's hmax fit, so the fit does not transfer to this grid; the remap
-into the spline range makes that moot for the engine.** Measured, NOT
+into the spline range makes that moot for the engine.** **Solution-auditor on M1c (2026-10-19, raw): "VERDICT: FAIL — the structural tests pass, but the
+update equation is never checked against a closed-form value, the `hn<hr` clamp silently fills
+depressions, the 2.5x relief overshoot against the paper's same-size 50 km setup is explained away
+without measurement, and the lab L4 has no erosion-off control."** Closed the same day
+(`m1c_audit_closures_green.txt`): (1) `OneStepMatchesTheClosedFormOnAThreeCellChain` — one implicit step
+on an interior chain equals (h + f·h_r)/(1 + f) to 1e-3 (first version sat on a 3×1 grid where every
+cell is a PriorityFlood border outlet, so nothing eroded — a red worth having); (2) the clamp is GONE:
+a cell under a lake (real surface below the filled surface) is uplifted only, never eroded or filled
+by the solve — `ALakeCellIsNeitherErodedNorFilledBySolveOnlyUplifted` pins it, and for a non-lake cell
+the implicit update is a convex combination of (h + dt·u) and h_r so no clamp is needed; (3)
+`OneDimensionalChainReachesTheAnalyticSteadyState` — a 48-cell channel with uniform uplift run to
+convergence matches S = (U/K)·A^(−m) cell by cell with **0.00 % error** (relief 9578 m analytic 9578 m):
+the solver reproduces the stream-power equilibrium exactly, so the uniform-uplift rig's 5199 m vs the
+paper's 2000 m (ratio 2.60, `UniformUpliftReliefIsWithinAFactorOfThreeOfThePaperFit`) is the
+EQUATION's own relief for a 48-cell drainage path at 512 m cells, not a solver or area-unit defect —
+the paper's hmax fit belongs to its painted uplift maps; (4) convergence is a RATE, not a weak
+inequality: p95 |Δh| per 50 steps on the dome rig = 4.23 % of relief at 100→150, 1.64 % at 150→200,
+**0.00 % at 300→350** (`…ConvergenceRateFallsAndIsUnderOnePercentBy350Steps`), so Cordonnier's
+"converges after around 200 time steps" does not hold here at 1 % — their count is their setup's;
+the lab recipe stays at 200 (fully shaped), the fact is recorded; (5) the lab L4 control
+(erosionSteps 0 at the same pose and spline) is the next lab run, below. Measured, NOT
 asserted (the band is NEEDS-RESEARCH): Dd × √A_c = 0.587 / 0.625 / 0.640 at thresholds
 of 2 / 8 / 32 cells, then 0.292 at 128 cells where the 96² sample runs out — the near-constancy over
 the first three is what the GROUNDED exponent Dd ∝ A_c^−0.5 predicts, and the one real-catchment
@@ -652,9 +678,23 @@ the number measured); the column sampler at 18.6 evals × 1024 columns is ≈ 1 
 thread per landed chunk: Dirty Remesh ≈ 12 ms, Dirty Chunk Flush ≈ 13 ms, Light Occupancy ≈ 9 ms,
 plus Fence Wait 10 s over the ramp; the async finalize itself is 0.1 ms. The 313–848 ms update frames
 were the budgeted dirty remesh (`Frame/update/Update/Dirty Remesh`, now a scope; it was "the block
-the profiler doesn't cover"). **Verdict on the §9 gate: RED, and mis-targeted.** It assumed column
-sampling dominated chunk generation; the measurement says the per-voxel fill inside `generateChunk`
-dominates (138 of 180 ms) and the column term was never more than ~10 % of it even at 136 evals.
+the profiler doesn't cover"). **Solution-auditor on M1e (2026-10-19, raw): "VERDICT: FAIL. The raw numbers in A and B reproduce
+from the JSON, but D13's 'mis-targeted gate' conclusion rests on an unmeasured ~1 ms column cost, and
+the plan's own 11.4 to 18.9 result points the other way."** Corrections taken: over the SAME 1.5–53.8 s
+window the v1 baseline fits at 12.72 chunks/s, so the like-for-like ratio is **1.48×**, not 1.65×
+(the baseline's 76 s window decays 15 → 9 chunks/s; n = 1 per side, uncertainty unquantified); the
+180 ms is per chunk on ONE worker, not "summed over three"; the 3-worker ceiling 16.6 chunks/s sits
+BELOW the measured 17.8 and 18.9, so the "ceiling matches" reading was wrong by ~10 % (wall-clock per
+chunk includes pre-emption; the instrument is RelWithDebInfo, the 18.9 is Release); light occupancy
+is 11.8 ms per landed chunk, not 9; 29 % of Update is still unattributed after the Dirty Remesh scope.
+**The "~1 ms column sampling" figure was NOT measured** — it was 18.6 evals × 1024 × an assumed 60 ns —
+and the v1 worker was never profiled, so "the column work does not own this cost" was an INFERENCE.
+Two measurements replace it: a timer around the column loop in `columnsForChunk`
+(`streaming.worker_column_ms` per recorder row, the column share of `generateChunk` in ms, no assumed
+ns/eval), and the SAME instrument applied to the pre-M1 commit 4961a277 in a worktree so v1's
+per-chunk `generateChunk` and column ms are measured at the same pose (`m1e_v1_profile_*`, below).
+D13 stands as the owner's policy (chunks/s is reported, the voxel fill gets its own milestone); its
+premise is settled by those two numbers, not by this paragraph.
 M1's own deliverable (≤ 25 evals per column) is GREEN; the 1.65× is what that deliverable buys.
 Recommendation for the owner (a plan change, not taken unilaterally): keep "chunks/s on the baseline
 pose" as a REPORTED number, and give the voxel-fill path its own perf milestone with its own
@@ -898,8 +938,8 @@ grounding-auditor; `ValidationLedger.md` gets a row per new placer/field.
 | Meso tile bake 256² | **76.2 ms Release** / 201.5 ms Debug (laptop, `WorldSheetGeneratorTest.MesoTileBakeTimeRecorded`, 2026-10-15) | < 50 ms on a worker, Release — **RED** (lever: the climate planes are 8 of the 18 evals per cell) |
 | Civ + routes plan, 300 sites | all-pairs A* O(n²) at 8 sites today | < 10 s Release, off the main thread |
 | Settlement map, 200-lot city | — | < 2 s headless |
-| Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (v1 baseline) → **18.9 chunks/s on the sheet at the SAME pose/machine/config (M1e, `m1e_stream_gate.json`, Release 46dd3b03): 1.65×, frame p50 34 → 17 ms.** Was "≥ 2×" and RED; **re-scoped by D13 to a REPORTED number** (the gate named a cost the column work does not own). PROFILED (`m1e_rwdi3_profile_summary.json`): worker `generateChunk` 138 ms + flora decorate 42 ms per chunk (3 workers ⇒ 16.7 chunks/s ceiling); column sampling ≈ 1 ms of it. The gate targeted the wrong cost; see the M1e paragraph for the recommendation |
-| Worker time per chunk (NEW, measured) | **generateChunk 138 ms, flora decorate 42 ms** (RelWithDebInfo, laptop, baseline pose, `m1e_rwdi3_profile_summary.json`); main thread per landed chunk: remesh ≈ 12 ms, flush ≈ 13 ms, light occupancy ≈ 9 ms | its own perf milestone (D13): a profile INSIDE `generateChunk` first (material resolution / subcube shelves / occupancy grids), then a gate set from that profile | (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
+| Streaming, saturated generation queue | **11.4 chunks/s Release, RTX 1000 Ada laptop, 2026-10-15** (v1 baseline, 76 s decaying window) → **18.9 chunks/s on the sheet at the SAME pose/machine/config (M1e, `m1e_stream_gate.json`, Release 46dd3b03): 1.65× on the headline windows, 1.48× like-for-like over the same 52 s (auditor re-fit); frame p50 34 → 17 ms; n = 1 per side.** Was "≥ 2×" and RED; **re-scoped by D13 to a REPORTED number** (the gate named a cost the column work does not own). PROFILED (`m1e_rwdi3_profile_summary.json`): worker `generateChunk` 138 ms + flora decorate 42 ms per chunk (3 workers ⇒ 16.7 chunks/s ceiling); column sampling ≈ 1 ms of it. The gate targeted the wrong cost; see the M1e paragraph for the recommendation |
+| Worker time per chunk (NEW, measured) | **generateChunk 138 ms, flora decorate 42 ms** per chunk on one worker (RelWithDebInfo, laptop, baseline pose, `m1e_rwdi3_profile_summary.json`; 3 workers ⇒ a 16.6 chunks/s ceiling that the 17.8 measured EXCEEDS by ~10 %, so the per-chunk wall-clock includes pre-emption); main thread per landed chunk: remesh ≈ 11.3 ms, flush ≈ 12.9 ms, light occupancy ≈ 11.8 ms; the column-sampling share is measured by `worker_column_ms` (next run) | its own perf milestone (D13): a profile INSIDE `generateChunk` first (material resolution / subcube shelves / occupancy grids), then a gate set from that profile | (`m1_stream_baseline.json`: lab world, never-stored oak-woodland pose (300,109,−1400), `pending_generation` pinned at 44–48 for the whole 76 s ramp = generation-bound; frame p50 34 ms / p95 93 ms while streaming; n = 1; the instrument is the perf recorder's per-frame `streaming.resident_chunks`, so `f7_baseline.json`'s "no instrument exists" is stale). The old "7 chunks/min Debug" was a dense-forest pose; this is open woodland — not the same pose | ≥ 2× = **≥ 22.8 chunks/s** on this pose/machine/config, measured by the same script (`m1_stream_baseline_land.sh` procedure in the JSON) |
 | Realization | 0.9 s per furnished tavern place | 0 frames > 33 ms during lazy realization |
 
 Both the RTX 4090 desktop and the RTX 1000 Ada laptop are stated on every evidence row.

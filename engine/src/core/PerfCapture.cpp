@@ -71,6 +71,7 @@ void PerfCapture::onFrameEnd(ChunkManager* chunks, Graphics::CameraManager* came
             in.workerGenMs = static_cast<float>(gen.first);
             in.generatedChunks = gen.second;
             in.workerDecorateMs = static_cast<float>(chunks->streamingManagerRO().takeWorkerDecorateMs());
+            in.workerColumnMs = static_cast<float>(chunks->streamingManagerRO().takeWorkerColumnMs());
             if (camera) {
                 const glm::vec3 p = camera->getPosition();
                 const glm::ivec3 cc(static_cast<int>(std::floor(p.x / 32.0f)), static_cast<int>(std::floor(p.y / 32.0f)),

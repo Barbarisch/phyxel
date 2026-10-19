@@ -58,6 +58,7 @@ MacroErosionResult runMacroErosion(const std::vector<float>& height, int w, int 
         // Routing on the FILLED surface (pits are lakes that spill), erosion on the real one.
         const PriorityFlood::FlowResult flow = PriorityFlood::fillWithFlow(out.height, w, h, p.seaLevel);
         out.receiver = flow.downstream;
+        out.filled = flow.filled;
         out.stack = buildStack(out.receiver, n);
         out.drainageArea.assign(n, cellArea);
         for (int s = n - 1; s >= 0; --s) {   // reverse stack: donors before receivers
@@ -92,12 +93,21 @@ MacroErosionResult runMacroErosion(const std::vector<float>& height, int w, int 
             const int r = out.receiver[i];
             if (r == i || out.height[i] <= p.seaLevel) continue;   // base level: fixed
             const float u = uplift.empty() ? 0.0f : p.upliftMax * uplift[i];
+            // A cell under a lake (real surface below the filled surface) sees no stream power: it
+            // is uplifted only. The first version clamped h_i >= h_r here, which quietly FILLED every
+            // depression toward its outlet each step (deposition, not stream power: auditor
+            // finding 2026-10-19). Routing still runs on the filled surface, so the lake drains.
+            if (out.height[i] < out.filled[i] - 1e-4f) {
+                out.height[i] += p.dt * u;
+                continue;
+            }
             const int ix = i % w, iz = i / w, rx = r % w, rz = r / w;
             const float dist = (ix != rx && iz != rz) ? diag : p.cellU;
             const float f = p.k * p.dt * std::pow(out.drainageArea[i], p.m) / dist;
             const float hr = out.height[r];
             float hn = (out.height[i] + p.dt * u + f * hr) / (1.0f + f);
-            if (hn < hr) hn = hr;   // never erode below the receiver (no new pits from the solve)
+            // No clamp against hr: for a non-lake cell h_i >= h_r on the real surface and the implicit
+            // update is a convex combination of (h_i + dt u) and h_r, so it never undershoots h_r.
             // Cordonnier §5: "if the result of the stream power equation leads to slopes higher
             // than 30°, we reduce the change of elevation so as to keep slopes in the prescribed
             // range" — the talus ceiling between a cell and its receiver.

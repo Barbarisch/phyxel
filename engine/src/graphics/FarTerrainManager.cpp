@@ -39,6 +39,7 @@ void FarTerrainManager::configure(const WorldGenerator& generator) {
     // Private copy: WorldGenerator::sampleColumn is non-const and runs on the worker —
     // the streaming generator must never be shared.
     auto gen = std::make_unique<WorldGenerator>(generator);
+    m_configuredEpoch = generator.layer0Epoch();
     FarMaterialResolver resolver = [](const std::string& material, int faceID) -> uint16_t {
         return Core::MaterialRegistry::instance().getTextureIndex(material, faceID);
     };

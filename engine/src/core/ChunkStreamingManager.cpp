@@ -144,8 +144,10 @@ void ChunkStreamingManager::genWorkerLoop(WorldGenerator* workerGen) {
                 chunk->markClean();  // loaded state is by definition persisted
             } else if (workerGen) {
                 const auto tsW0 = std::chrono::steady_clock::now();
+                const uint64_t colUs0 = WorldGenerator::columnSampleUsThisThread();
                 workerGen->generateChunk(*chunk, chunkCoord);
                 const auto tsWd = std::chrono::steady_clock::now();
+                m_workerColumnUs.fetch_add(WorldGenerator::columnSampleUsThisThread() - colUs0);
                 // Flora before maps/grid so canopy voxels are included in both. DB-loaded
                 // chunks were saved WITH their flora — no re-decoration.
                 if (m_workerDecorate) m_workerDecorate(*chunk, chunkCoord, *workerGen);

@@ -179,6 +179,8 @@ public:
     }
     /// The decorate (flora) share of the above, ms since the last take.
     double takeWorkerDecorateMs() const { return static_cast<double>(m_workerDecorateUs.exchange(0)) * 0.001; }
+    /// The column-sampling share (WorldGenerator::columnSampleUsThisThread deltas), ms since the last take.
+    double takeWorkerColumnMs() const { return static_cast<double>(m_workerColumnUs.exchange(0)) * 0.001; }
     std::pair<double, uint32_t> takeFinalizeStats() const {
         const std::pair<double, uint32_t> out(m_frameFinalizeMs, m_frameFinalized);
         m_frameFinalizeMs = 0.0;
@@ -323,6 +325,7 @@ private:
     mutable std::atomic<uint64_t> m_workerGenUs{0};     // M1e instrument (takeWorkerGenStats)
     mutable std::atomic<uint64_t> m_workerGenCount{0};
     mutable std::atomic<uint64_t> m_workerDecorateUs{0};
+    mutable std::atomic<uint64_t> m_workerColumnUs{0};
     glm::vec3 m_viewDir{0.0f, 0.0f, -1.0f};
     // Surface band per column, cached forever (terrain is static per world): the band
     // query runs per column per pump — uncached that is thousands of generator column

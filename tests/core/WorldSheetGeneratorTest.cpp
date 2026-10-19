@@ -140,3 +140,30 @@ TEST(WorldSheetGeneratorTest, MesoTileBakeTimeRecorded) {
                 gen.sheetParams().apronCells(), ms);
     EXPECT_LT(ms, 20000.0) << "a tile bake over 20 s is unusable even in Debug";
 }
+
+// Plan 13.1 "Flat / heightmap": a Flat version-2 world gets the sheet too (climate planes + a sea-level
+// macro), and stays flat; a heightmap world keeps the version-1 path (the map IS its macro) — stated.
+TEST(WorldSheetGeneratorTest, FlatVersionTwoWorldGetsATrivialSheetAndStaysFlat) {
+    WorldGenerator flat(WorldGenerator::GenerationType::Flat, 4242u);
+    WorldRecipe r = v2Recipe(4242u);
+    r.type = "Flat";
+    flat.applyRecipe(r);
+    EXPECT_TRUE(flat.sheetMode());
+    ASSERT_NE(flat.mesoPager(), nullptr) << "Flat has no sheet: WorldForge still has no plan for it";
+    for (int x = -500; x <= 500; x += 125)
+        EXPECT_EQ(flat.sampleSurface(x, 77).surfaceY, 16) << "Flat moved at x=" << x;
+}
+
+// Plan 13.1 "far mesher": every Layer-0 rebuild path moves the epoch a private copy compares to.
+TEST(WorldSheetGeneratorTest, Layer0EpochMovesOnEveryRebuildPathAndCopiesCarryIt) {
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 4242u);
+    const uint64_t e0 = gen.layer0Epoch();
+    gen.applyRecipe(v2Recipe(4242u));
+    const uint64_t e1 = gen.layer0Epoch();
+    EXPECT_GT(e1, e0) << "applyRecipe did not move the epoch";
+    WorldGenerator copy = gen;
+    EXPECT_EQ(copy.layer0Epoch(), e1) << "a copy must carry the epoch it was taken at";
+    gen.setGenerationType(WorldGenerator::GenerationType::Mountains);
+    EXPECT_GT(gen.layer0Epoch(), e1) << "setGenerationType did not move the epoch";
+    EXPECT_EQ(copy.layer0Epoch(), e1) << "the copy's epoch must not follow the live generator";
+}

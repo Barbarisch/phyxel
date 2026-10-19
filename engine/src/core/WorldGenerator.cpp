@@ -11,6 +11,7 @@
 #include "core/WorldConstants.h"
 #include "utils/Logger.h"
 #include <algorithm>
+#include <chrono>
 #include <random>
 #include <cmath>
 #include <climits>
@@ -65,6 +66,9 @@ float tnGrad(int hash, float x, float y, float z) {
 // base 3-D gradient noise (an fbm with N octaves counts N). Thread-local so worker generators do
 // not contend; read through WorldGenerator::noiseEvalsThisThread().
 thread_local uint64_t t_noiseEvals = 0;
+// M1e audit: the column-sampling share of chunk generation is MEASURED, not inferred from an
+// assumed ns/eval. Microseconds spent in the fresh column loop of columnsForChunk on this thread.
+thread_local uint64_t t_columnSampleUs = 0;
 
 float tnNoise3D(float x, float y, float z, uint32_t seed) {
     ++t_noiseEvals;
@@ -302,6 +306,7 @@ void WorldGenerator::setHeightmapSource(std::shared_ptr<const MapCoarseData> src
 }
 
 void WorldGenerator::rebuildCoarseModel() {
+    ++m_layer0Epoch;     // every Layer-0 rebuild is visible to private copies (layer0Epoch())
     clearColumnCache();  // memoized samples derive from the model being rebuilt
     m_finePondCache.clear();        // fine ponds derive from the columns (Phase B)
     m_finePondCacheOrder.clear();
@@ -660,9 +665,12 @@ WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
 
     auto fresh = std::make_shared<std::vector<ColumnSample>>();
     fresh->reserve(32 * 32);
+    const auto tsC0 = std::chrono::steady_clock::now();
     for (int x = 0; x < 32; ++x)
         for (int z = 0; z < 32; ++z)
             fresh->push_back(sampleColumn(colChunk.x * 32 + x, colChunk.y * 32 + z));
+    t_columnSampleUs += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - tsC0).count());
 
     if (m_columnCache.size() >= kColumnCacheMax) {   // FIFO eviction
         m_columnCache.erase(m_columnCacheOrder.front());
@@ -2029,6 +2037,7 @@ bool WorldGenerator::generateCity(const glm::ivec3& chunkCoord, const glm::ivec3
 // and the ridged detail). These members delegate, preserving identical behavior — including the
 // deliberately-unmasked lattice index that keeps noise continuous across chunk edges / x=z=0.
 uint64_t WorldGenerator::noiseEvalsThisThread() { return t_noiseEvals; }
+uint64_t WorldGenerator::columnSampleUsThisThread() { return t_columnSampleUs; }
 
 glm::ivec2 WorldGenerator::surfaceBandForChunkColumn(int cx, int cz) {
     // A 5x5 sample grid at stride 8 u including both edges (0, 8, 16, 24, 31), min/max of the

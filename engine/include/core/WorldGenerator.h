@@ -207,6 +207,9 @@ public:
     /// fbm of N octaves counts N). Monotonic; diff two reads around the work you want to cost.
     /// Pinned by ColumnCostBench (docs/WorldForgeV2Plan.md §9: <= 25 per column after M1).
     static uint64_t noiseEvalsThisThread();
+    /// M1e: microseconds this thread has spent sampling fresh chunk columns (columnsForChunk);
+    /// the streaming worker reports the per-chunk share to the perf recorder.
+    static uint64_t columnSampleUsThisThread();
 
     /// M1 World Sheet (recipe version >= 2, D10): Layer-0 served from the macro/meso sheet. v1
     /// recipes never touch these (null pager, sheetMode false).
@@ -218,6 +221,11 @@ public:
     /// hydrology bake floods and the worldforge preview reads: v1 = coarse + reliefAt, v2 = meso
     /// sheet + the fine band. Captures shared immutable state only (the worker-copy contract).
     std::function<float(float, float)> baseHeightFn() const;
+    /// M1 (plan 13.1 "far mesher"): bumped by every Layer-0 rebuild (applyRecipe, setGenerationType,
+    /// setHeightmapSource, setWorldForgeParams...). A consumer holding a private generator COPY
+    /// (the far-terrain mesher) compares it to the live generator's and reconfigures on a change,
+    /// so no rebuild path can leave the far field drawing a stale bake. Copies carry the epoch.
+    uint64_t layer0Epoch() const { return m_layer0Epoch; }
     /// WaterCore.md 25.22: is the 1/3 m creek-bed carve on (the recipe's flag)?
     bool creekCarve() const { return m_creekCarve; }
     void setCreekCarve(bool on) { m_creekCarve = on; }
@@ -402,6 +410,7 @@ private:
     std::shared_ptr<const MacroSheet> m_macroSheet;
     std::shared_ptr<MesoPager> m_mesoPager;
     void rebuildSheet();
+    uint64_t m_layer0Epoch = 0;   // see layer0Epoch()
 
     // Optional Layer-0 override: an imported heightmap (P4). When set, rebuildCoarseModel
     // sources baseHeight/continentalness from it instead of noise, and skips the hydrology

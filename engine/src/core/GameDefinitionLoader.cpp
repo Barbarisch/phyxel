@@ -482,6 +482,15 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         LOG_INFO("GameDefinitionLoader", "World: worldforge params from game.json (siteCount=" +
                  std::to_string(recipe.worldforge.siteCount) + ")");
     }
+    // The height spline (TerrainGenerationV2 2a, the "how tall" art-direction knob) from game.json
+    // world.heightSpline: [{"x": continentalness 0..1, "y": base world-Y}, ...]. Stored recipes win.
+    if (worldDef.contains("heightSpline") && worldDef["heightSpline"].is_array()) {
+        recipe.heightSpline.clear();
+        for (const auto& pt : worldDef["heightSpline"])
+            recipe.heightSpline.push_back({pt.value("x", 0.0f), pt.value("y", 0.0f)});
+        LOG_INFO("GameDefinitionLoader", "World: heightSpline from game.json (" +
+                 std::to_string(recipe.heightSpline.size()) + " points)");
+    }
     // M1 World Sheet (docs/WorldForgeV2Plan.md 5 M1): game.json world.sheet -> a version-2 recipe,
     // so Layer-0 is served from the macro/meso sheet. A stored recipe still wins below (D10: an
     // existing version-1 world keeps its analytic terrain whatever game.json now says).

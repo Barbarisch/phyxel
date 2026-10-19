@@ -31,6 +31,7 @@ struct MacroErosionParams {
 struct MacroErosionResult {
     std::vector<float> height;        // eroded heights (same size as the input)
     std::vector<int>   receiver;      // D8 receiver per cell from the LAST step's flood (self = base level)
+    std::vector<float> filled;        // the Priority-Flood surface of the LAST routing (lake = filled > height)
     std::vector<float> drainageArea;  // m² per cell from the last step
     std::vector<int>   stack;         // Braun-Willett order: base level first, donors after receivers
     int   baseLevelCells = 0;

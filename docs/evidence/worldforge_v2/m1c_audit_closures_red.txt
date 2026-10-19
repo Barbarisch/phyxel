@@ -1,0 +1,36 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[ M1c Dd ] threshold   2 cells (0.52 km2): Dd = 0.792 km/km2, Dd*sqrt(Ac) = 0.573
+[ M1c Dd ] threshold   8 cells (2.10 km2): Dd = 0.424 km/km2, Dd*sqrt(Ac) = 0.614
+[ M1c Dd ] threshold  32 cells (8.39 km2): Dd = 0.224 km/km2, Dd*sqrt(Ac) = 0.649
+[ M1c Dd ] threshold 128 cells (33.55 km2): Dd = 0.053 km/km2, Dd*sqrt(Ac) = 0.304
+[ M1c grounded ] steps   0: trough density 1.602 /km2 (printed only), max relief 311 m (paper hmax 2.244 u/k = 2000 m), over-talus cells 0
+[ M1c grounded ] steps  50: trough density 1.282 /km2 (printed only), max relief 4652 m (paper hmax 2.244 u/k = 2000 m), over-talus cells 0
+[ M1c grounded ] steps 200: trough density 1.252 /km2 (printed only), max relief 4414 m (paper hmax 2.244 u/k = 2000 m), over-talus cells 0
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\MacroErosionTest.cpp(202): error: The difference between r.drainageArea[A] and 2.0f * area is 262144, which exceeds 1.0f, where
+r.drainageArea[A] evaluates to 786432,
+2.0f * area evaluates to 524288, and
+1.0f evaluates to 1.
+A must drain 2 cells
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\MacroErosionTest.cpp(204): error: The difference between r.height[A] and expA is 0.30806732177734375, which exceeds 1e-3f, where
+r.height[A] evaluates to 114.29743957519531,
+expA evaluates to 114.60550689697266, and
+1e-3f evaluates to 0.0010000000474974513.
+A is not the closed-form value
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\MacroErosionTest.cpp(205): error: The difference between r.height[B] and expB is 0.2121429443359375, which exceeds 1e-3f, where
+r.height[B] evaluates to 165.27900695800781,
+expB evaluates to 165.49114990234375, and
+1e-3f evaluates to 0.0010000000474974513.
+B is not the closed-form value
+
+[  FAILED  ] MacroErosionTest.OneStepMatchesTheClosedFormOnAThreeCellChain (0 ms)
+[ M1c 1-D ] steady state: relief 9578 m, analytic 9578 m, worst relative error 0.00 %, max |dh| over 600->650 steps 0.000 m
+[ M1c converge ] |dh| over steps 150->200: p95 72.24 m, max 757.81 m, of 4414 m relief (p95 = 1.64 %)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\MacroErosionTest.cpp(292): error: Expected: (p95) < (0.01f * relief), actual: 72.2390137 vs 44.1378365
+95 % of cells are still moving by more than 1 % of the relief
+
+[  FAILED  ] MacroErosionTest.GroundedConfigurationConvergesByTwoHundredSteps (2120 ms)
+[ M1c uniform ] max relief 5199 m vs paper fit 2000 m (ratio 2.60)
+[==========] 12 tests from 1 test suite ran. (5892 ms total)
+[  PASSED  ] 10 tests.

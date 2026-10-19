@@ -128,6 +128,9 @@ public:
     /// after startup, so cross-thread reads are safe).
     void configure(const WorldGenerator& generator);
     bool isConfigured() const { return m_mesher != nullptr; }
+    /// The live generator's layer0Epoch() at the last configure(); RenderCoordinator reconfigures
+    /// when the live value moves (M1: any recipe/type/heightmap rebuild path, not only live apply).
+    uint64_t configuredEpoch() const { return m_configuredEpoch; }
 
     void setChunkCoverageFn(ChunkCoverageFn fn) { m_chunkCoverage = std::move(fn); }
 
@@ -216,6 +219,7 @@ private:
 
     // Worker thread (owns m_mesher after configure()).
     std::unique_ptr<FarTerrainMesher> m_mesher;
+    uint64_t m_configuredEpoch = 0;
     std::thread             m_worker;
     std::mutex              m_requestMutex;
     std::condition_variable m_requestCv;

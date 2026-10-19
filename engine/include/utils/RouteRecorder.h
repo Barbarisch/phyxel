@@ -59,6 +59,7 @@ public:
         float    workerGenMs = 0.0f;       // M1e: worker-thread generate+decorate ms since last frame (all workers)
         uint32_t generatedChunks = 0;
         float    workerDecorateMs = 0.0f;  // M1e: the decorate (flora) share of workerGenMs
+        float    workerColumnMs = 0.0f;    // M1e: the column-sampling share of workerGenMs (measured)
     };
 
     // Per-frame input. `phases` are the frame-pacing samples of this frame (key = scope path).
@@ -78,6 +79,7 @@ public:
         float    workerGenMs = 0.0f;
         uint32_t generatedChunks = 0;
         float    workerDecorateMs = 0.0f;
+        float    workerColumnMs = 0.0f;
     };
 
     // Starts a recording of up to `maxFrames` rows (clamped to 1..kMaxFrames; the value used is
@@ -129,6 +131,7 @@ public:
         r.workerGenMs = in.workerGenMs;
         r.generatedChunks = in.generatedChunks;
         r.workerDecorateMs = in.workerDecorateMs;
+        r.workerColumnMs = in.workerColumnMs;
         if (in.gpuSerial != 0) bySerial_[in.gpuSerial] = count_;
         ++count_;
     }
