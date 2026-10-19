@@ -165,7 +165,7 @@ The owner's look re-recorded on an idle GPU (`pw_look3_side_by_side.mp4`: OFF me
 **The partial wake's look SIGNED OFF by the owner 2026-10-18 (`pw_look4`).** **26.34 (2026-10-18):** the awake patch creeps over the
 whole pond at the sleep test's thresholds (sub-0.1 mm waves count as moving); a knob for the freeze test (`quiet_scale`): at x3 the
 mean solver time over 20 s after a push 2.34 -> 0.72 ms, the waves the same within run noise, the frozen pond flat to 0.08 mm.
-**x3 signed off by the owner 2026-10-19 and made the default.** **Next:** the owner's call on the partial wake's default (still OFF); then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
+**x3 signed off by the owner 2026-10-19 and made the default.** **26.35:** the sweeps are work, not launches; an exact 6 % saving; 20 sweeps measure the same as 40 (waves, volume, creek speed) for ~0.35-0.9 ms. **Next:** the owner's calls on 20 sweeps and on the partial wake's default (still OFF); then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7480,6 +7480,25 @@ after ~11 s.
   route echoes `quiet_scale 3.0` at boot; the stone run (`wake_map_default3.json`) 13-15 s after the drop has 47-165 columns awake
   (1,019-1,137 frozen; at x1 the patch had crept to 1,206 awake by then), solver 0.7-1.4 ms. Water unit 310/310, integration 134/136 (the FLIP
   run-up; SceneIntegrationTest).
+
+**26.35 MEASURED (2026-10-19) - what the pressure sweeps cost, one exact saving, and the sweep count for the owner.**
+- **Where it goes** (`water_av_kernel_timing`, the push repeated so nothing sleeps, partial wake OFF - every stored brick swept):
+  46 x 28 m pond (13,336 bricks), 40 sweeps: the sweeps 1.93 of 4.6 ms a call, 20: 0.98, 10: 0.50 - in proportion to the cells, so
+  WORK, not launches. 12 x 8 m (1,020 bricks): 0.36 ms at 40, about half of it the 80 launches. A taller box adds no bricks (3,472 /
+  3,476 / 3,480 for 1 / 2 / 3 m of air) - the air above is not stored, so skipping air bricks would save nothing.
+- **Tried, no change:** the other colour returning before its neighbour reads (a warp holds both colours: the same lines read).
+- **Kept (exact):** a neighbour in the thread's own brick read at id + 1 / 8 / 64 without its brick-map lookup (`wc_rbgs.comp`):
+  1.93 -> 1.82 ms (-6 %), 0.36 -> 0.34. Bit for bit: SparseEqualsDenseAcrossSeams, FlatBricksEqualCubic.
+- **The sweep count (a look decision, default unchanged at 40):** `water_wave_reach.py --sweeps 40,20,10` (two runs each) and
+  `sweeps_mass_*.json`:
+  - waves, rms at 1 / 2 / 4 / 8 m: 40: 11.5-12.5 / 5.1-5.4 / 1.6-1.7 / 0.13-0.14 mm; 20: 10.8-12.1 / 4.9-5.2 / 1.6 / 0.11-0.12 (the
+    same within run noise); **10: broken** - 9.2-9.4 mm at 4 m, a false wave six times the real one.
+  - the leftover pressure error (median): 40: 0.008-0.010, 20: 0.60-0.67, 10: 33-46.
+  - 20 s at rest after four pushes, 1 m deep: water gained/lost 40: -0.00006 to -0.0003 %, 20: -0.0003 %; level spread 0.02-0.03 mm
+    both. 3 m deep (23 x 14 m): under 0.000005 % both, flat both.
+  - the creek (`water_creek_bench.py --q 0.1 --record 240`): mid depth 0.1515 vs 0.1513 m, speed by continuity 0.330 vs 0.331 m/s,
+    surface speed 0.355 vs 0.354 m/s; solver over the last 60 s 1.25 -> 0.90 ms. Clips `creekbench_pond_g9_q0.1_s40/_s20.mp4`.
+  - the saving at 20: ~0.9 ms on the full pond, ~0.35 ms on the creek, ~0.25 ms with the partial wake on (half of ~0.5).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
