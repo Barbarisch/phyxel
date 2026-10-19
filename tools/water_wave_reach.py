@@ -52,7 +52,7 @@ def main():
     ap.add_argument("--partial", choices=["on", "off", "both"], default="both")
     ap.add_argument("--strength", type=float, default=4.0)
     ap.add_argument("--seconds", type=float, default=8.0)
-    ap.add_argument("--quiet-scale", type=float, default=1.0, help="26.34: the per-column freeze test's thresholds x this (the ON run)")
+    ap.add_argument("--quiet-scale", type=float, default=3.0, help="26.34: the per-column freeze test's thresholds x this (the ON run)")
     ap.add_argument("--tag", default="wave_reach")
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(300)
@@ -63,7 +63,7 @@ def main():
         out[name] = run(api, p, args.strength, args.seconds)
         print(f"partial wake {name.upper():3s} ({out[name]['samples']} samples):  " + "  ".join(
             f"{r['d_m']:2d} m: rms {r['rms_mm']:5.2f} max {r['max_mm']:5.1f} mm first {r['first_s'] if r['first_s'] is not None else '-'}" for r in out[name]["points"]), flush=True)
-    api.debug("water_av_partial_wake", {"quiet_scale": 1.0})
+    api.debug("water_av_partial_wake", {"quiet_scale": 3.0})
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
     (EV / f"{args.tag}.json").write_text(json.dumps(out))
     print("wrote", EV / f"{args.tag}.json")

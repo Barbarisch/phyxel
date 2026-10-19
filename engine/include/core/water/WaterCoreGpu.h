@@ -297,7 +297,9 @@ public:
     /// same test (26.31). Measured: at 1 a waking column lets sub-0.1 mm waves in, they count as moving, and the awake patch creeps
     /// over the pond (66-79 % awake 11-20 s after a push whose waves were 0.5 mm at 8 m); at 10 nothing moves after ~11 s. A look
     /// decision (a frozen column is a wall: the waves too small to wake it reflect). water_av_partial_wake {quiet_scale}.
-    static inline float s_columnQuietScale = 1.0f;
+    /// Default 3: the owner's call on pw_look5 (2026-10-19, "multiplier 3 looks fine").
+    static constexpr float kColumnQuietScaleDefault = 3.0f;
+    static inline float s_columnQuietScale = kColumnQuietScaleDefault;
     /// 26.33 measurement: surface reads that kept the frozen columns (WaterPartialWakeTest asserts they happened).
     static inline long s_partialSurfaceReads = 0;
     /// TEST ONLY (the red control): a partial read resets every column it did not cover, as the whole read does - frozen ones too.

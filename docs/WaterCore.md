@@ -165,7 +165,7 @@ The owner's look re-recorded on an idle GPU (`pw_look3_side_by_side.mp4`: OFF me
 **The partial wake's look SIGNED OFF by the owner 2026-10-18 (`pw_look4`).** **26.34 (2026-10-18):** the awake patch creeps over the
 whole pond at the sleep test's thresholds (sub-0.1 mm waves count as moving); a knob for the freeze test (`quiet_scale`): at x3 the
 mean solver time over 20 s after a push 2.34 -> 0.72 ms, the waves the same within run noise, the frozen pond flat to 0.08 mm.
-**Next:** the owner's call on `pw_look5` (x3) and on the partial wake's default; then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
+**x3 signed off by the owner 2026-10-19 and made the default.** **Next:** the owner's call on the partial wake's default (still OFF); then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7475,6 +7475,11 @@ after ~11 s.
   after 20 s: spread 0.08 mm (x3), 0.10 mm (x10), 0.01 mm (x1).
 - **For the owner (a look decision):** `pw_look5_side_by_side.mp4` - OFF vs ON at x3, close, the same push, 20 s: the halves match
   frame for frame; OFF 3.9-4.6 ms throughout, ON 1.2-2.5 ms falling to ~1.0 ms as the patch shrinks (802 -> 174 columns).
+- **x3 SIGNED OFF by the owner 2026-10-19** ("multiplier 3 looks fine") and made the default (`kColumnQuietScaleDefault = 3`; the
+  tools default to it and restore it). The partial wake itself stays OFF by default - not yet the owner's call. Checked live: the
+  route echoes `quiet_scale 3.0` at boot; the stone run (`wake_map_default3.json`) 13-15 s after the drop has 47-165 columns awake
+  (1,019-1,137 frozen; at x1 the patch had crept to 1,206 awake by then), solver 0.7-1.4 ms. Water unit 310/310, integration 134/136 (the FLIP
+  run-up; SceneIntegrationTest).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
