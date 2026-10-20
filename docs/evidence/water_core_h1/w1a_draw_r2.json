@@ -1,0 +1,49 @@
+{
+ "box": {
+  "x1": 2,
+  "y1": 16,
+  "z1": 0,
+  "x2": 13,
+  "y2": 17,
+  "z2": 15
+ },
+ "awake": {
+  "asleep": true,
+  "awake_columns": 0,
+  "frozen_columns": 252
+ },
+ "sleep": {
+  "success": true,
+  "forced": false,
+  "columns": 192,
+  "mass_written": 189.77777024662052,
+  "spread_mm": 0.0
+ },
+ "record_draw": {
+  "build_ms_last_call": 0.0035,
+  "build_ms_max": 5.3573,
+  "built_last_call": 0,
+  "on": true,
+  "pending": 0,
+  "radius_m": 48.0,
+  "revision": 30,
+  "tile_m": 8,
+  "tiles": 135,
+  "wet_tiles": 4
+ },
+ "awake_vs_awake": {
+  "mean": 6.802300453186035,
+  "px_over_16_pct": 13.560572027553158,
+  "px_over_48_pct": 3.2266397124887694
+ },
+ "awake_vs_recorded": {
+  "mean": 2.401851177215576,
+  "px_over_16_pct": 3.9566486972147348,
+  "px_over_48_pct": 0.6356693620844565
+ },
+ "awake_vs_off": {
+  "mean": 14.848509788513184,
+  "px_over_16_pct": 23.179095537586104,
+  "px_over_48_pct": 15.96305031446541
+ }
+}

@@ -74,6 +74,11 @@ struct WaterSurfaceField {
 /// wet cell's bottom + fill * h; solidTopY from the grid's occupancy).
 void extractSurfaceField(const WaterGrid& grid, WaterSurfaceField& out);
 
+/// §27 W1a: the pond surface of RECORDED water - the record's runs woken into `scratch` (the level-fill a wake makes, 27.9) and
+/// the surface extracted from it, so a recorded tile draws what the same water drew awake at rest. `scratch` must hold the
+/// world's occupancy over the tile; its fills and velocities are overwritten. Returns the m^3 placed.
+double recordSurfaceField(WaterGrid& scratch, const std::vector<ColumnRuns>& runs, WaterSurfaceField& out);
+
 /// 32 B, the vertex layout of water_surface.vert.
 struct WaterSurfaceVertex {
     glm::vec3 pos;       ///< world

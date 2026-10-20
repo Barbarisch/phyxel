@@ -461,6 +461,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // the chunk column, merges the volume's runs in world space, clips back, marks dirty, bumps the
     // span revision. Columns whose vertical chunks are not all resident are refused whole (counted),
     // never half-written.
+    // §27 W1a: the record's revision - a record tile drawn near the camera is rebuilt when the stored water changes
+    waterCore->setSpanRevisionQuery([this]() -> uint64_t { return chunkManager ? chunkManager->waterSpanRevision() : 0; });
     waterCore->setSpanIo(
         [this](const std::vector<Core::Water::ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunksTouched) {
             using namespace Core::Water;
@@ -3757,7 +3759,11 @@ void Application::update(float deltaTime) {
                 const bool cellsMode = renderCoordinator->waterCoreRenderMode() == Core::Water::WaterCoreRenderMode::Cells;
                 renderCoordinator->setWaterCoreSurfaceCells((cellsMode && waterCore->totalCells()) ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
-                renderCoordinator->setWaterCoreSurfaceFields(waterCore->totalCells() ? &waterCore->surfaceFields() : nullptr);   // Phase F: the surface mesh feed
+                {   // Phase F: the surface mesh feed - the volumes' fields, then the recorded water near the camera (§27 W1a), so asked
+                    // for even with no volume live
+                    const auto& sf = waterCore->surfaceFields();
+                    renderCoordinator->setWaterCoreSurfaceFields(sf.empty() ? nullptr : &sf);
+                }
                 renderCoordinator->setWaterCoreDroplets(&waterCore->dropletDrawList());   // 21: the droplet crown
                 m_rippleLayers = waterCore->rippleLayers();   // 22
                 renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
@@ -3818,6 +3824,9 @@ void Application::update(float deltaTime) {
             if (renderCoordinator) {
                 m_waterMaskBoxes = waterCore->volumeBoxes();
                 uint64_t maskRev = waterCore->avRevision() * 1000003ull;
+                // §27 W1a: the record tiles near the camera are drawn by the pond surface - the span sheet leaves them too
+                for (const auto& b : waterCore->recordTileBoxes()) m_waterMaskBoxes.push_back(b);
+                maskRev ^= waterCore->recordRevision() * 0x9E3779B97F4A7C15ull;
                 if (m_shoreOn && shoreBand && shoreBand->active()) { m_waterMaskBoxes.push_back(shoreBand->maskBox()); maskRev ^= shoreBand->record().revision; }
                 renderCoordinator->setWaterCoreVolumeBoxes(&m_waterMaskBoxes, maskRev);   // Phase D: the span grid leaves these columns to the volumes (+ the band)
                 renderCoordinator->setWaterShoreField(m_shoreOn && shoreBand && shoreBand->active() ? &shoreBand->field() : nullptr);
@@ -13940,6 +13949,18 @@ void Application::registerWaterCommands() {
             if (seeded == 0.0) { waterCore->destroy(id); r = {{"error", "seed:\"spans\" found no stored water in the box (dry, or its chunks are not resident)"}}; return; }
         } else if (seed != "none") { waterCore->destroy(id); r = {{"error", "seed must be 'none' or 'spans'"}}; return; }
         r = {{"success", true}, {"volume", avJson(*waterCore->find(id))}, {"seeded_mass", seeded}};
+    });
+    // §27 W1a: {on?, radius?} recorded water near the camera drawn with the pond surface; radius in m, clamped 0-256 (above 256
+    // the tiles near the camera would be rebuilt over ~1,000 tiles; the far record is W2's). Echoes the settings and the stats.
+    reg.on("water_av_record_draw", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        using M = Core::Water::WaterCoreManager;
+        if (!waterCore) return noCore(r);
+        if (cmd.params.contains("on")) M::s_recordDraw.on = cmd.params.value("on", true);
+        if (cmd.params.contains("radius")) M::s_recordDraw.radiusM = std::clamp(cmd.params.value("radius", 48.0f), 0.0f, 256.0f);
+        const auto& s = waterCore->recordDrawStats();
+        r = {{"on", M::s_recordDraw.on}, {"radius_m", M::s_recordDraw.radiusM}, {"tile_m", M::kRecordTile}, {"tiles", s.tiles},
+             {"wet_tiles", s.wetTiles}, {"built_last_call", s.builtLastCall}, {"pending", s.pending},
+             {"build_ms_last_call", s.buildMsLastCall}, {"build_ms_max", s.buildMsMax}, {"revision", waterCore->recordRevision()}};
     });
     // §27 W1 step 0: {id} where the volume's water is - m^3 in air / inside ground / in unknown occupancy / above full cells
     reg.on("water_av_census", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {

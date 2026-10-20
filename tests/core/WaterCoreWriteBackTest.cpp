@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "core/water/WaterCore.h"
+#include "core/water/WaterSurfaceMesh.h"
 
 #include <cmath>
 #include <functional>
@@ -176,6 +177,40 @@ TEST(WaterCoreWriteBackTest, SeedOnASteppedBedPutsNoWaterInRock) {
     EXPECT_NEAR(dst.grid.totalMass(), src.grid.totalMass(), 1e-6);
     EXPECT_LT(maxDiff, 1e-5f) << "still water over a step comes back cell for cell";
     RecordProperty("in_rock_m3", std::to_string(inRock));
+}
+
+// §27 W1a (the owner, 2026-10-20: "go with A"): RECORDED water is drawn with the pond surface built from the record, so a pond
+// going to sleep changes nothing on screen. The record's field must equal the field the awake water drew at rest - per
+// sub-column the same runs, tops, bottoms and ground - on the stepped bed (the hard case: the record is per 1 m column).
+TEST(WaterCoreWriteBackTest, TheRecordDrawsTheSurfaceTheWaterHad) {
+    const float h = 1.0f / 9.0f;
+    Tank src(18, 18, 9, h);
+    auto rock = [](int gx, int gy) { return gy == 0 && gx < 5; };
+    for (int gz = 0; gz < 9; ++gz) for (int gy = 0; gy < 18; ++gy) for (int gx = 0; gx < 18; ++gx) {
+        if (rock(gx, gy)) { src.grid.occ(gx, gy, gz) = Occ::Solid; continue; }
+        if (gy < 9) src.grid.f(gx, gy, gz) = 1.0f;
+        if (gy == 9) src.grid.f(gx, gy, gz) = 0.37f;   // a part-full top cell: the level is not on a cell boundary
+    }
+    WaterSurfaceField awake;
+    extractSurfaceField(src.grid, awake);
+    std::vector<ColumnRuns> runs;
+    columnRunsFromGrid(src.grid, nullptr, runs);
+
+    Tank scratch(18, 18, 9, h);   // the tile's grid: only its occupancy is known (the world's), no water
+    for (int gz = 0; gz < 9; ++gz) for (int gx = 0; gx < 18; ++gx) for (int gy = 0; gy < 18; ++gy) if (rock(gx, gy)) scratch.grid.occ(gx, gy, gz) = Occ::Solid;
+    WaterSurfaceField rec;
+    recordSurfaceField(scratch.grid, runs, rec);
+    ASSERT_EQ(rec.nx, awake.nx); ASSERT_EQ(rec.nz, awake.nz); ASSERT_EQ(rec.origin, awake.origin);
+    float worst = 0.0f; int runDiff = 0;
+    for (size_t i = 0; i < awake.cols.size(); ++i) {
+        const SurfaceColumn& a = awake.cols[i]; const SurfaceColumn& b = rec.cols[i];
+        if (a.runs != b.runs) { ++runDiff; continue; }
+        for (int k = 0; k < static_cast<int>(a.runs); ++k) worst = std::max({worst, std::abs(a.top[k] - b.top[k]), std::abs(a.bottom[k] - b.bottom[k])});
+        if (a.solidTopY > -1e29f || b.solidTopY > -1e29f) worst = std::max(worst, std::abs(a.solidTopY - b.solidTopY));
+    }
+    EXPECT_EQ(runDiff, 0) << "sub-columns whose run count differs between the awake field and the record's";
+    EXPECT_LT(worst, 1e-4f) << "m: the record's surface vs the awake one, per sub-column (rule 4: < 1 mm)";
+    RecordProperty("worst_m", std::to_string(worst));
 }
 
 TEST(WaterCoreWriteBackTest, ReloadAtDifferentCellSizeKeepsColumnMass) {

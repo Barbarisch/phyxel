@@ -62,7 +62,7 @@ partial surface (26.33).
 creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; READY for W1a, the drawing of recorded water - the owner's call). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT §27.11 - recorded water drawn by the pond surface, the owner's choice A; next W1b, the per-tile record / seed and the tile life cycle). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
    PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
    the 2 M-cell box (the CPU keeps only the woken patch).
 2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
@@ -7795,6 +7795,33 @@ record is per world column. Generation - none (runtime; spans as Phase D). API -
 Test plan - the red tests above, small rigs (rig C one chunk; the lake straddles a chunk seam on purpose), predictions stated.
 Items 2-5 of 27.7 are answered by 27.9 (built) and this section; item 4 waits on the owner's look. **Verdict: READY for W1a**
 (the drawing, for the owner's choice); W1b-W1e READY in outline, each re-checked against its measured first step.
+
+### 27.11 W1a BUILT (2026-10-20): recorded water drawn by the pond surface - the owner's choice A ("go with A")
+
+- **What:** `recordSurfaceField` (`WaterSurfaceMesh`) wakes a tile's record into a scratch grid with 27.9's level-fill and extracts
+  the pond surface from it - so a recorded tile draws what the same water drew awake at rest. `WaterCoreManager` keeps 8 m tiles
+  within `radiusM` (48 m) of the view point that hold stored water outside every live volume, rebuilt when the record (the chunks'
+  span revision), the ground (the occupancy revision) or the volumes change - at most 4 a call - and appends their fields after
+  the volumes' in `surfaceFields()` (the volumes own their columns; the surface queries - floaters, characters - read the record's
+  water too). The span sheet is masked over those tiles (`recordTileBoxes`), so the two never both draw. The feed is asked for
+  even with no volume live. Route `water_av_record_draw {on, radius}` (radius m, clamped 0-256, the reason at the clamp; echoes
+  the settings, tiles, wet tiles, builds, pending, build ms). **ON by default** - the owner chose it.
+- **Red first:** `WaterCoreWriteBackTest.TheRecordDrawsTheSurfaceTheWaterHad` (the stepped bed, a part-full top cell) failed on a
+  stub that draws nothing (0 vs 18 sub-columns) and passes: every sub-column's runs, tops, bottoms and ground within 1e-4 m of the
+  awake field.
+- **Live (`tools/water_record_draw_ab.py`, a 12 x 16 m pond 1 m deep with rig C's step, the same pose, viewport crop):** the pond
+  sleeps into the record (192 columns, 189.78 m^3, spread 0.0 mm) and is drawn by 4 record tiles. Frame difference (mean / % of
+  pixels > 48), two runs: awake vs awake 2.5 s apart (the noise floor - wind in the grass) 2.49 / 0.70 % and 6.80 / 3.23 %;
+  **awake vs recorded 2.26 / 0.58 % and 2.40 / 0.64 %** - inside the noise; control, the record not drawn (today's bench: the pond
+  vanishes) 15.93 / 16.5 % and 14.85 / 16.0 %. (A first run took the noise frame 0.5 s apart and under-read it - recorded read
+  1.6-2.1x; fixed by matching the gap.) Frames `w1a_draw_r1_*.png`.
+- **Cost:** a tile build ~1.3 ms (the scratch grid's occupancy is read cell by cell), the worst call 5.4 ms (4 tiles at once - when
+  a pond sleeps or the camera crosses into new tiles); a call with nothing changed 0.004 ms.
+- **Open, stated:** the bench runs `water.enabled: false`, so the sheet mask is untested live (a world with the sheet on must show
+  no double surface - checked when W4 puts generated water on this path); chunks streaming in with stored water do not bump the
+  span revision - their tiles are rebuilt only when the ground's revision moves (it does on a chunk load); the 4-tiles-a-call
+  bound is a cost bound, a tile can draw a frame or two late.
+- Water unit 312/312, integration 134/136 (the FLIP run-up; SceneIntegrationTest). Built, not signed off.
 
 
 ---

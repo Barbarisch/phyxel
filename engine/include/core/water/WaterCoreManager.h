@@ -15,6 +15,7 @@
 #include "core/water/RippleGpu.h"          // 25.34: the ripple step on the GPU
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <unordered_map>
+#include <map>
 #include <glm/glm.hpp>
 #include <array>
 #include <climits>
@@ -266,6 +267,22 @@ public:
     /// 26.30 step 3: the volumes' own fields (pointers, parallel to the volumes; valid until a volume is destroyed - destroy()
     /// drops its pointer at once). Was a copy of every field, made on every call (4.6 MB a 32 x 28 m pond, ~1 ms a frame awake).
     const std::vector<const WaterSurfaceField*>& surfaceFields();
+    /// §27 W1a (the owner's choice A, 2026-10-20): RECORDED water near the camera is drawn with the pond surface built from the
+    /// record - 8 m world-aligned tiles within `radiusM` of the view point that hold stored water outside every live volume get a
+    /// field (recordSurfaceField: the record woken into a scratch grid, the surface extracted), appended to surfaceFields() after
+    /// the volumes' own. Rebuilt when the record, the ground or the volumes change; at most kRecordBuildsPerCall a call. Beyond the
+    /// radius the span sheet / far tiles draw it (W2). The span sheet leaves these tiles to the pond surface (recordTileBoxes()).
+    struct RecordDraw { bool on = true; float radiusM = 48.0f; };
+    static inline RecordDraw s_recordDraw;
+    static constexpr int kRecordTile = 8;               ///< m: 72 cells = 9 brick columns = 8 record columns (27.10)
+    static constexpr int kRecordBuildsPerCall = 4;      ///< bounds a frame's cost when many tiles change at once
+    static constexpr int kRecordBandVoxels = 64;        ///< the record is read within +-64 voxels of the view point's height
+    struct RecordDrawStats { int tiles = 0, wetTiles = 0, builtLastCall = 0, pending = 0; double buildMsLastCall = 0.0, buildMsMax = 0.0; };
+    const RecordDrawStats& recordDrawStats() const { return m_recordStats; }
+    void setSpanRevisionQuery(std::function<uint64_t()> q) { m_spanRevision = std::move(q); }
+    /// The wet record tiles drawn by the pond surface (inclusive voxel boxes) and their revision - the span sheet's mask.
+    const std::vector<std::pair<glm::ivec3, glm::ivec3>>& recordTileBoxes() const { return m_recordBoxes; }
+    uint64_t recordRevision() const { return m_recordRevision; }
     /// 25.26 RC: where the camera is - a volume's ripple window (kColumnRippleWindow lattice cells square) follows it.
     void setViewPoint(const glm::vec3& p) { m_view = p; }
     static constexpr int kColumnRippleWindow = 384;   ///< 42.7 m at 1/9 m: the renderer's atlas holds <= 512 per axis; 1/9 m facets
@@ -497,7 +514,15 @@ private:
     void refreshBoxes();
     bool m_realtime = false;
     std::vector<WaterSurfaceCell> m_surface;
-    std::vector<const WaterSurfaceField*> m_fields;   // Phase F, parallel to m_avs (26.30 step 3: each volume's own field)
+    std::vector<const WaterSurfaceField*> m_fields;   // Phase F, parallel to m_avs (26.30 step 3: each volume's own field); then the record tiles (§27 W1a)
+    struct RecordTile { WaterSurfaceField field; uint64_t spanRev = ~0ull, occRev = ~0ull, avRev = ~0ull; bool wet = false; };
+    std::map<std::pair<int, int>, RecordTile> m_recordTiles;   // §27 W1a, by tile (x, z) index
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> m_recordBoxes;
+    uint64_t m_recordRevision = 0, m_recordBuilds = 0;
+    std::function<uint64_t()> m_spanRevision;
+    RecordDrawStats m_recordStats;
+    void refreshRecordTiles();
+    void buildRecordTile(int tx, int tz, RecordTile& t);
     std::unordered_map<uint64_t, glm::vec3> m_solidHold;   // 20: body id -> the centre it is rasterized at
     bool m_solidWakeRule = true;
     MotionStats m_motionStats;

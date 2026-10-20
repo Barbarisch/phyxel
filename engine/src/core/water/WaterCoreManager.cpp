@@ -896,7 +896,90 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
         av->field.rippleLayer = (av->ripple && m_rstats.on) ? static_cast<int>(i) : -1;   // 22: parallel to rippleLayers()
         m_fields[i] = &av->field;
     }
+    refreshRecordTiles();   // §27 W1a: the recorded water near the camera, after the volumes (a volume owns its columns first)
+    for (auto& [key, t] : m_recordTiles) if (t.wet) m_fields.push_back(&t.field);
     return m_fields;
+}
+
+void WaterCoreManager::refreshRecordTiles() {
+    m_recordStats.builtLastCall = 0; m_recordStats.buildMsLastCall = 0.0; m_recordStats.pending = 0;
+    if (!s_recordDraw.on || !m_spanReader) {
+        if (!m_recordTiles.empty()) { m_recordTiles.clear(); m_recordBoxes.clear(); ++m_recordRevision; }
+        m_recordStats.tiles = m_recordStats.wetTiles = 0;
+        return;
+    }
+    const uint64_t sr = m_spanRevision ? m_spanRevision() : 0, orv = m_revision ? m_revision() : 0;
+    const float r = std::max(0.0f, s_recordDraw.radiusM);
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    const int T = kRecordTile;
+    const int tx0 = floorDiv(static_cast<int>(std::floor(m_view.x - r)), T), tx1 = floorDiv(static_cast<int>(std::floor(m_view.x + r)), T);
+    const int tz0 = floorDiv(static_cast<int>(std::floor(m_view.z - r)), T), tz1 = floorDiv(static_cast<int>(std::floor(m_view.z + r)), T);
+    // a tile is in range when its nearest point is within the radius (the bound is conservative: cost, never a cut-off mid-tile)
+    auto inRange = [&](int tx, int tz) {
+        const float nx = std::clamp(m_view.x, static_cast<float>(tx * T), static_cast<float>(tx * T + T)) - m_view.x;
+        const float nz = std::clamp(m_view.z, static_cast<float>(tz * T), static_cast<float>(tz * T + T)) - m_view.z;
+        return nx * nx + nz * nz <= r * r;
+    };
+    bool changed = false;
+    for (auto it = m_recordTiles.begin(); it != m_recordTiles.end();) {
+        if (!inRange(it->first.first, it->first.second)) { changed |= it->second.wet; it = m_recordTiles.erase(it); } else ++it;
+    }
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
+        if (!inRange(tx, tz)) continue;
+        RecordTile& t = m_recordTiles[{tx, tz}];
+        if (t.spanRev == sr && t.occRev == orv && t.avRev == m_avRevision) continue;
+        if (m_recordStats.builtLastCall >= kRecordBuildsPerCall) { ++m_recordStats.pending; continue; }
+        const bool wasWet = t.wet;
+        buildRecordTile(tx, tz, t);
+        t.spanRev = sr; t.occRev = orv; t.avRev = m_avRevision;
+        ++m_recordStats.builtLastCall;
+        changed |= wasWet || t.wet;
+    }
+    m_recordStats.buildMsLastCall = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    m_recordStats.buildMsMax = std::max(m_recordStats.buildMsMax, m_recordStats.buildMsLastCall);
+    m_recordStats.tiles = static_cast<int>(m_recordTiles.size());
+    m_recordStats.wetTiles = 0;
+    if (changed) {
+        m_recordBoxes.clear(); ++m_recordRevision;
+        for (const auto& [key, t] : m_recordTiles)
+            if (t.wet) m_recordBoxes.push_back({glm::ivec3(key.first * T, -1000000, key.second * T), glm::ivec3(key.first * T + T - 1, 1000000, key.second * T + T - 1)});
+    }
+    for (const auto& [key, t] : m_recordTiles) if (t.wet) ++m_recordStats.wetTiles;
+}
+
+void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
+    const int T = kRecordTile, per = kMicroPerVoxel;   // the record is drawn at the 1/9 m lattice (the pond's)
+    const int vy = static_cast<int>(std::floor(m_view.y));
+    const glm::ivec3 lo(tx * T, vy - kRecordBandVoxels, tz * T), hi(tx * T + T - 1, vy + kRecordBandVoxels, tz * T + T - 1);
+    std::vector<ColumnRuns> runs;
+    m_spanReader(lo, hi, runs);
+    // columns a live volume owns are its own to draw (the volume's field comes first in surfaceFields, this keeps them apart)
+    auto owned = [&](int x, int z) {
+        for (const auto& [a, b] : m_boxes) if (x >= a.x && x <= b.x && z >= a.z && z <= b.z) return true;
+        return false;
+    };
+    float yMin = 1e30f, yMax = -1e30f;
+    std::vector<ColumnRuns> kept;
+    for (auto& c : runs) {
+        if (c.held || c.runs.empty() || owned(c.x, c.z)) continue;
+        for (const auto& r : c.runs) { yMin = std::min(yMin, r.bottomY); yMax = std::max(yMax, r.topY); }
+        kept.push_back(std::move(c));
+    }
+    t.wet = !kept.empty();
+    if (!t.wet) { t.field = WaterSurfaceField{}; return; }
+    const int y0 = static_cast<int>(std::floor(yMin)) - 1, y1 = static_cast<int>(std::ceil(yMax)) + 1;   // voxels: a cell of ground below, air above
+    WaterGrid scratch(GridSpec{glm::ivec3(lo.x * per, y0 * per, lo.z * per), glm::ivec3(T * per, (y1 - y0) * per, T * per), 1.0f / static_cast<float>(per)});
+    const glm::ivec3 o = scratch.spec().origin;
+    for (int z = 0; z < scratch.nz(); ++z) for (int y = 0; y < scratch.ny(); ++y) for (int x = 0; x < scratch.nx(); ++x) {
+        const int s = m_state ? m_state(o + glm::ivec3(x, y, z)) : 0;   // the cell IS a micro cell at 1/9 m
+        scratch.occ(x, y, z) = s == 1 ? Occ::Solid : (s == 2 ? Occ::Unknown : Occ::Air);
+    }
+    recordSurfaceField(scratch, kept, t.field);
+    t.field.source = 0x40000000 | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
+    t.field.version = ++m_recordBuilds;
+    t.field.rippleLayer = -1;
+    t.field.look = packLook(lookAt(tx * T + T / 2, tz * T + T / 2));
 }
 
 std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float moveM) {

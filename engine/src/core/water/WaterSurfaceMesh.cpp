@@ -13,6 +13,12 @@
 
 namespace Phyxel::Core::Water {
 
+double recordSurfaceField(WaterGrid& scratch, const std::vector<ColumnRuns>& runs, WaterSurfaceField& out) {
+    const double placed = seedGridFromRuns(scratch, runs);   // the water a wake would make (air cells, level-filled, at rest)
+    extractSurfaceField(scratch, out);                       // drawn exactly as the awake pond draws it
+    return placed;
+}
+
 void extractSurfaceField(const WaterGrid& g, WaterSurfaceField& out) {
     const GridSpec& sp = g.spec();
     out.origin = sp.origin; out.nx = g.nx(); out.nz = g.nz(); out.h = sp.h;

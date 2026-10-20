@@ -2202,7 +2202,8 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_coupling",       waterEndpoint("water_coupling"));       // Phase E: coupling status + A/B
     srv.Post("/api/debug/water_av_watch",       waterEndpoint("water_av_watch"));       // 20: per-frame surface recorder
     srv.Post("/api/debug/water_av_column",      waterEndpoint("water_av_column"));      // 26.13: the drawn surface at voxel columns (no read-back)
-    srv.Post("/api/debug/water_av_census",      waterEndpoint("water_av_census"));      // §27 W1: where a volume's water is (air / ground / unknown)
+    srv.Post("/api/debug/water_av_census",      waterEndpoint("water_av_census"));
+    srv.Post("/api/debug/water_av_record_draw", waterEndpoint("water_av_record_draw")); // §27 W1a: recorded water drawn by the pond surface      // §27 W1: where a volume's water is (air / ground / unknown)
     srv.Post("/api/debug/water_surface_dump",   waterEndpoint("water_surface_dump"));   // the surface field per sub-column over a rect (measurement)
     srv.Post("/api/debug/water_jet_scan",      waterEndpoint("water_jet_scan"));       // 21.7 S1: per-frame detached-run recorder
     srv.Post("/api/debug/water_droplets",       waterEndpoint("water_droplets"));       // 21: droplet crown state + ledger
