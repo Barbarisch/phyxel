@@ -340,6 +340,11 @@ double WaterCoreManager::seedFromSpans(int id) {
         if (av->id != id) continue;
         std::vector<ColumnRuns> runs;
         m_spanReader(av->minVoxel, av->maxVoxel, runs);
+        // §27.8: the seed fills AIR cells only - the grid's occupancy must be the world's now (the GPU path mirrors it at create,
+        // a CPU volume's grid never did)
+        refreshOccupancy(*av);
+        for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
+            av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
         const double placed = seedGridFromRuns(*av->grid, runs);
         av->seededMass = placed;
         av->seededColumns.clear();

@@ -119,13 +119,29 @@ double seedGridFromRuns(WaterGrid& grid, const std::vector<ColumnRuns>& runs) {
         const int gx0 = std::max(0, col.x * per - sp.origin.x), gx1 = std::min(grid.nx() - 1, (col.x + 1) * per - 1 - sp.origin.x);
         const int gz0 = std::max(0, col.z * per - sp.origin.z), gz1 = std::min(grid.nz() - 1, (col.z + 1) * per - 1 - sp.origin.z);
         if (gx1 < gx0 || gz1 < gz0) continue;
+        // §27.8: the run's water is LEVEL-FILLED into the column's air cells from its bottom up - still water is level, so this
+        // is the shape it had. The record is per 1 m column, the cells per 1/h: spreading the run's height over every sub-column
+        // (as before) put water inside rock wherever the column's floor is stepped below 1 m (rig C: 2.2 m^3, the surface 6 cm
+        // low). A layer's room is its air cells' (1 - f) - its bottom cell only above the run's bottom; what is left above the
+        // grid's top is not placed (returned short, never silent). With no rock this is the old fill cell for cell.
+        const int nsub = (gx1 - gx0 + 1) * (gz1 - gz0 + 1);
         for (const auto& r : col.runs) {
-            for (int gy = 0; gy < grid.ny(); ++gy) {
-                const double yb = static_cast<double>(sp.origin.y + gy) * h, yt = yb + h;
-                const double ov = std::min(static_cast<double>(r.topY), yt) - std::max(static_cast<double>(r.bottomY), yb);
-                if (ov <= 0.0) continue;
-                const float f = static_cast<float>(std::min(1.0, ov / h));
-                for (int gz = gz0; gz <= gz1; ++gz) for (int gx = gx0; gx <= gx1; ++gx) { grid.f(gx, gy, gz) += f; placed += f * h3; }
+            double left = static_cast<double>(r.topY - r.bottomY) / h * nsub;   // in cells-worth of fill (one full cell = 1)
+            const int gyStart = std::max(0, static_cast<int>(std::floor(static_cast<double>(r.bottomY) / h + 1e-6)) - sp.origin.y);
+            for (int gy = gyStart; gy < grid.ny() && left > 1e-9; ++gy) {
+                const double yb = static_cast<double>(sp.origin.y + gy) * h;
+                const double cap = std::min(1.0, (yb + h - std::max(static_cast<double>(r.bottomY), yb)) / h);   // the bottom cell: above the run only
+                double room = 0.0;
+                for (int gz = gz0; gz <= gz1; ++gz) for (int gx = gx0; gx <= gx1; ++gx)
+                    if (grid.occ(gx, gy, gz) == Occ::Air) room += std::max(0.0, cap - static_cast<double>(grid.f(gx, gy, gz)));
+                if (room <= 0.0) continue;
+                const double share = std::min(1.0, left / room);   // the same fraction of every air cell's room in the layer
+                for (int gz = gz0; gz <= gz1; ++gz) for (int gx = gx0; gx <= gx1; ++gx) {
+                    if (grid.occ(gx, gy, gz) != Occ::Air) continue;
+                    const double add = std::max(0.0, cap - static_cast<double>(grid.f(gx, gy, gz))) * share;
+                    grid.f(gx, gy, gz) += static_cast<float>(add); placed += add * h3;
+                }
+                left -= room * share;
             }
         }
     }

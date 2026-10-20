@@ -62,7 +62,7 @@ partial surface (26.33).
 creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8: the seed puts water in the ground - red; a big sleep is a 105 ms hitch; slept water vanishes in the bench). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; open: the 105 ms sleep of a big body, how slept water is drawn, the patch and its edge). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
    PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
    the 2 M-cell box (the CPU keeps only the woken patch).
 2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
@@ -7713,6 +7713,24 @@ Tools: `water_av_census {id}` (new: m^3 in air / inside ground / unknown / over-
   measured (105 ms at 1.9 M cells - the read-back and the dense pass must go); item 4 is sharper than thought - the bench does
   not draw the record at all, so "how slept water is drawn" needs the pond surface built from the record (or the sheet turned
   on) before any auto-sleep is visible to the owner.
+
+### 27.9 W1 item 2 BUILT (2026-10-20): the wake fills the column's air cells from the bottom
+
+`seedGridFromRuns` level-fills each run's water into the column's AIR cells from the run's bottom up (a layer's room is its air
+cells' 1 - f, the bottom cell only above the run's bottom; each air cell of a layer gets the same fraction of its room); what
+cannot be placed below the grid's top is returned short, never silent. With no rock it is the old fill cell for cell. The
+manager mirrors the world's occupancy into the grid before seeding (a CPU volume's grid never had it).
+- **Red first:** `WaterCoreWriteBackTest.SeedOnASteppedBedPutsNoWaterInRock` (a 1/9 m step under 5 of 9 sub-columns, still water
+  1 m deep, sleep -> wake; the flat column beside it is the control) failed on the old seed - 0.0617 m^3 in 45 rock cells
+  (45/729, the live rig's per-column number) and cells off by 1.0 - and passes now: 0 rock cells, the books to 1e-6, every cell
+  within 1e-5 of the slept state. The other 7 write-back tests unchanged and green.
+- **Live (rig C, `record_roundtrip_C_fixed.json`):** 33.7778 m^3 placed -> 33.77781 recorded -> 33.77781 woken, **0 in the
+  ground** (was 2.2222 in 1,620 cells); the woken surface 17.000 m at four points (was ~6 cm low). Rigs A and B unchanged
+  (96.0000, 23.33333; `record_roundtrip_fixed.json`).
+- Water unit 311/311; integration 134/136 (the FLIP run-up; SceneIntegrationTest). Built, not signed off - nothing on screen
+  changes until slept water is drawn (item 4).
+- *Known limit, stated:* a 1 m column is one level per run - two pools at different levels side by side inside one 1 m column,
+  split by a sub-voxel wall, come back at one level (the mass exact). Still water rarely rests that way; measured if it shows.
 
 
 ---

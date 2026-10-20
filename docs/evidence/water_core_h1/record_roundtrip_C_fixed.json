@@ -1,0 +1,114 @@
+{
+ "C_step_in_column": {
+  "name": "C a step inside each column",
+  "box": {
+   "x1": 2,
+   "y1": 16,
+   "z1": 10,
+   "x2": 7,
+   "y2": 17,
+   "z2": 15
+  },
+  "spans_before": {
+   "spans": 0,
+   "total_depth": 0.0,
+   "chunks_with_spans": 1,
+   "chunks_loaded": 1,
+   "min_top": 0.0,
+   "max_top": 0.0
+  },
+  "created": {
+   "cells": 52488,
+   "gpu_bricks": 0,
+   "partial_wake": true,
+   "gpu_sweeps": 20
+  },
+  "census_placed": {
+   "in_air_m3": 33.77777853275511,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 33.77777853275511,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "wet_cells": 24624
+  },
+  "auto_slept_after_s": 0.5,
+  "mass_before_sleep_m3": 33.77777853275511,
+  "spans_after_sleep": {
+   "spans": 36,
+   "total_depth": 33.777809143066406,
+   "chunks_with_spans": 1,
+   "chunks_loaded": 1,
+   "min_top": 16.93827247619629,
+   "max_top": 16.93827247619629
+  },
+  "volumes_after_sleep": [],
+  "wake_ms": 33.84859999641776,
+  "wake": {
+   "seeded_mass": 33.777809646380824,
+   "error": null
+  },
+  "census_woken": {
+   "in_air_m3": 33.77780954019275,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 33.77780954019275,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "wet_cells": 27540
+  },
+  "census_woken_5s": {
+   "in_air_m3": 33.777809616764586,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 33.777809616764586,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "wet_cells": 27540
+  },
+  "levels_after_wake_5s": [
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0,
+   17.0
+  ]
+ }
+}

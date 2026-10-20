@@ -143,6 +143,41 @@ TEST(WaterCoreWriteBackTest, SeedIsTheExactInverse) {
     EXPECT_EQ(dst.grid.u(1, 1, 1), 0.0f);
 }
 
+// §27.8 (W1 step 0, measured live: rig C woke 2.2222 m^3 into 1,620 rock cells, the surface ~6 cm low). The record is per 1 m
+// column; the cells are 1/9 m. A 1/9 m step INSIDE a voxel column (Stone microcubes under 5 of its 9 sub-columns along x, the
+// floor layer) with still water 1 m deep over it: sleep -> wake must put no water in the rock, keep the books exact, and give
+// back the same cells (still water is level, so filling the column's air cells from the bottom is the shape it had).
+// Two voxel columns: the west one stepped, the east one flat (the control - it must round-trip as before).
+TEST(WaterCoreWriteBackTest, SeedOnASteppedBedPutsNoWaterInRock) {
+    const float h = 1.0f / 9.0f;
+    Tank src(18, 18, 9, h);
+    auto rock = [](int gx, int gy) { return gy == 0 && gx < 5; };   // the step: west column, sub-columns 0-4 along x, floor layer
+    for (int gz = 0; gz < 9; ++gz) for (int gy = 0; gy < 18; ++gy) for (int gx = 0; gx < 18; ++gx) {
+        if (rock(gx, gy)) { src.grid.occ(gx, gy, gz) = Occ::Solid; continue; }
+        if (gy < 9) src.grid.f(gx, gy, gz) = 1.0f;   // still water to 1 m, in the air cells only (placeBox's rule)
+    }
+    std::vector<ColumnRuns> runs;
+    const WriteBackStats st = columnRunsFromGrid(src.grid, nullptr, runs);
+    ASSERT_NEAR(st.mass, src.grid.totalMass(), 1e-6);
+
+    Tank dst(18, 18, 9, h);
+    for (int gz = 0; gz < 9; ++gz) for (int gy = 0; gy < 18; ++gy) for (int gx = 0; gx < 18; ++gx)
+        if (rock(gx, gy)) dst.grid.occ(gx, gy, gz) = Occ::Solid;
+    const double placed = seedGridFromRuns(dst.grid, runs);
+    double inRock = 0.0; long rockCells = 0; float maxDiff = 0.0f;
+    const double h3 = static_cast<double>(h) * h * h;
+    for (int gz = 0; gz < 9; ++gz) for (int gy = 0; gy < 18; ++gy) for (int gx = 0; gx < 18; ++gx) {
+        const float f = dst.grid.f(gx, gy, gz);
+        if (rock(gx, gy) && f > 0.0f) { inRock += f * h3; ++rockCells; }
+        maxDiff = std::max(maxDiff, std::abs(f - src.grid.f(gx, gy, gz)));
+    }
+    EXPECT_EQ(rockCells, 0) << inRock << " m^3 woken into " << rockCells << " rock cells (the seed must fill air cells only)";
+    EXPECT_NEAR(placed, st.mass, 1e-6) << "the books: every m^3 of the record is placed";
+    EXPECT_NEAR(dst.grid.totalMass(), src.grid.totalMass(), 1e-6);
+    EXPECT_LT(maxDiff, 1e-5f) << "still water over a step comes back cell for cell";
+    RecordProperty("in_rock_m3", std::to_string(inRock));
+}
+
 TEST(WaterCoreWriteBackTest, ReloadAtDifferentCellSizeKeepsColumnMass) {
     // 14.3: spans are cell-size-free. Runs written at 1/3 m seed a 1 m and a 1/9 m volume over the
     // same voxel box; every voxel column's mass is identical.
