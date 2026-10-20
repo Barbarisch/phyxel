@@ -14038,7 +14038,7 @@ void Application::registerWaterCommands() {
     // 26.31: {id, on} the partial wake for one volume; {default: bool} for new volumes. Echoes the state.
     reg.on("water_av_partial_wake", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
-        if (cmd.params.contains("default")) Core::Water::WaterCoreManager::s_partialWakeDefault = cmd.params.value("default", false);
+        if (cmd.params.contains("default")) Core::Water::WaterCoreManager::s_partialWakeDefault = cmd.params.value("default", true);
         // surface (26.33): the surface kernel and its copy over the awake columns only; false = every column (the A/B)
         if (cmd.params.contains("surface")) Core::Water::WaterCoreGpu::s_partialSurface = cmd.params.value("surface", true);
         // quiet_scale (26.34): the per-column freeze test's thresholds x this (1 = the volume's sleep test, default 3); clamped [0.1, 1000]:

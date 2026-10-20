@@ -180,7 +180,8 @@ public:
     bool setAutoSleep(int id, bool on);
     /// 26.31 the partial wake for one volume (GPU, sparse; false = no such volume or not one) and the default for new volumes.
     bool setPartialWake(int id, bool on);
-    static inline bool s_partialWakeDefault = false;
+    /// ON by default since 2026-10-19 (the owner: "yeah. default"); a volume created with an explicit partial_wake keeps its own.
+    static inline bool s_partialWakeDefault = true;
     /// 26.31 measurement: the GPU volume's last unit map (WaterCoreGpu::s_unitCapture), per 8 x 2 x 8 cells: x = KE sum, y = max
     /// |df| (last tick), z = mass (cells). dims = units (x, y, z); cellOffset = unit (0,0,0)'s first cell in grid cells. false =
     /// no GPU volume, not bricked, or nothing captured yet.

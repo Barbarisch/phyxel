@@ -165,7 +165,7 @@ The owner's look re-recorded on an idle GPU (`pw_look3_side_by_side.mp4`: OFF me
 **The partial wake's look SIGNED OFF by the owner 2026-10-18 (`pw_look4`).** **26.34 (2026-10-18):** the awake patch creeps over the
 whole pond at the sleep test's thresholds (sub-0.1 mm waves count as moving); a knob for the freeze test (`quiet_scale`): at x3 the
 mean solver time over 20 s after a push 2.34 -> 0.72 ms, the waves the same within run noise, the frozen pond flat to 0.08 mm.
-**x3 signed off by the owner 2026-10-19 and made the default.** **26.35:** the sweeps are work, not launches; an exact 6 % saving; 20 sweeps measure the same as 40 (waves, volume, creek speed) for ~0.35-0.9 ms. 20 sweeps signed off by the owner 2026-10-19 and made the default. **Next:** the owner's call on the partial wake's default (still OFF); then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
+**x3 signed off by the owner 2026-10-19 and made the default.** **26.35:** the sweeps are work, not launches; an exact 6 % saving; 20 sweeps measure the same as 40 (waves, volume, creek speed) for ~0.35-0.9 ms. 20 sweeps and the partial wake ON by default, both the owner's calls 2026-10-19. **Next:** the partial wake's +0.036 ms where nothing freezes (the motion-map copy), the reductions; then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7503,6 +7503,13 @@ after ~11 s.
   `kGpuSweepsAutoMax` and `kGpuSweeps` 40 -> 20 (the automatic count 1.5 x the longest dimension, now clamped 8-20; an explicit
   `sweeps` still up to 160); `water_creek_bench.py --sweeps` defaults to 20. Live: a new volume echoes `gpu_sweeps 20`. Water unit
   310/310, integration 134/136 (the FLIP run-up; SceneIntegrationTest).
+- **The partial wake ON BY DEFAULT, the owner's call 2026-10-19 ("yeah. default")**: `s_partialWakeDefault = true` (a volume
+  created with an explicit `partial_wake` keeps its own; `water_av_partial_wake {default}` still switches it). Its cost where
+  nothing ever freezes, measured interleaved on the same running creek (`tools/water_partial_wake_ab.py`, 6 cycles of 10 s, all
+  452 columns awake): OFF 1.155-1.171 ms, ON 1.188-1.200 ms - **+0.036 ms (3 %), every cycle**, all of it in the reductions (the
+  motion-map copy the freeze test reads). Separate runs drift ~0.2 ms (0.90 vs 1.08 for the same settings), so only interleaved
+  numbers compare. The creek's flow with it on: depth 0.1511 m, speed 0.331 m/s (off 0.1511, 0.331). Water unit 310/310,
+  integration 134/136 (the FLIP run-up; SceneIntegrationTest).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
