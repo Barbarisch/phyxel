@@ -523,6 +523,12 @@ nlohmann::json recordDump(const PerfCapture* pc, const nlohmann::json& params) {
                                        {"generated_chunks", row.generatedChunks},
                                        {"worker_decorate_ms", row.workerDecorateMs},
                                        {"worker_column_ms", row.workerColumnMs},
+                                       {"worker_gen_cpu_ms", row.workerGenCpuMs},
+                                       {"worker_column_blocks", row.workerColumnBlocks},
+                                       {"meso_bakes", row.mesoBakes},
+                                       {"column_phase_ms", {row.columnPhaseMs[0], row.columnPhaseMs[1], row.columnPhaseMs[2],
+                                                            row.columnPhaseMs[3], row.columnPhaseMs[4], row.columnPhaseMs[5],
+                                                            row.columnPhaseMs[6]}},
                                        {"camera_chunk_resident",
                                         row.cameraChunkResident < 0 ? nlohmann::json(nullptr)
                                                                     : nlohmann::json(row.cameraChunkResident == 1)}}}});

@@ -60,6 +60,10 @@ public:
         uint32_t generatedChunks = 0;
         float    workerDecorateMs = 0.0f;  // M1e: the decorate (flora) share of workerGenMs
         float    workerColumnMs = 0.0f;    // M1e: the column-sampling share of workerGenMs (measured)
+        float    columnPhaseMs[7] = {};    // M1e: sampleColumn's per-phase split this frame, all threads
+        float    workerGenCpuMs = 0.0f;    // M1e: worker CPU time in generate+decorate this frame (vs wall workerGenMs)
+        uint32_t workerColumnBlocks = 0;   // M1e: fresh column blocks sampled by the workers this frame
+        uint32_t mesoBakes = 0;            // M1e: meso tiles baked this frame (pager misses / re-bakes)
     };
 
     // Per-frame input. `phases` are the frame-pacing samples of this frame (key = scope path).
@@ -80,6 +84,10 @@ public:
         uint32_t generatedChunks = 0;
         float    workerDecorateMs = 0.0f;
         float    workerColumnMs = 0.0f;
+        float    columnPhaseMs[7] = {};
+        float    workerGenCpuMs = 0.0f;
+        uint32_t workerColumnBlocks = 0;
+        uint32_t mesoBakes = 0;
     };
 
     // Starts a recording of up to `maxFrames` rows (clamped to 1..kMaxFrames; the value used is
@@ -132,6 +140,10 @@ public:
         r.generatedChunks = in.generatedChunks;
         r.workerDecorateMs = in.workerDecorateMs;
         r.workerColumnMs = in.workerColumnMs;
+        for (int k = 0; k < 7; ++k) r.columnPhaseMs[k] = in.columnPhaseMs[k];
+        r.workerGenCpuMs = in.workerGenCpuMs;
+        r.workerColumnBlocks = in.workerColumnBlocks;
+        r.mesoBakes = in.mesoBakes;
         if (in.gpuSerial != 0) bySerial_[in.gpuSerial] = count_;
         ++count_;
     }

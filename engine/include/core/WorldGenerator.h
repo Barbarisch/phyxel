@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <list>
 #include <unordered_map>
 #include <vector>
 
@@ -210,6 +211,15 @@ public:
     /// M1e: microseconds this thread has spent sampling fresh chunk columns (columnsForChunk);
     /// the streaming worker reports the per-chunk share to the perf recorder.
     static uint64_t columnSampleUsThisThread();
+    /// Fresh 32x32 column blocks sampled on this thread (column-cache misses); per generated chunk
+    /// this should be ~1 / (chunks per column stack). More means the cache is thrashing.
+    static uint64_t columnBlocksThisThread();
+    /// The per-phase split of sampleColumn on this thread (NANOseconds), kColumnPhaseNames[i].
+    static constexpr int kColumnPhaseCount = 7;
+    static const char* const kColumnPhaseNames[kColumnPhaseCount];
+    static uint64_t columnPhaseNsThisThread(int phase);
+    /// The same split summed over EVERY thread (the streaming workers included), for the recorder.
+    static uint64_t columnPhaseNsAllThreads(int phase);
 
     /// M1 World Sheet (recipe version >= 2, D10): Layer-0 served from the macro/meso sheet. v1
     /// recipes never touch these (null pager, sheetMode false).
@@ -483,10 +493,26 @@ private:
     std::shared_ptr<const ChunkColumnSpans> waterSpansForChunkColumn(const glm::ivec2& colChunk);
 
     void clearColumnCache() {
-        m_columnCache.clear(); m_columnCacheOrder.clear();
+        m_columnCache.clear(); m_columnCacheLru.clear();
+        m_surfaceCache.clear(); m_surfaceCacheLru.clear();
         // Spans derive from the same terrain + bake the column samples do — one lifetime.
         m_waterSpanCache.clear(); m_waterSpanCacheOrder.clear();
     }
+
+    // M1e (measured 2026-10-20, m1e_cpu_profile_summary.json): the streaming workers sampled 32
+    // FRESH column blocks per generated chunk — the water-span batch's padded 19x19-block
+    // neighbourhood through a 512-entry FIFO under the camera-priority wanted order evicted the hot
+    // centre first, and that thrash was ~100 of the ~145 ms per chunk. Two fixes: the column cache
+    // is LRU, and the neighbourhood consumers (water spans, fine ponds) read a COMPACT per-block
+    // surface record (surfaceY / riverOrder / channelDepth, ~9 KB vs ~100 KB of ColumnSample) from
+    // a larger LRU that holds the whole padded streaming neighbourhood. ColumnCacheTest pins the
+    // fresh-block count per chunk.
+    struct SurfaceBlock {
+        int32_t surfaceY[1024];      // index = x*32 + z (ColumnSample order)
+        float   channelDepth[1024];
+        int8_t  riverOrder[1024];
+    };
+    std::shared_ptr<const SurfaceBlock> surfaceBlockForChunk(const glm::ivec2& colChunk);
     // ~1024 samples/entry (~64-80 KB); FIFO eviction.
     //
     // ⚑SIZED BY THE WATER BLOCK'S PADDED AREA, NOT BY FEEL. waterSpansForBlock pads a request by
@@ -499,9 +525,16 @@ private:
     // = 324 columns WITHOUT resizing this, so every water block thrashed a 128-entry cache. 512
     // holds a padded area with headroom (~40 MB). A static_assert in waterSpansForBlock now fails
     // the build if the extent is raised past what this can hold, so it cannot break silently twice.
-    static constexpr size_t kColumnCacheMax = 512;
-    std::unordered_map<uint64_t, std::shared_ptr<const std::vector<ColumnSample>>> m_columnCache;
-    std::vector<uint64_t> m_columnCacheOrder;
+    static constexpr size_t kColumnCacheMax = 512;    // LRU since 2026-10-20 (was FIFO)
+    using ColumnCacheEntry = std::pair<std::shared_ptr<const std::vector<ColumnSample>>, std::list<uint64_t>::iterator>;
+    std::unordered_map<uint64_t, ColumnCacheEntry> m_columnCache;
+    std::list<uint64_t> m_columnCacheLru;                // front = most recently used
+    // The compact surface LRU: 2048 blocks x ~9 KB = ~18 MB per generator instance, enough for the
+    // 17x17 streamed columns padded by kWaterExtentSteps (33x33 = 1089 blocks) with headroom.
+    static constexpr size_t kSurfaceCacheMax = 2048;
+    using SurfaceCacheEntry = std::pair<std::shared_ptr<const SurfaceBlock>, std::list<uint64_t>::iterator>;
+    std::unordered_map<uint64_t, SurfaceCacheEntry> m_surfaceCache;
+    std::list<uint64_t> m_surfaceCacheLru;
     std::unordered_map<uint64_t, std::shared_ptr<const ChunkColumnSpans>> m_waterSpanCache;
     std::vector<uint64_t> m_waterSpanCacheOrder;
     // Layer-1 ridged mountain relief at a column. `continentalness` is passed in (the caller already

@@ -1,0 +1,38 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[11:31:59.881] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[11:32:00.120] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[11:32:00.120] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[11:32:00.176] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 55 ms (hash 9693137997320541182)[0m
+[32m[11:32:00.176] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ column phases ] v1 baseline, gate pose (300,-1400): 4.5 us per fresh column over 1024 columns
+    climate+layer0                    0.5 us  (11.1 %)
+    biome blend                       0.1 us  ( 1.8 %)
+    material scatter                  0.6 us  (12.8 %)
+    relief+meander+valley             0.7 us  (15.1 %)
+    carve+creek fill                  0.2 us  ( 3.3 %)
+    slope+material overrides          2.4 us  (52.3 %)
+    roads+bridges+rest                0.0 us  ( 0.5 %)
+[32m[11:32:00.181] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[11:32:00.184] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 3360702379361611432); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[11:32:01.520] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 934 bodies[0m
+[32m[11:32:01.520] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1172 maxOrder=5 drainageComplete=1[0m
+[32m[11:32:01.561] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 20 roads, 0 bridges, 2134 segments in 40 ms (hash 16374801418139253494)[0m
+[32m[11:32:01.561] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ column phases ] v2 sheet, gate pose (300,-1400): 1.9 us per fresh column over 1024 columns
+    climate+layer0                    0.2 us  (12.4 %)
+    biome blend                       0.1 us  ( 4.4 %)
+    material scatter                  0.6 us  (30.7 %)
+    relief+meander+valley             0.6 us  (32.1 %)
+    carve+creek fill                  0.2 us  ( 8.1 %)
+    slope+material overrides          0.1 us  ( 4.0 %)
+    roads+bridges+rest                0.0 us  ( 1.2 %)
+[32m[11:32:01.564] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[11:32:01.620] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 55 ms (hash 9693137997320541182)[0m
+[32m[11:32:01.620] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ column phases ] v1, 3 threads on copies: 4.8 / 5.1 / 4.8 us per column per thread
+[32m[11:32:01.627] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[11:32:01.668] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 20 roads, 0 bridges, 2134 segments in 40 ms (hash 16374801418139253494)[0m
+[32m[11:32:01.668] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ column phases ] v2, 3 threads on copies: 2.9 / 2.4 / 2.4 us per column per thread
+[==========] 1 test from 1 test suite ran. (1790 ms total)
+[  PASSED  ] 1 test.

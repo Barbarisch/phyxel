@@ -11,6 +11,7 @@
 #include "core/WorldConstants.h"
 #include "utils/Logger.h"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <random>
 #include <cmath>
@@ -69,6 +70,11 @@ thread_local uint64_t t_noiseEvals = 0;
 // M1e audit: the column-sampling share of chunk generation is MEASURED, not inferred from an
 // assumed ns/eval. Microseconds spent in the fresh column loop of columnsForChunk on this thread.
 thread_local uint64_t t_columnSampleUs = 0;
+thread_local uint64_t t_columnBlocks = 0;   // fresh 32x32 blocks sampled on this thread (column cache misses)
+// Per-phase split of sampleColumn (M1e audit: the column owns ~94 % of generateChunk, so WHICH part
+// matters). Indices: see WorldGenerator::kColumnPhaseNames.
+thread_local uint64_t t_colPhaseNs[WorldGenerator::kColumnPhaseCount] = {};   // nanoseconds: a column is ~1-400 us
+std::atomic<uint64_t> g_colPhaseNs[WorldGenerator::kColumnPhaseCount] = {};   // process-wide copy for the perf recorder
 
 float tnNoise3D(float x, float y, float z, uint32_t seed) {
     ++t_noiseEvals;
@@ -661,7 +667,10 @@ std::shared_ptr<const std::vector<WorldGenerator::ColumnSample>>
 WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
     const uint64_t key = (uint64_t(uint32_t(colChunk.x)) << 32) | uint64_t(uint32_t(colChunk.y));
     auto it = m_columnCache.find(key);
-    if (it != m_columnCache.end()) return it->second;
+    if (it != m_columnCache.end()) {
+        m_columnCacheLru.splice(m_columnCacheLru.begin(), m_columnCacheLru, it->second.second);   // LRU touch
+        return it->second.first;
+    }
 
     auto fresh = std::make_shared<std::vector<ColumnSample>>();
     fresh->reserve(32 * 32);
@@ -671,14 +680,58 @@ WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
             fresh->push_back(sampleColumn(colChunk.x * 32 + x, colChunk.y * 32 + z));
     t_columnSampleUs += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now() - tsC0).count());
+    ++t_columnBlocks;
 
-    if (m_columnCache.size() >= kColumnCacheMax) {   // FIFO eviction
-        m_columnCache.erase(m_columnCacheOrder.front());
-        m_columnCacheOrder.erase(m_columnCacheOrder.begin());
+    while (m_columnCache.size() >= kColumnCacheMax) {   // LRU eviction
+        m_columnCache.erase(m_columnCacheLru.back());
+        m_columnCacheLru.pop_back();
     }
-    m_columnCache.emplace(key, fresh);
-    m_columnCacheOrder.push_back(key);
+    m_columnCacheLru.push_front(key);
+    m_columnCache.emplace(key, ColumnCacheEntry(fresh, m_columnCacheLru.begin()));
     return fresh;
+}
+
+std::shared_ptr<const WorldGenerator::SurfaceBlock>
+WorldGenerator::surfaceBlockForChunk(const glm::ivec2& colChunk) {
+    const uint64_t key = (uint64_t(uint32_t(colChunk.x)) << 32) | uint64_t(uint32_t(colChunk.y));
+    auto it = m_surfaceCache.find(key);
+    if (it != m_surfaceCache.end()) {
+        m_surfaceCacheLru.splice(m_surfaceCacheLru.begin(), m_surfaceCacheLru, it->second.second);
+        return it->second.first;
+    }
+    auto block = std::make_shared<SurfaceBlock>();
+    auto colIt = m_columnCache.find(key);
+    if (colIt != m_columnCache.end()) {
+        // Already sampled for generation: just compact it (no new column samples).
+        const std::vector<ColumnSample>& cols = *colIt->second.first;
+        for (size_t i = 0; i < 1024; ++i) {
+            block->surfaceY[i] = cols[i].surfaceY;
+            block->channelDepth[i] = cols[i].channelDepth;
+            block->riverOrder[i] = static_cast<int8_t>(cols[i].riverOrder);
+        }
+    } else {
+        // A padding-only block (never generated here): sample the columns once, keep only the
+        // surface record. Counted as a fresh block (t_columnBlocks) like any other sampling.
+        const auto tsC0 = std::chrono::steady_clock::now();
+        for (int x = 0; x < 32; ++x)
+            for (int z = 0; z < 32; ++z) {
+                const ColumnSample c = sampleColumn(colChunk.x * 32 + x, colChunk.y * 32 + z);
+                const size_t i = static_cast<size_t>(x) * 32 + z;
+                block->surfaceY[i] = c.surfaceY;
+                block->channelDepth[i] = c.channelDepth;
+                block->riverOrder[i] = static_cast<int8_t>(c.riverOrder);
+            }
+        t_columnSampleUs += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - tsC0).count());
+        ++t_columnBlocks;
+    }
+    while (m_surfaceCache.size() >= kSurfaceCacheMax) {
+        m_surfaceCache.erase(m_surfaceCacheLru.back());
+        m_surfaceCacheLru.pop_back();
+    }
+    m_surfaceCacheLru.push_front(key);
+    m_surfaceCache.emplace(key, SurfaceCacheEntry(block, m_surfaceCacheLru.begin()));
+    return block;
 }
 
 std::shared_ptr<const WorldGenerator::ChunkColumnSpans>
@@ -884,26 +937,26 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
     {
         constexpr int    kPaddedSide = 32 + 2 * kWaterExtentSteps;      // a chunk request, padded
         constexpr size_t kChunkSpan  = static_cast<size_t>(kPaddedSide / 32 + 2);  // worst-case, both edges
-        static_assert(kChunkSpan * kChunkSpan <= kColumnCacheMax,
-                      "kWaterExtentSteps grew past what kColumnCacheMax can hold: one padded water "
-                      "block no longer fits the column cache, so FIFO will thrash it. Raise "
-                      "kColumnCacheMax (WorldGenerator.h) to at least kChunkSpan^2.");
+        static_assert(kChunkSpan * kChunkSpan <= kSurfaceCacheMax,
+                      "kWaterExtentSteps grew past what kSurfaceCacheMax can hold: one padded water "
+                      "block no longer fits the surface cache, so it will thrash. Raise "
+                      "kSurfaceCacheMax (WorldGenerator.h) to at least kChunkSpan^2.");
     }
     auto floorDiv = [](int a, int b) { return (a >= 0) ? (a / b) : -(((-a) + b - 1) / b); };
     const int c0x = floorDiv(px, 32), c1x = floorDiv(px + pw - 1, 32);
     const int c0z = floorDiv(pz, 32), c1z = floorDiv(pz + pd - 1, 32);
     for (int cz = c0z; cz <= c1z; ++cz)
         for (int cx = c0x; cx <= c1x; ++cx) {
-            const auto cols = columnsForChunk(glm::ivec2(cx, cz));
+            const auto blk = surfaceBlockForChunk(glm::ivec2(cx, cz));   // compact LRU, not the column cache (M1e)
             for (int lx = 0; lx < 32; ++lx)
                 for (int lz = 0; lz < 32; ++lz) {
                     const int gx = cx * 32 + lx - px, gz = cz * 32 + lz - pz;   // into the padded grid
                     if (gx < 0 || gz < 0 || gx >= pw || gz >= pd) continue;
                     const size_t i = static_cast<size_t>(gz) * pw + gx;
-                    const ColumnSample& cs = (*cols)[static_cast<size_t>(lx) * 32 + lz];
-                    surf[i]   = cs.surfaceY;  // x-major, z-minor
-                    river[i]  = cs.riverOrder >= 3 ? 1 : 0;   // Phase D4: a carved channel column holds its river span
-                    rdepth[i] = cs.channelDepth;
+                    const size_t ci = static_cast<size_t>(lx) * 32 + lz;
+                    surf[i]   = blk->surfaceY[ci];  // x-major, z-minor
+                    river[i]  = blk->riverOrder[ci] >= 3 ? 1 : 0;   // Phase D4: a carved channel column holds its river span
+                    rdepth[i] = blk->channelDepth[ci];
                     filled[i] = m_hydro->filledAt(static_cast<float>(cx * 32 + lx) + 0.5f,
                                                   static_cast<float>(cz * 32 + lz) + 0.5f);
                     ground[i] = static_cast<float>(surf[i]) + 1.0f;   // top face of the solid voxel
@@ -939,6 +992,14 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
 
 WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     ColumnSample col;
+    auto tpPhase = std::chrono::steady_clock::now();
+    auto markPhase = [&tpPhase](int k) {
+        const auto n = std::chrono::steady_clock::now();
+        const uint64_t ns = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(n - tpPhase).count());
+        t_colPhaseNs[k] += ns;
+        g_colPhaseNs[k].fetch_add(ns, std::memory_order_relaxed);
+        tpPhase = n;
+    };
     // Low-frequency climate fields, decorrelated via distinct sample offsets, mapped to [0,1].
     // Continentalness is lower-frequency still (continents larger than biomes).
     auto to01 = [](float n) { float v = (n + 1.0f) * 0.5f; return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
@@ -976,6 +1037,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     }
     col.continentalness = coarse.continentalness;
 
+    markPhase(0);
     // Biome selection + height blending: weight each biome by a Gaussian of the distance
     // from this column's climate to the biome's climate-cell CENTRE (a smooth Voronoi). The
     // dominant (nearest) biome supplies materials — hard material borders are fine — while the
@@ -1003,6 +1065,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     if (totalW > 0.0f) { blendScale /= totalW; blendOffset /= totalW; }
     else { blendScale = 1.0f; blendOffset = 0.0f; }
 
+    markPhase(1);
     // Resolve the surface material, applying per-column scatter in patches (e.g. a forest
     // floor that's mostly dirt with grass patches). Patch-frequency noise so it clumps.
     const Biome& sel = m_biomes.empty() ? Biome{} : m_biomes[best];
@@ -1012,6 +1075,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         if (s < sel.surfaceAltChance) col.surfaceMat = sel.surfaceAlt;
     }
 
+    markPhase(2);
     if (generationType == GenerationType::Flat) {
         // Deliberately the ENGINE constant, not terrainParams.seaLevelY: Flat worlds are authored
         // against "solid below Y=16", and a water.seaLevel override must not move their ground.
@@ -1075,6 +1139,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         col.bedHeight = coarse.baseHeight + relief * blendScale + blendOffset - creekSwale;   // 25.22: the continuous height
         col.surfaceY = static_cast<int>(std::floor(col.bedHeight));
 
+        markPhase(3);
         // P2 river carve: lower the smooth valley floor further where the network runs a channel
         // (order ≥ 3; orders 1-2 are sub-voxel → no bed), a parabolic bed (deepest at the centreline).
         // Done BEFORE the material overrides so a carved bed that dips below sea level reads as seabed
@@ -1114,6 +1179,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             }
         }
 
+        markPhase(4);
         // P1 slope + altitude/temperature material overrides (docs/TerrainGenerationV2.md §P1).
         // These layer physical surfacing ON TOP of the biome material: a sand seabed below sea
         // level, exposed rock past the angle of repose, and a lapse-rate snow line. Moderate,
@@ -1156,6 +1222,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         }
         // else: keep the biome surface material set above (moderate, gently-sloped land).
 
+        markPhase(5);
         // WorldForge road stamp (docs/WorldForge.md M1) — the riverOrder pattern: roads are a
         // pure function of world position via the baked plan, so a streamed chunk and a
         // whole-region pass agree by construction (RoadFieldSeamTest). Roads DRAPE the
@@ -1210,6 +1277,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             }
         }
     }
+    markPhase(6);
     return col;
 }
 
@@ -1233,10 +1301,8 @@ WorldGenerator::finePondsForCell(int cellX, int cellZ) {
         auto heightAt = [&](int x, int z) -> float {
             const int wx = ox + x, wz = oz + z;
             const int ccx = floorDiv(wx, 32), ccz = floorDiv(wz, 32);
-            const auto blk = columnsForChunk(glm::ivec2(ccx, ccz));
-            const ColumnSample& c =
-                (*blk)[static_cast<size_t>(wx - ccx * 32) * 32 + (wz - ccz * 32)];
-            return static_cast<float>(c.surfaceY + 1);
+            const auto blk = surfaceBlockForChunk(glm::ivec2(ccx, ccz));   // compact LRU (M1e)
+            return static_cast<float>(blk->surfaceY[static_cast<size_t>(wx - ccx * 32) * 32 + (wz - ccz * 32)] + 1);
         };
         int index = 0;
         for (const FinePond& p : discoverFinePonds(heightAt, kWin, kWin)) {
@@ -2038,6 +2104,16 @@ bool WorldGenerator::generateCity(const glm::ivec3& chunkCoord, const glm::ivec3
 // deliberately-unmasked lattice index that keeps noise continuous across chunk edges / x=z=0.
 uint64_t WorldGenerator::noiseEvalsThisThread() { return t_noiseEvals; }
 uint64_t WorldGenerator::columnSampleUsThisThread() { return t_columnSampleUs; }
+uint64_t WorldGenerator::columnBlocksThisThread() { return t_columnBlocks; }
+uint64_t WorldGenerator::columnPhaseNsThisThread(int phase) {
+    return (phase >= 0 && phase < kColumnPhaseCount) ? t_colPhaseNs[phase] : 0;
+}
+uint64_t WorldGenerator::columnPhaseNsAllThreads(int phase) {
+    return (phase >= 0 && phase < kColumnPhaseCount) ? g_colPhaseNs[phase].load(std::memory_order_relaxed) : 0;
+}
+const char* const WorldGenerator::kColumnPhaseNames[kColumnPhaseCount] = {
+    "climate+layer0", "biome blend", "material scatter", "relief+meander+valley", "carve+creek fill",
+    "slope+material overrides", "roads+bridges+rest"};
 
 glm::ivec2 WorldGenerator::surfaceBandForChunkColumn(int cx, int cz) {
     // A 5x5 sample grid at stride 8 u including both edges (0, 8, 16, 24, 31), min/max of the

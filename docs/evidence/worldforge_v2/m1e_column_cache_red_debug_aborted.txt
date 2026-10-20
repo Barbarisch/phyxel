@@ -1,0 +1,4 @@
+ColumnCacheTest red run on the Debug build, started 13:27:45 2026-10-20, ABORTED after ~45 min without finishing: 97 chunks x ~32 fresh blocks x 1024 columns at Debug column cost. The red number itself is the engine's: 32.06 fresh column blocks per generated chunk (m1e_cpu_profile_summary.json).
+[13:27:44.965] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=1172 maxOrder=5 drainageComplete=1
+[13:27:45.868] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 20 roads, 0 bridges, 2134 segments in 872 ms (hash 16374801418139253494)
+[13:27:45.868] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)

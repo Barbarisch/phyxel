@@ -1,4 +1,13 @@
 #include "core/ChunkStreamingManager.h"
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 #include "graphics/ChunkUpdatePerf.h"
 #include <thread>
 #include <unordered_set>
@@ -18,6 +27,24 @@
 #include <limits>
 #include <vector>
 #include <utility>
+
+
+namespace {
+// M1e instrument: this thread's CPU time (user + kernel) in microseconds. On Windows GetThreadTimes
+// has ~15.6 ms granularity, so read it per chunk and judge it per FRAME (many chunks). cpu/wall
+// << 1 means the worker was descheduled; ~1 means the code really ran that long.
+uint64_t threadCpuUs() {
+#ifdef _WIN32
+    FILETIME c, e, k, u;
+    if (!GetThreadTimes(GetCurrentThread(), &c, &e, &k, &u)) return 0;
+    const uint64_t kt = (static_cast<uint64_t>(k.dwHighDateTime) << 32) | k.dwLowDateTime;
+    const uint64_t ut = (static_cast<uint64_t>(u.dwHighDateTime) << 32) | u.dwLowDateTime;
+    return (kt + ut) / 10;   // 100 ns units -> us
+#else
+    return 0;
+#endif
+}
+}  // namespace
 
 namespace Phyxel {
 
@@ -145,15 +172,19 @@ void ChunkStreamingManager::genWorkerLoop(WorldGenerator* workerGen) {
             } else if (workerGen) {
                 const auto tsW0 = std::chrono::steady_clock::now();
                 const uint64_t colUs0 = WorldGenerator::columnSampleUsThisThread();
+                const uint64_t blocks0 = WorldGenerator::columnBlocksThisThread();
+                const uint64_t cpu0 = threadCpuUs();
                 workerGen->generateChunk(*chunk, chunkCoord);
                 const auto tsWd = std::chrono::steady_clock::now();
                 m_workerColumnUs.fetch_add(WorldGenerator::columnSampleUsThisThread() - colUs0);
+                m_workerColumnBlocks.fetch_add(WorldGenerator::columnBlocksThisThread() - blocks0);
                 // Flora before maps/grid so canopy voxels are included in both. DB-loaded
                 // chunks were saved WITH their flora — no re-decoration.
                 if (m_workerDecorate) m_workerDecorate(*chunk, chunkCoord, *workerGen);
                 const auto tsW1 = std::chrono::steady_clock::now();
                 m_workerGenUs.fetch_add(static_cast<uint64_t>(
                     std::chrono::duration_cast<std::chrono::microseconds>(tsW1 - tsW0).count()));
+                m_workerGenCpuUs.fetch_add(threadCpuUs() - cpu0);
                 m_workerDecorateUs.fetch_add(static_cast<uint64_t>(
                     std::chrono::duration_cast<std::chrono::microseconds>(tsW1 - tsWd).count()));
                 m_workerGenCount.fetch_add(1);

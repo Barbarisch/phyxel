@@ -1,4 +1,5 @@
 #include "core/PerfCapture.h"
+#include "core/WorldGenerator.h"
 
 #include <cmath>
 
@@ -72,6 +73,24 @@ void PerfCapture::onFrameEnd(ChunkManager* chunks, Graphics::CameraManager* came
             in.generatedChunks = gen.second;
             in.workerDecorateMs = static_cast<float>(chunks->streamingManagerRO().takeWorkerDecorateMs());
             in.workerColumnMs = static_cast<float>(chunks->streamingManagerRO().takeWorkerColumnMs());
+            in.workerGenCpuMs = static_cast<float>(chunks->streamingManagerRO().takeWorkerGenCpuMs());
+            in.workerColumnBlocks = chunks->streamingManagerRO().takeWorkerColumnBlocks();
+            {
+                static uint64_t lastBakes = 0;
+                uint64_t bakes = lastBakes;
+                if (const WorldGenerator* g = chunks->getStreamingGenerator())
+                    if (auto pager = g->mesoPager()) bakes = pager->bakes();
+                in.mesoBakes = static_cast<uint32_t>(bakes - lastBakes);
+                lastBakes = bakes;
+            }
+            {
+                static uint64_t lastPhaseNs[7] = {};
+                for (int k = 0; k < 7; ++k) {
+                    const uint64_t now = WorldGenerator::columnPhaseNsAllThreads(k);
+                    in.columnPhaseMs[k] = static_cast<float>(static_cast<double>(now - lastPhaseNs[k]) * 1e-6);
+                    lastPhaseNs[k] = now;
+                }
+            }
             if (camera) {
                 const glm::vec3 p = camera->getPosition();
                 const glm::ivec3 cc(static_cast<int>(std::floor(p.x / 32.0f)), static_cast<int>(std::floor(p.y / 32.0f)),
