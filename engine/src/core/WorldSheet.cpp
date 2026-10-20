@@ -31,6 +31,12 @@ SheetParams SheetParams::clamped(SheetParams p) {
     if (p.erosionUpliftMax < 0.0f) p.erosionUpliftMax = 0.0f;
     if (p.erosionMaxSlope < 0.1f) p.erosionMaxSlope = 0.1f;   // ~6° (Cordonnier's own minimum); below it uplift cannot build relief
     if (p.erosionMaxSlope > 1.4f) p.erosionMaxSlope = 1.4f;   // ~54° (their maximum)
+    for (auto& b : p.upliftMask) {
+        if (b.radiusU < 64.0f) b.radiusU = 64.0f;       // narrower than a macro cell paints nothing
+        if (b.radiusU > 65536.0f) b.radiusU = 65536.0f; // wider than the largest continent is a global offset, not a bump
+        if (b.deltaU < -2000.0f) b.deltaU = -2000.0f;   // the vertical budget is remapped anyway; this bounds the erosion input
+        if (b.deltaU > 2000.0f) b.deltaU = 2000.0f;
+    }
     return p;
 }
 

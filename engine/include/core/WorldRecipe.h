@@ -79,7 +79,14 @@ struct WorldRecipe {
                 {"pagerTiles", s.pagerTiles},
                 {"erosionSteps", s.erosionSteps}, {"erosionDt", s.erosionDt}, {"erosionK", s.erosionK},
                 {"erosionM", s.erosionM}, {"erosionUpliftMax", s.erosionUpliftMax},
-                {"erosionMaxSlope", s.erosionMaxSlope}};
+                {"erosionMaxSlope", s.erosionMaxSlope},
+                {"upliftMask", upliftMaskToJson(s)}};
+    }
+    static nlohmann::json upliftMaskToJson(const SheetParams& s) {
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& b : s.upliftMask)
+            arr.push_back({{"x", b.x}, {"z", b.z}, {"radiusU", b.radiusU}, {"deltaU", b.deltaU}});
+        return arr;
     }
     static SheetParams sheetFromJson(const nlohmann::json& j) {
         SheetParams s;
@@ -98,6 +105,13 @@ struct WorldRecipe {
         s.erosionM         = j.value("erosionM", s.erosionM);
         s.erosionUpliftMax = j.value("erosionUpliftMax", s.erosionUpliftMax);
         s.erosionMaxSlope  = j.value("erosionMaxSlope", s.erosionMaxSlope);
+        if (j.contains("upliftMask") && j["upliftMask"].is_array())
+            for (const auto& b : j["upliftMask"]) {
+                SheetParams::UpliftBump u;
+                u.x = b.value("x", 0.0f); u.z = b.value("z", 0.0f);
+                u.radiusU = b.value("radiusU", u.radiusU); u.deltaU = b.value("deltaU", 0.0f);
+                s.upliftMask.push_back(u);
+            }
         return SheetParams::clamped(s);   // the clamped copy is what the generator runs with
     }
 

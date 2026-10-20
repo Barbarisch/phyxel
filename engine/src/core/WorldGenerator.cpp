@@ -1713,6 +1713,8 @@ uint64_t sheetHashOf(const SheetBakeKey& k) {
                       "|" + std::to_string(k.sheet.erosionK) + "|" + std::to_string(k.sheet.erosionM) +
                       "|" + std::to_string(k.sheet.erosionUpliftMax);
     for (const auto& p : k.spline) txt += "|" + std::to_string(p.x) + "," + std::to_string(p.y);
+    for (const auto& b : k.sheet.upliftMask)
+        txt += "|U" + std::to_string(b.x) + "," + std::to_string(b.z) + "," + std::to_string(b.radiusU) + "," + std::to_string(b.deltaU);
     uint64_t h = 1469598103934665603ull;
     for (unsigned char c : txt) { h ^= c; h *= 1099511628211ull; }
     return h;
@@ -1746,12 +1748,18 @@ void WorldGenerator::rebuildSheet() {
             MacroCell& c = macro->cell(i, j);
             c.continentalness = expandContrast(to01(tnFbm(cx * contF, 300.0f, cz * contF, 2, 0.5f, 2.0f, s)));
             c.baseHeight = hspline.eval(c.continentalness);
+            // Painted uplift (M2 prerequisite): Gaussian bumps/basins on the base before erosion.
+            for (const auto& b : m_sheetParams.upliftMask) {
+                const float dx = cx - b.x, dz = cz - b.z;
+                c.baseHeight += b.deltaU * std::exp(-(dx * dx + dz * dz) / (2.0f * b.radiusU * b.radiusU));
+            }
         }
     }
     // M1c: stream-power erosion on the macro grid (core/MacroErosion.h). The uplift field is the
     // normalised base elevation above sea (the spline says where the continent rises); the eroded
-    // heights replace baseHeight. Inert at the default erosionSteps = 0.
-    if (m_sheetParams.erosionSteps > 0) {
+    // heights replace baseHeight. At erosionSteps = 0 the pass still runs the ROUTING (flood +
+    // receivers + areas) so the sheet always carries the macro drainage M2's tiles build on (D15).
+    {
         const int nc = macro->cells();
         std::vector<float> hgt(static_cast<size_t>(nc) * nc), up(hgt.size());
         float maxAbove = 0.0f;
@@ -1773,6 +1781,19 @@ void WorldGenerator::rebuildSheet() {
         ep.cellU = m_sheetParams.macroCellU;
         ep.seaLevel = terrainParams.seaLevelY;
         const MacroErosionResult er = runMacroErosion(hgt, nc, nc, up, ep);
+        // The macro drainage rides on the sheet (D15): receivers, areas and the filled surface of
+        // the final routing, in macro cell units (receiver = row-major index, self = base level).
+        for (int j = 0; j < nc; ++j)
+            for (int i = 0; i < nc; ++i) {
+                const size_t idx = static_cast<size_t>(j) * nc + i;
+                MacroCell& c = macro->cell(i, j);
+                c.receiver = er.receiver[idx];
+                c.drainageArea = er.drainageArea[idx];
+                c.filled = er.filled[idx];
+            }
+        if (ep.steps == 0) {
+            // routing only: heights untouched, nothing to remap or log beyond the structure
+        } else {
         // Vertical budget (plan §10 F4e, DESIGN choice a): Cordonnier's configuration builds ~2000 m
         // ranges (hmax = 2.244 u/k in metres) and the engine's spline range is the "how tall" knob,
         // so the eroded relief is remapped monotonically into the spline's own [sea, max] range:
@@ -1790,6 +1811,7 @@ void WorldGenerator::rebuildSheet() {
                      << " yr: mean height " << er.meanHeightBefore << " -> " << er.meanHeightAfter
                      << ", base-level cells " << er.baseLevelCells << ", eroded max above sea " << erodedMax
                      << " u remapped x" << scale << " into the spline range (" << maxAbove << " u)");
+        }
     }
     // MESO baker: h0 = macro base (bicubic) + the BROAD ridged band at the cell centre; raw climate
     // planes from the same fbm the v1 column evaluates (contrast expansion stays per column).

@@ -167,3 +167,52 @@ TEST(WorldSheetGeneratorTest, Layer0EpochMovesOnEveryRebuildPathAndCopiesCarryIt
     EXPECT_GT(gen.layer0Epoch(), e1) << "setGenerationType did not move the epoch";
     EXPECT_EQ(copy.layer0Epoch(), e1) << "the copy's epoch must not follow the live generator";
 }
+
+// D15: the sheet carries the macro drainage from the erosion bake's final routing, even with
+// erosion off (routing only), so M2's meso tiles have their global boundary condition.
+TEST(WorldSheetGeneratorTest, MacroSheetCarriesTheMacroDrainage) {
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 4242u);
+    gen.applyRecipe(v2Recipe(4242u));   // erosionSteps 0: routing only
+    auto macro = gen.macroSheet();
+    ASSERT_NE(macro, nullptr);
+    const int n = macro->cells();
+    int baseLevel = 0, lakeCells = 0, cycles = 0;
+    double baseArea = 0.0;
+    for (int j = 0; j < n; ++j)
+        for (int i = 0; i < n; ++i) {
+            const MacroCell& c = macro->cell(i, j);
+            ASSERT_GE(c.receiver, 0) << "cell (" << i << "," << j << ") has no receiver";
+            if (c.receiver == j * n + i) { ++baseLevel; baseArea += c.drainageArea; }
+            if (c.filled > c.baseHeight + 1e-3f) ++lakeCells;
+            int cur = j * n + i, hops = 0;
+            while (macro->cell(cur % n, cur / n).receiver != cur && hops <= n * n) { cur = macro->cell(cur % n, cur / n).receiver; ++hops; }
+            if (hops > n * n) ++cycles;
+        }
+    EXPECT_GT(baseLevel, 0);
+    EXPECT_EQ(cycles, 0) << "the macro drainage has a cycle";
+    EXPECT_NEAR(baseArea, static_cast<double>(n) * n * 512.0 * 512.0, 1.0) << "drainage area is not conserved at base level";
+    std::printf("[ M2 prereq ] macro drainage: %d base-level cells, %d lake cells (filled > base) of %d\n", baseLevel, lakeCells, n * n);
+}
+
+// The painted uplift mask raises the base where it is painted and nowhere else (M2's RiverLab
+// needs a painted ridge and basin), and round-trips through the recipe JSON.
+TEST(WorldSheetGeneratorTest, PaintedUpliftRaisesTheBaseWhereItIsPaintedAndRoundTrips) {
+    WorldRecipe r = v2Recipe(4242u);
+    SheetParams::UpliftBump bump;
+    bump.x = 3000.0f; bump.z = -2000.0f; bump.radiusU = 1500.0f; bump.deltaU = 300.0f;
+    r.sheet.upliftMask.push_back(bump);
+    const WorldRecipe back = WorldRecipe::fromJson(r.toJson());
+    ASSERT_EQ(back.sheet.upliftMask.size(), 1u);
+    EXPECT_FLOAT_EQ(back.sheet.upliftMask[0].deltaU, 300.0f);
+    EXPECT_TRUE(back.sheet.upliftMaskEquals(r.sheet));
+
+    WorldGenerator plain(WorldGenerator::GenerationType::Perlin, 4242u);
+    plain.applyRecipe(v2Recipe(4242u));
+    WorldGenerator painted(WorldGenerator::GenerationType::Perlin, 4242u);
+    painted.applyRecipe(r);
+    EXPECT_NE(plain.macroSheet()->hash(), painted.macroSheet()->hash()) << "the mask is not in the sheet key";
+    const float atCentre = painted.macroSheet()->sampleAt(3000.0f, -2000.0f).baseHeight - plain.macroSheet()->sampleAt(3000.0f, -2000.0f).baseHeight;
+    const float farAway  = painted.macroSheet()->sampleAt(-30000.0f, 30000.0f).baseHeight - plain.macroSheet()->sampleAt(-30000.0f, 30000.0f).baseHeight;
+    EXPECT_NEAR(atCentre, 300.0f, 30.0f) << "the bump did not raise its centre by its delta";
+    EXPECT_NEAR(farAway, 0.0f, 1e-3f) << "the bump leaked 40 km away";
+}

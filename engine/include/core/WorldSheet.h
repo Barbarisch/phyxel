@@ -52,24 +52,43 @@ struct SheetParams {
     float erosionUpliftMax = 5.0e-4f;  // m/yr at the uplift field's maximum (the field = normalised base elevation)
     float erosionMaxSlope  = 0.577f;   // tan 30°: Cordonnier §5 reduces the elevation change so slopes stay below
                                        // the talus angle (regularises valleys; their 6°-54° noise modulation is M2)
+    /// Painted uplift (plan §5 M1 "painted mask later", needed by M2's RiverLab): Gaussian bumps
+    /// added to the macro base BEFORE erosion, in world units. deltaU < 0 paints a basin.
+    struct UpliftBump { float x = 0.0f, z = 0.0f, radiusU = 2048.0f, deltaU = 0.0f; };
+    std::vector<UpliftBump> upliftMask;
     /// Clamped copy, reasons at each clamp; a pager echoes the copy it runs with.
     static SheetParams clamped(SheetParams p);
     /// DERIVED, never set: steps x stencil radius so every interior cell's cone is inside the
     /// tile, + the bicubic reach so samples up to the interior edge read correct apron cells.
     int apronCells() const { return mesoSteps * kMesoStencilRadius + kMesoBicubicReach; }
+    bool upliftMaskEquals(const SheetParams& o) const {
+        if (upliftMask.size() != o.upliftMask.size()) return false;
+        for (size_t i = 0; i < upliftMask.size(); ++i)
+            if (upliftMask[i].x != o.upliftMask[i].x || upliftMask[i].z != o.upliftMask[i].z ||
+                upliftMask[i].radiusU != o.upliftMask[i].radiusU || upliftMask[i].deltaU != o.upliftMask[i].deltaU)
+                return false;
+        return true;
+    }
     float tileU() const { return mesoTileCells * mesoCellU; }
     bool operator==(const SheetParams& o) const {
         return macroCellU == o.macroCellU && continentCells == o.continentCells && mesoCellU == o.mesoCellU &&
                mesoTileCells == o.mesoTileCells && mesoSteps == o.mesoSteps && diffusion == o.diffusion &&
                talusSlope == o.talusSlope && thermalRate == o.thermalRate && pagerTiles == o.pagerTiles &&
                erosionSteps == o.erosionSteps && erosionDt == o.erosionDt && erosionK == o.erosionK &&
-               erosionM == o.erosionM && erosionUpliftMax == o.erosionUpliftMax && erosionMaxSlope == o.erosionMaxSlope;
+               erosionM == o.erosionM && erosionUpliftMax == o.erosionUpliftMax && erosionMaxSlope == o.erosionMaxSlope &&
+               upliftMaskEquals(o);
     }
 };
 
 struct MacroCell {
     float baseHeight      = 0.0f;   // Layer-0 base elevation (world Y) at the cell centre
     float continentalness = 0.5f;   // [0,1]
+    // M2 prerequisite (D15): the macro drainage from the erosion bake's final routing, kept on the
+    // sheet so the meso tiles can take it as their global boundary condition. Computed even at
+    // erosionSteps 0 (routing only). receiver = row-major macro cell index (self = base level).
+    int32_t receiver      = -1;
+    float   drainageArea  = 0.0f;   // m²
+    float   filled        = 0.0f;   // the Priority-Flood surface: a lake where filled > baseHeight
 };
 
 /// The continent: a square grid of macro cells centred on the world origin (cell (0,0)'s corner at

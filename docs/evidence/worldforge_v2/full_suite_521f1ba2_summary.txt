@@ -1,0 +1,15 @@
+Full Debug unit suite, branch feat/worldforge-v2 at 521f1ba2 (the LRU column-cache fix dc3c8376 + evidence commit), 2026-10-20 15:09-16:23, RTX 1000 Ada laptop.
+Command: ./build/tests/Debug/phyxel_tests.exe --gtest_brief=1 (full log 1.9 MB in the session scratchpad; this is its summary).
+
+[==========] 4493 tests from 559 test suites ran. (4415215 ms total)
+[  PASSED  ] 4471 tests.
+[  SKIPPED ] 19 tests.
+
+Failures (all three on record in docs/WorldForgeV2Plan.md M0 row: 2 pre-existing + the order-dependent water gate):
+[  FAILED  ] AtlasManagerTest.BuildAtlasFromSourcePNGs (0 ms)
+[  FAILED  ] FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes (2 ms)
+[  FAILED  ] WaterCouplingTest.BlastBesideThePondMovesItAndItSettles (12075 ms)
+
+WaterCouplingTest assertion inside the full run (passes alone at 0.284 per the 10/15 record):
+  S8 unit: near-side drop 0.215 m, far-side rise 0.108 m (first second); KE 0.4796 at 1 s -> 0.0000 at 30 s (late max 0.0000); flat (1 cm) at 12.90 s; mass 32.000003457 -> 32.000002915, faces 1976
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WaterCouplingTest.cpp(118): error: Expected: (r.nearDropMax) >= (0.27f), actual: 0.214876056 vs 0.27

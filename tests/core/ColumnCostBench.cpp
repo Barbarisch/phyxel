@@ -116,7 +116,16 @@ double phasesOf(const char* label, WorldGenerator& gen, int x0, int z0, int n, b
 }
 }  // namespace
 
+// Timings are only printed from an optimized build (owner, 2026-10-20: performance is measured on
+// Release); a Debug run skips the printout so its numbers can never be mistaken for the figure.
+#ifdef NDEBUG
+constexpr bool kOptimizedBuild = true;
+#else
+constexpr bool kOptimizedBuild = false;
+#endif
+
 TEST(ColumnCostBench, PhaseTimingPerFreshColumnAtTheGatePosePrinted) {
+    if (!kOptimizedBuild) GTEST_SKIP() << "timing bench: run the Release test exe for the figure";
     WorldGenerator v1(WorldGenerator::GenerationType::Perlin, 20260816u);
     v1.applyRecipe(baselineRecipe(1));
     (void)v1.sampleSurface(300, -1400);
@@ -151,6 +160,7 @@ TEST(ColumnCostBench, PhaseTimingPerFreshColumnAtTheGatePosePrinted) {
 // something systemic? Time every 32x32 block in the 17x17 streaming radius around the gate pose on
 // the v2 sheet and print the per-block spread + the phase split of the total.
 TEST(ColumnCostBench, PhaseTimingOverTheStreamingRadiusPrinted) {
+    if (!kOptimizedBuild) GTEST_SKIP() << "timing bench: run the Release test exe for the figure";
     WorldGenerator v2(WorldGenerator::GenerationType::Perlin, 20260816u);
     v2.applyRecipe(baselineRecipe(2));
     ASSERT_TRUE(v2.sheetMode());
