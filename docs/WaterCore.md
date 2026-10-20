@@ -62,7 +62,7 @@ partial surface (26.33).
 creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; open: the 105 ms sleep of a big body, how slept water is drawn, the patch and its edge). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; READY for W1a, the drawing of recorded water - the owner's call). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
    PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
    the 2 M-cell box (the CPU keeps only the woken patch).
 2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
@@ -7731,6 +7731,70 @@ manager mirrors the world's occupancy into the grid before seeding (a CPU volume
   changes until slept water is drawn (item 4).
 - *Known limit, stated:* a 1 m column is one level per run - two pools at different levels side by side inside one 1 m column,
   split by a sub-voxel wall, come back at one level (the mass exact). Still water rarely rests that way; measured if it shows.
+
+### 27.10 W1 detailed design (2026-10-20) - the record is the water
+
+**The unit: an 8 m tile.** A brick column is 8 cells (8/9 m); a record column is 9 cells (1 m). They line up every 72 cells =
+**8 m = 9 brick columns = 8 voxel columns**. A world-aligned 8 x 8 m tile is the unit that sleeps into the record and wakes from
+it: whole bricks, whole record columns, no partial brick or column ever. (A 32 m chunk is 4 x 4 tiles: storage only, rule 5.)
+
+**A tile's three states** (per volume; the volume is the body's simulated part):
+| State | Cells | Stepped | Drawn from | Becomes |
+|---|---|---|---|---|
+| AWAKE | in bricks | yes | the pond surface | FROZEN when its columns pass the freeze test (26.31, x3) |
+| FROZEN | in bricks, kept | no (a wall to the awake) | the pond surface (its last field, 26.33) | AWAKE when a wake reaches it; RECORDED when every column in it has been frozen for `recordAfter` (s) and nothing is in flight over it (droplets, ripple rings, a body) |
+| RECORDED | none - bricks freed | no | the record (item 4) | AWAKE when a wake reaches it: seeded from the record on the GPU (27.9's level-fill) |
+
+A volume whose every tile is RECORDED is today's slept volume. Phase D's whole-volume `sleep` stays as the forced path.
+
+**The patch edge (item 5): wake ahead, keep the wall.** Today a frozen column is a wall to the awake ones and a wake spreads by a
+2-column margin (26.31); waves in a 46 x 28 m pond die to 0.13 mm by 8 m (26.33). W1 treats a RECORDED tile exactly like a FROZEN
+one at the edge (a wall) and wakes tiles AHEAD of the moving water: a tile is woken (seeded) when the awake region's margin
+reaches it, so a wave never meets the wall while it is larger than the freeze test. The open-water candidates - the record's
+level held at the edge with exchange (b), a damping band (c) - are kept as the fallback for when the budget stops a wake from
+spreading (W3); W1 measures whether it is needed: **gate** - the same push with the wake margin M and 2M, the water inside M equal
+within 0.1 mm (control: margin 0 must differ by more).
+
+**No full read-back, no CPU box (item 3), staged:**
+- *W1b - per-tile kernels.* `wc_record.comp`: for a list of tiles, the runs per voxel column (27.9's rule, the 81 sub-columns per
+  layer) into a small buffer - the only read-back at sleep (64 columns x a few runs per tile). `wc_seed.comp`: the inverse,
+  level-filling the tile's air cells from uploaded runs. The record is written by the existing span writer and body credit
+  (per column; mass in the spans' unit, so a round trip books zero).
+- *W1d - the dense CPU mirror goes.* `Av::grid` / `occCache` / the 16 whole-volume read-backs (87 uses in `WaterCoreManager`) are
+  re-pointed group by group, each measured first: write-back and seed -> W1b's kernels; debug reads (census, column cells, probe)
+  -> a read-back of the bricks asked about; placement and sources -> the in-place GPU patch (26.19); the occupancy cache -> per
+  brick (26.19's change list is per brick already); consumers that read the surface (debris, characters) -> the surface field
+  (already per column from the GPU). Ends `kMaxCellsPerVolume`. The brick MAP is still sized by the box (4 B per brick: a 200 m
+  box ~1 M entries); kilometres page the map in W3.
+
+**Drawing (item 4) - THE OWNER'S CALL, shown side by side before any tile records live:** (A) the pond surface built from the
+record for RECORDED tiles - per sub-column the run's top over the ground, through the same tiles and shading (26.30) - so
+recording changes nothing on screen (gate: the same pose FROZEN vs RECORDED differs by no more than two awake frames);
+(B) the span sheet, a different look. Recommended: (A) near the player; the sheet / far tiles beyond are W2.
+
+**API.** `water_av_tiles {id}` - each tile's state, cells, m^3 (echo); `water_av_record {id, on, record_after}` - recording on /
+off for a volume and the seconds a tile must stay frozen (clamped 1-600 s: below 1 s a tile records between two ticks of a wave
+too small to freeze it; echo); `water_av_census` (built); `water_av_sleep` / `seed:"spans"` kept. **Default: recording OFF** until
+the owner has seen (A) or (B) in motion; then the owner's call.
+
+**Build order, each with its red test and the owner's look:**
+1. **W1a - draw a recorded tile** ((A) and (B) side by side for the owner). Red: a forced-recorded tile beside a frozen one at the
+   same pose - today it vanishes in the bench (27.8).
+2. **W1b - the per-tile kernels + the tile life cycle** (recording behind the switch, OFF). Red: rig C and the flat pond recorded
+   tile by tile -> woken -> the books exact, 0 in rock, the surface within 1 mm; and a GPU-vs-CPU parity row on the runs.
+3. **W1c - wake ahead** + the margin equality test (above). Red: the control (margin 0) differing as predicted.
+4. **W1d - the CPU mirror goes**, group by group, each group's tests unchanged. Red: `ALakeOverTheOldCapRuns` (60 x 60 m, 1 m
+   deep in a 2 m box, ~5.8 M cells - refused today with the cap's message).
+5. **W1e - the lake, live:** a push in the 60 x 60 m lake wakes tiles around it, waves, freezes, records; the rest never stepped;
+   mean GPU no more than the 46 x 28 m pond's 0.7 ms; the books exact over the run; 105 ms whole-volume sleeps gone (a tile's
+   record call measured). Then the owner's look in motion.
+
+**Design-check of this design (2026-10-20):** voxel look - unchanged (the pond surface; (A) keeps it). Chunks - the tile and the
+brick are world-aligned cost units; behaviour depends on them only through the edge, which the margin equality test pins; the
+record is per world column. Generation - none (runtime; spans as Phase D). API - above, with echoes, clamps and the default.
+Test plan - the red tests above, small rigs (rig C one chunk; the lake straddles a chunk seam on purpose), predictions stated.
+Items 2-5 of 27.7 are answered by 27.9 (built) and this section; item 4 waits on the owner's look. **Verdict: READY for W1a**
+(the drawing, for the owner's choice); W1b-W1e READY in outline, each re-checked against its measured first step.
 
 
 ---
