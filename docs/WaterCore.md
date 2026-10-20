@@ -62,7 +62,7 @@ partial surface (26.33).
 creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8: the seed puts water in the ground - red; a big sleep is a 105 ms hitch; slept water vanishes in the bench). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
    PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
    the 2 M-cell box (the CPU keeps only the woken patch).
 2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
@@ -7687,6 +7687,32 @@ margin, or sleep on / off).
    the owner's call, shown side by side.
 5. **The patch edge:** the three candidates (wall, fixed-level exchange with the record, a damping band + exchange) measured on
    lake (b) with the equality test - pick by numbers, then the owner's look.
+
+### 27.8 W1 step 0 MEASURED (2026-10-19) - today's sleep and wake on the sparse GPU volumes
+
+Tools: `water_av_census {id}` (new: m^3 in air / inside ground / unknown / over-full, a whole-volume read-back, debug only);
+`tools/water_record_roundtrip.py` (rigs A-C; `--build-step` authors C); the bench engine on Release, idle GPU.
+- **They run, and the books hold.** A placed flat pond (rig A, 12 x 8 m, 1 m) with the engine defaults (`auto_sleep` on, the
+  partial wake on) **sleeps and writes back by itself 0.5-0.6 s after it is placed** (placed still, the still-water guess calls it
+  asleep at once): 96.0000 m^3 placed -> 96.0 in the record -> 95.99999 woken (seed 37 ms) -> 95.99999 after 5 s awake. The
+  creek's reach (rig B, 20 m of the 1/9 m carve): 23.3333 -> 23.33333 -> 23.33333, nothing in the ground - the creek's steps
+  fall on voxel-column edges, so a column's floor is flat and B never tests a step inside a column.
+- **RED, as predicted (`record_roundtrip_C.json`): the seed puts water inside the ground.** Rig C - a 1/9 m Stone step under 5
+  of each column's 9 sub-columns (1,620 microcubes, verified in the world: 45 per voxel), 6 x 6 m, 1 m deep: 33.7778 m^3 placed,
+  33.77781 in the record, woken 33.77781 of which **2.2222 m^3 in 1,620 solid cells** - every microcube cell - still there 5 s
+  later (the books balance, the water is inside the rock). Prediction was 45/729 m^3 x 36 columns = 2.222: exact. The visible
+  water is 2.22 m^3 short: **the woken surface stands ~6 cm low** over the 36 m^2.
+- **The cost of sleeping a big body:** a forced sleep of the 46 x 28 m pond (1.88 M cells, 13,328 bricks, moving) took **105 ms**
+  on the main thread - the whole-volume read-back and the dense CPU pass (a hitch every time a pond that size sleeps). Wake of
+  the small rigs: 32-39 ms.
+- **What is drawn after sleep, in the bench: nothing.** `w1_draw_awake.png` / `w1_draw_asleep.png` (same pose): awake the pond
+  is drawn by the pond surface; asleep it is gone - the bench runs `water.enabled: false`, so the span sheet that draws the
+  record is off. Where the sheet is on, slept water switches to its look. Either way, today a pond changes on screen the moment
+  it sleeps - and with `auto_sleep` the default, that is 0.5 s after a still pond is placed.
+- **So for W1:** item 2 (a seed that respects the ground) is confirmed and has its red test (rig C, 2.2222 m^3 -> 0); item 3 is
+  measured (105 ms at 1.9 M cells - the read-back and the dense pass must go); item 4 is sharper than thought - the bench does
+  not draw the record at all, so "how slept water is drawn" needs the pond surface built from the record (or the sheet turned
+  on) before any auto-sleep is visible to the owner.
 
 
 ---

@@ -1,0 +1,23 @@
+{
+ "before": {
+  "cells": 1877904,
+  "gpu_bricks": 13328,
+  "asleep": false,
+  "awake_columns": 215,
+  "frozen_columns": 1449
+ },
+ "forced_sleep_ms": 105.33120000036433,
+ "sleep": {
+  "success": true,
+  "columns": 1288,
+  "mass_written": 1285.7778032219749,
+  "mass_stored": 1285.7777519226074,
+  "spread_mm": 710.9775390625,
+  "surface_vs_mass_mm": 121.72126770019531,
+  "chunks_touched": 2
+ },
+ "spans": {
+  "spans": 1288,
+  "total_depth": 1285.7777519226074
+ }
+}

@@ -289,6 +289,10 @@ public:
     /// Measurement (the spiky stone, 2026-10-18): the cells of the sub-column at world (x, z) - water fill f and body fraction s,
     /// bottom-up from the grid's floor at world y0. A GPU read-back - debug only.
     bool columnCells(float wx, float wz, std::vector<glm::vec2>& fs, float& y0, float& h);
+    /// §27 W1 step 0 measurement: where a volume's water is - in air, inside ground (a seed that ignored occupancy), in cells of
+    /// unknown occupancy, and above a full cell. m^3. A whole-volume GPU read-back - debug only.
+    struct Census { double massM3 = 0, inAirM3 = 0, inSolidM3 = 0, inUnknownM3 = 0, overFullM3 = 0; long wetCells = 0, inSolidCells = 0, inUnknownCells = 0, overFullCells = 0; };
+    bool census(int id, Census& out);
     /// Measurement (20, M2): the drawn surface of the volume sub-column under world (x, z) from the last
     /// surfaceFields(): `level` = the top of the run that starts lowest (the pond itself), `top` = the highest
     /// run's top (a splash thrown above it). False when no volume owns the column or it is dry.

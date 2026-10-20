@@ -13941,6 +13941,15 @@ void Application::registerWaterCommands() {
         } else if (seed != "none") { waterCore->destroy(id); r = {{"error", "seed must be 'none' or 'spans'"}}; return; }
         r = {{"success", true}, {"volume", avJson(*waterCore->find(id))}, {"seeded_mass", seeded}};
     });
+    // §27 W1 step 0: {id} where the volume's water is - m^3 in air / inside ground / in unknown occupancy / above full cells
+    reg.on("water_av_census", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        Core::Water::WaterCoreManager::Census c;
+        if (!waterCore->census(cmd.params.value("id", 0), c)) { r = {{"error", "no such volume"}}; return; }
+        r = {{"mass_m3", c.massM3}, {"in_air_m3", c.inAirM3}, {"in_solid_m3", c.inSolidM3}, {"in_unknown_m3", c.inUnknownM3},
+             {"over_full_m3", c.overFullM3}, {"wet_cells", c.wetCells}, {"in_solid_cells", c.inSolidCells},
+             {"in_unknown_cells", c.inUnknownCells}, {"over_full_cells", c.overFullCells}};
+    });
     // Phase D (16.2): write the volume back to spans + body records and free it. {id, force?}
     reg.on("water_av_sleep", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

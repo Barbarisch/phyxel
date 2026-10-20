@@ -1328,6 +1328,29 @@ bool WaterCoreManager::columnCells(float wx, float wz, std::vector<glm::vec2>& f
     return false;
 }
 
+bool WaterCoreManager::census(int id, Census& out) {
+    for (auto& av : m_avs) {
+        if (av->id != id) continue;
+        refreshOccupancy(*av);
+        syncFromGpu(*av, false);   // the device's state, not the rate-limited mirror
+        out = Census{};
+        const double h3 = static_cast<double>(av->h) * av->h * av->h;
+        for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x) {
+            const float f = av->grid->f(x, y, z);
+            if (f == 0.0f) continue;
+            const Occ o = av->occCache[av->grid->idx(x, y, z)];
+            const double m = static_cast<double>(f) * h3;
+            out.massM3 += m;
+            if (o == Occ::Solid) { out.inSolidM3 += m; ++out.inSolidCells; }
+            else if (o == Occ::Unknown) { out.inUnknownM3 += m; ++out.inUnknownCells; }
+            else { out.inAirM3 += m; ++out.wetCells; }
+            if (f > 1.0f) { out.overFullM3 += (static_cast<double>(f) - 1.0) * h3; ++out.overFullCells; }
+        }
+        return true;
+    }
+    return false;
+}
+
 const std::vector<WaterSurfaceCell>& WaterCoreManager::surfaceCells() {
     for (auto& av : m_avs) syncFromGpu(*av, m_realtime);   // the renderer: once a second in realtime, every step otherwise
     m_surface.clear();
