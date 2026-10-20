@@ -62,7 +62,7 @@ partial surface (26.33).
 creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water.** The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
    PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
    the 2 M-cell box (the CPU keeps only the woken patch).
 2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
@@ -7611,6 +7611,82 @@ Each is designed in detail and design-checked before it is built; each ends with
 
 W1's detailed design, design-checked, measured first: what the old write-back does on today's sparse volumes, and the three
 patch-edge candidates on a lake larger than today's cap.
+
+### 27.7 Design-check of W1 (Feature Design Keys, 2026-10-19) - verdict NEEDS WORK
+
+**What exists, read in the code** (`WaterCoreManager.cpp` 295-430, `WaterCore.cpp` 26-130, `Chunk.h` 65-69):
+- `sleep(id)` reads the WHOLE volume back (`syncFromGpu`), turns the dense CPU grid into runs per 1 m world column
+  (`columnRunsFromGrid` - the 81 sub-columns of each layer averaged), writes them as chunk spans, credits the body table per
+  column, then **destroys the volume**. All or nothing: no part of a volume can sleep.
+- `seedFromSpans` / `seed:"spans"` fills the volume's whole box from the spans: each run's height is spread evenly over all 81
+  sub-columns of the voxel column, **with no occupancy test** - `placeBox` refuses rock ("never put water in rock"), the seed
+  does not. On a 1/9 m bed (the creek's gravel steps, any microcube ground) a woken column puts water inside the ground.
+  `WaterCoreWriteBackTest` (7 tests) has no sub-voxel ground, so nothing catches it.
+- The CPU side is a dense box everywhere: `Av::grid`, `occCache`, the held-column mask, the full readback at sleep - this is the
+  2 M-cell cap (`kMaxCellsPerVolume`). The GPU side is already sparse (bricks).
+- Slept water is drawn by the span sheet (`WaterRenderPipeline`), masked out of a live volume's BOX - a different renderer and
+  look from the pond surface. The benches run `water.enabled: false`; what a slept pond looks like there is not known.
+- Auto-sleep (Phase D) writes back only when the whole volume is quiet; the partial wake (26.31) freezes columns but keeps
+  their bricks and cells.
+
+**1. Voxel look.** Simulated water keeps the signed-off 1/9 m surface. The risk is the hand-off: a woken column today is the
+span's average spread flat over the voxel column (not the shape the water had), and slept water switches renderer. Both are
+look changes at a seam - rule 4 of §27.3. *Unresolved:* how the record is drawn after sleep (proposal: the pond surface's own
+tiles built from the record's levels, so sleeping changes nothing on screen; the sheet only beyond them - W2).
+
+**2. Chunks.** Chunk-derived quantities: which chunk stores a column's span (storage - cost only); chunk residency (a
+non-resident chunk's columns are HELD - never written, never woken: behaviour, but it is the §5.1 hold rule on world state,
+not chunk identity); the writer refuses a column atomically across vertical chunks (exists). No appearance from chunks.
+Cross-chunk reads: the record is read by world column across chunks - reading persistent world state by position, not a
+chunk-local patch. **The new cost structure is the PATCH**, and its edge does change behaviour (a wall reflects, an open edge
+does not). Rule: the patch's margin past the disturbance is at least the measured wave reach (0.13 mm at 8 m, 26.33), so the
+edge condition is immaterial to the water inside within a stated tolerance. **Equality tests to write:** (i) the same push
+with patch margins M and 2M - the water inside M equal within 0.1 mm (control: margin 0, a wall at the stone, must differ
+by more - proves the metric sees the edge); (ii) a sleep / wake round trip of a body straddling a chunk seam and a brick seam
+equals the same body inside one chunk, per column (the `SparseEqualsDenseAcrossSeams` shape).
+
+**3. Generation.** W1 is runtime, not a generation stage. It writes the same spans generation writes (D4); a written chunk is
+dirty and saved, and a saved chunk is not regenerated, so runtime water wins - as Phase D already does. Write-back is
+per-column, a pure function of that column's cells; the seed per column of that column's runs: order-independent by
+construction (each column alone). No per-world tuning (the margin and wake radius are engine constants).
+
+**4. API.** Exists: `water_av_sleep {id, force}`, `water_av_create {seed:"spans"}`, `water_av_wake`. W1 adds (names to fix in
+the design): sleep the frozen columns of a volume into the record (echo: columns and m^3 written, columns held and why, the
+books before / after); wake a patch at a point with a radius (m, world; echo the patch's bricks, columns, m^3 woken); read the
+record over a rect (runs per column, m, world Y; body ids). Clamps: the wake radius to the patch budget (cells), the margin to
+at least the wave reach - each with the reason at the clamp. **Defaults:** sleeping frozen columns into the record is new
+behaviour and changes what is drawn - OFF until the owner looks. Pinned tests that must stay green unchanged: the 7
+`WaterCoreWriteBackTest`s, `WaterPartialWakeTest`, `GpuRestDecisionDeterministic`.
+
+**5. Test plan.** "Works" =
+(a) cells -> record -> cells on a 1/9 m stepped bed: the books exact (float), no water in a solid cell, the woken surface
+within 1 mm of the slept one;
+(b) a lake larger than today's cap (60 x 60 m, 1 m deep, a 2 m box: ~5.8 M cells, refused today) runs: a push wakes a patch,
+waves, the patch sleeps back, the rest is never stepped, the mean GPU cost no more than the 46 x 28 m pond's 0.7 ms;
+(c) the seam: equality test (i); at rest the record's level equals the drawn surface within 1 mm; the same pose captured
+awake and asleep differs by no more than two awake frames do.
+Depth: (a) L2 unit, (b)-(c) L3 GPU integration + L4 live engine, then the owner's look in motion.
+**Red tests, predicted before running:** `SeedOnASteppedBedPutsNoWaterInRock` - RED today (solid cells with f > 0, their
+m^3 reported); `ALakeOverTheOldCapRuns` - RED today (the create's refusal string); the margin equality (i) - its control must
+fail as predicted or the metric is wrong.
+**Test worlds:** (a) synthetic, one 8 x 8 m grid with a stepped bed, no engine; (b)-(c) the WaterBench_Creek pond area - a 60 m
+lake cannot sit in one 32 m chunk, so it straddles a seam ON PURPOSE (test (ii) is the reason); one variable per run (the
+margin, or sleep on / off).
+**Rig vs shipped:** benches run `auto_sleep: false` and `water.enabled: false` (no span sheet), pushes are `water_av_impulse`
+(repeatable), not stones; the partial wake ON, x3, 20 sweeps are the shipped defaults.
+
+**Unresolved - what must be designed or measured before W1 is READY:**
+1. **Measure first (step 0):** what today's `sleep` / `seed:"spans"` do on a sparse GPU volume (do they run; the readback's
+   cost; the mass books; what is drawn after sleep in the bench) - the design starts from the numbers.
+2. **The seed must respect the ground:** each run's water level-filled into the column's AIR cells from the bottom (still
+   water is flat, so this is the shape it had); write it red first.
+3. **The CPU side without a box:** name the sparse replacement for `Av::grid`, `occCache`, the held mask and the full readback -
+   proposal: a GPU kernel that writes the runs of the columns being slept (only those bricks read back), the CPU keeping only
+   the patch's cells. The brick map is still sized by a box (fine to a few hundred metres; kilometres page it in W3).
+4. **How slept water is drawn** - the pond surface from the record (no change on screen) or the span sheet (a look change);
+   the owner's call, shown side by side.
+5. **The patch edge:** the three candidates (wall, fixed-level exchange with the record, a damping band + exchange) measured on
+   lake (b) with the equality test - pick by numbers, then the owner's look.
 
 
 ---
