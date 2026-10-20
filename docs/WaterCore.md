@@ -1,13 +1,12 @@
 # Water Core — the foundation for all future water work
 
-> **Status (2026-10-11): DESIGN OF RECORD and BUILD LEDGER, branch `feat/water-rethink`.** Phases A-F are built
-> (G built and paused); the small still pond is the working foundation - its feel was signed off by the owner
-> 2026-10-09 (§19.8), its ripples 2026-10-11 (§22.12.2). **Where things stand and what is next: §0a** (read it first).
-> The design sections (§1-§13) are the original plan; where a later ledger changed it, §0a and the ledger win.
-> `Water.md` stays the reference for the OLD CA water that still ships beside this; `WaterRethink.md` is the
-> 2026-10-07 stock-take. Standing rules: small bodies first; no universal water level, edits never create water;
-> nothing is done until the owner sees it in motion and signs off; every design here is design-checked before it is
-> built.
+> **Status (2026-10-19): DESIGN OF RECORD and BUILD LEDGER, branch `feat/water-rethink`.** **Read §0a first** - one page:
+> the goal, the scale model, what is signed off, the path to large water, the open items. **§27 is the plan for water at
+> every scale** (simulated where it counts, cheap appearance elsewhere - the owner, 2026-10-19). §26 is the one water model
+> and its build ledger; §1-§25 are the earlier design and ledgers; where a later section changed an earlier one, the later
+> wins. Appendix A holds §0a's running log as it stood before 2026-10-19. `Water.md` is the reference for the OLD CA water
+> that still runs in normal sessions (retired by §27 W4); `WaterRethink.md` is the 2026-10-07 stock-take. Standing rules:
+> §0a.
 
 ---
 
@@ -18,154 +17,85 @@
    and removed.
 2. **Small bodies are the core; large bodies sit on top of it.** Oceans, lakes and rivers are built
    from the same water, optimised where nothing moves, never the other way round.
-3. **Water is a physical entity, never a universal level, never rendered for looks.** Digging down
-   must never reveal a wavy sheet. Edits never create water. (Standing rule, repeated.)
+3. **Water is a physical entity, never a universal level.** Digging down must never reveal a wavy
+   sheet. Edits never create water. (Standing rule, repeated.) *Refined by item 8:* far and resting water may be DRAWN
+   with cheap appearance motion, but it always EXISTS as recorded water - an amount, a level per column, real edges -
+   so the rule still holds: no water where none was recorded, no level shared by bodies that are not connected.
 4. **Shorelines of large bodies are probably small-scale.** (User's instinct; §8.3 agrees and says
    why.)
 5. **Performance matters, but at small scale it should not be the constraint.** Measure, don't guess.
 6. **What exists is reference, not a constraint.** Blow it away where something better is possible.
 7. **Be slower, more thorough, far more detailed.** This document is the foundation for all future
    water work.
+8. **Simulation where it counts, appearance elsewhere** (owner, 2026-10-19): *"we can never reasonably expect to have
+   real simulated water at large lake or ocean level scales. the plan has to include methods that include simulation
+   where it counts but cheap 'appearance' looking water."* The plan for it is §27.
 
 ---
 
-## 0a. Where things stand, and what is next (2026-10-14)
+## 0a. Where things stand, and the plan (consolidated 2026-10-19)
 
-**Signed off by the owner:** the small-pond feel - blasts, debris both ways, floaters, the drawn surface (2026-10-09,
-§19.8); the ripple layer's black/white-square fix (2026-10-11, "new ripples look really great", §22.12.2). Accepted for
-now: the ripple layer itself (§22.9); the first droplet cut ("honestly doesnt look bad. maybe more particles would be
-nice", §22).
+**The goal.** Water in the world that behaves physically where the player can touch it and looks right everywhere, from a
+puddle to an ocean, inside **2 ms of GPU for all water**. Small bodies are the foundation; large bodies are built on the same
+water, never the other way round.
 
-**Built, not signed off:** moving solids M0-M2 (§20.12-20.14); clear water S0 (§21.10); the droplet pool (§21.12);
-waves that keep their energy, pond friction, size-dependent stone drag, the level-jerk fix (§24.6-24.11).
+**The scale model (owner, 2026-10-19; the plan is §27).** We will never simulate a whole lake or ocean as cells - a 1 km^2
+lake 3 m deep is ~2 billion 1/9 m cells. So every body of water **exists** as a record (how much, where, its level per
+column, its edges), always, and is **simulated** (the pond model, 1/9 m cells) only **where it counts**: near the player, and
+where something disturbs it or it flows nearby. Everywhere else it is **drawn** from the record with cheap appearance motion
+(waves, scrolling flow, foam) that moves nothing. The two meet where no seam can be seen. The physical rules still hold: the
+record is real water, a dry pit stays dry, edits never create water, each body has its own level.
 
-**The scenarios (§3), latest ledger:** S2 pump/overflow, S4 breach, S5 drain, S11 rest/reload PASS; S3 dam break front
-and seiche PASS, run-up at 1 m FAIL; S1 pour rests in 3.4-3.6 s against a 3 s gate; S8 push built and signed off
-(near-side 0.286 m against 0.3); S6 only partly (no crate; debris yes); S12 shore PASS on the column solver (look not
-signed off, G paused). **Never run:** S7 wading, S9 waterfall, S10 stream over rocks, S13 scoop, S14 pipe, C1-C5
-containers.
+**Signed off by the owner, in motion:**
+- the small pond: blasts, debris both ways, floaters, the drawn surface (§19.8); the ripples (§22.12.2);
+- the one water model (§26): the creek as pond water (P1 26.5, 26.14), flat bricks (26.17), a dig without a freeze (26.19),
+  the air fix (26.21), the dam & pond on pond water (26.22), floats in the current (26.25-26.26), the surface fixes (26.9),
+  the still-water guess (26.10);
+- the cost work of 2026-10-18/19: the partial wake's look (`pw_look4`), its freeze test x3 (26.34), 20 pressure sweeps (26.35),
+  the partial wake ON by default (26.35).
 
-**Open small-body items, by weight** (each with its section):
-- *Feel and correctness:* voids made by moving water are closed by compaction, not prevented - the cure is a volume
-  correction in the pressure solve (§24.11); short waves on a half-full cell keep 0.53-0.82 per swing (§24.11); the
-  ±2 cm terraces / cells stuck at f = 0.5 (§19.8 - causes FOUND and fixed 2026-10-14 in §26.9, signed off); a 0.08-0.10 m/s phantom current on a still GPU
-  pond (§19.6 - not re-measured since 26.10 made still GPU water settle); wood floats high and a floating block's pond never sleeps (§19.3, §24.8; cure M4 two-way force, §20.6);
-  added mass not modelled (§24.10); **OPEN (the owner, 2026-10-18): spiky water on a dropped stone while it settles** -
-  cause PROVED (§13 end, 26.32): the over-full carry takes a moving body's displaced water straight up its column, out on the
-  stone's top (11 cm pillars to the box's lid for ~1-2 s); three fixes tried, none better, none kept; blocked on a repeatable
-  rig (a body on a fixed path - the tumbling GPU stone gave 0.75 and 2.87 m at one setting). A 0.84 m late jet with no carry
-  (the cavity closing?) is a second, unmeasured item.
-- *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater S4 not wired to the breaking ledger (§21.4, §22.12);
-  1.5-2.3 % black facets at steep tilts from a second cause (§22.12.2).
-- *Parity and tests:* the CPU-GPU kick gap was not re-measured after the theta fix (§19.2, §24.5 F2); D-T5 droplet GPU
-  parity not written (§21.12); FLIP run-up parity (§15.15).
-- *Not started:* wading (E4), containers, pipes, scoop, AV merge/split, the §23 liquids.
-- **Owner preference, 2026-10-11 (not designed):** "ideally splash particles would not 'take' from the volume of the
-  pond. it should jsut be a few splash particles for affect." - today every droplet is pond water, ledger-exact (§12
-  #5, §21.2). Making splashes cosmetic is a design change to write and check when the owner asks for it.
+**Built, not signed off:** moving solids M0-M2 (§20); clear water S0 (§21.10); the droplet pool (§21.12); the §24 wave items;
+ground bricks (26.18); the column water removed (26.27); the surface tiles, view culling and CPU cuts (26.30 steps 1-3); the
+partial surface (26.33).
 
-**Is the still pond ready to build on? Yes, for flowing water.** The owner signed off its feel; what remains open is
-polish (look, short-wave loss, terraces) or features that do not gate a stream (wading, containers, pipes, other
-liquids). What DOES gate a stream is listed in §25 and is the first part of it: pond friction brakes flows (the weir
-reads 17 % low with it on, §24.8), and nothing has ever measured water that keeps moving. **Now: §26 - one water model, the pond's, everywhere** (owner, 2026-10-13: "ponds need to be the foundation ... is there
-water at that voxel?"). §25's tiers built the creek on a second kind of water (the column solver) and needed "windows" to
-stitch it to the pond's; §26 replaces that: water is cell fills on the 1/9 m lattice everywhere, stored only where it is
-(and its neighbours), on the GPU. Built under §25 and kept as targets or parts: the creek bench and the dam & pond bench and
-their numbers (§25.24-25.38), Manning at the bed and the generator-line floor (25.39), the GPU ripple step (25.35), the
-measuring tools. **§26 P1 DONE and signed off (2026-10-13, §26.5):** the cause was the fill transport (face by face, each
-move capped at the receiver's room); the all-faces-at-once transport is the default on CPU and GPU (100.0 % of Manning's
-depth and speed). **§26 P2a BUILT (26.8):** the GPU core stores water in bricks that follow it, bit-identical to a box;
-the creek's cost gate is OPEN. **26.9 SIGNED OFF (owner 2026-10-14, "videos look good"):** the surface at the liquid
-threshold fixed in BOTH backends (the surface jump, films thrown over a slow surface, float-rounding losses - 19.8's "cells
-stuck at f = 0.5"). **26.10 (2026-10-14, built, not signed off):** the still-water first guess is ON - its resting-body loss
-was the float store rounding at f = 0.5 (and the GPU compiler folding every "exact difference"), fixed with a per-cell
-remainder; GPU still water now settles and sleeps (`GpuRestDecisionDeterministic` green, the live pond asleep in 2 s).
-**26.11 (2026-10-14): the cost** - the creek call ~1.6 -> 1.02 ms at the engine's 27 sweeps (GPU 0.79 ms), measured
-per stage with GPU timestamps: only the water's columns cross to the host now, and the extrapolation ping-pongs without
-copies. **26.12 P2b BUILT (2026-10-14): the engine on bricks** - engine GPU volumes are sparse; on the creek bench's box
-(583,200 cells) a frame went from 21 ms (one moving body) + 7.1 ms (update) to 0.36 + 2.2 ms, a forced read-back 257 -> 14 ms.
-**26.13-26.14 (2026-10-14): P3a BUILT, P3b first run; the owner signed off the clips 2026-10-15 (the creek as pond water
-and the 26.10 A/B: "they all look really good")** - the creek bench runs as POND water live (one sparse GPU volume,
-springs, outfalls, Manning at the bed, a ripple window): steady out/in 0.991, ledger 7e-5 m^3, ripples on. Two things open
-before it can replace the column creek: the cost (~6 ms a call at 1,216 bricks - 3x the budget) and the depth (the pond
-model flows over the carve's REAL 1/3 m steps, the column run flowed over the line - not the same creek; 26.14).
-**26.15 (2026-10-15): the bench re-carved at 1/9 m (owner's choice (b))** - on the same voxel bed the pond model runs 6 % (q 0.2)
-/ 10 % (q 0.5) deeper than the column model, both deeper than Manning (the drops cost head); the source totals' float drift
-fixed (the books exact again live); the call's time measured live - the GPU's own work is 1.85 ms, the frame loses ~7 ms
-because the main thread WAITS at the fence behind the renderer.
-**26.16 (2026-10-15): the water's call is no longer waited on** - submitted each frame, collected the next (bit-identical
-water, one frame of lag in what the host sees): the creek bench's frame 12.9 -> 7.4 ms (77 -> 135 fps; 5.5 ms with the water
-paused); a lost-count fault found on the way (re-sending sources in async) and fixed.
-**26.17 (2026-10-15): flat bricks** - bricks 8 x 2 x 8 by default, bit-identical to 8^3: the creek bench stores 34 % fewer cells,
-GPU 1.83 -> 1.57 ms a call, the water the same to the fourth digit; the frame unchanged (the water no longer holds it up).
-**26.18 (2026-10-16): ground bricks** - halo bricks that are all ground are read from a sentinel, not stepped; which ones is
-re-read from the world on every change (everything is destructible): creek GPU 1.56 -> 1.35 ms, the water identical; digs under
-and beside the running creek drain into the holes, books exact. Found: every world change freezes the frame ~145 ms per volume
-(the whole box re-read and re-uploaded) - and any edit anywhere triggers it.
-**26.19 (2026-10-16): a dig without a freeze** - the owner saw the dig clip stutter: measured, 1,051 ms of each dig was the
-API's whole-world NPC nav rebuild (fixed: the touched columns only) and ~148 ms the water's full re-read; designed: the pool
-records which cubes changed, the water re-reads and patches only those, in place.
-Built 2026-10-17: the same trench clip went from 38 freezes (~1.27 s per dig) to 0; worst frame per dig ~22 ms; the water's
-part 1.5-5 ms; walking across chunks costs the water nothing. **Signed off by the owner 2026-10-17** ("wow that looks way better").
-**26.20 (2026-10-17) ANSWERED:** the pond's water is at the textbook depth on the stepped bed (0.187 / 0.306 m vs 0.190 /
-0.306); 26.15's "deeper" was the gauge (the highest sub-column) plus AIR inside flowing water (cells under the surface 4-10 %
-empty, CPU and GPU) - the drawn creek stands 9-26 mm above its water.
-**26.21 (2026-10-17) DONE, signed off by the owner ("looks good") - the air in moving water:** the owner chose "fix the air first". A volume
-correction in the pressure solve (CPU + GPU, on by default): a part-full cell with water above it and water or rock on all four
-sides asks for the inflow that refills it over 0.5 s (only what the water above can give; deficits under 2 % left alone). Rig:
-cells under water 0.90-0.96 -> 0.98-1.00 full, the water's top 9-26 -> 0-2.9 mm above its amount, the water's depth within 1 %.
-Live: the drawn creek 8.5 / 21.4 -> 1.5 / 2.4 mm above its water at q 0.2 / 0.5, GPU cost unchanged. Clip
-`creekbench_pond_g9_q0.5_airfix.mp4` (off -> on at 15 s).
-**26.22 (2026-10-17) P3c DONE, signed off by the owner ("video looks good"):** the dam & pond bench on pond water (one 1.55 M-cell GPU volume, no engine
-change): pond rise 5.42-5.45 mm/s (Q/A 5.56), spilling out/in 0.981, the dam's pool 15.824, break surge 1.95 Q, books exact
-(1.4e-5 m^3; edits inside float noise) - the column model's numbers, except a deeper dip after the dam (27 % vs 46 %). Cost:
-3.17 ms at the automatic 160 sweeps, 1.73 ms at 40 with the same numbers. Clip `dam_pond_pondwater.mp4`.
-**26.23 (2026-10-17) BUILT, not signed off - the automatic sweep count:** measured the solve's own one-step error: water with a
-free surface is within 0.4 % of converged at 40 sweeps whatever the box's length (12-540 cells); water under a solid lid does not
-converge at 160 either. The automatic count now stops at 40 (was 1.5 x the longest side, up to 160): the dam & pond bench 3.17 ->
-1.46 ms with the same numbers; the signed-off demo ponds unchanged (27). Open: an enclosed-water solver for lidded water.
-**26.24-26.26 (2026-10-17):** P3d designed (no normal session creates a column region); the creek's current / splash / ripple
-tools ported to pond water (`--pond`); porting them found (26.25) floats drifting at ~0.4 of the pond current - the material
-damping braked them toward the ground and the debris -> water exchange handed the brake to the water; fixed (floats now ride at
-1.000 of the water) - which exposed (26.26) that the exchange reads back and re-uploads a whole GPU volume every frame anything
-moves in it: 4 floats in the creek, 124 -> 7 FPS. Pre-existing.
-26.26 BUILT: the exchange on the device - 4 floats 7 -> 123 FPS, floats at 1.002 of the water. **26.25 + 26.26 signed off by the
-owner 2026-10-17** (`current_floats_pond.mp4`: "the video looks really good").
-**26.27 (2026-10-17/18) BUILT, not signed off:** P3d-2 - the column water removed; tests, the creek bench and the dam & pond
-bench (Release: rise 5.42 mm/s, out/in 0.98, surge 1.95 Q, 1.44 ms GPU, 119 FPS) all as predicted. The first dam runs' miss was
-a DEBUG build, not the other application.
-**26.28 (2026-10-18) DONE:** the 4-tall halo failure was a false alarm in the check (two films in different cells read as one in a
-corner; the nearest water was 4 cells away, reach 2) - the test now checks by cell; integration 45 / 46 (the particle run-up).
-**26.29 (2026-10-18) MEASURED:** the pond size ladder - one awake pond fits the 2 ms budget to ~10 x 10 m, a sleeping one to ~15 x
-15 m; the drawn surface (~8.8 us per m^2, paid asleep and off-screen) is the larger cost; deep ponds never fall asleep.
-**26.30 (2026-10-18) DESIGN:** the owner chose (a) first. Measured: a resting pond's surface costs ~27 ns per vertex on the GPU
-and ~27 ns per vertex to rebuild on the CPU every frame, seen or not (32 x 28 m: 7.9 ms GPU, +12.3 ms CPU). Design: kept
-device-local tiles rebuilt only when changed (1), culled to the view (2), then awake water (3), then distance (4, a look change).
-**26.30 steps 1-2 BUILT (2026-10-18), not signed off:** kept device-local tiles + view culling - a resting 32 x 28 m pond's
-surface pass 7.9 -> 0.35 ms facing and 0 ms away, its CPU frame 14.2 -> 4.75 ms; the look unchanged by pixels (2 runs).
-**26.30 step 3 BUILT (2026-10-18), not signed off:** the water's CPU measured part by part - a sleeping pond's water now 0.01 ms (was
-1.36 ms at 20 x 20 m; its frame 1.93 ms against 1.85 with no pond); a 32 x 28 m pond after a stone 15.9 -> 8.3 ms CPU frame (tiles
-kept within a flow tolerance, rebuilt over 8 threads, births and readback cut). Awake water's rest: the GPU solver 3.0 ms (needs (c)).
-**26.31 (2026-10-18) DESIGN, measured:** (c) the partial wake - after a stone the moving share (+2 columns margin) is 10 % at
-0.1 s, 81-96 % at 4-10 s in a 32 x 28 m box (the waves fill it and reflect), ~20 % from 11 s; the whole body pays 3-5.7 ms
-throughout today. Design: brick columns frozen when quiet (the volume's own test), a wall to the awake ones, wakes local.
-**26.31 step 1 BUILT (2026-10-18), default off:** frozen brick columns, a wall to the awake ones; the gate passes against the
-measured floor (a splash amplifies any change: the whole body against itself with the stone 1e-5 stronger differs by 273 mm);
-the cost barely moves (2.41 vs 3.06 ms with 84 % frozen) - frozen bricks still get threads and whole-buffer copies.
-**26.31 step 2 BUILT (2026-10-18), default off:** the awake bricks partitioned into the low slots, the step over those only - a
-46 x 28 m pond after a corner stone 4.81 -> 2.76 ms over 15 s (1.75-2.0 ms the first 4 s against 4.5-6.2); a walled 32 x 28 m
-box gains only the first 2 s (its reflections wake it all); the fully-awake pond costs what it did. Left: ~2 ms of whole-volume work.
-**26.32 (2026-10-18) PROVED, NOT FIXED - the spiky water on the stone** (the owner's open item, see the list above): the 26.5
-carry, every substep, sends a moving body's displacement straight up its column (1,654 L out of a 1,000 L stone's cells in half a
-second; half where the body had a rate the projection was to shed, half the column ledger by design). Three fixes, no better
-within the drop-to-drop spread; the measurement kept (`water_av_list` carry_*_m3, `water_surface_dump`, `water_stone_spikes.py`).
-**26.33 BUILT (2026-10-18), not signed off:** with the partial wake the surface kernel and its copy cover the awake columns only (the
-host keeps the frozen ones; byte-equal heights, gated): the copy 0.6 -> 0.07-0.10 ms, a call after a stone 2.0-2.2 -> 1.3-1.6 ms.
-The owner's look re-recorded on an idle GPU (`pw_look3_side_by_side.mp4`: OFF median 4.80 ms, ON 3.69).
-**The partial wake's look SIGNED OFF by the owner 2026-10-18 (`pw_look4`).** **26.34 (2026-10-18):** the awake patch creeps over the
-whole pond at the sleep test's thresholds (sub-0.1 mm waves count as moving); a knob for the freeze test (`quiet_scale`): at x3 the
-mean solver time over 20 s after a push 2.34 -> 0.72 ms, the waves the same within run noise, the frozen pond flat to 0.08 mm.
-**x3 signed off by the owner 2026-10-19 and made the default.** **26.35:** the sweeps are work, not launches; an exact 6 % saving; 20 sweeps measure the same as 40 (waves, volume, creek speed) for ~0.35-0.9 ms. 20 sweeps and the partial wake ON by default, both the owner's calls 2026-10-19. **Next:** the partial wake's +0.036 ms where nothing freezes (the motion-map copy), the reductions; then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
+**What one body costs today:** a 46 x 28 m pond 1 m deep after a push, 0.7 ms mean over 20 s (asleep by ~10 s); the 100 m
+creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
+
+**The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
+1. **W1 - the record is the water.** The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+   PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
+   the 2 M-cell box (the CPU keeps only the woken patch).
+2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
+   distance; at rest it matches the simulated surface where they meet.
+3. **W3 - where it counts.** The rule that picks what is simulated (distance, disturbance, nearby flow), held to the budget,
+   and the hand-off both ways with no visible seam and the books exact.
+4. **W4 - the world on the new water.** Generated lakes, rivers and sea placed as records; the old CA water (`WaterManager`)
+   retired from normal sessions.
+5. **W5 - rivers at scale.** Far reaches as records with a discharge and appearance flow; near reaches simulated, fed and drained
+   at their ends from the record.
+6. **W6 - shores and open sea.** A simulated band at the shore near the player; the swell offshore as appearance (§18.4: the 3-D
+   core cannot carry a swell).
+
+**Open small-body items** (polish and features; none blocks the path above):
+- *Feel:* spiky water on a dropped stone - cause proved, waits for a repeatable rig (26.32) - and a 0.84 m late jet; wood
+  floats high and a floating block's pond never sleeps (M4, §20.6); short waves on a half-full cell keep 0.53-0.82 per swing
+  (§24.11); added mass (§24.10); the still-pond phantom current not re-measured (§19.6); water under a solid lid does not
+  converge (26.23).
+- *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater not wired (§21.4); 1.5-2.3 % black facets at steep tilts
+  (§22.12.2); cosmetic splashes that take no water (owner preference 2026-10-11, not designed).
+- *Parity:* the CPU-GPU kick gap (§19.2); droplet parity D-T5 (§21.12); the FLIP run-up (§15.15 - the one failing water
+  integration test).
+- *Cost:* the partial wake's +0.036 ms where nothing freezes; the reductions ~0.17-0.19 ms a call.
+- *Not started:* wading (E4), containers, pipes, scoop, volume merge / split, the §23 liquids. Scenarios never run: S7 wading,
+  S9 waterfall, S10 stream over rocks, S13 scoop, S14 pipe, C1-C5.
+
+**Standing rules:** small bodies first; one water model - the pond's - for everything simulated (a second kind of water needs
+the owner's explicit, plainly-explained approval); appearance water draws recorded water and never moves or makes it; no
+universal level; edits and digging never create water; ripples and splashes carry forward wherever water is simulated; always
+tools to measure and tune current speed; measure, don't argue; nothing is done until the owner sees it in motion; look
+decisions (thresholds, defaults) are the owner's; any `solver_*.comp` change passes `tools/debris_settle_bench.py`; GPU water
+tests are in `phyxel_integration_tests`, run from the repo root with the bench engine stopped, on Release; separate runs
+drift ~0.2 ms - compare costs only interleaved on the same water.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -491,6 +421,8 @@ a density-0.6 crate at 0.6 ± 0.03).
 ---
 
 ## 8. Large bodies on top (Phase G, after the core is proven)
+
+> **Superseded 2026-10-19 by §27** (simulation where it counts, appearance elsewhere); the items below are inside §27 W1-W6.
 
 8.1 **Body table** (`WaterBodyTable`): generated from the bake (ocean, lakes, river reaches) with
 level, mass (Σ spans), outlets (from the FlowField), discharge for reaches. Persisted.
@@ -5304,9 +5236,9 @@ near water.
   numbers the column solver met (25.28 K: speed vs Manning, roughness tuning; 25.38 DP: fill rate Q/A, spill at the crest,
   the dam's dip and the break's surge, the ledger exact across edits) met by the pond model; ripples and splashes as on
   the pond (no ported copies); then the column regions and windows removed from near water.
-- **P4 - rest and the world record.** [not started] Still water sleeps into spans and wakes where disturbed or flowing (§16, as today);
+- **P4 - rest and the world record.** [superseded 2026-10-19 by §27 W1 + W4] Still water sleeps into spans and wakes where disturbed or flowing (§16, as today);
   flowing water never sleeps; 25.3's world record (saved water, springs as world objects) on the one model.
-- **P5 - far away.** [not started] Measured against the budget: either the pond model within the whole simulation radius, or a cheap
+- **P5 - far away.** [superseded 2026-10-19 by §27 W2, W3, W5, W6] Measured against the budget: either the pond model within the whole simulation radius, or a cheap
   summary far from the player (25.5's T3, basins and reaches) with its hand-off placed where no seam can be seen. Decided
   by numbers from P2/P3, not now.
 H3-H5 of 25.13 (settling, the far network, underground) are re-designed on the one model when they are reached; their
@@ -7589,3 +7521,236 @@ each evidence row.
 **Red test for Phase A (the first thing built):** the harness runs S3 against today's CA on the
 Basin bench and records: no reflected crest (the CA has no momentum), front speed far below Ritter,
 and the sloshing-vs-settling profile — the baseline every later row is compared to.
+
+---
+
+## 27. Water at every scale - simulated where it counts, appearance elsewhere (owner, 2026-10-19) - PLAN OF RECORD; supersedes §26 P4-P5 and §8
+
+### 27.1 The decision
+
+The owner, 2026-10-19: *"i also think that we can never reasonably expect to have real simulated water at large lake or ocean
+level scales. the plan has to include methods that include simulation where it counts but cheap 'appearance' looking water."*
+
+**Why, in numbers.** One 1/9 m cell is 1/729 m^3. A 100 x 100 m lake 2 m deep is ~15 M cells; a 1 km^2 lake 3 m deep ~2 G; the
+sea is unbounded. Today's measured rates (26.29-26.35): one awake 46 x 28 m pond ~0.7-2.3 ms, the drawn surface ~8.8 us per m^2
+before culling. A lake as cells does not fit any budget, now or with any likely optimisation. So the plan says plainly what
+large water is.
+
+### 27.2 What large water is (the three things, in plain words)
+
+| | What it is | Where it lives | What it costs |
+|---|---|---|---|
+| **The record** | The water itself, at rest: per 1 m world column, where water is (bottom and top of each run, the top as a fraction of a cell); per body, its total amount, its level, its outlets. Always there, whether anyone is near or not. | chunk spans (`Chunk::WaterSpanLocal`, saved with the chunk) + body records (`WaterBodyTable` in `world_meta`) - both exist (§2.2, §16) | storage only; nothing per frame |
+| **Simulated water** | The pond model (§26) - 1/9 m cells, velocities, pressure, splashes, droplets, ripples, displacement - running on a PATCH of a body: the part near the player that is disturbed or flowing. | sparse GPU bricks (26.12-26.17), woken from the record, written back to it | the 2 ms budget, shared by every patch |
+| **Appearance water** | How the record is drawn where nothing is simulated: a surface at the record's level per column, with cosmetic motion - waves by wind and body size, scrolling flow on rivers, foam at shores - and less detail with distance. It moves no water and changes no record. | the span sheet renderer (`WaterRenderPipeline`, kept in §9) and far tiles (§8.5) | what is on screen, falling with distance |
+
+This is **not a second kind of water.** There is one water - the record says how much and where; the pond model is how it
+MOVES where it counts; appearance is how it is DRAWN where it does not move. A cell in a patch and the record's column under it
+are the same water at two moments (awake, asleep), the books exact between them. Nothing else simulates water.
+
+### 27.3 The rules this keeps
+
+1. **Exists or not, never assumed.** Water is drawn only where the record (or a patch) holds it. A dug pit beside a lake is dry
+   until simulated water flows in. No sea plane under the world, no shared level for unconnected bodies.
+2. **Edits never create water.** An edit inside the record wakes a patch there (the water then moves physically); an edit
+   outside it touches nothing.
+3. **Appearance never moves water.** Cosmetic waves are a function of world position, time, wind and the body's class and size;
+   they never change an amount, a level or a span.
+4. **No visible seam.** Where a patch meets the record: at rest the simulated surface equals the record's level (gate: < 1 mm);
+   the patch's waves have died out before its edge (26.33's wave reach: 0.13 mm at 8 m) and appearance motion fades in over
+   the same band; the colour and shading are the same model. Measured at the seam, at a stated pose, in motion.
+5. **Chunks are not visible.** The record is per world column; appearance motion depends on world position, never a chunk.
+   Patches are a cost structure: the water in a patch must not depend on where the patch's edge fell (equality test: one patch
+   vs two adjoining patches over the same water, the 25.32 shape).
+6. **The budget decides how much is simulated, never whether water exists.** Over budget, the farthest or quietest patch sleeps
+   first; its water goes back to the record.
+7. **Features carry forward** wherever water is simulated (ripples, splashes, droplets, floaters, current tools).
+
+### 27.4 The pieces (W1-W6), and what each needs
+
+Each is designed in detail and design-checked before it is built; each ends with the owner's look in motion.
+
+- **W1 - the record is the water (first).** Sparse GPU volumes write back to the record when they sleep and are woken from it as
+  a patch. Exists: Phase D's write-back (a pure function of the cells, §16.2), `water_av_sleep` / `seed:"spans"` / `water_av_wake`,
+  `WaterBodyTable`, edits under rule 3 (D2) - all for the OLD dense volumes. New: the same on bricks; a patch woken around a
+  disturbance (bricks + margin), not the body's box; the patch's border to the rest of the body. **The open design question:**
+  what the patch's edge is to the water beyond it. Candidates to measure: (a) a wall (waves reflect - wrong for a big lake);
+  (b) the record's level held fixed at the edge, water exchanged with the record and the body's amount changed by the same
+  amount (open water; the books exact); (c) a damping band inside the edge that absorbs outgoing waves, plus (b). Also: the
+  record is per 1 m column, the cells per 1/9 m - what a 1/9 m film or step loses at sleep (measured, stated). Ends the 2 M-cell
+  CPU box: the CPU copy is the patch. **Gates:** cells -> record -> cells round trip (books exact, the surface within 1 mm);
+  a 60 x 60 m lake (beyond today's cap) with a stone in it - a patch wakes, waves, sleeps back, the rest never simulated; cost
+  inside the budget; the seam rule 4 measured.
+- **W2 - appearance water.** The span sheet draws resting and far water: levels from the record, motion cosmetic, detail
+  falling with distance (26.30 step 4, a look decision), far tiles beyond the sheet (§8.5). At the patch edge it matches the
+  simulated surface (rule 4). **Gates:** a resting lake drawn with no patch at a cost that falls with distance; the seam
+  captured at the same pose with a patch awake and asleep; the dig-a-pit red test (dry).
+- **W3 - where it counts.** Which water is simulated: within a radius of the player and camera; where something touched it (a
+  body, a blast, an edit, a pour); flowing water near the player. Patches merge when they meet, sleep when quiet (26.31's freeze
+  test) and when far. Budget-bound (rule 6). **Gates:** walking along a lake shore wakes and sleeps patches with no visible
+  change and the books exact; the cost stays inside 2 ms with N patches.
+- **W4 - the world on the new water.** Generation places lakes, rivers and the sea as records (D4's generation and the hydrology
+  bake exist); the old CA water (`WaterManager`, sea level, the hydrology table) leaves normal sessions (the §9 delete ledger).
+  **Gates:** the camera-walk probe 0 violations on Coast, River, Basin; the dig-a-pit red test; a generated lake with a stone in
+  it behaves as W1's.
+- **W5 - rivers at scale.** A far reach is a record with a discharge and appearance flow; a near reach is simulated, fed and
+  drained at its ends from the record (the creek bench's springs and outfalls, from the record instead of pumps).
+  **Gates:** the creek bench's numbers on a simulated reach inside a recorded river; current-speed tools on it; the seam.
+- **W6 - shores and open sea.** A simulated band at the shore near the player (the pond model); the swell offshore as
+  appearance; their meeting measured. §18 (the column shore band) is the reference, not the model - a column solver here
+  would be a second kind of water and needs the owner's explicit call.
+
+### 27.5 What this changes elsewhere
+
+- §26.3 P4 ("rest and the world record") is W1 + W4; P5 ("far away") is W2, W3, W5, W6. §8 ("large bodies on top") is
+  replaced by this section; its items (body table, spans everywhere, shore band, rivers, far tiles) are inside W1-W6.
+- §0 item 3 refined by item 8 (appearance is how recorded water is drawn, never a source of it).
+- Nothing is removed by this section; the delete ledger (§9) still governs removals.
+
+### 27.6 Next
+
+W1's detailed design, design-checked, measured first: what the old write-back does on today's sparse volumes, and the three
+patch-edge candidates on a lake larger than today's cap.
+
+
+---
+
+## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
+
+**Was: "0a. Where things stand, and what is next (2026-10-14)"**
+
+**Signed off by the owner:** the small-pond feel - blasts, debris both ways, floaters, the drawn surface (2026-10-09,
+§19.8); the ripple layer's black/white-square fix (2026-10-11, "new ripples look really great", §22.12.2). Accepted for
+now: the ripple layer itself (§22.9); the first droplet cut ("honestly doesnt look bad. maybe more particles would be
+nice", §22).
+
+**Built, not signed off:** moving solids M0-M2 (§20.12-20.14); clear water S0 (§21.10); the droplet pool (§21.12);
+waves that keep their energy, pond friction, size-dependent stone drag, the level-jerk fix (§24.6-24.11).
+
+**The scenarios (§3), latest ledger:** S2 pump/overflow, S4 breach, S5 drain, S11 rest/reload PASS; S3 dam break front
+and seiche PASS, run-up at 1 m FAIL; S1 pour rests in 3.4-3.6 s against a 3 s gate; S8 push built and signed off
+(near-side 0.286 m against 0.3); S6 only partly (no crate; debris yes); S12 shore PASS on the column solver (look not
+signed off, G paused). **Never run:** S7 wading, S9 waterfall, S10 stream over rocks, S13 scoop, S14 pipe, C1-C5
+containers.
+
+**Open small-body items, by weight** (each with its section):
+- *Feel and correctness:* voids made by moving water are closed by compaction, not prevented - the cure is a volume
+  correction in the pressure solve (§24.11); short waves on a half-full cell keep 0.53-0.82 per swing (§24.11); the
+  ±2 cm terraces / cells stuck at f = 0.5 (§19.8 - causes FOUND and fixed 2026-10-14 in §26.9, signed off); a 0.08-0.10 m/s phantom current on a still GPU
+  pond (§19.6 - not re-measured since 26.10 made still GPU water settle); wood floats high and a floating block's pond never sleeps (§19.3, §24.8; cure M4 two-way force, §20.6);
+  added mass not modelled (§24.10); **OPEN (the owner, 2026-10-18): spiky water on a dropped stone while it settles** -
+  cause PROVED (§13 end, 26.32): the over-full carry takes a moving body's displaced water straight up its column, out on the
+  stone's top (11 cm pillars to the box's lid for ~1-2 s); three fixes tried, none better, none kept; blocked on a repeatable
+  rig (a body on a fixed path - the tumbling GPU stone gave 0.75 and 2.87 m at one setting). A 0.84 m late jet with no carry
+  (the cavity closing?) is a second, unmeasured item.
+- *Look:* F2 sign-off and F3 deletions (§17.3); pond whitewater S4 not wired to the breaking ledger (§21.4, §22.12);
+  1.5-2.3 % black facets at steep tilts from a second cause (§22.12.2).
+- *Parity and tests:* the CPU-GPU kick gap was not re-measured after the theta fix (§19.2, §24.5 F2); D-T5 droplet GPU
+  parity not written (§21.12); FLIP run-up parity (§15.15).
+- *Not started:* wading (E4), containers, pipes, scoop, AV merge/split, the §23 liquids.
+- **Owner preference, 2026-10-11 (not designed):** "ideally splash particles would not 'take' from the volume of the
+  pond. it should jsut be a few splash particles for affect." - today every droplet is pond water, ledger-exact (§12
+  #5, §21.2). Making splashes cosmetic is a design change to write and check when the owner asks for it.
+
+**Is the still pond ready to build on? Yes, for flowing water.** The owner signed off its feel; what remains open is
+polish (look, short-wave loss, terraces) or features that do not gate a stream (wading, containers, pipes, other
+liquids). What DOES gate a stream is listed in §25 and is the first part of it: pond friction brakes flows (the weir
+reads 17 % low with it on, §24.8), and nothing has ever measured water that keeps moving. **Now: §26 - one water model, the pond's, everywhere** (owner, 2026-10-13: "ponds need to be the foundation ... is there
+water at that voxel?"). §25's tiers built the creek on a second kind of water (the column solver) and needed "windows" to
+stitch it to the pond's; §26 replaces that: water is cell fills on the 1/9 m lattice everywhere, stored only where it is
+(and its neighbours), on the GPU. Built under §25 and kept as targets or parts: the creek bench and the dam & pond bench and
+their numbers (§25.24-25.38), Manning at the bed and the generator-line floor (25.39), the GPU ripple step (25.35), the
+measuring tools. **§26 P1 DONE and signed off (2026-10-13, §26.5):** the cause was the fill transport (face by face, each
+move capped at the receiver's room); the all-faces-at-once transport is the default on CPU and GPU (100.0 % of Manning's
+depth and speed). **§26 P2a BUILT (26.8):** the GPU core stores water in bricks that follow it, bit-identical to a box;
+the creek's cost gate is OPEN. **26.9 SIGNED OFF (owner 2026-10-14, "videos look good"):** the surface at the liquid
+threshold fixed in BOTH backends (the surface jump, films thrown over a slow surface, float-rounding losses - 19.8's "cells
+stuck at f = 0.5"). **26.10 (2026-10-14, built, not signed off):** the still-water first guess is ON - its resting-body loss
+was the float store rounding at f = 0.5 (and the GPU compiler folding every "exact difference"), fixed with a per-cell
+remainder; GPU still water now settles and sleeps (`GpuRestDecisionDeterministic` green, the live pond asleep in 2 s).
+**26.11 (2026-10-14): the cost** - the creek call ~1.6 -> 1.02 ms at the engine's 27 sweeps (GPU 0.79 ms), measured
+per stage with GPU timestamps: only the water's columns cross to the host now, and the extrapolation ping-pongs without
+copies. **26.12 P2b BUILT (2026-10-14): the engine on bricks** - engine GPU volumes are sparse; on the creek bench's box
+(583,200 cells) a frame went from 21 ms (one moving body) + 7.1 ms (update) to 0.36 + 2.2 ms, a forced read-back 257 -> 14 ms.
+**26.13-26.14 (2026-10-14): P3a BUILT, P3b first run; the owner signed off the clips 2026-10-15 (the creek as pond water
+and the 26.10 A/B: "they all look really good")** - the creek bench runs as POND water live (one sparse GPU volume,
+springs, outfalls, Manning at the bed, a ripple window): steady out/in 0.991, ledger 7e-5 m^3, ripples on. Two things open
+before it can replace the column creek: the cost (~6 ms a call at 1,216 bricks - 3x the budget) and the depth (the pond
+model flows over the carve's REAL 1/3 m steps, the column run flowed over the line - not the same creek; 26.14).
+**26.15 (2026-10-15): the bench re-carved at 1/9 m (owner's choice (b))** - on the same voxel bed the pond model runs 6 % (q 0.2)
+/ 10 % (q 0.5) deeper than the column model, both deeper than Manning (the drops cost head); the source totals' float drift
+fixed (the books exact again live); the call's time measured live - the GPU's own work is 1.85 ms, the frame loses ~7 ms
+because the main thread WAITS at the fence behind the renderer.
+**26.16 (2026-10-15): the water's call is no longer waited on** - submitted each frame, collected the next (bit-identical
+water, one frame of lag in what the host sees): the creek bench's frame 12.9 -> 7.4 ms (77 -> 135 fps; 5.5 ms with the water
+paused); a lost-count fault found on the way (re-sending sources in async) and fixed.
+**26.17 (2026-10-15): flat bricks** - bricks 8 x 2 x 8 by default, bit-identical to 8^3: the creek bench stores 34 % fewer cells,
+GPU 1.83 -> 1.57 ms a call, the water the same to the fourth digit; the frame unchanged (the water no longer holds it up).
+**26.18 (2026-10-16): ground bricks** - halo bricks that are all ground are read from a sentinel, not stepped; which ones is
+re-read from the world on every change (everything is destructible): creek GPU 1.56 -> 1.35 ms, the water identical; digs under
+and beside the running creek drain into the holes, books exact. Found: every world change freezes the frame ~145 ms per volume
+(the whole box re-read and re-uploaded) - and any edit anywhere triggers it.
+**26.19 (2026-10-16): a dig without a freeze** - the owner saw the dig clip stutter: measured, 1,051 ms of each dig was the
+API's whole-world NPC nav rebuild (fixed: the touched columns only) and ~148 ms the water's full re-read; designed: the pool
+records which cubes changed, the water re-reads and patches only those, in place.
+Built 2026-10-17: the same trench clip went from 38 freezes (~1.27 s per dig) to 0; worst frame per dig ~22 ms; the water's
+part 1.5-5 ms; walking across chunks costs the water nothing. **Signed off by the owner 2026-10-17** ("wow that looks way better").
+**26.20 (2026-10-17) ANSWERED:** the pond's water is at the textbook depth on the stepped bed (0.187 / 0.306 m vs 0.190 /
+0.306); 26.15's "deeper" was the gauge (the highest sub-column) plus AIR inside flowing water (cells under the surface 4-10 %
+empty, CPU and GPU) - the drawn creek stands 9-26 mm above its water.
+**26.21 (2026-10-17) DONE, signed off by the owner ("looks good") - the air in moving water:** the owner chose "fix the air first". A volume
+correction in the pressure solve (CPU + GPU, on by default): a part-full cell with water above it and water or rock on all four
+sides asks for the inflow that refills it over 0.5 s (only what the water above can give; deficits under 2 % left alone). Rig:
+cells under water 0.90-0.96 -> 0.98-1.00 full, the water's top 9-26 -> 0-2.9 mm above its amount, the water's depth within 1 %.
+Live: the drawn creek 8.5 / 21.4 -> 1.5 / 2.4 mm above its water at q 0.2 / 0.5, GPU cost unchanged. Clip
+`creekbench_pond_g9_q0.5_airfix.mp4` (off -> on at 15 s).
+**26.22 (2026-10-17) P3c DONE, signed off by the owner ("video looks good"):** the dam & pond bench on pond water (one 1.55 M-cell GPU volume, no engine
+change): pond rise 5.42-5.45 mm/s (Q/A 5.56), spilling out/in 0.981, the dam's pool 15.824, break surge 1.95 Q, books exact
+(1.4e-5 m^3; edits inside float noise) - the column model's numbers, except a deeper dip after the dam (27 % vs 46 %). Cost:
+3.17 ms at the automatic 160 sweeps, 1.73 ms at 40 with the same numbers. Clip `dam_pond_pondwater.mp4`.
+**26.23 (2026-10-17) BUILT, not signed off - the automatic sweep count:** measured the solve's own one-step error: water with a
+free surface is within 0.4 % of converged at 40 sweeps whatever the box's length (12-540 cells); water under a solid lid does not
+converge at 160 either. The automatic count now stops at 40 (was 1.5 x the longest side, up to 160): the dam & pond bench 3.17 ->
+1.46 ms with the same numbers; the signed-off demo ponds unchanged (27). Open: an enclosed-water solver for lidded water.
+**26.24-26.26 (2026-10-17):** P3d designed (no normal session creates a column region); the creek's current / splash / ripple
+tools ported to pond water (`--pond`); porting them found (26.25) floats drifting at ~0.4 of the pond current - the material
+damping braked them toward the ground and the debris -> water exchange handed the brake to the water; fixed (floats now ride at
+1.000 of the water) - which exposed (26.26) that the exchange reads back and re-uploads a whole GPU volume every frame anything
+moves in it: 4 floats in the creek, 124 -> 7 FPS. Pre-existing.
+26.26 BUILT: the exchange on the device - 4 floats 7 -> 123 FPS, floats at 1.002 of the water. **26.25 + 26.26 signed off by the
+owner 2026-10-17** (`current_floats_pond.mp4`: "the video looks really good").
+**26.27 (2026-10-17/18) BUILT, not signed off:** P3d-2 - the column water removed; tests, the creek bench and the dam & pond
+bench (Release: rise 5.42 mm/s, out/in 0.98, surge 1.95 Q, 1.44 ms GPU, 119 FPS) all as predicted. The first dam runs' miss was
+a DEBUG build, not the other application.
+**26.28 (2026-10-18) DONE:** the 4-tall halo failure was a false alarm in the check (two films in different cells read as one in a
+corner; the nearest water was 4 cells away, reach 2) - the test now checks by cell; integration 45 / 46 (the particle run-up).
+**26.29 (2026-10-18) MEASURED:** the pond size ladder - one awake pond fits the 2 ms budget to ~10 x 10 m, a sleeping one to ~15 x
+15 m; the drawn surface (~8.8 us per m^2, paid asleep and off-screen) is the larger cost; deep ponds never fall asleep.
+**26.30 (2026-10-18) DESIGN:** the owner chose (a) first. Measured: a resting pond's surface costs ~27 ns per vertex on the GPU
+and ~27 ns per vertex to rebuild on the CPU every frame, seen or not (32 x 28 m: 7.9 ms GPU, +12.3 ms CPU). Design: kept
+device-local tiles rebuilt only when changed (1), culled to the view (2), then awake water (3), then distance (4, a look change).
+**26.30 steps 1-2 BUILT (2026-10-18), not signed off:** kept device-local tiles + view culling - a resting 32 x 28 m pond's
+surface pass 7.9 -> 0.35 ms facing and 0 ms away, its CPU frame 14.2 -> 4.75 ms; the look unchanged by pixels (2 runs).
+**26.30 step 3 BUILT (2026-10-18), not signed off:** the water's CPU measured part by part - a sleeping pond's water now 0.01 ms (was
+1.36 ms at 20 x 20 m; its frame 1.93 ms against 1.85 with no pond); a 32 x 28 m pond after a stone 15.9 -> 8.3 ms CPU frame (tiles
+kept within a flow tolerance, rebuilt over 8 threads, births and readback cut). Awake water's rest: the GPU solver 3.0 ms (needs (c)).
+**26.31 (2026-10-18) DESIGN, measured:** (c) the partial wake - after a stone the moving share (+2 columns margin) is 10 % at
+0.1 s, 81-96 % at 4-10 s in a 32 x 28 m box (the waves fill it and reflect), ~20 % from 11 s; the whole body pays 3-5.7 ms
+throughout today. Design: brick columns frozen when quiet (the volume's own test), a wall to the awake ones, wakes local.
+**26.31 step 1 BUILT (2026-10-18), default off:** frozen brick columns, a wall to the awake ones; the gate passes against the
+measured floor (a splash amplifies any change: the whole body against itself with the stone 1e-5 stronger differs by 273 mm);
+the cost barely moves (2.41 vs 3.06 ms with 84 % frozen) - frozen bricks still get threads and whole-buffer copies.
+**26.31 step 2 BUILT (2026-10-18), default off:** the awake bricks partitioned into the low slots, the step over those only - a
+46 x 28 m pond after a corner stone 4.81 -> 2.76 ms over 15 s (1.75-2.0 ms the first 4 s against 4.5-6.2); a walled 32 x 28 m
+box gains only the first 2 s (its reflections wake it all); the fully-awake pond costs what it did. Left: ~2 ms of whole-volume work.
+**26.32 (2026-10-18) PROVED, NOT FIXED - the spiky water on the stone** (the owner's open item, see the list above): the 26.5
+carry, every substep, sends a moving body's displacement straight up its column (1,654 L out of a 1,000 L stone's cells in half a
+second; half where the body had a rate the projection was to shed, half the column ledger by design). Three fixes, no better
+within the drop-to-drop spread; the measurement kept (`water_av_list` carry_*_m3, `water_surface_dump`, `water_stone_spikes.py`).
+**26.33 BUILT (2026-10-18), not signed off:** with the partial wake the surface kernel and its copy cover the awake columns only (the
+host keeps the frozen ones; byte-equal heights, gated): the copy 0.6 -> 0.07-0.10 ms, a call after a stone 2.0-2.2 -> 1.3-1.6 ms.
+The owner's look re-recorded on an idle GPU (`pw_look3_side_by_side.mp4`: OFF median 4.80 ms, ON 3.69).
+**The partial wake's look SIGNED OFF by the owner 2026-10-18 (`pw_look4`).** **26.34 (2026-10-18):** the awake patch creeps over the
+whole pond at the sleep test's thresholds (sub-0.1 mm waves count as moving); a knob for the freeze test (`quiet_scale`): at x3 the
+mean solver time over 20 s after a push 2.34 -> 0.72 ms, the waves the same within run noise, the frozen pond flat to 0.08 mm.
+**x3 signed off by the owner 2026-10-19 and made the default.** **26.35:** the sweeps are work, not launches; an exact 6 % saving; 20 sweeps measure the same as 40 (waves, volume, creek speed) for ~0.35-0.9 ms. 20 sweeps and the partial wake ON by default, both the owner's calls 2026-10-19. **Next:** the partial wake's +0.036 ms where nothing freezes (the motion-map copy), the reductions; then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
