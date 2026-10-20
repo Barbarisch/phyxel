@@ -801,7 +801,7 @@ field (meanings unchanged, computation replaced), from the consumer inventory:
   adapters over the macro drainage + meso channels.
 - `WaterBodyIndex` (bodies with id/class/level/volume from the flood) — read by the renderer and the water
   core's body records; M2's basins must yield the same record shape.
-M2 prerequisites built the same day (`m2a`): the `MacroSheet` carries `receiver / drainageArea / filled`
+M2 prerequisites built the same day (`m2a`, 387b42f3; red shown by MUTATION after the commit - drainage copy + uplift disabled -> both new tests fail, restored -> pass, `m2a_mutation_red.txt`): the `MacroSheet` carries `receiver / drainageArea / filled`
 from the erosion bake's final routing (routing runs even at `erosionSteps 0`); a painted `upliftMask`
 (Gaussian bumps/basins, in the sheet key and the recipe JSON) so `RiverLab` can paint its ridge and basin.
 Still to design in M2 proper: the per-tile meso routing with macro edge inflows, the continuity seam test,

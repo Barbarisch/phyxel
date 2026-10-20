@@ -1,0 +1,38 @@
+Mutation red check for 387b42f3 (2026-10-20, Debug): the working tree had ONLY these two mutations applied on top of the commit:
+  WorldGenerator.cpp:1790  c.receiver = -1; c.drainageArea = 0.0f;   (drainage copy to MacroSheet disabled)
+  WorldGenerator.cpp:1754  c.baseHeight += 0.0f * b.deltaU * exp(...)  (painted uplift disabled)
+Command: phyxel_tests.exe --gtest_brief=1 --gtest_filter='WorldSheetGeneratorTest.MacroSheetCarriesTheMacroDrainage:WorldSheetGeneratorTest.PaintedUplift*'
+
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[16:35:15.177] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:35:15.823] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[16:35:15.824] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[16:35:15.862] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 6301989061899736865); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[16:35:19.718] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 945 bodies[0m
+[32m[16:35:19.718] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2500 maxOrder=5 drainageComplete=1[0m
+[32m[16:35:19.719] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(184): error: Expected: (c.receiver) >= (0), actual: -1 vs 0
+cell (0,0) has no receiver
+
+[  FAILED  ] WorldSheetGeneratorTest.MacroSheetCarriesTheMacroDrainage (4546 ms)
+[32m[16:35:19.724] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:35:19.725] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[16:35:19.728] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:35:19.770] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 11703865564780879431); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[16:35:23.548] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 945 bodies[0m
+[32m[16:35:23.548] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells, seaLevel=16, maxAccum=2500 maxOrder=5 drainageComplete=1[0m
+[32m[16:35:23.548] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(216): error: The difference between atCentre and 300.0f is 300, which exceeds 30.0f, where
+atCentre evaluates to 0,
+300.0f evaluates to 300, and
+30.0f evaluates to 30.
+the bump did not raise its centre by its delta
+
+[  FAILED  ] WorldSheetGeneratorTest.PaintedUpliftRaisesTheBaseWhereItIsPaintedAndRoundTrips (3829 ms)
+[==========] 2 tests from 1 test suite ran. (8376 ms total)
+[  PASSED  ] 0 tests.
+
+GREEN after reverting the mutation (git checkout of the two files; exe rebuilt 16:36:44, same filter):
+[ M2 prereq ] macro drainage: 9372 base-level cells, 677 lake cells (filled > base) of 40000
+[==========] 2 tests from 1 test suite ran. (8334 ms total)
+[  PASSED  ] 2 tests.
