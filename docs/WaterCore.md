@@ -165,7 +165,7 @@ The owner's look re-recorded on an idle GPU (`pw_look3_side_by_side.mp4`: OFF me
 **The partial wake's look SIGNED OFF by the owner 2026-10-18 (`pw_look4`).** **26.34 (2026-10-18):** the awake patch creeps over the
 whole pond at the sleep test's thresholds (sub-0.1 mm waves count as moving); a knob for the freeze test (`quiet_scale`): at x3 the
 mean solver time over 20 s after a push 2.34 -> 0.72 ms, the waves the same within run noise, the frozen pond flat to 0.08 mm.
-**x3 signed off by the owner 2026-10-19 and made the default.** **26.35:** the sweeps are work, not launches; an exact 6 % saving; 20 sweeps measure the same as 40 (waves, volume, creek speed) for ~0.35-0.9 ms. **Next:** the owner's calls on 20 sweeps and on the partial wake's default (still OFF); then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
+**x3 signed off by the owner 2026-10-19 and made the default.** **26.35:** the sweeps are work, not launches; an exact 6 % saving; 20 sweeps measure the same as 40 (waves, volume, creek speed) for ~0.35-0.9 ms. 20 sweeps signed off by the owner 2026-10-19 and made the default. **Next:** the owner's call on the partial wake's default (still OFF); then the sweeps' launches and the reductions. 26.32 waits for a repeatable rig. The §23 slime experiment stays queued.
 
 ## 1. Principles (the invariants every later decision must satisfy)
 
@@ -7499,6 +7499,10 @@ after ~11 s.
   - the creek (`water_creek_bench.py --q 0.1 --record 240`): mid depth 0.1515 vs 0.1513 m, speed by continuity 0.330 vs 0.331 m/s,
     surface speed 0.355 vs 0.354 m/s; solver over the last 60 s 1.25 -> 0.90 ms. Clips `creekbench_pond_g9_q0.1_s40/_s20.mp4`.
   - the saving at 20: ~0.9 ms on the full pond, ~0.35 ms on the creek, ~0.25 ms with the partial wake on (half of ~0.5).
+- **20 sweeps SIGNED OFF by the owner 2026-10-19** on the creek clips side by side ("i honestly cant tell the difference" ... "yes"):
+  `kGpuSweepsAutoMax` and `kGpuSweeps` 40 -> 20 (the automatic count 1.5 x the longest dimension, now clamped 8-20; an explicit
+  `sweeps` still up to 160); `water_creek_bench.py --sweeps` defaults to 20. Live: a new volume echoes `gpu_sweeps 20`. Water unit
+  310/310, integration 134/136 (the FLIP run-up; SceneIntegrationTest).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

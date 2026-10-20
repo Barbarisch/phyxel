@@ -148,13 +148,16 @@ public:
     /// Phase C: give the manager a device; GPU volumes are refused until this succeeds (loudly).
     bool initGpu(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t queueFamily, const std::string& shaderDir, std::string* err);
     bool gpuReady() const { return m_gpu && m_gpu->ready(); }
-    static constexpr int kGpuSweeps = 40;   ///< default red-black SOR sweeps per projection (docs/WaterCore.md 15.12: omega 1.85, measured)
+    static constexpr int kGpuSweeps = 20;   ///< default red-black SOR sweeps per projection (15.12: omega 1.85; 26.35: 40 -> 20, the owner's call)
     static constexpr int kGpuSweepsMin = 8, kGpuSweepsMax = 160;   ///< fewer never converges a 26 m basin; more is the whole dispatch budget (15.11)
     /// 26.23: the AUTOMATIC count's ceiling (an explicit `sweeps` may still ask for up to kGpuSweepsMax). Measured one-step velocity
     /// error vs a 640-sweep solve: free-surface water is within 0.4 % at 40 whatever the box's length (12-540 cells) - the surface
     /// pins the pressure along the top - and water pressed under a solid lid does not converge at 160 either (14-80 % off).
     /// 1.5 x longest up to 160 cost the dam & pond bench 3.17 ms where 40 gave the same answer at 1.73 ms.
-    static constexpr int kGpuSweepsAutoMax = 40;
+    /// 26.35: 40 -> 20, the owner's call 2026-10-19 (the creek clips side by side: "i honestly cant tell the difference"). Measured
+    /// the same as 40 within run noise: waves 1-8 m from a push, volume and level at rest (1 m and 3 m deep), the creek's depth and
+    /// speed; 10 is broken (a false wave six times the real one at 4 m). Saves ~0.35 ms a call on the creek, ~0.9 on a full pond.
+    static constexpr int kGpuSweepsAutoMax = 20;
     bool destroy(int id);
     // ── Phase D (16.2): rest, write-back, wake ────────────────────────────────────────────
     void setSpanIo(SpanWriter writer, SpanReader reader) { m_spanWriter = std::move(writer); m_spanReader = std::move(reader); }

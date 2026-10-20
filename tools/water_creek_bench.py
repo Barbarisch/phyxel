@@ -77,7 +77,7 @@ def main():
     ap.add_argument("--q", type=float, default=0.1)
     ap.add_argument("--record", type=float, default=0.0, help="seconds of clip + polling (0 = just start it and leave it running)")
     ap.add_argument("--pond", action="store_true", help="accepted, pond water is the only mode since WaterCore 26.27")
-    ap.add_argument("--sweeps", type=int, default=40, help="the pressure sweeps per substep")
+    ap.add_argument("--sweeps", type=int, default=20, help="the pressure sweeps per substep (26.35: the engine default 20)")
     ap.add_argument("--ground-bricks", type=int, default=-1, choices=(-1, 0, 1), help="26.18 ground bricks on/off (-1 = the engine default); tags the outputs _gb<0|1>")
     ap.add_argument("--brick-height", type=int, default=0, help="GPU brick height 2 / 4 / 8 (26.17; 0 = the engine default); tags the outputs _h<H>")
     ap.add_argument("--grid", type=int, default=9, choices=(3, 9), help="the carve's grid per metre (26.15: 9; 25.22: 3) - --build carves it, the numbers read it")
