@@ -420,7 +420,9 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     for (const auto& c : runs) { if (c.held || c.runs.empty()) continue; WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) { m.mass += static_cast<double>(r.topY - r.bottomY); m.top = std::max(m.top, r.topY); } written.push_back(m); rec.massStored += m.mass; }
     rec.bodyId = m_bodies.credit(written, before, m_bakeBodyAt);
     rec.ok = true;
+    const glm::ivec3 lo = av->minVoxel, hi = av->maxVoxel;
     destroy(id);
+    buildRecordTilesNow(lo, hi);   // §27 W1a: the record draws these columns in the frame the volume stops drawing them
     return rec;
 }
 
@@ -925,13 +927,21 @@ void WaterCoreManager::refreshRecordTiles() {
         if (!inRange(it->first.first, it->first.second)) { changed |= it->second.wet; it = m_recordTiles.erase(it); } else ++it;
     }
     const auto t0 = std::chrono::steady_clock::now();
+    // stale tiles, nearest first (a stale tile keeps drawing its last field until it is rebuilt - late, never blank)
+    std::vector<std::pair<float, std::pair<int, int>>> stale;
     for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
         if (!inRange(tx, tz)) continue;
         RecordTile& t = m_recordTiles[{tx, tz}];
         if (t.spanRev == sr && t.occRev == orv && t.avRev == m_avRevision) continue;
+        const float dx = (tx + 0.5f) * T - m_view.x, dz = (tz + 0.5f) * T - m_view.z;
+        stale.push_back({dx * dx + dz * dz, {tx, tz}});
+    }
+    std::sort(stale.begin(), stale.end());
+    for (const auto& [d2, key] : stale) {
         if (m_recordStats.builtLastCall >= kRecordBuildsPerCall) { ++m_recordStats.pending; continue; }
+        RecordTile& t = m_recordTiles[key];
         const bool wasWet = t.wet;
-        buildRecordTile(tx, tz, t);
+        buildRecordTile(key.first, key.second, t);
         t.spanRev = sr; t.occRev = orv; t.avRev = m_avRevision;
         ++m_recordStats.builtLastCall;
         changed |= wasWet || t.wet;
@@ -946,6 +956,36 @@ void WaterCoreManager::refreshRecordTiles() {
             if (t.wet) m_recordBoxes.push_back({glm::ivec3(key.first * T, -1000000, key.second * T), glm::ivec3(key.first * T + T - 1, 1000000, key.second * T + T - 1)});
     }
     for (const auto& [key, t] : m_recordTiles) if (t.wet) ++m_recordStats.wetTiles;
+}
+
+void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec3& hi) {
+    // a volume just slept over [lo, hi]: its record tiles are built at once, not budgeted - built later, the pond would be blank
+    // between the volume's last frame and the tiles' turn (every tile in range goes stale on the span revision bump)
+    if (!s_recordDraw.on || !m_spanReader) return;
+    const uint64_t sr = m_spanRevision ? m_spanRevision() : 0, orv = m_revision ? m_revision() : 0;
+    const int T = kRecordTile;
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    const float r = std::max(0.0f, s_recordDraw.radiusM);
+    const auto t0 = std::chrono::steady_clock::now();
+    bool changed = false;
+    for (int tz = floorDiv(lo.z, T); tz <= floorDiv(hi.z, T); ++tz) for (int tx = floorDiv(lo.x, T); tx <= floorDiv(hi.x, T); ++tx) {
+        const float nx = std::clamp(m_view.x, static_cast<float>(tx * T), static_cast<float>(tx * T + T)) - m_view.x;
+        const float nz = std::clamp(m_view.z, static_cast<float>(tz * T), static_cast<float>(tz * T + T)) - m_view.z;
+        if (nx * nx + nz * nz > r * r) continue;   // out of range: W2's (the sheet / far tiles)
+        RecordTile& t = m_recordTiles[{tx, tz}];
+        const bool wasWet = t.wet;
+        buildRecordTile(tx, tz, t);
+        t.spanRev = sr; t.occRev = orv; t.avRev = m_avRevision;
+        changed |= wasWet || t.wet;
+    }
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    m_recordStats.buildMsMax = std::max(m_recordStats.buildMsMax, ms);
+    m_recordStats.buildMsOnSleepLast = ms;
+    if (changed) {
+        m_recordBoxes.clear(); ++m_recordRevision;
+        for (const auto& [key, t] : m_recordTiles)
+            if (t.wet) m_recordBoxes.push_back({glm::ivec3(key.first * T, -1000000, key.second * T), glm::ivec3(key.first * T + T - 1, 1000000, key.second * T + T - 1)});
+    }
 }
 
 void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {

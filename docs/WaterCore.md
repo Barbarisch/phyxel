@@ -7821,6 +7821,20 @@ Items 2-5 of 27.7 are answered by 27.9 (built) and this section; item 4 waits on
   no double surface - checked when W4 puts generated water on this path); chunks streaming in with stored water do not bump the
   span revision - their tiles are rebuilt only when the ground's revision moves (it does on a chunk load); the 4-tiles-a-call
   bound is a cost bound, a tile can draw a frame or two late.
+- **Found recording the owner's clip, fixed:** (1) a gap - a sleep bumps the span revision, every tile in range went stale and
+  was rebuilt 4 a call in grid order, so the pond's own tiles could wait their turn while the volume no longer drew: now `sleep`
+  builds the tiles under the slept box at once, in the frame the volume stops drawing (`buildRecordTilesNow`, ~25 ms for 4
+  tiles - a one-off at the sleep; a tile build reads its scratch grid's occupancy cell by cell, W1b's to cut), and other stale
+  tiles are rebuilt nearest first (a stale tile keeps drawing its last field - late, never blank). (2) A rig artifact, not a
+  defect: this world had lost the earlier rigs' kerb, so the pond was held only by the VOLUME's box edge (solid to the volume,
+  open grass to the world) - the record, which reads the world, rightly drew the water's side face standing in the open (a
+  green strip at the edge, the water band 4 % less blue after the sleep). With a real StoneBricks kerb round the pond
+  (`--walls`, read back from the world) and the camera above it:
+  - A/B, two runs (mean / % px > 48): awake vs awake 1.49 / 0.16 % and 1.17 / 0.11 %; **awake vs recorded 1.34 / 0.20 % and
+    1.57 / 0.21 %**; the record not drawn 20.84 / 23.7 % and 20.79 / 23.6 % (`w1a_draw_walls_r*`).
+  - **The clip for the owner: `w1a_sleep_into_record_walls.mp4`** - 20 s, the pond pushed at 1 s, forced to sleep into the record
+    at 14.2 s (still moving: spread 2 mm), drawn from the record after. The water band per frame (blue excess): 25.24 before the
+    sleep, 25.23 after; the largest frame-to-frame change in the clip 0.08 (at 12 s, not at the sleep); no blank frame.
 - Water unit 312/312, integration 134/136 (the FLIP run-up; SceneIntegrationTest). Built, not signed off.
 
 

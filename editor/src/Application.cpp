@@ -13960,7 +13960,8 @@ void Application::registerWaterCommands() {
         const auto& s = waterCore->recordDrawStats();
         r = {{"on", M::s_recordDraw.on}, {"radius_m", M::s_recordDraw.radiusM}, {"tile_m", M::kRecordTile}, {"tiles", s.tiles},
              {"wet_tiles", s.wetTiles}, {"built_last_call", s.builtLastCall}, {"pending", s.pending},
-             {"build_ms_last_call", s.buildMsLastCall}, {"build_ms_max", s.buildMsMax}, {"revision", waterCore->recordRevision()}};
+             {"build_ms_last_call", s.buildMsLastCall}, {"build_ms_max", s.buildMsMax}, {"build_ms_on_sleep_last", s.buildMsOnSleepLast},
+             {"revision", waterCore->recordRevision()}};
     });
     // §27 W1 step 0: {id} where the volume's water is - m^3 in air / inside ground / in unknown occupancy / above full cells
     reg.on("water_av_census", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
