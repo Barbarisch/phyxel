@@ -135,7 +135,7 @@ biome (`:440-442`); order 1–2 creeks are a notch across every road (`WorldGene
 | T4a | City scale is **render-gated**: the lot count a city ships with is whatever the perf program's city ladder (C-25…C-100, `PerfProgram2026-09.md` §16) sustains at its stated frame-time target on both GPUs; the generator must be able to produce 200+ but ships the measured number | `CityBench_*` ladder re-run on every M5 increment |
 | T5 | **First-visit realization**: a settlement exists because the player streamed into it, not because a job was run; identical in editor and standalone (streaming already is — the realizer host is what is missing) | `LazyRealizeTest` + packaged-game L4 (`--test` API gains placed-object listing) |
 | T6 | **Horizon**: roads, bridges, rivers and settlement massing visible on far-terrain tiles to 4096 u today and to the macro-sheet horizon after M7 | pixel-diff A/B at a fixed pose, far tile vs resident chunk silhouette |
-| T7 | **Water-ready**: every river/lake/coast is a shaped basin with bed, banks, rim and spring sites that WaterCore can fill with zero rim leaks | `water_validate rim_leaks == 0` on the bake (owner's acceptance test, `water-must-be-tied-to-terrain`) |
+| T7 | **Water-ready**: every river/lake/coast is a shaped basin with bed, banks, rim and spring sites that WaterCore can fill with zero rim leaks | `BasinRimTest` on the generator's own output: no rim column below its basin's real spill (the shape form of `water-must-be-tied-to-terrain`; D17: the water runtime is not the test) |
 | T8 | **Cost**: column sampling ≤ 25 noise evals; streaming ≥ 2× today's chunks/s in forest, measured on a named GPU | `WorldGenBench` red/green numbers in `docs/evidence/` |
 
 ---
@@ -220,6 +220,7 @@ inside M0 so they land on the merged generator. The milestone order in §5 stand
 | D14 | **The R0 post-teleport worker crash is chased and fixed before M2** (owner: "we probably want to chase and fix a crash if there is one") | a crash that fires 2 of 5 teleports blocks every L4 run | park it as a water-side note |
 | D15 | **M2 drainage is the HYBRID (owner, 2026-10-20: "go with your recommendation"):** the macro erosion bake (M1c receivers, areas, filled surface, kept on the `MacroSheet`) is the global boundary condition and every lake's spill height; each meso tile routes its own flow with a derived apron and takes inflow at its edges from the macro graph. The seam invariant is CONTINUITY (a channel leaving tile A at an edge cell enters tile B at the matching cell with order ≥ the exiting order; a basin's spill is identical on both sides), not tile-equals-whole-region | per-tile cost and memory on the laptop; lake levels continuous across tiles by construction | a full 32 u meso bake per recipe (~10 M cells, ~130 MB resident) |
 | D16 | **M2 may change how rivers LOOK on version-2 worlds** (owner, 2026-10-20: "yes"): spline centrelines, banks from drainage, smoothed confluences replace the meander-warped cell segments; version-1 worlds keep today's carve untouched (D10), so Ravenmere and the water tests do not move (D12). Read by the agent as "yes, change it"; if the owner meant "keep the old carve as a v2 option too", add a recipe switch | the old carve's right-angle junctions and 55 u warp are what M2 exists to replace | keep the cell-segment carve on v2 |
+| D17 | **WorldForge makes water fixture SHAPES only and never populates a feature with water** (owner, 2026-10-21: "i dont care how you handle water for now, i really prefer you to just make the water fixture shapes and not populate any feature with actual water. the engine water system is still being realized and is not ready to incorporate into anything else yet"). Basins (rim + floor + real spill height), channel beds, banks, floodplains, shelves, coasts and spring SITES are terrain geometry + data handed over through §4's adapters; no WorldForge milestone edits the water runtime, binds through it, or uses `water_validate` / water captures as its acceptance test until the owner says the water core is ready. The M2c "lake shrink" question is therefore not a water question: the basin SHAPE is what we deliver, and its real spill (the rim minimum) is a shape fact | the water core is a moving target; WorldForge verifies its own geometry (generator-side tests such as `BasinRimTest`, captures of the dry shapes) | wiring water now, or shaping basins to a runtime that will change |
 | D12 | **The terrain-pinned water tests are NOT re-baselined now** (owner, 2026-10-15: "dont worry about the other water stuff for now") — with D10 they stay on the version-1 path and do not move; revisit only if a water fixture is ever pointed at a version-2 recipe | — | re-record water numbers under the sheet |
 
 ---
@@ -779,8 +780,7 @@ become adapters over this (§4).
 
 Validation: L2 (`RiverGeometryTest`: monotone bed along every centreline, width/depth monotone in
 drainage, no 90° junctions, no channel terminates at a tile edge; `BasinRimTest`: every basin's
-rim is ≥ spill everywhere → `water_validate rim_leaks == 0` on the bake — the owner's acceptance
-test), L3 (`TraversalProbe` along both banks: a character can walk a river bank), L4 (fixed-pose
+rim is ≥ its real spill everywhere, measured on `sampleSurface` — the acceptance test in its shape form, D17), L3 (`TraversalProbe` along both banks: a character can walk a river bank), L4 (fixed-pose
 captures of a confluence, a lake rim, a coast; stated defect in frame before/after). Red tests:
 `BasinRimTest` fails on today's 128 u levels; `RiverGeometryTest.NoRightAngleJunctions` fails.
 Stress: order-6 trunk across 100 km, 500-lake continent, a lake exactly on a meso tile edge.
@@ -827,8 +827,8 @@ rim 543 / rim_leaks 418 -> rim 254 / rim_leaks 0; river rect 287 / 218 -> 0 / 0.
 (spill 129.8) kept 2 wet cells (52 420 -> 2 048 wet columns) and the river-site basin dried, because their real voxel rims sit
 up to ~18 u below the coarse spill - v2 worlds now carry far fewer and smaller lakes than the coarse flood promised. That
 is the invariant doing its job on a bake that samples cell centres; the OTHER way to honour it (raise the rim instead
-of lowering the water, or flood on per-cell minima so basins are found at voxel resolution) is an owner decision, not a
-tuning (D17 candidate). Frame-time hitches after the teleports are the same magnitude as before (worst 2.4 s -> 2.7 s,
+of lowering the water, or flood on per-cell minima so basins are found at voxel resolution) was put to the owner and answered by D17: WorldForge delivers the basin SHAPE with its real spill;
+whether a lake sits in it is the water core's later business, so neither raising rims nor re-flooding is done for water's sake. Frame-time hitches after the teleports are the same magnitude as before (worst 2.4 s -> 2.7 s,
 both fresh-DB boots), so the first-touch correction cost is not separable here. Still open
 for M2c-2: the per-basin cost is paid on the first query of that basin (the water table's first touch on the main
 thread) — measured by the test's printed ring-column count; the `water_validate` L3 on the engine is the next check.
