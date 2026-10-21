@@ -1,0 +1,31 @@
+M2b-1 RELEASE figures (2026-10-21, build/tests/Release/phyxel_tests.exe 10:03, RTX 1000 Ada laptop; filter V2BakesHydrologyAtTheMesoCell:MacroInflowEntersTheBoxAtTheBorder:ColumnCostBench.*):
+[ column phases ] v1 baseline, gate pose (300,-1400): 5.1 us per fresh column over 1024 columns
+    climate+layer0                    0.6 us  (11.0 %)
+    biome blend                       0.1 us  ( 1.8 %)
+    material scatter                  0.7 us  (13.6 %)
+    relief+meander+valley             0.8 us  (14.8 %)
+    carve+creek fill                  0.2 us  ( 3.4 %)
+    slope+material overrides          2.6 us  (51.9 %)
+    roads+bridges+rest                0.0 us  ( 0.5 %)
+[ column phases ] v2 sheet, gate pose (300,-1400): 1.7 us per fresh column over 1024 columns
+    climate+layer0                    0.2 us  (13.0 %)
+    biome blend                       0.1 us  ( 4.9 %)
+    material scatter                  0.6 us  (36.7 %)
+    relief+meander+valley             0.5 us  (29.2 %)
+    carve+creek fill                  0.1 us  ( 3.0 %)
+    slope+material overrides          0.1 us  ( 4.4 %)
+    roads+bridges+rest                0.0 us  ( 1.4 %)
+[ column phases ] v1, 3 threads on copies: 4.8 / 4.7 / 4.7 us per column per thread
+[ column phases ] v2, 3 threads on copies: 2.8 / 2.9 / 2.5 us per column per thread
+[ column radius ] v2 sheet, 289 blocks (17x17 chunk columns) around (300,-1400): per-column us min 1.6 mean 1.8 max 2.9 (max at chunk column 13,-40); whole radius 539 ms
+    climate+layer0                   68.0 ms  (12.6 %)
+    biome blend                      24.2 ms  ( 4.5 %)
+    material scatter                186.4 ms  (34.6 %)
+    relief+meander+valley           164.7 ms  (30.5 %)
+    carve+creek fill                 27.5 ms  ( 5.1 %)
+    slope+material overrides         23.7 ms  ( 4.4 %)
+    roads+bridges+rest                7.3 ms  ( 1.4 %)
+[ M2b ] v2 recipe bake incl. 1024x1024-cell hydrology: 3430 ms (this build config); maxOrder 5, maxAccum 103217
+[ M2b ] macro inflows: 56 entry cells, 62.7 km2 injected, 51 propagate downstream
+[==========] 7 tests from 2 test suites ran. (15089 ms total)
+[  PASSED  ] 7 tests.

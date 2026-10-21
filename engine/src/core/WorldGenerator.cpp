@@ -456,7 +456,8 @@ void WorldGenerator::rebuildCoarseModel() {
     m_hydro = std::make_shared<HydrologyMap>(bakeHeight, kHydroOrigin, kHydroOrigin,
                                              hydroCells, hydroCells, hydroCell, seaLvl);
     m_flow  = std::make_shared<FlowField>(bakeHeight, kHydroOrigin, kHydroOrigin,
-                                          hydroCells, hydroCells, hydroCell, seaLvl, riverThresh, inflows);
+                                          hydroCells, hydroCells, hydroCell, seaLvl, riverThresh, inflows,
+                                          /*areaLaw=*/mesoBake);   // M2b-2: v2 serves width/depth from the law
     // Body identity rides the bake (tangible-water Phase A). Built HERE because volumeEst needs
     // the flood's height function, which is not retained anywhere after this scope.
     m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, bakeHeight);
@@ -762,6 +763,7 @@ WorldGenerator::surfaceBlockForChunk(const glm::ivec2& colChunk) {
             block->surfaceY[i] = cols[i].surfaceY;
             block->channelDepth[i] = cols[i].channelDepth;
             block->riverOrder[i] = static_cast<int8_t>(cols[i].riverOrder);
+            block->carved[i] = cols[i].carvedRiver ? 1 : 0;
         }
     } else {
         // A padding-only block (never generated here): sample the columns once, keep only the
@@ -774,6 +776,7 @@ WorldGenerator::surfaceBlockForChunk(const glm::ivec2& colChunk) {
                 block->surfaceY[i] = c.surfaceY;
                 block->channelDepth[i] = c.channelDepth;
                 block->riverOrder[i] = static_cast<int8_t>(c.riverOrder);
+                block->carved[i] = c.carvedRiver ? 1 : 0;
             }
         t_columnSampleUs += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - tsC0).count());
@@ -1009,7 +1012,7 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
                     const size_t i = static_cast<size_t>(gz) * pw + gx;
                     const size_t ci = static_cast<size_t>(lx) * 32 + lz;
                     surf[i]   = blk->surfaceY[ci];  // x-major, z-minor
-                    river[i]  = blk->riverOrder[ci] >= 3 ? 1 : 0;   // Phase D4: a carved channel column holds its river span
+                    river[i]  = blk->carved[ci];   // Phase D4: a carved channel column holds its river span (M2b-2: the class)
                     rdepth[i] = blk->channelDepth[ci];
                     filled[i] = m_hydro->filledAt(static_cast<float>(cx * 32 + lx) + 0.5f,
                                                   static_cast<float>(cz * 32 + lz) + 0.5f);
@@ -1167,10 +1170,12 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // P2 valley shaping (docs/TerrainGenerationV2.md §P2): attenuate Layer-1 relief toward the
         // (meandered) channel centreline so the river seats in a SMOOTH valley floor, not a thin slot.
         if (m_flow) {
-            const float maxValleyHalf = FlowField::channelHalfWidth(6) * kValleyWidthMul;  // widest order
+            // M2b-2: the corridor scales with the channel's own width (law or table); v1 keeps the
+            // table's widest order as its search bound, byte for byte.
+            const float maxValleyHalf = (m_flow->areaLaw() ? m_flow->maxHalfWidth() : FlowField::channelHalfWidth(6)) * kValleyWidthMul;
             const FlowField::NearestChannel nc = m_flow->nearestChannel(mwx, mwz, maxValleyHalf);
-            if (nc.order >= 3) {
-                const float valleyHalf = FlowField::channelHalfWidth(nc.order) * kValleyWidthMul;
+            if (nc.carved) {
+                const float valleyHalf = nc.halfWidth * kValleyWidthMul;
                 relief *= smoothstep01(0.0f, valleyHalf, nc.dist);  // 0 at centreline → full at edge
             }
 
@@ -1181,9 +1186,12 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             // at the centreline), deliberately NOT a fraction of relief: a fractional attenuation
             // (the big rivers' valley rule) scaled by mountain relief cut measured 55-voxel slot
             // canyons along 3-voxel-wide creeks — a fraction is only safe over a wide valley.
-            const float creekSwaleHalf = FlowField::channelHalfWidth(2) * 2.0f;   // 3 voxels
-            const FlowField::NearestChannel cs = m_flow->nearestChannel(mwx, mwz, creekSwaleHalf, 1);
-            if (cs.order >= 1 && cs.order <= 2 && cs.dist < creekSwaleHalf) {
+            // M2b-2: under the law the swale is two of THAT creek's widths; the table keeps 3 u.
+            const float creekSearchHalf = m_flow->areaLaw() ? std::max(2.0f, 2.0f * m_flow->maxCreekHalfWidth())
+                                                            : FlowField::channelHalfWidth(2) * 2.0f;   // 3 voxels
+            const FlowField::NearestChannel cs = m_flow->nearestChannel(mwx, mwz, creekSearchHalf, 1);
+            const float creekSwaleHalf = m_flow->areaLaw() ? std::max(2.0f, 2.0f * cs.halfWidth) : creekSearchHalf;
+            if (cs.order >= 1 && !cs.carved && cs.dist < creekSwaleHalf) {
                 constexpr float kCreekSwaleDepth = 1.6f;
                 const float t = cs.dist / creekSwaleHalf;
                 creekSwale = kCreekSwaleDepth * (1.0f - t * t);
@@ -1207,8 +1215,9 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 // to a full-voxel trench here, which is exactly the wrong outcome for a sub-voxel
                 // creek. riverOrder is still recorded for every order: the water runtime and the
                 // flora gate both consume it (no trees standing in the creek line).
-                if (ch.order >= 3) { col.surfaceY -= static_cast<int>(std::lround(ch.depth)); col.bedHeight -= ch.depth; }
+                if (ch.carved) { col.surfaceY -= static_cast<int>(std::lround(ch.depth)); col.bedHeight -= ch.depth; }
                 col.riverOrder = ch.order;
+                col.carvedRiver = ch.carved;   // M2b-2: the class, not the order, says "carved"
                 col.channelDepth = ch.depth;
                 // Creek BED RECESS (water-as-terrain-stage P2): the inner band of an order 1-2
                 // channel — same 0.15 depth threshold the runtime pin uses (WaterManager::
@@ -1218,7 +1227,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 // WaterCore.md 25.22: with the 1/3 m carve on, the WHOLE channel width is bed - the 0.15 band (the old CA ribbon's
                 // pin threshold) is ~0.74 voxel either side of a warped, meandering centreline: a 1-voxel line that steps
                 // DIAGONALLY, and water, which crosses faces not corners, pooled at the first step (C-T10, 2026-10-11)
-                col.creekBed = (ch.order <= 2 && ch.depth >= (m_creekCarve ? 1e-4f : 0.15f));
+                col.creekBed = (!ch.carved && ch.depth >= (m_creekCarve ? 1e-4f : 0.15f));
             }
             // 25.22 CORNER FILL: a band around a warped, meandering centreline still pinches to a diagonal step in places (40
             // corner-only joins in 8 test windows with the full-width band), and water crosses faces, not corners. A column is
@@ -1714,7 +1723,7 @@ bool WorldGenerator::inCreekBand(int wx, int wz) const {
     if (!m_flow) return false;
     const glm::vec2 m = meanderedChannelPos(static_cast<float>(wx), static_cast<float>(wz));
     const FlowField::ChannelHit ch = m_flow->channelAt(m.x, m.y);
-    return ch.hit && ch.order <= 2 && ch.depth >= 1e-4f;
+    return ch.hit && !ch.carved && ch.depth >= 1e-4f;
 }
 
 int WorldGenerator::creekLayers(const ColumnSample& c) {

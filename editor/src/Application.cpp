@@ -6930,6 +6930,16 @@ void Application::autoLoadGameDefinition() {
                             const auto h = g->channelHitAt(wx, wz);
                             return h.hit ? h.order : 0;
                         });
+                        // M2b-2: the river-vs-creek CLASS of the hit segment (carved river = full
+                        // pins in the voxel bed; creek = the fractional ribbon). Same hit as the
+                        // depth and order queries, for the same reason as above.
+                        waterManager->setRiverClassQuery([this](float wx, float wz) -> bool {
+                            const WorldGenerator* g =
+                                chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                            if (!g) return false;
+                            const auto h = g->channelHitAt(wx, wz);
+                            return h.hit && h.carved;
+                        });
                         // Phase 3 (WaterSystemV3): rivers are pinned full, so the CA derives no
                         // flow for them. Feed the shader the bake's downhill direction so a river
                         // reads as MOVING. Visual only — the field stays hydrostatic.
@@ -13277,7 +13287,7 @@ void Application::registerWaterCommands() {
                 const float lvl = g->hydrology()->waterLevelAt(wx + 0.5f, wz + 0.5f);
                 const bool baked = lvl > Phyxel::HydrologyMap::NO_WATER * 0.5f;
                 if (baked) ++bakeWet;
-                const bool riverCol = g->sampleSurface(wx, wz).riverOrder >= 3;
+                const bool riverCol = g->sampleSurface(wx, wz).carvedRiver;   // M2b-2: the class
                 if (riverCol) ++riverColumns;
                 if (hasSpan[i]) {
                     ++spanWet; sumDepth += spans[i].depth();
@@ -13513,7 +13523,7 @@ void Application::registerWaterCommands() {
         auto one = [&](int x, int z) {
             const WorldGenerator::ColumnSample c = g->sampleSurface(x, z);
             return nlohmann::json{{"x", x}, {"z", z}, {"surface_y", c.surfaceY}, {"bed_height", c.bedHeight}, {"drawn_top", g->drawnTop(c)},
-                                  {"creek_bed", c.creekBed}, {"river_order", c.riverOrder}, {"channel_depth", c.channelDepth}};
+                                  {"creek_bed", c.creekBed}, {"river_order", c.riverOrder}, {"carved_river", c.carvedRiver}, {"channel_depth", c.channelDepth}};
         };
         if (cmd.params.contains("points")) {
             nlohmann::json a = nlohmann::json::array();

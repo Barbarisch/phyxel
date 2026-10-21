@@ -604,6 +604,11 @@ void WaterManager::setRiverOrderQuery(std::function<int(float, float)> orderAt) 
     m_oceanDirty = true;   // pin masses depend on order — re-derive
 }
 
+void WaterManager::setRiverClassQuery(std::function<bool(float, float)> carvedAt) {
+    m_riverClassFn = std::move(carvedAt);
+    m_oceanDirty = true;   // pin masses depend on the class — re-derive
+}
+
 void WaterManager::setRiverFlowQuery(std::function<glm::vec2(float, float)> dirAt) {
     m_riverDirFn = std::move(dirAt);
     rebuildSurface();      // shading-only input: just restamp the surface cells
@@ -683,7 +688,13 @@ void WaterManager::applyRiverInflows() {
             ? m_riverOrderFn(static_cast<float>(m_origin.x + lx) + 0.5f,
                              static_cast<float>(m_origin.z + lz) + 0.5f)
             : 3;
-        if (order >= 3) {
+        // M2b-2: the generator's class decides river vs creek when bound (a carved river = its
+        // centreline carve reaches 0.5, the same threshold the full pin below uses); the legacy
+        // order >= 3 rule stands for every world that binds no class query.
+        const bool river = m_riverClassFn
+            ? m_riverClassFn(static_cast<float>(m_origin.x + lx) + 0.5f, static_cast<float>(m_origin.z + lz) + 0.5f)
+            : (order >= 3);
+        if (river) {
             // Implicit-reservoir pins on the RECESSED part of the band only (see setRiverQuery):
             // the ribbon is full inside the carve; the non-recessed parabolic edges are left to
             // the CA. carve ≥ 0.5 is exactly where the generator's lround recessed the bed a full

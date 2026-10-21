@@ -222,6 +222,11 @@ public:
     // is treated as order ≥ 3 (legacy full-pin semantics, keeps existing tests/worlds unchanged).
     void setRiverOrderQuery(std::function<int(float worldX, float worldZ)> orderAt);
     bool hasRiverOrderQuery() const { return static_cast<bool>(m_riverOrderFn); }
+    // M2b-2 (docs/WorldForgeV2Plan.md M2b-2): the river-vs-creek split is the generator's CLASS
+    // (a carved river = centreline depth >= FlowField::kRiverCarveDepth; under the v1 table that
+    // is order >= 3). Bound → the class decides full pins vs the fractional ribbon; unbound → the
+    // order query's >= 3 rule above (unchanged for every v1 world).
+    void setRiverClassQuery(std::function<bool(float worldX, float worldZ)> carvedAt);
 
     // KINEMATIC river flow direction (WaterSystemV3 Phase 3). A baked river is pinned full along
     // its whole carve, so it performs NO transfers and the CA's flow proxy reads zero — a river
@@ -405,6 +410,7 @@ private:
     std::vector<int>                   m_tableLvlLocal;
     std::function<float(float, float)> m_riverFn;    // river carve depth (Phase C2); null = none
     std::function<int(float, float)>   m_riverOrderFn; // Strahler order (creek pins); null = legacy ≥3
+    std::function<bool(float, float)>  m_riverClassFn; // M2b-2: carved-river class; null = order >= 3
     std::function<glm::vec2(float, float)> m_riverDirFn; // baked downhill dir (V3 P3); null = none
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)

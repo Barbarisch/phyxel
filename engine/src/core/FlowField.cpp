@@ -10,9 +10,10 @@ namespace Phyxel {
 
 FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
                      int cellsX, int cellsZ, float cellSize, float seaLevel, int riverThreshold,
-                     const std::vector<Inflow>& inflows)
+                     const std::vector<Inflow>& inflows, bool areaLaw)
     : m_originX(originX), m_originZ(originZ), m_cellSize(cellSize > 0.0f ? cellSize : 1.0f),
-      m_cellsX(cellsX > 0 ? cellsX : 0), m_cellsZ(cellsZ > 0 ? cellsZ : 0), m_inflows(inflows) {
+      m_cellsX(cellsX > 0 ? cellsX : 0), m_cellsZ(cellsZ > 0 ? cellsZ : 0), m_inflows(inflows),
+      m_areaLaw(areaLaw) {
     if (m_cellsX <= 0 || m_cellsZ <= 0 || !heightAt) return;
     const size_t n = static_cast<size_t>(m_cellsX) * m_cellsZ;
 
@@ -77,6 +78,41 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
     m_order = computeStrahler(downstream, m_accum, riverThreshold);
     m_maxOrder = m_order.empty() ? 0 : *std::max_element(m_order.begin(), m_order.end());
     m_downstream = std::move(downstream);  // kept for channelAt's segment geometry
+
+    // M2b-2: per-cell channel geometry + class, fixed at bake time so every query reads one
+    // number. Law (areaLaw) or the per-order table; class by centreline depth (law) or order (table).
+    m_halfW.assign(n, 0.0f);
+    m_fullD.assign(n, 0.0f);
+    m_carved.assign(n, 0);
+    const bool useLaw = m_areaLaw;   // v2: the grounded law; v1: the per-order table (D10)
+    const float cellArea = m_cellSize * m_cellSize;
+    for (size_t c = 0; c < n; ++c) {
+        const int ord = m_order[c];
+        if (ord <= 0) continue;
+        float hw, fd;
+        if (useLaw) {
+            const float aKm2 = static_cast<float>(m_accum[c]) * cellArea * 1e-6f;
+            hw = lawHalfWidth(aKm2);
+            fd = lawDepth(aKm2);
+        } else {
+            hw = channelHalfWidth(ord);
+            fd = channelDepth(ord);
+        }
+        const bool carved = useLaw ? (fd >= kRiverCarveDepth) : (ord >= 3);
+        m_halfW[c] = hw;
+        m_fullD[c] = fd;
+        m_carved[c] = carved ? 1 : 0;
+        m_maxHalfW = std::max(m_maxHalfW, hw);
+        if (!carved) m_maxCreekHalfW = std::max(m_maxCreekHalfW, hw);
+    }
+}
+
+float FlowField::lawHalfWidth(float areaKm2) {
+    return areaKm2 > 0.0f ? 0.5f * kLawWidthCoeffU * std::pow(areaKm2, kLawWidthExp) : 0.0f;
+}
+
+float FlowField::lawDepth(float areaKm2) {
+    return areaKm2 > 0.0f ? kLawDepthCoeffU * std::pow(areaKm2, kLawDepthExp) : 0.0f;
 }
 
 namespace {
@@ -111,15 +147,24 @@ float FlowField::channelDepth(int order) {
 
 FlowField::ChannelHit FlowField::segmentChannel(float px, float pz, float ax, float az,
                                                 float bx, float bz, int order) {
+    if (order < 1) return {};                      // not a river cell
+    return segmentChannel(px, pz, ax, az, bx, bz, order, channelHalfWidth(order), channelDepth(order), order >= 3);
+}
+
+FlowField::ChannelHit FlowField::segmentChannel(float px, float pz, float ax, float az,
+                                                float bx, float bz, int order,
+                                                float halfWidth, float fullDepth, bool carved) {
     ChannelHit h;
-    if (order < 1) return h;                       // not a river cell
-    const float halfW = channelHalfWidth(order);
+    if (order < 1 || halfWidth <= 0.0f) return h;  // not a river cell
     const float dist = pointSegDist(px, pz, ax, az, bx, bz);
-    if (dist >= halfW) return h;
-    const float t = dist / halfW;                  // parabolic bed: full depth at centre, 0 at edge
+    if (dist >= halfWidth) return h;
+    const float t = dist / halfWidth;              // parabolic bed: full depth at centre, 0 at edge
     h.hit = true;
     h.order = order;
-    h.depth = channelDepth(order) * (1.0f - t * t);
+    h.depth = fullDepth * (1.0f - t * t);
+    h.halfWidth = halfWidth;
+    h.fullDepth = fullDepth;
+    h.carved = carved;
     return h;
 }
 
@@ -135,13 +180,16 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
     // segment length grows to cellSize·√2 and this radius must grow too. At the real 128-unit bake
     // cell (WorldGenerator kHydroCell) it is 5×5 (r=2, since ceil(11/128)=1); it stays correct for
     // small cellSize / large orders.
-    const int r = 1 + static_cast<int>(std::ceil(channelHalfWidth(m_maxOrder) / m_cellSize));
+    const int r = 1 + static_cast<int>(std::ceil(m_maxHalfW / m_cellSize));
     for (int j = cj - r; j <= cj + r; ++j)
         for (int i = ci - r; i <= ci + r; ++i) {
             if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
             const int rc = j * m_cellsX + i;
             const int ord = m_order[rc];
-            if (ord <= best.order) continue;  // keep the deepest (max-order) hit
+            // Keep the DEEPEST hit (centreline depth, then order). Under the per-order table this
+            // is exactly the old max-order rule (depth is non-decreasing in order; ties by order).
+            const float fd = m_fullD[rc];
+            if (fd < best.fullDepth || (fd == best.fullDepth && ord <= best.order)) continue;
             const float ax = m_originX + (i + 0.5f) * m_cellSize;
             const float az = m_originZ + (j + 0.5f) * m_cellSize;
             float bx = ax, bz = az;  // sink → degenerate segment (a point at the cell centre)
@@ -150,7 +198,7 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
                 bx = m_originX + (d % m_cellsX + 0.5f) * m_cellSize;
                 bz = m_originZ + (d / m_cellsX + 0.5f) * m_cellSize;
             }
-            ChannelHit h = segmentChannel(worldX, worldZ, ax, az, bx, bz, ord);
+            ChannelHit h = segmentChannel(worldX, worldZ, ax, az, bx, bz, ord, m_halfW[rc], fd, m_carved[rc] != 0);
             if (h.hit) best = h;
         }
     return best;
@@ -170,7 +218,9 @@ FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, 
             if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
             const int rc = j * m_cellsX + i;
             const int ord = m_order[rc];
-            if (ord < minOrder) continue;   // default 3: orders 1-2 cut no VALLEY (creek swale opts in)
+            // default 3 = CARVED rivers only (the valley pass); 1 = every channel (the creek swale).
+            // Under the table carved == order >= 3, so this is the old minOrder rule exactly.
+            if (minOrder >= 3 ? m_carved[rc] == 0 : ord < minOrder) continue;
             const float ax = m_originX + (i + 0.5f) * m_cellSize;
             const float az = m_originZ + (j + 0.5f) * m_cellSize;
             float bx = ax, bz = az;  // sink → degenerate segment (a point at the cell centre)
@@ -180,7 +230,7 @@ FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, 
                 bz = m_originZ + (d / m_cellsX + 0.5f) * m_cellSize;
             }
             const float dist = pointSegDist(worldX, worldZ, ax, az, bx, bz);
-            if (dist < best.dist) { best.dist = dist; best.order = ord; }
+            if (dist < best.dist) { best.dist = dist; best.order = ord; best.halfWidth = m_halfW[rc]; best.carved = m_carved[rc] != 0; }
         }
     return best;
 }
@@ -210,6 +260,30 @@ std::vector<int> FlowField::computeStrahler(const std::vector<int>& downstream,
         }
     }
     return order;
+}
+
+float FlowField::halfWidthAt(float worldX, float worldZ) const {
+    if (m_cellsX <= 0 || m_cellsZ <= 0) return 0.0f;
+    const int i = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    const int j = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return 0.0f;
+    return m_halfW[static_cast<size_t>(j) * m_cellsX + i];
+}
+
+float FlowField::fullDepthAt(float worldX, float worldZ) const {
+    if (m_cellsX <= 0 || m_cellsZ <= 0) return 0.0f;
+    const int i = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    const int j = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return 0.0f;
+    return m_fullD[static_cast<size_t>(j) * m_cellsX + i];
+}
+
+bool FlowField::carvedRiverAt(float worldX, float worldZ) const {
+    if (m_cellsX <= 0 || m_cellsZ <= 0) return false;
+    const int i = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    const int j = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return false;
+    return m_carved[static_cast<size_t>(j) * m_cellsX + i] != 0;
 }
 
 int FlowField::orderAt(float worldX, float worldZ) const {

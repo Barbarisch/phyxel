@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <vector>
 #include <glm/glm.hpp>
@@ -39,8 +40,32 @@ public:
     FlowField(const HeightFunc& heightAt, float originX, float originZ,
               int cellsX, int cellsZ, float cellSize, float seaLevel,
               int riverThreshold = kDefaultRiverThresholdCells,
-              const std::vector<Inflow>& inflows = {});
+              const std::vector<Inflow>& inflows = {},
+              bool areaLaw = false);
     const std::vector<Inflow>& inflows() const { return m_inflows; }
+
+    // ── M2b-2: channel geometry from DRAINAGE AREA (docs/WorldForgeV2Plan.md §10 F4f) ──────────
+    // The grounded law, read from the primary pages 2026-10-20: Doll 2004 (NC Coastal Plain,
+    // W = 10.97·DA^0.36 ft, D = 1.29·DA^0.30 ft, DA in mi²; valid 0.57–417 km²) converted to
+    // W = 2.37·A^0.36 m, D = 0.296·A^0.30 m with A in km²; extrapolated past 417 km² under
+    // Leopold & Maddock 1953's downstream b = 0.5 / f = 0.4 (which reproduce Doll's 0.36 through
+    // Q ∝ A^0.72). areaLaw = true (v2 recipes) serves width/depth from this law per cell; false
+    // (v1, D10) keeps the per-order table below. A channel is a CARVED RIVER when its centreline
+    // depth reaches kRiverCarveDepth (the water runtime pins full exactly where the carve is
+    // >= 0.5 — one threshold on both sides); shallower channels are CREEKS (the 1/3 u recess +
+    // fractional ribbon). Under the table the split is the historical order >= 3.
+    static constexpr float kLawWidthCoeffU = 2.37f, kLawWidthExp = 0.36f;
+    static constexpr float kLawDepthCoeffU = 0.296f, kLawDepthExp = 0.30f;
+    static constexpr float kRiverCarveDepth = 0.5f;
+    static float lawHalfWidth(float areaKm2);
+    static float lawDepth(float areaKm2);
+    bool  areaLaw() const { return m_areaLaw; }
+    float maxHalfWidth() const { return m_maxHalfW; }            // over every river cell
+    float maxCreekHalfWidth() const { return m_maxCreekHalfW; }  // over every non-carved river cell
+    // Per-CELL geometry (piecewise-constant like orderAt): half-width / centreline depth / class.
+    float halfWidthAt(float worldX, float worldZ) const;
+    float fullDepthAt(float worldX, float worldZ) const;
+    bool  carvedRiverAt(float worldX, float worldZ) const;
 
     // Upstream drainage count at a world column (>= 1 inside the baked region, 0 outside).
     // Piecewise-constant per cell.
@@ -73,7 +98,10 @@ public:
     struct ChannelHit {
         bool hit = false;
         int order = 0;
-        float depth = 0.0f;   // parabolic carve depth at this column (voxels)
+        float depth = 0.0f;       // parabolic carve depth at this column (voxels)
+        float halfWidth = 0.0f;   // M2b-2: the hit segment's half-width (u)
+        float fullDepth = 0.0f;   // M2b-2: the hit segment's centreline depth (u)
+        bool  carved = false;     // M2b-2: carved river (true) or creek (false) — see kRiverCarveDepth
     };
     ChannelHit channelAt(float worldX, float worldZ) const;
 
@@ -96,6 +124,8 @@ public:
     struct NearestChannel {
         float dist = 1e30f;
         int   order = 0;
+        float halfWidth = 0.0f;   // M2b-2: that channel's half-width (u)
+        bool  carved = false;     // M2b-2: carved river or creek
     };
     NearestChannel nearestChannel(float worldX, float worldZ, float searchRadius, int minOrder = 3) const;
 
@@ -103,6 +133,9 @@ public:
     // channel iff order>=1 AND p is within half-width of segment a→b, with a parabolic depth
     // (full channelDepth at the centreline, 0 at the edge). channelAt applies this per river cell.
     static ChannelHit segmentChannel(float px, float pz, float ax, float az, float bx, float bz, int order);
+    // M2b-2: the same test with explicit geometry (the per-cell law or table values).
+    static ChannelHit segmentChannel(float px, float pz, float ax, float az, float bx, float bz, int order,
+                                     float halfWidth, float fullDepth, bool carved);
 
     int maxAccum() const { return m_maxAccum; }
     int cellsX() const { return m_cellsX; }
@@ -124,6 +157,11 @@ private:
     std::vector<int> m_order;   // per cell; Strahler order (0 = not a river)
     std::vector<int> m_downstream;  // per cell; steepest-descent drainage target (self = sink)
     std::vector<Inflow> m_inflows;  // M2b: the macro inflows this bake was given (echoed for tests/API)
+    std::vector<float> m_halfW;     // M2b-2: per cell half-width (0 off the network)
+    std::vector<float> m_fullD;     // M2b-2: per cell centreline depth (0 off the network)
+    std::vector<uint8_t> m_carved;  // M2b-2: per cell class (1 = carved river)
+    bool  m_areaLaw = false;
+    float m_maxHalfW = 0.0f, m_maxCreekHalfW = 0.0f;
     int m_maxAccum = 0;
     int m_maxOrder = 0;
     size_t m_released = 0;      // cells processed by the Kahn pass (== cell count iff acyclic)

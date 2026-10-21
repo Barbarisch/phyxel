@@ -158,8 +158,10 @@ public:
         std::string surfaceMat = "Grass"; // resolved surface material (biome surface or scatter)
         float channelDepth = 0.0f;    // parabolic carve depth at this column (voxels; orders >= 3 carve it,
                                       // orders 1-2 report it) - the river span's depth (Phase D4)
-        int   riverOrder  = 0;        // Strahler order of the river carved here (0 = no channel);
-                                      // >0 marks a carved riverbed (for the flora gate + water runtime)
+        int   riverOrder  = 0;        // Strahler order of the channel here (0 = no channel);
+                                      // >0 marks a channel column (for the flora gate + water runtime)
+        bool  carvedRiver = false;    // M2b-2: the channel here is a CARVED river (voxel bed, full
+                                      // pins) rather than a creek — FlowField::kRiverCarveDepth
         float bedHeight   = 16.0f;    // WaterCore.md 25.22: the CONTINUOUS ground height (every terrain term, the river carve
                                       // as a continuous depth) - surfaceY is its voxel index; the water's bed (option (a))
         bool  creekBed    = false;    // order 1-2 inner channel band (depth >= the runtime pin
@@ -511,6 +513,7 @@ private:
         int32_t surfaceY[1024];      // index = x*32 + z (ColumnSample order)
         float   channelDepth[1024];
         int8_t  riverOrder[1024];
+        uint8_t carved[1024];        // M2b-2: carved-river class (the river span rule)
     };
     std::shared_ptr<const SurfaceBlock> surfaceBlockForChunk(const glm::ivec2& colChunk);
     // ~1024 samples/entry (~64-80 KB); FIFO eviction.

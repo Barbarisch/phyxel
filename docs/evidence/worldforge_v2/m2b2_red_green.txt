@@ -1,0 +1,23 @@
+M2b-2 RED (2026-10-21, Debug, stub build: FlowField serves the per-order table for every bake and splits by order >= 3; WaterManager stores the class query and ignores it):
+      1 [==========] 9 tests from 4 test suites ran. (14248 ms total)
+      1 [ M2b-2 ] v2 law: 73637 river cells, 4468 carved (depth >= 0.5 u), widest half 4.00 u, deepest 1.00 u; off-law 73637, off-class 15517
+      1 [ M2b-2 ] shallow order>=3 columns checked 0, misclassified 0
+      1 [  PASSED  ] 5 tests.
+      1 [  FAILED  ] WorldSheetGeneratorTest.V2ChannelGeometryFollowsTheGroundedLaw (12917 ms)
+      1 [  FAILED  ] WorldSheetGeneratorTest.CreekVsRiverIsADepthNotAnOrder (4 ms)
+      1 [  FAILED  ] RiverPinClassTest.TheClassNotTheOrderDecidesTheCreekRibbon (2 ms)
+      1 [  FAILED  ] FlowFieldTest.AreaLawServesWidthAndDepthFromDrainageArea (26 ms)
+      1 C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(383): error: Expected: (checked) > (0), actual: 0 vs 0
+      1 C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(350): error: Expected equality of these values:
+      1 C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(349): error: Expected equality of these values:
+      1 C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(326): error: Value of: f->areaLaw()
+      1 C:\Users\bpete\Documents\GitHub\phyxel\tests\core\RiverPinClassTest.cpp(45): error: Expected: (ribbonMassWith(true, false)) >= (0.15f), actual: 0 vs 0.15
+  (FlowFieldTest.AreaLawServes...: every river cell off the law, e.g. half-width 0.597 off, depth 0.210 off)
+
+M2b-2 GREEN (same day, Debug; filter = WorldSheetGeneratorTest.*:FlowFieldTest.*:RiverPinClassTest.*:LegacyTerrainGoldenTest.*:TerrainRiverTest.*:HydrologyMapTest.*:WaterBodyIndexTest.*:WorldForge*:WaterManagerTest.*:ColumnCacheTest.*:SettlementTerrainPlanTest.*:WaterOccupancyTest.*:FinePondTest.*):
+[ M2b ] v2 recipe bake incl. 1024x1024-cell hydrology: 11751 ms (this build config); maxOrder 5, maxAccum 103217
+[ M2b ] macro inflows: 56 entry cells, 62.7 km2 injected, 51 propagate downstream
+[ M2b-2 ] v2 law: 73637 river cells, 1265 carved (depth >= 0.5 u), widest half 3.35 u, deepest 0.70 u; off-law 0, off-class 0
+[ M2b-2 ] shallow order>=3 columns checked 200, misclassified 0
+[==========] 200 tests from 18 test suites ran. (502780 ms total)
+[  PASSED  ] 200 tests.

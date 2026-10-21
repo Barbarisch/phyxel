@@ -252,5 +252,37 @@ TEST(FlowFieldTest, InflowsAddUpstreamCellsThatRideDownstream) {
     EXPECT_LT(f.accumAt(3.5f, 3.5f), 500) << "the inflow leaked UPSTREAM";
 }
 
+// M2b-2: with areaLaw the per-cell geometry is the grounded law at the cell's drainage area; the
+// hit at a cell centre carries that geometry; the class follows the centreline depth. Red on the
+// committed code: the flag is stored and the table served.
+TEST(FlowFieldTest, AreaLawServesWidthAndDepthFromDrainageArea) {
+    auto plane = [](float x, float /*z*/) { return 100.0f - x; };   // drains east
+    const int W = 64, H = 16;
+    const float cs = 100.0f;                                          // 1 cell = 0.01 km²
+    FlowField f(plane, 0.0f, 0.0f, W, H, cs, -1000.0f, /*threshold=*/4, {}, /*areaLaw=*/true);
+    ASSERT_TRUE(f.areaLaw());
+    ASSERT_GT(f.maxOrder(), 0);
+    int checked = 0;
+    for (int j = 0; j < H; ++j)
+        for (int i = 0; i < W; ++i) {
+            const float wx = (i + 0.5f) * cs, wz = (j + 0.5f) * cs;
+            if (f.orderAt(wx, wz) < 1) continue;
+            const float aKm2 = static_cast<float>(f.accumAt(wx, wz)) * cs * cs * 1e-6f;
+            EXPECT_NEAR(f.halfWidthAt(wx, wz), FlowField::lawHalfWidth(aKm2), 1e-4f);
+            EXPECT_NEAR(f.fullDepthAt(wx, wz), FlowField::lawDepth(aKm2), 1e-4f);
+            EXPECT_EQ(f.carvedRiverAt(wx, wz), FlowField::lawDepth(aKm2) >= FlowField::kRiverCarveDepth);
+            const auto hit = f.channelAt(wx, wz);
+            ASSERT_TRUE(hit.hit);
+            EXPECT_GE(hit.fullDepth, f.fullDepthAt(wx, wz) - 1e-4f) << "the hit is never shallower than the cell's own channel";
+            ++checked;
+        }
+    EXPECT_GT(checked, 0);
+    // The law's numbers at a grounded anchor: 100 km² → W = 2.37·100^0.36 = 12.4 u, D = 1.18 u.
+    EXPECT_NEAR(2.0f * FlowField::lawHalfWidth(100.0f), 12.43f, 0.05f);
+    EXPECT_NEAR(FlowField::lawDepth(100.0f), 1.179f, 0.01f);
+    // The table is untouched for v1 (D10).
+    EXPECT_FLOAT_EQ(FlowField::channelHalfWidth(3), 2.5f);
+}
+
 }  // namespace
 }  // namespace Phyxel

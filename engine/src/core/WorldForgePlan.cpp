@@ -171,6 +171,7 @@ struct RoutingGrid {
     std::vector<float> height;
     std::vector<uint8_t> wet, shore;
     std::vector<int> order;
+    std::vector<uint8_t> carved;   // M2b-2: carved-river class per cell
     int idx(int cx, int cz) const { return (cz - z0) * nx + (cx - x0); }
     bool contains(int cx, int cz) const {
         return cx >= x0 && cz >= z0 && cx < x0 + nx && cz < z0 + nz;
@@ -214,7 +215,7 @@ std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, flo
             const float stepLen = (nb[0] != 0 && nb[1] != 0) ? 1.41421356f : 1.0f;
             const float grade = std::fabs(g.height[ti] - g.height[cur]) / (stepLen * g.cellSize);
             float c = stepLen * (1.0f + kSlopeAversion * grade) * (1.0f + kSlopeAversion * grade);
-            if (g.order[ti] >= 3) c += kPenaltyRiverMajor;
+            if (g.carved[ti]) c += kPenaltyRiverMajor;          // M2b-2: the class, not the order
             else if (g.order[ti] >= 1) c += kPenaltyRiverMinor;
             else if (g.shore[ti]) c += kPenaltyShore;
             if (gCost[cur] + c < gCost[ti] - 1e-6f) {
@@ -298,7 +299,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             if (h < seaLvl + 2.0f) continue;                        // coastal strip / seabed
             const float wl = hydro.waterLevelAt(p.x, p.y);
             if (wl > h - 0.1f) continue;                            // wet bake cell (lake/ocean)
-            if (flow.orderAt(p.x, p.y) >= 3) continue;              // carved river runs here
+            if (flow.carvedRiverAt(p.x, p.y)) continue;             // carved river runs here (M2b-2: the class)
             Cand c;
             c.pos = p;
             c.cellIdx = cz * nx + cx;
@@ -423,7 +424,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         g.nz = std::min(nz - 1, cz1 + kMargin) - g.z0 + 1;
         g.originX = ox; g.originZ = oz; g.cellSize = cell;
         const int gn = g.nx * g.nz;
-        g.height.resize(gn); g.wet.assign(gn, 0); g.shore.assign(gn, 0); g.order.resize(gn);
+        g.height.resize(gn); g.wet.assign(gn, 0); g.shore.assign(gn, 0); g.order.resize(gn); g.carved.assign(gn, 0);
         for (int cz = g.z0; cz < g.z0 + g.nz; ++cz)
             for (int cx = g.x0; cx < g.x0 + g.nx; ++cx) {
                 const glm::vec2 p = g.cellCentre(cx, cz);
@@ -431,6 +432,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 g.height[i] = heightAt(p.x, p.y);
                 g.wet[i] = hydro.waterLevelAt(p.x, p.y) > g.height[i] + 0.1f ? 1 : 0;
                 g.order[i] = flow.orderAt(p.x, p.y);
+                g.carved[i] = flow.carvedRiverAt(p.x, p.y) ? 1 : 0;
             }
         for (int cz = g.z0; cz < g.z0 + g.nz; ++cz)
             for (int cx = g.x0; cx < g.x0 + g.nx; ++cx) {
@@ -546,6 +548,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             // 2 u steps along each segment: the carved line is only ~a channel-width wide
             // (order 3 ≈ 5 u) — the 16 u resampled points alone can straddle it entirely.
             int runMaxOrder = 0;
+            bool runCarved = false;
             glm::vec2 runPos{0.0f};
             for (size_t i = 0; i + 1 < road.centerline.size(); ++i) {
                 const glm::vec2 a = road.centerline[i], b = road.centerline[i + 1];
@@ -560,13 +563,15 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                             runMaxOrder = order;
                             runPos = p;
                         }
+                        if (ch.carved) runCarved = true;   // M2b-2: a bridge needs a CARVED crossing
                     } else if (runMaxOrder >= 1) {
-                        road.crossings.push_back({runPos, runMaxOrder});
+                        road.crossings.push_back({runPos, runMaxOrder, runCarved});
                         runMaxOrder = 0;
+                        runCarved = false;
                     }
                 }
             }
-            if (runMaxOrder >= 1) road.crossings.push_back({runPos, runMaxOrder});
+            if (runMaxOrder >= 1) road.crossings.push_back({runPos, runMaxOrder, runCarved});
             plan->m_roads.push_back(std::move(road));
         }
     }
@@ -580,7 +585,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     // within 96 u yields NO deck — surfaced in the log, never a half-bridge.
     for (const auto& road : plan->m_roads) {
         for (const auto& cross : road.crossings) {
-            if (cross.riverOrder < 3) continue;
+            if (!cross.carved) continue;   // M2b-2: creeks get no deck (the class, not the order)
             // Local road tangent at the crossing (nearest centerline point's neighbors).
             size_t ci = 0;
             float best = 1e30f;
@@ -953,7 +958,7 @@ nlohmann::json WorldForgePlan::toJson() const {
             line.push_back({{"x", r.centerline.back().x}, {"z", r.centerline.back().y}});
         nlohmann::json crossings = nlohmann::json::array();
         for (const auto& c : r.crossings)
-            crossings.push_back({{"x", c.pos.x}, {"z", c.pos.y}, {"order", c.riverOrder}});
+            crossings.push_back({{"x", c.pos.x}, {"z", c.pos.y}, {"order", c.riverOrder}, {"carved", c.carved}});
         // Grade summary (min/max/sum, 0.1-quantized): the profile is part of the plan's
         // identity — grading changes what generation EMITS, so planHash must move with it
         // (the ledger drift guard exists for exactly this) — without bloating the payload.

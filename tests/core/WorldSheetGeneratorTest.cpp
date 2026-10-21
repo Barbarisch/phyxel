@@ -310,3 +310,76 @@ TEST(WorldSheetGeneratorTest, LakeVsPondSplitIsAnAreaNotACellCount) {
     EXPECT_EQ(at128[0].cls, WaterBodyIndex::Class::Lake) << "4 cells at 128 u = 65 536 m2: a lake (the shipped meaning)";
     EXPECT_EQ(at32[0].cls, WaterBodyIndex::Class::Pond) << "4 cells at 32 u = 4 096 m2: a pond";
 }
+
+// ============================================================================
+// M2b-2 — channel geometry from the grounded law (docs/WorldForgeV2Plan.md §10 F4f). On a v2
+// bake every river cell's half-width and centreline depth are W = 2.37·A^0.36 / D = 0.296·A^0.30
+// at its drainage area, and "carved river" means the centreline depth reaches 0.5 u. Red on the
+// committed code: v2 still serves the per-order table (2/3/5/8/14/22 u, 0.33..2 u) and splits by
+// order >= 3.
+// ============================================================================
+TEST(WorldSheetGeneratorTest, V2ChannelGeometryFollowsTheGroundedLaw) {
+    WorldGenerator v2(WorldGenerator::GenerationType::Perlin, 20260816u);
+    v2.applyRecipe(v2Recipe(20260816u));
+    const FlowField* f = v2.riverNetwork();
+    ASSERT_TRUE(f);
+    EXPECT_TRUE(f->areaLaw()) << "a v2 bake does not serve the law";
+    const float cs = f->cellSize();
+    int river = 0, carved = 0, offLaw = 0, offClass = 0;
+    float maxHw = 0.0f, maxD = 0.0f;
+    for (int j = 0; j < f->cellsZ(); ++j)
+        for (int i = 0; i < f->cellsX(); ++i) {
+            const float wx = f->originX() + (i + 0.5f) * cs, wz = f->originZ() + (j + 0.5f) * cs;
+            const int ord = f->orderAt(wx, wz);
+            if (ord < 1) continue;
+            ++river;
+            const float aKm2 = static_cast<float>(f->accumAt(wx, wz)) * cs * cs * 1e-6f;
+            const float hw = f->halfWidthAt(wx, wz), d = f->fullDepthAt(wx, wz);
+            if (std::fabs(hw - FlowField::lawHalfWidth(aKm2)) > 1e-3f * FlowField::lawHalfWidth(aKm2) ||
+                std::fabs(d - FlowField::lawDepth(aKm2)) > 1e-3f * FlowField::lawDepth(aKm2)) ++offLaw;
+            const bool c = f->carvedRiverAt(wx, wz);
+            if (c != (d >= FlowField::kRiverCarveDepth)) ++offClass;
+            if (c) ++carved;
+            maxHw = std::max(maxHw, hw);
+            maxD = std::max(maxD, d);
+        }
+    std::printf("[ M2b-2 ] v2 law: %d river cells, %d carved (depth >= %.1f u), widest half %.2f u, deepest %.2f u; off-law %d, off-class %d\n",
+                river, carved, FlowField::kRiverCarveDepth, maxHw, maxD, offLaw, offClass);
+    ASSERT_GT(river, 0);
+    EXPECT_EQ(offLaw, 0) << "river cells whose width/depth is not the law at their area";
+    EXPECT_EQ(offClass, 0) << "river cells whose class disagrees with their centreline depth";
+    EXPECT_GT(carved, 0) << "no carved river in the box: a trunk of >= 5.7 km2 must carve";
+    EXPECT_NEAR(f->maxHalfWidth(), maxHw, 1e-4f);
+}
+
+// An order-3 stream shallower than the carve threshold is a CREEK on the generator's output: no
+// voxel carve, the 1/3 u recess (creekBed), carvedRiver false. Red on the committed code: order
+// >= 3 carves lround(depth) = 0 and sets no creekBed — a dry tagged bed.
+TEST(WorldSheetGeneratorTest, CreekVsRiverIsADepthNotAnOrder) {
+    WorldGenerator v2(WorldGenerator::GenerationType::Perlin, 20260816u);
+    WorldRecipe r = v2Recipe(20260816u);
+    r.creekCarve = true;
+    v2.applyRecipe(r);
+    const FlowField* f = v2.riverNetwork();
+    ASSERT_TRUE(f);
+    const float cs = f->cellSize();
+    // Find a shallow order>=3 cell well inside the box, then the carved-line columns around it:
+    // the generator carves along the meander-warped line, so scan a window for columns reporting
+    // this class of channel (riverOrder >= 3) and check what the generator did with them.
+    int checked = 0, wrong = 0;
+    for (int j = 64; j < f->cellsZ() - 64 && checked < 200; j += 7)
+        for (int i = 64; i < f->cellsX() - 64 && checked < 200; i += 7) {
+            const float wx = f->originX() + (i + 0.5f) * cs, wz = f->originZ() + (j + 0.5f) * cs;
+            if (f->orderAt(wx, wz) < 3 || f->fullDepthAt(wx, wz) >= FlowField::kRiverCarveDepth) continue;
+            for (int dz = -40; dz <= 40 && checked < 200; dz += 2)
+                for (int dx = -40; dx <= 40 && checked < 200; dx += 2) {
+                    const auto c = v2.sampleSurface(static_cast<int>(wx) + dx, static_cast<int>(wz) + dz);
+                    if (c.riverOrder < 3 || c.channelDepth < 0.15f) continue;
+                    ++checked;
+                    if (c.carvedRiver || !c.creekBed) ++wrong;
+                }
+        }
+    std::printf("[ M2b-2 ] shallow order>=3 columns checked %d, misclassified %d\n", checked, wrong);
+    ASSERT_GT(checked, 0) << "no shallow order>=3 channel columns found in the box";
+    EXPECT_EQ(wrong, 0) << "a 0.15-0.5 u deep order>=3 column was carved or got no creek recess";
+}

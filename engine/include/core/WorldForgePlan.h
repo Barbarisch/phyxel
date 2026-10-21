@@ -61,7 +61,8 @@ struct WorldForgeRoad {
     std::vector<glm::vec2> centerline;   // world XZ, smoothed, ~16 u point spacing
     struct Crossing {
         glm::vec2 pos{0.0f};
-        int riverOrder = 0;     // order >= 3 channel crossed here -> realized as a bridge span
+        int riverOrder = 0;     // Strahler order of the channel crossed here
+        bool carved = false;    // M2b-2: a CARVED river crossing -> realized as a bridge span
     };
     std::vector<Crossing> crossings;
     /// Slope-limited road surface Y per centerline vertex (road GRADING): the cut lower
