@@ -62,7 +62,7 @@ partial surface (26.33).
 creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT §27.11 - recorded water drawn by the pond surface, the owner's choice A; next W1b, the per-tile record / seed and the tile life cycle). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; next W1b, the per-tile record / seed and the tile life cycle). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
    PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
    the 2 M-cell box (the CPU keeps only the woken patch).
 2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
@@ -7796,7 +7796,7 @@ Test plan - the red tests above, small rigs (rig C one chunk; the lake straddles
 Items 2-5 of 27.7 are answered by 27.9 (built) and this section; item 4 waits on the owner's look. **Verdict: READY for W1a**
 (the drawing, for the owner's choice); W1b-W1e READY in outline, each re-checked against its measured first step.
 
-### 27.11 W1a BUILT (2026-10-20): recorded water drawn by the pond surface - the owner's choice A ("go with A")
+### 27.11 W1a BUILT, SIGNED OFF (2026-10-20): recorded water drawn by the pond surface - the owner's choice A ("go with A")
 
 - **What:** `recordSurfaceField` (`WaterSurfaceMesh`) wakes a tile's record into a scratch grid with 27.9's level-fill and extracts
   the pond surface from it - so a recorded tile draws what the same water drew awake at rest. `WaterCoreManager` keeps 8 m tiles
@@ -7835,7 +7835,8 @@ Items 2-5 of 27.7 are answered by 27.9 (built) and this section; item 4 waits on
   - **The clip for the owner: `w1a_sleep_into_record_walls.mp4`** - 20 s, the pond pushed at 1 s, forced to sleep into the record
     at 14.2 s (still moving: spread 2 mm), drawn from the record after. The water band per frame (blue excess): 25.24 before the
     sleep, 25.23 after; the largest frame-to-frame change in the clip 0.08 (at 12 s, not at the sleep); no blank frame.
-- Water unit 312/312, integration 134/136 (the FLIP run-up; SceneIntegrationTest). Built, not signed off.
+- Water unit 312/312, integration 134/136 (the FLIP run-up; SceneIntegrationTest). **SIGNED OFF by the owner 2026-10-20** on
+  `w1a_sleep_into_record_walls.mp4` ("looks good.").
 
 
 ---
