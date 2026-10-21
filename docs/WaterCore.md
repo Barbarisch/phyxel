@@ -62,7 +62,7 @@ partial surface (26.33).
 creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; W1b first slice BUILT §27.12 - frozen tiles sleep into the record and wake from it, the books exact live, recording OFF by default; OPEN: after a strong push the pond with recording keeps sub-mm motion and never records again (live only); then the per-tile kernels and W1c-W1e). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; W1b first slice BUILT §27.12 - frozen tiles sleep into the record and wake from it, the books exact live, recording OFF by default; W1c §27.13 - the post-push agitation was the life cycle's ORDER (it collected the call just submitted), fixed: a pushed pond settles and goes back into the record, the books exact; OPEN: a collect between two calls breaks the freeze test, woken tiles cycle in some runs; then the per-tile kernels and W1d-W1e). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
    PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
    the 2 M-cell box (the CPU keeps only the woken patch).
 2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
@@ -7913,6 +7913,63 @@ owner's look wait for an idle GPU.
     but it keeps tiles awake.
   - **So W1c (the patch edge) is needed before recording can be on:** a recorded tile's edge must not reflect - the record's level
     held at the edge with exchange (b), or a damping band (c) - and the seed must be the solver's rest state. Measured next.
+  - **CORRECTED by 27.13 (2026-10-21): the walls were not the cause.** A frozen column is a wall too, and recording OFF settles. The
+    cause was the ORDER of the tile life cycle: run after the GPU call, a record or wake collected the call just submitted.
+
+### 27.13 W1c (2026-10-21): the agitation was the life cycle's ORDER, not the walls - fixed; recording still OFF by default
+
+**The bisection (live, the 27.12 push, the bench pond; every run against recording OFF, KE at 24-28 s; raw rows
+`docs/evidence/water_core_h1/w1c_bisect.json` / `.jsonl`).** Each step a test-only switch, removed after it was measured:
+| Variant (recording ON) | KE at 24-28 s | pressure residual |
+|---|---|---|
+| OFF (the control) | 3e-8 | 0.003-0.03, falling |
+| shipped W1b (freed bricks, GROUND wall, seeded) | 2-6e-2 | 2 -> 14, climbing |
+| bricks kept (a frozen-brick wall), seeded from the record | 4e-2 | climbing |
+| bricks kept, NOT seeded (the exact cells come back) | 6e-2 | climbing |
+| ... and no span writes | 3e-2 | 13 |
+| the GPU flags only (no spans, body, field, draw, occupancy refresh) | 3e-2 | 11 |
+| ... recorded columns not forced frozen / allowed to move / woken ahead 6 or 12 brick columns | 2-4e-2 | climbing |
+| ... the flags ignored by the per-column freeze (no tile wakes after the push) | 5e-8 | 0.004 |
+| ... the wake WITHOUT its `settle()` | 1e-7 | 0.004 |
+| recording ON, never recording (after_s 600) | 5e-8 | as OFF |
+
+Ruled out on the way: the seed (exact cells come back - still agitated), the wall type, the spans and chunk writes, the record
+draw, the occupancy refresh, the wake's lag (OFF with frozen columns opening one call late settles: 1e-7), waking ahead, the
+partition (a per-call check found no awake brick outside the stepped slots), the ground sentinel (0 throughout), the books
+(exact). **The cause: `recordTilesStep` ran at the END of `stepGpu`, after the call was submitted; a record or wake `settle()`s,
+which collected the call just submitted.** Live, the pressure solve then stopped converging and the energy climbed 25x over
+4-19 s. **The fix: the tile life cycle runs before the call** - where the call in flight is collected anyway (the step's own first
+act) - and after a pending upload (a record or wake marks the mirror stale: before the upload it would re-read over a push not yet
+sent). A droplet's landing on a recorded tile (stepped after the call) now queues its tile, woken before the next call - its
+deposit lands then too.
+
+**Measured after the fix** (Release, idle GPU):
+| Run | KE | tiles in the record | books (cells + record) |
+|---|---|---|---|
+| shipped, run 1 | 1.7e-8 at 41 s, 0 after | 24 of 24 by 41 s, stays | 1,287.999 m^3 (placed 1,288; OFF 1,287.998) |
+| shipped, run 2 | 2.6e-8 at 51 s | 5-15, cycling (39 wakes by 51 s) | 1,287.996 m^3 |
+| red control: the W1b order (`after_step_test`) | 6.5e-2 at 16 s, 2.2e-4 at 28 s | 0 | exact |
+| OFF | 3.3e-8 at 28 s | - | 1,287.998 m^3 |
+The ground sentinel 0 in every run. Tests: water unit 299/299; water integration 45/46 (the known GpuFlipBulkParityAndRunup).
+`FrozenTilesRecordAndWakeWithTheBooksExact` unchanged (books 6.6e-6 m^3). **No deterministic red test yet:** the integration
+test's realtime path (`update()`, async) never reproduced the agitation in either order - the early collect is necessary
+(the live bisection) but something only the live engine has (most likely the renderer reading the volume's buffers between
+calls) completes it. The red control is live: `water_av_record_tiles {after_step_test: true}`.
+
+**Two items OPEN:**
+1. **A collect between two calls breaks the freeze test.** Recording OFF with `{settle_after_test: true}` (a `settle()` right
+   after each submission) - or an API census every 0.1 s - settles the energy (3.7e-8) but leaves 500-600 columns "moving" (OFF:
+   0-120): the freeze test never passes, so those columns never freeze. Cause not found. Writes still wake tiles at once (a push,
+   placed water - API time, between calls) and pay this; their wakes are rare, but the census and `pushSourcesToGpu` settle too.
+2. **Woken tiles cycle in some runs** (run 2: ~100 columns "moving" at 1e-8 J, 39 wakes in 51 s, each 8-19 ms of host time).
+   A woken pond column's cells differ from the solver's rest by ~1e-6 a cell (0.999999 vs the seed's 1.0, measured on a 1 m
+   pond whose level sits on a cell face) - too small alone to explain it. Measured next, with the per-tile kernels (which cut the
+   8-19 ms).
+
+**What this changes in the plan:** W1c's edge candidates - fixed-level exchange (b), a damping band (c), waking ahead - are NOT
+needed for this pond: with the order fixed, the frozen/recorded wall settles like recording OFF. They stay 27.10's fallback for
+when the budget stops a wake from spreading (W3). Recording stays OFF by default until the owner has seen a push in a recording
+pond in motion.
 
 ---
 

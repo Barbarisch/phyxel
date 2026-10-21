@@ -614,6 +614,11 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
         }
         av.gpuDirty = false;
     }
+    // §27 W1c: the tile life cycle runs HERE - before the call, where the call in flight is collected anyway (the step's own first
+    // act), after a pending upload (a record or wake marks the mirror stale: before the upload it would re-read over a push not yet
+    // sent). Run after the call it collected the call just submitted; live, a pushed pond then never settled (KE 2-7e-2 at 24 s,
+    // the pressure solve's residual climbing to 14; this order: 4e-8 J, the whole pond back in the record by 41 s - 27.13).
+    if (!s_recordAfterStepForTest) recordTilesStep(av, dt * static_cast<float>(ticks));   // seconds, not ticks (a realtime tick is a frame)
     m_gpu->setAsync(*av.gpuVol, m_realtime);   // 26.16: realtime frames never wait on the water's call (collected next frame)
     const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, av.gpuSweeps);
     av.gpuStale = true;
@@ -634,7 +639,8 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     av.last.maxDeltaF = st.maxDeltaF; av.last.quietTicks = st.quietTicks; av.last.asleep = st.asleep;
     av.last.pcgIterations = st.sweeps; av.last.pcgResidual = st.rbgsResidualMax; av.last.residueDropped = st.residueDropped;
     av.residueDropped += st.residueDropped;
-    recordTilesStep(av, dt * static_cast<float>(ticks));   // §27 W1b: seconds, not ticks (a realtime tick is a frame)
+    if (s_recordAfterStepForTest) recordTilesStep(av, dt * static_cast<float>(ticks));   // the W1b order: the red control
+    if (s_settleAfterStepForTest) m_gpu->settle(*av.gpuVol);   // 27.13 open item: a collect right after the submission
 }
 
 bool WaterCoreManager::clearSources(int id) {
@@ -780,10 +786,12 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds) {
     const int offX = (so.x - vol.o.x) / 8, offZ = (so.z - vol.o.z) / 8;
     // 1. wakes first (a recorded tile the awake margin or a wake box reached) - even with recording off, nothing stays stranded
     const std::vector<int> wakes = m_gpu->takeRecordedWakes(vol);
-    if (!wakes.empty()) {
-        std::set<std::pair<int, int>> tiles;
+    if (!wakes.empty() || !av.pendingTileWakes.empty()) {
+        std::set<std::pair<int, int>> tiles(av.pendingTileWakes.begin(), av.pendingTileWakes.end());   // + the droplets' landings (deferred)
         for (int c : wakes) tiles.insert({floorDivI(c % vol.bn.x + offX, kTileBricks), floorDivI(c / vol.bn.x + offZ, kTileBricks)});
-        for (const auto& [tx, tz] : tiles) wakeTile(av, tx, tz);
+        for (const auto& [tx, tz] : tiles)
+            if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) != av.recordedTileList.end()) wakeTile(av, tx, tz);
+        av.pendingTileWakes.clear();
     }
     if (!av.recordTiles || !vol.partialWake || !m_spanWriter || !m_spanReader) return;
     // 2. tiles frozen long enough record - never with droplets in flight for this volume (they land into cells)
@@ -941,13 +949,16 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
 // §27 W1b: before anything writes into a volume's water (a push, placed water, debris momentum, a moving body), the recorded tiles
 // it touches - and a 2 m margin, so its first waves meet cells - are woken from the record, synchronously: a write into a recorded
 // tile's empty cells is lost (a push did nothing; a stone would fall through a recorded lake without a splash).
-void WaterCoreManager::wakeRecordedNear(Av& av, const glm::vec3& world, float radius) {
+void WaterCoreManager::wakeRecordedNear(Av& av, const glm::vec3& world, float radius, bool deferred) {
     if (!av.gpuVol || av.recordedTileList.empty()) return;
     const float r = radius + s_writeWakeReachM;
     const int tx0 = floorDivI(static_cast<int>(std::floor(world.x - r)), kTileVoxels), tx1 = floorDivI(static_cast<int>(std::floor(world.x + r)), kTileVoxels);
     const int tz0 = floorDivI(static_cast<int>(std::floor(world.z - r)), kTileVoxels), tz1 = floorDivI(static_cast<int>(std::floor(world.z + r)), kTileVoxels);
-    for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx)
-        if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) != av.recordedTileList.end() && wakeTile(av, tx, tz)) ++av.tilesWokenByWrite;
+    for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
+        if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) == av.recordedTileList.end()) continue;
+        if (deferred) { av.pendingTileWakes.push_back({tx, tz}); ++av.tilesWokenByWrite; }
+        else if (wakeTile(av, tx, tz)) ++av.tilesWokenByWrite;
+    }
 }
 
 bool WaterCoreManager::setPartialWake(int id, bool on) {
@@ -1341,7 +1352,9 @@ void WaterCoreManager::depositDroplet(Av& av, const glm::vec3& at, double volume
     if (av.backend == "gpu" && av.gpuVol && m_gpu) {
         // §27 W1b: a landing on a recorded tile wakes it first - its cells are the GROUND sentinel's until then, and the deposit
         // would have written its water into the sentinel every ground brick shares
-        wakeRecordedNear(av, at, 0.0f);
+        // would have written its water into the sentinel every ground brick shares. Deferred: the deposit lands at the next call, and
+        // the tile is woken just before it (27.13: a wake here, after the call was submitted, collected it early)
+        wakeRecordedNear(av, at, 0.0f, true);
         // the GPU applies it at its next step (wc_column_ops mode 5); the cell is chosen as depositIntoGrid does
         const WaterGrid& g = *av.grid;
         glm::ivec3 c = g.worldToCell(at);

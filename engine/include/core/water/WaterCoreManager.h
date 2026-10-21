@@ -202,9 +202,15 @@ public:
     static inline float s_recordAfterS = 2.0f;        ///< s a tile stays frozen before it records
     static inline bool s_measureRecordJump = false;   ///< measurement: per record, the jump a wake will make (an extra seed + two extractions)
     /// m beyond a write's own radius within which recorded tiles wake BEFORE the write (a push, placed water, momentum, a body, a
-    /// droplet). Recorded tiles are walls: woken only 2 m round a strong push, the pond was cut into basins the push's slosh was
-    /// trapped in - kinetic energy stayed 4e-2 at 24 s where the uncut pond fell to 8e-7 (27.12, live). Measured choice below.
+    /// droplet). 8 and 16 m were tried against 27.12's agitation and did not change it - its cause was the life cycle's ORDER
+    /// (s_recordAfterStepForTest, 27.13), not the walls. 2 m: a write's first waves meet cells.
     static inline float s_writeWakeReachM = 2.0f;
+    /// §27 W1c TEST ONLY - the red control: the tile life cycle after the GPU call (W1b's order). A record or wake then collects the
+    /// call just submitted; live, a pushed pond never settled (27.13). Shipped: before the call.
+    static inline bool s_recordAfterStepForTest = false;
+    /// §27 W1c TEST ONLY - 27.13's open item: collect the call right after submitting it. With recording OFF the energy settles but
+    /// 500-600 columns stay "moving" (the freeze test never passes) - so does an API census every 0.1 s. Cause not found yet.
+    static inline bool s_settleAfterStepForTest = false;
     static constexpr int kRecordTilesPerStep = 2;     ///< bounds a frame's cost when many tiles freeze at once
     /// ON by default since 2026-10-19 (the owner: "yeah. default"); a volume created with an explicit partial_wake keeps its own.
     static inline bool s_partialWakeDefault = true;
@@ -464,6 +470,7 @@ private:
         bool recordTiles = false;
         double recordedM3 = 0.0;
         std::vector<std::pair<int, int>> recordedTileList;   ///< tile (x, z) indices in the record now
+        std::vector<std::pair<int, int>> pendingTileWakes;   ///< §27 W1c: tiles a droplet landed on - woken before the next call
         std::map<std::pair<int, int>, float> tileFrozenSeconds;   ///< s each tile has had every stored column frozen (counted here: a
                                                              ///< body whose columns all froze is asleep and runs no call to count them)
         long tilesRecorded = 0, tilesWoken = 0, tilesWokenByWrite = 0;
@@ -562,7 +569,9 @@ private:
     void recordTilesStep(Av& av, float seconds);
     bool recordTile(Av& av, int tx, int tz);
     bool wakeTile(Av& av, int tx, int tz);
-    void wakeRecordedNear(Av& av, const glm::vec3& world, float radius);   ///< wake the recorded tiles a write at `world` touches (+ 2 m)
+    /// wake the recorded tiles a write at `world` touches (+ s_writeWakeReachM); deferred = before the next call (a write that
+    /// lands then too - a droplet's deposit), not now (a collect between two calls breaks the freeze test, 27.13)
+    void wakeRecordedNear(Av& av, const glm::vec3& world, float radius, bool deferred = false);
     bool tileBricks(const Av& av, int tx, int tz, glm::ivec2& bLo, glm::ivec2& bHi) const;   ///< the tile's brick-box columns (clipped)
     bool columnRecorded(const Av& av, int wx, int wz) const;   ///< world voxel column (wx, wz) is in a recorded tile of this volume
     uint64_t m_fieldBumps = 0;
