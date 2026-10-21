@@ -168,7 +168,9 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
         };
         const float kMin = glm::radians(kJunctionMinDeg), kMax = glm::radians(kJunctionMaxDeg);
         for (size_t j = 0; j < n; ++j) {
-            if (m_order[j] < 1 || inflows[j].size() < 2 || m_basin[j]) continue;
+            // Junctions inside coarse basins get fillets too: the centreline is data there (no
+            // carve), and leaving them on the grid kept 24 % of all junctions at 90° (measured).
+            if (m_order[j] < 1 || inflows[j].size() < 2) continue;
             const int dj = m_downstream[j];
             if (dj == static_cast<int>(j) || dj < 0 || static_cast<size_t>(dj) >= n) continue;   // no downstream direction
             int mainIn = inflows[j][0];
@@ -177,7 +179,7 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
             const glm::vec2 D = glm::normalize(centreOf(dj) - P2);
             const float sMain = slopeDown(static_cast<int>(j), kFilletSlopeCells);
             for (int t : inflows[j]) {
-                if (t == mainIn || m_basin[t]) continue;
+                if (t == mainIn) continue;
                 const float sTrib = slopeUp(t, kFilletSlopeCells) ;
                 // Howard: cos θ = S_main / S_trib; a tributary no steeper than the stem joins at the
                 // band's minimum, one on a flat stem at its maximum.
@@ -200,20 +202,65 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
                 m_fillets.push_back(std::move(pts));
             }
         }
+
+        // M2d-3: the local width field — max half-width within the radius, then a separable box
+        // blur over the same radius (two passes), so the warp's wavelength changes smoothly.
+        {
+            const int R = kLocalWidthRadius;
+            std::vector<float> a(n, 0.0f), b(n, 0.0f);
+            for (int j = 0; j < m_cellsZ; ++j)
+                for (int i = 0; i < m_cellsX; ++i) {
+                    float m = 0.0f;
+                    for (int dj = -R; dj <= R; ++dj)
+                        for (int di = -R; di <= R; ++di) {
+                            const int ii = i + di, jj = j + dj;
+                            if (ii < 0 || jj < 0 || ii >= m_cellsX || jj >= m_cellsZ) continue;
+                            m = std::max(m, m_halfW[static_cast<size_t>(jj) * m_cellsX + ii]);
+                        }
+                    a[static_cast<size_t>(j) * m_cellsX + i] = m;
+                }
+            const float inv = 1.0f / (2 * R + 1);
+            for (int j = 0; j < m_cellsZ; ++j)
+                for (int i = 0; i < m_cellsX; ++i) {
+                    float sum = 0.0f;
+                    for (int di = -R; di <= R; ++di) sum += a[static_cast<size_t>(j) * m_cellsX + std::clamp(i + di, 0, m_cellsX - 1)];
+                    b[static_cast<size_t>(j) * m_cellsX + i] = sum * inv;
+                }
+            m_localHalfW.assign(n, 0.0f);
+            for (int j = 0; j < m_cellsZ; ++j)
+                for (int i = 0; i < m_cellsX; ++i) {
+                    float sum = 0.0f;
+                    for (int dj = -R; dj <= R; ++dj) sum += b[static_cast<size_t>(std::clamp(j + dj, 0, m_cellsZ - 1)) * m_cellsX + i];
+                    m_localHalfW[static_cast<size_t>(j) * m_cellsX + i] = sum * inv;
+                }
+        }
     }
 }
 
-void FlowField::cellPolyline(int rc, std::vector<glm::vec2>& out) const {
-    out.clear();
-    if (rc < 0 || static_cast<size_t>(rc) >= m_order.size()) return;
-    if (!m_filletOf.empty() && m_filletOf[rc] >= 0) { out = m_fillets[static_cast<size_t>(m_filletOf[rc])]; return; }
+float FlowField::localHalfWidthAt(float worldX, float worldZ) const {
+    if (m_localHalfW.empty() || m_cellsX <= 1 || m_cellsZ <= 1) return 0.0f;
+    const float u = (worldX - m_originX) / m_cellSize - 0.5f, v = (worldZ - m_originZ) / m_cellSize - 0.5f;
+    const float fu = std::floor(u), fv = std::floor(v);
+    const float tu = u - fu, tv = v - fv;
+    const int i0 = std::clamp(static_cast<int>(fu), 0, m_cellsX - 1), i1 = std::clamp(static_cast<int>(fu) + 1, 0, m_cellsX - 1);
+    const int j0 = std::clamp(static_cast<int>(fv), 0, m_cellsZ - 1), j1 = std::clamp(static_cast<int>(fv) + 1, 0, m_cellsZ - 1);
+    auto at = [&](int i, int j) { return m_localHalfW[static_cast<size_t>(j) * m_cellsX + i]; };
+    return (at(i0, j0) * (1 - tu) + at(i1, j0) * tu) * (1 - tv) + (at(i0, j1) * (1 - tu) + at(i1, j1) * tu) * tv;
+}
+
+const std::vector<glm::vec2>& FlowField::cellPolyline(int rc, std::vector<glm::vec2>& scratch) const {
+    scratch.clear();
+    if (rc < 0 || static_cast<size_t>(rc) >= m_order.size()) return scratch;
+    // A fillet is returned by reference (no copy per scanned cell: the per-column cost gate).
+    if (!m_filletOf.empty() && m_filletOf[rc] >= 0) return m_fillets[static_cast<size_t>(m_filletOf[rc])];
     const glm::vec2 a(m_originX + (rc % m_cellsX + 0.5f) * m_cellSize, m_originZ + (rc / m_cellsX + 0.5f) * m_cellSize);
-    out.push_back(a);
+    scratch.push_back(a);
     const int d = m_downstream[rc];
     if (d != rc && d >= 0 && static_cast<size_t>(d) < m_downstream.size())
-        out.push_back(glm::vec2(m_originX + (d % m_cellsX + 0.5f) * m_cellSize, m_originZ + (d / m_cellsX + 0.5f) * m_cellSize));
+        scratch.push_back(glm::vec2(m_originX + (d % m_cellsX + 0.5f) * m_cellSize, m_originZ + (d / m_cellsX + 0.5f) * m_cellSize));
     else
-        out.push_back(a);   // sink: a degenerate segment
+        scratch.push_back(a);   // sink: a degenerate segment
+    return scratch;
 }
 
 std::vector<glm::vec2> FlowField::centrelineAt(float worldX, float worldZ) const {
@@ -224,7 +271,8 @@ std::vector<glm::vec2> FlowField::centrelineAt(float worldX, float worldZ) const
     if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return out;
     const int rc = j * m_cellsX + i;
     if (m_order[rc] < 1) return out;
-    cellPolyline(rc, out);
+    std::vector<glm::vec2> scratch;
+    out = cellPolyline(rc, scratch);
     return out;
 }
 
@@ -311,7 +359,7 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
     // cell (WorldGenerator kHydroCell) it is 5×5 (r=2, since ceil(11/128)=1); it stays correct for
     // small cellSize / large orders.
     const int r = 1 + static_cast<int>(std::ceil(m_maxHalfW / m_cellSize));
-    thread_local std::vector<glm::vec2> pl;   // reused across cells and queries: no allocation per column
+    thread_local std::vector<glm::vec2> plScratch;   // reused across cells and queries: no allocation per column
     for (int j = cj - r; j <= cj + r; ++j)
         for (int i = ci - r; i <= ci + r; ++i) {
             if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
@@ -324,7 +372,7 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
             const int d = m_downstream[rc];
             // M2d-2: the cell's channel is a polyline (a straight segment, or a Bézier fillet into a
             // junction); the hit is the closest sub-segment, `t` the fraction of the polyline length.
-            cellPolyline(rc, pl);
+            const std::vector<glm::vec2>& pl = cellPolyline(rc, plScratch);
             float bestDist = 1e30f, bestT = 0.0f, lenSum = 0.0f;
             float total = 0.0f;
             for (size_t s = 0; s + 1 < pl.size(); ++s) total += glm::length(pl[s + 1] - pl[s]);
@@ -343,6 +391,7 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
                 const float tt = bestDist / m_halfW[rc];
                 h.hit = true; h.order = ord; h.depth = fd * (1.0f - tt * tt);
                 h.halfWidth = m_halfW[rc]; h.fullDepth = fd; h.carved = m_carved[rc] != 0;
+                h.cell = rc;
             }
             if (h.hit && m_areaLaw && !m_bedY.empty()) {
                 // M2d-1: the profile at the hit — from this cell's bed to what it hands downstream
@@ -355,6 +404,7 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
                 h.bedProfile = m_bedY[rc] + (endY - m_bedY[rc]) * t;
                 h.hasProfile = true;
                 h.inBasin = m_basin[rc] != 0;
+                h.bedSlope = total > 0.0f ? std::max(0.0f, (m_bedY[rc] - endY) / total) : 0.0f;
             }
             if (h.hit) best = h;
         }
@@ -370,7 +420,7 @@ FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, 
     // A channel segment whose centreline comes within `searchRadius` of the point has its cell centre
     // within searchRadius + cellSize of it (segment length = one orthogonal cellSize hop; see channelAt).
     const int r = 1 + static_cast<int>(std::ceil(searchRadius / m_cellSize));
-    thread_local std::vector<glm::vec2> pl;   // reused: no allocation per column
+    thread_local std::vector<glm::vec2> plScratch;   // reused: no allocation per column
     for (int j = cj - r; j <= cj + r; ++j)
         for (int i = ci - r; i <= ci + r; ++i) {
             if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
@@ -379,7 +429,7 @@ FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, 
             // default 3 = CARVED rivers only (the valley pass); 1 = every channel (the creek swale).
             // Under the table carved == order >= 3, so this is the old minOrder rule exactly.
             if (minOrder >= 3 ? m_carved[rc] == 0 : ord < minOrder) continue;
-            cellPolyline(rc, pl);   // M2d-2: straight segment or junction fillet
+            const std::vector<glm::vec2>& pl = cellPolyline(rc, plScratch);   // M2d-2: straight segment or junction fillet
             float dist = 1e30f;
             for (size_t s = 0; s + 1 < pl.size(); ++s)
                 dist = std::min(dist, pointSegDist(worldX, worldZ, pl[s].x, pl[s].y, pl[s + 1].x, pl[s + 1].y));

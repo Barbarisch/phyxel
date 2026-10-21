@@ -84,6 +84,13 @@ public:
     std::vector<glm::vec2> centrelineAt(float worldX, float worldZ) const;
     int filletCount() const { return static_cast<int>(m_fillets.size()); }
 
+    // ── M2d-3: the local channel width field (areaLaw bakes only) ────────────────────────────
+    // Per cell the largest half-width of any river cell within kLocalWidthRadius cells, box-blurred
+    // over the same radius, read bilinearly between cell centres: a SMOOTH field (no seam when the
+    // meander warp's wavelength follows it), ~0 away from every channel. In world units.
+    static constexpr int kLocalWidthRadius = 2;
+    float localHalfWidthAt(float worldX, float worldZ) const;
+
     // Upstream drainage count at a world column (>= 1 inside the baked region, 0 outside).
     // Piecewise-constant per cell.
     int accumAt(float worldX, float worldZ) const;
@@ -126,6 +133,8 @@ public:
         float bedProfile = 0.0f;
         bool  hasProfile = false;
         bool  inBasin = false;
+        float bedSlope = 0.0f;    // M2d-3: the profile's fall per unit length along the hit segment (>= 0)
+        int   cell = -1;          // M2d-3: the row-major bake cell whose channel was hit (tests, diagnostics)
     };
     ChannelHit channelAt(float worldX, float worldZ) const;
 
@@ -196,8 +205,9 @@ private:
     // M2d-2: per cell the index of its fillet polyline (−1 = straight segment).
     std::vector<int> m_filletOf;
     std::vector<std::vector<glm::vec2>> m_fillets;
+    std::vector<float> m_localHalfW;   // M2d-3: blurred local half-width per cell
     // The polyline a cell's channel follows (straight or fillet), used by every query.
-    void cellPolyline(int rc, std::vector<glm::vec2>& out) const;
+    const std::vector<glm::vec2>& cellPolyline(int rc, std::vector<glm::vec2>& scratch) const;
     int m_maxAccum = 0;
     int m_maxOrder = 0;
     size_t m_released = 0;      // cells processed by the Kahn pass (== cell count iff acyclic)

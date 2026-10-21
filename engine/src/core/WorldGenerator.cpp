@@ -172,6 +172,24 @@ constexpr float kValleyWidthMul = 5.0f;
 //    RiversMeander L3 test (not asserted from the noise magnitude alone).
 constexpr float kMeanderFreq = 0.018f;
 constexpr float kMeanderAmp  = 55.0f;
+// M2d-3 (v2 only): the wavelength follows the channel's width — λ = 7.3·w^1.1 u (Leopold & Wolman
+// 1957 PP282-B p. 58-59, λ = 6.5·w^1.1 ft, read from the scan; §10 F4f). Three fixed-frequency
+// warp bands (λ 7.5 / 20 / 55.6 u: the law at w = 1.0 u — the narrowest law channel, 0.1 km² —,
+// 2.5 u and 6.3 u) are blended by the local width's position between them in log space; a fixed
+// frequency per band keeps the noise stationary (a continuously varying frequency chirps). The
+// widest band is the shipped v1 warp, so wide rivers keep their look; wider than 6.3 u is capped
+// at it (DESIGN: a fourth band when a world carries 100 km² trunks). Amplitude per band = λ, the
+// shipped ratio (REASONED: typical displacement ≈ 0.25 λ, see the kMeanderAmp note above).
+constexpr int   kMeanderBands = 3;
+constexpr float kMeanderBandLambda[kMeanderBands] = {7.5f, 20.0f, 1.0f / kMeanderFreq};
+constexpr float kMeanderBandOffset[kMeanderBands] = {71.0f, 211.0f, 371.0f};
+constexpr float kMeanderLawCoeff = 7.3f, kMeanderLawExp = 1.1f;
+// Channel bed material (M2d-3, the dry fixture must READ as a bed): gravel where the bed falls
+// steeply enough, sand where it is flat. Leopold & Wolman 1957 p. 60: Cottonwood Creek's meander
+// reach, slope 0.0011, has a median grain of 0.049 ft (15 mm, gravel); coastal-plain rivers at
+// slopes an order lower run on sand (Tombigbee, PP252 p. 14). Threshold 0.001 is REASONED from
+// those two anchors, not a measured grain-size law.
+constexpr float kBedGravelSlope = 0.001f;
 
 // ── P1 material rules (docs/TerrainGenerationV2.md §P1; grounding-auditor 2026-07-09). ──
 // Temperature field anchor: normalized [0,1] == mean-annual −5..+30 °C (Whittaker 1975 biome-
@@ -1170,6 +1188,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // displacement of up to ~kMeanderAmp; smooth, so the meandered channel is continuous (no seam).
         float mwx = static_cast<float>(wx), mwz = static_cast<float>(wz);
         float creekSwale = 0.0f;   // bounded creek dip (water-as-terrain-stage P2), voxels
+        float channelBedSlope = -1.0f;   // M2d-3: >= 0 on a profiled channel column (bed material)
         bool nearCreek = false;    // 25.22: within the swale - the only columns the carve's corner fill looks at
         if (m_flow) {
             const glm::vec2 m = meanderedChannelPos(static_cast<float>(wx), static_cast<float>(wz));
@@ -1254,6 +1273,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 }
                 col.riverOrder = ch.order;
                 col.carvedRiver = ch.carved;   // M2b-2: the class, not the order, says "carved"
+                if (ch.hasProfile && !ch.inBasin) channelBedSlope = ch.bedSlope;
                 col.channelDepth = ch.depth;
                 // Creek BED RECESS (water-as-terrain-stage P2): the inner band of an order 1-2
                 // channel — same 0.15 depth threshold the runtime pin uses (WaterManager::
@@ -1320,6 +1340,11 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             col.surfaceMat = "SnowGrass";  // snow lies on forested ground (taiga) — conifers persist
         }
         // else: keep the biome surface material set above (moderate, gently-sloped land).
+        // M2d-3 (v2): a channel's bed reads as a bed — gravel on a falling profile, sand on a flat
+        // one (kBedGravelSlope). Carved beds and the creek band only; the seabed rule above wins.
+        if (channelBedSlope >= 0.0f && (col.carvedRiver || col.creekBed) &&
+            col.surfaceY >= static_cast<int>(terrainParams.seaLevelY))
+            col.surfaceMat = channelBedSlope >= kBedGravelSlope ? "Gravel" : "Sand";
 
         markPhase(5);
         // WorldForge road stamp (docs/WorldForge.md M1) — the riverOrder pattern: roads are a
@@ -1478,10 +1503,40 @@ WorldGenerator::FinePondHit WorldGenerator::finePondAt(int worldX, int worldZ) {
     return hit;
 }
 
+glm::vec2 WorldGenerator::meanderDisplacementForHalfWidth(float wx, float wz, float halfWidth) const {
+    // Position in log-λ space; outside the band range the nearest band alone (wide rivers keep the
+    // shipped warp; a column far from any channel reads the narrowest band, which no query reaches).
+    const float w = 2.0f * halfWidth;
+    float lam = (w > 0.0f) ? kMeanderLawCoeff * std::pow(w, kMeanderLawExp) : kMeanderBandLambda[0];
+    lam = std::clamp(lam, kMeanderBandLambda[0], kMeanderBandLambda[kMeanderBands - 1]);
+    const float L = std::log(lam);
+    float wgt[kMeanderBands] = {0.0f, 0.0f, 0.0f};
+    if (lam <= kMeanderBandLambda[0]) wgt[0] = 1.0f;
+    else if (lam >= kMeanderBandLambda[kMeanderBands - 1]) wgt[kMeanderBands - 1] = 1.0f;
+    else {
+        for (int k = 0; k + 1 < kMeanderBands; ++k) {
+            const float l0 = std::log(kMeanderBandLambda[k]), l1 = std::log(kMeanderBandLambda[k + 1]);
+            if (L >= l0 && L <= l1) { const float t = (L - l0) / (l1 - l0); wgt[k] = 1.0f - t; wgt[k + 1] = t; break; }
+        }
+    }
+    glm::vec2 d(0.0f);
+    for (int k = 0; k < kMeanderBands; ++k) {
+        if (wgt[k] <= 0.0f) continue;    // only the bands in play are evaluated (the M1 eval gate)
+        const float f = 1.0f / kMeanderBandLambda[k], amp = kMeanderBandLambda[k] * (kMeanderAmp * kMeanderFreq);
+        d.x += wgt[k] * amp * tnFbm(wx * f, kMeanderBandOffset[k], wz * f, 2, 0.5f, 2.0f, seed ^ 0x9271u);
+        d.y += wgt[k] * amp * tnFbm(wx * f, kMeanderBandOffset[k] + 60.0f, wz * f, 2, 0.5f, 2.0f, seed ^ 0x9271u);
+    }
+    return d;
+}
+
 glm::vec2 WorldGenerator::meanderedChannelPos(float wx, float wz) const {
     // The ONE meander warp (docs/TerrainGenerationV2.md §P2): everything that touches the channel
     // line — carve, valley, swale, bed shelf (sampleColumn) AND the water runtime's ribbon queries
     // (channelHitAt) — must go through this same displacement, or the water lands beside its bed.
+    if (m_flow && m_flow->areaLaw()) {   // M2d-3 (v2): the wavelength follows the local channel width
+        const glm::vec2 d = meanderDisplacementForHalfWidth(wx, wz, m_flow->localHalfWidthAt(wx, wz));
+        return glm::vec2(wx + d.x, wz + d.y);
+    }
     return glm::vec2(
         wx + kMeanderAmp * tnFbm(wx * kMeanderFreq, 71.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u),
         wz + kMeanderAmp * tnFbm(wx * kMeanderFreq, 131.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u));

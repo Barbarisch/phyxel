@@ -316,6 +316,10 @@ public:
     // The single meander displacement every channel-line consumer shares (see channelHitAt). Public
     // since M2d so geometry tests can invert it and find the column under a cell's carved centreline.
     glm::vec2 meanderedChannelPos(float wx, float wz) const;
+    // M2d-3: the displacement the warp applies for a given local channel half-width (u) — the
+    // band blend by the meander-wavelength law λ = 7.3·w^1.1 u (§10 F4f). Exposed so the law can
+    // be measured without the width field; the production path feeds it the field's value.
+    glm::vec2 meanderDisplacementForHalfWidth(float wx, float wz, float halfWidth) const;
 
     // ── WorldForge plan (docs/WorldForge.md) ────────────────────────────────────────────────
     // The world-scale settlement + road plan, baked in rebuildCoarseModel right after the

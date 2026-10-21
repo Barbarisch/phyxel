@@ -45,9 +45,9 @@ struct Cell { int i, j; };
 // small, smooth d, so the fixed point x = target - d(x) converges in a few steps).
 glm::ivec2 columnUnderWarp(const WorldGenerator& g, glm::vec2 target) {
     glm::vec2 x = target;
-    for (int it = 0; it < 8; ++it) {
+    for (int it = 0; it < 24; ++it) {
         const glm::vec2 w = g.meanderedChannelPos(x.x, x.y);
-        x += target - w;
+        x += 0.5f * (target - w);   // damped: the warp's gradient reaches ~1 at creek wavelengths
     }
     return glm::ivec2(static_cast<int>(std::floor(x.x)), static_cast<int>(std::floor(x.y)));
 }
@@ -116,8 +116,8 @@ TEST(RiverGeometryTest, NetworkMeanJunctionAngleIsInTheObservedBand) {
     std::vector<float> angles;
     int rightAngles = 0;   // within 5° of 90°
     std::map<int, int> hist;   // 10° bins
-    std::vector<float> gridAngles;
-    int gridRight = 0;
+    std::vector<float> gridAngles, worldAngles;
+    int gridRight = 0, worldRight = 0;
     for (int c = 0; c < n.nx * n.nz; ++c) {
         if (n.order[c] < 2 || n.up[c].size() < 2) continue;      // a confluence of two channels
         // main stem = largest-accum inflow; every other inflow is a tributary
@@ -131,7 +131,8 @@ TEST(RiverGeometryTest, NetworkMeanJunctionAngleIsInTheObservedBand) {
         if (jl.size() < 2) continue;
         const glm::vec2 pj = g.meanderedChannelPos(jl[0].x, jl[0].y);
         const glm::vec2 pd = g.meanderedChannelPos(jl[1].x, jl[1].y);
-        const glm::vec2 downDir = pd - pj;
+        const glm::vec2 downDir = pd - pj;              // world space (through the warp)
+        const glm::vec2 downDirBake = jl[1] - jl[0];    // bake space (the construction)
         for (int u : n.up[c]) {
             if (u == mainIn) continue;
             // the tributary's arrival: the LAST piece of its centreline (a fillet's end tangent
@@ -140,8 +141,12 @@ TEST(RiverGeometryTest, NetworkMeanJunctionAngleIsInTheObservedBand) {
             if (tl.size() < 2) continue;
             const glm::vec2 pa = g.meanderedChannelPos(tl[tl.size() - 2].x, tl[tl.size() - 2].y);
             const glm::vec2 pb = g.meanderedChannelPos(tl[tl.size() - 1].x, tl[tl.size() - 1].y);
-            const glm::vec2 tribDir = pb - pa;                    // the tributary's approach
-            const float a = angleDeg(tribDir, downDir);
+            const glm::vec2 tribDir = pb - pa;                    // the tributary's approach, world space
+            const float aWorld = angleDeg(tribDir, downDir);
+            worldAngles.push_back(aWorld);
+            if (std::fabs(aWorld - 90.0f) <= 5.0f) ++worldRight;
+            // the construction: the same tangents before the warp
+            const float a = angleDeg(tl[tl.size() - 1] - tl[tl.size() - 2], downDirBake);
             angles.push_back(a);
             ++hist[static_cast<int>(a / 10.0f) * 10];
             if (std::fabs(a - 90.0f) <= 5.0f) ++rightAngles;
@@ -157,7 +162,10 @@ TEST(RiverGeometryTest, NetworkMeanJunctionAngleIsInTheObservedBand) {
     std::printf("[ M2d ] control, raw D8 grid: mean angle %.1f deg, within 5 deg of 90: %d (%.1f %%)\n",
                 gridMean, gridRight, 100.0f * gridRight / gridAngles.size());
     const float mean = std::accumulate(angles.begin(), angles.end(), 0.0f) / angles.size();
-    std::printf("[ M2d ] %zu junctions (%d fillets baked): mean angle %.1f deg, within 5 deg of 90: %d (%.1f %%); histogram:",
+    const float worldMean = std::accumulate(worldAngles.begin(), worldAngles.end(), 0.0f) / worldAngles.size();
+    std::printf("[ M2d ] world space (through the meander warp, 4 u tangents): mean angle %.1f deg, within 5 deg of 90: %d (%.1f %%) - reported, the warp rotates short tangents at creek wavelengths\n",
+                worldMean, worldRight, 100.0f * worldRight / worldAngles.size());
+    std::printf("[ M2d ] %zu junctions (%d fillets baked), bake space (the construction): mean angle %.1f deg, within 5 deg of 90: %d (%.1f %%); histogram:",
                 angles.size(), n.f->filletCount(), mean, rightAngles, 100.0f * rightAngles / angles.size());
     for (const auto& [b, k] : hist) std::printf(" %d-%d:%d", b, b + 10, k);
     std::printf("\n");
@@ -189,6 +197,10 @@ TEST(RiverGeometryTest, BedIsMonotoneAlongTheLongestChannel) {
         const glm::ivec2 col = columnUnderWarp(g, target);
         const auto s = g.sampleSurface(col.x, col.y);
         if (s.riverOrder < 1) { prev = 1e30f; continue; }      // the warp missed the channel here: restart the run
+        // at a confluence the column under the junction's warped centre can lie on the TRIBUTARY's
+        // fillet (a higher, upstream profile): only a hit on this cell's own channel is a sample
+        const auto own = g.channelHitAt(static_cast<float>(col.x) + 0.5f, static_cast<float>(col.y) + 0.5f);
+        if (!own.hit || own.cell != c) { prev = 1e30f; continue; }
         // a coarse basin cell (filled above its sampled height): the bed there is the basin floor,
         // the river enters and leaves it at its rim — the profile holds between basins
         const HydrologyMap* h = g.hydrology();
@@ -220,4 +232,77 @@ TEST(RiverGeometryTest, BedIsMonotoneAlongTheLongestChannel) {
                 creekChecked, creekRises);
     ASSERT_GT(checked, 0) << "no carved reach on the longest channel";
     EXPECT_EQ(rises, 0) << "the carved bed rises downstream: a stream flowing uphill";
+}
+
+// M2d-3: the meander wavelength follows the channel width — λ = 7.3·w^1.1 u (F4f). Measured as
+// the mean spacing of sign changes of the lateral displacement along a straight 4 km line, for
+// the narrowest law channel (w = 1 u) and a wide one (w = 6.3 u): the spacing ratio must track
+// the law's wavelength ratio (7.5 : 55.6), and the absolute spacing of each band must be within
+// a factor of 2 of λ/2 (the fbm's zero crossings sit near half a wavelength). Red on the committed
+// code: one wavelength (55.6 u) for every width — ratio 1.
+TEST(RiverGeometryTest, MeanderWavelengthFollowsChannelWidth) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(v2Recipe(20260816u));
+    ASSERT_TRUE(g.riverNetwork() && g.riverNetwork()->areaLaw());
+    auto spacing = [&](float halfWidth) {
+        int crossings = 0; float prev = 0.0f; bool have = false;
+        const int N = 4000;
+        for (int x = 0; x < N; ++x) {
+            const float d = g.meanderDisplacementForHalfWidth(static_cast<float>(x) + 0.5f, 1234.5f, halfWidth).y;
+            if (have && ((d >= 0.0f) != (prev >= 0.0f))) ++crossings;
+            prev = d; have = true;
+        }
+        return crossings > 0 ? static_cast<float>(N) / crossings : 1e9f;
+    };
+    const float sNarrow = spacing(0.5f), sWide = spacing(3.15f);
+    const float lamNarrow = 7.3f * std::pow(1.0f, 1.1f), lamWide = 7.3f * std::pow(6.3f, 1.1f);
+    std::printf("[ M2d-3 ] zero-crossing spacing of the lateral warp: w = 1.0 u -> %.1f u (law lambda %.1f), w = 6.3 u -> %.1f u (law lambda %.1f); ratio %.3f vs law %.3f\n",
+                sNarrow, lamNarrow, sWide, lamWide, sNarrow / sWide, lamNarrow / lamWide);
+    EXPECT_NEAR(sNarrow / sWide, lamNarrow / lamWide, 0.5f * lamNarrow / lamWide) << "the wavelength does not follow the width";
+    EXPECT_GT(sNarrow, 0.5f * lamNarrow * 0.5f);
+    EXPECT_LT(sNarrow, 2.0f * lamNarrow * 0.5f);
+    EXPECT_GT(sWide, 0.5f * lamWide * 0.5f);
+    EXPECT_LT(sWide, 2.0f * lamWide * 0.5f);
+    // The field itself: a creek cell reads a narrow local width, a trunk cell a wide one.
+    const FlowField* f = g.riverNetwork();
+    float maxLocal = 0.0f;
+    for (int j = 0; j < f->cellsZ(); j += 4)
+        for (int i = 0; i < f->cellsX(); i += 4)
+            maxLocal = std::max(maxLocal, f->localHalfWidthAt(f->originX() + (i + 0.5f) * f->cellSize(), f->originZ() + (j + 0.5f) * f->cellSize()));
+    std::printf("[ M2d-3 ] local half-width field: max %.2f u (the law's widest channel in the box is %.2f u)\n", maxLocal, f->maxHalfWidth());
+    EXPECT_GT(maxLocal, 0.0f);
+    EXPECT_LE(maxLocal, f->maxHalfWidth() + 1e-3f);
+}
+
+// A probe, not an invariant: the carved confluences nearest the origin on the baseline world, with
+// the world column under the junction's warped centre and the local terrain, so an engine capture
+// (plan M2d L4: a confluence in frame) can be posed from a printed number instead of a guess.
+TEST(RiverGeometryTest, PrintCarvedConfluencesNearOrigin) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(v2Recipe(20260816u));
+    ASSERT_TRUE(g.riverNetwork());
+    const Net n = buildNet(g);
+    struct Site { float d2; int c; };
+    std::vector<Site> sites;
+    for (int c = 0; c < n.nx * n.nz; ++c) {
+        if (n.up[c].size() < 2 || !n.f->carvedRiverAt(n.centre(c).x, n.centre(c).y)) continue;
+        int carvedIn = 0;
+        for (int u : n.up[c]) if (n.f->carvedRiverAt(n.centre(u).x, n.centre(u).y)) ++carvedIn;
+        if (carvedIn < 1) continue;
+        const glm::vec2 p = n.centre(c);
+        sites.push_back({p.x * p.x + p.y * p.y, c});
+    }
+    std::sort(sites.begin(), sites.end(), [](const Site& a, const Site& b) { return a.d2 < b.d2; });
+    std::printf("[ M2d probe ] %zu carved confluences in the box; nearest the origin:\n", sites.size());
+    for (size_t k = 0; k < sites.size() && k < 6; ++k) {
+        const int c = sites[k].c;
+        const glm::vec2 p = n.centre(c);
+        const glm::ivec2 col = columnUnderWarp(g, p);
+        const auto s = g.sampleSurface(col.x, col.y);
+        const auto bank = g.sampleSurface(col.x + 12, col.y + 12);
+        std::printf("    cell (%d,%d) accum %d order %d: carved column (%d,%d) bed %.2f surfaceY %d shelf %d; bank 12 u away surfaceY %d; inflows %zu\n",
+                    static_cast<int>(p.x), static_cast<int>(p.y), n.accum[c], n.order[c], col.x, col.y, s.bedHeight, s.surfaceY,
+                    s.bedShelf ? 1 : 0, bank.surfaceY, n.up[c].size());
+    }
+    EXPECT_FALSE(sites.empty());
 }

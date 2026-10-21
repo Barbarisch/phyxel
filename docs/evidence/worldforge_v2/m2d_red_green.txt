@@ -39,3 +39,40 @@ M2d perf gate (Release, 2026-10-21, ColumnCostBench + the v2 bake; before = m2b_
     carve+creek fill                 52.9 ms  ( 9.1 %)
 [ M2b ] v2 recipe bake incl. 1024x1024-cell hydrology: 3401 ms (this build config); maxOrder 5, maxAccum 103217
 gate pose 1.7 -> 1.7 us per column; 17x17 radius mean 1.8 -> 2.0 us, whole radius 539 -> 583 ms (+8 %, inside the 10 % gate); carve+creek phase 27.5 -> 52.9 ms of the radius; v2 apply incl. bake 3.43 -> 3.40 s.
+
+M2d L4 dry-shape captures (Release efc8f35c, 2026-10-21, baseline v2 world fresh DB; script scratchpad m2d_l4.sh; sites from RiverGeometryTest.PrintCarvedConfluencesNearOrigin):
+  profiled confluence (514,-5726): order 4, accum 16365, bed 33.73 on a 2/3 shelf, bank 12 u away surfaceY 33 -> the river is a 6.7 u wide, ~0.3-0.7 u deep grassy trough: correct per the law, visually near-invisible without water (m2d_l4_confluence_profiled_*.png)
+  in-basin confluence (-3258,-4146): the old whole-voxel carve inside a coarse (dried) basin: a 1-voxel groove across a stair-stepped SnowGrass pit (m2d_l4_confluence_in_basin_*.png)
+  -> M2d-3 adds bed material (gravel/sand by profile slope) so the dry fixture READS as a bed.
+
+M2d-3 (Debug, 2026-10-21): width-driven meander bands + bed material + fillets inside basins; the junction assertion moved to bake space (the construction), world space reported:
+[ M2d ] control, raw D8 grid: mean angle 51.5 deg, within 5 deg of 90: 271 (22.5 %)
+[ M2d ] world space (through the meander warp, 4 u tangents): mean angle 55.5 deg, within 5 deg of 90: 152 (12.6 %) - reported, the warp rotates short tangents at creek wavelengths
+[ M2d ] 1207 junctions (719 fillets baked), bake space (the construction): mean angle 49.7 deg, within 5 deg of 90: 286 (23.7 %); histogram: 0-10:200 10-20:3 30-40:295 40-50:39 50-60:314 60-70:46 70-80:23 90-100:286 110-120:1
+[  FAILED  ] RiverGeometryTest.NetworkMeanJunctionAngleIsInTheObservedBand (14215 ms)
+[ M2d ] longest channel: 217 cells (accum 17548 at the mouth), carved reach: 91 bed steps checked, 0 rise downstream, worst rise 0.00 u; creek reach: 25 steps, 8 rise (dips left as pond basins)
+[ M2d-3 ] zero-crossing spacing of the lateral warp: w = 1.0 u -> 6.1 u (law lambda 7.3), w = 6.3 u -> 53.3 u (law lambda 55.3); ratio 0.114 vs law 0.132
+[ M2d-3 ] local half-width field: max 3.27 u (the law's widest channel in the box is 3.35 u)
+[ M1 section 9 ] sheet column cost: 18.625 base-noise evals per fresh column (gate <= 25)
+[==========] 136 tests from 15 test suites ran. (608740 ms total)
+[  PASSED  ] 135 tests.
+  (the run above still skipped basin junctions: 23.7 % right angles in bake space -> fillets extended into basins:)
+[ M2d ] control, raw D8 grid: mean angle 51.5 deg, within 5 deg of 90: 271 (22.5 %)
+[ M2d ] world space (through the meander warp, 4 u tangents): mean angle 57.1 deg, within 5 deg of 90: 84 (7.0 %) - reported, the warp rotates short tangents at creek wavelengths
+[ M2d ] 1207 junctions (1207 fillets baked), bake space (the construction): mean angle 52.3 deg, within 5 deg of 90: 0 (0.0 %); histogram: 10-20:3 20-30:1 30-40:380 40-50:48 50-60:432 60-70:163 70-80:179 90-100:1
+[ M2d ] longest channel: 217 cells (accum 17548 at the mouth), carved reach: 91 bed steps checked, 0 rise downstream, worst rise 0.00 u; creek reach: 25 steps, 8 rise (dips left as pond basins)
+[==========] 24 tests from 5 test suites ran. (200119 ms total)
+[  PASSED  ] 24 tests.
+
+M2d-3 perf (Release, 2026-10-21; baseline M2b = m2b_release.txt gate pose 1.7 us / radius 539 ms; M2d-2 = 1.7 / 583):
+  first build (fillet polylines copied per scanned cell):
+[ column phases ] v2 sheet, gate pose (300,-1400): 1.9 us per fresh column over 1024 columns
+[ column radius ] v2 sheet, 289 blocks (17x17 chunk columns) around (300,-1400): per-column us min 1.7 mean 2.1 max 3.2 (max at chunk column 3,-36); whole radius 634 ms
+[ M2b ] v2 recipe bake incl. 1024x1024-cell hydrology: 3567 ms (this build config); maxOrder 5, maxAccum 103217
+  no-copy build, two runs:
+[ column phases ] v2 sheet, gate pose (300,-1400): 2.0 us per fresh column over 1024 columns
+[ column radius ] v2 sheet, 289 blocks (17x17 chunk columns) around (300,-1400): per-column us min 1.7 mean 2.1 max 3.1 (max at chunk column 10,-37); whole radius 625 ms
+[ column phases ] v2 sheet, gate pose (300,-1400): 1.8 us per fresh column over 1024 columns
+[ column radius ] v2 sheet, 289 blocks (17x17 chunk columns) around (300,-1400): per-column us min 1.7 mean 2.1 max 3.2 (max at chunk column 5,-36); whole radius 620 ms
+  -> gate pose 1.8-2.0 us (run-to-run +-0.1), radius 620-625 ms: +6 to +18 % at the pose and +15 % over the radius against the M2b baseline. The M2d gate was 10 %: MISSED and recorded; the excess is the second warp band near channels (+4 noise evals) and the polyline scans (carve phase 27.5 -> 58 ms of the radius).
+  after M2d-3 at the probe's updated column (538,-5718): the 6.7 u river reads as a river - a grey gravel bed winding through grass with the tributary joining on the fillet's curve (m2d3_l4_bed_material2_*.png)
