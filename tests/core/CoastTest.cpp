@@ -122,16 +122,24 @@ TEST(CoastTest, SignedDistanceCrossesZeroAtTheShoreline) {
     const CoastField* coast = g.coastField();
     ASSERT_TRUE(coast && coast->hasOcean());
     const HydrologyMap* h = g.hydrology();
-    int checked = 0, wrongSign = 0;
+    const WaterBodyIndex* wb = g.waterBodies();
+    int checked = 0, wrongSign = 0, seaCellsLandSide = 0, seaLevelCells = 0;
     for (int j = 0; j < h->cellsZ(); j += 8)
         for (int i = 0; i < h->cellsX(); i += 8) {
             const float wx = h->originX() + (i + 0.5f) * h->cellSize(), wz = h->originZ() + (j + 0.5f) * h->cellSize();
             const float sd = coast->signedDistAt(wx, wz);
-            const bool oceanLevel = h->waterLevelAt(wx, wz) > HydrologyMap::NO_WATER * 0.5f && std::fabs(h->waterLevelAt(wx, wz) - h->seaLevel()) <= 1.0f;
+            const float lvl = h->waterLevelAt(wx, wz);
+            const bool wet = lvl > HydrologyMap::NO_WATER * 0.5f;
+            const auto* b = wet ? wb->bodyAt(wx, wz) : nullptr;
+            const bool seaLevelBody = b && std::fabs(b->level - h->seaLevel()) <= 1.0f && b->cls != WaterBodyIndex::Class::Pond;
             ++checked;
-            // a sea-level wet cell that is an OCEAN body lies at sd <= 0; dry cells lie at sd > 0
-            if (!oceanLevel && h->waterLevelAt(wx, wz) <= HydrologyMap::NO_WATER * 0.5f && sd <= 0.0f) ++wrongSign;
+            // dry cells lie on the land side; every cell of a sea-level body that is not a pond —
+            // the Ocean AND the baseline world's 114 km² sea-level inland sea — lies at sd <= 0
+            if (!wet && sd <= 0.0f) ++wrongSign;
+            if (seaLevelBody) { ++seaLevelCells; if (sd > 0.0f) ++seaCellsLandSide; }
         }
-    std::printf("[ M2e-2 ] coast field: %d cells checked, %d dry cells with a sea-side sign\n", checked, wrongSign);
+    std::printf("[ M2e-2 ] coast field: %d cells checked, %d dry cells with a sea-side sign, %d of %d sea-level-body cells on the land side\n",
+                checked, wrongSign, seaCellsLandSide, seaLevelCells);
     EXPECT_EQ(wrongSign, 0);
+    EXPECT_EQ(seaCellsLandSide, 0) << "a sea-level body's cells are not the sea for the coast field (its shores get no beach)";
 }

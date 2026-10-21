@@ -45,7 +45,12 @@ CoastField::CoastField(const HydrologyMap& hydro, const WaterBodyIndex& bodies)
         for (int i = 0; i < m_cellsX; ++i) {
             const int32_t id = bodies.bodyIdAtCell(i, j);
             const WaterBodyIndex::Body* b = bodies.body(id);
-            if (b && b->cls == WaterBodyIndex::Class::Ocean) { sea[static_cast<size_t>(j) * m_cellsX + i] = 1; ++m_seaCells; }
+            // The sea = every body standing at sea level that is not a pond: the Ocean class
+            // (touches the box border) AND a sea-level LAKE — the baseline world's 114 km² inland
+            // sea sits at 16.0 but never reaches the border, and its shores are coasts too
+            // (measured 2026-10-21: the first beach capture landed 50 u from its waterline).
+            const bool atSeaLevel = b && std::fabs(b->level - hydro.seaLevel()) <= WaterBodyIndex::kOceanLevelEps;
+            if (b && atSeaLevel && b->cls != WaterBodyIndex::Class::Pond) { sea[static_cast<size_t>(j) * m_cellsX + i] = 1; ++m_seaCells; }
         }
     m_dist.assign(n, kFar);
     if (m_seaCells == 0 || static_cast<size_t>(m_seaCells) == n) return;

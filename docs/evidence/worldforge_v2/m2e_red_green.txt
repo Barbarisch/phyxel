@@ -32,3 +32,34 @@ M2e GREEN (Debug; the face filled to the profile, the test's face defined by the
 [==========] 92 tests from 13 test suites ran. (344326 ms total)
 [  PASSED  ] 92 tests.
   (the one remaining 'steep' step of the previous run sat at field distance 55 u - the backshore ramp, cut-only - on a transect oblique to the shore; the chamfer field quantizes the shoreline at cell scale, ~15 u)
+
+M2e-2 L4 first capture (Release 57a742dc, baseline fresh DB; script m2e_l4.sh auto 0 0):
+exe: 2026-10-21_15:37:43  commit: 57a742dc
+shoreline found at x=624 z=0 seaward dir 1
+shore column (624,0) generator surface 18
+resident@along_shore: {"max_y":255,"source":"chunks","spawn_y":36,"surface_y":35,"x":624,"z":0}
+shot along_shore: screenshots/screenshot_20261021_154713_276.png
+resident@from_the_sea: {"max_y":255,"source":"chunks","spawn_y":36,"surface_y":35,"x":624,"z":0}
+shot from_the_sea: screenshots/screenshot_20261021_154807_382.png
+resident@top_down: {"max_y":255,"source":"chunks","spawn_y":36,"surface_y":35,"x":624,"z":0}
+shot top_down: screenshots/screenshot_20261021_154901_470.png
+transect (land -> sea, 8 u steps): 
+  d=40 x=584: surface_y 20
+  d=32 x=592: surface_y 20
+  d=24 x=600: surface_y 19
+  d=16 x=608: surface_y 19
+  d=8 x=616: surface_y 18
+  d=0 x=624: surface_y 18
+  d=-8 x=632: surface_y 18
+  d=-16 x=640: surface_y 17
+  d=-32 x=656: surface_y 17
+  d=-64 x=688: surface_y 15
+engines left: 0
+  -> the water table's shoreline (x=624, the sea-level INLAND SEA, class Lake, 111k cells) is where the coast field reads ~40 u: the field only counted Ocean-class bodies, so the inland sea's shores got no beach; the transect shows a gentle 1:24 slope that is the relief, the real waterline ~50 u seaward. Fix: the sea = every sea-level non-pond body; test asserts it.
+
+M2e-2 sea-level bodies as sea (Debug):
+[ M2e-2 ] 60 shoreline transects (0 cliff coasts exempt): beach faces steeper than m0 + 1/3 u: 0, worst face rise per u 0.10; nearshore beds rising seaward by > 1 u: 0, worst rise 0.43 u; Sand on 1863 of 1891 face columns; sea level 16.0, ocean cells 264787
+[ M2e-2 ] coast field: 16384 cells checked, 0 dry cells with a sea-side sign, 0 of 4148 sea-level-body cells on the land side
+[ M2e ] spring sites: 1203 heads (expected 1203), 3864 basin feeds (expected 3864), 3461 basin outlets; runoff 500 mm/yr, largest discharge 0.285 m3/s
+[==========] 28 tests from 5 test suites ran. (20177 ms total)
+[  PASSED  ] 28 tests.
