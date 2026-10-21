@@ -186,6 +186,13 @@ public:
         std::vector<int> colQuiet;       ///< ticks each column has passed the sleep test in a row
         std::vector<char> colFrozen, colWake;   ///< frozen now; a wake asked for since the last call
         bool wakeAllPending = false, anyFrozen = false;
+        // §27 W1b: RECORDED brick columns - the record (chunk spans + bodies) holds their water. Every brick of such a column reads the
+        // GROUND sentinel (Solid: a wall to the awake water, as a frozen column is) and residency never stores it until it is woken;
+        // a wake that reaches one (the partial wake's margin, a wake box) is queued for the manager, which seeds its tile.
+        std::vector<char> colRecorded;  ///< per brick column (bn.x x bn.z)
+        bool anyRecorded = false;
+        std::vector<int> recordedWakes; ///< brick columns (index bx + bn.x bz) a wake reached since the manager last took them
+        double seedUnplacedM3 = 0.0;    ///< seeded water whose brick the capacity refused (m^3, cumulative) - reported, never silent
         int awakeCols = 0, frozenCols = 0, movingCols = 0;
         // 26.31 step 2: the awake bricks held in slots [kFirstSlot, stepSlots) and the awake column entries first (stepCols) - the
         // step's dispatches and copies cover only those (frozen bricks get no threads); 0 = every stored brick (no partial wake)
@@ -307,6 +314,20 @@ public:
     /// 26.31: wake the brick columns touching grid cells [lo, hi] (the margin grows round them next call) / every column.
     void wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi);
     void wakeAll(Volume& vol);
+    /// §27 W1b: the cells of the brick columns [bLo, bHi] (brick-box x, z; inclusive) read back - only those bricks cross - into `out`
+    /// (spec in world cells: origin = the columns' first cell, every y of the volume; occupancy from the host copy, Solid where
+    /// unknown). Settles the call in flight. False when the volume is not bricked.
+    bool readColumns(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi, WaterGrid& out);
+    /// §27 W1b: the brick columns [bLo, bHi] are RECORDED from the next call (their bricks freed, read as ground - a wall).
+    void setColumnsRecorded(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi);
+    /// §27 W1b: wake recorded columns [bLo, bHi] with the cells in `cells` (spec in world cells, the volume's h): their bricks (and a
+    /// ring of halo) are stored and these fills uploaded NOW (one submission), the columns at rest (frozen unless motion reaches them).
+    void seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& bLo, const glm::ivec2& bHi);
+    /// §27 W1b: the recorded brick columns a wake reached since the last take (index bx + bn.x * bz).
+    std::vector<int> takeRecordedWakes(Volume& vol) { std::vector<int> out; out.swap(vol.recordedWakes); return out; }
+    /// §27 W1b TEST ONLY: recorded columns NOT walled - the halo stores their bricks as air and they are not frozen, so awake water
+    /// beside them pours in (the water then sits in cells AND in the record): the red control.
+    static inline bool s_recordedOpenForTest = false;
     static inline double s_tsMs[TsLabelCount] = {};
     static inline long s_tsCalls = 0;
     void setOmega(float w) { m_omega = w; }

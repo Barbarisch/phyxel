@@ -49,6 +49,11 @@ struct AvRecord {
     double gpuMs = 0.0;                    ///< wall time of the last GPU step call (all its ticks)
     double gpuDeviceMs = 0.0;              ///< 26.15: of it, the GPU's own time (timestamps round the main submission)
     bool partialWake = false;              ///< 26.31: quiet brick columns freeze (GPU, sparse)
+    bool recordTiles = false;              ///< §27 W1b: frozen 8 m tiles sleep into the record (and wake from it)
+    double recordedM3 = 0.0;               ///< §27 W1b: this volume's water now in the record (m^3, the spans' unit)
+    int recordedTiles = 0;                 ///< §27 W1b: tiles in the record now
+    long tilesRecorded = 0, tilesWoken = 0;   ///< §27 W1b: since creation
+    double lastRecordMs = 0.0, lastWakeMs = 0.0, seedUnplacedM3 = 0.0;   ///< §27 W1b: the last tile record / wake (ms); seeded water the capacity refused
     int awakeColumns = 0, frozenColumns = 0, movingColumns = 0;   ///< 26.31: the last call's (WaterCoreGpu GpuStepStats)
     double carryBodyM3 = 0.0, carryRateM3 = 0.0, carryFlowM3 = 0.0, carryParkedM3 = 0.0;   ///< 26.32: the over-full carry since creation (m^3): made in a body's cells without / with a displacement rate, made elsewhere, parked at a ceiling
     int stepSlots = 0, partitionMoves = 0;                        ///< 26.31 step 2: slots the step dispatched (0 = all); bricks moved
@@ -181,6 +186,17 @@ public:
     bool setAutoSleep(int id, bool on);
     /// 26.31 the partial wake for one volume (GPU, sparse; false = no such volume or not one) and the default for new volumes.
     bool setPartialWake(int id, bool on);
+    /// §27 W1b: frozen 8 m tiles of a GPU volume sleep into the record after `s_recordAfterS` frozen and wake from it when the awake
+    /// margin or a wake box reaches them (27.10). Needs the partial wake and the span I/O. OFF by default until the owner has seen it.
+    bool setRecordTiles(int id, bool on);
+    /// §27 W1b TEST: world voxel column (wx, wz) is in a recorded tile of volume `id`.
+    bool columnWaterRecordedForTest(int id, int wx, int wz) const {
+        for (const auto& av : m_avs) if (av->id == id) return columnRecorded(*av, wx, wz);
+        return false;
+    }
+    static inline bool s_recordTilesDefault = false;
+    static inline float s_recordAfterS = 2.0f;        ///< s a tile stays frozen before it records (ticks at 60 Hz)
+    static constexpr int kRecordTilesPerStep = 2;     ///< bounds a frame's cost when many tiles freeze at once
     /// ON by default since 2026-10-19 (the owner: "yeah. default"); a volume created with an explicit partial_wake keeps its own.
     static inline bool s_partialWakeDefault = true;
     /// 26.31 measurement: the GPU volume's last unit map (WaterCoreGpu::s_unitCapture), per 8 x 2 x 8 cells: x = KE sum, y = max
@@ -435,6 +451,14 @@ private:
         WaterCoreGpu::Volume* gpuVol = nullptr;
         bool gpuDirty = true;          // the grid (fills, velocities or occupancy) is newer than the GPU copy
         GpuStepStats gpuLast;
+        // §27 W1b: 8 m tiles (world-aligned: 9 brick columns = 8 voxel columns) recorded into / woken from the record
+        bool recordTiles = false;
+        double recordedM3 = 0.0;
+        std::vector<std::pair<int, int>> recordedTileList;   ///< tile (x, z) indices in the record now
+        std::map<std::pair<int, int>, int> tileFrozenTicks;  ///< ticks each tile has had every stored column frozen (counted here: a
+                                                             ///< body whose columns all froze is asleep and runs no call to count them)
+        long tilesRecorded = 0, tilesWoken = 0;
+        double lastRecordMs = 0.0, lastWakeMs = 0.0;
         double carryBodyM3 = 0.0, carryRateM3 = 0.0, carryFlowM3 = 0.0, carryParkedM3 = 0.0;   // 26.32: the over-full carry since the volume was made (m^3)
         double gpuUploadMs = 0.0; int gpuUploads = 0;   ///< 26.18: the last re-read's time, and how many
         double occRefreshMs = 0.0;                      ///< 26.18: the last occupancy re-sample of the box, ms
@@ -523,6 +547,14 @@ private:
     RecordDrawStats m_recordStats;
     void refreshRecordTiles();
     void buildRecordTile(int tx, int tz, RecordTile& t);
+    // §27 W1b: the tile life cycle of a GPU volume (after each step): wakes first, then tiles frozen long enough are recorded
+    void recordTilesStep(Av& av, int ticks);
+    bool recordTile(Av& av, int tx, int tz);
+    bool wakeTile(Av& av, int tx, int tz);
+    void wakeRecordedNear(Av& av, const glm::vec3& world, float radius);   ///< wake the recorded tiles a write at `world` touches (+ 2 m)
+    bool tileBricks(const Av& av, int tx, int tz, glm::ivec2& bLo, glm::ivec2& bHi) const;   ///< the tile's brick-box columns (clipped)
+    bool columnRecorded(const Av& av, int wx, int wz) const;   ///< world voxel column (wx, wz) is in a recorded tile of this volume
+    uint64_t m_fieldBumps = 0;
     void buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec3& hi);
     std::unordered_map<uint64_t, glm::vec3> m_solidHold;   // 20: body id -> the centre it is rasterized at
     bool m_solidWakeRule = true;

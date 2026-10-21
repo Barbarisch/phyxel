@@ -371,8 +371,9 @@ struct WriteBackStats {
 WriteBackStats columnRunsFromGrid(const WaterGrid& grid, const std::function<bool(int, int)>& held,
                                   std::vector<ColumnRuns>& out);
 /// The inverse: set every cell of `grid` from the runs (replace, not add; columns absent from
-/// `runs` are cleared; runs are clipped to the grid's box; every sub-column of a voxel column
-/// gets the same fill, a flat start). Velocities are zeroed. Returns the m^3 placed.
+/// `runs` are cleared; runs are clipped to the grid's box). §27.8: each run is LEVEL-FILLED into the
+/// voxel column's AIR cells (grid.occ) from its bottom up - still water is level, so this is the shape
+/// it had; nothing goes into rock. Velocities are zeroed. Returns the m^3 placed.
 double seedGridFromRuns(WaterGrid& grid, const std::vector<ColumnRuns>& runs);
 
 class WaterSolver {

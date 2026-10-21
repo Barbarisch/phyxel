@@ -62,7 +62,7 @@ partial surface (26.33).
 creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; next W1b, the per-tile record / seed and the tile life cycle). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; W1b first slice BUILT §27.12 - frozen tiles sleep into the record and wake from it, the books exact, recording OFF by default; next: live timing + the owner's look, then the per-tile kernels and W1c-W1e). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
    PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
    the 2 M-cell box (the CPU keeps only the woken patch).
 2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
@@ -7838,6 +7838,43 @@ Items 2-5 of 27.7 are answered by 27.9 (built) and this section; item 4 waits on
 - Water unit 312/312, integration 134/136 (the FLIP run-up; SceneIntegrationTest). **SIGNED OFF by the owner 2026-10-20** on
   `w1a_sleep_into_record_walls.mp4` ("looks good.").
 
+
+
+### 27.12 W1b first slice BUILT (2026-10-20): frozen tiles sleep into the record and wake from it - recording OFF by default
+
+**What:** the tile life cycle of 27.10 on a GPU volume with the partial wake. A world-aligned 8 m tile whose stored brick columns
+have all been frozen for `s_recordAfterS` (2 s; counted by the manager every frame - a body whose columns all froze is asleep and
+runs no call to count them; a body asleep as a whole counts as frozen everywhere) RECORDS: only its bricks are read back
+(`WaterCoreGpu::readColumns`), its runs per voxel column written to the record (the span writer + the body credit, the spans'
+unit), its columns marked recorded (`setColumnsRecorded`: their bricks freed at once and read as the GROUND sentinel - Solid, a
+wall to the awake water - and never stored by the halo), the volume's drawn surface cleared there and the record tiles built in
+the same frame (W1a draws it). A recorded column never moves by itself; when the awake water's margin or a wake box reaches it,
+the manager WAKES the tile: the record read, level-filled into the tile's air cells (27.9), uploaded into fresh bricks AT ONCE
+(`seedColumns`, one submission) at rest (quiet: frozen unless motion reaches it), its record columns cleared and the body debited
+in the same breath, the volume's surface written from the seed so no frame is blank. Anything that writes into the water - a
+push, placed water, debris momentum, a moving body - first wakes the recorded tiles it touches (+ 2 m), synchronously
+(`wakeRecordedNear`). A whole-volume `sleep` leaves recorded columns alone (it would have written their empty cells over the
+record). Not done in this slice: the per-tile record/seed as GPU KERNELS (the tile's bricks are read back and its runs computed
+on the host - 6-8 ms a tile; the 27.10 kernels are the next cut), the dense CPU mirror (W1d).
+**API:** `water_av_record_tiles {default?, after_s?, id?, on?}` (after_s clamped 0.25-600 s, the reasons at the clamp; echoes);
+`water_av_list` gains `record_tiles`, `recorded_m3`, `recorded_tiles`, `tiles_recorded`, `tiles_woken`, `last_record_ms`,
+`last_wake_ms`, `seed_unplaced_m3`. **Default OFF** (`s_recordTilesDefault`) until the owner has seen it.
+**The gate: `WaterRecordTilesTest.FrozenTilesRecordAndWakeWithTheBooksExact`** (a 32 x 16 m pond 1 m deep = 4 x 2 tiles, an
+in-memory record standing in for the chunk spans, record after 0.5 s): placed 511.9993 m^3 -> **all 8 tiles recorded, 0 m^3 in
+cells, 511.9993 in the record** (7.0e-4 m^3 of films dropped by the residue sweep, counted); a touch in tile (0, 0) woke **exactly
+1 tile**, its surface within 0.01 mm of the still level, and it **recorded again**; a push (strength 1) woke 9 tiles in all as its
+waves met them (wake ahead); **no recorded tile's cells ever held water**; **the books - cells + residue + record = placed -
+within 6.6e-6 m^3 at every tick**. Red control (the recorded columns left OPEN: stored by the halo as air, not frozen): **9.47 m^3
+poured into the recorded neighbour**. Record 6-8 ms, wake 8-12 ms a tile (host; measured on a busy GPU - the owner was gaming).
+**Found on the way (each a failed run first):** (1) a body whose columns all froze is asleep - the per-column quiet counts stopped,
+nothing recorded until a push woke it -> counted per tile in the manager; (2) a body asleep as a WHOLE never ran the per-column
+freeze -> counted as frozen everywhere; (3) a seed counted as motion woke its neighbours, which woke theirs (one touch woke all 8
+tiles) -> seeds are at rest; (4) a seed queued for the next call left the water in neither place for a call (the books 192 m^3
+short) -> uploaded at once; (5) a push into a recorded tile wrote into its empty cells and was lost -> writes wake first. The
+walled 32 x 16 m box does not settle a strength-4 push inside 15 s even with recording OFF (225-328 columns moving - its walls
+reflect, 26.29), so "tiles record again after a push" is reported there, not gated.
+Water unit 312/312, integration 135/137 (the FLIP run-up; SceneIntegrationTest). Built, not signed off; live timing and the
+owner's look wait for an idle GPU.
 
 ---
 
