@@ -901,6 +901,43 @@ with constraints refuse with the reason. Test world: `CivLab` (flat sheet with o
 and one painted massif; predict where the city lands before running). Perf gate: plan bake
 < 10 s for 300 sites Release.
 
+**M3 design check (2026-10-21, run against the contract above and the code as it stands): NEEDS WORK —
+three owner decisions, then engineering.**
+1. *Voxel aesthetic:* nothing new is drawn by M3 itself (sites are positions + tiers + a ledger); the
+   buildings stay the structure forge's. Pass.
+2. *Chunk independence:* the plan is ONE global bake read locally (as today), so every quantity is a
+   function of world position; the equality test is the existing `WorldForgeRecipeTest` determinism
+   plus `CivPlanTest.SameSitesFromAnyGeneratorCopy`. Pass by construction — IF the siting inputs are
+   themselves global bakes (point 3).
+3. *Pipeline:* siting consumes hydrology (basins, channels, springs, the coast field), biome climate, slope
+   and resources. **Today every hydrology input exists only inside the ±16 km box** (1024² at 32 u), while
+   T2 asks for 300 sites across the 100 km continent. The full-continent meso bake is 10× the cells and,
+   at the per-cell state M2 now carries (~30 B: bed/carry/basin/width/dist + fillets), ~300 MB and ~35 s
+   Release — not a drop-in. **D18 (owner):** site at MACRO resolution over the continent (the 512 u
+   sheet already carries base, continentalness, climate planes, drainage area, filled surface = basins,
+   and D15's receiver graph = rivers) and refine each chosen site locally with the meso bake when its
+   region is realized; or raise the meso box to the continent first (memory + load time to be measured).
+   Resources: no ore/mineral field exists — a "mining" resource is a new macro-scale noise band (DESIGN,
+   must be labelled); food/forest come from biome + flora density (exist); trade from the coast field and
+   river order (exist).
+4. *API:* `WorldForgeParams` gains `tiers{city,town,village,hamlet,outpost}` targets per 100 km² and the
+   spacing ladder; `worldforge_plan` must echo the clamped targets and the realized counts per tier (today it
+   echoes `siteCount` 3–8, which this retires); the recipe persists them (`WorldForgeRecipeTest` round-trip
+   extended). **D19 (owner):** the tier targets. Grounded anchors (§10 F4): Domesday ≈ 10 named places per
+   100 km²; Christaller's ladder 12 / 21 / 36 / 62 / 108 km (K = 3). A 100 km continent then holds ~1 city,
+   ~6 towns (21 km), ~25 villages (12 km) and the remainder hamlets/outposts; T2's 300 total = 3 per
+   100 km² is "gameplay-thinned" (labelled). The split is a design pick inside those anchors.
+5. *Visual test:* L2 `CivPlanTest` (determinism, spacing ≥ the tier's ladder step, hierarchy ratios ≈ K,
+   no site in water / on a slope above its tier's cap / inside a coarse basin, pins refuse with a reason);
+   L4 `worldforge_map` overlay on the Release 100 km world with the tier legend; `CivLab` = a flat sheet
+   with one painted massif + one painted river (the `upliftMask` from m2a): the prediction written first
+   (the city on the river at the massif's foot). Rig vs shipped: only the mask entries differ.
+   **D20 (owner):** the growth simulation + history ledger (found/grow/decline/abandon/war, ruins) is a
+   second increment (M3b) after siting (M3a), or part of M3 — it changes what "300 sites" means (live vs
+   ever-founded) and what the ledger must persist.
+Red tests ready to write once D18–D20 are settled: `CivPlanTest.ThreeHundredSitesAtHundredKm` (the clamp),
+`.SpacingHoldsPerTier`, `.HierarchyRatioIsCentralPlace`, `.NoSiteInWaterOrOnACliff`, `.PinsRefuseWithReason`.
+
 ### M4 — Route Field (L) — *roads that are roads*
 
 Contract: routes are **anisotropic shortest paths on a cost field** (Galin 2010: slope-along-
