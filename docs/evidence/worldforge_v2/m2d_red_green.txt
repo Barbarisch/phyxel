@@ -15,3 +15,27 @@ M2d-1 GREEN (same day, Debug; the longitudinal bed profile for carved rivers + t
 [==========] 83 tests from 9 test suites ran. (388000 ms total)
 [  PASSED  ] 82 tests.
 (the junction-angle test stays RED by design: M2d-2)
+
+M2d-2 GREEN (same day, Debug; junction fillets baked for every tributary outside basins at junctions with a downstream direction; angles measured on the carved centreline's own end tangents in world space; the control is the raw D8 grid in the same run):
+[ M2d ] control, raw D8 grid: mean angle 51.5 deg, within 5 deg of 90: 271 (22.5 %)
+[ M2d ] 1207 junctions (719 fillets baked): mean angle 62.4 deg, within 5 deg of 90: 68 (5.6 %); histogram: 0-10:104 10-20:114 20-30:100 30-40:109 40-50:118 50-60:103 60-70:85 70-80:82 80-90:83 90-100:60 100-110:63 110-120:57 120-130:44 130-140:26 140-150:19 150-160:21 160-170:9 170-180:10
+[ M2d ] longest channel: 217 cells (accum 17548 at the mouth), carved reach: 36 bed steps checked, 0 rise downstream, worst rise 0.00 u; creek reach: 9 steps, 4 rise (dips left as pond basins)
+[==========] 2 tests from 1 test suite ran. (13842 ms total)
+[  PASSED  ] 2 tests.
+
+M2d-2 broad fixtures (Debug, allocation-free queries; filter = RiverGeometryTest.*:TerrainRiverTest.*:LegacyTerrainGoldenTest.*:WorldSheetGeneratorTest.*:FlowFieldTest.*:BasinRimTest.*:WaterOccupancyTest.*:ColumnCacheTest.*:FinePondTest.*:WorldForgePlanTest.*:WorldForgeBuildFlowTest.*:WorldForgeStressTest.*:SettlementTerrainPlanTest.*):
+[==========] 129 tests from 13 test suites ran. (576167 ms total)
+[  PASSED  ] 129 tests.
+
+M2d perf gate (Release, 2026-10-21, ColumnCostBench + the v2 bake; before = m2b_release.txt):
+    relief+meander+valley             1.2 us  (21.5 %)
+    carve+creek fill                  0.5 us  ( 9.3 %)
+[ column phases ] v2 sheet, gate pose (300,-1400): 1.7 us per fresh column over 1024 columns
+    relief+meander+valley             0.5 us  (29.9 %)
+    carve+creek fill                  0.1 us  ( 3.9 %)
+[ column phases ] v2, 3 threads on copies: 2.7 / 2.6 / 2.7 us per column per thread
+[ column radius ] v2 sheet, 289 blocks (17x17 chunk columns) around (300,-1400): per-column us min 1.6 mean 2.0 max 2.8 (max at chunk column 6,-38); whole radius 583 ms
+    relief+meander+valley           183.6 ms  (31.5 %)
+    carve+creek fill                 52.9 ms  ( 9.1 %)
+[ M2b ] v2 recipe bake incl. 1024x1024-cell hydrology: 3401 ms (this build config); maxOrder 5, maxAccum 103217
+gate pose 1.7 -> 1.7 us per column; 17x17 radius mean 1.8 -> 2.0 us, whole radius 539 -> 583 ms (+8 %, inside the 10 % gate); carve+creek phase 27.5 -> 52.9 ms of the radius; v2 apply incl. bake 3.43 -> 3.40 s.

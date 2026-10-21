@@ -67,6 +67,23 @@ public:
     float fullDepthAt(float worldX, float worldZ) const;
     bool  carvedRiverAt(float worldX, float worldZ) const;
 
+    // ── M2d-2: junction fillets (areaLaw bakes only; docs/WorldForgeV2Plan.md M2d, §10 F4f) ─────
+    // A D8 grid joins tributaries at 0° or 90°. At every confluence the TRIBUTARY's last segment
+    // (its cell centre → the junction centre) becomes a quadratic Bézier whose end tangent meets
+    // the main stem's downstream direction at Howard's angle cos θ = S_main / S_trib (ESurf
+    // 13:219 §2.1.1; slopes from the longitudinal bed profile over kFilletSlopeCells), clamped to
+    // the observed band of network means [kJunctionMinDeg, kJunctionMaxDeg] (45–72°, Seybold 2017
+    // and Hooshyar 2017 via ESurf §1). The main stem's own segments stay straight. Every channel
+    // query (channelAt, nearestChannel, the profile) reads the fillet polyline for such a cell.
+    static constexpr float kJunctionMinDeg = 45.0f, kJunctionMaxDeg = 72.0f;
+    static constexpr int   kFilletSlopeCells = 3;
+    static constexpr int   kFilletSegments = 8;
+    // The channel centreline of the cell at a world column, in BAKE space (before the meander
+    // warp): 2 points for a straight segment, kFilletSegments + 1 for a fillet; empty off the
+    // network or at a sink.
+    std::vector<glm::vec2> centrelineAt(float worldX, float worldZ) const;
+    int filletCount() const { return static_cast<int>(m_fillets.size()); }
+
     // Upstream drainage count at a world column (>= 1 inside the baked region, 0 outside).
     // Piecewise-constant per cell.
     int accumAt(float worldX, float worldZ) const;
@@ -176,6 +193,11 @@ private:
     // hands downstream; m_basin marks the coarse basin cells.
     std::vector<float>   m_bedY, m_carryY;
     std::vector<uint8_t> m_basin;
+    // M2d-2: per cell the index of its fillet polyline (−1 = straight segment).
+    std::vector<int> m_filletOf;
+    std::vector<std::vector<glm::vec2>> m_fillets;
+    // The polyline a cell's channel follows (straight or fillet), used by every query.
+    void cellPolyline(int rc, std::vector<glm::vec2>& out) const;
     int m_maxAccum = 0;
     int m_maxOrder = 0;
     size_t m_released = 0;      // cells processed by the Kahn pass (== cell count iff acyclic)

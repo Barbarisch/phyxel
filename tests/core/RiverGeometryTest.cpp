@@ -116,6 +116,8 @@ TEST(RiverGeometryTest, NetworkMeanJunctionAngleIsInTheObservedBand) {
     std::vector<float> angles;
     int rightAngles = 0;   // within 5° of 90°
     std::map<int, int> hist;   // 10° bins
+    std::vector<float> gridAngles;
+    int gridRight = 0;
     for (int c = 0; c < n.nx * n.nz; ++c) {
         if (n.order[c] < 2 || n.up[c].size() < 2) continue;      // a confluence of two channels
         // main stem = largest-accum inflow; every other inflow is a tributary
@@ -123,24 +125,40 @@ TEST(RiverGeometryTest, NetworkMeanJunctionAngleIsInTheObservedBand) {
         for (int u : n.up[c]) if (n.accum[u] > n.accum[mainIn]) mainIn = u;
         const int downC = walkDown(n, c, 4);
         if (downC == c) continue;                                 // junction at an outlet: no downstream direction
-        const glm::vec2 pj = g.meanderedChannelPos(n.centre(c).x, n.centre(c).y);
-        const glm::vec2 pd = g.meanderedChannelPos(n.centre(downC).x, n.centre(downC).y);
+        // the main stem's departure: the first piece of the junction cell's own centreline, in
+        // world space (both ends through the meander warp)
+        const auto jl = n.f->centrelineAt(n.centre(c).x, n.centre(c).y);
+        if (jl.size() < 2) continue;
+        const glm::vec2 pj = g.meanderedChannelPos(jl[0].x, jl[0].y);
+        const glm::vec2 pd = g.meanderedChannelPos(jl[1].x, jl[1].y);
         const glm::vec2 downDir = pd - pj;
         for (int u : n.up[c]) {
             if (u == mainIn) continue;
-            const int upC = walkUp(n, u, 3);
-            const glm::vec2 pu = g.meanderedChannelPos(n.centre(upC).x, n.centre(upC).y);
-            const glm::vec2 tribDir = pj - pu;                    // the tributary's approach
+            // the tributary's arrival: the LAST piece of its centreline (a fillet's end tangent
+            // once M2d-2 is in; the straight segment's direction on the D8 grid before it)
+            const auto tl = n.f->centrelineAt(n.centre(u).x, n.centre(u).y);
+            if (tl.size() < 2) continue;
+            const glm::vec2 pa = g.meanderedChannelPos(tl[tl.size() - 2].x, tl[tl.size() - 2].y);
+            const glm::vec2 pb = g.meanderedChannelPos(tl[tl.size() - 1].x, tl[tl.size() - 1].y);
+            const glm::vec2 tribDir = pb - pa;                    // the tributary's approach
             const float a = angleDeg(tribDir, downDir);
             angles.push_back(a);
             ++hist[static_cast<int>(a / 10.0f) * 10];
             if (std::fabs(a - 90.0f) <= 5.0f) ++rightAngles;
+            // CONTROL: the same junction on the raw D8 grid (cell centre → cell centre, no fillet,
+            // no warp) — what the geometry was before M2d-2, measured in the same run.
+            const float gridA = angleDeg(n.centre(c) - n.centre(u), n.centre(downC) - n.centre(c));
+            gridAngles.push_back(gridA);
+            if (std::fabs(gridA - 90.0f) <= 5.0f) ++gridRight;
         }
     }
     ASSERT_FALSE(angles.empty());
+    const float gridMean = std::accumulate(gridAngles.begin(), gridAngles.end(), 0.0f) / gridAngles.size();
+    std::printf("[ M2d ] control, raw D8 grid: mean angle %.1f deg, within 5 deg of 90: %d (%.1f %%)\n",
+                gridMean, gridRight, 100.0f * gridRight / gridAngles.size());
     const float mean = std::accumulate(angles.begin(), angles.end(), 0.0f) / angles.size();
-    std::printf("[ M2d ] %zu junctions: mean angle %.1f deg, within 5 deg of 90: %d (%.1f %%); histogram:",
-                angles.size(), mean, rightAngles, 100.0f * rightAngles / angles.size());
+    std::printf("[ M2d ] %zu junctions (%d fillets baked): mean angle %.1f deg, within 5 deg of 90: %d (%.1f %%); histogram:",
+                angles.size(), n.f->filletCount(), mean, rightAngles, 100.0f * rightAngles / angles.size());
     for (const auto& [b, k] : hist) std::printf(" %d-%d:%d", b, b + 10, k);
     std::printf("\n");
     EXPECT_GE(mean, 45.0f) << "network mean junction angle below the observed band (F4f: 45-72)";

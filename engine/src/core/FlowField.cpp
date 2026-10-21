@@ -6,6 +6,9 @@
 #include <cmath>
 #include <numeric>
 
+#include <glm/gtc/constants.hpp>
+#include <glm/trigonometric.hpp>
+
 namespace Phyxel {
 
 FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
@@ -130,7 +133,99 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
             if (d == c || d < 0 || static_cast<size_t>(d) >= n || m_order[d] < 1 || m_basin[d]) continue;
             if (m_carryY[c] < m_bedY[d]) { m_bedY[d] = m_carryY[c]; m_carryY[d] = m_bedY[d]; }
         }
+
+        // M2d-2: junction fillets. Inflows per cell, then at every confluence the tributaries
+        // (every inflow but the largest-accum one) get a Bézier last segment.
+        m_filletOf.assign(n, -1);
+        std::vector<std::vector<int>> inflows(n);
+        for (int c : idx) {
+            const int d = m_downstream[c];
+            if (d != c && d >= 0 && static_cast<size_t>(d) < n && m_order[d] >= 1) inflows[d].push_back(c);
+        }
+        auto centreOf = [&](int c) {
+            return glm::vec2(m_originX + (c % m_cellsX + 0.5f) * m_cellSize, m_originZ + (c / m_cellsX + 0.5f) * m_cellSize);
+        };
+        // bed slope over k cells along the largest-accum inflow chain ending at c (rise / run, >= 0)
+        auto slopeUp = [&](int c, int k) {
+            int cur = c, steps = 0;
+            while (steps < k && !inflows[cur].empty()) {
+                int best = inflows[cur][0];
+                for (int u : inflows[cur]) if (m_accum[u] > m_accum[best]) best = u;
+                cur = best; ++steps;
+            }
+            if (steps == 0) return 0.0f;
+            return std::max(0.0f, (m_bedY[cur] - m_bedY[c]) / (steps * m_cellSize));
+        };
+        auto slopeDown = [&](int c, int k) {
+            int cur = c, steps = 0;
+            while (steps < k) {
+                const int d = m_downstream[cur];
+                if (d == cur || d < 0 || static_cast<size_t>(d) >= n || m_order[d] < 1) break;
+                cur = d; ++steps;
+            }
+            if (steps == 0) return 0.0f;
+            return std::max(0.0f, (m_bedY[c] - m_bedY[cur]) / (steps * m_cellSize));
+        };
+        const float kMin = glm::radians(kJunctionMinDeg), kMax = glm::radians(kJunctionMaxDeg);
+        for (size_t j = 0; j < n; ++j) {
+            if (m_order[j] < 1 || inflows[j].size() < 2 || m_basin[j]) continue;
+            const int dj = m_downstream[j];
+            if (dj == static_cast<int>(j) || dj < 0 || static_cast<size_t>(dj) >= n) continue;   // no downstream direction
+            int mainIn = inflows[j][0];
+            for (int u : inflows[j]) if (m_accum[u] > m_accum[mainIn]) mainIn = u;
+            const glm::vec2 P2 = centreOf(static_cast<int>(j));
+            const glm::vec2 D = glm::normalize(centreOf(dj) - P2);
+            const float sMain = slopeDown(static_cast<int>(j), kFilletSlopeCells);
+            for (int t : inflows[j]) {
+                if (t == mainIn || m_basin[t]) continue;
+                const float sTrib = slopeUp(t, kFilletSlopeCells) ;
+                // Howard: cos θ = S_main / S_trib; a tributary no steeper than the stem joins at the
+                // band's minimum, one on a flat stem at its maximum.
+                float theta = (sTrib > 1e-6f) ? std::acos(std::clamp(sMain / sTrib, 0.0f, 1.0f)) : kMin;
+                theta = std::clamp(theta, kMin, kMax);
+                const glm::vec2 P0 = centreOf(t);
+                const float side = (D.x * (P0.y - P2.y) - D.y * (P0.x - P2.x)) >= 0.0f ? 1.0f : -1.0f;   // which side the tributary comes from
+                // the arrival velocity: D rotated AWAY from the tributary's side by θ
+                const float ang = -side * theta;
+                const glm::vec2 v(D.x * std::cos(ang) - D.y * std::sin(ang), D.x * std::sin(ang) + D.y * std::cos(ang));
+                const float L = 0.5f * glm::length(P2 - P0);
+                const glm::vec2 P1 = P2 - v * L;
+                std::vector<glm::vec2> pts;
+                pts.reserve(kFilletSegments + 1);
+                for (int s = 0; s <= kFilletSegments; ++s) {
+                    const float u = static_cast<float>(s) / kFilletSegments, w = 1.0f - u;
+                    pts.push_back(P0 * (w * w) + P1 * (2.0f * w * u) + P2 * (u * u));
+                }
+                m_filletOf[t] = static_cast<int>(m_fillets.size());
+                m_fillets.push_back(std::move(pts));
+            }
+        }
     }
+}
+
+void FlowField::cellPolyline(int rc, std::vector<glm::vec2>& out) const {
+    out.clear();
+    if (rc < 0 || static_cast<size_t>(rc) >= m_order.size()) return;
+    if (!m_filletOf.empty() && m_filletOf[rc] >= 0) { out = m_fillets[static_cast<size_t>(m_filletOf[rc])]; return; }
+    const glm::vec2 a(m_originX + (rc % m_cellsX + 0.5f) * m_cellSize, m_originZ + (rc / m_cellsX + 0.5f) * m_cellSize);
+    out.push_back(a);
+    const int d = m_downstream[rc];
+    if (d != rc && d >= 0 && static_cast<size_t>(d) < m_downstream.size())
+        out.push_back(glm::vec2(m_originX + (d % m_cellsX + 0.5f) * m_cellSize, m_originZ + (d / m_cellsX + 0.5f) * m_cellSize));
+    else
+        out.push_back(a);   // sink: a degenerate segment
+}
+
+std::vector<glm::vec2> FlowField::centrelineAt(float worldX, float worldZ) const {
+    std::vector<glm::vec2> out;
+    if (m_cellsX <= 0 || m_cellsZ <= 0) return out;
+    const int i = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    const int j = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return out;
+    const int rc = j * m_cellsX + i;
+    if (m_order[rc] < 1) return out;
+    cellPolyline(rc, out);
+    return out;
 }
 
 float FlowField::lawHalfWidth(float areaKm2) {
@@ -216,6 +311,7 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
     // cell (WorldGenerator kHydroCell) it is 5×5 (r=2, since ceil(11/128)=1); it stays correct for
     // small cellSize / large orders.
     const int r = 1 + static_cast<int>(std::ceil(m_maxHalfW / m_cellSize));
+    thread_local std::vector<glm::vec2> pl;   // reused across cells and queries: no allocation per column
     for (int j = cj - r; j <= cj + r; ++j)
         for (int i = ci - r; i <= ci + r; ++i) {
             if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
@@ -225,19 +321,33 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
             // is exactly the old max-order rule (depth is non-decreasing in order; ties by order).
             const float fd = m_fullD[rc];
             if (fd < best.fullDepth || (fd == best.fullDepth && ord <= best.order)) continue;
-            const float ax = m_originX + (i + 0.5f) * m_cellSize;
-            const float az = m_originZ + (j + 0.5f) * m_cellSize;
-            float bx = ax, bz = az;  // sink → degenerate segment (a point at the cell centre)
             const int d = m_downstream[rc];
-            if (d != rc && d >= 0 && static_cast<size_t>(d) < m_downstream.size()) {
-                bx = m_originX + (d % m_cellsX + 0.5f) * m_cellSize;
-                bz = m_originZ + (d / m_cellsX + 0.5f) * m_cellSize;
+            // M2d-2: the cell's channel is a polyline (a straight segment, or a Bézier fillet into a
+            // junction); the hit is the closest sub-segment, `t` the fraction of the polyline length.
+            cellPolyline(rc, pl);
+            float bestDist = 1e30f, bestT = 0.0f, lenSum = 0.0f;
+            float total = 0.0f;
+            for (size_t s = 0; s + 1 < pl.size(); ++s) total += glm::length(pl[s + 1] - pl[s]);
+            for (size_t s = 0; s + 1 < pl.size(); ++s) {
+                const float dist = pointSegDist(worldX, worldZ, pl[s].x, pl[s].y, pl[s + 1].x, pl[s + 1].y);
+                const float segLen = glm::length(pl[s + 1] - pl[s]);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestT = total > 0.0f ? (lenSum + segmentParam(worldX, worldZ, pl[s].x, pl[s].y, pl[s + 1].x, pl[s + 1].y) * segLen) / total : 0.0f;
+                }
+                lenSum += segLen;
             }
-            ChannelHit h = segmentChannel(worldX, worldZ, ax, az, bx, bz, ord, m_halfW[rc], fd, m_carved[rc] != 0);
+            if (pl.size() < 2) continue;
+            ChannelHit h;
+            if (bestDist < m_halfW[rc] && m_halfW[rc] > 0.0f) {
+                const float tt = bestDist / m_halfW[rc];
+                h.hit = true; h.order = ord; h.depth = fd * (1.0f - tt * tt);
+                h.halfWidth = m_halfW[rc]; h.fullDepth = fd; h.carved = m_carved[rc] != 0;
+            }
             if (h.hit && m_areaLaw && !m_bedY.empty()) {
                 // M2d-1: the profile at the hit — from this cell's bed to what it hands downstream
-                // (its own downstream cell's bed, or a basin's spill), linear along the segment.
-                const float t = segmentParam(worldX, worldZ, ax, az, bx, bz);
+                // (its own downstream cell's bed, or a basin's spill), linear along the polyline.
+                const float t = bestT;
                 // A basin's spill can sit above the incoming bed (the river's own depth): never let a
                 // segment rise — the river enters the basin at its bed, not at the rim.
                 const float endY = (d != rc && d >= 0 && static_cast<size_t>(d) < m_carryY.size())
@@ -260,6 +370,7 @@ FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, 
     // A channel segment whose centreline comes within `searchRadius` of the point has its cell centre
     // within searchRadius + cellSize of it (segment length = one orthogonal cellSize hop; see channelAt).
     const int r = 1 + static_cast<int>(std::ceil(searchRadius / m_cellSize));
+    thread_local std::vector<glm::vec2> pl;   // reused: no allocation per column
     for (int j = cj - r; j <= cj + r; ++j)
         for (int i = ci - r; i <= ci + r; ++i) {
             if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
@@ -268,15 +379,10 @@ FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, 
             // default 3 = CARVED rivers only (the valley pass); 1 = every channel (the creek swale).
             // Under the table carved == order >= 3, so this is the old minOrder rule exactly.
             if (minOrder >= 3 ? m_carved[rc] == 0 : ord < minOrder) continue;
-            const float ax = m_originX + (i + 0.5f) * m_cellSize;
-            const float az = m_originZ + (j + 0.5f) * m_cellSize;
-            float bx = ax, bz = az;  // sink → degenerate segment (a point at the cell centre)
-            const int d = m_downstream[rc];
-            if (d != rc && d >= 0 && static_cast<size_t>(d) < m_downstream.size()) {
-                bx = m_originX + (d % m_cellsX + 0.5f) * m_cellSize;
-                bz = m_originZ + (d / m_cellsX + 0.5f) * m_cellSize;
-            }
-            const float dist = pointSegDist(worldX, worldZ, ax, az, bx, bz);
+            cellPolyline(rc, pl);   // M2d-2: straight segment or junction fillet
+            float dist = 1e30f;
+            for (size_t s = 0; s + 1 < pl.size(); ++s)
+                dist = std::min(dist, pointSegDist(worldX, worldZ, pl[s].x, pl[s].y, pl[s + 1].x, pl[s + 1].y));
             if (dist < best.dist) { best.dist = dist; best.order = ord; best.halfWidth = m_halfW[rc]; best.carved = m_carved[rc] != 0; }
         }
     return best;
