@@ -274,6 +274,42 @@ WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed)
 // like the streaming worker's generator copy already does). NOT persisted across process restarts —
 // the bake is cheap enough that a fresh world-load re-bake is fine; world.db persistence is deferred.
 namespace {
+// M2b (docs/WorldForgeV2Plan.md M2 engineering design, D15): the macro sheet's drainage is the
+// boundary condition of the meso bake. Every macro cell OUTSIDE the box whose receiver lies INSIDE
+// it is a river entering the box; its macro drainage area is injected at the first interior bake
+// cell nearest the crossing (the midpoint of the two macro centres = the shared edge for a
+// 4-neighbour receiver). The border row is an outlet, so the injection is clamped one cell in.
+// Approximation stated: a macro catchment that wanders in and out of the box is counted twice
+// where it re-enters; both counts are upstream of the same trunk, so the trunk only grows.
+static std::vector<FlowField::Inflow> macroInflowsForBox(const MacroSheet& macro, float origin, int cells,
+                                                         float cellSize) {
+    std::vector<FlowField::Inflow> out;
+    const int n = macro.cells();
+    if (n <= 0 || cells < 3) return out;
+    const float boxMin = origin, boxMax = origin + cells * cellSize;
+    const float mu = macro.cellU(), mo = macro.originU();
+    auto centre = [&](int i, int j) { return glm::vec2(mo + (i + 0.5f) * mu, mo + (j + 0.5f) * mu); };
+    auto inBox = [&](const glm::vec2& p) { return p.x >= boxMin && p.x < boxMax && p.y >= boxMin && p.y < boxMax; };
+    for (int j = 0; j < n; ++j)
+        for (int i = 0; i < n; ++i) {
+            const MacroCell& c = macro.cell(i, j);
+            if (c.receiver < 0) continue;
+            const int ri = c.receiver % n, rj = c.receiver / n;
+            if (ri == i && rj == j) continue;                 // base level: drains nowhere
+            const glm::vec2 pc = centre(i, j), pr = centre(ri, rj);
+            if (inBox(pc) || !inBox(pr)) continue;            // only crossings INTO the box
+            const glm::vec2 x = 0.5f * (pc + pr);
+            int ci = static_cast<int>(std::floor((x.x - origin) / cellSize));
+            int cj = static_cast<int>(std::floor((x.y - origin) / cellSize));
+            ci = std::max(1, std::min(cells - 2, ci));
+            cj = std::max(1, std::min(cells - 2, cj));
+            const int extra = static_cast<int>(std::lround(c.drainageArea / (cellSize * cellSize)));
+            if (extra <= 0) continue;
+            out.push_back({cj * cells + ci, extra});
+        }
+    return out;
+}
+
 struct HydroBakeKey {
     int genType;
     uint32_t seed;
@@ -393,24 +429,42 @@ void WorldGenerator::rebuildCoarseModel() {
     // high-Strahler-order trunk rivers (the smooth base alone drains in low-order parallel sheets).
     // Pure: captures the immutable coarse model + seed + type by value; no `this`.
     auto heightAt = baseHeightFn();   // v1: coarse + reliefAt; v2: the meso sheet + the fine band
+    // M2b (docs/WorldForgeV2Plan.md M2 engineering design, D15): a version-2 recipe bakes at the
+    // MESO cell (32 u) over the SAME box, sampled at cell CENTRES (the 128 u bake samples corners,
+    // frozen for v1 by D10), with the macro sheet's drainage injected where rivers enter the box.
+    // Lake levels are then decided at terrain resolution, which is what retires the 128 m-vs-voxel
+    // shoreline mismatch (606/606 rim leaks, 38 u worst) at the source instead of snapping it.
+    const bool mesoBake = m_sheetMode && m_macroSheet && m_sheetParams.mesoCellU > 0.0f;
+    const float hydroCell = mesoBake ? m_sheetParams.mesoCellU : kHydroCell;
+    const int hydroCells = mesoBake
+        ? std::max(3, static_cast<int>(std::lround(kHydroCells * (kHydroCell / hydroCell))))
+        : kHydroCells;
+    HydrologyMap::HeightFunc bakeHeight = heightAt;
+    if (mesoBake) {
+        const float half = 0.5f * hydroCell;
+        bakeHeight = [heightAt, half](float x, float z) { return heightAt(x + half, z + half); };
+    }
     // Channel-initiation threshold is a physical AREA (kDefaultRiverThresholdCells ≈ 0.1 km² at the
     // 32 m reference cell); rescale it to THIS cell size so a coarser grid keeps the same real drainage
     // density (and the same Strahler order, which depends on basin-area/threshold-area, not on cell
     // resolution). Coarser cells → far fewer cells → an affordable bake over a much larger region.
     const int riverThresh = std::max(
         1, static_cast<int>(std::lround(FlowField::kDefaultRiverThresholdCells *
-                                        (32.0 * 32.0) / (kHydroCell * kHydroCell))));
-    m_hydro = std::make_shared<HydrologyMap>(heightAt, kHydroOrigin, kHydroOrigin,
-                                             kHydroCells, kHydroCells, kHydroCell, seaLvl);
-    m_flow  = std::make_shared<FlowField>(heightAt, kHydroOrigin, kHydroOrigin,
-                                          kHydroCells, kHydroCells, kHydroCell, seaLvl, riverThresh);
+                                        (32.0 * 32.0) / (static_cast<double>(hydroCell) * hydroCell))));
+    std::vector<FlowField::Inflow> inflows;
+    if (mesoBake) inflows = macroInflowsForBox(*m_macroSheet, kHydroOrigin, hydroCells, hydroCell);
+    m_hydro = std::make_shared<HydrologyMap>(bakeHeight, kHydroOrigin, kHydroOrigin,
+                                             hydroCells, hydroCells, hydroCell, seaLvl);
+    m_flow  = std::make_shared<FlowField>(bakeHeight, kHydroOrigin, kHydroOrigin,
+                                          hydroCells, hydroCells, hydroCell, seaLvl, riverThresh, inflows);
     // Body identity rides the bake (tangible-water Phase A). Built HERE because volumeEst needs
     // the flood's height function, which is not retained anywhere after this scope.
-    m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, heightAt);
+    m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, bakeHeight);
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Water bodies labeled: "
              << m_waterBodies->bodies().size() << " bodies");
-    LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << kHydroCells << "x" << kHydroCells
-             << " cells, seaLevel=" << seaLvl << ", maxAccum=" << m_flow->maxAccum()
+    LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << hydroCells << "x" << hydroCells
+             << " cells at " << hydroCell << " u" << (mesoBake ? " (meso, centre-sampled, " : " (")
+             << inflows.size() << " macro inflows), seaLevel=" << seaLvl << ", maxAccum=" << m_flow->maxAccum()
              << " maxOrder=" << m_flow->maxOrder()
              << " drainageComplete=" << (m_flow->drainageComplete() ? 1 : 0));
     // Loud misconfiguration guard (docs/Water.md §2e): terrain that never reaches

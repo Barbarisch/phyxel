@@ -41,6 +41,9 @@ public:
     // Bodies at/above this many bake cells are infinite (LAKE). One bake cell is 128 u, so 4
     // cells ≈ a 250 m+ body — the user's "large enough to be an infinite source" line.
     static constexpr int kInfiniteMinCells = 4;
+    // M2b: the split is an AREA. 4 cells at the 128 u reference cell = 65 536 m²; a finer bake
+    // (the meso-resolution bake, 32 u) keeps the same body size, not the same cell count.
+    static constexpr float kInfiniteMinAreaM2 = static_cast<float>(kInfiniteMinCells) * 128.0f * 128.0f;
     // Two wet neighbors are the same body iff |levelA − levelB| <= this (basins are flat).
     static constexpr float kLevelEps = 1e-3f;
     // A boundary-touching body is the OCEAN iff its level is within this of the bake sea level.
@@ -49,7 +52,9 @@ public:
     WaterBodyIndex() = default;
     // heightAt: the SAME coarse height function the bake flooded (needed for volumeEst — the
     // bake does not retain it, which is why this is built alongside the bake, not later).
-    WaterBodyIndex(const HydrologyMap& hydro, const HydrologyMap::HeightFunc& heightAt);
+    // infiniteMinAreaM2: bodies at/above this area are LAKES (infinite); below, PONDS (finite).
+    WaterBodyIndex(const HydrologyMap& hydro, const HydrologyMap::HeightFunc& heightAt,
+                   float infiniteMinAreaM2 = kInfiniteMinAreaM2);
 
     // Body id at a world column; -1 = dry or outside the baked region.
     int32_t bodyIdAt(float worldX, float worldZ) const;

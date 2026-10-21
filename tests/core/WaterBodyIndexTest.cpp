@@ -35,7 +35,9 @@ struct BakedFixture {
     WaterBodyIndex bodies;
     BakedFixture()
         : hydro(fixtureHeight, 0.0f, 0.0f, 12, 12, 10.0f, /*seaLevel=*/0.0f),
-          bodies(hydro, fixtureHeight) {}
+          // M2b: the Lake/Pond split is an area; this fixture's "12 cells >= 4 cells" geography is
+          // kept by passing 4 of ITS cells (cellSize 10) as the threshold.
+          bodies(hydro, fixtureHeight, WaterBodyIndex::kInfiniteMinCells * 10.0f * 10.0f) {}
 };
 
 glm::vec2 cellCenter(int cx, int cz) { return {(cx + 0.5f) * 10.0f, (cz + 0.5f) * 10.0f}; }

@@ -25,10 +25,22 @@ public:
     // simplification of the real area×slope² criterion (docs/TerrainGenerationV2.md §P2).
     static constexpr int kDefaultRiverThresholdCells = 98;
 
+    // M2b (docs/WorldForgeV2Plan.md M2 engineering design, D15): upstream drainage that enters the
+    // baked box from OUTSIDE it — the macro sheet's drainage area at the border cell nearest the
+    // macro river's crossing, in units of this bake's cells. Added to the cell's own count before
+    // accumulation, so it rides downstream like any upstream cell. The border row itself is an
+    // outlet (drains out), so the generator injects at the first INTERIOR cell.
+    struct Inflow {
+        int cell = -1;        // row-major cell index
+        int extraCells = 0;   // upstream cells to add (macro area / cellSize²)
+    };
+
     FlowField() = default;
     FlowField(const HeightFunc& heightAt, float originX, float originZ,
               int cellsX, int cellsZ, float cellSize, float seaLevel,
-              int riverThreshold = kDefaultRiverThresholdCells);
+              int riverThreshold = kDefaultRiverThresholdCells,
+              const std::vector<Inflow>& inflows = {});
+    const std::vector<Inflow>& inflows() const { return m_inflows; }
 
     // Upstream drainage count at a world column (>= 1 inside the baked region, 0 outside).
     // Piecewise-constant per cell.
@@ -111,6 +123,7 @@ private:
     std::vector<int> m_accum;   // per cell; upstream drainage count
     std::vector<int> m_order;   // per cell; Strahler order (0 = not a river)
     std::vector<int> m_downstream;  // per cell; steepest-descent drainage target (self = sink)
+    std::vector<Inflow> m_inflows;  // M2b: the macro inflows this bake was given (echoed for tests/API)
     int m_maxAccum = 0;
     int m_maxOrder = 0;
     size_t m_released = 0;      // cells processed by the Kahn pass (== cell count iff acyclic)

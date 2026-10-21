@@ -1,0 +1,38 @@
+M2b RED (2026-10-21, Debug, stub build: FlowField stores inflows but ignores them; WaterBodyIndex accepts the area but counts cells; WorldGenerator bakes 128 u for every recipe):
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\FlowFieldTest.cpp(249): error: Expected: (f.accumAt(4.5f, 3.5f)) >= (501), actual: 4 vs 501
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\FlowFieldTest.cpp(250): error: Expected: (f.accumAt(5.5f, 3.5f)) >= (501), actual: 5 vs 501
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\FlowFieldTest.cpp(251): error: Expected: (f.accumAt(14.5f, 3.5f)) >= (501), actual: 14 vs 501
+[  FAILED  ] FlowFieldTest.InflowsAddUpstreamCellsThatRideDownstream (5 ms)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(245): error: Expected equality of these values:
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(246): error: Expected equality of these values:
+[ M2b ] v2 recipe bake incl. 256x256-cell hydrology: 3836 ms (this build config); maxOrder 5, maxAccum 6386
+[  FAILED  ] WorldSheetGeneratorTest.V2BakesHydrologyAtTheMesoCell (5135 ms)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(266): error: Value of: in.empty()
+[  FAILED  ] WorldSheetGeneratorTest.MacroInflowEntersTheBoxAtTheBorder (3819 ms)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldSheetGeneratorTest.cpp(311): error: Expected equality of these values:
+[  FAILED  ] WorldSheetGeneratorTest.LakeVsPondSplitIsAnAreaNotACellCount (0 ms)
+[==========] 4 tests from 2 test suites ran. (8960 ms total)
+[  PASSED  ] 0 tests.
+
+M2b GREEN (same day, Debug, implementation applied; filter = WorldSheetGeneratorTest.*:FlowFieldTest.*:HydrologyMapTest.*:WaterBodyIndexTest.*:LegacyTerrainGoldenTest.*:TerrainRiverTest.*:ColumnCacheTest.*:TerrainRecipeTest.*:SurfaceBandTest.*:WorldForgeRecipeTest.*):
+[ M1 §9 ] meso tile 256x256 (+apron 6) bake: 201.5 ms (this build config)
+[ M2b ] v2 recipe bake incl. 1024x1024-cell hydrology: 11636 ms (this build config); maxOrder 5, maxAccum 103217
+[ M2b ] macro inflows: 56 entry cells, 62.7 km2 injected, 51 propagate downstream
+[==========] 64 tests from 10 test suites ran. (269182 ms total)
+[  PASSED  ] 64 tests.
+
+Hydrology bake log lines (v2 = 1024x1024 at 32 u, centre-sampled, with macro inflows; v1 = 256x256 at 128 u):
+     24 Hydrology baked: 256
+      6 Hydrology baked: 
+
+(corrected extraction, ANSI stripped)
+    4 x Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1
+    2 x Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+    2 x Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1
+    2 x Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1
+    2 x Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=5288 maxOrder=5 drainageComplete=1
+    2 x Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1
+    1 x Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=2660 maxOrder=4 drainageComplete=1
+    1 x Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=17935 maxOrder=5 drainageComplete=1
+    1 x Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=120, maxAccum=1520 maxOrder=4 drainageComplete=1
+    1 x Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=40, maxAccum=3337 maxOrder=5 drainageComplete=1

@@ -5,7 +5,8 @@
 
 namespace Phyxel {
 
-WaterBodyIndex::WaterBodyIndex(const HydrologyMap& hydro, const HydrologyMap::HeightFunc& heightAt)
+WaterBodyIndex::WaterBodyIndex(const HydrologyMap& hydro, const HydrologyMap::HeightFunc& heightAt,
+                               float infiniteMinAreaM2)
     : m_originX(hydro.originX()), m_originZ(hydro.originZ()), m_cellSize(hydro.cellSize()),
       m_cellsX(hydro.cellsX()), m_cellsZ(hydro.cellsZ()) {
     const size_t n = static_cast<size_t>(m_cellsX) * m_cellsZ;
@@ -67,8 +68,8 @@ WaterBodyIndex::WaterBodyIndex(const HydrologyMap& hydro, const HydrologyMap::He
             // world (minTerrain above sea level) simply has no ocean.
             if (touchesBoundary && std::fabs(b.level - hydro.seaLevel()) <= kOceanLevelEps)
                 b.cls = Class::Ocean;
-            else if (b.areaCells >= kInfiniteMinCells)
-                b.cls = Class::Lake;
+            else if (static_cast<float>(b.areaCells) * m_cellSize * m_cellSize >= infiniteMinAreaM2)
+                b.cls = Class::Lake;   // M2b: an AREA (4 cells at the 128 u reference), not a cell count
             else
                 b.cls = Class::Pond;
 

@@ -9,9 +9,10 @@
 namespace Phyxel {
 
 FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
-                     int cellsX, int cellsZ, float cellSize, float seaLevel, int riverThreshold)
+                     int cellsX, int cellsZ, float cellSize, float seaLevel, int riverThreshold,
+                     const std::vector<Inflow>& inflows)
     : m_originX(originX), m_originZ(originZ), m_cellSize(cellSize > 0.0f ? cellSize : 1.0f),
-      m_cellsX(cellsX > 0 ? cellsX : 0), m_cellsZ(cellsZ > 0 ? cellsZ : 0) {
+      m_cellsX(cellsX > 0 ? cellsX : 0), m_cellsZ(cellsZ > 0 ? cellsZ : 0), m_inflows(inflows) {
     if (m_cellsX <= 0 || m_cellsZ <= 0 || !heightAt) return;
     const size_t n = static_cast<size_t>(m_cellsX) * m_cellsZ;
 
@@ -51,6 +52,9 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
     // once all its upstream contributors are done. Exact for any acyclic downstream (incl. flats),
     // deterministic (ascending-index seeding, FIFO). accum[c] = 1 + all cells draining through c.
     m_accum.assign(n, 1);
+    // M2b: macro inflows (D15) join the count BEFORE the pass, so they ride downstream.
+    for (const Inflow& in : m_inflows)
+        if (in.cell >= 0 && static_cast<size_t>(in.cell) < n && in.extraCells > 0) m_accum[in.cell] += in.extraCells;
     std::vector<int> indeg(n, 0);
     for (size_t c = 0; c < n; ++c)
         if (downstream[c] != static_cast<int>(c)) ++indeg[downstream[c]];

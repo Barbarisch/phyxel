@@ -14460,6 +14460,8 @@ void Application::registerWaterCommands() {
         r["max_order"]          = f->maxOrder();
         r["hydro_cell_size"]    = f->cellSize();
         r["hydro_cells"]        = {{"x", f->cellsX()}, {"z", f->cellsZ()}};
+        r["macro_inflows"]      = f->inflows().size();                 // M2b: rivers entering the box
+        r["lake_min_area_m2"]   = WaterBodyIndex::kInfiniteMinAreaM2;  // M2b: the Lake/Pond split is an area
         if (!h->hasOutlet())
             r["warning"] = "terrain never reaches sea level: every basin fills to its spill "
                            "(perched hillside lakes). Set game.json water.seaLevel to a level "

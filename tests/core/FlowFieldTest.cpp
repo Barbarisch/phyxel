@@ -235,5 +235,22 @@ TEST(FlowFieldTest, Deterministic) {
             EXPECT_EQ(a.accumAt(x, z), b.accumAt(x, z));
 }
 
+// M2b (docs/WorldForgeV2Plan.md M2 engineering design): an Inflow adds upstream cells at a cell
+// BEFORE accumulation, so the extra rides downstream like any real catchment. Red on the committed
+// code: the inflows are stored and ignored.
+TEST(FlowFieldTest, InflowsAddUpstreamCellsThatRideDownstream) {
+    // A plane tilted toward +x: every cell drains east to the x = 15 border.
+    auto plane = [](float x, float /*z*/) { return 100.0f - x; };
+    const int W = 16, H = 8;
+    const int cell = 3 * W + 4;   // (i=4, j=3), interior
+    std::vector<FlowField::Inflow> in{{cell, 500}};
+    FlowField f(plane, 0.0f, 0.0f, W, H, 1.0f, /*seaLevel=*/-1000.0f, /*threshold=*/1 << 20, in);
+    ASSERT_EQ(f.inflows().size(), 1u);
+    EXPECT_GE(f.accumAt(4.5f, 3.5f), 501) << "the inflow is not in the injected cell's count";
+    EXPECT_GE(f.accumAt(5.5f, 3.5f), 501) << "the inflow did not ride to the downstream cell";
+    EXPECT_GE(f.accumAt(14.5f, 3.5f), 501) << "the inflow did not reach the outlet row";
+    EXPECT_LT(f.accumAt(3.5f, 3.5f), 500) << "the inflow leaked UPSTREAM";
+}
+
 }  // namespace
 }  // namespace Phyxel
