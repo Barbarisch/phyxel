@@ -14573,10 +14573,15 @@ void Application::registerWaterCommands() {
             }
             if (!clsFilter.empty() && clsFilter != clsName(b.cls)) continue;
             if (list.size() >= maxOut) continue;
+            // M2c: `level` is the bake's coarse spill; `level_corrected` is the rim-guaranteed level
+            // where that basin has already been touched (never forces a correction of every basin).
+            float corrected = b.level;
+            const bool haveCorrected = g->rimCorrector() && g->rimCorrector()->levelIfComputed(b.id, corrected);
             list.push_back({{"id", b.id},
                             {"class", clsName(b.cls)},
                             {"area_cells", b.areaCells},
                             {"level", b.level},
+                            {"level_corrected", haveCorrected ? nlohmann::json(corrected) : nlohmann::json(nullptr)},
                             {"volume_est", b.volumeEst},
                             {"bbox_world", {{"min_x", ox + b.bboxMin.x * cs},
                                             {"min_z", oz + b.bboxMin.y * cs},

@@ -822,7 +822,14 @@ spill and the lowest voxel surface over the ring of dry columns bordering the we
 the rim top voxel), the wet set re-derived at the lowered level and the ring recomputed to a fixed point (≤ 16
 iterations; the level only falls; a basin whose rim is below its floor dries). The ring is sampled with the
 generator's own column sampler (the one truth for the voxel surface); a thread-local guard makes the sampler's own
-level reads see the raw bake during a correction (stated second-order case: a road graded onto a lake). Still open
+level reads see the raw bake during a correction (stated second-order case: a road graded onto a lake). **M2c L3 on the engine (Release 235ca984, `m2c_l3_run.txt`): the same two validator rects as the red - lake rect
+rim 543 / rim_leaks 418 -> rim 254 / rim_leaks 0; river rect 287 / 218 -> 0 / 0. The price is visible: the 68-cell lake
+(spill 129.8) kept 2 wet cells (52 420 -> 2 048 wet columns) and the river-site basin dried, because their real voxel rims sit
+up to ~18 u below the coarse spill - v2 worlds now carry far fewer and smaller lakes than the coarse flood promised. That
+is the invariant doing its job on a bake that samples cell centres; the OTHER way to honour it (raise the rim instead
+of lowering the water, or flood on per-cell minima so basins are found at voxel resolution) is an owner decision, not a
+tuning (D17 candidate). Frame-time hitches after the teleports are the same magnitude as before (worst 2.4 s -> 2.7 s,
+both fresh-DB boots), so the first-touch correction cost is not separable here. Still open
 for M2c-2: the per-basin cost is paid on the first query of that basin (the water table's first touch on the main
 thread) — measured by the test's printed ring-column count; the `water_validate` L3 on the engine is the next check.
 M2 prerequisites built the same day (`m2a`, 387b42f3; red shown by MUTATION after the commit - drainage copy + uplift disabled -> both new tests fail, restored -> pass, `m2a_mutation_red.txt`): the `MacroSheet` carries `receiver / drainageArea / filled`

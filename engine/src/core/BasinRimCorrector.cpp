@@ -28,6 +28,14 @@ BasinRimCorrector::BasinRimCorrector(std::shared_ptr<const HydrologyMap> hydro,
     for (size_t i = 0; i < n; ++i) m_state.push_back(std::make_unique<State>());
 }
 
+bool BasinRimCorrector::levelIfComputed(int32_t bodyId, float& out) const {
+    if (bodyId < 0 || static_cast<size_t>(bodyId) >= m_state.size()) return false;
+    const State& s = *m_state[static_cast<size_t>(bodyId)];
+    if (!s.done.load(std::memory_order_acquire)) return false;
+    out = s.level;
+    return true;
+}
+
 BasinRimCorrector::Stats BasinRimCorrector::stats() const {
     std::lock_guard<std::mutex> lk(m_mutex);
     return m_stats;

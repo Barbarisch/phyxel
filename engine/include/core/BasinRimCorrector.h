@@ -46,6 +46,9 @@ public:
 
     // Corrected level of a basin (its coarse spill if nothing is lower). Computes once, lazily.
     float level(int32_t bodyId, const SurfaceYFn& surfaceYAt);
+    // The corrected level if this basin has already been computed, else false — for reporting
+    // (water_bodies) without triggering a correction of every basin in the box.
+    bool levelIfComputed(int32_t bodyId, float& out) const;
     // Corrected level of the basin at a world column, or HydrologyMap::NO_WATER where the column's
     // cell is dry — including cells that dried under a lowered level. Raw where no basin applies.
     float waterLevelAt(float worldX, float worldZ, const SurfaceYFn& surfaceYAt);

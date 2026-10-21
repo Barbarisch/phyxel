@@ -1,0 +1,18 @@
+M2c L3 on the Release engine (2026-10-21, exe 11:24 = commit 235ca984, WorldForgeBaselineV2 fresh world.db, port 8600; script scratchpad m2c_l3.sh; the SAME rects as m2b_l4_run.txt).
+BEFORE (m2b_l4_run.txt): river rect wet 4672, rim 287, rim_leaks 218, worst 6 u; lake rect wet 52420, rim 543, rim_leaks 418, worst 19 u.
+
+exe: 2026-10-21_11:24:52  commit: 235ca984
+{"bake_sea_level":16.0,"drainage_complete":true,"generator_sea_level":16.0,"has_outlet":true,"hydro_cell_size":32.0,"hydro_cells":{"x":1024,"z":1024},"lake_min_area_m2":65536.0,"macro_inflows":56,"max_order":4,"min_terrain":-24.237932205200195}
+
+stutters after river move (worst 5): 2152.79 1861.92 1639.98 1564.19 1517.1 
+table at river: {"level":0.0,"river_channel":true,"river_order":2,"table_bound":true,"wet":false,"x":-1248.0,"z":224.0}
+{"columns":9409,"rim":0,"rim_leaks":0,"unloaded":0,"wet":0,"worst_leak_at":{"x":0,"z":0},"worst_leak_depth":0.0}
+shot river: screenshots/screenshot_20261021_113141_665.png
+stutters after lake move (worst 5): 328.7 199.411 168.019 161.511 151.601 
+table at lake: {"level":0.0,"river_channel":false,"river_order":0,"table_bound":true,"wet":false,"x":-1216.0,"z":-528.0}
+{"columns":101593,"rim":254,"rim_leaks":0,"unloaded":1192,"wet":2048,"worst_leak_at":{"x":0,"z":0},"worst_leak_depth":0.0}
+shot lake: screenshots/screenshot_20261021_113340_646.png
+lake 7320 record: [{'area_cells': 68, 'bbox_world': {'max_x': -1056.0, 'max_z': -384.0, 'min_x': -1376.0, 'min_z': -672.0}, 'class': 'lake', 'id': 7320, 'level': 129.80064392089844, 'volume_est': 518698.625}]
+engines left: 0
+
+Worst frame times over each whole run (ms), before -> after: 2359.46 2256.97 1809.23 1730.21 1664.59  -> 2692.35 2152.79 1861.92 1703.88 1639.98 ; stutter lines 1360 -> 3214 (both runs are fresh-DB boots with two far teleports; the first-touch correction cost is NOT separable from streaming hitches here).
