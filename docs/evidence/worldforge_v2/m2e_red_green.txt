@@ -63,3 +63,26 @@ M2e-2 sea-level bodies as sea (Debug):
 [ M2e ] spring sites: 1203 heads (expected 1203), 3864 basin feeds (expected 3864), 3461 basin outlets; runoff 500 mm/yr, largest discharge 0.285 m3/s
 [==========] 28 tests from 5 test suites ran. (20177 ms total)
 [  PASSED  ] 28 tests.
+
+M2e-2 L4 recapture (Release 2ffada2c, baseline fresh DB, script m2e_l4.sh auto 0 0 -> the inland sea's shore at (624,0)):
+shoreline found at x=624 z=0 seaward dir 1
+shore column (624,0) generator surface 17
+resident@along_shore: {"max_y":255,"source":"chunks","spawn_y":35,"surface_y":34,"x":624,"z":0}
+shot along_shore: screenshots/screenshot_20261021_155815_794.png
+resident@from_the_sea: {"max_y":255,"source":"chunks","spawn_y":35,"surface_y":34,"x":624,"z":0}
+shot from_the_sea: screenshots/screenshot_20261021_155910_175.png
+resident@top_down: {"max_y":255,"source":"chunks","spawn_y":35,"surface_y":34,"x":624,"z":0}
+shot top_down: screenshots/screenshot_20261021_160005_031.png
+transect (land -> sea, 8 u steps): 
+  d=40 x=584: surface_y 20
+  d=32 x=592: surface_y 20
+  d=24 x=600: surface_y 19
+  d=16 x=608: surface_y 18
+  d=8 x=616: surface_y 18
+  d=0 x=624: surface_y 17
+  d=-8 x=632: surface_y 17
+  d=-16 x=640: surface_y 16
+  d=-32 x=656: surface_y 16
+  d=-64 x=688: surface_y 14
+engines left: 0
+  -> transect 20 (d=40) .. 17 (d=0) .. 16 (d=-16..-32) .. 14 (d=-64): the waterline sits ~16 u seaward of the field's zero (cell-scale chamfer); from the sea the shore is a wide sand beach stepping down in 1 u terraces under the forest edge (m2e_l4_beach2_from_the_sea.png); the top-down is under the canopy.
