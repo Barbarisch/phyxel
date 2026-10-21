@@ -664,7 +664,9 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                 // creek column is a 2-layer subcube shelf, not a full cube — the bed sits 1/3 voxel
                 // below the banks, and the runtime's fractional ribbon pin rests IN the recess
                 // (Chunk::subVoxelFloor reads 2/3; the water sim floors the cell accordingly).
-                if (col.creekBed && wy == col.surfaceY && m_creekCarve) {
+                if ((col.creekBed && m_creekCarve) || col.bedShelf) {
+                    if (wy != col.surfaceY) { /* below the surface voxel: solid as usual */ }
+                    else {
                     // WaterCore.md 25.22: the bed carved to the 1/3 m grid by ROUNDING DOWN the continuous height - the
                     // drawn top is <= bedHeight and within 1/3 m of it, so water flowing on bedHeight never hides in it
                     const int layers = creekLayers(col);
@@ -674,6 +676,7 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                             for (int sz = 0; sz < 3; ++sz)
                                 chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz), bedMat);
                     continue;   // layers == 0: the voxel is air, the bed is the voxel below
+                    }
                 }
                 if (col.creekBed && wy == col.surfaceY) {
                     const std::string& shelfMat = materialForColumn(wy, col);
@@ -1222,7 +1225,33 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 // to a full-voxel trench here, which is exactly the wrong outcome for a sub-voxel
                 // creek. riverOrder is still recorded for every order: the water runtime and the
                 // flora gate both consume it (no trees standing in the creek line).
-                if (ch.carved) { col.surfaceY -= static_cast<int>(std::lround(ch.depth)); col.bedHeight -= ch.depth; }
+                if (ch.carved && ch.hasProfile && !ch.inBasin) {
+                    // M2d-1 (v2): the bed IS the longitudinal profile — carved where the terrain
+                    // stands above it, filled where it dips below (a dried pit on the river line
+                    // becomes an alluvial floor, not a step up) — with the parabolic cross-section
+                    // rising from the profile at the centreline to profile + depth at the bank, and
+                    // the surface voxel on the 1/3 u grid (bedShelf). Inside a coarse basin the bed
+                    // is the basin floor: untouched (D17: the basin shape is the deliverable).
+                    const float t2 = ch.fullDepth > 0.0f ? std::max(0.0f, 1.0f - ch.depth / ch.fullDepth) : 1.0f;
+                    const float bed = ch.bedProfile + ch.fullDepth * t2;
+                    col.bedHeight = bed;
+                    col.surfaceY = static_cast<int>(std::floor(bed));
+                    col.bedShelf = true;
+                } else if (ch.carved) {
+                    col.surfaceY -= static_cast<int>(std::lround(ch.depth)); col.bedHeight -= ch.depth;
+                } else if (ch.hasProfile && !ch.inBasin) {
+                    // M2d-1, creeks (v2): a creek never climbs over a bump on its line — where the
+                    // terrain stands above the longitudinal profile the bed is cut down to it (the
+                    // same parabolic section); a DIP below the profile is left as it is (a sub-cell
+                    // pit on a creek line is a pond basin, the fine-pond machinery's shape).
+                    const float t2 = ch.fullDepth > 0.0f ? std::max(0.0f, 1.0f - ch.depth / ch.fullDepth) : 1.0f;
+                    const float bed = ch.bedProfile + ch.fullDepth * t2;
+                    if (bed < col.bedHeight) {
+                        col.bedHeight = bed;
+                        col.surfaceY = static_cast<int>(std::floor(bed));
+                        col.bedShelf = true;
+                    }
+                }
                 col.riverOrder = ch.order;
                 col.carvedRiver = ch.carved;   // M2b-2: the class, not the order, says "carved"
                 col.channelDepth = ch.depth;

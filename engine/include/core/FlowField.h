@@ -102,6 +102,13 @@ public:
         float halfWidth = 0.0f;   // M2b-2: the hit segment's half-width (u)
         float fullDepth = 0.0f;   // M2b-2: the hit segment's centreline depth (u)
         bool  carved = false;     // M2b-2: carved river (true) or creek (false) — see kRiverCarveDepth
+        // M2d-1: the LONGITUDINAL bed profile (areaLaw bakes only) — the channel's bed height at
+        // the hit's projection on the segment, non-increasing downstream by construction; valid
+        // when hasProfile. inBasin: the segment's own cell lies in a coarse basin (filled > base),
+        // where the bed is the basin floor and no carve/fill applies.
+        float bedProfile = 0.0f;
+        bool  hasProfile = false;
+        bool  inBasin = false;
     };
     ChannelHit channelAt(float worldX, float worldZ) const;
 
@@ -162,6 +169,13 @@ private:
     std::vector<uint8_t> m_carved;  // M2b-2: per cell class (1 = carved river)
     bool  m_areaLaw = false;
     float m_maxHalfW = 0.0f, m_maxCreekHalfW = 0.0f;
+    // M2d-1 (areaLaw only): per river cell, the bed height at the cell centre along a profile that
+    // never rises downstream — min over the upstream chain of (sampled height − law depth); a
+    // coarse basin cell carries its FILLED level (the spill) downstream instead of its floor and is
+    // itself left untouched (the basin shape is the basin shape, D17). m_carryY is what a cell
+    // hands downstream; m_basin marks the coarse basin cells.
+    std::vector<float>   m_bedY, m_carryY;
+    std::vector<uint8_t> m_basin;
     int m_maxAccum = 0;
     int m_maxOrder = 0;
     size_t m_released = 0;      // cells processed by the Kahn pass (== cell count iff acyclic)

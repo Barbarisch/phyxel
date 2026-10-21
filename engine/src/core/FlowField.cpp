@@ -105,6 +105,32 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
         m_maxHalfW = std::max(m_maxHalfW, hw);
         if (!carved) m_maxCreekHalfW = std::max(m_maxCreekHalfW, hw);
     }
+
+    // M2d-1: the longitudinal bed profile (areaLaw only). Upstream-first by ascending accum (a
+    // cell's downstream always has strictly greater accum), the bed at a cell is the minimum of its
+    // own (sampled height − depth) and whatever its river inflows carry; a coarse basin cell is not
+    // carved or filled and carries its spill (the filled level) downstream, so a river leaves a
+    // basin at the basin's rim, never below its floor.
+    if (m_areaLaw) {
+        m_bedY.assign(n, 0.0f);
+        m_carryY.assign(n, 0.0f);
+        m_basin.assign(n, 0);
+        for (size_t c = 0; c < n; ++c) {
+            if (m_order[c] < 1) continue;
+            m_basin[c] = (fr.filled[c] > base[c] + 1e-3f) ? 1 : 0;
+            m_bedY[c] = base[c] - m_fullD[c];
+            m_carryY[c] = m_basin[c] ? fr.filled[c] : m_bedY[c];
+        }
+        std::vector<int> idx;
+        idx.reserve(n);
+        for (size_t c = 0; c < n; ++c) if (m_order[c] >= 1) idx.push_back(static_cast<int>(c));
+        std::stable_sort(idx.begin(), idx.end(), [&](int a, int b) { return m_accum[a] < m_accum[b]; });
+        for (int c : idx) {
+            const int d = m_downstream[c];
+            if (d == c || d < 0 || static_cast<size_t>(d) >= n || m_order[d] < 1 || m_basin[d]) continue;
+            if (m_carryY[c] < m_bedY[d]) { m_bedY[d] = m_carryY[c]; m_carryY[d] = m_bedY[d]; }
+        }
+    }
 }
 
 float FlowField::lawHalfWidth(float areaKm2) {
@@ -117,6 +143,15 @@ float FlowField::lawDepth(float areaKm2) {
 
 namespace {
 // Distance from point p to segment a→b in the XZ plane.
+// Projection parameter of p on segment a→b, clamped to [0,1] (M2d-1: where along the segment
+// the longitudinal profile is read).
+float segmentParam(float px, float pz, float ax, float az, float bx, float bz) {
+    const float abx = bx - ax, abz = bz - az;
+    const float ab2 = abx * abx + abz * abz;
+    float t = (ab2 > 0.0f) ? ((px - ax) * abx + (pz - az) * abz) / ab2 : 0.0f;
+    return t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+}
+
 float pointSegDist(float px, float pz, float ax, float az, float bx, float bz) {
     const float abx = bx - ax, abz = bz - az;
     const float ab2 = abx * abx + abz * abz;
@@ -199,6 +234,18 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
                 bz = m_originZ + (d / m_cellsX + 0.5f) * m_cellSize;
             }
             ChannelHit h = segmentChannel(worldX, worldZ, ax, az, bx, bz, ord, m_halfW[rc], fd, m_carved[rc] != 0);
+            if (h.hit && m_areaLaw && !m_bedY.empty()) {
+                // M2d-1: the profile at the hit — from this cell's bed to what it hands downstream
+                // (its own downstream cell's bed, or a basin's spill), linear along the segment.
+                const float t = segmentParam(worldX, worldZ, ax, az, bx, bz);
+                // A basin's spill can sit above the incoming bed (the river's own depth): never let a
+                // segment rise — the river enters the basin at its bed, not at the rim.
+                const float endY = (d != rc && d >= 0 && static_cast<size_t>(d) < m_carryY.size())
+                                       ? std::min(m_carryY[d], m_bedY[rc]) : m_bedY[rc];
+                h.bedProfile = m_bedY[rc] + (endY - m_bedY[rc]) * t;
+                h.hasProfile = true;
+                h.inBasin = m_basin[rc] != 0;
+            }
             if (h.hit) best = h;
         }
     return best;

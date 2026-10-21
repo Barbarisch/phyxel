@@ -163,6 +163,8 @@ public:
                                       // >0 marks a channel column (for the flora gate + water runtime)
         bool  carvedRiver = false;    // M2b-2: the channel here is a CARVED river (voxel bed, full
                                       // pins) rather than a creek — FlowField::kRiverCarveDepth
+        bool  bedShelf    = false;    // M2d-1: the bed is on the 1/3 u grid (surface voxel emitted as
+                                      // a subcube shelf of creekLayers(col) layers, like a creek bed)
         float bedHeight   = 16.0f;    // WaterCore.md 25.22: the CONTINUOUS ground height (every terrain term, the river carve
                                       // as a continuous depth) - surfaceY is its voxel index; the water's bed (option (a))
         bool  creekBed    = false;    // order 1-2 inner channel band (depth >= the runtime pin
@@ -311,6 +313,9 @@ public:
     float waterLevelAt(float worldX, float worldZ);
     float basinLevel(int32_t bodyId);                    // corrected level of a body (raw if no corrector)
     const BasinRimCorrector* rimCorrector() const { return m_rimCorrector.get(); }
+    // The single meander displacement every channel-line consumer shares (see channelHitAt). Public
+    // since M2d so geometry tests can invert it and find the column under a cell's carved centreline.
+    glm::vec2 meanderedChannelPos(float wx, float wz) const;
 
     // ── WorldForge plan (docs/WorldForge.md) ────────────────────────────────────────────────
     // The world-scale settlement + road plan, baked in rebuildCoarseModel right after the
@@ -401,8 +406,6 @@ public:
                                           int edgeInset = 0);
 
 private:
-    // The single meander displacement every channel-line consumer shares (see channelHitAt).
-    glm::vec2 meanderedChannelPos(float wx, float wz) const;
     /// WaterCore.md 25.22: is world column (wx, wz) inside an order 1-2 channel band (the carve's band)? Pure - the warp and
     /// the channel query only, never another column's sample.
     bool inCreekBand(int wx, int wz) const;
