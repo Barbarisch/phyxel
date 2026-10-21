@@ -120,7 +120,9 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
         m_basin.assign(n, 0);
         for (size_t c = 0; c < n; ++c) {
             if (m_order[c] < 1) continue;
-            m_basin[c] = (fr.filled[c] > base[c] + 1e-3f) ? 1 : 0;
+            // A coarse basin is a flooded cell OR a sub-sea cell: the sea is the basin every river ends in
+            // (HydrologyMap clamps its filled surface to sea level; the same meaning here).
+            m_basin[c] = (fr.filled[c] > base[c] + 1e-3f || base[c] < seaLevel - 1e-3f) ? 1 : 0;
             m_bedY[c] = base[c] - m_fullD[c];
             m_carryY[c] = m_basin[c] ? fr.filled[c] : m_bedY[c];
         }
@@ -138,6 +140,7 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
         // (every inflow but the largest-accum one) get a Bézier last segment.
         m_filletOf.assign(n, -1);
         std::vector<std::vector<int>> inflows(n);
+        const bool kSpringsEnabled = true;
         for (int c : idx) {
             const int d = m_downstream[c];
             if (d != c && d >= 0 && static_cast<size_t>(d) < n && m_order[d] >= 1) inflows[d].push_back(c);
@@ -200,6 +203,24 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
                 }
                 m_filletOf[t] = static_cast<int>(m_fillets.size());
                 m_fillets.push_back(std::move(pts));
+            }
+        }
+
+        // M2e: spring sites from the same inflow structure (heads, basin feeds, basin outlets).
+        if (kSpringsEnabled) {
+            m_springs.clear();
+            for (size_t c = 0; c < n; ++c) {
+                if (m_order[c] < 1) continue;
+                const int d = m_downstream[c];
+                const bool hasDown = d != static_cast<int>(c) && d >= 0 && static_cast<size_t>(d) < n;
+                Spring s;
+                s.cell = static_cast<int>(c);
+                s.x = m_originX + (static_cast<int>(c) % m_cellsX + 0.5f) * m_cellSize;
+                s.z = m_originZ + (static_cast<int>(c) / m_cellsX + 0.5f) * m_cellSize;
+                s.catchmentCells = m_accum[c];
+                if (!m_basin[c] && inflows[c].empty()) { s.kind = 0; m_springs.push_back(s); }
+                if (!m_basin[c] && hasDown && m_basin[d]) { s.kind = 1; m_springs.push_back(s); }
+                if (m_basin[c] && hasDown && !m_basin[d]) { s.kind = 2; m_springs.push_back(s); }
             }
         }
 

@@ -67,6 +67,10 @@ struct WorldRecipe {
     // flows on that height, option (a), 25.21). A world made before the carve has no key -> false, so its unsaved chunks
     // regenerate with the shelf its saved ones have; new worlds get it from makeRecipe(). Written only when true.
     bool creekCarve = false;
+    // M2e: mean annual runoff (mm/yr) turning a catchment into a spring discharge (Q = R·A). The
+    // humid eastern-US range is ~250–1400 mm/yr (USGS HA-710 / WRI 88-4094, §10 F4f, range only);
+    // 500 is a DESIGN default inside it, a recipe field so a world owns its climate.
+    float runoffMmPerYear = 500.0f;
     // M1 World Sheet (docs/WorldForgeV2Plan.md 5 M1, D10): a version >= 2 recipe serves Layer-0 from
     // the macro/meso sheet; version 1 keeps the analytic source byte-for-byte. Written only at
     // version >= 2 so legacy recipe JSON stays identical. Units in SheetParams' field comments.
@@ -153,6 +157,7 @@ struct WorldRecipe {
         }
         if (worldforge.enabled) root["worldforge"] = worldforge.toJson();
         if (creekCarve) root["creekCarve"] = true;
+        if (runoffMmPerYear != 500.0f) root["runoffMmPerYear"] = runoffMmPerYear;
         if (version >= 2) root["sheet"] = sheetToJson(sheet);
         return root.dump(2);
     }
@@ -206,6 +211,7 @@ struct WorldRecipe {
             if (root.contains("worldforge"))
                 r.worldforge = WorldForgeParams::fromJson(root["worldforge"]);
             r.creekCarve = root.value("creekCarve", false);
+            r.runoffMmPerYear = root.value("runoffMmPerYear", 500.0f);
             if (root.contains("sheet") && root["sheet"].is_object()) {
                 r.sheet = sheetFromJson(root["sheet"]);
                 if (r.version < 2) r.version = 2;   // a sheet block IS the version-2 contract

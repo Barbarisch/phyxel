@@ -190,6 +190,25 @@ constexpr float kMeanderLawCoeff = 7.3f, kMeanderLawExp = 1.1f;
 // slopes an order lower run on sand (Tombigbee, PP252 p. 14). Threshold 0.001 is REASONED from
 // those two anchors, not a measured grain-size law.
 constexpr float kBedGravelSlope = 0.001f;
+// ── M2e-2: the coast shape (docs/WorldForgeV2Plan.md M2e, §10 F4f; D17: shapes, no water) ──
+// Land side: a beach FACE rising from the shoreline at kBeachFaceSlope to a BERM kBermHeight
+// above sea level, then a backshore ramp at kBackshoreRise up to the natural terrain (so the cut
+// ends in a slope, not a scarp). Sea side: the equilibrium profile h = A·d^(2/3) (CEM Part III
+// Ch. 3 §III-3-3, Bruun 1954 / Dean 1977, the recommended form) out to the closure depth. The
+// terrain is CUT to these where it stands above them and left where it lies below (a flat marsh
+// stays flat; a deep channel stays deep); columns the scree rule marks as rock keep their cliff.
+// Values: beach face m0 = 0.05, berm B = 2 u, closure h* = 6 u and D = 0.25 mm are the CEM's own
+// Example Problems III-3-5/-6 (GROUNDED as examples; the grain size is DESIGN), A = 0.115 m^(1/3)
+// for 0.25 mm from Table III-3-3 (read 2026-10-21); the HK CEDD table puts 0.3 mm sand at 1:25-
+// 1:50, so m0 = 0.05 is its coarse edge. The backshore rise 1:10 is DESIGN (no source: F4f).
+constexpr bool  kCoastShapingEnabled = true;
+constexpr float kBeachFaceSlope  = 0.05f;
+constexpr float kBermHeight      = 2.0f;
+constexpr float kBackshoreRise   = 0.10f;
+constexpr float kDeanA           = 0.115f;
+constexpr float kClosureDepth    = 6.0f;
+constexpr float kBeachFaceWidth  = kBermHeight / kBeachFaceSlope;                 // 40 u
+const     float kNearshoreWidth  = std::pow(kClosureDepth / kDeanA, 1.5f);        // 377 u
 
 // ── P1 material rules (docs/TerrainGenerationV2.md §P1; grounding-auditor 2026-07-09). ──
 // Temperature field anchor: normalized [0,1] == mean-annual −5..+30 °C (Whittaker 1975 biome-
@@ -350,6 +369,7 @@ struct HydroBake {
     std::shared_ptr<FlowField> flow;
     std::shared_ptr<WaterBodyIndex> bodies;   // tangible-water Phase A: body identity rides the bake
     std::shared_ptr<BasinRimCorrector> rim;   // M2c: the rim guarantee's memo (holds no generator)
+    std::shared_ptr<const CoastField> coast;  // M2e-2: the signed shoreline distance (v2 bakes)
 };
 std::mutex g_hydroCacheMutex;
 std::vector<std::pair<HydroBakeKey, HydroBake>> g_hydroCache;  // small: a handful of distinct configs
@@ -384,6 +404,7 @@ void WorldGenerator::rebuildCoarseModel() {
         m_flow.reset();
         m_waterBodies.reset();
         m_rimCorrector.reset();
+        m_coast.reset();
         return;   // no hydrology → no worldforge plan (heightmap worlds are a logged gap)
     }
 
@@ -421,6 +442,7 @@ void WorldGenerator::rebuildCoarseModel() {
         m_flow.reset();
         m_waterBodies.reset();
         m_rimCorrector.reset();
+        m_coast.reset();
         return;
     }
     // Cache lookup: the bake is fully determined by these inputs (region constants are compile-time).
@@ -436,6 +458,7 @@ void WorldGenerator::rebuildCoarseModel() {
                 m_flow = e.second.flow;
                 m_waterBodies = e.second.bodies;
                 m_rimCorrector = e.second.rim;
+                m_coast = e.second.coast;
                 cacheHit = true;
                 break;
             }
@@ -485,6 +508,8 @@ void WorldGenerator::rebuildCoarseModel() {
     m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, bakeHeight);
     // M2c: the rim guarantee rides the bake (lazy per basin, shared by every copy + the cache).
     m_rimCorrector = std::make_shared<BasinRimCorrector>(m_hydro, m_waterBodies, seaLvl);
+    // M2e-2: the coast field (v2 bakes only; a box without ocean bodies has no coast to shape).
+    m_coast = mesoBake ? std::make_shared<const CoastField>(*m_hydro, *m_waterBodies) : nullptr;
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Water bodies labeled: "
              << m_waterBodies->bodies().size() << " bodies");
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << hydroCells << "x" << hydroCells
@@ -510,7 +535,7 @@ void WorldGenerator::rebuildCoarseModel() {
         for (const auto& e : g_hydroCache)
             if (e.first == key) present = true;  // someone else inserted it; ours is identical
         if (!present) {
-            g_hydroCache.push_back({key, {m_hydro, m_flow, m_waterBodies, m_rimCorrector}});
+            g_hydroCache.push_back({key, {m_hydro, m_flow, m_waterBodies, m_rimCorrector, m_coast}});
             if (g_hydroCache.size() > kHydroCacheCap) g_hydroCache.erase(g_hydroCache.begin());
         }
     }
@@ -1195,10 +1220,15 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             mwx = m.x;
             mwz = m.y;
         }
+        // M2d perf: the local-width field is zero farther than ~2 cells (64 u) from every channel,
+        // beyond every query's reach (valley search 5 half-widths <= 17 u, hit test <= 3.4 u, the
+        // warp <= 14 u), so such a column skips the channel queries entirely. v1 has no field: always.
+        const bool nearChannel = m_flow && (!m_flow->areaLaw() || m_flow->localHalfWidthAt(mwx, mwz) > 0.0f ||
+                                            m_flow->localHalfWidthAt(static_cast<float>(wx), static_cast<float>(wz)) > 0.0f);
 
         // P2 valley shaping (docs/TerrainGenerationV2.md §P2): attenuate Layer-1 relief toward the
         // (meandered) channel centreline so the river seats in a SMOOTH valley floor, not a thin slot.
-        if (m_flow) {
+        if (nearChannel) {
             // M2b-2: the corridor scales with the channel's own width (law or table); v1 keeps the
             // table's widest order as its search bound, byte for byte.
             const float maxValleyHalf = (m_flow->areaLaw() ? m_flow->maxHalfWidth() : FlowField::channelHalfWidth(6)) * kValleyWidthMul;
@@ -1228,6 +1258,37 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             }
         }
         col.bedHeight = coarse.baseHeight + relief * blendScale + blendOffset - creekSwale;   // 25.22: the continuous height
+        // M2e-2: the coast shape — beach face + berm + backshore ramp on land, the Dean profile at
+        // sea — applied before the river carve so a mouth cuts through the beach.
+        if (kCoastShapingEnabled && m_coast && m_coast->hasOcean()) {
+            const float sd = m_coast->signedDistAt(static_cast<float>(wx), static_cast<float>(wz));
+            const float sea = terrainParams.seaLevelY;
+            if (sd > -kNearshoreWidth && sd < 1e29f) {
+                float profile;
+                if (sd >= 0.0f) {
+                    profile = (sd <= kBeachFaceWidth) ? sea + sd * kBeachFaceSlope
+                                                      : sea + kBermHeight + (sd - kBeachFaceWidth) * kBackshoreRise;
+                } else {
+                    profile = sea - kDeanA * std::pow(-sd, 2.0f / 3.0f);
+                }
+                const bool onFace = sd >= 0.0f && sd <= kBeachFaceWidth;
+                if (col.bedHeight > profile) {
+                    // cliff coasts keep their rock: the scree rule's slope on the meso height
+                    const auto gr = m_mesoPager ? m_mesoPager->gradientAt(static_cast<float>(wx), static_cast<float>(wz)) : std::pair<float, float>(0.0f, 0.0f);
+                    const float localSlope = std::sqrt(gr.first * gr.first + gr.second * gr.second);
+                    if (localSlope > kRockSlope && sd >= 0.0f) col.coastCliff = true;
+                    else { col.bedHeight = profile; col.coastBand = onFace || sd < 0.0f; }
+                } else if (onFace) {
+                    // The beach FACE is a sediment body: a shore lying below it (a low flat, a creek
+                    // swale running onto the beach) is filled up to it, so the face is the profile
+                    // exactly; the river carve that follows cuts the creek's own channel across it.
+                    col.bedHeight = profile;
+                    col.coastBand = true;
+                } else if (sd < 0.0f) {
+                    col.coastBand = true;   // nearshore seabed deeper than the profile: left as it is
+                }
+            }
+        }
         col.surfaceY = static_cast<int>(std::floor(col.bedHeight));
 
         markPhase(3);
@@ -1236,7 +1297,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // Done BEFORE the material overrides so a carved bed that dips below sea level reads as seabed
         // Sand. riverOrder marks the bed for the flora gate + the water runtime (WaterSystemV2 fills
         // the channel; the carve only shapes the terrain).
-        if (m_flow) {
+        if (nearChannel) {
             const FlowField::ChannelHit ch = m_flow->channelAt(mwx, mwz);
             if (ch.hit) {
                 // TERRAIN carve is order ≥ 3 ONLY. Orders 1-2 (creeks) report fractional WATER
@@ -1340,6 +1401,8 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             col.surfaceMat = "SnowGrass";  // snow lies on forested ground (taiga) — conifers persist
         }
         // else: keep the biome surface material set above (moderate, gently-sloped land).
+        // M2e-2 (v2): the shaped coast is sand (the seabed rule above already sands below sea level).
+        if (col.coastBand && !col.coastCliff) col.surfaceMat = "Sand";
         // M2d-3 (v2): a channel's bed reads as a bed — gravel on a falling profile, sand on a flat
         // one (kBedGravelSlope). Carved beds and the creek band only; the seabed rule above wins.
         if (channelBedSlope >= 0.0f && (col.carvedRiver || col.creekBed) &&
@@ -1540,6 +1603,22 @@ glm::vec2 WorldGenerator::meanderedChannelPos(float wx, float wz) const {
     return glm::vec2(
         wx + kMeanderAmp * tnFbm(wx * kMeanderFreq, 71.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u),
         wz + kMeanderAmp * tnFbm(wx * kMeanderFreq, 131.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u));
+}
+
+std::vector<WorldGenerator::SpringSite> WorldGenerator::springSites() const {
+    std::vector<SpringSite> out;
+    if (!m_flow) return out;
+    const float cellAreaM2 = m_flow->cellSize() * m_flow->cellSize();
+    const float runoffMPerS = (m_runoffMmPerYear * 1e-3f) / (365.25f * 86400.0f);
+    for (const FlowField::Spring& s : m_flow->springs()) {
+        SpringSite site;
+        site.pos = glm::vec2(s.x, s.z);
+        site.kind = s.kind;
+        site.catchmentKm2 = static_cast<float>(s.catchmentCells) * cellAreaM2 * 1e-6f;
+        site.dischargeM3s = static_cast<float>(s.catchmentCells) * cellAreaM2 * runoffMPerS;
+        out.push_back(site);
+    }
+    return out;
 }
 
 float WorldGenerator::waterLevelAt(float worldX, float worldZ) {
@@ -2031,6 +2110,7 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     if (recipe.seed != 0) seed = recipe.seed;
     m_worldForgeParams = recipe.worldforge;
     m_creekCarve = recipe.creekCarve;   // 25.22
+    m_runoffMmPerYear = recipe.runoffMmPerYear;   // M2e
     m_sheetMode = recipe.version >= 2;                    // M1 (D10): only version-2 recipes get the sheet
     m_sheetParams = SheetParams::clamped(recipe.sheet);
     terrainParams.climateFrequency = recipe.climateFrequency;

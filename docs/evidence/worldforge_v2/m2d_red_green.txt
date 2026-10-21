@@ -76,3 +76,9 @@ M2d-3 perf (Release, 2026-10-21; baseline M2b = m2b_release.txt gate pose 1.7 us
 [ column radius ] v2 sheet, 289 blocks (17x17 chunk columns) around (300,-1400): per-column us min 1.7 mean 2.1 max 3.2 (max at chunk column 5,-36); whole radius 620 ms
   -> gate pose 1.8-2.0 us (run-to-run +-0.1), radius 620-625 ms: +6 to +18 % at the pose and +15 % over the radius against the M2b baseline. The M2d gate was 10 %: MISSED and recorded; the excess is the second warp band near channels (+4 noise evals) and the polyline scans (carve phase 27.5 -> 58 ms of the radius).
   after M2d-3 at the probe's updated column (538,-5718): the 6.7 u river reads as a river - a grey gravel bed winding through grass with the tributary joining on the fillet's curve (m2d3_l4_bed_material2_*.png)
+  far-from-channel early-out (skip every channel query where the local-width field is 0), two runs:
+[ column phases ] v2 sheet, gate pose (300,-1400): 1.9 us per fresh column over 1024 columns
+[ column radius ] v2 sheet, 289 blocks (17x17 chunk columns) around (300,-1400): per-column us min 1.6 mean 2.1 max 3.5 (max at chunk column 9,-37); whole radius 613 ms
+[ column phases ] v2 sheet, gate pose (300,-1400): 1.8 us per fresh column over 1024 columns
+[ column radius ] v2 sheet, 289 blocks (17x17 chunk columns) around (300,-1400): per-column us min 1.6 mean 2.1 max 2.8 (max at chunk column 3,-48); whole radius 616 ms
+  -> no change (613-616 ms): near the gate pose the field is nonzero almost everywhere (7 % of cells are channels, the field reaches ~4 cells from each), so the cost is the channel density at 32 u; the next lever is a baked nearest-channel distance field for the valley pass (open).

@@ -274,6 +274,48 @@ TEST(RiverGeometryTest, MeanderWavelengthFollowsChannelWidth) {
     EXPECT_LE(maxLocal, f->maxHalfWidth() + 1e-3f);
 }
 
+// M2e: spring SITES (D17: data, no water). Every creek head (a channel cell with no channel inflow
+// outside a coarse basin) and every basin feed (the last channel cell before a coarse basin) is a
+// site, with a discharge Q = runoff × catchment. The expected sets are enumerated here from the
+// drainage graph independently of FlowField's own pass. Red on the committed code: no sites.
+TEST(RiverGeometryTest, SpringSitesMarkEveryCreekHeadAndBasinFeed) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(v2Recipe(20260816u));
+    ASSERT_TRUE(g.riverNetwork() && g.hydrology());
+    const Net n = buildNet(g);
+    const HydrologyMap* h = g.hydrology();
+    auto basin = [&](int c) { const glm::vec2 p = n.centre(c); return h->filledAt(p.x, p.y) > h->baseAt(p.x, p.y) + 1e-3f; };
+    std::vector<std::pair<int, int>> expectHeads, expectFeeds;   // (i, j) cells
+    for (int c = 0; c < n.nx * n.nz; ++c) {
+        if (n.order[c] < 1 || basin(c)) continue;
+        if (n.up[c].empty()) expectHeads.push_back({c % n.nx, c / n.nx});
+        if (n.down[c] != c && basin(n.down[c])) expectFeeds.push_back({c % n.nx, c / n.nx});
+    }
+    const auto sites = g.springSites();
+    std::vector<std::pair<int, int>> heads, feeds; int outlets = 0;
+    float maxQ = 0.0f; bool monotone = true; float prevA = -1.0f, prevQ = -1.0f;
+    for (const auto& s : sites) {
+        const int i = static_cast<int>(std::floor((s.pos.x - n.ox) / n.cs)), j = static_cast<int>(std::floor((s.pos.y - n.oz) / n.cs));
+        if (s.kind == 0) heads.push_back({i, j});
+        else if (s.kind == 1) feeds.push_back({i, j});
+        else ++outlets;
+        maxQ = std::max(maxQ, s.dischargeM3s);
+        if (s.dischargeM3s <= 0.0f) monotone = false;
+        if (prevA >= 0.0f && ((s.catchmentKm2 > prevA) != (s.dischargeM3s > prevQ)) && s.catchmentKm2 != prevA) monotone = false;
+        prevA = s.catchmentKm2; prevQ = s.dischargeM3s;
+    }
+    std::sort(expectHeads.begin(), expectHeads.end()); std::sort(heads.begin(), heads.end());
+    std::sort(expectFeeds.begin(), expectFeeds.end()); std::sort(feeds.begin(), feeds.end());
+    std::printf("[ M2e ] spring sites: %zu heads (expected %zu), %zu basin feeds (expected %zu), %d basin outlets; runoff %.0f mm/yr, largest discharge %.3f m3/s\n",
+                heads.size(), expectHeads.size(), feeds.size(), expectFeeds.size(), outlets, g.runoffMmPerYear(), maxQ);
+    EXPECT_EQ(heads, expectHeads) << "the creek heads are not exactly the channel cells without an inflow";
+    EXPECT_EQ(feeds, expectFeeds) << "the basin feeds are not exactly the last cells before a basin";
+    EXPECT_GT(outlets, 0);
+    EXPECT_TRUE(monotone) << "discharge must be positive and increase with catchment";
+    // Q = R·A: a 1 km² catchment at 500 mm/yr is 0.0158 m³/s (the auditor's arithmetic, §10 F4f).
+    for (const auto& s : sites) { EXPECT_NEAR(s.dischargeM3s / std::max(1e-6f, s.catchmentKm2), 0.01585f, 2e-4f); break; }
+}
+
 // A probe, not an invariant: the carved confluences nearest the origin on the baseline world, with
 // the world column under the junction's warped centre and the local terrain, so an engine capture
 // (plan M2d L4: a confluence in frame) can be posed from a printed number instead of a guess.

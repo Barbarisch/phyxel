@@ -1,0 +1,34 @@
+M2e-1 RED (2026-10-21, Debug, stub build: the spring API, the recipe runoff field and the discharge formula are in, the site enumeration is off):
+[ M2e ] spring sites: 0 heads (expected 1203), 0 basin feeds (expected 3864), 0 basin outlets; runoff 500 mm/yr, largest discharge 0.000 m3/s
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\RiverGeometryTest.cpp(311): error: Expected equality of these values:
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\RiverGeometryTest.cpp(312): error: Expected equality of these values:
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\RiverGeometryTest.cpp(313): error: Expected: (outlets) > (0), actual: 0 vs 0
+[  FAILED  ] RiverGeometryTest.SpringSitesMarkEveryCreekHeadAndBasinFeed (420 ms)
+[==========] 7 tests from 2 test suites ran. (20154 ms total)
+[  PASSED  ] 6 tests.
+
+M2e-2 RED (coast field baked, shaping OFF) + M2e-1 first green attempt (Debug):
+[ M2e-2 ] 60 shoreline transects (0 cliff coasts exempt): beach faces steeper than m0 + 1/3 u: 7, worst face rise per u 1.24; nearshore beds rising seaward by > 1 u: 3, worst rise 1.58 u; Sand on 150 of 2400 face columns; sea level 16.0, ocean cells 124005
+[  FAILED  ] CoastTest.BeachFaceIsGentleAndTheNearshoreBedNeverRisesSeaward (14047 ms)
+[ M2e-2 ] coast field: 16384 cells checked, 0 dry cells with a sea-side sign
+[ M2e ] spring sites: 1214 heads (expected 1203), 3141 basin feeds (expected 3864), 3461 basin outlets; runoff 500 mm/yr, largest discharge 0.264 m3/s
+[  FAILED  ] RiverGeometryTest.SpringSitesMarkEveryCreekHeadAndBasinFeed (442 ms)
+[==========] 3 tests from 2 test suites ran. (14496 ms total)
+[  PASSED  ] 1 test.
+  springs: FlowField excluded sub-sea cells from 'basin' while the test (HydrologyMap's filled, clamped to sea level) includes them -> heads 1214 vs 1203, feeds 3141 vs 3864 (river MOUTHS are basin feeds); the flow field's basin definition is aligned to the sea = a basin.
+
+M2e-1 GREEN + M2e-2 second run (Debug; the face is filled to the profile, channel crossings exempt in the test):
+[ M2e-2 ] 60 shoreline transects (0 cliff coasts exempt): beach faces steeper than m0 + 1/3 u: 1, worst face rise per u 0.86; nearshore beds rising seaward by > 1 u: 0, worst rise 0.53 u; Sand on 1891 of 2400 face columns; sea level 16.0, ocean cells 124005
+[  FAILED  ] CoastTest.BeachFaceIsGentleAndTheNearshoreBedNeverRisesSeaward (14344 ms)
+[ M2e-2 ] coast field: 16384 cells checked, 0 dry cells with a sea-side sign
+[ M2e ] spring sites: 1203 heads (expected 1203), 3864 basin feeds (expected 3864), 3461 basin outlets; runoff 500 mm/yr, largest discharge 0.285 m3/s
+[==========] 3 tests from 2 test suites ran. (14785 ms total)
+[  PASSED  ] 2 tests.
+
+M2e GREEN (Debug; the face filled to the profile, the test's face defined by the field's distance; filter = CoastTest.*:RiverGeometryTest.*:TerrainRiverTest.*:LegacyTerrainGoldenTest.*:WorldSheetGeneratorTest.*:FlowFieldTest.*:BasinRimTest.*:TerrainRecipeTest.*:WorldForgePlanTest.*:WorldForgeRecipeTest.*:TerrainMaterialTest.*:ColumnCacheTest.*:FinePondTest.*):
+[ M2e-2 ] 60 shoreline transects (0 cliff coasts exempt): beach faces steeper than m0 + 1/3 u: 0, worst face rise per u 0.10; nearshore beds rising seaward by > 1 u: 0, worst rise 0.53 u; Sand on 1858 of 1880 face columns; sea level 16.0, ocean cells 124005
+[ M2e-2 ] coast field: 16384 cells checked, 0 dry cells with a sea-side sign
+[ M2e ] spring sites: 1203 heads (expected 1203), 3864 basin feeds (expected 3864), 3461 basin outlets; runoff 500 mm/yr, largest discharge 0.285 m3/s
+[==========] 92 tests from 13 test suites ran. (344326 ms total)
+[  PASSED  ] 92 tests.
+  (the one remaining 'steep' step of the previous run sat at field distance 55 u - the backshore ramp, cut-only - on a transect oblique to the shore; the chamfer field quantizes the shoreline at cell scale, ~15 u)

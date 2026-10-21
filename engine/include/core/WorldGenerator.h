@@ -14,6 +14,7 @@
 #include "core/FlowField.h"
 #include "core/WaterBodyIndex.h"
 #include "core/BasinRimCorrector.h"
+#include "core/CoastField.h"
 #include "core/Spline.h"
 #include "core/WaterOccupancy.h"
 #include "core/WorldConstants.h"
@@ -165,6 +166,8 @@ public:
                                       // pins) rather than a creek — FlowField::kRiverCarveDepth
         bool  bedShelf    = false;    // M2d-1: the bed is on the 1/3 u grid (surface voxel emitted as
                                       // a subcube shelf of creekLayers(col) layers, like a creek bed)
+        bool  coastBand   = false;    // M2e-2: inside the shaped coast (beach face, berm, nearshore)
+        bool  coastCliff  = false;    // M2e-2: a coast column the scree rule keeps as a cliff
         float bedHeight   = 16.0f;    // WaterCore.md 25.22: the CONTINUOUS ground height (every terrain term, the river carve
                                       // as a continuous depth) - surfaceY is its voxel index; the water's bed (option (a))
         bool  creekBed    = false;    // order 1-2 inner channel band (depth >= the runtime pin
@@ -312,7 +315,19 @@ public:
     // Non-const: the correction samples this generator's own columns, lazily, once per basin.
     float waterLevelAt(float worldX, float worldZ);
     float basinLevel(int32_t bodyId);                    // corrected level of a body (raw if no corrector)
+    // M2e (D17: data for the water side, no water placed): every spring site of the bake with its
+    // discharge Q = runoff × catchment (m³/s; runoff from the recipe, catchment = accumulated cells
+    // × cell area). kind: 0 creek head, 1 basin feed, 2 basin outlet. Empty on v1 / no bake.
+    struct SpringSite {
+        glm::vec2 pos{0.0f};
+        int   kind = 0;
+        float catchmentKm2 = 0.0f;
+        float dischargeM3s = 0.0f;
+    };
+    std::vector<SpringSite> springSites() const;
+    float runoffMmPerYear() const { return m_runoffMmPerYear; }
     const BasinRimCorrector* rimCorrector() const { return m_rimCorrector.get(); }
+    const CoastField* coastField() const { return m_coast.get(); }   // M2e-2 (v2 bakes with an ocean)
     // The single meander displacement every channel-line consumer shares (see channelHitAt). Public
     // since M2d so geometry tests can invert it and find the column under a cell's carved centreline.
     glm::vec2 meanderedChannelPos(float wx, float wz) const;
@@ -457,6 +472,7 @@ private:
     std::shared_ptr<FlowField>      m_flow;
     std::shared_ptr<WaterBodyIndex> m_waterBodies;  // body identity riding the bake (Phase A)
     std::shared_ptr<BasinRimCorrector> m_rimCorrector;   // M2c: shared by every copy of this generator
+    std::shared_ptr<const CoastField> m_coast;           // M2e-2: the signed shoreline distance (v2 only)
 
     // WorldForge (docs/WorldForge.md): params come from the world recipe; the plan is baked
     // at the end of rebuildCoarseModel (after hydrology, which it consumes). NOT memoized
@@ -464,6 +480,7 @@ private:
     // key can't see (see WorldForgePlan::bake).
     WorldForgeParams m_worldForgeParams;
     bool m_creekCarve = false;   // 25.22: from the recipe (WorldRecipe::creekCarve)
+    float m_runoffMmPerYear = 500.0f;   // M2e: from the recipe (WorldRecipe::runoffMmPerYear)
     std::shared_ptr<const WorldForgePlan> m_worldForge;
     void bakeWorldForgePlan();
 

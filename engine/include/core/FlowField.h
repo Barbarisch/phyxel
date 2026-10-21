@@ -91,6 +91,20 @@ public:
     static constexpr int kLocalWidthRadius = 2;
     float localHalfWidthAt(float worldX, float worldZ) const;
 
+    // ── M2e: spring SITES (areaLaw bakes only; D17: data, no water) ─────────────────────────
+    // Where the network gathers water: a creek HEAD (a channel cell with no channel inflow,
+    // outside a coarse basin), a BASIN FEED (the last channel cell before a coarse basin: where a
+    // stream enters a lake) and a BASIN OUTLET (the basin cell whose receiver leaves the basin:
+    // where the lake drains). catchmentCells is the cell's accumulated drainage (incl. macro
+    // inflows); the generator turns it into a discharge with the world's runoff.
+    struct Spring {
+        int   cell = -1;
+        float x = 0.0f, z = 0.0f;      // the cell centre, bake space
+        int   kind = 0;                // 0 head, 1 basin feed, 2 basin outlet
+        int   catchmentCells = 0;
+    };
+    const std::vector<Spring>& springs() const { return m_springs; }
+
     // Upstream drainage count at a world column (>= 1 inside the baked region, 0 outside).
     // Piecewise-constant per cell.
     int accumAt(float worldX, float worldZ) const;
@@ -206,6 +220,7 @@ private:
     std::vector<int> m_filletOf;
     std::vector<std::vector<glm::vec2>> m_fillets;
     std::vector<float> m_localHalfW;   // M2d-3: blurred local half-width per cell
+    std::vector<Spring> m_springs;     // M2e: spring sites
     // The polyline a cell's channel follows (straight or fillet), used by every query.
     const std::vector<glm::vec2>& cellPolyline(int rc, std::vector<glm::vec2>& scratch) const;
     int m_maxAccum = 0;
