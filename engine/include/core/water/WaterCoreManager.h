@@ -201,6 +201,10 @@ public:
     static inline bool s_recordTilesDefault = false;
     static inline float s_recordAfterS = 2.0f;        ///< s a tile stays frozen before it records
     static inline bool s_measureRecordJump = false;   ///< measurement: per record, the jump a wake will make (an extra seed + two extractions)
+    /// m beyond a write's own radius within which recorded tiles wake BEFORE the write (a push, placed water, momentum, a body, a
+    /// droplet). Recorded tiles are walls: woken only 2 m round a strong push, the pond was cut into basins the push's slosh was
+    /// trapped in - kinetic energy stayed 4e-2 at 24 s where the uncut pond fell to 8e-7 (27.12, live). Measured choice below.
+    static inline float s_writeWakeReachM = 2.0f;
     static constexpr int kRecordTilesPerStep = 2;     ///< bounds a frame's cost when many tiles freeze at once
     /// ON by default since 2026-10-19 (the owner: "yeah. default"); a volume created with an explicit partial_wake keeps its own.
     static inline bool s_partialWakeDefault = true;

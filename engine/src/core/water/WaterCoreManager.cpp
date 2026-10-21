@@ -943,7 +943,7 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
 // tile's empty cells is lost (a push did nothing; a stone would fall through a recorded lake without a splash).
 void WaterCoreManager::wakeRecordedNear(Av& av, const glm::vec3& world, float radius) {
     if (!av.gpuVol || av.recordedTileList.empty()) return;
-    const float r = radius + 2.0f;
+    const float r = radius + s_writeWakeReachM;
     const int tx0 = floorDivI(static_cast<int>(std::floor(world.x - r)), kTileVoxels), tx1 = floorDivI(static_cast<int>(std::floor(world.x + r)), kTileVoxels);
     const int tz0 = floorDivI(static_cast<int>(std::floor(world.z - r)), kTileVoxels), tz1 = floorDivI(static_cast<int>(std::floor(world.z + r)), kTileVoxels);
     for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx)

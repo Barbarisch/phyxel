@@ -188,20 +188,26 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagEnergyAfterAPushOnTheBenchPond) {
         ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
         mgr.setDroplets(true);
         FakeRecord record; record.install(mgr);
-        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(45, 1, 27), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        // W1B_DIAG_X0: the box's first voxel along x (the bench pond starts at x 2 - its first tile is PARTIAL, 6 of 8 m)
+        const int x0 = std::getenv("W1B_DIAG_X0") ? std::atoi(std::getenv("W1B_DIAG_X0")) : 0;
+        const int id = mgr.create(glm::ivec3(x0, 0, 0), glm::ivec3(x0 + 45, 1, 27), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
         ASSERT_TRUE(id) << err;
         mgr.setAutoSleep(id, false);
         mgr.setPartialWake(id, true); mgr.setRecordTiles(id, rec);
-        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(45, 0, 27), 1.0f, nullptr);
+        mgr.placeBox(glm::ivec3(x0, 0, 0), glm::ivec3(x0 + 45, 0, 27), 1.0f, nullptr);
         AvRecord r;
         const int perSecond = static_cast<int>(std::lround(1.0f / dt));
         // W1B_DIAG_REALTIME=1: the live path - realtime update() (async calls, the once-a-second mirror), not step()
         const bool live = std::getenv("W1B_DIAG_REALTIME") != nullptr;
         mgr.setRealtime(live);
-        auto tick = [&]() { if (live) { mgr.update(dt); const AvRecord* a = mgr.find(id); if (a) r = *a; } else mgr.step(id, 1, dt, &r); };
+        // W1B_DIAG_JITTER=1: each tick's length drawn from [0.6, 1.4] x dt (a live frame's dt varies; deterministic sequence)
+        const bool jitter = std::getenv("W1B_DIAG_JITTER") != nullptr;
+        uint32_t lcg = 12345u;
+        auto nextDt = [&]() { if (!jitter) return dt; lcg = lcg * 1664525u + 1013904223u; return dt * (0.6f + 0.8f * static_cast<float>(lcg >> 8) / 16777216.0f); };
+        auto tick = [&]() { const float d = nextDt(); if (live) { mgr.update(d); const AvRecord* a = mgr.find(id); if (a) r = *a; } else mgr.step(id, 1, d, &r); };
         for (int k = 0; k < 4 * perSecond; ++k) tick();
-        mgr.addImpulse(glm::vec3(10.0f, 0.9f, 20.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
-        std::printf("  recording %s, dt %.4f, %s:\n", rec ? "ON " : "OFF", dt, live ? "realtime update" : "step");
+        mgr.addImpulse(glm::vec3(static_cast<float>(x0) + 10.0f, 0.9f, 20.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        std::printf("  recording %s, dt %.4f, %s, box x0 %d:\n", rec ? "ON " : "OFF", dt, live ? "realtime update" : "step", x0);
         for (int k = 1; k <= 20 * perSecond; ++k) {
             tick();
             if (k % (perSecond / 2) == 0) {

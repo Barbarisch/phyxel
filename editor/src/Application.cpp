@@ -13958,7 +13958,11 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("default")) M::s_recordTilesDefault = cmd.params.value("default", false);
         if (cmd.params.contains("after_s")) M::s_recordAfterS = std::clamp(cmd.params.value("after_s", 2.0f), 0.25f, 600.0f);
         if (cmd.params.contains("measure_jump")) M::s_measureRecordJump = cmd.params.value("measure_jump", false);
-        r = {{"default", M::s_recordTilesDefault}, {"after_s", M::s_recordAfterS}, {"tile_m", 8}, {"measure_jump", M::s_measureRecordJump}};
+        // write_wake_m: recorded tiles within this many m of a write wake before it (clamped 0-64 m: past 64 a single splash wakes
+        // ~64 tiles at once - the hitch the per-tile wake costs, 8-19 ms each, would freeze the frame)
+        if (cmd.params.contains("write_wake_m")) M::s_writeWakeReachM = std::clamp(cmd.params.value("write_wake_m", 2.0f), 0.0f, 64.0f);
+        r = {{"default", M::s_recordTilesDefault}, {"after_s", M::s_recordAfterS}, {"tile_m", 8}, {"measure_jump", M::s_measureRecordJump},
+             {"write_wake_m", M::s_writeWakeReachM}};
         if (cmd.params.contains("id")) r["applied"] = waterCore->setRecordTiles(cmd.params.value("id", 0), cmd.params.value("on", true));
     });
     // §27 W1a: {on?, radius?} recorded water near the camera drawn with the pond surface; radius in m, clamped 0-256 (above 256

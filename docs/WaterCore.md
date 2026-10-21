@@ -7898,6 +7898,21 @@ owner's look wait for an idle GPU.
   (`DISABLED_DiagEnergyAfterAPushOnTheBenchPond`, `W1B_DIAG_REALTIME=1`): there ON settles and all 24 tiles record again by 19.5 s.
   So the cause is in what the live engine has and the test does not (the real span writer and chunks, the real occupancy, the
   bench's params) - next: bisect it there. Recording stays OFF by default.
+- **Bisected live (2026-10-20), the same push, recording ON:**
+  - not the live-only features: the record drawn or not, ripples on or off, droplets on or off, all three off - the same
+    (1,300-1,400 moving at 18-24 s); not tick jitter, not the partial tile at the box's edge (the test reproduces neither);
+  - **WHERE: the moving water fills the tiles round the push and stops at a tile boundary** (unit-map picture, 20 s after: the
+    left 4 tiles moving everywhere, the rest quiet) - **the recorded tiles are WALLS and the push's slosh is trapped in the basin
+    they leave.** Test: every tile woken just before the push (the pond whole) - the energy falls to 8e-7 by 24 s, as with
+    recording OFF; as usual it stays 2-7e-2. Waking a wider ring round the write (`water_av_record_tiles {write_wake_m}`, 8 m,
+    16 m; default 2) does NOT fix it (1-4e-2 at 24 s): each tile that opens while the pond still sloshes takes a wall out of a
+    moving basin. This is 27.10's predicted risk of candidate (a) - "a wall: waves reflect, wrong for a big lake" - now measured.
+  - a second, smaller effect: woken water churns its fills slightly while at rest (|df| median 2.5e-5 a tick against the freeze
+    test's 3e-5; the never-recorded pond 2.8e-6) - with the pond whole, 600-700 columns stay "moving" at 8e-7 J and nothing
+    records again. The seed's exact level-fill is not the solver's own rest state; it relaxes once woken. Sub-threshold noise,
+    but it keeps tiles awake.
+  - **So W1c (the patch edge) is needed before recording can be on:** a recorded tile's edge must not reflect - the record's level
+    held at the edge with exchange (b), or a damping band (c) - and the seed must be the solver's rest state. Measured next.
 
 ---
 
