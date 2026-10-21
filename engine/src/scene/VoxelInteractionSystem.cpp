@@ -480,7 +480,15 @@ void VoxelInteractionSystem::clearHoveredCubeInChunksOptimized() {
     }
 }
 
-bool VoxelInteractionSystem::rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
+bool VoxelInteractionSystem::hasHoveredCube() const {
+    if (!m_hasHoveredCube) return false;
+    if (!m_chunkManager || !m_currentHoveredLocation.chunk) return true;
+    // The cached Chunk* is live only while it is still the resident chunk at that world position
+    // (a far teleport unloads it before the next hover update; see the header note).
+    return m_chunkManager->getChunkAtFast(m_currentHoveredLocation.worldPos) == m_currentHoveredLocation.chunk;
+}
+
+bool VoxelInteractionSystem::rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
                                              const glm::vec3& aabbMin, const glm::vec3& aabbMax, 
                                              float& distance) const {
     // Delegate to VoxelRaycaster

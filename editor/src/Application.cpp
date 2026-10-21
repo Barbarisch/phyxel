@@ -13600,10 +13600,13 @@ void Application::registerWaterCommands() {
 
         nlohmann::json arr = nlohmann::json::array();
         for (const Found& h : hits) {
+            // M2b-2: the cell's own geometry and class (the law on v2, the table on v1), never
+            // the table by order — under the law an order-3 stream can be a 0.3 u creek.
             nlohmann::json e = {{"x", h.x}, {"z", h.z}, {"order", h.order},
                                 {"carves_bed", h.channel},
-                                {"width", 2.0f * FlowField::channelHalfWidth(h.order)},
-                                {"carve_depth", FlowField::channelDepth(h.order)}};
+                                {"width", 2.0f * f->halfWidthAt(h.x, h.z)},
+                                {"carve_depth", f->fullDepthAt(h.x, h.z)},
+                                {"carved_river", f->carvedRiverAt(h.x, h.z)}};
             // The surface height there, so a caller can put a camera at the water rather than
             // having to probe separately.
             e["surface_y"] = g->sampleSurface(static_cast<int>(h.x), static_cast<int>(h.z)).surfaceY;

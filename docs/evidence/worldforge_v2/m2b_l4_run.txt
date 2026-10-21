@@ -1,0 +1,20 @@
+M2b L4 on the Release engine (2026-10-21, exe 10:26 = commit 1d633964, WorldForgeBaselineV2 with a FRESH world.db, port 8600, RTX 1000 Ada laptop). Script: scratchpad m2b_l4.sh. Second run (the first run's parser read the wrong key and the 'lake' it picked was the sea-level inland sea; its validate over +-160 around (-2576,-592): rim 80, rim_leaks 75, worst 5 u, unloaded 7352).
+
+exe: 2026-10-21_10:26:37  commit: 1d633964
+gpu: NVIDIA RTX 1000 Ada Generation Laptop GPU (discrete, 2 device(s) enumerated)
+bake log: Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+{"bake_sea_level":16.0,"drainage_complete":true,"generator_sea_level":16.0,"has_outlet":true,"hydro_cell_size":32.0,"hydro_cells":{"x":1024,"z":1024},"lake_min_area_m2":65536.0,"macro_inflows":56,"max_order":4,"min_terrain":-24.237932205200195}
+1 sites; deepest: [{"carve_depth": 0.6600000262260437, "carves_bed": true, "order": 2, "surface_y": 71, "water_level": 77.18474578857422, "wet": true, "width": 3.0, "x": -1248.0, "z": 224.0}]
+river site: x=-1248 z=224 surface_y=71 carve=0.6600000262260437 order=2 width=3.0
+resident@river: {"max_y":255,"source":"chunks","spawn_y":72,"surface_y":71,"x":-1248,"z":224}
+{"damage_tracked":false,"exists":true,"position":{"x":-1248,"y":71,"z":224}}
+{"columns":9409,"rim":287,"rim_leaks":218,"unloaded":0,"wet":4672,"worst_leak_at":{"x":-1251,"z":224},"worst_leak_depth":6.0}
+shot river: screenshots/screenshot_20261021_103823_067.png
+88 lakes listed; keys: ['area_cells', 'bbox_world', 'class', 'id', 'level', 'volume_est']
+lake: {"area_cells": 68, "bbox_world": {"max_x": -1056.0, "max_z": -384.0, "min_x": -1376.0, "min_z": -672.0}, "class": "lake", "id": 7320, "level": 129.80064392089844, "volume_est": 518698.625}
+lake: centre=(-1216,-528) bbox=(-1376,-672)-(-1056,-384) level=129.80064392089844
+wet point (-1239,-631) surface 121 < level 129
+{"columns":68452,"rim":543,"rim_leaks":418,"unloaded":0,"wet":52420,"worst_leak_at":{"x":-1345,"z":-546},"worst_leak_depth":19.0}
+shot lake: screenshots/screenshot_20261021_104037_630.png
+0
+done

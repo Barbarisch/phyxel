@@ -104,7 +104,13 @@ public:
     }
 
     // Hover state accessors
-    bool hasHoveredCube() const { return m_hasHoveredCube; }
+    /// True only while the hovered location's chunk is STILL the resident chunk at that world
+    /// position. The cache holds a raw Chunk*; a far camera teleport unloads that chunk before
+    /// the next hover update runs, and the editor's Properties panel dereferenced the dangling
+    /// pointer (ACCESS_VIOLATION in ChunkVoxelManager::materializeAt via
+    /// PropertiesPanel::renderVoxelSection, crashes/crash_20261021_104538.txt, Release). The
+    /// O(1) lookup makes every consumer of this accessor safe across unloads by construction.
+    bool hasHoveredCube() const;
     /// Cursor pick ray from the last hover update (see m_lastMouseRay).
     const glm::vec3& lastMouseRay() const { return m_lastMouseRay; }
     const CubeLocation& getCurrentHoveredLocation() const { return m_currentHoveredLocation; }
