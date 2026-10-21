@@ -6852,10 +6852,10 @@ void Application::autoLoadGameDefinition() {
                         chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
                     if (w.value("bakedTable", true) && gen && gen->hydrology()) {
                         waterManager->setWaterTable([this](float wx, float wz) -> float {
-                            const WorldGenerator* g =
+                            WorldGenerator* g =
                                 chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
-                            const HydrologyMap* h = g ? g->hydrology() : nullptr;
-                            return h ? h->waterLevelAt(wx, wz) : -1e30f; // NO_WATER
+                            // M2c: the rim-corrected level (never above the basin's real rim)
+                            return (g && g->hydrology()) ? g->waterLevelAt(wx, wz) : -1e30f; // NO_WATER
                         });
                         LOG_INFO("Application", "[WATER] baked hydrology water table bound (Phase C)");
                         // Water BODY identity (tangible-water Phase C). BAKE bodies are ALL
@@ -6877,7 +6877,7 @@ void Application::autoLoadGameDefinition() {
                                 if (const WaterBodyIndex::Body* b = wb ? wb->bodyAt(wx, wz) : nullptr) {
                                     out.id = b->id;
                                     out.finite = false;   // bake bodies are infinite (see above)
-                                    out.baselineLevel = b->level;
+                                    out.baselineLevel = g->basinLevel(b->id);   // M2c: rim-corrected
                                     return out;
                                 }
                                 // Fine-scale ponds (Phase B): THE finite bodies — sub-cell,
@@ -13284,7 +13284,7 @@ void Application::registerWaterCommands() {
                 const size_t i = static_cast<size_t>(z) * w + x;
                 const int wx = lx + x, wz = lz + z;
                 ++columns;
-                const float lvl = g->hydrology()->waterLevelAt(wx + 0.5f, wz + 0.5f);
+                const float lvl = g->waterLevelAt(wx + 0.5f, wz + 0.5f);   // M2c: rim-corrected
                 const bool baked = lvl > Phyxel::HydrologyMap::NO_WATER * 0.5f;
                 if (baked) ++bakeWet;
                 const bool riverCol = g->sampleSurface(wx, wz).carvedRiver;   // M2b-2: the class
@@ -13408,11 +13408,11 @@ void Application::registerWaterCommands() {
             }
             WaterBodyRecord* rec = waterCore->bodies().findMutable(id);
             if (!rec && id >= 0) {   // a generation body with no record yet: import it from the bake's index
-                const WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
                 const WaterBodyIndex* idx = g ? g->waterBodies() : nullptr;
                 const WaterBodyIndex::Body* b = idx ? idx->body(id) : nullptr;
                 if (b) {
-                    WaterBodyRecord nr; nr.id = b->id; nr.origin = "generation"; nr.level = b->level; nr.mass = b->volumeEst;
+                    WaterBodyRecord nr; nr.id = b->id; nr.origin = "generation"; nr.level = g->basinLevel(b->id); nr.mass = b->volumeEst;   // M2c
                     nr.cls = b->cls == WaterBodyIndex::Class::Ocean ? "ocean" : (b->cls == WaterBodyIndex::Class::Lake ? "lake" : "pond");
                     const HydrologyMap* h = g->hydrology();
                     if (h) { nr.bboxMin = glm::ivec2(static_cast<int>(h->originX() + b->bboxMin.x * h->cellSize()), static_cast<int>(h->originZ() + b->bboxMin.y * h->cellSize()));
@@ -15151,8 +15151,8 @@ bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
             const size_t i = static_cast<size_t>(pz) * px + pxx;
             hgt[i] = col.surfaceY;
             glm::ivec3 c = matColor(col.surfaceMat);
-            const float wl = hydro->waterLevelAt(wx, wz);
-            const bool standing = hydro->hasWater(wx, wz) &&
+            const float wl = g->waterLevelAt(wx, wz);   // M2c: rim-corrected
+            const bool standing = wl > Phyxel::HydrologyMap::NO_WATER * 0.5f &&
                                   wl > static_cast<float>(col.surfaceY);
             if (col.bridgeDeckY != INT_MIN && col.bridgeDeckY > col.surfaceY) {
                 c = {146, 96, 52};                       // bridge deck

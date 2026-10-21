@@ -99,6 +99,8 @@ public:
     /// Carve-accurate channel query (WorldGenerator::channelHitAt — MEANDER-WARPED, unlike raw
     /// FlowField::channelAt): bridge spans must clear the channel as it is actually carved.
     using ChannelFn = std::function<FlowField::ChannelHit(float worldX, float worldZ)>;
+    /// M2c: the water level of a column (the generator's rim-corrected level); null = the raw bake.
+    using LevelFn = std::function<float(float worldX, float worldZ)>;
 
     /// Bake the plan. `params` is clamped internally (the plan echoes the clamped copy).
     /// Deterministic: same (params, worldSeed, terrain/hydrology inputs) → byte-identical
@@ -109,7 +111,7 @@ public:
         const WorldForgeParams& params, uint32_t worldSeed, const HeightFn& heightAt,
         const HydrologyMap& hydro, const FlowField& flow, const WaterBodyIndex& bodies,
         const SurfaceMatFn& surfaceMatAt, const SurfaceYFn& surfaceYAt,
-        const ChannelFn& channelAt);
+        const ChannelFn& channelAt, const LevelFn& waterLevelAt = nullptr);
 
     const WorldForgeParams& params() const { return m_params; }   // clamped echo
     const std::vector<WorldForgeSite>& sites() const { return m_sites; }

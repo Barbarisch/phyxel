@@ -1,0 +1,32 @@
+M2c RED (2026-10-21, Debug, stub build: all plumbing in, BasinRimCorrector not created, so WorldGenerator::waterLevelAt serves the raw coarse spill):
+    basin 7519 (1 cells, spill 96.19 -> level 96.19): rim 128, leaks 128, worst 14 u at (-384,-215)
+    basin 7453 (1 cells, spill 103.99 -> level 103.99): rim 128, leaks 128, worst 15 u at (-224,-478)
+    basin 7399 (2 cells, spill 97.76 -> level 97.76): rim 192, leaks 137, worst 4 u at (-129,-542)
+    basin 7449 (1 cells, spill 108.29 -> level 108.29): rim 128, leaks 98, worst 11 u at (-256,-483)
+    basin 7545 (1 cells, spill 101.12 -> level 101.12): rim 128, leaks 127, worst 6 u at (-576,-109)
+    basin 7560 (1 cells, spill 90.46 -> level 90.46): rim 128, leaks 28, worst 3 u at (-608,28)
+    basin 7398 (3 cells, spill 122.49 -> level 122.49): rim 256, leaks 149, worst 11 u at (-477,-544)
+    basin 7518 (1 cells, spill 115.00 -> level 115.00): rim 128, leaks 48, worst 2 u at (-736,-214)
+    basin 7265 (1 cells, spill 73.15 -> level 73.15): rim 128, leaks 17, worst 3 u at (268,-800)
+    basin 7397 (3 cells, spill 134.82 -> level 134.82): rim 256, leaks 123, worst 11 u at (-640,-556)
+    basin 7240 (3 cells, spill 130.87 -> level 130.87): rim 256, leaks 207, worst 9 u at (-449,-852)
+    basin 7439 (2 cells, spill 136.59 -> level 136.59): rim 192, leaks 175, worst 8 u at (-773,-545)
+    basin 7504 (2 cells, spill 123.74 -> level 123.74): rim 192, leaks 192, worst 18 u at (-929,-274)
+    basin 7206 (1 cells, spill 111.51 -> level 111.51): rim 128, leaks 62, worst 4 u at (-129,-929)
+    basin 7596 (1 cells, spill 84.50 -> level 84.50): rim 128, leaks 104, worst 6 u at (-961,207)
+    basin 7264 (2 cells, spill 139.99 -> level 139.99): rim 192, leaks 156, worst 14 u at (-576,-813)
+    basin 7486 (1 cells, spill 128.26 -> level 128.26): rim 128, leaks 128, worst 16 u at (-952,-320)
+    basin 7448 (5 cells, spill 135.56 -> level 135.56): rim 320, leaks 275, worst 11 u at (-948,-481)
+    basin 7177 (1 cells, spill 77.98 -> level 77.98): rim 128, leaks 38, worst 1 u at (288,-1024)
+    basin 7191 (2 cells, spill 133.23 -> level 133.23): rim 192, leaks 138, worst 6 u at (-449,-988)
+    basin 7107 (1 cells, spill 105.56 -> level 105.56): rim 128, leaks 128, worst 15 u at (-32,-1110)
+    basin 7205 (2 cells, spill 141.98 -> level 141.98): rim 192, leaks 192, worst 14 u at (-607,-961)
+[ M2c ] 24 nearest above-sea basins: rim columns 4032, leaks 2778, worst 18 u; levels lowered 0, dried 0; corrector: 0 computed, 0 ring columns sampled, max 0 iterations, max drop 0.0 u
+[  FAILED  ] BasinRimTest.NoRimColumnBelowItsBasinLevel (12804 ms)
+[==========] 2 tests from 1 test suite ran. (12817 ms total)
+[  PASSED  ] 1 test.
+
+M2c GREEN (same day, Debug, BasinRimCorrector created in rebuildCoarseModel; filter = BasinRimTest.*:WorldForgePlanTest.*:WorldForgeBuildFlowTest.*:WaterBodyIndexTest.*:HydrologyMapTest.*:WaterManagerTest.*:TerrainRiverTest.*:LegacyTerrainGoldenTest.*:WorldSheetGeneratorTest.*:WaterOccupancyTest.*:FinePondTest.*:SettlementTerrainPlanTest.*:WorldForgeRecipeTest.*:WorldForgeStressTest.*):
+[ M2c ] 24 nearest above-sea basins: rim columns 384, leaks 0, worst 0 u; levels lowered 22, dried 21; corrector: 24 computed, 4160 ring columns sampled, max 1 iterations, max drop 17.8 u
+[==========] 182 tests from 14 test suites ran. (472058 ms total)
+[  PASSED  ] 182 tests.

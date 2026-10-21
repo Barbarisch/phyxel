@@ -38,6 +38,11 @@ public:
     // water drains there by Priority-Flood's own definition), so a perched lake can no longer
     // drown the valley below it. NO_WATER outside the baked region.
     float filledAt(float worldX, float worldZ) const;
+    // M2c: the sampled base height of the column's cell (the bake's own centre/corner sample) —
+    // what the rim correction compares a lowered level against to re-derive the wet cell set.
+    float baseAt(float worldX, float worldZ) const;
+    float baseAtCell(int i, int j) const  { return m_base[static_cast<size_t>(j) * m_cellsX + i]; }
+    float levelAtCell(int i, int j) const { return m_waterLevel[static_cast<size_t>(j) * m_cellsX + i]; }
     bool hasWater(float worldX, float worldZ) const { return waterLevelAt(worldX, worldZ) > NO_WATER * 0.5f; }
 
     int cellsX() const { return m_cellsX; }
@@ -65,6 +70,7 @@ private:
     int m_cellsX = 0, m_cellsZ = 0;
     std::vector<float> m_waterLevel;  // per cell; NO_WATER = dry
     std::vector<float> m_filled;      // per cell; max(depression-filled elevation, sea level)
+    std::vector<float> m_base;        // per cell; the sampled height (M2c)
 };
 
 }  // namespace Phyxel

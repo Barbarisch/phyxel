@@ -58,6 +58,10 @@ public:
 
     // Body id at a world column; -1 = dry or outside the baked region.
     int32_t bodyIdAt(float worldX, float worldZ) const;
+    int32_t bodyIdAtCell(int i, int j) const {   // M2c: by bake cell, no bounds check beyond the grid
+        if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return -1;
+        return m_cellBody[static_cast<size_t>(j) * m_cellsX + i];
+    }
     // Body record at a world column; nullptr = dry/outside.
     const Body* bodyAt(float worldX, float worldZ) const;
     const Body* body(int32_t id) const {

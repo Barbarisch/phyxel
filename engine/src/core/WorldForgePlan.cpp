@@ -271,8 +271,11 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     const WorldForgeParams& params, uint32_t worldSeed, const HeightFn& heightAt,
     const HydrologyMap& hydro, const FlowField& flow, const WaterBodyIndex& bodies,
     const SurfaceMatFn& surfaceMatAt, const SurfaceYFn& surfaceYAt,
-    const ChannelFn& channelAt) {
+    const ChannelFn& channelAt, const LevelFn& waterLevelAtFn) {
     const auto t0 = std::chrono::steady_clock::now();
+    // M2c: site, shore and route rules read the rim-corrected level when the generator gives one.
+    const LevelFn levelAt = waterLevelAtFn ? waterLevelAtFn
+                                           : LevelFn([&hydro](float x, float z) { return hydro.waterLevelAt(x, z); });
     auto plan = std::shared_ptr<WorldForgePlan>(new WorldForgePlan());
     const WorldForgeParams P = params.clamped();
     plan->m_params = P;
@@ -297,7 +300,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             if (glm::length(p - regionCentre) > P.regionRadius) continue;
             const float h = heightAt(p.x, p.y);
             if (h < seaLvl + 2.0f) continue;                        // coastal strip / seabed
-            const float wl = hydro.waterLevelAt(p.x, p.y);
+            const float wl = levelAt(p.x, p.y);
             if (wl > h - 0.1f) continue;                            // wet bake cell (lake/ocean)
             if (flow.carvedRiverAt(p.x, p.y)) continue;             // carved river runs here (M2b-2: the class)
             Cand c;
@@ -375,7 +378,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                     const glm::vec2 cand = pos + glm::vec2((oi - 3.5f) * 16.0f, (oj - 3.5f) * 16.0f);
                     if (glm::length(cand - regionCentre) > P.regionRadius) continue;
                     const float h = heightAt(cand.x, cand.y);
-                    if (h < seaLvl + 2.0f || hydro.waterLevelAt(cand.x, cand.y) > h - 0.1f)
+                    if (h < seaLvl + 2.0f || levelAt(cand.x, cand.y) > h - 0.1f)
                         continue;
                     // Refinement must not drift a pair under the hard spacing minimum
                     // (selection checked centres; each site may then move up to ~80 u).
@@ -430,7 +433,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 const glm::vec2 p = g.cellCentre(cx, cz);
                 const int i = g.idx(cx, cz);
                 g.height[i] = heightAt(p.x, p.y);
-                g.wet[i] = hydro.waterLevelAt(p.x, p.y) > g.height[i] + 0.1f ? 1 : 0;
+                g.wet[i] = levelAt(p.x, p.y) > g.height[i] + 0.1f ? 1 : 0;
                 g.order[i] = flow.orderAt(p.x, p.y);
                 g.carved[i] = flow.carvedRiverAt(p.x, p.y) ? 1 : 0;
             }

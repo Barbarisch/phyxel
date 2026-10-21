@@ -13,6 +13,7 @@
 #include "core/WorldSheet.h"
 #include "core/FlowField.h"
 #include "core/WaterBodyIndex.h"
+#include "core/BasinRimCorrector.h"
 #include "core/Spline.h"
 #include "core/WaterOccupancy.h"
 #include "core/WorldConstants.h"
@@ -302,6 +303,14 @@ public:
     // Water BODY identity over the bake (tangible-water Phase A): which body a wet column belongs
     // to and what kind (OCEAN/LAKE infinite; POND finite/scoopable). Null when nothing is baked.
     const WaterBodyIndex* waterBodies()  const { return m_waterBodies.get(); }
+    // M2c (docs/WorldForgeV2Plan.md M2c): THE water level of a column — the bake's basin level
+    // after the rim guarantee (BasinRimCorrector): never above the lowest voxel surface of the
+    // basin's rim, NO_WATER where a cell dried under the lowered level. Every consumer that used
+    // to read HydrologyMap::waterLevelAt reads this; HydrologyMap keeps the raw coarse spill.
+    // Non-const: the correction samples this generator's own columns, lazily, once per basin.
+    float waterLevelAt(float worldX, float worldZ);
+    float basinLevel(int32_t bodyId);                    // corrected level of a body (raw if no corrector)
+    const BasinRimCorrector* rimCorrector() const { return m_rimCorrector.get(); }
 
     // ── WorldForge plan (docs/WorldForge.md) ────────────────────────────────────────────────
     // The world-scale settlement + road plan, baked in rebuildCoarseModel right after the
@@ -440,6 +449,7 @@ private:
     std::shared_ptr<HydrologyMap>   m_hydro;
     std::shared_ptr<FlowField>      m_flow;
     std::shared_ptr<WaterBodyIndex> m_waterBodies;  // body identity riding the bake (Phase A)
+    std::shared_ptr<BasinRimCorrector> m_rimCorrector;   // M2c: shared by every copy of this generator
 
     // WorldForge (docs/WorldForge.md): params come from the world recipe; the plan is baked
     // at the end of rebuildCoarseModel (after hydrology, which it consumes). NOT memoized

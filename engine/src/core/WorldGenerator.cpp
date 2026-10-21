@@ -331,6 +331,7 @@ struct HydroBake {
     std::shared_ptr<HydrologyMap> hydro;
     std::shared_ptr<FlowField> flow;
     std::shared_ptr<WaterBodyIndex> bodies;   // tangible-water Phase A: body identity rides the bake
+    std::shared_ptr<BasinRimCorrector> rim;   // M2c: the rim guarantee's memo (holds no generator)
 };
 std::mutex g_hydroCacheMutex;
 std::vector<std::pair<HydroBakeKey, HydroBake>> g_hydroCache;  // small: a handful of distinct configs
@@ -364,6 +365,7 @@ void WorldGenerator::rebuildCoarseModel() {
         m_hydro.reset();
         m_flow.reset();
         m_waterBodies.reset();
+        m_rimCorrector.reset();
         return;   // no hydrology → no worldforge plan (heightmap worlds are a logged gap)
     }
 
@@ -400,6 +402,7 @@ void WorldGenerator::rebuildCoarseModel() {
         m_hydro.reset();
         m_flow.reset();
         m_waterBodies.reset();
+        m_rimCorrector.reset();
         return;
     }
     // Cache lookup: the bake is fully determined by these inputs (region constants are compile-time).
@@ -414,6 +417,7 @@ void WorldGenerator::rebuildCoarseModel() {
                 m_hydro = e.second.hydro;
                 m_flow = e.second.flow;
                 m_waterBodies = e.second.bodies;
+                m_rimCorrector = e.second.rim;
                 cacheHit = true;
                 break;
             }
@@ -461,6 +465,8 @@ void WorldGenerator::rebuildCoarseModel() {
     // Body identity rides the bake (tangible-water Phase A). Built HERE because volumeEst needs
     // the flood's height function, which is not retained anywhere after this scope.
     m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, bakeHeight);
+    // M2c: the rim guarantee rides the bake (lazy per basin, shared by every copy + the cache).
+    m_rimCorrector = std::make_shared<BasinRimCorrector>(m_hydro, m_waterBodies, seaLvl);
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Water bodies labeled: "
              << m_waterBodies->bodies().size() << " bodies");
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << hydroCells << "x" << hydroCells
@@ -486,7 +492,7 @@ void WorldGenerator::rebuildCoarseModel() {
         for (const auto& e : g_hydroCache)
             if (e.first == key) present = true;  // someone else inserted it; ours is identical
         if (!present) {
-            g_hydroCache.push_back({key, {m_hydro, m_flow, m_waterBodies}});
+            g_hydroCache.push_back({key, {m_hydro, m_flow, m_waterBodies, m_rimCorrector}});
             if (g_hydroCache.size() > kHydroCacheCap) g_hydroCache.erase(g_hydroCache.begin());
         }
     }
@@ -519,8 +525,9 @@ std::shared_ptr<const WorldForgePlan> WorldGenerator::previewWorldForge(
     // the raw FlowField line can sit ~a channel-width away from the carved bed).
     auto surfaceY = [this](int x, int z) { return sampleColumn(x, z).surfaceY; };
     auto channel = [this](float x, float z) { return channelHitAt(x, z); };
+    auto levelAt = [this](float x, float z) { return waterLevelAt(x, z); };   // M2c: rim-corrected
     return WorldForgePlan::bake(params, seed, heightAt, *m_hydro, *m_flow, *m_waterBodies,
-                                surfaceMat, surfaceY, channel);
+                                surfaceMat, surfaceY, channel, levelAt);
 }
 
 void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
@@ -1017,8 +1024,8 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
                     filled[i] = m_hydro->filledAt(static_cast<float>(cx * 32 + lx) + 0.5f,
                                                   static_cast<float>(cz * 32 + lz) + 0.5f);
                     ground[i] = static_cast<float>(surf[i]) + 1.0f;   // top face of the solid voxel
-                    baked[i]  = m_hydro->waterLevelAt(static_cast<float>(cx * 32 + lx) + 0.5f,
-                                                      static_cast<float>(cz * 32 + lz) + 0.5f);
+                    baked[i]  = waterLevelAt(static_cast<float>(cx * 32 + lx) + 0.5f,   // M2c: rim-corrected
+                                             static_cast<float>(cz * 32 + lz) + 0.5f);
                 }
         }
 
@@ -1310,8 +1317,8 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             if (rh.cls > 0 && rh.gradeY > -1e29f && rh.dist <= half + kGradeBlend &&
                 col.riverOrder == 0 &&
                 col.surfaceY >= static_cast<int>(terrainParams.seaLevelY) &&
-                !(m_hydro && m_hydro->waterLevelAt(static_cast<float>(wx),
-                                                   static_cast<float>(wz)) >
+                !(m_hydro && waterLevelAt(static_cast<float>(wx),
+                                          static_cast<float>(wz)) >
                                  static_cast<float>(col.surfaceY))) {
                 const float w =
                     rh.dist <= half ? 1.0f : 1.0f - (rh.dist - half) / kGradeBlend;
@@ -1451,6 +1458,21 @@ glm::vec2 WorldGenerator::meanderedChannelPos(float wx, float wz) const {
         wz + kMeanderAmp * tnFbm(wx * kMeanderFreq, 131.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u));
 }
 
+float WorldGenerator::waterLevelAt(float worldX, float worldZ) {
+    if (!m_hydro) return HydrologyMap::NO_WATER;
+    if (!m_rimCorrector) return m_hydro->waterLevelAt(worldX, worldZ);
+    return m_rimCorrector->waterLevelAt(worldX, worldZ,
+                                        [this](int x, int z) { return sampleSurface(x, z).surfaceY; });
+}
+
+float WorldGenerator::basinLevel(int32_t bodyId) {
+    if (!m_waterBodies) return HydrologyMap::NO_WATER;
+    const WaterBodyIndex::Body* b = m_waterBodies->body(bodyId);
+    if (!b) return HydrologyMap::NO_WATER;
+    if (!m_rimCorrector) return b->level;
+    return m_rimCorrector->level(bodyId, [this](int x, int z) { return sampleSurface(x, z).surfaceY; });
+}
+
 FlowField::ChannelHit WorldGenerator::channelHitAt(float worldX, float worldZ) const {
     if (!m_flow) return {};
     const glm::vec2 m = meanderedChannelPos(worldX, worldZ);
@@ -1515,7 +1537,7 @@ bool WorldGenerator::floraCellLayer(int cx, int cz, int layerIdx, FloraPlacement
         if (rh.cls > 0 && rh.dist <= WorldForgePlan::roadHalfWidth(rh.cls) + 2.0f) return false;
     }
     if (m_hydro) {
-        const float wl = m_hydro->waterLevelAt(static_cast<float>(jx), static_cast<float>(jz));
+        const float wl = waterLevelAt(static_cast<float>(jx), static_cast<float>(jz));   // M2c
         if (wl > HydrologyMap::NO_WATER * 0.5f && static_cast<float>(col.surfaceY) < wl) return false;  // under lake/sea
     }
 
@@ -1621,7 +1643,7 @@ bool WorldGenerator::faunaCell(int cx, int cz, FaunaPlacement& out) {
     if (col.riverOrder > 0) return false;
     if (col.roadClass > 0) return false;   // WorldForge road (M1): herds don't anchor on the road
     if (m_hydro) {
-        const float wl = m_hydro->waterLevelAt(static_cast<float>(jx), static_cast<float>(jz));
+        const float wl = waterLevelAt(static_cast<float>(jx), static_cast<float>(jz));   // M2c
         if (wl > HydrologyMap::NO_WATER * 0.5f && static_cast<float>(col.surfaceY) < wl) return false;
     }
 
