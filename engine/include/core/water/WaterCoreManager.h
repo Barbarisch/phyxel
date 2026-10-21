@@ -53,6 +53,10 @@ struct AvRecord {
     double recordedM3 = 0.0;               ///< §27 W1b: this volume's water now in the record (m^3, the spans' unit)
     int recordedTiles = 0;                 ///< §27 W1b: tiles in the record now
     long tilesRecorded = 0, tilesWoken = 0;   ///< §27 W1b: since creation
+    long gpuWakeAll = 0;                   ///< whole-volume wakes of the GPU volume since creation (diagnostic)
+    float recordSpreadMmMax = 0.0f;        ///< §27 W1b: the largest sub-column surface spread inside a 1 m column a tile recorded with (mm)
+    float recordJumpMmMax = 0.0f;          ///< §27 W1b: the largest jump a wake will make (woken surface vs the surface it had, mm)
+    long tilesWokenByWrite = 0;            ///< §27 W1b: of the wakes, by a write (push, placed water, momentum, a body, a droplet) - the rest by moving water's margin
     double lastRecordMs = 0.0, lastWakeMs = 0.0, seedUnplacedM3 = 0.0;   ///< §27 W1b: the last tile record / wake (ms); seeded water the capacity refused
     int awakeColumns = 0, frozenColumns = 0, movingColumns = 0;   ///< 26.31: the last call's (WaterCoreGpu GpuStepStats)
     double carryBodyM3 = 0.0, carryRateM3 = 0.0, carryFlowM3 = 0.0, carryParkedM3 = 0.0;   ///< 26.32: the over-full carry since creation (m^3): made in a body's cells without / with a displacement rate, made elsewhere, parked at a ceiling
@@ -195,7 +199,8 @@ public:
         return false;
     }
     static inline bool s_recordTilesDefault = false;
-    static inline float s_recordAfterS = 2.0f;        ///< s a tile stays frozen before it records (ticks at 60 Hz)
+    static inline float s_recordAfterS = 2.0f;        ///< s a tile stays frozen before it records
+    static inline bool s_measureRecordJump = false;   ///< measurement: per record, the jump a wake will make (an extra seed + two extractions)
     static constexpr int kRecordTilesPerStep = 2;     ///< bounds a frame's cost when many tiles freeze at once
     /// ON by default since 2026-10-19 (the owner: "yeah. default"); a volume created with an explicit partial_wake keeps its own.
     static inline bool s_partialWakeDefault = true;
@@ -324,7 +329,7 @@ public:
     bool columnCells(float wx, float wz, std::vector<glm::vec2>& fs, float& y0, float& h);
     /// §27 W1 step 0 measurement: where a volume's water is - in air, inside ground (a seed that ignored occupancy), in cells of
     /// unknown occupancy, and above a full cell. m^3. A whole-volume GPU read-back - debug only.
-    struct Census { double massM3 = 0, inAirM3 = 0, inSolidM3 = 0, inUnknownM3 = 0, overFullM3 = 0; long wetCells = 0, inSolidCells = 0, inUnknownCells = 0, overFullCells = 0; };
+    struct Census { double massM3 = 0, inAirM3 = 0, inSolidM3 = 0, inUnknownM3 = 0, overFullM3 = 0, recordM3 = -1; long wetCells = 0, inSolidCells = 0, inUnknownCells = 0, overFullCells = 0; glm::vec4 sentinel{0.0f}; };   ///< recordM3: the record over the volume's box, read in the same call (-1 = no reader)
     bool census(int id, Census& out);
     /// Measurement (20, M2): the drawn surface of the volume sub-column under world (x, z) from the last
     /// surfaceFields(): `level` = the top of the run that starts lowest (the pond itself), `top` = the highest
@@ -455,10 +460,12 @@ private:
         bool recordTiles = false;
         double recordedM3 = 0.0;
         std::vector<std::pair<int, int>> recordedTileList;   ///< tile (x, z) indices in the record now
-        std::map<std::pair<int, int>, int> tileFrozenTicks;  ///< ticks each tile has had every stored column frozen (counted here: a
+        std::map<std::pair<int, int>, float> tileFrozenSeconds;   ///< s each tile has had every stored column frozen (counted here: a
                                                              ///< body whose columns all froze is asleep and runs no call to count them)
-        long tilesRecorded = 0, tilesWoken = 0;
+        long tilesRecorded = 0, tilesWoken = 0, tilesWokenByWrite = 0;
         double lastRecordMs = 0.0, lastWakeMs = 0.0;
+        float lastRecordSpreadMm = 0.0f, recordSpreadMmMax = 0.0f;   ///< the recorded tile's surface spread inside a 1 m column (mm)
+        float recordJumpMmMax = 0.0f;   ///< the largest |surface woken from the record - surface the tile had| (mm; s_measureRecordJump)
         double carryBodyM3 = 0.0, carryRateM3 = 0.0, carryFlowM3 = 0.0, carryParkedM3 = 0.0;   // 26.32: the over-full carry since the volume was made (m^3)
         double gpuUploadMs = 0.0; int gpuUploads = 0;   ///< 26.18: the last re-read's time, and how many
         double occRefreshMs = 0.0;                      ///< 26.18: the last occupancy re-sample of the box, ms
@@ -548,7 +555,7 @@ private:
     void refreshRecordTiles();
     void buildRecordTile(int tx, int tz, RecordTile& t);
     // §27 W1b: the tile life cycle of a GPU volume (after each step): wakes first, then tiles frozen long enough are recorded
-    void recordTilesStep(Av& av, int ticks);
+    void recordTilesStep(Av& av, float seconds);
     bool recordTile(Av& av, int tx, int tz);
     bool wakeTile(Av& av, int tx, int tz);
     void wakeRecordedNear(Av& av, const glm::vec3& world, float radius);   ///< wake the recorded tiles a write at `world` touches (+ 2 m)

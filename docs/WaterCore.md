@@ -62,7 +62,7 @@ partial surface (26.33).
 creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
-1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; W1b first slice BUILT §27.12 - frozen tiles sleep into the record and wake from it, the books exact, recording OFF by default; next: live timing + the owner's look, then the per-tile kernels and W1c-W1e). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
+1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; W1b first slice BUILT §27.12 - frozen tiles sleep into the record and wake from it, the books exact live, recording OFF by default; OPEN: after a strong push the pond with recording keeps sub-mm motion and never records again (live only); then the per-tile kernels and W1c-W1e). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
    PATCH from it, not a box. Phase D built sleep / wake for the old dense volumes (§16); not yet for today's sparse ones. Ends
    the 2 M-cell box (the CPU keeps only the woken patch).
 2. **W2 - appearance water.** Resting and far water drawn from the record with cosmetic motion and detail falling with
@@ -7875,6 +7875,29 @@ walled 32 x 16 m box does not settle a strength-4 push inside 15 s even with rec
 reflect, 26.29), so "tiles record again after a push" is reported there, not gated.
 Water unit 312/312, integration 135/137 (the FLIP run-up; SceneIntegrationTest). Built, not signed off; live timing and the
 owner's look wait for an idle GPU.
+
+**27.12 live, on an idle GPU (2026-10-20, `tools/water_record_tiles_live.py`; the walled 46 x 28 m bench pond, 24 tiles):**
+- **What works:** placed still, all 24 tiles record (the record holds the pond, the cells none) and the record draws it; a touch
+  wakes one tile, which records again; **the books exact live - cells + record within 1.8e-4 m^3 of 1,288** (read in ONE call:
+  `water_av_census` now returns `record_m3` beside the cells - read apart, tiles recorded between the reads and the first run's
+  "1.29e3 off" was that); the ground sentinel stays 0 (new `sentinel_max_fuvw` in the census, gated in the test).
+- **Found live and fixed (each a failed run first):** (6) the frozen time was counted in TICKS - live a tick is a frame (~400 fps),
+  so "2 s" recorded tiles in 0.3-0.8 s -> counted in seconds; (7) a seeded column's `fPrev` was left at 0 (only stepped bricks
+  refresh it; a seed is frozen) - the freeze test read |df| = 1 every call, the column counted as moving and its margin woke its
+  neighbours: **one push woke all 24 tiles in under 2 s** -> the seed writes fPrev too; gated: the test's woken-within-0.5 s bound
+  (4 = the pushed corner tile + its 3 neighbours) with a red control that skips the fPrev write (8 = every tile); (8) a droplet
+  landing on a recorded tile queued its deposit into the GROUND sentinel's cells -> a landing wakes the tile first.
+- **Cost:** a tile's record 4-9 ms, its wake 8-19 ms (host; main thread - a one-frame hitch per tile; the per-tile GPU kernels are
+  the cut); a push's whole-volume re-upload 72 ms (pre-existing, `markWritten` - logged as its own item).
+- **OPEN - after a strong push the pond with recording ON keeps moving and never records again.** Same push (strength 4), recording
+  OFF vs ON: kinetic energy OFF 1.76 -> 1.5e-2 (4 s) -> 3.6e-5 (8 s) -> 3e-8 (asleep by ~27 s); ON 1.76 -> 2.9e-3 (4 s) then UP
+  to 2-6e-2 over 6-19 s, ~1,300-1,400 columns "moving" at 25 s (`w1b_settle_ke.json`). It is sub-millimetre motion (6e-2 over this
+  pond is ~mm/s; the clip `w1b_live_look.mp4` looks calm). Ruled out by measurement: whole-volume wakes (1, at placement), uploads
+  and occupancy refreshes (none), the sentinel (0), the record-to-wake surface jump (0.000 mm - the tiles recorded flat), the
+  books. NOT reproduced in the test even at the live tick (1/400 s) through the realtime path
+  (`DISABLED_DiagEnergyAfterAPushOnTheBenchPond`, `W1B_DIAG_REALTIME=1`): there ON settles and all 24 tiles record again by 19.5 s.
+  So the cause is in what the live engine has and the test does not (the real span writer and chunks, the real occupancy, the
+  bench's params) - next: bisect it there. Recording stays OFF by default.
 
 ---
 

@@ -76,6 +76,9 @@ struct TileRun {
     float wokenLevelWorst = 0.0f;     // max |top - 1.000| over tile (0, 0)'s woken columns, 30 ticks after the wake (m)
     double recordMsMax = 0.0, wakeMsMax = 0.0, placed = 0.0, residueAtSettle = 0.0;
     int recordedAfterTouch = 0, wokenByTouch = 0;
+    int wokenHalfSecondAfterPush = 0;   // tiles woken in the 0.5 s after the push - the wake may not outrun the waves
+    std::vector<double> keAfterPush;    // every 10 ticks after the push (diagnostic)
+    double sentinelMax = 0.0;           // the ground sentinel's largest |f|/|u|/|v|/|w| after the push - must stay 0 (every recorded brick reads it)
     bool ok = false;
 };
 
@@ -83,7 +86,9 @@ struct TileRun {
 
 class WaterRecordTilesTest : public VulkanTestFixture {
 public:
-    TileRun run(bool open, bool recording = true) {
+    TileRun run(bool open, bool recording = true, bool seedSkipsFPrev = false) {
+        WaterCoreGpu::s_seedSkipsFPrevForTest = seedSkipsFPrev;
+        struct Restore { ~Restore() { WaterCoreGpu::s_seedSkipsFPrevForTest = false; } } restore;
         TileRun out;
         auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
         WaterCoreManager mgr(state);
@@ -135,9 +140,16 @@ public:
         // they arrive (wake ahead); open (the control), the water pours into it while it is still in the record
         WaterCoreGpu::s_recordedOpenForTest = open;
         mgr.addImpulse(glm::vec3(4.0f, 0.9f, 4.0f), 0.5f, 1.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        const long wokenBeforePush = r ? r->tilesWoken : 0;
         for (int k = 0; k < 110; ++k) {
             mgr.step(id, 1, dt, &rec); books();
             r = mgr.find(id);
+            if (k == 29 && r) out.wokenHalfSecondAfterPush = static_cast<int>(r->tilesWoken - wokenBeforePush);
+            if (r && (k % 10 == 9)) {
+                out.keAfterPush.push_back(rec.kineticEnergy);
+                WaterCoreManager::Census cs;
+                if (mgr.census(id, cs)) for (int q = 0; q < 4; ++q) out.sentinelMax = std::max(out.sentinelMax, static_cast<double>(cs.sentinel[q]));
+            }
             // tile (1, 0) = voxels x 8-15, z 0-7: while it is in the record its cells must hold nothing
             const bool t10Recorded = mgr.columnWaterRecordedForTest(id, 8, 0);
             if (t10Recorded) {
@@ -161,16 +173,63 @@ public:
     }
 };
 
+// DIAGNOSTIC (run by name): the live bench's numbers in a test - a 46 x 28 m pond 1 m deep (6 x 4 tiles at the origin, walled by its
+// box), droplets ON, ticks of 1/400 s (the bench steps one tick a frame at ~400 fps), a strength-4 push at (10, 20); kinetic energy
+// and moving columns every 0.5 s for 20 s, recording ON and OFF. Live, recording ON took the energy UP 25x over 4-19 s after the
+// push (OFF decays) and left ~1,400 columns "moving" at 8e-5 J. W1B_DIAG_DT overrides the tick (s); W1B_DIAG_NOMARGIN=1: recorded
+// tiles are woken only by writes.
+TEST_F(WaterRecordTilesTest, DISABLED_DiagEnergyAfterAPushOnTheBenchPond) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float dt = std::getenv("W1B_DIAG_DT") ? static_cast<float>(std::atof(std::getenv("W1B_DIAG_DT"))) : 1.0f / 400.0f;
+    for (bool rec : {false, true}) {
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        mgr.setDroplets(true);
+        FakeRecord record; record.install(mgr);
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(45, 1, 27), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_TRUE(id) << err;
+        mgr.setAutoSleep(id, false);
+        mgr.setPartialWake(id, true); mgr.setRecordTiles(id, rec);
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(45, 0, 27), 1.0f, nullptr);
+        AvRecord r;
+        const int perSecond = static_cast<int>(std::lround(1.0f / dt));
+        // W1B_DIAG_REALTIME=1: the live path - realtime update() (async calls, the once-a-second mirror), not step()
+        const bool live = std::getenv("W1B_DIAG_REALTIME") != nullptr;
+        mgr.setRealtime(live);
+        auto tick = [&]() { if (live) { mgr.update(dt); const AvRecord* a = mgr.find(id); if (a) r = *a; } else mgr.step(id, 1, dt, &r); };
+        for (int k = 0; k < 4 * perSecond; ++k) tick();
+        mgr.addImpulse(glm::vec3(10.0f, 0.9f, 20.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        std::printf("  recording %s, dt %.4f, %s:\n", rec ? "ON " : "OFF", dt, live ? "realtime update" : "step");
+        for (int k = 1; k <= 20 * perSecond; ++k) {
+            tick();
+            if (k % (perSecond / 2) == 0) {
+                const AvRecord* a = mgr.find(id);
+                std::printf("    %5.1fs KE %.2e moving %4d awake %4d in record %2d woken %2ld\n", k * dt, r.kineticEnergy, a ? a->movingColumns : -1, a ? a->awakeColumns : -1,
+                            a ? a->recordedTiles : -1, a ? a->tilesWoken : -1L);
+            }
+        }
+    }
+}
+
 TEST_F(WaterRecordTilesTest, FrozenTilesRecordAndWakeWithTheBooksExact) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     const TileRun w = run(false);
     const TileRun o = run(true);
-    if (std::getenv("W1B_BASELINE")) run(false, false);   // diagnostic: the same pushes with recording off (prints its end state)
-    ASSERT_TRUE(w.ok && o.ok);
+    const TileRun c = run(false, true, true);   // red control of the wake-speed bound: the seed leaves fPrev at 0 (the live cascade)
+    if (std::getenv("W1B_BASELINE")) {   // diagnostic: the same pushes with recording off - its kinetic energy beside the walled run's
+        const TileRun b = run(false, false);
+        std::printf("  KE after the push every 10 ticks, recording ON :"); for (double k : w.keAfterPush) std::printf(" %.2e", k); std::printf("\n");
+        std::printf("  KE after the push every 10 ticks, recording OFF:"); for (double k : b.keAfterPush) std::printf(" %.2e", k); std::printf("\n");
+    }
+    ASSERT_TRUE(w.ok && o.ok && c.ok);
+    std::printf("  SEED fPrev 0 (red control): woken 0.5 s after the push %d, woken in all %d\n", c.wokenHalfSecondAfterPush, c.woken);
+    EXPECT_GT(c.wokenHalfSecondAfterPush, 3) << "the control must cascade - or the bound does not see a wake that outruns the waves";
     std::printf("  WALL: placed %.4f m3, residue at settle %.2e; after settle %d tiles recorded, cells %.4f m3, record %.4f m3; woken %d; level worst %.2f mm; neighbour cells %.4f m3; "
-                "touch woke %d, recorded again %d; recorded at end %d; books worst %.2e m3; record %.1f ms, wake %.1f ms max\n",
+                "touch woke %d, recorded again %d; woken 0.5 s after the push %d; recorded at end %d; books worst %.2e m3; record %.1f ms, wake %.1f ms max\n",
                 w.placed, w.residueAtSettle, w.recordedAfterSettle, w.massAfterSettle, w.recordAfterSettle, w.woken, 1000.0f * w.wokenLevelWorst, w.neighbourCellsM3,
-                w.wokenByTouch, w.recordedAfterTouch, w.recordedAtEnd, w.booksWorst, w.recordMsMax, w.wakeMsMax);
+                w.wokenByTouch, w.recordedAfterTouch, w.wokenHalfSecondAfterPush, w.recordedAtEnd, w.booksWorst, w.recordMsMax, w.wakeMsMax);
     std::printf("  OPEN (red control): woken %d; neighbour cells %.4f m3; books worst %.2e m3\n", o.woken, o.neighbourCellsM3, o.booksWorst);
     EXPECT_EQ(w.recordedAfterSettle, 8) << "every tile of a still pond records";
     EXPECT_LT(w.massAfterSettle, 1e-3) << "m3 left in cells once every tile is recorded";
@@ -180,6 +239,13 @@ TEST_F(WaterRecordTilesTest, FrozenTilesRecordAndWakeWithTheBooksExact) {
     EXPECT_LT(w.wokenLevelWorst, 1e-3f) << "the woken tile at the still level";
     EXPECT_EQ(w.recordedAfterTouch, 8) << "the woken tile, at rest, records again";
     EXPECT_GE(w.woken, 3) << "the touch, the push, and the push's waves woke the tile ahead of them (wake ahead)";
+    // live, a seeded tile read |df| = 1 every call (its fPrev was never written: frozen bricks are not stepped) - moving, so its
+    // margin woke its neighbours, and theirs: all 24 tiles of the bench pond in under 2 s. In 0.5 s the splash reaches the pushed
+    // tile's neighbours at most - tile (0, 0) is a corner of the 4 x 2 tiles, so the pushed tile and its 3 neighbours: 4 (first
+    // run: 4; the control: all 8)
+    EXPECT_LE(w.wokenHalfSecondAfterPush, 4) << "tiles woken 0.5 s after the push - the wake ran past the pushed tile's neighbours";
     EXPECT_LT(w.neighbourCellsM3, 1e-6) << "a recorded tile's cells hold no water (the wall)";
+    std::printf("  ground sentinel after the push: max %.3e (must be 0)\n", w.sentinelMax);
+    EXPECT_EQ(w.sentinelMax, 0.0) << "something wrote into the ground sentinel - every recorded brick reads that value";
     EXPECT_GT(o.neighbourCellsM3, 1e-3) << "the red control: with the wall open the woken water pours into the recorded tile";
 }

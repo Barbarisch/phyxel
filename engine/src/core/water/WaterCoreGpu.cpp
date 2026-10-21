@@ -552,6 +552,7 @@ void WaterCoreGpu::setPartialWake(Volume& vol, bool on) {
 }
 
 void WaterCoreGpu::wakeAll(Volume& vol) {
+    ++vol.wakeAllCount;   // §27 W1b diagnostic: a whole-volume wake (every column moving -> every recorded tile in the margin wakes)
     vol.asleep = false; vol.quietTicks = 0;
     vol.wakeAllPending = true;
 }
@@ -603,6 +604,22 @@ bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::iv
         out.occ(x - x0, y, z - z0) = d < vol.hostOcc.size() ? static_cast<Occ>(vol.hostOcc[d]) : Occ::Solid;
     }
     return true;
+}
+
+// §27 W1b measurement: the GROUND sentinel (slot 1) must never be written - every ground and recorded brick reads it. Its largest
+// |f|, |u|, |v|, |w|, read back (a settle + one small copy). Debug only.
+glm::vec4 WaterCoreGpu::sentinelMaxAbs(Volume& vol) {
+    if (!vol.bricked) return glm::vec4(0.0f);
+    settle(vol);
+    const VkDeviceSize off = static_cast<VkDeviceSize>(kGround) * vol.bc * 4, bytes = vol.bc * 4;
+    VkCommandBuffer cmd = beginCommands();
+    const Buffer* bufs[4] = {&vol.f, &vol.u, &vol.v, &vol.w};
+    for (int k = 0; k < 4; ++k) copy(cmd, *bufs[k], vol.staging, bytes, off, static_cast<VkDeviceSize>(k) * bytes);
+    submitAndWait(cmd);
+    glm::vec4 m(0.0f);
+    const float* s = reinterpret_cast<const float*>(vol.staging.mapped);
+    for (int k = 0; k < 4; ++k) for (size_t i = 0; i < vol.bc; ++i) m[k] = std::max(m[k], std::abs(s[static_cast<size_t>(k) * vol.bc + i]));
+    return m;
 }
 
 void WaterCoreGpu::setColumnsRecorded(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi) {
@@ -685,6 +702,10 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
         while (e < touched.size() && touched[e] == touched[e - 1] + 1) ++e;
         const VkDeviceSize first = static_cast<VkDeviceSize>(touched[a]) * vol.bc * 4, bytes = static_cast<VkDeviceSize>(e - a) * vol.bc * 4;
         copy(cmd, vol.staging, vol.f, bytes, first, first);
+        // fPrev too: the freeze test's |f - fPrev| covers every stored brick, but fPrev is refreshed only for the STEPPED ones - a
+        // seeded column is frozen, so its fPrev stayed at the allocation's 0 and it read |df| = 1 every call: moving, its margin woke
+        // its neighbours, whose seeds did the same (one push woke all 24 tiles of the bench pond in under 2 s, live)
+        if (!s_seedSkipsFPrevForTest) copy(cmd, vol.staging, vol.fPrev, bytes, first, first);
         a = e;
     }
     if (vol.tablesDirty) { writeTablesToStaging(vol); copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks); vol.tablesDirty = false; }
@@ -714,8 +735,9 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
                 k += q.x; d = std::max(d, q.y); m += q.z;
             }
             const double qs = static_cast<double>(s_columnQuietScale);   // 26.34: the freeze test's thresholds (1 = the volume's own)
+            const size_t ci = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
             const bool quiet = m < 1e-3 || (k / m < params.keWake * qs && d < params.maxDeltaFQuiet * qs);
-            int& qt = vol.colQuiet[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz];
+            int& qt = vol.colQuiet[ci];
             qt = quiet ? std::min(qt + vol.unitsTicks, 1 << 30) : 0;
         }
         vol.unitsFresh = false;

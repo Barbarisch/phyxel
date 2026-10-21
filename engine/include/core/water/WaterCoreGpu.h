@@ -193,6 +193,7 @@ public:
         bool anyRecorded = false;
         std::vector<int> recordedWakes; ///< brick columns (index bx + bn.x bz) a wake reached since the manager last took them
         double seedUnplacedM3 = 0.0;    ///< seeded water whose brick the capacity refused (m^3, cumulative) - reported, never silent
+        long wakeAllCount = 0;          ///< whole-volume wakes since creation (diagnostic)
         int awakeCols = 0, frozenCols = 0, movingCols = 0;
         // 26.31 step 2: the awake bricks held in slots [kFirstSlot, stepSlots) and the awake column entries first (stepCols) - the
         // step's dispatches and copies cover only those (frozen bricks get no threads); 0 = every stored brick (no partial wake)
@@ -294,8 +295,7 @@ public:
     /// 26.31 the partial wake: on/off per volume (sparse only; off = every stored brick steps, as before). The margin (brick
     /// columns grown round the moving ones) is kPartialWakeMargin.
     void setPartialWake(Volume& vol, bool on);
-    static constexpr int kPartialWakeMargin = 2;
-    /// TEST ONLY (WaterPartialWakeTest's red control): frozen columns are skipped but NOT a wall - their awake neighbours read them as water.
+    static constexpr int kPartialWakeMargin = 2;    /// TEST ONLY (WaterPartialWakeTest's red control): frozen columns are skipped but NOT a wall - their awake neighbours read them as water.
     static inline bool s_partialWakeOpenInterfaceForTest = false;
     /// 26.33: with the partial wake, the surface kernel and its copy to the host cover the AWAKE columns only (a frozen column's
     /// surface cannot change); false = every column every call (the A/B, water_av_partial_wake {surface}).
@@ -320,6 +320,8 @@ public:
     bool readColumns(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi, WaterGrid& out);
     /// §27 W1b: the brick columns [bLo, bHi] are RECORDED from the next call (their bricks freed, read as ground - a wall).
     void setColumnsRecorded(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi);
+    /// §27 W1b measurement: the ground sentinel's largest |f|, |u|, |v|, |w| (must stay 0 - every ground and recorded brick reads it).
+    glm::vec4 sentinelMaxAbs(Volume& vol);
     /// §27 W1b: wake recorded columns [bLo, bHi] with the cells in `cells` (spec in world cells, the volume's h): their bricks (and a
     /// ring of halo) are stored and these fills uploaded NOW (one submission), the columns at rest (frozen unless motion reaches them).
     void seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& bLo, const glm::ivec2& bHi);
@@ -328,6 +330,8 @@ public:
     /// §27 W1b TEST ONLY: recorded columns NOT walled - the halo stores their bricks as air and they are not frozen, so awake water
     /// beside them pours in (the water then sits in cells AND in the record): the red control.
     static inline bool s_recordedOpenForTest = false;
+    /// §27 W1b TEST ONLY: the seed leaves fPrev at 0 (the live cascade's cause) - the red control of the wake-speed bound.
+    static inline bool s_seedSkipsFPrevForTest = false;
     static inline double s_tsMs[TsLabelCount] = {};
     static inline long s_tsCalls = 0;
     void setOmega(float w) { m_omega = w; }
