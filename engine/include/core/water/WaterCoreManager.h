@@ -349,6 +349,7 @@ public:
     /// each on its own: the highest drawn top (false = no field draws water here - a hole), and whether a live volume holds
     /// the column in its record (recorded = 1).
     bool drawnAtWorld(float x, float z, float& top, bool& recorded) const;
+    int dryRecordedColumns() const;   // 27.16: recorded-tile columns a volume's field draws as dry (walls) - 0 when correct
     /// Measurement (21.7 S1): every DETACHED run of water in every fill volume now (WaterDroplets.h) - world
     /// position of its bottom cell's centre, its water (m^3), length and whether it is isolated. A GPU volume
     /// is read back (two submit-and-waits): a debug cost, called only while `water_jet_scan` records.
@@ -577,6 +578,7 @@ private:
     // §27 W1b: the tile life cycle of a GPU volume (after each step): wakes first, then tiles frozen long enough are recorded
     void recordTilesStep(Av& av, float seconds);
     bool recordTile(Av& av, int tx, int tz);
+    void markRecordedColumns(Av& av, int tx, int tz);   // 27.15/27.16: a recorded tile's columns in the volume's field -> the record's (runs -1)
     bool wakeTile(Av& av, int tx, int tz);
     /// wake the recorded tiles a write at `world` touches (+ s_writeWakeReachM); deferred = before the next call (a write that
     /// lands then too - a droplet's deposit), not now (a collect between two calls breaks the freeze test, 27.13)

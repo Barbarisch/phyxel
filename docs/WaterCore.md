@@ -8015,6 +8015,26 @@ clip scan flags only the push's splash and ring (`w1c_wake_fixed3_qs10.mp4`, qui
 integration 45/46 (the known GpuFlipBulkParityAndRunup). No deterministic test pins A-C yet (the probe is live; an integration
 test of `drawnAtWorld` over a woken tile is the next step). Recording stays OFF by default; the quiet scale is still the owner's call.
 
+### 27.16 A line sweeping the pond as it goes INTO the record (2026-10-22): defect C the other way, fixed
+
+The owner on `w1c_wake_fixed3_qs10.mp4`: "a weird visual artifact that moves across the water ... around the 2 second mark".
+Frames 2.45-2.65 s show a thin dark line moving toward the camera and a yellow speck at the far wall - while the placed pond's
+tiles recorded (0 -> 18 -> 24 between 2.33 and 2.92 s). 27.15's probe watched only tiles WAKING (it started once all 24 were
+recorded), so it never saw the going-in. Cause: `recordTile` cleared the tile's columns in the volume's field to DRY; the -1
+marking (27.15 C) came only at the volume's next step, so meanwhile the live water beside the tile walled it off - and a pond
+asleep as a whole never steps again, so the dry columns stayed. Fix: `recordTile` marks them the record's at once (one helper,
+`markRecordedColumns`, used by it and by `surfaceFields`).
+Measurement added: `water_av_watch` rows end with `dryRecordedColumns()` (recorded-tile columns a volume's field draws as dry;
+0 when correct); `tools/water_wake_holes.py --going-in` watches from the placement until every tile is recorded.
+| Run | Wall frames | Worst columns | Holes |
+|---|---|---|---|
+| going in, before (`w1c_going_in_before.json`) | 411 (2.40 s to the end) | 104,328 | 0 after the water is placed |
+| going in, after (`w1c_going_in_after.json`) | 0 | 0 | 0 after the water is placed |
+| waking, after (`w1c_wake_holes_after2.json`) | 0 | 0 | 0 |
+(The 4 hole frames per point at 0.002-0.014 s in the going-in runs are before the water exists.) The re-filmed clip
+`w1c_wake_fixed4_qs10.mp4` (same rig, quiet scale 10) shows no line or speck at 2-3 s frame by frame; the mouse pointer is in its
+shot (a capture slip, not the water). Tests: water unit 312/312, water integration 45/46 (the known GpuFlipBulkParityAndRunup).
+
 ---
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)

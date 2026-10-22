@@ -3776,6 +3776,7 @@ void Application::update(float deltaTime) {
                         if (!waterCore->drawnAtWorld(pt.x, pt.y, dr, rec)) dr = std::numeric_limits<float>::quiet_NaN();
                         row.push_back(lv); row.push_back(tp); row.push_back(dr); row.push_back(rec ? 1.0f : 0.0f);   // 27.15: drawn, recorded
                     }
+                    row.push_back(static_cast<float>(waterCore->dryRecordedColumns()));   // 27.16: the last value - walled recorded columns
                     m_watchRows.push_back(std::move(row));
                 }
                 if (m_jetScanOn && m_jetRows.size() < 200000) {   // water_jet_scan (21.7 S1): every frame
@@ -14331,7 +14332,7 @@ void Application::registerWaterCommands() {
         }
         nlohmann::json pts = nlohmann::json::array();
         for (const auto& pt : m_watchPoints) pts.push_back({pt.x, pt.y});
-        r = {{"points", pts}, {"frames", m_watchRows.size()}, {"rows", rows}, {"columns", "t, then per point: level, top (the first field covering it; null = dry), drawn (the highest top ANY field draws - the record tiles too; null = a hole), recorded (1/0)"}};
+        r = {{"points", pts}, {"frames", m_watchRows.size()}, {"rows", rows}, {"columns", "t, then per point: level, top (the first field covering it; null = dry), drawn (the highest top ANY field draws - the record tiles too; null = a hole), recorded (1/0); the row's LAST value: recorded-tile columns a volume draws as dry (27.16, walls; 0 = correct)"}};
     });
     // 21.7 S1 measurement: {on: true} records every detached run of water (WaterDroplets.h) every frame, {on: false}
     // stops; every call returns the rows so far: t (s from the start), bottom cell centre x y z, volume m^3, sum f,

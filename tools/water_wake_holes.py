@@ -21,6 +21,8 @@ def main():
     ap.add_argument("--strength", type=float, default=4.0)
     ap.add_argument("--json", default=None)
     ap.add_argument("--edges", action="store_true", help="also watch 0.3 m either side of every tile boundary (100 points)")
+    ap.add_argument("--going-in", action="store_true", help="27.16: watch the pond going INTO the record (from the placement until "
+                    "every tile is recorded + 1.5 s), no push")
     a = ap.parse_args()
     api = Api(a.url); api.wait_status(300)
     api.debug("water_av_realtime", {"on": True})
@@ -35,14 +37,6 @@ def main():
     api.debug("water_av_record_tiles", {"id": vid, "on": True, "after_s": 2.0})
     c0 = api.debug("water_av_census", {"id": vid})
     if c0.get("record_m3", 0) > 1e-3: sys.exit(f"the record is not empty ({c0.get('record_m3')} m^3) - restart the engine (27.14 finding 3)")
-    api.debug("place_water_box", {"target": "core", **{**box, "y2": 16}, "mass": 1.0})
-    t0 = time.time()
-    while time.time() - t0 < 30:
-        v = next(x for x in api.debug("water_av_list")["volumes"] if x["id"] == vid)
-        if v.get("recorded_tiles") == 24: break
-        time.sleep(0.25)
-    print("tiles in the record before the push:", v.get("recorded_tiles"))
-    time.sleep(1.0)
     tiles = [(tx, tz) for tz in range(4) for tx in range(6)]
     pts = [[tx * 8 + 4.05, min(tz * 8 + 4, 26) + 0.05] for tx, tz in tiles]
     names = [f"tile ({tx},{tz}) centre" for tx, tz in tiles]
@@ -53,16 +47,28 @@ def main():
         for ez in (8, 16, 24):
             for tx in range(6):
                 for d in (-0.3, 0.3): pts.append([tx * 8 + 4.05, ez + d]); names.append(f"z edge {ez}{d:+.1f} x {tx * 8 + 4}")
-    api.debug("water_av_watch", {"points": pts})
-    time.sleep(0.5)
-    tp = time.time()
-    api.debug("water_av_impulse", {"x": x0 + 10.0, "y": 16.9, "z": z0 + w - 8.0, "radius": 0.5, "strength": a.strength, "dy": -1.0})
-    tpush = None
-    time.sleep(a.after)
+    if a.going_in: api.debug("water_av_watch", {"points": pts})
+    tw = time.time()
+    api.debug("place_water_box", {"target": "core", **{**box, "y2": 16}, "mass": 1.0})
+    t0 = time.time()
+    while time.time() - t0 < 30:
+        v = next(x for x in api.debug("water_av_list")["volumes"] if x["id"] == vid)
+        if v.get("recorded_tiles") == 24: break
+        time.sleep(0.1)
+    print("tiles in the record:", v.get("recorded_tiles"), f"after {time.time() - t0:.2f} s")
+    if a.going_in:
+        time.sleep(1.5)
+        t_push = 0.0   # times below: from the watch start (just before the placement)
+    else:
+        time.sleep(1.0)
+        api.debug("water_av_watch", {"points": pts})
+        time.sleep(0.5)
+        api.debug("water_av_impulse", {"x": x0 + 10.0, "y": 16.9, "z": z0 + w - 8.0, "radius": 0.5, "strength": a.strength, "dy": -1.0})
+        time.sleep(a.after)
     res = api.debug("water_av_watch", {"stop": True})
     rows = res["rows"]
     # the push's time on the watch clock: the watch started 0.5 s before it (the API round trip is a few ms)
-    t_push = rows[0][0] + (tp - (tp - 0.5)) if rows else 0.0
+    if not a.going_in: t_push = rows[0][0] + 0.5 if rows else 0.0
     out = {"tiles": [], "frames": len(rows)}
     total = 0
     print(f"{len(rows)} frames watched; HOLE = no field draws water at the tile's centre")
@@ -77,6 +83,10 @@ def main():
         out["tiles"].append(e)
         if holes or k < len(tiles): print(f"  {nm:24s} x {pts[k][0]:5.2f} z {pts[k][1]:5.2f}: holes {len(holes):4d}  first {e['first_s']}  last {e['last_s']}  recorded at holes {e['recorded_at_holes']}  recorded flips {flips}")
     print(f"TOTAL hole frames: {total} (prediction for a correct hand-over: 0)")
+    walls = [(round(r[0] - t_push, 3), int(r[-1])) for r in rows if len(r) > 1 + 4 * len(pts) and r[-1]]
+    out["wall_frames"] = len(walls); out["wall_columns_max"] = max((c for _, c in walls), default=0); out["wall_frames_list"] = walls[:200]
+    print(f"WALL frames (recorded-tile columns a volume draws as dry): {len(walls)}, worst {out['wall_columns_max']} columns"
+          + (f", first {walls[0][0]} s last {walls[-1][0]} s" if walls else "") + " (prediction for a correct hand-over: 0)")
     if a.json: pathlib.Path(a.json).write_text(json.dumps({**out, "rows": rows, "points": pts}))
 
 
