@@ -927,6 +927,9 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
                 av.field.cols[static_cast<size_t>(fx) + static_cast<size_t>(av.field.nx) * fz] = sf.at(x, z);
         }
         av.field.version = (1ull << 62) + (++m_fieldBumps);
+        // 27.15: ... and keeps drawing it until a surface computed after the seed is read (surfaceFields re-applies it)
+        Av::SeedPatch sp; sp.x0 = x0; sp.z0 = z0; sp.nx = sf.nx; sp.nz = sf.nz; sp.cols = sf.cols; sp.afterCall = m_gpu->callsSubmitted(vol);
+        av.seedPatches.push_back(std::move(sp));
     }
     m_gpu->seedColumns(vol, std::move(g), bLo, bHi);
     // the record gives the water back: its columns cleared, the body debited
@@ -1123,8 +1126,45 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
                 f.origin = av->grid->spec().origin; f.nx = av->grid->nx(); f.nz = av->grid->nz(); f.h = av->h;
                 f.cols.resize(static_cast<size_t>(f.nx) * f.nz);
                 got = m_gpu->readSurface(*av->gpuVol, reinterpret_cast<float*>(f.cols.data()), keep);
+                // 27.15: a woken tile's seed stays drawn until the surface read is of a call submitted after the seed
+                const uint64_t sc = m_gpu->surfaceCallId(*av->gpuVol);
+                for (auto it = av->seedPatches.begin(); it != av->seedPatches.end();) {
+                    if (got && sc > it->afterCall) { it = av->seedPatches.erase(it); continue; }
+                    for (int z = 0; z < it->nz; ++z) for (int x = 0; x < it->nx; ++x) {
+                        const int fx = it->x0 + x, fz = it->z0 + z;
+                        if (fx < f.nx && fz < f.nz) f.cols[static_cast<size_t>(fx) + static_cast<size_t>(f.nx) * fz] = it->cols[static_cast<size_t>(x) + static_cast<size_t>(it->nx) * z];
+                    }
+                    ++it;
+                }
             }
             if (!got) { syncFromGpu(*av, false); extractSurfaceField(*av->grid, av->field); }
+            // 27.15: the recorded tiles' columns are the record's to draw - marked "not this field's" (runs -1), so the volume's mesh
+            // ends there like at its box edge instead of walling them off as dry (a wall from the surface to the bed showed - yellow
+            // bed through it, a dark crease along its top - wherever the woken water moved beside a recorded tile, live)
+            if (!av->recordedTileList.empty()) {
+                WaterSurfaceField& f = av->field;
+                const glm::ivec3 so = av->grid->spec().origin;
+                for (const auto& [tx, tz] : av->recordedTileList) {
+                    const int x0 = std::max(0, tx * kTileVoxels * av->per - so.x), x1 = std::min(f.nx - 1, (tx + 1) * kTileVoxels * av->per - 1 - so.x);
+                    const int z0 = std::max(0, tz * kTileVoxels * av->per - so.z), z1 = std::min(f.nz - 1, (tz + 1) * kTileVoxels * av->per - 1 - so.z);
+                    // ... carrying the record's drawn level (its tile's field, the last built - absent out of the draw range), so the
+                    // volume's surface meets it at the seam (WaterSurfaceMesh cornerY)
+                    const auto rt = m_recordTiles.find({tx, tz});
+                    const WaterSurfaceField* rf = (rt != m_recordTiles.end() && rt->second.wet && rt->second.field.h == f.h) ? &rt->second.field : nullptr;
+                    for (int z = z0; z <= z1; ++z) for (int x = x0; x <= x1; ++x) {
+                        SurfaceColumn& c = f.cols[static_cast<size_t>(x) + static_cast<size_t>(f.nx) * z];
+                        const float st = c.solidTopY; c = SurfaceColumn{}; c.solidTopY = st; c.runs = -1.0f;
+                        if (rf) {
+                            const int rx = x + so.x - rf->origin.x, rz = z + so.z - rf->origin.z;
+                            if (rx >= 0 && rz >= 0 && rx < rf->nx && rz < rf->nz) {
+                                const SurfaceColumn& r = rf->at(rx, rz);
+                                const int n = std::min(static_cast<int>(r.runs + 0.5f), kSurfaceMaxRuns);
+                                if (n > 0) { c.top[0] = r.top[n - 1]; c.bottom[0] = r.bottom[n - 1]; }
+                            }
+                        }
+                    }
+                }
+            }
             av->fieldStep = av->stepCount;
             av->field.source = av->id; av->field.version = av->fieldStep + 1;   // 26.30: the tiler skips a field whose version stands (an asleep volume)
             av->field.look = packLook(lookAt((av->minVoxel.x + av->maxVoxel.x) / 2, (av->minVoxel.z + av->maxVoxel.z) / 2));   // G3
@@ -1621,6 +1661,22 @@ bool WaterCoreManager::surfaceAtWorld(float x, float z, float& level, float& top
         return true;
     }
     return false;
+}
+
+bool WaterCoreManager::drawnAtWorld(float x, float z, float& top, bool& recorded) const {
+    bool any = false; top = -1e30f; recorded = false;
+    for (const WaterSurfaceField* fp : m_fields) {
+        const WaterSurfaceField& f = *fp;
+        const int cx = static_cast<int>(std::floor(x / f.h)) - f.origin.x, cz = static_cast<int>(std::floor(z / f.h)) - f.origin.z;
+        if (cx < 0 || cz < 0 || cx >= f.nx || cz >= f.nz) continue;
+        const SurfaceColumn& c = f.at(cx, cz);
+        const int runs = std::min(static_cast<int>(c.runs + 0.5f), kSurfaceMaxRuns);
+        if (runs <= 0) continue;
+        any = true; top = std::max(top, c.top[runs - 1]);
+    }
+    const int wx = static_cast<int>(std::floor(x)), wz = static_cast<int>(std::floor(z));
+    for (const auto& av : m_avs) if (columnRecorded(*av, wx, wz)) recorded = true;
+    return any;
 }
 
 bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const {

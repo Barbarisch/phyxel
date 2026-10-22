@@ -1,0 +1,533 @@
+{
+ "tiles": [
+  {
+   "tile": [
+    0,
+    0
+   ],
+   "point": [
+    4.05,
+    4.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    2.548,
+    9.981
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    1,
+    0
+   ],
+   "point": [
+    12.05,
+    4.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    2.499,
+    10.548
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    2,
+    0
+   ],
+   "point": [
+    20.05,
+    4.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    2.548,
+    10.548
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    3,
+    0
+   ],
+   "point": [
+    28.05,
+    4.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    4.182,
+    9.473
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    4,
+    0
+   ],
+   "point": [
+    36.05,
+    4.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    5,
+    0
+   ],
+   "point": [
+    44.05,
+    4.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    0,
+    1
+   ],
+   "point": [
+    4.05,
+    12.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    0.258,
+    13.997,
+    14.218,
+    17.292,
+    17.511,
+    19.883
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    1,
+    1
+   ],
+   "point": [
+    12.05,
+    12.05
+   ],
+   "hole_frames": 73,
+   "first_s": 0.215,
+   "last_s": 0.848,
+   "recorded_flips_s": [
+    0.215,
+    21.207
+   ],
+   "recorded_at_holes": [
+    0.0
+   ]
+  },
+  {
+   "tile": [
+    2,
+    1
+   ],
+   "point": [
+    20.05,
+    12.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    0.258,
+    14.949,
+    17.421,
+    19.883
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    3,
+    1
+   ],
+   "point": [
+    28.05,
+    12.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    2.499,
+    9.86
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    4,
+    1
+   ],
+   "point": [
+    36.05,
+    12.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    5,
+    1
+   ],
+   "point": [
+    44.05,
+    12.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    0,
+    2
+   ],
+   "point": [
+    4.05,
+    20.05
+   ],
+   "hole_frames": 73,
+   "first_s": 0.215,
+   "last_s": 0.848,
+   "recorded_flips_s": [
+    0.215,
+    19.967
+   ],
+   "recorded_at_holes": [
+    0.0
+   ]
+  },
+  {
+   "tile": [
+    1,
+    2
+   ],
+   "point": [
+    12.05,
+    20.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    0.141,
+    22.509
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    2,
+    2
+   ],
+   "point": [
+    20.05,
+    20.05
+   ],
+   "hole_frames": 73,
+   "first_s": 0.215,
+   "last_s": 0.848,
+   "recorded_flips_s": [
+    0.215,
+    22.48
+   ],
+   "recorded_at_holes": [
+    0.0
+   ]
+  },
+  {
+   "tile": [
+    3,
+    2
+   ],
+   "point": [
+    28.05,
+    20.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    2.439,
+    9.86
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    4,
+    2
+   ],
+   "point": [
+    36.05,
+    20.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    7.228,
+    9.58
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    5,
+    2
+   ],
+   "point": [
+    44.05,
+    20.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    0,
+    3
+   ],
+   "point": [
+    4.05,
+    26.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    0.258,
+    14.115,
+    14.145,
+    17.327
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    1,
+    3
+   ],
+   "point": [
+    12.05,
+    26.05
+   ],
+   "hole_frames": 3,
+   "first_s": 0.215,
+   "last_s": 0.271,
+   "recorded_flips_s": [
+    0.215,
+    17.327
+   ],
+   "recorded_at_holes": [
+    0.0
+   ]
+  },
+  {
+   "tile": [
+    2,
+    3
+   ],
+   "point": [
+    20.05,
+    26.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    0.258,
+    13.867,
+    14.04,
+    16.567
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    3,
+    3
+   ],
+   "point": [
+    28.05,
+    26.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [
+    2.499,
+    10.127
+   ],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    4,
+    3
+   ],
+   "point": [
+    36.05,
+    26.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [],
+   "recorded_at_holes": []
+  },
+  {
+   "tile": [
+    5,
+    3
+   ],
+   "point": [
+    44.05,
+    26.05
+   ],
+   "hole_frames": 0,
+   "first_s": null,
+   "last_s": null,
+   "recorded_flips_s": [],
+   "recorded_at_holes": []
+  }
+ ],
+ "frames": 11790,
+ "points": [
+  [
+   4.05,
+   4.05
+  ],
+  [
+   12.05,
+   4.05
+  ],
+  [
+   20.05,
+   4.05
+  ],
+  [
+   28.05,
+   4.05
+  ],
+  [
+   36.05,
+   4.05
+  ],
+  [
+   44.05,
+   4.05
+  ],
+  [
+   4.05,
+   12.05
+  ],
+  [
+   12.05,
+   12.05
+  ],
+  [
+   20.05,
+   12.05
+  ],
+  [
+   28.05,
+   12.05
+  ],
+  [
+   36.05,
+   12.05
+  ],
+  [
+   44.05,
+   12.05
+  ],
+  [
+   4.05,
+   20.05
+  ],
+  [
+   12.05,
+   20.05
+  ],
+  [
+   20.05,
+   20.05
+  ],
+  [
+   28.05,
+   20.05
+  ],
+  [
+   36.05,
+   20.05
+  ],
+  [
+   44.05,
+   20.05
+  ],
+  [
+   4.05,
+   26.05
+  ],
+  [
+   12.05,
+   26.05
+  ],
+  [
+   20.05,
+   26.05
+  ],
+  [
+   28.05,
+   26.05
+  ],
+  [
+   36.05,
+   26.05
+  ],
+  [
+   44.05,
+   26.05
+  ]
+ ],
+ "total_hole_frames": 222
+}

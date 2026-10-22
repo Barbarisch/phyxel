@@ -88,12 +88,24 @@ void buildWaterSurfaceMeshRect(const WaterSurfaceField& f, int rx0, int rz0, int
     const float ox = static_cast<float>(f.origin.x) * h, oz = static_cast<float>(f.origin.z) * h;
     auto col = [&](int x, int z) -> const SurfaceColumn* {
         if (x < 0 || z < 0 || x >= f.nx || z >= f.nz) return nullptr;
+        if (f.at(x, z).runs < 0.0f) return nullptr;   // 27.15: not this field's column (a recorded tile: the record draws it) - an edge, no wall
         return &f.at(x, z);
     };
     // corner height: mean of the tops of the (up to four) sub-columns around corner (cx, cz) that hold
     // a run overlapping this run's Y range; the column itself always counts
     auto cornerY = [&](int x, int z, int cx, int cz, float lo, float hi, float ownTop) {
         float sum = 0.0f; int n = 0;
+        // 27.15: a corner touching another drawer's column (runs < 0: a recorded tile, its level in top[0] over bottom[0]) takes THAT
+        // level, so this surface meets the record's exactly at the seam (averaged, the two edges stood apart by half the difference
+        // and a dark crease showed between them, live)
+        float gSum = 0.0f; int gN = 0;
+        for (int dz = -1; dz <= 0; ++dz) for (int dx = -1; dx <= 0; ++dx) {
+            const int gx = x + cx + dx, gz = z + cz + dz;
+            if (gx < 0 || gz < 0 || gx >= f.nx || gz >= f.nz) continue;
+            const SurfaceColumn& g = f.at(gx, gz);
+            if (g.runs < 0.0f && g.top[0] > g.bottom[0] && g.bottom[0] < hi && g.top[0] + h > lo) { gSum += g.top[0]; ++gN; }
+        }
+        if (gN) return gSum / static_cast<float>(gN);
         for (int dz = -1; dz <= 0; ++dz) for (int dx = -1; dx <= 0; ++dx) {
             const int nx_ = x + cx + dx, nz_ = z + cz + dz;
             const SurfaceColumn* c = col(nx_, nz_);

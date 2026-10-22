@@ -345,6 +345,10 @@ public:
     /// surfaceFields(): `level` = the top of the run that starts lowest (the pond itself), `top` = the highest
     /// run's top (a splash thrown above it). False when no volume owns the column or it is dry.
     bool surfaceAtWorld(float x, float z, float& level, float& top) const;
+    /// 27.15: what the renderer DRAWS at (x, z) - every field (the volumes' and the record tiles'), as the surface tiler meshes
+    /// each on its own: the highest drawn top (false = no field draws water here - a hole), and whether a live volume holds
+    /// the column in its record (recorded = 1).
+    bool drawnAtWorld(float x, float z, float& top, bool& recorded) const;
     /// Measurement (21.7 S1): every DETACHED run of water in every fill volume now (WaterDroplets.h) - world
     /// position of its bottom cell's centre, its water (m^3), length and whether it is isolated. A GPU volume
     /// is read back (two submit-and-waits): a debug cost, called only while `water_jet_scan` records.
@@ -489,6 +493,11 @@ private:
         double seededMass = 0.0;
         std::vector<WaterBodyTable::ColumnMass> seededColumns;   // per-column seed for the body credit
         WaterSurfaceField field;        // Phase F: the last surface field
+        /// 27.15: a woken tile's surface drawn from its seed, re-applied over every GPU surface read until the surface comes from a
+        /// call submitted after the seed (the read right after a wake is of the call before it: the tile drew nothing for a frame,
+        /// and with the partial surface kept nothing for 0.4 s - holes in the pond, live)
+        struct SeedPatch { int x0 = 0, z0 = 0, nx = 0, nz = 0; std::vector<SurfaceColumn> cols; uint64_t afterCall = 0; };
+        std::vector<SeedPatch> seedPatches;
         uint64_t fieldStep = ~0ull;     // the step counter the field was built from
         uint64_t stepCount = 0;         // steps taken (CPU ticks or GPU calls)
         double fieldStepSec = -1.0;     // wall time of that step

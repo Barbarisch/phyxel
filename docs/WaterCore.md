@@ -7998,6 +7998,23 @@ showed 27.13's "back in the record by 41 s" was one lucky run. Measured (`tools/
    it breaks "no silent drop": a create must seed from - or refuse over - the record. The harness runs must start on an empty record.
 Clips: `w1c_push_record_on.mp4` (quiet scale 3, clean world), `w1c_push_record_qs10.mp4` (quiet scale 10) + `.json`.
 
+### 27.15 Holes and walls when recorded tiles wake (2026-10-21): three draw defects, fixed
+
+The owner on the 27.14 clips: "water appears to disappear in several spots". Measured, not judged from stills:
+`tools/water_clip_gaps.py` (every frame against a still reference, 12 px block chromaticity - the grass under the water sways
+per pixel) and `tools/water_wake_holes.py` (the engine's own answer every frame: does ANY field - the volume's or a record
+tile's - draw water at each tile's centre, and with `--edges` 0.3 m either side of every tile boundary; `water_av_watch` now
+returns drawn + recorded per point, up to 128 points). Prediction for a correct hand-over: 0 hole frames.
+| Defect | Cause | Fix |
+|---|---|---|
+| A: whole woken tiles bare for ~0.4 s (147-222 hole frames; up to 478 blocks a frame on the clip) | a woken tile's columns are frozen, and the partial surface (26.33) keeps a frozen column's last surface - empty while it was recorded | a seed sets `surfaceFullNext`: the next call's surface covers every column |
+| B: one bare frame per woken tile (18 with A off) | `wakeTile` drew the seed into the field, but the next read was of the call submitted BEFORE the seed and overwrote it | the seed patch is re-applied until the surface comes from a call submitted after it (`surfCallId > afterCall`, a call counter) |
+| C: a wall from the surface to the bed (yellow bed through it, a dark crease on top) beside recorded tiles once the woken water moved | the volume's field covers its whole box: its recorded columns read as DRY, so its mesh walled them off | recorded columns are marked "not this field's" (runs -1, the record's level in top[0]); the mesh ends there as at a box edge and a corner touching one takes the record's level, so the two surfaces meet |
+Measured after: 0 hole frames at 124 points over 5,771 frames (`w1c_wake_holes_after.json`; before: 222, `_before.json`); the
+clip scan flags only the push's splash and ring (`w1c_wake_fixed3_qs10.mp4`, quiet scale 10). Tests: water unit 312/312, water
+integration 45/46 (the known GpuFlipBulkParityAndRunup). No deterministic test pins A-C yet (the probe is live; an integration
+test of `drawnAtWorld` over a woken tile is the next step). Recording stays OFF by default; the quiet scale is still the owner's call.
+
 ---
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)

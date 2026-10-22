@@ -711,6 +711,7 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     if (vol.tablesDirty) { writeTablesToStaging(vol); copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks); vol.tablesDirty = false; }
     submitAndWait(cmd);
     vol.recordValid = false;   // the next residency keeps every stored brick (its record predates the seed)
+    vol.surfaceFullNext = true;   // 27.15: the seeded columns are frozen, their surface must still be drawn
     vol.tablesDirty = true;    // the frozen bits follow at the next call
 }
 
@@ -1822,7 +1823,8 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     push.param1 = static_cast<float>(vol.columns);   // 26.11: where the multi-run records start in surf (x 8 floats)
     // 26.33: with frozen columns the surface covers the awake column entries only (they lie first after the partition); the host
     // keeps the frozen columns' last surface (readSurface) - it cannot change while they are frozen
-    const bool surfPartial = s_partialSurface && vol.stepSlots > 0 && vol.stepCols > 0 && vol.stepCols < fullCols;
+    const bool surfPartial = s_partialSurface && !vol.surfaceFullNext && vol.stepSlots > 0 && vol.stepCols > 0 && vol.stepCols < fullCols;
+    vol.surfaceFullNext = false;
     vol.pend.surfCols.clear();
     if (surfPartial) {
         vol.pend.surfCols.assign(vol.colEntries.begin(), vol.colEntries.begin() + vol.stepCols);
@@ -1856,7 +1858,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     vol.pend.tSubmit = std::chrono::steady_clock::now();
     const VkResult sub = vkQueueSubmit(m_queue, 1, &si, vol.callFence);
     if (sub != VK_SUCCESS) std::fprintf(stderr, "[WaterCoreGpu] step submit %d\n", static_cast<int>(sub));
-    vol.callCmd = cmd; vol.inFlight = true;
+    vol.callCmd = cmd; vol.inFlight = true; vol.pend.callId = ++vol.callsSubmitted;   // 27.15
     vol.pend.n = n; vol.pend.ticks = ticks; vol.pend.capture = capture; vol.pend.params = params;
     vol.pend.t0 = t0; vol.pend.tResidency = tResidency;
     st.hostResidencyMs = std::chrono::duration<double, std::milli>(tResidency - t0).count();
@@ -1933,6 +1935,7 @@ void WaterCoreGpu::finishCall(Volume& vol) {
         const char* sm = static_cast<const char*>(vol.staging.mapped);
         vol.hostCount = {counts[0], counts[1], counts[2]};
         vol.hostSurfCols = std::move(vol.pend.surfCols); vol.pend.surfCols.clear(); ++vol.surfCollected;   // 26.33
+        vol.surfCallId = vol.pend.callId;   // 27.15
         vol.hostSurf.resize(static_cast<size_t>(counts[0]) * 32 + static_cast<size_t>(counts[2]) * kRec[2]);
         if (counts[0]) std::memcpy(vol.hostSurf.data(), sm + dstOff[0], static_cast<size_t>(counts[0]) * 32);
         if (counts[2]) std::memcpy(vol.hostSurf.data() + static_cast<size_t>(counts[0]) * 32, sm + dstOff[2], static_cast<size_t>(counts[2]) * kRec[2]);

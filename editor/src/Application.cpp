@@ -3771,9 +3771,10 @@ void Application::update(float deltaTime) {
                     std::vector<float> row;
                     row.push_back(static_cast<float>(std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_watchT0));
                     for (const glm::vec2& pt : m_watchPoints) {
-                        float lv = std::numeric_limits<float>::quiet_NaN(), tp = lv;
+                        float lv = std::numeric_limits<float>::quiet_NaN(), tp = lv, dr = lv; bool rec = false;
                         waterCore->surfaceAtWorld(pt.x, pt.y, lv, tp);
-                        row.push_back(lv); row.push_back(tp);
+                        if (!waterCore->drawnAtWorld(pt.x, pt.y, dr, rec)) dr = std::numeric_limits<float>::quiet_NaN();
+                        row.push_back(lv); row.push_back(tp); row.push_back(dr); row.push_back(rec ? 1.0f : 0.0f);   // 27.15: drawn, recorded
                     }
                     m_watchRows.push_back(std::move(row));
                 }
@@ -14318,7 +14319,7 @@ void Application::registerWaterCommands() {
     reg.on("water_av_watch", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("points")) {
             m_watchPoints.clear(); m_watchRows.clear();
-            for (const auto& pt : cmd.params["points"]) if (pt.is_array() && pt.size() >= 2 && m_watchPoints.size() < 8) m_watchPoints.push_back({pt[0].get<float>(), pt[1].get<float>()});
+            for (const auto& pt : cmd.params["points"]) if (pt.is_array() && pt.size() >= 2 && m_watchPoints.size() < 128) m_watchPoints.push_back({pt[0].get<float>(), pt[1].get<float>()});
             m_watchT0 = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         }
         if (cmd.params.value("stop", false)) m_watchPoints.clear();
@@ -14330,7 +14331,7 @@ void Application::registerWaterCommands() {
         }
         nlohmann::json pts = nlohmann::json::array();
         for (const auto& pt : m_watchPoints) pts.push_back({pt.x, pt.y});
-        r = {{"points", pts}, {"frames", m_watchRows.size()}, {"rows", rows}, {"columns", "t, then level and top per point (world y; null = dry)"}};
+        r = {{"points", pts}, {"frames", m_watchRows.size()}, {"rows", rows}, {"columns", "t, then per point: level, top (the first field covering it; null = dry), drawn (the highest top ANY field draws - the record tiles too; null = a hole), recorded (1/0)"}};
     });
     // 21.7 S1 measurement: {on: true} records every detached run of water (WaterDroplets.h) every frame, {on: false}
     // stops; every call returns the rows so far: t (s from the start), bottom cell centre x y z, volume m^3, sum f,

@@ -191,6 +191,9 @@ public:
         // a wake that reaches one (the partial wake's margin, a wake box) is queued for the manager, which seeds its tile.
         std::vector<char> colRecorded;  ///< per brick column (bn.x x bn.z)
         bool anyRecorded = false;
+        /// 27.15: a seed changed frozen columns' cells - the next call's surface covers EVERY column (the partial surface keeps a
+        /// frozen column's last surface, which for a tile just woken from the record is empty: the tile drew nothing, 0.4 s live)
+        bool surfaceFullNext = false;
         std::vector<int> recordedWakes; ///< brick columns (index bx + bn.x bz) a wake reached since the manager last took them
         double seedUnplacedM3 = 0.0;    ///< seeded water whose brick the capacity refused (m^3, cumulative) - reported, never silent
         long wakeAllCount = 0;          ///< whole-volume wakes since creation (diagnostic)
@@ -230,7 +233,10 @@ public:
             std::chrono::steady_clock::time_point t0, tResidency, tSubmit;
             GpuStepStats st;
             std::vector<int> surfCols;   ///< 26.33: the column entries this call's surface covered (empty = every column)
+            uint64_t callId = 0;         ///< 27.15: this call's number (callsSubmitted when it was submitted)
         } pend;
+        uint64_t callsSubmitted = 0;                     ///< 27.15: calls submitted so far
+        uint64_t surfCallId = 0;                         ///< 27.15: the call whose surface hostSurf holds (0 = none yet)
         GpuStepStats lastStats; bool haveLast = false;   ///< the last collected call's stats (ASYNC returns them)
         std::vector<char> hostSurf;                      ///< the collected call's packed surface lists (one-run, multi-run records)
         std::vector<char> hostBirths;                    ///< the collected call's packed birth list
@@ -379,6 +385,10 @@ public:
     /// field) without `keep` or if a collected call's surface was never read (its columns would be lost).
     bool readSurface(const Volume& vol, float* out, bool keep = false) const;
     bool surfaceReady(const Volume& vol) const { return vol.surfaceValid; }
+    /// 27.15: the call the readable surface came from, and how many calls were submitted - a write applied now (a seed) shows in
+    /// the surface of call callsSubmitted() + 1 and later
+    uint64_t surfaceCallId(const Volume& vol) const { return vol.surfCallId; }
+    uint64_t callsSubmitted(const Volume& vol) const { return vol.callsSubmitted; }
     /// 21 (droplets): births on/off for the next steps.
     void setDroplets(Volume& vol, bool on) { vol.dropletsOn = on && !vol.particles; }
     /// 21: per-cell water (cell fractions) to add at the start of the next step (wc_column_ops mode 5); wakes the volume.
