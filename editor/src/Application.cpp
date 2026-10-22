@@ -15108,13 +15108,14 @@ void Application::registerWorldForgeCommands() {
             put(x0, z0, '+'); put(x1, z0, '+'); put(x0, z1, '+'); put(x1, z1, '+');
         }
         static const char kGlyph[Phyxel::CivPlan::kTiers] = {'C', 'T', 'V', 'H', 'O'};
+        static const char kRuin[Phyxel::CivPlan::kTiers] = {'c', 't', 'v', 'h', 'o'};   // M3b: abandoned = lowercase
         // low tiers first so a city is never overdrawn by an outpost sharing the char cell
         for (int t = Phyxel::CivPlan::kTiers - 1; t >= 0; --t)
             for (const auto& s : civ->sites())
-                if (s.tier == t) put(s.pos.x, s.pos.y, kGlyph[t]);
+                if (s.tier == t) put(s.pos.x, s.pos.y, s.state == Phyxel::CivPlan::Abandoned ? kRuin[t] : kGlyph[t]);
         r = civ->toJson();
         r["success"] = true;
-        r["legend"] = "~ sea | b basin | . land | + hydrology box corners | C/T/V/H/O city/town/village/hamlet/outpost";
+        r["legend"] = "~ sea | b basin | . land | + hydrology box corners | C/T/V/H/O city/town/village/hamlet/outpost (lowercase = abandoned, M3b)";
         r["cell_units"] = cu * step;
         r["lines"] = lines;
     });
@@ -15290,6 +15291,7 @@ bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
             const int mx = static_cast<int>((s.pos.x - x0) / stepU);
             const int mz = static_cast<int>((s.pos.y - z0) / stepU);
             if (mx < 0 || mz < 0 || mx >= px || mz >= px) continue;
+            if (s.state == Phyxel::CivPlan::Abandoned) { drawSquare(mx, mz, 2, {90, 90, 90}); continue; }   // M3b: a ruin, grey
             switch (s.tier) {
                 case Phyxel::CivPlan::City:    drawSquare(mx, mz, 4, {200, 0, 120}); break;
                 case Phyxel::CivPlan::Town:    drawSquare(mx, mz, 3, {220, 40, 40}); break;

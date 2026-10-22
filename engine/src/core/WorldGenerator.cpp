@@ -581,6 +581,9 @@ void WorldGenerator::bakeWorldForgePlan() {
             const float x1 = x0 + m_hydro->cellsX() * m_hydro->cellSize(), z1 = z0 + m_hydro->cellsZ() * m_hydro->cellSize();
             for (const auto& site : m_civ->sites()) {
                 if (site.tier > CivPlan::Hamlet) continue;
+                // M3b (D22): a ruin is a state the forge cannot dress yet - never seeded as a live
+                // settlement (red 2026-10-22: an abandoned hamlet came back as a live box hamlet)
+                if (site.state == CivPlan::Abandoned) continue;
                 if (site.pos.x < x0 + 512.0f || site.pos.x >= x1 - 512.0f || site.pos.y < z0 + 512.0f || site.pos.y >= z1 - 512.0f) continue;
                 boxParams.sitePins.push_back(glm::ivec2(static_cast<int>(std::lround(site.pos.x)), static_cast<int>(std::lround(site.pos.y))));
                 boxParams.pinTiers.push_back(site.tier <= CivPlan::Town ? "town" : (site.tier == CivPlan::Village ? "village" : "hamlet"));

@@ -548,7 +548,11 @@ async def list_tools() -> list[Tool]:
                     "maxSpacing": {"type": "number", "description": "Soft cohesion distance (farther candidates score-halved)"},
                     "sitePins": {"type": "array", "description": "Pinned site centres, seated verbatim first",
                                  "items": {"type": "object", "properties": {"x": {"type": "integer"}, "z": {"type": "integer"}}}},
-                    "civ": {"type": "boolean", "description": "M3a: site the whole continent (version-2 recipes); the box plan is then seeded by the civ sites inside it and the 3-8 clamp lifts. The applied plan's response carries the civ plan under 'civ' (see worldforge_civ)."}
+                    "civ": {"type": "boolean", "description": "M3a: site the whole continent (version-2 recipes); the box plan is then seeded by the civ sites inside it and the 3-8 clamp lifts. The applied plan's response carries the civ plan under 'civ' (see worldforge_civ)."},
+                    "civEpochs": {"type": "integer", "description": "M3b: 25-year epochs of history simulated after the founding (0-64; 0 = no history, the M3a plan bit for bit). Default 0."},
+                    "civShockEpoch": {"type": "integer", "description": "M3b: the epoch of the one population shock (-1 = none; default 9 = the 1348 plague on the 1086 arc)."},
+                    "civShockFraction": {"type": "number", "description": "M3b: share of every population index the shock removes (0-0.9; default 0.45, England 1300 -> 1377)."},
+                    "civAbandonShare": {"type": "number", "description": "M3b: share of the lowest-suitability village-and-below sites the shock empties into ruins (0-1; default 0.20 = 2811 deserted villages of ~13000 Domesday places)."}
                 }
             }
         ),

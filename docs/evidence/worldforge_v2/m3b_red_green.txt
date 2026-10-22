@@ -1,0 +1,75 @@
+M3b RED (Debug, fields + tests in, sim not implemented; scratchpad m3b_red.txt):
+[ M3b ] epochs 0: epochs 0, 154 sites: live 154, declining 0, abandoned 0; 0 events; 0 provinces
+[ M3b ] epochs 12: epochs 0, 154 sites: live 154, declining 0, abandoned 0; 0 events; 0 provinces
+[  FAILED  ] CivHistoryTest.EpochsZeroIsM3aBitForBit (101880 ms)
+[ M3b ] baseline 12 epochs: epochs 0, 154 sites: live 154, declining 0, abandoned 0; 0 events; 0 provinces
+[ M3b ] abandoned: village-and-below 0 of 148 (0.0 %), city/town 0 of 6
+[  FAILED  ] CivHistoryTest.AbandonedFractionMatchesTheDesertedVillageRate (17440 ms)
+site 0 has no ledger
+[  FAILED  ] CivHistoryTest.EveryRuinHasAFoundedEvent (17799 ms)
+no provinces
+[  FAILED  ] CivHistoryTest.ProvincesPartitionTheLand (17942 ms)
+[       OK ] CivHistoryTest.LiveSitesKeepEveryM3aInvariant (17886 ms)
+[ M3b ] 64 epochs: epochs 0, 154 sites: live 154, declining 0, abandoned 0; 0 events; 0 provinces
+[ M3b ] shock at 0: epochs 0, 154 sites: live 154, declining 0, abandoned 0; 0 events; 0 provinces
+[ M3b ] 90 % shock: epochs 0, 154 sites: live 154, declining 0, abandoned 0; 0 events; 0 provinces
+[ M3b ] no shock: epochs 0, 154 sites: live 154, declining 0, abandoned 0; 0 events; 0 provinces
+[  FAILED  ] CivHistoryTest.StressEpochsShockAndDeterminism (161502 ms)
+[  FAILED  ] CivHistoryTest.EpochsZeroIsM3aBitForBit
+[  FAILED  ] CivHistoryTest.AbandonedFractionMatchesTheDesertedVillageRate
+[  FAILED  ] CivHistoryTest.EveryRuinHasAFoundedEvent
+[  FAILED  ] CivHistoryTest.ProvincesPartitionTheLand
+[  FAILED  ] CivHistoryTest.StressEpochsShockAndDeterminism
+
+M3b FIRST GREEN ATTEMPT (sim with the viability rule; scratchpad m3b_green.txt): the prediction FAILED - 0 of 148 village-and-below abandoned at -45 %, 148 of 154 at -90 %:
+[ M3b ] epochs 0: epochs 0, 154 sites: live 154, declining 0, abandoned 0; 154 events; 6 provinces
+[ M3b ] epochs 12: epochs 12, 154 sites: live 154, declining 0, abandoned 0; 1592 events; 6 provinces
+[       OK ] CivHistoryTest.EpochsZeroIsM3aBitForBit (102462 ms)
+[ M3b ] baseline 12 epochs: epochs 12, 154 sites: live 154, declining 0, abandoned 0; 1592 events; 6 provinces
+[ M3b ] abandoned: village-and-below 0 of 148 (0.0 %), city/town 0 of 6
+[  FAILED  ] CivHistoryTest.AbandonedFractionMatchesTheDesertedVillageRate (17923 ms)
+[ M3b ] ledgers: 154 sites, 0 ruins, 0 malformed
+[  FAILED  ] CivHistoryTest.EveryRuinHasAFoundedEvent (17900 ms)
+[ M3b ] provinces: 6 seats, 29565 of 29565 land cells assigned, 154 of 154 sites members
+[       OK ] CivHistoryTest.ProvincesPartitionTheLand (17991 ms)
+[       OK ] CivHistoryTest.LiveSitesKeepEveryM3aInvariant (17968 ms)
+[ M3b ] 64 epochs: epochs 64, 154 sites: live 154, declining 0, abandoned 0; 9600 events; 6 provinces
+[ M3b ] shock at 0: epochs 12, 154 sites: live 154, declining 0, abandoned 0; 1397 events; 6 provinces
+[ M3b ] 90 % shock: epochs 12, 154 sites: live 6, declining 0, abandoned 148; 1444 events; 6 provinces
+[ M3b ] no shock: epochs 12, 154 sites: live 154, declining 0, abandoned 0; 1397 events; 6 provinces
+[       OK ] CivHistoryTest.StressEpochsShockAndDeterminism (164925 ms)
+[  FAILED  ] CivHistoryTest.AbandonedFractionMatchesTheDesertedVillageRate
+[  FAILED  ] CivHistoryTest.EveryRuinHasAFoundedEvent
+-> the abandonment rate becomes an INPUT (civAbandonShare 0.20, grounded from the deserted-village count) applied to the marginal sites; a deriving mechanism is NEEDS-RESEARCH.
+
+M3b GREEN (Debug; civAbandonShare 0.20 on the marginal village-and-below sites; scratchpad m3b_green2.txt): 26/26 with CivPlanTest, CivPlanStressTest, WorldForgeRecipeTest and the pinned version-1 hashes
+[ M3b ] epochs 0: epochs 0, 154 sites: live 154, declining 0, abandoned 0; 154 events; 6 provinces
+[ M3b ] epochs 12: epochs 12, 154 sites: live 123, declining 0, abandoned 31; 1561 events; 6 provinces
+[       OK ] CivHistoryTest.EpochsZeroIsM3aBitForBit (101327 ms)
+[ M3b ] baseline 12 epochs: epochs 12, 154 sites: live 123, declining 0, abandoned 31; 1561 events; 6 provinces
+[ M3b ] abandoned: village-and-below 31 of 148 (20.9 %), city/town 0 of 6
+[       OK ] CivHistoryTest.AbandonedFractionMatchesTheDesertedVillageRate (17919 ms)
+[ M3b ] ledgers: 154 sites, 31 ruins, 0 malformed
+[       OK ] CivHistoryTest.EveryRuinHasAFoundedEvent (17822 ms)
+[ M3b ] provinces: 6 seats, 29565 of 29565 land cells assigned, 154 of 154 sites members
+[       OK ] CivHistoryTest.ProvincesPartitionTheLand (17971 ms)
+[       OK ] CivHistoryTest.LiveSitesKeepEveryM3aInvariant (17971 ms)
+[ M3b ] 64 epochs: epochs 64, 154 sites: live 123, declining 0, abandoned 31; 7957 events; 6 provinces
+[ M3b ] shock at 0: epochs 12, 154 sites: live 123, declining 0, abandoned 31; 1723 events; 6 provinces
+[ M3b ] 90 % shock: epochs 12, 154 sites: live 123, declining 0, abandoned 31; 1561 events; 6 provinces
+[ M3b ] no shock: epochs 12, 154 sites: live 154, declining 0, abandoned 0; 1397 events; 6 provinces
+[       OK ] CivHistoryTest.StressEpochsShockAndDeterminism (163625 ms)
+[  PASSED  ] 26 tests.
+NOTE: the ruin count is the input rate (31 of 148 = 20.9 % at -45 % AND at -90 %): the shock fraction scales populations only; a mechanism that makes the ruin count depend on the shock is the NEEDS-RESEARCH item.
+
+RUINS SEEDED INTO THE BOX PLAN (found 2026-10-22 in the first M3b L4 raw JSON, m3a_l4_m3b_plan.json: the abandoned hamlet at (1280,-8960) seeded as a live box hamlet at (1336,-8920)). RED (new CivHistoryTest.RuinsAreNotSeededIntoTheBoxPlan, Debug, scratchpad m3b_seed_red.txt):
+[ M3b ] box plan: 5 sites; abandoned civ sites inside the box 1, seeded as live 1
+[  FAILED  ] CivHistoryTest.RuinsAreNotSeededIntoTheBoxPlan (84038 ms)
+[  FAILED  ] CivHistoryTest.RuinsAreNotSeededIntoTheBoxPlan
+FIX: WorldGenerator skips abandoned civ sites when seeding the box (D22). GREEN (scratchpad m3b_green3.txt): 10/10
+[ M3b ] box plan: 4 sites; abandoned civ sites inside the box 1, seeded as live 0
+[ M3a ] refinement: 5 of 5 box sites moved off their macro centre (farthest 79.2 u)
+[ M3a ] real terrain at 154 sites (104 in macro river cells, 14 inside the meso box): wet 0, on a bed 0, worst margin 2.0 u
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[  PASSED  ] 10 tests.

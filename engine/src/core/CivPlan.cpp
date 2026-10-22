@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <functional>
 #include <numeric>
 #include <queue>
 
@@ -36,6 +37,18 @@ constexpr float kMinViable = 0.15f;
 // WorldForgePlan rejects h < sea + 2 u); the sea itself keeps the strict sub-sea definition.
 constexpr float kCoastStripU = 2.0f;
 constexpr float kHexPack = 0.866f;   // density = 1 / (kHexPack·s²): hexagonal central-place packing
+// ── M3b (D23): the growth rate per 25-year epoch at a mid suitability (0.5). GROUNDED: England
+// ≈ 2.0 M (1086) → ≈ 5 M (1300) is ×2.5 over 8.5 epochs = ×1.114 per epoch; a site grows at
+// kGrowth × (0.5 + score), so score 0.5 is the arc's own rate and a 1.0 site grows half again as
+// fast. Decline after the shock: the first mechanism tried — viability, score × (1 − shock) under
+// the plan's own kMinViable — abandoned NOTHING at −45 % (every picked site scores above 0.27) and
+// 148 of 154 at −90 % (red 2026-10-22, m3b_red_green.txt): the greedy pick seats only the better
+// cells, so a fixed floor is never a 20 % band. The rate is therefore an INPUT (civAbandonShare,
+// GROUNDED from the deserted-village count) applied to the lowest-suitability village-and-below
+// sites founded before the shock (Beresford: the deserted villages were the marginal ones); a
+// mechanism that DERIVES the rate is NEEDS-RESEARCH. Cities and towns never abandon (DESIGN: the
+// seats of the hierarchy survive the arc; §10 F4g).
+constexpr float kGrowthPerEpoch = 0.114f;
 
 inline float to01(float n) { return n < -1.0f ? 0.0f : (n > 1.0f ? 1.0f : (n + 1.0f) * 0.5f); }
 inline float bell(float x, float lo, float hi, float width) {   // 1 inside [lo,hi], smooth to 0 `width` outside
@@ -86,6 +99,11 @@ void chamfer(std::vector<float>& d, int n) {
 const char* CivPlan::tierName(int tier) {
     static const char* names[kTiers] = {"city", "town", "village", "hamlet", "outpost"};
     return (tier >= 0 && tier < kTiers) ? names[tier] : "?";
+}
+
+const char* CivPlan::stateName(int state) {
+    static const char* names[3] = {"live", "declining", "abandoned"};
+    return (state >= 0 && state < 3) ? names[state] : "?";
 }
 
 int CivPlan::tierFromName(const std::string& name) {
@@ -255,6 +273,104 @@ std::shared_ptr<const CivPlan> CivPlan::bake(const Inputs& in, const WorldForgeP
     }
     for (size_t i = 0; i < picked.size(); ++i) picked[i].id = static_cast<int>(i);
     plan->m_sites = std::move(picked);
+
+    // ── M3b: the history ledger (D21: tiers never change; D22: a ruin is a state; D23: the arc) ─
+    plan->m_epochs = P.civEpochs;
+    {
+        const int E = P.civEpochs, shock = P.civShockEpoch;
+        // Founding: cities/towns/villages stand at epoch 0 (the Domesday places); hamlets and
+        // outposts are founded in score order over the epochs before the shock (the growth that
+        // filled the land 1086 → 1300) — the best site of each tier first.
+        int rankInTier[kTiers] = {0, 0, 0, 0, 0};
+        const int spread = E == 0 ? 0 : (shock > 0 ? shock : E);
+        for (auto& s : plan->m_sites) {
+            const int r = rankInTier[s.tier]++;
+            const int nT = plan->m_count[s.tier];
+            s.founded = (s.tier >= Hamlet && spread > 0 && nT > 0)
+                            ? std::min(E, static_cast<int>(std::floor(static_cast<float>(r) / nT * spread)))
+                            : 0;
+            s.population = std::max(kMinViable, s.score);
+            s.peak = s.founded;
+            s.state = Live;
+            s.history.push_back({s.founded, "founded", s.population});
+        }
+        for (int e = 1; e <= E; ++e) {
+            for (auto& s : plan->m_sites) {
+                if (e < s.founded || s.state == Abandoned) continue;
+                if (s.state == Declining) {
+                    s.state = Abandoned;
+                    s.population = 0.0f;
+                    s.history.push_back({e, "abandoned", 0.0f});
+                    continue;
+                }
+                if (e == shock) {
+                    s.population *= (1.0f - P.civShockFraction);
+                    s.history.push_back({e, "shock", s.population});
+                    continue;
+                }
+                s.population *= 1.0f + kGrowthPerEpoch * (0.5f + s.score);
+                s.history.push_back({e, "grew", s.population});
+            }
+            if (e == shock && P.civAbandonShare > 0.0f) {
+                // the marginal share of each village-and-below tier declines (abandoned next epoch)
+                for (int t = Village; t < kTiers; ++t) {
+                    std::vector<Site*> standing;
+                    for (auto& s : plan->m_sites)
+                        if (s.tier == t && s.state == Live && s.founded <= e) standing.push_back(&s);
+                    std::stable_sort(standing.begin(), standing.end(), [](const Site* a, const Site* b) { return a->score < b->score; });
+                    const int nDecline = static_cast<int>(std::ceil(P.civAbandonShare * static_cast<float>(standing.size()) - 1e-4f));
+                    for (int k = 0; k < nDecline && k < static_cast<int>(standing.size()); ++k) {
+                        standing[static_cast<size_t>(k)]->state = Declining;
+                        standing[static_cast<size_t>(k)]->history.push_back({e, "declined", standing[static_cast<size_t>(k)]->population});
+                    }
+                }
+            }
+        }
+        for (auto& s : plan->m_sites) {
+            float best = -1.0f;
+            for (const auto& ev : s.history) if (ev.value > best) { best = ev.value; s.peak = ev.epoch; }
+        }
+        // Provinces: every land cell to its nearest city/town seat (8-neighbour Dijkstra over the
+        // grid, water crossed at the same cost — a seat's reach is distance, not terrain, until M4's
+        // routes exist); members = the sites whose cell carries the seat's label.
+        std::vector<int> seats;
+        for (const auto& s : plan->m_sites) if (s.tier <= Town) seats.push_back(s.id);
+        if (!seats.empty()) {
+            std::vector<float> dist(N, 1e30f);
+            std::vector<int> label(N, -1);
+            using QE = std::pair<float, int>;
+            std::priority_queue<QE, std::vector<QE>, std::greater<QE>> q;
+            for (int id : seats) {
+                const int c = plan->m_sites[static_cast<size_t>(id)].cell;
+                dist[static_cast<size_t>(c)] = 0.0f; label[static_cast<size_t>(c)] = id; q.push({0.0f, c});
+            }
+            const float s2 = std::sqrt(2.0f);
+            while (!q.empty()) {
+                const QE top = q.top(); q.pop();
+                const int c = top.second;
+                if (top.first > dist[static_cast<size_t>(c)]) continue;
+                const int ci = c % n, cj = c / n;
+                for (int dj = -1; dj <= 1; ++dj)
+                    for (int di = -1; di <= 1; ++di) {
+                        if (!di && !dj) continue;
+                        const int ni = ci + di, nj = cj + dj;
+                        if (ni < 0 || nj < 0 || ni >= n || nj >= n) continue;
+                        const int nc = nj * n + ni;
+                        const float nd = top.first + ((di && dj) ? s2 : 1.0f);
+                        if (nd < dist[static_cast<size_t>(nc)]) { dist[static_cast<size_t>(nc)] = nd; label[static_cast<size_t>(nc)] = label[static_cast<size_t>(c)]; q.push({nd, nc}); }
+                    }
+            }
+            plan->m_provinces.resize(seats.size());
+            std::vector<int> provinceOfSeat(plan->m_sites.size(), -1);
+            for (size_t k = 0; k < seats.size(); ++k) { plan->m_provinces[k].seat = seats[k]; provinceOfSeat[static_cast<size_t>(seats[k])] = static_cast<int>(k); }
+            for (size_t k = 0; k < N; ++k)
+                if (land[k] && label[k] >= 0) ++plan->m_provinces[static_cast<size_t>(provinceOfSeat[static_cast<size_t>(label[k])])].cells;
+            for (const auto& s : plan->m_sites) {
+                const int l = label[static_cast<size_t>(s.cell)];
+                if (l >= 0) plan->m_provinces[static_cast<size_t>(provinceOfSeat[static_cast<size_t>(l)])].members.push_back(s.id);
+            }
+        }
+    }
     plan->m_bakeMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
     return plan;
 }
@@ -271,9 +387,15 @@ nlohmann::json CivPlan::toJson() const {
     for (const auto& s : m_sites)
         sites.push_back({{"id", s.id}, {"x", s.pos.x}, {"z", s.pos.y}, {"tier", tierName(s.tier)}, {"score", s.score},
                          {"slope", s.slope}, {"water_cells", s.waterCells}, {"food", s.food}, {"trade", s.trade},
-                         {"forest", s.forest}, {"mining", s.mining}, {"pinned", s.pinned}});
+                         {"forest", s.forest}, {"mining", s.mining}, {"pinned", s.pinned},
+                         {"founded", s.founded}, {"peak", s.peak}, {"state", stateName(s.state)}, {"population", s.population},
+                         {"history", [&] { nlohmann::json h = nlohmann::json::array(); for (const auto& e : s.history) h.push_back({{"epoch", e.epoch}, {"event", e.kind}, {"value", e.value}}); return h; }()}});
     j["sites"] = sites;
     j["refusals"] = m_refusals;
+    j["epochs"] = m_epochs;
+    nlohmann::json provinces = nlohmann::json::array();
+    for (const auto& p : m_provinces) provinces.push_back({{"seat", p.seat}, {"cells", p.cells}, {"members", p.members}});
+    j["provinces"] = provinces;
     return j;
 }
 

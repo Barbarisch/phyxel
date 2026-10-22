@@ -38,6 +38,19 @@ public:
     enum Tier : int { City = 0, Town = 1, Village = 2, Hamlet = 3, Outpost = 4, kTiers = 5 };
     static const char* tierName(int tier);
     static int tierFromName(const std::string& name);   // -1 if unknown
+    // M3b (D21/D22): a site's history state — never its tier. abandoned = a ruin (state + glyph only).
+    enum State : int { Live = 0, Declining = 1, Abandoned = 2 };
+    static const char* stateName(int state);
+    struct Event {
+        int epoch = 0;
+        std::string kind;      // founded | grew | shock | declined | abandoned
+        float value = 0.0f;    // the population index after the event
+    };
+    struct Province {
+        int seat = -1;                 // site id of the city/town that seats it
+        int cells = 0;                 // macro land cells assigned (nearest seat by chamfer distance)
+        std::vector<int> members;      // site ids inside it (the seat included)
+    };
 
     struct Site {
         int   id = 0;
@@ -48,6 +61,12 @@ public:
         // the parts (for the map overlay and the tests)
         float slope = 0.0f, waterCells = 0.0f, food = 0.0f, forest = 0.0f, mining = 0.0f, trade = 0.0f, hostility = 1.0f;
         bool  pinned = false;
+        // M3b history (D23): epochs are 25-year steps; population is a unitless index (the site's
+        // suitability score at founding, grown/shocked by the ledger).
+        int   founded = 0, peak = 0;
+        int   state = Live;
+        float population = 0.0f;
+        std::vector<Event> history;
     };
 
     using ClimateFn = std::function<void(float worldX, float worldZ, float& tempRaw, float& moistRaw)>;
@@ -67,6 +86,8 @@ public:
     float landKm2() const { return m_landKm2; }
     float spacingCells(int tier) const { return m_spacingCells[tier]; }
     const std::vector<std::string>& refusals() const { return m_refusals; }
+    const std::vector<Province>& provinces() const { return m_provinces; }   // M3b
+    int   epochs() const { return m_epochs; }                                 // M3b: 0 = no history
     float bakeMs() const { return m_bakeMs; }
     nlohmann::json toJson() const;
 
@@ -78,6 +99,8 @@ private:
     float m_landKm2 = 0.0f;
     float m_bakeMs = 0.0f;
     std::vector<std::string> m_refusals;
+    std::vector<Province> m_provinces;   // M3b
+    int m_epochs = 0;                    // M3b
 };
 
 }  // namespace Phyxel
