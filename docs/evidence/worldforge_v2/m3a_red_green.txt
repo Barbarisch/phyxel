@@ -149,3 +149,14 @@ GREEN (Debug, scratchpad m3a_water_green2.txt): 40/40 across CivPlanTest, CivPla
 [D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
 [D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
 [  PASSED  ] 40 tests.
+
+REFINEMENT WAS A SILENT NO-OP (found 2026-10-22 cross-checking m3a_l4_green2_plan.json: all 5 box sites still AT their macro centres, moves 0.0 u) - every refinement candidate was rejected by the box plan's 2048 u regionRadius check, so c772277f's 'refined positions' claim was false. RED (the new assertion in TheBoxPlanIsSeededByTheCivSites, Debug, scratchpad m3a_refine_red.txt):
+[ M3a ] refinement: 0 of 5 box sites moved off their macro centre (farthest 0.0 u)
+[  FAILED  ] CivPlanTest.TheBoxPlanIsSeededByTheCivSites (80857 ms)
+[  FAILED  ] CivPlanTest.TheBoxPlanIsSeededByTheCivSites
+FIX: the radius bounds the candidate SCAN, never a pinned site's refinement (WorldForgePlan.cpp). GREEN (scratchpad m3a_refine_green.txt): 34/34
+[ M3a ] refinement: 5 of 5 box sites moved off their macro centre (farthest 79.2 u)
+[ M3a ] real terrain at 154 sites (104 in macro river cells, 14 inside the meso box): wet 0, on a bed 0, worst margin 2.0 u
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[  PASSED  ] 34 tests.

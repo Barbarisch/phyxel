@@ -190,6 +190,20 @@ TEST(CivPlanTest, TheBoxPlanIsSeededByTheCivSites) {
     // continent's land: 6 of the 157 sites), and the V1 3-8 clamp no longer applies when civ is on
     EXPECT_EQ(static_cast<int>(box->sites().size()), civInBox) << "the box plan is not the civ sites inside the box";
     EXPECT_EQ(matched, static_cast<int>(box->sites().size())) << "a box-plan site is not a civ site";
+    // D18 local refinement actually RUNS on the civ seeds: the box plan's 16 u offset grid never
+    // contains the macro centre itself (offsets are +-8/24/40/56 u), so a site that still sits on
+    // its macro centre was not refined (red 2026-10-22: every candidate was outside the box
+    // plan's 2048 u regionRadius and the refinement was a silent no-op for all five sites).
+    int moved = 0; float farthest = 0.0f;
+    for (const auto& bs : box->sites()) {
+        float best = 1e9f;
+        for (const auto& s : civ->sites()) best = std::min(best, std::hypot(s.pos.x - bs.pos.x, s.pos.y - bs.pos.y));
+        if (best > 0.5f) ++moved;
+        farthest = std::max(farthest, best);
+    }
+    std::printf("[ M3a ] refinement: %d of %zu box sites moved off their macro centre (farthest %.1f u)\n", moved, box->sites().size(), farthest);
+    EXPECT_EQ(moved, static_cast<int>(box->sites().size())) << "a civ-seeded site was not refined";
+    EXPECT_LE(farthest, 56.0f * 1.4143f) << "refinement moved a site beyond its 16 u offset grid";
     WorldForgeParams many = civRecipe(1).worldforge;
     many.siteCount = 64;
     EXPECT_EQ(many.clamped().siteCount, 64) << "the 3-8 clamp still applies with civ on";

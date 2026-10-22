@@ -380,7 +380,10 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             for (int oj = 0; oj < 8; ++oj)
                 for (int oi = 0; oi < 8; ++oi) {
                     const glm::vec2 cand = pos + glm::vec2((oi - 3.5f) * 16.0f, (oj - 3.5f) * 16.0f);
-                    if (glm::length(cand - regionCentre) > P.regionRadius) continue;
+                    // A pinned site was seated outside the candidate scan by design (civ seeds
+                    // cover the whole box, far beyond regionRadius): the radius bounds the SCAN,
+                    // never a pin's refinement (red 2026-10-22: 0 of 5 civ seeds refined).
+                    if (!picked[i].pinned && glm::length(cand - regionCentre) > P.regionRadius) continue;
                     const float h = heightAt(cand.x, cand.y);
                     if (h < seaLvl + 2.0f || levelAt(cand.x, cand.y) > h - 0.1f)
                         continue;
