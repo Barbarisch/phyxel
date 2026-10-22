@@ -215,6 +215,12 @@ public:
     /// columns to DRY (27.16), 2 = no full surface after a seed (A), 4 = no seed patch re-applied (B), 8 = recorded columns not
     /// marked the record's in surfaceFields (C). Shipped: 0.
     static inline int s_handoverRevertForTest = 0;
+    /// 27.19 measurement: where a tile's record / wake call spends its time (ms; last call and max since reset). Record: 0 read the
+    /// tile's cells from the GPU, 1 the runs (+ the jump measurement when on), 2 the span read + write + body credit, 3 the GPU
+    /// recorded flags, 4 the record tiles drawn + the field marked. Wake: 0 span read, 1 occupancy refresh + copy, 2 seed + surface
+    /// patch, 3 the GPU seed upload, 4 the span clear + body debit, 5 the record tiles drawn.
+    struct TilePhases { double rec[5]{}, recMax[5]{}, wake[6]{}, wakeMax[6]{}; long recN = 0, wakeN = 0; double build[3]{}; };   // build: the last record tile built - span read + owned, occupancy, surface
+    static inline TilePhases s_tilePhases;
     static constexpr int kRecordTilesPerStep = 2;     ///< bounds a frame's cost when many tiles freeze at once
     /// ON by default since 2026-10-19 (the owner: "yeah. default"); a volume created with an explicit partial_wake keeps its own.
     static inline bool s_partialWakeDefault = true;

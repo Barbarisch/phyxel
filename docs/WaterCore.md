@@ -8068,6 +8068,26 @@ the water instead. Not changed: a `seed:"spans"` volume still leaves the spans i
 water if the game stops), so a census of one reads cells + spans double until it writes back; the recording path is exact.
 Tests: water unit 312/312, integration 46/47 (the known GpuFlipBulkParityAndRunup).
 
+### 27.19 Where a tile's record / wake call spends its time (2026-10-22): measured, two whole-volume costs cut
+
+The plan's next step was the per-tile GPU kernels (27.10: cells -> runs on the GPU). Measured first - `water_av_record_tiles`
+now echoes `phases` (each call split; `phases_reset:true`), live on the bench push (46 x 28 m, quiet scale 10): computing the
+runs is 0.3 ms. The time was elsewhere:
+| Call | Phase | Before (last / max ms) | After |
+|---|---|---|---|
+| wake | the GPU seed upload (`seedColumns`) | 8.9 / 10.3 | 2.4-5.6 (settle 0-0.8, host 1.7-4.0, submit 0.4-1.0) |
+| record | the record tile drawn (`buildRecordTilesNow`) | 4.9 / 7.1 | 2.5-5.8 |
+| record | the tile's cells read | 1.5 / 4.5 | 0.6-1.4 (one 3.7: a slow submit) |
+Cuts (no behaviour change - the record-tile tests, the hand-over test and the live books unchanged): `seedColumns` built a dense
+fill of the WHOLE volume (1.9 M floats, zeroed, walked twice) for one tile - now over the tile's cells only; its touched-brick list
+did a linear find per wet cell - now sort + unique. The record tile's occupancy came from 140 k `m_state` calls - inside a 1/9 m
+volume's box it now reads the volume's occupancy cache (the same lookup, cached; only while current). Live: wake max 11.4 -> 6.6
+ms, books 2.5e-4 of 1,288 m^3, 24/24 tiles back in the record (`w1c_phases.json` before, `w1c_phases_split.json` after).
+**Still over the 2 ms budget**, and now per cell, not per volume: the seed's fills (0.7-1.8 ms, a storage index per cell), the
+fresh-brick uploads (0.5-1.4), the record tile's occupancy rows outside the volume's box (1.5-4.4: the ground row below and air
+above, 46 k `m_state` calls) and a GPU read that sometimes waits 2-4 ms. Those are what the per-tile kernels (wc_seed.comp
+filling from uploaded runs) and a bulk occupancy read would cut - re-scoped by this measurement.
+
 ---
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)

@@ -846,8 +846,12 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     const auto t0 = std::chrono::steady_clock::now();
     glm::ivec2 bLo, bHi;
     if (!tileBricks(av, tx, tz, bLo, bHi)) return false;
+    auto tl = t0;
+    auto lap = [&](double* last, double* mx, int k) { const auto n = std::chrono::steady_clock::now(); last[k] = std::chrono::duration<double, std::milli>(n - tl).count(); mx[k] = std::max(mx[k], last[k]); tl = n; };   // 27.19 measurement
+    auto& P = s_tilePhases;
     WaterGrid g(GridSpec{glm::ivec3(0), glm::ivec3(1), av.h});
     if (!m_gpu->readColumns(vol, bLo, bHi, g)) return false;
+    lap(P.rec, P.recMax, 0);
     for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x)
         if (g.occ(x, y, z) == Occ::Unknown && g.f(x, y, z) > 0.0f) return false;   // the 5.1 hold rule: not over unknown ground
     std::vector<ColumnRuns> runs;
@@ -867,6 +871,7 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
         }
         av.recordJumpMmMax = std::max(av.recordJumpMmMax, 1000.0f * jump);
     }
+    lap(P.rec, P.recMax, 1);
     const float yLo = static_cast<float>(av.minVoxel.y), yHi = static_cast<float>(av.maxVoxel.y + 1);
     const glm::ivec3 vLo(std::max(av.minVoxel.x, tx * kTileVoxels), av.minVoxel.y, std::max(av.minVoxel.z, tz * kTileVoxels));
     const glm::ivec3 vHi(std::min(av.maxVoxel.x, tx * kTileVoxels + kTileVoxels - 1), av.maxVoxel.y, std::min(av.maxVoxel.z, tz * kTileVoxels + kTileVoxels - 1));
@@ -883,7 +888,9 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     double stored = 0.0;
     for (const auto& c : runs) { if (c.runs.empty()) continue; WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) { m.mass += static_cast<double>(r.topY - r.bottomY); m.top = std::max(m.top, r.topY); } written.push_back(m); stored += m.mass; }
     m_bodies.credit(written, before, m_bakeBodyAt);
+    lap(P.rec, P.recMax, 2);
     m_gpu->setColumnsRecorded(vol, bLo, bHi);
+    lap(P.rec, P.recMax, 3);
     av.recordedTileList.push_back({tx, tz});
     av.recordedM3 += stored;
     ++av.tilesRecorded;
@@ -901,6 +908,7 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
         }
     } else if (av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz) markRecordedColumns(av, tx, tz);
     av.field.version = (1ull << 62) + (++m_fieldBumps);
+    lap(P.rec, P.recMax, 4); ++P.recN;
     av.lastRecordMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     return true;
 }
@@ -913,8 +921,12 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
     const glm::ivec3 so = av.grid->spec().origin, n(av.grid->nx(), av.grid->ny(), av.grid->nz());
     const glm::ivec3 vLo(std::max(av.minVoxel.x, tx * kTileVoxels), av.minVoxel.y, std::max(av.minVoxel.z, tz * kTileVoxels));
     const glm::ivec3 vHi(std::min(av.maxVoxel.x, tx * kTileVoxels + kTileVoxels - 1), av.maxVoxel.y, std::min(av.maxVoxel.z, tz * kTileVoxels + kTileVoxels - 1));
+    auto tl = t0;
+    auto lap = [&](double* last, double* mx, int k) { const auto n = std::chrono::steady_clock::now(); last[k] = std::chrono::duration<double, std::milli>(n - tl).count(); mx[k] = std::max(mx[k], last[k]); tl = n; };   // 27.19 measurement
+    auto& P = s_tilePhases;
     std::vector<ColumnRuns> runs;
     if (m_spanReader) m_spanReader(vLo, vHi, runs);
+    lap(P.wake, P.wakeMax, 0);
     // the tile's cells in the volume (world-aligned tile, clipped to the box), its occupancy the volume's own
     const int x0 = std::max(0, tx * kTileVoxels * av.per - so.x), x1 = std::min(n.x - 1, (tx + 1) * kTileVoxels * av.per - 1 - so.x);
     const int z0 = std::max(0, tz * kTileVoxels * av.per - so.z), z1 = std::min(n.z - 1, (tz + 1) * kTileVoxels * av.per - 1 - so.z);
@@ -922,6 +934,7 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
     WaterGrid g(GridSpec{so + glm::ivec3(x0, 0, z0), glm::ivec3(x1 - x0 + 1, n.y, z1 - z0 + 1), av.h});
     refreshOccupancy(av);
     for (int z = z0; z <= z1; ++z) for (int y = 0; y < n.y; ++y) for (int x = x0; x <= x1; ++x) g.occ(x - x0, y, z - z0) = av.occCache[av.grid->idx(x, y, z)];
+    lap(P.wake, P.wakeMax, 1);
     seedGridFromRuns(g, runs);   // 27.9: level-filled into the air cells
     {   // the volume draws the woken tile at once from the seed (the GPU's surface replaces it at the next collected call)
         WaterSurfaceField sf; extractSurfaceField(g, sf);
@@ -935,7 +948,9 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
         Av::SeedPatch sp; sp.x0 = x0; sp.z0 = z0; sp.nx = sf.nx; sp.nz = sf.nz; sp.cols = sf.cols; sp.afterCall = m_gpu->callsSubmitted(vol);
         if (!(s_handoverRevertForTest & 4)) av.seedPatches.push_back(std::move(sp));   // TEST ONLY bit 4: the B red control
     }
+    lap(P.wake, P.wakeMax, 2);
     m_gpu->seedColumns(vol, std::move(g), bLo, bHi);
+    lap(P.wake, P.wakeMax, 3);
     if (s_handoverRevertForTest & 2) vol.surfaceFullNext = false;   // TEST ONLY: the A red control
     // the record gives the water back: its columns cleared, the body debited
     std::vector<ColumnRuns> clear;
@@ -949,7 +964,9 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
     av.recordedM3 -= back;
     ++av.tilesWoken;
     av.gpuStale = true;
+    lap(P.wake, P.wakeMax, 4);
     buildRecordTilesNow(vLo, vHi);
+    lap(P.wake, P.wakeMax, 5); ++P.wakeN;
     av.lastWakeMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     return true;
 }
@@ -1275,6 +1292,8 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     const int T = kRecordTile, per = kMicroPerVoxel;   // the record is drawn at the 1/9 m lattice (the pond's)
     const int vy = static_cast<int>(std::floor(m_view.y));
     const glm::ivec3 lo(tx * T, vy - kRecordBandVoxels, tz * T), hi(tx * T + T - 1, vy + kRecordBandVoxels, tz * T + T - 1);
+    auto tb = std::chrono::steady_clock::now();   // 27.19 measurement
+    auto bpart = [&](int k) { const auto n = std::chrono::steady_clock::now(); s_tilePhases.build[k] = std::chrono::duration<double, std::milli>(n - tb).count(); tb = n; };
     std::vector<ColumnRuns> runs;
     m_spanReader(lo, hi, runs);
     // columns a live volume owns are its own to draw (the volume's field comes first in surfaceFields, this keeps them apart) -
@@ -1295,12 +1314,31 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     if (!t.wet) { t.field = WaterSurfaceField{}; return; }
     const int y0 = static_cast<int>(std::floor(yMin)) - 1, y1 = static_cast<int>(std::ceil(yMax)) + 1;   // voxels: a cell of ground below, air above
     WaterGrid scratch(GridSpec{glm::ivec3(lo.x * per, y0 * per, lo.z * per), glm::ivec3(T * per, (y1 - y0) * per, T * per), 1.0f / static_cast<float>(per)});
+    bpart(0);
     const glm::ivec3 o = scratch.spec().origin;
-    for (int z = 0; z < scratch.nz(); ++z) for (int y = 0; y < scratch.ny(); ++y) for (int x = 0; x < scratch.nx(); ++x) {
-        const int s = m_state ? m_state(o + glm::ivec3(x, y, z)) : 0;   // the cell IS a micro cell at 1/9 m
-        scratch.occ(x, y, z) = s == 1 ? Occ::Solid : (s == 2 ? Occ::Unknown : Occ::Air);
+    // 27.19: inside a 1/9 m volume's box its occupancy cache IS this lookup (sampleOccupancy: one m_state per micro cell), cached -
+    // read from it while it is current (5-7 ms of a tile's record call was 140 k m_state calls); elsewhere, or stale, the world
+    const uint64_t rev = m_revision ? m_revision() : 0;
+    std::vector<const Av*> caches;
+    for (const auto& av : m_avs)
+        if (av->per == per && !av->occDirty && av->occRevision == rev && av->occCache.size() == av->grid->cellCount()) caches.push_back(av.get());
+    for (int z = 0; z < scratch.nz(); ++z) for (int x = 0; x < scratch.nx(); ++x) {
+        const Av* src = nullptr;
+        glm::ivec3 l(0);
+        for (const Av* av : caches) {
+            l = o + glm::ivec3(x, 0, z) - av->grid->spec().origin;
+            if (l.x >= 0 && l.z >= 0 && l.x < av->grid->nx() && l.z < av->grid->nz()) { src = av; break; }
+        }
+        for (int y = 0; y < scratch.ny(); ++y) {
+            const int ly = o.y + y - (src ? src->grid->spec().origin.y : 0);
+            if (src && ly >= 0 && ly < src->grid->ny()) { scratch.occ(x, y, z) = src->occCache[src->grid->idx(l.x, ly, l.z)]; continue; }
+            const int s = m_state ? m_state(o + glm::ivec3(x, y, z)) : 0;   // the cell IS a micro cell at 1/9 m
+            scratch.occ(x, y, z) = s == 1 ? Occ::Solid : (s == 2 ? Occ::Unknown : Occ::Air);
+        }
     }
+    bpart(1);
     recordSurfaceField(scratch, kept, t.field);
+    bpart(2);
     t.field.source = 0x40000000 | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
     t.field.version = ++m_recordBuilds;
     t.field.rippleLayer = -1;

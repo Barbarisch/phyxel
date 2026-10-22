@@ -571,7 +571,9 @@ void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& 
 // pond: 105 ms at a sleep, 27.8). The fills of stored bricks; ground and absent bricks hold none. Occupancy from the host copy.
 bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi, WaterGrid& out) {
     if (!vol.bricked) return false;
+    const auto tr0 = std::chrono::steady_clock::now();
     settle(vol);
+    s_tileGpuMs.readSettle = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tr0).count();
     const glm::ivec2 lo = glm::max(bLo, glm::ivec2(0)), hi = glm::min(bHi, glm::ivec2(vol.bn.x - 1, vol.bn.z - 1));
     if (hi.x < lo.x || hi.y < lo.y) return false;
     const glm::ivec3 n = vol.spec.dims;
@@ -593,8 +595,11 @@ bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::iv
             copy(cmd, vol.f, vol.staging, bytes, first, first);
             a = e;
         }
+        const auto ts = std::chrono::steady_clock::now();
         submitAndWait(cmd);
+        s_tileGpuMs.readSubmit = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ts).count();
     }
+    const auto th = std::chrono::steady_clock::now();
     out = WaterGrid(GridSpec{vol.spec.origin + glm::ivec3(x0, 0, z0), glm::ivec3(x1 - x0 + 1, n.y, z1 - z0 + 1), vol.spec.h});
     const float* sf = reinterpret_cast<const float*>(vol.staging.mapped);
     for (int z = z0; z <= z1; ++z) for (int y = 0; y < n.y; ++y) for (int x = x0; x <= x1; ++x) {
@@ -603,6 +608,7 @@ bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::iv
         const size_t d = static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z);
         out.occ(x - x0, y, z - z0) = d < vol.hostOcc.size() ? static_cast<Occ>(vol.hostOcc[d]) : Occ::Solid;
     }
+    s_tileGpuMs.readHost = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - th).count();
     return true;
 }
 
@@ -651,7 +657,10 @@ void WaterCoreGpu::setColumnsRecorded(Volume& vol, const glm::ivec2& bLo, const 
 void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& bLo, const glm::ivec2& bHi) {
     const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
     if (!vol.bricked || vol.colRecorded.size() != nc) return;
+    const auto tq0 = std::chrono::steady_clock::now();
     settle(vol);
+    s_tileGpuMs.seedSettle = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tq0).count();
+    const auto tq1 = std::chrono::steady_clock::now();
     if (vol.colQuiet.size() != nc) vol.colQuiet.assign(nc, 0);
     for (int bz = std::max(0, bLo.y); bz <= std::min(vol.bn.z - 1, bHi.y); ++bz)
         for (int bx = std::max(0, bLo.x); bx <= std::min(vol.bn.x - 1, bHi.x); ++bx) {
@@ -660,38 +669,60 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
             vol.colQuiet[c] = 1 << 20;   // at rest (the freeze test's count, far past restTicks)
         }
     vol.anyRecorded = std::find(vol.colRecorded.begin(), vol.colRecorded.end(), 1) != vol.colRecorded.end();
-    // the seed as a dense fill: its bricks (and a ring of halo, as an upload's) stored, then its fills written into them
-    std::vector<float> seed(vol.dCells, 0.0f);
+    // the seed's bricks (and a ring of halo, as an upload's) stored, then its fills written into them - over the TILE's cells only
+    // (27.19: a whole-volume dense fill, allocated, zeroed and walked twice, was 9-10 ms of a wake on the 46 x 28 m bench pond)
     const glm::ivec3 n = vol.spec.dims, off = cells.spec().origin - vol.spec.origin;
-    for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) for (int x = 0; x < cells.nx(); ++x) {
-        const float f = cells.f(x, y, z);
-        const glm::ivec3 c = off + glm::ivec3(x, y, z);
-        if (f == 0.0f || c.x < 0 || c.y < 0 || c.z < 0 || c.x >= n.x || c.y >= n.y || c.z >= n.z) continue;
-        seed[static_cast<size_t>(c.x) + static_cast<size_t>(n.x) * (c.y + static_cast<size_t>(n.y) * c.z)] = f;
-    }
+    auto inVol = [&](const glm::ivec3& c) { return c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < n.x && c.y < n.y && c.z < n.z; };
     std::vector<char> need(vol.mapCount, 0);
     for (size_t m = 0; m < vol.mapCount; ++m) need[m] = vol.map[m] >= kFirstSlot ? 2 : (vol.map[m] == kGround ? 1 : 0);   // the rest stays as it is
-    needFromDenseFill(vol, seed, need, kB);
+    {   // needFromDenseFill's rule, over the seed's cells: per brick holding seed water, the nearest wet cell to each face
+        std::vector<int> rec(vol.mapCount * 7, -1);
+        for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) for (int x = 0; x < cells.nx(); ++x) {
+            const glm::ivec3 c = off + glm::ivec3(x, y, z);
+            if (cells.f(x, y, z) == 0.0f || !inVol(c)) continue;
+            const glm::ivec3 q = c + vol.o, b = q / vol.bs(), l = q % vol.bs();
+            int* r = &rec[(static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)) * 7];
+            if (r[0] < 0) { r[0] = 1; for (int k = 1; k < 7; ++k) r[k] = 7; }
+            const int dd[6] = {l.x, 7 - l.x, l.y, vol.by - 1 - l.y, l.z, 7 - l.z};
+            for (int k = 0; k < 6; ++k) r[1 + k] = std::min(r[1 + k], dd[k]);
+        }
+        for (size_t m = 0; m < vol.mapCount; ++m) {
+            const int* r = &rec[m * 7];
+            if (r[0] < 0) continue;
+            need[m] = 2;
+            const glm::ivec3 b(static_cast<int>(m % vol.bn.x), static_cast<int>((m / vol.bn.x) % vol.bn.y), static_cast<int>(m / (static_cast<size_t>(vol.bn.x) * vol.bn.y)));
+            markNeed(vol, need, b, r + 1, kB);
+        }
+    }
+    auto tp = std::chrono::steady_clock::now();
+    auto part = [&](int k) { const auto n = std::chrono::steady_clock::now(); s_tileGpuMs.seedPart[k] = std::chrono::duration<double, std::milli>(n - tp).count(); tp = n; };
+    s_tileGpuMs.seedPart[0] = std::chrono::duration<double, std::milli>(tp - tq1).count();
     const std::vector<int> fresh = applyResidency(vol, need);
+    part(1);
     VkCommandBuffer cmd = beginCommands();
     if (!fresh.empty()) { scatterSlots(vol, fresh, nullptr); recordSlotUploads(cmd, vol, fresh, true); }
     barrier(cmd);
+    part(2);
     auto* sf = reinterpret_cast<float*>(static_cast<char*>(vol.staging.mapped));
     std::vector<int> touched;
     double unplaced = 0.0;
     const double h3 = static_cast<double>(vol.spec.h) * vol.spec.h * vol.spec.h;
-    for (int z = 0; z < n.z; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
-        if (seed[static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z)] == 0.0f) continue;
-        const long i = storageIndex(vol, x, y, z);
+    for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) for (int x = 0; x < cells.nx(); ++x) {
+        const glm::ivec3 c = off + glm::ivec3(x, y, z);
+        if (cells.f(x, y, z) == 0.0f || !inVol(c)) continue;
+        const long i = storageIndex(vol, c.x, c.y, c.z);
         if (i < static_cast<long>(kFirstSlot * vol.bc)) continue;
         const int slot = static_cast<int>(i / static_cast<long>(vol.bc));
-        if (std::find(touched.begin(), touched.end(), slot) == touched.end()) touched.push_back(slot);
+        if (touched.empty() || touched.back() != slot) touched.push_back(slot);   // 27.19: a find per wet cell was ~1-2 ms a tile
     }
+    std::sort(touched.begin(), touched.end());
+    touched.erase(std::unique(touched.begin(), touched.end()), touched.end());
     for (int slot : touched) std::memset(sf + static_cast<size_t>(slot) * vol.bc, 0, vol.bc * sizeof(float));   // each touched slot written whole
-    for (int z = 0; z < n.z; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
-        const float f = seed[static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z)];
-        if (f == 0.0f) continue;
-        const long i = storageIndex(vol, x, y, z);
+    for (int z = 0; z < cells.nz(); ++z) for (int y = 0; y < cells.ny(); ++y) for (int x = 0; x < cells.nx(); ++x) {
+        const glm::ivec3 c = off + glm::ivec3(x, y, z);
+        const float f = cells.f(x, y, z);
+        if (f == 0.0f || !inVol(c)) continue;
+        const long i = storageIndex(vol, c.x, c.y, c.z);
         if (i < static_cast<long>(kFirstSlot * vol.bc)) { unplaced += f * h3; continue; }   // a full capacity: counted, never silent
         sf[i] = f;
     }
@@ -708,8 +739,13 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
         if (!s_seedSkipsFPrevForTest) copy(cmd, vol.staging, vol.fPrev, bytes, first, first);
         a = e;
     }
+    part(3);
     if (vol.tablesDirty) { writeTablesToStaging(vol); copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks); vol.tablesDirty = false; }
+    part(4);
+    s_tileGpuMs.seedHost = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tq1).count();
+    const auto tq2 = std::chrono::steady_clock::now();
     submitAndWait(cmd);
+    s_tileGpuMs.seedSubmit = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tq2).count();
     vol.recordValid = false;   // the next residency keeps every stored brick (its record predates the seed)
     vol.surfaceFullNext = true;   // 27.15: the seeded columns are frozen, their surface must still be drawn
     vol.tablesDirty = true;    // the frozen bits follow at the next call

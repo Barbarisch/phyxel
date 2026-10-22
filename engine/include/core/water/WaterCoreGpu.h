@@ -341,6 +341,10 @@ public:
     static inline bool s_recordedOpenForTest = false;
     /// §27 W1b TEST ONLY: the seed leaves fPrev at 0 (the live cascade's cause) - the red control of the wake-speed bound.
     static inline bool s_seedSkipsFPrevForTest = false;
+    /// 27.19 measurement (ms, last call): a tile wake's seed upload / a record's cell read, split into the wait for the call in
+    /// flight (settle), the host work, and the blocking submission
+    struct TileGpuMs { double seedSettle = 0, seedHost = 0, seedSubmit = 0, readSettle = 0, readSubmit = 0, readHost = 0; double seedPart[5]{}; };   // seedPart: flags+need, residency, fresh uploads, fills, tables
+    static inline TileGpuMs s_tileGpuMs;
     static inline double s_tsMs[TsLabelCount] = {};
     static inline long s_tsCalls = 0;
     void setOmega(float w) { m_omega = w; }
