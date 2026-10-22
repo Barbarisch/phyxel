@@ -1,0 +1,113 @@
+M3a STRESS RED 2026-10-22 (Debug 16b440e4 + the new CivPlanStressTest, CivPlan unchanged; scratchpad m3a_stress_red.txt):
+[ M3a stress ] all sea: land 0 km2, 0 sites, bake 0.8 ms; city 0/0 town 0/0 village 0/0 hamlet 0/0 outpost 0/0; refusals 20
+[       OK ] CivPlanStressTest.AllSeaContinentHasNoSitesAndRefusesEveryPin (2 ms)
+[ M3a stress ] all mountain: land 2621 km2, 0 sites, bake 1.5 ms; city 0/0 town 0/2 village 0/4 hamlet 0/15 outpost 0/40; refusals 4
+    town: 2 of 2 unplaced (no viable cell at the ladder's spacing)
+    village: 4 of 4 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 15 of 15 unplaced (no viable cell at the ladder's spacing)
+    outpost: 40 of 40 unplaced (no viable cell at the ladder's spacing)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\CivPlanStressTest.cpp(131): error: Expected equality of these values:
+    Which is: 4
+    Which is: 5
+[  FAILED  ] CivPlanStressTest.AllMountainContinentDegradesHonestlyToZeroSites (2 ms)
+[ M3a stress ] plain x1: land 10433 km2, 172 sites, bake 29.9 ms; city 3/3 town 6/6 village 13/18 hamlet 38/56 outpost 112/162; refusals 3
+    village: 5 of 18 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 18 of 56 unplaced (no viable cell at the ladder's spacing)
+    outpost: 50 of 162 unplaced (no viable cell at the ladder's spacing)
+[ M3a stress ] plain x10: land 10433 km2, 167 sites, bake 32.8 ms; city 5/31 town 4/61 village 13/181 hamlet 39/563 outpost 106/1622; refusals 5
+    city: 26 of 31 unplaced (no viable cell at the ladder's spacing)
+    town: 57 of 61 unplaced (no viable cell at the ladder's spacing)
+    village: 168 of 181 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 524 of 563 unplaced (no viable cell at the ladder's spacing)
+    outpost: 1516 of 1622 unplaced (no viable cell at the ladder's spacing)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\CivPlanStressTest.cpp(154): error: Expected: (dense->sites().size()) > (base->sites().size() * 5u), actual: 167 vs 860
+[  FAILED  ] CivPlanStressTest.DensityTenFillsTheLadderWithSpacingIntact (65 ms)
+[ M3a stress ] 400x400: land 41838 km2, 606 sites, bake 273.0 ms; city 12/12 town 18/25 village 44/72 hamlet 144/226 outpost 388/650; refusals 4
+    town: 7 of 25 unplaced (no viable cell at the ladder's spacing)
+    village: 28 of 72 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 82 of 226 unplaced (no viable cell at the ladder's spacing)
+    outpost: 262 of 650 unplaced (no viable cell at the ladder's spacing)
+[       OK ] CivPlanStressTest.FourTimesTheContinentKeepsEveryInvariant (284 ms)
+[ M3a stress ] 4x4: land 3 km2, 0 sites, bake 0.0 ms; city 0/0 town 0/0 village 0/0 hamlet 0/0 outpost 0/0; refusals 0
+[       OK ] CivPlanStressTest.TinySheetDerivesNothingAndDoesNotCrash (0 ms)
+[ M3a stress ] 300 pins: land 10436 km2, 294 sites, bake 68.2 ms; city 3/3 town 150/6 village 13/18 hamlet 36/56 outpost 92/162; refusals 153
+    village: 5 of 18 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 20 of 56 unplaced (no viable cell at the ladder's spacing)
+    outpost: 70 of 162 unplaced (no viable cell at the ladder's spacing)
+[ M3a stress ] pins: seated 150; refused water 50 outside 50 steep 50 duplicate 0 spacing 0
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\CivPlanStressTest.cpp(235): error: Expected equality of these values:
+    Which is: 0
+a pin on a cell that is already a site must be refused, not stacked
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\CivPlanStressTest.cpp(236): error: Expected equality of these values:
+    Which is: 0
+    Which is: 96
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\CivPlanStressTest.cpp(237): error: Expected equality of these values:
+    Which is: 150
+    Which is: 4
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\CivPlanStressTest.cpp(239): error: Expected equality of these values:
+    Which is: 50
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\CivPlanStressTest.cpp(240): error: Expected equality of these values:
+    Which is: 21676
+[  FAILED  ] CivPlanStressTest.ThreeHundredPinsEveryKindRefusedWithItsReason (71 ms)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 3 tests, listed below:
+[  FAILED  ] CivPlanStressTest.AllMountainContinentDegradesHonestlyToZeroSites
+[  FAILED  ] CivPlanStressTest.DensityTenFillsTheLadderWithSpacingIntact
+[  FAILED  ] CivPlanStressTest.ThreeHundredPinsEveryKindRefusedWithItsReason
+
+FINDINGS: (1) all-mountain: 2621 km2 derives NO city target -> 4 shortfalls, the test's 5 was a wrong assumption (test corrected to 'one per tier with a target');
+(2) REAL: civDensityScale x10 placed 167 sites vs 172 at x1 - targets scaled, spacing did not (the spacing IS the density) -> fix: spacing /= sqrt(scale), targets from the same formula;
+(3) REAL: 50 pins on one cell seated 50 stacked towns (town 150/6), 96 tight-lattice pins seated silently inside the town spacing -> fix: 'already a site' and 'within the town spacing of pin (x,z)' refusals; a higher tier now keeps a pinned lower tier's own spacing;
+(4) noted: on a flat fertile plain the greedy pick reaches ~70% of the hex-packing ceiling (village 13/18, hamlet 38/56, outpost 112/162) - the target is the ceiling, greedy-by-score packs like a square lattice.
+
+M3a STRESS GREEN (Debug, CivPlan fixed: spacing /= sqrt(civDensityScale); duplicate-cell and within-town-spacing pins refused; a higher tier keeps a pinned lower tier's spacing; scratchpad m3a_stress_green.txt): 14/14 with CivPlanTest and the pinned version-1 hashes
+[ M3a stress ] all sea: land 0 km2, 0 sites, bake 0.9 ms; city 0/0 town 0/0 village 0/0 hamlet 0/0 outpost 0/0; refusals 20
+[       OK ] CivPlanStressTest.AllSeaContinentHasNoSitesAndRefusesEveryPin (3 ms)
+[ M3a stress ] all mountain: land 2621 km2, 0 sites, bake 2.1 ms; city 0/0 town 0/2 village 0/4 hamlet 0/15 outpost 0/40; refusals 4
+    town: 2 of 2 unplaced (no viable cell at the ladder's spacing)
+    village: 4 of 4 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 15 of 15 unplaced (no viable cell at the ladder's spacing)
+    outpost: 40 of 40 unplaced (no viable cell at the ladder's spacing)
+[       OK ] CivPlanStressTest.AllMountainContinentDegradesHonestlyToZeroSites (2 ms)
+[ M3a stress ] plain x1: land 10433 km2, 172 sites, bake 33.4 ms; city 3/3 town 6/6 village 13/18 hamlet 38/56 outpost 112/162; refusals 3
+    village: 5 of 18 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 18 of 56 unplaced (no viable cell at the ladder's spacing)
+    outpost: 50 of 162 unplaced (no viable cell at the ladder's spacing)
+[ M3a stress ] plain x10: land 10433 km2, 1470 sites, bake 144.0 ms; city 21/31 town 48/61 village 122/181 hamlet 367/563 outpost 912/1622; refusals 5
+    city: 10 of 31 unplaced (no viable cell at the ladder's spacing)
+    town: 13 of 61 unplaced (no viable cell at the ladder's spacing)
+    village: 59 of 181 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 196 of 563 unplaced (no viable cell at the ladder's spacing)
+    outpost: 710 of 1622 unplaced (no viable cell at the ladder's spacing)
+[       OK ] CivPlanStressTest.DensityTenFillsTheLadderWithSpacingIntact (191 ms)
+[ M3a stress ] 400x400: land 41838 km2, 606 sites, bake 329.4 ms; city 12/12 town 18/25 village 44/72 hamlet 144/226 outpost 388/650; refusals 4
+    town: 7 of 25 unplaced (no viable cell at the ladder's spacing)
+    village: 28 of 72 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 82 of 226 unplaced (no viable cell at the ladder's spacing)
+    outpost: 262 of 650 unplaced (no viable cell at the ladder's spacing)
+[       OK ] CivPlanStressTest.FourTimesTheContinentKeepsEveryInvariant (341 ms)
+[ M3a stress ] 4x4: land 3 km2, 0 sites, bake 0.0 ms; city 0/0 town 0/0 village 0/0 hamlet 0/0 outpost 0/0; refusals 0
+[       OK ] CivPlanStressTest.TinySheetDerivesNothingAndDoesNotCrash (0 ms)
+[ M3a stress ] 300 pins: land 10436 km2, 158 sites, bake 34.1 ms; city 2/3 town 6/6 village 10/18 hamlet 42/56 outpost 98/162; refusals 300
+    city: 1 of 3 unplaced (no viable cell at the ladder's spacing)
+    village: 8 of 18 unplaced (no viable cell at the ladder's spacing)
+    hamlet: 14 of 56 unplaced (no viable cell at the ladder's spacing)
+    outpost: 64 of 162 unplaced (no viable cell at the ladder's spacing)
+[ M3a stress ] pins: seated 4; refused water 50 outside 50 steep 50 duplicate 50 spacing 96
+[       OK ] CivPlanStressTest.ThreeHundredPinsEveryKindRefusedWithItsReason (36 ms)
+[ M3a ] land 7927 km2, bake 76.1 ms: city 2/2 town 5/5 village 13/13 hamlet 38/43 outpost 99/123; total 157/186; refusals 2
+[       OK ] CivPlanTest.HundredsOfSitesAtTheLadderTargets (106066 ms)
+[ M3a ] spacing: 157 sites, 0 violations (worst 1.00 of the ladder)
+[       OK ] CivPlanTest.SpacingHoldsAgainstEverySiteOfTheSameOrHigherTier (23582 ms)
+[ M3a ] village:town = 13:5 (ratio 2.60)
+[ M3a ] hamlet:village = 38:13 (ratio 2.92)
+[ M3a ] outpost:hamlet = 99:38 (ratio 2.61)
+[       OK ] CivPlanTest.HierarchyRatioIsCentralPlace (23806 ms)
+[       OK ] CivPlanTest.NoSiteInWaterOrOnACliff (23825 ms)
+[       OK ] CivPlanTest.DeterministicAcrossGenerators (46176 ms)
+[ M3a ] sea pin at (768,256): refused 1; refusals: | pin (768,256) is in water or a basin | hamlet: 5 of 43 unplaced (no viable cell at the ladder's spacing) | outpost: 24 of 123 unplaced (no viable c
+[       OK ] CivPlanTest.PinsInWaterAreRefusedWithTheReason (46837 ms)
+[ M3a ] civ sites in the box (city..hamlet): 6; box plan sites 6, 6 within a macro cell of a civ site
+[       OK ] CivPlanTest.TheBoxPlanIsSeededByTheCivSites (23055 ms)
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1734 ms)
+[  PASSED  ] 14 tests.

@@ -30,7 +30,8 @@ struct WorldForgeParams {
     // civ sites inside it and the 3–8 clamp lifts). civSpacingKm: Christaller's √3 ladder per tier
     // city/town/village/hamlet/outpost (§10 F4, 62/36/21/12/7 km); civSlopeCap: rise/run at the
     // macro cell a tier accepts (the M0 road-grade caps 0.05/0.08/0.15 reused — REASONED);
-    // civDensityScale: multiplies the targets the ladder derives (1 = the ladder's own density).
+    // civDensityScale: multiplies every tier's DENSITY (the ladder spacings shrink by sqrt(scale);
+    // the targets follow from the same formula; 1 = the ladder's own density).
     bool  civ = false;
     float civSpacingKm[5] = {62.0f, 36.0f, 21.0f, 12.0f, 7.0f};
     float civSlopeCap[5]  = {0.05f, 0.05f, 0.08f, 0.15f, 0.15f};

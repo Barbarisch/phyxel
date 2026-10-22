@@ -163,11 +163,16 @@ std::shared_ptr<const CivPlan> CivPlan::bake(const Inputs& in, const WorldForgeP
     std::stable_sort(cand.begin(), cand.end(), [](const Site& a, const Site& b) { return a.score > b.score; });
 
     // ── Targets from the ladder (D19) ───────────────────────────────────────────────────────
+    // civDensityScale multiplies the DENSITY of every tier: the ladder's spacings shrink by
+    // sqrt(scale) and the targets follow from the same formula. (Stress red 2026-10-22: scaling
+    // the targets alone at the unchanged spacing placed FEWER sites at x10 than at x1 - the
+    // spacing is what the density is.)
+    const float spacingScale = 1.0f / std::sqrt(std::max(1e-3f, P.civDensityScale));
     int cumulative = 0;
     for (int t = 0; t < kTiers; ++t) {
-        const float sKm = P.civSpacingKm[t];
+        const float sKm = P.civSpacingKm[t] * spacingScale;
         plan->m_spacingCells[t] = sKm * 1000.0f / cu;
-        const int cumTarget = static_cast<int>(std::floor(plan->m_landKm2 / (kHexPack * sKm * sKm) * P.civDensityScale));
+        const int cumTarget = static_cast<int>(std::floor(plan->m_landKm2 / (kHexPack * sKm * sKm)));
         plan->m_target[t] = std::max(0, cumTarget - cumulative);
         cumulative = std::max(cumulative, cumTarget);
     }
@@ -185,6 +190,21 @@ std::shared_ptr<const CivPlan> CivPlan::bake(const Inputs& in, const WorldForgeP
         const size_t k = static_cast<size_t>(cj) * n + ci;
         if (!land[k]) { plan->m_refusals.push_back("pin (" + std::to_string(pin.x) + "," + std::to_string(pin.y) + ") is in water or a basin"); continue; }
         if (slope[k] > P.civSlopeCap[Town]) { plan->m_refusals.push_back("pin (" + std::to_string(pin.x) + "," + std::to_string(pin.y) + ") is steeper than the town cap"); continue; }
+        // Stress red 2026-10-22: 50 pins on one cell seated 50 towns on top of each other, and
+        // pins closer than the town spacing seated silently. A pin is refused, never nudged.
+        bool dup = false; const Site* near = nullptr;
+        for (const auto& p : picked) {
+            if (p.cell == static_cast<int>(k)) { dup = true; break; }
+            const int pi = p.cell % n, pj = p.cell / n;
+            const float d = std::sqrt(static_cast<float>((pi - ci) * (pi - ci) + (pj - cj) * (pj - cj)));
+            if (d < plan->m_spacingCells[Town]) { near = &p; break; }
+        }
+        if (dup) { plan->m_refusals.push_back("pin (" + std::to_string(pin.x) + "," + std::to_string(pin.y) + ") is already a site"); continue; }
+        if (near) {
+            plan->m_refusals.push_back("pin (" + std::to_string(pin.x) + "," + std::to_string(pin.y) + ") is within the town spacing of pin (" +
+                                       std::to_string(static_cast<int>(near->pos.x)) + "," + std::to_string(static_cast<int>(near->pos.y)) + ")");
+            continue;
+        }
         Site s;
         s.cell = static_cast<int>(k);
         s.pos = glm::vec2(M.originU() + (ci + 0.5f) * cu, M.originU() + (cj + 0.5f) * cu);
@@ -206,10 +226,14 @@ std::shared_ptr<const CivPlan> CivPlan::bake(const Inputs& in, const WorldForgeP
             bool ok = true;
             const int si = s.cell % n, sj = s.cell / n;
             for (const auto& p : picked) {
-                if (p.tier > t) continue;   // lower tiers do not constrain a higher one
+                // a same-or-higher site constrains at THIS tier's spacing; an already-seated
+                // lower-tier site (a pinned town while cities are picked) at ITS OWN spacing,
+                // so the invariant "every site keeps its tier's spacing from every site of its
+                // tier or higher" holds for the pinned site too
+                const float needD = p.tier > t ? plan->m_spacingCells[p.tier] : sp;
                 const int pi = p.cell % n, pj = p.cell / n;
                 const float d = std::sqrt(static_cast<float>((pi - si) * (pi - si) + (pj - sj) * (pj - sj)));
-                if (d < sp) { ok = false; break; }
+                if (d < needD) { ok = false; break; }
             }
             if (!ok) continue;
             s.tier = t;
