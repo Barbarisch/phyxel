@@ -15169,8 +15169,8 @@ void Application::registerWorldForgeCommands() {
              {"units_per_pixel", stepU},
              {"sample_ms", ms},
              {"legend", "terrain biome colors + NW hillshade | blue water (depth-shaded) | "
-                        "tan/gray roads | brown bridge decks | squares: red town, orange "
-                        "village, yellow hamlet | magenta cross: camera"}};
+                        "tan/gray roads | brown bridge decks | squares: magenta-red city, red town, orange "
+                        "village, yellow hamlet, light grey outpost, dark grey abandoned (M3b) | magenta cross: camera"}};
     });
 }
 

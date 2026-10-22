@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <nlohmann/json.hpp>
+
 #include "core/CivPlan.h"
 #include "core/WorldForgeParams.h"
 #include "core/WorldForgePlan.h"
@@ -10,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <fstream>
 #include <map>
 #include <set>
 #include <string>
@@ -103,7 +106,7 @@ TEST(CivHistoryTest, AbandonedFractionMatchesTheDesertedVillageRate) {
     for (const auto& r : civ->sites()) {
         if (r.state != CivPlan::Abandoned) continue;
         for (const auto& l : civ->sites())
-            if (l.tier == r.tier && l.state == CivPlan::Live && l.founded <= 9 && l.score < r.score - 1e-6f) ++notMarginal;
+            if (l.tier == r.tier && l.state == CivPlan::Live && l.founded <= g.getWorldForgeParams().clamped().civShockEpoch && l.score < r.score - 1e-6f) ++notMarginal;
     }
     EXPECT_EQ(notMarginal, 0) << "a ruin outscored a live site of its tier";
 }
@@ -262,4 +265,134 @@ TEST(CivHistoryTest, RuinsAreNotSeededIntoTheBoxPlan) {
     std::printf("[ M3b ] box plan: %zu sites; abandoned civ sites inside the box %d, seeded as live %d\n", box->sites().size(), ruinsInBox, seededRuins);
     EXPECT_GT(ruinsInBox, 0) << "the baseline's 12-epoch arc should leave at least one ruin inside the box";
     EXPECT_EQ(seededRuins, 0) << "an abandoned civ site was seeded into the box plan";
+}
+
+// Audit 2026-10-22: the ledger's arithmetic was unasserted (mutating the growth or the shock multiply
+// passed every test). Every "grew" value = the previous value × (1 + 0.114·(0.5 + score)); every
+// "shock" value = the previous value × (1 − civShockFraction); a 90 % shock leaves every shocked
+// site lower than a 45 % one; no site grows in its founding epoch.
+TEST(CivHistoryTest, LedgerMathMatchesTheGrounding) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(civRecipe(20260816u, 12));
+    WorldRecipe hard = civRecipe(20260816u, 12);
+    hard.worldforge.civShockFraction = 0.9f;
+    WorldGenerator h(WorldGenerator::GenerationType::Perlin, 20260816u);
+    h.applyRecipe(hard);
+    ASSERT_TRUE(g.civPlan() && h.civPlan());
+    int grew = 0, shocks = 0, badGrow = 0, badShock = 0, grewAtFounding = 0, harderNotLower = 0;
+    for (size_t i = 0; i < g.civPlan()->sites().size(); ++i) {
+        const auto& s = g.civPlan()->sites()[i];
+        for (size_t k = 1; k < s.history.size(); ++k) {
+            const auto& prev = s.history[k - 1];
+            const auto& ev = s.history[k];
+            if (ev.kind == "grew") {
+                ++grew;
+                if (ev.epoch == s.founded) ++grewAtFounding;
+                if (std::fabs(ev.value - prev.value * (1.0f + 0.114f * (0.5f + s.score))) > 1e-4f * std::max(1.0f, ev.value)) ++badGrow;
+            } else if (ev.kind == "shock") {
+                ++shocks;
+                if (std::fabs(ev.value - prev.value * 0.55f) > 1e-4f * std::max(1.0f, ev.value)) ++badShock;
+                const auto& t = h.civPlan()->sites()[i];
+                for (const auto& te : t.history)
+                    if (te.kind == "shock" && !(te.value < ev.value - 1e-6f)) ++harderNotLower;
+            }
+        }
+    }
+    std::printf("[ M3b ] ledger math: %d grew events (%d wrong, %d in the founding epoch), %d shocks (%d wrong, %d not lower at 90 %%)\n",
+                grew, badGrow, grewAtFounding, shocks, badShock, harderNotLower);
+    EXPECT_GT(grew, 1000); EXPECT_GT(shocks, 100);
+    EXPECT_EQ(badGrow, 0); EXPECT_EQ(badShock, 0); EXPECT_EQ(grewAtFounding, 0); EXPECT_EQ(harderNotLower, 0);
+}
+
+// Audit 2026-10-22: the share is the lever — 0 empties nothing, 1 empties every village-and-below
+// site founded before the shock, 0.5 about half; and ruins are no longer the youngest sites: with
+// founding order a seeded hash, the hamlet/outpost ruins' founding epochs spread over the pre-shock
+// epochs instead of all sitting at the last two.
+TEST(CivHistoryTest, AbandonShareIsTheLeverAndRuinsAreNotJustTheYoungest) {
+    int low = 0;
+    std::map<int, int> ruinFounded;
+    for (float share : {0.0f, 0.5f, 1.0f, 0.2f}) {
+        WorldRecipe r = civRecipe(20260816u, 12);
+        r.worldforge.civAbandonShare = share;
+        WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+        g.applyRecipe(r);
+        ASSERT_TRUE(g.civPlan());
+        int ruins = 0; low = 0;
+        for (const auto& s : g.civPlan()->sites()) {
+            if (s.tier >= CivPlan::Village) ++low;
+            if (s.state == CivPlan::Abandoned) { ++ruins; if (share == 0.2f && s.tier >= CivPlan::Hamlet) ++ruinFounded[s.founded]; }
+        }
+        std::printf("[ M3b ] civAbandonShare %.1f: %d ruins of %d village-and-below\n", share, ruins, low);
+        if (share == 0.0f) EXPECT_EQ(ruins, 0);
+        if (share == 1.0f) EXPECT_EQ(ruins, low);
+        if (share == 0.5f) { EXPECT_GE(ruins, low * 45 / 100); EXPECT_LE(ruins, low * 55 / 100); }
+    }
+    std::printf("[ M3b ] hamlet/outpost ruins by founding epoch:");
+    for (const auto& kv : ruinFounded) std::printf(" e%d:%d", kv.first, kv.second);
+    std::printf("\n");
+    EXPECT_GE(ruinFounded.size(), 4u) << "ruins come from fewer than four founding epochs (the youngest-only artefact)";
+    EXPECT_GT(ruinFounded[0], 0) << "no ruin among the epoch-0 hamlets/outposts";
+}
+
+// Audit 2026-10-22: a cross-build pin. The civEpochs-0 plan must equal, site for site (cell, tier,
+// x, z, score), the civ list the pre-M3b Release engine wrote for the same recipe
+// (docs/evidence/worldforge_v2/m3a_l4_green3_civ.json, commit 77d320cf, 2026-10-22).
+TEST(CivHistoryTest, EpochsZeroMatchesThePreM3bEngineRecord) {
+    std::ifstream f("docs/evidence/worldforge_v2/m3a_l4_green3_civ.json");
+    ASSERT_TRUE(f.good()) << "run from the repo root";
+    nlohmann::json rec = nlohmann::json::parse(f);
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(civRecipe(20260816u, 0));
+    ASSERT_TRUE(g.civPlan());
+    const auto& sites = g.civPlan()->sites();
+    ASSERT_EQ(sites.size(), rec["sites"].size());
+    int mismatches = 0;
+    for (size_t i = 0; i < sites.size(); ++i) {
+        const auto& a = sites[i]; const auto& b = rec["sites"][i];
+        if (std::string(CivPlan::tierName(a.tier)) != b["tier"].get<std::string>() || std::fabs(a.pos.x - b["x"].get<float>()) > 0.01f ||
+            std::fabs(a.pos.y - b["z"].get<float>()) > 0.01f || std::fabs(a.score - b["score"].get<float>()) > 1e-5f) ++mismatches;
+    }
+    std::printf("[ M3b ] civEpochs 0 vs the pre-M3b engine record: %zu sites, %d mismatches\n", sites.size(), mismatches);
+    EXPECT_EQ(mismatches, 0) << "M3b moved the civEpochs-0 plan away from M3a";
+}
+
+// Audit 2026-10-22: on the history path the box plan is still seeded by the LIVE civ sites inside
+// the box — exactly those, position within a macro cell.
+TEST(CivHistoryTest, BoxPlanIsSeededByTheLiveCivSitesAtTwelveEpochs) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(civRecipe(20260816u, 12));
+    const CivPlan* civ = g.civPlan();
+    const WorldForgePlan* box = g.worldForge();
+    ASSERT_TRUE(civ && box);
+    int liveInBox = 0, matched = 0;
+    for (const auto& s : civ->sites())
+        if (s.state != CivPlan::Abandoned && s.tier <= CivPlan::Hamlet && std::fabs(s.pos.x) < 16384.0f - 512.0f && std::fabs(s.pos.y) < 16384.0f - 512.0f) ++liveInBox;
+    for (const auto& bs : box->sites())
+        for (const auto& s : civ->sites())
+            if (s.state != CivPlan::Abandoned && std::fabs(s.pos.x - bs.pos.x) <= 80.0f && std::fabs(s.pos.y - bs.pos.y) <= 80.0f) { ++matched; break; }
+    std::printf("[ M3b ] box plan at 12 epochs: %zu sites, %d live civ sites inside the box, %d matched\n", box->sites().size(), liveInBox, matched);
+    EXPECT_EQ(static_cast<int>(box->sites().size()), liveInBox);
+    EXPECT_EQ(matched, static_cast<int>(box->sites().size()));
+}
+
+// Audit 2026-10-22: the shock edge. civEpochs 5 with the default shock epoch 9 clamps the shock to
+// 5 (the last epoch), so the declined sites have no epoch left to be abandoned in: they END the
+// arc as "declining" — allowed and stated (a ruin needs the epoch after the shock), never a silent
+// no-shock.
+TEST(CivHistoryTest, ShockAtTheLastEpochLeavesDecliningSitesNotRuins) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(civRecipe(20260816u, 5));
+    ASSERT_TRUE(g.civPlan());
+    const CivPlan& civ = *g.civPlan();
+    EXPECT_EQ(g.getWorldForgeParams().clamped().civShockEpoch, 5);
+    int shocked = 0, declining = 0, abandoned = 0;
+    for (const auto& s : civ.sites()) {
+        for (const auto& e : s.history) if (e.kind == "shock") { ++shocked; EXPECT_EQ(e.epoch, 5); }
+        if (s.state == CivPlan::Declining) ++declining;
+        if (s.state == CivPlan::Abandoned) ++abandoned;
+    }
+    std::printf("[ M3b ] shock at the last epoch (5): %d shocked, %d declining, %d abandoned\n", shocked, declining, abandoned);
+    EXPECT_GT(shocked, 0);
+    EXPECT_GT(declining, 0);
+    EXPECT_EQ(abandoned, 0);
 }

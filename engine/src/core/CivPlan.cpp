@@ -281,10 +281,23 @@ std::shared_ptr<const CivPlan> CivPlan::bake(const Inputs& in, const WorldForgeP
         // Founding: cities/towns/villages stand at epoch 0 (the Domesday places); hamlets and
         // outposts are founded in score order over the epochs before the shock (the growth that
         // filled the land 1086 → 1300) — the best site of each tier first.
-        int rankInTier[kTiers] = {0, 0, 0, 0, 0};
+        // Founding ORDER within a tier is a seeded hash of the cell, not the score: founding by score
+        // and abandoning by score made every ruin one of the youngest sites (audit 2026-10-22), the
+        // opposite of the deserted-village record (old marginal villages). Colonization order is not
+        // suitability-ranked in the sources either; the pick (which cells) stays by score.
         const int spread = E == 0 ? 0 : (shock > 0 ? shock : E);
-        for (auto& s : plan->m_sites) {
-            const int r = rankInTier[s.tier]++;
+        std::vector<std::vector<size_t>> byTier(kTiers);
+        for (size_t i = 0; i < plan->m_sites.size(); ++i) byTier[static_cast<size_t>(plan->m_sites[i].tier)].push_back(i);
+        for (auto& ids : byTier)
+            std::stable_sort(ids.begin(), ids.end(), [&](size_t a, size_t b) {
+                const Site& A = plan->m_sites[a]; const Site& B = plan->m_sites[b];
+                return hash2(in.seed ^ 0xF0DEu, A.cell % n, A.cell / n) < hash2(in.seed ^ 0xF0DEu, B.cell % n, B.cell / n);
+            });
+        std::vector<int> foundRank(plan->m_sites.size(), 0);
+        for (const auto& ids : byTier) for (size_t r = 0; r < ids.size(); ++r) foundRank[ids[r]] = static_cast<int>(r);
+        for (size_t i = 0; i < plan->m_sites.size(); ++i) {
+            Site& s = plan->m_sites[i];
+            const int r = foundRank[i];
             const int nT = plan->m_count[s.tier];
             s.founded = (s.tier >= Hamlet && spread > 0 && nT > 0)
                             ? std::min(E, static_cast<int>(std::floor(static_cast<float>(r) / nT * spread)))
@@ -296,7 +309,7 @@ std::shared_ptr<const CivPlan> CivPlan::bake(const Inputs& in, const WorldForgeP
         }
         for (int e = 1; e <= E; ++e) {
             for (auto& s : plan->m_sites) {
-                if (e < s.founded || s.state == Abandoned) continue;
+                if (e <= s.founded || s.state == Abandoned) continue;   // the founding epoch is not a growth epoch
                 if (s.state == Declining) {
                     s.state = Abandoned;
                     s.population = 0.0f;

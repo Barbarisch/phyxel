@@ -73,3 +73,40 @@ FIX: WorldGenerator skips abandoned civ sites when seeding the box (D22). GREEN 
 [D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
 [D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
 [  PASSED  ] 10 tests.
+
+==================================================================
+AUDIT FOLLOW-UP 2026-10-22 (solution-auditor on 22489db3: FAIL - ledger math unasserted, abandonment test restates its input, ruins were always the youngest sites, no cross-build pin of civEpochs 0, shock-edge and box-seeding-at-12 untested)
+==================================================================
+Code: founding ORDER within a tier is now a seeded hash of the cell (the pick stays by score); no growth in the founding epoch. Five new tests.
+
+GREEN with the fixes (Debug; scratchpad m3b_audit_green.txt): 12/12
+[ M3b ] ledger math: 1073 grew events (0 wrong, 0 in the founding epoch), 154 shocks (0 wrong, 0 not lower at 90 %)
+[ M3b ] civAbandonShare 0.0: 0 ruins of 148 village-and-below
+[ M3b ] civAbandonShare 0.5: 75 ruins of 148 village-and-below
+[ M3b ] civAbandonShare 1.0: 148 ruins of 148 village-and-below
+[ M3b ] civAbandonShare 0.2: 31 ruins of 148 village-and-below
+[ M3b ] hamlet/outpost ruins by founding epoch: e0:5 e1:2 e2:4 e3:5 e4:2 e5:2 e6:2 e7:3 e8:3
+[ M3b ] civEpochs 0 vs the pre-M3b engine record: 154 sites, 0 mismatches
+[ M3b ] box plan at 12 epochs: 4 sites, 4 live civ sites inside the box, 4 matched
+[ M3b ] shock at the last epoch (5): 154 shocked, 31 declining, 0 abandoned
+[  PASSED  ] 12 tests.
+
+MUTATION RED (three mutations at once - growth 0.114 -> 0.2, growth in the founding epoch, founding by score; scratchpad m3b_math_mutation.txt):
+[ M3b ] ledger math: 1191 grew events (1191 wrong, 118 in the founding epoch), 154 shocks (0 wrong, 0 not lower at 90 %)
+[  FAILED  ] CivHistoryTest.LedgerMathMatchesTheGrounding (86356 ms)
+[ M3b ] civAbandonShare 0.0: 0 ruins of 148 village-and-below
+[ M3b ] civAbandonShare 0.5: 75 ruins of 148 village-and-below
+[ M3b ] civAbandonShare 1.0: 148 ruins of 148 village-and-below
+[ M3b ] civAbandonShare 0.2: 31 ruins of 148 village-and-below
+[ M3b ] hamlet/outpost ruins by founding epoch: e7:14 e8:14
+ruins come from fewer than four founding epochs (the youngest-only artefact)
+[  FAILED  ] CivHistoryTest.AbandonShareIsTheLeverAndRuinsAreNotJustTheYoungest (70913 ms)
+[  FAILED  ] CivHistoryTest.LedgerMathMatchesTheGrounding
+[  FAILED  ] CivHistoryTest.AbandonShareIsTheLeverAndRuinsAreNotJustTheYoungest
+mutations reverted; green rerun below
+
+GREEN after the mutations were reverted (Debug; scratchpad m3b_final_green.txt):
+[ M3b ] ledger math: 1073 grew events (0 wrong, 0 in the founding epoch), 154 shocks (0 wrong, 0 not lower at 90 %)
+[ M3b ] hamlet/outpost ruins by founding epoch: e0:5 e1:2 e2:4 e3:5 e4:2 e5:2 e6:2 e7:3 e8:3
+[ M3b ] civEpochs 0 vs the pre-M3b engine record: 154 sites, 0 mismatches
+[  PASSED  ] 26 tests.
