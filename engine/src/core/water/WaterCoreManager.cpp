@@ -892,7 +892,14 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     // (runs -1), never cleared to dry - dry, the live water beside the tile walled them off until the volume's next step (a dark
     // line swept across the pond as its tiles recorded; a pond asleep as a whole never steps again)
     buildRecordTilesNow(vLo, vHi);
-    if (av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz) markRecordedColumns(av, tx, tz);
+    if (s_handoverRevertForTest & 1) {   // TEST ONLY: the 27.16 red control - cleared to dry
+        const glm::ivec3 o = g.spec().origin - av.grid->spec().origin;
+        for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) {
+            const int fx = o.x + x, fz = o.z + z;
+            if (fx >= 0 && fz >= 0 && fx < av.field.nx && fz < av.field.nz && av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz)
+                av.field.cols[static_cast<size_t>(fx) + static_cast<size_t>(av.field.nx) * fz] = SurfaceColumn{};
+        }
+    } else if (av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz) markRecordedColumns(av, tx, tz);
     av.field.version = (1ull << 62) + (++m_fieldBumps);
     av.lastRecordMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     return true;
@@ -926,9 +933,10 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
         av.field.version = (1ull << 62) + (++m_fieldBumps);
         // 27.15: ... and keeps drawing it until a surface computed after the seed is read (surfaceFields re-applies it)
         Av::SeedPatch sp; sp.x0 = x0; sp.z0 = z0; sp.nx = sf.nx; sp.nz = sf.nz; sp.cols = sf.cols; sp.afterCall = m_gpu->callsSubmitted(vol);
-        av.seedPatches.push_back(std::move(sp));
+        if (!(s_handoverRevertForTest & 4)) av.seedPatches.push_back(std::move(sp));   // TEST ONLY bit 4: the B red control
     }
     m_gpu->seedColumns(vol, std::move(g), bLo, bHi);
+    if (s_handoverRevertForTest & 2) vol.surfaceFullNext = false;   // TEST ONLY: the A red control
     // the record gives the water back: its columns cleared, the body debited
     std::vector<ColumnRuns> clear;
     std::vector<WaterBodyTable::ColumnMass> before, written;
@@ -1164,7 +1172,7 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
             // 27.15: the recorded tiles' columns are the record's to draw - marked "not this field's" (runs -1), so the volume's mesh
             // ends there like at its box edge instead of walling them off as dry (a wall from the surface to the bed showed - yellow
             // bed through it, a dark crease along its top - wherever the woken water moved beside a recorded tile, live)
-            for (const auto& [tx, tz] : av->recordedTileList) markRecordedColumns(*av, tx, tz);
+            if (!(s_handoverRevertForTest & 8)) for (const auto& [tx, tz] : av->recordedTileList) markRecordedColumns(*av, tx, tz);   // bit 8: the C red control
             av->fieldStep = av->stepCount;
             av->field.source = av->id; av->field.version = av->fieldStep + 1;   // 26.30: the tiler skips a field whose version stands (an asleep volume)
             av->field.look = packLook(lookAt((av->minVoxel.x + av->maxVoxel.x) / 2, (av->minVoxel.z + av->maxVoxel.z) / 2));   // G3

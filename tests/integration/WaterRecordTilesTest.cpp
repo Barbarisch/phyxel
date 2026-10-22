@@ -219,6 +219,98 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagEnergyAfterAPushOnTheBenchPond) {
     }
 }
 
+// 27.15/27.16: the DRAW hand-over between a volume and the record, both ways, every tick. The 32 x 16 m pond above, the record
+// drawn (view at its middle); after every tick the drawn fields are asked, at each tile's centre and 0.3 m either side of every
+// inner tile boundary (30 points), whether ANY field draws water there (a HOLE if none), and how many recorded-tile columns a
+// volume's field draws as dry (a WALL: the live water beside them walls them off from its surface to the bed). Going in: placed,
+// every tile records. Waking: a touch seeds tile (0, 0), then a push moves its water beside its recorded neighbours.
+// Prediction: 0 hole ticks and 0 wall ticks once the pond is first drawn. Red controls (WaterCoreManager::s_handoverRevertForTest,
+// one fix undone each): 1 = recordTile clears to dry (27.16), 2 = no full surface after a seed (A), 4 = no seed patch (B),
+// 8 = recorded columns unmarked (C).
+namespace {
+struct Handover { int holeTicks = 0, wallTicks = 0, wallColsMax = 0, recordedIn = 0, woken = 0, firstDrawnTick = -1; bool ok = false; };
+}
+static Handover runHandover(VulkanTestFixture& fx, VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, int revert, bool live) {
+    (void)fx;
+    Handover out;
+    WaterCoreManager::s_handoverRevertForTest = revert;
+    const float afterBefore = WaterCoreManager::s_recordAfterS;
+    const auto drawBefore = WaterCoreManager::s_recordDraw;
+    struct Restore { float a; WaterCoreManager::RecordDraw d; ~Restore() { WaterCoreManager::s_handoverRevertForTest = 0; WaterCoreManager::s_recordAfterS = a; WaterCoreManager::s_recordDraw = d; } } restore{afterBefore, drawBefore};
+    WaterCoreManager::s_recordAfterS = 0.5f;
+    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_recordDraw.radiusM = 48.0f;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return out; }
+    mgr.setDroplets(false);
+    mgr.setViewPoint(glm::vec3(16.0f, 2.0f, 8.0f));
+    FakeRecord record; record.install(mgr);
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(31, 1, 15), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    if (!id) { ADD_FAILURE() << err; return out; }
+    mgr.setAutoSleep(id, false);
+    if (!mgr.setPartialWake(id, true) || !mgr.setRecordTiles(id, true)) { ADD_FAILURE() << "partial wake / recording refused"; return out; }
+    mgr.setRealtime(live);   // live: update() - async calls, a frame between a call's submission and its collection
+    std::vector<glm::vec2> pts;
+    for (int tz = 0; tz < 2; ++tz) for (int tx = 0; tx < 4; ++tx) pts.push_back({tx * 8 + 4.05f, tz * 8 + 4.05f});
+    for (float ex : {8.0f, 16.0f, 24.0f}) for (float z : {4.05f, 12.05f}) for (float d : {-0.3f, 0.3f}) pts.push_back({ex + d, z});
+    for (float x : {4.05f, 12.05f, 20.05f, 28.05f}) for (float d : {-0.3f, 0.3f}) pts.push_back({x, 8.0f + d});
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(31, 0, 15), 1.0f, nullptr);
+    AvRecord rec;
+    const float dt = live ? 1.0f / 240.0f : 1.0f / 60.0f;
+    const int perS = live ? 240 : 60;
+    int tick = 0;
+    auto adv = [&]() { if (live) mgr.update(dt); else mgr.step(id, 1, dt, &rec); };
+    auto check = [&]() {
+        mgr.surfaceFields();
+        bool hole = false;
+        for (const glm::vec2& p : pts) { float top = 0.0f; bool r = false; if (!mgr.drawnAtWorld(p.x, p.y, top, r)) hole = true; }
+        if (out.firstDrawnTick < 0) { if (!hole) out.firstDrawnTick = tick; else return; }
+        const int walls = mgr.dryRecordedColumns();
+        if (hole) ++out.holeTicks;
+        if (walls > 0) { ++out.wallTicks; out.wallColsMax = std::max(out.wallColsMax, walls); }
+    };
+    for (; tick < 5 * perS; ++tick) { adv(); check(); }
+    const AvRecord* r = mgr.find(id);
+    out.recordedIn = r ? r->recordedTiles : -1;
+    mgr.addImpulse(glm::vec3(4.0f, 0.9f, 4.0f), 1.0f / 3.0f, 1e-4f, glm::vec3(0.0f, -1.0f, 0.0f));   // a touch: tile (0, 0) seeded
+    for (int k = 0; k < 2 * perS; ++k, ++tick) { adv(); check(); }
+    mgr.addImpulse(glm::vec3(4.0f, 0.9f, 4.0f), 0.5f, 1.0f, glm::vec3(0.0f, -1.0f, 0.0f));         // a push beside recorded tiles
+    for (int k = 0; k < 5 * perS; ++k, ++tick) { adv(); check(); }
+    r = mgr.find(id);
+    out.woken = r ? static_cast<int>(r->tilesWoken) : -1;
+    out.ok = true;
+    return out;
+}
+
+TEST_F(WaterRecordTilesTest, DrawHandoverHasNoHolesOrWallsEitherWay) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const char* names[] = {"shipped", "27.16 dry on record", "A no full surface", "B no seed patch", "C unmarked", "A + B"};
+    const int bits[] = {0, 1, 2, 4, 8, 6};
+    Handover h[6];
+    const bool live = std::getenv("W1C_HANDOVER_STEP") == nullptr;   // default: the live path (update); =1: step()
+    for (int i = 0; i < 6; ++i) {
+        h[i] = runHandover(*this, device, physicalDevice, queue, queueFamilyIndex, bits[i], live);
+        ASSERT_TRUE(h[i].ok);
+        std::printf("  %s %-20s first drawn tick %d; in the record %d; woken %d; HOLE ticks %d; WALL ticks %d (worst %d columns)\n", live ? "update" : "step  ", names[i],
+                    h[i].firstDrawnTick, h[i].recordedIn, h[i].woken, h[i].holeTicks, h[i].wallTicks, h[i].wallColsMax);
+    }
+    EXPECT_GE(h[0].firstDrawnTick, 0) << "the pond was never drawn whole";
+    EXPECT_EQ(h[0].recordedIn, 8) << "going in: every tile records (the rig exercises the hand-over)";
+    EXPECT_GE(h[0].woken, 2) << "waking: the touch and the push woke tiles (the rig exercises the hand-over)";
+    EXPECT_EQ(h[0].holeTicks, 0) << "a tick where no field draws water at a point of the pond";
+    EXPECT_EQ(h[0].wallTicks, 0) << "a tick where a volume draws recorded columns as dry (walls)";
+    // the red controls - each must show its defect, or the probe does not see it (first run, update path: 1,378 wall ticks;
+    // 1 hole tick; 1,680 wall ticks; A + B 665 hole ticks. A alone shows nothing: B's seed patch writes the seed into the field and a
+    // partial read keeps it - A is the fix for the frozen columns, the patch for the one stale read; both stay)
+    if (live) {
+        EXPECT_GT(h[1].wallTicks, 0) << "red control 27.16 (recordTile clears to dry) went unseen";
+        EXPECT_GT(h[3].holeTicks, 0) << "red control B (no seed patch) went unseen";
+        EXPECT_GT(h[4].wallTicks, 0) << "red control C (recorded columns unmarked) went unseen";
+        EXPECT_GT(h[5].holeTicks, 10 * std::max(1, h[3].holeTicks)) << "red control A + B (no full surface after a seed) went unseen";
+    }
+}
+
 TEST_F(WaterRecordTilesTest, FrozenTilesRecordAndWakeWithTheBooksExact) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     const TileRun w = run(false);

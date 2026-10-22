@@ -8034,6 +8034,26 @@ Measurement added: `water_av_watch` rows end with `dryRecordedColumns()` (record
 (The 4 hole frames per point at 0.002-0.014 s in the going-in runs are before the water exists.) The re-filmed clip
 `w1c_wake_fixed4_qs10.mp4` (same rig, quiet scale 10) shows no line or speck at 2-3 s frame by frame; the mouse pointer is in its
 shot (a capture slip, not the water). Tests: water unit 312/312, water integration 45/46 (the known GpuFlipBulkParityAndRunup).
+The owner on the re-filmed clip (2026-10-22): "looks good".
+
+### 27.17 The draw hand-over pinned by a test (2026-10-22)
+
+`WaterRecordTilesTest.DrawHandoverHasNoHolesOrWallsEitherWay` (integration, GPU): the 32 x 16 m pond of 27.10 with the record
+drawn, driven through the LIVE path (`setRealtime` + `update`, 1/240 s ticks - a frame between a call's submission and its
+collection). Every tick: 30 points (tile centres, 0.3 m either side of every inner tile boundary) must be drawn by some field
+(else a HOLE tick), and `dryRecordedColumns()` must be 0 (else a WALL tick). Going in (all 8 tiles record), then a touch-wake and
+a push beside recorded tiles (7 wakes). Red controls, one fix undone each (`WaterCoreManager::s_handoverRevertForTest`):
+| Undone | Hole ticks | Wall ticks |
+|---|---|---|
+| nothing (shipped) | 0 | 0 |
+| 27.16 recordTile clears to dry | 0 | 1,378 |
+| A no full surface after a seed | 0 | 0 |
+| B no seed patch | 1 | 0 |
+| C recorded columns unmarked | 0 | 1,680 |
+| A + B | 665 | 0 |
+A alone is hidden by B's seed patch (it writes the seed into the field and a partial surface read keeps a frozen column's value);
+A + B reproduces the bare tiles seen live. Both fixes stay. Through `step()` (W1C_HANDOVER_STEP=1) only C shows - a step refreshes
+the field every tick, so the hand-over gaps live only on the frame path; the test defaults to it.
 
 ---
 

@@ -211,6 +211,10 @@ public:
     /// §27 W1c TEST ONLY - 27.13's open item: collect the call right after submitting it. With recording OFF the energy settles but
     /// 500-600 columns stay "moving" (the freeze test never passes) - so does an API census every 0.1 s. Cause not found yet.
     static inline bool s_settleAfterStepForTest = false;
+    /// §27 27.15/27.16 TEST ONLY - the red controls of the draw hand-over, one bit per fix undone: 1 = recordTile clears the tile's
+    /// columns to DRY (27.16), 2 = no full surface after a seed (A), 4 = no seed patch re-applied (B), 8 = recorded columns not
+    /// marked the record's in surfaceFields (C). Shipped: 0.
+    static inline int s_handoverRevertForTest = 0;
     static constexpr int kRecordTilesPerStep = 2;     ///< bounds a frame's cost when many tiles freeze at once
     /// ON by default since 2026-10-19 (the owner: "yeah. default"); a volume created with an explicit partial_wake keeps its own.
     static inline bool s_partialWakeDefault = true;
