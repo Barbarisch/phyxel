@@ -146,6 +146,7 @@ own siting.
 | `POST /api/worldforge/apply` | `worldforge_apply` | persist into the recipe; **refuses** if world.db has saved chunks unless `force:true`; applies LIVE (restreams the world, `live_applied` + `evicted_chunks` — shipped 2026-08-21, see "Live apply"); `restart_required` only when a live apply is refused (a build job is active / deferred DB loads pending) |
 | `GET /api/worldforge/status` | `worldforge_status` | enabled/applied/hash/counts (+ ledger, M2; + `site_list` = the applied plan's sites with x/z/tier/surfaceY, 2026-10-14 — the ledger and job result carry ids only) |
 | `GET /api/worldforge/map?step=4` | `worldforge_map` | ASCII map: `~` water, `r` order≥3 river, `=` road, `T/V/H` sites |
+| `GET /api/worldforge/civ?step=2` | `worldforge_civ` | **WorldForge v2 M3a** (version-2 recipe + `worldforge.civ: true`): the continent-wide civ plan — per-tier targets vs counts, every site (x/z/tier/scores/pinned), refusals — and an ASCII map of the WHOLE macro sheet (`~` sea, `b` basin, `.` land, `+` hydrology-box corners, `C/T/V/H/O` city/town/village/hamlet/outpost; one char per `step` macro cells). The applied `worldforge_plan` response carries the same plan under `civ`; `worldforge_minimap` draws the civ sites (city magenta-red, outpost grey) |
 
 MCP tools of the same names mirror these. All multi-settlement realization (M2) is an
 async job — never `queueAndWait` (the 5 s window already loses single terrain-settlement

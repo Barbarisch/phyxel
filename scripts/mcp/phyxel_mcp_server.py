@@ -547,7 +547,8 @@ async def list_tools() -> list[Tool]:
                     "minSpacing": {"type": "number", "description": "Hard minimum between site centres"},
                     "maxSpacing": {"type": "number", "description": "Soft cohesion distance (farther candidates score-halved)"},
                     "sitePins": {"type": "array", "description": "Pinned site centres, seated verbatim first",
-                                 "items": {"type": "object", "properties": {"x": {"type": "integer"}, "z": {"type": "integer"}}}}
+                                 "items": {"type": "object", "properties": {"x": {"type": "integer"}, "z": {"type": "integer"}}}},
+                    "civ": {"type": "boolean", "description": "M3a: site the whole continent (version-2 recipes); the box plan is then seeded by the civ sites inside it and the 3-8 clamp lifts. The applied plan's response carries the civ plan under 'civ' (see worldforge_civ)."}
                 }
             }
         ),
@@ -641,6 +642,20 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "step": {"type": "integer", "description": "Bake cells per character (default 4 = 512u/char)", "default": 4}
+                }
+            }
+        ),
+        Tool(
+            name="worldforge_civ",
+            description="WorldForge M3a: the continent-wide civ plan of a version-2 world with worldforge.civ on - "
+                        "per-tier targets (derived from the Christaller ladder and the land area) vs counts, every "
+                        "site (x/z/tier/score/slope/water/food/trade/forest/mining/pinned), refusals, and an ASCII map "
+                        "of the WHOLE macro sheet: '~' sea, 'b' basin, '.' land, '+' hydrology-box corners, "
+                        "C/T/V/H/O city/town/village/hamlet/outpost. One char per `step` macro cells (cell_units echoed).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "step": {"type": "integer", "description": "Macro cells per character (default 2 = 1024 u/char, 100 chars across)", "default": 2}
                 }
             }
         ),
@@ -4986,6 +5001,10 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "worldforge_map":
         step = args.get("step", 4)
         return await api_get(f"/api/worldforge/map?step={step}")
+
+    elif name == "worldforge_civ":
+        step = args.get("step", 2)
+        return await api_get(f"/api/worldforge/civ?step={step}")
 
     elif name == "worldforge_minimap":
         from urllib.parse import urlencode

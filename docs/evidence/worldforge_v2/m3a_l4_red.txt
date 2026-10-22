@@ -1,0 +1,37 @@
+exe: C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Debug/phyxel.exe 2026-10-22_10:18:19  commit: 0027e94b  config: Debug
+--- status
+{"action":"worldforge_status","error":"Request timed out waiting for game loop","timeout_ms":5000}
+
+--- plan (applied; civ key present?)
+keys: ['action', 'error', 'timeout_ms']
+box plan: sites 0 roads 0 params.siteCount None params.civ None hash None
+box site tiers: []
+civ: ABSENT tiers None sites None refusals None
+--- civ (continent map, step 2 = 1024 u/char)
+
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+    d=json.load(open(sys.argv[1]))
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\__init__.py", line 293, in load
+    return loads(fp.read(),
+        cls=cls, object_hook=object_hook,
+        parse_float=parse_float, parse_int=parse_int,
+        parse_constant=parse_constant, object_pairs_hook=object_pairs_hook, **kw)
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bpete\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+--- minimap: whole continent (px 512, radius 51200 = 200 u/px) and the hydrology box (px 512, radius 16384)
+{"action":"worldforge_minimap","error":"Request timed out waiting for game loop","timeout_ms":30000}
+
+{"action":"worldforge_minimap","error":"Request timed out waiting for game loop","timeout_ms":30000}
+
+[10:29:09.078] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+[10:29:21.561] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1
+[10:29:21.634] [INFO] [WorldGenerator] [CIV] continent plan: 157 sites over 7927.23 km2 of land in 72.4623 ms; refusals 2
+engines left: 0

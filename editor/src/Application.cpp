@@ -14725,6 +14725,8 @@ void Application::registerWorldForgeCommands() {
             if (const Phyxel::WorldForgePlan* p = g->worldForge()) {
                 r = {{"success", true}, {"applied", true}, {"plan", p->toJson()},
                      {"plan_hash", std::to_string(p->planHash())}};
+                // M3a: the continent-wide civ plan that seeded this box plan (version-2 + civ).
+                if (const Phyxel::CivPlan* civ = g->civPlan()) r["civ"] = civ->toJson();
             } else {
                 r = {{"success", true}, {"applied", false},
                      {"message", "worldforge disabled for this world; pass params to preview"}};
@@ -15060,6 +15062,63 @@ void Application::registerWorldForgeCommands() {
              {"cell_units", hydro->cellSize() * step}, {"lines", lines}};
     });
 
+    // worldforge_civ (M3a, docs/WorldForgeV2Plan.md M3 D18-D20): the continent-wide civ plan
+    // — the ladder's targets vs counts per tier, every site with its tier and scores, the
+    // refusals — plus an ASCII map of the WHOLE macro sheet (one char per `step` macro cells):
+    // '~' sea (macro base below sea level), 'b' basin (Priority-Flood filled above the base),
+    // '.' land, '+' the hydrology box corners, C/T/V/H/O city/town/village/hamlet/outpost.
+    reg.on("worldforge_civ", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                         nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        const Phyxel::CivPlan* civ = g->civPlan();
+        const Phyxel::MacroSheet* M = g->macroSheet().get();
+        if (!civ || !M) {
+            r = {{"error", "no civ plan: needs a version-2 recipe (world.sheet) with "
+                           "worldforge.civ true (worldforge_apply {\"civ\": true} + reload)"}};
+            return;
+        }
+        const int step = std::max(1, cmd.params.value("step", 2));   // macro cells per char
+        const int n = M->cells();
+        const float cu = M->cellU();
+        const float sea = g->getTerrainParams().seaLevelY;
+        std::vector<std::string> lines;
+        for (int j = 0; j < n; j += step) {
+            std::string line;
+            for (int i = 0; i < n; i += step) {
+                const Phyxel::MacroCell& c = M->cell(i, j);
+                char ch = '.';
+                if (c.baseHeight <= sea) ch = '~';
+                else if (c.filled > c.baseHeight + 1e-3f) ch = 'b';
+                line.push_back(ch);
+            }
+            lines.push_back(std::move(line));
+        }
+        auto put = [&](float x, float z, char ch) {
+            const int i = static_cast<int>(std::floor((x - M->originU()) / cu)) / step;
+            const int j = static_cast<int>(std::floor((z - M->originU()) / cu)) / step;
+            if (j >= 0 && j < static_cast<int>(lines.size()) && i >= 0 &&
+                i < static_cast<int>(lines[j].size()))
+                lines[j][i] = ch;
+        };
+        if (const Phyxel::HydrologyMap* h = g->hydrology()) {
+            const float x0 = h->originX(), z0 = h->originZ();
+            const float x1 = x0 + h->cellsX() * h->cellSize() - 1.0f;
+            const float z1 = z0 + h->cellsZ() * h->cellSize() - 1.0f;
+            put(x0, z0, '+'); put(x1, z0, '+'); put(x0, z1, '+'); put(x1, z1, '+');
+        }
+        static const char kGlyph[Phyxel::CivPlan::kTiers] = {'C', 'T', 'V', 'H', 'O'};
+        // low tiers first so a city is never overdrawn by an outpost sharing the char cell
+        for (int t = Phyxel::CivPlan::kTiers - 1; t >= 0; --t)
+            for (const auto& s : civ->sites())
+                if (s.tier == t) put(s.pos.x, s.pos.y, kGlyph[t]);
+        r = civ->toJson();
+        r["success"] = true;
+        r["legend"] = "~ sea | b basin | . land | + hydrology box corners | C/T/V/H/O city/town/village/hamlet/outpost";
+        r["cell_units"] = cu * step;
+        r["lines"] = lines;
+    });
+
     // worldforge_minimap: a real IMAGE of the world — biome-colored terrain with hillshade,
     // depth-shaded water, rivers, roads (graded corridors included), bridge decks, and site
     // markers — rendered PURE from the generator (sampleSurface per pixel), so it shows the
@@ -15221,6 +15280,23 @@ bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
             if (s.tier == "town") drawSquare(mx, mz, 3, {220, 40, 40});
             else if (s.tier == "village") drawSquare(mx, mz, 2, {240, 150, 40});
             else drawSquare(mx, mz, 2, {240, 220, 60});
+        }
+    }
+    // M3a: the continent-wide civ sites (version-2 + civ) — the same squares, two more tiers:
+    // city magenta-red (largest), outpost grey (smallest). Drawn over the box plan's markers
+    // (inside the box they are the same positions).
+    if (const Phyxel::CivPlan* civ = g->civPlan()) {
+        for (const auto& s : civ->sites()) {
+            const int mx = static_cast<int>((s.pos.x - x0) / stepU);
+            const int mz = static_cast<int>((s.pos.y - z0) / stepU);
+            if (mx < 0 || mz < 0 || mx >= px || mz >= px) continue;
+            switch (s.tier) {
+                case Phyxel::CivPlan::City:    drawSquare(mx, mz, 4, {200, 0, 120}); break;
+                case Phyxel::CivPlan::Town:    drawSquare(mx, mz, 3, {220, 40, 40}); break;
+                case Phyxel::CivPlan::Village: drawSquare(mx, mz, 2, {240, 150, 40}); break;
+                case Phyxel::CivPlan::Hamlet:  drawSquare(mx, mz, 2, {240, 220, 60}); break;
+                default:                       drawSquare(mx, mz, 1, {200, 200, 200}); break;
+            }
         }
     }
     // Camera marker: a magenta cross where the viewer currently is.

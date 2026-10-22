@@ -1512,6 +1512,7 @@ void EngineAPIServer::setupRoutes() {
     //                              on the next project load.
     // GET  /api/worldforge/status — enabled/applied/plan_hash/site+road counts.
     // GET  /api/worldforge/map    — ASCII overview map (water/rivers/roads/sites).
+    // GET  /api/worldforge/civ    — M3a continent-wide civ plan + macro ASCII map.
     // ====================================================================
     srv.Post("/api/worldforge/plan", [this](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -1565,6 +1566,14 @@ void EngineAPIServer::setupRoutes() {
         json params = json::object();
         if (req.has_param("step")) params["step"] = std::stoi(req.get_param_value("step"));
         json result = queueAndWait("worldforge_map", params);
+        res.set_content(result.dump(), "application/json");
+    });
+    // GET /api/worldforge/civ — M3a: the continent-wide civ plan (tiers, targets vs counts,
+    // sites, refusals) + an ASCII map of the whole macro sheet, ?step= macro cells per char.
+    srv.Get("/api/worldforge/civ", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("step")) params["step"] = std::stoi(req.get_param_value("step"));
+        json result = queueAndWait("worldforge_civ", params);
         res.set_content(result.dump(), "application/json");
     });
     // GET /api/debug/frame_trace — per-frame character/camera position ring (jitter hunts).
