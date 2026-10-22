@@ -8055,6 +8055,19 @@ A alone is hidden by B's seed patch (it writes the seed into the field and a par
 A + B reproduces the bare tiles seen live. Both fixes stay. Through `step()` (W1C_HANDOVER_STEP=1) only C shows - a step refreshes
 the field every tick, so the hand-over gaps live only on the frame path; the test defaults to it.
 
+### 27.18 A create over recorded water: refused unseeded (2026-10-22) - 27.14 finding 3 closed
+
+Only `water_av_create` with `seed:"none"` (the default) reached it (the flood create always seeds). Measured live,
+`tools/water_create_over_record.py` (the 27.12 pond recorded, its volume destroyed - the record keeps the water - then a create
+over the same box): before, the unseeded create was accepted, a pond placed into it booked **2,576 m^3** (cells + record) and when
+it recorded the record read 1,288 - one copy gone without a word (`w1c_create_over_record_before.json`). Now an unseeded create
+over recorded water is **refused**, naming the m^3 (`recorded_m3`, `WaterCoreManager::recordedWaterIn`); `seed:"spans"` takes the
+record into the volume - seeded 1,288.0000, every tile recorded again in 2.6 s, the record within 3e-5 m^3 of what was placed at
+every stage (`_after.json`). Refused rather than seeded silently: the caller asked for an empty volume; the error says how to get
+the water instead. Not changed: a `seed:"spans"` volume still leaves the spans in place while awake (Phase D - the world keeps its
+water if the game stops), so a census of one reads cells + spans double until it writes back; the recording path is exact.
+Tests: water unit 312/312, integration 46/47 (the known GpuFlipBulkParityAndRunup).
+
 ---
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)

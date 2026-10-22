@@ -1,0 +1,41 @@
+{
+ "stages": [
+  {
+   "stage": "placed, recorded",
+   "spans_m3": 1288.0,
+   "placed_m3": 1288.0000288142337,
+   "recorded_tiles": 24,
+   "after_s": 2.535761833190918
+  },
+  {
+   "stage": "volume destroyed (the record keeps the water)",
+   "spans_m3": 1288.0
+  },
+  {
+   "stage": "create seed:none over the record",
+   "spans_m3": 1288.0,
+   "refused": true,
+   "response": {
+    "error": "the box holds 1288.000000 m^3 of recorded water: seed:\"spans\" takes it into the volume (an unseeded create would book it twice)",
+    "recorded_m3": 1288.0,
+    "success": null
+   }
+  },
+  {
+   "stage": "create seed:spans",
+   "spans_m3": 1288.0,
+   "seeded_m3": 1288.0000192116504
+  },
+  {
+   "stage": "seeded volume, recorded again",
+   "spans_m3": 1288.0,
+   "recorded_tiles": 24,
+   "after_s": 2.577449321746826,
+   "cells_m3": 0.0,
+   "record_m3": 1288.0
+  }
+ ],
+ "placed_m3": 1288.0000288142337,
+ "drift_m3": 2.8814233701268677e-05,
+ "pass": true
+}

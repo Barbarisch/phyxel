@@ -1687,6 +1687,15 @@ bool WaterCoreManager::drawnAtWorld(float x, float z, float& top, bool& recorded
     return any;
 }
 
+double WaterCoreManager::recordedWaterIn(const glm::ivec3& lo, const glm::ivec3& hi) const {
+    if (!m_spanReader) return -1.0;
+    std::vector<ColumnRuns> runs;
+    m_spanReader(lo, hi, runs);
+    double m = 0.0;
+    for (const auto& c : runs) for (const auto& r : c.runs) m += static_cast<double>(r.topY - r.bottomY);
+    return m;
+}
+
 int WaterCoreManager::dryRecordedColumns() const {
     // 27.16 measurement: columns a volume's field marks DRY (runs 0) inside its recorded tiles - the record draws them, the
     // volume's mesh walls them off as dry ground (a wall from its surface to the bed); a correct hand-over marks them -1

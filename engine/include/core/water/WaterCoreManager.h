@@ -353,6 +353,9 @@ public:
     /// each on its own: the highest drawn top (false = no field draws water here - a hole), and whether a live volume holds
     /// the column in its record (recorded = 1).
     bool drawnAtWorld(float x, float z, float& top, bool& recorded) const;
+    /// 27.18: the water the world's record (chunk spans) holds in a voxel box, m^3 (-1 with no span reader) - a create over it
+    /// that does not seed from it would book the same water twice (27.14 finding 3)
+    double recordedWaterIn(const glm::ivec3& lo, const glm::ivec3& hi) const;
     int dryRecordedColumns() const;   // 27.16: recorded-tile columns a volume's field draws as dry (walls) - 0 when correct
     /// Measurement (21.7 S1): every DETACHED run of water in every fill volume now (WaterDroplets.h) - world
     /// position of its bottom cell's centre, its water (m^3), length and whether it is isolated. A GPU volume

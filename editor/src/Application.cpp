@@ -13934,6 +13934,17 @@ void Application::registerWaterCommands() {
         if (!waterCore) return noCore(r);
         const glm::ivec3 lo(cmd.params.value("x1", 0), cmd.params.value("y1", 0), cmd.params.value("z1", 0));
         const glm::ivec3 hi(cmd.params.value("x2", 0), cmd.params.value("y2", 0), cmd.params.value("z2", 0));
+        // 27.18: seed:"none" over water the world already records is refused - the volume would start empty beside a record that still
+        // holds that water, the same water booked twice, and the first write-back over it dropped the record's copy silently (27.14
+        // finding 3: 1,288 m^3 vanished from the books). seed:"spans" takes it into the volume.
+        if (cmd.params.value("seed", std::string("none")) == "none") {
+            const double stored = waterCore->recordedWaterIn(glm::min(lo, hi), glm::max(lo, hi));
+            if (stored > 1e-6) {
+                r = {{"error", "the box holds " + std::to_string(stored) + " m^3 of recorded water: seed:\"spans\" takes it into the volume (an unseeded create would book it twice)"},
+                     {"recorded_m3", stored}};
+                return;
+            }
+        }
         std::string err;
         const int id = waterCore->create(lo, hi, cmd.params.value("cellSize", 1.0f / 3.0f), cmd.params.value("transport", std::string("eulerian")), &err, cmd.params.value("backend", std::string("auto")), cmd.params.value("sweeps", 0), cmd.params.value("brick_height", 0), cmd.params.contains("ground_bricks") ? (cmd.params.value("ground_bricks", false) ? 1 : 0) : -1);   // 26.17: brick_height 2 / 4 / 8 (0 = the default), echoed as gpu_brick_height   // auto = gpu for fills when the device is ready, else cpu; echoed as backend   // 0 = auto (1.5 x the longest dimension), else clamped 8-160 and echoed
         if (!id) { r = {{"error", err}}; return; }
