@@ -507,7 +507,12 @@ void WorldGenerator::rebuildCoarseModel() {
     // the flood's height function, which is not retained anywhere after this scope.
     m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, bakeHeight);
     // M2c: the rim guarantee rides the bake (lazy per basin, shared by every copy + the cache).
-    m_rimCorrector = std::make_shared<BasinRimCorrector>(m_hydro, m_waterBodies, seaLvl);
+    // Version-2 bakes only (D10/D12): on a version-1 recipe the corrected level moved the
+    // WorldForge plan of an existing world (Mountains 424242: 10 roads -> 13, plan hash
+    // 18197215997962677593 -> 15040555740693915406, and a 2-cube junction step the grading
+    // had retired came back — RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains, 2026-10-22).
+    // A version-1 world keeps the raw coarse spill everywhere, as before M2c.
+    m_rimCorrector = mesoBake ? std::make_shared<BasinRimCorrector>(m_hydro, m_waterBodies, seaLvl) : nullptr;
     // M2e-2: the coast field (v2 bakes only; a box without ocean bodies has no coast to shape).
     m_coast = mesoBake ? std::make_shared<const CoastField>(*m_hydro, *m_waterBodies) : nullptr;
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Water bodies labeled: "
@@ -548,8 +553,42 @@ void WorldGenerator::rebuildCoarseModel() {
 // into its own siting and two generators with identical config bake identical plans.
 void WorldGenerator::bakeWorldForgePlan() {
     m_worldForge.reset();
+    m_civ.reset();
     if (!m_worldForgeParams.enabled) return;
-    m_worldForge = previewWorldForge(m_worldForgeParams);
+    // M3a (D18): the continent-wide civ plan over the macro sheet; the box plan below is then
+    // seeded by the civ sites inside the hydrology box (city..hamlet; outposts wait for M4's
+    // routes), tiers mapped to the three the realizer knows.
+    constexpr bool kCivEnabled = true;
+    WorldForgeParams boxParams = m_worldForgeParams;
+    if (kCivEnabled && m_worldForgeParams.civ && m_sheetMode && m_macroSheet) {
+        CivPlan::Inputs in;
+        in.macro = m_macroSheet.get();
+        in.seaLevel = terrainParams.seaLevelY;
+        in.seed = seed;
+        const float cf = terrainParams.climateFrequency;
+        const uint32_t s = seed;
+        in.climate = [s, cf](float x, float z, float& t, float& m) {
+            t = tnFbm(x * cf, 100.0f, z * cf, 4, 0.5f, 2.0f, s);
+            m = tnFbm(x * cf, 200.0f, z * cf, 4, 0.5f, 2.0f, s);
+        };
+        m_civ = CivPlan::bake(in, m_worldForgeParams);
+        LOG_INFO_FMT("WorldGenerator", "[CIV] continent plan: " << m_civ->sites().size() << " sites over "
+                     << m_civ->landKm2() << " km2 of land in " << m_civ->bakeMs() << " ms; refusals " << m_civ->refusals().size());
+        boxParams.sitePins.clear();
+        boxParams.pinTiers.clear();
+        if (m_hydro) {
+            const float x0 = m_hydro->originX(), z0 = m_hydro->originZ();
+            const float x1 = x0 + m_hydro->cellsX() * m_hydro->cellSize(), z1 = z0 + m_hydro->cellsZ() * m_hydro->cellSize();
+            for (const auto& site : m_civ->sites()) {
+                if (site.tier > CivPlan::Hamlet) continue;
+                if (site.pos.x < x0 + 512.0f || site.pos.x >= x1 - 512.0f || site.pos.y < z0 + 512.0f || site.pos.y >= z1 - 512.0f) continue;
+                boxParams.sitePins.push_back(glm::ivec2(static_cast<int>(std::lround(site.pos.x)), static_cast<int>(std::lround(site.pos.y))));
+                boxParams.pinTiers.push_back(site.tier <= CivPlan::Town ? "town" : (site.tier == CivPlan::Village ? "village" : "hamlet"));
+            }
+        }
+        boxParams.siteCount = std::max(3, static_cast<int>(boxParams.sitePins.size()));
+    }
+    m_worldForge = previewWorldForge(boxParams);
     // Columns memoized during the bake are road-free; road stamping (M1) must re-sample.
     clearColumnCache();
 }

@@ -15,6 +15,7 @@
 #include "core/WaterBodyIndex.h"
 #include "core/BasinRimCorrector.h"
 #include "core/CoastField.h"
+#include "core/CivPlan.h"
 #include "core/Spline.h"
 #include "core/WaterOccupancy.h"
 #include "core/WorldConstants.h"
@@ -328,6 +329,8 @@ public:
     float runoffMmPerYear() const { return m_runoffMmPerYear; }
     const BasinRimCorrector* rimCorrector() const { return m_rimCorrector.get(); }
     const CoastField* coastField() const { return m_coast.get(); }   // M2e-2 (v2 bakes with an ocean)
+    const CivPlan* civPlan() const { return m_civ.get(); }           // M3a (v2 bakes with worldforge.civ)
+    const WorldForgeParams& getWorldForgeParams() const { return m_worldForgeParams; }
     // The single meander displacement every channel-line consumer shares (see channelHitAt). Public
     // since M2d so geometry tests can invert it and find the column under a cell's carved centreline.
     glm::vec2 meanderedChannelPos(float wx, float wz) const;
@@ -473,6 +476,7 @@ private:
     std::shared_ptr<WaterBodyIndex> m_waterBodies;  // body identity riding the bake (Phase A)
     std::shared_ptr<BasinRimCorrector> m_rimCorrector;   // M2c: shared by every copy of this generator
     std::shared_ptr<const CoastField> m_coast;           // M2e-2: the signed shoreline distance (v2 only)
+    std::shared_ptr<const CivPlan> m_civ;                // M3a: the continent-wide civ plan (v2 + civ)
 
     // WorldForge (docs/WorldForge.md): params come from the world recipe; the plan is baked
     // at the end of rebuildCoarseModel (after hydrology, which it consumes). NOT memoized

@@ -587,6 +587,15 @@ TEST(RoadFieldSeamTest, GradedRoadsAreStepWalkableOnMountains) {
                             const auto c1 = gen.sampleSurface(static_cast<int>(std::lround(p.x)),
                                                               static_cast<int>(std::lround(p.y)));
                             const auto hit = plan->roadAt(p.x, p.y);
+                            // diagnostic: the grade gate's inputs at BOTH columns (M2c made the
+                            // water level rim-corrected and recursive through sampleSurface)
+                            const float p0x = std::lround(p.x - (b.x - a.x) / len), p0z = std::lround(p.y - (b.y - a.y) / len);
+                            const auto hit0 = plan->roadAt(p0x, p0z);
+                            const float wl0 = gen.waterLevelAt(p0x, p0z), wl1 = gen.waterLevelAt(std::lround(p.x), std::lround(p.y));
+                            const float raw0 = gen.hydrology() ? gen.hydrology()->waterLevelAt(p0x, p0z) : -1.0f;
+                            const auto c0b = gen.sampleSurface(static_cast<int>(p0x), static_cast<int>(p0z));
+                            std::cout << "[GRADE-DIAG] prev roadAt{cls=" << hit0.cls << " dist=" << hit0.dist << " grade=" << hit0.gradeY
+                                      << "} wl0=" << wl0 << " raw0=" << raw0 << " wl1=" << wl1 << " prev.surf again=" << c0b.surfaceY << std::endl;
                             std::cout << "[GRADE] step " << std::abs(y - prevY)
                                       << " cubes on road " << road.a << "-" << road.b
                                       << " at (" << p.x << "," << p.y << ") prev{surf="

@@ -1,0 +1,110 @@
+M3a RED (2026-10-22, Debug, stub build: CivPlan, the civ params and the pin tiers are in, the generator does not bake the continent plan):
+[  FAILED  ] CivPlanTest.HundredsOfSitesAtTheLadderTargets (26566 ms)
+[  FAILED  ] CivPlanTest.SpacingHoldsAgainstEverySiteOfTheSameOrHigherTier (12306 ms)
+[  FAILED  ] CivPlanTest.HierarchyRatioIsCentralPlace (12303 ms)
+[  FAILED  ] CivPlanTest.NoSiteInWaterOrOnACliff (12222 ms)
+[  FAILED  ] CivPlanTest.DeterministicAcrossGenerators (23548 ms)
+[  FAILED  ] CivPlanTest.PinsInWaterAreRefusedWithTheReason (12462 ms)
+[  FAILED  ] CivPlanTest.TheBoxPlanIsSeededByTheCivSites (12177 ms)
+[==========] 7 tests from 1 test suite ran. (111587 ms total)
+[  PASSED  ] 0 tests.
+
+M3a first green run (Debug; the continent bake on): 5 of 7 pass; the two failures were TEST assumptions - (1) the pin at the meso inland sea is macro LAND (the 512 u base is above sea there), so the pin test now takes a macro sub-sea cell from the sheet; (2) the baseline box holds only 6 civ sites (a tenth of the continent's land), so 'more than 8' was the wrong assertion - the box plan must equal the civ sites inside it and the clamp is checked on the params directly:
+[09:20:58.865] [INFO] [WorldGenerator] [CIV] continent plan: 157 sites over 7927.23 km2 of land in 72.2546 ms; refusals 2
+[ M3a ] land 7927 km2, bake 72.3 ms: city 2/2 town 5/5 village 13/13 hamlet 38/43 outpost 99/123; total 157/186; refusals 2
+    refusal: hamlet: 5 of 43 unplaced (no viable cell at the ladder's spacing)
+    refusal: outpost: 24 of 123 unplaced (no viable cell at the ladder's spacing)
+[09:22:23.481] [INFO] [WorldGenerator] [CIV] continent plan: 157 sites over 7927.23 km2 of land in 72.4587 ms; refusals 2
+[ M3a ] spacing: 157 sites, 0 violations (worst 1.00 of the ladder)
+[09:22:45.272] [INFO] [WorldGenerator] [CIV] continent plan: 157 sites over 7927.23 km2 of land in 71.2963 ms; refusals 2
+[ M3a ] village:town = 13:5 (ratio 2.60)
+[ M3a ] hamlet:village = 38:13 (ratio 2.92)
+[ M3a ] outpost:hamlet = 99:38 (ratio 2.61)
+[09:23:07.891] [INFO] [WorldGenerator] [CIV] continent plan: 157 sites over 7927.23 km2 of land in 71.9286 ms; refusals 2
+[09:23:30.576] [INFO] [WorldGenerator] [CIV] continent plan: 157 sites over 7927.23 km2 of land in 71.3194 ms; refusals 2
+
+==================================================================
+GREEN RUN 2026-10-22 (Debug, kCivEnabled = true; scratchpad m3a_green5.txt, 191/191)
+==================================================================
+[ M3a ] land 7927 km2, bake 78.5 ms: city 2/2 town 5/5 village 13/13 hamlet 38/43 outpost 99/123; total 157/186; refusals 2
+[       OK ] CivPlanTest.HundredsOfSitesAtTheLadderTargets (86063 ms)
+[ M3a ] spacing: 157 sites, 0 violations (worst 1.00 of the ladder)
+[       OK ] CivPlanTest.SpacingHoldsAgainstEverySiteOfTheSameOrHigherTier (22598 ms)
+[ M3a ] village:town = 13:5 (ratio 2.60)
+[ M3a ] hamlet:village = 38:13 (ratio 2.92)
+[ M3a ] outpost:hamlet = 99:38 (ratio 2.61)
+[       OK ] CivPlanTest.HierarchyRatioIsCentralPlace (22756 ms)
+[       OK ] CivPlanTest.NoSiteInWaterOrOnACliff (22228 ms)
+[       OK ] CivPlanTest.DeterministicAcrossGenerators (46145 ms)
+[ M3a ] sea pin at (768,256): refused 1; refusals: | pin (768,256) is in water or a basin | hamlet: 5 of 43 unplaced (no viable cell at the ladder's spacing) | outpost: 24 of 123 unplaced (no viable cell at the ladder's spacing)
+[       OK ] CivPlanTest.PinsInWaterAreRefusedWithTheReason (46326 ms)
+[ M3a ] civ sites in the box (city..hamlet): 6; box plan sites 6, 6 within a macro cell of a civ site
+[       OK ] CivPlanTest.TheBoxPlanIsSeededByTheCivSites (22796 ms)
+[ D10 golden ] Perlin 4242 x 2000 columns: 11413304086647064455
+[ D10 golden ] Mountains 4242 x 2000 columns: 5521812291101006622
+[10:12:18.780] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 466 ms (hash 18197215997962677593)
+[10:13:11.282] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 462 ms (hash 18197215997962677593)
+[       OK ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains (786 ms)
+[10:14:53.749] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 15 roads, 2 bridges, 681 segments in 196 ms (hash 9087854481993593608)
+[10:14:59.815] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 462 ms (hash 9693137997320541182)
+[10:15:00.916] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 412 ms (hash 18197215997962677593)
+[10:15:01.339] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 407 ms (hash 9693137997320541182)
+[10:15:01.766] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 411 ms (hash 9693137997320541182)
+[10:15:02.403] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 462 ms (hash 18197215997962677593)
+[10:15:03.191] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 459 ms (hash 9693137997320541182)
+[10:15:03.676] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 452 ms (hash 18197215997962677593)
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (969 ms)
+[  PASSED  ] 191 tests.
+
+------------------------------------------------------------------
+TWO VERSION-1 DRIFTS FOUND ON THE WAY (both fixed in this commit):
+------------------------------------------------------------------
+(1) RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains RED on the M3a build (scratchpad m3a_green3.txt / road_diag.txt):
+[09:48:30.746] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 13 roads, 3 bridges, 644 segments in 3980 ms (hash 15040555740693915406)
+[GRADE-DIAG] prev roadAt{cls=1 dist=0 grade=109.51} wl0=-1e+30 raw0=-1e+30 wl1=-1e+30 prev.surf again=110
+[GRADE] step 2 cubes on road 0-4 at (-632.692,-1400.69) prev{surf=110 deck=-2147483648 river=0} now{surf=108 deck=-2147483648 river=0} roadAt{cls=1 dist=0 grade=108.659}
+[GRADE-DIAG] prev roadAt{cls=1 dist=0 grade=109.51} wl0=-1e+30 raw0=-1e+30 wl1=-1e+30 prev.surf again=110
+[GRADE] step 2 cubes on road 1-4 at (-632.991,-1400.99) prev{surf=110 deck=-2147483648 river=0} now{surf=108 deck=-2147483648 river=0} roadAt{cls=1 dist=0 grade=108.5}
+[GRADE-DIAG] prev roadAt{cls=1 dist=6 grade=95.7635} wl0=-1e+30 raw0=-1e+30 wl1=-1e+30 prev.surf again=97
+[GRADE] step 2 cubes on road 0-6 at (-569.438,-1194.25) prev{surf=97 deck=-2147483648 river=0} now{surf=95 deck=-2147483648 river=0} roadAt{cls=1 dist=6.56152 grade=95.4519}
+3/9917 centerline steps exceed 1 cube on the graded network
+[  FAILED  ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains (5013 ms)
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains
+    cause: M2c fed the rim-corrected level to VERSION-1 plan bakes -> Mountains 424242 re-routed 10 roads -> 13 (hash 18197215997962677593 -> 15040555740693915406)
+    fix: BasinRimCorrector constructed for version-2 bakes only (WorldGenerator.cpp)
+(2) after (1), counts back to 10 roads / 3 bridges but EVERY version-1 hash still moved (scratchpad m3a_green4.txt, 190/190):
+      4 8 sites, 10 roads, 3 bridges, 432 segments (hash 6997471292175526340)
+      1 8 sites, 15 roads, 2 bridges, 681 segments (hash 7021189206181386486)
+      3 8 sites, 18 roads, 0 bridges, 1923 segments (hash 17476495390967643798)
+    vs 2026-10-15..10-20 (full_suite_521f1ba2.txt): 10/3 = 18197215997962677593, 15/2 = 9087854481993593608, 18/0 = 9693137997320541182
+    cause: M2b-2 added 'carved' to every crossing record in the hashed plan JSON
+    fix: planHash() strips 'carved'; WorldForgeStressTest.VersionOnePlanHashesArePinned pins both version-1 hashes
+    red for the pinned test = the logged hashes above (the test did not exist on that build); mutation red below
+
+MUTATION RED for VersionOnePlanHashesArePinned (planHash() keeps 'carved' -> the test must fail; Debug, scratchpad m3a_hash_mutation.txt):
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 17476495390967643798
+    Which is: 17476495390967643798
+    Which is: 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 6997471292175526340
+    Which is: 6997471292175526340
+    Which is: 18197215997962677593
+[  FAILED  ] WorldForgeStressTest.VersionOnePlanHashesArePinned (2275 ms)
+[  FAILED  ] WorldForgeStressTest.VersionOnePlanHashesArePinned
+mutation reverted; green rerun below
+
+GREEN after the mutation was reverted (Debug, scratchpad m3a_green6.txt):
+[       OK ] CivPlanTest.HundredsOfSitesAtTheLadderTargets (105071 ms)
+[       OK ] CivPlanTest.SpacingHoldsAgainstEverySiteOfTheSameOrHigherTier (23309 ms)
+[       OK ] CivPlanTest.HierarchyRatioIsCentralPlace (23343 ms)
+[       OK ] CivPlanTest.NoSiteInWaterOrOnACliff (23522 ms)
+[       OK ] CivPlanTest.DeterministicAcrossGenerators (44728 ms)
+[       OK ] CivPlanTest.PinsInWaterAreRefusedWithTheReason (45760 ms)
+[       OK ] CivPlanTest.TheBoxPlanIsSeededByTheCivSites (23063 ms)
+[       OK ] LegacyTerrainGoldenTest.PerlinColumnsAreByteIdenticalToThePreM1Golden (746 ms)
+[       OK ] LegacyTerrainGoldenTest.MountainsColumnsAreByteIdenticalToThePreM1Golden (752 ms)
+[       OK ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains (1462 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (987 ms)
+[  PASSED  ] 11 tests.

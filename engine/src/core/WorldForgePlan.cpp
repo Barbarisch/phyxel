@@ -354,6 +354,10 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     std::vector<std::string> tierOf(picked.size());
     for (size_t r = 0; r < rank.size(); ++r)
         tierOf[rank[r]] = r == 0 ? "town" : (r <= 2 ? "village" : "hamlet");
+    // M3a: a pinned site that came with a tier keeps it (the civ plan's tier, mapped to the three
+    // the realizer knows); pins are the first `sitePins.size()` entries of `picked`, in order.
+    for (size_t i = 0; i < picked.size() && i < P.sitePins.size() && i < P.pinTiers.size(); ++i)
+        if (picked[i].pinned && !P.pinTiers[i].empty()) tierOf[i] = P.pinTiers[i];
 
     // ── Position refinement (non-pinned): minimize footprint relief on a 16 u offset grid ────
     // `positions` carries each site's CURRENT position (refined for already-processed sites,
@@ -998,6 +1002,15 @@ uint64_t WorldForgePlan::planHash() const {
     // unchanged recipe), which marks every earlier ledger stale.
     nlohmann::json j = toJson();
     j.erase("raster_truncated_segments");
+    // M2b-2 added `carved` to every crossing record (2026-10-20) and silently moved every
+    // version-1 plan's hash the same way (Mountains 424242: 18197215997962677593 ->
+    // 6997471292175526340 with identical sites/roads/bridges; caught 2026-10-22 by the pinned
+    // version-1 hashes in WorldForgePlanTest). The class is derived from the crossing's
+    // position, so it is reported, never hashed.
+    if (j.contains("roads"))
+        for (auto& road : j["roads"])
+            if (road.contains("crossings"))
+                for (auto& c : road["crossings"]) c.erase("carved");
     const std::string s = j.dump();
     uint64_t h = 1469598103934665603ull;  // FNV-1a 64
     for (unsigned char c : s) {

@@ -186,3 +186,42 @@ TEST(WorldForgeStressTest, RoadStepProfileMeasuredOnMountains) {
               << tooSteep << "/" << steps << ")\n";
     EXPECT_LT(steepFrac, 0.5) << "mountain roads mostly unwalkable — grading gap got worse";
 }
+
+// ============================================================================
+// D10 guard (docs/WorldForgeV2Plan.md M2c correction, 2026-10-22): a VERSION-1 recipe's
+// WorldForge plan is part of the existing world it belongs to - its identity hash keys the
+// persisted worldforge_ledger, so a hash that moves marks every built world stale. These are
+// the hashes every suite run recorded 2026-10-15 -> 2026-10-20 (full_suite_521f1ba2). Two
+// regressions each moved them without any test noticing: M2b-2 added `carved` to the hashed
+// crossing record (same sites/roads/bridges, new hash) and M2c fed the rim-corrected level to
+// version-1 bakes (Mountains 424242: 10 roads -> 13). A legitimate change to version-1 plans is
+// an owner decision (D10) and re-pins these numbers in the same commit.
+// ============================================================================
+TEST(WorldForgeStressTest, VersionOnePlanHashesArePinned) {
+    {
+        WorldGenerator gen = makeForgeWorld(WorldGenerator::GenerationType::Perlin, 20260816,
+                                            8, 2048.0f, 400.0f);
+        ASSERT_NE(gen.worldForge(), nullptr);
+        const WorldForgePlan& plan = *gen.worldForge();
+        std::cout << "[D10 plan] Perlin 20260816: " << plan.sites().size() << " sites, "
+                  << plan.roads().size() << " roads, " << plan.bridges().size()
+                  << " bridges, hash " << plan.planHash() << "\n";
+        EXPECT_EQ(plan.roads().size(), 18u);
+        EXPECT_EQ(plan.bridges().size(), 0u);
+        EXPECT_EQ(plan.planHash(), 9693137997320541182ull)
+            << "the version-1 Perlin plan moved (D10: existing worlds keep their plan)";
+    }
+    {
+        WorldGenerator gen = makeForgeWorld(WorldGenerator::GenerationType::Mountains, 424242,
+                                            8, 2048.0f, 400.0f);
+        ASSERT_NE(gen.worldForge(), nullptr);
+        const WorldForgePlan& plan = *gen.worldForge();
+        std::cout << "[D10 plan] Mountains 424242: " << plan.sites().size() << " sites, "
+                  << plan.roads().size() << " roads, " << plan.bridges().size()
+                  << " bridges, hash " << plan.planHash() << "\n";
+        EXPECT_EQ(plan.roads().size(), 10u);
+        EXPECT_EQ(plan.bridges().size(), 3u);
+        EXPECT_EQ(plan.planHash(), 18197215997962677593ull)
+            << "the version-1 Mountains plan moved (D10: existing worlds keep their plan)";
+    }
+}
