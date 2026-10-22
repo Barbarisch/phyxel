@@ -14727,6 +14727,7 @@ void Application::registerWorldForgeCommands() {
                      {"plan_hash", std::to_string(p->planHash())}};
                 // M3a: the continent-wide civ plan that seeded this box plan (version-2 + civ).
                 if (const Phyxel::CivPlan* civ = g->civPlan()) r["civ"] = civ->toJson();
+                if (const Phyxel::CorridorGraph* cg = g->corridors()) r["corridors"] = cg->toJson();   // M4a
             } else {
                 r = {{"success", true}, {"applied", false},
                      {"message", "worldforge disabled for this world; pass params to preview"}};
@@ -15107,6 +15108,17 @@ void Application::registerWorldForgeCommands() {
             const float z1 = z0 + h->cellsZ() * h->cellSize() - 1.0f;
             put(x0, z0, '+'); put(x1, z0, '+'); put(x0, z1, '+'); put(x1, z1, '+');
         }
+        // M4a: corridors by class under the site glyphs ('#' highway, '=' road, '-' track)
+        if (const Phyxel::CorridorGraph* cg = g->corridors())
+            for (int j = 0; j < n; j += step)
+                for (int i = 0; i < n; i += step) {
+                    int best = 0;
+                    for (int dj = 0; dj < step && j + dj < n; ++dj)
+                        for (int di = 0; di < step && i + di < n; ++di) best = std::max(best, cg->classAtCell((j + dj) * n + i + di));
+                    if (!best) continue;
+                    std::string& line = lines[static_cast<size_t>(j / step)];
+                    if (line[static_cast<size_t>(i / step)] == '.') line[static_cast<size_t>(i / step)] = best == 3 ? '#' : (best == 2 ? '=' : '-');
+                }
         static const char kGlyph[Phyxel::CivPlan::kTiers] = {'C', 'T', 'V', 'H', 'O'};
         static const char kRuin[Phyxel::CivPlan::kTiers] = {'c', 't', 'v', 'h', 'o'};   // M3b: abandoned = lowercase
         // low tiers first so a city is never overdrawn by an outpost sharing the char cell
@@ -15115,7 +15127,8 @@ void Application::registerWorldForgeCommands() {
                 if (s.tier == t) put(s.pos.x, s.pos.y, s.state == Phyxel::CivPlan::Abandoned ? kRuin[t] : kGlyph[t]);
         r = civ->toJson();
         r["success"] = true;
-        r["legend"] = "~ sea | b basin | . land | + hydrology box corners | C/T/V/H/O city/town/village/hamlet/outpost (lowercase = abandoned, M3b)";
+        r["legend"] = "~ sea | b basin | . land | + hydrology box corners | C/T/V/H/O city/town/village/hamlet/outpost (lowercase = abandoned, M3b) | # highway = road - track (M4a corridors)";
+        if (const Phyxel::CorridorGraph* cg = g->corridors()) r["corridors"] = cg->toJson();
         r["cell_units"] = cu * step;
         r["lines"] = lines;
     });
@@ -15281,6 +15294,25 @@ bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
             if (s.tier == "town") drawSquare(mx, mz, 3, {220, 40, 40});
             else if (s.tier == "village") drawSquare(mx, mz, 2, {240, 150, 40});
             else drawSquare(mx, mz, 2, {240, 220, 60});
+        }
+    }
+    // M4a: the continent corridors as 1 px lines by class, under the site markers.
+    if (const Phyxel::CorridorGraph* cg = g->corridors()) {
+        auto plot = [&](int qx, int qz, glm::ivec3 c) {
+            if (qx < 0 || qz < 0 || qx >= px || qz >= px) return;
+            const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
+            img[i] = static_cast<unsigned char>(c.r); img[i + 1] = static_cast<unsigned char>(c.g); img[i + 2] = static_cast<unsigned char>(c.b);
+        };
+        for (const auto& r : cg->routes()) {
+            const glm::ivec3 col = r.cls == 3 ? glm::ivec3(110, 50, 20) : (r.cls == 2 ? glm::ivec3(150, 100, 50) : glm::ivec3(185, 160, 110));
+            for (size_t k = 0; k + 1 < r.polyline.size(); ++k) {
+                const glm::vec2 a = (r.polyline[k] - glm::vec2(x0, z0)) / stepU, b = (r.polyline[k + 1] - glm::vec2(x0, z0)) / stepU;
+                const int steps = std::max(1, static_cast<int>(std::ceil(glm::length(b - a))));
+                for (int t = 0; t <= steps; ++t) {
+                    const glm::vec2 p = a + (b - a) * (static_cast<float>(t) / steps);
+                    plot(static_cast<int>(p.x), static_cast<int>(p.y), col);
+                }
+            }
         }
     }
     // M3a: the continent-wide civ sites (version-2 + civ) — the same squares, two more tiers:

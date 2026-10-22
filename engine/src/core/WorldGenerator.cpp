@@ -11,6 +11,7 @@
 #include "core/WorldConstants.h"
 #include "utils/Logger.h"
 #include <algorithm>
+#include <unordered_map>
 #include <atomic>
 #include <chrono>
 #include <random>
@@ -554,6 +555,9 @@ void WorldGenerator::rebuildCoarseModel() {
 void WorldGenerator::bakeWorldForgePlan() {
     m_worldForge.reset();
     m_civ.reset();
+    m_corridors.reset();
+    m_boxDemand.clear();
+    m_boxRealizedRoute.clear();
     if (!m_worldForgeParams.enabled) return;
     // M3a (D18): the continent-wide civ plan over the macro sheet; the box plan below is then
     // seeded by the civ sites inside the hydrology box (city..hamlet; outposts wait for M4's
@@ -574,6 +578,20 @@ void WorldGenerator::bakeWorldForgePlan() {
         m_civ = CivPlan::bake(in, m_worldForgeParams);
         LOG_INFO_FMT("WorldGenerator", "[CIV] continent plan: " << m_civ->sites().size() << " sites over "
                      << m_civ->landKm2() << " km2 of land in " << m_civ->bakeMs() << " ms; refusals " << m_civ->refusals().size());
+        // M4a (D25/D27/D28): the continent corridor graph over the live civ sites; the box plan
+        // below routes along it and the column sampler stamps it at macro fidelity outside the box.
+        constexpr bool kCorridorsEnabled = true;
+        if (kCorridorsEnabled) {
+            CorridorGraph::Inputs cin;
+            cin.macro = m_macroSheet.get();
+            cin.civ = m_civ.get();
+            cin.seaLevel = terrainParams.seaLevelY;
+            m_corridors = CorridorGraph::bake(cin, m_worldForgeParams);
+            LOG_INFO_FMT("WorldGenerator", "[CORRIDORS] " << m_corridors->routes().size() << " routes, "
+                         << m_corridors->totalLengthU() / 1000.0f << " km, shared cells " << m_corridors->sharedCells()
+                         << ", junction cells " << m_corridors->junctionCells() << ", unroutable " << m_corridors->unroutable()
+                         << " in " << m_corridors->bakeMs() << " ms");
+        }
         boxParams.sitePins.clear();
         boxParams.pinTiers.clear();
         if (m_hydro) {
@@ -591,11 +609,74 @@ void WorldGenerator::bakeWorldForgePlan() {
         }
         boxParams.siteCount = std::max(3, static_cast<int>(boxParams.sitePins.size()));
         boxParams.pinRefine = true;   // D18: the macro centre is refined on the 16 u grid (dry, flattest footprint)
+        // M4a (D25/D28): the box routes ONLY the corridor graph's demand. Each corridor polyline is
+        // walked; every run inside the box (minus the pin margin) becomes a demand edge whose ends
+        // are the pinned site there or the point where the corridor crosses the box edge, so the
+        // fine road meets the macro stamp outside. Corridors to outposts (not pinned) still get
+        // their inside runs as exit-to-exit edges where they pass through.
+        if (m_corridors && m_hydro) {
+            const float x0 = m_hydro->originX() + 512.0f, z0 = m_hydro->originZ() + 512.0f;
+            const float x1 = m_hydro->originX() + m_hydro->cellsX() * m_hydro->cellSize() - 512.0f;
+            const float z1 = m_hydro->originZ() + m_hydro->cellsZ() * m_hydro->cellSize() - 512.0f;
+            auto inside = [&](const glm::vec2& p) { return p.x >= x0 && p.x < x1 && p.y >= z0 && p.y < z1; };
+            std::unordered_map<int, int> pinOf;   // civ site id -> pin index
+            for (size_t i = 0; i < boxParams.sitePins.size(); ++i) {
+                for (const auto& site : m_civ->sites())
+                    if (static_cast<int>(std::lround(site.pos.x)) == boxParams.sitePins[i].x &&
+                        static_cast<int>(std::lround(site.pos.y)) == boxParams.sitePins[i].y) { pinOf[site.id] = static_cast<int>(i); break; }
+            }
+            auto edgePoint = [&](const glm::vec2& in, const glm::vec2& out) {   // where the segment in->out leaves the box
+                float t = 1.0f;
+                if (out.x < x0) t = std::min(t, (x0 - in.x) / (out.x - in.x));
+                if (out.x >= x1) t = std::min(t, (x1 - 1.0f - in.x) / (out.x - in.x));
+                if (out.y < z0) t = std::min(t, (z0 - in.y) / (out.y - in.y));
+                if (out.y >= z1) t = std::min(t, (z1 - 1.0f - in.y) / (out.y - in.y));
+                return in + (out - in) * glm::clamp(t, 0.0f, 1.0f);
+            };
+            m_boxDemand.clear();
+            m_boxRealizedRoute.assign(m_corridors->routes().size(), 0);
+            for (size_t ri = 0; ri < m_corridors->routes().size(); ++ri) {
+                const auto& r = m_corridors->routes()[ri];
+                const auto& pl = r.polyline;
+                if (pl.size() < 2) continue;
+                const auto pa = pinOf.find(r.a), pb = pinOf.find(r.b);
+                // A TRANSIT track (neither end pinned in the box, class track) is not realized by
+                // the box plan — the macro stamp carries it through the box (measured 2026-10-22:
+                // 41 demand edges / 47 149 segments / 95-135 s Debug with every transit run
+                // realized; the junction reconciliation is O(roads^2 * verts^2)). Roads and
+                // highways in transit, and every corridor with a pinned end, are realized.
+                if (pa == pinOf.end() && pb == pinOf.end() && r.cls < CorridorGraph::Road) continue;
+                m_boxRealizedRoute[ri] = 1;
+                int runStartPin = -1; glm::vec2 runStart{0.0f}; bool inRun = false;
+                for (size_t k = 0; k < pl.size(); ++k) {
+                    const bool in = inside(pl[k]);
+                    if (in && !inRun) {   // entering (or starting inside)
+                        inRun = true;
+                        if (k == 0 && pa != pinOf.end()) { runStartPin = pa->second; runStart = pl[0]; }
+                        else { runStartPin = -1; runStart = k == 0 ? pl[0] : edgePoint(pl[k], pl[k - 1]); }
+                    } else if (!in && inRun) {   // leaving
+                        inRun = false;
+                        WorldForgePlan::DemandEdge d; d.a = runStartPin; d.pa = runStart; d.b = -1; d.pb = edgePoint(pl[k - 1], pl[k]); d.cls = r.cls;
+                        m_boxDemand.push_back(d);
+                    }
+                }
+                if (inRun) {   // ended inside
+                    WorldForgePlan::DemandEdge d; d.a = runStartPin; d.pa = runStart; d.cls = r.cls;
+                    if (pb != pinOf.end()) { d.b = pb->second; d.pb = pl.back(); } else { d.b = -1; d.pb = pl.back(); }
+                    m_boxDemand.push_back(d);
+                }
+            }
+            LOG_INFO_FMT("WorldGenerator", "[CORRIDORS] box demand: " << m_boxDemand.size() << " edges from " << m_corridors->routes().size() << " corridors");
+        }
     }
     m_worldForge = previewWorldForge(boxParams);
     // Columns memoized during the bake are road-free; road stamping (M1) must re-sample.
     clearColumnCache();
 }
+
+// M4a: half a macro cell either side of a corridor polyline (DESIGN: the corridor is one
+// macro cell wide; the box plan's fine route is free to wander inside that band).
+constexpr float kCorridorBandU = 256.0f;
 
 std::shared_ptr<const WorldForgePlan> WorldGenerator::previewWorldForge(
     const WorldForgeParams& params) {
@@ -612,8 +693,17 @@ std::shared_ptr<const WorldForgePlan> WorldGenerator::previewWorldForge(
     auto surfaceY = [this](int x, int z) { return sampleColumn(x, z).surfaceY; };
     auto channel = [this](float x, float z) { return channelHitAt(x, z); };
     auto levelAt = [this](float x, float z) { return waterLevelAt(x, z); };   // M2c: rim-corrected
+    // M4a: inside the continent corridor band (half a macro cell either side of the polyline —
+    // DESIGN: the corridor is one macro cell wide) a routing step costs the reuse fraction.
+    const float reuse = params.clamped().routeReuseFraction;
+    auto corridorMul = [this, reuse](float x, float z) {
+        if (!m_corridors) return 1.0f;
+        int cls = 0;
+        return m_corridors->distanceToCorridorU(x, z, &cls) <= kCorridorBandU ? reuse : 1.0f;
+    };
     return WorldForgePlan::bake(params, seed, heightAt, *m_hydro, *m_flow, *m_waterBodies,
-                                surfaceMat, surfaceY, channel, levelAt);
+                                surfaceMat, surfaceY, channel, levelAt, m_corridors ? WorldForgePlan::CorridorFn(corridorMul) : nullptr,
+                                (m_corridors && !m_boxDemand.empty()) ? &m_boxDemand : nullptr);
 }
 
 void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
@@ -1507,6 +1597,27 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             }
         }
     }
+    // M4a / D28: beyond the hydrology box the continent corridor is stamped at macro fidelity —
+    // material + drape only (no grade, no crossings; those are the box's); inside the box the box
+    // plan's roads already follow the corridor at full fidelity, so the stamp is box-exclusive.
+    if (m_corridors && col.roadClass == 0 && col.riverOrder == 0 && col.bridgeDeckY == INT_MIN &&
+        col.surfaceY >= static_cast<int>(terrainParams.seaLevelY)) {
+        const bool inBox = m_hydro && static_cast<float>(wx) >= m_hydro->originX() && static_cast<float>(wz) >= m_hydro->originZ() &&
+                           static_cast<float>(wx) < m_hydro->originX() + m_hydro->cellsX() * m_hydro->cellSize() &&
+                           static_cast<float>(wz) < m_hydro->originZ() + m_hydro->cellsZ() * m_hydro->cellSize();
+        {
+            int cls = 0, route = -1;
+            const float d = m_corridors->distanceToCorridorU(static_cast<float>(wx), static_cast<float>(wz), &cls, &route);
+            // inside the box only the corridors the box plan does NOT realize (transit tracks)
+            const bool stampHere = !inBox || (route >= 0 && route < static_cast<int>(m_boxRealizedRoute.size()) && !m_boxRealizedRoute[static_cast<size_t>(route)]);
+            if (stampHere && cls > 0 && d <= WorldForgePlan::roadHalfWidth(cls) &&
+                !(m_hydro && waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > static_cast<float>(col.surfaceY))) {
+                col.roadClass = cls;
+                col.roadDist = d;
+                col.surfaceMat = WorldForgePlan::roadMaterial(cls);
+            }
+        }
+    }
     markPhase(6);
     return col;
 }
@@ -1741,6 +1852,11 @@ bool WorldGenerator::floraCellLayer(int cx, int cz, int layerIdx, FloraPlacement
         const WorldForgePlan::RoadHit rh =
             m_worldForge->roadAt(static_cast<float>(jx), static_cast<float>(jz));
         if (rh.cls > 0 && rh.dist <= WorldForgePlan::roadHalfWidth(rh.cls) + 2.0f) return false;
+    }
+    if (m_corridors) {   // M4a: the macro-fidelity corridor stamp keeps its shoulder clear too
+        int cls = 0;
+        const float d = m_corridors->distanceToCorridorU(static_cast<float>(jx), static_cast<float>(jz), &cls);
+        if (cls > 0 && d <= WorldForgePlan::roadHalfWidth(cls) + 2.0f) return false;
     }
     if (m_hydro) {
         const float wl = waterLevelAt(static_cast<float>(jx), static_cast<float>(jz));   // M2c

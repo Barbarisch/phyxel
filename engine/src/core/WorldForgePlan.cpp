@@ -172,6 +172,7 @@ struct RoutingGrid {
     std::vector<uint8_t> wet, shore;
     std::vector<int> order;
     std::vector<uint8_t> carved;   // M2b-2: carved-river class per cell
+    std::vector<float> corr;       // M4a: cost multiplier inside the continent corridor band (1 = none)
     int idx(int cx, int cz) const { return (cz - z0) * nx + (cx - x0); }
     bool contains(int cx, int cz) const {
         return cx >= x0 && cz >= z0 && cx < x0 + nx && cz < z0 + nz;
@@ -218,6 +219,7 @@ std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, flo
             if (g.carved[ti]) c += kPenaltyRiverMajor;          // M2b-2: the class, not the order
             else if (g.order[ti] >= 1) c += kPenaltyRiverMinor;
             else if (g.shore[ti]) c += kPenaltyShore;
+            if (!g.corr.empty()) c *= g.corr[ti];                // M4a: follow the continent corridor
             if (gCost[cur] + c < gCost[ti] - 1e-6f) {
                 gCost[ti] = gCost[cur] + c;
                 parent[ti] = cur;
@@ -271,7 +273,8 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     const WorldForgeParams& params, uint32_t worldSeed, const HeightFn& heightAt,
     const HydrologyMap& hydro, const FlowField& flow, const WaterBodyIndex& bodies,
     const SurfaceMatFn& surfaceMatAt, const SurfaceYFn& surfaceYAt,
-    const ChannelFn& channelAt, const LevelFn& waterLevelAtFn) {
+    const ChannelFn& channelAt, const LevelFn& waterLevelAtFn, const CorridorFn& corridorMulAt,
+    const std::vector<DemandEdge>* demand) {
     const auto t0 = std::chrono::steady_clock::now();
     // M2c: site, shore and route rules read the rim-corrected level when the generator gives one.
     const LevelFn levelAt = waterLevelAtFn ? waterLevelAtFn
@@ -419,20 +422,36 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     const size_t nSites = plan->m_sites.size();
     if (nSites >= 2) {
         // Routing subgrid: site bbox in cell coords + margin, clamped to the bake grid.
-        int cx0 = nx, cz0 = nz, cx1 = 0, cz1 = 0;
+        // M4a: the route search runs on a 128 u routing cell (V1 routed on 128 u bake cells; the
+        // version-2 meso bake is 32 u, 16x the cells, and A* on the full grid cost 10+ s per demand
+        // in Debug — measured 2026-10-22). `rcell` is the routing cell; the realized line is
+        // resampled at 16 u and the crossings are found on the carve-accurate channel anyway.
+        const int stride = std::max(1, static_cast<int>(std::lround(128.0f / cell)));
+        const float rcell = cell * static_cast<float>(stride);
+        const int rnx = (nx + stride - 1) / stride, rnz = (nz + stride - 1) / stride;
+        int cx0 = rnx, cz0 = rnz, cx1 = 0, cz1 = 0;
         for (const auto& s : plan->m_sites) {
-            const int cx = static_cast<int>(std::floor((s.pos.x - ox) / cell));
-            const int cz = static_cast<int>(std::floor((s.pos.y - oz) / cell));
+            const int cx = static_cast<int>(std::floor((s.pos.x - ox) / rcell));
+            const int cz = static_cast<int>(std::floor((s.pos.y - oz) / rcell));
             cx0 = std::min(cx0, cx); cx1 = std::max(cx1, cx);
             cz0 = std::min(cz0, cz); cz1 = std::max(cz1, cz);
         }
+        if (demand)   // M4a: the box-edge exits are routing endpoints too
+            for (const auto& d : *demand)
+                for (const glm::vec2* p : {d.a < 0 ? &d.pa : nullptr, d.b < 0 ? &d.pb : nullptr}) {
+                    if (!p) continue;
+                    const int cx = static_cast<int>(std::floor((p->x - ox) / rcell));
+                    const int cz = static_cast<int>(std::floor((p->y - oz) / rcell));
+                    cx0 = std::min(cx0, cx); cx1 = std::max(cx1, cx);
+                    cz0 = std::min(cz0, cz); cz1 = std::max(cz1, cz);
+                }
         constexpr int kMargin = 16;
         RoutingGrid g;
         g.x0 = std::max(0, cx0 - kMargin);
         g.z0 = std::max(0, cz0 - kMargin);
-        g.nx = std::min(nx - 1, cx1 + kMargin) - g.x0 + 1;
-        g.nz = std::min(nz - 1, cz1 + kMargin) - g.z0 + 1;
-        g.originX = ox; g.originZ = oz; g.cellSize = cell;
+        g.nx = std::min(rnx - 1, cx1 + kMargin) - g.x0 + 1;
+        g.nz = std::min(rnz - 1, cz1 + kMargin) - g.z0 + 1;
+        g.originX = ox; g.originZ = oz; g.cellSize = rcell;
         const int gn = g.nx * g.nz;
         g.height.resize(gn); g.wet.assign(gn, 0); g.shore.assign(gn, 0); g.order.resize(gn); g.carved.assign(gn, 0);
         for (int cz = g.z0; cz < g.z0 + g.nz; ++cz)
@@ -443,6 +462,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 g.wet[i] = levelAt(p.x, p.y) > g.height[i] + 0.1f ? 1 : 0;
                 g.order[i] = flow.orderAt(p.x, p.y);
                 g.carved[i] = flow.carvedRiverAt(p.x, p.y) ? 1 : 0;
+                if (corridorMulAt) { if (g.corr.empty()) g.corr.assign(gn, 1.0f); g.corr[i] = corridorMulAt(p.x, p.y); }
             }
         for (int cz = g.z0; cz < g.z0 + g.nz; ++cz)
             for (int cx = g.x0; cx < g.x0 + g.nx; ++cx) {
@@ -455,9 +475,9 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                     g.shore[i] = 1;
             }
         auto siteCell = [&](const WorldForgeSite& s) {
-            const int cx = glm::clamp(static_cast<int>(std::floor((s.pos.x - ox) / cell)),
+            const int cx = glm::clamp(static_cast<int>(std::floor((s.pos.x - ox) / rcell)),
                                       g.x0, g.x0 + g.nx - 1);
-            const int cz = glm::clamp(static_cast<int>(std::floor((s.pos.y - oz) / cell)),
+            const int cz = glm::clamp(static_cast<int>(std::floor((s.pos.y - oz) / rcell)),
                                       g.z0, g.z0 + g.nz - 1);
             return g.idx(cx, cz);
         };
@@ -466,8 +486,34 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             int a, b;
             float cost;
             std::vector<int> path;
+            glm::vec2 pa{0.0f}, pb{0.0f};   // M4a: the endpoint when a / b is -1 (a box-edge exit)
+            int cls = 0;                     // M4a: the corridor's class (0 = by endpoint tiers)
         };
         std::vector<Pair> pairs;
+        auto pointCell = [&](const glm::vec2& p) {
+            const int cx = glm::clamp(static_cast<int>(std::floor((p.x - ox) / rcell)), g.x0, g.x0 + g.nx - 1);
+            const int cz = glm::clamp(static_cast<int>(std::floor((p.y - oz) / rcell)), g.z0, g.z0 + g.nz - 1);
+            return g.idx(cx, cz);
+        };
+        std::vector<const Pair*> chosen;
+        if (demand) {
+            // M4a (D25): only what the corridor graph asked for — no all-pairs, no MST, no loops.
+            // A demand whose pinned endpoint is beyond this plan's sites (the pin count was clamped)
+            // is skipped; an unroutable demand is logged, never silently dropped.
+            for (const auto& d : *demand) {
+                if (d.a >= static_cast<int>(nSites) || d.b >= static_cast<int>(nSites)) continue;
+                Pair pr{d.a, d.b, 1e30f, {}, d.pa, d.pb, d.cls};
+                const int ca = d.a >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(d.a)]) : pointCell(d.pa);
+                const int cb = d.b >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(d.b)]) : pointCell(d.pb);
+                pr.path = astarRoute(g, ca, cb, pr.cost);
+                if (pr.path.empty()) {
+                    LOG_WARN_FMT("WorldForge", "[WORLDFORGE] demand " << d.a << " -> " << d.b << " unroutable inside the box (water in every way)");
+                    continue;
+                }
+                pairs.push_back(std::move(pr));
+            }
+            for (const auto& pr : pairs) chosen.push_back(&pr);
+        } else
         for (size_t a = 0; a < nSites; ++a)
             for (size_t b = a + 1; b < nSites; ++b) {
                 Pair pr{static_cast<int>(a), static_cast<int>(b), 1e30f, {}};
@@ -475,6 +521,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                                      pr.cost);
                 if (!pr.path.empty()) pairs.push_back(std::move(pr));
             }
+        if (!demand) {
         // Kruskal MST over pair costs (deterministic tie order: cost, then a, then b).
         std::stable_sort(pairs.begin(), pairs.end(), [](const Pair& x, const Pair& y) {
             if (x.cost != y.cost) return x.cost < y.cost;
@@ -515,22 +562,24 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             if (std::find(chosen.begin(), chosen.end(), &pr) != chosen.end()) continue;
             if (pr.cost * kDetourFactor < treePathCost(pr.a, pr.b)) chosen.push_back(&pr);
         }
+        }   // !demand
 
         // ── Realize each chosen edge: smooth, resample, trim at footprints, mark crossings ───
         for (const Pair* pr : chosen) {
             WorldForgeRoad road;
             road.a = pr->a;
             road.b = pr->b;
-            road.cls = std::min(tierRank(plan->m_sites[pr->a].tier),
-                                tierRank(plan->m_sites[pr->b].tier));
+            road.cls = pr->cls > 0 ? pr->cls
+                                   : std::min(tierRank(plan->m_sites[static_cast<size_t>(pr->a)].tier),
+                                              tierRank(plan->m_sites[static_cast<size_t>(pr->b)].tier));
             std::vector<glm::vec2> pts;
             pts.reserve(pr->path.size() + 2);
-            pts.push_back(glm::vec2(plan->m_sites[pr->a].pos));
+            pts.push_back(pr->a >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(pr->a)].pos) : pr->pa);
             for (const int ci : pr->path) {
                 const int cx = g.x0 + (ci % g.nx), cz = g.z0 + (ci / g.nx);
                 pts.push_back(g.cellCentre(cx, cz));
             }
-            pts.push_back(glm::vec2(plan->m_sites[pr->b].pos));
+            pts.push_back(pr->b >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(pr->b)].pos) : pr->pb);
             road.centerline = smoothResample(std::move(pts));
             // Trim inside the endpoint footprints. Inset 1 (was 8): the road must REACH the
             // footprint boundary so the arrival-aligned main street can meet it — an 8-cube
@@ -543,10 +592,10 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             {
                 auto& cl = road.centerline;
                 size_t first = 0;
-                while (first + 2 < cl.size() && insideFootprint(cl[first + 1], plan->m_sites[pr->a]))
+                while (pr->a >= 0 && first + 2 < cl.size() && insideFootprint(cl[first + 1], plan->m_sites[static_cast<size_t>(pr->a)]))
                     ++first;
                 size_t last = cl.size() - 1;
-                while (last > first + 1 && insideFootprint(cl[last - 1], plan->m_sites[pr->b]))
+                while (pr->b >= 0 && last > first + 1 && insideFootprint(cl[last - 1], plan->m_sites[static_cast<size_t>(pr->b)]))
                     --last;
                 cl = std::vector<glm::vec2>(cl.begin() + first, cl.begin() + last + 1);
             }

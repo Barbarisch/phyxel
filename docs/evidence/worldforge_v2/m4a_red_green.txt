@@ -1,0 +1,82 @@
+M4a RED (Debug, kCorridorsEnabled = false; scratchpad m4a_red.txt):
+[14:34:40.633] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 70419 ms (hash 14062490759986919113)
+no corridor graph on a v2 world with worldforge.civ on
+[  FAILED  ] RouteGraphTest.ContinentCorridorsReachEverySite (84350 ms)
+[14:35:00.050] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 19190 ms (hash 14062490759986919113)
+[  FAILED  ] RouteGraphTest.NoCorridorThroughSeaOrBasin (19416 ms)
+[14:35:18.239] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 17963 ms (hash 14062490759986919113)
+[  FAILED  ] RouteGraphTest.ClassFollowsTheHierarchy (18188 ms)
+[14:35:36.362] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 17891 ms (hash 14062490759986919113)
+[14:35:54.659] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 18072 ms (hash 11960451012022156079)
+[  FAILED  ] RouteGraphTest.ReuseDiscountMergesRoutesIntoTrunks (36419 ms)
+[14:36:12.834] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 17946 ms (hash 14062490759986919113)
+[14:36:31.068] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 18019 ms (hash 14062490759986919113)
+[  FAILED  ] RouteGraphTest.DeterministicAcrossGenerators (36407 ms)
+[14:36:48.969] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 17636 ms (hash 14062490759986919113)
+[14:37:08.122] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 18938 ms (hash 11960451012022156079)
+[ M4a ] box road vertices inside the corridor band: -100.0 % of 0 with the discount, -100.0 % of 0 without
+[  FAILED  ] RouteGraphTest.BoxRoadsFollowTheCorridors (37054 ms)
+[14:37:26.084] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 4 roads, 2 bridges, 5088 segments in 17739 ms (hash 14062490759986919113)
+[  FAILED  ] RouteGraphTest.CorridorsAreStampedBeyondTheBox (17961 ms)
+StressTenTimesTheSites KILLED after 20 min: the x10 civ plan (1205 sites) seeds ~50 pins into the box and the V1 box plan routes ALL PAIRS by A* on the 32 u grid (O(n^2) A*, Debug) - a scaling finding: M4a must route only the corridor graph's demand edges inside the box (member -> seat, seat chain), with box-edge exits for corridors that leave the box.
+
+FIRST GREEN ATTEMPT (corridors on; scratchpad m4a_green.txt) KILLED after 10+ min inside the first test: the corridor graph baked in 654 ms Debug (152 routes, 7671 km, shared 1682 cells, junctions 295, unroutable 2) and produced 41 box demand edges, but each box A* on the full 32 u meso grid (1024^2 cells) took 10+ s in Debug -> the box route search now runs on a 128 u routing stride of the bake grid (V1 routed on 128 u cells); the realized line is still resampled at 16 u.
+
+SECOND GREEN ATTEMPT (128 u routing stride; scratchpad m4a_green2.txt): 6 of 7 pass; findings:
+[       OK ] RouteGraphTest.BoxRoadsFollowTheCorridors (160858 ms)
+[       OK ] RouteGraphTest.ClassFollowsTheHierarchy (96096 ms)
+[       OK ] RouteGraphTest.CorridorsAreStampedBeyondTheBox (105888 ms)
+[       OK ] RouteGraphTest.DeterministicAcrossGenerators (193241 ms)
+[       OK ] RouteGraphTest.NoCorridorThroughSeaOrBasin (96772 ms)
+[       OK ] RouteGraphTest.ReuseDiscountMergesRoutesIntoTrunks (161458 ms)
+[  FAILED  ] RouteGraphTest.ContinentCorridorsReachEverySite
+[  FAILED  ] RouteGraphTest.ContinentCorridorsReachEverySite (149830 ms)
+[ M4a ] 12671 corridor cells, 0 in sea or a basin
+[ M4a ] 6 seats, 152 sites on a route, 2 live sites on none
+[ M4a ] D28 stamp: 40 corridor columns outside the box, 40 stamped with their class, 0 below sea (skipped), 0 off-corridor columns stamped
+[ M4a ] baseline: 152 routes, 7671.0 km, shared cells 1682, junction cells 295, unroutable 2, bake 587.7 ms
+[ M4a ] box road vertices inside the corridor band: 96.3 % of 47190 with the discount, 22.6 % of 37136 without
+[ M4a ] classes: 1 highway, 18 road, 133 track; 0 against the hierarchy
+[ M4a ] distinct network cells: 2941 with reuse, 3046 without
+[ M4a ] reuse 1 (none): 152 routes, 6714.8 km, shared cells 1604, junction cells 636, unroutable 2, bake 781.8 ms
+[ M4a ] reuse 1/3: 152 routes, 7671.0 km, shared cells 1682, junction cells 295, unroutable 2, bake 619.6 ms
+[15:30:50.959] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 41 roads, 1 bridges, 47149 segments in 135026 ms (hash 13796176078506133084)
+[15:32:27.732] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 41 roads, 1 bridges, 47149 segments in 95752 ms (hash 13796176078506133084)
+[15:34:03.830] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 41 roads, 1 bridges, 47149 segments in 95054 ms (hash 13796176078506133084)
+[15:35:40.806] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 41 roads, 1 bridges, 47149 segments in 95925 ms (hash 13796176078506133084)
+[15:36:45.275] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 37 roads, 5 bridges, 37099 segments in 63317 ms (hash 7227189058822593868)
+[15:38:22.100] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 41 roads, 1 bridges, 47149 segments in 95814 ms (hash 13796176078506133084)
+[15:39:58.524] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 41 roads, 1 bridges, 47149 segments in 95457 ms (hash 13796176078506133084)
+[15:41:34.811] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 41 roads, 1 bridges, 47149 segments in 95277 ms (hash 13796176078506133084)
+[15:42:38.808] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 37 roads, 5 bridges, 37099 segments in 62861 ms (hash 7227189058822593868)
+[15:44:24.030] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 41 roads, 1 bridges, 47149 segments in 103631 ms (hash 13796176078506133084)
+(1) 2 live members have no corridor: 'sea or basin in every way' - the test now requires unroutable == members whose macro LAND component differs from their seat's (islands), instead of 0;
+(2) the box plan realized every transit run (41 demand edges, 47149 segments - near the 65534 raster cap - 95-135 s Debug; the junction reconciliation is O(roads^2 verts^2)) -> transit TRACKS are no longer box demand, the macro stamp carries them through the box; roads/highways in transit and every corridor with a pinned end are realized;
+(3) measured D27: reuse 1/3 vs none: total 7671 vs 6715 km (+14 %), distinct cells 2941 vs 3046 (-3 %), junction cells 295 vs 636 (-54 %), box vertices in the band 96.3 % vs 22.6 %.
+
+GREEN (Debug; transit tracks stamped, not realized; scratchpad m4a_green3.txt + m4a_green2.txt): 7/7 RouteGraphTest
+[15:53:48.566] [INFO] [WorldGenerator] [CORRIDORS] box demand: 32 edges from 152 corridors
+[15:55:49.888] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 45300 segments in 121110 ms (hash 12536199656400609256)
+[ M4a ] baseline: 152 routes, 7671.0 km, shared cells 1682, junction cells 295, unroutable 2, bake 580.3 ms
+[ M4a ] 6 seats, 152 sites on a route, 2 live sites on none, 2 land components, 2 members not land-connected to their seat
+[       OK ] RouteGraphTest.ContinentCorridorsReachEverySite (135883 ms)
+[15:55:50.696] [INFO] [WorldGenerator] [CORRIDORS] box demand: 32 edges from 152 corridors
+[15:57:21.499] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 45300 segments in 90602 ms (hash 12536199656400609256)
+[15:57:22.473] [INFO] [WorldGenerator] [CORRIDORS] box demand: 32 edges from 152 corridors
+[15:58:24.315] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 5 bridges, 36284 segments in 61670 ms (hash 11522082618261734101)
+[ M4a ] box road vertices inside the corridor band: 96.2 % of 45332 with the discount, 22.0 % of 36316 without
+[       OK ] RouteGraphTest.BoxRoadsFollowTheCorridors (154993 ms)
+[15:58:25.697] [INFO] [WorldGenerator] [CORRIDORS] box demand: 32 edges from 152 corridors
+[15:59:57.495] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 45300 segments in 91596 ms (hash 12536199656400609256)
+[ M4a ] D28 stamp: 40 corridor columns outside the box, 40 stamped with their class, 0 below sea (skipped), 0 off-corridor columns stamped
+[       OK ] RouteGraphTest.CorridorsAreStampedBeyondTheBox (93831 ms)
+(the four tests unchanged since m4a_green2: NoCorridorThroughSeaOrBasin 12671 cells / 0 wet, ClassFollowsTheHierarchy 1/18/133 / 0 wrong, ReuseDiscountMergesRoutesIntoTrunks, DeterministicAcrossGenerators)
+
+STRESS x10 density (scratchpad m4a_stress.txt): PASSED on the corridor-graph invariants, with a measured SCALE LIMIT in the box plan:
+[16:00:32.121] [INFO] [WorldGenerator] [CIV] continent plan: 1205 sites over 7750.29 km2 of land in 283.579 ms; refusals 4
+[16:00:36.812] [INFO] [WorldGenerator] [CORRIDORS] 1424 routes, 50657.8 km, shared cells 3556, junction cells 2175, unroutable 29 in 4691.29 ms
+[16:00:36.814] [INFO] [WorldGenerator] [CORRIDORS] box demand: 325 edges from 1424 corridors
+[16:18:01.301] [INFO] [WorldForge] [WORLDFORGE] plan baked: 47 sites, 325 roads, 55 bridges, 65534 segments in 1043704 ms (hash 4738217652759497636)
+[ M4a ] x10 density: 1424 routes, 50657.8 km, shared cells 3556, junction cells 2175, unroutable 29, bake 4691.3 ms
+[       OK ] RouteGraphTest.StressTenTimesTheSites (1063129 ms)
+-> the box plan at 47 pins / 325 demand edges took 1044 s Debug and HIT the 65534-segment raster cap (loud): the O(roads^2 verts^2) junction reconciliation and the uint16 raster are M4b's first items; the baseline box (5 pins, 32 edges, 45300 segments) takes 90-121 s Debug.

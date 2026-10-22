@@ -16,6 +16,8 @@
 #include "core/BasinRimCorrector.h"
 #include "core/CoastField.h"
 #include "core/CivPlan.h"
+#include "core/CorridorGraph.h"
+#include "core/WorldForgePlan.h"   // M4a: DemandEdge is a value member
 #include "core/Spline.h"
 #include "core/WaterOccupancy.h"
 #include "core/WorldConstants.h"
@@ -330,6 +332,7 @@ public:
     const BasinRimCorrector* rimCorrector() const { return m_rimCorrector.get(); }
     const CoastField* coastField() const { return m_coast.get(); }   // M2e-2 (v2 bakes with an ocean)
     const CivPlan* civPlan() const { return m_civ.get(); }           // M3a (v2 bakes with worldforge.civ)
+    const CorridorGraph* corridors() const { return m_corridors.get(); }   // M4a (v2 + civ)
     const WorldForgeParams& getWorldForgeParams() const { return m_worldForgeParams; }
     // The single meander displacement every channel-line consumer shares (see channelHitAt). Public
     // since M2d so geometry tests can invert it and find the column under a cell's carved centreline.
@@ -477,6 +480,9 @@ private:
     std::shared_ptr<BasinRimCorrector> m_rimCorrector;   // M2c: shared by every copy of this generator
     std::shared_ptr<const CoastField> m_coast;           // M2e-2: the signed shoreline distance (v2 only)
     std::shared_ptr<const CivPlan> m_civ;                // M3a: the continent-wide civ plan (v2 + civ)
+    std::shared_ptr<const CorridorGraph> m_corridors;    // M4a: the continent corridor graph (v2 + civ)
+    std::vector<WorldForgePlan::DemandEdge> m_boxDemand; // M4a: the corridor runs inside the box (pins + edge exits)
+    std::vector<uint8_t> m_boxRealizedRoute;             // M4a: per corridor route, 1 = the box plan realizes it (else the macro stamp does, inside the box too)
 
     // WorldForge (docs/WorldForge.md): params come from the world recipe; the plan is baked
     // at the end of rebuildCoarseModel (after hydrology, which it consumes). NOT memoized

@@ -56,7 +56,7 @@ struct WorldForgeSite {
 
 /// One planned inter-settlement road.
 struct WorldForgeRoad {
-    int a = 0, b = 0;           // site ids
+    int a = 0, b = 0;           // site ids; -1 = a box-edge exit (M4a: the corridor continues outside)
     int cls = 1;                // 1 track / 2 road / 3 highway (endpoint tier min)
     std::vector<glm::vec2> centerline;   // world XZ, smoothed, ~16 u point spacing
     struct Crossing {
@@ -101,6 +101,19 @@ public:
     using ChannelFn = std::function<FlowField::ChannelHit(float worldX, float worldZ)>;
     /// M2c: the water level of a column (the generator's rim-corrected level); null = the raw bake.
     using LevelFn = std::function<float(float worldX, float worldZ)>;
+    /// M4a: a routing-cost multiplier for a world position (1 = no change; the generator returns
+    /// the reuse fraction inside the continent corridor band so the box roads follow the corridors).
+    using CorridorFn = std::function<float(float worldX, float worldZ)>;
+    /// M4a (D25): a demand edge the box plan routes INSTEAD of the V1 all-pairs + MST network.
+    /// An endpoint is a pinned site (index into `sitePins` order) or, at -1, a world point —
+    /// the spot where a continent corridor crosses the hydrology box's edge, so the fine road
+    /// meets the macro-fidelity stamp outside (D28). cls = the corridor's class (1 track, 2 road,
+    /// 3 highway). With a demand list, no road exists that the corridor graph did not ask for.
+    struct DemandEdge {
+        int a = -1, b = -1;
+        glm::vec2 pa{0.0f}, pb{0.0f};
+        int cls = 1;
+    };
 
     /// Bake the plan. `params` is clamped internally (the plan echoes the clamped copy).
     /// Deterministic: same (params, worldSeed, terrain/hydrology inputs) → byte-identical
@@ -111,7 +124,8 @@ public:
         const WorldForgeParams& params, uint32_t worldSeed, const HeightFn& heightAt,
         const HydrologyMap& hydro, const FlowField& flow, const WaterBodyIndex& bodies,
         const SurfaceMatFn& surfaceMatAt, const SurfaceYFn& surfaceYAt,
-        const ChannelFn& channelAt, const LevelFn& waterLevelAt = nullptr);
+        const ChannelFn& channelAt, const LevelFn& waterLevelAt = nullptr,
+        const CorridorFn& corridorMulAt = nullptr, const std::vector<DemandEdge>* demand = nullptr);
 
     const WorldForgeParams& params() const { return m_params; }   // clamped echo
     const std::vector<WorldForgeSite>& sites() const { return m_sites; }

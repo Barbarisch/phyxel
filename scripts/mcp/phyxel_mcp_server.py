@@ -552,7 +552,8 @@ async def list_tools() -> list[Tool]:
                     "civEpochs": {"type": "integer", "description": "M3b: 25-year epochs of history simulated after the founding (0-64; 0 = no history, the M3a plan bit for bit). Default 0."},
                     "civShockEpoch": {"type": "integer", "description": "M3b: the epoch of the one population shock (-1 = none; default 9 = the 1348 plague on the 1086 arc)."},
                     "civShockFraction": {"type": "number", "description": "M3b: share of every population index the shock removes (0-0.9; default 0.45, England 1300 -> 1377)."},
-                    "civAbandonShare": {"type": "number", "description": "M3b: share of the lowest-suitability village-and-below sites the shock empties into ruins (0-1; default 0.20 = 2811 deserted villages of ~13000 Domesday places)."}
+                    "civAbandonShare": {"type": "number", "description": "M3b: share of the lowest-suitability village-and-below sites the shock empties into ruins (0-1; default 0.20 = 2811 deserted villages of ~13000 Domesday places)."},
+                    "routeReuseFraction": {"type": "number", "description": "M4a: the corridor graph's reuse discount - a routing step onto a cell already on the network costs this fraction (0.05-1; default 1/3, Veloren, REASONED). The applied plan echoes the graph under 'corridors'; worldforge_civ draws # highway / = road / - track."}
                 }
             }
         ),

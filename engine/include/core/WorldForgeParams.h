@@ -52,10 +52,15 @@ struct WorldForgeParams {
     // marginal land) the shock empties. 0.20 GROUNDED as a RATE: 2 811 deserted medieval villages of
     // ≈ 13 000 Domesday places (§10 F4g). It is an INPUT — no mechanism derives it (NEEDS-RESEARCH).
     float civAbandonShare = 0.20f;
+    // ── M4a (D27): the corridor graph's reuse discount — a routing step onto a cell already on the
+    // network costs this fraction of its price (Veloren 1/3, REASONED: no historical source yet);
+    // also the box plan's cost multiplier inside the corridor band. 1 = no reuse (V1 behaviour).
+    float routeReuseFraction = 1.0f / 3.0f;
 
     bool operator==(const WorldForgeParams& o) const {
         if (civ != o.civ || civDensityScale != o.civDensityScale || pinTiers != o.pinTiers || pinRefine != o.pinRefine) return false;
         if (civEpochs != o.civEpochs || civShockEpoch != o.civShockEpoch || civShockFraction != o.civShockFraction || civAbandonShare != o.civAbandonShare) return false;
+        if (routeReuseFraction != o.routeReuseFraction) return false;
         for (int t = 0; t < 5; ++t) if (civSpacingKm[t] != o.civSpacingKm[t] || civSlopeCap[t] != o.civSlopeCap[t]) return false;
         return enabled == o.enabled && version == o.version && siteCount == o.siteCount &&
                regionRadius == o.regionRadius && minSpacing == o.minSpacing &&
@@ -77,6 +82,7 @@ struct WorldForgeParams {
         p.civShockEpoch = glm::clamp(p.civShockEpoch, -1, p.civEpochs);     // −1 = no shock; never past the last epoch
         if (p.civShockEpoch == 0 && p.civEpochs > 0) p.civShockEpoch = 1;   // epoch 0 is the founding; the first simulated epoch is 1
         p.civAbandonShare = glm::clamp(p.civAbandonShare, 0.0f, 1.0f);
+        p.routeReuseFraction = glm::clamp(p.routeReuseFraction, 0.05f, 1.0f);   // 0 would make every network cell free and A* degenerate
         p.civShockFraction = glm::clamp(p.civShockFraction, 0.0f, 0.9f);   // a 100 % shock would abandon every site
         p.regionRadius = glm::clamp(p.regionRadius, 512.0f, 8192.0f);
         p.minSpacing = glm::clamp(p.minSpacing, 64.0f, 2.0f * p.regionRadius);
@@ -101,6 +107,7 @@ struct WorldForgeParams {
             j["civShockEpoch"] = civShockEpoch;
             j["civShockFraction"] = civShockFraction;
             j["civAbandonShare"] = civAbandonShare;
+            j["routeReuseFraction"] = routeReuseFraction;
         }
         if (!pinTiers.empty()) j["pinTiers"] = pinTiers;
         if (!sitePins.empty()) {
@@ -133,6 +140,7 @@ struct WorldForgeParams {
         p.civShockEpoch = j.value("civShockEpoch", 9);
         p.civShockFraction = j.value("civShockFraction", 0.45f);
         p.civAbandonShare = j.value("civAbandonShare", 0.20f);
+        p.routeReuseFraction = j.value("routeReuseFraction", 1.0f / 3.0f);
         if (j.contains("pinTiers") && j["pinTiers"].is_array())
             for (const auto& t : j["pinTiers"]) p.pinTiers.push_back(t.get<std::string>());
         return p;
