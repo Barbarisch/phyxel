@@ -24,9 +24,14 @@ def main():
     ap.add_argument("--after-s", type=float, default=2.0)
     ap.add_argument("--tag", default="w1b_live")
     ap.add_argument("--no-video", action="store_true")
+    ap.add_argument("--record-off", action="store_true", help="the control: tile recording OFF (the pond only freezes)")
+    ap.add_argument("--census-every", type=int, default=8, help="polls between exact censuses; 0 = only the first and the last. A census "
+                    "collects the GPU call between two steps, which keeps columns 'moving' (27.13 open item 1) - 0 for a clip")
+    ap.add_argument("--quiet-scale", type=float, default=None, help="the per-column freeze thresholds x this (26.34; default 3)")
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(300)
     api.debug("water_av_realtime", {"on": True})
+    if args.quiet_scale is not None: print("freeze test:", api.debug("water_av_partial_wake", {"quiet_scale": args.quiet_scale, "rest_ticks": 0}))
     l, w, x0, z0 = 46, 28, 2, 0
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
     # the kerb (StoneBricks, 2 high) - the pond held by the world, not by the volume's box edge (27.11's rig lesson)
@@ -37,7 +42,7 @@ def main():
     api.debug("water_av_record_draw", {"on": True, "radius": 64})
     camera_set(api, {"x": 14.0, "y": 21.0, "z": 33.0, "yaw": -120.0, "pitch": -24.0})
     vid = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False})["volume"]["id"]
-    print("recording:", api.debug("water_av_record_tiles", {"id": vid, "on": True, "after_s": args.after_s}))
+    print("recording:", api.debug("water_av_record_tiles", {"id": vid, "on": not args.record_off, "after_s": args.after_s}))
     ff = None
     if not args.no_video:
         ff = subprocess.Popen([shutil.which("ffmpeg"), "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-i", "title=WaterBench_Creek",
@@ -56,10 +61,12 @@ def main():
         # the books from an exact read every 2 s (water_av_list's total_mass is the once-a-second realtime mirror: it read 0 for a
         # second after a tile recorded - the first live run's "1.29e3 m^3 off" was that, not lost water). A census is a whole-volume
         # read-back (~70 ms): not every poll.
-        census = api.debug("water_av_census", {"id": vid}) if len(rows) % 8 == 0 else None
+        last = time.time() - t0 + 0.6 >= args.seconds
+        every = args.census_every if args.census_every > 0 else 10**9
+        census = api.debug("water_av_census", {"id": vid}) if (len(rows) % every == 0 or last) else None
         rows.append({"t": round(t, 2), "recorded_tiles": v.get("recorded_tiles"), "tiles_recorded": v.get("tiles_recorded"), "tiles_woken": v.get("tiles_woken"), "woken_by_write": v.get("tiles_woken_by_write"), "wake_all": v.get("gpu_wake_all"),
                      "last_record_ms": v.get("last_record_ms"), "last_wake_ms": v.get("last_wake_ms"), "gpu_device_ms": v.get("gpu_device_ms"),
-                     "awake_columns": v.get("awake_columns"), "frozen_columns": v.get("frozen_columns"), "bricks": v.get("gpu_bricks"),
+                     "ke": v.get("kinetic_energy"), "residual": v.get("rbgs_residual"), "awake_columns": v.get("awake_columns"), "frozen_columns": v.get("frozen_columns"), "bricks": v.get("gpu_bricks"),
                      "cells_m3": lst.get("total_mass"), "census_m3": census.get("mass_m3") if census else None, "census_record_m3": census.get("record_m3") if census else None,
                      "recorded_m3": v.get("recorded_m3"), "spans_m3": sp.get("total_depth"),
                      "seed_unplaced_m3": v.get("seed_unplaced_m3")})
@@ -71,7 +78,7 @@ def main():
     placed = exact[0]["census_m3"] + exact[0]["census_record_m3"]
     books = [abs(r["census_m3"] + r["census_record_m3"] - placed) for r in exact]
     out = {"tag": args.tag, "placed_m3": placed, "books_worst_m3": max(books), "record_ms_max": max(r["last_record_ms"] or 0 for r in rows),
-           "wake_ms_max": max(r["last_wake_ms"] or 0 for r in rows), "record_draw": rd, "rows": rows}
+           "wake_ms_max": max(r["last_wake_ms"] or 0 for r in rows), "quiet_scale": args.quiet_scale, "record_jump_mm_max": v.get("record_jump_mm_max"), "record_spread_mm_max": v.get("record_spread_mm_max"), "record_draw": rd, "rows": rows}
     (EV / f"{args.tag}.json").write_text(json.dumps(out, indent=1))
     for r in rows[::8]:
         print(f"t {r['t']:5.1f}  in record {r['recorded_tiles']}  recorded {r['tiles_recorded']} woken {r['tiles_woken']} (by a write {r['woken_by_write']}, whole-volume wakes {r['wake_all']})  awake {r['awake_columns']} frozen {r['frozen_columns']} "

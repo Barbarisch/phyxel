@@ -307,6 +307,9 @@ public:
     /// Default 3: the owner's call on pw_look5 (2026-10-19, "multiplier 3 looks fine").
     static constexpr float kColumnQuietScaleDefault = 3.0f;
     static inline float s_columnQuietScale = kColumnQuietScaleDefault;
+    /// 27.14 measurement: ticks a column must stay quiet before it freezes (0 = the volume's restTicks, 30 = 0.5 s). A pond-wide
+    /// slosh (46 m, 1 m deep: ~30 s period) is still at its turn for longer than 0.5 s. water_av_partial_wake {rest_ticks}.
+    static inline int s_columnRestTicks = 0;
     /// 26.33 measurement: surface reads that kept the frozen columns (WaterPartialWakeTest asserts they happened).
     static inline long s_partialSurfaceReads = 0;
     /// TEST ONLY (the red control): a partial read resets every column it did not cover, as the whole read does - frozen ones too.

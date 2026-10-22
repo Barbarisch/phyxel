@@ -7971,6 +7971,33 @@ needed for this pond: with the order fixed, the frozen/recorded wall settles lik
 when the budget stops a wake from spreading (W3). Recording stays OFF by default until the owner has seen a push in a recording
 pond in motion.
 
+### 27.14 The look clip (2026-10-21): a strong push never freezes at quiet scale 3 - recording ON or OFF; three findings
+
+Making the owner's clip of a push in a recording pond (`tools/water_record_tiles_live.py`, the 27.12 push, Release, idle GPU)
+showed 27.13's "back in the record by 41 s" was one lucky run. Measured (`tools/water_record_push_settle.py`, 150 s, fresh engine):
+| Variant | KE 100-141 s | moving columns | tiles in the record |
+|---|---|---|---|
+| recording ON, quiet scale 3 (shipped; this run began on 168 m^3 of a prior run's record - finding 3 - the clean 60 s runs agree) | 6e-9 - 8e-8, bouncing | 300-1650, bouncing | 0-1 |
+| recording OFF, quiet scale 3 | 3e-9 - 2e-7, bouncing | 290-1430, bouncing | - |
+| recording OFF, per-column freeze OFF | 1e-9 - 8e-10, falling | (all) | - |
+| recording OFF, rest_ticks 300 / 1200 (5 / 20 s) | ~1e-9 | 900-1660 | - |
+| recording ON, quiet scale 10 | 0 from 31 s | 0 from 21 s | 24 of 24 from 21 s, stays; books 1,287.9998 |
+
+1. **The freeze never settles a strong push at quiet scale 3, recording or not** (26.34's default, signed off on pebbles). Every
+   stuck column fails the |df| half (KE is below keWake in all of them): 3e-5 a tick is a surface rising ~0.2 mm/s, where the KE
+   half at x3 passes ~2.4 mm/s. With the freeze off the waves decay (8e-10 by 130 s); with it on, columns freezing and waking
+   keep re-exciting them. A longer quiet run (rest_ticks, a new measurement switch) does not help; quiet scale 10 does. At long
+   rest a few isolated columns still spike to 1e-4-3e-4 in one tick (not droplets - none born; not the volume correction -
+   toggled; residue drop 0 then): cause not found. **Owner's call:** quiet scale 10 (the pond goes still and records ~10 s after
+   the waves; the last sub-mm ripples stop dead) vs 3 (it never records after a strong push).
+2. **A visible seam when tiles wake** (both clips, ~10.8-12 s): recorded tiles' edges show as a raised wall/step (a bright bar
+   along the far kerb, a step along the left) while the woken water next to them dips. Not investigated yet.
+3. **A volume created over recorded water, unseeded, drops the record silently.** The clip harness destroyed a volume whose water
+   was in the record (the world keeps it - correct), placed a new pond on top: the census read 2,576 m^3, and when the new tiles
+   recorded over the old spans 1,288 m^3 vanished from the books. Not reachable from play today (writes wake, creates seed), but
+   it breaks "no silent drop": a create must seed from - or refuse over - the record. The harness runs must start on an empty record.
+Clips: `w1c_push_record_on.mp4` (quiet scale 3, clean world), `w1c_push_record_qs10.mp4` (quiet scale 10) + `.json`.
+
 ---
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)

@@ -752,7 +752,8 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
     const int M = kPartialWakeMargin;
     std::vector<char> moving(nc), rowGrown(nc, 0), awake(nc, 0);
     int nMoving = 0;
-    for (size_t c = 0; c < nc; ++c) { moving[c] = vol.colQuiet[c] < params.restTicks && !(anyRec && vol.colRecorded[c]); nMoving += moving[c]; }
+    const int restTicks = s_columnRestTicks > 0 ? s_columnRestTicks : params.restTicks;   // 27.14
+    for (size_t c = 0; c < nc; ++c) { moving[c] = vol.colQuiet[c] < restTicks && !(anyRec && vol.colRecorded[c]); nMoving += moving[c]; }
     for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
         if (!moving[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]) continue;
         for (int x = std::max(0, bx - M); x <= std::min(vol.bn.x - 1, bx + M); ++x) rowGrown[static_cast<size_t>(x) + static_cast<size_t>(vol.bn.x) * bz] = 1;
