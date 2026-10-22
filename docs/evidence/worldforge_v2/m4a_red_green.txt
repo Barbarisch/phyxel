@@ -80,3 +80,9 @@ STRESS x10 density (scratchpad m4a_stress.txt): PASSED on the corridor-graph inv
 [ M4a ] x10 density: 1424 routes, 50657.8 km, shared cells 3556, junction cells 2175, unroutable 29, bake 4691.3 ms
 [       OK ] RouteGraphTest.StressTenTimesTheSites (1063129 ms)
 -> the box plan at 47 pins / 325 demand edges took 1044 s Debug and HIT the 65534-segment raster cap (loud): the O(roads^2 verts^2) junction reconciliation and the uint16 raster are M4b's first items; the baseline box (5 pins, 32 edges, 45300 segments) takes 90-121 s Debug.
+
+==================================================================
+REGRESSION caught right after 317798ef (scratchpad m4a_regress.txt): every VERSION-1 plan had 0 roads - 16 fixtures red incl. the pinned hashes (9029483429761127073 / 12144098318857741066). Cause: the V1 Kruskal block re-declared 'chosen', shadowing the outer vector the demand branch introduced, so the MST was thrown away. Fix: the inner declaration removed. GREEN (scratchpad m4a_regress2.txt): 37/37 incl. WorldForgeStressTest.VersionOnePlanHashesArePinned, RoadFieldSeamTest.*, WorldForgePlanTest.*, WorldForgeRecipeTest.*
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[  PASSED  ] 37 tests.

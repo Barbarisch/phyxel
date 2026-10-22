@@ -533,7 +533,9 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         std::function<int(int)> find = [&](int v) {
             return parent[v] == v ? v : parent[v] = find(parent[v]);
         };
-        std::vector<const Pair*> chosen;
+        // (`chosen` is declared above the demand branch - a second declaration here shadowed it
+        // and threw the MST away: 0 roads on every version-1 plan, caught by the pinned hashes
+        // 2026-10-22 right after the M4a commit)
         std::vector<std::vector<std::pair<int, float>>> mstAdj(nSites);
         for (const auto& pr : pairs) {
             if (find(pr.a) == find(pr.b)) continue;
