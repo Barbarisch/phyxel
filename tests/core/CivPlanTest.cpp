@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "core/CivPlan.h"
+#include "core/HydrologyMap.h"
 #include "core/WorldForgePlan.h"
 #include "core/WorldGenerator.h"
 #include "core/WorldRecipe.h"
@@ -194,4 +195,38 @@ TEST(CivPlanTest, TheBoxPlanIsSeededByTheCivSites) {
     EXPECT_EQ(many.clamped().siteCount, 64) << "the 3-8 clamp still applies with civ on";
     many.civ = false;
     EXPECT_EQ(many.clamped().siteCount, 8) << "the V1 clamp must stay for V1 worlds";
+}
+
+// Auditor gap 2026-10-22: NoSiteInWaterOrOnACliff reads the same macro cells the planner scored
+// from, and 101 of the baseline's 157 sites sit in macro RIVER cells (drainage >= 0.5 km2, the
+// top water bonus). This test asks the REAL terrain at every site's centre column: the realized
+// surface must stand above sea level, above the rim-corrected water level where the meso bake
+// covers it (the +-16 km box), and not on a carved river bed or creek bed.
+TEST(CivPlanTest, NoSiteIsInWaterOnTheRealTerrain) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(civRecipe(20260816u));
+    const CivPlan* civ = g.civPlan();
+    ASSERT_TRUE(civ);
+    const float sea = g.getTerrainParams().seaLevelY;
+    const HydrologyMap* h = g.hydrology();
+    int wet = 0, onBed = 0, inBox = 0, riverCells = 0;
+    float worstMargin = 1e9f;
+    for (const auto& s : civ->sites()) {
+        const int x = static_cast<int>(std::lround(s.pos.x)), z = static_cast<int>(std::lround(s.pos.y));
+        const auto col = g.sampleSurface(x, z);
+        if (s.waterCells <= 0.0f) ++riverCells;
+        float level = sea;
+        const bool covered = h && s.pos.x >= h->originX() && s.pos.y >= h->originZ() &&
+                             s.pos.x < h->originX() + h->cellsX() * h->cellSize() &&
+                             s.pos.y < h->originZ() + h->cellsZ() * h->cellSize();
+        if (covered) { ++inBox; level = std::max(level, g.waterLevelAt(s.pos.x, s.pos.y)); }
+        const float margin = static_cast<float>(col.surfaceY) - level;
+        worstMargin = std::min(worstMargin, margin);
+        if (margin <= 0.0f) { ++wet; std::printf("    WET site %d %s at (%d,%d): surface %d, water level %.1f\n", s.id, CivPlan::tierName(s.tier), x, z, col.surfaceY, level); }
+        if (col.carvedRiver || col.creekBed || col.riverOrder > 0) { ++onBed; std::printf("    BED site %d %s at (%d,%d): order %d carved %d creek %d\n", s.id, CivPlan::tierName(s.tier), x, z, col.riverOrder, col.carvedRiver ? 1 : 0, col.creekBed ? 1 : 0); }
+    }
+    std::printf("[ M3a ] real terrain at %zu sites (%d in macro river cells, %d inside the meso box): wet %d, on a bed %d, worst margin %.1f u\n",
+                civ->sites().size(), riverCells, inBox, wet, onBed, worstMargin);
+    EXPECT_EQ(wet, 0) << "a civ site is under water on the real terrain";
+    EXPECT_EQ(onBed, 0) << "a civ site stands on a river or creek bed";
 }

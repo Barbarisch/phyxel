@@ -587,6 +587,7 @@ void WorldGenerator::bakeWorldForgePlan() {
             }
         }
         boxParams.siteCount = std::max(3, static_cast<int>(boxParams.sitePins.size()));
+        boxParams.pinRefine = true;   // D18: the macro centre is refined on the 16 u grid (dry, flattest footprint)
     }
     m_worldForge = previewWorldForge(boxParams);
     // Columns memoized during the bake are road-free; road stamping (M1) must re-sample.

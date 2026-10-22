@@ -37,9 +37,13 @@ struct WorldForgeParams {
     float civSlopeCap[5]  = {0.05f, 0.05f, 0.08f, 0.15f, 0.15f};
     float civDensityScale = 1.0f;
     std::vector<std::string> pinTiers;  // M3a: per sitePin tier name ("town" ...); empty = by score rank
+    // M3a (D18 local refinement): civ-seeded pins are macro-cell CENTRES, not owner-chosen columns,
+    // so the box plan refines them on its 16 u grid like any scored site (owner pins stay verbatim).
+    // Set by the generator when it seeds the box from the civ plan; never serialized.
+    bool pinRefine = false;
 
     bool operator==(const WorldForgeParams& o) const {
-        if (civ != o.civ || civDensityScale != o.civDensityScale || pinTiers != o.pinTiers) return false;
+        if (civ != o.civ || civDensityScale != o.civDensityScale || pinTiers != o.pinTiers || pinRefine != o.pinRefine) return false;
         for (int t = 0; t < 5; ++t) if (civSpacingKm[t] != o.civSpacingKm[t] || civSlopeCap[t] != o.civSlopeCap[t]) return false;
         return enabled == o.enabled && version == o.version && siteCount == o.siteCount &&
                regionRadius == o.regionRadius && minSpacing == o.minSpacing &&

@@ -108,3 +108,44 @@ GREEN after the mutation was reverted (Debug, scratchpad m3a_green6.txt):
 [D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
 [       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (987 ms)
 [  PASSED  ] 11 tests.
+
+==================================================================
+AUDIT FOLLOW-UP 2026-10-22 (solution-auditor: 'no site in water' was never checked on the REAL terrain; 101/157 sites sit in macro river cells)
+==================================================================
+New test CivPlanTest.NoSiteIsInWaterOnTheRealTerrain: every site's centre column via sampleSurface vs sea level / the rim-corrected level inside the box / carved+creek beds.
+
+MUTATION RED (CivPlan: sea cells count as land; Debug; scratchpad m3a_water_mutation.txt) - both water tests must fail:
+    Which is: 95
+[  FAILED  ] CivPlanTest.NoSiteInWaterOrOnACliff (64052 ms)
+    WET site 2 city at (-19200,43264): surface 15, water level 16.0
+    WET site 3 town at (-1792,2304): surface 11, water level 16.0
+    WET site 5 town at (47872,-25856): surface 12, water level 16.0
+    WET site 6 town at (-50944,23296): surface 5, water level 16.0
+    WET site 7 village at (-22784,6400): surface 9, water level 16.0
+    WET site 8 village at (14080,41728): surface -13, water level 16.0
+    WET site 9 village at (-9984,-30464): surface -24, water level 16.0
+    WET site 10 village at (32000,-50944): surface -23, water level 16.0
+    WET site 11 village at (-49920,48384): surface -24, water level 16.0
+    WET site 13 village at (9472,20736): surface 3, water level 16.0
+    (95 of 158 sites wet under the mutation, worst margin -40 u; the macro test flagged 95 too)
+
+MUTATION REVERTED -> REAL RED on the shipped code (scratchpad m3a_water_green.txt): 3 of 157 sites stand at EXACTLY sea level on the real terrain (surface 16 = water 16; one is the box hamlet at (-13056,-10496)):
+    WET site 21 hamlet at (-13056,-10496): surface 16, water level 16.0
+    WET site 99 outpost at (-45312,-6400): surface 16, water level 16.0
+    WET site 123 outpost at (-33536,-29952): surface 16, water level 16.0
+[ M3a ] real terrain at 157 sites (101 in macro river cells, 15 inside the meso box): wet 3, on a bed 0, worst margin 0.0 u
+[  FAILED  ] CivPlanTest.NoSiteIsInWaterOnTheRealTerrain (53075 ms)
+[  FAILED  ] CivPlanTest.NoSiteIsInWaterOnTheRealTerrain
+
+FIX: CivPlan land = macro base > sea + 2 u (the coastal strip the box plan's candidate scan already refuses - REUSED, not a new constant); civ-seeded pins are refined on the box plan's 16 u grid (D18; WorldForgeParams::pinRefine, owner pins stay verbatim).
+GREEN (Debug, scratchpad m3a_water_green2.txt): 40/40 across CivPlanTest, CivPlanStressTest, the pinned version-1 hashes, WorldForgeRecipeTest, WorldForgePlanTest. Baseline now 154 sites over 7750 km2 (the strip removed 177 km2 and one town cell): city 2/2 town 4/4 village 14/14 hamlet 37/42 outpost 97/120; wet 0, on a bed 0, worst margin 2.0 u.
+[ M3a ] land 7750 km2, bake 70.7 ms: city 2/2 town 4/4 village 14/14 hamlet 37/42 outpost 97/120; total 154/182; refusals 2
+[ M3a ] spacing: 154 sites, 0 violations (worst 1.00 of the ladder)
+[ M3a ] hamlet:village = 37:14 (ratio 2.64)
+[ M3a ] outpost:hamlet = 97:37 (ratio 2.62)
+[ M3a ] sea pin at (768,256): refused 1; refusals: | pin (768,256) is in water or a basin | hamlet: 5 of 42 unplaced (no viable cell at the ladder's spacing) | outpost: 23 of 120 unplaced (no viable c
+[ M3a ] civ sites in the box (city..hamlet): 5; box plan sites 5, 5 within a macro cell of a civ site
+[ M3a ] real terrain at 154 sites (104 in macro river cells, 14 inside the meso box): wet 0, on a bed 0, worst margin 2.0 u
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[  PASSED  ] 40 tests.

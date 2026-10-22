@@ -374,7 +374,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         site.width = preset.width;
         site.depth = preset.depth;
         glm::vec2 pos = picked[i].pos;
-        if (!picked[i].pinned) {
+        if (!picked[i].pinned || P.pinRefine) {   // M3a: civ-seeded pins refine too (D18)
             float bestSd = 1e30f;
             glm::vec2 bestPos = pos;
             for (int oj = 0; oj < 8; ++oj)

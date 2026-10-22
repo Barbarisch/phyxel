@@ -29,6 +29,12 @@ constexpr float kTradeRiverAreaM2 = 1.0e7f;   // 10 km²: the law's ~0.8 u deep,
 // Score weights (Veloren's weighted resource sum; the split is DESIGN, stated in the plan).
 constexpr float kWRelief = 0.30f, kWWater = 0.30f, kWFood = 0.20f, kWTrade = 0.10f, kWForest = 0.05f, kWMining = 0.05f;
 constexpr float kMinViable = 0.15f;
+// The macro base is NOT the realized surface: the meso relaxation and the M2e coast shaping pull a
+// near-shore column down to the beach (measured 2026-10-22: 3 of 157 baseline sites stood at
+// exactly sea level on the real terrain, one of them a box hamlet). Land for siting is the macro
+// base above the same coastal strip the box plan's candidate scan already refuses (REUSED:
+// WorldForgePlan rejects h < sea + 2 u); the sea itself keeps the strict sub-sea definition.
+constexpr float kCoastStripU = 2.0f;
 constexpr float kHexPack = 0.866f;   // density = 1 / (kHexPack·s²): hexagonal central-place packing
 
 inline float to01(float n) { return n < -1.0f ? 0.0f : (n > 1.0f ? 1.0f : (n + 1.0f) * 0.5f); }
@@ -107,11 +113,12 @@ std::shared_ptr<const CivPlan> CivPlan::bake(const Inputs& in, const WorldForgeP
             const MacroCell& c = M.cell(i, j);
             const size_t k = static_cast<size_t>(j) * n + i;
             const bool sub = c.baseHeight <= in.seaLevel;
+            const bool shore = c.baseHeight <= in.seaLevel + kCoastStripU;   // the beach band: never a site
             const bool basin = c.filled > c.baseHeight + 1e-3f;
             const bool river = c.drainageArea >= in.macroRiverAreaM2 && !sub;
             seaCell[k] = sub ? 1 : 0;
             water[k] = (sub || basin || river) ? 1 : 0;
-            land[k] = (!sub && !basin) ? 1 : 0;
+            land[k] = (!shore && !basin) ? 1 : 0;
             riverArea[k] = c.drainageArea;
             if (land[k]) ++landCells;
             const float hx = (M.cell(std::min(n - 1, i + 1), j).baseHeight - M.cell(std::max(0, i - 1), j).baseHeight) / (2.0f * cu);
