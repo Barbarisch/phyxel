@@ -1248,6 +1248,26 @@ void WaterCoreGpu::queueMomentum(Volume& vol, const glm::vec3& pos, float radius
     }
 }
 
+void WaterCoreGpu::queueImpulse(Volume& vol, const glm::vec3& worldPos, float radius, const glm::vec3& deltaV) {
+    if (vol.pendingMomentum.size() / 8 >= static_cast<size_t>(kMaxMomentum)) { ++vol.momentumDropped; return; }
+    const glm::vec3 local = worldPos - glm::vec3(vol.spec.origin) * vol.spec.h;
+    const float r[8] = {local.x, local.y, local.z, radius, deltaV.x, deltaV.y, deltaV.z, -1.0f};
+    vol.pendingMomentum.insert(vol.pendingMomentum.end(), r, r + 8);
+    vol.asleep = false; vol.quietTicks = 0;
+    const float h = vol.spec.h;
+    wakeBox(vol, glm::ivec3(glm::floor((local - glm::vec3(radius)) / h)), glm::ivec3(glm::floor((local + glm::vec3(radius)) / h)));
+}
+
+void WaterCoreGpu::queueRadialImpulse(Volume& vol, const glm::vec3& worldCentre, float reach, float speedAtCentre, float upBias, float maxSpeed) {
+    if (vol.pendingMomentum.size() / 8 >= static_cast<size_t>(kMaxMomentum)) { ++vol.momentumDropped; return; }
+    const glm::vec3 local = worldCentre - glm::vec3(vol.spec.origin) * vol.spec.h;
+    const float r[8] = {local.x, local.y, local.z, reach, speedAtCentre, upBias, maxSpeed, -2.0f};
+    vol.pendingMomentum.insert(vol.pendingMomentum.end(), r, r + 8);
+    vol.asleep = false; vol.quietTicks = 0;
+    const float h = vol.spec.h;
+    wakeBox(vol, glm::ivec3(glm::floor((local - glm::vec3(reach)) / h)), glm::ivec3(glm::floor((local + glm::vec3(reach)) / h)));
+}
+
 int WaterCoreGpu::applyQueuedMomentumForTest(Volume& vol) {
     settle(vol);
     const size_t n = vol.pendingMomentum.size() / 8;

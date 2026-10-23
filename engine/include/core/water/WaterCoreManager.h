@@ -57,6 +57,7 @@ struct AvRecord {
     long tallRegrids = 0;                  ///< 27.22: collapses + expands
     std::string tallReason;                ///< 27.22: why the floor is where it is, or why there are no tall cells
     long tallOffs = 0;                     ///< 27.22d: times the rules turned the tall cells off
+    long writesInPlace = 0, writesRoundTrip = 0;   ///< 27.23 W1d.2: impulses / blasts applied on the device vs through the CPU mirror
     std::string tallLastOff;               ///< 27.22d: the last reason they did
     bool recordTiles = false;              ///< §27 W1b: frozen 8 m tiles sleep into the record (and wake from it)
     double recordedM3 = 0.0;               ///< §27 W1b: this volume's water now in the record (m^3, the spans' unit)
@@ -207,6 +208,8 @@ public:
     /// 27.22: the engine default for new volumes (m; 0 = off). 0.5 m: the owner's call 2026-10-23 on tall_look_grid.mp4 ("visually the
     /// water looks the same across all of it" ... "yes turn it on at 0.5 m").
     static inline float s_tallBandDefault = 0.5f;
+    /// 27.23 W1d.2 TEST ONLY: impulses and blasts take the old whole-volume round trip (download, CPU rule, upload) - the comparison run
+    static inline bool s_writesRoundTripForTest = false;
     /// 27.22f: the shallowest median tall layer (cells) worth making - below it the volume stays all fine (measured: a 3-cell layer
     /// costs more in its own sweeps than it saves)
     static constexpr int kTallMinCells = 6;
@@ -517,6 +520,7 @@ private:
         float tallRestY = std::numeric_limits<float>::quiet_NaN();   // 27.22: the rest level (world m), taken while the water sleeps
         std::string tallReason;          // 27.22
         long tallOffs = 0;               // 27.22d: times the rules turned the tall cells off (with the reason)
+        long writesInPlace = 0, writesRoundTrip = 0;   // 27.23 W1d.2: impulses / blasts applied on the device vs through the CPU mirror
         double tallRestMass = 0.0;       // 27.22d: the water (m^3) when the rest level was read - a change of more than half a cell over
                                          // the surface (water added or taken) means a new rest level
         float tallDrop = 0.0f;           // 27.22d: metres the floor sits below rest - B after troughs (back to 0 at the next rest)

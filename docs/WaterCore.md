@@ -8613,6 +8613,20 @@ above): **24 x 24 x 2 m empty 102 -> 15 MB of GPU memory; 46 x 28 x 2 m empty 23
 pond 85 MB** (two grows, 4,095 slots for 2,119 stored bricks; the water exact, 30.0000 m^3). Process memory 236 -> 95 MB empty - the
 CPU mirror (W1d.3). GPU water 51/53 (the known two) - the bit-identical sparse-vs-dense rows now run through grows.
 
+**W1d.2 BUILT (2026-10-23): impulses and blasts in place on the device.** Measured first: one stone impulse on the 46 x 28 m 1 m pond
+cost ~85 ms in the call (the whole-volume download) + ~115 ms on the next frame (the whole-volume upload). Now
+`WaterCoreGpu::queueImpulse` / `queueRadialImpulse` - two record types in the momentum kernel (flagged by the last float), applied at the
+start of the next call where the upload used to land: the CPU's rules (a fixed dv on every face within the radius; the blast's
+falloff, up-bias and speed cap on the faces that border water), a face written only where its owner brick is stored. The manager's
+`addImpulse` / `addRadialImpulse` take this path for GPU volumes (echo `writes_in_place` / `writes_round_trip`;
+`s_writesRoundTripForTest` keeps the old path for comparison). Gates: `WaterTallCellTest.TheImpulseRulesOnTheDevice` - the same water,
+the CPU rules on a downloaded copy vs the device records applied without a step: 15,088 faces kicked, none differs by more than 7.6e-5
+m/s (float rounding of the face positions - the device measures from the grid's origin; a wrong face would be off by up to 3 m/s);
+`WritesGoInPlace` - a 20 x 10 m pond, stone + blast + their calls 62.4 -> 7.0 ms, books exact. (A surface-vs-surface comparison
+against the round trip is NOT a fair gate: the round trip's upload also resets the pressure, the remainders and the halo - it moved
+the surface 104 mm by itself.) Live, the 46 x 28 m pond: no upload after an impulse (`gpu_uploads` stays 1; it was +1 per impulse,
+115 ms). Placed water and sources still round-trip (next). GPU water 53/55 (the known two), unit 312/312.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

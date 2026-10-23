@@ -443,7 +443,7 @@
     },
     "wc_momentum.comp": {
       "built": true,
-      "sources": "b6023fb879cc190a88763926d578fa8f25b24747340abd316151c888b01cb2d9",
+      "sources": "e218c4f9c6de21278ed1c2d19360954f7d6f976b4f6718b305900d799c9aee64",
       "spv_present": true
     },
     "wc_rbgs.comp": {

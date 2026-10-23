@@ -116,7 +116,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.partialWake = av.gpuVol && av.gpuVol->partialWake; r.tallBandM = av.tallBand; r.tallActive = av.gpuVol && av.gpuVol->tallActive; r.tallColumns = av.gpuVol ? av.gpuVol->tallColumns : 0; r.tallRegrids = av.gpuVol ? av.gpuVol->tallRegrids : 0; r.tallReason = av.tallReason; r.tallOffs = av.tallOffs; r.tallLastOff = av.tallLastOff; r.tallRestY = std::isnan(av.tallRestY) ? 0.0f : av.tallRestY; r.tallFloorY = (av.gpuVol && av.gpuVol->tallY >= 0) ? (static_cast<float>(av.grid->spec().origin.y + av.gpuVol->tallY) + 1.0f) * av.h : 0.0f; r.recordTiles = av.recordTiles; r.recordedM3 = av.recordedM3; r.recordedTiles = static_cast<int>(av.recordedTileList.size()); r.tilesRecorded = av.tilesRecorded; r.tilesWoken = av.tilesWoken; r.tilesWokenByWrite = av.tilesWokenByWrite; r.gpuWakeAll = av.gpuVol ? av.gpuVol->wakeAllCount : 0; r.recordSpreadMmMax = av.recordSpreadMmMax; r.recordJumpMmMax = av.recordJumpMmMax; r.lastRecordMs = av.lastRecordMs; r.lastWakeMs = av.lastWakeMs; r.seedUnplacedM3 = av.gpuVol ? av.gpuVol->seedUnplacedM3 : 0.0; r.awakeColumns = av.gpuLast.awakeColumns; r.frozenColumns = av.gpuLast.frozenColumns; r.movingColumns = av.gpuLast.movingColumns; r.stepSlots = av.gpuLast.stepSlots; r.partitionMoves = av.gpuLast.partitionMoves; r.carryBodyM3 = av.carryBodyM3; r.carryRateM3 = av.carryRateM3; r.carryFlowM3 = av.carryFlowM3; r.carryParkedM3 = av.carryParkedM3; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuDispatches = av.gpuVol ? av.gpuVol->lastDispatches : 0; r.gpuPoolGrows = av.gpuVol ? av.gpuVol->poolGrows : 0; r.gpuBarriers = av.gpuVol ? av.gpuVol->lastBarriers : 0; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.partialWake = av.gpuVol && av.gpuVol->partialWake; r.tallBandM = av.tallBand; r.tallActive = av.gpuVol && av.gpuVol->tallActive; r.tallColumns = av.gpuVol ? av.gpuVol->tallColumns : 0; r.tallRegrids = av.gpuVol ? av.gpuVol->tallRegrids : 0; r.tallReason = av.tallReason; r.tallOffs = av.tallOffs; r.writesInPlace = av.writesInPlace; r.writesRoundTrip = av.writesRoundTrip; r.tallLastOff = av.tallLastOff; r.tallRestY = std::isnan(av.tallRestY) ? 0.0f : av.tallRestY; r.tallFloorY = (av.gpuVol && av.gpuVol->tallY >= 0) ? (static_cast<float>(av.grid->spec().origin.y + av.gpuVol->tallY) + 1.0f) * av.h : 0.0f; r.recordTiles = av.recordTiles; r.recordedM3 = av.recordedM3; r.recordedTiles = static_cast<int>(av.recordedTileList.size()); r.tilesRecorded = av.tilesRecorded; r.tilesWoken = av.tilesWoken; r.tilesWokenByWrite = av.tilesWokenByWrite; r.gpuWakeAll = av.gpuVol ? av.gpuVol->wakeAllCount : 0; r.recordSpreadMmMax = av.recordSpreadMmMax; r.recordJumpMmMax = av.recordJumpMmMax; r.lastRecordMs = av.lastRecordMs; r.lastWakeMs = av.lastWakeMs; r.seedUnplacedM3 = av.gpuVol ? av.gpuVol->seedUnplacedM3 : 0.0; r.awakeColumns = av.gpuLast.awakeColumns; r.frozenColumns = av.gpuLast.frozenColumns; r.movingColumns = av.gpuLast.movingColumns; r.stepSlots = av.gpuLast.stepSlots; r.partitionMoves = av.gpuLast.partitionMoves; r.carryBodyM3 = av.carryBodyM3; r.carryRateM3 = av.carryRateM3; r.carryFlowM3 = av.carryFlowM3; r.carryParkedM3 = av.carryParkedM3; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuDispatches = av.gpuVol ? av.gpuVol->lastDispatches : 0; r.gpuPoolGrows = av.gpuVol ? av.gpuVol->poolGrows : 0; r.gpuBarriers = av.gpuVol ? av.gpuVol->lastBarriers : 0; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
     r.occFullRefreshes = av.occFullRefreshes; r.occLocalRefreshes = av.occLocalRefreshes; r.occCellsResampled = av.occCellsResampled;
     r.occCellsChanged = av.occCellsChanged; r.gpuPatchMs = av.gpuPatchMs; r.gpuPatches = av.gpuPatches;
     r.cells = av.grid->cellCount();
@@ -1139,9 +1139,17 @@ bool WaterCoreManager::addImpulse(const glm::vec3& world, float radius, float de
     for (auto& av : m_avs) {
         if (!sphereTouchesBox(world, radius, av->minVoxel, av->maxVoxel)) continue;
         wakeRecordedNear(*av, world, radius);   // §27 W1b: into cells, not into the record's empty ones
+        if (av->gpuVol && m_gpu && !s_writesRoundTripForTest && !av->gpuDirty) {   // 27.23 W1d.2: on the device, no round trip
+            const glm::vec3 d = glm::length(dir) > 0.0f ? glm::normalize(dir) : glm::vec3(0.0f);
+            m_gpu->queueImpulse(*av->gpuVol, world, radius, deltaSpeed * d);
+            av->gpuLast.asleep = false; av->solver->wake(); ++av->writesInPlace;
+            any = true;
+            continue;
+        }
         syncFromGpu(*av);
         av->solver->addImpulse(world, radius, deltaSpeed, dir);
         markWritten(*av, &world, radius);   // 26.31: an impulse wakes its own columns
+        ++av->writesRoundTrip;
         any = true;
     }
     return any;
@@ -1183,10 +1191,18 @@ WaterCoreManager::KickReport WaterCoreManager::addRadialImpulse(const glm::vec3&
     KickReport rep;
     for (auto& av : m_avs) {
         if (!sphereTouchesBox(centre, reach, av->minVoxel, av->maxVoxel)) continue;
+        if (av->gpuVol && m_gpu && !s_writesRoundTripForTest && !av->gpuDirty) {   // 27.23 W1d.2: on the device (its face count is the device's)
+            wakeRecordedNear(*av, centre, reach);
+            m_gpu->queueRadialImpulse(*av->gpuVol, centre, reach, speedAtCentre, upBias, 20.0f /* addRadialImpulse default */);
+            av->gpuLast.asleep = false; av->solver->wake(); ++av->writesInPlace;
+            ++rep.volumes; rep.faces = -1;
+            continue;
+        }
         syncFromGpu(*av);
         const WaterSolver::RadialKick k = av->solver->addRadialImpulse(centre, reach, speedAtCentre, upBias);
         if (k.faces == 0) continue;
         markWritten(*av);
+        ++av->writesRoundTrip;
         ++rep.volumes; rep.faces += k.faces; rep.clamped += k.clamped;
     }
     return rep;

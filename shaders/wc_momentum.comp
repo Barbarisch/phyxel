@@ -9,6 +9,13 @@
 // those cells once; per axis W = sum over the faces of 0.5 (f_left + f_right) h^3 (f clamped to 1, 0 outside / absent); du =
 // momentum / W, clamped to the max speed; du added to each face. A face whose storage is an absent brick is skipped in W and in
 // the add alike, so the water still gains exactly what was asked of the faces it has.
+// 27.23 W1d.2: two IMPULSE records, flagged by the last float (a momentum record's max speed is >= 0) - applied here in place of the
+// manager's whole-volume round trip (download, the CPU's rule, upload: ~200 ms on a 46 x 28 m pond):
+//   max speed = -1: WaterSolver::addImpulse - every face whose centre lies within the radius gains (dv.x, dv.y, dv.z) on its axis;
+//   max speed = -2: WaterSolver::addRadialImpulse - (centre, reach) | (speed at the centre, up bias, max speed, -2): the faces that
+//                   border water (f >= 1 mm of depth on either side), r < reach, gain s dir[axis], s = speed (1 - r / reach) clamped
+//                   to the max speed, dir = normalize(mix(radial, up, up bias)).
+// A face is written only where its owner cell's brick is stored (never the absent or the ground sentinel).
 #define WC_BRICKS_BINDING 5
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
@@ -52,9 +59,58 @@ int faceCount(int L) {
     return n.x * n.y * n.z;
 }
 
+bool ownerStored(int x, int y, int z) {   // the face's storage is its +side cell's: a stored brick (slot >= 2), or the dense far face
+    if (pc.bricked == 0) return true;
+    if (x >= pc.nx || y >= pc.ny || z >= pc.nz) return false;
+    return brickSlot(ivec3(x + pc.ox, y + pc.oy, z + pc.oz)) >= 2;
+}
+bool wetCell(int x, int y, int z) { return inBounds(x, y, z) && !absentCell(x, y, z) && f[cellIdx(x, y, z)] >= gWet; }
+
+void impulse(vec4 r0, vec4 r1) {
+    const uint t = gl_LocalInvocationID.x;
+    const bool radial = r1.w < -1.5;
+    const vec3 c = r0.xyz;
+    const float reach = r0.w;
+    gWet = 0.001 / pc.h;
+    const ivec3 lo = max(ivec3(floor((c - reach) / pc.h)) - 1, ivec3(0));
+    const ivec3 hi = min(ivec3(floor((c + reach) / pc.h)) + 1, ivec3(pc.nx, pc.ny, pc.nz));
+    for (int L = 0; L < 3; ++L) {
+        const ivec3 d = ivec3(L == 0 ? 1 : 0, L == 1 ? 1 : 0, L == 2 ? 1 : 0);
+        const ivec3 n = hi - lo + 1;
+        const int nf = n.x * n.y * n.z;
+        for (int k = int(t); k < nf; k += 64) {
+            const ivec3 q = lo + ivec3(k % n.x, (k / n.x) % n.y, k / (n.x * n.y));
+            // the lattice's extent: u faces x in [0, nx], y < ny, z < nz (and the others alike)
+            if (q.x > pc.nx - 1 + d.x || q.y > pc.ny - 1 + d.y || q.z > pc.nz - 1 + d.z) continue;
+            if (!ownerStored(q.x, q.y, q.z)) continue;
+            const vec3 pos = (vec3(q) + vec3(L == 0 ? 0.0 : 0.5, L == 1 ? 0.0 : 0.5, L == 2 ? 0.0 : 0.5)) * pc.h;
+            float add = 0.0;
+            if (!radial) {
+                const vec3 e = pos - c;
+                if (dot(e, e) > reach * reach) continue;
+                add = r1[L];
+            } else {
+                if (!(wetCell(q.x - d.x, q.y - d.y, q.z - d.z) || wetCell(q.x, q.y, q.z))) continue;
+                const vec3 e = pos - c;
+                const float r = length(e);
+                if (r >= reach) continue;
+                const vec3 rad = r > 1e-6 ? e / r : vec3(0.0, 1.0, 0.0);
+                const vec3 dir = normalize(mix(rad, vec3(0.0, 1.0, 0.0), r1.y));
+                float s = r1.x * (1.0 - r / reach);
+                if (abs(s) > r1.z) s = sign(s) * r1.z;
+                add = s * dir[L];
+            }
+            if (L == 0) u[uIdx(q.x, q.y, q.z)] += add;
+            else if (L == 1) v[vIdx(q.x, q.y, q.z)] += add;
+            else w[wIdx(q.x, q.y, q.z)] += add;
+        }
+    }
+}
+
 void main() {
     const uint t = gl_LocalInvocationID.x;
     const vec4 r0 = rec[2 * pc.iparam], r1 = rec[2 * pc.iparam + 1];
+    if (r1.w < -0.5) { impulse(r0, r1); return; }   // 27.23 W1d.2
     gPos = r0.xyz;
     const float r = max(r0.w, 1.5 * pc.h);
     gR2 = r * r;

@@ -414,3 +414,92 @@ TEST_F(WaterTallCellTest, DISABLED_DiagPartialWakeWithTall) {
         }
     }
 }
+
+// TheImpulseRulesOnTheDevice (27.23 W1d.2): a stone impulse and a blast applied to the same water by the CPU rules (WaterSolver::
+// addImpulse / addRadialImpulse on a downloaded copy) and by the device records (queueImpulse / queueRadialImpulse, applied without a
+// step) - every face of every stored brick equal within float rounding of the face positions (the device works in metres from the
+// grid's origin, the CPU in world metres).
+TEST_F(WaterTallCellTest, TheImpulseRulesOnTheDevice) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const glm::ivec3 origin(288 - 40, 144, 0), dims(180, 18, 90);   // 20 x 2 x 10 m, 1 m deep, across a chunk seam
+    WaterGrid g = pond(origin, dims, 9.0f);
+    WaterCoreGpu::Volume* v = make(g);
+    ASSERT_NE(v, nullptr);
+    const glm::vec3 o = glm::vec3(origin) * kH;
+    const glm::vec3 stone = o + glm::vec3(5.0f, 0.9f, 5.0f), blast = o + glm::vec3(14.0f, 0.8f, 5.0f);
+    // the CPU rules on a copy of what the device holds
+    WaterGrid cpu(g.spec());
+    gpu.download(*v, cpu);
+    SolidQuery air = [](const glm::ivec3&) { return Occ::Air; };
+    {
+        WaterSolver s(cpu, air);
+        s.addImpulse(stone, 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        s.addRadialImpulse(blast, 1.5f, 3.0f, 0.3f);
+    }
+    // the device records
+    gpu.queueImpulse(*v, stone, 0.5f, glm::vec3(0.0f, -4.0f, 0.0f));
+    gpu.queueRadialImpulse(*v, blast, 1.5f, 3.0f, 0.3f, 20.0f);
+    gpu.applyQueuedMomentumForTest(*v);
+    WaterGrid dev(g.spec());
+    gpu.download(*v, dev);
+    double worst = 0.0; long differ = 0, kicked = 0;
+    auto cmp = [&](const std::vector<float>& a, const std::vector<float>& b, const std::vector<float>& before) {
+        for (size_t i = 0; i < a.size(); ++i) {
+            if (a[i] != before[i] || b[i] != before[i]) ++kicked;
+            const double d = std::abs(static_cast<double>(a[i]) - b[i]);
+            worst = std::max(worst, d);
+            if (d > 1e-4) ++differ;   // float rounding of the positions: ~1e-5 relative x 3 m/s (a wrong face would be off by up to 3 m/s)
+        }
+    };
+    WaterGrid before(g.spec()); gpu.download(*v, before);   // (after the records - only for the count below: re-read the start)
+    WaterGrid start(g.spec());
+    {   // the untouched start for the kicked-face count
+        WaterCoreGpu::Volume* v2 = make(g); gpu.download(*v2, start); gpu.destroyVolume(v2);
+    }
+    cmp(cpu.uData(), dev.uData(), start.uData()); cmp(cpu.vData(), dev.vData(), start.vData()); cmp(cpu.wData(), dev.wData(), start.wData());
+    std::printf("  the impulse rules: %ld faces kicked, %ld differ by > 1e-4 m/s, worst %.2e m/s\n", kicked, differ, worst);
+    EXPECT_GT(kicked, 100);
+    EXPECT_EQ(differ, 0) << "the device applies the CPU's rules";
+    gpu.destroyVolume(v);
+}
+
+// WritesGoInPlace (27.23 W1d.2): through the manager, a stone impulse and a blast on a 20 x 10 m pond go to the device (no download,
+// no upload) - counted as such, cheaper than the round trip, the books exact
+TEST_F(WaterTallCellTest, WritesGoInPlace) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Out { double mass0 = 0, mass1 = 0, ms = 0; long inPlace = 0, roundTrip = 0; };
+    auto run = [&](bool roundTrip) {
+        Out o;
+        WaterCoreManager::s_writesRoundTripForTest = roundTrip;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        EXPECT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        mgr.setDroplets(false);
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(19, 1, 9), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        EXPECT_TRUE(id);
+        mgr.setAutoSleep(id, false);
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(19, 0, 9), 1.0f, nullptr);
+        AvRecord rec;
+        for (int k = 0; k < 60; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        o.mass0 = mgr.totalMass();
+        for (int k = 0; k < 90; ++k) {
+            const auto t0 = std::chrono::steady_clock::now();
+            if (k == 0) mgr.addImpulse(glm::vec3(5.0f, 0.9f, 5.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+            if (k == 30) mgr.addRadialImpulse(glm::vec3(14.0f, 0.8f, 5.0f), 1.5f, 3.0f, 0.3f);
+            mgr.step(id, 1, 1.0f / 60.0f, &rec);
+            if (k == 0 || k == 30) o.ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        }
+        o.mass1 = mgr.totalMass();
+        const AvRecord* r = mgr.find(id);
+        if (r) { o.inPlace = r->writesInPlace; o.roundTrip = r->writesRoundTrip; }
+        WaterCoreManager::s_writesRoundTripForTest = false;
+        return o;
+    };
+    const Out a = run(false), b = run(true);
+    std::printf("  in place: %ld in place / %ld round trips, the two writes + their calls %.1f ms, mass %.6f -> %.6f | round trip: %ld / %ld, %.1f ms\n",
+                a.inPlace, a.roundTrip, a.ms, a.mass0, a.mass1, b.inPlace, b.roundTrip, b.ms);
+    EXPECT_EQ(a.inPlace, 2); EXPECT_EQ(a.roundTrip, 0); EXPECT_EQ(b.roundTrip, 2);
+    EXPECT_LT(a.ms, b.ms);
+    EXPECT_NEAR(a.mass1, a.mass0, 1e-3);
+}

@@ -434,6 +434,10 @@ public:
     /// 26.26: give the water `momentum` (m^3 x m/s - density 1) inside a sphere at `pos` (world metres) - WaterSolver::addMomentum's
     /// rule, applied ON THE DEVICE at the start of the volume's next call (no read-back, no re-upload). Wakes the volume.
     void queueMomentum(Volume& vol, const glm::vec3& pos, float radius, const glm::vec3& momentum, float maxSpeed = 20.0f);
+    /// 27.23 W1d.2: WaterSolver::addImpulse / addRadialImpulse ON THE DEVICE, applied at the start of the next call (world metres) - in
+    /// place of the manager's whole-volume round trip (download, the CPU rule, upload: ~200 ms on a 46 x 28 m pond)
+    void queueImpulse(Volume& vol, const glm::vec3& worldPos, float radius, const glm::vec3& deltaV);
+    void queueRadialImpulse(Volume& vol, const glm::vec3& worldCentre, float reach, float speedAtCentre, float upBias, float maxSpeed);
     /// TEST ONLY (26.26 parity): apply the queued records now - only them, no substep - and wait.
     int applyQueuedMomentumForTest(Volume& vol);
     void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending as the last collected call left them (26.16: no submission)
