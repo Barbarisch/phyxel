@@ -1,0 +1,170 @@
+{
+ "control": {
+  "frame_gpu_ms": 1.456992,
+  "fps": 496.08096472600704
+ },
+ "rungs": [
+  {
+   "n": 1,
+   "seconds_to_all_asleep": 0.5,
+   "asleep": {
+    "frame_gpu_ms": 1.477344,
+    "surface_ms": 0.0133,
+    "fps": 601.1765475145199,
+    "awake_max": 0,
+    "solver_sum_ms_median": 0.0,
+    "solver_sum_ms_max": 0.0,
+    "water_ms": 0.0133
+   },
+   "one": {
+    "frame_gpu_ms": 1.389088,
+    "surface_ms": 0.0133,
+    "fps": 429.91538017009276,
+    "awake_max": 1,
+    "solver_sum_ms_median": 0.5467359999999999,
+    "solver_sum_ms_max": 1.016704,
+    "water_ms": 0.5600359999999999
+   },
+   "all": {
+    "frame_gpu_ms": 1.389936,
+    "surface_ms": 0.0133,
+    "fps": 443.34087389153535,
+    "awake_max": 1,
+    "solver_sum_ms_median": 0.5442400000000001,
+    "solver_sum_ms_max": 0.78848,
+    "water_ms": 0.55754
+   }
+  },
+  {
+   "n": 4,
+   "seconds_to_all_asleep": 0.5,
+   "asleep": {
+    "frame_gpu_ms": 1.313024,
+    "surface_ms": 0.0338,
+    "fps": 472.3463266560179,
+    "awake_max": 0,
+    "solver_sum_ms_median": 0.0,
+    "solver_sum_ms_max": 0.0,
+    "water_ms": 0.0338
+   },
+   "one": {
+    "frame_gpu_ms": 1.4073120000000001,
+    "surface_ms": 0.0338,
+    "fps": 348.792226848592,
+    "awake_max": 1,
+    "solver_sum_ms_median": 0.544144,
+    "solver_sum_ms_max": 0.58224,
+    "water_ms": 0.577944
+   },
+   "all": {
+    "frame_gpu_ms": 1.705504,
+    "surface_ms": 0.0348,
+    "fps": 255.24999584354822,
+    "awake_max": 4,
+    "solver_sum_ms_median": 1.6142239999999999,
+    "solver_sum_ms_max": 1.8932799999999999,
+    "water_ms": 1.6490239999999998
+   }
+  },
+  {
+   "n": 16,
+   "seconds_to_all_asleep": 0.6,
+   "asleep": {
+    "frame_gpu_ms": 1.331792,
+    "surface_ms": 0.0543,
+    "fps": 315.8273867033239,
+    "awake_max": 0,
+    "solver_sum_ms_median": 0.0,
+    "solver_sum_ms_max": 0.0,
+    "water_ms": 0.0543
+   },
+   "one": {
+    "frame_gpu_ms": 1.430992,
+    "surface_ms": 0.0543,
+    "fps": 261.95866445665536,
+    "awake_max": 1,
+    "solver_sum_ms_median": 0.350224,
+    "solver_sum_ms_max": 0.36835199999999996,
+    "water_ms": 0.404524
+   },
+   "all": {
+    "frame_gpu_ms": 2.90184,
+    "surface_ms": 0.0563,
+    "fps": 93.86642429821865,
+    "awake_max": 16,
+    "solver_sum_ms_median": 6.313184,
+    "solver_sum_ms_max": 6.518751999999999,
+    "water_ms": 6.369484
+   }
+  },
+  {
+   "n": 32,
+   "seconds_to_all_asleep": 0.5,
+   "asleep": {
+    "frame_gpu_ms": 1.368816,
+    "surface_ms": 0.084,
+    "fps": 210.14235180501237,
+    "awake_max": 0,
+    "solver_sum_ms_median": 0.0,
+    "solver_sum_ms_max": 0.0,
+    "water_ms": 0.084
+   },
+   "one": {
+    "frame_gpu_ms": 1.460464,
+    "surface_ms": 0.084,
+    "fps": 187.031891228255,
+    "awake_max": 1,
+    "solver_sum_ms_median": 0.34607999999999994,
+    "solver_sum_ms_max": 0.36486399999999997,
+    "water_ms": 0.43007999999999996
+   },
+   "all": {
+    "frame_gpu_ms": 4.2696000000000005,
+    "surface_ms": 0.0819,
+    "fps": 56.343639745487614,
+    "awake_max": 32,
+    "solver_sum_ms_median": 12.667663999999998,
+    "solver_sum_ms_max": 17.636608,
+    "water_ms": 12.749563999999998
+   }
+  },
+  {
+   "n": 64,
+   "seconds_to_all_asleep": 0.6,
+   "asleep": {
+    "frame_gpu_ms": 1.84184,
+    "surface_ms": 0.2038,
+    "fps": 131.0463574822535,
+    "awake_max": 0,
+    "solver_sum_ms_median": 0.0,
+    "solver_sum_ms_max": 0.0,
+    "water_ms": 0.2038
+   },
+   "one": {
+    "frame_gpu_ms": 1.8291520000000001,
+    "surface_ms": 0.1884,
+    "fps": 66.570148979001,
+    "awake_max": 1,
+    "solver_sum_ms_median": 0.470128,
+    "solver_sum_ms_max": 0.47865599999999997,
+    "water_ms": 0.658528
+   },
+   "all": {
+    "frame_gpu_ms": 6.362704,
+    "surface_ms": 0.1403,
+    "fps": 29.963086424273055,
+    "awake_max": 64,
+    "solver_sum_ms_median": 24.344832,
+    "solver_sum_ms_max": 34.228512,
+    "water_ms": 24.485132
+   }
+  }
+ ],
+ "args": {
+  "url": "http://127.0.0.1:8114",
+  "counts": "1,4,16,32,64",
+  "depth": 0.3,
+  "strength": 4.0,
+  "out": "pond_count.json"
+ }
+}

@@ -58,8 +58,11 @@ record is real water, a dry pit stays dry, edits never create water, each body h
 ground bricks (26.18); the column water removed (26.27); the surface tiles, view culling and CPU cuts (26.30 steps 1-3); the
 partial surface (26.33).
 
-**What one body costs today:** a 46 x 28 m pond 1 m deep after a push, 0.7 ms mean over 20 s (asleep by ~10 s); the 100 m
-creek ~1.1-1.2 ms; a sleeping pond ~0. The largest single volume is ~46 x 28 m at 1 m deep (the 2 M-cell CPU box).
+**What water costs today (the limits pass, §27.20, 2026-10-23):** one awake pond fits 2 ms to ~25 x 25 m at 1 m deep
+(~20 x 20 m at 2 m; to the volume cap at 0.3 m); a sleeping pond ~0.37 us per m^2 drawn; each awake body ~0.4-0.5 ms whatever
+its size (~4 small ponds awake at once); 64 sleeping ponds cut the frame rate to 131 fps (CPU, ~0.09 ms each); a 2 m creek
+1.5-2.0 ms up to 100 m long and 2.7 m/s, a 6 m creek 2.7-3.5 ms (over); one volume holds 2 M cells (a ~1,300 m^2 pond at 1 m,
+a ~100 m creek) and 64 sources.
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
 1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; W1b first slice BUILT §27.12 - frozen tiles sleep into the record and wake from it, the books exact live, recording OFF by default; W1c §27.13 - the post-push agitation was the life cycle's ORDER (it collected the call just submitted), fixed: a pushed pond settles and goes back into the record, the books exact; OPEN: a collect between two calls breaks the freeze test, woken tiles cycle in some runs; then the per-tile kernels and W1d-W1e). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
@@ -8089,6 +8092,103 @@ above, 46 k `m_state` calls) and a GPU read that sometimes waits 2-4 ms. Those a
 filling from uploaded runs) and a bulk occupancy read would cut - re-scoped by this measurement.
 
 ---
+
+### 27.20 The limits pass: ponds and creeks on today's code (2026-10-23). Status: MEASURED
+
+**Why (owner, 2026-10-23):** the ladder is ponds, then creeks, then lakes, rivers, shores and oceans, each step knowing where the
+one before it stops - "do the limits pass on ponds and creeks". The 26.29 ladder came before the surface tiles and view culling
+(26.30), the partial wake (26.31-26.33), quiet scale x3 and 20 sweeps (26.34-26.35), so it is re-measured here; creeks had never
+been put on a ladder.
+
+**The rigs** (all on WaterBench_Creek, Release, one engine, GPU idle - `nvidia-smi` 2 % before; auto-sleep OFF; engine defaults
+otherwise, recording OFF as shipped). "Water ms" = the solver's GPU time (`gpu_device_ms`, median) + the `WaterSurface` pass
+(median over 240 frames). The no-water GPU frame is 1.3-3.8 ms depending on the pose.
+- *Pond size*: `tools/water_pond_ladder.py` unchanged (walled boxes, a stone at the centre). Evidence: `pond_ladder_2026-10-23.json`.
+- *Pond count*: `tools/water_pond_count.py` (new) - N ponds of 5 x 5 m, 0.3 m deep, each its own volume, the camera seeing all of
+  them; asleep, one stirred, all stirred. Evidence: `pond_count.json`.
+- *Creeks*: `tools/water_creek_limits.py` (new) - from dry, a spring at the head, an outfall at the foot, Manning n 0.035, polled
+  until the outflow is within 3 % of the inflow (or 480 s), then a 15 s steady window. Three creeks: the bench creek (100 m, 2 m
+  wide, 1:200) and two carved beside it by `--carve`: steep (60 m, 2 m, 1:20) and wide (60 m, 6 m, 1:200). Ladders: length 25 /
+  50 / 100 m at 0.2 m^3/s; flow 0.05-1.6 m^3/s on each creek. Evidence: `creek_limits.json` (bench, steep, length),
+  `creek_limits_wide.json`. The camera sits beside the head, 2.5 m past the far bank.
+- *A harness fault found and fixed during the run:* a GPU volume holds at most **64 sources** (`WaterCoreGpu::kMaxSources`). The
+  wide creek needs 54 outfall + 54 spring cells; the engine refused 44 springs with an error the tool did not read, so that first
+  run got 19 % of its flow (discarded; still in `creek_limits.json`, out/in 0.18). The tool now checks every reply and spreads 10
+  springs over a wide head; the wide creek was re-run.
+
+**Ponds - one pond** (water ms after a stone, median, max in brackets where it passes 2; asleep it is the surface alone):
+
+| depth | 5 x 5 | 10 x 10 | 15 x 15 | 20 x 20 | 25 x 25 | 32 x 28 | 46 x 28 |
+|---|---|---|---|---|---|---|---|
+| 0.3 m | 0.58 | 0.74 | 0.93 | 1.02 | 1.13 | 1.30 (2.1) | 1.46 (2.1) |
+| 1 m | 0.62 | 0.83 | 1.12 | 1.48 | 1.95 (2.8) | 2.30 (2.9) | 2.68 (3.9) |
+| 2 m | 0.68 | 0.99 | 1.41 (2.3) | 1.99 (2.2) | 2.85 (4.4) | 3.67 (5.2) | refused (cap) |
+| asleep, any depth | 0.03 | 0.06 | 0.10-0.13 | 0.16-0.21 | 0.25-0.33 | 0.35-0.50 | 0.47-0.51 |
+
+1. **One awake pond now fits 2 ms to the volume cap at 0.3 m deep, to ~25 x 25 m at 1 m and ~20 x 20 m at 2 m** (26.29: ~10 x 10 m
+   at every depth). The peaks just after the stone pass 2 ms from ~15 x 15 m at 2 m and ~25 x 25 m at 1 m.
+2. **A sleeping pond costs ~0.37 us per m^2 of drawn surface** (26.29: 8.8 us - 24x less); the largest pond asleep is 0.5 ms. A
+   sleeping pond is now limited by the volume cap, not the budget.
+3. **The hard ceiling is the volume cap, 2 M cells** - 46 x 28 m fits at 1 m deep, not at 2 m (~900 m^2 at 2 m).
+4. **Deep, large ponds still do not fall asleep after one stone**: at 1 m and 2 m, 25 x 25 m and larger were awake 36 s later (the
+   walled box reflects its waves; quiet scale x3). 0.3 m ponds slept in 9-12 s; 1 m 15-20 m in 31-33 s; 2 m up to 20 m in 10-14 s.
+
+**Ponds - many ponds** (5 x 5 m, 0.3 m):
+
+| ponds | water ms, all asleep | one stirred | all stirred | fps asleep (no water: 496) |
+|---|---|---|---|---|
+| 1 | 0.01 | 0.56 | 0.56 | 601 |
+| 4 | 0.03 | 0.58 | 1.65 | 472 |
+| 16 | 0.05 | 0.40 | 6.4 | 316 |
+| 32 | 0.08 | 0.43 | 12.7 | 210 |
+| 64 | 0.20 | 0.66 | 24.5 | 131 |
+
+5. **Each awake pond costs ~0.35-0.55 ms whatever its size** - the call's own cost. So **~4 small ponds awake at once** fit 2 ms,
+   and one big awake pond is cheaper than four small ones.
+6. **Sleeping ponds cost the GPU almost nothing, but the frame rate falls with their number** - 601 fps with one, 131 with 64,
+   while the GPU frame stays 1.3-1.8 ms: the frame is CPU-bound, ~0.09 ms of CPU per sleeping volume per frame. Cause NOT measured
+   (per-volume host work every frame). This is the first limit for a world with many small ponds.
+
+**Creeks** (steady flow; water ms median, max in brackets; depth and surface speed mid-reach, Manning's prediction in brackets -
+its speed is the section mean, which a surface speed should exceed):
+
+| creek | q m^3/s | water ms | depth m | surface speed m/s | dry to steady | channel |
+|---|---|---|---|---|---|---|
+| bench 100 m, 2 m, 1:200 | 0.05 | 1.67 (2.3) | 0.10 (0.07) | 0.26 (0.35) | 444 s | in banks |
+| | 0.2 | 1.68 (2.4) | 0.20 (0.17) | 0.67 (0.61) | 240 s | in banks |
+| | 0.4 | 1.50 (2.1) | 0.28 (0.25) | 0.85 (0.80) | 192 s | in banks |
+| | 0.8 | 1.71 (2.6) | 0.42 (0.38) | 1.10 (1.06) | 187 s | over the bank |
+| | 1.6 | 2.00 (3.3) | 0.62 (0.57) | 1.17 (1.39) | 370 s | over the bank |
+| steep 60 m, 2 m, 1:20 | 0.05 | 1.62 (2.2) | 0.07 (0.04) | 0.40 (0.70) | 176 s | in banks |
+| | 0.4 | 1.67 (2.0) | 0.19 (0.13) | 1.41 (1.60) | 69 s | in banks |
+| | 1.6 | 1.97 (2.5) | 0.38 (0.29) | 2.72 (2.78) | 44 s | over the bank |
+| wide 60 m, 6 m, 1:200 | 0.1 | 3.27 (3.9) | 0.09 (0.06) | 0.19 (0.30) | 373 s | in banks |
+| | 0.4 | 3.17 (4.6) | 0.17 (0.13) | 0.52 (0.52) | 182 s | in banks |
+| | 1.6 | 2.67 (4.1) | 0.34 (0.30) | 0.91 (0.90) | 119 s | in banks |
+
+Length (bench creek, 0.2 m^3/s): 25 m 1.35 ms, 50 m 1.28 ms, 100 m 1.67 ms (dry to steady 92 / 142 / 240 s). Every rung is in the
+evidence files.
+
+7. **A 2 m creek fits 2 ms at every flow tried, up to 100 m long and 2.7 m/s** - the cost is mostly the call's own (~1 ms solver +
+   ~0.5 ms surface) and grows slowly with length (25 -> 100 m: +0.3 ms). It reaches 2 ms at 1.6 m^3/s, where the bench channels
+   overflow (they are cut 1/3-0.9 m deep - a bench limit, not the engine's).
+8. **A 6 m creek does not fit: 2.7-3.5 ms** at every flow - the solver 1.5-2.0 ms and the surface 1.5-1.7 ms (thin water across
+   6 m costs the surface pass ~3x the 2 m creek's; at 1.6 m^3/s, deeper, it falls to 0.6 ms - cause not measured).
+9. **The longest creek one volume holds is ~100-110 m** (2 m wide, 1:200): the box must span the drop, so the 2 M-cell cap binds
+   sooner on steeper or wider creeks (60 m at 1:20 is 1.84 M cells; 60 m x 6 m is 1.75 M).
+10. **Shallow water runs deeper and slower than Manning** - up to one 1/9 m cell deeper and 30-45 % slower below ~0.15 m (steep at
+    0.05 m^3/s: 0.07 m against 0.04, 0.40 m/s at the surface against a 0.70 mean). From ~0.2 m deep it agrees within 10-20 %
+    (speeds at 0.4-1.6 m^3/s within 2-10 %). Water under ~2 cells deep is at the grid's resolution floor.
+11. **The books are exact in every run** (stored - (in - out) within 2e-5 m^3); every run took 1-2 substeps.
+12. **A creek from dry takes 44-444 s to run steady** - a world creek cannot start dry in front of the player (W4 will need creeks
+    placed at their running depth).
+13. **A volume holds at most 64 sources** - a creek wider than ~3.5 m at 1/9 m cannot have a spring and an outfall on every cell.
+
+**What this says for the next steps.** The limits, in the order they bite: (a) **the call's own cost** - ~0.4-0.5 ms per awake
+pond and ~1.5 ms per creek whatever the size - so the number of awake bodies, not their size, spends the budget; (b) **the CPU per
+sleeping volume** (finding 6); (c) **the 2 M-cell cap per volume** - one pond ~1,300 m^2 at 1 m, one creek ~100 m; (d) **wide
+shallow water's surface cost** (finding 8); (e) **deep ponds that do not settle** (finding 4 - the quiet-scale decision). Lakes
+(W1d / W1e) remove (c); (a) and (b) decide how many bodies a world can have.
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
