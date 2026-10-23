@@ -49,6 +49,13 @@ struct AvRecord {
     double gpuMs = 0.0;                    ///< wall time of the last GPU step call (all its ticks)
     double gpuDeviceMs = 0.0;              ///< 26.15: of it, the GPU's own time (timestamps round the main submission)
     bool partialWake = false;              ///< 26.31: quiet brick columns freeze (GPU, sparse)
+    float tallBandM = 0.0f;                ///< 27.22: the fine band over the tall cells (m); 0 = all fine
+    bool tallActive = false;               ///< 27.22: tall cells in use now
+    float tallFloorY = 0.0f;               ///< 27.22: the floor (world Y, m) - the top of the tall layer
+    float tallRestY = 0.0f;                ///< 27.22: the rest level the floor was taken from (world Y, m)
+    int tallColumns = 0;                   ///< 27.22: columns with a tall cell
+    long tallRegrids = 0;                  ///< 27.22: collapses + expands
+    std::string tallReason;                ///< 27.22: why the floor is where it is, or why there are no tall cells
     bool recordTiles = false;              ///< §27 W1b: frozen 8 m tiles sleep into the record (and wake from it)
     double recordedM3 = 0.0;               ///< §27 W1b: this volume's water now in the record (m^3, the spans' unit)
     int recordedTiles = 0;                 ///< §27 W1b: tiles in the record now
@@ -190,6 +197,11 @@ public:
     bool setAutoSleep(int id, bool on);
     /// 26.31 the partial wake for one volume (GPU, sparse; false = no such volume or not one) and the default for new volumes.
     bool setPartialWake(int id, bool on);
+    /// 27.22 TALL CELLS: the fine band B (m) over the tall cells of a GPU fill volume; 0 = off (all fine). Clamped at the API
+    /// (0 or [4/9, 8] m). The floor follows (WaterCoreManager::updateTall). False = no such volume.
+    bool setTallBand(int id, float metres);
+    /// 27.22: the engine default for new volumes (0 = off - the default until the owner signs off).
+    static inline float s_tallBandDefault = 0.0f;
     /// §27 W1b: frozen 8 m tiles of a GPU volume sleep into the record after `s_recordAfterS` frozen and wake from it when the awake
     /// margin or a wake box reaches them (27.10). Needs the partial wake and the span I/O. OFF by default until the owner has seen it.
     bool setRecordTiles(int id, bool on);
@@ -493,6 +505,9 @@ private:
         GpuStepStats gpuLast;
         // §27 W1b: 8 m tiles (world-aligned: 9 brick columns = 8 voxel columns) recorded into / woken from the record
         bool recordTiles = false;
+        float tallBand = 0.0f;           // 27.22: the fine band (m); 0 = off
+        float tallRestY = std::numeric_limits<float>::quiet_NaN();   // 27.22: the rest level (world m), taken while the water sleeps
+        std::string tallReason;          // 27.22
         double recordedM3 = 0.0;
         std::vector<std::pair<int, int>> recordedTileList;   ///< tile (x, z) indices in the record now
         std::vector<std::pair<int, int>> pendingTileWakes;   ///< §27 W1c: tiles a droplet landed on - woken before the next call
@@ -598,6 +613,8 @@ private:
     // §27 W1b: the tile life cycle of a GPU volume (after each step): wakes first, then tiles frozen long enough are recorded
     void recordTilesStep(Av& av, float seconds);
     bool recordTile(Av& av, int tx, int tz);
+    /// 27.22: decide the floor and the heights before a call (WaterCoreManager.cpp, updateTall)
+    void updateTall(Av& av);
     void markRecordedColumns(Av& av, int tx, int tz);   // 27.15/27.16: a recorded tile's columns in the volume's field -> the record's (runs -1)
     bool wakeTile(Av& av, int tx, int tz);
     /// wake the recorded tiles a write at `world` touches (+ s_writeWakeReachM); deferred = before the next call (a write that

@@ -1,0 +1,65 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel (docs/WaterCore.md 27.22 TALL CELLS): one thread per (x, z) column (the column table), pc.tallY = the tall
+// layer's grid y T, the heights in Bricks[tallOff + x + nx z] (H; 1 = an ordinary column).
+//   mode 0 COLLAPSE: a column of height H > 1 gathers the water of its cells T - H + 1 .. T - 1 into cell T - EXACTLY (two-sum, the
+//          remainders into fLo) - and those cells are emptied (the host then reads their bricks as ground). Its side velocities
+//          become the depth means over the open overlap with the -x / -z neighbour; the faces below are zeroed.
+//   mode 1 EXPAND: the reverse, into freshly stored (zeroed) bricks: cell T's volume spread evenly over T - H + 1 .. T (the
+//          rounding left in cell T, exact), its side velocities copied down the open overlap, vertical velocities 0 inside.
+// A column writes only its own cells and its own lower x / z faces: no two threads touch one site.
+#define WC_BRICKS_BINDING 5
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) buffer F   { float f[]; };
+layout(std430, set = 0, binding = 1) buffer FLo { float fLo[]; };
+layout(std430, set = 0, binding = 2) buffer U   { float u[]; };
+layout(std430, set = 0, binding = 3) buffer V   { float v[]; };
+layout(std430, set = 0, binding = 4) buffer W   { float w[]; };
+
+bool stored(int x, int y, int z) { return brickSlot(ivec3(x + pc.ox, y + pc.oy, z + pc.oz)) >= 2; }   // never the absent or ground sentinel
+
+void main() {
+    int x, z;
+    if (!threadColumn(gl_GlobalInvocationID.x, x, z)) return;
+    const int H = tallH(x, z), T = pc.tallY;
+    if (H <= 1 || T < 0 || !stored(x, T, z)) return;
+    const int y0 = T - H + 1;
+    const uint iT = cellIdx(x, T, z);
+    // the open overlap of each lower side face (the face to the box wall stays closed: 0 anyway)
+    const int ox = x > 0 ? min(H, tallH(x - 1, z)) : 1, oz = z > 0 ? min(H, tallH(x, z - 1)) : 1;
+    if (pc.mode == 0) {
+        float su = 0.0, sw = 0.0;
+        for (int y = y0; y <= T; ++y) {
+            if (!stored(x, y, z)) continue;
+            const uint i = cellIdx(x, y, z);
+            if (y >= T - ox + 1) su += u[i];
+            if (y >= T - oz + 1) sw += w[i];
+            if (y == T) continue;
+            const float a = f[iT], d = f[i];
+            precise float s = a + d;
+            f[iT] = s;
+            fLo[iT] += twoSumErr(a, d, s) + fLo[i];
+            f[i] = 0.0; fLo[i] = 0.0; u[i] = 0.0; v[i] = 0.0; w[i] = 0.0;
+        }
+        u[iT] = su / float(ox);
+        w[iT] = sw / float(oz);
+        v[iT] = 0.0;   // the tall cell's bottom face: the ground
+    } else {
+        const float vol = f[iT];
+        const float share = vol / float(H);
+        float acc = vol;
+        for (int y = y0; y < T; ++y) {
+            if (!stored(x, y, z)) continue;
+            const uint i = cellIdx(x, y, z);
+            precise float s = acc - share;
+            fLo[iT] += twoSumErr(acc, -share, s);
+            acc = s;
+            f[i] = share;
+            u[i] = y >= T - ox + 1 ? u[iT] : 0.0;
+            w[i] = y >= T - oz + 1 ? w[iT] : 0.0;
+            v[i] = 0.0;
+        }
+        f[iT] = acc;
+    }
+}

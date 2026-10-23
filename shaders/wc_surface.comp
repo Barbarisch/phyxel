@@ -32,8 +32,10 @@ layout(std430, set = 0, binding = 9)          buffer Lists   { uint lists[]; }; 
 float levelFill(int x, int y, int z) {
     const uint i = cellIdx(x, y, z);
     const float fv = f[i];
-    return min(1.0, fv + (fv >= pc.param0 ? solid[i].x : 0.0));
+    return min(cellVolume(x, y, z), fv + (fv >= pc.param0 ? solid[i].x : 0.0));   // 27.22: a tall cell holds up to H cells
 }
+// 27.22: the world bottom (cells) of a run starting at `start` - a tall cell reaches down to its bed
+float runBase(int x, int start, int z) { return float(start) - (cellVolume(x, start, z) - 1.0); }
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
@@ -49,7 +51,7 @@ void main() {
     int y = 0;
     while (y < pc.ny) {
         const bool solid = occ[cellIdx(x, y, z)] == 1u;
-        if (solid) solidTop = (oy + float(y) + 1.0) * pc.h;
+        if (solid) solidTop = (oy + float(y) + 1.0 - ((pc.tallY >= 0 && y + 1 == pc.tallY) ? cellVolume(x, y + 1, z) - 1.0 : 0.0)) * pc.h;   // 27.22: under a tall cell the ground is its bed
         if (f[cellIdx(x, y, z)] < fMin || solid) { ++y; continue; }
         const int start = y;
         int t = y;
@@ -58,9 +60,10 @@ void main() {
         // + air trapped under water drawn as water, weighted by the fill of the cell above (19.7;
         // surfacePocketWeight in WaterSurfaceMesh.h: 0 below 0.2, 1 from 0.7)
         float pockets = 0.0;
-        for (int k = start; k < t; ++k) pockets += (1.0 - levelFill(x, k, z)) * clamp((levelFill(x, k + 1, z) - 0.2) / 0.5, 0.0, 1.0);
-        const float tTop = (oy + float(start)) * pc.h + (sum + pockets) * pc.h;
-        if (runs < 4) { bottom[runs] = (oy + float(start)) * pc.h; top[runs] = tTop; ++runs; }
+        for (int k = start; k < t; ++k) pockets += (cellVolume(x, k, z) - levelFill(x, k, z)) * clamp((levelFill(x, k + 1, z) / cellVolume(x, k + 1, z) - 0.2) / 0.5, 0.0, 1.0);
+        const float base = runBase(x, start, z);
+        const float tTop = (oy + base) * pc.h + (sum + pockets) * pc.h;
+        if (runs < 4) { bottom[runs] = (oy + base) * pc.h; top[runs] = tTop; ++runs; }
         else top[3] += sum * pc.h;
         topCell = t;
     }

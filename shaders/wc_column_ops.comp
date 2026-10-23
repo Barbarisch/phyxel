@@ -80,8 +80,9 @@ void main() {
         const float cap = vfall * pc.dt / pc.h;
         for (int y = 0; y + 1 < pc.ny; ++y) {
             const float fb = f[cellIdx(x, y, z)];
+            const float Vb = cellVolume(x, y, z);   // 27.22: a tall cell's f is a volume, full at H
             const float sb = solid[cellIdx(x, y, z)].x;   // 20.5: fill up to 1 - s, never into a body's space
-            if (fb + sb < pc.thr || fb + sb >= 1.0 || (sb > 0.0 && fb < 0.001 / pc.h) || blocked(x, y, z) || blocked(x, y + 1, z)) continue;
+            if (fb / Vb + sb < pc.thr || fb / Vb + sb >= 1.0 || (sb > 0.0 && fb < 0.001 / pc.h) || blocked(x, y, z) || blocked(x, y + 1, z) || Vb > 1.0) continue;   // 27.22: a tall cell is kept full by the transport
             const float fa = f[cellIdx(x, y + 1, z)];
             if (fa <= 0.0) continue;
             if (pc.param0 == 0.0 && fa + solid[cellIdx(x, y + 1, z)].x < pc.thr) continue;   // 24.11: under a thin film only while settling (param0 = 1)
@@ -91,7 +92,7 @@ void main() {
             const float uc = 0.5 * (u[uIdx(x, y, z)] + u[uIdx(x + 1, y, z)]);
             const float wc = 0.5 * (w[wIdx(x, y, z)] + w[wIdx(x, y, z + 1)]);
             if (uc * uc + wc * wc > 0.01 * vfall * vfall) continue;
-            const float moved = min(min(fa, 1.0 - sb - fb), pc.param0 == 1.0 ? cap : min(cap, pc.param1 * pc.dt / pc.h));   // 24.11: slowly in moving water (param1 m/s)
+            const float moved = min(min(fa, Vb * (1.0 - sb) - fb), pc.param0 == 1.0 ? cap : min(cap, pc.param1 * pc.dt / pc.h));   // 24.11: slowly in moving water (param1 m/s)
             if (moved <= 0.0) continue;
             // 26.9/26.10: exact - what either float cannot hold stays in its fLo (the old nb - fb was folded to `moved` by the compiler)
             addExact(cellIdx(x, y, z), moved);

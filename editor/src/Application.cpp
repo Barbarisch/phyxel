@@ -64,6 +64,12 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
+
+namespace {
+// 27.22: the tall-cell band at the API's door - 0 (off) or [4/9, 8] m. Thinner than two flat bricks puts the floor inside a stone's own
+// ring (its motion reaches ~0.3 m down); past 8 m no pond would have a tall cell. A value in (0, 4/9) is raised to 4/9, not refused.
+float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.0f, 8.0f); }
+}
 #include "utils/PerformanceMonitor.h"
 #include "utils/Frustum.h"
 #include "utils/Logger.h"
@@ -13932,7 +13938,7 @@ void Application::registerWaterCommands() {
     auto noCore = [](nlohmann::json& r) { r = {{"error", "WaterCore not available"}}; };
     auto avJson = [](const Core::Water::AvRecord& a) {
         return nlohmann::json{{"id", a.id}, {"box", {{"min", {a.minVoxel.x, a.minVoxel.y, a.minVoxel.z}}, {"max", {a.maxVoxel.x, a.maxVoxel.y, a.maxVoxel.z}}}},
-                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_device_ms", a.gpuDeviceMs}, {"partial_wake", a.partialWake}, {"record_tiles", a.recordTiles}, {"recorded_m3", a.recordedM3}, {"recorded_tiles", a.recordedTiles}, {"tiles_recorded", a.tilesRecorded}, {"tiles_woken", a.tilesWoken}, {"tiles_woken_by_write", a.tilesWokenByWrite}, {"gpu_wake_all", a.gpuWakeAll}, {"record_spread_mm_max", a.recordSpreadMmMax}, {"record_jump_mm_max", a.recordJumpMmMax}, {"last_record_ms", a.lastRecordMs}, {"last_wake_ms", a.lastWakeMs}, {"seed_unplaced_m3", a.seedUnplacedM3}, {"awake_columns", a.awakeColumns}, {"frozen_columns", a.frozenColumns}, {"moving_columns", a.movingColumns}, {"step_slots", a.stepSlots}, {"partition_moves", a.partitionMoves}, {"carry_body_m3", a.carryBodyM3}, {"carry_rate_m3", a.carryRateM3}, {"carry_flow_m3", a.carryFlowM3}, {"carry_parked_m3", a.carryParkedM3}, {"gpu_host_ms", a.gpuHostMs}, {"gpu_wait_ms", a.gpuWaitMs}, {"gpu_ticks", a.gpuTicks}, {"gpu_async", a.gpuAsync}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"gpu_brick_height", a.gpuBrickHeight}, {"gpu_ground_bricks", a.gpuGroundBricks}, {"gpu_upload_ms", a.gpuUploadMs}, {"gpu_uploads", a.gpuUploads}, {"occ_refresh_ms", a.occRefreshMs}, {"occ_full_refreshes", a.occFullRefreshes}, {"occ_local_refreshes", a.occLocalRefreshes}, {"occ_cells_resampled", a.occCellsResampled}, {"occ_cells_changed", a.occCellsChanged}, {"gpu_patch_ms", a.gpuPatchMs}, {"gpu_patches", a.gpuPatches}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
+                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"gpu_device_ms", a.gpuDeviceMs}, {"partial_wake", a.partialWake}, {"tall_band_m", a.tallBandM}, {"tall_active", a.tallActive}, {"tall_floor_y", a.tallFloorY}, {"tall_rest_y", a.tallRestY}, {"tall_columns", a.tallColumns}, {"tall_regrids", a.tallRegrids}, {"tall_reason", a.tallReason}, {"record_tiles", a.recordTiles}, {"recorded_m3", a.recordedM3}, {"recorded_tiles", a.recordedTiles}, {"tiles_recorded", a.tilesRecorded}, {"tiles_woken", a.tilesWoken}, {"tiles_woken_by_write", a.tilesWokenByWrite}, {"gpu_wake_all", a.gpuWakeAll}, {"record_spread_mm_max", a.recordSpreadMmMax}, {"record_jump_mm_max", a.recordJumpMmMax}, {"last_record_ms", a.lastRecordMs}, {"last_wake_ms", a.lastWakeMs}, {"seed_unplaced_m3", a.seedUnplacedM3}, {"awake_columns", a.awakeColumns}, {"frozen_columns", a.frozenColumns}, {"moving_columns", a.movingColumns}, {"step_slots", a.stepSlots}, {"partition_moves", a.partitionMoves}, {"carry_body_m3", a.carryBodyM3}, {"carry_rate_m3", a.carryRateM3}, {"carry_flow_m3", a.carryFlowM3}, {"carry_parked_m3", a.carryParkedM3}, {"gpu_host_ms", a.gpuHostMs}, {"gpu_wait_ms", a.gpuWaitMs}, {"gpu_ticks", a.gpuTicks}, {"gpu_async", a.gpuAsync}, {"gpu_bricks", a.gpuBricks}, {"gpu_brick_capacity", a.gpuBrickCapacity}, {"gpu_brick_height", a.gpuBrickHeight}, {"gpu_ground_bricks", a.gpuGroundBricks}, {"gpu_upload_ms", a.gpuUploadMs}, {"gpu_uploads", a.gpuUploads}, {"occ_refresh_ms", a.occRefreshMs}, {"occ_full_refreshes", a.occFullRefreshes}, {"occ_local_refreshes", a.occLocalRefreshes}, {"occ_cells_resampled", a.occCellsResampled}, {"occ_cells_changed", a.occCellsChanged}, {"gpu_patch_ms", a.gpuPatchMs}, {"gpu_patches", a.gpuPatches}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
                               {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"source_in_m3", a.sourceIn}, {"outfall_out_m3", a.outfallOut}, {"outfalls", a.outfalls}, {"manning_n", a.manningN}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};
@@ -13959,6 +13965,9 @@ void Application::registerWaterCommands() {
         // size free); auto_sleep (default true) writes back + frees in realtime when it sleeps.
         waterCore->setAutoSleep(id, cmd.params.value("auto_sleep", true));
         if (cmd.params.contains("partial_wake")) waterCore->setPartialWake(id, cmd.params.value("partial_wake", false));   // 26.31 (GPU, sparse): echoed as partial_wake
+        // 27.22 tall_band_m (m; omitted = the engine default, water_av_tall {default}): echoed as tall_band_m, with tall_active /
+        // tall_floor_y / tall_reason
+        if (cmd.params.contains("tall_band_m")) waterCore->setTallBand(id, tallBandClamp(cmd.params.value("tall_band_m", 0.0f)));
         // 26.13: manning_n > 0 = Manning's law at the bed (a creek) instead of pond friction; clamped 0-0.2, echoed
         if (cmd.params.contains("manning_n")) waterCore->setBedManning(id, std::clamp(cmd.params.value("manning_n", 0.0f), 0.0f, 0.2f));
         double seeded = 0.0;
@@ -14116,6 +14125,17 @@ void Application::registerWaterCommands() {
     // 26.31: {id, on} the partial wake for one volume; {default: bool} for new volumes. Echoes the state.
     // 27.21: the debris water tiles kept by signature - {check: true} rebuilds every kept tile too and counts byte differences
     // (must stay 0), {reset} zeroes the counts
+    // 27.22 TALL CELLS: {default} sets the engine default band for new volumes, {id, band} one volume's (m; 0 = off). Echoes both.
+    reg.on("water_av_tall", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        if (cmd.params.contains("default")) Core::Water::WaterCoreManager::s_tallBandDefault = tallBandClamp(cmd.params.value("default", 0.0f));
+        r = {{"default", Core::Water::WaterCoreManager::s_tallBandDefault}};
+        if (cmd.params.contains("id")) {
+            const int id = cmd.params.value("id", 0);
+            if (cmd.params.contains("band") && !waterCore->setTallBand(id, tallBandClamp(cmd.params.value("band", 0.0f)))) { r["error"] = "no such volume"; return; }
+            if (const auto* v = waterCore->find(id)) r["volume"] = avJson(*v);
+        }
+    });
     reg.on("water_av_debris_tiles", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!debrisRuntime) { r = {{"error", "no debris runtime"}}; return; }
         if (cmd.params.contains("check")) DebrisRuntime::s_checkKeptWaterTiles = cmd.params.value("check", false);

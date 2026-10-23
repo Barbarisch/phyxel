@@ -76,8 +76,16 @@ bool frozenCell(int x, int y, int z) {   // 26.31: a cell of a frozen brick colu
 // from its bed up: tallH cells high (Bricks[tallOff + x + nx z]; 0 or 1 = an ordinary cell). Its f holds its water as a VOLUME in
 // cells (0..H), so sums, moves and the books stay additive; its FRACTION is f / H. The bricks under the tall layer read the ground
 // sentinel (Solid). With pc.tallY = -1 nothing here is read and every rule is exactly as before.
-int tallH(int x, int z) { return (pc.tallY < 0 || pc.bricked == 0) ? 1 : max(1, bricks[pc.tallOff + x + pc.nx * z]); }
+int tallH(int x, int z) {
+    if (pc.tallY < 0 || pc.bricked == 0 || x < 0 || z < 0 || x >= pc.nx || z >= pc.nz) return 1;
+    return max(1, bricks[pc.tallOff + x + pc.nx * z]);
+}
 float cellVolume(int x, int y, int z) { return (pc.tallY >= 0 && y == pc.tallY) ? float(tallH(x, z)) : 1.0; }
+// 27.22: a TALL cell (H > 1) - not a pressure unknown: HYDROSTATIC under the band cell above it (WaterCore.md 27.22a TC3 finding)
+bool tallCell(int x, int y, int z) { return pc.tallY >= 0 && y == pc.tallY && tallH(x, z) > 1; }
+// 27.22: the open height of the side face between two cells of the tall layer - the overlap of the two columns' water below the
+// floor (both reach up to it; the lower bed is covered by the other's ground). 1 for every face of an ordinary cell.
+float sideOverlap(int ax, int ay, int az, int bx, int bz) { return (pc.tallY >= 0 && ay == pc.tallY) ? min(float(tallH(ax, az)), float(tallH(bx, bz))) : 1.0; }
 uint brickIdx(int x, int y, int z) {
     const ivec3 q = ivec3(x + pc.ox, y + pc.oy, z + pc.oz);
     return (uint(brickSlot(q)) << uint(6 + pc.bly)) + uint((q.x & 7) + 8 * (q.z & 7) + 64 * (q.y & ((1 << pc.bly) - 1)));

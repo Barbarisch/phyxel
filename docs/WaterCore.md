@@ -8403,6 +8403,59 @@ the owner's clip.
 
 **Verdict: READY** for TC1 (with the seven items above). The decision left to the owner: B, from the clip at TC5.
 
+### 27.22b Tall cells TC1-TC3 built (2026-10-23) - the ledger. Status: BUILT, OFF by default, not signed off
+
+**TC1** (`848e76da`): the push block packs three flags into one int so the tall layer's `tallY` / `tallOff` fit the guaranteed 128
+bytes; one height per dense column in the Bricks buffer; `tallH` / `cellVolume` (1 everywhere while off). The GPU water suite 46/47 as
+before, the bit-identical rows included.
+
+**The representation actually built - simpler than 27.22's.** A tall cell is the ORDINARY cell at the tall layer (the bottom cell of the
+floor's brick), stretched down to its bed: its `f` holds its water as a VOLUME in cells (0..H), so every flow, sum and two-sum stays
+additive and the books stay exact; the bricks under the tall layer read the existing GROUND sentinel. A kernel needs the height only
+where a cell's size enters: the pressure row (side faces weigh their open overlap in cells), the transport (a tall donor's fraction is
+f / H, a side face carries its overlap, a tall cell holds H), compaction, the surface (the run starts at the bed) and the velocity
+advection (nothing is sampled under the floor; the tall layer advects sideways only). With H = 1 every one of these is the old
+arithmetic exactly (x 1.0, / 1.0). `wc_tall.comp` COLLAPSES a column into its tall cell (exact, the remainders into fLo) in the call's
+prologue, before the residency maps the bricks below to ground, and EXPANDS it back after the residency stores them again.
+`WaterCoreGpu::setTall / clearTall`; download spreads tall cells back into cells for the host's dense grid (write-back, census and
+the CPU surface fallback see ordinary water); upload resets them; readColumns / record tiles refuse a tall volume (TC4).
+
+**TC3 - three tries at the pressure, measured (`WaterTallCellTest`, `DISABLED_DiagStoneCallByCall`):**
+1. *Tall cells as rows of the same solve, nothing else changed:* matches all-fine for a second, then a pond-wide "breathing" grows
+   (KE x300 by 3 s). The tall layer couples sideways 13x as strongly as up - a 2-D problem under the band that the band's 20 sweeps do
+   not converge; the unconverged divergence became volume errors the pressure-based refill rules (26.21 volume correction,
+   compaction) fed back.
+2. *Hydrostatic tall cells, not unknowns (explicit, the floor velocity from continuity):* with the band's solved pressure - blew up
+   in ONE call (the band's dynamic push to follow the floor fed back: the classic added-mass instability); with the columns'
+   hydrostatic pressure - still water exact, but the stone blew up within 2 s (a hydrostatic deep layer answers the stone's crater
+   as if it were a long wave).
+3. *Shipped: (1) + the tall cell kept EXACTLY full by the transport (a shortfall taken from the water above it, two-sum; no
+   volume correction or compaction for it) + 20 red-black sweep pairs of the tall layer alone after the band's sweeps (one cell a
+   column).* Stable in every rig.
+
+**The gates (RED controls in brackets):**
+
+| gate | result |
+|---|---|
+| still 2 m pond (B 0.44 m) | max speed 2.9e-5 m/s, surface spread 0.015 mm, books exact (reduction + counted residue = start to 1e-9) - PASS |
+| regrid: collapse -> step -> expand | 0 cells differ by > 1e-4 from just before (worst 1.5e-5, one call stepped) - PASS |
+| long pulse 24 m channel, speed between 12 and 20 m | 1 m: fine 2.05 m/s, tall 2.05 (+0.0 %); 2 m: 3.38 / 3.38 (+0.0 %); height at 20 m +0.3 / +5.8 % - PASS [false bottom: -36 % / -68 %] |
+| stone in an 8 x 8 m 2 m pond, max ring height | 1 m -11.2 %, 3 m +15.2 % against the 10 % gate - **FAILS narrowly** |
+| the same pond across a chunk seam (translated one chunk) | 0 sites differ - PASS |
+| the GPU water suite with tall cells off | every row as before (49/51: the known FLIP row + the stone gate above) |
+
+The stone table (B and the tall sweeps; the 3 m ring is a 0.6 mm signal): no tall sweeps - unstable (+600 %); 5 - 1 m within 5 %, 3 m
++41-55 %; 20 - 1 m -8 to -15 %, 3 m +15 to +40 %. Neither a thicker band nor more sweeps brings the 3 m ring inside 10 % - the tall
+layer sends a slightly larger long-wave front ahead of the ring.
+
+**Cost (GPU, the integration rigs, partial wake OFF - every stored brick steps):** 8 x 8 m 2 m pond after a stone 0.93 -> 0.96 ms (no
+gain: the tall layer's 40 extra dispatches eat it); **24 x 24 m 2 m pond 3.79 -> 2.63 ms (-31 %)** (40 tall sweeps: 2.95 ms, no
+better). The saving grows with the pond's area; the live number (with the partial wake, the surface) is TC5's.
+
+**Left:** TC4 (record tiles, seedColumns, the partial wake's freeze test reading the tall layer - its KE already counts), TC5 (L4 on
+the bench interleaved, the owner's clip at B = 0.44 / 0.67 / 0.89 m), and the stone gate's decision: the owner's eyes on the clip, not
+a loosened number.
+
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
 **Was: "0a. Where things stand, and what is next (2026-10-14)"**

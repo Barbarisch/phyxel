@@ -19,6 +19,7 @@ set(INTEGRATION_TEST_SOURCES
     WaterRippleGpuParityTest.cpp
     WaterPartialWakeTest.cpp
     WaterRecordTilesTest.cpp
+    WaterTallCellTest.cpp
 )
 
 # Create integration test executable

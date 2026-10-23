@@ -40,7 +40,9 @@ float faceDesired(int axis, ivec3 a, ivec3 b, out bool donorIsA) {
     if (vel == 0.0) return 0.0;
     donorIsA = vel > 0.0;
     const bool absA = absentCell(a.x, a.y, a.z), absB = absentCell(b.x, b.y, b.z);
-    const float fd = donorIsA ? (absA ? 0.0 : fo[cellIdx(a.x, a.y, a.z)]) : (absB ? 0.0 : fo[cellIdx(b.x, b.y, b.z)]);
+    // 27.22: amounts are in cells; a tall donor's fraction is its volume / H and a side face of the tall layer carries its open overlap
+    const float fd = donorIsA ? (absA ? 0.0 : fo[cellIdx(a.x, a.y, a.z)] / cellVolume(a.x, a.y, a.z)) : (absB ? 0.0 : fo[cellIdx(b.x, b.y, b.z)] / cellVolume(b.x, b.y, b.z));
+    const float area = axis == 1 ? 1.0 : sideOverlap(a.x, a.y, a.z, b.x, b.z);
     if (fd <= 0.0) return 0.0;
     // 26.6: water may never move into a brick that is not stored - the face is closed and COUNTED (the halo is wrong if this
     // is ever non-zero outside the capacity test; WaterBrickTest gates it at 0)
@@ -48,8 +50,8 @@ float faceDesired(int axis, ivec3 a, ivec3 b, out bool donorIsA) {
     const float sweep = abs(vel) * pc.dt / pc.h;
     const bool downward = axis == 1 && vel < 0.0;
     // 26.9: a QUIET partial cell under an emptier one fills itself before water crosses its ceiling (donor-acceptor, the CPU's rule)
-    if (axis == 1 && vel > 0.0 && vel < pc.quietRise && fd < 1.0 && fo[cellIdx(b.x, b.y, b.z)] < fd) return clamp(sweep - (1.0 - fd), 0.0, fd);
-    return (downward && fd < pc.thr) ? min(fd, sweep) : sweep * fd;
+    if (axis == 1 && vel > 0.0 && vel < pc.quietRise && fd < 1.0 && fo[cellIdx(b.x, b.y, b.z)] / cellVolume(b.x, b.y, b.z) < fd) return clamp(sweep - (1.0 - fd), 0.0, fd);
+    return ((downward && fd < pc.thr) ? min(fd, sweep) : sweep * fd) * area;
 }
 // o > 0: a cell left a hair NEGATIVE by rounding sends nothing (o = 0 > f0) - dividing there made -inf, 0 x inf = NaN, and
 // compaction's min(NaN, cap) turned the NaN into a free-fall cap of water from nowhere (GpuAllFacesRestingPondKeepsItsMass)
@@ -73,11 +75,11 @@ void allFaces(uint id) {
                 if (carry > 0.0 && last >= 0) { const uint l = uint(last); const float a = f[l]; precise float s = a + carry; f[l] = s; fLo[l] += twoSumErr(a, carry, s); }
                 carry = 0.0; last = -1; continue;
             }
-            { const float own = f[i] - (1.0 - solid[i].x); if (PC_CARRY_MEASURE != 0 && own >= 5e-4) atomicAdd(bricks[pc.counterOff + (solid[i].x > 0.0 ? (solid[i].y > 0.0 ? 5 : 2) : 3)], int(own * 1000.0 + 0.5)); }
+            { const float own = f[i] - cellVolume(x, y, z) * (1.0 - solid[i].x); if (PC_CARRY_MEASURE != 0 && own >= 5e-4) atomicAdd(bricks[pc.counterOff + (solid[i].x > 0.0 ? (solid[i].y > 0.0 ? 5 : 2) : 3)], int(own * 1000.0 + 0.5)); }
             // 26.9/26.10: add only what this cell can HOLD in float - the rest stays in the carry, exactly (two-sum, `precise`)
             { const float before = f[i]; precise float nf = before + carry; f[i] = nf; carry = twoSumErr(before, carry, nf); }
             last = int(i);
-            const float room = 1.0 - solid[i].x;
+            const float room = cellVolume(x, y, z) * (1.0 - solid[i].x);   // 27.22: a tall cell holds H cells
             if (f[i] > room) {   // the excess joins the carry; what the carry cannot hold of it stays in this cell's fLo
                 const float fi = f[i]; precise float ex = fi - room; fLo[i] += twoSumErr(fi, -room, ex);
                 const float c0 = carry; precise float nc = c0 + ex; fLo[i] += twoSumErr(c0, ex, nc); carry = nc; f[i] = room;
@@ -85,6 +87,21 @@ void allFaces(uint id) {
         }
         if (PC_CARRY_MEASURE != 0 && carry >= 5e-4 && last >= 0) atomicAdd(bricks[pc.counterOff + 4], int(carry * 1000.0 + 0.5));
         if (carry > 0.0 && last >= 0) { const uint l = uint(last); const float a = f[l]; precise float s = a + carry; f[l] = s; fLo[l] += twoSumErr(a, carry, s); }
+        // 27.22: a TALL cell is always full - a shortfall (the projection is not exact) is taken from the water above it, cell by cell
+        // upward, exactly (two-sum); its excess was carried up above. The band then refills by its own rules.
+        if (tallCell(x, pc.tallY, z)) {
+            const uint iT = cellIdx(x, pc.tallY, z);
+            float need = cellVolume(x, pc.tallY, z) - f[iT];
+            for (int yy = pc.tallY + 1; yy < pc.ny && need > 0.0; ++yy) {
+                if (blocked(x, yy, z) || absentCell(x, yy, z)) break;
+                const uint j = cellIdx(x, yy, z);
+                const float take = min(need, f[j]);
+                if (take <= 0.0) continue;
+                { const float a = f[iT]; precise float s = a + take; f[iT] = s; fLo[iT] += twoSumErr(a, take, s); }
+                { const float a = f[j]; precise float s = a - take; f[j] = s; fLo[j] += twoSumErr(a, -take, s); }
+                need -= take;
+            }
+        }
         return;
     }
     ivec3 c;

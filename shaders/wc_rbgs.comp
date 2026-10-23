@@ -25,14 +25,36 @@ float pnNear(ivec3 n, bool sameBrick, int step, uint id) {
     return liq[j] != 0u ? p[j] : 0.0;
 }
 
+float tallNb(ivec3 c) {
+    return pn(c.x - 1, c.y, c.z) * sideOverlap(c.x, c.y, c.z, c.x - 1, c.z) + pn(c.x + 1, c.y, c.z) * sideOverlap(c.x, c.y, c.z, c.x + 1, c.z)
+         + pn(c.x, c.y + 1, c.z)
+         + pn(c.x, c.y, c.z - 1) * sideOverlap(c.x, c.y, c.z, c.x, c.z - 1) + pn(c.x, c.y, c.z + 1) * sideOverlap(c.x, c.y, c.z, c.x, c.z + 1);
+}
+
 void main() {
     const uint id = gl_GlobalInvocationID.x;
+    if (pc.mode == 2) {
+        // 27.22: a red-black sweep of the TALL LAYER alone (one thread per column; colour (x + z) & 1 = iparam). Its rows couple
+        // sideways 13x as strongly as up (a 2-D problem under the band): the band's sweeps alone left it unconverged (27.22a)
+        int x, z;
+        if (!threadColumn(id, x, z)) return;
+        if (pc.tallY < 0 || tallH(x, z) <= 1 || ((x + z) & 1) != pc.iparam) return;
+        const ivec3 t = ivec3(x, pc.tallY, z);
+        const uint i = cellIdx(t.x, t.y, t.z);
+        if (liq[i] == 0u) return;
+        const float gs = (rhs[i] + tallNb(t) / (pc.h * pc.h)) / diag[i];
+        p[i] = mix(p[i], gs, pc.param1);
+        return;
+    }
     ivec3 c;
     if (!threadSite(id, 3, c)) return;
     if (liq[id] == 0u) { if (pc.mode == 1) res[id] = 0.0; return; }
     const float invh2 = 1.0 / (pc.h * pc.h);
     float nbSum;
-    if (pc.bricked != 0) {
+    if (pc.tallY >= 0 && c.y == pc.tallY && tallH(c.x, c.z) > 1) {
+        // 27.22: a TALL cell (its row x H, wc_classify): the side neighbours weigh their open overlap, the top 1, the bottom (ground) 0
+        nbSum = tallNb(c);
+    } else if (pc.bricked != 0) {
         const uint local = id & ((64u << uint(pc.bly)) - 1u);
         const int lx = int(local & 7u), lz = int((local >> 3u) & 7u), ly = int(local >> 6u), top = (1 << pc.bly) - 1;
         nbSum = pnNear(c + ivec3(-1, 0, 0), lx > 0, -1, id) + pnNear(c + ivec3(1, 0, 0), lx < 7, 1, id)

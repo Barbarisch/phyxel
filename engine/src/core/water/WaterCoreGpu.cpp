@@ -17,11 +17,11 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_face_ops.comp.spv", "wc_face_ops.comp.spv", "wc_face_ops.comp.spv",
     "wc_column_ops.comp.spv", "wc_classify.comp.spv", "wc_rbgs.comp.spv",
     "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv", "wc_sources.comp.spv", "wc_surface.comp.spv",
-    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv"};
+    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv", "wc_tall.comp.spv"};
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9, 7};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9, 7, 6};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -139,6 +139,7 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     bindAll(*vol.pipes[Sources], {&vol.f, &vol.occ, &vol.src, &vol.sources, br});
     bindAll(*vol.pipes[Momentum], {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, br, &vol.momentum});   // 26.26
     bindAll(*vol.pipes[Bricks],  {&vol.f, &vol.u, &vol.v, &vol.w, &vol.p, br});
+    bindAll(*vol.pipes[Tall],    {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, br});   // 27.22
     if (vol.particles) {
         bindAll(*vol.pipes[FlipSort], {&vol.posA, &vol.velA, &vol.posB, &vol.velB, &vol.pcount, &vol.pstart, &vol.pcursor});
         // p2g gathers from the SORTED list (B); it writes f and ONE lattice per dispatch (rebound per lattice below)
@@ -478,7 +479,8 @@ std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<cha
     // 26.18: a brick wanted only for the halo (need 1) that is all ground at the last upload reads the GROUND sentinel; a brick
     // holding water, or that a pump or a deposit needs (need 2), is always stored for real
     const bool ground = vol.groundOn && vol.allSolid.size() == vol.mapCount;
-    auto wantGround = [&](size_t m) { return ground && need[m] == 1 && vol.allSolid[m]; };
+    const std::vector<char>* needRef = &need;   // 27.22: re-pointed at the expand's wants below
+    auto wantGround = [&](size_t m) { return ground && (*needRef)[m] == 1 && vol.allSolid[m]; };
     // §27 W1b: a RECORDED column's bricks are never stored - each reads the ground sentinel (a wall), whatever the halo asks
     const size_t ncol = static_cast<size_t>(vol.bn.x) * vol.bn.z;
     const bool anyRec = vol.anyRecorded && vol.colRecorded.size() == ncol;
@@ -487,14 +489,33 @@ std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<cha
         const size_t bx = m % static_cast<size_t>(vol.bn.x), bz = m / (static_cast<size_t>(vol.bn.x) * vol.bn.y);
         return vol.colRecorded[bx + static_cast<size_t>(vol.bn.x) * bz] != 0;
     };
+    // 27.22: with tall cells, every brick under the tall layer's brick reads the ground sentinel (its water is in the tall cells);
+    // while EXPANDING (tallPending 2) those bricks are wanted again - stored for real (water) or ground (all solid)
+    const int tallBrick = (vol.tallY >= 0) ? (vol.tallY + vol.o.y) / vol.by : -1;
+    auto underTall = [&](size_t m) { return vol.tallActive && vol.tallPending != 2 && tallBrick > 0 && static_cast<int>((m / static_cast<size_t>(vol.bn.x)) % vol.bn.y) < tallBrick; };
+    std::vector<char> needX;
+    const std::vector<char>* needP = &need;
+    if (vol.tallPending == 2 && tallBrick > 0) {
+        needX = need;
+        for (size_t m = 0; m < vol.mapCount; ++m)
+            if (static_cast<int>((m / static_cast<size_t>(vol.bn.x)) % vol.bn.y) < tallBrick) needX[m] = std::max<char>(needX[m], (ground && vol.allSolid[m]) ? 1 : 2);
+        needP = &needX;
+    }
+    const std::vector<char>& needT = *needP;
+    needRef = &needT;
     bool groundChanged = false;
     for (size_t m = 0; m < vol.mapCount; ++m) {
+        if (underTall(m)) {
+            if (vol.map[m] >= kFirstSlot) { vol.slotBrick[static_cast<size_t>(vol.map[m])] = -1; vol.map[m] = 0; ++freed; }
+            if (vol.map[m] != kGround) { vol.map[m] = kGround; groundChanged = true; }
+            continue;
+        }
         if (recorded(m)) {
             if (vol.map[m] >= kFirstSlot) { vol.slotBrick[static_cast<size_t>(vol.map[m])] = -1; vol.map[m] = 0; ++freed; }
             if (vol.map[m] != kGround) { vol.map[m] = kGround; groundChanged = true; }
             continue;
         }
-        if (vol.map[m] >= kFirstSlot && (!need[m] || wantGround(m))) { vol.slotBrick[static_cast<size_t>(vol.map[m])] = -1; vol.map[m] = 0; ++freed; }
+        if (vol.map[m] >= kFirstSlot && (!needT[m] || wantGround(m))) { vol.slotBrick[static_cast<size_t>(vol.map[m])] = -1; vol.map[m] = 0; ++freed; }
         else if (vol.map[m] == kGround && !wantGround(m)) { vol.map[m] = 0; groundChanged = true; }
         if (vol.map[m] == 0 && wantGround(m)) { vol.map[m] = kGround; groundChanged = true; }
     }
@@ -504,7 +525,7 @@ std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<cha
     size_t next = kFirstSlot;
     for (char pass : {char(2), char(1)}) {   // bricks holding water first, then the halo (a capacity refusal never strands water)
         for (size_t m = 0; m < vol.mapCount; ++m) {
-            if (need[m] != pass || vol.map[m] != 0 || recorded(m)) continue;
+            if (needT[m] != pass || vol.map[m] != 0 || recorded(m)) continue;
             while (next < vol.capacity && vol.slotBrick[next] >= 0) ++next;
             if (next >= vol.capacity) { ++held; continue; }   // 26.6 capacity: the brick stays absent, its faces closed (counted)
             const int bx = static_cast<int>(m % vol.bn.x), by = static_cast<int>((m / vol.bn.x) % vol.bn.y), bz = static_cast<int>(m / (static_cast<size_t>(vol.bn.x) * vol.bn.y));
@@ -573,7 +594,7 @@ void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& 
 // §27 W1b: a tile's cells read back - only the bricks of its columns cross (a whole-volume download sent 1.9 M cells for a 46 x 28 m
 // pond: 105 ms at a sleep, 27.8). The fills of stored bricks; ground and absent bricks hold none. Occupancy from the host copy.
 bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi, WaterGrid& out) {
-    if (!vol.bricked) return false;
+    if (!vol.bricked || vol.tallActive || vol.tallPending) return false;   // 27.22: not with tall cells (TC4)
     const auto tr0 = std::chrono::steady_clock::now();
     settle(vol);
     s_tileGpuMs.readSettle = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tr0).count();
@@ -1071,6 +1092,8 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     vkCmdFillBuffer(cmd, vol.p.buf, 0, vol.p.bytes, 0);   // 26.5: a replaced state starts its solve fresh (deterministic, as a new volume)
     vkCmdFillBuffer(cmd, vol.fLo.buf, 0, vol.fLo.bytes, 0);   // 26.10: the remainders belonged to the water that was there
     submitAndWait(cmd);
+    // 27.22: the grid is ordinary cells (the heights region was zeroed with the counters above): no tall cells until asked again
+    vol.tallActive = false; vol.tallPending = 0; vol.tallY = -1; vol.tallH.clear(); vol.tallColumns = 0;
 }
 
 void WaterCoreGpu::queueMomentum(Volume& vol, const glm::vec3& pos, float radius, const glm::vec3& momentum, float maxSpeed) {
@@ -1336,6 +1359,48 @@ void WaterCoreGpu::download(Volume& vol, WaterGrid& g) const {
             if (c.x < n.x && c.y < n.y && c.z <= n.z) g.w(c.x, c.y, c.z) = sw[i];
         }
     }
+    // 27.22: a tall cell is its column's water from its bed up - the host's dense grid gets it back as cells (the volume spread
+    // evenly, the side velocities down the open overlap, vertical velocity 0 inside): the CPU readers (write-back, census, the
+    // surface fallback) see ordinary water
+    if (vol.tallActive && vol.tallH.size() == vol.dColumns) {
+        const int T = vol.tallY;
+        for (int z = 0; z < n.z; ++z) for (int x = 0; x < n.x; ++x) {
+            const int Hc = vol.tallH[static_cast<size_t>(x) + static_cast<size_t>(n.x) * z];
+            if (Hc <= 1 || T < 0 || T >= n.y) continue;
+            const int ox = x > 0 ? std::min(Hc, vol.tallH[static_cast<size_t>(x - 1) + static_cast<size_t>(n.x) * z]) : 1;
+            const int oz = z > 0 ? std::min(Hc, vol.tallH[static_cast<size_t>(x) + static_cast<size_t>(n.x) * (z - 1)]) : 1;
+            const float share = g.f(x, T, z) / static_cast<float>(Hc), uT = g.u(x, T, z), wT = g.w(x, T, z);
+            for (int y = std::max(0, T - Hc + 1); y <= T; ++y) {
+                g.f(x, y, z) = share;
+                g.u(x, y, z) = y >= T - ox + 1 ? uT : 0.0f;
+                g.w(x, y, z) = y >= T - oz + 1 ? wT : 0.0f;
+                if (y < T) g.v(x, y + 1, z) = 0.0f;
+            }
+        }
+    }
+}
+
+// 27.22 TALL CELLS (docs/WaterCore.md 27.22)
+bool WaterCoreGpu::setTall(Volume& vol, int tallY, const std::vector<int>& heights, std::string* err) {
+    auto fail = [&](const std::string& m) { if (err) *err = m; return false; };
+    if (!vol.bricked || !vol.sparse || vol.particles) return fail("tall cells need a sparse bricked fill volume");
+    if (!vol.groundOn || vol.groundAsAir) return fail("tall cells need ground bricks (26.18): the cells under the tall layer read the ground sentinel");
+    if (vol.anyRecorded) return fail("tall cells and recorded tiles (W1b) are not combined yet (27.22 TC4)");
+    if (vol.tallActive || vol.tallPending) return fail("tall cells are active or pending - clear them first");
+    if (tallY < 1 || tallY >= vol.spec.dims.y || ((tallY + vol.o.y) % vol.by) != 0) return fail("the tall layer must be the bottom cell of a brick inside the box");
+    if (heights.size() != vol.dColumns) return fail("one height per column of the box");
+    settle(vol);
+    vol.tallY = tallY; vol.tallH = heights; vol.tallPending = 1;
+    vol.tallColumns = 0;
+    for (int hgt : heights) vol.tallColumns += hgt > 1 ? 1 : 0;
+    return true;
+}
+
+void WaterCoreGpu::clearTall(Volume& vol) {
+    if (!vol.tallActive && vol.tallPending != 1) return;
+    settle(vol);
+    if (vol.tallPending == 1) { vol.tallPending = 0; vol.tallY = -1; vol.tallH.clear(); vol.tallColumns = 0; return; }   // never collapsed
+    vol.tallPending = 2;
 }
 
 void WaterCoreGpu::readPressure(Volume& vol, std::vector<float>& p) const { readCells(vol, "p", p); }
@@ -1553,6 +1618,10 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     for (int s = 0; s < sweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
         push.mode = 0; push.iparam = colour; push.param1 = m_omega; dispatch(cmd, *vol.pipes[Rbgs], push, cells);
     }
+    if (push.tallY >= 0)   // 27.22: the tall layer converged on its own after the band's sweeps (cheap: one cell a column)
+        for (int s = 0; s < s_tallSweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
+            push.mode = 2; push.iparam = colour; push.param1 = m_omega; dispatch(cmd, *vol.pipes[Rbgs], push, cols);
+        }
     stamp(cmd, vol, TsSweeps);
     push.mode = 1; dispatch(cmd, *vol.pipes[Rbgs], push, cells);                                            // residual
     for (int L = 0; L < 3; ++L) { push.mode = 6 + L; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }   // velocity update (disjoint)
@@ -1724,6 +1793,17 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
                            if (vkCreateQueryPool(m_device, &qi, nullptr, &vol.tsPool) != VK_SUCCESS) vol.tsPool = VK_NULL_HANDLE; }
         if (vol.tsPool) { vkCmdResetQueryPool(cmd, vol.tsPool, 0, static_cast<uint32_t>(vol.tsLabel.size())); vol.tsCount = 0; stamp(cmd, vol, TsStart); }
     }
+    // 27.22: COLLAPSE - the heights to the device, the water under the tall layer gathered into it, while its bricks are still
+    // stored; the residency below then reads them as ground (tallActive)
+    if (vol.tallPending == 1 && vol.bricked) {
+        auto* hs = reinterpret_cast<int32_t*>(static_cast<char*>(vol.staging.mapped) + vol.offBricks) + vol.tallOff;
+        for (size_t c = 0; c < vol.dColumns; ++c) hs[c] = vol.tallH[c];
+        copy(cmd, vol.staging, vol.bricks, vol.dColumns * 4, vol.offBricks + vol.tallOff * 4, vol.tallOff * 4);
+        barrier(cmd);
+        WcPush tp = push; fillPushBricks(vol, tp); tp.tallY = vol.tallY; tp.tallOff = static_cast<int32_t>(vol.tallOff); tp.mode = 0; tp.setFrozenOn(0);
+        dispatch(cmd, *vol.pipes[Tall], tp, liveColumns(vol));
+        vol.tallActive = true; vol.tallPending = 0; ++vol.tallRegrids;
+    }
     if (vol.bricked && vol.sparse) {
         // 26.6 RESIDENCY - a pure function of the water: the bricks holding water and those within `reach` cells of it, reach =
         // the extrapolation's three layers + one (a face beside an absent cell) + the farthest this call can move water
@@ -1776,6 +1856,15 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         }
     } else if (vol.bricked) {
         vol.lastAllocated = 0; vol.lastFreed = 0; vol.lastHeld = 0; vol.lastRings = 0; vol.lastCompacted = 0;
+    }
+    // 27.22: EXPAND - the bricks under the floor are stored again (the residency above, tallPending 2); the tall cells spread into them
+    if (vol.tallPending == 2 && vol.bricked) {
+        WcPush tp = push; fillPushBricks(vol, tp); tp.tallY = vol.tallY; tp.tallOff = static_cast<int32_t>(vol.tallOff); tp.mode = 1; tp.setFrozenOn(0);
+        barrier(cmd);
+        dispatch(cmd, *vol.pipes[Tall], tp, liveColumns(vol));
+        vkCmdFillBuffer(cmd, vol.bricks.buf, vol.tallOff * 4, vol.dColumns * 4, 0);
+        barrier(cmd);
+        vol.tallActive = false; vol.tallPending = 0; vol.tallY = -1; vol.tallH.clear(); vol.tallColumns = 0; ++vol.tallRegrids;
     }
     stamp(cmd, vol, TsResidency);
     const auto tResidency = std::chrono::steady_clock::now();

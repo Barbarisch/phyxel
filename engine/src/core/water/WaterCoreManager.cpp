@@ -90,6 +90,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     m_avs.push_back(std::move(av));
     refreshBoxes();
     if (s_partialWakeDefault && raw->gpuVol && m_gpu && raw->gpuVol->sparse) m_gpu->setPartialWake(*raw->gpuVol, true);   // 26.31
+    raw->tallBand = s_tallBandDefault;   // 27.22
     raw->recordTiles = s_recordTilesDefault && raw->gpuVol && raw->gpuVol->sparse;   // §27 W1b
     return raw->id;
 }
@@ -115,7 +116,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.partialWake = av.gpuVol && av.gpuVol->partialWake; r.recordTiles = av.recordTiles; r.recordedM3 = av.recordedM3; r.recordedTiles = static_cast<int>(av.recordedTileList.size()); r.tilesRecorded = av.tilesRecorded; r.tilesWoken = av.tilesWoken; r.tilesWokenByWrite = av.tilesWokenByWrite; r.gpuWakeAll = av.gpuVol ? av.gpuVol->wakeAllCount : 0; r.recordSpreadMmMax = av.recordSpreadMmMax; r.recordJumpMmMax = av.recordJumpMmMax; r.lastRecordMs = av.lastRecordMs; r.lastWakeMs = av.lastWakeMs; r.seedUnplacedM3 = av.gpuVol ? av.gpuVol->seedUnplacedM3 : 0.0; r.awakeColumns = av.gpuLast.awakeColumns; r.frozenColumns = av.gpuLast.frozenColumns; r.movingColumns = av.gpuLast.movingColumns; r.stepSlots = av.gpuLast.stepSlots; r.partitionMoves = av.gpuLast.partitionMoves; r.carryBodyM3 = av.carryBodyM3; r.carryRateM3 = av.carryRateM3; r.carryFlowM3 = av.carryFlowM3; r.carryParkedM3 = av.carryParkedM3; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.partialWake = av.gpuVol && av.gpuVol->partialWake; r.tallBandM = av.tallBand; r.tallActive = av.gpuVol && av.gpuVol->tallActive; r.tallColumns = av.gpuVol ? av.gpuVol->tallColumns : 0; r.tallRegrids = av.gpuVol ? av.gpuVol->tallRegrids : 0; r.tallReason = av.tallReason; r.tallRestY = std::isnan(av.tallRestY) ? 0.0f : av.tallRestY; r.tallFloorY = (av.gpuVol && av.gpuVol->tallY >= 0) ? (static_cast<float>(av.grid->spec().origin.y + av.gpuVol->tallY) + 1.0f) * av.h : 0.0f; r.recordTiles = av.recordTiles; r.recordedM3 = av.recordedM3; r.recordedTiles = static_cast<int>(av.recordedTileList.size()); r.tilesRecorded = av.tilesRecorded; r.tilesWoken = av.tilesWoken; r.tilesWokenByWrite = av.tilesWokenByWrite; r.gpuWakeAll = av.gpuVol ? av.gpuVol->wakeAllCount : 0; r.recordSpreadMmMax = av.recordSpreadMmMax; r.recordJumpMmMax = av.recordJumpMmMax; r.lastRecordMs = av.lastRecordMs; r.lastWakeMs = av.lastWakeMs; r.seedUnplacedM3 = av.gpuVol ? av.gpuVol->seedUnplacedM3 : 0.0; r.awakeColumns = av.gpuLast.awakeColumns; r.frozenColumns = av.gpuLast.frozenColumns; r.movingColumns = av.gpuLast.movingColumns; r.stepSlots = av.gpuLast.stepSlots; r.partitionMoves = av.gpuLast.partitionMoves; r.carryBodyM3 = av.carryBodyM3; r.carryRateM3 = av.carryRateM3; r.carryFlowM3 = av.carryFlowM3; r.carryParkedM3 = av.carryParkedM3; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
     r.occFullRefreshes = av.occFullRefreshes; r.occLocalRefreshes = av.occLocalRefreshes; r.occCellsResampled = av.occCellsResampled;
     r.occCellsChanged = av.occCellsChanged; r.gpuPatchMs = av.gpuPatchMs; r.gpuPatches = av.gpuPatches;
     r.cells = av.grid->cellCount();
@@ -601,6 +602,78 @@ void WaterCoreManager::syncFromGpu(Av& av, bool rateLimited) {
     av.gpuStale = false; av.gpuLastDownloadSec = now;
 }
 
+bool WaterCoreManager::setTallBand(int id, float metres) {
+    for (auto& av : m_avs) {
+        if (av->id != id) continue;
+        av->tallBand = std::max(0.0f, metres);
+        if (av->tallBand <= 0.0f && av->gpuVol && m_gpu) { m_gpu->clearTall(*av->gpuVol); av->tallReason = "off"; }
+        av->tallRestY = std::numeric_limits<float>::quiet_NaN();
+        return true;
+    }
+    return false;
+}
+
+// 27.22 TALL CELLS - the floor (docs/WaterCore.md 27.22 items 1-2, 7-8). The floor is the water's REST level minus the band B, rounded
+// down to a brick: the rest level is taken from the surface while the volume sleeps (not from the volume's lowest surface - that
+// would depend on the volume's extent and on which tiles are awake). It moves only DOWN while the water moves - here, v1: a trough
+// within one brick of B above it, a source below it, a moving body, an edit under it or a column that is not open from its bed
+// return every tall cell to ordinary cells, and the volume stays all fine until it sleeps again (a new rest level).
+void WaterCoreManager::updateTall(Av& av) {
+    WaterCoreGpu::Volume& vol = *av.gpuVol;
+    auto off = [&](const char* why) { if (vol.tallActive || vol.tallPending) m_gpu->clearTall(vol); av.tallReason = why; };
+    if (av.tallBand <= 0.0f) { off("off"); return; }
+    if (!vol.bricked || !vol.sparse || vol.particles || av.solver->transport().ownsMass()) { off("not a sparse fill volume"); return; }
+    if (!EulerianTransport::s_allFacesAtOnce) { off("needs the all-faces transport (26.5)"); return; }
+    if (av.recordTiles || vol.anyRecorded) { off("record tiles (TC4)"); return; }
+    if (vol.hasSolids) { off("a moving body in the volume"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); return; }
+    const WaterSurfaceField& fld = av.field;
+    // the rest level: the median top of the wet columns, read while the volume sleeps (or before its first call)
+    auto wetTops = [&](std::vector<float>& tops) {
+        tops.clear();
+        if (fld.cols.size() != static_cast<size_t>(fld.nx) * fld.nz) return;
+        for (const SurfaceColumn& c : fld.cols) { const int runs = static_cast<int>(c.runs + 0.5f); if (runs >= 1) tops.push_back(c.top[std::min(runs, kSurfaceMaxRuns) - 1]); }
+    };
+    std::vector<float> tops;
+    if (std::isnan(av.tallRestY)) {
+        if (!(vol.asleep || av.gpuLast.asleep || av.stepCount == 0)) { av.tallReason = "waiting for rest"; return; }
+        wetTops(tops);
+        if (tops.empty()) { av.tallReason = "no water"; return; }
+        std::nth_element(tops.begin(), tops.begin() + tops.size() / 2, tops.end());
+        av.tallRestY = tops[tops.size() / 2];
+    }
+    const glm::ivec3 n = vol.spec.dims;
+    const float h = av.h;
+    const int oy = av.grid->spec().origin.y;
+    // the tall layer: the bottom cell of the brick whose bottom face lies at or below (rest - B) - the floor is that cell's top
+    const int cyFloor = static_cast<int>(std::floor((av.tallRestY - av.tallBand) / h)) - oy;   // the cell whose BOTTOM is at or under rest - B
+    const int T = ((cyFloor - 1 + vol.o.y) >= 0 ? (cyFloor - 1 + vol.o.y) / vol.by : -1) * vol.by - vol.o.y;   // a brick bottom at or under cyFloor - 1
+    if (T < 1 || T >= n.y) { off("the band reaches the bed"); return; }
+    const float floorTop = (static_cast<float>(oy + T) + 1.0f) * h;
+    // the trough rule: the lowest wet surface within one brick of B above the floor - all fine until the next rest
+    wetTops(tops);
+    const float minTop = tops.empty() ? av.tallRestY : *std::min_element(tops.begin(), tops.end());
+    if (vol.tallActive && minTop - floorTop < av.tallBand - static_cast<float>(vol.by) * h) { off("trough"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); return; }
+    // sources under the floor
+    for (int c : vol.sourceCells) if (c >= 0 && (c / n.x) % n.y <= T) { off("a source under the floor"); return; }
+    if (vol.tallActive || vol.tallPending == 1) { av.tallReason = "rest"; return; }   // the floor stands
+    // the heights: each column open (no solid) from its bed up to T; every non-solid cell under T must belong to one such run (a cave
+    // under a solid would be read as ground - refused)
+    std::vector<int> heights(vol.dColumns, 1);
+    const WaterGrid& g = *av.grid;
+    int tallCols = 0;
+    for (int z = 0; z < n.z; ++z) for (int x = 0; x < n.x; ++x) {
+        int y = T;
+        while (y >= 0 && g.occ(x, y, z) != Occ::Solid) --y;   // the open run down from T
+        const int Hc = T - y;                                   // cells y+1 .. T (0 when T itself is solid)
+        for (int yy = y - 1; yy >= 0; --yy) if (g.occ(x, yy, z) != Occ::Solid) { off("a cave under the floor"); return; }
+        if (Hc > 1) { heights[static_cast<size_t>(x) + static_cast<size_t>(n.x) * z] = Hc; ++tallCols; }
+    }
+    if (tallCols == 0) { av.tallReason = "no column reaches under the floor"; return; }
+    std::string err;
+    if (!m_gpu->setTall(vol, T, heights, &err)) { av.tallReason = err; return; }
+    av.tallReason = "rest";
+}
+
 void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     if (!av.gpuVol || !m_gpu) return;
     if (av.gpuDirty) {
@@ -619,6 +692,7 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     // sent). Run after the call it collected the call just submitted; live, a pushed pond then never settled (KE 2-7e-2 at 24 s,
     // the pressure solve's residual climbing to 14; this order: 4e-8 J, the whole pond back in the record by 41 s - 27.13).
     if (!s_recordAfterStepForTest) recordTilesStep(av, dt * static_cast<float>(ticks));   // seconds, not ticks (a realtime tick is a frame)
+    updateTall(av);   // 27.22: the floor and the heights for this call (after a pending upload: it resets the tall cells)
     m_gpu->setAsync(*av.gpuVol, m_realtime);   // 26.16: realtime frames never wait on the water's call (collected next frame)
     const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, av.gpuSweeps);
     av.gpuStale = true;

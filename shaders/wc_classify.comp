@@ -25,7 +25,7 @@ layout(std430, set = 0, binding = 10)         buffer Solid { vec4 solid[]; };   
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u || frozenCell(x, y, z); }   // 26.31: a frozen column is a wall
 bool isLiqCell(int x, int y, int z) {
     if (!inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u || frozenCell(x, y, z)) return false;
-    const float fv = f[cellIdx(x, y, z)], sv = solid[cellIdx(x, y, z)].x;
+    const float fv = f[cellIdx(x, y, z)] / cellVolume(x, y, z), sv = solid[cellIdx(x, y, z)].x;   // 27.22: a tall cell's fraction
     // 20.5: with a body, water + body past the threshold AND real water there (a body in air gets no row)
     return sv > 0.0 ? (fv + sv >= pc.thr && fv >= 0.001 / pc.h) : fv >= pc.thr;
 }
@@ -95,11 +95,14 @@ void main() {
     if (!liquid) { diag[id] = 0.0; rhs[id] = 0.0; return; }
     const ivec3 d[6] = ivec3[6](ivec3(-1,0,0), ivec3(1,0,0), ivec3(0,-1,0), ivec3(0,1,0), ivec3(0,0,-1), ivec3(0,0,1));
     float dsum = 0.0, ghostRhs = 0.0;   // ghostRhs: sum of p_ghost / theta over air faces (26.9), x 1/h^2 below
+    // 27.22: a TALL cell's row is its volume's divergence (the row x H): each side face weighs its open height in cells (the overlap
+    // with the neighbour's water below the floor), the top face 1, the bottom (ground) 0. Every weight is 1 for an ordinary cell.
     for (int k = 0; k < 6; ++k) {
         const ivec3 n = c + d[k];
         if (blocked(n.x, n.y, n.z) || bodyWall(n.x, n.y, n.z)) continue;   // Neumann (a body-full cell is a wall, 20.5)
-        if (isLiqCell(n.x, n.y, n.z)) dsum += 1.0;
-        else { const float th = wcThetaToAir(c.x, c.y, c.z, k); dsum += 1.0 / th; ghostRhs += wcSurfaceGhost(c.x, c.y, c.z, k) / th; }
+        const float wk = (k == 2 || k == 3) ? 1.0 : sideOverlap(c.x, c.y, c.z, n.x, n.z);
+        if (isLiqCell(n.x, n.y, n.z)) dsum += wk;
+        else { const float th = wcThetaToAir(c.x, c.y, c.z, k); dsum += wk / th; ghostRhs += wk * wcSurfaceGhost(c.x, c.y, c.z, k) / th; }
     }
     const float invh2 = 1.0 / (pc.h * pc.h);
     // a row with no open neighbour (walled in by rock and body cells) is decoupled: p = 0 (a zero diagonal
@@ -109,13 +112,16 @@ void main() {
     // 26.31: a face held by a frozen neighbour (its +x / +z face) keeps that column's last value - closed here, as the wall it is
     const float uHi = frozenCell(c.x + 1, c.y, c.z) ? 0.0 : u[uIdx(c.x + 1, c.y, c.z)];
     const float wHi = frozenCell(c.x, c.y, c.z + 1) ? 0.0 : w[wIdx(c.x, c.y, c.z + 1)];
-    const float div = (uHi - u[uIdx(c.x, c.y, c.z)] + v[vIdx(c.x, c.y + 1, c.z)] - v[vIdx(c.x, c.y, c.z)] + wHi - w[wIdx(c.x, c.y, c.z)]) / pc.h;
+    const float ax0 = sideOverlap(c.x, c.y, c.z, c.x - 1, c.z), ax1 = sideOverlap(c.x, c.y, c.z, c.x + 1, c.z);   // 27.22: 1 unless tall
+    const float az0 = sideOverlap(c.x, c.y, c.z, c.x, c.z - 1), az1 = sideOverlap(c.x, c.y, c.z, c.x, c.z + 1);
+    const float div = (ax1 * uHi - ax0 * u[uIdx(c.x, c.y, c.z)] + v[vIdx(c.x, c.y + 1, c.z)] - v[vIdx(c.x, c.y, c.z)] + az1 * wHi - az0 * w[wIdx(c.x, c.y, c.z)]) / pc.h;
     float r = -div / pc.dt + ghostRhs * invh2;   // 26.9: a Dirichlet ghost value moves to the right-hand side
     const float q = src[id];
     if (q != 0.0) r += (q / (pc.h * pc.h * pc.h)) / pc.dt;
     const vec4 sd = solid[id];
     if (sd.y > 0.0) r += (sd.y / (pc.h * pc.h * pc.h)) / pc.dt;   // 20.2: shed the water that no longer fits
-    const float fc = f[id] + sd.x;   // 20.5: a body's volume counts as filled
+    const bool tallRow = tallCell(c.x, c.y, c.z);   // 27.22: kept exactly full by the transport (wc_fill_advect mode 5): no fill rules
+    const float fc = tallRow ? 1.0 : f[id] + sd.x;   // 20.5: a body's volume counts as filled
     const float vfall = sqrt(2.0 * pc.gravity * pc.h);
     if (pc.param0 == 0.0) {
         if (fc < 1.0 && (blocked(c.x, c.y + 1, c.z) || bodyWall(c.x, c.y + 1, c.z))) {   // ceiling void (rock or a body-full cell) closes at the free-fall rate

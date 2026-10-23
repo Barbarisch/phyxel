@@ -218,6 +218,9 @@ public:
         bool tallActive = false;
         int tallY = -1;
         std::vector<int> tallH;        ///< host copy, dense columns (1 = an ordinary cell)
+        int tallPending = 0;           ///< 1 = collapse at the next call (tallY / tallH set), 2 = expand at the next call
+        long tallRegrids = 0;          ///< collapses + expands done
+        int tallColumns = 0;           ///< columns with H > 1 while active
         VkQueryPool callTs = VK_NULL_HANDLE;   ///< 26.15: two timestamps round every step call - the device's own time, live
         int tsCount = 0;                 ///< stamps written this call
         std::array<int, 64> tsLabel{};   ///< the stage each stamp closes
@@ -260,7 +263,7 @@ public:
         std::vector<GpuSource> hostSources;              ///< the sources' totals as the collected call left them (or as set)
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
-                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, KernelCount };
+                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, KernelCount };   // 27.22: + Tall (collapse / expand)
     static constexpr size_t kMaxMapEntries = 4u << 20;   ///< 26.6: brick-map cap (16 MB) - a larger box is refused (world scale is P5)
     static constexpr int kMaxSources = 64;
     static constexpr int kMaxMomentum = 256;   ///< 26.26: momentum records a call can take (more are counted as dropped)
@@ -340,6 +343,14 @@ public:
     /// (spec in world cells: origin = the columns' first cell, every y of the volume; occupancy from the host copy, Solid where
     /// unknown). Settles the call in flight. False when the volume is not bricked.
     bool readColumns(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi, WaterGrid& out);
+    /// 27.22 TALL CELLS: from the next call, the cell at grid y `tallY` of every column with heights[x + nx z] > 1 holds that column's
+    /// water from tallY - H + 1 up (gathered exactly), and the bricks under the tall layer's brick read the ground sentinel. `tallY`
+    /// must be the bottom cell of a brick ((tallY + o.y) % brick height == 0) and every column of height H open (no solid) from
+    /// tallY - H + 1 to tallY - the caller's rule (WaterCoreManager). Refused (false + err) on a dense, particle or record-tiled
+    /// volume, without ground bricks, or while tall cells are active (clear first).
+    bool setTall(Volume& vol, int tallY, const std::vector<int>& heights, std::string* err);
+    /// 27.22: every tall cell back to ordinary cells at the next call (exact; the bricks under the floor stored again).
+    void clearTall(Volume& vol);
     /// §27 W1b: the brick columns [bLo, bHi] are RECORDED from the next call (their bricks freed, read as ground - a wall).
     void setColumnsRecorded(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi);
     /// §27 W1b measurement: the ground sentinel's largest |f|, |u|, |v|, |w| (must stay 0 - every ground and recorded brick reads it).
@@ -358,6 +369,8 @@ public:
     /// flight (settle), the host work, and the blocking submission
     struct TileGpuMs { double seedSettle = 0, seedHost = 0, seedSubmit = 0, readSettle = 0, readSubmit = 0, readHost = 0; double seedPart[5]{}; };   // seedPart: flags+need, residency, fresh uploads, fills, tables
     static inline TileGpuMs s_tileGpuMs;
+    /// 27.22: red-black sweep pairs of the tall layer alone after the band's sweeps (one cell a column - cheap)
+    static inline int s_tallSweeps = 20;
     static inline double s_tsMs[TsLabelCount] = {};
     static inline long s_tsCalls = 0;
     void setOmega(float w) { m_omega = w; }
