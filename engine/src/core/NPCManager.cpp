@@ -385,6 +385,64 @@ void NPCManager::update(float deltaTime) {
             m_socialSystem.update(deltaHours, participants, m_relationships);
         }
     }
+
+    updateTorches(deltaTime);
+}
+
+TorchPolicy NPCManager::resolvedTorchPolicy(const Scene::NPCEntity& npc) const {
+    return NpcTorchPolicy::resolve(npc.torchState().policy, m_defaultTorch, npc.isHostile(),
+                                   !npc.getMonsterId().empty());
+}
+
+// Torches (NpcTorchPolicy): light or put out each NPC's torch from the SUN'S ELEVATION and a
+// world-state shelter scan. Only the carried item changes here; NpcHeldItems draws it and
+// registers its flame + light. A carried item other than the torch is never touched.
+void NPCManager::updateTorches(float deltaTime) {
+    if (m_dayNightCycle) {
+        const glm::vec3 toSun = -m_dayNightCycle->getSunDirection();
+        const float elev = glm::degrees(std::asin(glm::clamp(toSun.y, -1.0f, 1.0f)));
+        m_torchNight = NpcTorchPolicy::updateNight(m_torchNight, elev);
+    } else {
+        m_torchNight = false;   // no clock, no night
+    }
+    ChunkManager* cm = m_chunkManager;
+    const NpcTorchPolicy::MicroSampler solid = cm
+        ? NpcTorchPolicy::MicroSampler([cm](const glm::ivec3& m) { return cm->occupiedMicro(m); })
+        : NpcTorchPolicy::MicroSampler();
+    for (auto& [name, npc] : m_npcs) {
+        if (!npc) continue;
+        Core::NpcTorchState& ts = npc->torchState();
+        const TorchPolicy p = resolvedTorchPolicy(*npc);
+        // The shelter only matters when it can change the answer: "night" by night, "dark"
+        // always. Otherwise stop scanning and forget the latch, so the next scan is taken as-is
+        // (an NPC already inside at nightfall does not light up for the latch time).
+        const bool needShelter = (p == TorchPolicy::Dark) || (p == TorchPolicy::Night && m_torchNight);
+        if (needShelter) {
+            ts.scanTimer -= deltaTime;
+            if (!ts.known || ts.scanTimer <= 0.0f) {
+                const float since = NpcTorchPolicy::kScanInterval - ts.scanTimer;
+                ts.scanTimer = NpcTorchPolicy::kScanInterval;
+                const bool raw = NpcTorchPolicy::scanShelter(solid, npc->getPosition()).indoors();
+                NpcTorchPolicy::updateIndoors(ts, raw, since);
+            }
+        } else {
+            ts.known = false;
+            ts.pending = 0.0f;
+            ts.indoors = false;
+        }
+        const bool want = NpcTorchPolicy::wantsTorch(p, m_torchNight, ts.indoors);
+        // The policy only puts out a torch it lit: a torch a script or a game.json handed the
+        // NPC stays in its hand at noon, and anything else carried is never replaced.
+        const std::string& carried = npc->getCarriedItem();
+        if (ts.lit && carried != NpcTorchPolicy::kTorchItemId) ts.lit = false;   // taken away elsewhere
+        if (want && carried.empty()) {
+            npc->setCarriedItem(NpcTorchPolicy::kTorchItemId);
+            ts.lit = true;
+        } else if (!want && ts.lit) {
+            npc->setCarriedItem("");
+            ts.lit = false;
+        }
+    }
 }
 
 void NPCManager::buildNavGrid() {
@@ -519,9 +577,10 @@ void NPCManager::buildNavGrid() {
         m_navGraph->buildRegion(minXZ, maxXZ, NavAgentProfile{});
         const double ms = std::chrono::duration<double, std::milli>(
             std::chrono::high_resolution_clock::now() - t0).count();
-        LOG_INFO("NPCManager", "Built NavGraph ({} mode): {} columns, {} surfaces in {} ms",
+        LOG_INFO("NPCManager", "Built NavGraph ({} mode): {} columns, {} surfaces in {} ms on {} threads",
                  m_navGraph->microMode() ? "micro" : "cube",
-                 m_navGraph->columnCount(), m_navGraph->surfaceCount(), static_cast<int>(ms));
+                 m_navGraph->columnCount(), m_navGraph->surfaceCount(), static_cast<int>(ms),
+                 m_navGraph->lastBuildThreads());
     }
     m_pathService = std::make_unique<PathService>(m_navGraph.get());
     m_pathService->start();

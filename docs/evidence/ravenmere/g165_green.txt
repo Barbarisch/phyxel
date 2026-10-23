@@ -1,0 +1,187 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = GameDefinitionTest.*:DayNightCycleTest.*
+[==========] Running 65 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 29 tests from DayNightCycleTest
+[ RUN      ] DayNightCycleTest.DefaultState
+[       OK ] DayNightCycleTest.DefaultState (0 ms)
+[ RUN      ] DayNightCycleTest.SetTimeOfDay
+[       OK ] DayNightCycleTest.SetTimeOfDay (0 ms)
+[ RUN      ] DayNightCycleTest.SetTimeWraps
+[       OK ] DayNightCycleTest.SetTimeWraps (0 ms)
+[ RUN      ] DayNightCycleTest.UpdateAdvancesTime
+[       OK ] DayNightCycleTest.UpdateAdvancesTime (0 ms)
+[ RUN      ] DayNightCycleTest.UpdateWrapsAt24
+[       OK ] DayNightCycleTest.UpdateWrapsAt24 (0 ms)
+[ RUN      ] DayNightCycleTest.DisabledDoesNotAdvance
+[       OK ] DayNightCycleTest.DisabledDoesNotAdvance (0 ms)
+[ RUN      ] DayNightCycleTest.PausedDoesNotAdvance
+[       OK ] DayNightCycleTest.PausedDoesNotAdvance (0 ms)
+[ RUN      ] DayNightCycleTest.TimeScaleAffectsSpeed
+[       OK ] DayNightCycleTest.TimeScaleAffectsSpeed (0 ms)
+[ RUN      ] DayNightCycleTest.NoonHasBrightAmbient
+[       OK ] DayNightCycleTest.NoonHasBrightAmbient (0 ms)
+[ RUN      ] DayNightCycleTest.MidnightHasDimAmbient
+[       OK ] DayNightCycleTest.MidnightHasDimAmbient (0 ms)
+[ RUN      ] DayNightCycleTest.NoonSunPointsDown
+[       OK ] DayNightCycleTest.NoonSunPointsDown (0 ms)
+[ RUN      ] DayNightCycleTest.MidnightSunColorIsBlack
+[       OK ] DayNightCycleTest.MidnightSunColorIsBlack (0 ms)
+[ RUN      ] DayNightCycleTest.NoonSunColorIsBright
+[       OK ] DayNightCycleTest.NoonSunColorIsBright (0 ms)
+[ RUN      ] DayNightCycleTest.DayLengthMinimum
+[       OK ] DayNightCycleTest.DayLengthMinimum (0 ms)
+[ RUN      ] DayNightCycleTest.ToJsonAndBack
+[       OK ] DayNightCycleTest.ToJsonAndBack (0 ms)
+[ RUN      ] DayNightCycleTest.ToJsonContainsFields
+[       OK ] DayNightCycleTest.ToJsonContainsFields (0 ms)
+[ RUN      ] DayNightCycleTest.DawnHasWarmSunColor
+[       OK ] DayNightCycleTest.DawnHasWarmSunColor (0 ms)
+[ RUN      ] DayNightCycleTest.FullDayCycleMonotonic
+[       OK ] DayNightCycleTest.FullDayCycleMonotonic (0 ms)
+[ RUN      ] DayNightCycleTest.DefaultDayNumber
+[       OK ] DayNightCycleTest.DefaultDayNumber (0 ms)
+[ RUN      ] DayNightCycleTest.DayNumberIncrements
+[       OK ] DayNightCycleTest.DayNumberIncrements (0 ms)
+[ RUN      ] DayNightCycleTest.DayNumberMultipleWraps
+[       OK ] DayNightCycleTest.DayNumberMultipleWraps (0 ms)
+[ RUN      ] DayNightCycleTest.SetDayNumber
+[       OK ] DayNightCycleTest.SetDayNumber (0 ms)
+[ RUN      ] DayNightCycleTest.GetHourAndMinute
+[       OK ] DayNightCycleTest.GetHourAndMinute (0 ms)
+[ RUN      ] DayNightCycleTest.IsNight
+[       OK ] DayNightCycleTest.IsNight (0 ms)
+[ RUN      ] DayNightCycleTest.DayNumberSerializesRoundTrip
+[       OK ] DayNightCycleTest.DayNumberSerializesRoundTrip (0 ms)
+[ RUN      ] DayNightCycleTest.ApplySettingsEnablesTheCycleWithOnlyEnabledSet
+[       OK ] DayNightCycleTest.ApplySettingsEnablesTheCycleWithOnlyEnabledSet (0 ms)
+[ RUN      ] DayNightCycleTest.ApplySettingsSetsEveryAuthoredField
+[       OK ] DayNightCycleTest.ApplySettingsSetsEveryAuthoredField (0 ms)
+[ RUN      ] DayNightCycleTest.AnAppliedEnabledCycleActuallyAdvances
+[       OK ] DayNightCycleTest.AnAppliedEnabledCycleActuallyAdvances (0 ms)
+[ RUN      ] DayNightCycleTest.ApplySettingsRoundTripsThroughJson
+[       OK ] DayNightCycleTest.ApplySettingsRoundTripsThroughJson (0 ms)
+[----------] 29 tests from DayNightCycleTest (3 ms total)
+
+[----------] 36 tests from GameDefinitionTest
+[ RUN      ] GameDefinitionTest.ValidateEmptyDefinitionSucceeds
+[       OK ] GameDefinitionTest.ValidateEmptyDefinitionSucceeds (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateNonObjectFails
+[       OK ] GameDefinitionTest.ValidateNonObjectFails (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateWorldTypePerlin
+[       OK ] GameDefinitionTest.ValidateWorldTypePerlin (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateWorldTypeMountains
+[       OK ] GameDefinitionTest.ValidateWorldTypeMountains (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateWorldTypeInvalid
+[       OK ] GameDefinitionTest.ValidateWorldTypeInvalid (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateWorldNotObject
+[       OK ] GameDefinitionTest.ValidateWorldNotObject (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateNPCsMissingName
+[       OK ] GameDefinitionTest.ValidateNPCsMissingName (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateNPCsWithName
+[       OK ] GameDefinitionTest.ValidateNPCsWithName (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateNPCsNotArray
+[       OK ] GameDefinitionTest.ValidateNPCsNotArray (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateStructuresInvalidType
+[       OK ] GameDefinitionTest.ValidateStructuresInvalidType (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateStructuresFill
+[       OK ] GameDefinitionTest.ValidateStructuresFill (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateStructuresTemplate
+[       OK ] GameDefinitionTest.ValidateStructuresTemplate (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateStructuresMissingType
+[       OK ] GameDefinitionTest.ValidateStructuresMissingType (0 ms)
+[ RUN      ] GameDefinitionTest.ValidatePlayerNotObject
+[       OK ] GameDefinitionTest.ValidatePlayerNotObject (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateAllWorldTypes
+[       OK ] GameDefinitionTest.ValidateAllWorldTypes (0 ms)
+[ RUN      ] GameDefinitionTest.ResultToJsonSuccess
+[       OK ] GameDefinitionTest.ResultToJsonSuccess (0 ms)
+[ RUN      ] GameDefinitionTest.ResultToJsonFailure
+[       OK ] GameDefinitionTest.ResultToJsonFailure (0 ms)
+[ RUN      ] GameDefinitionTest.ResultDefaultValues
+[       OK ] GameDefinitionTest.ResultDefaultValues (0 ms)
+[ RUN      ] GameDefinitionTest.LoadEmptyDefinitionWithNullSubsystems
+[32m[14:36:02.580] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:36:02.581] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] GameDefinitionTest.LoadEmptyDefinitionWithNullSubsystems (0 ms)
+[ RUN      ] GameDefinitionTest.LoadWorldWithoutChunkManagerFails
+[32m[14:36:02.581] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[       OK ] GameDefinitionTest.LoadWorldWithoutChunkManagerFails (0 ms)
+[ RUN      ] GameDefinitionTest.LoadNPCsWithoutNPCManagerFails
+[32m[14:36:02.581] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[       OK ] GameDefinitionTest.LoadNPCsWithoutNPCManagerFails (0 ms)
+[ RUN      ] GameDefinitionTest.LoadPlayerWithoutSpawnerSkips
+[32m[14:36:02.581] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[33m[14:36:02.581] [WARN] [GameDefinitionLoader] Skipping player: no entity spawner configured[0m
+[32m[14:36:02.581] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] GameDefinitionTest.LoadPlayerWithoutSpawnerSkips (0 ms)
+[ RUN      ] GameDefinitionTest.LoadCameraWithoutCameraSkips
+[32m[14:36:02.581] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[33m[14:36:02.581] [WARN] [GameDefinitionLoader] Skipping camera: Camera not available[0m
+[32m[14:36:02.581] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] GameDefinitionTest.LoadCameraWithoutCameraSkips (0 ms)
+[ RUN      ] GameDefinitionTest.LoadInvalidDefinitionRejected
+[       OK ] GameDefinitionTest.LoadInvalidDefinitionRejected (0 ms)
+[ RUN      ] GameDefinitionTest.ExportWithNullSubsystems
+[       OK ] GameDefinitionTest.ExportWithNullSubsystems (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateCompleteDefinition
+[       OK ] GameDefinitionTest.ValidateCompleteDefinition (0 ms)
+[ RUN      ] GameDefinitionTest.LoadCameraMode
+[32m[14:36:02.582] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:36:02.582] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[32m[14:36:02.582] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[33m[14:36:02.582] [WARN] [GameDefinitionLoader] Unknown camera mode 'cinematic' (expected first_person/third_person/free/overhead/isometric)[0m
+[32m[14:36:02.582] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[32m[14:36:02.582] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:36:02.582] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] GameDefinitionTest.LoadCameraMode (0 ms)
+[ RUN      ] GameDefinitionTest.InlineWorldBlockLoadsSavedChunksInsteadOfRegenerating
+[32m[14:36:02.583] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\gamedef_regen_guard.db[0m
+[32m[14:36:02.589] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[14:36:02.589] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\gamedef_regen_guard.db[0m
+[32m[14:36:02.589] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:36:02.593] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:36:02.596] [INFO] [GameDefinitionLoader] World: synthesized + persisted generation recipe to world.db[0m
+[32m[14:36:02.596] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[14:36:02.834] [INFO] [GameDefinitionLoader] World: generated 2 chunks (Flat, seed=3)[0m
+[32m[14:36:02.834] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=2, structures=0, locations=0, npcs=0)[0m
+[32m[14:36:02.841] [INFO] [ChunkStreaming] Saved 2 chunks to storage[0m
+[32m[14:36:02.844] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[14:36:02.844] [INFO] [ChunkStreaming] World storage disconnected[0m
+[32m[14:36:02.845] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\AppData\Local\Temp\gamedef_regen_guard.db[0m
+[32m[14:36:02.846] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[14:36:02.846] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\AppData\Local\Temp\gamedef_regen_guard.db[0m
+[32m[14:36:02.847] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:36:02.850] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:36:02.854] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[14:36:02.854] [INFO] [GameDefinitionLoader] World: applied generation recipe from world.db[0m
+[33m[14:36:02.854] [WARN] [GameDefinitionLoader] World: 2 of 2 chunks are already saved in the world DB - the inline world block is IGNORED (the DB is the source of truth; set world.regenerate=true to overwrite it deliberately)[0m
+[32m[14:36:02.931] [INFO] [GameDefinitionLoader] World: loaded 2 saved chunks of the region from the DB (faces + physics built)[0m
+[32m[14:36:02.931] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[32m[14:36:02.932] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[       OK ] GameDefinitionTest.InlineWorldBlockLoadsSavedChunksInsteadOfRegenerating (350 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightRejectsAnHourThatIsNotOnTheClock
+[       OK ] GameDefinitionTest.ValidateDayNightRejectsAnHourThatIsNotOnTheClock (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightRejectsAZeroLengthDay
+[       OK ] GameDefinitionTest.ValidateDayNightRejectsAZeroLengthDay (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightRejectsANonObject
+[       OK ] GameDefinitionTest.ValidateDayNightRejectsANonObject (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightAcceptsAWellFormedBlock
+[       OK ] GameDefinitionTest.ValidateDayNightAcceptsAWellFormedBlock (0 ms)
+[ RUN      ] GameDefinitionTest.LoadParsesTheDayNightBlockIntoTheResult
+[32m[14:36:02.932] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:36:02.932] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] GameDefinitionTest.LoadParsesTheDayNightBlockIntoTheResult (0 ms)
+[ RUN      ] GameDefinitionTest.LoadWithoutADayNightBlockLeavesItUnloaded
+[32m[14:36:02.932] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:36:02.932] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] GameDefinitionTest.LoadWithoutADayNightBlockLeavesItUnloaded (0 ms)
+[ RUN      ] GameDefinitionTest.LoadRefusesAnInvalidDayNightBlockInsteadOfClampingIt
+[       OK ] GameDefinitionTest.LoadRefusesAnInvalidDayNightBlockInsteadOfClampingIt (0 ms)
+[ RUN      ] GameDefinitionTest.ParseDayNightReadsTheTopLevelOfAMultiSceneDocument
+[       OK ] GameDefinitionTest.ParseDayNightReadsTheTopLevelOfAMultiSceneDocument (0 ms)
+[----------] 36 tests from GameDefinitionTest (353 ms total)
+
+[----------] Global test environment tear-down
+[==========] 65 tests from 2 test suites ran. (357 ms total)
+[  PASSED  ] 65 tests.

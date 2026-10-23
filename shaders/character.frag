@@ -75,6 +75,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 struct PointLightGPU {
     vec4 positionAndRadius;     // xyz = position, w = radius
     vec4 colorAndIntensity;     // xyz = color, w = intensity
+    vec4 extentAndPad;          // x = emitter half-extent (G-157), yzw = padding
 };
 
 // Spot light (64 bytes, std430)
@@ -190,7 +191,8 @@ void main() {
             // safe to use as the ray-origin offset.
             if (ndotl > 0.0 &&
                 phxLightVisibility(fragWorldPos + ubo.cameraWorld, normal,
-                                   lightPos + ubo.cameraWorld, ubo.occupancyBox) > 0.0) {
+                                   lightPos + ubo.cameraWorld,
+                                   lights.pointLights[i].extentAndPad.x, ubo.occupancyBox) > 0.0) {
                 float atten = calcAttenuation(dist, radius);
                 vec3 h = normalize(ldir + viewDir);
                 float pSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
@@ -222,7 +224,8 @@ void main() {
             // is already zero and a march would be pure cost.
             if (ndotl > 0.0 && spotFactor > 0.0 &&
                 phxLightVisibility(fragWorldPos + ubo.cameraWorld, normal,
-                                   lightPos + ubo.cameraWorld, ubo.occupancyBox) > 0.0) {
+                                   lightPos + ubo.cameraWorld,
+                                   lights.spotLights[i].outerConeAndPadding.y, ubo.occupancyBox) > 0.0) {
                 float atten = calcAttenuation(dist, radius);
                 vec3 h = normalize(ldir + viewDir);
                 float sSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;

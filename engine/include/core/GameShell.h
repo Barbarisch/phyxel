@@ -16,6 +16,8 @@ namespace Core {
 
 class EngineRuntime;
 class NPCManager;
+class NpcHeldItems;
+class ItemEffectSystem;
 class TriggerSystem;
 class EntityRegistry;
 class CombatDirector;
@@ -23,7 +25,10 @@ class CombatAISystem;
 class CombatSystem;
 class PlayerTurnController;
 class ClickToMove;
-class CharacterSheet;
+struct CharacterSheet;   // a STRUCT (CharacterSheet.h) - MSVC mangles the key
+class Party;
+class ObjectiveTracker;
+class InteractionManager;
 class Inventory;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
@@ -89,6 +94,42 @@ protected:
     // subsystems to the API by overriding the api* hooks below (default null →
     // that endpoint reports "not available"). Call the three lifecycle methods
     // from onInitialize / onUpdate / onShutdown respectively.
+    /// Publish the player's XP/level into the HUD data context, so `default_hud.json`'s XP bar
+    /// has something to bind to (G-172). Call once during setup, AFTER apiPlayerSheet() and
+    /// apiRenderCoordinator() can answer.
+    ///
+    /// This lives in the shell rather than in each game because the gap it closes is exactly
+    /// that: the engine has CharacterProgression and the shipped games never reached it, so
+    /// kills and quests awarded XP that no player could see. Publishing here means a game gets
+    /// an XP bar by existing, not by remembering to wire one. Providers read the sheet live, so
+    /// there is nothing to keep in sync - the bar cannot go stale.
+    ///
+    /// No-ops (quietly) when the game has no sheet or no render coordinator.
+    void publishProgressionHud();
+
+    /// Publish the party roster into the HUD data context as a `party` list, so
+    /// `default_hud.json`'s party panel can show who is travelling with the player (G-161).
+    /// Call once during setup, beside publishProgressionHud().
+    ///
+    /// Same gap as the XP bar: the engine has Core::Party, a `join_party` dialogue action
+    /// recruits into it, and the shipped HUD said nothing - so a successful recruit looked
+    /// exactly like a failed one. Rows read the party live, and health comes from the entity
+    /// registry, so a member in another scene is reported as Away rather than dead.
+    ///
+    /// No-ops (quietly) when the game has no party or no render coordinator.
+    void publishPartyHud();
+
+    /// Publish the quest journal as a `journal` list plus `journal.visible` (G-168). The
+    /// objectives STRIP shows active titles only; the journal shows main/side/completed with
+    /// each objective's description. Call once during setup, beside the other publishers.
+    void publishJournalHud();
+    /// Toggle the journal window on the `ToggleJournal` action's rising edge (L by default).
+    /// Call once per frame from onUpdate while gameplay input is live. Engine-side so the
+    /// binding, the edge detection and the visibility flag cannot drift between games.
+    void updateJournalToggle(Input::InputManager& input);
+    bool journalOpen() const { return journalOpen_; }
+    void setJournalOpen(bool open) { journalOpen_ = open; }
+
     void startTestApi(EngineRuntime& engine, int port, const std::string& name);
     void pumpTestApi();     // drain queued commands — call once per frame in onUpdate
     void stopTestApi();
@@ -111,8 +152,13 @@ protected:
     /// The host's left click at viewport pixels (pointer_click). Default: not available.
     virtual nlohmann::json        apiPointerClick(float, float, const std::string&) { return nlohmann::json{{"error", "no pointer click handler"}}; }
     virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
+    virtual Party*                apiParty()          { return nullptr; }  // companions (G-161)
+    virtual ObjectiveTracker*     apiObjectiveTracker() { return nullptr; } // journal (G-168)
     virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
     virtual UI::DialogueSystem*   apiDialogueSystem() { return nullptr; }  // dialogue_state (G-47)
+    virtual InteractionManager*   apiInteractionManager() { return nullptr; }  // start_dialogue (G-182)
+    virtual NpcHeldItems*         apiNpcHeldItems()   { return nullptr; }  // torches (T-73)
+    virtual ItemEffectSystem*     apiItemEffects()    { return nullptr; }  // torches: flame lights
     /// Doors/held items for the debris API's coherent-collapse path (optional).
     virtual Core::KinematicVoxelManager* apiKinematicVoxelManager() { return nullptr; }
 
@@ -127,6 +173,8 @@ protected:
     DebrisRuntime& debris() { return debris_; }
 
 private:
+    bool journalOpen_ = false;        // G-168 quest journal window
+    bool journalKeyDown_ = false;     // for rising-edge detection
     GameplayCameraController cameraController_;
     std::string cameraResolvedScene_;
     bool cameraResolved_ = false;

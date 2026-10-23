@@ -244,18 +244,27 @@ struct LightVisibility {
 /// that is wrong inside a shader produces an image nobody can attribute, whereas a march that is
 /// wrong here fails a test and can be queried point-by-point over HTTP.
 /// All positions are ABSOLUTE world units.
+/// `emitterExtent` is the half-extent of the emitter's own body in world units (see
+/// PointLight::extent). It bounds how much solid the march may exclude around the light, which is
+/// what stops a flush-mounted sconce from excluding the wall it is mounted on (G-157). The default
+/// is half a cube's diagonal: the largest single emissive voxel there is.
 LightVisibility packedPoolLightVisibility(const PackedOccupancyPool& packed,
                                           const glm::vec3& surfaceWorld,
                                           const glm::vec3& geomNormal,
                                           const glm::vec3& lightWorld,
+                                          float emitterExtent = 0.866f,
                                           int maxSteps = 192);
 
 /// L3a: the shader's phxLightVisibility since 2026-09-25 -- the same start, emitter run and target as
 /// packedPoolLightVisibility (which stays the micro-march REFERENCE the lighting tests assert against),
 /// walked two-level (packedPoolSegmentBlocked). True = the light reaches the surface.
 /// OccupancyTraversalTest.LightVisibilityTwoLevelEqualsTheMicroMarch pins the two equal.
+/// `emitterExtent` as in packedPoolLightVisibility (G-157): it bounds the emitter run, and the cell
+/// containing the target IS tested (packedPoolSegmentBlocked alone skips it, like the micro march
+/// its other callers want) - the target cell is the first thing beyond the emitter.
 bool packedPoolLightVisibleTwoLevel(const PackedOccupancyPool& packed, const glm::vec3& surfaceWorld,
-                                    const glm::vec3& geomNormal, const glm::vec3& lightWorld);
+                                    const glm::vec3& geomNormal, const glm::vec3& lightWorld,
+                                    float emitterExtent = 0.866f);
 
 /// M3 — SKY VISIBILITY. What fraction of the sky hemisphere above a surface is unoccluded,
 /// cosine-weighted. This replaces the deleted per-cell skylight flood: instead of a number stored

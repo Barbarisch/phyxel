@@ -22,6 +22,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 import textwrap
 from pathlib import Path
@@ -167,6 +168,7 @@ def create_project(
     extra_members.append("    glm::uvec2 lastUiWindow_{0u, 0u};    // last window size the HUD was placed for (G-132)")
     extra_members.append("    Phyxel::Core::Currency wallet_;         // the player's money (never an inventory item)")
     extra_members.append("    Phyxel::Core::ClickToMove clickToMove_;  // click the ground -> walk the NavGraph route (G-75)")
+    extra_members.append("    std::thread animWarmThread_;             // parses the game's .anim rigs into AnimationSystem's cache during the intro (G-181)")
     extra_members.append("    bool walkLmbHeld_ = false;              // edge guard for out-of-combat clicks")
     extra_members.append("    bool pointerMode_ = false;              // turn-based ruleset: free cursor, LMB is a pointer click")
     extra_members.append("    Phyxel::Core::ClickToMove::Result lastWalkResult_ = Phyxel::Core::ClickToMove::Result::Idle;")
@@ -260,8 +262,8 @@ def create_project(
     extra_members.append("    std::unique_ptr<Phyxel::ObjectTemplateManager> weaponTemplates_;  // loads the weapon .voxel models on demand")
     extra_members.append("    std::unique_ptr<Phyxel::ObjectTemplateManager> templates_;        // the whole template library (game.json templates, transition markers)")
     extra_members.append("    std::unique_ptr<Phyxel::Core::PlacedObjectManager> placedObjects_;  // placed-object registry the loader places into")
-    extra_members.append("    struct HeldWeapon { std::string kinId; int anchorId = -1; std::string itemId; };")
-    extra_members.append("    std::unordered_map<std::string, HeldWeapon> npcHeld_;  // entityId -> attached weapon")
+    extra_members.append("    std::unique_ptr<Phyxel::Core::ItemEffectSystem> itemEffects_;  // item flames/lights (a torch in a hand) - the editor has had this since items P2")
+    extra_members.append("    std::unique_ptr<Phyxel::Core::NpcHeldItems> npcHeldItems_;     // what each NPC holds: weapon, else a carried torch (engine class shared with the editor)")
     extra_includes.append('#include "ai/ActionSystem.h"')
     extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::SpellcasterComponent> npcCasters_;  // game.json "casters": enemy/companion spell lists for CombatAI')
@@ -287,6 +289,15 @@ def create_project(
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
     extra_members.append("    float loadingHold_ = -1.0f;         // >= 0: loading screen held after the load until the world settles (G-115)")
+    extra_members.append("    static constexpr float kSettleRadius = 64.0f;   // the settle hold waits for dirty chunks within this of the player (G-181)")
+    extra_members.append("    uint64_t holdDrains0_ = 0, holdProcessed0_ = 0;  // dirty-tracker counters when the settle hold began (diagnostic)")
+    extra_members.append("    static constexpr double kHoldMeshBudgetMs = 40.0;  // mesh budget per frame while the loading screen is up (G-181)")
+    extra_members.append("    nlohmann::json introCard_;             // game.json \"intro\" {title, text[], button}: the story card before the first scene (G-116)")
+    extra_members.append("    nlohmann::json narrative_;             // the card currently shown (ScreenState::Narrative)")
+    extra_members.append("    std::string pendingRunScene_;          // the world scene the card is gating")
+    extra_members.append("    bool introShownThisRun_ = false;       // the intro shows once per run (New Game resets it)")
+    extra_members.append("    bool narrativeKeyHeld_ = false;        // edge guard for Enter / Space on the card")
+    extra_members.append("    bool narrativePageHeld_ = false;       // edge guard for PageUp / PageDown on the card")
 
     # Menu-scene support: a JSON-driven menu renderer for sceneType:"menu" scenes.
     # When the loaded game uses menu scenes, the SceneManager drives the flow and
@@ -294,7 +305,9 @@ def create_project(
     # double up on top of it (see docs/GameCreationGuide.md, "Menus").
     extra_includes.append('#include "ui/GameMenuRenderer.h"')
     # Data-driven UISystem HUD + menus (custom-Vulkan, no ImGui) — see docs/HudSystem.md.
-    extra_includes.append('#include "ui/MenuDefinition.h"')   # loadHudInto / loadMenuInto / MenuActions
+    extra_includes.append('#include "ui/MenuDefinition.h"')
+    extra_includes.append('#include "core/NpcHeldItems.h"')
+    extra_includes.append('#include "core/ItemEffectSystem.h"')   # loadHudInto / loadMenuInto / MenuActions
     extra_includes.append('#include "ui/UISystem.h"')
     extra_includes.append('#include "ui/HudDataContext.h"')
     extra_includes.append('#include "graphics/RaycastVisualizer.h"')   # target rings (CombatUiBg3 increment 3)
@@ -310,6 +323,8 @@ def create_project(
     extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
     extra_members.append("    std::string activeDataScreen_;  // which data-driven overlay is loaded: pause/intro/victory/credits (replaces ImGui ScreenState screens)")
     extra_members.append("    bool escPrev_ = false;  // ESC edge-trigger (held isKeyPressed would toggle pause every frame)")
+    extra_members.append("    uint32_t escCaptureEndsSeen_ = 0;        // G-179: UISystem::keyCaptureEndCount() last frame")
+    extra_members.append("    bool     escCaptureEndedThisFrame_ = false;")
     extra_members.append("    float lastDt_ = 0.0f;           // last frame dt, for menu animations in onRender")
     extra_members.append("    bool authoredCameraMode_ = false;  // game.json camera block carries an explicit \"mode\"")
 
@@ -361,6 +376,7 @@ def create_project(
         '#include "scene/Entity.h"',
         *sorted(set(extra_includes)),
         "#include <memory>",
+        "#include <thread>",
         "#include <vector>",
         "#include <unordered_map>",
         "",
@@ -375,6 +391,9 @@ def create_project(
         f"    void onRender(Phyxel::Core::EngineRuntime& engine) override;",
         f"    void onHandleInput(Phyxel::Core::EngineRuntime& engine) override;",
         f"    void onShutdown() override;",
+        f"    void endSettleHold();   // ends the loading-screen settle hold on every exit path (G-181)",
+        f"    void beginRun(const std::string& worldScene);   // New Game: the intro card first, then the scene (G-116)",
+        f"    void continueNarrative();                        // the card's acknowledgement (button / Enter / Space)",
         "",
         "    // Expose this game's subsystems to the opt-in standalone test API",
         "    // (GameShell::startTestApi, dev/test only). Null hooks stay 'not available'.",
@@ -389,8 +408,12 @@ def create_project(
         "    Phyxel::Core::PlayerTurnController* apiPlayerTurn() override     { return &playerTurn_; }",
         "    Phyxel::Core::ClickToMove*          apiClickToMove() override    { return &clickToMove_; }",
         "    Phyxel::Core::CharacterSheet*       apiPlayerSheet() override    { return &playerSheet_; }",
+        "    Phyxel::Core::ObjectiveTracker*     apiObjectiveTracker() override { return &objectiveTracker_; }",
         "    Phyxel::Core::Inventory*            apiInventory() override      { return &inventory_; }",
         "    Phyxel::UI::DialogueSystem*         apiDialogueSystem() override { return dialogueSystem_.get(); }",
+        "    Phyxel::Core::InteractionManager*   apiInteractionManager() override { return interactionManager_.get(); }",
+        "    Phyxel::Core::NpcHeldItems*         apiNpcHeldItems() override { return npcHeldItems_.get(); }",
+        "    Phyxel::Core::ItemEffectSystem*     apiItemEffects() override { return itemEffects_.get(); }",
         *([
             "    Phyxel::Core::EntityRegistry* apiEntityRegistry() override { return entityRegistry_.get(); }",
             "    Phyxel::Core::NPCManager* apiNPCManager() override { return npcManager_.get(); }",
@@ -410,8 +433,6 @@ def create_project(
         f"    void setArmedSpell(const std::string& id);  // spellbar arm/disarm + button highlight",
         f"    void registerBehaviorActions();  // this game's BT action verbs (BTActionRegistry)",
         f"    void installDoctrine();          // how this game's officers decide",
-        f"    void equipNpcWeapons();          // attach game.json \"weapon\" models to grip bones",
-        f"    void updateHeldWeapons();        // follow the grip bone each frame",
         f"    void updateCommand(float dt);    // per-frame squad situation + orders",
         f"    void refreshSpellbar();  // repaint labels/slot counts/enabled state from live caster state",
         f"    bool fireActionSlot(int slot);   // G-150: what a bar click or keybind 1-9,0,-,= does",
@@ -497,6 +518,12 @@ def create_project(
     # Copy game.json if provided
     if game_definition:
         game_json_path = output_dir / "game.json"
+        # G-165: a shipped game gets a running day/night cycle unless its definition says
+        # otherwise. 1200 s (20 real minutes) per day is the Minecraft convention, the most
+        # widely known voxel-game day length; timeOfDay 9 starts play in the morning. Both are
+        # tunables, not measurements.
+        game_definition.setdefault("dayNight", {"enabled": True, "timeOfDay": 9.0,
+                                                "dayLengthSeconds": 1200})
         game_json_path.write_text(json.dumps(game_definition, indent=2), encoding="utf-8")
 
     # Create placeholder directories
@@ -578,7 +605,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
     """Generate the game implementation C++ file."""
     # Tagline for the intro/credits screens: the game definition's description,
     # escaped for use inside a C++ string literal.
-    game_tagline = ((game_def or {}).get("description", "") or "A Phyxel game")
+    # {{tagline}} on the intro / credits screens (G-184): game.json "tagline", else the FIRST
+    # SENTENCE of the description, capped at 110 chars - the screens give it two 900 px lines
+    # (16 px/char). Ravenmere's 242-char description drew six lines over the Continue button.
+    _gd = game_def or {}
+    game_tagline = str(_gd.get("tagline", "") or "").strip()
+    if not game_tagline:
+        _desc = str(_gd.get("description", "") or "A Phyxel game").strip()
+        _m = re.match(r"(.+?[.!?])(\s|$)", _desc)
+        game_tagline = _m.group(1) if _m else _desc
+    if len(game_tagline) > 110:
+        game_tagline = game_tagline[:107].rsplit(" ", 1)[0] + "..."
     game_tagline = game_tagline.replace("\\", "\\\\").replace('"', '\\"')
 
     # ── Data-driven HUD wiring (UISystem, no ImGui) ─────────────────────
@@ -622,6 +659,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // (resources/ui/default_hud.json). See docs/HudSystem.md.
             renderCoordinator_->initUISystem();
             {
+                // G-172: XP bar + level readout, published by the ENGINE shell so every game
+                // gets one. Kills and objectives already awarded XP through
+                // CharacterProgression; nothing showed it, so to a player it looked like no
+                // XP existed at all.
+                publishProgressionHud();
+                publishPartyHud();   // G-161: who is travelling with you
+                publishJournalHud(); // G-168: the quest journal window (L)
                 auto& hud = renderCoordinator_->hudData();
                 hud.setText("player.goldText", [this]() {{ return wallet_.gold > 0 || wallet_.silver > 0 || wallet_.copper > 0 ? wallet_.toString() : std::string("0 gp"); }});
                 // Compass (G-117): heading from the camera (0 = north = +z, 90 = east = +x); the
@@ -1000,6 +1044,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include <fstream>
         #include <filesystem>
         #include <algorithm>
+        #include <functional>
+        #include "graphics/AnimationSystem.h"   // prewarm (G-181)
         #include <cctype>
         #include <optional>
         #include <variant>
@@ -1249,6 +1295,30 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // was quietly false.
             if (kinematicVoxelManager_)
                 renderCoordinator_->setKinematicVoxelManager(kinematicVoxelManager_.get());
+            // Item effects (a torch's flame + light) and what NPCs hold - the same engine code
+            // the editor runs. The shipped game had neither: NPC held items were a load-once,
+            // combat-weapon-only copy with no effects, so no torch could burn in a hand.
+            itemEffects_ = std::make_unique<Phyxel::Core::ItemEffectSystem>();
+            renderCoordinator_->wireItemEffects(*itemEffects_);
+            if (kinematicVoxelManager_ && weaponTemplates_) {{
+                Phyxel::ObjectTemplateManager* tm = weaponTemplates_.get();
+                npcHeldItems_ = std::make_unique<Phyxel::Core::NpcHeldItems>(
+                    kinematicVoxelManager_.get(),
+                    [tm](const Phyxel::Core::ItemDefinition& d) -> const Phyxel::VoxelTemplate* {{
+                        if (const auto* t = tm->getTemplate(d.id)) return t;
+                        // items.json stores templateFile relative to resources/templates.
+                        if (!tm->loadTemplate("resources/templates/" + d.templateFile, d.id))
+                            tm->loadTemplate(d.templateFile, d.id);
+                        return tm->getTemplate(d.id);
+                    }},
+                    itemEffects_.get());
+            }}
+            // NPCs get the world clock and the light manager (the editor wires both; the shell
+            // never did, so every schedule read noon and isNight=false in a shipped game).
+            if (npcManager_) {{
+                npcManager_->setDayNightCycle(&renderCoordinator_->getDayNightCycle());
+                npcManager_->setLightManager(&renderCoordinator_->getLightManager());
+            }}
 {hud_setup}
 
             // JSON-driven menu renderer for sceneType:"menu" scenes. MUST be
@@ -1448,6 +1518,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     if (combatDirector_.inCombat()) combatDirector_.removeCombatant(ev.targetId);
                     return;   // no kill XP for losing a friend
                 }}
+                // G-171: cleared stays cleared. Record the kill in the profile (it rides the save), keyed
+                // by the scene it happened in, so this scene's loader skips the corpse next time. After
+                // the companion early-return above: a fallen companion is the party's business, not the
+                // ledger's.
+                {{
+                    auto* smgr = engine_ ? engine_->getSceneManager() : nullptr;
+                    const auto* active = smgr ? smgr->getActiveScene() : nullptr;
+                    playerProfile_.slain.record(active ? active->id : std::string(), ev.targetId);
+                }}
                 if (killXp_ > 0) grantXP(killXp_, ev.targetId.c_str());
                 if (combatDirector_.inCombat()) {{
                     combatDirector_.removeCombatant(ev.targetId);
@@ -1511,6 +1590,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }});
             clickToMove_.setGraphProvider([this]() -> const Phyxel::Core::NavGraph* {{
                 return npcManager_ ? npcManager_->getNavGraph() : nullptr;
+            }});
+            // The world continues past the play-area wall (streamed surround); a click out
+            // there walks to the nearest point inside the bounds instead of into the wall.
+            clickToMove_.setPlayBoundsProvider([this]() -> Phyxel::Core::PlayBounds {{
+                auto* cm = engine_ ? engine_->getChunkManager() : nullptr;
+                return cm ? cm->effectivePlayBounds() : Phyxel::Core::PlayBounds{{}};
             }});
             // Combat moves walk the SAME route (G-136: a straight line into a fence or a
             // tree stalled short of the click), and the ground pick lands on the voxel
@@ -1777,6 +1862,30 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             try {{
                 nlohmann::json gameDef = nlohmann::json::parse(f);
 
+                // G-181: warm the .anim parse cache off-thread while the intro / main menu is
+                // up. The first character spawn (the first world scene) otherwise pays the
+                // whole parse on the main thread - humanoid.anim, 138 clips, 1.3-1.4 s on the
+                // shipped exe. The editor has done this since its boot (Application.cpp);
+                // the shipped shell had not. Exact path strings, so the cache keys match.
+                {{
+                    std::vector<std::string> rigs{{"resources/animated_characters/humanoid.anim"}};
+                    std::function<void(const nlohmann::json&)> collect = [&](const nlohmann::json& n) {{
+                        if (n.is_object()) {{ for (const auto& [k, v] : n.items()) collect(v); }}
+                        else if (n.is_array()) {{ for (const auto& v : n) collect(v); }}
+                        else if (n.is_string()) {{
+                            const std::string sv = n.get<std::string>();
+                            if (sv.size() > 5 && sv.compare(sv.size() - 5, 5, ".anim") == 0 &&
+                                std::find(rigs.begin(), rigs.end(), sv) == rigs.end()) rigs.push_back(sv);
+                        }}
+                    }};
+                    collect(gameDef);
+                    if (animWarmThread_.joinable()) animWarmThread_.join();
+                    animWarmThread_ = std::thread([rigs]() {{
+                        for (const auto& r : rigs) Phyxel::AnimationSystem::prewarm(r);
+                    }});
+                    LOG_INFO("{class_name}", "Warming {{}} .anim rig(s) in the background", rigs.size());
+                }}
+
                 // Did the author pick a camera mode anywhere? If so, never stomp it
                 // with the default ThirdPerson below — GameDefinitionLoader applies
                 // the authored mode (first_person/third_person/free) at each load.
@@ -1804,6 +1913,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // a shipped game needs them in the definition):
                 //   "objectives": [{{"id":"main_quest","title":"...","description":"...",
                 //                   "category":"main","priority":0,"hidden":false}}]
+                // G-116: "intro": {{"title": "...", "text": ["paragraph", ...], "button": "Begin"}} -
+                // a blocking story card before the first scene of every run. The card's text
+                // scrolls (wheel, Up/Down/PageUp/PageDown), so it has no length limit.
+                if (gameDef.contains("intro") && gameDef["intro"].is_object()) {{
+                    introCard_ = gameDef["intro"];
+                    size_t chars = 0;
+                    if (introCard_.contains("text") && introCard_["text"].is_array()) {{
+                        for (const auto& p : introCard_["text"]) if (p.is_string()) chars += p.get<std::string>().size();
+                    }} else if (introCard_.contains("text") && introCard_["text"].is_string()) {{
+                        chars = introCard_["text"].get<std::string>().size();
+                    }}
+                    LOG_INFO("{class_name}", "Intro card authored: '{{}}' ({{}} characters)", introCard_.value("title", ""), chars);
+                }}
                 if (gameDef.contains("objectives") && gameDef["objectives"].is_array()) {{
                     initialObjectives_ = gameDef["objectives"];
                     for (const auto& o : gameDef["objectives"]) {{
@@ -2051,6 +2173,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 subsystems.dialogueSystem  = dialogueSystem_.get();
                 subsystems.storyEngine     = storyEngine_.get();
                 subsystems.camera          = engine.getCamera();
+                // G-171: the loader asks the profile's ledger before spawning an authored NPC.
+                subsystems.isNpcSlain = [this](const std::string& scene, const std::string& id) {{
+                    return playerProfile_.slain.contains(scene, id);
+                }};
                 subsystems.triggerSystem   = &triggers_;  // game.json "triggers" load here
                 subsystems.commandStructure = &command_;  // game.json "squad"/"rank" load here
                 subsystems.templateManager = templates_.get();
@@ -2112,6 +2238,25 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                 }}
 
+                // G-165: the world-level "dayNight" block. Read from the TOP-LEVEL document, because a
+                // multi-scene game never passes it through load() - only each scene does - and the
+                // cycle is a property of the world, not of one scene. DayNightCycle is OFF by default
+                // and nothing else in a shipped game can turn it on.
+                {{
+                    Phyxel::Core::DayNightSettings dn;
+                    if (Phyxel::Core::GameDefinitionLoader::parseDayNight(gameDef, dn) && renderCoordinator_) {{
+                        renderCoordinator_->getDayNightCycle().applySettings(dn);
+                        LOG_INFO("{class_name}", "dayNight: {{}}", renderCoordinator_->getDayNightCycle().toJson().dump());
+                    }}
+                }}
+                // G-164: the world-level "sky" block (celestial bodies: size, brightness, orbit,
+                // phase). The editor applied it at four load sites; a shipped game never did, so an
+                // authored sky was silently the default one.
+                if (gameDef.contains("sky") && gameDef["sky"].is_object() && renderCoordinator_) {{
+                    renderCoordinator_->setSkyBodies(Phyxel::Graphics::SkyBodies::fromJson(gameDef["sky"]));
+                    LOG_INFO("{class_name}", "sky: {{}} bodies from game.json", renderCoordinator_->getSkyBodies().bodies.size());
+                }}
+
                 // Multi-scene: delegate to SceneManager
                 if (Phyxel::Core::GameDefinitionLoader::isMultiScene(gameDef)) {{
                     auto* sm = engine.getSceneManager();
@@ -2171,7 +2316,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     LOG_INFO("{class_name}", "Loading screen shown (-> '{{}}')", sceneName);
                                     screen_.setState(Phyxel::UI::ScreenState::Loading);
                                 }}
-                                loadingHold_ = -1.0f;
+                                endSettleHold();   // a hold still in flight ends here - budget back to default (G-181)
                             }} else if (screen_.getState() == Phyxel::UI::ScreenState::Loading && loadingHold_ < 0.0f) {{
                                 // Loaded, but the world is still meshing/lighting (the "black
                                 // first seconds", G-49): hold the loading screen until the dirty
@@ -2187,7 +2332,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 Phyxel::UI::MenuActions acts;
                                 acts.onTransitionScene = [this](const std::string& sceneId) {{
                                     auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
-                                    if (sm && sm->hasManifest()) sm->transitionTo(sceneId);
+                                    if (!sm || !sm->hasManifest()) return;
+                                    // A menu's "New Game" into a WORLD scene starts a run: the intro card
+                                    // first (G-116); any other transition goes straight through.
+                                    const auto* target = sm->findScene(sceneId);
+                                    if (target && target->sceneType != Phyxel::Core::SceneType::Menu) beginRun(sceneId);
+                                    else sm->transitionTo(sceneId);
                                 }};
                                 acts.onQuit = [this]() {{
                                     auto* w = engine_ ? engine_->getWindowManager() : nullptr;
@@ -2419,10 +2569,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                              npcManager_->getPathService() ? "running" : "NULL");
                 }}
 
-                // NPCs exist now, so their weapons can be hung on their grips.
-                // Must run AFTER the definition load — before it there is
-                // nobody to equip.
-                equipNpcWeapons();
+                // Held items (weapons, torches) are reconciled every frame by npcHeldItems_,
+                // so NPCs spawned by LATER scenes get theirs too (the old load-once
+                // equipNpcWeapons never saw them).
 
                 // Restore the saved player profile (camera pose + health + XP/level)
                 // from the active scene's world DB, if one was saved by a previous
@@ -2489,6 +2638,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // ESC: pause/resume toggle, or close dialogue. EDGE-TRIGGERED — isKeyPressed
             // is held-state, so without this a held ESC would toggle pause every frame.
             const bool escNow = input->isKeyPressed(GLFW_KEY_ESCAPE);
+            {{   // G-179: did a key-rebind capture end this frame? (sampled EVERY frame, so a capture
+                // completed by an ordinary key does not swallow the next ESC)
+                auto* uiCap = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr;
+                const uint32_t ends = uiCap ? uiCap->keyCaptureEndCount() : 0u;
+                escCaptureEndedThisFrame_ = (ends != escCaptureEndsSeen_);
+                escCaptureEndsSeen_ = ends;
+            }}
             if (escNow && !escPrev_) {{
                 if (dialogueSystem_ && dialogueSystem_->isActive()) {{
                     dialogueSystem_->endConversation();
@@ -2500,6 +2656,23 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                            state == Phyxel::UI::ScreenState::Character) {{
                     screen_.resume();
                     updateCursorMode(engine);
+                }} else if (state == Phyxel::UI::ScreenState::Settings ||
+                           state == Phyxel::UI::ScreenState::Inventory) {{
+                    // G-179: ESC is "back one level" in Settings too. The keybindings sub-panel had
+                    // no way out (no Back button, and ESC only knew Playing/Paused/Character), so a
+                    // player who opened it was stuck. Sub-panel -> the settings main panel; main ->
+                    // wherever Settings was opened from. The ESC that CANCELS a key rebind belongs to
+                    // the capture (UISystem consumed it): skip when a capture ended this frame.
+                    auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr;
+                    // ...and while a capture is ACTIVE the ESC is the cancel itself: the shell reads the
+                    // key before UISystem consumes it in the same frame, so the counter has not moved yet
+                    // (first green run: the cancelling ESC also backed out of the panel).
+                    if (!escCaptureEndedThisFrame_ && !(ui && ui->isCapturingKey())) {{
+                        if (!(ui && Phyxel::UI::backOutOfSubmenu(*ui, "settings"))) {{
+                            screen_.goBack();
+                            updateCursorMode(engine);
+                        }}
+                    }}
                 }}
             }}
             escPrev_ = escNow;
@@ -2596,6 +2769,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     barKeyDown_[i] = down;
                     if (edge && barLive) fireActionSlot(i);
                 }}
+                updateJournalToggle(*input);   // G-168: L opens/closes the journal
                 const bool pDown = input->isActionPressed("ToggleAbilities");
                 const bool pEdge = pDown && !barKeyDown_[Phyxel::Core::ActionBar::SLOT_COUNT];
                 barKeyDown_[Phyxel::Core::ActionBar::SLOT_COUNT] = pDown;
@@ -2959,6 +3133,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         // from its start scene again (the player entity is respawned per scene).
         void {class_name}::newGame() {{
             LOG_INFO("{class_name}", "New game: restarting from the start scene");
+            introShownThisRun_ = false;   // the next run shows its intro card again (G-116)
             if (combatDirector_.inCombat()) combatDirector_.endEncounter();
             if (dialogueSystem_ && dialogueSystem_->isActive()) dialogueSystem_->endConversation();
             clickToMove_.cancel();
@@ -3117,15 +3292,52 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 sceneMgr->update(dt);
                 // G-115 settle hold: keep the loading screen up after the load until the
                 // remesh backlog drains (>= 0.5 s so it never flashes, <= 4 s regardless).
+                // G-181: the backlog that matters is the one AROUND THE PLAYER. The streamed
+                // surround (G-177) keeps the global queue non-empty for the whole load, so
+                // every transition sat at the 4 s cap with 86-173 far chunks queued.
                 if (loadingHold_ >= 0.0f) {{
-                    loadingHold_ += dt;
                     auto* cm = engine.getChunkManager();
+                    if (loadingHold_ == 0.0f && cm) {{
+                        holdDrains0_ = cm->dirtyTracker().drainCalls(); holdProcessed0_ = cm->dirtyTracker().processedTotal();
+                        // The scene's own chunks mesh before the surround from here on (cost order only).
+                        const auto& rc0 = cm->regionChunkCoords();
+                        const Phyxel::Core::PlayBounds pb0 = cm->effectivePlayBounds();
+                        if (!rc0.empty()) cm->dirtyTracker().setPriorityCoords(rc0);
+                        else if (pb0.valid) cm->dirtyTracker().setPriorityXZ(pb0.minX, pb0.maxX, pb0.minZ, pb0.maxZ);
+                        else cm->dirtyTracker().clearPriorityXZ();
+                        // The loading screen hides the frame time: mesh several chunks per frame
+                        // instead of one (6 ms budget = one ~25 ms chunk + a 2-frame backoff).
+                        if (renderCoordinator_) renderCoordinator_->setDirtyChunkBudgetMs(kHoldMeshBudgetMs);
+                    }}
+                    loadingHold_ += dt;
+                    // G-181: frame the PLAYER while the screen is held. The gameplay update below
+                    // returns early unless Playing, so the camera used to sit wherever the previous
+                    // scene (or the menu) left it - and the streamer's anchor and the mesh drain's
+                    // focus both follow the camera: the hold spent its 4 s meshing the surround
+                    // around the OLD place (measured: 56-133 chunks meshed, 24-33 of the 30 region
+                    // chunks still dirty at dismissal). Camera only; the body is not driven.
+                    if (playerCharacter_ && screen_.getState() == Phyxel::UI::ScreenState::Loading) {{
+                        gameplayCamera().setLookSuppressed(true);   // the overlay is up: no mouse orbit behind it
+                        updateGameplayCamera(engine, dt, playerCharacter_, /*driveCharacter=*/false);
+                    }}
                     const size_t dirty = cm ? cm->dirtyTracker().getDirtyCount() : 0;
-                    const bool settled = (loadingHold_ >= 0.5f && dirty == 0) || loadingHold_ >= 4.0f;
+                    // The chunks that matter: the scene's PLAY REGION (the authored world block the
+                    // player can reach); the streamed surround beyond it pops in on its own. With no
+                    // region (a free-roam world) fall back to the chunks near the player.
+                    size_t dirtyNear = dirty;
+                    const char* scope = "the world";
+                    if (cm) {{
+                        const Phyxel::Core::PlayBounds pb = cm->effectivePlayBounds();
+                        if (!cm->regionChunkCoords().empty()) {{ dirtyNear = cm->dirtyTracker().getDirtyCountInPriority(); scope = "the scene's chunks"; }}
+                        else if (pb.valid) {{ dirtyNear = cm->dirtyTracker().getDirtyCountInXZ(pb.minX, pb.maxX, pb.minZ, pb.maxZ); scope = "the play region"; }}
+                        else if (playerCharacter_) {{ dirtyNear = cm->dirtyTracker().getDirtyCountNear(playerCharacter_->getPosition(), kSettleRadius); scope = "64 u of the player"; }}
+                    }}
+                    const bool settled = (loadingHold_ >= 0.5f && dirtyNear == 0) || loadingHold_ >= 4.0f;
                     if (settled) {{
-                        LOG_INFO("{class_name}", "Loading screen dismissed (settled after {{}} ms, {{}} dirty chunks left)",
-                                 static_cast<int>(loadingHold_ * 1000.0f), dirty);
-                        loadingHold_ = -1.0f;
+                        LOG_INFO("{class_name}", "Loading screen dismissed (settled after {{}} ms, {{}} dirty chunks left in {{}}, {{}} in the world; during the hold: {{}} drain calls, {{}} chunks meshed)",
+                                 static_cast<int>(loadingHold_ * 1000.0f), dirtyNear, scope, dirty,
+                                 cm ? cm->dirtyTracker().drainCalls() - holdDrains0_ : 0, cm ? cm->dirtyTracker().processedTotal() - holdProcessed0_ : 0);
+                        endSettleHold();
                         if (screen_.getState() == Phyxel::UI::ScreenState::Loading)
                             screen_.setState(menuSceneActive_ ? Phyxel::UI::ScreenState::MainMenu
                                                               : Phyxel::UI::ScreenState::Playing);
@@ -3137,6 +3349,28 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // A menu scene is showing: SceneManager + the menu renderer drive things;
             // skip world/gameplay simulation — but keep the menuWorld camera
             // orbiting (the living title screen).
+            // The narrative card continues on Enter / Space as well as its button (G-116).
+            // Before the menu-scene return: the card is shown OVER the menu scene.
+            if (screen_.getState() == Phyxel::UI::ScreenState::Narrative) {{
+                auto* in = engine.getInputManager();
+                const bool down = in && (in->isKeyPressed(GLFW_KEY_ENTER) || in->isKeyPressed(GLFW_KEY_KP_ENTER) || in->isKeyPressed(GLFW_KEY_SPACE));
+                if (down && !narrativeKeyHeld_) continueNarrative();
+                narrativeKeyHeld_ = down;
+                // Up/Down scroll a line per frame held, PageUp/PageDown a page per press - through
+                // the same handleScroll the wheel uses, at the centre of the card's text box.
+                if (in && renderCoordinator_ && screen_.getState() == Phyxel::UI::ScreenState::Narrative)
+                    if (auto* ui = renderCoordinator_->getUISystem()) {{
+                        const glm::vec2 at{{(140.0f + 500.0f) * ui->width() / 1280.0f, (130.0f + 230.0f) * ui->height() / 720.0f}};
+                        float d = 0.0f;
+                        if (in->isKeyPressed(GLFW_KEY_UP))   d += 0.25f;
+                        if (in->isKeyPressed(GLFW_KEY_DOWN)) d -= 0.25f;
+                        const bool pgUp = in->isKeyPressed(GLFW_KEY_PAGE_UP), pgDn = in->isKeyPressed(GLFW_KEY_PAGE_DOWN);
+                        if (pgUp && !narrativePageHeld_) d += 4.0f;
+                        if (pgDn && !narrativePageHeld_) d -= 4.0f;
+                        narrativePageHeld_ = pgUp || pgDn;
+                        if (d != 0.0f) ui->handleScroll(at, d);
+                    }}
+            }}
             if (menuSceneActive_) {{
                 if (menuCamPath_.isPlaying()) {{
                     if (auto* cam = engine.getCamera()) menuCamPath_.update(dt, *cam);
@@ -3419,8 +3653,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 setArmedSpell("");
             }}
             updateCommand(dt);   // officers re-evaluate on their own cadence
-            updateHeldWeapons(); // weapons ride the grip bone; without this they
-                                 // stay frozen where the character spawned
+            // Held items ride the grip bone and their effects (a torch's flame + light) follow.
+            if (npcHeldItems_ && npcManager_) npcHeldItems_->update(*npcManager_);
+            if (itemEffects_) itemEffects_->update(dt);
             if (storyEngine_) storyEngine_->update(dt);
             if (speechBubbleManager_) speechBubbleManager_->update(dt);
 
@@ -3486,7 +3721,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 if (renderCoordinator_) {{
                     if (auto* ui = renderCoordinator_->getUISystem()) {{
                         std::string want;
-                        if (!menuSceneActive_) {{
+                        if (state == Phyxel::UI::ScreenState::Narrative) want = "narrative";   // over a menu scene too (G-116)
+                        else if (!menuSceneActive_) {{
                             switch (state) {{
                                 case Phyxel::UI::ScreenState::MainMenu: want = "mainmenu"; break;
                                 case Phyxel::UI::ScreenState::Paused:   want = "pause";    break;
@@ -3509,6 +3745,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     if (t == "title")   return std::string("{class_name}");
                                     if (t == "tagline") return std::string("{game_tagline}");
                                     if (t == "loading_target") return loadingSceneName_;
+                                    if (t.rfind("narrative.", 0) == 0) {{   // the card being shown (G-116)
+                                        const std::string k = t.substr(10);
+                                        if (k == "title")  return narrative_.value("title", std::string("{class_name}"));
+                                        if (k == "button") return narrative_.value("button", std::string("Continue"));
+                                        if (k == "text") {{
+                                            std::string body;
+                                            const auto& tx = narrative_.contains("text") ? narrative_["text"] : nlohmann::json();
+                                            if (tx.is_array()) {{
+                                                for (const auto& p : tx) if (p.is_string()) body += (body.empty() ? "" : "\\n\\n") + p.get<std::string>();
+                                            }} else if (tx.is_string()) body = tx.get<std::string>();
+                                            return body;
+                                        }}
+                                        return std::nullopt;
+                                    }}
                                     if (t.rfind("sheet.", 0) == 0) return characterSheetToken(t.substr(6));
                                     // {{keybind.<Action>}} -> current key for the keybindings sub-panel rows.
                                     if (t.rfind("keybind.", 0) == 0) {{
@@ -3526,13 +3776,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     return std::nullopt;
                                 }};
                                 a.onResume      = [this]() {{ screen_.resume();           if (engine_) updateCursorMode(*engine_); }};
+                                a.onContinue    = [this]() {{ continueNarrative(); }};
                                 a.onStartGame   = [this]() {{
                                     // New Game while a WORLD scene is active (after Game Over -> Main Menu,
                                     // or from the pause menu) restarts the run; at boot it just starts.
                                     auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
                                     const auto* active = sm ? sm->getActiveScene() : nullptr;
                                     if (active && active->sceneType != Phyxel::Core::SceneType::Menu) newGame();
-                                    else screen_.startGame();
+                                    else beginRun("");   // "" = no scene to load: the card, then startGame()
                                     if (engine_) updateCursorMode(*engine_);
                                 }};
                                 a.onSettings    = [this]() {{ screen_.toggleSettings();   if (engine_) updateCursorMode(*engine_); }};
@@ -4015,129 +4266,6 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         // this file could drift from the engine's and produce the exact split
         // that caused fighters to carry swords while throwing punches: the
         // visible model resolved, the moveset did not.
-
-        void {class_name}::equipNpcWeapons() {{
-            if (!npcManager_ || !kinematicVoxelManager_ || !weaponTemplates_) return;
-            int equipped = 0, missingItem = 0, missingTemplate = 0, noGrip = 0;
-
-            npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& npc) {{
-                auto* ch = npc.getAnimatedCharacter();
-                if (!ch) return;
-
-                // The weapon profile lives on whichever combat behavior this NPC has.
-                std::string profile;
-                if (auto* cb = dynamic_cast<Phyxel::Scene::CombatBehavior*>(npc.getBehavior()))
-                    profile = cb->getWeaponId();
-                if (profile.empty()) return;
-
-                const std::string itemId = profile;   // already canonical (see loader)
-                const auto* def = Phyxel::Core::ItemRegistry::instance().getItem(itemId);
-                if (!def) {{ ++missingItem; return; }}
-
-                // Load on first use, keyed by item id so repeats are free.
-                //
-                // items.json stores templateFile RELATIVE to resources/templates
-                // ("weapons/sword_long.voxel"), while loadTemplate resolves
-                // against the working directory. Passing it through unprefixed
-                // failed all 120 fighters with noTemplate while the files sat
-                // right there on disk.
-                const Phyxel::VoxelTemplate* tmpl = weaponTemplates_->getTemplate(itemId);
-                if (!tmpl) {{
-                    const std::string full = "resources/templates/" + def->templateFile;
-                    if (!weaponTemplates_->loadTemplate(full, itemId))
-                        weaponTemplates_->loadTemplate(def->templateFile, itemId);  // absolute/bare fallback
-                    tmpl = weaponTemplates_->getTemplate(itemId);
-                }}
-                if (!tmpl) {{
-                    if (missingTemplate == 0)
-                        LOG_WARN("{class_name}", "weapon template not loadable: {{}} (item {{}})",
-                                 def->templateFile, itemId);
-                    ++missingTemplate;
-                    return;
-                }}
-
-                auto voxels = Phyxel::Core::ItemPropManager::voxelsFromTemplate(*tmpl);
-                if (voxels.empty()) {{ ++missingTemplate; return; }}
-
-                // BAKE held.scale, exactly as ItemPropManager::buildPropGeometry
-                // does. voxelsFromTemplate returns RAW template geometry; for a
-                // fine-voxel item ("# grid: 81") that is ~81x too big. Skipping
-                // this drew a sword the size of a house next to each fighter -
-                // the attachment was fine, the geometry was unusable.
-                const float heldScale = def->held.scale > 0.0f ? def->held.scale : 1.0f;
-                if (heldScale != 1.0f)
-                    for (auto& v : voxels) {{ v.localPos *= heldScale; v.scale *= heldScale; }}
-
-                // NPCManager registers entities as "npc_" + name; key the same
-                // way so updateHeldWeapons can find the owner again.
-                const std::string entityId = npc.getName();
-                HeldWeapon hw;
-                hw.kinId = kinematicVoxelManager_->add("npcheld_" + entityId, std::move(voxels));
-                kinematicVoxelManager_->setPushesDebris(hw.kinId, true);   // a swung weapon shoves debris (Phase 3b)
-                hw.anchorId = ch->attachToBone(def->held.gripBone, glm::vec3(0.02f),
-                                               def->held.gripOffset, glm::vec4(0.0f),
-                                               "npc_held_anchor");
-                if (hw.anchorId < 0) {{
-                    // No grip bone on this rig: drop the mesh rather than leave
-                    // a weapon floating at the world origin.
-                    kinematicVoxelManager_->remove(hw.kinId);
-                    ++noGrip;
-                    return;
-                }}
-                hw.itemId = itemId;
-                npcHeld_[entityId] = hw;
-                ++equipped;
-            }});
-
-            LOG_INFO("{class_name}",
-                     "NPC weapons: equipped={{}} unknownItem={{}} noTemplate={{}} noGripBone={{}}",
-                     equipped, missingItem, missingTemplate, noGrip);
-        }}
-
-        void {class_name}::updateHeldWeapons() {{
-            if (npcHeld_.empty() || !kinematicVoxelManager_ || !npcManager_) return;
-            for (auto it = npcHeld_.begin(); it != npcHeld_.end(); ) {{
-                auto* npc = npcManager_->getNPC(it->first);   // keyed by NPC NAME
-                auto* ch = npc ? npc->getAnimatedCharacter() : nullptr;
-                const auto* hd = Phyxel::Core::ItemRegistry::instance().getItem(it->second.itemId);
-                if (!ch || !hd) {{
-                    // Owner gone: take its weapon with it, or the mesh is
-                    // orphaned mid-air for the rest of the battle.
-                    kinematicVoxelManager_->remove(it->second.kinId);
-                    it = npcHeld_.erase(it);
-                    continue;
-                }}
-                glm::vec3 pos; glm::quat rot;
-                const bool gotXform = ch->getAttachmentTransform(it->second.anchorId, pos, rot);
-                // WHERE IS THE WEAPON, ACTUALLY? "equipped=N" only proves the
-                // attach call returned an id. If getAttachmentTransform fails we
-                // never call setTransform and the mesh stays wherever add() put
-                // it - i.e. nowhere near the hand. Report the owner's position
-                // beside the weapon's so the two can be compared directly.
-                {{
-                    static int s_heldTick = 0;
-                    if ((++s_heldTick % 300) == 1) {{
-                        const glm::vec3 owner = ch->getPosition();
-                        LOG_INFO("{class_name}",
-                                 "held '{{}}': xform={{}} weapon=({{}},{{}},{{}}) owner=({{}},{{}},{{}})",
-                                 it->second.itemId, gotXform ? "ok" : "FAIL",
-                                 static_cast<int>(pos.x), static_cast<int>(pos.y),
-                                 static_cast<int>(pos.z),
-                                 static_cast<int>(owner.x), static_cast<int>(owner.y),
-                                 static_cast<int>(owner.z));
-                    }}
-                }}
-                if (gotXform) {{
-                    const auto& h = hd->held;
-                    glm::mat4 t = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
-                    t = t * glm::eulerAngleYXZ(glm::radians(h.gripEulerDeg.y),
-                                               glm::radians(h.gripEulerDeg.x),
-                                               glm::radians(h.gripEulerDeg.z));
-                    kinematicVoxelManager_->setTransform(it->second.kinId, t);
-                }}
-                ++it;
-            }}
-        }}
 
         void {class_name}::installDoctrine() {{
             command_.setDecisionInterval(3.0f);
@@ -4717,10 +4845,62 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             return true;
         }}
 
+        // G-116: a run starts with the authored intro card. `worldScene` is the scene the card
+        // gates (a menu's New Game target); "" means there is no scene to load and the card
+        // precedes GameScreen::startGame(). Shows once per run; without an authored card the
+        // run starts at once.
+        void {class_name}::beginRun(const std::string& worldScene) {{
+            auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
+            const bool haveCard = introCard_.is_object() && !introCard_.empty();
+            if (!haveCard || introShownThisRun_) {{
+                if (!worldScene.empty()) {{ if (sm && sm->hasManifest()) sm->transitionTo(worldScene); }}
+                else screen_.startGame();
+                return;
+            }}
+            introShownThisRun_ = true;
+            pendingRunScene_ = worldScene;
+            narrative_ = introCard_;
+            // The menu scene's own panels would sit under the card and answer clicks: hide them.
+            if (renderCoordinator_)
+                if (auto* ui = renderCoordinator_->getUISystem())
+                    for (const auto& [n, vis] : ui->getScreenList())
+                        if (n.rfind("menu:", 0) == 0) ui->hideScreen(n);
+            narrativeKeyHeld_ = true;   // the click / key that opened the card must not also close it
+            screen_.setState(Phyxel::UI::ScreenState::Narrative);
+            if (engine_) updateCursorMode(*engine_);
+            LOG_INFO("{class_name}", "Narrative card shown: '{{}}' (gating '{{}}')", narrative_.value("title", ""), worldScene);
+        }}
+
+        void {class_name}::continueNarrative() {{
+            if (screen_.getState() != Phyxel::UI::ScreenState::Narrative) return;
+            const std::string next = pendingRunScene_;
+            pendingRunScene_.clear();
+            LOG_INFO("{class_name}", "Narrative card acknowledged -> '{{}}'", next.empty() ? "start" : next);
+            auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
+            if (!next.empty() && sm && sm->hasManifest()) {{
+                // The transition's loading screen takes the state from here (Narrative -> Loading).
+                if (!sm->transitionTo(next)) {{ LOG_WARN("{class_name}", "Narrative: could not transition to '{{}}'", next); screen_.returnToMainMenu(); }}
+            }} else {{
+                screen_.setState(Phyxel::UI::ScreenState::MainMenu);
+                screen_.startGame();
+            }}
+            if (engine_) updateCursorMode(*engine_);
+        }}
+
+        void {class_name}::endSettleHold() {{
+            loadingHold_ = -1.0f;
+            // Every exit path restores the per-frame mesh budget: the settled branch, a new
+            // transition that aborts a hold in flight, and shutdown. Left at the hold-time 40 ms
+            // it would tax every gameplay frame for the rest of the session (auditor, 2026-09-24).
+            if (renderCoordinator_) renderCoordinator_->setDirtyChunkBudgetMs(6.0);
+        }}
+
         void {class_name}::onShutdown() {{
             LOG_INFO("{class_name}", "Shutting down...");
             // GPU debris first: the solver's buffers must go while the Vulkan device lives.
             debris().shutdown();
+            endSettleHold();
+            if (animWarmThread_.joinable()) animWarmThread_.join();   // never leave a parser running into static teardown
             // Release any cursor grab FIRST — quitting from Playing otherwise
             // tears the window down while it holds GLFW_CURSOR_DISABLED, which
             // can leave the OS cursor confined/hidden until the desktop refocuses.
@@ -4729,6 +4909,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             stopTestApi();  // stop the test API before tearing down subsystems it references
             savePlayerProfile();  // quit-save: profile -> active scene's world DB
             settings_.saveToFile("settings.json");
+            npcHeldItems_.reset();   // before the renderer (its lights) and the kinematic manager (its meshes)
+            itemEffects_.reset();
             renderCoordinator_.reset();
             entities_.clear();
             playerCharacter_ = nullptr;

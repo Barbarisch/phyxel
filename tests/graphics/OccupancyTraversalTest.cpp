@@ -263,8 +263,11 @@ TEST(OccupancyTraversal, LightVisibilityTwoLevelEqualsTheMicroMarch) {
         glm::vec3 light = surf + glm::vec3(off(rng), off(rng) * 0.5f, off(rng));
         if (i % 5 == 0) light = glm::floor(light) + 0.5f;         // at a cube centre, as emissive voxels are
         if (packedPoolSolidAt(packed, glm::ivec3(glm::floor(light * 9.0f)))) ++inSolidLights;
-        const bool ref = packedPoolLightVisibility(packed, surf, n, light, /*maxSteps, never binding*/ 4096).visible;
-        const bool two = packedPoolLightVisibleTwoLevel(packed, surf, n, light);
+        // G-157: the emitter extent varies too - a sconce-sized 0.1 u up to a 1.3 u lantern - so the
+        // bounded run and the tested end cell are pinned equal through both walks, not just the default.
+        const float extent = (i % 3 == 0) ? 0.1f + 0.2f * static_cast<float>(i % 7) : 0.866f;
+        const bool ref = packedPoolLightVisibility(packed, surf, n, light, extent, /*maxSteps, never binding*/ 4096).visible;
+        const bool two = packedPoolLightVisibleTwoLevel(packed, surf, n, light, extent);
         if (ref != two) {
             ++differ;
             if (differ <= 5)

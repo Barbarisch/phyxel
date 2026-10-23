@@ -1,0 +1,382 @@
+{
+ "label": "torch3",
+ "noon": {
+  "night": false,
+  "npcs": 12,
+  "carrying": 0,
+  "drawn": 0,
+  "lit": 0,
+  "dropped_point_lights": 6,
+  "frame_ms": 69.44
+ },
+ "night": {
+  "night": true,
+  "default": "default",
+  "npcs": 12,
+  "carrying": 10,
+  "drawn": 10,
+  "lit": 10,
+  "dropped_point_lights": 16,
+  "frame_ms": 79.04,
+  "list": [
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 39,
+      "position": [
+       6.8396100997924805,
+       18.18744659423828,
+       12.873614311218262
+      ]
+     }
+    ],
+    "name": "Selby",
+    "policy": "default",
+    "position": [
+     7.0,
+     17.11111068725586,
+     13.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.2,
+     1.08
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 40,
+      "position": [
+       -12.161189079284668,
+       18.17544174194336,
+       12.865584373474121
+      ]
+     }
+    ],
+    "name": "Aldric",
+    "policy": "default",
+    "position": [
+     -12.0,
+     17.11111068725586,
+     13.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.21,
+     1.06
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 41,
+      "position": [
+       -14.180045127868652,
+       18.27838897705078,
+       -11.13618278503418
+      ]
+     }
+    ],
+    "name": "Maera",
+    "policy": "default",
+    "position": [
+     -14.0,
+     17.11111068725586,
+     -11.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.23,
+     1.17
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 48,
+      "position": [
+       -32.173805236816406,
+       18.210412979125977,
+       12.63798713684082
+      ]
+     }
+    ],
+    "name": "Ada",
+    "policy": "default",
+    "position": [
+     -32.414833068847656,
+     17.11111068725586,
+     12.64381217956543
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.24,
+     1.1
+    ]
+   },
+   {
+    "carrying": "",
+    "held": "",
+    "hostile": false,
+    "indoors": true,
+    "lights": [],
+    "name": "Bram",
+    "policy": "default",
+    "position": [
+     -26.33333396911621,
+     18.0,
+     -3.3333332538604736
+    ],
+    "resolved": "night"
+   },
+   {
+    "carrying": "",
+    "held": "",
+    "hostile": false,
+    "indoors": true,
+    "lights": [],
+    "name": "Hobb",
+    "policy": "default",
+    "position": [
+     -24.0,
+     17.333332061767578,
+     -2.0
+    ],
+    "resolved": "night"
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 47,
+      "position": [
+       -5.1538472175598145,
+       18.169086456298828,
+       13.861571311950684
+      ]
+     }
+    ],
+    "name": "Wren",
+    "policy": "default",
+    "position": [
+     -5.0,
+     17.11111068725586,
+     14.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.21,
+     1.06
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 42,
+      "position": [
+       -2.1415305137634277,
+       18.233800888061523,
+       15.859160423278809
+      ]
+     }
+    ],
+    "name": "Tam",
+    "policy": "default",
+    "position": [
+     -2.0,
+     17.11111068725586,
+     16.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.2,
+     1.12
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 43,
+      "position": [
+       13.369651794433594,
+       18.24563217163086,
+       20.024620056152344
+      ]
+     }
+    ],
+    "name": "Old Moll",
+    "policy": "default",
+    "position": [
+     13.100147247314453,
+     17.11111068725586,
+     19.966310501098633
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.28,
+     1.13
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 44,
+      "position": [
+       37.82875442504883,
+       18.19068717956543,
+       14.592567443847656
+      ]
+     }
+    ],
+    "name": "Gerrit",
+    "policy": "default",
+    "position": [
+     38.04180145263672,
+     17.11111068725586,
+     14.341870307922363
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.33,
+     1.08
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 46,
+      "position": [
+       51.84380340576172,
+       18.276647567749023,
+       13.862278938293457
+      ]
+     }
+    ],
+    "name": "Pell",
+    "policy": "default",
+    "position": [
+     52.0,
+     17.11111068725586,
+     14.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.21,
+     1.17
+    ]
+   },
+   {
+    "carrying": "torch",
+    "held": "torch",
+    "hostile": false,
+    "indoors": false,
+    "lights": [
+     {
+      "id": 45,
+      "position": [
+       -36.16364288330078,
+       18.152130126953125,
+       16.86685562133789
+      ]
+     }
+    ],
+    "name": "Wynn",
+    "policy": "default",
+    "position": [
+     -36.0,
+     17.11111068725586,
+     17.0
+    ],
+    "resolved": "night",
+    "light_offset": [
+     0.21,
+     1.04
+    ]
+   }
+  ],
+  "violations": []
+ },
+ "bearer": {
+  "name": "Wynn",
+  "distance_m": 7.0
+ },
+ "control_summary": {
+  "off_mean": 51.76,
+  "off_spread": 0.15,
+  "on_mean": 135.34,
+  "on_minus_off": 83.58
+ },
+ "control": [
+  {
+   "i": 0,
+   "torch": false,
+   "held": "",
+   "luma_centre": 51.83,
+   "luma_frame": 77.76
+  },
+  {
+   "i": 1,
+   "torch": true,
+   "held": "torch",
+   "luma_centre": 135.31,
+   "luma_frame": 103.07
+  },
+  {
+   "i": 2,
+   "torch": false,
+   "held": "",
+   "luma_centre": 51.78,
+   "luma_frame": 77.91
+  },
+  {
+   "i": 3,
+   "torch": true,
+   "held": "torch",
+   "luma_centre": 135.37,
+   "luma_frame": 103.5
+  },
+  {
+   "i": 4,
+   "torch": false,
+   "held": "",
+   "luma_centre": 51.68,
+   "luma_frame": 77.86
+  }
+ ]
+}

@@ -1,4 +1,5 @@
 #include "graphics/DayNightCycle.h"
+#include "graphics/CelestialBody.h"   // skyArcDirection: the one arc (G-164)
 #include <glm/gtc/constants.hpp>
 #include <algorithm>
 #include <cmath>
@@ -39,6 +40,16 @@ void DayNightCycle::update(float deltaTime) {
     recalculate();
 }
 
+void DayNightCycle::tick(Clock::time_point now) {
+    if (m_hasTicked) {
+        float dt = std::chrono::duration<float>(now - m_lastTick).count();
+        if (dt < 0.0f) dt = 0.0f;                      // a clock that went backwards is not time
+        update(std::min(dt, kMaxTickSeconds));
+    }
+    m_lastTick = now;
+    m_hasTicked = true;
+}
+
 void DayNightCycle::setTimeOfDay(float hours) {
     m_timeOfDay = std::fmod(hours, 24.0f);
     if (m_timeOfDay < 0.0f) m_timeOfDay += 24.0f;
@@ -47,6 +58,15 @@ void DayNightCycle::setTimeOfDay(float hours) {
 
 void DayNightCycle::setDayLengthSeconds(float seconds) {
     m_dayLengthSeconds = std::max(1.0f, seconds);
+}
+
+void DayNightCycle::applySettings(const Core::DayNightSettings& s) {
+    if (s.dayLengthSeconds) setDayLengthSeconds(*s.dayLengthSeconds);
+    if (s.timeScale)        setTimeScale(*s.timeScale);
+    if (s.dayNumber)        setDayNumber(*s.dayNumber);
+    if (s.timeOfDay)        setTimeOfDay(*s.timeOfDay);
+    if (s.paused)           setPaused(*s.paused);
+    if (s.enabled)          setEnabled(*s.enabled);
 }
 
 float DayNightCycle::getMoonIlluminatedFraction() const {
@@ -61,11 +81,13 @@ void DayNightCycle::recalculate() {
     // At noon (12h), hourAngle = pi/2 -> sun overhead
     // At midnight (0h), hourAngle = -pi/2 -> sun below
 
-    float sunY = std::sin(hourAngle); // -1 at midnight, +1 at noon
-    float sunXZ = std::cos(hourAngle);
-
-    // Sun travels east to west (positive X at dawn, negative X at dusk)
-    m_sunDirection = glm::normalize(glm::vec3(-sunXZ * 0.7f, -sunY, -sunXZ * 0.3f));
+    // The one arc the sky bodies also ride (skyArcDirection), tipped south by the latitude: the
+    // noon sun stands 90 - latitude degrees up instead of overhead (G-164). Travel direction =
+    // minus the toward-sun vector.
+    const float latRad = glm::radians(m_latitudeDeg);
+    const glm::vec3 toSun = Graphics::skyArcDirection(hourAngle, latRad);
+    float sunY = toSun.y;   // sin(elevation): < 0 below the horizon
+    m_sunDirection = -toSun;
 
     // ---- Moon: same swing plane, LAGGING the sun by the phase angle -----------------------------
     // Phase comes from the day number over WorldClock's 28-day lunar cycle, and the moon's position
@@ -74,14 +96,16 @@ void DayNightCycle::recalculate() {
     // half a cycle behind, i.e. 180 degrees away, so it rises exactly as the sun sets. Nothing
     // scripts that — it is where the geometry puts it. The renderer's disc shading then derives the
     // terminator from this direction versus the sun's, so the drawn phase always matches the orbit.
-    constexpr int kLunarCycleDays = 28;   // matches Core::LUNAR_CYCLE_DAYS (WorldClock.h)
+    // The cycle length is the sky's "lunarCycleDays" (default 28, the renderer copies it in
+    // setSkyBodies), so this fallback moon and the drawn one agree.
     {
-        const int dayInCycle = ((m_dayNumber % kLunarCycleDays) + kLunarCycleDays) % kLunarCycleDays;
-        m_moonPhase01 = static_cast<float>(dayInCycle) / static_cast<float>(kLunarCycleDays);
+        const float n = std::max(2.0f, m_lunarCycleDays);
+        float dayInCycle = std::fmod(static_cast<float>(m_dayNumber), n);
+        if (dayInCycle < 0.0f) dayInCycle += n;
+        // +0.5: the default moon starts FULL on day 0, as the sky bodies' does (G-164).
+        m_moonPhase01 = std::fmod(dayInCycle / n + 0.5f, 1.0f);
         const float moonHourAngle = hourAngle - glm::two_pi<float>() * m_moonPhase01;
-        const float moonY  = std::sin(moonHourAngle);
-        const float moonXZ = std::cos(moonHourAngle);
-        m_moonDirection = glm::normalize(glm::vec3(-moonXZ * 0.7f, -moonY, -moonXZ * 0.3f));
+        m_moonDirection = -Graphics::skyArcDirection(moonHourAngle, latRad);
     }
 
     // Sun elevation factor: 0 when below horizon, 1 at zenith

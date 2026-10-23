@@ -86,9 +86,46 @@ struct CelestialBody {
     float planeTilt = 0.0f;
 };
 
+/// Default observer latitude, degrees north (G-164). At the equinox the noon sun stands at
+/// 90 - latitude degrees (standard solar geometry; no seasons are modelled, declination is 0), so
+/// 40 deg - Madrid 40.4 N, New York 40.7 N, a temperate setting - puts the noon sun 50 deg up in
+/// the SOUTH. The engine's original arc passed through the zenith (latitude 0): the sun sat
+/// straight overhead at noon, where a third-person player never looks, and noon shadows vanished.
+constexpr float kDefaultLatitudeDeg = 40.0f;
+
+/// Share of a reflective body's light that also fills the night SKY's ambient (the moon lights the
+/// sky as well as the ground). A look constant - the true ratio is unmeasurable at this scale.
+constexpr float kMoonSkyShare = 0.45f;
+
+/// A MOONLESS night's ambient, as a fraction of a full moon's ambient share (G-164 follow-up, user
+/// 2026-09-25: "it is very very very dark ... this is too dark"). Measured on the shipped exe before
+/// this existed: a new-moon night settled at world luma 2.6 against a full moon's 12.7 and noon's
+/// 69 - black, unplayable - and 20-minute days put a new moon ~4.7 h into a session. Starlight and
+/// airglow are physically ~1/100 of full moonlight; games cheat that, and this is the honest knob:
+/// a moonless night reads darker than a moonlit one, never black. LOOK constant, not physics.
+constexpr float kMoonlessNightShare = 0.5f;
+
+/// The daily arc every body rides, as a unit vector TOWARD the body (Atmosphere's convention).
+/// `hourAngle` 0 = rising in the east-north-east, pi/2 = culmination, pi = setting. The base arc is
+/// the engine's original (cos*0.7, sin, cos*0.3) swing through the zenith; `latitudeRad` tips it
+/// about the rise-set axis toward the south (-Z; +Z is north, CoordinateSystem.md), so the
+/// culmination elevation is 90 deg - latitude. Rise and set points do not move.
+/// ONE function for the sky bodies and DayNightCycle: if the disc and the light used two copies of
+/// this arc they could drift apart.
+glm::vec3 skyArcDirection(float hourAngle, float latitudeRad);
+
 /// The sky's full complement of bodies, plus the per-frame results of placing them.
 struct SkyBodies {
     std::vector<CelestialBody> bodies;
+    /// Observer latitude in degrees (JSON "latitudeDeg"); tips every body's arc toward the south.
+    float latitudeDeg = kDefaultLatitudeDeg;
+    /// Days from one full moon to the next (JSON "lunarCycleDays", >= 2). Sets the period of every
+    /// reflective body that does not give its own "periodDays": period = N / (N - 1) days, i.e. the
+    /// moon falls one full turn behind the sun every N days. DayNightCycle's fallback moon follows it.
+    float lunarCycleDays = 28.0f;
+    /// How bright a MOONLESS night is, as a multiple of the default fill (JSON "nightFill", >= 0):
+    /// 0 = as dark as the physics has it (black on a new moon), 1 = the default, 2 = twice it.
+    float nightFill = 1.0f;
 
     /// Unit vector pointing FROM the viewer TOWARD each body, index-matched to `bodies`.
     /// (The same convention Atmosphere:: uses — NOT the direction light travels.)
@@ -125,6 +162,17 @@ struct SkyBodies {
     /// Multiply every body's drawn size by `scale` (1.0 = leave alone). The one-knob answer to
     /// "make them bigger", without having to restate the whole list.
     void scaleAllSizes(float scale);
+
+    /// Ambient light a moonless night still gets (starlight + airglow, cheated to be playable):
+    /// kMoonlessNightShare of the DEFAULT sky's full moon's ambient share (kMoonSkyShare of its
+    /// light at midnight on day 0, when it is full and high). Tied to the moon's own calibration,
+    /// so retuning kMoonlightScale keeps the two in proportion. It is NIGHT light only: full with
+    /// the sun 6 deg or more below the horizon (civil twilight's end), zero with it 6 deg or more
+    /// above, smooth between - at full strength it equals ~38% of the noon sky's ambient, which
+    /// would lift every daytime shadow (measured by the unit test that pins this).
+    static glm::vec3 moonlessNightFill(const glm::vec3& toSun);
+    /// This sky's moonless-night fill: moonlessNightFill scaled by `nightFill`. What the renderer adds.
+    glm::vec3 nightFillAmbient(const glm::vec3& toSun) const { return moonlessNightFill(toSun) * nightFill; }
 
     /// Index of the body that should own the shadow cascades: the brightest light-contributing body
     /// currently above the horizon. Returns -1 when nothing is up (true night with no moon), in

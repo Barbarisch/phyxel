@@ -238,6 +238,7 @@ public:
         float     intensity;  ///< per emitter 0..1 from the material; a MERGED light (L1: all emitters
                               ///< of one cube cell + radius) carries the SUM, so it can exceed 1
         float     radius;     ///< reach, scaled with intensity
+        float     extent;     ///< G-157: half-extent of the emitting body itself, world units
     };
     const std::vector<EmissiveLight>& getEmissiveLights() const { return m_emissiveLights; }
 

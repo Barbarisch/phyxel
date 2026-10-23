@@ -13,6 +13,9 @@
 
 #include <nlohmann/json.hpp>
 #include <unordered_set>
+#include <set>
+#include <queue>
+#include <tuple>
 #include <cstdint>
 #include <cmath>
 
@@ -568,4 +571,93 @@ TEST(NavGraphMicroTest, AnNpcBesideATallTrunkStaysOnTheGround) {
     EXPECT_LT(p.y, 17.5f) << "the NPC was lifted off the street: y=" << p.y;
     EXPECT_TRUE(npc.getNavGraph()->surfaceAt(p).valid()) << "the NPC must stand on a walker surface";
     EXPECT_NEAR(p.x, 20.5f, 1.6f); EXPECT_NEAR(p.z, 9.5f, 1.6f);
+}
+
+
+// ============================================================================
+// G-181: the build runs on every core - and the graph does not depend on how many.
+// Every column and every edge of a 48x30 micro world (framed doors, slabs, a wall band,
+// scattered posts) must be bit-identical between a 1-thread build and a 7-thread build;
+// a mutant that skips edge sweeps on the worker threads or merges stripes wrongly fails
+// this on the first differing column.
+// ============================================================================
+namespace {
+MicroWorld wideScene() {
+    MicroWorld w;
+    w.fillCubeBox(0, 0, 0, 48, 1, 30);                   // ground
+    // Five wall bands with framed doors. The door rows avoid the slab rows below (z 0-2, 9-11,
+    // 18-20, 27-29): a slab under a door lifts the feet 3 micro and the 18-micro reveal reads
+    // as 15 - too low for the agent - which is exactly what closed the scene in the first cut.
+    const int doorZ[5] = {5, 7, 13, 15, 23};
+    for (int i = 0; i < 5; ++i) {
+        const int wx = 8 + i * 8;
+        w.fillMicroBox(wx * 9 + 3, 9, 0, 6, 27, 30 * 9);
+        w.carveMicroBox(wx * 9 + 3, 9, doorZ[i] * 9 + 1, 6, 18, 7);
+    }
+    for (int x = 0; x < 48; x += 7)                      // slabs and posts
+        for (int z = 0; z < 30; z += 9) {
+            w.fillMicroBox(x * 9, 9, z * 9, 27, 3, 27);
+            w.fillMicroBox(x * 9 + 40, 9, z * 9 + 40, 3, 20, 3);
+        }
+    return w;
+}
+// The world is 0..4 cubes tall: answer Empty outside it without the 729-sample count, so the
+// -64..256 column scan does not dominate the test.
+std::unique_ptr<NavGraph> boundedGraph(const MicroWorld& w) {
+    return std::make_unique<NavGraph>(
+        CellFillFunc([&w](const glm::ivec3& c) { return (c.y < 0 || c.y > 4) ? CellFill::Empty : w.fill(c); }),
+        MicroQueryFunc([&w](const glm::ivec3& m) { return w.micro(m.x, m.y, m.z); }));
+}
+bool sameSurface(const NavSurface& a, const NavSurface& b) {
+    if (a.x != b.x || a.z != b.z || a.floorY != b.floorY || a.floorTopMicro != b.floorTopMicro ||
+        a.headroomMicro != b.headroomMicro || a.headroom != b.headroom) return false;
+    for (int d = 0; d < 4; ++d) if (a.edge[d] != b.edge[d] || a.slack[d] != b.slack[d]) return false;
+    return true;
+}
+}  // namespace
+
+TEST(NavGraphMicroTest, BuildIsIdenticalForAnyThreadCount) {
+    const MicroWorld w = wideScene();
+    NavAgentProfile agent;
+    auto one = boundedGraph(w);
+    one->buildRegion({0, 0}, {47, 29}, agent, 1);
+    ASSERT_EQ(one->lastBuildThreads(), 1);
+    auto many = boundedGraph(w);
+    many->buildRegion({0, 0}, {47, 29}, agent, 7);
+    ASSERT_EQ(many->lastBuildThreads(), 7) << "the region is big enough to use the workers";
+    ASSERT_GT(one->columnCount(), 1300u);
+    EXPECT_EQ(one->columnCount(), many->columnCount());
+    EXPECT_EQ(one->surfaceCount(), many->surfaceCount());
+    int edges = 0;
+    for (int x = 0; x < 48; ++x)
+        for (int z = 0; z < 30; ++z) {
+            const auto& a = one->columnSurfaces(x, z);
+            const auto& b = many->columnSurfaces(x, z);
+            ASSERT_EQ(a.size(), b.size()) << "column " << x << "," << z;
+            for (size_t i = 0; i < a.size(); ++i) {
+                ASSERT_TRUE(sameSurface(a[i], b[i])) << "column " << x << "," << z << " level " << i;
+                for (int d = 0; d < 4; ++d) edges += a[i].edge[d] >= 0;
+            }
+        }
+    EXPECT_GT(edges, 4000) << "the scene is connected enough to exercise the edge sweep";
+    // and the same connectivity: everything reachable from one start cell is the same set of
+    // nodes on both graphs (a flood over neighbors(), i.e. over the swept edges)
+    const glm::vec3 from(5.5f, 1.0f, 5.5f);   // bare ground, feet at micro 9; (4,4) holds a post
+    auto reach = [&](const NavGraph& g) {
+        std::set<std::tuple<int, int, int>> seen;
+        std::queue<NavNodeId> q;
+        const NavNodeId s0 = g.surfaceAt(from);
+        EXPECT_TRUE(s0.valid());
+        q.push(s0); seen.insert({s0.x, s0.z, s0.level});
+        while (!q.empty()) {
+            const NavNodeId n = q.front(); q.pop();
+            for (const auto& m : g.neighbors(n, agent))
+                if (seen.insert({m.x, m.z, m.level}).second) q.push(m);
+        }
+        return seen;
+    };
+    const auto ra = reach(*one), rb = reach(*many);
+    EXPECT_EQ(ra.size(), rb.size());
+    EXPECT_TRUE(ra == rb) << "the reachable sets differ";
+    EXPECT_GT(ra.size(), 200u) << "the start cell should open onto a real region, not a pocket";
 }

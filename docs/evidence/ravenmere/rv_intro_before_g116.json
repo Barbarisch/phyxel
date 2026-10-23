@@ -1,0 +1,63 @@
+{
+ "label": "before_g116",
+ "exe": "C:\\Users\\bpete\\Documents\\PhyxelProjects\\Ravenmere\\build_probe\\Release\\Ravenmere.exe",
+ "ok": false,
+ "phases": [
+  {
+   "phase": "A",
+   "before": [
+    "intro",
+    "main_menu"
+   ],
+   "card_shown_at_s": null,
+   "states_first_3s": [
+    [
+     0.04,
+     "loading",
+     "main_menu"
+    ]
+   ],
+   "states_while_held": [
+    [
+     "loading",
+     "town"
+    ],
+    [
+     "playing",
+     "town"
+    ]
+   ],
+   "town_loaded_while_held": true,
+   "town_after_ack_s": 0.1,
+   "ok": false
+  },
+  {
+   "phase": "B",
+   "before": [
+    "intro",
+    "main_menu"
+   ],
+   "card_shown_at_s": null,
+   "states_first_3s": [
+    [
+     0.03,
+     "loading",
+     "main_menu"
+    ]
+   ],
+   "states_while_held": [
+    [
+     "loading",
+     "town"
+    ],
+    [
+     "playing",
+     "town"
+    ]
+   ],
+   "town_loaded_while_held": true,
+   "town_after_ack_s": 0.1,
+   "ok": false
+  }
+ ]
+}

@@ -1126,3 +1126,382 @@ TEST(UIActionBarTest, TheShippedActionBarAsksForFramedSlots) {
     EXPECT_EQ(item.value("dragBind", std::string()), "item.payload");
     EXPECT_EQ(item.value("dropBind", std::string()), "actionbar.drop");
 }
+
+// ---------------------------------------------------------------------------
+// G-179 (2026-09-24): ESC is "back one level" inside a data-driven screen namespace.
+// The keybindings sub-panel of Settings had no Back button and the shell's ESC handler did
+// not know the Settings state, so a player who opened it was stuck. backOutOfSubmenu() is
+// the engine half: with a sub-panel up it returns to the namespace's start panel and says
+// so; with the start panel up it says "nothing to back out of", so the host leaves Settings.
+#include "ui/MenuDefinition.h"
+
+TEST(MenuNamespaceBackOut, ASubPanelReturnsToTheStartPanelAndTheStartPanelReportsNothingToDo) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);   // headless: screens are plain panels, no device needed
+    ui.addScreen("settings:main", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.addScreen("settings:keybindings", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.addScreen("hud_health", std::make_unique<Phyxel::UI::UIPanel>());   // another namespace: untouched
+    ui.hideScreen("settings:main");
+    ui.showScreen("settings:keybindings");
+    ui.showScreen("hud_health");
+
+    EXPECT_TRUE(Phyxel::UI::backOutOfSubmenu(ui, "settings")) << "a sub-panel was up: handled";
+    EXPECT_TRUE(ui.isScreenVisible("settings:main"));
+    EXPECT_FALSE(ui.isScreenVisible("settings:keybindings"));
+    EXPECT_TRUE(ui.isScreenVisible("hud_health")) << "other namespaces are not touched";
+
+    EXPECT_FALSE(Phyxel::UI::backOutOfSubmenu(ui, "settings")) << "the start panel is up: the host must leave Settings";
+    EXPECT_TRUE(ui.isScreenVisible("settings:main")) << "...and it is left as it was";
+
+    ui.hideScreen("settings:main");
+    EXPECT_FALSE(Phyxel::UI::backOutOfSubmenu(ui, "settings")) << "nothing visible: nothing to do";
+}
+
+TEST(MenuNamespaceBackOut, AnUnknownNamespaceIsHarmless) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    EXPECT_FALSE(Phyxel::UI::backOutOfSubmenu(ui, "nothing_loaded"));
+}
+
+// The other engine half: the host tells a rebind-cancelling ESC from a menu ESC by watching
+// the capture-end counter, which moves once per capture whether it bound a key or cancelled.
+TEST(UISystemKeyCapture, TheEndCounterMovesOncePerCaptureBoundOrCancelled) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    EXPECT_EQ(ui.keyCaptureEndCount(), 0u);
+    ui.beginKeyCapture([](int, int) {});
+    EXPECT_TRUE(ui.isCapturingKey());
+    ui.cancelKeyCapture();
+    EXPECT_FALSE(ui.isCapturingKey());
+    EXPECT_EQ(ui.keyCaptureEndCount(), 1u);
+    ui.cancelKeyCapture();
+    EXPECT_EQ(ui.keyCaptureEndCount(), 1u) << "cancelling when nothing is captured is not an end";
+    ui.beginKeyCapture([](int, int) {});
+    ui.cancelKeyCapture();
+    EXPECT_EQ(ui.keyCaptureEndCount(), 2u);
+}
+
+// ---------------------------------------------------------------------------
+// G-182 (2026-09-24): a MODAL HUD panel owns the screen. Ravenmere: with the journal open, four
+// to six HUD panels and the player's world-space name label drew straight through it (ui_lint:
+// objectives 96x112 px, combat hint 244x156, ...). applyModalOverlays() runs after the per-
+// frame binds: a visible modal HUD root hides every other non-modal HUD root and suppresses
+// the world labels; namespaced screens (menu:, settings:) are never touched.
+TEST(HudModalOverlay, AVisibleModalHidesTheOtherHudPanelsAndTheWorldLabelsButNotMenus) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    auto journal = std::make_unique<Phyxel::UI::UIPanel>(); journal->modal = true;
+    ui.addScreen("hud_journal", std::move(journal));
+    ui.addScreen("hud_health", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.addScreen("hud_objectives", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.addScreen("settings:main", std::make_unique<Phyxel::UI::UIPanel>());   // namespaced: untouched
+    for (const char* n : {"hud_journal", "hud_health", "hud_objectives", "settings:main"}) ui.showScreen(n);
+
+    EXPECT_TRUE(Phyxel::UI::applyModalOverlays(ui));
+    EXPECT_TRUE(ui.getScreen("hud_journal")->visible);
+    EXPECT_FALSE(ui.getScreen("hud_health")->visible) << "a non-modal HUD root hides under the modal";
+    EXPECT_FALSE(ui.getScreen("hud_objectives")->visible);
+    EXPECT_TRUE(ui.getScreen("settings:main")->visible) << "namespaced screens are not HUD";
+    EXPECT_TRUE(ui.worldLabelsSuppressed());
+    ui.addNameplate({});   // empty name: ignored anyway
+    Phyxel::UI::UISystem::Nameplate np; np.name = "player";
+    ui.addNameplate(np);
+    ui.addWorldLabel({10.0f, 10.0f}, "Wynn", glm::vec4(1.0f), 0.5f);
+    // (queued labels are dropped while suppressed - render() would draw nothing; the count is
+    // internal, so the observable here is the flag plus the no-throw path)
+}
+
+TEST(HudModalOverlay, WithNoModalVisibleNothingChangesAndLabelsAreAllowed) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    auto journal = std::make_unique<Phyxel::UI::UIPanel>(); journal->modal = true; journal->visible = false;
+    ui.addScreen("hud_journal", std::move(journal));
+    ui.addScreen("hud_health", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.showScreen("hud_health");
+    ui.setWorldLabelsSuppressed(true);   // left over from a frame with the modal up
+    EXPECT_FALSE(Phyxel::UI::applyModalOverlays(ui));
+    EXPECT_TRUE(ui.getScreen("hud_health")->visible) << "no modal: the HUD is left as its own gates set it";
+    EXPECT_FALSE(ui.worldLabelsSuppressed()) << "the suppression is per frame, released when no modal is up";
+}
+
+TEST(HudModalOverlay, TheModalFlagComesFromTheHudJson) {
+    const auto j = nlohmann::json::parse(R"({"id":"hud_journal","modal":true,"size":[760,480]})");
+    auto p = Phyxel::UI::MenuDefinition::buildFromJson(j);
+    ASSERT_NE(p, nullptr);
+    EXPECT_TRUE(p->modal);
+    const auto k = nlohmann::json::parse(R"({"id":"hud_health","size":[340,60]})");
+    EXPECT_FALSE(Phyxel::UI::MenuDefinition::buildFromJson(k)->modal) << "default off";
+}
+
+
+// G-183: a label with maxLines shows the LAST lines (a transcript wants its tail) and measures
+// that many - the AI conversation history used to grow without bound and push the input field
+// out of its fixed-size panel.
+TEST(UILabelMaxLines, TailLinesKeepsTheLastNLinesAndZeroMeansAll) {
+    using L = Phyxel::UI::UILabel;
+    const std::string five = "a\nb\nc\nd\ne";
+    EXPECT_EQ(L::tailLines(five, 0), five);
+    EXPECT_EQ(L::tailLines(five, 9), five) << "fewer lines than the cap: unchanged";
+    EXPECT_EQ(L::tailLines(five, 2), "d\ne");
+    EXPECT_EQ(L::tailLines(five, 1), "e");
+    EXPECT_EQ(L::tailLines("single", 1), "single");
+}
+
+
+// G-183: visibleWhen expressions. Fail-closed on a missing provider or a malformed expression.
+TEST(HudVisibleWhen, AndTermsAllMustHoldAndEachMayBeNegated) {
+    Phyxel::UI::HudDataContext ctx;
+    ctx.setFloat("a", [] { return 1.0f; });
+    ctx.setFloat("b", [] { return 0.0f; });
+    using Phyxel::UI::evalVisibleWhen;
+    EXPECT_TRUE (evalVisibleWhen("a", ctx));
+    EXPECT_FALSE(evalVisibleWhen("!a", ctx));
+    EXPECT_TRUE (evalVisibleWhen("a && !b", ctx));
+    EXPECT_FALSE(evalVisibleWhen("a && b", ctx));
+    EXPECT_TRUE (evalVisibleWhen("  a   &&   !b  ", ctx)) << "whitespace is fine";
+    EXPECT_FALSE(evalVisibleWhen("a && missing", ctx)) << "no provider: hidden";
+    EXPECT_FALSE(evalVisibleWhen("a && !missing", ctx)) << "no provider, negated: still hidden";
+    EXPECT_FALSE(evalVisibleWhen("a &&", ctx)) << "malformed: hidden";
+    const auto keys = Phyxel::UI::visibleWhenKeys("journal.visible && !dialogue.active && !dialogue.aiActive");
+    ASSERT_EQ(keys.size(), 3u);
+    EXPECT_EQ(keys[0], "journal.visible"); EXPECT_EQ(keys[1], "dialogue.active"); EXPECT_EQ(keys[2], "dialogue.aiActive");
+}
+
+
+// ---- G-184: text fit. The lint judges strings with the renderer's own metrics. ------------
+// Headless BitmapFont: 8 px glyphs, so 16 px per character at scale 2.
+TEST(UILayoutTest, TextWiderThanItsBoxIsReportedOnlyWhenTheRendererWouldNotWrapIt) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "screen"; root->size = {1280.0f, 720.0f}; root->freeLayout = true;
+    auto l = std::make_unique<Phyxel::UI::UILabel>();
+    l->id = "cs_hp_v"; l->text = "Hit Points 340 out of 340";   // 25 chars = 400 px, no word over 96 px
+    l->position = {440.0f, 196.0f}; l->size = {150.0f, 26.0f};    // no wrapWidth: ONE line
+    Phyxel::UI::UILabel* lp = l.get();
+    root->addChild(std::move(l));
+    EXPECT_FLOAT_EQ(lp->measureTextWidth(&font, th), 400.0f) << "unwrapped: the whole line";
+    auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    ASSERT_EQ(defects.size(), 1u) << (defects.empty() ? "" : defects[0].message);
+    EXPECT_EQ(defects[0].kind, "text_overflow");
+    EXPECT_EQ(defects[0].panel, "cs_hp_v");
+    EXPECT_NEAR(defects[0].amount, 400.0f - 150.0f, 0.5f);
+    // the same label wrapped to its box: every drawn line fits, nothing to report
+    lp->wrapWidth = 150.0f;
+    EXPECT_LE(lp->measureTextWidth(&font, th), 150.0f);
+    EXPECT_TRUE(Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th).empty());
+}
+
+TEST(UILayoutTest, TwoStringsOnTheSameGroundAreReportedWithTheirNames) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "screen"; root->size = {1280.0f, 720.0f}; root->freeLayout = true;
+    auto a = std::make_unique<Phyxel::UI::UILabel>();
+    a->id = "cs_sv_con"; a->text = "Constitution"; a->position = {90.0f, 480.0f}; a->size = {190.0f, 26.0f};   // 192 px: 90..282
+    auto b = std::make_unique<Phyxel::UI::UILabel>();
+    b->text = "+11 *"; b->align = Phyxel::UI::UILabel::HAlign::Right;                                      // 80 px, ends at 300: 220..300
+    b->position = {300.0f, 480.0f}; b->size = {150.0f, 26.0f};
+    root->addChild(std::move(a)); root->addChild(std::move(b));
+    const auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    bool overlap = false, overflow = false;
+    for (const auto& d : defects) {
+        if (d.kind == "text_overlap") {
+            overlap = true;
+            EXPECT_EQ(d.panel, "cs_sv_con");
+            EXPECT_EQ(d.other, "\"+11 *\"") << "an unnamed widget is named by its text";
+            EXPECT_NEAR(d.amount, std::min(62.0f, font.lineHeight(2.0f)), 0.5f);   // 282-220 = 62 px across, a full line down
+        }
+        if (d.kind == "text_overflow") overflow = true;   // "Constitution" is 2 px wider than 190
+    }
+    EXPECT_TRUE(overlap) << defects.size() << " defects, no text_overlap";
+    EXPECT_TRUE(overflow);
+    // a string running into a neighbouring button's frame is the same defect
+    auto root2 = std::make_unique<Phyxel::UI::UIPanel>();
+    root2->id = "screen"; root2->size = {1280.0f, 720.0f}; root2->freeLayout = true;
+    auto l = std::make_unique<Phyxel::UI::UILabel>();
+    l->id = "lbl_ToggleCharacter"; l->text = "Character Sheet Toggle"; l->position = {160.0f, 150.0f}; l->size = {240.0f, 30.0f};  // 352 px: 160..512
+    auto btn = std::make_unique<Phyxel::UI::UIButton>();
+    btn->id = "kb_ToggleCharacter"; btn->text = "C"; btn->position = {410.0f, 146.0f}; btn->size = {210.0f, 34.0f};
+    root2->addChild(std::move(l)); root2->addChild(std::move(btn));
+    bool runsInto = false;
+    for (const auto& d : Phyxel::UI::lintLayout({root2.get()}, {1280.0f, 720.0f}, &font, th))
+        if (d.kind == "text_overlap" && d.panel == "lbl_ToggleCharacter" && d.other == "kb_ToggleCharacter") runsInto = true;
+    EXPECT_TRUE(runsInto);
+}
+
+TEST(UILayoutTest, AnIconButtonIsJudgedByItsIconNotItsLabel) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "hud_action_bar"; root->size = {760.0f, 76.0f};
+    auto slot = std::make_unique<Phyxel::UI::UIButton>();
+    slot->id = "slot"; slot->text = "Mass Healing Word (3)"; slot->size = {52.0f, 52.0f};
+    slot->iconPath = "resources/ui/icons/spells/mass_healing_word.png";   // exists (run from the repo root)
+    Phyxel::UI::UIButton* sp = slot.get();
+    root->addChild(std::move(slot));
+    ASSERT_TRUE(std::filesystem::exists(sp->iconPath)) << "run from the repo root";
+    EXPECT_TRUE(Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th).empty())
+        << "the icon draws; the label is the tooltip's business";
+    // a missing PNG falls back to the label (UIButton::render), which then has to fit - it does not
+    sp->iconPath = "resources/ui/icons/spells/no_such_spell.png";
+    const auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    ASSERT_EQ(defects.size(), 1u);
+    EXPECT_EQ(defects[0].kind, "text_overflow");
+    EXPECT_EQ(defects[0].panel, "slot");
+}
+
+TEST(UILayoutTest, AFixedRowThatCannotHoldItsWrappedTextIsReported) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    // the shipped party row as it was: a 40 px row panel holding a 230 px label whose text is 320 px
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "hud_party"; root->size = {260.0f, 140.0f};
+    auto row = std::make_unique<Phyxel::UI::UIPanel>();
+    row->id = "member"; row->size = {236.0f, 40.0f}; row->showBackground = false;
+    auto l = std::make_unique<Phyxel::UI::UILabel>();
+    l->id = "member_row"; l->text = "Old Moll   340 / 340"; l->size = {230.0f, 20.0f}; l->wrapWidth = 230.0f;   // 2 lines
+    row->addChild(std::move(l));
+    Phyxel::UI::UIPanel* rp = row.get();
+    root->addChild(std::move(row));
+    auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    bool found = false;
+    for (const auto& d : defects) if (d.kind == "content_overflow" && d.panel == "member") { found = true; EXPECT_GT(d.amount, 20.0f); }
+    EXPECT_TRUE(found) << defects.size() << " defects, no content_overflow";
+    // wide enough for one line: nothing to report
+    rp->size.x = 336.0f;
+    for (auto& c : rp->children) { c->size.x = 330.0f; static_cast<Phyxel::UI::UILabel*>(c.get())->wrapWidth = 330.0f; }
+    for (const auto& d : Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th))
+        EXPECT_NE(d.kind, "content_overflow") << d.message;
+}
+
+// The journal's quest rows: a repeater whose row template says "autoSize": true. That flag was
+// inert (nothing resized repeater rows), so the auditor's row still drew 134 px into 108 px and
+// the lint had exempted autoSize rows from the content rule - an escape hatch. Now the auto-size
+// pass sizes repeater rows (as the renderer's per-frame pass does) and the rule applies to them.
+TEST(UILayoutTest, AutoSizeRepeaterRowsAreReallyResizedToTheirWrappedText) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "hud_journal"; root->size = {760.0f, 480.0f}; root->scrollable = true;
+    auto rep = std::make_unique<Phyxel::UI::UIRepeater>();
+    rep->id = "journal_main"; rep->size = {720.0f, 108.0f}; rep->itemSpacing = 2.0f;
+    for (int i = 0; i < 2; ++i) {
+        auto row = std::make_unique<Phyxel::UI::UIPanel>();
+        row->id = "quest_" + std::to_string(i); row->size = {716.0f, 108.0f}; row->showBackground = false; row->autoHeight = true;
+        auto t = std::make_unique<Phyxel::UI::UILabel>();
+        t->id = "title"; t->text = "Speak with Reeve Aldric about the missing children and the barrow beneath the hill";  // 82 chars: 2 lines at 700
+        t->size = {700.0f, 64.0f}; t->wrapWidth = 700.0f;
+        auto d = std::make_unique<Phyxel::UI::UILabel>();
+        d->id = "detail"; d->text = "The Reeve holds court at the town hall; the tracks lead north past Hollin Farm and on";  // 2 lines at 700
+        d->size = {700.0f, 28.0f}; d->wrapWidth = 700.0f;
+        row->addChild(std::move(t)); row->addChild(std::move(d));
+        rep->generated.push_back(std::move(row));
+    }
+    Phyxel::UI::UIRepeater* rpt = rep.get();
+    root->addChild(std::move(rep));
+    const float line = font.lineHeight(2.0f);
+    const float content = th.padding * 2.0f + 2.0f * line + th.itemSpacing + 2.0f * line;   // both labels wrap to 2 lines
+    auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    for (const auto& d : defects) EXPECT_NE(d.kind, "content_overflow") << d.message;
+    for (const auto& row : rpt->generated)
+        EXPECT_NEAR(row->size.y, content, 0.5f) << "the auto-size pass resized the row to its content";
+    // the same rows with the flag off, at their authored 108 px: the rule reports them
+    for (auto& row : rpt->generated) { static_cast<Phyxel::UI::UIPanel*>(row.get())->autoHeight = false; row->size.y = 108.0f; }
+    int flagged = 0;
+    for (const auto& d : Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th))
+        if (d.kind == "content_overflow") { ++flagged; EXPECT_NEAR(d.amount, content - th.padding - 108.0f, 0.5f); }
+    EXPECT_EQ(flagged, 2);
+}
+
+
+// G-184: the metrics-only TTF load must measure with the TTF's advances, not the 8 px bitmap
+// grid. Until this test the headless gate read 16 px/char where the shipped font draws 14.6 -
+// the gate was 10% pessimistic about every width and its "real font" claim (G-183) was wrong.
+TEST(UILayoutTest, AMetricsOnlyTtfLoadMeasuresWithTheRealAdvances) {
+    Phyxel::UI::BitmapFont bitmap;   // never initialised: the 8x16 fallback
+    Phyxel::UI::BitmapFont ttf;
+    ASSERT_TRUE(ttf.initializeTTF(nullptr, "resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf", 48.0f)) << "run from the repo root";
+    const float grid = bitmap.measureText("NumpadDivide", 2.0f);   // 12 * 16 = 192
+    const float real = ttf.measureText("NumpadDivide", 2.0f);
+    EXPECT_FLOAT_EQ(grid, 192.0f);
+    EXPECT_NEAR(real, 175.0f, 2.0f) << "JetBrains Mono: 0.6 em advance on a 32 px line at scale 2 (the shipped exe measured 175)";
+    EXPECT_FLOAT_EQ(ttf.lineHeight(2.0f), bitmap.lineHeight(2.0f)) << "the line is normalised to GLYPH_H either way";
+}
+
+
+// ---- G-116: the narrative card. ------------------------------------------------------------
+#include "ui/GameScreen.h"
+TEST(NarrativeCard, TheStateIsPausedAndMouseFree) {
+    EXPECT_FALSE(Phyxel::UI::isGameRunning(Phyxel::UI::ScreenState::Narrative));
+    EXPECT_TRUE(Phyxel::UI::isMouseFree(Phyxel::UI::ScreenState::Narrative));
+}
+
+// The shipped narrative screen: its tokens resolve, and its button's "continue" action fires
+// MenuActions::onContinue (red before the action type existed: onClick stayed empty).
+TEST(NarrativeCard, TheContinueButtonFiresOnContinueAndTheTokensResolve) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    int fired = 0;
+    Phyxel::UI::MenuActions actions;
+    actions.onContinue = [&] { ++fired; };
+    actions.onResolveVariable = [](const std::string& t) -> std::optional<std::string> {
+        if (t == "narrative.title")  return std::string("Ravenmere");
+        if (t == "narrative.text")   return std::string("Three children have vanished.\n\nYou are a cleric.");
+        if (t == "narrative.button") return std::string("Begin");
+        return std::nullopt;
+    };
+    Phyxel::UI::loadGameScreenInto(ui, "narrative", actions);   // resources/ui/narrative_screen.json (repo root)
+    Phyxel::UI::UIPanel* main = ui.getScreen("narrative:main");
+    ASSERT_NE(main, nullptr) << "run from the repo root";
+    Phyxel::UI::UIButton* btn = nullptr;
+    Phyxel::UI::UILabel* title = nullptr;
+    Phyxel::UI::UILabel* body = nullptr;
+    for (auto& c : main->children) {
+        if (c->id == "narrative_continue") btn = dynamic_cast<Phyxel::UI::UIButton*>(c.get());
+        if (c->id == "narrative_title")    title = dynamic_cast<Phyxel::UI::UILabel*>(c.get());
+        if (c->id == "narrative_body")     // the text lives in the scrollable box
+            if (auto* box = dynamic_cast<Phyxel::UI::UIPanel*>(c.get()))
+                for (auto& t : box->children)
+                    if (t->id == "narrative_text") body = dynamic_cast<Phyxel::UI::UILabel*>(t.get());
+    }
+    ASSERT_NE(btn, nullptr); ASSERT_NE(title, nullptr); ASSERT_NE(body, nullptr);
+    EXPECT_EQ(title->text, "Ravenmere");
+    EXPECT_EQ(btn->text, "Begin");
+    EXPECT_NE(body->text.find("You are a cleric."), std::string::npos);
+    ASSERT_TRUE(static_cast<bool>(btn->onClick)) << "the 'continue' action wired nothing";
+    btn->onClick();
+    EXPECT_EQ(fired, 1);
+}
+
+// G-116 follow-up (user: "if a dev wants to add more text then the default should be a text window
+// that can scroll"): the card's text lives in a scrollable box. Long text overflows the box (so the
+// wheel and the keys have something to scroll) instead of running off the screen; short text fits.
+TEST(NarrativeCard, TheTextSitsInAScrollableBoxThatHoldsAnyLength) {
+    Phyxel::UI::BitmapFont font;   // headless 8x16 glyphs
+    Phyxel::UI::UITheme th;
+    auto load = [&](const std::string& body) {
+        auto ui = std::make_unique<Phyxel::UI::UISystem>(nullptr, 1280, 720);
+        Phyxel::UI::MenuActions a;
+        a.onResolveVariable = [body](const std::string& t) -> std::optional<std::string> {
+            if (t == "narrative.text") return body;
+            if (t == "narrative.title" || t == "narrative.button") return std::string("x");
+            return std::nullopt;
+        };
+        Phyxel::UI::loadGameScreenInto(*ui, "narrative", a);
+        return ui;
+    };
+    auto findBody = [](Phyxel::UI::UISystem& ui) -> Phyxel::UI::UIPanel* {
+        Phyxel::UI::UIPanel* main = ui.getScreen("narrative:main");
+        if (!main) return nullptr;
+        for (auto& c : main->children) if (c->id == "narrative_body") return dynamic_cast<Phyxel::UI::UIPanel*>(c.get());
+        return nullptr;
+    };
+    std::string longText;
+    while (longText.size() < 3000) longText += "The seal on the Hollow Barrow broke the night the first child went missing. ";
+    auto ui = load(longText);
+    auto* body = findBody(*ui);
+    ASSERT_NE(body, nullptr) << "the text is not inside the scrollable 'narrative_body' panel (run from the repo root)";
+    EXPECT_TRUE(body->scrollable);
+    EXPECT_TRUE(body->clipChildren);
+    const float h = body->measureContentHeight(&font, th);
+    EXPECT_GT(h, body->size.y * 2.0f) << "3,000 chars must be taller than the box - that is what scrolls";
+    auto ui2 = load("Three children have vanished.");
+    auto* body2 = findBody(*ui2);
+    ASSERT_NE(body2, nullptr);
+    EXPECT_LT(body2->measureContentHeight(&font, th), body2->size.y) << "short text fits: nothing to scroll";
+}

@@ -20,6 +20,17 @@ enum class ChunkPerfPhase : int {
     BufferRealloc,      // ChunkRenderBuffer::reallocateBuffer     (growth: destroy+free+create+alloc)
     BufferUpload,       // ChunkRenderManager::updateVulkanBuffer  (ensureCapacity + memcpy, all 3 bufs)
     DirtyUpdateTotal,   // ChunkManager::updateDirtyChunks(budget) (whole per-frame chunk-update phase)
+    // Load-path finalize of a DB-loaded chunk (ChunkManager::finalizeLoadedChunk(syncMesh=true)),
+    // the synchronous part of a scene load (Ravenmere G-181: 30 chunks, ~3.4 s):
+    LoadPhysicsBody,    // Chunk::createChunkPhysicsBody (static collision registered in the physics world)
+    LoadOccupancy,      // Chunk::forcePhysicsRebuild    (the chunk's own occupancy grid)
+    LoadFaces,          // Chunk::rebuildFaces           (greedy mesh + light bake + visibility mask)
+    LoadUpload,         // Chunk::updateVulkanBuffer     (GPU upload)
+    LoadVoxelMaps,      // Chunk::initializeVoxelMaps    (hover/raycast hash maps)
+    // The synchronous DB load that precedes the finalize (ChunkStreamingManager::loadChunk):
+    LoadChunkInit,      // Chunk ctor + initialize + initializeForLoading
+    LoadDbDecode,       // WorldStorage::loadChunk: SQLite blob read + ChunkBlobCodec::decode (addCube/addSubcube/addMicrocube)
+    LoadGpuAlloc,       // Chunk::createVulkanBuffer
     COUNT
 };
 

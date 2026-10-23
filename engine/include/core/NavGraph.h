@@ -129,8 +129,17 @@ public:
 
     bool microMode() const { return static_cast<bool>(m_microFunc); }
 
-    /// Build all columns in an inclusive XZ region for the given agent.
-    void buildRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ, const NavAgentProfile& agent);
+    /// Build all columns in an inclusive XZ region for the given agent. The columns are
+    /// built and their edges swept on `threads` worker threads (0 = one per hardware
+    /// thread; small regions use one). The result is identical for any thread count: a
+    /// column depends only on the world, an edge only on the two columns' surfaces. The
+    /// world is read through the fill/micro callbacks from every worker, so the caller
+    /// must not mutate it during the build (Ravenmere G-181: the town's 30,720-column
+    /// graph took 5.7 s single-threaded, the whole scene load).
+    void buildRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ, const NavAgentProfile& agent,
+                     int threads = 0);
+    /// Worker threads the last buildRegion() used (1 = it ran on the caller's thread).
+    int lastBuildThreads() const { return m_lastBuildThreads; }
 
     /// Rebuild a single column after a voxel change (incremental update entry point).
     /// Micro mode also re-sweeps the edges of the column and its four neighbours.
@@ -247,6 +256,7 @@ private:
     std::unordered_map<int64_t, std::vector<NavSurface>> m_columns;
     glm::ivec2 m_minBounds{0, 0};
     glm::ivec2 m_maxBounds{0, 0};
+    int m_lastBuildThreads = 1;
     mutable std::shared_mutex m_mutex;   ///< guards m_columns/bounds; see findPath() note above.
 };
 

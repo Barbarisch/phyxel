@@ -313,6 +313,12 @@ bool BitmapFont::initializeTTF(UIRenderer* renderer, const std::string& ttfPath,
         g.xadvance = c.xadvance;
     }
 
+    // Metrics-only (renderer == nullptr): a headless layout test needs the real glyph widths
+    // and line height to measure wrapping, but has no device to upload the atlas to. Such a
+    // font must never be drawn with (there is no texture); measureText/lineHeight are valid.
+    // ttf_ must be set HERE too: without it measureText took the 8 px bitmap branch and the
+    // layout gate measured 16 px/char where the shipped font draws 14.6 (G-184).
+    if (!renderer) { ttf_ = true; initialized_ = true; return true; }
     if (!renderer->uploadFontAtlas(atlas.data(), W, H)) {
         LOG_ERROR("BitmapFont", "Failed to upload TTF atlas");
         return false;

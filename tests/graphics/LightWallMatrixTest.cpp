@@ -733,7 +733,13 @@ Room buildSealedBoxWithMountedLight(int t, int gapMicro, glm::vec3& lightWorldOu
 // Enabling it is the definition of done for that fix. Measured 2026-09-22, it leaks at EVERY
 // wall thickness in the matrix, from 1 micro up to a 3-cube stone keep wall, while the
 // control (the same light one micro cell off the wall) is correctly blocked at all of them.
-TEST(LightWallMatrixTraced, DISABLED_M4_ALightMountedFlushOnAWallDoesNotShineThroughIt) {
+// The emitter here is ONE microcube, so its own half-extent is the bounding-sphere radius
+// of a 1/9 cube: sqrt(3)/18 = 0.0962 u. That is what ChunkRenderManager now reports for
+// such a light, and it is the whole fix: the march may exclude that much solid around the
+// light and no more, so the wall behind it is still tested however thin it is.
+constexpr float kOneMicroExtent = 0.0962f;
+
+TEST(LightWallMatrixTraced, M4_ALightMountedFlushOnAWallDoesNotShineThroughIt) {
     for (const auto& w : kWalls) {
         const int t = StructureRealizer::thicknessMicro(w.styleCubes);
 
@@ -745,7 +751,7 @@ TEST(LightWallMatrixTraced, DISABLED_M4_ALightMountedFlushOnAWallDoesNotShineThr
         const auto freePool = poolFromRoom(freeRoom);
         const auto ctrl = Phyxel::Graphics::packedPoolLightVisibility(
             freePool, {static_cast<float>(kLo) - 0.5f, kMid + 0.5f, kMid + 0.5f},
-            {1, 0, 0}, freeLight);
+            {1, 0, 0}, freeLight, kOneMicroExtent);
         EXPECT_FALSE(ctrl.visible)
             << w.label << " (" << t << " micro): CONTROL failed - a light one micro cell off "
             << "the wall already leaks, so the flush result below proves nothing";
@@ -756,7 +762,7 @@ TEST(LightWallMatrixTraced, DISABLED_M4_ALightMountedFlushOnAWallDoesNotShineThr
         const auto flushPool = poolFromRoom(flushRoom);
         const auto v = Phyxel::Graphics::packedPoolLightVisibility(
             flushPool, {static_cast<float>(kLo) - 0.5f, kMid + 0.5f, kMid + 0.5f},
-            {1, 0, 0}, flushLight);
+            {1, 0, 0}, flushLight, kOneMicroExtent);
         EXPECT_FALSE(v.visible)
             << w.label << " (" << t << " micro): a light mounted FLUSH on the inside of the "
             << "wall lit the OUTSIDE face - the emitter's solid run merged with the wall's "

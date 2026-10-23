@@ -577,6 +577,8 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-10-19 — **FIXED: GPU debris no longer shadows its own sunlit faces.** `dynamic_shadow.vert` placed every caster at `centre + inScale * 0.5` while `dynamic_voxel.vert` draws the body at `centre` — a half-voxel +X+Y+Z shift present since the shadow pass was born (`7a36910f`, 2026-05-11). The shifted caster covered the real top face, so a resting debris cube read as a hard-edged black slab locked to the face (near + mid cascades both use this shader). The term is deleted; caster and receiver positions now agree. Red→green at one pinned pose in DebrisPushTest (shadow-only view, mode 13, curve 0): aligned debris top 0.6 luma / 99.1% black → 199.1 / 0.0%; static-block top control 176.6 → 177.0. Kinematic casters (`kinematic_shadow.vert`) already matched their receiver and were checked unchanged. Evidence `docs/evidence/dynamic_shadow/`, probe `tools/debris_self_shadow_probe.py`. Limits: N=1 (one pose, one sun angle); before/after were separate engine sessions with the rig re-spawned (the measured aligned lattice has no spin, control matched); ground shadows after the fix are visually present and anchored at the body base but not measured numerically (grass blades move between frames). No lighting-model change.
+- 2026-10-14 — **Merge of the two mains: the light march keeps the G-157 end-cell test on the L3a two-level walk, and emitters keep G-158's one-light-per-cube model.** `phxLightVisibility` now runs `phxSegmentBlocked` (L3a, cube cells) and then tests the target cell itself, because the stop-short is the emitter's measured extent and that cell is the wall a flush sconce sits on; CPU mirror `packedPoolLightVisibleTwoLevel(..., emitterExtent)` identical, `OccupancyTraversal.LightVisibilityTwoLevelEqualsTheMicroMarch` pins it at varied extents (20000 segments, 0 differ). Upstream's L1 coincident-emitter merge (Σt) is a no-op guard behind G-158 (brightest constituent, power-weighted centroid) - see `PerfProgram2026-09.md` §13 note. Point lights carry both `LightSource` (upstream) and `extent` (G-157). The per-frame occupancy buffers (upstream `d7c697d0`) replace the G-177 `deviceWaitIdle` guard. All `.spv` rebuilt from the merged sources.
 - 2026-10-10 - **simulated water's in-scatter is lit by the shared model** (`water_common.glsl` `waterLightAt`, WaterCore.md 21.3): `phxAmbient` (up) + the sun x the near ∪ mid fast shadow x `phxSunGate`, Lambert 1/pi, times the water's irradiance reflectance R (0.02 clear / 0.08 turbid in G, Mobley; the shipped per-channel shape kept). Replaces an unlit constant radiance that, after the x8 exposure, made the Small pond glow ~3x brighter than its floor (floor 21 % of the picture; now the floor's detail survives 0.775 vs 0.349, `tools/water_clarity_probe.py`, `docs/evidence/water_core_e/s0_clarity.json`). `water_surface.frag` only; the sea (`water.frag`), `water_cell.frag` and `water_underwater.frag` unchanged (`scatterLit = 0`). Every water includer's std140 UBO prefix now reaches `giProbeGrid`. New receiver row in §0.2.
 - 2026-10-09 - **water reflects the atmosphere** (`water_common.glsl` `waterSkyReflection`: `phxSkyRadiance` + `phxSunDisc` along the reflected ray, replacing a hardcoded daylight gradient that read white after exposure; WaterCore Phase F2, docs/WaterCore.md 17.3). New receiver `water_surface.frag` (the simulated water's own surface mesh) shares the water model; `shoreFoam` input gates the sheet's waterline/surf foam off for simulated water. Ambient/sun/shadow model unchanged.
 - 2026-10-05 — **`occupancy.glsl` gains `phxOccupancyState` (empty / solid / UNKNOWN) and overridable
@@ -592,6 +594,9 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
   bake) are gone with the CPU `DebrisSystem`. Its only producer was the no-GPU derez fallback,
   which now removes the character without debris. All debris is GPU debris through `voxel.frag`;
   §0.2 loses a row, R8 loses its logged exception, the §8 gap is resolved. No shader changed.
+- 2026-09-25 — **A moonless night is dark, not black (G-186).** User, after a long session: "it is very very very dark ... this is too dark". Measured on the shipped exe (`tools/rv_night_l4.py`, settle mode, 60 s per case): world luma new moon 2.6, full moon 12.7, noon 69 - nothing but the moon lit a night, and 20-minute days put a new moon ~4.7 h into a session (the moon is also below the horizon for part of every night). Added `SkyBodies::moonlessNightFill(toSun)` to the world's ambient (`a.ambientColor`, NOT the sky dome, whose airglow twilight bounds from above): `kMoonlessNightShare` (0.5, a LOOK constant) of the default full moon's ambient share (`kMoonSkyShare`, now shared in `CelestialBody.h`), faded by sun elevation - full below -6 deg, zero above +6 deg. The first cut had no fade and was ~38% of the noon sky's ambient (caught by its unit test; noon measured 69 -> 74). After: new moon ~6, full moon ~18, noon 68.7 (unchanged). `ambient_model_check` measures at noon, where the fill is zero by construction. Test `CelestialBody.AMoonlessNightStillGetsAmbientButNotEnoughToMatterByDay`. Also measured: the probe field takes ~60 s to settle after a jump in time of day - invisible in play (the clock moves slowly), visible to any rig that jumps the clock.
+- 2026-09-26 — **The night fill and the lunar cycle are per-game settings.** The moonless-night fill in `a.ambientColor` is now `m_skyBodies.nightFillAmbient(toSun)` = `moonlessNightFill(toSun) * sky.nightFill` (game.json `sky.nightFill`, default 1.0 = unchanged; 0 = physically black moonless nights). `sky.lunarCycleDays` (default 28 = unchanged) sets the period of every reflective body without its own `periodDays` (N/(N-1) days) and the DayNightCycle fallback moon. No shader change; with no `sky` block the frame is bit-for-bit the same computation. Tests `CelestialBody.NightFillScalesTheMoonlessNight`, `CelestialBody.LunarCycleDaysSetsTheMoonsCycle`.
+- 2026-09-25 — **The sun crosses the SOUTHERN sky; the moon starts full (Ravenmere G-164).** Every body's daily arc now comes from ONE function, `Graphics::skyArcDirection(hourAngle, latitudeRad)` (`CelestialBody.cpp`), used by both `SkyBodies` (the discs, the dominant light, the shadow cascades) and `DayNightCycle` (the ambient ramp, `isNight`, the fallback moon) - they had duplicate copies of the arc. The arc is the engine's original swing tipped about the rise-set axis by an observer latitude (`SkyBodies::latitudeDeg`, JSON `sky.latitudeDeg`, default `kDefaultLatitudeDeg` = 40: noon elevation 90 - 40 = 50 deg, to the south, -Z); the original passed through the zenith, so the noon sun stood straight overhead - outside every third-person frame - and noon shadows vanished. Rise and set points are unchanged. **Consequences for lighting:** noon shadows now have length (the cascades fit a 50 deg sun), noon sun and sky irradiance drop to their 50-deg values (`Atmosphere::sunlightColor` / `skyIrradiance` of the new direction), and `DayNightCycle`'s ambient ramp peaks at sin 50 deg = 0.77 of its old noon input. `sky.latitudeDeg: 0` restores the old arc. The default moon's `phaseOffset` is 0.5 (full on day 0; it was new, i.e. unlit, for a world's first nights), and the renderer takes the moon's direction from the sky bodies (`RenderCoordinator::skyMoonToward`), not the cycle's duplicate. No shader changed. Tests: `CelestialBody.TheNoonSunStandsInTheSouthAtNinetyMinusLatitude`, `TheDefaultMoonIsUpAndFullOnTheFirstNight`; L4 `tools/rv_sky_l4.py`.
 - 2026-09-23 — **Glass is blended again: the OIT pass is re-enabled, and glass casts no shadow**
   (`docs/GlassTransparency.md`). `transparent_voxel.frag` had opened with an unconditional `discard`
   since `7a36910f`; the validation error it was blamed on fires identically with the pass disabled
@@ -607,6 +612,63 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
   change is lost independent of alpha, and it is not the probe field (GI off: 0.818) nor a shadow
   (R = 1.000).
 
+- 2026-09-22 — **FIXED: a light no longer excludes the wall it is mounted on (G-157).**
+  `phxLightVisibility` stops its shadow ray short by the length of the contiguous SOLID RUN
+  around the light, so an emissive voxel does not shadow itself. A sconce mounted flush on a
+  wall shares ONE solid run with that wall, so the exclusion swallowed the wall and the light
+  reached straight through it — reproduced at every thickness from 1 micro to a 3-cube stone
+  keep wall, with the one-cell-off control correctly blocked at all of them. The fix is the
+  quantity the G-158 merge made available: each light now knows the half-extent of its own
+  emitting body (the bounding-sphere radius of the voxels it was merged from), and the outward
+  walk is bounded by it — `runCells = clamp(ceil(extent * 9), 1, 32)` in both `occupancy.glsl`
+  and its CPU mirror. A one-microcube flame reports 0.096 u and may exclude ONE micro cell, so a
+  wall one cell behind it is still tested; a full glow cube reports 0.866 u and excludes exactly
+  itself. The walk still ends early at air, so a free-standing emitter is unchanged. Carrying the
+  extent to the GPU widened `PointLightGPU` from 32 to 48 bytes (`extentAndPad.x`), which had to
+  change in `Light.h` and in all seven shaders that declare it — voxel, character, foliage,
+  grass, mirror_voxel, transparent_voxel and gi_probe — in lockstep, because a layout mismatch
+  reads garbage rather than failing to link. Spot lights use the padding they already had
+  (`outerConeAndPadding.y`). Rules R8/R9 untouched. `LightWallMatrixTraced.M4_ALightMountedFlush...`
+  is now enabled and is the definition of done.
+- 2026-09-22 — **FIXED: one emissive light per fixture, at the emitting voxel (G-158).**
+  `ChunkRenderManager::rebuildAllFaces` now accumulates emissive voxels per PARENT CUBE and emits
+  a single `EmissiveLight` at the power-weighted centroid of the emitting cells, instead of one
+  light per sub-voxel at the cube centre. Brightness is the brightest constituent, not the sum.
+  Reach is derived from emitting VOLUME — and the shipped per-resolution constants already
+  encoded exactly that rule (cube 1.0, subcube 0.75, microcube 0.5 are linear in log27(volume),
+  because 1, 1/27, 1/729 map to 0, -1, -2), so this makes them continuous rather than inventing a
+  curve: a single-voxel emitter keeps its shipped reach, a cube packed with glow microcubes
+  reaches exactly like a glow cube, a bed of coals lands between. Merging per parent cube keeps
+  the result chunk-local and seam-free by construction. **Measured on the shipped exe, same poses,
+  same tone curve, machine idle for both runs:** registered lights 143 → 38, distinct positions
+  among the 32 uploaded 1 → 32, Static Geometry 266.9 → 80.0 ms looking down (4.0 → 11.4 FPS)
+  and 86.2 → 49.3 ms on the street (10.1 → 15.8 FPS), marches per lit pixel 31.3 → 17.1.
+  The lit-pixel fraction ROSE at both poses (0.916 → 0.966, 0.434 → 0.725): more of the screen is
+  lit for a third of the cost, because the lights that were starved out of the cap now reach their
+  rooms. Rules R8/R9 untouched; no shader changed. Red/green `g158_red.txt` → `g158_green.txt`
+  (10 tests, 7 red first), L4 `g158_before.json` / `g158_after.json`.
+- 2026-09-22 — **ROOT CAUSE FOUND, and it is not the cost of lighting: THE SAME LIGHT IS
+  UPLOADED 32 TIMES (G-158).** Runs 7-8 dumped the light buffer instead of reasoning about it.
+  All 32 uploaded point lights in the Ravenmere town are at the IDENTICAL position
+  (rel (1.500, -0.311, 5.500), r=7.5, i=1.0) — 32 rows, **one distinct position**
+  (`docs/evidence/ravenmere/rv_perf8.json`). The emissive walk in
+  `ChunkRenderManager::rebuildAllFaces` emits one point light per emissive SUB-VOXEL but
+  positions it at the PARENT CUBE (`sc->getPosition()`, `mc->getParentCubePosition()`, beside a
+  flaming-voxel push that correctly uses `getWorldPosition()`), so every emissive sub-voxel in a
+  cube becomes a co-located duplicate. Across the shipped asset library that is **3518 emitted
+  lights from 199 distinct parent cubes (17.7x; worst `forge_bush_glow_green` 1270 from 38 = 33x,
+  `oven_bread` 64 from 4, `forge_hearth`/`chandelier` 8 from 1)**. Independently confirmed by the
+  shader: with one distinct light a pixel's light count can only be 0 or 32, and probe 19 reports
+  max exactly 32.00 at both poses with means 21.30 (66.6% of lit pixels) and 11.03 (34.5%).
+  THREE consequences, only the first of which was visible as "perf": ~31 of the 32 marches per
+  pixel are exact duplicates, so the 236 ms light bill is ~97% redundant work; the 32-slot budget
+  is entirely consumed by ONE fixture, so every other light in the town is starved out and does
+  not light anything; and 32 copies SUM, so that fixture is ~32x over-bright — which is also
+  what makes the G-157 wall leak so conspicuous. **This supersedes run 6's stated fix direction**
+  ("per-tile/per-cluster light culling"): clustering cannot help lights that share one position
+  and therefore one tile. It also invalidates run 7's contribution-gate survivor counts, which
+  measured duplicates and must be re-taken after dedup. No lighting behaviour changed in this
+  commit; rules R8/R9 untouched.
 - 2026-09-22 — **TWO DEFECTS IN ONE FUNCTION: `phxLightVisibility` is 90% of the frame AND
   leaks through walls (G-18 + G-157).** Drilling into the light loops: the MARCH alone is 237.5
   of 263.6 ms, and a probe that counts marches shows **31.3 of the 32-light cap running at 91.6%
@@ -654,10 +716,11 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 - 2026-09-02 — M5 one-bounce probe field working, default OFF (`/api/debug/gi`).
 - 2026-09-01 — U7 stage 2: block light deleted from the engine; vegetation sky transport retired (grass/foliage trace their own sky).
 - 2026-08-30 — M2 point/spot visibility trace on every consumer; M3-REDESIGN per-cell traced bake for non-chunk receivers.
+- 2026-09-23 — `occupancy.glsl` mixed-cube binary search GUARDED (count clamped to 32768, overflow-free midpoint): the directory/pool are one host-mapped copy repacked before the frame fence, and a torn read handed the loop a garbage count → infinite loop → VK_ERROR_DEVICE_LOST (Ravenmere G-177 surround, and G-127 before it). `RenderCoordinator::updateLightOccupancy` now drains the GPU before a pending repack; the proper fix (per-frame-in-flight directory/pool) is open on the G-177 row. No lighting-model change.
 - 2026-08-15 — single tone map moved to `post_process.frag` (grade pass).
 - 2026-08-06 — near shadow cascade (40 u) shipped; receivers min-compose.
 
-<!-- lighting-model-fingerprint: 5e1afeba61b203ad -->
+<!-- lighting-model-fingerprint: 08142fb0e36e5d07 -->
 
 ## Related
 

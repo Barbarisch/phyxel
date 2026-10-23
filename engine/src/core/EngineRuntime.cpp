@@ -330,6 +330,25 @@ float EngineRuntime::beginFrame() {
     lastDeltaTime_ = dt;
 
     timer_->update();
+    // Chunk streaming pump (2026-09-23, Ravenmere G-177). Streaming was pumped ONLY by the
+    // editor's Application loop, so a shipped game with a streaming world configured its
+    // generator, drew far terrain from it - and never streamed a single chunk (the surround
+    // L4's first "after": 40 far tiles, the same 2 resident chunks as before, the heightmap
+    // starting right at the last chunk). Same defect family as the audio listener above and
+    // the missing pathfinder (53a361c9). Mirrors Application.cpp ~4158-4175: anchor + view
+    // cone from the camera, a full pump every 2nd frame (>= frames in flight, the
+    // frame-deferred-deletion contract of unloadDistantChunks), landings drained between.
+    // Runs at the START of the frame like the editor (its pump precedes render()); the first
+    // cut ran it in endFrame, after the submit, and the shipped town went VK_ERROR_DEVICE_LOST
+    // within a second of streamed chunks landing.
+    if (chunkManager_ && camera_ && chunkManager_->isStreamingGenerationEnabled()) {
+        chunkManager_->setPlayerPosition(camera_->getPosition());
+        chunkManager_->setStreamingViewDirection(camera_->getFront());
+        if ((frameCount_ & 1u) == 0u) chunkManager_->updateChunkStreaming();
+        else                          chunkManager_->pumpChunkLanding();
+    }
+
+
     return dt;
 }
 

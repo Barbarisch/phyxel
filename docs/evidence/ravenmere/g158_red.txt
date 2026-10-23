@@ -1,0 +1,396 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = EmissiveLightMerge.*
+[==========] Running 10 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 10 tests from EmissiveLightMerge
+[ RUN      ] EmissiveLightMerge.ManyEmissiveMicrocubesInOneCubeMakeExactlyOneLight
+[32m[18:50:45.500] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(104): error: Expected equality of these values:
+  crm.getEmissiveLights().size()
+    Which is: 2
+  1u
+    Which is: 1
+2 emissive microcubes in ONE cube produced 2 lights -- every extra one is a CO-LOCATED duplicate that burns a slot in the 32-light cap, marches the same occupancy ray again, and adds its contribution again (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(104): error: Expected equality of these values:
+  crm.getEmissiveLights().size()
+    Which is: 8
+  1u
+    Which is: 1
+8 emissive microcubes in ONE cube produced 8 lights -- every extra one is a CO-LOCATED duplicate that burns a slot in the 32-light cap, marches the same occupancy ray again, and adds its contribution again (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(104): error: Expected equality of these values:
+  crm.getEmissiveLights().size()
+    Which is: 66
+  1u
+    Which is: 1
+66 emissive microcubes in ONE cube produced 66 lights -- every extra one is a CO-LOCATED duplicate that burns a slot in the 32-light cap, marches the same occupancy ray again, and adds its contribution again (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(104): error: Expected equality of these values:
+  crm.getEmissiveLights().size()
+    Which is: 200
+  1u
+    Which is: 1
+200 emissive microcubes in ONE cube produced 200 lights -- every extra one is a CO-LOCATED duplicate that burns a slot in the 32-light cap, marches the same occupancy ray again, and adds its contribution again (G-158)
+
+[  FAILED  ] EmissiveLightMerge.ManyEmissiveMicrocubesInOneCubeMakeExactlyOneLight (31 ms)
+[ RUN      ] EmissiveLightMerge.NoTwoEmittedLightsEverShareAPosition
+[32m[18:50:45.530] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (5.5, 5.5, 5.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (1.5, 1.5, 1.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(131): error: Value of: seen.insert(key).second
+  Actual: false
+Expected: true
+two lights at the same position (9.5, 2.5, 3.5) -- co-located lights cannot be culled or clustered apart, they just multiply the per-fragment march and the brightness (G-158)
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(137): error: Expected equality of these values:
+  crm.getEmissiveLights().size()
+    Which is: 55
+  4u
+    Which is: 4
+
+[  FAILED  ] EmissiveLightMerge.NoTwoEmittedLightsEverShareAPosition (25 ms)
+[ RUN      ] EmissiveLightMerge.TheLightSitsAtTheEmittingVoxelNotTheParentCubeCentre
+[32m[18:50:45.556] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(157): error: The difference between got.x and want.x is 0.11111116409301758, which exceeds 1e-4f, where
+got.x evaluates to 3.5,
+want.x evaluates to 3.3888888359069824, and
+1e-4f evaluates to 9.9999997473787516e-05.
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(158): error: The difference between got.y and want.y is 0.33333301544189453, which exceeds 1e-4f, where
+got.y evaluates to 4.5,
+want.y evaluates to 4.8333330154418945, and
+1e-4f evaluates to 9.9999997473787516e-05.
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(159): error: The difference between got.z and want.z is 0.11111116409301758, which exceeds 1e-4f, where
+got.z evaluates to 5.5,
+want.z evaluates to 5.6111111640930176, and
+1e-4f evaluates to 9.9999997473787516e-05.
+
+[  FAILED  ] EmissiveLightMerge.TheLightSitsAtTheEmittingVoxelNotTheParentCubeCentre (22 ms)
+[ RUN      ] EmissiveLightMerge.TheMergedLightSitsAtTheEmissiveCentroid
+[32m[18:50:45.579] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(172): error: Expected equality of these values:
+  crm.getEmissiveLights().size()
+    Which is: 2
+  1u
+    Which is: 1
+
+[  FAILED  ] EmissiveLightMerge.TheMergedLightSitsAtTheEmissiveCentroid (22 ms)
+[ RUN      ] EmissiveLightMerge.SeparateCubesKeepSeparateLights
+[32m[18:50:45.601] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(190): error: Expected equality of these values:
+  crm.getEmissiveLights().size()
+    Which is: 40
+  2u
+    Which is: 2
+two neighbouring cubes of emissive voxels are two fixtures, not one
+
+[  FAILED  ] EmissiveLightMerge.SeparateCubesKeepSeparateLights (22 ms)
+[ RUN      ] EmissiveLightMerge.AFullGlowCubeIsCompletelyUnchanged
+[32m[18:50:45.624] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.AFullGlowCubeIsCompletelyUnchanged (22 ms)
+[ RUN      ] EmissiveLightMerge.ALoneMicrocubeKeepsItsShippedBrightnessAndReach
+[32m[18:50:45.646] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.ALoneMicrocubeKeepsItsShippedBrightnessAndReach (21 ms)
+[ RUN      ] EmissiveLightMerge.ALoneSubcubeKeepsItsShippedBrightnessAndReach
+[32m[18:50:45.667] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(237): error: The difference between e.worldPos.y and want.y is 0.33333337306976318, which exceeds 1e-4f, where
+e.worldPos.y evaluates to 1.5,
+want.y evaluates to 1.8333333730697632, and
+1e-4f evaluates to 9.9999997473787516e-05.
+
+[  FAILED  ] EmissiveLightMerge.ALoneSubcubeKeepsItsShippedBrightnessAndReach (22 ms)
+[ RUN      ] EmissiveLightMerge.ReachGrowsWithTheEmittingVolume
+[32m[18:50:45.690] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(250): error: Expected equality of these values:
+  crm.getEmissiveLights().size()
+    Which is: 66
+  1u
+    Which is: 1
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(250): error: Expected equality of these values:
+  crm.getEmissiveLights().size()
+    Which is: 729
+  1u
+    Which is: 1
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(254): error: Expected: (one) < (oven), actual: 7.5 vs 7.5
+a 66-cell bed of coals must reach further than a single spark
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(255): error: Expected: (oven) < (packed), actual: 7.5 vs 7.5
+reach must keep growing with emitting volume
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\graphics\EmissiveLightMergeTest.cpp(257): error: The difference between packed and 15.0f is 7.5, which exceeds 1e-3f, where
+packed evaluates to 7.5,
+15.0f evaluates to 15, and
+1e-3f evaluates to 0.0010000000474974513.
+a cube FULLY packed with glow microcubes is a glow cube, and must reach like one
+
+[  FAILED  ] EmissiveLightMerge.ReachGrowsWithTheEmittingVolume (29 ms)
+[ RUN      ] EmissiveLightMerge.TheEmittedListIsDeterministic
+[32m[18:50:45.720] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.TheEmittedListIsDeterministic (25 ms)
+[----------] 10 tests from EmissiveLightMerge (246 ms total)
+
+[----------] Global test environment tear-down
+[==========] 10 tests from 1 test suite ran. (246 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 7 tests, listed below:
+[  FAILED  ] EmissiveLightMerge.ManyEmissiveMicrocubesInOneCubeMakeExactlyOneLight
+[  FAILED  ] EmissiveLightMerge.NoTwoEmittedLightsEverShareAPosition
+[  FAILED  ] EmissiveLightMerge.TheLightSitsAtTheEmittingVoxelNotTheParentCubeCentre
+[  FAILED  ] EmissiveLightMerge.TheMergedLightSitsAtTheEmissiveCentroid
+[  FAILED  ] EmissiveLightMerge.SeparateCubesKeepSeparateLights
+[  FAILED  ] EmissiveLightMerge.ALoneSubcubeKeepsItsShippedBrightnessAndReach
+[  FAILED  ] EmissiveLightMerge.ReachGrowsWithTheEmittingVolume
+
+ 7 FAILED TESTS

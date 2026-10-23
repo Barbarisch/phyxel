@@ -153,6 +153,7 @@ namespace Scene {
 
         // Voxel collision: set the chunk manager for per-limb voxel collision queries
         void setChunkManager(Phyxel::ChunkManager* cm) { m_chunkManager = cm; }
+        bool hasChunkManager() const { return m_chunkManager != nullptr; }
 
         // Debug visualization: wire up the F5 RaycastVisualizer to see segment boxes
         void setRaycastVisualizer(Phyxel::RaycastVisualizer* viz) { m_raycastVisualizer = viz; }

@@ -72,6 +72,7 @@
   Suppressed while a dialogue is up, because 1-4 are that dialogue's choice keys.
   REBINDABLE since G-153 - they are the named actions `ActionSlot1`..`ActionSlot12`, listed
   in Settings > Keybindings like everything else.
+- **L** (`ToggleJournal`, rebindable): the quest journal - Main Quest / Side Quests / Completed, each objective with its description (the objectives strip shows active titles only). Hidden steps stay hidden; L again closes it. G-168.
 - **P** (`ToggleAbilities`, rebindable): the Abilities panel — the catalogue you DRAG icons from onto the bar. Drag a slot
   onto another to swap them; drag one off the bar to clear it. The arrangement is saved per
   player (`PlayerProfile::actionBar`) and survives a relaunch.

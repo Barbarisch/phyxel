@@ -1,4 +1,7 @@
 #include "core/GameDefinitionLoader.h"
+#include "graphics/ChunkUpdatePerf.h"
+#include <chrono>
+#include "core/PlayBounds.h"
 #include "core/TransitionMarkers.h"
 #include <climits>
 #include "core/ChunkManager.h"
@@ -57,11 +60,24 @@ json GameDefinitionResult::toJson() const {
     j["chunks_generated"] = chunksGenerated;
     j["structures_placed"] = structuresPlaced;
     j["npcs_spawned"] = npcsSpawned;
+    j["npcs_skipped_slain"] = npcsSkippedSlain;
     j["locations_registered"] = locationsRegistered;
     j["player_spawned"] = playerSpawned;
     j["camera_set"] = cameraSet;
     j["story_loaded"] = storyLoaded;
+    j["day_night_loaded"] = dayNightLoaded;
+    if (dayNightLoaded) j["day_night"] = dayNight.toJson();
+    j["play_bounds_authored"] = playBoundsAuthored;
+    j["streaming"] = streaming;
     return j;
+}
+
+bool GameDefinitionLoader::parseDayNight(const json& definition, DayNightSettings& out) {
+    if (!definition.is_object() || !definition.contains("dayNight")) return false;
+    const json& block = definition["dayNight"];
+    if (!block.is_object()) return false;
+    out = DayNightSettings::fromJson(block);
+    return true;
 }
 
 // ============================================================================
@@ -95,6 +111,21 @@ std::pair<bool, std::string> GameDefinitionLoader::validate(const json& definiti
                 return {false, "NPC at index " + std::to_string(i) + " missing 'name'"};
             }
         }
+    }
+
+    // Validate the world-level day/night block (G-165). Refused, not clamped: a zero-second day
+    // or a 25 o'clock start is an authoring mistake, and clamping would hide it as a strobing or
+    // mis-set sky.
+    if (definition.contains("dayNight")) {
+        auto [ok, err] = DayNightSettings::validate(definition["dayNight"]);
+        if (!ok) return {false, err};
+    }
+
+    // Validate the play bounds (G-169). Refused, not clamped: an inverted or zero-area stage
+    // would pin the player to one spot and look like a movement bug.
+    if (definition.contains("playBounds")) {
+        auto [ok, err] = PlayBounds::validate(definition["playBounds"]);
+        if (!ok) return {false, err};
     }
 
     // Validate player
@@ -159,6 +190,14 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
     std::string gameName = definition.value("name", "Untitled Game");
     LOG_INFO("GameDefinitionLoader", "Loading game definition: " + gameName);
 
+    // Play bounds are per-scene state (G-169 / G-177), reset BEFORE the world loads: loadWorld
+    // sets the REGION bounds from `world.from/to`, and the `playBounds` block further down sets
+    // the authored override. (The first cut reset them after loadWorld and wiped the region.)
+    if (subsystems.chunkManager) {
+        subsystems.chunkManager->clearAuthoredPlayBounds();
+        subsystems.chunkManager->clearRegionPlayBounds();
+    }
+
     // Load each section in order: world → structures → player → camera → NPCs → story
     if (definition.contains("world")) {
         // The sea level the world generates against comes from the sibling "water" block — the
@@ -192,9 +231,41 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
         result.skyLoaded = true;
     }
 
+    // "dayNight" (G-165): typed here, applied by the caller via DayNightCycle::applySettings()
+    // for the same layering reason as sky. Absent means the caller keeps the cycle as it is -
+    // which, for a shipped game, means OFF, so a game that wants a moving sun must say so.
+    if (definition.contains("dayNight")) {
+        auto [ok, err] = DayNightSettings::validate(definition["dayNight"]);
+        if (!ok) { result.success = false; result.error = err; return result; }
+        result.dayNightLoaded = parseDayNight(definition, result.dayNight);
+    }
+
+    // Play bounds (G-169): an authored box beats the region and the derived chunk extent. Reset
+    // at the top of load(), so a scene without the key reverts and nothing leaks between scenes.
+    if (definition.contains("playBounds")) {
+        auto [ok, err] = PlayBounds::validate(definition["playBounds"]);
+        if (!ok) { result.success = false; result.error = err; return result; }
+        PlayBounds pb;
+        PlayBounds::fromJson(definition["playBounds"], pb);
+        if (subsystems.chunkManager) subsystems.chunkManager->setAuthoredPlayBounds(pb);
+        result.playBoundsAuthored = true;
+        LOG_INFO("GameDefinitionLoader", "Play bounds authored: x {}..{}, z {}..{}", pb.minX, pb.maxX, pb.minZ, pb.maxZ);
+    }
+
     if (definition.contains("locations")) {
         loadLocations(definition["locations"], subsystems, result);
         if (!result.error.empty()) return result;
+    }
+
+    // Game-wide NPC defaults. "torch": who lights a torch in the dark (NpcTorchPolicy).
+    if (definition.contains("npcDefaults") && definition["npcDefaults"].is_object() && subsystems.npcManager) {
+        const auto& nd = definition["npcDefaults"];
+        if (nd.contains("torch")) {
+            TorchPolicy p = TorchPolicy::Default;
+            const std::string t = nd["torch"].is_string() ? nd["torch"].get<std::string>() : std::string("?");
+            if (NpcTorchPolicy::parse(t, p)) subsystems.npcManager->setDefaultTorchPolicy(p);
+            else LOG_WARN("GameDefinitionLoader", "npcDefaults.torch '{}' is not night|dark|always|never - ignored", t);
+        }
     }
 
     if (definition.contains("npcs")) {
@@ -443,11 +514,32 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
     // use the seed the generator actually runs with.
     seed = generator.getSeed();
 
-    // Streaming terrain (Phase 1b): when enabled, chunks generate and evict around the
-    // player at runtime instead of being limited to the up-front bounded set below. The
-    // up-front gen still runs to guarantee solid ground at spawn; streaming extends beyond
-    // it using the same generator type/seed/params, so the seam is continuous.
-    if (worldDef.value("streaming", false)) {
+    // Streaming terrain (Phase 1b): chunks generate and evict around the player at runtime
+    // past the up-front bounded region below. The region still generates (or loads) first
+    // to guarantee solid ground at spawn; streaming extends beyond it with the same
+    // generator type/seed/params, so the seam is continuous.
+    //
+    // STREAMED SURROUND IS THE NORM (2026-09-23, user: "some more high res terrain needs to
+    // be generated around the current terrain even if the player cant reach it ... that
+    // should also be the norm"). The region is the PLAY AREA (the PlayBounds wall); the
+    // world continues past it with real voxel terrain to the residency radius and heightmap
+    // far terrain to the horizon, so the player never sees the last chunk from inside.
+    // Default ON for height-based terrain; `streaming: false` opts out EXPLICITLY. Random /
+    // City / Custom keep the old default (their "surround" would be noise or void).
+    const bool heightBased = genType == WorldGenerator::GenerationType::Perlin ||
+                             genType == WorldGenerator::GenerationType::Flat ||
+                             genType == WorldGenerator::GenerationType::Mountains ||
+                             genType == WorldGenerator::GenerationType::Caves;
+    const bool streaming = worldDef.value("streaming", heightBased);
+    result.streaming = streaming;
+    if (!streaming) {
+        // A REAL opt-out. The flag used to be sticky: nothing ever turned streaming off, so
+        // after one streaming scene a later `streaming:false` scene still streamed, had no
+        // play bounds and kept the residency hold.
+        sub.chunkManager->configureStreamingGeneration(false);
+        LOG_INFO("GameDefinitionLoader", "World: streaming terrain OFF (explicit or non-terrain type)");
+    }
+    if (streaming) {
         sub.chunkManager->configureStreamingGeneration(true, genType, seed);
         if (WorldGenerator* sg = sub.chunkManager->getStreamingGenerator()) {
             sg->getTerrainParams() = generator.getTerrainParams();
@@ -513,6 +605,21 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         return;
     }
 
+    // The region is the play area (PlayBounds): whether it generates now or loads from the DB
+    // below, and whatever streams in around it, the wall stands at the authored rectangle.
+    {
+        int minCX = chunkCoords[0].x, maxCX = chunkCoords[0].x;
+        int minCZ = chunkCoords[0].z, maxCZ = chunkCoords[0].z;
+        for (const auto& cc : chunkCoords) {
+            minCX = std::min(minCX, cc.x); maxCX = std::max(maxCX, cc.x);
+            minCZ = std::min(minCZ, cc.z); maxCZ = std::max(maxCZ, cc.z);
+        }
+        sub.chunkManager->setRegionPlayBounds(PlayBounds::make(
+            static_cast<float>(minCX * 32), static_cast<float>(minCZ * 32),
+            static_cast<float>((maxCX + 1) * 32), static_cast<float>((maxCZ + 1) * 32)));
+        sub.chunkManager->setRegionChunkCoords(chunkCoords);   // the exact block, all levels (G-181)
+    }
+
     // NEVER regenerate over saved chunks by accident. An inline `world` block on a
     // scene whose DB already holds those chunks REPLACED a built town with flat
     // terrain twice (Ravenmere G-48; regen #18, where the following save wrote the
@@ -535,19 +642,56 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
             // and the player walked into nothing).
             int loaded = 0;
             std::vector<Chunk*> loadedChunks;
+            const Phyxel::Graphics::ChunkPerfPhase kLoadStages[] = {Phyxel::Graphics::ChunkPerfPhase::LoadChunkInit,
+                                                                    Phyxel::Graphics::ChunkPerfPhase::LoadDbDecode,
+                                                                    Phyxel::Graphics::ChunkPerfPhase::LoadGpuAlloc};
+            const char* kLoadStageNames[] = {"db read", "decode (parallel)", "init+insert"};
+            double loadBefore[3];
+            for (int i = 0; i < 3; ++i) { const auto s = Phyxel::Graphics::getChunkPerf(kLoadStages[i]); loadBefore[i] = s.avgMs * static_cast<double>(s.count); }
+            const auto tLoad0 = std::chrono::steady_clock::now();
+            // G-181: the region's chunks decode on worker threads (the town: 30 chunks, 1.8 M
+            // sub/microcubes, 2.2-3.2 s on one thread); the world ends up as loadChunk() one by
+            // one would leave it, in this order.
+            std::vector<glm::ivec3> toLoad;
             for (const auto& cc : chunkCoords)
-                if (!sub.chunkManager->getChunkAtCoord(cc) && sub.chunkManager->getWorldStorage()->chunkExists(cc) &&
-                    sub.chunkManager->loadChunk(cc)) {
-                    ++loaded;
-                    if (Chunk* c = sub.chunkManager->getChunkAtCoord(cc)) loadedChunks.push_back(c);
-                }
+                if (!sub.chunkManager->getChunkAtCoord(cc) && sub.chunkManager->getWorldStorage()->chunkExists(cc))
+                    toLoad.push_back(cc);
+            loaded = sub.chunkManager->loadChunksParallel(toLoad);
+            for (const auto& cc : toLoad)
+                if (Chunk* c = sub.chunkManager->getChunkAtCoord(cc)) loadedChunks.push_back(c);
             // FINALIZE like generated chunks: the streaming load defers faces and physics to
             // a bulk pass (buildAllChunkPhysics) that only the no-world-block scene path runs.
             // Without this the second farm visit had terrain data and NO collision - every
             // NPC fell to y = -19,000 (editor, 2026-09-10).
+            // Stage totals for the finalize (G-181): the counters are process-global, so take
+            // deltas around this loop.
+            using Phyxel::Graphics::ChunkPerfPhase; using Phyxel::Graphics::getChunkPerf;
+            const ChunkPerfPhase kStages[] = {ChunkPerfPhase::LoadPhysicsBody, ChunkPerfPhase::LoadOccupancy,
+                                              ChunkPerfPhase::LoadFaces, ChunkPerfPhase::LoadUpload,
+                                              ChunkPerfPhase::LoadVoxelMaps};
+            const char* kStageNames[] = {"physics", "occupancy", "faces", "upload", "voxelmaps"};
+            double before[5];
+            for (int i = 0; i < 5; ++i) { const auto s = getChunkPerf(kStages[i]); before[i] = s.avgMs * static_cast<double>(s.count); }
+            const auto tFin0 = std::chrono::steady_clock::now();
             for (Chunk* chunk : loadedChunks) sub.chunkManager->finalizeLoadedChunk(*chunk, /*syncMesh=*/true);
+            const double finMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tFin0).count();
+            std::string stages;
+            for (int i = 0; i < 5; ++i) {
+                const auto s = getChunkPerf(kStages[i]);
+                const double ms = s.avgMs * static_cast<double>(s.count) - before[i];
+                stages += std::string(i ? ", " : "") + kStageNames[i] + " " + std::to_string(static_cast<int>(ms + 0.5)) + " ms";
+            }
+            const double loadMs = std::chrono::duration<double, std::milli>(tFin0 - tLoad0).count();
+            std::string loadStages;
+            for (int i = 0; i < 3; ++i) {
+                const auto s = getChunkPerf(kLoadStages[i]);
+                const double ms = s.avgMs * static_cast<double>(s.count) - loadBefore[i];
+                loadStages += std::string(i ? ", " : "") + kLoadStageNames[i] + " " + std::to_string(static_cast<int>(ms + 0.5)) + " ms";
+            }
             LOG_INFO("GameDefinitionLoader", "World: loaded " + std::to_string(loaded) +
-                     " saved chunks of the region from the DB (faces + physics built)");
+                     " saved chunks of the region from the DB in " + std::to_string(static_cast<int>(loadMs + 0.5)) +
+                     " ms (" + loadStages + "); faces + physics built in " +
+                     std::to_string(static_cast<int>(finMs + 0.5)) + " ms (" + stages + ")");
             return;
         }
     }
@@ -572,13 +716,13 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
     }
 
     // Flora decoration pass (Phase 5): scatter biome-appropriate vegetation across the
-    // generated region. Runs only for fixed-region worlds — every chunk exists now, so
-    // ObjectTemplateManager::spawnTemplate routes a tree's overhang into the correct
-    // neighbor chunk (no clipped trees at chunk seams). Streaming worlds need the
-    // decorate-once-neighbors-present deferral and are skipped here for now. Opt out with
-    // world.flora=false.
-    if (sub.templateManager && worldDef.value("flora", true) && !worldDef.value("streaming", false)
-        && !chunkCoords.empty()) {
+    // generated region. Every chunk of the region exists now, so a tree's overhang routes
+    // into the correct neighbour chunk (no clipped trees at seams). This runs on the
+    // generate path whether or not the world streams: the up-front region is generated
+    // here, not streamed, so the per-chunk streaming decorator never touches it - with the
+    // old `!streaming` guard a streaming world's own region was the one bare patch in it.
+    // Opt out with world.flora=false.
+    if (sub.templateManager && worldDef.value("flora", true) && !chunkCoords.empty()) {
         int minCX = chunkCoords[0].x, maxCX = chunkCoords[0].x;
         int minCZ = chunkCoords[0].z, maxCZ = chunkCoords[0].z;
         for (const auto& cc : chunkCoords) {
@@ -856,6 +1000,13 @@ void GameDefinitionLoader::loadPlayer(const json& playerDef, GameSubsystems& sub
         if (type == "animated") {
             auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
             if (animChar) {
+                // The character reads the ChunkManager for the play bounds (G-169) and the
+                // streaming residency hold. The host's spawner never set it on the PLAYER (the
+                // editor does so itself; NPCEntity does for NPCs), so the shipped player had
+                // neither - the first green run of the edge wall fell off the farm exactly like
+                // the red one, with the bounds reported correctly by the API.
+                if (sub.chunkManager && !animChar->hasChunkManager())
+                    animChar->setChunkManager(sub.chunkManager);
                 if (hasVisualDef) {
                     // Full rebuild so proportions apply too (recolor alone
                     // silently dropped them).
@@ -1003,6 +1154,17 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
     for (const auto& npcDef : npcsDef) {
         std::string name = npcDef["name"].get<std::string>();
 
+        // G-171: cleared stays cleared. The entity id is "npc_" + name (the same id the death
+        // event carries), so the ledger key is exact. An NPC authored with "respawns": true -
+        // wildlife, a guard post - comes back regardless.
+        if (sub.isNpcSlain && !npcDef.value("respawns", false) &&
+            sub.isNpcSlain(sub.activeSceneIdForLoad, "npc_" + name)) {
+            result.npcsSkippedSlain++;
+            LOG_INFO("GameDefinitionLoader", "NPC '{}' not spawned: slain in scene '{}'",
+                     name, sub.activeSceneIdForLoad);
+            continue;
+        }
+
         float x = 0.0f, y = 20.0f, z = 0.0f;
         if (npcDef.contains("position")) {
             x = npcDef["position"].value("x", 0.0f);
@@ -1060,6 +1222,14 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
         if (!faction.empty()) npc->setFaction(faction);
         // "hostile": true — fights the player on sight / when engaged (G-137).
         if (npcDef.value("hostile", false)) npc->setHostile(true);
+        // "torch": "night" | "dark" | "always" | "never" (NpcTorchPolicy). Unset = the game
+        // default for townsfolk, "never" for hostiles. An unknown value is refused loudly.
+        if (npcDef.contains("torch")) {
+            TorchPolicy p = TorchPolicy::Default;
+            const std::string t = npcDef["torch"].is_string() ? npcDef["torch"].get<std::string>() : std::string("?");
+            if (NpcTorchPolicy::parse(t, p)) npc->torchState().policy = p;
+            else LOG_WARN("GameDefinitionLoader", "NPC '{}': torch '{}' is not night|dark|always|never - using the default", name, t);
+        }
 
         // CHAIN OF COMMAND: "squad" puts this NPC under an officer's orders;
         // "rank":"officer" (or "leader") makes it the one giving them. Squads

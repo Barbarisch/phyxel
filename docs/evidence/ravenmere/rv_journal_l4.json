@@ -1,0 +1,36 @@
+{
+  "exe_mtime": "2026-09-23 16:08:19",
+  "closed_pct": 14.2,
+  "press_1": {
+    "active_injections": 1,
+    "hold": 0.15000000596046448,
+    "injected": [
+      "ToggleJournal"
+    ],
+    "success": true
+  },
+  "open_pct": 96.5,
+  "complete": {
+    "success": true,
+    "type": "complete_objective"
+  },
+  "open_after_complete_pct": 94.1,
+  "press_2": {
+    "active_injections": 1,
+    "hold": 0.15000000596046448,
+    "injected": [
+      "ToggleJournal"
+    ],
+    "success": true
+  },
+  "closed_again_pct": 14.8,
+  "injected": [
+    [
+      "ToggleJournal"
+    ],
+    [
+      "ToggleJournal"
+    ]
+  ],
+  "open_minus_closed_pct": 82.3
+}

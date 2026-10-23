@@ -1,0 +1,37 @@
+{
+  "town_authored_entry": [
+    -36.0,
+    17.11111068725586,
+    15.0
+  ],
+  "farm_authored_entry": [
+    6.0,
+    17.0,
+    16.0
+  ],
+  "farm_left_at": [
+    23.821746826171875,
+    17.0,
+    22.064435958862305
+  ],
+  "farm_back_at": [
+    23.821746826171875,
+    17.0,
+    22.064435958862305
+  ],
+  "farm_stays": true,
+  "farm_dist_to_where_left": 0.0,
+  "farm_dist_to_authored_entry": 18.83,
+  "farm_left_at_2": [
+    23.821746826171875,
+    17.0,
+    22.064435958862305
+  ],
+  "town_back_at": [
+    -36.0,
+    17.11111068725586,
+    15.0
+  ],
+  "town_dist_to_authored_entry": 0.0,
+  "town_stays": true
+}

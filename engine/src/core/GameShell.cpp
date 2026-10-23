@@ -1,6 +1,16 @@
 #include "core/GameShell.h"
+#include "ui/DialogueSystem.h"
 #include "ui/UISystem.h"
 #include "graphics/RenderCoordinator.h"
+#include "core/ProgressionHud.h"
+#include "core/PartyHud.h"
+#include "core/JournalHud.h"
+#include "core/ObjectiveTracker.h"
+#include "input/InputManager.h"
+#include "core/Party.h"
+#include "core/EntityRegistry.h"
+#include "core/CharacterSheet.h"
+#include "ui/HudDataContext.h"
 #include "core/EngineRuntime.h"
 #include "core/SceneManager.h"
 #include "graphics/Camera.h"
@@ -59,6 +69,9 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
     gameApi_.playerSheet      = apiPlayerSheet();
     gameApi_.inventory        = apiInventory();
     gameApi_.dialogueSystem   = apiDialogueSystem();
+    gameApi_.interactionManager = apiInteractionManager();
+    gameApi_.npcHeldItems     = apiNpcHeldItems();
+    gameApi_.itemEffects      = apiItemEffects();
     gameApi_.projectName      = name;
     gameApi_.debrisContext    = [this, eng = &engine]() {
         DebrisApiContext c;
@@ -82,6 +95,102 @@ void GameShell::applyMmoBindings(Input::InputManager& input, bool mmo) {
     input.bindAction("ToggleInventory", mmo ? GLFW_KEY_B : GLFW_KEY_TAB);
     LOG_INFO("GameShell", "control bindings: {} (Interact={}, Inventory={})",
              mmo ? "mmo/wow" : "default", mmo ? "F" : "E", mmo ? "B" : "Tab");
+}
+
+void GameShell::publishProgressionHud() {
+    auto* rc = apiRenderCoordinator();
+    if (!rc) return;
+    auto& hud = rc->hudData();
+
+    // Captured as `this`, not as a sheet pointer: a game may swap sheets on load or on a new
+    // character, and a captured pointer would quietly keep drawing the old one.
+    hud.setFloat("player.xpPercent", [this]() -> float {
+        auto* sheet = apiPlayerSheet();
+        return sheet ? progressionHud(*sheet).percent : 0.0f;
+    });
+    hud.setFloat("player.level", [this]() -> float {
+        auto* sheet = apiPlayerSheet();
+        return sheet ? static_cast<float>(progressionHud(*sheet).level) : 1.0f;
+    });
+    hud.setFloat("player.xp", [this]() -> float {
+        auto* sheet = apiPlayerSheet();
+        return sheet ? static_cast<float>(progressionHud(*sheet).xpTotal) : 0.0f;
+    });
+    hud.setText("player.xpText", [this]() -> std::string {
+        auto* sheet = apiPlayerSheet();
+        return sheet ? progressionHud(*sheet).text : std::string("Lv 1  -  0 XP");
+    });
+    // Lets a HUD hide the bar entirely for a game with no progression authored, rather than
+    // showing every such game a permanently empty bar.
+    hud.setFloat("player.hasProgression", [this]() -> float {
+        auto* sheet = apiPlayerSheet();
+        return (sheet && !sheet->classes.empty()) ? 1.0f : 0.0f;
+    });
+
+    LOG_INFO("GameShell", "progression HUD published (player.xpPercent/level/xp/xpText)");
+}
+
+void GameShell::publishPartyHud() {
+    auto* rc = apiRenderCoordinator();
+    if (!rc) return;
+
+    rc->hudData().setList("party", [this]() -> std::vector<UI::HudRecord> {
+        auto* party = apiParty();
+        if (!party) return {};
+        // Health comes from the live entity, not from the party record, so a member who is
+        // hurt in this scene shows it. An entity the registry does not have is ABSENT - the
+        // member is simply in another scene - and partyHudRecords reports that as "Away".
+        auto* reg = apiEntityRegistry();
+        return partyHudRecords(*party, [reg](const std::string& id, float& hp, float& maxHp) {
+            if (!reg) return false;
+            auto* e = reg->getEntity(id);
+            auto* hc = e ? e->getHealthComponent() : nullptr;
+            if (!hc) return false;
+            hp = hc->getHealth();
+            maxHp = hc->getMaxHealth();
+            return true;
+        });
+    });
+    rc->hudData().setFloat("party.any", [this]() -> float {
+        auto* party = apiParty();
+        return (party && !party->getMembers().empty()) ? 1.0f : 0.0f;
+    });
+
+    LOG_INFO("GameShell", "party HUD published (party list + party.any)");
+}
+
+void GameShell::publishJournalHud() {
+    auto* rc = apiRenderCoordinator();
+    if (!rc) return;
+    // Three sections, each its own list, so the panel can give every section a static heading
+    // and an empty section collapses to nothing (a repeater reports its content height).
+    auto sections = [this]() -> JournalSections {
+        auto* tracker = apiObjectiveTracker();
+        return tracker ? journalHudSections(*tracker) : JournalSections{};
+    };
+    auto& hud = rc->hudData();
+    hud.setList("journal.main",      [sections]() { return sections().main; });
+    hud.setList("journal.side",      [sections]() { return sections().side; });
+    hud.setList("journal.completed", [sections]() { return sections().completed; });
+    hud.setFloat("journal.mainAny",      [sections]() { return sections().main.empty() ? 0.0f : 1.0f; });
+    hud.setFloat("journal.sideAny",      [sections]() { return sections().side.empty() ? 0.0f : 1.0f; });
+    hud.setFloat("journal.completedAny", [sections]() { return sections().completed.empty() ? 0.0f : 1.0f; });
+    hud.setFloat("journal.visible", [this]() -> float { return journalOpen_ ? 1.0f : 0.0f; });
+    LOG_INFO("GameShell", "journal HUD published (journal.main/side/completed + journal.visible)");
+}
+
+void GameShell::updateJournalToggle(Input::InputManager& input) {
+    const bool down = input.isActionPressed("ToggleJournal");
+    const bool edge = down && !journalKeyDown_;
+    journalKeyDown_ = down;
+    // G-183: not over a conversation - two modal overlays (journal + dialogue box) would sit on
+    // top of each other. The layout gate cites this as the reason journal.visible and
+    // dialogue.active/aiActive are exclusive.
+    auto* dlg = apiDialogueSystem();
+    if (edge && !(dlg && dlg->isActive())) {
+        journalOpen_ = !journalOpen_;
+        LOG_INFO("GameShell", "Journal {}", journalOpen_ ? "opened" : "closed");
+    }
 }
 
 void GameShell::pumpTestApi() { gameApi_.pump(); }

@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
+#include "graphics/FarTreeResidencyMask.h"
 #include <vector>
 
 namespace Phyxel {
@@ -50,6 +51,8 @@ public:
 
     void render(VkCommandBuffer cmd, VkDescriptorSet uboSet, const std::vector<MeshDraw>& draws);
     void setCameraWorld(const glm::dvec3& cw) { m_cameraWorld = cw; }
+    /// G-178: per-instance residency (which chunk columns visibly render); rebuilt every frame.
+    void setResidencyMask(const FarTreeResidencyMask& m) { m_mask = m; }
 
     /// FAR-CASCADE shadow caster variant (depth-only, far_tree_mesh_shadow.vert): distant
     /// forests cast onto the far terrain. MUST be created against the FAR shadow map's render
@@ -70,6 +73,8 @@ private:
     VkPipelineLayout m_shadowPipelineLayout = VK_NULL_HANDLE;
     VkPipeline       m_shadowPipeline = VK_NULL_HANDLE;
     Params           m_params;
+    FarTreeResidencyMask m_mask;
+    void fillMask(struct TreeMeshPush& pc) const;
     glm::dvec3       m_cameraWorld    = glm::dvec3(0.0);
 };
 

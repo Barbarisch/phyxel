@@ -20,7 +20,7 @@ public:
     int addPointLight(LightSource source, const PointLight& light);
     /// Add a point light with individual parameters.
     int addPointLight(LightSource source, const glm::vec3& position, const glm::vec3& color = glm::vec3(1.0f),
-                      float intensity = 1.0f, float radius = 10.0f);
+                      float intensity = 1.0f, float radius = 10.0f, float extent = 0.866f);
 
     // --- Spot Lights ---
     /// Add a spot light. Returns a unique light ID.

@@ -145,6 +145,8 @@ of named providers the host wires once; widgets reference them by binding key.
 |-------------------|---------------|
 | `player.health`, `player.maxHealth`, `player.resource.*` | `HealthComponent` / shared `playerHealth` |
 | `player.hotbar[*]`, `player.selectedSlot` | hotbar / `EquipmentSystem` |
+| `player.xpPercent`, `player.level`, `player.xp`, `player.xpText`, `player.hasProgression` | `CharacterSheet` via `Core::progressionHud()`, published by `GameShell::publishProgressionHud()` (G-172) |
+| `party` (list of member records), `party.any` | `Core::Party` via `Core::partyHudRecords()`, published by `GameShell::publishPartyHud()` (G-161) |
 | `combat.inCombat`, `combat.round`, `combat.isPlayerTurn`, `combat.currentEntityId` | `CombatDirector` |
 | `combat.turn_order` (list of portrait records) | `CombatDirector` / `InitiativeTracker` |
 | `combat.action`, `combat.bonus`, `combat.movement` | `ActionBudget` (via `PlayerTurnController`) |
@@ -345,6 +347,54 @@ panel's OWN rect, so a child that overflows below a too-short panel is unclickab
 panels to contain their children.** Cosmetic leftovers: the initiative row label clips at panel
 width; the turn-label panel overlaps the (enlarged) action panel — both layout-tuning only.
 
+> **The standing layout gate (2026-09-24, G-183) - `tests/ui/HudLayoutMatrixTest.cpp`.** Every
+> unit-test run loads the SHIPPED `default_hud.json` and every data screen headless, binds every
+> `visibleWhen` key from a bit pattern (2^N, N read from the JSON - a new gated panel is covered
+> the day it is added), fills every repeater with long rows and every text bind with long text,
+> applies the modal rule, and runs the same layout lint the test API's `ui_lint` runs on the live
+> game, at 1280x720, 1366x768, 1536x960, 1920x1080 and 2560x1440. Text is measured with the real
+> font (metrics-only load). A defect prints the size, the exact state and the lint message. The
+> only hand-maintained part is a short list of state pairs the game cannot raise together, each
+> citing the provider that makes them exclusive. Adding a HUD element that overlaps anything, in
+> any state, at any of those sizes, fails the build - no debug session needed.
+>
+> **Strings, too (2026-09-24, G-184 - user: "UI strings overlap ui elements or dont fit").** The
+> same lint (`UILayoutLint.h`) judges every string with the renderer's own metrics - the HUD
+> font's real advances, 14.6 px/char at textScale 2 on a 32 px line (the metrics-only TTF load
+> had never set its TTF flag, so until G-184 the gate measured the 8 px bitmap grid, 16 px/char:
+> 10% pessimistic about every width, and G-183's "real font" claim was wrong): `text_overflow` -
+> a label's widest DRAWN line is wider than
+> its box (labels wrap only when `wrapWidth` > 0, which an authored `size` sets; a word longer
+> than the box still overflows), or a button's text is wider than its frame unless an icon draws
+> in its place (`buttonDrawsIcon`: a loaded icon, or headless, a PNG that exists - a missing PNG
+> falls back to the label, which then has to fit); `content_overflow` - a fixed-height nested
+> panel (a repeater row) is shorter than what is drawn in it, so rows overprint each other
+> (`"autoSize": true` on the row template is the fix when rows carry wrapped text - and since G-184
+> `UIPanel::applyAutoSize` really sizes a repeater's generated rows every frame; before, that flag
+> on a row was inert, and no row is exempt from the rule); `text_overlap` - in a
+> free-layout screen a string lands on a sibling string or runs into a sibling button/panel
+> frame. The gate feeds the rows each shipped provider really produces (a spell name with a
+> charge count and its icon on the bars, `Old Moll   340 / 340` in the party roster, the longest
+> Ravenmere quest title, `[9] <longest choice>`) and resolves every data-screen `{{token}}` to
+> its worst real value (`NumpadDivide` for any keybind, a level-20 sheet with the longest shipped
+> race and class names, the scaffold's 110-char tagline cap). What it found on the shipped
+> layouts, all fixed: the character sheet (measured against literal `{{sheet.skill_SleightOfHand}}`
+> every value box read as overflowing - a test artefact; with real values the 18 skill rows at
+> scale 2 are 32 px lines on a 26 px pitch and overprint - they draw at 1.5 now; `Close  [NumpadDivide]`
+> 81 px wider than its button; the level-20 subtitle wrapping onto two section headers); the keybindings buttons 1 px
+> too narrow for `NumpadDivide` and their hint wrapping onto the first row of bindings; the
+> journal's fixed 108 px quest rows holding 134 px of title + detail; the
+> hotbar's count line crossing the slot; the intro/credits tagline - the whole 242-char game
+> description - drawn over the Continue button (the scaffold now uses `game.json` `tagline`, else
+> the description's first sentence, capped at 110 chars). Data-screen widgets keep their JSON
+> `id`, so a defect names `cs_hp_v`, not "(unnamed)".
+
+> **Modal overlays (2026-09-24, Ravenmere G-182).** A HUD root panel with `"modal": true` owns
+> the screen while visible: `applyModalOverlays()` hides every other un-namespaced HUD root and
+> suppresses world-space labels/nameplates for that frame; the panels' own `visibleWhen` brings
+> them back when the overlay closes. The journal is modal. Rule of thumb: anything a player
+> opens to READ (journal, a sheet) is modal; anything they act THROUGH (action bar, spellbook) is not.
+
 ## 11a. Migration roadmap — get ImGui out of shipped games (§2a)
 
 The packaged game must end up ImGui-free for real UI. Surfaces to migrate from ImGui onto
@@ -355,6 +405,7 @@ The packaged game must end up ImGui-free for real UI. Surfaces to migrate from I
 | **Menus** (main/options/etc.) | ✅ DONE in the EDITOR — `UI::loadMenuInto` converts the GameMenuRenderer schema (1280x720 positions, solid/image bg, label/button/image, button actions, submenu panels) into UISystem fullscreen "menu:*" screens; new UISystem caps: widget `position` + panel `freeLayout` (absolute layout) + fullscreen bg. Editor `onMenuSceneLoaded` routes to it; the ImGui `GameMenuRenderer->render` is removed from the editor loop. Verified live (PHYXEL DEMO menu: title/buttons render, Options → submenu nav works) via the `/api/ui/load_menu` test hook. **Not yet ported:** per-element animations (fade/slide), custom fonts/colors, {{token}} interpolation. **Standalone host (EngineRuntime) still uses `GameMenuRenderer`** — migrate with the standalone-host work (verify via packaged run). NOTE: multi-scene `load_game_definition` hit the **pre-existing scene-transition crash** (unrelated to menus). |
 | **Pause menu** | ✅ DONE — `UI::loadPauseMenuInto`/`unloadPauseMenuFrom` build a data-driven `pause:*` UISystem overlay from `resources/ui/pause_menu.json` (dark scrim + PAUSED + Resume/Settings/Main Menu/Quit), wired via new `MenuActions::onResume/onSettings/onMainMenu` + button-action types `resume`/`open_settings`/`main_menu`. The scaffold (`create_project.py`) loads/unloads it to match `ScreenState::Paused` and drives `handleInput`; the ImGui `renderPauseMenu` call is gone. Verified live on the `R5Verify` standalone (ESC → styled overlay, Resume → gameplay). **HUD-suppression-while-paused (#11) DONE:** `loadPauseMenuInto` hides every non-`pause:*` screen and `unloadPauseMenuFrom` restores them, and the scaffold only queues world labels (bubbles/prompt) while `Playing` — verified live (the top-center countdown HUD vanishes when paused, returns on resume). **Follow-ups:** Settings/Main Menu still route through their own (now data-driven) screens; editor still uses ImGui `renderPauseMenu`. |
 | **Screens** (Intro/Victory/Credits) | ✅ DONE — `UI::loadGameScreenInto(ui,"intro"\|"victory"\|"credits",…)` builds a full-screen data-driven `<name>:*` overlay from `resources/ui/<name>_screen.json` (shared `loadOverlayFromFile` helper with the pause menu). Dynamic text via `{{title}}`/`{{tagline}}` tokens (`MenuActions.onResolveVariable`); buttons use `main_menu`/`show_credits`/`quit_game` (+ new `MenuActions::onShowCredits`). The scaffold's one reconcile loop maps `ScreenState`→overlay (pause/intro/victory/credits), (un)loads on change, and drives `handleInput`; the ImGui `renderIntro/Victory/CreditsScreen` calls are gone. Verified live on `R5Verify` (jump→`show_victory` trigger → VICTORY! overlay with resolved title → Credits → resolved title+tagline). **Follow-ups:** intro's old any-key-continue dropped (Continue button only); the fallback `renderMainMenu` + `renderSettingsScreen` are still ImGui (next slices); editor's ImGui screens untouched. |
+| **Narrative card** (the intro before a run, chapter cards) | ✅ DONE 2026-09-25 (Ravenmere G-116) — `ScreenState::Narrative` + `loadGameScreenInto(ui,"narrative",…)` from `resources/ui/narrative_screen.json`: `{{narrative.title}}` / `{{narrative.text}}` / `{{narrative.button}}` tokens, the button's `continue` action fires `MenuActions::onContinue`; the shell gates a menu's New Game on it and also continues on Enter / Space. The text sits in a nested scrollable panel (wheel, Up/Down/PageUp/PageDown), so it has no length limit; the layout gate checks it at 3,200 chars. | — |
 | **Countdown HUD** | ✅ DONE — `hud_countdown` panel in `default_hud.json` (top-center, `isTitle`), gated by `visibleWhen: "countdown.active"`, text bound to `countdown.text`. The host registers both providers from `TriggerSystem::getActiveCountdowns()` (label + `M:SS.s` of the first active countdown). Scaffold no longer calls the ImGui `renderCountdownHud`. **Follow-ups:** single countdown only (no Repeater for multiple); no red-under-10s urgency color (HUD labels lack a color bind); the EDITOR still uses ImGui `renderCountdownHud`. |
 | **Dialogue** | ✅ DONE — trees AND AI conversations. Trees: `hud_dialogue` panel (speaker + word-wrapped text + numbered choices). **AI conversations: `hud_ai_dialogue` panel** (speaker + scrollback history + a **`UITextInput` field**), wired by `UI::setupAIDialogue` (dialogue.aiActive/aiSpeaker/aiHistory providers + the field's submit → `DialogueSystem::submitPlayerMessage`). This required NEW engine infra: GLFW **char capture** (`WindowManager` char callback, re-owned after ImGui steals it in `reinstallScrollCallback`, → `InputManager::handleChar`/`getTypedChars`) and a **`UITextInput` widget** (UISystem routes typed chars + Backspace/Enter to the focused field). The ImGui `renderDialogueBox` is **GONE** from both scaffold and editor. Verified live (editor, project-open + world scene + active AI conversation): box renders with the NPC greeting, the field auto-focuses, and typed characters echo into it. **Follow-ups:** long input overflows the field (no horizontal clip/scroll); em-dash in placeholders renders as `?` (bitmap font glyph gap). |
 | **Settings** | ✅ DONE — data-driven `settings:*` overlay (`loadGameScreenInto(ui,"settings",…)` from `resources/ui/settings_screen.json`); replaces ImGui `renderSettingsScreen`. Standard **Graphics** (Resolution/V-Sync/Fullscreen/FOV) / **Audio** (Master/Music/SFX) / **Controls** (Mouse Sensitivity). `buildMenuElement` now builds slider/checkbox/dropdown bound BIDIRECTIONALLY to `GameSettings` via new `MenuActions::onGetSetting`/`onSetSetting` (floats; checkbox=0/1, dropdown=index); `back` action via `onBack`. Changes apply live; host saves on Back. **Now two columns with the previously-deferred rows added:** **Brightness** (→ `RenderCoordinator::setAmbientLightStrength`, the engine's "brightness multiplier"), **Invert Y** (→ new `InputManager::setInvertY`, flips `mouseDeltaY`), and an **AI** section — Provider dropdown + **Model / API-Key `textinput` fields** bound to STRING settings via new `MenuActions::onGetSettingText`/`onSetSettingText` (`buildMenuElement` gained a `textinput` type) → `GameSettings` + `AIConversationService::setLLMConfig`. Verified live (widgets show current values; FOV slider applied; Back→pause). **Keybind rebind SHIPPED** (`ef498d3`/`1e2ed9c`, 2026-06-20): a data-driven "Keybindings…" sub-panel (one row per default action) drives a one-shot key-capture flow (`UISystem::beginKeyCapture`) into `InputManager::bindAction`, which now reads/rebinds the live action map (no longer hardcoded); `MenuActions::onRebindKey` persists to `GameSettings` and refreshes the row label. **Polish:** API-key field isn't masked; long text overflows the field; open-dropdown overlap. |

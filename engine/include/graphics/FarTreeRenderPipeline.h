@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
+#include "graphics/FarTreeResidencyMask.h"
 #include <vector>
 
 namespace Phyxel {
@@ -59,6 +60,8 @@ public:
 
     /// True camera world position, set per frame before render() (camera-relative rendering).
     void setCameraWorld(const glm::dvec3& cw) { m_cameraWorld = cw; }
+    /// G-178: per-card residency (which chunk columns visibly render); rebuilt every frame.
+    void setResidencyMask(const FarTreeResidencyMask& m) { m_mask = m; }
 
 private:
     void createPipeline(VkRenderPass renderPass, VkExtent2D extent, VkDescriptorSetLayout uboLayout);
@@ -68,6 +71,7 @@ private:
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline       m_pipeline       = VK_NULL_HANDLE;
     Params           m_params;
+    FarTreeResidencyMask m_mask;
     glm::dvec3       m_cameraWorld    = glm::dvec3(0.0);
 };
 

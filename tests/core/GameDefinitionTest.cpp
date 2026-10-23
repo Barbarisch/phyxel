@@ -352,3 +352,82 @@ TEST(GameDefinitionTest, InlineWorldBlockLoadsSavedChunksInsteadOfRegenerating) 
         << "loaded chunks must have their collision occupancy built (characters fall through otherwise)";
     std::error_code ec; std::filesystem::remove(db, ec);
 }
+
+// =============================================================================
+// "dayNight" block (G-165). RED-BEFORE-GREEN: DayNightCycle is OFF by default and, before this
+// block existed, nothing in a shipped game could turn it on - only the editor's ImGui panel and
+// its HTTP route. Ravenmere therefore sat at a fixed noon (user, 2026-09-23: "i dont see
+// day/night cycle going"). These pin the authored contract; the shell applies the result.
+// =============================================================================
+
+TEST(GameDefinitionTest, ValidateDayNightRejectsAnHourThatIsNotOnTheClock) {
+    json def = {{"dayNight", {{"timeOfDay", 25.0}}}};
+    auto [valid, err] = GameDefinitionLoader::validate(def);
+    EXPECT_FALSE(valid) << "25 o'clock is a typo, not a time - it must be refused, not wrapped";
+    EXPECT_NE(err.find("timeOfDay"), std::string::npos) << "the error must name the field: " << err;
+}
+
+TEST(GameDefinitionTest, ValidateDayNightRejectsAZeroLengthDay) {
+    json def = {{"dayNight", {{"dayLengthSeconds", 0}}}};
+    auto [valid, err] = GameDefinitionLoader::validate(def);
+    EXPECT_FALSE(valid) << "a zero-second day divides by zero in update(); the cycle clamps to 1 s, "
+                           "which turns an authoring mistake into a strobing sky";
+    EXPECT_NE(err.find("dayLengthSeconds"), std::string::npos) << err;
+}
+
+TEST(GameDefinitionTest, ValidateDayNightRejectsANonObject) {
+    json def = {{"dayNight", true}};
+    auto [valid, err] = GameDefinitionLoader::validate(def);
+    EXPECT_FALSE(valid);
+    EXPECT_NE(err.find("dayNight"), std::string::npos) << err;
+}
+
+TEST(GameDefinitionTest, ValidateDayNightAcceptsAWellFormedBlock) {
+    json def = {{"dayNight", {{"enabled", true}, {"timeOfDay", 9.0}, {"dayLengthSeconds", 1200},
+                              {"timeScale", 1.0}, {"paused", false}, {"dayNumber", 1}}}};
+    auto [valid, err] = GameDefinitionLoader::validate(def);
+    EXPECT_TRUE(valid) << err;
+}
+
+TEST(GameDefinitionTest, LoadParsesTheDayNightBlockIntoTheResult) {
+    GameSubsystems subs;  // no renderer here on purpose: core must not need graphics to parse it
+    json def = {{"dayNight", {{"enabled", true}, {"timeOfDay", 9.0}, {"dayLengthSeconds", 1200}}}};
+    auto result = GameDefinitionLoader::load(def, subs);
+    ASSERT_TRUE(result.success) << result.error;
+    EXPECT_TRUE(result.dayNightLoaded) << "the block was present and must be reported as loaded";
+    ASSERT_TRUE(result.dayNight.enabled.has_value());
+    EXPECT_TRUE(*result.dayNight.enabled);
+    ASSERT_TRUE(result.dayNight.timeOfDay.has_value());
+    EXPECT_FLOAT_EQ(*result.dayNight.timeOfDay, 9.0f);
+    ASSERT_TRUE(result.dayNight.dayLengthSeconds.has_value());
+    EXPECT_FLOAT_EQ(*result.dayNight.dayLengthSeconds, 1200.0f);
+    EXPECT_FALSE(result.dayNight.paused.has_value()) << "an unset field stays unset, not defaulted";
+}
+
+TEST(GameDefinitionTest, LoadWithoutADayNightBlockLeavesItUnloaded) {
+    GameSubsystems subs;
+    auto result = GameDefinitionLoader::load(json::object(), subs);
+    ASSERT_TRUE(result.success);
+    EXPECT_FALSE(result.dayNightLoaded);
+    EXPECT_FALSE(result.dayNight.any());
+}
+
+TEST(GameDefinitionTest, LoadRefusesAnInvalidDayNightBlockInsteadOfClampingIt) {
+    GameSubsystems subs;
+    json def = {{"dayNight", {{"dayLengthSeconds", -5}}}};
+    auto result = GameDefinitionLoader::load(def, subs);
+    EXPECT_FALSE(result.success) << "a bad block must fail the load with a message, not load and clamp";
+    EXPECT_NE(result.error.find("dayLengthSeconds"), std::string::npos) << result.error;
+}
+
+TEST(GameDefinitionTest, ParseDayNightReadsTheTopLevelOfAMultiSceneDocument) {
+    // A multi-scene game never passes its top-level document through load(); the shell reads
+    // the world-level block with parseDayNight and applies it once.
+    json def = {{"scenes", json::array()}, {"dayNight", {{"enabled", true}, {"timeOfDay", 21.5}}}};
+    DayNightSettings dn;
+    ASSERT_TRUE(GameDefinitionLoader::parseDayNight(def, dn));
+    EXPECT_TRUE(dn.enabled.value_or(false));
+    EXPECT_FLOAT_EQ(dn.timeOfDay.value_or(0.0f), 21.5f);
+    DayNightSettings none;
+    EXPECT_FALSE(GameDefinitionLoader::parseDayNight(json{{"scenes", json::array()}}, none));
+}

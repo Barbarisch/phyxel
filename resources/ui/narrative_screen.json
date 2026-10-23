@@ -1,0 +1,103 @@
+{
+  "_comment": "Data-driven blocking story card (docs/HudSystem.md section 11a; Ravenmere G-116). Loaded by UI::loadGameScreenInto(ui,\"narrative\",...) into narrative:<panel> screens while GameScreen is in ScreenState::Narrative. {{narrative.title}}, {{narrative.text}} (paragraphs joined with blank lines) and {{narrative.button}} resolve via MenuActions.onResolveVariable; the button's \"continue\" action fires MenuActions.onContinue - the host then starts (or resumes) whatever the card was gating, and also continues on Enter / Space. The text sits in a SCROLLABLE panel (narrative_body, 1000x460 at 140,130): text of any length wraps to 980 px and scrolls with the mouse wheel (the shell also scrolls it with Up/Down/PageUp/PageDown); a slim scrollbar shows when it overflows. The layout gate checks it at 3,200 chars. The button holds a 19-character caption. 1280x720 virtual canvas.",
+  "background_type": "solid",
+  "background_color": [
+    0.04,
+    0.035,
+    0.05,
+    0.96
+  ],
+  "start_panel": "main",
+  "panels": {
+    "main": {
+      "children": [
+        {
+          "type": "label",
+          "align": "center",
+          "id": "narrative_title",
+          "text": "{{narrative.title}}",
+          "font": "title",
+          "position": [
+            640,
+            56
+          ],
+          "size": [
+            900,
+            60
+          ]
+        },
+        {
+          "type": "panel",
+          "id": "narrative_body",
+          "position": [
+            140,
+            130
+          ],
+          "size": [
+            1000,
+            460
+          ],
+          "showBackground": false,
+          "clip": true,
+          "scrollable": true,
+          "children": [
+            {
+              "type": "label",
+              "id": "narrative_text",
+              "text": "{{narrative.text}}",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                980,
+                32
+              ],
+              "color": [
+                0.86,
+                0.82,
+                0.74
+              ]
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "id": "narrative_continue",
+          "text": "{{narrative.button}}",
+          "position": [
+            490,
+            604
+          ],
+          "size": [
+            300,
+            48
+          ],
+          "action": {
+            "type": "continue"
+          }
+        },
+        {
+          "type": "label",
+          "align": "center",
+          "id": "narrative_hint",
+          "text": "Enter or Space also continues",
+          "position": [
+            640,
+            668
+          ],
+          "size": [
+            500,
+            24
+          ],
+          "scale": 1.5,
+          "color": [
+            0.55,
+            0.52,
+            0.48
+          ]
+        }
+      ]
+    }
+  }
+}

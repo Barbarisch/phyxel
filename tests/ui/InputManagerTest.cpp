@@ -120,3 +120,18 @@ TEST_F(InputManagerTest, ScriptingConsoleModeToggle) {
     inputManager.setScriptingConsoleMode(false);
     EXPECT_FALSE(inputManager.isScriptingConsoleMode());
 }
+
+
+// G-179 (2026-09-24): the key-capture scan must see INJECTED keys, or a harness can start a
+// rebind but never bind or cancel it (the shell's ESC path saw the injection, the capture did
+// not - the two disagreed about the same key press).
+TEST(InputManagerInjection, TheCaptureScanSeesInjectedKeysWithoutAWindow) {
+    Phyxel::Input::InputManager im;
+    EXPECT_EQ(im.scanPressedKey(), GLFW_KEY_UNKNOWN);
+    im.injectKey(GLFW_KEY_ESCAPE, 0.2f);
+    EXPECT_EQ(im.scanPressedKey(), GLFW_KEY_ESCAPE);
+    im.tickInjection(1.0f);   // a fresh injection ages from its SECOND tick (the arriving frame must see it)
+    EXPECT_EQ(im.scanPressedKey(), GLFW_KEY_ESCAPE);
+    im.tickInjection(1.0f);   // now the hold expires
+    EXPECT_EQ(im.scanPressedKey(), GLFW_KEY_UNKNOWN);
+}

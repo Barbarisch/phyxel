@@ -162,6 +162,12 @@ public:
     /// Abort capture without binding (does not fire either callback).
     void cancelKeyCapture();
 
+    /// G-179: how many captures have ENDED (bound or cancelled) so far. A host that also
+    /// reads ESC as "back" compares this frame to frame: if it moved, the ESC that just
+    /// arrived belonged to the capture (it cancelled a rebind) and must not also leave the
+    /// settings screen.
+    uint32_t keyCaptureEndCount() const { return keyCaptureEndCount_; }
+
     // ── Rendering ───────────────────────────────────────────────
 
     /// Render all visible screens. Call inside the post-process render pass
@@ -189,6 +195,13 @@ public:
     static bool worldToScreen(const glm::vec3& worldPos, const glm::mat4& view,
                               const glm::mat4& proj, float screenW, float screenH,
                               glm::vec2& outScreen);
+
+    /// G-182: while a modal overlay is up, world-anchored labels and nameplates are dropped
+    /// (they would draw on top of the overlay). Set per frame by applyModalOverlays().
+    void setWorldLabelsSuppressed(bool on) { worldLabelsSuppressed_ = on; }
+    bool worldLabelsSuppressed() const { return worldLabelsSuppressed_; }
+    /// Drop the labels/nameplates already queued this frame (a modal came up after they were queued).
+    void dropQueuedWorldLabels() { worldLabels_.clear(); nameplates_.clear(); worldMarkers_.clear(); }
 
     /// Queue a world-anchored text label for THIS frame (cleared after render()).
     /// `bgAlpha` <= 0 draws text only (no backing box).
@@ -263,6 +276,7 @@ private:
     // are released once, so the key that confirmed the rebind button isn't grabbed.
     bool keyCaptureActive_ = false;
     bool keyCaptureArmed_ = false;
+    uint32_t keyCaptureEndCount_ = 0;
     std::function<void(int, int)> keyCaptureCb_;
     std::function<void()> keyCaptureCancelCb_;
 
@@ -275,6 +289,7 @@ private:
         float bgAlpha;
     };
     std::vector<WorldLabel> worldLabels_;
+    bool worldLabelsSuppressed_ = false;   // G-182
     std::vector<Nameplate>  nameplates_;   // per-frame, drawn + cleared in render()
 };
 

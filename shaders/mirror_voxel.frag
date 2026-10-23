@@ -28,6 +28,7 @@ layout(set = 0, binding = 2) uniform sampler2D shadowMap;
 struct PointLightGPU {
     vec4 positionAndRadius;
     vec4 colorAndIntensity;
+    vec4 extentAndPad;          // x = emitter half-extent (G-157), yzw = padding
 };
 struct SpotLightGPU {
     vec4 positionAndRadius;

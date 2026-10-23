@@ -15,8 +15,11 @@ namespace Core {
 
 class EngineRuntime;
 class NPCManager;
+class NpcHeldItems;
+class ItemEffectSystem;
 class TriggerSystem;
 class EntityRegistry;
+class InteractionManager;
 class APICommandQueue;
 class EngineAPIServer;
 class CommandRegistry;
@@ -25,7 +28,7 @@ class CombatAISystem;
 class CombatSystem;
 class PlayerTurnController;
 class ClickToMove;
-class CharacterSheet;
+struct CharacterSheet;   // a STRUCT (CharacterSheet.h) - MSVC mangles the key
 class Inventory;
 
 // ============================================================================
@@ -65,10 +68,13 @@ public:
     EngineRuntime*               runtime = nullptr;           // InputManager, SceneManager, PerfMonitor, Camera
     Graphics::RenderCoordinator* renderCoordinator = nullptr; // render stats + UISystem menus
     NPCManager*                  npcManager = nullptr;        // NavGrid reachability
+    NpcHeldItems*                npcHeldItems = nullptr;      // torches: what each NPC visibly holds
+    ItemEffectSystem*            itemEffects = nullptr;       // torches: the held flame's light id
     TriggerSystem*               triggers = nullptr;          // list/fire triggers
     UI::GameScreen*              screen = nullptr;            // REAL screen state
     UI::DialogueSystem*          dialogueSystem = nullptr;    // dialogue_state: node + visible choices (harness observability, Ravenmere G-47)
     EntityRegistry*              entityRegistry = nullptr;    // /api/state entities
+    InteractionManager*          interactionManager = nullptr; // start_dialogue (G-182)
     // The player character can be rebuilt/reassigned across scenes, so resolve it
     // fresh each call rather than caching a pointer.
     std::function<Scene::AnimatedVoxelCharacter*()> playerProvider;

@@ -96,6 +96,7 @@ bool phxOccupancySolid(ivec3 worldMicro, ivec4 occBox) {
     // (lo + hi) >> 1 wrapped for a garbage n near 2^32 (a torn read of a fully solid 0xFFFFFFFF row),
     // mid fell below lo, the search never converged, and the GPU hung (VK_ERROR_DEVICE_LOST). Both are
     // exact on valid data (n <= 32768 always); they make a bad word cost one wrong answer, not the device.
+    // (First landed 2026-09-23 as the Ravenmere G-177 / G-127 device-lost guard.)
     uint n = min(occPool[base], 32768u);
     uint idxBase = mixedBase + uint(PHX_OCC_CUBE_WORDS);
     // The index list and micro blocks must lie inside the pool buffer; a count that says otherwise is
@@ -171,7 +172,13 @@ int phxCubeOccupancy(ivec3 worldCube, ivec4 occBox) {
 // affordable coarsened beyond 3 u and stepped straight over 1-micro roofs — a sealed room read
 // 0.536 sky instead of 0, at the ONE wall thickness a hand-built rig had not used.
 // --------------------------------------------------------------------------------------------
-bool phxDdaHitsSolid(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox) {
+/// `testEndCell` = does the cell containing the END point count? Normally NO: callers stop
+/// one cell short of a light on purpose and that cell is inside the emitter. The light march
+/// passes true, because its stop-short is now bounded by the emitter's measured extent, so
+/// the end cell is the first thing BEYOND the emitter -- the wall a sconce is mounted on
+/// (G-157). Skipping it let a flush sconce light through a one-micro wall.
+bool phxDdaHitsSolidEx(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
+                       bool testEndCell) {
     vec3 a = fromWorld * 9.0, b = toWorld * 9.0;
     vec3 d = b - a;
     float len = length(d);
@@ -209,9 +216,15 @@ bool phxDdaHitsSolid(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox) {
             if (tMax.y < tMax.z) { cell.y += stp.y; tMax.y += tDelta.y; }
             else                 { cell.z += stp.z; tMax.z += tDelta.z; }
         }
-        if (tMax.x > len && tMax.y > len && tMax.z > len) return false;
+        if (tMax.x > len && tMax.y > len && tMax.z > len)
+            return testEndCell && phxOccupancySolid(cell, occBox);
     }
     return false;
+}
+
+/// The long-standing form: END CELL NOT TESTED. Every caller but the light march wants this.
+bool phxDdaHitsSolid(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox) {
+    return phxDdaHitsSolidEx(fromWorld, toWorld, maxCells, occBox, false);
 }
 
 /// TWO-LEVEL segment test: does ANY solid matter lie on the segment? Walks CUBE cells (1 u) with
@@ -516,7 +529,8 @@ float phxEmitterRunLength(vec3 lightWorld, vec3 dirOut, int maxCells, ivec4 occB
 /// Two guards: start 2 micro cells along the normal (or the surface shadows itself and every lit
 /// face goes black), and stop short of the light by the MEASURED extent of the emitter's own body
 /// rather than by a fixed distance (see phxEmitterRunLength).
-float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld, ivec4 occBox) {
+float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld,
+                         float emitterExtent, ivec4 occBox) {
     if ((occBox.w & 2) == 0) return 1.0;   // light tracing off / no occupancy
 
     vec3 start = surfaceWorld + geomNormal * (2.0 / 9.0);
@@ -551,7 +565,17 @@ float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld, iv
     // Remaining ambiguity, deliberately accepted: an emissive voxel placed flush against a wall
     // shares one solid run with that wall and still lights through it. That is the one case where
     // "the emitter's own body" is genuinely not separable from the occluder by geometry alone.
-    float runEnd = phxEmitterRunLength(lightWorld, -dir, 32, occBox);
+    // G-157: BOUND THE WALK BY THE EMITTER'S OWN SIZE.
+    //
+    // Walking an unbounded solid run is what let a wall-mounted sconce light through its
+    // wall: the emitter and the wall it touches are ONE run, so excluding "the emitter"
+    // excluded the wall too, at every thickness measured (1, 2, 3, 6 and 9 micro cells).
+    // The light now carries the half-extent of its own emitting body, so the walk can
+    // cover the emitter and stop. It still ENDS EARLY at air, so a free-standing emitter
+    // excludes exactly itself; the bound only decides how far it may keep going through
+    // solid, and the answer is "no further than the emitter actually is".
+    int runCells = clamp(int(ceil(max(emitterExtent, 0.0) * 9.0)), 1, 32);
+    float runEnd = phxEmitterRunLength(lightWorld, -dir, runCells, occBox);
     vec3 target = start + dir * max(dist - runEnd - (0.1 / 9.0), 0.0);
     // L3a (docs/PerfProgram2026-09.md section 16.11): the TWO-LEVEL walk (cube cells, micro only
     // inside mixed cubes), which answers exactly what the micro march answers
@@ -560,7 +584,14 @@ float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld, iv
     // fragment, and in a lit city with dense foliage, while occupancy was still filling at load
     // (unloaded chunks read as open air, so every march ran to full length), one frame outran the
     // driver's timeout: VK_ERROR_DEVICE_LOST ~10-15 s after launch (2/2 with tracing on, 0/2 off).
-    return phxSegmentBlocked(start, target, occBox) ? 0.0 : 1.0;
+    // G-157 keeps the END CELL tested. phxSegmentBlocked mirrors phxDdaHitsSolid and skips the cell
+    // containing the target on purpose (its other callers stop one cell short of a light), but THIS
+    // march stops short by the emitter's measured extent, so the target cell is the first thing
+    // BEYOND the emitter: the wall a flush sconce is mounted on. Skipping it let that sconce light
+    // through a one-micro wall. Same answer as phxDdaHitsSolidEx(..., true): blocked on the way, or
+    // solid at the end. CPU mirror: packedPoolLightVisibleTwoLevel.
+    if (phxSegmentBlocked(start, target, occBox)) return 0.0;
+    return phxOccupancySolid(ivec3(floor(target * 9.0)), occBox) ? 0.0 : 1.0;
 }
 
 // phxSkyVisibility / PHX_SKY_DIRS (the M3 per-fragment 5-ray sky trace) were DELETED 2026-09-19

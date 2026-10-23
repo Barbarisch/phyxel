@@ -1,6 +1,7 @@
 #include <chrono>
 #include "graphics/DepthConvention.h"
 #include "graphics/RenderCoordinator.h"
+#include "core/ItemEffectSystem.h"
 
 #include "utils/CapsuleOcclusion.h"   // G-147: camera-inside-own-body test
 
@@ -28,6 +29,7 @@
 #include "graphics/FarTerrainRenderPipeline.h"
 #include "graphics/FarTerrainManager.h"
 #include "graphics/FarTreeRenderPipeline.h"
+#include "graphics/FarTreeResidencyMask.h"
 #include "graphics/TreeLodMeshRegistry.h"
 #include "graphics/TreeLodRenderPipeline.h"
 #include "graphics/TreeSpeciesTable.h"
@@ -972,7 +974,7 @@ void RenderCoordinator::drawSky(VkCommandBuffer cmd) {
     // The primary STAR, not the dominant light: the atmosphere is lit by the sun even when
     // the moon is what is lighting the ground.
     push.toSun      = glm::vec4(m_skyStarDir, static_cast<float>(m_tonemapCurve));
-    push.toMoon     = glm::vec4(glm::normalize(-m_dayNightCycle.getMoonDirection()), 0.0f);
+    push.toMoon     = glm::vec4(skyMoonToward(), 0.0f);
 
     // This pass runs before the scene pass sets its own dynamic state, so it sets its own.
     VkViewport viewport{};
@@ -1340,7 +1342,7 @@ void RenderCoordinator::updateVfx(float dt) {
             for (const auto& e : ch->getEmissiveLights()) {
                 mix(e.worldPos.x); mix(e.worldPos.y); mix(e.worldPos.z);
                 mix(e.color.r); mix(e.color.g); mix(e.color.b);
-                mix(e.intensity); mix(e.radius);
+                mix(e.intensity); mix(e.radius); mix(e.extent);
                 ++count;
             }
         }
@@ -1355,7 +1357,7 @@ void RenderCoordinator::updateVfx(float dt) {
                 if (!ch) continue;
                 for (const auto& e : ch->getEmissiveLights()) {
                     const int id = lightManager.addPointLight(LightSource::EmissiveVoxel, e.worldPos,
-                                                               e.color, e.intensity, e.radius);
+                                                               e.color, e.intensity, e.radius, e.extent);
                     if (id >= 0) m_emissiveLightIds.push_back(id);
                 }
             }
@@ -1736,6 +1738,24 @@ void RenderCoordinator::renderFarTerrain() {
     // out once the chunks under it actually EXIST, ramped over ~0.3s to avoid a pop when
     // they land. minFade = 1 - readiness floors the shader's dither factor.
     const float fadeGateEnd = (treeLodPipeline ? treeLodPipeline->params().fadeNear1 : 260.0f);
+
+    // G-178: the per-CARD residency mask (see FarTreeResidencyMask.h). Columns with a chunk
+    // that has uploaded faces - the same test the far-tile coverage function uses - within
+    // +-11 chunks of the camera. One pass over chunkMap per frame; the per-tile quadrant
+    // readiness below stays as the fallback for cards outside the grid.
+    {
+        const glm::ivec2 camChunk(int(std::floor(cameraPos.x / 32.0f)), int(std::floor(cameraPos.z / 32.0f)));
+        FarTreeResidencyMask mask;
+        mask.originChunk = FarTreeResidencyMask::originFor(camChunk);
+        mask.enabled = true;
+        for (const auto& [coord, chunk] : chunkManager->chunkMap) {
+            if (!chunk || chunk->getNumInstances() == 0) continue;
+            mask.set(coord.x, coord.z);
+        }
+        lastFrameStats.farTreeMaskResidentColumns = mask.residentCount();
+        if (farTreePipeline) farTreePipeline->setResidencyMask(mask);
+        if (treeLodPipeline) treeLodPipeline->setResidencyMask(mask);
+    }
     auto tileHandoffMinFade = [&](const FarTerrainManager::TileDraw& t, float dMin) -> float {
         if (dMin > fadeGateEnd) return 0.0f;   // outside the fade band: distance keeps it solid
         // TERRAIN-HIDDEN tiles are the deep interior: FarTerrainManager sets that flag only
@@ -3421,7 +3441,9 @@ void RenderCoordinator::drawFrame() {
     if (chunkManager) {
         // Budgeted so a large dirty backlog (async world-gen/fill finalize) spreads
         // over frames instead of stalling for seconds — standalones flush here.
-        constexpr double kDirtyChunkBudgetMs = 6.0;
+        // Default 6 ms; a host raises it while a loading screen hides the frame time (G-181:
+        // the settle hold meshed one chunk per ~70 ms frame, 30 scene chunks = 2-2.6 s).
+        const double kDirtyChunkBudgetMs = m_dirtyChunkBudgetMs;
         // M3-REDESIGN ORDERING: the occupancy must be current BEFORE meshing, because the sky
         // bake traces against it — a chunk meshed before its own geometry reached the pool would
         // bake as if the world were empty and read fully sky-lit indoors. Occupancy comes from the
@@ -3431,6 +3453,9 @@ void RenderCoordinator::drawFrame() {
             CPU_PROFILE_SCOPE(&m_cpuTiming, "Light Occupancy");
             updateLightOccupancy();
         }
+        // Nearest-to-camera first (G-181): the chunks the player is looking at mesh before the
+        // streamed surround that queued ahead of them.
+        if (camera) chunkManager->dirtyTracker().setFocus(camera->getPosition());
         CPU_PROFILE_SCOPE(&m_cpuTiming, "Dirty Chunk Flush");   // includes the chunk re-meshing
         chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
     }
@@ -3661,13 +3686,14 @@ void RenderCoordinator::drawFrame() {
     // (world - camera) helper: double subtract, truncate last.
     auto rel = [&camWorld](const glm::dvec3& worldP) { return glm::vec3(worldP - camWorld); };
 
-    // Update day/night cycle and apply to lighting
+    // Update day/night cycle and apply to lighting.
+    //
+    // The cycle measures its OWN interval (DayNightCycle::tick). It used to be fed
+    // `now - frameStartTime`, and only the editor ever set frameStartTime: a shipped game left
+    // it at the epoch, the 0.1 s clamp fired every frame, and the world clock ran at
+    // 0.1 s x FPS (2.89x real time at 28 FPS, measured on Ravenmere - G-165).
     {
-        auto now = std::chrono::high_resolution_clock::now();
-        float dt = std::chrono::duration<float>(now - frameStartTime).count();
-        // Clamp to avoid huge jumps on first frame or lag spikes
-        dt = std::min(dt, 0.1f);
-        m_dayNightCycle.update(dt);
+        m_dayNightCycle.tick(DayNightCycle::Clock::now());
         if (m_dayNightCycle.isEnabled()) {
             sunDirection = m_dayNightCycle.getSunDirection();
             sunColor = m_dayNightCycle.getSunColor();
@@ -3693,12 +3719,12 @@ void RenderCoordinator::drawFrame() {
                                                    - Phyxel::Core::kSeaLevelY);
             // ⚠️ FLIP. sunDirection/moonDirection are the direction light TRAVELS; the model wants a
             // vector pointing AT the body. Unflipped gives a permanent midnight.
-            const glm::vec3 toMoon = glm::normalize(-m_dayNightCycle.getMoonDirection());
-
             // Place every celestial body for this instant. SkyBodies::defaultSky() is one sun and
             // one moon, so an unconfigured world is unchanged; extra bodies are pure configuration.
             m_skyBodies.update(m_dayNightCycle.getTimeOfDay(), m_dayNightCycle.getDayNumber(),
                                altitudeM);
+            const glm::vec3 toMoon = skyMoonToward();   // the sky bodies' moon (G-164)
+            (void)toMoon;
             const int dominant = m_skyBodies.dominantLightIndex();
 
             // The sky's SCATTERING follows the primary STAR, never the dominant light. These
@@ -3746,12 +3772,15 @@ void RenderCoordinator::drawFrame() {
             // the frame crushed to black either way). kMoonSkyShare is a look constant — the true
             // ratio is unmeasurable at this scale and the honest label keeps it from drifting toward
             // false physics.
-            constexpr float kMoonSkyShare = 0.45f;
+            // + the moonless-night fill (starlight/airglow, cheated to be playable - G-164
+            // follow-up): a new-moon night measured black (world luma 2.6 of 255). It lights the
+            // WORLD only; the sky dome keeps its own airglow, which twilight bounds from above.
             a.ambientColor     = Atmosphere::skyIrradiance(toSun, altitudeM)
-                               + reflectedAmbient * kMoonSkyShare;
+                               + reflectedAmbient * kMoonSkyShare
+                               + m_skyBodies.nightFillAmbient(toSun);   // sky "nightFill"
             a.hazeHorizonColor = Atmosphere::hazeHorizon(toSun, altitudeM);
             a.hazeZenithColor  = Atmosphere::hazeZenith(toSun, altitudeM);
-            a.moonDirection    = m_dayNightCycle.getMoonDirection();
+            a.moonDirection    = -skyMoonToward();   // light-travel convention, like the cycle's
             a.moonColor        = moonlight;
             a.exposure         = m_exposure;
             a.tonemapCurve     = m_tonemapCurve;
@@ -4545,6 +4574,11 @@ void RenderCoordinator::drawFrame() {
         for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
             if (auto* s = m_uiSystem->getScreen(name)) UI::applyHudBindings(s, m_hudData);
         }
+        // G-182: a modal overlay (the journal) owns the screen - the other HUD panels and the
+        // world-space name labels hide while it is up. Labels are queued by the host BEFORE
+        // this point in the frame, so the suppression set here takes effect from the next
+        // queue; the render below still drops what is already queued.
+        if (UI::applyModalOverlays(*m_uiSystem)) m_uiSystem->dropQueuedWorldLabels();
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
         m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
     }
@@ -5286,6 +5320,27 @@ std::vector<uint8_t> RenderCoordinator::captureScreenshot() {
 
     LOG_INFO("RenderCoordinator", "Screenshot captured: {}x{} pixels", width, height);
     return pixels;
+}
+
+void RenderCoordinator::wireItemEffects(Core::ItemEffectSystem& fx) {
+    fx.setVfxSystem(getVfxSystem());
+    fx.setLightCallbacks(
+        [this](const glm::vec3& pos, const glm::vec3& color, float intensity, float radius) -> int {
+            PointLight pl;
+            pl.position = pos;
+            pl.color = color;
+            pl.intensity = intensity;
+            pl.radius = radius;
+            return lightManager.addPointLight(LightSource::ItemEffect, pl);
+        },
+        [this](int lightId, const glm::vec3& pos) { lightManager.updatePointLightPosition(lightId, pos); },
+        [this](int lightId) { lightManager.removeLight(lightId); });
+}
+
+glm::vec3 RenderCoordinator::skyMoonToward() const {
+    for (size_t i = 0; i < m_skyBodies.bodies.size() && i < m_skyBodies.directions.size(); ++i)
+        if (!m_skyBodies.bodies[i].emissive) return glm::normalize(m_skyBodies.directions[i]);
+    return glm::normalize(-m_dayNightCycle.getMoonDirection());
 }
 
 } // namespace Graphics

@@ -486,6 +486,22 @@ static constexpr float kControllerHeadClearance = 0.05f;
             worldPosition += m_kinVelocity * dt;
         }
 
+        // --- The edge of the world is a wall (G-169, core/PlayBounds.h) ---
+        // Past the last chunk of a fixed-size world there is no ground and, until now, nothing
+        // blocking the step: the player walked into the void and fell for ever (Ravenmere farm,
+        // south edge: y = -577 twelve seconds after holding W). The body is held inside the play
+        // bounds by construction - no input, path or push can take it out - and the outward
+        // velocity is dropped so it does not keep "pressing". Applied AFTER both integration
+        // branches: the headless (no voxel world) path skipped it when it sat inside the first.
+        if (m_chunkManager) {
+            const Phyxel::Core::PlayBounds pb = m_chunkManager->effectivePlayBounds();
+            if (pb.valid) {
+                const glm::vec3 held = pb.clamp(worldPosition, halfW);
+                if (held.x != worldPosition.x) { worldPosition.x = held.x; m_kinVelocity.x = 0.0f; }
+                if (held.z != worldPosition.z) { worldPosition.z = held.z; m_kinVelocity.z = 0.0f; }
+            }
+        }
+
         // --- Voxel contact probe (Phase M1) ---
         // One frame-coherent snapshot of ground / forward-face / climb feature
         // for downstream FSM consumers (edge teeter, climb-up, climb-down) and

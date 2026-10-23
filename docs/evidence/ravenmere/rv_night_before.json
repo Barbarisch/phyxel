@@ -1,0 +1,222 @@
+{
+ "label": "before",
+ "noon": 65.1,
+ "rows": [
+  {
+   "day": 1,
+   "hour": 21.0,
+   "moon_elev": 20.1,
+   "moon_lit": 0.95,
+   "world_luma": 34.6,
+   "vs_noon": 0.531
+  },
+  {
+   "day": 1,
+   "hour": 0.0,
+   "moon_elev": 49.0,
+   "moon_lit": 0.99,
+   "world_luma": 34.5,
+   "vs_noon": 0.53
+  },
+  {
+   "day": 1,
+   "hour": 3.0,
+   "moon_elev": 44.3,
+   "moon_lit": 0.99,
+   "world_luma": 33.1,
+   "vs_noon": 0.508
+  },
+  {
+   "day": 4,
+   "hour": 21.0,
+   "moon_elev": -17.2,
+   "moon_lit": 0.63,
+   "world_luma": 30.3,
+   "vs_noon": 0.465
+  },
+  {
+   "day": 4,
+   "hour": 0.0,
+   "moon_elev": 33.6,
+   "moon_lit": 0.86,
+   "world_luma": 29.2,
+   "vs_noon": 0.449
+  },
+  {
+   "day": 4,
+   "hour": 3.0,
+   "moon_elev": 49.6,
+   "moon_lit": 0.86,
+   "world_luma": 28.8,
+   "vs_noon": 0.442
+  },
+  {
+   "day": 7,
+   "hour": 21.0,
+   "moon_elev": -43.1,
+   "moon_lit": 0.28,
+   "world_luma": 25.1,
+   "vs_noon": 0.386
+  },
+  {
+   "day": 7,
+   "hour": 0.0,
+   "moon_elev": 0.0,
+   "moon_lit": 0.5,
+   "world_luma": 22.7,
+   "vs_noon": 0.349
+  },
+  {
+   "day": 7,
+   "hour": 3.0,
+   "moon_elev": 36.6,
+   "moon_lit": 0.62,
+   "world_luma": 20.8,
+   "vs_noon": 0.32
+  },
+  {
+   "day": 10,
+   "hour": 21.0,
+   "moon_elev": -49.9,
+   "moon_lit": 0.08,
+   "world_luma": 17.0,
+   "vs_noon": 0.261
+  },
+  {
+   "day": 10,
+   "hour": 0.0,
+   "moon_elev": -33.6,
+   "moon_lit": 0.14,
+   "world_luma": 14.5,
+   "vs_noon": 0.223
+  },
+  {
+   "day": 10,
+   "hour": 3.0,
+   "moon_elev": 4.8,
+   "moon_lit": 0.24,
+   "world_luma": 12.6,
+   "vs_noon": 0.194
+  },
+  {
+   "day": 13,
+   "hour": 21.0,
+   "moon_elev": -38.4,
+   "moon_lit": 0.0,
+   "world_luma": 10.3,
+   "vs_noon": 0.158
+  },
+  {
+   "day": 13,
+   "hour": 0.0,
+   "moon_elev": -49.0,
+   "moon_lit": 0.01,
+   "world_luma": 8.4,
+   "vs_noon": 0.129
+  },
+  {
+   "day": 13,
+   "hour": 3.0,
+   "moon_elev": -30.3,
+   "moon_lit": 0.01,
+   "world_luma": 7.0,
+   "vs_noon": 0.108
+  },
+  {
+   "day": 16,
+   "hour": 21.0,
+   "moon_elev": -8.0,
+   "moon_lit": 0.13,
+   "world_luma": 5.8,
+   "vs_noon": 0.089
+  },
+  {
+   "day": 16,
+   "hour": 0.0,
+   "moon_elev": -46.0,
+   "moon_lit": 0.03,
+   "world_luma": 7.1,
+   "vs_noon": 0.109
+  },
+  {
+   "day": 16,
+   "hour": 3.0,
+   "moon_elev": -48.1,
+   "moon_lit": 0.04,
+   "world_luma": 4.4,
+   "vs_noon": 0.068
+  },
+  {
+   "day": 19,
+   "hour": 21.0,
+   "moon_elev": 28.0,
+   "moon_lit": 0.5,
+   "world_luma": 4.4,
+   "vs_noon": 0.068
+  },
+  {
+   "day": 19,
+   "hour": 0.0,
+   "moon_elev": -24.2,
+   "moon_lit": 0.23,
+   "world_luma": 3.8,
+   "vs_noon": 0.058
+  },
+  {
+   "day": 19,
+   "hour": 3.0,
+   "moon_elev": -47.4,
+   "moon_lit": 0.2,
+   "world_luma": 3.3,
+   "vs_noon": 0.051
+  },
+  {
+   "day": 22,
+   "hour": 21.0,
+   "moon_elev": 47.4,
+   "moon_lit": 0.8,
+   "world_luma": 5.7,
+   "vs_noon": 0.088
+  },
+  {
+   "day": 22,
+   "hour": 0.0,
+   "moon_elev": 12.7,
+   "moon_lit": 0.64,
+   "world_luma": 3.8,
+   "vs_noon": 0.058
+  },
+  {
+   "day": 22,
+   "hour": 3.0,
+   "moon_elev": -28.0,
+   "moon_lit": 0.5,
+   "world_luma": 3.2,
+   "vs_noon": 0.049
+  },
+  {
+   "day": 25,
+   "hour": 21.0,
+   "moon_elev": 48.1,
+   "moon_lit": 0.96,
+   "world_luma": 6.1,
+   "vs_noon": 0.094
+  },
+  {
+   "day": 25,
+   "hour": 0.0,
+   "moon_elev": 40.9,
+   "moon_lit": 0.93,
+   "world_luma": 5.9,
+   "vs_noon": 0.091
+  },
+  {
+   "day": 25,
+   "hour": 3.0,
+   "moon_elev": 8.0,
+   "moon_lit": 0.87,
+   "world_luma": 4.3,
+   "vs_noon": 0.066
+  }
+ ]
+}

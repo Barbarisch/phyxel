@@ -53,6 +53,11 @@ public:
     void setPlayerArchetype(const std::string& archetype) { m_playerArchetype = archetype; }
     const std::string& getPlayerArchetype() const { return m_playerArchetype; }
 
+    /// Run the NPC interact callback for THIS npc regardless of distance or facing - the
+    /// test API's `start_dialogue` (a harness cannot reliably stand in front of an NPC and
+    /// press Interact; G-182's lint never got a dialogue open). Returns false with no callback.
+    bool interactWith(Scene::NPCEntity* npc);
+
     /// Legacy callback setters — delegate to the appropriate handler in the registry.
     void setInteractCallback(InteractCallback callback);
     void setSeatCallback(SeatCallback callback);

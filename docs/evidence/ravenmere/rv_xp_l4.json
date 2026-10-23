@@ -1,0 +1,24 @@
+{
+  "exe_mtime": "2026-09-23 11:37:51",
+  "xp_start": 0,
+  "shot_town": "rv_xp_l4_1_town.png",
+  "triggers_town": [
+    "to_cellar",
+    "to_farm",
+    "wren_unlock",
+    "win",
+    "reveal_main_2",
+    "reveal_main_3",
+    "reveal_main_4",
+    "wren_persuaded",
+    "wren_refused"
+  ],
+  "scene": "farm",
+  "victim": "npc_Oswin",
+  "victim_hp": 16.0,
+  "victim_alive_after": false,
+  "victim_hp_after": 0.0,
+  "xp_after_kill": 50,
+  "kill_award": 50,
+  "shot_after": "rv_xp_l4_2_after_kill.png"
+}

@@ -111,6 +111,13 @@ resolution — parameters, not modes).
 5. **Retire the flag.** `world.streaming` parses with a WARN and maps onto bounds; grep for
    `if (streaming)`-class forks is empty in world-lifecycle code (water's forks die in step 2;
    flora's `procedural is streaming-only` limitation retires with the shared path).
+   **Progress 2026-09-23 (Ravenmere G-177):** the flag's DEFAULT flipped - height-based world
+   types stream unless `streaming:false` is authored, the loader RESETS the flag per load (it was
+   sticky), and the authored `from/to` region is now data the engine keeps: `ChunkManager::
+   regionPlayBounds()`, the play-area wall (`core/PlayBounds.h`). That is step 4's "bounds as
+   data" in its first form (not yet in the recipe) and most of step 5's behaviour; what remains is
+   the WARN + the `if (streaming)` fork sweep. The one fork closed this round: the region flora
+   pass ran only for non-streaming worlds, so a streaming world's own region was bare.
 
 Sequencing vs water: water's remaining render-from-spans work (streaming near-field,
 `Water.md` §6 step 2b) does not block on this and lands first; step 2 here then *deletes* the

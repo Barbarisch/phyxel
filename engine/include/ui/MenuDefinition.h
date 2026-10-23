@@ -3,6 +3,7 @@
 #include "ui/UIWidget.h"
 #include <nlohmann/json.hpp>
 #include <string>
+#include <vector>
 #include <memory>
 #include <functional>
 #include <unordered_map>
@@ -72,12 +73,26 @@ private:
 
 class HudDataContext;  // forward decl
 
+/// `visibleWhen` grammar (G-183): terms joined by "&&", each an optional "!" and a float
+/// provider key; true iff every term resolves and holds. Fail-closed on a missing provider
+/// or a malformed expression. `visibleWhenKeys` lists the keys an expression reads.
+bool evalVisibleWhen(const std::string& expr, const HudDataContext& ctx);
+std::vector<std::string> visibleWhenKeys(const std::string& expr);
+
 /// Apply a HudDataContext to a HUD widget tree: scalar value binds, `visibleWhen`
 /// visibility, and Repeater list-expansion. Call once per frame before rendering.
 /// Lives here (not in HudDataContext) because repeater expansion needs JSON building.
 void applyHudBindings(UIWidget* root, const HudDataContext& ctx);
 
 class UISystem;  // forward decl
+
+/// G-182: after applyHudBindings ran on every screen, enforce MODAL overlays: if any
+/// un-namespaced HUD root panel with `modal` is visible, hide every other non-modal HUD root
+/// (their own visibleWhen re-gates them next frame, so closing the overlay restores them)
+/// and suppress the world-space name labels for this frame. Returns whether a modal is up.
+/// Ravenmere 2026-09-24: with the journal open, 4-6 HUD panels and the player's name label
+/// drew straight through it.
+bool applyModalOverlays(UISystem& ui);
 
 /// Host actions a menu button can invoke (wired by the loader).
 struct MenuActions {
@@ -93,6 +108,8 @@ struct MenuActions {
     std::function<void()> onShowCredits;
     std::function<void()> onStartGame;  // fallback main menu "New Game" (action "start_game")
     std::function<void()> onBack;   // settings/sub-screen "Back" (action "back")
+    std::function<void()> onContinue;   // a blocking card's acknowledgement (action "continue"): the
+                                        // narrative screen's button (G-116); the host decides what follows
     /// Settings widgets (slider/checkbox/dropdown carrying a "setting" key):
     /// read the current value to initialize the widget (onGetSetting) and apply a
     /// change (onSetSetting). Floats throughout — checkbox is 0/1, dropdown is the
@@ -142,6 +159,13 @@ void loadGameScreenInto(UISystem& ui, const std::string& name, const MenuActions
 
 /// Remove the "<name>:*" screens added by loadGameScreenInto.
 void unloadGameScreenFrom(UISystem& ui, const std::string& name);
+
+/// G-179: "back one level" inside a "<name>:*" namespace. If a sub-panel other than the
+/// namespace's start panel is visible, show the start panel instead (what a close_submenu
+/// button does) and return true; return false when the start panel (or nothing) is up, so
+/// the caller can leave the whole screen. The start panel is the layout's `start_panel`
+/// (default "main"), remembered when the namespace was loaded.
+bool backOutOfSubmenu(UISystem& ui, const std::string& name);
 
 class HudDataContext;     // forward decl
 class DialogueSystem;     // forward decl

@@ -1,0 +1,378 @@
+[
+  {
+    "screen": "main menu",
+    "state": "intro",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "menu:main"
+    ]
+  },
+  {
+    "screen": "town playing",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "journal open",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "dialogue open",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "character sheet",
+    "state": "character",
+    "count": 34,
+    "defects": [
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_0' text overlaps 'cs_sk_1' text by 131x6 px",
+        "other": "cs_sk_1",
+        "panel": "cs_sk_0"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_0v' text overlaps 'cs_sk_1v' text by 29x6 px",
+        "other": "cs_sk_1v",
+        "panel": "cs_sk_0v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_1' text overlaps 'cs_sk_2' text by 145x6 px",
+        "other": "cs_sk_2",
+        "panel": "cs_sk_1"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_1v' text overlaps 'cs_sk_2v' text by 29x6 px",
+        "other": "cs_sk_2v",
+        "panel": "cs_sk_1v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_2' text overlaps 'cs_sk_3' text by 102x6 px",
+        "other": "cs_sk_3",
+        "panel": "cs_sk_2"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_2v' text overlaps 'cs_sk_3v' text by 29x6 px",
+        "other": "cs_sk_3v",
+        "panel": "cs_sk_2v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_3' text overlaps 'cs_sk_4' text by 87x6 px",
+        "other": "cs_sk_4",
+        "panel": "cs_sk_3"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_3v' text overlaps 'cs_sk_4v' text by 29x6 px",
+        "other": "cs_sk_4v",
+        "panel": "cs_sk_3v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_4' text overlaps 'cs_sk_5' text by 87x6 px",
+        "other": "cs_sk_5",
+        "panel": "cs_sk_4"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_4v' text overlaps 'cs_sk_5v' text by 29x6 px",
+        "other": "cs_sk_5v",
+        "panel": "cs_sk_4v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_5' text overlaps 'cs_sk_6' text by 102x6 px",
+        "other": "cs_sk_6",
+        "panel": "cs_sk_5"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_5v' text overlaps 'cs_sk_6v' text by 29x6 px",
+        "other": "cs_sk_6v",
+        "panel": "cs_sk_5v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_6' text overlaps 'cs_sk_7' text by 87x6 px",
+        "other": "cs_sk_7",
+        "panel": "cs_sk_6"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_6v' text overlaps 'cs_sk_7v' text by 29x6 px",
+        "other": "cs_sk_7v",
+        "panel": "cs_sk_6v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_7' text overlaps 'cs_sk_8' text by 87x6 px",
+        "other": "cs_sk_8",
+        "panel": "cs_sk_7"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_7v' text overlaps 'cs_sk_8v' text by 29x6 px",
+        "other": "cs_sk_8v",
+        "panel": "cs_sk_7v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_8' text overlaps 'cs_sk_9' text by 116x6 px",
+        "other": "cs_sk_9",
+        "panel": "cs_sk_8"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_8v' text overlaps 'cs_sk_9v' text by 29x6 px",
+        "other": "cs_sk_9v",
+        "panel": "cs_sk_8v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_9' text overlaps 'cs_sk_10' text by 102x6 px",
+        "other": "cs_sk_10",
+        "panel": "cs_sk_9"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_9v' text overlaps 'cs_sk_10v' text by 29x6 px",
+        "other": "cs_sk_10v",
+        "panel": "cs_sk_9v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_10' text overlaps 'cs_sk_11' text by 102x6 px",
+        "other": "cs_sk_11",
+        "panel": "cs_sk_10"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_10v' text overlaps 'cs_sk_11v' text by 29x6 px",
+        "other": "cs_sk_11v",
+        "panel": "cs_sk_10v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_11' text overlaps 'cs_sk_12' text by 116x6 px",
+        "other": "cs_sk_12",
+        "panel": "cs_sk_11"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_11v' text overlaps 'cs_sk_12v' text by 29x6 px",
+        "other": "cs_sk_12v",
+        "panel": "cs_sk_11v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_12' text overlaps 'cs_sk_13' text by 116x6 px",
+        "other": "cs_sk_13",
+        "panel": "cs_sk_12"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_12v' text overlaps 'cs_sk_13v' text by 29x6 px",
+        "other": "cs_sk_13v",
+        "panel": "cs_sk_12v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_13' text overlaps 'cs_sk_14' text by 116x6 px",
+        "other": "cs_sk_14",
+        "panel": "cs_sk_13"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_13v' text overlaps 'cs_sk_14v' text by 29x6 px",
+        "other": "cs_sk_14v",
+        "panel": "cs_sk_13v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_14' text overlaps 'cs_sk_15' text by 131x6 px",
+        "other": "cs_sk_15",
+        "panel": "cs_sk_14"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_14v' text overlaps 'cs_sk_15v' text by 29x6 px",
+        "other": "cs_sk_15v",
+        "panel": "cs_sk_14v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_15' text overlaps 'cs_sk_16' text by 160x6 px",
+        "other": "cs_sk_16",
+        "panel": "cs_sk_15"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_15v' text overlaps 'cs_sk_16v' text by 29x6 px",
+        "other": "cs_sk_16v",
+        "panel": "cs_sk_15v"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_16' text overlaps 'cs_sk_17' text by 145x6 px",
+        "other": "cs_sk_17",
+        "panel": "cs_sk_16"
+      },
+      {
+        "amount": 6.0,
+        "kind": "text_overlap",
+        "message": "'cs_sk_16v' text overlaps 'cs_sk_17v' text by 29x6 px",
+        "other": "cs_sk_17v",
+        "panel": "cs_sk_16v"
+      }
+    ],
+    "visible": [
+      "character:main"
+    ]
+  },
+  {
+    "screen": "pause menu",
+    "state": "paused",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "pause:main"
+    ]
+  },
+  {
+    "screen": "settings main",
+    "state": "settings",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "settings:main"
+    ]
+  },
+  {
+    "screen": "keybindings panel",
+    "state": "settings",
+    "count": 6,
+    "defects": [
+      {
+        "amount": 0.5454559326171875,
+        "kind": "text_overflow",
+        "message": "'kb_ToggleWalk' button text is 1 px wider than its frame (\"NumpadDivide\")",
+        "other": "",
+        "panel": "kb_ToggleWalk"
+      },
+      {
+        "amount": 14.0,
+        "kind": "text_overlap",
+        "message": "'kb_hint' text overlaps 'lbl_MoveForward' text by 135x14 px",
+        "other": "lbl_MoveForward",
+        "panel": "kb_hint"
+      },
+      {
+        "amount": 14.545440673828125,
+        "kind": "text_overlap",
+        "message": "'kb_hint' text overlaps 'kb_MoveForward' text by 15x17 px",
+        "other": "kb_MoveForward",
+        "panel": "kb_hint"
+      },
+      {
+        "amount": 14.0,
+        "kind": "text_overlap",
+        "message": "'kb_hint' text overlaps 'lbl_ToggleCharacter' text by 131x14 px",
+        "other": "lbl_ToggleCharacter",
+        "panel": "kb_hint"
+      },
+      {
+        "amount": 18.0,
+        "kind": "text_overlap",
+        "message": "'kb_hint' text runs into 'kb_MoveForward' by 190x18 px",
+        "other": "kb_MoveForward",
+        "panel": "kb_hint"
+      },
+      {
+        "amount": 18.0,
+        "kind": "text_overlap",
+        "message": "'kb_hint' text runs into 'kb_ToggleCharacter' by 79x18 px",
+        "other": "kb_ToggleCharacter",
+        "panel": "kb_hint"
+      }
+    ],
+    "visible": [
+      "settings:keybindings"
+    ]
+  },
+  {
+    "screen": "farm playing",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "combat (farm wolves)",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "combat @1536x960",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "journal @1536x960",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  }
+]

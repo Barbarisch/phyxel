@@ -1,0 +1,104 @@
+{
+ "label": "after_settle9",
+ "exe": "C:\\Users\\bpete\\Documents\\PhyxelProjects\\Ravenmere\\build_probe\\Release\\Ravenmere.exe",
+ "visits": [
+  "town",
+  "farm",
+  "town",
+  "cellar",
+  "town"
+ ],
+ "scene_loads_ms": [
+  {
+   "scene": "main_menu",
+   "ms": 391
+  },
+  {
+   "scene": "town",
+   "ms": 2479
+  },
+  {
+   "scene": "farm",
+   "ms": 1064
+  },
+  {
+   "scene": "town",
+   "ms": 2249
+  },
+  {
+   "scene": "cellar",
+   "ms": 594
+  },
+  {
+   "scene": "town",
+   "ms": 2273
+  }
+ ],
+ "navgraph_builds": [
+  {
+   "mode": "micro",
+   "columns": 30720,
+   "surfaces": 35388,
+   "ms": 529,
+   "threads": 28
+  },
+  {
+   "mode": "micro",
+   "columns": 9216,
+   "surfaces": 10650,
+   "ms": 128,
+   "threads": 28
+  },
+  {
+   "mode": "micro",
+   "columns": 30720,
+   "surfaces": 35388,
+   "ms": 622,
+   "threads": 28
+  },
+  {
+   "mode": "micro",
+   "columns": 8817,
+   "surfaces": 9344,
+   "ms": 138,
+   "threads": 28
+  },
+  {
+   "mode": "micro",
+   "columns": 30720,
+   "surfaces": 35388,
+   "ms": 685,
+   "threads": 28
+  }
+ ],
+ "chunk_loads": [
+  9,
+  30,
+  9,
+  30,
+  9,
+  30
+ ],
+ "loading_holds": [
+  {
+   "settled_ms": 1381,
+   "dirty_left": 0
+  },
+  {
+   "settled_ms": 585,
+   "dirty_left": 0
+  },
+  {
+   "settled_ms": 1514,
+   "dirty_left": 0
+  },
+  {
+   "settled_ms": 530,
+   "dirty_left": 0
+  },
+  {
+   "settled_ms": 1522,
+   "dirty_left": 0
+  }
+ ]
+}

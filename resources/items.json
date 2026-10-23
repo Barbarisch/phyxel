@@ -148,11 +148,11 @@
         "gripBone": "RightHand",
         "gripOffset": [
           -0.0185,
-          -0.1049,
-          -0.0185
+          0.1049,
+          0.0185
         ],
         "gripEulerDeg": [
-          0,
+          180,
           0,
           0
         ],

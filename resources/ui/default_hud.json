@@ -1,593 +1,933 @@
 [
-  {
-    "id": "hud_compass",
-    "anchor": "TopCenter",
-    "offset": [
-      0,
-      26
-    ],
+ {
+  "id": "hud_compass",
+  "anchor": "TopCenter",
+  "offset": [
+   0,
+   26
+  ],
+  "size": [
+   476,
+   64
+  ],
+  "showBackground": false,
+  "visibleWhen": "!combat.inCombat",
+  "children": [
+   {
+    "type": "compass",
+    "id": "compass",
+    "bind": "compass.heading",
+    "poiBind": "compass.poi",
+    "span": 180,
     "size": [
-      476,
-      64
-    ],
-    "showBackground": false,
-    "visibleWhen": "!combat.inCombat",
-    "children": [
-      {
-        "type": "compass",
-        "id": "compass",
-        "bind": "compass.heading",
-        "poiBind": "compass.poi",
-        "span": 180,
-        "size": [
-          460,
-          46
-        ]
-      }
-    ],
-    "autoSize": true
-  },
-  {
-    "id": "hud_health",
-    "anchor": "BottomLeft",
-    "offset": [
-      24,
-      -112
-    ],
-    "size": [
-      340,
-      60
-    ],
-    "showBackground": false,
-    "children": [
-      {
-        "type": "progressbar",
-        "id": "health_bar",
-        "label": "HP",
-        "bind": "player.health",
-        "min": 0,
-        "max": 100,
-        "value": 100,
-        "size": [
-          320,
-          36
-        ],
-        "fillColor": [
-          0.8,
-          0.2,
-          0.22,
-          1.0
-        ],
-        "trackColor": [
-          0.1,
-          0.1,
-          0.12,
-          0.85
-        ],
-        "borderColor": [
-          0.85,
-          0.72,
-          0.45,
-          1.0
-        ]
-      },
-      {
-        "type": "label",
-        "id": "gold_text",
-        "bind": "player.goldText",
-        "text": "0 gp",
-        "size": [
-          320,
-          24
-        ]
-      }
-    ],
-    "autoSize": true,
-    "visibleWhen": "!dialogue.active"
-  },
-  {
-    "id": "hud_hotbar",
-    "anchor": "BottomCenter",
-    "offset": [
-      0,
-      -12
-    ],
-    "size": [
-      624,
-      88
-    ],
-    "showBackground": false,
-    "visibleWhen": "hotbar.creative",
-    "children": [
-      {
-        "type": "repeater",
-        "id": "hotbar_list",
-        "bind": "hotbar",
-        "horizontal": true,
-        "itemSpacing": 6,
-        "size": [
-          624,
-          84
-        ],
-        "item": {
-          "type": "panel",
-          "showBackground": true,
-          "size": [
-            62,
-            80
-          ],
-          "children": [
-            {
-              "type": "image",
-              "id": "slot_icon",
-              "bind": "item.icon",
-              "image": "",
-              "size": [
-                46,
-                46
-              ]
-            },
-            {
-              "type": "label",
-              "id": "slot_count",
-              "bind": "item.count",
-              "text": "",
-              "size": [
-                46,
-                16
-              ]
-            }
-          ]
-        }
-      }
-    ],
-    "autoSize": true
-  },
-  {
-    "id": "hud_objectives",
-    "anchor": "TopLeft",
-    "offset": [
-      16,
-      16
-    ],
-    "size": [
-      340,
-      220
-    ],
-    "showBackground": true,
-    "visibleWhen": "objectives.any",
-    "children": [
-      {
-        "type": "label",
-        "id": "obj_title",
-        "text": "Objectives",
-        "isTitle": true,
-        "size": [
-          320,
-          28
-        ]
-      },
-      {
-        "type": "repeater",
-        "id": "obj_list",
-        "bind": "objectives",
-        "itemSpacing": 4,
-        "size": [
-          320,
-          0
-        ],
-        "item": {
-          "type": "label",
-          "bind": "item.label",
-          "text": "",
-          "size": [
-            320,
-            22
-          ]
-        }
-      }
-    ],
-    "autoSize": true,
-    "maxSize": [
-      340,
-      200
+     460,
+     46
     ]
-  },
-  {
-    "id": "hud_dialogue",
-    "anchor": "BottomCenter",
-    "offset": [
-      0,
-      -24
-    ],
+   }
+  ],
+  "autoSize": true
+ },
+ {
+  "id": "hud_health",
+  "anchor": "BottomLeft",
+  "offset": [
+   24,
+   -116
+  ],
+  "size": [
+   340,
+   60
+  ],
+  "showBackground": false,
+  "children": [
+   {
+    "type": "progressbar",
+    "id": "health_bar",
+    "label": "HP",
+    "bind": "player.health",
+    "min": 0,
+    "max": 100,
+    "value": 100,
     "size": [
-      1100,
-      210
+     320,
+     36
     ],
-    "showBackground": true,
-    "visibleWhen": "dialogue.active",
-    "children": [
-      {
-        "type": "label",
-        "id": "dlg_speaker",
-        "bind": "dialogue.speaker",
-        "text": "",
-        "isTitle": true,
-        "size": [
-          1060,
-          30
-        ]
-      },
-      {
-        "type": "label",
-        "id": "dlg_text",
-        "bind": "dialogue.text",
-        "text": "",
-        "wrapWidth": 1060,
-        "size": [
-          1060,
-          60
-        ]
-      },
-      {
-        "type": "repeater",
-        "id": "dlg_choices",
-        "bind": "dialogue.choices",
-        "itemSpacing": 4,
-        "size": [
-          1060,
-          80
-        ],
-        "item": {
-          "type": "label",
-          "bind": "item.label",
-          "text": "",
-          "size": [
-            1060,
-            22
-          ]
-        }
-      },
-      {
-        "type": "label",
-        "id": "dlg_hint",
-        "text": "[Enter] >>>",
-        "visibleWhen": "dialogue.waiting",
-        "size": [
-          200,
-          22
-        ]
-      }
+    "fillColor": [
+     0.8,
+     0.2,
+     0.22,
+     1.0
     ],
-    "autoSize": true,
-    "maxSize": [
-      1100,
-      420
+    "trackColor": [
+     0.1,
+     0.1,
+     0.12,
+     0.85
+    ],
+    "borderColor": [
+     0.85,
+     0.72,
+     0.45,
+     1.0
     ]
-  },
-  {
-    "id": "hud_combat_banner",
-    "anchor": "TopCenter",
-    "offset": [
-      0,
-      12
-    ],
+   },
+   {
+    "type": "label",
+    "id": "gold_text",
+    "bind": "player.goldText",
+    "text": "0 gp",
     "size": [
-      460,
-      48
+     320,
+     24
+    ]
+   }
+  ],
+  "autoSize": true,
+  "visibleWhen": "!dialogue.active"
+ },
+ {
+  "id": "hud_hotbar",
+  "anchor": "BottomCenter",
+  "offset": [
+   0,
+   -12
+  ],
+  "size": [
+   624,
+   100
+  ],
+  "showBackground": false,
+  "visibleWhen": "hotbar.creative && !actionbar.visible && !player.hasProgression",
+  "children": [
+   {
+    "type": "repeater",
+    "id": "hotbar_list",
+    "bind": "hotbar",
+    "horizontal": true,
+    "itemSpacing": 6,
+    "size": [
+     624,
+     84
     ],
-    "showBackground": true,
-    "visibleWhen": "combat.inCombat",
-    "children": [
+    "item": {
+     "type": "panel",
+     "showBackground": true,
+     "size": [
+      62,
+      84
+     ],
+     "children": [
       {
-        "type": "label",
-        "id": "combat_round",
-        "bind": "combat.roundText",
-        "text": "COMBAT",
-        "isTitle": true,
-        "size": [
-          440,
-          30
-        ]
+       "type": "image",
+       "id": "slot_icon",
+       "bind": "item.icon",
+       "image": "",
+       "size": [
+        46,
+        46
+       ]
+      },
+      {
+       "type": "label",
+       "id": "slot_count",
+       "bind": "item.count",
+       "text": "",
+       "size": [
+        46,
+        24
+       ],
+       "scale": 1.5
       }
-    ],
-    "autoSize": true
-  },
-  {
-    "id": "hud_combat_order",
-    "anchor": "TopRight",
-    "offset": [
-      -16,
-      72
-    ],
+     ]
+    }
+   }
+  ],
+  "autoSize": true
+ },
+ {
+  "id": "hud_objectives",
+  "anchor": "TopLeft",
+  "offset": [
+   16,
+   16
+  ],
+  "size": [
+   300,
+   220
+  ],
+  "showBackground": true,
+  "visibleWhen": "objectives.any",
+  "children": [
+   {
+    "type": "label",
+    "id": "obj_title",
+    "text": "Objectives",
+    "isTitle": true,
     "size": [
+     280,
+     28
+    ]
+   },
+   {
+    "type": "repeater",
+    "id": "obj_list",
+    "bind": "objectives",
+    "itemSpacing": 4,
+    "size": [
+     280,
+     0
+    ],
+    "item": {
+     "type": "label",
+     "bind": "item.label",
+     "text": "",
+     "size": [
       280,
-      320
-    ],
-    "showBackground": true,
-    "visibleWhen": "combat.inCombat",
-    "children": [
-      {
-        "type": "label",
-        "id": "order_title",
-        "text": "Initiative",
-        "isTitle": true,
-        "size": [
-          260,
-          28
-        ]
-      },
-      {
-        "type": "repeater",
-        "id": "order_list",
-        "bind": "combat.turn_order",
-        "itemSpacing": 6,
-        "size": [
-          260,
-          0
-        ],
-        "item": {
-          "type": "label",
-          "bind": "item.label",
-          "text": "",
-          "size": [
-            260,
-            22
-          ]
-        }
-      }
-    ],
-    "autoSize": true,
-    "maxSize": [
-      280,
-      380
+      22
+     ]
+    }
+   }
+  ],
+  "autoSize": true,
+  "maxSize": [
+   340,
+   200
+  ]
+ },
+ {
+  "id": "hud_dialogue",
+  "modal": true,
+  "anchor": "BottomCenter",
+  "offset": [
+   0,
+   -24
+  ],
+  "size": [
+   1100,
+   210
+  ],
+  "showBackground": true,
+  "visibleWhen": "dialogue.active",
+  "children": [
+   {
+    "type": "label",
+    "id": "dlg_speaker",
+    "bind": "dialogue.speaker",
+    "text": "",
+    "isTitle": true,
+    "size": [
+     1060,
+     30
     ]
-  },
-  {
-    "id": "hud_combat_turn",
-    "anchor": "TopCenter",
-    "offset": [
-      0,
-      80
-    ],
+   },
+   {
+    "type": "label",
+    "id": "dlg_text",
+    "bind": "dialogue.text",
+    "text": "",
+    "wrapWidth": 1060,
     "size": [
-      440,
-      44
-    ],
-    "showBackground": true,
-    "visibleWhen": "combat.inCombat",
-    "children": [
-      {
-        "type": "label",
-        "id": "combat_turn",
-        "bind": "combat.turnLabel",
-        "text": "",
-        "size": [
-          420,
-          26
-        ]
-      }
-    ],
-    "autoSize": true
-  },
-  {
-    "id": "hud_combat_action",
-    "anchor": "BottomLeft",
-    "offset": [
-      24,
-      -224
-    ],
-    "size": [
-      480,
-      130
-    ],
-    "showBackground": true,
-    "visibleWhen": "actionbar.visible",
-    "children": [
-      {
-        "type": "label",
-        "id": "combat_hint",
-        "bind": "combat.hintText",
-        "text": "",
-        "size": [
-          460,
-          26
-        ]
-      },
-      {
-        "type": "label",
-        "id": "combat_budget",
-        "bind": "combat.budgetText",
-        "text": "",
-        "size": [
-          460,
-          26
-        ]
-      },
-      {
-        "type": "label",
-        "id": "combat_hit",
-        "bind": "combat.hitChanceText",
-        "text": "",
-        "size": [
-          460,
-          26
-        ]
-      }
-    ],
-    "autoSize": true
-  },
-  {
-    "_comment": "AI conversation box (free-text chat with an NPC). Visible during an AI conversation; speaker + scrollback history (bound) + a text-input field. Wired by the host (UI::setupAIDialogue): dialogue.aiActive/aiSpeaker/aiHistory providers + the ai_input field's submit -> DialogueSystem::submitPlayerMessage. Replaces the ImGui renderDialogueBox AI branch (docs/HudSystem.md \u00a711a).",
-    "id": "hud_ai_dialogue",
-    "anchor": "BottomCenter",
-    "offset": [
-      0,
-      -20
-    ],
-    "size": [
-      840,
-      320
-    ],
-    "showBackground": true,
-    "visibleWhen": "dialogue.aiActive",
-    "children": [
-      {
-        "type": "label",
-        "id": "ai_speaker",
-        "bind": "dialogue.aiSpeaker",
-        "text": "",
-        "isTitle": true,
-        "size": [
-          800,
-          30
-        ]
-      },
-      {
-        "type": "label",
-        "id": "ai_history",
-        "bind": "dialogue.aiHistory",
-        "text": "",
-        "wrapWidth": 800,
-        "size": [
-          800,
-          210
-        ]
-      },
-      {
-        "type": "textinput",
-        "id": "ai_input",
-        "placeholder": "Type a message \u2014 Enter to send,  Esc to end",
-        "size": [
-          800,
-          34
-        ]
-      }
+     1060,
+     60
     ]
-  },
-  {
-    "_comment": "Timer-trigger countdown (top-center). Visible when a timer trigger with hud:true is active; text = '<hudLabel>  M:SS.s'. Bound by the host from TriggerSystem::getActiveCountdowns(). Replaces the ImGui renderCountdownHud (docs/HudSystem.md \u00a711a).",
-    "id": "hud_countdown",
-    "anchor": "TopCenter",
-    "offset": [
-      0,
-      64
-    ],
+   },
+   {
+    "type": "repeater",
+    "id": "dlg_choices",
+    "bind": "dialogue.choices",
+    "itemSpacing": 4,
     "size": [
-      520,
-      44
+     1060,
+     80
     ],
-    "showBackground": false,
-    "visibleWhen": "countdown.active",
-    "children": [
-      {
-        "type": "label",
-        "id": "countdown_text",
-        "bind": "countdown.text",
-        "text": "",
-        "isTitle": true,
-        "size": [
-          500,
-          36
-        ]
-      }
+    "item": {
+     "type": "label",
+     "bind": "item.label",
+     "text": "",
+     "size": [
+      1060,
+      22
+     ]
+    }
+   },
+   {
+    "type": "label",
+    "id": "dlg_hint",
+    "text": "[Enter] >>>",
+    "visibleWhen": "dialogue.waiting",
+    "size": [
+     200,
+     22
     ]
-  },
-  {
-    "id": "hud_action_bar",
-    "anchor": "BottomCenter",
-    "offset": [
-      0,
-      -12
-    ],
+   }
+  ],
+  "autoSize": true,
+  "maxSize": [
+   1100,
+   420
+  ]
+ },
+ {
+  "id": "hud_combat_banner",
+  "anchor": "TopCenter",
+  "offset": [
+   0,
+   12
+  ],
+  "size": [
+   460,
+   48
+  ],
+  "showBackground": true,
+  "visibleWhen": "combat.inCombat",
+  "children": [
+   {
+    "type": "label",
+    "id": "combat_round",
+    "bind": "combat.roundText",
+    "text": "COMBAT",
+    "isTitle": true,
     "size": [
-      760,
-      76
-    ],
-    "showBackground": true,
-    "autoWidth": true,
-    "autoSize": true,
-    "visibleWhen": "actionbar.visible",
-    "children": [
-      {
-        "type": "repeater",
-        "id": "action_list",
-        "bind": "actionbar",
-        "horizontal": true,
-        "itemSpacing": 6,
-        "size": [
-          760,
-          52
-        ],
-        "item": {
-          "type": "button",
-          "id": "slot",
-          "bind": "item.label",
-          "iconBind": "item.icon",
-          "tooltipBind": "item.tooltip",
-          "dragBind": "item.payload",
-          "dropBind": "actionbar.drop",
-          "actionBind": "actionbar.use",
-          "iconPadding": 4,
-          "size": [
-            52,
-            52
-          ],
-          "frame": true
-        }
-      }
+     440,
+     30
     ]
-  },
-  {
-    "id": "hud_spellbook",
-    "anchor": "Center",
-    "offset": [
-      0,
-      -60
-    ],
+   }
+  ],
+  "autoSize": true
+ },
+ {
+  "id": "hud_combat_order",
+  "anchor": "TopRight",
+  "offset": [
+   -16,
+   72
+  ],
+  "size": [
+   280,
+   320
+  ],
+  "showBackground": true,
+  "visibleWhen": "combat.inCombat",
+  "children": [
+   {
+    "type": "label",
+    "id": "order_title",
+    "text": "Initiative",
+    "isTitle": true,
     "size": [
-      700,
-      200
+     260,
+     28
+    ]
+   },
+   {
+    "type": "repeater",
+    "id": "order_list",
+    "bind": "combat.turn_order",
+    "itemSpacing": 6,
+    "size": [
+     260,
+     0
     ],
-    "showBackground": true,
-    "autoSize": true,
-    "title": "Abilities",
-    "visibleWhen": "spellbook.visible",
-    "children": [
+    "item": {
+     "type": "label",
+     "bind": "item.label",
+     "text": "",
+     "size": [
+      260,
+      22
+     ]
+    }
+   }
+  ],
+  "autoSize": true,
+  "maxSize": [
+   280,
+   380
+  ]
+ },
+ {
+  "id": "hud_combat_turn",
+  "anchor": "TopCenter",
+  "offset": [
+   0,
+   80
+  ],
+  "size": [
+   440,
+   44
+  ],
+  "showBackground": true,
+  "visibleWhen": "combat.inCombat",
+  "children": [
+   {
+    "type": "label",
+    "id": "combat_turn",
+    "bind": "combat.turnLabel",
+    "text": "",
+    "size": [
+     420,
+     26
+    ]
+   }
+  ],
+  "autoSize": true
+ },
+ {
+  "id": "hud_combat_action",
+  "anchor": "BottomLeft",
+  "offset": [
+   24,
+   -224
+  ],
+  "size": [
+   480,
+   130
+  ],
+  "showBackground": true,
+  "visibleWhen": "actionbar.visible && !spellbook.visible",
+  "children": [
+   {
+    "type": "label",
+    "id": "combat_hint",
+    "bind": "combat.hintText",
+    "text": "",
+    "size": [
+     460,
+     26
+    ]
+   },
+   {
+    "type": "label",
+    "id": "combat_budget",
+    "bind": "combat.budgetText",
+    "text": "",
+    "size": [
+     460,
+     26
+    ]
+   },
+   {
+    "type": "label",
+    "id": "combat_hit",
+    "bind": "combat.hitChanceText",
+    "text": "",
+    "size": [
+     460,
+     26
+    ]
+   }
+  ],
+  "autoSize": true
+ },
+ {
+  "_comment": "AI conversation box (free-text chat with an NPC). Visible during an AI conversation; speaker + scrollback history (bound) + a text-input field. Wired by the host (UI::setupAIDialogue): dialogue.aiActive/aiSpeaker/aiHistory providers + the ai_input field's submit -> DialogueSystem::submitPlayerMessage. Replaces the ImGui renderDialogueBox AI branch (docs/HudSystem.md §11a).",
+  "id": "hud_ai_dialogue",
+  "modal": true,
+  "anchor": "BottomCenter",
+  "offset": [
+   0,
+   -20
+  ],
+  "size": [
+   840,
+   320
+  ],
+  "showBackground": true,
+  "visibleWhen": "dialogue.aiActive",
+  "children": [
+   {
+    "type": "label",
+    "id": "ai_speaker",
+    "bind": "dialogue.aiSpeaker",
+    "text": "",
+    "isTitle": true,
+    "size": [
+     800,
+     30
+    ]
+   },
+   {
+    "type": "label",
+    "id": "ai_history",
+    "maxLines": 6,
+    "bind": "dialogue.aiHistory",
+    "text": "",
+    "wrapWidth": 800,
+    "size": [
+     800,
+     210
+    ]
+   },
+   {
+    "type": "textinput",
+    "id": "ai_input",
+    "placeholder": "Type a message — Enter to send,  Esc to end",
+    "size": [
+     800,
+     34
+    ]
+   }
+  ]
+ },
+ {
+  "_comment": "Timer-trigger countdown (top-center). Visible when a timer trigger with hud:true is active; text = '<hudLabel>  M:SS.s'. Bound by the host from TriggerSystem::getActiveCountdowns(). Replaces the ImGui renderCountdownHud (docs/HudSystem.md §11a).",
+  "id": "hud_countdown",
+  "anchor": "TopCenter",
+  "offset": [
+   0,
+   132
+  ],
+  "size": [
+   640,
+   60
+  ],
+  "showBackground": false,
+  "visibleWhen": "countdown.active",
+  "children": [
+   {
+    "type": "label",
+    "id": "countdown_text",
+    "bind": "countdown.text",
+    "text": "",
+    "isTitle": true,
+    "size": [
+     600,
+     48
+    ]
+   }
+  ],
+  "autoSize": true
+ },
+ {
+  "id": "hud_action_bar",
+  "anchor": "BottomCenter",
+  "offset": [
+   0,
+   -12
+  ],
+  "size": [
+   760,
+   76
+  ],
+  "showBackground": true,
+  "autoWidth": true,
+  "autoSize": true,
+  "visibleWhen": "actionbar.visible",
+  "children": [
+   {
+    "type": "repeater",
+    "id": "action_list",
+    "bind": "actionbar",
+    "horizontal": true,
+    "itemSpacing": 6,
+    "size": [
+     760,
+     52
+    ],
+    "item": {
+     "type": "button",
+     "id": "slot",
+     "bind": "item.label",
+     "iconBind": "item.icon",
+     "tooltipBind": "item.tooltip",
+     "dragBind": "item.payload",
+     "dropBind": "actionbar.drop",
+     "actionBind": "actionbar.use",
+     "iconPadding": 4,
+     "size": [
+      52,
+      52
+     ],
+     "frame": true
+    }
+   }
+  ]
+ },
+ {
+  "id": "hud_spellbook",
+  "anchor": "TopCenter",
+  "offset": [
+   0,
+   196
+  ],
+  "size": [
+   620,
+   180
+  ],
+  "showBackground": true,
+  "autoSize": true,
+  "title": "Abilities",
+  "visibleWhen": "spellbook.visible",
+  "children": [
+   {
+    "type": "label",
+    "id": "spellbook_hint",
+    "text": "Drag an ability onto a slot on the action bar. Drag a slot off the bar to clear it. Press P to close.",
+    "size": [
+     580,
+     52
+    ]
+   },
+   {
+    "type": "repeater",
+    "id": "spellbook_list",
+    "bind": "spellbook",
+    "horizontal": true,
+    "itemSpacing": 8,
+    "size": [
+     580,
+     52
+    ],
+    "item": {
+     "type": "button",
+     "id": "entry",
+     "bind": "item.label",
+     "iconBind": "item.icon",
+     "tooltipBind": "item.tooltip",
+     "dragBind": "item.payload",
+     "iconPadding": 4,
+     "size": [
+      52,
+      52
+     ],
+     "frame": true
+    }
+   }
+  ]
+ },
+ {
+  "id": "hud_xp",
+  "anchor": "BottomCenter",
+  "offset": [
+   0,
+   -104
+  ],
+  "size": [
+   520,
+   62
+  ],
+  "showBackground": true,
+  "visibleWhen": "player.hasProgression",
+  "children": [
+   {
+    "type": "progressbar",
+    "id": "xp_bar",
+    "label": "",
+    "bind": "player.xpPercent",
+    "min": 0,
+    "max": 100,
+    "value": 0,
+    "size": [
+     500,
+     14
+    ],
+    "fillColor": [
+     0.55,
+     0.4,
+     0.85,
+     1.0
+    ],
+    "trackColor": [
+     0.1,
+     0.1,
+     0.12,
+     0.85
+    ],
+    "borderColor": [
+     0.85,
+     0.72,
+     0.45,
+     1.0
+    ],
+    "showValueText": false
+   },
+   {
+    "type": "label",
+    "id": "xp_text",
+    "bind": "player.xpText",
+    "text": "Lv 1  -  0 XP",
+    "size": [
+     500,
+     18
+    ]
+   }
+  ]
+ },
+ {
+  "id": "hud_party",
+  "anchor": "TopRight",
+  "offset": [
+   -16,
+   460
+  ],
+  "size": [
+   300,
+   140
+  ],
+  "showBackground": true,
+  "visibleWhen": "party.any",
+  "children": [
+   {
+    "type": "repeater",
+    "id": "party_list",
+    "bind": "party",
+    "itemSpacing": 4,
+    "size": [
+     280,
+     124
+    ],
+    "item": {
+     "type": "panel",
+     "showBackground": false,
+     "size": [
+      276,
+      32
+     ],
+     "children": [
       {
-        "type": "label",
-        "id": "spellbook_hint",
-        "text": "Drag an ability onto a slot on the action bar. Drag a slot off the bar to clear it. Press P to close.",
-        "size": [
-          660,
-          52
-        ]
+       "type": "label",
+       "id": "member_row",
+       "bind": "item.rowText",
+       "text": "",
+       "size": [
+        270,
+        24
+       ],
+       "scale": 1.5
+      }
+     ]
+    }
+   }
+  ],
+  "autoSize": true
+ },
+ {
+  "id": "hud_journal",
+  "modal": true,
+  "anchor": "Center",
+  "offset": [
+   0,
+   -50
+  ],
+  "size": [
+   760,
+   480
+  ],
+  "title": "Journal",
+  "showBackground": true,
+  "visibleWhen": "journal.visible && !dialogue.active && !dialogue.aiActive",
+  "children": [
+   {
+    "type": "label",
+    "id": "journal_hint",
+    "text": "L closes the journal",
+    "size": [
+     720,
+     18
+    ]
+   },
+   {
+    "type": "label",
+    "id": "journal_h_main",
+    "text": "Main Quest",
+    "size": [
+     700,
+     40
+    ],
+    "scale": 2.4,
+    "color": [
+     0.62,
+     0.4,
+     0.22,
+     1.0
+    ],
+    "visibleWhen": "journal.mainAny"
+   },
+   {
+    "type": "repeater",
+    "id": "journal_main",
+    "bind": "journal.main",
+    "itemSpacing": 2,
+    "size": [
+     720,
+     108
+    ],
+    "visibleWhen": "journal.mainAny",
+    "item": {
+     "type": "panel",
+     "showBackground": false,
+     "size": [
+      716,
+      108
+     ],
+     "children": [
+      {
+       "type": "label",
+       "id": "journal_main_title",
+       "bind": "item.title",
+       "text": "",
+       "size": [
+        700,
+        64
+       ],
+       "wrapWidth": 700
       },
       {
-        "type": "repeater",
-        "id": "spellbook_list",
-        "bind": "spellbook",
-        "horizontal": true,
-        "itemSpacing": 8,
-        "size": [
-          660,
-          52
-        ],
-        "item": {
-          "type": "button",
-          "id": "entry",
-          "bind": "item.label",
-          "iconBind": "item.icon",
-          "tooltipBind": "item.tooltip",
-          "dragBind": "item.payload",
-          "iconPadding": 4,
-          "size": [
-            52,
-            52
-          ],
-          "frame": true
-        }
+       "type": "label",
+       "id": "journal_main_detail",
+       "bind": "item.detail",
+       "text": "",
+       "size": [
+        700,
+        28
+       ],
+       "scale": 1.75,
+       "color": [
+        0.42,
+        0.36,
+        0.3,
+        1.0
+       ]
       }
-    ]
-  }
+     ],
+     "autoSize": true
+    }
+   },
+   {
+    "type": "label",
+    "id": "journal_h_side",
+    "text": "Side Quests",
+    "size": [
+     700,
+     40
+    ],
+    "scale": 2.4,
+    "color": [
+     0.62,
+     0.4,
+     0.22,
+     1.0
+    ],
+    "visibleWhen": "journal.sideAny"
+   },
+   {
+    "type": "repeater",
+    "id": "journal_side",
+    "bind": "journal.side",
+    "itemSpacing": 2,
+    "size": [
+     720,
+     108
+    ],
+    "visibleWhen": "journal.sideAny",
+    "item": {
+     "type": "panel",
+     "showBackground": false,
+     "size": [
+      716,
+      108
+     ],
+     "children": [
+      {
+       "type": "label",
+       "id": "journal_side_title",
+       "bind": "item.title",
+       "text": "",
+       "size": [
+        700,
+        64
+       ],
+       "wrapWidth": 700
+      },
+      {
+       "type": "label",
+       "id": "journal_side_detail",
+       "bind": "item.detail",
+       "text": "",
+       "size": [
+        700,
+        28
+       ],
+       "scale": 1.75,
+       "color": [
+        0.42,
+        0.36,
+        0.3,
+        1.0
+       ]
+      }
+     ],
+     "autoSize": true
+    }
+   },
+   {
+    "type": "label",
+    "id": "journal_h_done",
+    "text": "Completed",
+    "size": [
+     700,
+     40
+    ],
+    "scale": 2.4,
+    "color": [
+     0.62,
+     0.4,
+     0.22,
+     1.0
+    ],
+    "visibleWhen": "journal.completedAny"
+   },
+   {
+    "type": "repeater",
+    "id": "journal_done",
+    "bind": "journal.completed",
+    "itemSpacing": 2,
+    "size": [
+     720,
+     108
+    ],
+    "visibleWhen": "journal.completedAny",
+    "item": {
+     "type": "panel",
+     "showBackground": false,
+     "size": [
+      716,
+      108
+     ],
+     "children": [
+      {
+       "type": "label",
+       "id": "journal_done_title",
+       "bind": "item.title",
+       "text": "",
+       "size": [
+        700,
+        64
+       ],
+       "wrapWidth": 700
+      },
+      {
+       "type": "label",
+       "id": "journal_done_detail",
+       "bind": "item.detail",
+       "text": "",
+       "size": [
+        700,
+        28
+       ],
+       "scale": 1.75,
+       "color": [
+        0.42,
+        0.36,
+        0.3,
+        1.0
+       ]
+      }
+     ],
+     "autoSize": true
+    }
+   }
+  ],
+  "scrollable": true
+ }
 ]

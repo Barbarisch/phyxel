@@ -1,0 +1,40 @@
+{
+  "tag": "sky_lat40",
+  "values": {
+    "wall_open": 0.04543108493089676,
+    "wall_street": 0.05073344334959984,
+    "in_control_open": 0.30745047330856323,
+    "in_sealed": 0.017465759068727493,
+    "in_sealed_wall": 0.0016541924560442567,
+    "in_door": 0.018461182713508606,
+    "in_door_wall": 0.0034852256067097187,
+    "in_sealed_micro": 0.01742401160299778
+  },
+  "results": [
+    {
+      "check": "A1 continuity: wall_street / wall_open >= 0.40",
+      "measured": 1.1166875442050825,
+      "pass": true
+    },
+    {
+      "check": "A2 sealed: in_sealed / in_control_open <= 0.08",
+      "measured": 0.05680818140428483,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_sealed <= 1.5",
+      "measured": 0.9975526389548562,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_control_open <= 0.08",
+      "measured": 0.05667239585972243,
+      "pass": true
+    },
+    {
+      "check": "A4 opening: in_door_wall / in_sealed_wall >= 1.5",
+      "measured": 2.105631640588223,
+      "pass": true
+    }
+  ]
+}

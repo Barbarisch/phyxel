@@ -12,6 +12,7 @@
 #include "core/ChunkInitializer.h"
 #include "core/DirtyChunkTracker.h"
 #include "core/ChunkVoxelQuerySystem.h"
+#include "core/PlayBounds.h"
 #include "core/ChunkVoxelModificationSystem.h"
 #include "core/EvictedLodCache.h"
 #include <vector>
@@ -114,6 +115,13 @@ public:
     bool m_hasWorkerFlora = false;
     bool m_streamingGenerationEnabled = false;
 
+    // Play bounds (G-169)
+    Core::PlayBounds m_authoredPlayBounds;
+    Core::PlayBounds m_regionPlayBounds;
+    std::vector<glm::ivec3> m_regionChunkCoords;
+    mutable Core::PlayBounds m_worldExtentCache;
+    mutable size_t m_worldExtentCachedCount = static_cast<size_t>(-1);
+
     ChunkManager() = default;
     ChunkManager(const ChunkManager&) = delete;
     ChunkManager& operator=(const ChunkManager&) = delete;
@@ -179,6 +187,32 @@ public:
                                       WorldGenerator::GenerationType type = WorldGenerator::GenerationType::Perlin,
                                       uint32_t seed = 0);
     bool isStreamingGenerationEnabled() const { return m_streamingGenerationEnabled; }
+
+    // --- Play bounds (G-169, core/PlayBounds.h): the horizontal extent every kinematic character
+    // is clamped to, so nobody walks off the edge of a fixed-size world. ---
+    void setAuthoredPlayBounds(const Core::PlayBounds& b) { m_authoredPlayBounds = b; }
+    void clearAuthoredPlayBounds() { m_authoredPlayBounds = Core::PlayBounds{}; }
+    const Core::PlayBounds& authoredPlayBounds() const { return m_authoredPlayBounds; }
+    /// The scene's authored REGION (`world.from/to` or `world.chunks`), set by the loader. With
+    /// streamed surround (the norm since 2026-09-23) the world continues past the region with
+    /// generated terrain nobody can reach; the region is the play area and the wall.
+    void setRegionPlayBounds(const Core::PlayBounds& b) { m_regionPlayBounds = b; }
+    void clearRegionPlayBounds() { m_regionPlayBounds = Core::PlayBounds{}; m_regionChunkCoords.clear(); }
+    /// The exact chunk coordinates of the scene's authored world block (set by the loader
+    /// with the region play bounds): what a loading-screen settle waits for, and what the
+    /// dirty drain meshes first (G-181). Empty for a free-roam world.
+    void setRegionChunkCoords(std::vector<glm::ivec3> coords) { m_regionChunkCoords = std::move(coords); }
+    const std::vector<glm::ivec3>& regionChunkCoords() const { return m_regionChunkCoords; }
+    const Core::PlayBounds& regionPlayBounds() const { return m_regionPlayBounds; }
+    /// The rectangle of every chunk the world HAS (all Y layers), in voxels, half-open. Invalid
+    /// when there are no chunks. Cached by chunk count; call invalidateWorldExtent() after an
+    /// add+remove that leaves the count unchanged.
+    Core::PlayBounds derivedWorldExtentXZ() const;
+    void invalidateWorldExtent() { m_worldExtentCachedCount = static_cast<size_t>(-1); }
+    /// authored `playBounds` > the authored region > derived chunk extent (static worlds only) >
+    /// none (a streaming world with no region: its extent grows ahead of the player).
+    Core::PlayBounds effectivePlayBounds() const;
+    const char* playBoundsSource() const;
     // The generator used for streamed chunks (valid after configureStreamingGeneration(true)).
     // Exposed so callers can tune TerrainParams; null when streaming generation is off.
     WorldGenerator* getStreamingGenerator() { return m_worldGenerator.get(); }
@@ -186,6 +220,7 @@ public:
     // Loading observability (/api/debug/load_state — docs/LodTierLedger.md): the queue
     // depths that decide "still loading" vs "settled". Read on the main thread.
     const DirtyChunkTracker& dirtyTracker() const { return m_dirtyChunkTracker; }
+    DirtyChunkTracker& dirtyTracker() { return m_dirtyChunkTracker; }   // the renderer sets its focus (G-181)
     const ChunkStreamingManager& streamingManagerRO() const { return m_streamingManager; }
 
     // Flora decoration for streamed chunks. Wired by the editor (which owns the template
@@ -220,6 +255,8 @@ public:
     uint64_t waterSpanRevision() const { return m_waterSpanRevision; }
     void bumpWaterSpanRevision() { ++m_waterSpanRevision; }
     bool loadChunk(const glm::ivec3& chunkCoord);
+    /// Several DB chunks with the decode on worker threads; see ChunkStreamingManager::loadChunksParallel.
+    int loadChunksParallel(const std::vector<glm::ivec3>& coords, int threads = 0);
     std::vector<glm::ivec3> loadAllChunksFromDatabase();  // Load all chunks that exist in the database
     bool generateOrLoadChunk(const glm::ivec3& chunkCoord); // Generate if doesn't exist, load if it does
 

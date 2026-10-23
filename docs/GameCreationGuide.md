@@ -75,6 +75,15 @@ Chunk range determines world size. Each chunk is 32×32×32 blocks:
 - `from: {-2,0,-2}` to `{2,0,2}` = 5×1×5 = 25 chunks (medium world)
 - `from: {-3,0,-3}` to `{3,0,3}` = 7×1×7 = 49 chunks (large world)
 
+**The range is the PLAY AREA, not the visible world (since 2026-09-23).** For Flat / Perlin /
+Mountains / Caves the world streams by default: your `from`/`to` region is generated (or loaded
+from the scene DB) first and becomes the play bounds - an invisible wall - and the same generator
+keeps filling real voxel terrain past it to the streaming radius (about 256 units), with heightmap
+far terrain out to the horizon. The player can see that terrain but never reach it, so the last
+chunk is never in view from inside. `"streaming": false` opts a scene out (an interior with no
+outside view); `loadRadius` / `unloadRadius` (in chunks) tune the residency. Streamed chunks are
+regenerated deterministically and never saved; the region's saved chunks always win.
+
 ### Step 3: Add Structures
 
 Structures are placed after terrain generation. Two types — **use fills for shells/terrain,
@@ -220,6 +229,61 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 **Pause System:**
 - ESC key toggles pause (freezes world simulation, shows pause menu)
 - `toggle_pause` / `get_pause_state` — Control via MCP
+
+**The edge of the world is a wall** (`playBounds`, optional, per scene):
+- Every kinematic character (player and NPCs) is clamped each frame to the scene's play bounds,
+  so nobody can walk off the last chunk of a fixed-size world into the void.
+- By default the bounds are the scene's authored `world.from`/`to` region (the world streams
+  past it, see Step 2). A scene with no `world` block uses the rectangle of the chunks it has;
+  a streaming world with no region has none, its extent grows ahead of the player.
+- To stage a smaller area inside a bigger world, author `"playBounds": {"min": {"x": -32, "z": -32},
+  "max": {"x": 64, "z": 64}}` (voxel coordinates, half-open). An inverted or zero-area box is
+  refused at load, not clamped. A scene without the key reverts to the derived rectangle.
+- The wall is invisible. Put something visible at an edge the player can reach (a fence, a hedge,
+  a cliff) so the stop reads as a place, not a bug.
+
+**Coming back to a scene puts you where you left** (no authoring needed):
+- On unload the SceneManager records the player's position; on re-entry the player spawns there
+  instead of at the scene's authored `player.position`. A first visit uses the authored entry.
+- A region trigger arms on its first evaluation rather than firing, so re-entering while standing
+  inside the exit you left through does not send you straight back. A trigger fires on a real
+  outside-to-inside step after that.
+- Authored one-way arrivals (a fall into a pit, a teleport to a fixed spot) are not covered: there
+  is no `spawn` override on `transition_scene` yet.
+
+**Cleared enemies stay cleared** (`npcs[].respawns`):
+- A kill of an authored NPC is recorded in the player profile (keyed by scene + entity id) and
+  the scene loader does not re-spawn it when the scene is re-entered. This is the default.
+- `"respawns": true` on an NPC definition opts it out - wildlife, a guard post, anything that
+  should come back. The skip is counted (`npcs_skipped_slain` in the load result) and logged.
+- Companions are handled by the party (they return after a long rest), not by this ledger.
+
+**Day/Night Cycle** (`dayNight`, world-level - at the TOP of a multi-scene file, beside
+`playerDefaults`):
+- `{"enabled": true, "timeOfDay": 9.0, "dayLengthSeconds": 1200, "timeScale": 1.0,
+  "paused": false, "dayNumber": 1}`. Every field is optional; an absent one keeps the engine
+  default. Field names match `set_day_night` (MCP) and `/api/daynight/set`, so an authored value
+  and a scripted one mean the same thing.
+- The cycle is **off by default** - a game that wants a moving sun must say so. `create_project.py`
+  writes an enabled block into new projects (20 real minutes per day, play starting at 9 am).
+- Validation refuses a bad block by name (`timeOfDay` outside 0..24, `dayLengthSeconds` <= 0,
+  `dayNumber` < 1) instead of clamping it.
+- The clock times itself from real elapsed time; its rate does not depend on frame rate. A stall
+  advances it by at most 0.1 s.
+
+**Sky** (`sky`, world-level beside `dayNight`) - every knob works on its own; a game never restates
+the whole sky to change one thing:
+- `{"latitudeDeg": 40}` - how high the sun climbs: the noon sun stands 90 - latitude degrees up,
+  in the south (default 40 -> 50 deg; 0 = straight overhead).
+- `{"lunarCycleDays": 28}` - days from one full moon to the next (>= 2; default 28). With short
+  days a short cycle keeps the moon's phases visible in a session, e.g. 8.
+- `{"nightFill": 1.0}` - how bright a moonless night is, as a multiple of the default (0 = black,
+  as physics has it; 2 = twice as bright). Night only: it never changes daylight.
+- `{"bodies": [...]}` - the drawn sun, moon and any extra bodies. A body named `"sun"` or `"moon"`
+  starts from the default one, so `{"name": "moon", "tint": [1, 0.6, 0.5]}` gives a red moon
+  and changes nothing else; any other name starts from a bare star. Fields: see the `sky` row in
+  the config table below.
+- The moon starts full on day 0; a moon's `phaseOffset` moves it (0 = new, 0.5 = full).
 
 **Camera Mode & Control Scheme** (see `docs/CameraControlSystem.md` for the full design):
 - The `camera` block accepts `"mode"`: `"first_person"` | `"third_person"` |
@@ -476,6 +540,32 @@ A turn-based encounter begins from an authored `start_combat` trigger **or** fro
   starts the fight itself. One that fled a fight keeps its distance for 30 s, then may.
 - A `start_combat` region never restarts a running fight, and drops dead participants.
 
+### Torches after dark (2026-09-26, Ravenmere T-73)
+
+Nights are dark, so townsfolk light a torch when they are out in the dark. The torch is the
+`torch` item from `resources/items.json`: a fine-voxel model in the right hand, with its
+`flame` effect (particles plus a point light) riding the hand. Set it per NPC with `"torch"`:
+
+| Value | The NPC holds a lit torch when |
+|---|---|
+| `"night"` | it is night and the NPC is outdoors. The default for non-hostile NPCs. |
+| `"dark"` | it is night, or the NPC is in an enclosed place (a cellar, a mine) at any hour. |
+| `"always"` | always. |
+| `"never"` | never. The default for hostile NPCs and monsters. |
+
+A game-wide default goes in `"npcDefaults": {"torch": "..."}` at the top level (use
+`"never"` to turn torches off for a whole game). An unknown value is refused with a warning.
+
+- **Night** is the sun's elevation, the same arc the sky draws: it begins when the sun
+  sinks 2 degrees below the horizon and ends when it rises 2 degrees above it.
+- **Indoors** is a scan of the world's voxels around the NPC: a roof overhead within 12
+  cubes, and walls on at least three of four sides within 12 cubes at chest height. An
+  awning is outdoors, a room with its door open is indoors. Stepping inside puts the torch out
+  after half a second; stepping outside lights it after two seconds.
+- A combat weapon takes the hand first. The torch never replaces another carried item.
+- Test API: `POST /api/rpg/torches` lists each NPC's policy, shelter state, carried and
+  drawn item, and its flame light's id and position, plus `dropped_point_lights`.
+
 Rules live in `Core::EncounterInitiator`; the shell wires them (`startEncounterAgainst`).
 
 `GameSettings::defaultKeybindings()` also registers an `Attack → F` binding, but no code path
@@ -627,6 +717,8 @@ executes only the subset noted.
 
 | Key / action | Where | Meaning |
 |---|---|---|
+| `intro` (top level) `{"title", "text": [paragraphs], "button"}` | standalone | A blocking story card before the first scene of every run (Ravenmere G-116): a menu's New Game shows it, the world scene does not load until the button, Enter or Space. Once per run (New Game after Game Over shows it again). The card's text sits in a scrollable box (`resources/ui/narrative_screen.json`): any length, scrolled by the mouse wheel or Up/Down/PageUp/PageDown, with a scrollbar when it overflows; the button holds a 19-character caption. Without the block a run starts at once. |
+| `sky` (top level) `{"latitudeDeg": 40, "bodies": [...]}` | both hosts (the standalone since 2026-09-25) | The celestial bodies (`Graphics::SkyBodies::fromJson`): size, brightness, orbit, phase per body, and the observer latitude that tips every arc south - the noon sun stands 90 - latitude degrees up (default 40 -> 50 deg; 0 = overhead). The default moon is full on day 0; set its `phaseOffset` to start elsewhere in the cycle (0 = new, 0.5 = full). `lunarCycleDays` (default 28) sets the moon's cycle and `nightFill` (default 1) how bright a moonless night is; a body named "sun"/"moon" starts from the default one (2026-09-26). |
 | `npcs[].monsterId` | loader (both hosts) | Name a `resources/monsters` stat block (`"wolf"`, `"skeleton"`, `"cult-fanatic"`…). HP = the block's average (a `maxHealth` override wins), AC + attacks come from the block in turn-based combat. Unknown ids warn. |
 | `npcs[].invulnerable` | loader (both hosts) | Now applied on its own (it used to require `health`/`maxHealth` beside it). |
 | `choices[].skillCheck` + `failNodeId` | DialogueSystem (both hosts; the bonus resolver is wired in the standalone) | `{"skill":"Persuasion","dc":12}` / `{"type":"AbilityCheck","ability":"INT","dc":10}`. The option shows as `[Persuasion DC 12] …`; picking it rolls d20 + the player's sheet bonus, jumps to `nextNodeId` on a pass or `failNodeId` on a fail (empty = ends the conversation), and emits `dialogue_skill_check {roll,bonus,total,dc,passed}` for triggers. |

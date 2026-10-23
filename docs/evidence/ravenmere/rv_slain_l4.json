@@ -1,0 +1,43 @@
+{
+  "control": {
+    "tag": "control",
+    "kill": false,
+    "first_visit": {
+      "npc_Wolf": true,
+      "npc_Wolf2": true,
+      "npc_AlphaWolf": true,
+      "npc_Dunstan": true,
+      "npc_Oswin": true
+    },
+    "second_visit": {
+      "npc_Wolf": true,
+      "npc_Wolf2": true,
+      "npc_AlphaWolf": true,
+      "npc_Dunstan": true,
+      "npc_Oswin": true
+    }
+  },
+  "kill": {
+    "tag": "kill",
+    "kill": true,
+    "first_visit": {
+      "npc_Wolf": true,
+      "npc_Wolf2": true,
+      "npc_AlphaWolf": true,
+      "npc_Dunstan": true,
+      "npc_Oswin": true
+    },
+    "killed": {
+      "npc_Wolf": true,
+      "npc_Wolf2": true,
+      "npc_AlphaWolf": true
+    },
+    "second_visit": {
+      "npc_Wolf": false,
+      "npc_Wolf2": false,
+      "npc_AlphaWolf": false,
+      "npc_Dunstan": true,
+      "npc_Oswin": true
+    }
+  }
+}

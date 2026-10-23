@@ -14,6 +14,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cmath>
+#include <map>
 #include <unordered_map>
 #include <algorithm>
 #include <deque>
@@ -686,8 +688,47 @@ void ChunkRenderManager::rebuildCubeFaces(
             return glm::vec3(float((t >> 16) & 0xFFu), float((t >> 8) & 0xFFu),
                              float(t & 0xFFu)) / 255.0f;
         };
-        auto emit = [&](const glm::ivec3& worldCell, const std::string& matName,
-                        const glm::vec3& voxelTint, uint32_t state, float sizeScale) {
+        // ---- G-158: ONE LIGHT PER FIXTURE, AT THE EMITTING VOXEL --------------------------
+        //
+        // This used to push one light per emissive SUB-VOXEL, positioned at the PARENT CUBE
+        // centre -- so a flame or a bed of coals became dozens of CO-LOCATED duplicates, which
+        // measured 3518 lights from 199 distinct positions across the shipped asset library
+        // (17.7x) and filled the entire 32-light GPU cap with copies of ONE emitter in the
+        // Ravenmere town. That cost three separate things: ~31 of every 32 per-fragment
+        // occupancy marches were exact duplicates, every other light in the scene was starved
+        // out of the cap, and the copies SUMMED so the fixture ran ~32x over-bright.
+        //
+        // Emitters are therefore accumulated per PARENT CUBE and emitted once. Per parent cube
+        // and not per fixture: a cube belongs to exactly one chunk, so this merge is chunk-local
+        // and seam-free by construction, where merging across cubes would need exactly the
+        // cross-chunk lookup the design keys forbid.
+        struct EmissiveAccum {
+            glm::vec3 weightedPos{0.0f};   // sum of voxel centre * power
+            glm::vec3 weightedHue{0.0f};   // sum of hue          * power
+            // G-157: the AABB of the emitting CELLS (not their centres), so the light can report
+            // how big its own body is and the shadow march can exclude that and nothing more.
+            glm::vec3 bmin{ 1e30f};
+            glm::vec3 bmax{-1e30f};
+            float     power  = 0.0f;       // sum of t * volume, in full-cube equivalents
+            float     volume = 0.0f;       // sum of volume, in cube units
+            float     maxT   = 0.0f;       // brightest constituent
+        };
+        // std::map, not unordered_map: RenderCoordinator hashes this list IN ORDER to decide
+        // whether to re-register, and LightManager's stable selection tie-breaks on the ids that
+        // fall out of it. An order that wobbles between rebuilds would churn both every frame.
+        struct CellLess {
+            bool operator()(const glm::ivec3& a, const glm::ivec3& b) const {
+                if (a.x != b.x) return a.x < b.x;
+                if (a.y != b.y) return a.y < b.y;
+                return a.z < b.z;
+            }
+        };
+        std::map<glm::ivec3, EmissiveAccum, CellLess> accum;
+
+        // cellHalf = half the emitting voxel's side, so the AABB covers the CELL, not its centre.
+        auto emit = [&](const glm::ivec3& parentCube, const glm::vec3& voxelCentre,
+                        const std::string& matName, const glm::vec3& voxelTint, uint32_t state,
+                        float volumeFraction, float cellHalf) {
             glm::vec3 hue(1.0f);
             float scale15 = 0.0f;
             if (state == 1u || state == 2u) {                // burning: per-voxel tint
@@ -701,15 +742,16 @@ void ChunkRenderManager::rebuildCubeFaces(
                                        : glm::clamp(md->emissiveStrength * 4.0f, 2.0f, 10.0f);
             }
             if (scale15 <= 0.0f) return;
-            const float t = scale15 / 15.0f;                 // 0..1
-            EmissiveLight e;
-            e.worldPos  = glm::vec3(worldCell) + glm::vec3(0.5f);
-            e.color     = glm::max(hue, glm::vec3(0.0f));
-            e.intensity = t;
-            // A full-strength glow block lit roughly its room under the old flood (15 cells at
-            // 1-per-cell decay), so that reach is the anchor rather than a new invented constant.
-            e.radius    = glm::max(2.0f, 15.0f * t * sizeScale);
-            m_emissiveLights.push_back(e);
+            const float t     = scale15 / 15.0f;             // 0..1
+            const float power = t * volumeFraction;
+            auto& a = accum[parentCube];
+            a.weightedPos += voxelCentre * power;
+            a.weightedHue += glm::max(hue, glm::vec3(0.0f)) * power;
+            a.power       += power;
+            a.volume      += volumeFraction;
+            a.maxT         = glm::max(a.maxT, t);
+            a.bmin         = glm::min(a.bmin, voxelCentre - glm::vec3(cellHalf));
+            a.bmax         = glm::max(a.bmax, voxelCentre + glm::vec3(cellHalf));
         };
 
         // ⚠️ CUBES COME FROM THE PALETTE STORE, NOT THE `cubes` VECTOR.
@@ -739,20 +781,62 @@ void ChunkRenderManager::rebuildCubeFaces(
                                  static_cast<int>((ci % 1024) / 32),
                                  static_cast<int>(ci % 32));
                 if (lp.x < 0 || lp.x >= N || lp.y < 0 || lp.y >= N || lp.z < 0 || lp.z >= N) continue;
-                emit(worldOrigin + lp, *mn, glm::vec3(1.0f), 0u, 1.0f);
+                emit(worldOrigin + lp, glm::vec3(worldOrigin + lp) + glm::vec3(0.5f),
+                     *mn, glm::vec3(1.0f), 0u, 1.0f, 0.5f);
             }
         }
         for (const auto& sc : subcubes) {
             if (!sc || sc->isBroken() || !sc->isVisible()) continue;
             if (sc->getState() == 1u) m_flamingVoxels.push_back(sc->getWorldPosition());
-            emit(sc->getPosition(), sc->getMaterialName(), unpackTint(sc->getTint()),
-                 sc->getState(), 0.75f);
+            // getWorldPosition() is the subcube's MIN CORNER, so half a subcube reaches its
+            // centre -- which is what EmissiveLight.worldPos is documented to hold. A subcube is
+            // 1/27 of a cube by volume.
+            emit(sc->getPosition(), sc->getWorldPosition() + glm::vec3(sc->getScale() * 0.5f),
+                 sc->getMaterialName(), unpackTint(sc->getTint()), sc->getState(), 1.0f / 27.0f,
+                 sc->getScale() * 0.5f);
         }
         for (const auto& mc : microcubes) {
             if (!mc || mc->isBroken() || !mc->isVisible()) continue;
             if (mc->getState() == 1u) m_flamingVoxels.push_back(mc->getWorldPosition());
-            emit(mc->getParentCubePosition(), mc->getMaterialName(), unpackTint(mc->getTint()),
-                 mc->getState(), 0.5f);
+            // Same again one level finer: min corner + half a microcube, 1/729 of a cube.
+            emit(mc->getParentCubePosition(),
+                 mc->getWorldPosition() + glm::vec3(mc->getScale() * 0.5f),
+                 mc->getMaterialName(), unpackTint(mc->getTint()), mc->getState(), 1.0f / 729.0f,
+                 mc->getScale() * 0.5f);
+        }
+
+        m_emissiveLights.reserve(m_emissiveLights.size() + accum.size());
+        for (const auto& kv : accum) {
+            const auto& a = kv.second;
+            if (a.power <= 0.0f || a.maxT <= 0.0f) continue;
+            EmissiveLight e;
+            // The centre of EMISSION, weighted by each voxel's power -- not the centre of the
+            // cube that happens to contain it. A wall sconce lights from its flame.
+            e.worldPos  = a.weightedPos / a.power;
+            e.color     = glm::max(a.weightedHue / a.power, glm::vec3(0.0f));
+            // Brightness is the brightest constituent, NOT the sum: 66 glow cells are one bed of
+            // coals, not 66 torches stacked. Summing is precisely the over-brightness bug.
+            e.intensity = a.maxT;
+            // Reach comes from EMITTING VOLUME. The shipped per-resolution constants (cube 1.0,
+            // subcube 0.75, microcube 0.5) are exactly linear in log27(volume) -- 1, 1/27 and
+            // 1/729 map to 0, -1, -2 -- so this is those same constants made continuous rather
+            // than a new invented rule: every single-voxel emitter keeps the reach it ships with
+            // today, a cube fully packed with glow microcubes reaches exactly like a glow cube,
+            // and a bed of coals lands between them instead of matching a single spark.
+            const float sizeScale = glm::clamp(
+                1.0f + 0.25f * std::log(glm::max(a.volume, 1e-6f)) / std::log(27.0f), 0.5f, 1.0f);
+            // A full-strength glow block lit roughly its room under the old flood (15 cells at
+            // 1-per-cell decay), so that reach is the anchor rather than a new invented constant.
+            e.radius    = glm::max(2.0f, 15.0f * a.maxT * sizeScale);
+            // G-157: how much solid this light may exclude around itself -- the distance from the
+            // emission centroid to the far corner of the emitting cells' AABB, i.e. its bounding
+            // sphere. A lone microcube reports 1/18 * sqrt(3) = 0.096 u, so a wall one micro cell
+            // away is still tested and still blocks; a full glow cube reports 0.866 and excludes
+            // exactly itself. The march used to walk up to 32 micro cells with no such bound,
+            // which is why a flush-mounted sconce lit straight through its wall at any thickness.
+            const glm::vec3 far = glm::max(e.worldPos - a.bmin, a.bmax - e.worldPos);
+            e.extent    = glm::length(glm::max(far, glm::vec3(0.0f)));
+            m_emissiveLights.push_back(e);
         }
 
         // L1 (docs/PerfProgram2026-09.md §5): MERGE COINCIDENT EMITTERS. Every emissive sub/micro
@@ -764,6 +848,12 @@ void ChunkRenderManager::rebuildCubeFaces(
         // Radii stay separate: a subcube emitter reaches further than a micro in the same cell.
         // A cube cell lies in exactly one chunk, so the result cannot depend on the chunk grid, and
         // sorting by the key makes the output a pure function of the voxels, not of their order.
+        // MERGED 2026-10-14: G-158 above (written 2026-09-22, in another session) already emits ONE
+        // light per parent cube, at the power-weighted centroid, with intensity = the brightest
+        // constituent rather than the sum (summing was the measured over-brightness), so this pass
+        // now sees no coincident pairs and is a no-op guard kept for the A/B switch. The two agree
+        // on the perf outcome (one march per fixture) and differ on brightness; G-158's look is the
+        // one the user confirmed, and EmitterMergeTest pins it.
         if (s_mergeEmitters && m_emissiveLights.size() > 1) {
             auto keyLess = [](const EmissiveLight& a, const EmissiveLight& b) {
                 if (a.worldPos.x != b.worldPos.x) return a.worldPos.x < b.worldPos.x;

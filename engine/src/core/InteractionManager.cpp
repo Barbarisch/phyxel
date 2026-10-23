@@ -26,6 +26,12 @@ void InteractionManager::setInteractCallback(InteractCallback callback) {
     m_fallbackNPCCallback = std::move(callback);
 }
 
+bool InteractionManager::interactWith(Scene::NPCEntity* npc) {
+    if (!npc || !m_fallbackNPCCallback) return false;
+    m_fallbackNPCCallback(npc);
+    return true;
+}
+
 void InteractionManager::setSeatCallback(SeatCallback callback) {
     if (m_handlerRegistry) {
         if (auto* h = dynamic_cast<SeatInteractionHandler*>(m_handlerRegistry->getHandler("seat"))) {

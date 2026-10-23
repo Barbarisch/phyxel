@@ -60,7 +60,8 @@ TEST(GpuTimingHistoryTest, RingReportsMedianOverFrames) {
 TEST(GpuTimingHistoryTest, RingEvictsBeyondCapacity) {
     GpuTimingHistory h(4);
     for (uint64_t f = 1; f <= 10; ++f) h.addFrame(f, {sample("A", double(f))});
-    const auto* s = find(h.stats(100), "A");
+    const auto st1 = h.stats(100);
+    const auto* s = find(st1, "A");
     ASSERT_NE(s, nullptr);
     EXPECT_EQ(s->n, 4u);                 // frames 7..10
     EXPECT_DOUBLE_EQ(s->median, 8.5);
@@ -75,7 +76,8 @@ TEST(GpuTimingHistoryTest, NotReadyDoesNotAddSamples) {
     for (int i = 0; i < 10; ++i)
         EXPECT_FALSE(h.addFrame(5, {sample("A", 1.0)}));   // the same frame, re-delivered
     EXPECT_FALSE(h.addFrame(4, {sample("A", 1.0)}));       // an older frame arriving late
-    const auto* s = find(h.stats(240), "A");
+    const auto st2 = h.stats(240);
+    const auto* s = find(st2, "A");
     ASSERT_NE(s, nullptr);
     EXPECT_EQ(s->n, 1u);
     EXPECT_EQ(h.staleSkipped(), 11u);
@@ -112,7 +114,8 @@ TEST(GpuTimingHistoryTest, RepeatedPathInOneFrameGetsOccurrenceKeys) {
 TEST(GpuTimingHistoryTest, PercentilesNearestRank) {
     GpuTimingHistory h(240);
     for (uint64_t f = 1; f <= 100; ++f) h.addFrame(f, {sample("A", double(f))});
-    const auto* s = find(h.stats(240), "A");
+    const auto st3 = h.stats(240);
+    const auto* s = find(st3, "A");
     ASSERT_NE(s, nullptr);
     EXPECT_DOUBLE_EQ(s->p90, 90.0);
     EXPECT_DOUBLE_EQ(s->p99, 99.0);

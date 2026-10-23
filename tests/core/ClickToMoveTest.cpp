@@ -177,3 +177,26 @@ TEST(ClickToMoveTest, GroundPickHitsTheCubeUnderTheCursorAndStandsOnItsTop) {
     EXPECT_FALSE(ClickToMove::pickGround(cam, {640.0f, 360.0f}, vp,
                                          [](const glm::ivec3&) { return false; }, 100.0f, hit));
 }
+
+
+// Streamed surround (2026-09-23): the world continues past the play-area wall with terrain
+// nobody can reach. A click out there used to walk the body into the wall and stall; the goal
+// is now pulled to the nearest point inside the bounds, a body-width in.
+TEST(ClickToMoveTest, AGoalPastThePlayBoundsIsPulledToTheNearestPointInside) {
+    MockBody body; body.pos = {0.5f, 1.0f, 0.5f};
+    ClickToMove c;
+    c.setBodyProvider([&] { return &body; });
+    c.setPlayBoundsProvider([] { return PlayBounds::make(0.0f, 0.0f, 8.0f, 8.0f); });
+    ASSERT_TRUE(c.requestWalkTo({20.0f, 1.0f, 0.5f}));   // far past x = 8
+    EXPECT_FLOAT_EQ(c.goal().x, 7.5f) << "clamped to the wall minus the 0.5 margin";
+    EXPECT_FLOAT_EQ(c.goal().z, 0.5f) << "the in-bounds axis is untouched";
+    run(c);
+    EXPECT_EQ(c.lastResult(), ClickToMove::Result::Arrived);
+    EXPECT_LE(body.pos.x, 8.0f) << "the body never crosses the wall";
+    // invalid bounds = no clamp (the control)
+    ClickToMove d; MockBody b2; b2.pos = {0.5f, 1.0f, 0.5f};
+    d.setBodyProvider([&] { return &b2; });
+    d.setPlayBoundsProvider([] { return PlayBounds{}; });
+    ASSERT_TRUE(d.requestWalkTo({20.0f, 1.0f, 0.5f}));
+    EXPECT_FLOAT_EQ(d.goal().x, 20.0f);
+}

@@ -1,4 +1,5 @@
 #include "core/DirtyChunkTracker.h"
+#include <glm/glm.hpp>
 #include "core/Chunk.h"
 #include "utils/CoordinateUtils.h"
 #include <algorithm>
@@ -104,6 +105,7 @@ void DirtyChunkTracker::updateDirtyChunks(double budgetMs) {
     // EVERY frame — a constant ~18 FPS band while flying. When the last call blew well
     // past its budget, sit out a couple of frames so the cost amortizes (~45 FPS feel);
     // small edit remeshes stay effectively instant (a ≤2-frame delay is imperceptible).
+    ++m_drainCalls;
     if (budgetMs > 0.0 && m_backoffFrames > 0) {
         --m_backoffFrames;
         return;
@@ -128,6 +130,22 @@ void DirtyChunkTracker::updateDirtyChunks(double budgetMs) {
     }
 
     const bool budgeted = budgetMs > 0.0;
+    // Nearest to the focus first (budgeted drains only - an unbudgeted drain meshes all).
+    if (budgeted && (m_hasFocus || m_hasPrio) && toUpdate.size() > 1) {
+        const glm::vec3 f = m_focus;
+        auto dist2 = [&](const glm::ivec3& cc) {
+            if (!m_hasFocus) return 0.0f;
+            const glm::vec3 lo = glm::vec3(cc) * 32.0f, hi = lo + 32.0f;
+            const glm::vec3 d = f - glm::clamp(f, lo, hi);
+            return glm::dot(d, d);
+        };
+        auto outsidePrio = [&](const glm::ivec3& cc) { return (!m_hasPrio || inPriority(cc)) ? 0 : 1; };
+        std::stable_sort(toUpdate.begin(), toUpdate.end(), [&](const glm::ivec3& a, const glm::ivec3& b) {
+            const int pa = outsidePrio(a), pb = outsidePrio(b);
+            if (pa != pb) return pa < pb;
+            return dist2(a) < dist2(b);
+        });
+    }
     const auto start = std::chrono::high_resolution_clock::now();
 
     // Update marked chunks. Coords resolve to the chunk's CURRENT index at process
@@ -142,7 +160,7 @@ void DirtyChunkTracker::updateDirtyChunks(double budgetMs) {
             // Promoted idle chunks get their deferred needsUpdate flag now.
             if (promotedIdle) chunk->setNeedsUpdate(true);
             const size_t chunkIndex = m_getChunkIndex(chunk);
-            if (chunkIndex != SIZE_MAX) m_updateChunk(chunkIndex);
+            if (chunkIndex != SIZE_MAX) { m_updateChunk(chunkIndex); ++m_processedTotal; }
         }
         if (budgeted && (processed + 1) < toUpdate.size()) {
             double elapsed = std::chrono::duration<double, std::milli>(
@@ -174,6 +192,55 @@ void DirtyChunkTracker::updateDirtyChunks(double budgetMs) {
         m_dirtyChunkCoords.swap(merged);
         m_hasDirtyChunks = !m_dirtyChunkCoords.empty();
     }
+}
+
+size_t DirtyChunkTracker::getDirtyCountNear(const glm::vec3& worldPos, float radius) const {
+    std::lock_guard<std::mutex> lock(m_dirtyMutex);
+    const float r2 = radius * radius;
+    size_t n = 0;
+    for (const glm::ivec3& cc : m_dirtyChunkCoords) {
+        const glm::vec3 lo = glm::vec3(cc) * 32.0f, hi = lo + 32.0f;
+        const glm::vec3 nearest = glm::clamp(worldPos, lo, hi);   // point-to-box distance
+        const glm::vec3 d = worldPos - nearest;
+        if (glm::dot(d, d) <= r2) ++n;
+    }
+    return n;
+}
+
+int64_t DirtyChunkTracker::packCoord(const glm::ivec3& c) {
+    return (static_cast<int64_t>(static_cast<uint32_t>(c.x) & 0x1FFFFF) << 42) |
+           (static_cast<int64_t>(static_cast<uint32_t>(c.y) & 0x1FFFFF) << 21) |
+            static_cast<int64_t>(static_cast<uint32_t>(c.z) & 0x1FFFFF);
+}
+
+bool DirtyChunkTracker::inPriority(const glm::ivec3& cc) const {
+    if (!m_prioCoords.empty()) return m_prioCoords.count(packCoord(cc)) > 0;
+    const float x0 = cc.x * 32.0f, z0 = cc.z * 32.0f;
+    return x0 + 32.0f > m_prio.minX && x0 < m_prio.maxX && z0 + 32.0f > m_prio.minZ && z0 < m_prio.maxZ;
+}
+
+void DirtyChunkTracker::setPriorityCoords(const std::vector<glm::ivec3>& coords) {
+    m_prioCoords.clear();
+    for (const auto& c : coords) m_prioCoords.insert(packCoord(c));
+    m_hasPrio = !m_prioCoords.empty();
+}
+
+size_t DirtyChunkTracker::getDirtyCountInPriority() const {
+    std::lock_guard<std::mutex> lock(m_dirtyMutex);
+    if (!m_hasPrio) return m_dirtyChunkCoords.size();
+    size_t n = 0;
+    for (const glm::ivec3& cc : m_dirtyChunkCoords) if (inPriority(cc)) ++n;
+    return n;
+}
+
+size_t DirtyChunkTracker::getDirtyCountInXZ(float minX, float maxX, float minZ, float maxZ) const {
+    std::lock_guard<std::mutex> lock(m_dirtyMutex);
+    size_t n = 0;
+    for (const glm::ivec3& cc : m_dirtyChunkCoords) {
+        const float x0 = cc.x * 32.0f, x1 = x0 + 32.0f, z0 = cc.z * 32.0f, z1 = z0 + 32.0f;
+        if (x1 > minX && x0 < maxX && z1 > minZ && z0 < maxZ) ++n;
+    }
+    return n;
 }
 
 void DirtyChunkTracker::clearDirtyChunkList() {

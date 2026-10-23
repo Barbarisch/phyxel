@@ -861,6 +861,13 @@ and L5 (tighter radii).
 - `ChunkRenderManager` merges emissive lights per **(cube cell, radius)**: intensity = Σt,
   color = Σ(c·t)/Σt, radii kept separate, output sorted by key (order-independent). The default is ON.
   `POST /api/debug/emitter_merge {enabled}` toggles it and re-meshes, so it can be A/B'd in-process.
+  **2026-10-14 (merge of the Ravenmere session's main):** G-158 (`f4024b42`, 2026-09-22) had already
+  replaced the per-sub-voxel emit with ONE light per parent cube at the power-weighted centroid,
+  intensity = the brightest constituent (not Σt - the sum was the measured ~32x over-brightness,
+  `RavenmereGapLedger.md` G-158) and reach from the emitting volume, plus the G-157 emitter extent.
+  L1's pass therefore sees no coincident lights and is kept only as the switch's no-op guard; the
+  light-count win is the same, the look is G-158's (user-confirmed 2026-09-22). `EmitterMergeTest`
+  now pins the G-158 contract.
 - `LightManager` breaks relevance ties at the upload cap by **world position**, then id. It used to be
   id alone, which let chunk iteration order decide which lights were dropped.
 - Every light-receiving shader (voxel, grass, foliage, character, transparent) multiplies

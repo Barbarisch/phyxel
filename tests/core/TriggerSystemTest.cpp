@@ -276,13 +276,19 @@ TEST(TriggerSystemTest, RegionCountsTheBodyNotThePoint) {
         {"once", false}
     };
     ASSERT_NE(ts.addTrigger(t), "");
-    glm::vec3 pos(16.67f, 17.0f, 45.92f);   // 8 cm short of the z=46 edge, as in run 52
+    // G-170: a region trigger ARMS on its first evaluation (the baseline), so the player walks
+    // up from clearly outside first, as they did in run 52.
+    glm::vec3 pos(16.67f, 17.0f, 40.0f);
     auto resolver = [&](const std::string& id, glm::vec3& out) { if (id != "player") return false; out = pos; return true; };
+    ts.update(0.016f, resolver);
+    pos = glm::vec3(16.67f, 17.0f, 45.92f);   // 8 cm short of the z=46 edge, as in run 52
     ts.update(0.016f, resolver);
     EXPECT_EQ(log.executed.size(), 1u) << "a body 8 cm outside the box overlaps it";
     // ...but a body a full 40 cm away does not
     TriggerSystem ts2; ActionLog log2; ts2.setActionExecutor(log2.executor());
     ASSERT_NE(ts2.addTrigger(t), "");
+    pos = glm::vec3(16.67f, 17.0f, 40.0f);
+    ts2.update(0.016f, resolver);
     pos = glm::vec3(16.67f, 17.0f, 45.6f);
     ts2.update(0.016f, resolver);
     EXPECT_TRUE(log2.executed.empty());

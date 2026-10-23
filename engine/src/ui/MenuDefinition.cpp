@@ -1,4 +1,5 @@
 #include "ui/MenuDefinition.h"
+#include <unordered_map>
 #include "ui/HudDataContext.h"
 #include "ui/UISystem.h"
 #include "ui/DialogueSystem.h"
@@ -40,6 +41,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidgetTyped(const nlohmann::json&
         w->text = j.value("text", "");
         w->isTitle = j.value("isTitle", false);
         w->wrapWidth = j.value("wrapWidth", 0.0f);
+        w->maxLines  = j.value("maxLines", 0);
         // "align": "center" -> text centered ON position.x; "right" -> ends at it.
         // Default left (start at position.x) preserves every existing layout.
         const std::string al = j.value("align", "left");
@@ -290,11 +292,13 @@ std::unique_ptr<UIPanel> MenuDefinition::buildFromJson(const nlohmann::json& j) 
     panel->title = j.value("title", "");
     panel->showBackground = j.value("showBackground", true);
     panel->freeLayout = j.value("freeLayout", false);
+    panel->scrollable = j.value("scrollable", false);   // G-183: a HUD root may scroll (the journal)
     panel->autoHeight = j.value("autoSize", false);
     panel->autoWidth  = j.value("autoWidth", false);
     if (j.contains("maxSize") && j["maxSize"].is_array() && j["maxSize"].size() == 2)
         panel->maxSize = {j["maxSize"][0].get<float>(), j["maxSize"][1].get<float>()};
     panel->visibleWhen = j.value("visibleWhen", "");
+    panel->modal = j.value("modal", false);
     panel->visible = j.value("visible", true);
     panel->enabled = j.value("enabled", true);
 
@@ -463,6 +467,40 @@ nlohmann::json MenuDefinition::toJson(const UIPanel& panel) {
 // HUD data binding application
 // ════════════════════════════════════════════════════════════════
 
+bool evalVisibleWhen(const std::string& expr, const HudDataContext& ctx) {
+    size_t pos = 0;
+    while (pos <= expr.size()) {
+        size_t amp = expr.find("&&", pos);
+        std::string term = expr.substr(pos, amp == std::string::npos ? std::string::npos : amp - pos);
+        // trim
+        const size_t b = term.find_first_not_of(" \t");
+        const size_t e = term.find_last_not_of(" \t");
+        term = (b == std::string::npos) ? std::string() : term.substr(b, e - b + 1);
+        if (term.empty()) return false;   // malformed ("a &&") stays hidden, fail-closed
+        const bool negate = term[0] == '!';
+        auto v = ctx.resolveFloat(negate ? term.substr(1) : term);
+        if (!(v && ((*v > 0.5f) != negate))) return false;
+        if (amp == std::string::npos) break;
+        pos = amp + 2;
+    }
+    return true;
+}
+
+std::vector<std::string> visibleWhenKeys(const std::string& expr) {
+    std::vector<std::string> keys;
+    size_t pos = 0;
+    while (pos <= expr.size()) {
+        size_t amp = expr.find("&&", pos);
+        std::string term = expr.substr(pos, amp == std::string::npos ? std::string::npos : amp - pos);
+        const size_t b = term.find_first_not_of(" \t!");
+        const size_t e = term.find_last_not_of(" \t");
+        if (b != std::string::npos) keys.push_back(term.substr(b, e - b + 1));
+        if (amp == std::string::npos) break;
+        pos = amp + 2;
+    }
+    return keys;
+}
+
 // Apply a context's scalar value/visibility bindings to one widget.
 static void applyScalarBind(UIWidget* w, const HudDataContext& ctx) {
     if (!w) return;
@@ -471,9 +509,11 @@ static void applyScalarBind(UIWidget* w, const HudDataContext& ctx) {
         // (so e.g. combat panels don't show empty in hosts that lack combat state).
         // A leading '!' negates the key ("hide WHILE a dialogue is up") and stays
         // fail-closed too: no provider -> hidden either way.
-        const bool negate = w->visibleWhen[0] == '!';
-        auto v = ctx.resolveFloat(negate ? w->visibleWhen.substr(1) : w->visibleWhen);
-        w->visible = v && ((*v > 0.5f) != negate);
+        // G-183: several terms joined by "&&", all of which must hold - the way a panel says
+        // "actionbar.visible && !spellbook.visible" so two elements that fight for the same
+        // ground never show together. (A silent single-key parse of "a && b" is what hid the
+        // XP bar in G-173; the expression is now real, and the layout gate reads the same terms.)
+        w->visible = evalVisibleWhen(w->visibleWhen, ctx);
     }
     if (w->bind.empty()) return;
     switch (w->type()) {
@@ -630,6 +670,26 @@ static void applyRecord(UIWidget* w, const HudRecord& rec, const HudDataContext*
     }
 }
 
+bool applyModalOverlays(UISystem& ui) {
+    // HUD screens are the un-namespaced ones (loadHudInto adds them by panel id: "hud_journal");
+    // menu / settings / pause screens live in "<name>:*" namespaces and are not touched.
+    bool anyModal = false;
+    for (const auto& [name, vis] : ui.getScreenList()) {
+        if (name.find(':') != std::string::npos) continue;
+        UIPanel* root = ui.getScreen(name);
+        if (root && root->modal && root->visible && vis) { anyModal = true; break; }
+    }
+    if (anyModal) {
+        for (const auto& [name, vis] : ui.getScreenList()) {
+            if (name.find(':') != std::string::npos) continue;
+            UIPanel* root = ui.getScreen(name);
+            if (root && !root->modal) root->visible = false;
+        }
+    }
+    ui.setWorldLabelsSuppressed(anyModal);
+    return anyModal;
+}
+
 void applyHudBindings(UIWidget* root, const HudDataContext& ctx) {
     if (!root) return;
     applyScalarBind(root, ctx);
@@ -669,6 +729,13 @@ static glm::vec4 parseColorArr(const nlohmann::json& j, glm::vec4 def) {
     if (j.is_array() && j.size() >= 4)
         return {j[0].get<float>(), j[1].get<float>(), j[2].get<float>(), j[3].get<float>()};
     return def;
+}
+
+// G-179: which panel a namespace starts on (its layout's `start_panel`), so backOutOfSubmenu
+// can return to it without re-reading the JSON. Keyed by the "<name>:" prefix.
+static std::unordered_map<std::string, std::string>& namespaceStartPanels() {
+    static std::unordered_map<std::string, std::string> s;
+    return s;
 }
 
 // Show only one screen within a "<prefix>*" namespace (submenu navigation). Works
@@ -818,6 +885,7 @@ static std::unique_ptr<UIWidget> buildMenuElementInner(const nlohmann::json& el,
             else if (at == "show_credits") { auto cb = actions.onShowCredits; w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "start_game")   { auto cb = actions.onStartGame;   w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "back")         { auto cb = actions.onBack;        w->onClick = [cb] { if (cb) cb(); }; }
+            else if (at == "continue")     { auto cb = actions.onContinue;    w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "open_submenu") { w->onClick = [uip, target, nsPrefix]    { showOnlyInNamespace(*uip, nsPrefix, nsPrefix + target); }; }
             else if (at == "close_submenu"){ w->onClick = [uip, startPanel, nsPrefix]{ showOnlyInNamespace(*uip, nsPrefix, nsPrefix + startPanel); }; }
             else if (at == "rebind")       { auto cb = actions.onRebindKey; std::string b = a.value("binding", ""); w->onClick = [cb, b] { if (cb) cb(b); }; }
@@ -887,7 +955,12 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
         const MenuActions& actions, UISystem& ui, const std::string& startPanel,
         const std::string& nsPrefix) {
     auto w = buildMenuElementInner(el, sx, sy, actions, ui, startPanel, nsPrefix);
-    if (w) parseAppearAnim(el, *w);
+    if (w) {
+        parseAppearAnim(el, *w);
+        // The authored id, so the layout lint and the test API name the element the JSON
+        // names ("cs_hp_v"), not "(unnamed)" (G-184).
+        if (w->id.empty()) w->id = el.value("id", "");
+    }
     return w;
 }
 
@@ -1045,6 +1118,7 @@ void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions&
     for (const auto& [name, vis] : ui.getScreenList())
         if (name.rfind("menu:", 0) != 0) ui.hideScreen(name);
     for (const auto& k : keys) ui.hideScreen("menu:" + k);
+    namespaceStartPanels()["menu:"] = startPanel;
     ui.showScreen("menu:" + startPanel);
 }
 
@@ -1116,6 +1190,7 @@ static void loadOverlayFromFile(UISystem& ui, const std::string& nsPrefix,
     // Show only the start panel (other panels stay hidden until navigated to).
     for (const auto& [name, vis] : ui.getScreenList())
         if (name.rfind(nsPrefix, 0) == 0) ui.hideScreen(name);
+    namespaceStartPanels()[nsPrefix] = startPanel;
     ui.showScreen(nsPrefix + startPanel);
 }
 
@@ -1135,6 +1210,18 @@ void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
     // unloadPauseMenuFrom restores them.
     for (const auto& [name, vis] : ui.getScreenList())
         if (name.rfind("pause:", 0) != 0) ui.hideScreen(name);
+}
+
+bool backOutOfSubmenu(UISystem& ui, const std::string& name) {
+    const std::string nsPrefix = name + ":";
+    const auto it = namespaceStartPanels().find(nsPrefix);
+    const std::string start = nsPrefix + (it != namespaceStartPanels().end() ? it->second : std::string("main"));
+    bool subVisible = false;
+    for (const auto& [sn, vis] : ui.getScreenList())
+        if (vis && sn.rfind(nsPrefix, 0) == 0 && sn != start) { subVisible = true; break; }
+    if (!subVisible) return false;
+    showOnlyInNamespace(ui, nsPrefix, start);
+    return true;
 }
 
 void unloadGameScreenFrom(UISystem& ui, const std::string& name) {

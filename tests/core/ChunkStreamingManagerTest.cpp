@@ -287,3 +287,110 @@ TEST(ChunkStreamingManagerTest, CreateChunkLoadsASavedChunkInsteadOfShadowingIt)
     EXPECT_NE(cm2.getCubeAt(glm::ivec3(-27, 17, 9)), nullptr)
         << "the saved cube must be there: the chunk was LOADED, not created empty";
 }
+
+
+// ============================================================================
+// G-181: a region's chunks decode on worker threads. The world must end up exactly as the
+// sequential loadChunk() path leaves it: every chunk re-encodes to the same bytes, in the
+// same order, with the same resident set. A mutant that decodes only on thread 0, or
+// inserts in completion order, fails this.
+// ============================================================================
+#include "core/ChunkBlobCodec.h"
+namespace {
+// Twelve chunks with cubes of several materials, subcubes with tint/state, microcubes, and
+// one chunk of pure air (must NOT count as loaded, as in loadChunk()).
+std::vector<glm::ivec3> saveMixedRegion(ChunkStreamingManager& csm) {
+    std::vector<glm::ivec3> coords;
+    const char* mats[] = {"Stone", "Dirt", "Wood", "Bricks"};
+    for (int i = 0; i < 12; ++i) {
+        const glm::ivec3 cc(i % 4, 0, i / 4);
+        coords.push_back(cc);
+        auto chunk = makeChunk(cc * 32);
+        if (i == 7) { EXPECT_TRUE(csm.saveChunk(chunk.get())); continue; }   // air
+        for (int x = 0; x < 32; ++x)
+            for (int z = 0; z < 32; ++z)
+                for (int y = 0; y < 4 + (i % 3); ++y) chunk->addCube({x, y, z}, mats[(x + z + i) % 4]);
+        for (int k = 0; k < 40 + i; ++k) {
+            const glm::ivec3 cube((k * 7 + i) % 32, 8 + (k % 5), (k * 11) % 32);
+            chunk->addSubcube(cube, glm::ivec3(k % 3, (k / 3) % 3, (k / 9) % 3), mats[k % 4],
+                              0xFF000000u | static_cast<uint32_t>(k * 977), static_cast<uint8_t>(k % 4));
+        }
+        for (int k = 0; k < 60 + i; ++k) {
+            const glm::ivec3 cube((k * 5 + i) % 32, 16 + (k % 4), (k * 13) % 32);
+            chunk->addMicrocube(cube, glm::ivec3(k % 3, (k / 3) % 3, (k / 9) % 3),
+                                glm::ivec3((k / 2) % 3, (k / 5) % 3, (k / 7) % 3), mats[(k + 1) % 4], 0u, 0);
+        }
+        if (i % 3 == 1) {   // water spans (the v2 blob's last section), (x,z)-sorted as producers contract
+            std::vector<Chunk::WaterSpanLocal> spans;
+            for (int x = 2; x < 30; x += 7)
+                for (int z = 1; z < 31; z += 9) { Chunk::WaterSpanLocal w; w.x = uint8_t(x); w.z = uint8_t(z); w.bottom = 4.0f + i; w.top = 9.5f + i; spans.push_back(w); }
+            chunk->setWaterSpans(std::move(spans));
+        }
+        EXPECT_TRUE(csm.saveChunk(chunk.get()));
+    }
+    return coords;
+}
+}  // namespace
+
+TEST(ChunkStreamingManagerTest, ParallelRegionLoadIsByteIdenticalToTheSequentialLoad) {
+    TempDb db;
+    std::vector<glm::ivec3> coords;
+    {
+        ChunkStreamingManager writer;
+        ASSERT_TRUE(writer.initializeWorldStorage(db.str()));
+        coords = saveMixedRegion(writer);
+    }
+    ChunkManager seq, par;
+    seq.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    par.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    ASSERT_TRUE(seq.initializeWorldStorage(db.str()));
+    ASSERT_TRUE(par.initializeWorldStorage(db.str()));
+
+    int seqLoaded = 0;
+    for (const auto& cc : coords) seqLoaded += seq.loadChunk(cc) ? 1 : 0;
+    const int parLoaded = par.loadChunksParallel(coords, 5);
+    EXPECT_EQ(seqLoaded, 11) << "the air chunk does not count";
+    EXPECT_EQ(parLoaded, seqLoaded);
+
+    int compared = 0;
+    for (const auto& cc : coords) {
+        const Chunk* a = seq.getChunkAtCoord(cc);
+        const Chunk* b = par.getChunkAtCoord(cc);
+        ASSERT_EQ(a != nullptr, b != nullptr) << "residency differs at " << cc.x << "," << cc.z;
+        if (!a) continue;
+        ChunkBlobCodec::Counts ca, cb;
+        const auto ea = ChunkBlobCodec::encode(*a, &ca), eb = ChunkBlobCodec::encode(*b, &cb);
+        EXPECT_GT(ca.cubes + ca.subcubes + ca.microcubes, 0u);
+        EXPECT_EQ(ca.subcubes, cb.subcubes); EXPECT_EQ(ca.microcubes, cb.microcubes);
+        ASSERT_TRUE(ea == eb) << "chunk " << cc.x << "," << cc.z << " differs after a parallel load";
+        ++compared;
+    }
+    EXPECT_EQ(compared, 11);
+    // the same resident ORDER (the chunks vector), which the sequential path defines
+    ASSERT_EQ(seq.chunks.size(), par.chunks.size());
+    for (size_t i = 0; i < seq.chunks.size(); ++i)
+        EXPECT_EQ(seq.chunks[i]->getWorldOrigin(), par.chunks[i]->getWorldOrigin()) << "order differs at " << i;
+    // a second call is a no-op: everything is resident
+    EXPECT_EQ(par.loadChunksParallel(coords, 5), 0);
+    // the load-path finalize steps that run headless (occupancy grid rebuild + voxel maps; no
+    // faces without a device) leave both sides answering the same for a dense sample of micro
+    // cells (occupiedMicro reads the store and the sub/micro maps)
+    int micros = 0, solid = 0;
+    for (const auto& cc : coords) {
+        Chunk* a = seq.getChunkAtCoord(cc);
+        Chunk* b = par.getChunkAtCoord(cc);
+        if (!a) continue;
+        a->forcePhysicsRebuild(); a->initializeVoxelMaps();
+        b->forcePhysicsRebuild(); b->initializeVoxelMaps();
+        const glm::ivec3 o = cc * 32 * 9;
+        for (int mx = 0; mx < 32 * 9; mx += 4)
+            for (int mz = 0; mz < 32 * 9; mz += 4)
+                for (int my = 0; my < 21 * 9; my += 5) {
+                    const glm::ivec3 m = o + glm::ivec3(mx, my, mz);
+                    const bool sa = seq.occupiedMicro(m), sb = par.occupiedMicro(m);
+                    ASSERT_EQ(sa, sb) << "occupancy differs at micro " << m.x << "," << m.y << "," << m.z;
+                    ++micros; solid += sa;
+                }
+    }
+    EXPECT_GT(solid, 1000) << micros << " cells sampled";
+}

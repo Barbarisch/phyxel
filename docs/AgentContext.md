@@ -1907,8 +1907,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     (time-of-day, health, faction once NPCs carry factions).
   - **NEXT (items P3+):** use verbs (held weapon → melee-family attack — converges with melee
     wiring; consumables), survival-mode drop consume semantics (creative never decrements),
-    torch gripEulerDeg flip (currently hangs head-down in hand), prop lay-flat orientation,
-    NPC held items, containers/loot, equipment-screen integration for the D&D layer.
+    torch grip flip DONE 2026-09-26 (gripEulerDeg [180,0,0] + mirrored gripOffset, pinned by
+    NpcHeldItemsTest), prop lay-flat orientation, NPC held items DONE 2026-09-26
+    (Core::NpcHeldItems, editor + shell), containers/loot, equipment-screen integration for the D&D layer.
 - **Open items:** `open_project` / heavy commands time out the 5s game-loop budget (one-time
   heavy load, cosmetic); no world DB versioning.
 

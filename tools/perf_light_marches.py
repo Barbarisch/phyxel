@@ -18,6 +18,7 @@ Cost per march = (mode0 - mode17) / (pixels * mean marches per lit pixel).
 """
 import json
 import statistics
+import sys
 import subprocess
 import time
 import urllib.request
@@ -27,6 +28,7 @@ REL = Path(r"C:/Users/bpete/Documents/PhyxelProjects/Ravenmere/build_probe/Relea
 OUT = Path(r"C:/Users/bpete/Documents/GitHub/phyxel/docs/evidence/ravenmere")
 B = 'http://127.0.0.1:8114'
 SAMPLES = 12
+TAG = (sys.argv[1] if len(sys.argv) > 1 else 'rv_perf6').strip()
 
 
 def safe(m, p, b=None, t=120):
@@ -64,7 +66,7 @@ def march_histogram(tag):
     r = safe('GET', '/api/screenshot')
     if not r.get('path'):
         return None
-    dst = OUT / ('rv_perf6_marchcount_%s.png' % tag)
+    dst = OUT / (TAG + '_marchcount_%s.png' % tag)
     dst.write_bytes((REL / r['path']).read_bytes())
     from PIL import Image
     im = Image.open(dst).convert('RGB')
@@ -87,7 +89,7 @@ def march_histogram(tag):
             'screen': [w, h]}
 
 
-log = open(OUT / 'rv_perf6.log', 'w', encoding='utf-8', errors='replace')
+log = open(OUT / (TAG + '.log'), 'w', encoding='utf-8', errors='replace')
 proc = subprocess.Popen([str(REL / 'Ravenmere.exe'), '--test', '8114'], cwd=str(REL),
                         stdout=log, stderr=subprocess.STDOUT)
 res = {}
@@ -99,6 +101,10 @@ try:
     reached = False
     for _a in range(6):
         safe('POST', '/api/ui/click', {'x': 640, 'y': 374})
+        for _ack in range(12):   # G-116: the intro card gates the first scene - Continue sits at (640, 628)
+            if safe('GET', '/api/screen/state').get('screen') == 'narrative':
+                safe('POST', '/api/ui/click', {'x': 640, 'y': 628}); break
+            time.sleep(0.25)
         for _ in range(40):
             sc = safe('GET', '/api/screen/state')
             if sc.get('scene_id') == 'town' and sc.get('screen') == 'playing':
@@ -155,5 +161,5 @@ finally:
     time.sleep(2)
     log.flush()
 
-(OUT / 'rv_perf6.json').write_text(json.dumps(res, indent=2), encoding='utf-8')
-print('\nwrote %s' % (OUT / 'rv_perf6.json'), flush=True)
+(OUT / (TAG + '.json')).write_text(json.dumps(res, indent=2), encoding='utf-8')
+print('\nwrote %s' % (OUT / (TAG + '.json')), flush=True)

@@ -20,6 +20,7 @@
 // ============================================================================
 
 #include "core/NavGraph.h"
+#include "core/PlayBounds.h"
 #include "core/TurnActor.h"
 #include "graphics/Camera.h"
 
@@ -44,6 +45,11 @@ public:
     void setBodyProvider(BodyProvider p)   { m_body = std::move(p); }
     /// Null graph = straight-line walk (a scene with no navigation built).
     void setGraphProvider(GraphProvider p) { m_graph = std::move(p); }
+    using BoundsProvider = std::function<PlayBounds()>;
+    /// The scene's play bounds: a goal past the wall is pulled to the nearest point inside
+    /// it (the world continues past the wall with unreachable terrain - a click out there
+    /// used to walk the body into the wall and stall). Optional; invalid bounds = no clamp.
+    void setPlayBoundsProvider(BoundsProvider p) { m_bounds = std::move(p); }
     void setAgent(const NavAgentProfile& a) { m_agent = a; }
 
     /// Start walking to `goal` (world position; y is the feet height near the
@@ -104,6 +110,7 @@ private:
 
     BodyProvider  m_body;
     GraphProvider m_graph;
+    BoundsProvider m_bounds;
     NavAgentProfile m_agent;
 
     Result m_result = Result::Idle;

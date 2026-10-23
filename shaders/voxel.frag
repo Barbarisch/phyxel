@@ -89,6 +89,7 @@ layout(set = 0, binding = 7) uniform sampler2DArray textureNormalHi;  // class 1
 struct PointLightGPU {
     vec4 positionAndRadius;     // xyz = position, w = radius
     vec4 colorAndIntensity;     // xyz = color, w = intensity
+    vec4 extentAndPad;          // x = emitter half-extent (G-157), yzw = padding
 };
 
 // Spot light (64 bytes, std430)
@@ -467,7 +468,13 @@ void main() {
     // which decides whether the answer is "too many lights" or "too costly per light".
     const bool kSkipMarch  = (ubo.debugShadowMode == 17);
     const bool kCountOnly  = (ubo.debugShadowMode == 18);
+    // Probe 19: how many in-range lights actually CONTRIBUTE anything, at three visibility
+    // thresholds. The gate today is dist < radius, but the attenuation curve reaches 2.3% of
+    // peak at half the radius and 0.38% at 80% - so "in range" and "visible" are very
+    // different questions, and the answer decides whether a contribution cutoff is enough.
+    const bool kContribOnly = (ubo.debugShadowMode == 19);
     float dbgMarchCount = 0.0;
+    vec3  dbgContribCount = vec3(0.0);   // counts above 1/255, 1/1024, 1/4096
     vec3 dbgForward = vec3(0.0);
     for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {
         vec3 lightPos = lights.pointLights[i].positionAndRadius.xyz;
@@ -484,9 +491,17 @@ void main() {
             // reaches around, which only a visibility term can cut.
             if (dot(N, ldir) > 0.0) {
                 dbgMarchCount += 1.0;
-                float vis = (kSkipMarch || kCountOnly) ? 1.0
+                {   // contribution BEFORE any march - exactly what a cheap gate could test
+                    float a = calcAttenuation(dist, radius);
+                    float c = intensity * a * max(lightColor.r, max(lightColor.g, lightColor.b));
+                    if (c > 1.0 / 255.0)  dbgContribCount.r += 1.0;
+                    if (c > 1.0 / 1024.0) dbgContribCount.g += 1.0;
+                    if (c > 1.0 / 4096.0) dbgContribCount.b += 1.0;
+                }
+                float vis = (kSkipMarch || kCountOnly || kContribOnly) ? 1.0
                           : phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
-                                               lightPos + ubo.cameraWorld, ubo.occupancyBox);
+                                               lightPos + ubo.cameraWorld,
+                                               lights.pointLights[i].extentAndPad.x, ubo.occupancyBox);
                 if (vis > 0.0) {
                     float atten = calcAttenuation(dist, radius);
                     dbgForward += pbrBRDF(N, V, ldir, albedo, rough, metallic,
@@ -517,7 +532,8 @@ void main() {
                 dbgMarchCount += 1.0;
                 float vis = (kSkipMarch || kCountOnly) ? 1.0
                           : phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
-                                               lightPos + ubo.cameraWorld, ubo.occupancyBox);
+                                               lightPos + ubo.cameraWorld,
+                                               lights.spotLights[i].outerConeAndPadding.y, ubo.occupancyBox);
                 if (vis > 0.0) {
                     float atten = calcAttenuation(dist, radius);
                     dbgForward += pbrBRDF(N, V, ldir, albedo, rough, metallic,
@@ -530,6 +546,10 @@ void main() {
     // PROBE 18: marches performed by THIS fragment, linear in R (count/32), so a readback
     // with the tone curve off recovers the number. G = 1 marks "some light was in range".
     if (kCountOnly) { outColor = vec4(dbgMarchCount / 32.0, dbgMarchCount > 0.0 ? 1.0 : 0.0, 0.0, 1.0); return; }
+    // PROBE 19: R/G/B = how many in-range lights clear 1/255, 1/1024, 1/4096 of a unit
+    // contribution. Alpha marks a fragment that had ANY light in range, so empty pixels are
+    // excluded from the average. Read with the tone curve off.
+    if (kContribOnly) { outColor = vec4(dbgContribCount / 32.0, dbgMarchCount > 0.0 ? 1.0 : 0.0); return; }
 
     // BISECT PROBE 16 (G-18): + the point/spot light loops, which each run a
     // phxLightVisibility occupancy march PER LIGHT PER FRAGMENT (up to 32 + 16).

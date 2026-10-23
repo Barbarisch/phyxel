@@ -1,0 +1,41 @@
+{
+  "label": "before",
+  "cam_yaw": -90.0,
+  "town_fps": 16.9,
+  "town_stats": {
+    "camera_owner_hidden": false,
+    "characters_drawn_main": 3,
+    "far_tiles_drawn": 0,
+    "total_visible_faces": 75219,
+    "visible_chunk_count": 8
+  },
+  "player": [
+    6.000820159912109,
+    17.0,
+    -29.752988815307617
+  ],
+  "bounds": {
+    "bounds": {
+      "max": {
+        "x": 64.0,
+        "z": 64.0
+      },
+      "min": {
+        "x": -32.0,
+        "z": -32.0
+      }
+    },
+    "source": "derived (chunk extent)",
+    "streaming": false,
+    "success": true
+  },
+  "stats": {
+    "camera_owner_hidden": false,
+    "characters_drawn_main": 1,
+    "far_tiles_drawn": 0,
+    "total_visible_faces": 7732,
+    "visible_chunk_count": 2
+  },
+  "fps": 143.7,
+  "png": "C:\\Users\\bpete\\Documents\\GitHub\\phyxel\\docs\\evidence\\ravenmere\\rv_horizon_l4_before.png"
+}

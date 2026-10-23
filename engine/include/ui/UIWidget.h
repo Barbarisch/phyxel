@@ -164,6 +164,11 @@ public:
     /// element only in certain states (e.g. "combat.inCombat").
     std::string visibleWhen;
 
+    /// G-182: a MODAL HUD root panel (the journal, a full-screen sheet) owns the screen while
+    /// it is visible - applyModalOverlays() hides every other non-modal HUD panel and the
+    /// world-space name labels, so nothing draws through it. JSON: `"modal": true`.
+    bool modal = false;
+
     // ── DRAG AND DROP (Ravenmere G-150) ─────────────────────────
     // A widget with a non-empty payload can be PICKED UP: press and hold on it and the
     // pointer carries `dragPayload` until release. JSON "drag" is a fixed payload;
@@ -294,7 +299,22 @@ public:
     std::string text;
     bool isTitle = false;     // uses titleColor + titleScale if true
     float wrapWidth = 0.0f;   // >0 = word-wrap to this pixel width (multi-line)
+    /// >0 = show at most this many wrapped lines - the LAST ones (a transcript wants its tail).
+    /// Without it a growing text (the AI conversation history) pushed the siblings below it
+    /// out of a fixed-size panel: the input field vanished 38 px past the bottom (G-183).
+    int maxLines = 0;
+    static std::string tailLines(const std::string& wrapped, int maxLines);
+    /// Word-wrap `text` at `scale` to `maxWidth` px (lines joined by newline). Public so the
+    /// layout lint measures the widest DRAWN line, not the box.
+    static std::string wrapLines(const BitmapFont* font, const std::string& text, float scale, float maxWidth);
+    /// The font scale this label draws with (customScale, else title/body theme scale).
+    float drawScale(const UITheme& theme) const {
+        return customScale > 0.0f ? customScale : (isTitle ? theme.titleScale : theme.textScale);
+    }
     float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const override;
+    /// Widest drawn line in px (after wrapping to wrapWidth or the box); size.x without a font.
+    /// NOT the measureWidth override: that one feeds autoWidth panels (G-148) and must stay the box.
+    float measureTextWidth(const BitmapFont* font, const UITheme& theme) const;
     /// Horizontal alignment relative to `position.x`:
     ///   Left   (default) — text STARTS at position.x (historical behavior)
     ///   Center           — text is centered ON position.x (what every shipped

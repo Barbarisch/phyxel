@@ -73,7 +73,16 @@ protected:
     }
 };
 
-// A chandelier cube: 8 glow micros in one cell become ONE light carrying 8x the intensity.
+// WHAT THESE PIN (2026-10-14). Two sessions removed the same duplicates independently: upstream's
+// L1 post-pass (76eb3385) merged coincident lights by SUMMING intensity, and G-158 (f4024b42,
+// three days earlier, look confirmed by the user) accumulates per PARENT CUBE and emits one light
+// at the power-weighted centroid with intensity = the BRIGHTEST constituent (66 glow cells are one
+// bed of coals, not 66 torches; summing was the over-brightness bug) and reach from the emitting
+// VOLUME. G-158 runs first, so L1 sees at most one light per cube and is a no-op guard. The tests
+// below assert G-158's contract; their L1 forms (sum, cell centre, radii kept separate) are gone.
+
+// A chandelier cube: 8 glow micros in one cell become ONE light, as bright as one of them, reaching
+// further than one of them, centred on the glowing cells rather than on the cube.
 TEST_F(EmitterMergeTest, CoincidentMicrosInOneCellBecomeOneLight) {
     const auto one = single();
     ChunkRenderManager crm;
@@ -81,19 +90,31 @@ TEST_F(EmitterMergeTest, CoincidentMicrosInOneCellBecomeOneLight) {
     auto micros = glowMicros(glm::ivec3(3, 19, 6), 8);
     const auto& lights = mesh(crm, subs, micros);
     ASSERT_EQ(lights.size(), 1u) << "8 glow micros in one cube cell must register ONE light, not 8";
-    EXPECT_FLOAT_EQ(lights[0].intensity, 8.0f * one.intensity);
-    EXPECT_FLOAT_EQ(lights[0].radius, one.radius);
-    EXPECT_EQ(lights[0].worldPos, glm::vec3(3.5f, 19.5f, 6.5f));
+    EXPECT_FLOAT_EQ(lights[0].intensity, one.intensity) << "brightest constituent, not the sum (G-158)";
+    EXPECT_GT(lights[0].radius, one.radius) << "8 cells of emitting volume reach further than 1";
+    EXPECT_LT(lights[0].radius, 15.0f * one.intensity) << "but less than a full glow cube";
+    // The centroid of the 8 micro centres: glowMicros puts micro i in SUBCUBE (i%3, i/3%3, 1) at
+    // micro slot (1,1,1), so its centre is cell + (sub*3 + 1 + 0.5) / 9 on each axis.
+    glm::vec3 centroid(0.0f);
+    for (int i = 0; i < 8; ++i)
+        centroid += glm::vec3(3.0f, 19.0f, 6.0f) + (glm::vec3(i % 3, (i / 3) % 3, 1) * 3.0f + 1.5f) / 9.0f;
+    centroid /= 8.0f;
+    EXPECT_NEAR(glm::length(lights[0].worldPos - centroid), 0.0f, 1e-5f) << "centre of EMISSION, not of the cube";
     EXPECT_NEAR(lights[0].color.r, one.color.r, 1e-6);
     EXPECT_NEAR(lights[0].color.g, one.color.g, 1e-6);
     EXPECT_NEAR(lights[0].color.b, one.color.b, 1e-6);
+    // The G-157 extent covers the emitting cells: at least the half-width of a micro, well under a cube's.
+    EXPECT_GT(lights[0].extent, 0.05f);
+    EXPECT_LT(lights[0].extent, 0.866f);
 }
 
-// Shading is linear in color*intensity, so a mixed-hue cell must merge to the SUM of its members.
-TEST_F(EmitterMergeTest, MergedLightShadesAsTheSumOfItsMembers) {
+// A mixed-hue cell: the hue is the POWER-WEIGHTED mix of its members and the brightness stays
+// that of the brightest member - it does not add up to a light 8x as bright.
+TEST_F(EmitterMergeTest, MergedLightMixesHueByPowerAndKeepsTheBrightestIntensity) {
     const auto warm = single("glow");
     const auto blue = single("glow_blue");
     ASSERT_FLOAT_EQ(warm.radius, blue.radius);
+    ASSERT_FLOAT_EQ(warm.intensity, blue.intensity);
     ChunkRenderManager crm;
     std::vector<std::unique_ptr<Subcube>> subs;
     auto micros = glowMicros(glm::ivec3(5, 5, 5), 4, "glow");
@@ -104,22 +125,33 @@ TEST_F(EmitterMergeTest, MergedLightShadesAsTheSumOfItsMembers) {
     }
     const auto& lights = mesh(crm, subs, micros);
     ASSERT_EQ(lights.size(), 1u);
-    const glm::vec3 want = 4.0f * warm.color * warm.intensity + 4.0f * blue.color * blue.intensity;
-    const glm::vec3 got = lights[0].color * lights[0].intensity;
-    EXPECT_NEAR(got.r, want.r, 1e-5);
-    EXPECT_NEAR(got.g, want.g, 1e-5);
-    EXPECT_NEAR(got.b, want.b, 1e-5);
+    EXPECT_FLOAT_EQ(lights[0].intensity, warm.intensity);
+    const glm::vec3 want = 0.5f * warm.color + 0.5f * blue.color;   // equal power each side
+    EXPECT_NEAR(lights[0].color.r, want.r, 1e-5);
+    EXPECT_NEAR(lights[0].color.g, want.g, 1e-5);
+    EXPECT_NEAR(lights[0].color.b, want.b, 1e-5);
 }
 
-// Different radius scales are different lights (a subcube emitter reaches further than a micro).
-TEST_F(EmitterMergeTest, DifferentRadiiInOneCellStaySeparate) {
+// A subcube and three micros in one cell are ONE fixture: one light, whose reach grows with the
+// combined emitting volume - at least the subcube's alone, more than a micro's.
+TEST_F(EmitterMergeTest, MixedResolutionsInOneCellAreOneFixture) {
+    const auto micro = single();
+    ChunkRenderManager ref;
+    std::vector<std::unique_ptr<Subcube>> refSubs;
+    refSubs.push_back(std::make_unique<Subcube>(glm::ivec3(6, 6, 6), glm::ivec3(0, 0, 0), "glow"));
+    std::vector<std::unique_ptr<Microcube>> none;
+    const auto subAlone = mesh(ref, refSubs, none);
+    ASSERT_EQ(subAlone.size(), 1u);
+
     ChunkRenderManager crm;
     std::vector<std::unique_ptr<Subcube>> subs;
     subs.push_back(std::make_unique<Subcube>(glm::ivec3(6, 6, 6), glm::ivec3(0, 0, 0), "glow"));
     auto micros = glowMicros(glm::ivec3(6, 6, 6), 3);
     const auto& lights = mesh(crm, subs, micros);
-    ASSERT_EQ(lights.size(), 2u);
-    EXPECT_NE(lights[0].radius, lights[1].radius);
+    ASSERT_EQ(lights.size(), 1u) << "one cube cell = one light, whatever resolutions emit in it";
+    EXPECT_GE(lights[0].radius, subAlone[0].radius);
+    EXPECT_GT(lights[0].radius, micro.radius);
+    EXPECT_FLOAT_EQ(lights[0].intensity, subAlone[0].intensity);
 }
 
 // Output order is a pure function of the voxels: shuffling the input changes nothing.
@@ -146,8 +178,9 @@ TEST_F(EmitterMergeTest, OrderIndependent) {
     }
 }
 
-// Chunked vs whole: emitters in the two cube cells either side of a chunk seam give exactly one light
-// per cell, whichever chunk meshes them. A cube cell belongs to one chunk, so nothing can straddle.
+// Chunked vs whole: the same five-micro pattern in the two cube cells either side of a chunk seam
+// gives exactly one light per cell, whichever chunk meshes them, and the right-hand light is the
+// left-hand one shifted by exactly one cube. A cube cell belongs to one chunk, so nothing can straddle.
 TEST_F(EmitterMergeTest, ChunkSplitInvariant) {
     ChunkRenderManager left, right;
     std::vector<std::unique_ptr<Subcube>> subs;
@@ -157,6 +190,10 @@ TEST_F(EmitterMergeTest, ChunkSplitInvariant) {
     const auto& rl = mesh(right, subs, r, glm::ivec3(32, 0, 0));
     ASSERT_EQ(ll.size(), 1u);
     ASSERT_EQ(rl.size(), 1u);
-    EXPECT_EQ(ll[0].worldPos, glm::vec3(31.5f, 2.5f, 2.5f));
-    EXPECT_EQ(rl[0].worldPos, glm::vec3(32.5f, 2.5f, 2.5f));
+    EXPECT_EQ(glm::ivec3(glm::floor(ll[0].worldPos)), glm::ivec3(31, 2, 2)) << "the light lies in its cell";
+    EXPECT_EQ(glm::ivec3(glm::floor(rl[0].worldPos)), glm::ivec3(32, 2, 2));
+    EXPECT_NEAR(glm::length(rl[0].worldPos - (ll[0].worldPos + glm::vec3(1, 0, 0))), 0.0f, 1e-5f);
+    EXPECT_FLOAT_EQ(ll[0].intensity, rl[0].intensity);
+    EXPECT_FLOAT_EQ(ll[0].radius, rl[0].radius);
+    EXPECT_NEAR(ll[0].extent, rl[0].extent, 1e-4f);   // float rounding at |x| 31 vs 32
 }

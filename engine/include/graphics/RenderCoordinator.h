@@ -78,6 +78,7 @@ namespace Phyxel { namespace Graphics {
         class NPCManager;
         class KinematicVoxelManager;
         class WaterManager;
+        class ItemEffectSystem;
     }
     class GpuParticlePhysics;
 }
@@ -101,6 +102,11 @@ class Camera;
  */
 class RenderCoordinator {
 public:
+    /// Per-frame budget for the dirty-chunk mesh drain (ms; default 6). A host raises it
+    /// while a loading screen hides the frame time (G-181) and restores it after.
+    void setDirtyChunkBudgetMs(double ms) { m_dirtyChunkBudgetMs = ms; }
+    double dirtyChunkBudgetMs() const { return m_dirtyChunkBudgetMs; }
+
     /// Capacity of the shared character instance buffer, in PARTS (not characters) —
     /// every character in the scene batches into this one buffer. Imported creature
     /// rigs are microcube-dense (3.0-4.7k parts each), so this must stay far above
@@ -427,6 +433,7 @@ public:
         static constexpr int kTreeChainLevels = 6;
         int    farTreeMeshDrawsByLevel[kTreeChainLevels] = {};
         int    farTreeCardDraws       = 0;
+        int    farTreeMaskResidentColumns = 0;   ///< G-178: columns in the 22x22 residency mask that render
         int    structureLodSkippedInvisible = 0;   ///< proxies whose main draw was provably all-discard
         // D1 shadow-pass diagnosis (docs/RenderDensityPlan.md): the shadow pass distance-culls only
         // (no frustum), so it may draw far more than visibleChunkCount. These count what it drew.
@@ -719,8 +726,21 @@ public:
     // rebuild cycle would be unbearable: the whole point is to measure, adjust, measure.
     /// The sky's celestial bodies. Replacing the list takes effect on the next frame -- the
     /// bodies are placed and uploaded per frame, so nothing needs a rebuild or a relight.
-    void setSkyBodies(const SkyBodies& s) { m_skyBodies = s; }
+    /// Point an item-effect system at this renderer: its VFX system for particles and the
+    /// LightManager for its lights (create / move / remove). One wiring for the editor and the
+    /// shipped game - the shipped game had none, so no held flame could burn there.
+    void wireItemEffects(Core::ItemEffectSystem& fx);
+
+    void setSkyBodies(const SkyBodies& s) {
+        m_skyBodies = s;
+        m_dayNightCycle.setLatitudeDeg(s.latitudeDeg);
+        m_dayNightCycle.setLunarCycleDays(s.lunarCycleDays);
+    }
     const SkyBodies& getSkyBodies() const { return m_skyBodies; }
+    /// Unit vector TOWARD the first reflective body (the moon), from the sky bodies - the one source
+    /// for where the moon is (G-164). Falls back to the day/night cycle's moon when the sky has no
+    /// reflective body.
+    glm::vec3 skyMoonToward() const;
     SkyBodies& getSkyBodiesMutable() { return m_skyBodies; }
 
     /// Sky pass on/off. Exists so the pass can be MEASURED: it is a full-screen raymarch and
@@ -795,6 +815,7 @@ public:
     glm::uvec2 getSwapChainSize() const;
 
 private:
+    double m_dirtyChunkBudgetMs = 6.0;   // see setDirtyChunkBudgetMs
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
     Core::NPCManager* m_npcManager = nullptr;
 

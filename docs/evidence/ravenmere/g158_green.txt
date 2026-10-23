@@ -1,0 +1,40 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = EmissiveLightMerge.*
+[==========] Running 10 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 10 tests from EmissiveLightMerge
+[ RUN      ] EmissiveLightMerge.ManyEmissiveMicrocubesInOneCubeMakeExactlyOneLight
+[32m[18:53:05.643] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.ManyEmissiveMicrocubesInOneCubeMakeExactlyOneLight (29 ms)
+[ RUN      ] EmissiveLightMerge.NoTwoEmittedLightsEverShareAPosition
+[32m[18:53:05.672] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.NoTwoEmittedLightsEverShareAPosition (22 ms)
+[ RUN      ] EmissiveLightMerge.TheLightSitsAtTheEmittingVoxelNotTheParentCubeCentre
+[32m[18:53:05.695] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.TheLightSitsAtTheEmittingVoxelNotTheParentCubeCentre (21 ms)
+[ RUN      ] EmissiveLightMerge.TheMergedLightSitsAtTheEmissiveCentroid
+[32m[18:53:05.716] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.TheMergedLightSitsAtTheEmissiveCentroid (21 ms)
+[ RUN      ] EmissiveLightMerge.SeparateCubesKeepSeparateLights
+[32m[18:53:05.739] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.SeparateCubesKeepSeparateLights (23 ms)
+[ RUN      ] EmissiveLightMerge.AFullGlowCubeIsCompletelyUnchanged
+[32m[18:53:05.762] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.AFullGlowCubeIsCompletelyUnchanged (22 ms)
+[ RUN      ] EmissiveLightMerge.ALoneMicrocubeKeepsItsShippedBrightnessAndReach
+[32m[18:53:05.784] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.ALoneMicrocubeKeepsItsShippedBrightnessAndReach (22 ms)
+[ RUN      ] EmissiveLightMerge.ALoneSubcubeKeepsItsShippedBrightnessAndReach
+[32m[18:53:05.807] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.ALoneSubcubeKeepsItsShippedBrightnessAndReach (23 ms)
+[ RUN      ] EmissiveLightMerge.ReachGrowsWithTheEmittingVolume
+[32m[18:53:05.830] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.ReachGrowsWithTheEmittingVolume (29 ms)
+[ RUN      ] EmissiveLightMerge.TheEmittedListIsDeterministic
+[32m[18:53:05.859] [INFO] [MaterialRegistry] Loaded 108 materials (648 texture slots) from resources/materials.json[0m
+[       OK ] EmissiveLightMerge.TheEmittedListIsDeterministic (24 ms)
+[----------] 10 tests from EmissiveLightMerge (241 ms total)
+
+[----------] Global test environment tear-down
+[==========] 10 tests from 1 test suite ran. (241 ms total)
+[  PASSED  ] 10 tests.

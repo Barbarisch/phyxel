@@ -1,0 +1,176 @@
+[
+  {
+    "screen": "main menu",
+    "state": "intro",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "menu:main"
+    ]
+  },
+  {
+    "screen": "town playing",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "journal open",
+    "state": "playing",
+    "count": 4,
+    "defects": [
+      {
+        "amount": 18.0,
+        "kind": "panel_overlap",
+        "message": "'hud_compass' overlaps 'hud_journal' by 476x18 px",
+        "other": "hud_journal",
+        "panel": "hud_compass"
+      },
+      {
+        "amount": 32.0,
+        "kind": "panel_overlap",
+        "message": "'hud_health' overlaps 'hud_journal' by 104x32 px",
+        "other": "hud_journal",
+        "panel": "hud_health"
+      },
+      {
+        "amount": 96.0,
+        "kind": "panel_overlap",
+        "message": "'hud_objectives' overlaps 'hud_journal' by 96x112 px",
+        "other": "hud_journal",
+        "panel": "hud_objectives"
+      },
+      {
+        "amount": 156.0,
+        "kind": "panel_overlap",
+        "message": "'hud_combat_action' overlaps 'hud_journal' by 244x156 px",
+        "other": "hud_journal",
+        "panel": "hud_combat_action"
+      }
+    ],
+    "visible": []
+  },
+  {
+    "screen": "dialogue open",
+    "state": "playing",
+    "count": 1,
+    "defects": [
+      {
+        "amount": 28.0,
+        "kind": "panel_overlap",
+        "message": "'hud_dialogue' overlaps 'hud_xp' by 520x28 px",
+        "other": "hud_xp",
+        "panel": "hud_dialogue"
+      }
+    ],
+    "visible": []
+  },
+  {
+    "screen": "character sheet",
+    "state": "character",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "character:main"
+    ]
+  },
+  {
+    "screen": "pause menu",
+    "state": "paused",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "pause:main"
+    ]
+  },
+  {
+    "screen": "settings main",
+    "state": "settings",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "settings:main"
+    ]
+  },
+  {
+    "screen": "keybindings panel",
+    "state": "settings",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "settings:keybindings"
+    ]
+  },
+  {
+    "screen": "farm playing",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "combat (farm wolves)",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "combat @1536x960",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "journal @1536x960",
+    "state": "playing",
+    "count": 6,
+    "defects": [
+      {
+        "amount": 32.0,
+        "kind": "panel_overlap",
+        "message": "'hud_health' overlaps 'hud_journal' by 104x32 px",
+        "other": "hud_journal",
+        "panel": "hud_health"
+      },
+      {
+        "amount": 48.0,
+        "kind": "panel_overlap",
+        "message": "'hud_combat_turn' overlaps 'hud_journal' by 440x48 px",
+        "other": "hud_journal",
+        "panel": "hud_combat_turn"
+      },
+      {
+        "amount": 96.0,
+        "kind": "panel_overlap",
+        "message": "'hud_objectives' overlaps 'hud_journal' by 96x112 px",
+        "other": "hud_journal",
+        "panel": "hud_objectives"
+      },
+      {
+        "amount": 6.0,
+        "kind": "panel_overlap",
+        "message": "'hud_combat_banner' overlaps 'hud_journal' by 460x6 px",
+        "other": "hud_journal",
+        "panel": "hud_combat_banner"
+      },
+      {
+        "amount": 36.0,
+        "kind": "panel_overlap",
+        "message": "'hud_combat_order' overlaps 'hud_journal' by 36x344 px",
+        "other": "hud_journal",
+        "panel": "hud_combat_order"
+      },
+      {
+        "amount": 156.0,
+        "kind": "panel_overlap",
+        "message": "'hud_combat_action' overlaps 'hud_journal' by 244x156 px",
+        "other": "hud_journal",
+        "panel": "hud_combat_action"
+      }
+    ],
+    "visible": []
+  }
+]

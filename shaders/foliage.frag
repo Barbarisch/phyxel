@@ -73,6 +73,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 struct PointLightGPU {
     vec4 positionAndRadius;
     vec4 colorAndIntensity;
+    vec4 extentAndPad;          // x = emitter half-extent (G-157), yzw = padding
 };
 struct SpotLightGPU {
     vec4 positionAndRadius;
@@ -162,7 +163,9 @@ void main() {
             float radius = lights.pointLights[i].positionAndRadius.w;
             float dist   = length(lp - vWorldPos);
             if (dist >= radius) continue;
-            if (phxLightVisibility(worldP, up, lp + ubo.cameraWorld, ubo.occupancyBox) <= 0.0)
+            if (phxLightVisibility(worldP, up, lp + ubo.cameraWorld,
+                                   lights.pointLights[i].extentAndPad.x,
+                                   ubo.occupancyBox) <= 0.0)
                 continue;
             float atten = clamp(1.0 - dist / radius, 0.0, 1.0);
             atten *= atten;

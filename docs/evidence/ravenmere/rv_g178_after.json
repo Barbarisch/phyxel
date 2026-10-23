@@ -1,0 +1,45 @@
+{
+  "label": "after",
+  "cam_yaw": -90.0,
+  "town_fps": 8.7,
+  "town_stats": {
+    "camera_owner_hidden": false,
+    "characters_drawn_main": 3,
+    "far_tiles_drawn": 9,
+    "far_tree_card_draws": 8,
+    "far_tree_mask_resident_columns": 109,
+    "total_visible_faces": 157831,
+    "visible_chunk_count": 62
+  },
+  "player": [
+    5.999741077423096,
+    17.0,
+    -30.023866653442383
+  ],
+  "bounds": {
+    "bounds": {
+      "max": {
+        "x": 64.0,
+        "z": 64.0
+      },
+      "min": {
+        "x": -32.0,
+        "z": -32.0
+      }
+    },
+    "source": "region (world.from/to)",
+    "streaming": true,
+    "success": true
+  },
+  "stats": {
+    "camera_owner_hidden": false,
+    "characters_drawn_main": 1,
+    "far_tiles_drawn": 38,
+    "far_tree_card_draws": 30,
+    "far_tree_mask_resident_columns": 220,
+    "total_visible_faces": 278592,
+    "visible_chunk_count": 101
+  },
+  "fps": 19.3,
+  "png": "C:\\Users\\bpete\\Documents\\GitHub\\phyxel\\docs\\evidence\\ravenmere\\rv_horizon_l4_after.png"
+}

@@ -1,0 +1,72 @@
+{
+  "near_down": {
+    "registered": 143,
+    "uploaded": 32,
+    "radius": {
+      "min": 7.5,
+      "median": 7.5,
+      "max": 7.5
+    },
+    "intensity": {
+      "min": 1.0,
+      "median": 1.0,
+      "max": 1.0
+    },
+    "dist_to_viewer": {
+      "min": 5.71,
+      "median": 5.71,
+      "max": 5.71
+    },
+    "in_range": {
+      "sampled": 57600,
+      "lit": 52755,
+      "lit_frac": 0.9159,
+      "mean_over_255": 31.34,
+      "max_over_255": 32.0
+    },
+    "contributing": {
+      "sampled": 57600,
+      "lit": 57600,
+      "lit_frac": 1.0,
+      "mean_over_255": 21.3,
+      "max_over_255": 32.0,
+      "mean_over_1024": 28.03,
+      "mean_over_4096": 28.34
+    }
+  },
+  "street": {
+    "registered": 143,
+    "uploaded": 32,
+    "radius": {
+      "min": 7.5,
+      "median": 7.5,
+      "max": 7.5
+    },
+    "intensity": {
+      "min": 1.0,
+      "median": 1.0,
+      "max": 1.0
+    },
+    "dist_to_viewer": {
+      "min": 5.71,
+      "median": 5.71,
+      "max": 5.71
+    },
+    "in_range": {
+      "sampled": 57600,
+      "lit": 24971,
+      "lit_frac": 0.4335,
+      "mean_over_255": 30.98,
+      "max_over_255": 32.0
+    },
+    "contributing": {
+      "sampled": 57600,
+      "lit": 57600,
+      "lit_frac": 1.0,
+      "mean_over_255": 11.03,
+      "max_over_255": 32.0,
+      "mean_over_1024": 13.21,
+      "mean_over_4096": 13.35
+    }
+  }
+}

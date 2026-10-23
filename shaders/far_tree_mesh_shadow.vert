@@ -49,6 +49,9 @@ layout(push_constant) uniform PushConstants {
     float baseHeight;
     float minFade;
     vec2 levelBand;   // same layout as far_tree_mesh.vert's push (shared CPU struct)
+    ivec2 maskOrigin;    // G-178: chunk column of residency bit 0 (camera column - 11)
+    ivec2 maskInfo;      // x: mask enabled, y: grid dim (22)
+    uint  mask[16];      // per-column residency bits: some chunk in the column has uploaded faces
 } pc;
 
 void main() {

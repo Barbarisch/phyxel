@@ -19,7 +19,10 @@ enum class ScreenState {
     Loading,        // Scene transition loading screen — mouse free, game logic paused
     Victory,        // Game-complete/victory screen — mouse free, game logic paused
     Credits,        // Credits roll — mouse free, game logic paused
-    GameOver        // Lose/fail screen — mouse free, game logic paused (Ravenmere gap G-38)
+    GameOver,       // Lose/fail screen — mouse free, game logic paused (Ravenmere gap G-38)
+    Narrative       // A blocking story card (the intro before the first scene of a run, a chapter
+                    // card) — mouse free, game logic paused; the host continues it on its button,
+                    // Enter or Space (Ravenmere G-116). Data screen "narrative".
 };
 
 /// Returns true if the game world simulation should tick in this state.

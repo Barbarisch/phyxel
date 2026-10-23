@@ -188,6 +188,10 @@ public:
 
     /// Get re-entry state for a scene.
     const SceneReentryState* getReentryState(const std::string& sceneId) const;
+    /// G-170: on re-entry the PLAYER spawns where they left. Overrides `def["player"]["position"]`
+    /// with the recorded position when the state says the scene was visited; a first visit keeps
+    /// the authored entry. Pure, so it is unit-tested without a world.
+    static void applyReentryPosition(nlohmann::json& def, const SceneReentryState& rs);
     /// Forget every scene's re-entry state (a NEW game must not resume old positions).
     void clearReentryStates() { reentryStates_.clear(); }
 

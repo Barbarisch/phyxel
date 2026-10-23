@@ -3,6 +3,7 @@
 #include "scene/NPCBehavior.h"
 #include "core/AStarPathfinder.h"
 #include "core/NavGraph.h"
+#include "core/PlayBounds.h"
 #include "ai/PerceptionSystem.h"
 #include <vector>
 #include <glm/glm.hpp>
@@ -88,8 +89,13 @@ private:
     /// Adopt a NavGraph route (smoothed, with per-waypoint arrival radii).
     void adoptGraphPath(NPCContext& ctx, Core::NavGraph::PathResult&& res, const glm::vec3& from, const glm::vec3& to);
 
-    /// Pick a random roam target within m_wanderRadius of m_wanderAnchor.
+public:
+    /// Pick a random roam target within m_wanderRadius of m_wanderAnchor, inside the play bounds.
+    /// Public so the clip is measurable in a unit test; update() is the normal caller.
     glm::vec3 pickWanderTarget();
+    /// The scene's play bounds (normally read from ctx.chunkManager each update; settable for tests).
+    void setPlayBounds(const Core::PlayBounds& b) { m_playBounds = b; }
+private:
 
     // Wander mode (fauna roaming)
     bool m_wander = false;
@@ -132,6 +138,7 @@ private:
     Core::AStarPathfinder* m_pathfinder = nullptr;
     bool m_usingGraph = false;                      ///< this update routes on ctx.navGraph
     const Core::NavGraph* m_lastGraph = nullptr;    ///< remembered for wander-target validation
+    Core::PlayBounds m_playBounds;                  ///< the scene's wall; wander never aims past it
     std::vector<float> m_pathRadius;               ///< parallel to m_pathNodes (graph routes)
     bool     m_pathPending = false;                 ///< PathService query in flight
     uint64_t m_pathHandle  = 0;

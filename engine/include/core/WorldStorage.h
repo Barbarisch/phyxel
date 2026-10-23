@@ -43,6 +43,10 @@ public:
     bool saveChunk(const Chunk& chunk);
     bool saveChunk(const Chunk& chunk, bool useTransaction);
     bool loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
+    /// The raw v2 blob of a chunk (a copy), so a caller can decode it off this thread
+    /// (ChunkStreamingManager::loadChunksParallel). False when the chunk has no blob row
+    /// (absent, or legacy v1 rows only - use loadChunk for those).
+    bool readChunkBlob(const glm::ivec3& chunkCoord, std::vector<uint8_t>& out);
     bool chunkExists(const glm::ivec3& chunkCoord);
     bool deleteChunk(const glm::ivec3& chunkCoord);
 

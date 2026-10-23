@@ -6,6 +6,8 @@
 #include "core/CommandRegistry.h"
 #include "core/EngineAPIServer.h"
 #include "core/EngineRuntime.h"
+#include "core/ChunkManager.h"
+#include "core/InteractionManager.h"
 #include "ui/WindowManager.h"
 #include <GLFW/glfw3.h>
 #include "core/GameSettings.h"     // Core::stringToKey
@@ -35,6 +37,10 @@
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
 #include "graphics/RenderCoordinator.h"
+#include "core/NpcHeldItems.h"
+#include "core/NpcTorchPolicy.h"
+#include "core/ItemEffectSystem.h"
+#include "core/DayNightSettings.h"
 #include "vulkan/VulkanDevice.h"
 #include <algorithm>
 #include "utils/GpuProfiler.h"   // G-18: per-pass GPU timings in the shipped build
@@ -76,6 +82,7 @@ static const char* screenStateStr(UI::ScreenState s) {
         case S::Settings:         return "settings";
         case S::KeybindingRebind: return "settings";
         case S::Intro:            return "intro";
+        case S::Narrative:        return "narrative";
         case S::Loading:          return "loading";
         case S::Victory:          return "victory";
         case S::Credits:          return "credits";
@@ -177,6 +184,8 @@ void GameApiService::registerCommands() {
         r = {{"visible_chunk_count", s.visibleChunkCount},
              {"total_visible_faces", s.totalVisibleFaces},
              {"far_tiles_drawn", s.farTilesDrawn},
+             {"far_tree_card_draws", s.farTreeCardDraws},
+             {"far_tree_mask_resident_columns", s.farTreeMaskResidentColumns},
              // G-147: is the camera's own character currently suppressed because the camera sits
              // inside it? Exposed so "the body no longer clips in first person" is an assertion a
              // harness can make, rather than a human squinting at a screenshot.
@@ -262,6 +271,21 @@ void GameApiService::registerCommands() {
     // speaker, node id, full text, and the VISIBLE choices (after conditions) with their
     // indices. A harness choosing options by blind index picked the wrong branch the moment
     // a gate changed (Ravenmere run 12: "tracks" instead of "relic") — G-47.
+    // POST /api/rpg/start_dialogue {npc} - run the shell's NPC interact for a NAMED npc
+    // regardless of distance (the harness could not stand in front of one and press Interact,
+    // so the dialogue screen went unmeasured - G-182). `npc` is the entity id ("npc_Wynn") or
+    // the bare name. Reply: whether the interact ran + the dialogue state after it.
+    reg.on("start_dialogue", [this](const APICommand& cmd, json& r) {
+        if (!interactionManager || !entityRegistry) { r = {{"error", "interaction manager / registry not available"}}; return; }
+        std::string id = cmd.params.value("npc", std::string());
+        Scene::Entity* e = entityRegistry->getEntity(id);
+        if (!e) e = entityRegistry->getEntity("npc_" + id);
+        auto* npc = dynamic_cast<Scene::NPCEntity*>(e);
+        if (!npc) { r = {{"error", "no NPC '" + id + "'"}}; return; }
+        const bool ran = interactionManager->interactWith(npc);
+        r = {{"success", ran}, {"npc", npc->getName()},
+             {"dialogue_active", dialogueSystem ? dialogueSystem->isActive() : false}};
+    });
     reg.on("dialogue_state", [this](const APICommand&, json& r) {
         if (!dialogueSystem) { r = {{"error", "DialogueSystem not available"}}; return; }
         const auto st = dialogueSystem->getState();
@@ -371,6 +395,115 @@ void GameApiService::registerCommands() {
             return;
         }
         r = {{"success", false}, {"error", "Provide 'id' or 'event'"}};
+    });
+
+    // GET/POST /api/rpg/daynight and POST /api/rpg/daynight_set - the editor's /api/daynight
+    // routes, mirrored so a harness can READ the clock on the shipped build (G-165). Without a
+    // read there was no way to tell a running cycle from a stopped one except by staring at the
+    // sky. Same field names as the editor route and the MCP tool.
+    // POST /api/rpg/play_bounds - the horizontal extent characters are clamped to (G-169) and
+    // where it came from: {source, bounds:{min:{x,z},max:{x,z}}|null, streaming}. The L4's
+    // observable next to the player's own position.
+    reg.on("play_bounds", [this](const APICommand&, json& r) {
+        auto* cm = runtime ? runtime->getChunkManager() : nullptr;
+        if (!cm) { r = {{"error", "no chunk manager"}}; return; }
+        const auto pb = cm->effectivePlayBounds();
+        r = {{"success", true}, {"source", cm->playBoundsSource()}, {"bounds", pb.toJson()},
+             {"streaming", cm->isStreamingGenerationEnabled()}};
+    });
+    // POST /api/rpg/torches - who carries a lit torch and why (NpcTorchPolicy, Ravenmere T-73).
+    // Per NPC: the authored and resolved policy, the shelter latch, the carried item, the item
+    // actually DRAWN in the hand, and the flame's point light (id + position) - so a harness can
+    // check the light is at the hand rather than trusting "carrying": "torch". Also the light
+    // budget: point lights that did not make the GPU cut this frame.
+    // {"default": "night"|"dark"|"always"|"never"} first sets the game-wide default (the
+    // same knob as game.json npcDefaults.torch) - an L4 control: the same pose and hour with
+    // torches off and on. Unknown text is refused, nothing changes.
+    reg.on("torches", [this](const APICommand& cmd, json& r) {
+        if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
+        if (cmd.params.contains("default")) {
+            TorchPolicy p = TorchPolicy::Default;
+            const std::string t = cmd.params["default"].is_string() ? cmd.params["default"].get<std::string>() : std::string("?");
+            if (!NpcTorchPolicy::parse(t, p)) { r = {{"error", "default must be night|dark|always|never|default"}}; return; }
+            npcManager->setDefaultTorchPolicy(p);
+        }
+        Graphics::LightManager* lm = renderCoordinator ? &renderCoordinator->getLightManager() : nullptr;
+        json arr = json::array();
+        int carrying = 0, drawn = 0, lit = 0, npcs = 0;
+        npcManager->forEachNPC([&](Scene::NPCEntity& npc) {
+            ++npcs;
+            const auto& ts = npc.torchState();
+            const glm::vec3 p = npc.getPosition();
+            json e = {{"name", npc.getName()},
+                      {"position", {p.x, p.y, p.z}},
+                      {"policy", NpcTorchPolicy::name(ts.policy)},
+                      {"resolved", NpcTorchPolicy::name(npcManager->resolvedTorchPolicy(npc))},
+                      {"hostile", npc.isHostile()},
+                      {"indoors", ts.indoors},
+                      {"carrying", npc.getCarriedItem()}};
+            if (npc.getCarriedItem() == NpcTorchPolicy::kTorchItemId) ++carrying;
+            const std::string held = npcHeldItems ? npcHeldItems->heldItem(npc.getName()) : std::string();
+            e["held"] = held;
+            if (held == NpcTorchPolicy::kTorchItemId) ++drawn;
+            json lights = json::array();
+            if (itemEffects)
+                for (int id : itemEffects->activeLightIds(NpcHeldItems::effectInstanceId(npc.getName()))) {
+                    json l = {{"id", id}};
+                    if (lm)
+                        if (const auto* pl = lm->getPointLight(id))
+                            l["position"] = {pl->position.x, pl->position.y, pl->position.z};
+                    lights.push_back(l);
+                }
+            if (!lights.empty()) ++lit;
+            e["lights"] = lights;
+            arr.push_back(e);
+        });
+        r = {{"night", npcManager->isTorchNight()},
+             {"default", NpcTorchPolicy::name(npcManager->getDefaultTorchPolicy())},
+             {"npcs", npcs}, {"carrying", carrying}, {"drawn", drawn}, {"lit", lit},
+             {"dropped_point_lights", lm ? (int)lm->droppedPointLights() : -1},
+             {"list", arr}};
+    });
+
+    reg.on("daynight", [this](const APICommand&, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        // G-164: where every sky body IS this frame (toward-body unit vectors), so a harness can
+        // aim at the sun or the moon instead of guessing from the day/night cycle.
+        json bodies = json::array();
+        const auto& sb = renderCoordinator->getSkyBodies();
+        for (size_t i = 0; i < sb.bodies.size() && i < sb.directions.size(); ++i) {
+            const glm::vec3 d = sb.directions[i];
+            bodies.push_back({{"name", sb.bodies[i].name},
+                              {"toward", {{"x", d.x}, {"y", d.y}, {"z", d.z}}},
+                              {"elevationDeg", glm::degrees(std::asin(glm::clamp(d.y, -1.0f, 1.0f)))},
+                              {"litFraction", i < sb.litFractions.size() ? sb.litFractions[i] : 1.0f},
+                              {"angularDiameterDeg", glm::degrees(sb.bodies[i].angularRadius) * 2.0f}});
+        }
+        r = {{"success", true}, {"daynight", renderCoordinator->getDayNightCycle().toJson()}, {"skyBodies", bodies}};
+    });
+    reg.on("daynight_set", [this](const APICommand& cmd, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        auto [ok, err] = DayNightSettings::validate(cmd.params);
+        if (!ok) { r = {{"success", false}, {"error", err}}; return; }
+        auto& cycle = renderCoordinator->getDayNightCycle();
+        cycle.applySettings(DayNightSettings::fromJson(cmd.params));
+        r = {{"success", true}, {"daynight", cycle.toJson()}};
+    });
+
+    // POST /api/rpg/host_action {"action": {...}} — run ONE host action exactly as a trigger
+    // or a dialogue node would. `executeHostAction` is the SAME dispatcher both use, so this
+    // drives a real consequence (join_party, give_item, complete_objective) without scripting a
+    // whole conversation to reach it. Added for the G-161 party L4: recruiting a companion is a
+    // dialogue-node action, and a harness had no way to reach one.
+    reg.on("host_action", [this](const APICommand& cmd, json& r) {
+        if (!triggers) { r = {{"error", "TriggerSystem not available"}}; return; }
+        const json a = cmd.params.value("action", json::object());
+        if (!a.is_object() || !a.contains("type")) {
+            r = {{"success", false}, {"error", "Provide an 'action' object with a 'type'"}};
+            return;
+        }
+        triggers->executeHostAction(a, "test_api");
+        r = {{"success", true}, {"type", a.value("type", std::string())}};
     });
 
     // --- Turn-based combat (POST /api/rpg/combat/<action>) -------------------
@@ -920,6 +1053,27 @@ void GameApiService::registerCommands() {
              {"exposure", renderCoordinator->getExposure()}};
     });
 
+    // G-18 MEASUREMENT: what is actually in the light buffer this frame - the 32 the
+    // LightManager picked by relevance, with their radii and intensities.
+    reg.on("list_uploaded_lights", [this](const APICommand&, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        const auto& g = renderCoordinator->getLightManager().getGPUData();
+        json pts = json::array();
+        for (uint32_t i = 0; i < g.numPointLights; ++i) {
+            const auto& p = g.pointLights[i];
+            pts.push_back({{"rel_x", p.positionAndRadius.x}, {"rel_y", p.positionAndRadius.y},
+                           {"rel_z", p.positionAndRadius.z}, {"radius", p.positionAndRadius.w},
+                           {"intensity", p.colorAndIntensity.w},
+                           {"dist_to_viewer", std::sqrt(p.positionAndRadius.x * p.positionAndRadius.x +
+                                                        p.positionAndRadius.y * p.positionAndRadius.y +
+                                                        p.positionAndRadius.z * p.positionAndRadius.z)}});
+        }
+        r = {{"success", true}, {"num_point_lights", g.numPointLights},
+             {"num_spot_lights", g.numSpotLights},
+             {"registered_point_lights", renderCoordinator->getLightManager().getPointLightCount()},
+             {"points", pts}};
+    });
+
     // G-18 MEASUREMENT: the fragment-cost probe. Mode 11 makes voxel.frag return a flat
     // colour before any shading, so Static Geometry measures rasterisation only - the
     // discriminator between overdraw and per-fragment shader cost. Mode 0 is normal.
@@ -927,7 +1081,7 @@ void GameApiService::registerCommands() {
         auto* dev = runtime ? runtime->getVulkanDevice() : nullptr;
         if (!dev) { r = {{"error", "VulkanDevice not available"}}; return; }
         if (cmd.params.contains("mode"))
-            dev->setDebugShadowMode(std::clamp(cmd.params.value("mode", 0), 0, 18));
+            dev->setDebugShadowMode(std::clamp(cmd.params.value("mode", 0), 0, 19));
         r = {{"success", true}, {"mode", dev->getDebugShadowMode()}};
     });
 

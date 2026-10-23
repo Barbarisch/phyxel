@@ -1,0 +1,66 @@
+{
+  "exe_mtime": "2026-09-23 14:50:10",
+  "clock_first": {
+    "ambientStrength": 1.0,
+    "dayLengthSeconds": 1200.0,
+    "dayNumber": 1,
+    "enabled": true,
+    "hour": 9,
+    "isNight": false,
+    "minute": 8,
+    "paused": false,
+    "skyColor": {
+      "b": 0.949999988079071,
+      "g": 0.6499999761581421,
+      "r": 0.44999998807907104
+    },
+    "sunColor": {
+      "b": 0.8999999761581421,
+      "g": 0.9700000286102295,
+      "r": 1.0
+    },
+    "sunDirection": {
+      "x": -0.5300202369689941,
+      "y": -0.8169949650764465,
+      "z": -0.227151557803154
+    },
+    "timeOfDay": 9.14509105682373,
+    "timeScale": 1.0
+  },
+  "fps_at_pose": 28.0,
+  "predicted_ratio_if_clamped": 2.8,
+  "shot_first": "rv_daynight_l4_1_first.png",
+  "clock_second": {
+    "ambientStrength": 1.0,
+    "dayLengthSeconds": 1200.0,
+    "dayNumber": 1,
+    "enabled": true,
+    "hour": 10,
+    "isNight": false,
+    "minute": 5,
+    "paused": false,
+    "skyColor": {
+      "b": 0.949999988079071,
+      "g": 0.6499999761581421,
+      "r": 0.44999998807907104
+    },
+    "sunColor": {
+      "b": 0.8999999761581421,
+      "g": 0.9700000286102295,
+      "r": 1.0
+    },
+    "sunDirection": {
+      "x": -0.3523140549659729,
+      "y": -0.9236212968826294,
+      "z": -0.15099173784255981
+    },
+    "timeOfDay": 10.09419059753418,
+    "timeScale": 1.0
+  },
+  "elapsed_s": 47.82,
+  "shot_second": "rv_daynight_l4_2_after_wait.png",
+  "predicted_advance_h": 0.956,
+  "measured_advance_h": 0.949,
+  "measured_ratio": 0.992,
+  "paused_drift_h": 0.0
+}
