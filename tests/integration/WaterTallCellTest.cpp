@@ -9,6 +9,7 @@
 #include "IntegrationTestFixture.h"
 #include "core/water/WaterCore.h"
 #include "core/water/WaterCoreGpu.h"
+#include "core/water/WaterCoreManager.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -388,4 +389,28 @@ TEST_F(WaterTallCellTest, TheBooksSurviveAWrite) {
         gpu.destroyVolume(v);
     }
     WaterCoreGpu::s_uploadKeepsTallForTest = false;
+}
+
+// DIAG (27.22f): the partial wake through the manager with tall cells on vs off - frozen columns over time, the tall state
+TEST_F(WaterTallCellTest, DISABLED_DiagPartialWakeWithTall) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    for (float band : {0.0f, 0.5f}) {
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(19, 1, 9), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_TRUE(id);
+        mgr.setTallBand(id, band);
+        mgr.setPartialWake(id, true);
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(19, 0, 9), 1.0f, nullptr);
+        AvRecord rec;
+        for (int k = 0; k < 420; ++k) {
+            if (k == 120) mgr.addImpulse(glm::vec3(2.0f, 0.9f, 5.0f), 1.0f / 3.0f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+            mgr.step(id, 1, 1.0f / 60.0f, &rec);
+            const AvRecord* r = mgr.find(id);
+            if (r && (k % 20 == 0 || (k > 118 && k < 130)))
+                std::printf("  band %.1f k %3d: tall %d (%s) awake %d frozen %d KE %.3e mass %.4f\n", band, k, int(r->tallActive), r->tallReason.c_str(), r->awakeColumns, r->frozenColumns, rec.kineticEnergy, rec.mass);
+        }
+    }
 }

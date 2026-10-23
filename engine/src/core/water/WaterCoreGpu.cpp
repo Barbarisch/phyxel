@@ -21,7 +21,7 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9, 7, 6, 6};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9, 7, 7, 6};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -139,7 +139,7 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     bindAll(*vol.pipes[Sources], {&vol.f, &vol.occ, &vol.src, &vol.sources, br});
     bindAll(*vol.pipes[Momentum], {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, br, &vol.momentum});   // 26.26
     bindAll(*vol.pipes[Bricks],  {&vol.f, &vol.u, &vol.v, &vol.w, &vol.p, br});
-    bindAll(*vol.pipes[Tall],    {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, br});   // 27.22
+    bindAll(*vol.pipes[Tall],    {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, br, &vol.fPrev});   // 27.22 (27.22f: + fPrev)
     bindAll(*vol.pipes[RbgsLine], {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res, br});   // 28
     if (vol.particles) {
         bindAll(*vol.pipes[FlipSort], {&vol.posA, &vol.velA, &vol.posB, &vol.velB, &vol.pcount, &vol.pstart, &vol.pcursor});

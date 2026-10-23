@@ -203,8 +203,12 @@ public:
     /// 27.22 TALL CELLS: the fine band B (m) over the tall cells of a GPU fill volume; 0 = off (all fine). Clamped at the API
     /// (0 or [4/9, 8] m). The floor follows (WaterCoreManager::updateTall). False = no such volume.
     bool setTallBand(int id, float metres);
-    /// 27.22: the engine default for new volumes (0 = off - the default until the owner signs off).
-    static inline float s_tallBandDefault = 0.0f;
+    /// 27.22: the engine default for new volumes (m; 0 = off). 0.5 m: the owner's call 2026-10-23 on tall_look_grid.mp4 ("visually the
+    /// water looks the same across all of it" ... "yes turn it on at 0.5 m").
+    static inline float s_tallBandDefault = 0.5f;
+    /// 27.22f: the shallowest median tall layer (cells) worth making - below it the volume stays all fine (measured: a 3-cell layer
+    /// costs more in its own sweeps than it saves)
+    static constexpr int kTallMinCells = 6;
     /// §27 W1b: frozen 8 m tiles of a GPU volume sleep into the record after `s_recordAfterS` frozen and wake from it when the awake
     /// margin or a wake box reaches them (27.10). Needs the partial wake and the span I/O. OFF by default until the owner has seen it.
     bool setRecordTiles(int id, bool on);

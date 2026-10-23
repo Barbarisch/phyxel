@@ -55,7 +55,7 @@ void main() {
                 const float wz = 0.5 * (w[wIdx(c.x, c.y, c.z)] + w[wIdx(c.x, c.y, c.z + 1)]);
                 mine.x = 0.5 * fc * (ux * ux + vy * vy + wz * wz);
             }
-            mine.y = abs(fc - fp[gid]);
+            mine.y = abs(fc - fp[gid]) / cellVolume(c.x, c.y, c.z);   // 27.22f: a FRACTION of the cell (a tall cell's f is a volume of H cells)
             mine.z = fc;
         }
     } else if (pc.mode == 1) {

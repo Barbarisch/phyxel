@@ -715,6 +715,14 @@ void WaterCoreManager::updateTall(Av& av) {
         if (Hc > 1) { heights[static_cast<size_t>(x) + static_cast<size_t>(n.x) * z] = Hc; ++tallCols; }
     }
     if (tallCols == 0) { av.tallReason = "no column reaches under the floor"; return; }
+    // 27.22f: worth it only when the tall layer is deep enough - its own sweeps cost ~as much as a 3-cell tall layer saves (live, a
+    // 24 x 24 m pond 1 m deep: 1.66 -> 1.77 ms with tall cells); from 6 cells (0.67 m) under the floor it pays (2 m: 2.37 -> 1.97)
+    {
+        std::vector<int> hs; hs.reserve(static_cast<size_t>(tallCols));
+        for (int hgt : heights) if (hgt > 1) hs.push_back(hgt);
+        std::nth_element(hs.begin(), hs.begin() + hs.size() / 2, hs.end());
+        if (hs[hs.size() / 2] < kTallMinCells) { av.tallReason = "too shallow to pay (the tall layer under 6 cells)"; return; }
+    }
     std::string err;
     if (!m_gpu->setTall(vol, T, heights, &err)) { av.tallReason = err; return; }
     av.tallReason = "rest";

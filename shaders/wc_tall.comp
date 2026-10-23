@@ -16,6 +16,9 @@ layout(std430, set = 0, binding = 1) buffer FLo { float fLo[]; };
 layout(std430, set = 0, binding = 2) buffer U   { float u[]; };
 layout(std430, set = 0, binding = 3) buffer V   { float v[]; };
 layout(std430, set = 0, binding = 4) buffer W   { float w[]; };
+// 27.22f: the rest tests read |f - fPrev| of EVERY stored brick, but fPrev is refreshed only for the stepped ones (the partial wake) - a
+// regrid written to f alone read as motion in every frozen column and woke the whole pond for half a second after each write
+layout(std430, set = 0, binding = 6) buffer FPrev { float fPrev[]; };
 
 bool stored(int x, int y, int z) { return brickSlot(ivec3(x + pc.ox, y + pc.oy, z + pc.oz)) >= 2; }   // never the absent or ground sentinel
 
@@ -45,6 +48,8 @@ void main() {
         u[iT] = su / float(ox);
         w[iT] = sw / float(oz);
         v[iT] = 0.0;   // the tall cell's bottom face: the ground
+        fPrev[iT] = f[iT];
+        for (int y = y0; y < T; ++y) if (stored(x, y, z)) fPrev[cellIdx(x, y, z)] = 0.0;
     } else {
         const float vol = f[iT];
         const float share = vol / float(H);
@@ -55,11 +60,11 @@ void main() {
             precise float s = acc - share;
             fLo[iT] += twoSumErr(acc, -share, s);
             acc = s;
-            f[i] = share;
+            f[i] = share; fPrev[i] = share;
             u[i] = y >= T - ox + 1 ? u[iT] : 0.0;
             w[i] = y >= T - oz + 1 ? w[iT] : 0.0;
             v[i] = 0.0;
         }
-        f[iT] = acc;
+        f[iT] = acc; fPrev[iT] = acc;
     }
 }

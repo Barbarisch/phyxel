@@ -62,7 +62,7 @@ partial surface (26.33).
 (~20 x 20 m at 2 m; to the volume cap at 0.3 m); a sleeping pond ~0.37 us per m^2 drawn; each awake body ~0.4-0.5 ms whatever
 its size (~4 small ponds awake at once); 64 sleeping ponds cut the frame rate to 131 fps (the debris water map - fixed 27.21: 587 fps); a 2 m creek
 1.5-2.0 ms up to 100 m long and 2.7 m/s, a 6 m creek 2.7-3.5 ms (over); one volume holds 2 M cells (a ~1,300 m^2 pond at 1 m,
-a ~100 m creek) and 64 sources.
+a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, depth no longer costs - a 3 m pond 3.15 -> 1.87 ms.
 
 **The path to large water (§27), in order - each designed and design-checked before it is built, the owner looks in motion:**
 1. **W1 - the record is the water** (design-check 2026-10-19: NEEDS WORK, five items in §27.7; step 0 measured §27.8; item 2 - the wake respects the ground - BUILT §27.9; detailed design §27.10 - 8 m tiles awake / frozen / recorded, wake ahead, no CPU box; W1a BUILT and SIGNED OFF 2026-10-20 §27.11 - recorded water drawn by the pond surface, the owner's choice A; W1b first slice BUILT §27.12 - frozen tiles sleep into the record and wake from it, the books exact live, recording OFF by default; W1c §27.13 - the post-push agitation was the life cycle's ORDER (it collected the call just submitted), fixed: a pushed pond settles and goes back into the record, the books exact; OPEN: a collect between two calls breaks the freeze test, woken tiles cycle in some runs; then the per-tile kernels and W1d-W1e). The GPU volumes sleep into the world's water record (chunk spans + body records) and wake a
@@ -8525,6 +8525,33 @@ The panels' solver times swing +-0.4 ms take to take (the 0.44 and 0.67 m takes 
 is the interleaved table above, not the clip.
 
 **Left for the owner:** the look (the clip), then whether tall cells go ON by default (and at which B).
+
+### 27.22f Tall cells ON by default at B = 0.5 m (2026-10-23) - the owner's call. Status: SIGNED OFF (the look), ON
+
+**The owner on `tall_look_grid.mp4`:** "to be honest, i am having a hard time telling the difference between anyone of them ...
+visually the water looks the same across all of it" - then "yes turn it on at 0.5 m". `WaterCoreManager::s_tallBandDefault` 0 ->
+0.5 m. (The owner also noted the floats ride a little high - the same in every panel, not tall cells; the old §20.6 item, "another
+time".)
+
+**Two fixes the default flushed out:**
+1. **The partial wake froze nothing after a write.** `WaterPartialWakeTest.AStoneWakesAPatch...` (red with tall on: 3 % frozen in the
+   first 0.5 s, the gate > 50 %). The rest tests read |f - fPrev| over EVERY stored brick, but fPrev is refreshed only for the stepped
+   ones; a regrid (the re-collapse after each write's upload) changed f in every frozen column and read as motion - the whole pond
+   awake for half a second after every stone. `wc_tall.comp` now writes fPrev with f (collapse and expand); the reductions' |df| is
+   a fraction of the cell (a tall cell's change / H). Green: 67 % / 59 % frozen.
+2. **A shallow pond paid for nothing.** A 1 m pond's tall layer is 3 cells; its own sweeps cost more than it saves (1.66 -> 1.77 ms
+   live). A volume now makes tall cells only when its median tall column is at least 6 cells (0.67 m) - `kTallMinCells`, reason
+   "too shallow to pay".
+
+**Live, the defaults (`tall_l4_on.json`, `tall_l4_min.json`; off vs on interleaved, the 24 x 24 m pond, a stone):**
+
+| depth | off | on (0.5 m) |
+|---|---|---|
+| 1 m | 1.65 / 1.76 ms | 1.74 / 1.71 ms - all fine ("too shallow to pay") |
+| 2 m | 2.42 / 2.33 ms | 1.99 / 1.95 ms (-18 %) |
+| 3 m | 3.15 / 3.16 ms | 1.87 / 1.87 ms (-40 %) |
+
+Tests (tall on by default): GPU water 50/52 (the known FLIP row; the stone gate's narrow miss, 27.22b), water unit 312/312.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
