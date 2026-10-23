@@ -8564,6 +8564,45 @@ recorded (1,023.9999 of 1,024.0000 m^3 in the record), a touch seeds a tile back
 every tick. RED control (the seed not collapsed, `s_seedSkipsTallCollapseForTest`): 85.3 m^3 lost. GPU water 51/53 (the known FLIP row,
 the stone gate), unit 312/312.
 
+### 27.23 W1d step 0 - what a volume costs by its box (2026-10-23). Status: MEASURED, DESIGN
+
+**Why:** lakes (W1e) are past the 2 M-cell cap (`kMaxCellsPerVolume`). Before lifting it: what does the cap hide? Measured live
+(WaterBench_Creek, Release; `nvidia-smi` and the process's working set around one `water_av_create`, empty boxes):
+
+| box | cells | create | GPU memory | process memory |
+|---|---|---|---|---|
+| 24 x 24 x 2 m | 0.84 M | 141 ms | +102 MB | +83 MB |
+| 46 x 28 x 2 m | 1.88 M | 291 ms | +231 MB | +236 MB |
+
+**~123 bytes of GPU and ~125 bytes of process memory per cell OF THE BOX**, water or not. A 60 x 60 x 2 m lake box would take ~720 MB
+of GPU memory and ~730 MB of process memory; a 200 m lake ~8.6 GB of GPU memory. Three things scale with the box, not the water:
+1. **The GPU slot pool** - a sparse volume reserves a slot for EVERY brick of its box (`capacity = mapCount`, "never full"): ~26
+   per-cell buffers x 4 B plus the solid field, and a host-visible staging copy.
+2. **The CPU mirror** - `Av::grid` (f, u, v, w, occupancy), `occCache`, and the CPU reference solver's arrays, allocated for a GPU
+   volume too (126 uses in `WaterCoreManager` read or write it; 27.10's W1d list).
+3. **Writes as whole-volume round trips** - an impulse, placed water, a droplet landing or a debris exchange downloads the whole volume
+   to the mirror, edits it on the CPU and uploads it all back (a lake: every splash a 100+ ms hitch).
+
+**Design (W1d, in this order - each measured, each group's tests unchanged):**
+- **W1d.1 the slot pool sized by the water:** capacity starts at what the first upload stores (+ a margin) and DOUBLES when the
+  residency needs more (a new pool, the stored slots copied, the tables rewritten - rare, counted, echoed `gpu_brick_capacity`,
+  `pool_grows`); `heldByCapacity` stays the never-lose-water backstop. Gate: a 46 x 28 x 2 m box holding a 10 x 10 m 0.3 m pond
+  allocates ~1/20 of today's memory; `SparseEqualsDenseAcrossSeams` bit-identical across a grow.
+- **W1d.2 writes in place on the GPU:** impulses as a velocity record (the momentum kernel, du given instead of computed), placed
+  water / droplet deposits as fills uploaded into the bricks they touch (the seed path, 27.12), debris exchange already on the device
+  (26.26). Gate: each write's books exact; an impulse into a 46 x 28 m pond under 1 ms (today a whole round trip); the impulse's waves
+  within float rounding of today's at 1 / 2 / 4 m (`water_wave_reach.py`).
+- **W1d.3 the CPU mirror goes** for GPU volumes, group by group: debug reads (census, column cells, probe, columnMassDepth) -> a
+  read-back of the bricks asked about; record / sleep / seed -> already per tile (27.12-27.19); occupancy -> per brick (26.19);
+  then `Av::grid` is not allocated for a GPU volume and `kMaxCellsPerVolume` applies to CPU volumes only. Red: `ALakeOverTheOldCapRuns`
+  (60 x 60 m, 1 m deep in a 2 m box, 5.8 M cells - refused today with the cap's message).
+- **W1e the lake, live** (27.10): a push wakes tiles round it, waves, freezes, records; the rest never stepped; the books exact;
+  memory by the awake water, not the box.
+
+**Design keys:** cost only - no look or behaviour changes (each step's gates are bit-identical or within float rounding of today's);
+world-aligned bricks and tiles as before; the API echoes the pool (`gpu_brick_capacity`, `pool_grows`) and the write path
+(`writes_in_place`, `writes_round_trip`); no defaults change. **Verdict: READY for W1d.1.**
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
