@@ -656,7 +656,6 @@ void WaterCoreManager::updateTall(Av& av) {
     if (!vol.bricked || !vol.sparse || vol.particles || av.solver->transport().ownsMass()) { off("not a sparse fill volume"); return; }
     if (!EulerianTransport::s_allFacesAtOnce) { off("needs the all-faces transport (26.5)"); return; }
     if (av.recordTiles || vol.anyRecorded) { off("record tiles (TC4)"); return; }
-    if (vol.hasSolids) { off("a moving body in the volume"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); return; }
     const WaterSurfaceField& fld = av.field;
     auto wetTops = [&](std::vector<float>& tops) {
         tops.clear();
@@ -693,6 +692,14 @@ void WaterCoreManager::updateTall(Av& av) {
     }
     // sources under the floor
     for (int c : vol.sourceCells) if (c >= 0 && (c / n.x) % n.y <= T) { off("a source under the floor"); return; }
+    // 27.22e: a moving body (debris, a stone, a float - 20's coupling needs cells round it) within a brick of the floor: the floor steps
+    // down below it (a float at the surface never reaches it; the first build turned the tall cells off for any body anywhere)
+    if (vol.hasSolids && vol.solidLowY < (1 << 30) && vol.solidLowY <= T + vol.by) {
+        const int needCells = T + 1 + vol.by - vol.solidLowY;
+        const float drop = static_cast<float>(((needCells + vol.by - 1) / vol.by) * vol.by) * h;
+        char why[128]; std::snprintf(why, sizeof why, "a body at %.2f m, the floor at %.2f m - floor down %.2f m", (oy + vol.solidLowY) * h, floorTop, drop);
+        off(why); av.tallDrop += drop; return;
+    }
     if (vol.tallActive || vol.tallPending == 1) { av.tallReason = av.tallDrop > 0.0f ? "rest, lowered by troughs" : "rest"; return; }   // the floor stands
     if (vol.tallPending == 2) { av.tallReason = "expanding"; return; }   // 27.22d: an expand in flight - collapse after it
     // the heights: each column open (no solid) from its bed up to T; every non-solid cell under T must belong to one such run (a cave

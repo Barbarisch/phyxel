@@ -184,6 +184,7 @@ public:
         bool  solidRatesPending = false; ///< setSolids uploaded new fields: the next step computes q and the ledger marks first (wc_classify mode 1)
         float solidFrame = 0.0f;         ///< the frame (s) the uploaded bodies cover - q's T
         bool  hasSolids = false;         ///< the buffer holds anything nonzero
+        int   solidLowY = 1 << 30;       ///< 27.22e: the lowest grid y a body (or its wake) holds (1 << 30 = none) - the tall floor stays under it
         Buffer stageCap;                 ///< 26.10 test hook: f after each stage of the last tick (host-visible, s_stageCapture)
         Buffer unitCap;                  ///< 26.31 measurement: the unit map (per 8 x 2 x 8 unit: KE, max |df|, mass) of the last call (s_unitCapture)
         bool unitPending = false;        ///<   the call in flight copies it

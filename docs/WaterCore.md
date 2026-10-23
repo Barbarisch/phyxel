@@ -8513,8 +8513,18 @@ The books exact in every run (1,728.0000 -> 1,728.0000 m^3 at 3 m). **With tall 
 tall layer's own 20 sweep pairs cost ~0.18 ms of it (`tall_sweeps_cost.json`: 3 m 1.95 ms at 20, 1.80 at 5, 1.82 at 0) - kept at 20,
 the stone gate needs them. Tests: GPU water 50/52 (the known FLIP row; the stone gate's narrow miss, 27.22b), water unit 312/312.
 
-**Left for the owner:** the look - all fine vs tall at B 0.44 / 0.67 / 0.89 m, a stone and floating wood side by side; then whether
-tall cells go ON by default (and at which B).
+**5. A floating body turned them off.** The first build's rule turned tall cells off for any moving body anywhere in the volume - a
+float at the surface included. Now the GPU volume keeps the lowest cell a body (or its wake) holds (`solidLowY`, from setSolids /
+setSolidsBox) and the floor steps down below it only when a body comes within a brick of the floor.
+
+**The clip for the owner** (`tools/water_tall_video.py`, `tall_look_grid.mp4`: the 24 x 24 m 2 m pond, four wood floats, the same
+push - radius 0.5 m, strength 4 - four times, 2 x 2): all fine / tall B 0.44 / 0.67 / 0.89 m. That push's crater stepped the floor
+down to 0.78 m above the bed in all three tall takes (the trough rule) - so the three tall panels run the same band (1.22 m) and show
+whether tall-cell water looks like today's, not the difference between bands. The books: 1,152.0000 (fine) vs 1,151.9993-9999 m^3.
+The panels' solver times swing +-0.4 ms take to take (the 0.44 and 0.67 m takes had the same floor: 2.78 vs 2.03 ms) - the cost
+is the interleaved table above, not the clip.
+
+**Left for the owner:** the look (the clip), then whether tall cells go ON by default (and at which B).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

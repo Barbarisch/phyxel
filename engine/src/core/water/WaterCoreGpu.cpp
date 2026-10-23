@@ -1152,6 +1152,9 @@ void WaterCoreGpu::setSolids(Volume& vol, const std::vector<float>& s, const std
     bool any = false;
     for (size_t i = 0; i < vol.dCells && !any; ++i) any = (i < s.size() && s[i] > 0.0f) || (i < wake.size() && wake[i] > 0.0f);
     if (!any && !vol.hasSolids) return;   // nothing there and nothing was: the buffer is already zero
+    vol.solidLowY = 1 << 30;   // 27.22e
+    if (any) for (size_t i = 0; i < vol.dCells; ++i)
+        if ((i < s.size() && s[i] > 0.0f) || (i < wake.size() && wake[i] > 0.0f)) vol.solidLowY = std::min(vol.solidLowY, static_cast<int>((i / static_cast<size_t>(vol.spec.dims.x)) % static_cast<size_t>(vol.spec.dims.y)));
     vol.hostSolid.assign(vol.dCells * 4, 0.0f);
     for (size_t i = 0; i < vol.dCells; ++i) {
         vol.hostSolid[i * 4 + 0] = i < s.size() ? s[i] : 0.0f;
@@ -1191,6 +1194,11 @@ void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const 
     }
     if (!any && !vol.hasSolids) return;   // nothing there and nothing was: the buffer is already zero
     if (!vol.bricked) { setSolids(vol, s, wake, fresh, frameSeconds); return; }   // the dense (FLIP) layout: the whole upload
+    vol.solidLowY = 1 << 30;   // 27.22e: the box holds every body (outside it all is 0 - the caller's contract)
+    if (any) for (int y = lo.y; y <= hi.y && vol.solidLowY == (1 << 30); ++y) for (int z = lo.z; z <= hi.z; ++z) for (int x = lo.x; x <= hi.x; ++x) {
+        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z);
+        if ((i < s.size() && s[i] > 0.0f) || (i < wake.size() && wake[i] > 0.0f)) { vol.solidLowY = y; break; }
+    }
     if (vol.hostSolid.size() != vol.dCells * 4) vol.hostSolid.assign(vol.dCells * 4, 0.0f);
     if (!emptyBox) for (int z = lo.z; z <= hi.z; ++z) for (int y = lo.y; y <= hi.y; ++y) for (int x = lo.x; x <= hi.x; ++x) {
         const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z);

@@ -1,0 +1,1836 @@
+{
+ "pose": {
+  "x": 15.0,
+  "y": 22.0,
+  "z": 31.0,
+  "yaw": -118.0,
+  "pitch": -30.0
+ },
+ "push_at": [
+  10.0,
+  20.0
+ ],
+ "strength": 4.0,
+ "takes": {
+  "fine": {
+   "band_m": 0.0,
+   "rows": [
+    {
+     "t": 1.73,
+     "solver_ms": 0.0,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.999949005095
+    },
+    {
+     "t": 2.01,
+     "solver_ms": 6.016576,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.9999305054744
+    },
+    {
+     "t": 2.28,
+     "solver_ms": 4.034688,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.9955675872416
+    },
+    {
+     "t": 2.56,
+     "solver_ms": 3.610624,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.9959105227774
+    },
+    {
+     "t": 2.84,
+     "solver_ms": 3.8442879999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.9989112087153
+    },
+    {
+     "t": 3.13,
+     "solver_ms": 3.41344,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.9998542814387
+    },
+    {
+     "t": 3.42,
+     "solver_ms": 2.351744,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.999425612019
+    },
+    {
+     "t": 3.68,
+     "solver_ms": 3.531456,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.9995113459029
+    },
+    {
+     "t": 3.94,
+     "solver_ms": 3.5098879999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 4.27,
+     "solver_ms": 3.795328,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.9943673128664
+    },
+    {
+     "t": 4.55,
+     "solver_ms": 2.7883839999999998,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.998053869876
+    },
+    {
+     "t": 4.81,
+     "solver_ms": 3.951456,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 5.08,
+     "solver_ms": 2.314368,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 5.4,
+     "solver_ms": 2.369056,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 5.67,
+     "solver_ms": 2.3652159999999998,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.9999400153229
+    },
+    {
+     "t": 5.95,
+     "solver_ms": 2.286688,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 6.24,
+     "solver_ms": 2.2821119999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1151.9968535955006
+    },
+    {
+     "t": 6.55,
+     "solver_ms": 2.373344,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 6.81,
+     "solver_ms": 2.37056,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 7.08,
+     "solver_ms": 2.324896,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 7.35,
+     "solver_ms": 2.741888,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 7.68,
+     "solver_ms": 3.090816,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 7.97,
+     "solver_ms": 2.324128,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 8.24,
+     "solver_ms": 2.574432,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 8.53,
+     "solver_ms": 2.3110079999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 8.84,
+     "solver_ms": 2.936736,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 9.12,
+     "solver_ms": 2.1999679999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 9.38,
+     "solver_ms": 2.1981759999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 9.67,
+     "solver_ms": 2.246976,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 9.97,
+     "solver_ms": 2.2617279999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 10.22,
+     "solver_ms": 2.2412479999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 10.5,
+     "solver_ms": 2.197536,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 10.79,
+     "solver_ms": 2.196768,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 11.11,
+     "solver_ms": 2.559072,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 11.37,
+     "solver_ms": 2.5463999999999998,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 11.63,
+     "solver_ms": 2.193184,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 11.89,
+     "solver_ms": 2.609056,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 12.22,
+     "solver_ms": 2.23184,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 12.48,
+     "solver_ms": 2.191872,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 12.77,
+     "solver_ms": 2.5609919999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 13.03,
+     "solver_ms": 2.203008,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 13.35,
+     "solver_ms": 2.81888,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 13.61,
+     "solver_ms": 2.2270719999999997,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 13.89,
+     "solver_ms": 2.2182399999999998,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 14.15,
+     "solver_ms": 2.573312,
+     "asleep": false,
+     "tall": false,
+     "tall_columns": 0,
+     "floor": 0.0,
+     "reason": "off",
+     "mass": 1152.0000257492068
+    }
+   ]
+  },
+  "tall_044": {
+   "band_m": 0.44,
+   "rows": [
+    {
+     "t": 1.72,
+     "solver_ms": 0.0,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest",
+     "mass": 1151.999302596452
+    },
+    {
+     "t": 1.98,
+     "solver_ms": 2.3638399999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9968535955006
+    },
+    {
+     "t": 2.24,
+     "solver_ms": 2.841504,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9926526351874
+    },
+    {
+     "t": 2.51,
+     "solver_ms": 3.060704,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9956533211255
+    },
+    {
+     "t": 2.8,
+     "solver_ms": 2.428896,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999425612019
+    },
+    {
+     "t": 3.09,
+     "solver_ms": 3.477184,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9989969425992
+    },
+    {
+     "t": 3.36,
+     "solver_ms": 2.136576,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9984825392955
+    },
+    {
+     "t": 3.63,
+     "solver_ms": 4.799232,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9987397409475
+    },
+    {
+     "t": 3.93,
+     "solver_ms": 3.942752,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9989969425992
+    },
+    {
+     "t": 4.2,
+     "solver_ms": 2.448032,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9988254748314
+    },
+    {
+     "t": 4.47,
+     "solver_ms": 2.906656,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.993252772375
+    },
+    {
+     "t": 4.75,
+     "solver_ms": 2.078496,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9977109343401
+    },
+    {
+     "t": 5.06,
+     "solver_ms": 2.9681919999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999425612019
+    },
+    {
+     "t": 5.33,
+     "solver_ms": 2.493312,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9992541442512
+    },
+    {
+     "t": 5.61,
+     "solver_ms": 2.365952,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 5.88,
+     "solver_ms": 5.002784,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9995113459029
+    },
+    {
+     "t": 6.2,
+     "solver_ms": 2.090016,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9967678616167
+    },
+    {
+     "t": 6.48,
+     "solver_ms": 3.4073279999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9941958450984
+    },
+    {
+     "t": 6.77,
+     "solver_ms": 2.0179839999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.994710248402
+    },
+    {
+     "t": 7.03,
+     "solver_ms": 2.050944,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9995113459029
+    },
+    {
+     "t": 7.32,
+     "solver_ms": 2.065568,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9995113459029
+    },
+    {
+     "t": 7.58,
+     "solver_ms": 4.112384,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9990826764833
+    },
+    {
+     "t": 7.85,
+     "solver_ms": 4.068864,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9991684103672
+    },
+    {
+     "t": 8.11,
+     "solver_ms": 2.092768,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999425612019
+    },
+    {
+     "t": 8.42,
+     "solver_ms": 3.4601599999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 8.68,
+     "solver_ms": 2.8859839999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9967678616167
+    },
+    {
+     "t": 8.95,
+     "solver_ms": 2.762432,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9940243773306
+    },
+    {
+     "t": 9.23,
+     "solver_ms": 2.095904,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9985682731797
+    },
+    {
+     "t": 9.53,
+     "solver_ms": 2.7799679999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999425612019
+    },
+    {
+     "t": 9.8,
+     "solver_ms": 2.345856,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 10.09,
+     "solver_ms": 2.426176,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9989969425992
+    },
+    {
+     "t": 10.35,
+     "solver_ms": 2.97536,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.997796668224
+    },
+    {
+     "t": 10.65,
+     "solver_ms": 3.1879359999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.996339192197
+    },
+    {
+     "t": 10.94,
+     "solver_ms": 2.040288,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.996510659965
+    },
+    {
+     "t": 11.21,
+     "solver_ms": 2.068256,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9954818533577
+    },
+    {
+     "t": 11.49,
+     "solver_ms": 2.89232,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9987397409475
+    },
+    {
+     "t": 11.81,
+     "solver_ms": 2.8052799999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9986540070636
+    },
+    {
+     "t": 12.07,
+     "solver_ms": 2.134208,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 12.35,
+     "solver_ms": 2.9539199999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 12.63,
+     "solver_ms": 3.9032,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9967678616167
+    },
+    {
+     "t": 12.92,
+     "solver_ms": 3.355552,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 13.21,
+     "solver_ms": 2.039616,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 13.47,
+     "solver_ms": 2.056192,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9957390550094
+    },
+    {
+     "t": 13.75,
+     "solver_ms": 4.310912,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9971107971526
+    },
+    {
+     "t": 14.05,
+     "solver_ms": 2.173216,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    }
+   ]
+  },
+  "tall_067": {
+   "band_m": 0.67,
+   "rows": [
+    {
+     "t": 1.73,
+     "solver_ms": 0.0,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest",
+     "mass": 1151.9993164078353
+    },
+    {
+     "t": 2.01,
+     "solver_ms": 2.02608,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9974537326884
+    },
+    {
+     "t": 2.3,
+     "solver_ms": 4.090144,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9983110715277
+    },
+    {
+     "t": 2.58,
+     "solver_ms": 2.9309439999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9989969425992
+    },
+    {
+     "t": 2.89,
+     "solver_ms": 1.983584,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999682813671
+    },
+    {
+     "t": 3.15,
+     "solver_ms": 2.097536,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 3.41,
+     "solver_ms": 2.3274239999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 3.67,
+     "solver_ms": 2.096896,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 3.97,
+     "solver_ms": 2.076928,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9999400153229
+    },
+    {
+     "t": 4.25,
+     "solver_ms": 2.0956159999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 4.53,
+     "solver_ms": 2.126816,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 4.81,
+     "solver_ms": 2.0335039999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 5.13,
+     "solver_ms": 1.979328,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 5.39,
+     "solver_ms": 2.303264,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 5.67,
+     "solver_ms": 1.98928,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 5.93,
+     "solver_ms": 2.013824,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 6.24,
+     "solver_ms": 1.947968,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9999400153229
+    },
+    {
+     "t": 6.53,
+     "solver_ms": 1.948384,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 6.8,
+     "solver_ms": 2.332928,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 7.07,
+     "solver_ms": 1.945056,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 7.37,
+     "solver_ms": 1.9631679999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9999400153229
+    },
+    {
+     "t": 7.65,
+     "solver_ms": 1.958688,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 7.93,
+     "solver_ms": 2.059552,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 8.19,
+     "solver_ms": 2.014432,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 8.49,
+     "solver_ms": 1.967328,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 8.76,
+     "solver_ms": 2.3238399999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 9.02,
+     "solver_ms": 1.976384,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 9.28,
+     "solver_ms": 1.970176,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 9.57,
+     "solver_ms": 2.327104,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 9.84,
+     "solver_ms": 1.997472,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 10.12,
+     "solver_ms": 1.963808,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 10.39,
+     "solver_ms": 1.919968,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 10.68,
+     "solver_ms": 3.370752,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 10.94,
+     "solver_ms": 1.936896,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 11.2,
+     "solver_ms": 2.35824,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 11.48,
+     "solver_ms": 2.031648,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 11.77,
+     "solver_ms": 2.017856,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 12.05,
+     "solver_ms": 1.931552,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 12.32,
+     "solver_ms": 1.997696,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 12.58,
+     "solver_ms": 2.4136319999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 12.87,
+     "solver_ms": 1.992896,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9999400153229
+    },
+    {
+     "t": 13.16,
+     "solver_ms": 2.004832,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 13.42,
+     "solver_ms": 2.380864,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 13.71,
+     "solver_ms": 2.362624,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "t": 14.02,
+     "solver_ms": 2.035168,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9999400153229
+    }
+   ]
+  },
+  "tall_089": {
+   "band_m": 0.89,
+   "rows": [
+    {
+     "t": 1.72,
+     "solver_ms": 0.0,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest",
+     "mass": 1151.9994037010076
+    },
+    {
+     "t": 1.99,
+     "solver_ms": 5.436255999999999,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9953961194738
+    },
+    {
+     "t": 2.28,
+     "solver_ms": 2.9211199999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.99813960376
+    },
+    {
+     "t": 2.54,
+     "solver_ms": 2.296256,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9957390550094
+    },
+    {
+     "t": 2.84,
+     "solver_ms": 2.0503359999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9974537326884
+    },
+    {
+     "t": 3.1,
+     "solver_ms": 2.106144,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999425612019
+    },
+    {
+     "t": 3.39,
+     "solver_ms": 3.174016,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9989969425992
+    },
+    {
+     "t": 3.65,
+     "solver_ms": 3.176544,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9988254748314
+    },
+    {
+     "t": 3.95,
+     "solver_ms": 4.551104,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9990826764833
+    },
+    {
+     "t": 4.22,
+     "solver_ms": 4.466464,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 4.51,
+     "solver_ms": 5.00096,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.997796668224
+    },
+    {
+     "t": 4.79,
+     "solver_ms": 2.83504,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9939386434467
+    },
+    {
+     "t": 5.08,
+     "solver_ms": 3.0286399999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.99813960376
+    },
+    {
+     "t": 5.36,
+     "solver_ms": 1.975712,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9967678616167
+    },
+    {
+     "t": 5.64,
+     "solver_ms": 2.515936,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999425612019
+    },
+    {
+     "t": 5.91,
+     "solver_ms": 3.1164799999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9987397409475
+    },
+    {
+     "t": 6.22,
+     "solver_ms": 2.120736,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9988254748314
+    },
+    {
+     "t": 6.5,
+     "solver_ms": 3.5543679999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9956533211255
+    },
+    {
+     "t": 6.77,
+     "solver_ms": 2.041984,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9992541442512
+    },
+    {
+     "t": 7.06,
+     "solver_ms": 2.5432319999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9985682731797
+    },
+    {
+     "t": 7.35,
+     "solver_ms": 2.0121279999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9992541442512
+    },
+    {
+     "t": 7.62,
+     "solver_ms": 2.149152,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9992541442512
+    },
+    {
+     "t": 7.9,
+     "solver_ms": 2.116608,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999425612019
+    },
+    {
+     "t": 8.17,
+     "solver_ms": 1.997952,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9991684103672
+    },
+    {
+     "t": 8.47,
+     "solver_ms": 2.908416,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9952246517057
+    },
+    {
+     "t": 8.73,
+     "solver_ms": 1.9820479999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 8.99,
+     "solver_ms": 1.990592,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 9.27,
+     "solver_ms": 2.0139839999999998,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.996253458313
+    },
+    {
+     "t": 9.58,
+     "solver_ms": 4.0350399999999995,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9988254748314
+    },
+    {
+     "t": 9.85,
+     "solver_ms": 2.452736,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9989112087153
+    },
+    {
+     "t": 10.13,
+     "solver_ms": 4.687711999999999,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9989969425992
+    },
+    {
+     "t": 10.39,
+     "solver_ms": 3.5316799999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9989969425992
+    },
+    {
+     "t": 10.68,
+     "solver_ms": 2.6546879999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9955675872416
+    },
+    {
+     "t": 10.94,
+     "solver_ms": 2.786304,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9991684103672
+    },
+    {
+     "t": 11.22,
+     "solver_ms": 2.026176,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9974537326884
+    },
+    {
+     "t": 11.49,
+     "solver_ms": 4.0352,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9977109343401
+    },
+    {
+     "t": 11.78,
+     "solver_ms": 2.345952,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9988254748314
+    },
+    {
+     "t": 12.04,
+     "solver_ms": 2.090208,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 12.3,
+     "solver_ms": 1.984224,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.992909836839
+    },
+    {
+     "t": 12.56,
+     "solver_ms": 2.923872,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9992541442512
+    },
+    {
+     "t": 12.88,
+     "solver_ms": 2.4575039999999997,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 13.14,
+     "solver_ms": 2.898208,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    },
+    {
+     "t": 13.4,
+     "solver_ms": 3.3015999999999996,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9991684103672
+    },
+    {
+     "t": 13.67,
+     "solver_ms": 3.547328,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.9974537326884
+    },
+    {
+     "t": 13.98,
+     "solver_ms": 2.904064,
+     "asleep": false,
+     "tall": true,
+     "tall_columns": 46656,
+     "floor": 16.77777862548828,
+     "reason": "rest, lowered by troughs",
+     "mass": 1151.999339878135
+    }
+   ]
+  }
+ }
+}
