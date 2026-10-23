@@ -8247,6 +8247,162 @@ BetweenCubes`; integration 136/138 - the known `GpuFlipBulkParityAndRunup` and `
 **3. Left, by size** (the 27.20 order): the call's own cost per awake body (~0.35-0.55 ms: 4 awake ponds = 1.65 ms) - the reductions,
 the surface copy, the launches, one call per volume; the depth (1 above); wide shallow water's surface pass (27.20 #8).
 
+### 27.22 Tall cells - the water under the band, one cell per column (2026-10-23). Status: DESIGN
+
+**The ask (owner, 2026-10-23):** "do it" - after 27.21: depth costs the solver per cell, and the cells under the surface are not seen.
+
+**In plain words.** Today every 1/9 m cell of a pond is stored and solved, from the surface to the bed. With tall cells, only a
+BAND of 1/9 m cells under the surface is kept as it is. Below the band's floor, each 1/9 m column of water is ONE cell - a tall
+cell - from the bed up to the floor. It holds full water (nothing in it is ever air), its pressure grows with depth the way still
+water's does, and it moves sideways as one piece (one velocity on each of its four sides, the same at every height). It is the same
+water and the same rules, stored coarser where nobody looks - the vertical version of the partial wake.
+
+**Why the motion stays right.** A wave's motion reaches down about half its wavelength. Short waves (ripples, a stone's rings,
+splashes: wavelength under ~1 m) barely touch the water below a 0.5 m band - they live entirely in the band, as today. Long waves (a
+whole-pond slosh, a seiche) move the whole depth, but for them the water moves sideways almost uniformly with depth and the pressure
+is hydrostatic - exactly what a tall cell holds. That split is the shallow-water theory's own assumption for long waves, so the
+slosh period and the long-wave speed (sqrt(g x depth)) stay right because the full depth is still there. What a tall cell cannot
+show is detail below the band: a stone sinking past the floor or an underwater blast moves coarser water there. References: Irving,
+Guendelman, Losasso & Fedkiw 2006 (tall cells under a uniform band); Chentanez & Mueller 2011 (the restricted tall cell grid, real
+time on the GPU) - we take their split and keep our own fine-cell solver above it.
+
+**What it saves (predicted from 27.21's stage split, not yet measured).** At 2 m deep ~1.8 ms of the solver's 2.73 ms is per-cell
+stages; with a 4-cell (0.44 m) band the stepped layers fall from ~22 to ~9:
+
+| depth | today (measured, 32 x 28 m, after a stone) | with tall cells (predicted) |
+|---|---|---|
+| 1 m | 1.62 ms | ~1.4 ms |
+| 2 m | 2.73 ms | ~1.7 ms |
+| 5 m (a lake; today refused by the box cap at this size) | ~6 ms (extrapolated) | ~1.8 ms |
+
+It matters little for 1 m ponds and most for lakes - deep water is what the lake step (W1d / W1e) is made of. The bricks below the
+floor are never stored, so device memory falls the same way.
+
+**The design.**
+1. *The floor - one per volume.* A world height `floorY` (a brick boundary, so on the 2/9 m grid of flat bricks). Columns whose bed
+   is below the floor have a tall cell from the bed to the floor and fine cells above it; columns whose bed is at or above it are fine
+   all the way, as today. One floor per volume means a tall cell's sides only ever meet another tall cell or the ground, never a fine
+   cell - the stencils stay simple. It suits ponds and lakes (a flat surface); a creek or river with a sloping surface keeps no tall
+   cells (it is shallow anyway; rivers at scale, W5, would need a floor per region - stated, not built).
+2. *The band - the owner's choice - and the floor from world state (design-check item 1).* `floorY` = the body's REST LEVEL minus
+   the band B, rounded down to the volume's brick boundary (world-aligned; 2/9 m for the default flat bricks). The rest level is the
+   water's own: the body record's `level` (`WaterBodyRecord`, world Y) when the volume has one, else the level its water came to rest
+   at (its still surface at creation or its last sleep). NOT the volume's lowest surface: that depends on the volume's extent and on
+   which tiles are awake - a cost unit - and would make the deep water behave differently for the same pond simulated as a whole or
+   as a patch. The floor moves DOWN only, during a call, when a trough comes within one brick of B above it (a big slosh, a drain);
+   it returns up to the rest rule when the water sleeps. Moving down only makes more of the water fine - toward the reference, never
+   away. Proposed default B = 0.5 m; the clip shows 0.44 / 0.67 / 0.89 m (whole flat bricks) against all-fine for the owner to pick.
+3. *What a tall cell stores* (per 1/9 m column, 64 per brick column, in a column-indexed buffer): its bed height, its pressure at the
+   top (P_T, at the centre of the 1/9 m cell just under the floor - so the fine cell above sees it as an ordinary neighbour), its
+   four side velocities (one u on its x face, one w on its z face - lower faces as the lattices store them; the upper ones are the
+   neighbours'), its water volume V (exactly H x h^2 when full - the books), and its kinetic energy for the sleep test. The vertical
+   velocity at its top face is the fine v lattice's face at the floor; at the bed it is 0.
+4. *Pressure.* Inside a tall cell p(y) = P_T + g (y_T - y). Its row in the Poisson system is the divergence of its volume: the top
+   face to the fine cell above (gradient (p_above - P_T) / h, as any fine face) plus four side faces, each open over the overlap of
+   the two columns' water below the floor (max of the beds up to the floor), the pressure difference across it P_TA - P_TB (both
+   tall, same floor: the hydrostatic parts cancel) over h. The tall cells join the red-black sweeps (colour by column parity, after
+   the fine colours) - a symmetric, diagonally dominant row, so the sweeps converge as they do now; the still-water first guess
+   (26.9) continues down through P_T.
+5. *Velocity.* The side velocities are updated by the pressure difference (as the fine faces), advected across the tall layer as
+   depth-averaged velocity (semi-Lagrangian in x-z), damped by the pond friction / Manning at the bed like the fine faces. The fine
+   cell above a tall cell reads the tall cell's side velocity as its "cell below" value in its own advection.
+6. *Water - the books exact.* A tall cell is always full. Its volume changes only through its faces (side fluxes, top flux); any
+   mismatch with H x h^2 (the projection is not exact to the last bit) is carried into the fine cell above it, the way an over-full
+   fine cell's excess is carried up today (26.5) - so the total stays exact.
+7. *Regrid, per call.* Down (item 2): the top brick of every tall cell becomes fine cells (f = 1, velocity = the tall cell's side
+   velocity, pressure hydrostatic from P_T). Up (only while the water sleeps or after it has, back to the rest rule; and only if every
+   fine cell of that brick layer in the tall columns is full): their fills and depth-averaged velocities go into the tall cells, the
+   fills' remainder carried up. The rest rule changes only with the rest level, so the floor does not chatter.
+8. *Obstructions lower the floor - never a fine column among tall ones (design-check item 2).* A column fine to the bed inside the
+   tall region would put fine cells against a tall cell's side - a second kind of stencil. Instead the volume's floor goes below
+   every obstruction, for as long as it is there: a solid cell between a column's bed and the floor (an overhang, a rock arch, a
+   cave roof) -> the floor below its lowest cell; a source or outfall -> below its cell; a moving solid (debris, a stone, a body)
+   -> below its lowest cell minus one brick (20's coupling needs cells round it). An obstruction near the bed leaves no tall cells
+   at all - the cost of today, the behaviour exact. The volume's first call is all fine, then regridded. A blast below the floor
+   goes into the tall cells' side velocities (coarser; stated).
+9. *Everything that reads cells.* The surface field (the column's runs: the tall cell is the bottom of the lowest run, joined to the
+   fine run above; nothing drawn changes - the surface is in the band); the record (readColumns writes a tall cell as that run;
+   seedColumns, waking a recorded tile (27.12), builds its tall cells straight from the record's spans under the floor instead of
+   fine cells); the ripples and the debris map (they read the surface); the partial wake (a tall cell freezes with its brick column;
+   its side velocities' kinetic energy and its top face's |dV| go into the unit map the freeze test reads, design-check item 4 -
+   otherwise a sloshing deep layer under a quiet band would freeze); the reductions (mass includes V, kinetic energy the side
+   velocities); the residency (no brick is stored below the floor in a tall column). The 2 M-cell box cap counts the box, not the
+   stored cells - tall cells do not raise it (W1d does).
+10. *API (metres, world Y).* `water_av_create {tall_band_m}` (omitted = the engine default; 0 = off, all fine); `water_av_tall
+    {default}` sets the engine default (for A/B runs, as `water_av_partial_wake {default}`) and echoes it. `water_av_list` echoes
+    `tall_band_m`, `floor_y`, `tall_columns`, `tall_m3`, `regrids`, `floor_reason` (rest / trough / obstruction). Clamp at entry:
+    B = 0 (off) or 2 bricks (4/9 m) to 8 m - a thinner band puts the floor inside a stone's own ring (its motion reaches ~0.3 m),
+    above 8 m nothing would be tall in any pond; written at the clamp. The default stays OFF in this design: no pinned test moves.
+    Turning it ON is the owner's call after the clip, and then every GPU water test runs with it (most rigs are shallow and make no
+    tall cells; the deep rows - the 26.29 ladder rigs, the slosh rows - are re-pinned in that commit).
+
+**Tests, red first.**
+- `WaterTallCellTest.OffIsBitIdentical` - tall_band 0 runs bit for bit as today (every GPU water test unchanged).
+- `StillWaterStaysStill` - a 2 m pond with tall cells at rest: velocity 0, surface flat to 0.1 mm, pressure hydrostatic to 1 %.
+- `TheBooksAreExact` - every tick through a slosh, a stone, a pump in the band and a drain that regrids the floor down twice: stored
+  (fine + tall) - (in - out) within the float rounding of today's runs.
+- `LongWaveMatchesAllFine` - a whole-pond slosh (24 x 8 m, 1 m and 2 m deep): the period within 5 % and the amplitude after 3
+  periods within 10 % of the all-fine run. RED control: the tall layer frozen as a wall (a false bottom at the floor) - the period
+  ~1.4-2x long, outside the gate (the control that the test sees depth).
+- `ShortWaveMatchesAllFine` - a stone in a 2 m pond: the ring height at 1 m and 3 m within 10 % of all-fine at B = 0.5 m.
+- `RegridIsExact` - the floor moved down and up by hand: the fields above it unchanged at the regrid, the books exact, and the
+  surface over the next 2 s within 1 mm of a run that did not regrid (a regrid must not show as a twitch).
+- `TallCellsAcrossChunkSeam` (the chunk-independence shape, design-check item 3) - the same pond placed inside one chunk and
+  translated by exactly one chunk (32 m = 36 bricks: the same brick alignment) so it straddles a seam: every cell's f, u, v, w and
+  every tall cell's V, P_T and side velocities bit-identical between the two runs, every tick.
+- `TheFloorIsTheWaters` (design-check item 1) - one pond as one volume vs the same pond with its far half frozen (the partial wake)
+  and vs inside a volume twice its size: the same floor_y; the surface within the partial wake's own measured floor (26.31).
+- `ObstructionsLowerTheFloor` - a rock arch, a pump and a sinking stone below the floor: floor_reason = obstruction, the floor below
+  each, no fine column among tall cells (the kernels assert it - a counter that must stay 0).
+- L4 (live, WaterBench_Creek, design-check item 7): the pond 24 x 24 m at x 4-27, z 2-25 (inside the chunk at x 0-31, z 0-31), 1 m
+  and 2 m deep, a stone at the centre - `tools/water_cost_split.py --depth` with tall cells off and on, INTERLEAVED on the same water
+  (separate runs drift ~0.2 ms). Prediction written before the run: 2 m 2.4 -> 1.6 ms (+-0.3), 1 m 1.5 -> 1.3 ms. Control: tall
+  cells on with B larger than the depth - must cost what off costs (the floor below the bed: no tall cells; proves the saving is the
+  tall cells, not the run). Then the owner's clip: all-fine vs B = 0.44 / 0.67 / 0.89 m side by side (a stone, a push, floating wood).
+
+**The rig vs shipped:** off by default; the integration rigs are walled boxes (no shore, so long waves reflect and a 2 m box does not
+sleep - 27.20 #4) at 1 m and 2 m, 1/9 m, the engine's other defaults (partial wake on, 20 sweeps, quiet scale 3). A real pond's
+sloped shore damps the slosh, so the walled rows are the hard case for the long-wave gate.
+
+**Build order** (each step committed, the gates above red first): TC1 the storage and the floor with no tall cells made (bit-
+identical); TC2 still water in tall cells (hydrostatics, books); TC3 the dynamics (pressure, side velocities, advection, regrid) and
+the wave gates; TC4 everything that reads cells (record, surface, partial wake, reductions, residency); TC5 the cost, measured, and
+the owner's clip.
+
+### 27.22a Design-check of tall cells (Feature Design Keys, 2026-10-23) - NEEDS WORK -> seven items folded in above -> READY
+
+1. **Voxel aesthetic.** Nothing drawn changes: the surface, the ripples, the foam, the floats all read the band. Water stays
+   1/9 m cells where it is seen; the tall cell is storage below the band (like the bricks, 26.6). Off by default, so no look moves
+   until the owner picks B from the clip. The detail lost - motion under the band - is stated (a sinking stone lowers the floor
+   under itself, item 8, so even that keeps cells round it).
+2. **Chunk independence.** Quantities derived from a chunk: none. Bricks and tall cells are world-aligned (a brick boundary is a
+   chunk boundary, 26.6). The one cost-unit quantity was the FLOOR: the first draft took it from the volume's lowest surface - a
+   function of the volume's extent and of which tiles are awake, which would change how the same deep water moves (the "per-chunk
+   decides behaviour" mistake, with a volume for a chunk). **Fixed (item 1):** the floor comes from the water's rest level (the body
+   record), moving down only for troughs and obstructions, i.e. only toward the all-fine reference. No cross-chunk lookup. Equality
+   tests named: `TallCellsAcrossChunkSeam` (translated by one chunk, bit-identical) and `TheFloorIsTheWaters` (whole vs frozen half
+   vs larger volume: the same floor).
+3. **Procedural generation.** No stage: tall cells are how the simulation stores water, not what the world holds. It consumes the
+   ground (occupancy) and the body records the bake / write-back already make; it changes nothing upstream. W4 (generated lakes as
+   records) will WAKE into tall cells through seedColumns (item 9) - the record stays the source of truth. No per-world tuning: B
+   is an engine setting like quiet_scale, not world content.
+4. **API.** Metres and world Y; omitted = the engine default; `water_av_tall {default}` for A/B; every state echoed in
+   `water_av_list` including WHY the floor is where it is (`floor_reason`); the clamp [4/9 m, 8 m] or 0 with the reason at the
+   site. Default unchanged (OFF) - no pin moves now; the ON commit re-pins the deep rows (item 10). **Fixed:** the first draft had no
+   engine-default knob, no reason echo and no upper clamp.
+5. **Visual test plan.** "Works" = (a) still water flat to 0.1 mm, hydrostatic to 1 %; (b) the books exact every tick; (c) a slosh's
+   period within 5 % and amplitude within 10 % of all-fine; (d) a stone's ring within 10 % at 1 m and 3 m; (e) a regrid invisible
+   (1 mm); (f) the 2 m pond's solver time down by the predicted ~0.8 ms; (g) the owner's clip. Depth: L3 (integration rigs on the
+   GPU, all-fine as the oracle - the same code, so a difference is the tall cells') and L4 (live, interleaved). Red tests: the
+   false-bottom control (reports the slosh period off by ~1.4-2x), `{red}` controls for the seam and floor tests (a floor taken
+   from the volume's lowest surface must FAIL `TheFloorIsTheWaters`). Test world: rigs inside one chunk (24 x 8 m slosh box, 24 x
+   24 m pond at x 4-27, z 2-25); one variable per row (B, or depth); predictions written in the plan (the cost table, the period);
+   controls stated. Rig vs shipped: walled boxes (no shore) - the hard case. **Fixed:** the first draft's L4 pond (32 x 28 m from
+   x 2) crossed the chunk at x 32, had no written prediction and no control; the regrid had no visibility gate; the freeze test did
+   not see the tall layer's motion (item 9).
+
+**Verdict: READY** for TC1 (with the seven items above). The decision left to the owner: B, from the clip at TC5.
+
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
 **Was: "0a. Where things stand, and what is next (2026-10-14)"**
