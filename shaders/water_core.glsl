@@ -37,16 +37,22 @@ layout(push_constant) uniform WcPush {
     int   colTableOff;
     int   counterOff;    // Bricks[counterOff + k]: k 0 = flux into absent cells (faces), 1 = sentinel dirty, 2-4 = the over-full carry (wc_fill_advect mode 5)
     int   colCount;      // resident brick columns (column dispatches: 64 threads each)
-    int   surfaceGhost;  // 26.9: 1 = the hydrostatic ghost at a clamped surface (wc_theta.glsl wcSurfaceGhost); 0 = p_air = 0
+    int   flags;         // 27.22: packed (the block stays within 128 bytes) - see PC_SURFACE_GHOST / PC_FROZEN_ON / PC_CARRY_MEASURE
     float quietRise;     // 26.9: m/s - under it a partial cell under an emptier one fills before water crosses its ceiling
     int   bly;           // 26.17: log2 of the brick height (1, 2, 3); x and z are always 8
     float vcBand;        // 26.21: the volume correction's dead band (SolverParams::volumeCorrectionBand)
-    int   frozenOn;      // 26.31: 1 = honour the FROZEN bit of the slot / column tables (the partial wake); 0 = every stored brick; 2 = TEST: skipped, not a wall
-    int   carryMeasure;  // 26.32: 1 = count the over-full carry (Bricks[counterOff + 2..5]); 0 = off (the default: the atomics cost)
+    int   tallY;         // 27.22: the tall layer's grid y; -1 = no tall cells (every cell ordinary - the rules exactly as before)
+    int   tallOff;       // 27.22: Bricks[] offset of the per-column tall heights (dense column x + nx z)
 } pc;
+// 26.9: 1 = the hydrostatic ghost at a clamped surface (wc_theta.glsl wcSurfaceGhost); 0 = p_air = 0
+#define PC_SURFACE_GHOST (pc.flags & 1)
+// 26.31: 1 = honour the FROZEN bit of the slot / column tables (the partial wake); 0 = every stored brick; 2 = TEST: skipped, not a wall
+#define PC_FROZEN_ON ((pc.flags >> 1) & 3)
+// 26.32: 1 = count the over-full carry (Bricks[counterOff + 2..5]); 0 = off (the default: the atomics cost)
+#define PC_CARRY_MEASURE ((pc.flags >> 3) & 1)
 
 // 26.31 THE PARTIAL WAKE: bit 30 of a slot-table or column-table entry marks a FROZEN brick column - quiet by the volume's own
-// sleep test, more than the margin from any moving column. With pc.frozenOn its threads return at once (threadSite /
+// sleep test, more than the margin from any moving column. With PC_FROZEN_ON its threads return at once (threadSite /
 // threadColumn) and, to the awake cells beside it, it is a WALL: the step kernels' blocked() tests include frozenCell, the
 // sweeps read no pressure from it, transport moves nothing across. The surface, the reductions and the brick record run with
 // frozenOn 0 (every stored brick). Bits 0-29 keep the packed brick coordinates.
@@ -62,10 +68,16 @@ int brickSlot(ivec3 q) {   // q = cell + origin offset (brick-box cell coords)
     return bricks[b.x + pc.bnx * (b.y + pc.bny * b.z)];
 }
 bool frozenCell(int x, int y, int z) {   // 26.31: a cell of a frozen brick column (never an absent or GROUND brick)
-    if (pc.frozenOn != 1 || pc.bricked == 0) return false;   // 2 = the test's red control: skipped but not a wall
+    if (PC_FROZEN_ON != 1 || pc.bricked == 0) return false;   // 2 = the test's red control: skipped but not a wall
     const int slot = brickSlot(ivec3(x + pc.ox, y + pc.oy, z + pc.oz));
     return slot >= 2 && (bricks[pc.slotTableOff + slot] & WC_FROZEN_BIT) != 0;
 }
+// 27.22 TALL CELLS (docs/WaterCore.md 27.22). With pc.tallY >= 0 the cell at y = tallY of a TALL column is that column's water
+// from its bed up: tallH cells high (Bricks[tallOff + x + nx z]; 0 or 1 = an ordinary cell). Its f holds its water as a VOLUME in
+// cells (0..H), so sums, moves and the books stay additive; its FRACTION is f / H. The bricks under the tall layer read the ground
+// sentinel (Solid). With pc.tallY = -1 nothing here is read and every rule is exactly as before.
+int tallH(int x, int z) { return (pc.tallY < 0 || pc.bricked == 0) ? 1 : max(1, bricks[pc.tallOff + x + pc.nx * z]); }
+float cellVolume(int x, int y, int z) { return (pc.tallY >= 0 && y == pc.tallY) ? float(tallH(x, z)) : 1.0; }
 uint brickIdx(int x, int y, int z) {
     const ivec3 q = ivec3(x + pc.ox, y + pc.oy, z + pc.oz);
     return (uint(brickSlot(q)) << uint(6 + pc.bly)) + uint((q.x & 7) + 8 * (q.z & 7) + 64 * (q.y & ((1 << pc.bly) - 1)));
@@ -75,6 +87,8 @@ bool absentCell(int x, int y, int z) { return pc.bricked != 0 && brickSlot(ivec3
 #define WC_DENSE (pc.bricked == 0)
 #else
 uint brickIdx(int x, int y, int z) { return 0u; }
+int tallH(int x, int z) { return 1; }
+float cellVolume(int x, int y, int z) { return 1.0; }
 bool absentCell(int x, int y, int z) { return false; }
 bool frozenCell(int x, int y, int z) { return false; }
 #define WC_DENSE true
@@ -103,7 +117,7 @@ bool threadSite(uint id, int lattice, out ivec3 c) {
         if (slot == 0u || slot >= uint(pc.slotsUsed)) { c = ivec3(-1); return false; }
         const int packed = bricks[pc.slotTableOff + int(slot)];
         if (packed < 0) { c = ivec3(-1); return false; }   // a free slot
-        if (pc.frozenOn != 0 && (packed & WC_FROZEN_BIT) != 0) { c = ivec3(-1); return false; }   // 26.31: a frozen column
+        if (PC_FROZEN_ON != 0 && (packed & WC_FROZEN_BIT) != 0) { c = ivec3(-1); return false; }   // 26.31: a frozen column
         const ivec3 b = ivec3(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
         c = ivec3(b.x * 8, b.y << pc.bly, b.z * 8) + ivec3(int(local & 7u), int(local >> 6u), int((local >> 3u) & 7u)) - ivec3(pc.ox, pc.oy, pc.oz);
         return c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < sx && c.y < sy && c.z < sz;
@@ -120,7 +134,7 @@ bool threadColumn(uint id, out int x, out int z) {
         const int e = int(id >> 6u), local = int(id & 63u);
         if (e >= pc.colCount) { x = -1; z = -1; return false; }
         const int packed = bricks[pc.colTableOff + e];
-        if (pc.frozenOn != 0 && (packed & WC_FROZEN_BIT) != 0) { x = -1; z = -1; return false; }   // 26.31: a frozen column
+        if (PC_FROZEN_ON != 0 && (packed & WC_FROZEN_BIT) != 0) { x = -1; z = -1; return false; }   // 26.31: a frozen column
         x = (packed & 1023) * 8 + (local & 7) - pc.ox;
         z = ((packed >> 10) & 1023) * 8 + (local >> 3) - pc.oz;
         return x >= 0 && z >= 0 && x < pc.nx && z < pc.nz;

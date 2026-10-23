@@ -29,12 +29,19 @@ struct WcPush {
     // 26.6 P2a: brick storage (shaders/water_core.glsl)
     int32_t bricked = 0, slotsUsed = 0, ox = 0, oy = 0, oz = 0, bnx = 0, bny = 0, bnz = 0;
     int32_t slotTableOff = 0, colTableOff = 0, counterOff = 0, colCount = 0;
-    int32_t surfaceGhost = 1;   ///< 26.9: the hydrostatic ghost at a clamped surface (WaterSolver::surfaceGhost)
+    /// 27.22: three small switches packed into one int so the block stays within the guaranteed 128 bytes - bit 0 the hydrostatic
+    /// ghost at a clamped surface (26.9, WaterSolver::surfaceGhost); bits 1-2 the partial wake's frozen columns (26.31: 0 off, 1 a
+    /// wall, 2 the test's open interface); bit 3 count the over-full carry (26.32, WaterCoreGpu::s_carryMeasure)
+    int32_t flags = 1;
     float quietRise = 0.0f;     ///< 26.9: m/s under which a partial cell's surface rises by filling (EulerianTransport::s_quietRiseFraction)
     int32_t bly = 3;            ///< 26.17: log2 of the brick height (bricks are 8 x (1 << bly) x 8)
     float vcBand = 0.02f;       ///< 26.21: SolverParams::volumeCorrectionBand (wc_classify mode 0)
-    int32_t frozenOn = 0;       ///< 26.31: honour the frozen bit of the slot / column tables (the partial wake)
-    int32_t carryMeasure = 0;   ///< 26.32: count the over-full carry (WaterCoreGpu::s_carryMeasure, bricked volumes only)
+    int32_t tallY = -1;         ///< 27.22: the tall layer's grid y (the cell under the band's floor); -1 = no tall cells
+    int32_t tallOff = 0;        ///< 27.22: Bricks[] offset of the per-column tall heights (dense column x + nx z)
+    void setSurfaceGhost(bool on) { flags = (flags & ~1) | (on ? 1 : 0); }
+    void setFrozenOn(int v) { flags = (flags & ~6) | ((v & 3) << 1); }
+    void setCarryMeasure(bool on) { flags = (flags & ~8) | (on ? 8 : 0); }
+    int frozenOn() const { return (flags >> 1) & 3; }
 };
 static_assert(sizeof(WcPush) == 124, "WcPush must match the GLSL push block");
 
@@ -205,6 +212,12 @@ public:
         Buffer scratch;                  ///< the partition's swap space (grown on demand)
         double stageLast = -1.0;         ///< 26.10: the last captured call's end sum (cells), -1 = none
         VkQueryPool tsPool = VK_NULL_HANDLE;   ///< 26.11 test hook: GPU timestamps per stage (s_kernelTiming)
+        // 27.22 TALL CELLS: with tallActive, the cell at grid y = tallY of a tall column holds that column's water from its bed up
+        // (tallH cells high; its f is a VOLUME in cells), the bricks under the tall layer read the ground sentinel
+        size_t tallOff = 0;            ///< Bricks[] offset of the heights (dense columns)
+        bool tallActive = false;
+        int tallY = -1;
+        std::vector<int> tallH;        ///< host copy, dense columns (1 = an ordinary cell)
         VkQueryPool callTs = VK_NULL_HANDLE;   ///< 26.15: two timestamps round every step call - the device's own time, live
         int tsCount = 0;                 ///< stamps written this call
         std::array<int, 64> tsLabel{};   ///< the stage each stamp closes

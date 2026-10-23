@@ -211,6 +211,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         vol->slotTableOff = vol->mapCount; vol->colTableOff = vol->slotTableOff + vol->capacity;
         vol->counterOff = vol->colTableOff + vol->colCap; vol->infoOff = vol->counterOff + kCounters;
         vol->brickInts = vol->infoOff + 2 * vol->capacity;   // two water records per slot (any water, liquid)
+        vol->tallOff = vol->brickInts; vol->brickInts += vol->dColumns;   // 27.22: one tall height per dense column (0 / 1 = an ordinary cell)
         vol->map.assign(vol->mapCount, 0); vol->slotBrick.assign(vol->capacity, -1); vol->colEntries.clear();
     } else {
         vol->cells = vol->dCells; vol->nu = vol->dNu; vol->nv = vol->dNv; vol->nw = vol->dNw; vol->columns = vol->dColumns;
@@ -354,8 +355,10 @@ void WaterCoreGpu::fillPushBricks(const Volume& vol, WcPush& push) const {
     push.bnx = vol.bn.x; push.bny = vol.bn.y; push.bnz = vol.bn.z; push.bly = vol.bly;
     push.slotTableOff = static_cast<int32_t>(vol.slotTableOff); push.colTableOff = static_cast<int32_t>(vol.colTableOff);
     push.counterOff = static_cast<int32_t>(vol.counterOff); push.colCount = vol.colCount;
-    push.frozenOn = vol.anyFrozen ? (s_partialWakeOpenInterfaceForTest ? 2 : 1) : 0;   // 26.31 (2: skipped, not a wall - the test's red control)
-    push.carryMeasure = (vol.bricked && s_carryMeasure) ? 1 : 0;   // 26.32
+    push.setFrozenOn(vol.anyFrozen ? (s_partialWakeOpenInterfaceForTest ? 2 : 1) : 0);   // 26.31 (2: skipped, not a wall - the test's red control)
+    push.setCarryMeasure(vol.bricked && s_carryMeasure);   // 26.32
+    push.tallY = (vol.bricked && vol.tallActive) ? vol.tallY : -1;   // 27.22
+    push.tallOff = static_cast<int32_t>(vol.tallOff);
 }
 
 // A brick is needed when water lies within `reach` cells of it: for each neighbour offset d, the gap along
@@ -1698,7 +1701,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     }
     WcPush push; push.nx = vol.spec.dims.x; push.ny = vol.spec.dims.y; push.nz = vol.spec.dims.z;
     push.h = vol.spec.h; push.thr = params.liquidThreshold; push.gravity = params.gravity; push.filmHold = params.filmHoldDepth / vol.spec.h; push.thetaMin = static_cast<float>(params.thetaMin);
-    push.surfaceGhost = WaterSolver::s_surfaceGhost ? 1 : 0;   // 26.9: one switch for both backends
+    push.setSurfaceGhost(WaterSolver::s_surfaceGhost);   // 26.9: one switch for both backends
     push.quietRise = EulerianTransport::s_quietRiseFraction * std::sqrt(2.0f * 9.81f * vol.spec.h);   // 26.9: the CPU's gate, the CPU's g
     // CFL from the last known max speed plus the gravity a few ticks can add. The margin is capped at
     // six ticks' worth: a 60-tick benchmark call otherwise carried +9.8 m/s and doubled its substeps
@@ -1843,7 +1846,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     if (!capture) std::swap(capBuf, vol.stageCap);   // the capture buffer is back in place (only the recording needed it hidden)
     vol.slotsUsed = fullSlots; vol.colCount = fullCols;   // 26.31 step 2: every stored brick from here
     fillPushBricks(vol, push);
-    push.frozenOn = 0;   // 26.31: the record, the reductions and the surface cover every stored brick (a frozen column is still drawn and weighed)
+    push.setFrozenOn(0);   // 26.31: the record, the reductions and the surface cover every stored brick (a frozen column is still drawn and weighed)
     const size_t colsAll = liveColumns(vol);
     if (vol.bricked) {   // 26.6: the water record residency reads next call, and the absent brick's check
         dispatch(cmd, *vol.pipes[Bricks], push, static_cast<size_t>(vol.slotsUsed) * 64, 64);
@@ -1864,7 +1867,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     vol.pend.surfCols.clear();
     if (surfPartial) {
         vol.pend.surfCols.assign(vol.colEntries.begin(), vol.colEntries.begin() + vol.stepCols);
-        vol.colCount = vol.stepCols; fillPushBricks(vol, push); push.frozenOn = 0;
+        vol.colCount = vol.stepCols; fillPushBricks(vol, push); push.setFrozenOn(0);
     }
     const size_t colsSurf = surfPartial ? liveColumns(vol) : colsAll;
     dispatch(cmd, *vol.pipes[Surface], push, colsSurf);
@@ -1880,7 +1883,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         copy(cmd, *src[l], vol.staging, vol.copied[l] * kRec[l], srcOff[l], dstOff[l]);
     }
     copy(cmd, vol.lists, vol.staging, 16, 0, vol.offSurf);
-    if (surfPartial) { vol.colCount = fullCols; fillPushBricks(vol, push); push.frozenOn = 0; }
+    if (surfPartial) { vol.colCount = fullCols; fillPushBricks(vol, push); push.setFrozenOn(0); }
     stamp(cmd, vol, TsSurfaceCopy);
     push.param0 = 0.0f; push.param1 = 0.0f; push.iparam = 0;
     stamp(cmd, vol, TsReduceSurface);

@@ -21,7 +21,7 @@ float wcThetaToAir(int x, int y, int z, int dir) {
 // the surface up by thetaMin h at every crossing; the cell beside it (air, just under the threshold) took a sideways push
 // of 2 g thetaMin and a surface resting AT the threshold flickered in a checkerboard and never slept (26.9).
 float wcSurfaceGhost(int x, int y, int z, int dir) {
-    if (dir != 3 || pc.surfaceGhost == 0) return 0.0;
+    if (dir != 3 || PC_SURFACE_GHOST == 0) return 0.0;
     const float fa = inBounds(x, y + 1, z) ? min(1.0, f[cellIdx(x, y + 1, z)]) : 0.0;
     const float raw = f[cellIdx(x, y, z)] + solid[cellIdx(x, y, z)].x - 0.5 + fa;
     return raw < pc.thetaMin ? -pc.gravity * pc.h * (pc.thetaMin - raw) : 0.0;

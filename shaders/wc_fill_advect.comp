@@ -63,17 +63,17 @@ void allFaces(uint id) {
         // the measurement of the stone's spikes (WaterCore.md 26.32): the excess each cell MAKES (its own fill over its room,
         // before the carry from below reaches it) - k 5 a body's cell with a displacement rate (q), k 2 one without, k 3 a cell
         // without a body - and k 4 what parks at a
-        // ceiling or the box top. In 1e-3 cells, per call. Only with pc.carryMeasure (a bricked volume, the measurement on: the
+        // ceiling or the box top. In 1e-3 cells, per call. Only with PC_CARRY_MEASURE (a bricked volume, the measurement on: the
         // atomics on four shared words cost the step when a splash over-fills thousands of cells)
         for (int y = 0; y < pc.ny; ++y) {
             const uint i = cellIdx(x, y, z);
             if (blocked(x, y, z) || absentCell(x, y, z)) {   // an absent brick is never written: the excess parks below it
                 if (carry > 0.0 && absentCell(x, y, z)) atomicAdd(bricks[pc.counterOff], 1);
-                if (pc.carryMeasure != 0 && carry >= 5e-4 && last >= 0) atomicAdd(bricks[pc.counterOff + 4], int(carry * 1000.0 + 0.5));
+                if (PC_CARRY_MEASURE != 0 && carry >= 5e-4 && last >= 0) atomicAdd(bricks[pc.counterOff + 4], int(carry * 1000.0 + 0.5));
                 if (carry > 0.0 && last >= 0) { const uint l = uint(last); const float a = f[l]; precise float s = a + carry; f[l] = s; fLo[l] += twoSumErr(a, carry, s); }
                 carry = 0.0; last = -1; continue;
             }
-            { const float own = f[i] - (1.0 - solid[i].x); if (pc.carryMeasure != 0 && own >= 5e-4) atomicAdd(bricks[pc.counterOff + (solid[i].x > 0.0 ? (solid[i].y > 0.0 ? 5 : 2) : 3)], int(own * 1000.0 + 0.5)); }
+            { const float own = f[i] - (1.0 - solid[i].x); if (PC_CARRY_MEASURE != 0 && own >= 5e-4) atomicAdd(bricks[pc.counterOff + (solid[i].x > 0.0 ? (solid[i].y > 0.0 ? 5 : 2) : 3)], int(own * 1000.0 + 0.5)); }
             // 26.9/26.10: add only what this cell can HOLD in float - the rest stays in the carry, exactly (two-sum, `precise`)
             { const float before = f[i]; precise float nf = before + carry; f[i] = nf; carry = twoSumErr(before, carry, nf); }
             last = int(i);
@@ -83,7 +83,7 @@ void allFaces(uint id) {
                 const float c0 = carry; precise float nc = c0 + ex; fLo[i] += twoSumErr(c0, ex, nc); carry = nc; f[i] = room;
             }
         }
-        if (pc.carryMeasure != 0 && carry >= 5e-4 && last >= 0) atomicAdd(bricks[pc.counterOff + 4], int(carry * 1000.0 + 0.5));
+        if (PC_CARRY_MEASURE != 0 && carry >= 5e-4 && last >= 0) atomicAdd(bricks[pc.counterOff + 4], int(carry * 1000.0 + 0.5));
         if (carry > 0.0 && last >= 0) { const uint l = uint(last); const float a = f[l]; precise float s = a + carry; f[l] = s; fLo[l] += twoSumErr(a, carry, s); }
         return;
     }
