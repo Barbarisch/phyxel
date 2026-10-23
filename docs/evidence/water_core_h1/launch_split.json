@@ -1,0 +1,66 @@
+{
+ "runs": [
+  {
+   "size_m": 5,
+   "depth_m": 0.3,
+   "solver_ms": 0.41148799999999996,
+   "dispatches": 90,
+   "barriers": 113,
+   "substeps": 1,
+   "bricks": 210,
+   "step_slots": 0,
+   "calls_timed": 1087,
+   "stage_ms": {
+    "brick_record": 0.00602627414903404,
+    "classify": 0.01477549218031284,
+    "compaction": 0.011802436062557474,
+    "extrapolate": 0.07722821711131543,
+    "forces": 0.014952890524379153,
+    "reduce": 0.03967443606255747,
+    "reduce_surface": 0.012895852805887781,
+    "residency": 0.0019892106715731295,
+    "settle": 0.00950061453541859,
+    "sources": 0.021208404783808636,
+    "surface_copy": 0.005193243790248367,
+    "surface_kernel": 0.010068989880404762,
+    "sweep_births": 0.011889103955841805,
+    "sweeps": 0.18509559521619,
+    "transport": 0.05643445814167436,
+    "vel_advect": 0.008461718491260374,
+    "vel_update": 0.024380908923643148
+   },
+   "stage_total_ms": 0.5115778472861073
+  },
+  {
+   "size_m": 24,
+   "depth_m": 1.0,
+   "solver_ms": 1.5513759999999999,
+   "dispatches": 98.0,
+   "barriers": 119.5,
+   "substeps": 1.0,
+   "bricks": 6284.0,
+   "step_slots": 4590.0,
+   "calls_timed": 612,
+   "stage_ms": {
+    "brick_record": 0.01088094117647057,
+    "classify": 0.054520156862745126,
+    "compaction": 0.049838954248366006,
+    "extrapolate": 0.1501783529411764,
+    "forces": 0.06297087581699343,
+    "reduce": 0.14080261437908498,
+    "reduce_surface": 0.0018667189542483688,
+    "residency": 0.02505254901960782,
+    "settle": 0.04561490196078427,
+    "sources": 0.047917281045751686,
+    "surface_copy": 0.2045949281045753,
+    "surface_kernel": 0.01907602614379089,
+    "sweep_births": 0.02553401307189543,
+    "sweeps": 0.3969652810457517,
+    "transport": 0.16644413071895428,
+    "vel_advect": 0.07257537254901969,
+    "vel_update": 0.03654881045751635
+   },
+   "stage_total_ms": 1.5113819084967322
+  }
+ ]
+}

@@ -72,6 +72,7 @@ struct AvRecord {
     double gpuWaitMs = 0.0;                ///< 26.15: of it, submission + fence wait (device time + queue contention + overhead)
     int gpuTicks = 0;                      ///< 26.15: ticks the last call stepped
     bool gpuAsync = false;                 ///< 26.16: the call is collected next frame (realtime) - the gpu_* numbers are the previous call's
+    int gpuDispatches = 0, gpuBarriers = 0;   ///< 28: the last GPU call's compute dispatches and barriers (all substeps)
     int gpuBricks = 0;                     ///< 26.12: bricks the GPU volume steps (stored: water + its halo); 0 = not on the GPU
     int gpuBrickCapacity = 0;              ///< 26.12: bricks it could store (the whole box)
     int gpuBrickHeight = 0;                ///< 26.17: cells per brick along y (bricks are 8 x h x 8); 0 = not on the GPU

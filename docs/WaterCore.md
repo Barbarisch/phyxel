@@ -8481,6 +8481,39 @@ rest of the chain (~0.35-0.55 ms a call whatever its size - 27.20 #5), and tall 
 dispatches (or the tall layer's sweeps are folded into the band's), tall cells cost about what they save. They stay OFF by default;
 the code, the gates and the tools stay.
 
+## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
+
+**The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
+anything big.
+
+**1. One call, counted** (`tools/water_launch_split.py`, new; `gpu_dispatches` / `gpu_barriers` in `water_av_list`, new): a 5 x 5 m
+0.3 m pond after a stone - **90 dispatches, 113 barriers, 0.41 ms**; a 24 x 24 m 1 m pond - 98 dispatches, 1.55 ms. The sweeps are the
+largest stage in both (0.13-0.19 of 0.41 ms; 0.40 of 1.55 ms). Evidence: `launch_split.json`.
+
+**2. Line sweeps - tried, no gain** (`wc_rbgs_line.comp`, new pipeline; `water_av_line_sweeps {count, omega}`; OFF by default): each
+column solved exactly along y, the columns in a checkerboard. The 46 x 28 m pond (partial wake off, `water_wave_reach.py --line`):
+
+| solve | leftover pressure error (median) | solver ms | waves 1 / 2 / 4 / 8 m (rms mm) |
+|---|---|---|---|
+| 40 point sweeps | 0.011 | 4.10 | 11.6 / 5.0 / 1.6 / 0.13 |
+| 20 point sweeps (shipped) | 0.62 | 3.18 | 14.1 / 5.3 / 1.7 / 0.12 |
+| 4 line sweeps, omega 1.0 | 1.9 | 3.39 | 11.5 / 4.9 / 1.6 / 0.14 |
+| 8 line sweeps, omega 1.3 | 0.57 | 4.52 | 12.9 / 5.0 / 1.6 / 0.09 |
+
+The same accuracy as 20 point sweeps needs 8 line sweeps (16 dispatches) and costs MORE: a line dispatch walks a column serially
+and does ~3x the work of a point dispatch. On the small pond: 16 line dispatches 0.141 ms against 40 point ones at 0.131.
+
+**3. What a launch costs by itself** (`WaterCoreGpu::diagLaunchCost`, `WaterTallCellTest.DISABLED_DiagLaunchCost`): 1,000 empty
+dispatches - **0.70 us each with a barrier, 0.14 without** (64 workgroups 0.78 / 0.23; 1,024 workgroups 1.45 / 0.92). A small pond's
+113 barriers are therefore ~0.08 ms of its 0.41 ms. **The 27.22c conclusion was wrong: the per-call cost is kernel WORK, not
+launches** - spread over every stage, over every stored cell. The 5 x 5 m pond steps 210 bricks (26,880 cells) for ~6,100 cells of
+water: 4.4x, the halo (the extrapolation's reach + a call's travel, 26.6) round shallow water. Stepping every awake body in one
+interleaved submission (sharing the barriers) would save at most that ~20 %.
+
+**What it says:** the cost per awake body is (a) the halo's cells and (b) what each stage does per cell; neither is a launch count,
+and none of the three structural levers tried this week (tall cells 27.22, line sweeps, batching) moves it on today's sizes. The
+small-body limits of 27.20 stand as measured.
+
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
 **Was: "0a. Where things stand, and what is next (2026-10-14)"**

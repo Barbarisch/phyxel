@@ -99,6 +99,8 @@ struct GpuStepStats {
     int    frozenColumns = 0;        ///< 26.31: brick columns frozen this call (not stepped; a wall to the awake ones)
     int    movingColumns = 0;        ///< 26.31: of the awake, those failing the sleep test themselves (the rest is the margin)
     int    stepSlots = 0;            ///< 26.31 step 2: slots the step dispatched (the awake bricks + the two sentinels; 0 = all)
+    int    dispatches = 0;           ///< 28: compute dispatches this call recorded (all substeps), and the barriers between them
+    int    barriers = 0;
     int    partitionMoves = 0;       ///< 26.31 step 2: bricks moved to keep the awake ones first
 };
 
@@ -220,6 +222,7 @@ public:
         std::vector<int> tallH;        ///< host copy, dense columns (1 = an ordinary cell)
         int tallPending = 0;           ///< 1 = collapse at the next call (tallY / tallH set), 2 = expand at the next call
         long tallRegrids = 0;          ///< collapses + expands done
+        int lastDispatches = 0, lastBarriers = 0;   ///< 28: the last submitted call's launches
         int tallColumns = 0;           ///< columns with H > 1 while active
         VkQueryPool callTs = VK_NULL_HANDLE;   ///< 26.15: two timestamps round every step call - the device's own time, live
         int tsCount = 0;                 ///< stamps written this call
@@ -263,7 +266,7 @@ public:
         std::vector<GpuSource> hostSources;              ///< the sources' totals as the collected call left them (or as set)
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
-                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, KernelCount };   // 27.22: + Tall (collapse / expand)
+                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, KernelCount };   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)
     static constexpr size_t kMaxMapEntries = 4u << 20;   ///< 26.6: brick-map cap (16 MB) - a larger box is refused (world scale is P5)
     static constexpr int kMaxSources = 64;
     static constexpr int kMaxMomentum = 256;   ///< 26.26: momentum records a call can take (more are counted as dropped)
@@ -369,8 +372,19 @@ public:
     /// flight (settle), the host work, and the blocking submission
     struct TileGpuMs { double seedSettle = 0, seedHost = 0, seedSubmit = 0, readSettle = 0, readSubmit = 0, readHost = 0; double seedPart[5]{}; };   // seedPart: flags+need, residency, fresh uploads, fills, tables
     static inline TileGpuMs s_tileGpuMs;
+    /// 28 (the launch count): dispatches / barriers recorded since the last reset (step() resets at its start, reports at its end)
+    mutable long m_dispatchCount = 0, m_barrierCount = 0;
     /// 27.22: red-black sweep pairs of the tall layer alone after the band's sweeps (one cell a column - cheap)
     static inline int s_tallSweeps = 20;
+    /// 28 (the launch count): ZEBRA LINE sweeps of the pressure (wc_rbgs_line.comp - every column solved exactly along y, the columns
+    /// in a checkerboard) in place of the point sweeps: 0 = off (the point sweeps, the default until the owner looks), N = N line
+    /// sweeps (2N dispatches); omega their over-relaxation. Volumes taller than 64 cells keep the point sweeps.
+    static inline int s_lineSweeps = 0;
+    /// 28 TEST ONLY: the GPU time (ms) of `n` dispatches of the brick-record kernel over `groups` workgroups each, with a barrier after
+    /// each (`barriers`) or none - what a launch and a barrier cost by themselves
+    double diagLaunchCost(Volume& vol, int n, int groups, bool barriers);
+    static inline float s_lineOmega = 1.0f;
+    static constexpr int kLineMaxNy = 64;
     static inline double s_tsMs[TsLabelCount] = {};
     static inline long s_tsCalls = 0;
     void setOmega(float w) { m_omega = w; }

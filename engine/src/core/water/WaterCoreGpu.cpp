@@ -17,11 +17,11 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_face_ops.comp.spv", "wc_face_ops.comp.spv", "wc_face_ops.comp.spv",
     "wc_column_ops.comp.spv", "wc_classify.comp.spv", "wc_rbgs.comp.spv",
     "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv", "wc_sources.comp.spv", "wc_surface.comp.spv",
-    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv", "wc_tall.comp.spv"};
+    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv", "wc_tall.comp.spv", "wc_rbgs_line.comp.spv"};
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9, 7, 6};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9, 7, 6, 6};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -140,6 +140,7 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     bindAll(*vol.pipes[Momentum], {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, br, &vol.momentum});   // 26.26
     bindAll(*vol.pipes[Bricks],  {&vol.f, &vol.u, &vol.v, &vol.w, &vol.p, br});
     bindAll(*vol.pipes[Tall],    {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, br});   // 27.22
+    bindAll(*vol.pipes[RbgsLine], {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res, br});   // 28
     if (vol.particles) {
         bindAll(*vol.pipes[FlipSort], {&vol.posA, &vol.velA, &vol.posB, &vol.velB, &vol.pcount, &vol.pstart, &vol.pcursor});
         // p2g gathers from the SORTED list (B); it writes f and ONE lattice per dispatch (rebound per lattice below)
@@ -1380,6 +1381,29 @@ void WaterCoreGpu::download(Volume& vol, WaterGrid& g) const {
     }
 }
 
+double WaterCoreGpu::diagLaunchCost(Volume& vol, int n, int groups, bool barriers) {
+    settle(vol);
+    VkQueryPool qp = VK_NULL_HANDLE;
+    VkQueryPoolCreateInfo qi{}; qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO; qi.queryType = VK_QUERY_TYPE_TIMESTAMP; qi.queryCount = 2;
+    if (vkCreateQueryPool(m_device, &qi, nullptr, &qp) != VK_SUCCESS) return -1.0;
+    WcPush push; push.nx = vol.spec.dims.x; push.ny = vol.spec.dims.y; push.nz = vol.spec.dims.z; fillPushBricks(vol, push);
+    push.slotsUsed = 0;   // every workgroup returns at once: the launch alone
+    VkCommandBuffer cmd = beginCommands();
+    vkCmdResetQueryPool(cmd, qp, 0, 2);
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, qp, 0);
+    for (int k = 0; k < n; ++k) { dispatchNoBarrier(cmd, *vol.pipes[Bricks], push, static_cast<size_t>(groups) * 64, 64); if (barriers) barrier(cmd); }
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, qp, 1);
+    submitAndWait(cmd);
+    uint64_t q[2] = {0, 0};
+    double ms = -1.0;
+    if (vkGetQueryPoolResults(m_device, qp, 0, 2, sizeof(q), q, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) == VK_SUCCESS) {
+        VkPhysicalDeviceProperties pp; vkGetPhysicalDeviceProperties(m_physical, &pp);
+        ms = static_cast<double>(q[1] - q[0]) * pp.limits.timestampPeriod * 1e-6;
+    }
+    vkDestroyQueryPool(m_device, qp, nullptr);
+    return ms;
+}
+
 // 27.22 TALL CELLS (docs/WaterCore.md 27.22)
 bool WaterCoreGpu::setTall(Volume& vol, int tallY, const std::vector<int>& heights, std::string* err) {
     auto fail = [&](const std::string& m) { if (err) *err = m; return false; };
@@ -1506,6 +1530,7 @@ void WaterCoreGpu::readCells(Volume& vol, const char* which, std::vector<float>&
 }
 
 void WaterCoreGpu::barrier(VkCommandBuffer cmd) const {
+    ++m_barrierCount;
     VkMemoryBarrier mb{}; mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
     mb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1515,6 +1540,7 @@ void WaterCoreGpu::barrier(VkCommandBuffer cmd) const {
 
 void WaterCoreGpu::dispatchNoBarrier(VkCommandBuffer cmd, Vulkan::ComputePipeline& pipe, const WcPush& push, size_t threads, uint32_t local) const {
     if (threads == 0) return;
+    ++m_dispatchCount;
     pipe.bind(cmd);
     pipe.pushConstants(cmd, &push, sizeof(push));
     pipe.dispatch(cmd, static_cast<uint32_t>((threads + local - 1) / local));
@@ -1615,6 +1641,11 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     dispatch(cmd, *vol.pipes[Classify], push, cells); push.param0 = 0.0f; push.param1 = 0.0f;
     if (s_stillWaterGuess) { push.mode = 2; dispatch(cmd, *vol.pipes[Classify], push, cols); }   // 26.9: the still-water first guess
     stamp(cmd, vol, TsClassify);
+    if (s_lineSweeps > 0 && vol.bricked && vol.spec.dims.y <= kLineMaxNy) {   // 28: zebra line sweeps (one workgroup per brick column)
+        for (int s = 0; s < s_lineSweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
+            push.mode = 0; push.iparam = colour; push.param1 = s_lineOmega; dispatch(cmd, *vol.pipes[RbgsLine], push, cols);
+        }
+    } else
     for (int s = 0; s < sweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
         push.mode = 0; push.iparam = colour; push.param1 = m_omega; dispatch(cmd, *vol.pipes[Rbgs], push, cells);
     }
@@ -1759,6 +1790,7 @@ void WaterCoreGpu::updateOccupancy(Volume& vol, const WaterGrid& g, const std::v
 GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float dt, int ticks, int sweeps) {
     settle(vol);   // 26.16: the call in flight is collected first (its record decides this call's residency, its speed the substeps)
     GpuStepStats st; st.ticks = ticks; st.sweeps = sweeps;
+    m_dispatchCount = 0; m_barrierCount = 0;   // 28: this call's launches
     st.capacity = vol.bricked ? static_cast<int>(vol.capacity) - 1 : 0;
     st.brickHeight = vol.by;   // 26.17
     if (!vol.asleep) updatePartialWake(vol, params);   // 26.31: may freeze every column (asleep)
@@ -1984,6 +2016,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     vkResetFences(m_device, 1, &vol.callFence);
     VkSubmitInfo si{}; si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; si.commandBufferCount = 1; si.pCommandBuffers = &cmd;
     vol.pend.tSubmit = std::chrono::steady_clock::now();
+    vol.lastDispatches = static_cast<int>(m_dispatchCount); vol.lastBarriers = static_cast<int>(m_barrierCount);   // 28
     const VkResult sub = vkQueueSubmit(m_queue, 1, &si, vol.callFence);
     if (sub != VK_SUCCESS) std::fprintf(stderr, "[WaterCoreGpu] step submit %d\n", static_cast<int>(sub));
     vol.callCmd = cmd; vol.inFlight = true; vol.pend.callId = ++vol.callsSubmitted;   // 27.15

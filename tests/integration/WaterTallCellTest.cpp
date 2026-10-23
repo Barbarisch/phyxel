@@ -315,3 +315,19 @@ TEST_F(WaterTallCellTest, DISABLED_DiagWidePond) {
         gpu.destroyVolume(v);
     }
 }
+
+// DIAG (28): what a dispatch and a barrier cost on this GPU by themselves - 1000 dispatches of an empty kernel, with and without a
+// barrier after each, at 1 / 64 / 1024 workgroups
+TEST_F(WaterTallCellTest, DISABLED_DiagLaunchCost) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    WaterGrid g = pond(glm::ivec3(0), glm::ivec3(72, 24, 72), 3.0f);
+    WaterCoreGpu::Volume* v = make(g);
+    if (!v) return;
+    for (int groups : {1, 64, 1024})
+        for (int bar = 1; bar >= 0; --bar) {
+            double best = 1e9;
+            for (int r = 0; r < 3; ++r) best = std::min(best, gpu.diagLaunchCost(*v, 1000, groups, bar != 0));
+            std::printf("  1000 dispatches x %4d workgroups, %s: %.3f ms (%.2f us each)\n", groups, bar ? "a barrier after each" : "no barriers", best, best);
+        }
+    gpu.destroyVolume(v);
+}

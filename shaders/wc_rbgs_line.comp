@@ -1,0 +1,65 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel (docs/WaterCore.md 28): one ZEBRA LINE sweep of the pressure system - every (x, z) column whose colour
+// (x + z) & 1 = iparam is solved EXACTLY along y (the Thomas algorithm over each run of liquid cells), its side neighbours (the other
+// colour, never written this pass) held; then over-relaxed: p = mix(p, line solution, param1). The rows are wc_classify's (diag, rhs,
+// liq), the same system the point sweeps (wc_rbgs) relax - only the order of solving changes. Water's pressure is stiff UP the column
+// (the free surface pins its top): a column solved in one pass needs far fewer sweeps than cell-by-cell red-black.
+// One workgroup per resident brick column (64 threads = its 8 x 8 columns), the column table's order; a frozen column returns.
+// Columns up to WC_LINE_NY cells tall (the host falls back to the point sweeps above that).
+#define WC_BRICKS_BINDING 5
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer Liq  { uint liq[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Diag { float diag[]; };
+layout(std430, set = 0, binding = 2) readonly buffer Rhs  { float rhs[]; };
+layout(std430, set = 0, binding = 3)          buffer P    { float p[]; };
+layout(std430, set = 0, binding = 4)          buffer Res  { float res[]; };
+
+#define WC_LINE_NY 64
+shared float sCp[64 * WC_LINE_NY];
+shared float sDp[64 * WC_LINE_NY];
+
+bool liqAt(int x, int y, int z) { return inBounds(x, y, z) && !absentCell(x, y, z) && liq[cellIdx(x, y, z)] != 0u; }
+float pn(int x, int y, int z) { return liqAt(x, y, z) ? p[cellIdx(x, y, z)] : 0.0; }
+// the side neighbours' pressure, weighted as the row weighs them (27.22: a tall cell's side faces by their open overlap)
+float sideSum(int x, int y, int z) {
+    return pn(x - 1, y, z) * sideOverlap(x, y, z, x - 1, z) + pn(x + 1, y, z) * sideOverlap(x, y, z, x + 1, z)
+         + pn(x, y, z - 1) * sideOverlap(x, y, z, x, z - 1) + pn(x, y, z + 1) * sideOverlap(x, y, z, x, z + 1);
+}
+
+void main() {
+    const uint lid = gl_LocalInvocationID.x;
+    int x, z;
+    if (!threadColumn(gl_GlobalInvocationID.x, x, z)) return;
+    if (((x + z) & 1) != pc.iparam || pc.ny > WC_LINE_NY) return;
+    const float invh2 = 1.0 / (pc.h * pc.h);
+    const uint base = lid * uint(WC_LINE_NY);
+    int y = 0;
+    while (y < pc.ny) {
+        if (!liqAt(x, y, z)) { ++y; continue; }
+        // a run of liquid cells [y0, y1]: forward elimination. Row k: -a p(k-1) + b p(k) - c p(k+1) = d (a, c = the vertical weights
+        // / h^2 - 1 between ordinary cells; the cell below a run or above it is not liquid: its term is in the row already)
+        const int y0 = y;
+        float cPrev = 0.0, dPrev = 0.0;
+        while (y < pc.ny && liqAt(x, y, z)) {
+            const uint i = cellIdx(x, y, z);
+            const float a = y > y0 ? invh2 : 0.0;
+            const float c = (y + 1 < pc.ny && liqAt(x, y + 1, z)) ? invh2 : 0.0;
+            const float d = rhs[i] + sideSum(x, y, z) * invh2;
+            const float m = diag[i] - a * cPrev;
+            const float cp = c / m, dp = (d + a * dPrev) / m;
+            sCp[base + uint(y)] = cp; sDp[base + uint(y)] = dp;
+            cPrev = cp; dPrev = dp;
+            ++y;
+        }
+        // back substitution, top down, over-relaxed into p
+        float xNext = 0.0;
+        for (int k = y - 1; k >= y0; --k) {
+            const float xk = sDp[base + uint(k)] + sCp[base + uint(k)] * xNext;
+            const uint i = cellIdx(x, k, z);
+            p[i] = mix(p[i], xk, pc.param1);
+            xNext = xk;
+        }
+    }
+}
