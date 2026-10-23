@@ -347,3 +347,60 @@ TEST_F(WaterRecordTilesTest, FrozenTilesRecordAndWakeWithTheBooksExact) {
     EXPECT_EQ(w.sentinelMax, 0.0) << "something wrote into the ground sentinel - every recorded brick reads that value";
     EXPECT_GT(o.neighbourCellsM3, 1e-3) << "the red control: with the wall open the woken water pours into the recorded tile";
 }
+
+// TallCellsRecordAndWakeWithTheBooksExact (27.22 TC4): a 32 x 16 m pond 2 m deep - tall cells ON (the default band, 0.5 m) - with
+// recording: every tile records (the record reads each tall cell back as its column), a touch seeds tile (0, 0) back (its columns
+// collapsed into their tall cells), a push wakes and the waves run; cells + record = placed every tick. RED CONTROL: the seed not
+// collapsed (s_seedSkipsTallCollapseForTest) - its water under the floor lands in bricks that read the ground.
+TEST_F(WaterRecordTilesTest, TallCellsRecordAndWakeWithTheBooksExact) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    for (int red = 0; red < 2; ++red) {
+        WaterCoreGpu::s_seedSkipsTallCollapseForTest = red != 0;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        const float afterBefore = WaterCoreManager::s_recordAfterS;
+        WaterCoreManager::s_recordAfterS = 0.5f;
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(31, 2, 15), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_TRUE(id) << err;
+        mgr.setAutoSleep(id, false);
+        mgr.setTallBand(id, 0.5f);
+        ASSERT_TRUE(mgr.setPartialWake(id, true) && mgr.setRecordTiles(id, true));
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(31, 1, 15), 1.0f, nullptr);
+        const double placed = mgr.totalMass();
+        AvRecord rec;
+        const float dt = 1.0f / 60.0f;
+        double booksWorst = 0.0; bool tallSeen = false;
+        auto books = [&]() {
+            const AvRecord* r = mgr.find(id);
+            const double b = std::abs(mgr.totalMass() + (r ? r->residueDropped : 0.0) + record.total() - placed);
+            booksWorst = std::max(booksWorst, b);
+            tallSeen = tallSeen || (r && r->tallActive);
+        };
+        for (int k = 0; k < 360; ++k) { mgr.step(id, 1, dt, &rec); books(); }
+        const AvRecord* r = mgr.find(id);
+        const int recordedAfterSettle = r ? r->recordedTiles : -1;
+        const double recordAfterSettle = record.total();
+        mgr.addImpulse(glm::vec3(4.0f, 1.9f, 4.0f), 1.0f / 3.0f, 1e-4f, glm::vec3(0.0f, -1.0f, 0.0f));   // the touch: tile (0, 0) seeded
+        for (int k = 0; k < 60; ++k) { mgr.step(id, 1, dt, &rec); books(); }
+        mgr.addImpulse(glm::vec3(4.0f, 1.9f, 4.0f), 0.5f, 1.0f, glm::vec3(0.0f, -1.0f, 0.0f));          // the push
+        for (int k = 0; k < 300; ++k) { mgr.step(id, 1, dt, &rec); books(); }
+        r = mgr.find(id);
+        std::printf("  %s placed %.4f m3; tall seen %d; recorded after settle %d (record %.4f m3); woken %ld; books worst %.2e m3; seed unplaced %.4f m3; at the end tall %d (%s)\n",
+                    red ? "RED (seed not collapsed):" : "tall + record:", placed, int(tallSeen), recordedAfterSettle, recordAfterSettle, r ? r->tilesWoken : -1L, booksWorst,
+                    r ? r->seedUnplacedM3 : -1.0, r ? int(r->tallActive) : -1, r ? r->tallReason.c_str() : "");
+        if (!red) {
+            EXPECT_TRUE(tallSeen) << "the 2 m pond made tall cells";
+            EXPECT_EQ(recordedAfterSettle, 8) << "every tile of the still pond records";
+            EXPECT_NEAR(recordAfterSettle, placed, 1e-3) << "the record holds the tall cells' water too";
+            EXPECT_LT(booksWorst, 1e-3) << "cells + record = placed, every tick";
+        } else {
+            EXPECT_GT(booksWorst, 1.0) << "the red control must lose the seeded water under the floor";
+        }
+        WaterCoreManager::s_recordAfterS = afterBefore;
+    }
+    WaterCoreGpu::s_seedSkipsTallCollapseForTest = false;
+}

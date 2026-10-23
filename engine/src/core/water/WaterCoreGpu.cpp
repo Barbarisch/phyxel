@@ -595,7 +595,7 @@ void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& 
 // §27 W1b: a tile's cells read back - only the bricks of its columns cross (a whole-volume download sent 1.9 M cells for a 46 x 28 m
 // pond: 105 ms at a sleep, 27.8). The fills of stored bricks; ground and absent bricks hold none. Occupancy from the host copy.
 bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::ivec2& bHi, WaterGrid& out) {
-    if (!vol.bricked || vol.tallActive || vol.tallPending) return false;   // 27.22: not with tall cells (TC4)
+    if (!vol.bricked) return false;
     const auto tr0 = std::chrono::steady_clock::now();
     settle(vol);
     s_tileGpuMs.readSettle = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tr0).count();
@@ -632,6 +632,16 @@ bool WaterCoreGpu::readColumns(Volume& vol, const glm::ivec2& bLo, const glm::iv
         out.f(x - x0, y, z - z0) = i >= static_cast<long>(kFirstSlot * vol.bc) ? sf[i] : 0.0f;
         const size_t d = static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z);
         out.occ(x - x0, y, z - z0) = d < vol.hostOcc.size() ? static_cast<Occ>(vol.hostOcc[d]) : Occ::Solid;
+    }
+    // 27.22 TC4: a tall cell is its column's water from the bed up - spread back into cells for the record (as download does)
+    if (vol.tallActive && vol.tallH.size() == vol.dColumns && vol.tallY >= 0 && vol.tallY < n.y) {
+        const int T = vol.tallY;
+        for (int z = z0; z <= z1; ++z) for (int x = x0; x <= x1; ++x) {
+            const int Hc = vol.tallH[static_cast<size_t>(x) + static_cast<size_t>(n.x) * z];
+            if (Hc <= 1) continue;
+            const float share = out.f(x - x0, T, z - z0) / static_cast<float>(Hc);
+            for (int y = std::max(0, T - Hc + 1); y <= T; ++y) out.f(x - x0, y, z - z0) = share;
+        }
     }
     s_tileGpuMs.readHost = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - th).count();
     return true;
@@ -694,6 +704,20 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
             vol.colQuiet[c] = 1 << 20;   // at rest (the freeze test's count, far past restTicks)
         }
     vol.anyRecorded = std::find(vol.colRecorded.begin(), vol.colRecorded.end(), 1) != vol.colRecorded.end();
+    // 27.22 TC4: with tall cells, a seeded column's water under the floor goes into its tall cell (the bricks there read the ground)
+    if ((vol.tallActive || vol.tallPending == 1) && vol.tallH.size() == vol.dColumns && vol.tallY >= 0 && !s_seedSkipsTallCollapseForTest) {
+        const glm::ivec3 nn = vol.spec.dims, o2 = cells.spec().origin - vol.spec.origin;
+        const int T = vol.tallY - o2.y;
+        for (int z = 0; z < cells.nz(); ++z) for (int x = 0; x < cells.nx(); ++x) {
+            const int vx = x + o2.x, vz = z + o2.z;
+            if (vx < 0 || vz < 0 || vx >= nn.x || vz >= nn.z || T < 0 || T >= cells.ny()) continue;
+            const int Hc = vol.tallH[static_cast<size_t>(vx) + static_cast<size_t>(nn.x) * vz];
+            if (Hc <= 1) continue;
+            float sum = 0.0f;
+            for (int y = std::max(0, T - Hc + 1); y <= T; ++y) { sum += cells.f(x, y, z); cells.f(x, y, z) = 0.0f; }
+            cells.f(x, T, z) = sum;
+        }
+    }
     // the seed's bricks (and a ring of halo, as an upload's) stored, then its fills written into them - over the TILE's cells only
     // (27.19: a whole-volume dense fill, allocated, zeroed and walked twice, was 9-10 ms of a wake on the 46 x 28 m bench pond)
     const glm::ivec3 n = vol.spec.dims, off = cells.spec().origin - vol.spec.origin;
@@ -1420,7 +1444,6 @@ bool WaterCoreGpu::setTall(Volume& vol, int tallY, const std::vector<int>& heigh
     auto fail = [&](const std::string& m) { if (err) *err = m; return false; };
     if (!vol.bricked || !vol.sparse || vol.particles) return fail("tall cells need a sparse bricked fill volume");
     if (!vol.groundOn || vol.groundAsAir) return fail("tall cells need ground bricks (26.18): the cells under the tall layer read the ground sentinel");
-    if (vol.anyRecorded) return fail("tall cells and recorded tiles (W1b) are not combined yet (27.22 TC4)");
     if (vol.tallActive || vol.tallPending) return fail("tall cells are active or pending - clear them first");
     if (tallY < 1 || tallY >= vol.spec.dims.y || ((tallY + vol.o.y) % vol.by) != 0) return fail("the tall layer must be the bottom cell of a brick inside the box");
     if (heights.size() != vol.dColumns) return fail("one height per column of the box");

@@ -350,8 +350,9 @@ public:
     /// 27.22 TALL CELLS: from the next call, the cell at grid y `tallY` of every column with heights[x + nx z] > 1 holds that column's
     /// water from tallY - H + 1 up (gathered exactly), and the bricks under the tall layer's brick read the ground sentinel. `tallY`
     /// must be the bottom cell of a brick ((tallY + o.y) % brick height == 0) and every column of height H open (no solid) from
-    /// tallY - H + 1 to tallY - the caller's rule (WaterCoreManager). Refused (false + err) on a dense, particle or record-tiled
-    /// volume, without ground bricks, or while tall cells are active (clear first).
+    /// tallY - H + 1 to tallY - the caller's rule (WaterCoreManager). Refused (false + err) on a dense or particle
+    /// volume, without ground bricks, or while tall cells are active (clear first). 27.22 TC4: recorded tiles combine - readColumns
+    /// spreads a tall cell back into the record's columns, seedColumns collapses a woken tile's columns into their tall cells.
     bool setTall(Volume& vol, int tallY, const std::vector<int>& heights, std::string* err);
     /// 27.22: every tall cell back to ordinary cells at the next call (exact; the bricks under the floor stored again).
     void clearTall(Volume& vol);
@@ -383,6 +384,9 @@ public:
     /// 27.22d TEST ONLY (the red control): upload clears the tall state only at its end - its residency then reads the bricks under the
     /// floor as ground and the grid's water there is lost
     static inline bool s_uploadKeepsTallForTest = false;
+    /// 27.22 TC4 TEST ONLY (the red control): a woken tile's seed is NOT collapsed into its tall cells - its water under the floor lands
+    /// in bricks that read the ground, and is lost
+    static inline bool s_seedSkipsTallCollapseForTest = false;
     static inline int s_lineSweeps = 0;
     /// 28 TEST ONLY: the GPU time (ms) of `n` dispatches of the brick-record kernel over `groups` workgroups each, with a barrier after
     /// each (`barriers`) or none - what a launch and a barrier cost by themselves

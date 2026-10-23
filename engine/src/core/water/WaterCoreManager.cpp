@@ -641,7 +641,7 @@ bool WaterCoreManager::captureTallRest(Av& av) {
     std::nth_element(tops.begin(), tops.begin() + tops.size() / 2, tops.end());
     av.tallRestY = tops[tops.size() / 2];
     av.tallDrop = 0.0f;
-    av.tallRestMass = fieldWater(fld);
+    av.tallRestMass = fieldWater(fld) + av.recordedM3;   // 27.22 TC4: the record's share too (a recorded tile leaves the field)
     av.tallReason = "rest level read";
     return true;
 }
@@ -655,7 +655,6 @@ void WaterCoreManager::updateTall(Av& av) {
     if (av.tallBand <= 0.0f) { off("off"); return; }
     if (!vol.bricked || !vol.sparse || vol.particles || av.solver->transport().ownsMass()) { off("not a sparse fill volume"); return; }
     if (!EulerianTransport::s_allFacesAtOnce) { off("needs the all-faces transport (26.5)"); return; }
-    if (av.recordTiles || vol.anyRecorded) { off("record tiles (TC4)"); return; }
     const WaterSurfaceField& fld = av.field;
     auto wetTops = [&](std::vector<float>& tops) {
         tops.clear();
@@ -667,7 +666,7 @@ void WaterCoreManager::updateTall(Av& av) {
     // fills a pond in layers: the first layer is flat, and a 2 m pond got the floor of a 1 m one)
     if (!std::isnan(av.tallRestY) && fld.cols.size() == static_cast<size_t>(fld.nx) * fld.nz) {
         const double area = static_cast<double>(fld.nx) * fld.nz * av.h * av.h;
-        if (std::abs(fieldWater(fld) - av.tallRestMass) > 0.5 * av.h * area) { off("the water changed - a new rest level"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); }
+        if (std::abs(fieldWater(fld) + av.recordedM3 - av.tallRestMass) > 0.5 * av.h * area) { off("the water changed - a new rest level"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); }
     }
     // the rest level is read while the volume SLEEPS (WaterCoreManager::update -> captureTallRest): a sleeping volume is never stepped,
     // and the call that decides it sleeps returns before the decision (26.16) - so rarely here

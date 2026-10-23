@@ -8553,6 +8553,17 @@ time".)
 
 Tests (tall on by default): GPU water 50/52 (the known FLIP row; the stone gate's narrow miss, 27.22b), water unit 312/312.
 
+### 27.22g TC4 - tall cells and recorded tiles together (2026-10-23). Status: BUILT, ON with the default
+
+Lakes are deep and record: the two could not run together (tall cells refused a record-tiled volume). Now: `readColumns` (a tile into
+the record) spreads each tall cell back into its column's cells, as `download` does; `seedColumns` (a tile woken from the record)
+collapses the seeded columns into their tall cells before the upload (the bricks under the floor read the ground). The rest rule counts
+the record's water too (a recorded tile leaves the surface field - it read as water lost). Gate
+`WaterRecordTilesTest.TallCellsRecordAndWakeWithTheBooksExact`: a 32 x 16 m pond 2 m deep, recording on - tall cells made, all 8 tiles
+recorded (1,023.9999 of 1,024.0000 m^3 in the record), a touch seeds a tile back, a push - cells + record = placed within 5.6e-6 m^3
+every tick. RED control (the seed not collapsed, `s_seedSkipsTallCollapseForTest`): 85.3 m^3 lost. GPU water 51/53 (the known FLIP row,
+the stone gate), unit 312/312.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
