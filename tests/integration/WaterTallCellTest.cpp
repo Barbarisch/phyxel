@@ -331,3 +331,61 @@ TEST_F(WaterTallCellTest, DISABLED_DiagLaunchCost) {
         }
     gpu.destroyVolume(v);
 }
+
+// DIAG (27.22d): the live engine lost the water under the tall layer (one brick layer, every column) - the tests did not. The live
+// differences one at a time: the partial wake ON, the async calls, an upload between calls (a write)
+TEST_F(WaterTallCellTest, DISABLED_DiagLiveDifferences) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const glm::ivec3 dims(72, 24, 72);
+    for (int variant = 0; variant < 4; ++variant) {
+        WaterGrid g = pond(glm::ivec3(0, 144, 0), dims, 18.0f);
+        WaterCoreGpu::Volume* v = make(g);
+        if (!v) return;
+        if (variant == 1 || variant == 3) gpu.setPartialWake(*v, true);
+        if (variant == 2 || variant == 3) gpu.setAsync(*v, true);
+        const double m0 = gridMass(g);
+        tall(*v, g, tallLayer(18.0f, 0.5f));
+        double worst = 0.0; GpuStepStats st;
+        for (int k = 0; k < 120; ++k) {
+            if (k == 10) gpu.queueMomentum(*v, glm::vec3(4.0f, 16.0f + 1.9f, 4.0f), 1.0f / 3.0f, glm::vec3(0.0f, -0.148f, 0.0f));
+            st = gpu.step(*v, prm, kDt, 1, kSweeps);
+            gpu.settle(*v);
+            st = v->pend.st;
+            if (k > 1 && st.totalMass > 0) worst = std::max(worst, std::abs(st.totalMass - m0));
+        }
+        WaterGrid out(g.spec()); gpu.download(*v, out);
+        std::printf("  variant %d (partial wake %d, async %d): tall active %d, mass %.4f -> grid %.4f, worst reduction error %.4f m^3\n",
+                    variant, int(variant == 1 || variant == 3), int(variant >= 2), int(v->tallActive), m0, gridMass(out), worst);
+        gpu.destroyVolume(v);
+    }
+}
+
+// TheBooksSurviveAWrite (27.22d - the live engine lost one brick layer under the floor at each write): a tall pond, the host downloads it
+// (the tall cells spread back), writes nothing, uploads it, steps - the water exactly as before. RED CONTROL: the old order (upload clears
+// the tall state at its end) must lose the water under the floor.
+TEST_F(WaterTallCellTest, TheBooksSurviveAWrite) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const glm::ivec3 dims(72, 24, 72);
+    for (int red = 1; red >= 0; --red) {
+        WaterCoreGpu::s_uploadKeepsTallForTest = red != 0;
+        WaterGrid g = pond(glm::ivec3(0, 144, 0), dims, 18.0f);
+        WaterCoreGpu::Volume* v = make(g);
+        ASSERT_NE(v, nullptr);
+        const double m0 = gridMass(g);
+        tall(*v, g, tallLayer(18.0f, 0.5f));
+        for (int k = 0; k < 10; ++k) gpu.step(*v, prm, kDt, 1, kSweeps);
+        gpu.settle(*v);
+        ASSERT_TRUE(v->tallActive);
+        WaterGrid host(g.spec());
+        gpu.download(*v, host);   // the manager's syncFromGpu before a write
+        gpu.upload(*v, host);     // ... and the upload after it
+        for (int k = 0; k < 5; ++k) gpu.step(*v, prm, kDt, 1, kSweeps);
+        gpu.settle(*v);
+        WaterGrid out(g.spec()); gpu.download(*v, out);
+        std::printf("  %s a write to a tall pond: mass %.6f -> host %.6f -> after the upload %.6f m^3\n", red ? "RED (the old order):" : "fixed:", m0, gridMass(host), gridMass(out));
+        if (red) EXPECT_LT(gridMass(out), m0 - 1.0) << "the red control must lose the water under the floor";
+        else EXPECT_NEAR(gridMass(out), m0, 1e-4 * m0);
+        gpu.destroyVolume(v);
+    }
+    WaterCoreGpu::s_uploadKeepsTallForTest = false;
+}

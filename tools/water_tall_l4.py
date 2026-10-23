@@ -47,7 +47,7 @@ def run(api, depth, band, seconds):
     while time.time() - t1 < seconds:
         v = vol(api, vid)
         rows.append({"ms": v.get("gpu_device_ms"), "asleep": v.get("asleep"), "substeps": v["last"]["substeps"], "bricks": v.get("gpu_bricks"),
-                     "tall_active": v.get("tall_active"), "tall_columns": v.get("tall_columns"), "floor": v.get("tall_floor_y"), "reason": v.get("tall_reason"),
+                     "tall_active": v.get("tall_active"), "tall_columns": v.get("tall_columns"), "floor": v.get("tall_floor_y"), "reason": v.get("tall_reason"), "offs": v.get("tall_offs"), "last_off": v.get("tall_last_off"),
                      "mass": v["mass"], "ke": v.get("kinetic_energy")})
         time.sleep(0.25)
     awake = [x["ms"] for x in rows if not x["asleep"] and x["ms"]]
@@ -55,9 +55,9 @@ def run(api, depth, band, seconds):
     out = {"depth_m": depth, "band_m": band, "solver_ms_median": statistics.median(awake) if awake else None, "solver_ms_max": max(awake) if awake else None,
            "substeps_max": max(x["substeps"] for x in rows), "bricks_median": statistics.median(x["bricks"] or 0 for x in rows),
            "tall_active_any": any(x["tall_active"] for x in rows), "tall_columns": max(x["tall_columns"] or 0 for x in rows), "floor_y": last["floor"],
-           "reasons": sorted({x["reason"] for x in rows if x["reason"]}), "mass_start": m0, "mass_end": last["mass"], "ke_max": max((x["ke"] or 0) for x in rows), "polls": rows}
+           "reasons": sorted({x["reason"] for x in rows if x["reason"]}), "offs": rows[-1]["offs"], "last_off": rows[-1]["last_off"], "mass_start": m0, "mass_end": last["mass"], "ke_max": max((x["ke"] or 0) for x in rows), "polls": rows}
     print(f"  {depth} m, band {band}: solver {out['solver_ms_median']} ms median (max {out['solver_ms_max']}), bricks {out['bricks_median']}, substeps {out['substeps_max']}, "
-          f"tall {out['tall_active_any']} ({out['tall_columns']} columns, floor {out['floor_y']}), reasons {out['reasons']}, mass {m0:.4f} -> {last['mass']:.4f}, KE max {out['ke_max']:.3e}", flush=True)
+          f"tall {out['tall_active_any']} ({out['tall_columns']} columns, floor {out['floor_y']}), reasons {out['reasons']}, offs {out['offs']} ({out['last_off']}), mass {m0:.4f} -> {last['mass']:.4f}, KE max {out['ke_max']:.3e}", flush=True)
     destroy_all(api)
     return out
 
@@ -67,6 +67,7 @@ def main():
     ap.add_argument("--url", default="http://127.0.0.1:8114")
     ap.add_argument("--band", type=float, default=0.5)
     ap.add_argument("--seconds", type=float, default=6.0)
+    ap.add_argument("--depths", default="1,2,3")
     ap.add_argument("--json", default=str(EV / "tall_l4.json"))
     a = ap.parse_args()
     api = Api(a.url); api.wait_status(300)
@@ -74,7 +75,7 @@ def main():
     api.post("/api/camera", {"mode": "free", "position": {"x": 16.0, "y": 30.0, "z": 40.0}, "yaw": -90.0, "pitch": -40.0})
     time.sleep(2.0)
     res = {"runs": [], "args": vars(a)}
-    for depth in (1.0, 2.0):
+    for depth in [float(x) for x in a.depths.split(",")]:
         for band in (0.0, a.band, 0.0, a.band):
             res["runs"].append(run(api, depth, band, a.seconds))
         res["runs"].append({"control": True, **run(api, depth, depth + 1.0, a.seconds)})

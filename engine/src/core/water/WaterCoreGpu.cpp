@@ -1012,6 +1012,10 @@ int WaterCoreGpu::partitionSlots(VkCommandBuffer cmd, Volume& vol) {
 
 void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     settle(vol);   // 26.16
+    // 27.22: the grid is ordinary cells - no tall cells from here (the heights region is zeroed with the counters below) until asked
+    // again. FIRST: with the tall state still set, the residency below read every brick under the floor as ground and the grid's
+    // water there was never stored - each write to a tall pond deleted one brick layer of it (27.22d, 128 m^3 in a 24 x 24 m pond)
+    if (!s_uploadKeepsTallForTest) { vol.tallActive = false; vol.tallPending = 0; vol.tallY = -1; vol.tallH.clear(); vol.tallColumns = 0; }
     vol.surfaceValid = false;   // Phase F: the staging field predates this grid
     vol.haveLast = false;       // 26.16
     WaterGrid& gm = const_cast<WaterGrid&>(g);
@@ -1093,8 +1097,7 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     vkCmdFillBuffer(cmd, vol.p.buf, 0, vol.p.bytes, 0);   // 26.5: a replaced state starts its solve fresh (deterministic, as a new volume)
     vkCmdFillBuffer(cmd, vol.fLo.buf, 0, vol.fLo.bytes, 0);   // 26.10: the remainders belonged to the water that was there
     submitAndWait(cmd);
-    // 27.22: the grid is ordinary cells (the heights region was zeroed with the counters above): no tall cells until asked again
-    vol.tallActive = false; vol.tallPending = 0; vol.tallY = -1; vol.tallH.clear(); vol.tallColumns = 0;
+    vol.tallActive = false; vol.tallPending = 0; vol.tallY = -1; vol.tallH.clear(); vol.tallColumns = 0;   // (the red control's late reset)
 }
 
 void WaterCoreGpu::queueMomentum(Volume& vol, const glm::vec3& pos, float radius, const glm::vec3& momentum, float maxSpeed) {

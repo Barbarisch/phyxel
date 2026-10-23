@@ -379,6 +379,9 @@ public:
     /// 28 (the launch count): ZEBRA LINE sweeps of the pressure (wc_rbgs_line.comp - every column solved exactly along y, the columns
     /// in a checkerboard) in place of the point sweeps: 0 = off (the point sweeps, the default until the owner looks), N = N line
     /// sweeps (2N dispatches); omega their over-relaxation. Volumes taller than 64 cells keep the point sweeps.
+    /// 27.22d TEST ONLY (the red control): upload clears the tall state only at its end - its residency then reads the bricks under the
+    /// floor as ground and the grid's water there is lost
+    static inline bool s_uploadKeepsTallForTest = false;
     static inline int s_lineSweeps = 0;
     /// 28 TEST ONLY: the GPU time (ms) of `n` dispatches of the brick-record kernel over `groups` workgroups each, with a barrier after
     /// each (`barriers`) or none - what a launch and a barrier cost by themselves

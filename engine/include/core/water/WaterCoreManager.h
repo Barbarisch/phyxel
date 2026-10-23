@@ -56,6 +56,8 @@ struct AvRecord {
     int tallColumns = 0;                   ///< 27.22: columns with a tall cell
     long tallRegrids = 0;                  ///< 27.22: collapses + expands
     std::string tallReason;                ///< 27.22: why the floor is where it is, or why there are no tall cells
+    long tallOffs = 0;                     ///< 27.22d: times the rules turned the tall cells off
+    std::string tallLastOff;               ///< 27.22d: the last reason they did
     bool recordTiles = false;              ///< §27 W1b: frozen 8 m tiles sleep into the record (and wake from it)
     double recordedM3 = 0.0;               ///< §27 W1b: this volume's water now in the record (m^3, the spans' unit)
     int recordedTiles = 0;                 ///< §27 W1b: tiles in the record now
@@ -509,6 +511,11 @@ private:
         float tallBand = 0.0f;           // 27.22: the fine band (m); 0 = off
         float tallRestY = std::numeric_limits<float>::quiet_NaN();   // 27.22: the rest level (world m), taken while the water sleeps
         std::string tallReason;          // 27.22
+        long tallOffs = 0;               // 27.22d: times the rules turned the tall cells off (with the reason)
+        double tallRestMass = 0.0;       // 27.22d: the water (m^3) when the rest level was read - a change of more than half a cell over
+                                         // the surface (water added or taken) means a new rest level
+        float tallDrop = 0.0f;           // 27.22d: metres the floor sits below rest - B after troughs (back to 0 at the next rest)
+        std::string tallLastOff;         // 27.22d
         double recordedM3 = 0.0;
         std::vector<std::pair<int, int>> recordedTileList;   ///< tile (x, z) indices in the record now
         std::vector<std::pair<int, int>> pendingTileWakes;   ///< §27 W1c: tiles a droplet landed on - woken before the next call

@@ -8481,6 +8481,41 @@ rest of the chain (~0.35-0.55 ms a call whatever its size - 27.20 #5), and tall 
 dispatches (or the tall layer's sweeps are folded into the band's), tall cells cost about what they save. They stay OFF by default;
 the code, the gates and the tools stay.
 
+### 27.22d Tall cells live, fixed (2026-10-23): depth stops costing past ~1 m. Status: BUILT, OFF by default, not signed off
+
+**The ask (owner):** "does water pond depth affect performance? if yes, we need to figure out how and why to fix that" - "yes do it".
+27.22c's live run was not a fair test: the tall cells switched themselves off at 2 m and never started at 3 m. Four defects, each found
+by its numbers (`tall_offs` / `tall_last_off`, new echoes), fixed:
+1. **A write deleted the water under the floor.** `upload()` cleared the tall state only at its END, after its residency had read
+   every brick under the floor as ground - the grid's water there was never stored. Every write to a tall pond (placing water, an
+   impulse: download -> edit -> upload) lost one brick layer (128 m^3 in a 24 x 24 m pond). The tests never uploaded while tall.
+   Fixed: reset first. Gate `WaterTallCellTest.TheBooksSurviveAWrite` - RED control (`s_uploadKeepsTallForTest`, the old order): 128 ->
+   42.7 m^3; fixed: 128.000003 -> 127.999980.
+2. **The trough rule fired on a stone's crater.** It turned the tall cells off when the lowest surface came within B minus a brick
+   of the floor (a 0.34 m crater in a 2 m pond), and they stayed off until the next rest. Now: within one brick of the floor, and the
+   floor steps DOWN two bricks (expand, collapse lower at the next call) - back to the rest rule at the next rest (`tallDrop`).
+3. **A deep pond never "rested".** The rest level was read only while the volume slept; a walled 3 m pond does not sleep (27.20 #4).
+   Now: read when the surface is FLAT (the wet tops within 5 mm).
+4. **The rest level was read too early.** The bench fills a pond in layers; the first layer is flat, and a 2 or 3 m pond got a 1 m
+   pond's floor. Now the water the field holds is kept with the rest level; a change of more than half a cell over the surface (water
+   added or taken) reads it again.
+
+**Live, interleaved** (`tools/water_tall_l4.py`, the 24 x 24 m pond inside one chunk, a stone at the centre, shipped settings, B
+0.5 m; evidence `tall_l4_d.json`):
+
+| depth | off (solver) | tall cells | bricks off -> on |
+|---|---|---|---|
+| 1 m | 1.71 / 1.75 ms | 1.77 / 1.71 ms | 6,276 -> 5,510 |
+| 2 m | 2.40 / 2.43 ms | 2.02 / 1.94 ms (-18 %; the crater stepped the floor down once) | 9,550 -> 6,460 |
+| 3 m | 3.14 / 3.16 ms | **1.87 / 1.89 ms (-40 %)** | 13,334 -> 5,526 |
+
+The books exact in every run (1,728.0000 -> 1,728.0000 m^3 at 3 m). **With tall cells a 3 m pond costs what a 1 m pond does.** The
+tall layer's own 20 sweep pairs cost ~0.18 ms of it (`tall_sweeps_cost.json`: 3 m 1.95 ms at 20, 1.80 at 5, 1.82 at 0) - kept at 20,
+the stone gate needs them. Tests: GPU water 50/52 (the known FLIP row; the stone gate's narrow miss, 27.22b), water unit 312/312.
+
+**Left for the owner:** the look - all fine vs tall at B 0.44 / 0.67 / 0.89 m, a stone and floating wood side by side; then whether
+tall cells go ON by default (and at which B).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
