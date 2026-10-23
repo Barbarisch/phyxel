@@ -8603,6 +8603,16 @@ of GPU memory and ~730 MB of process memory; a 200 m lake ~8.6 GB of GPU memory.
 world-aligned bricks and tiles as before; the API echoes the pool (`gpu_brick_capacity`, `pool_grows`) and the write path
 (`writes_in_place`, `writes_round_trip`); no defaults change. **Verdict: READY for W1d.1.**
 
+**W1d.1 BUILT (2026-10-23): the GPU slot pool follows the water.** A sparse volume with no fixed capacity starts with 510 slots and
+DOUBLES when a residency needs more (`WaterCoreGpu::growPool`: new device buffers, every stored slot copied with its number, the tables
+rewritten, the kernels rebound - `bindPipelines` split out of `createPipelines`). Upload and seed grow before their residency; a step
+that could not store everything holds those faces for one call (the capacity backstop, counted) and grows at the start of the next -
+nothing recorded ever points at a freed buffer. Found on the way: `upload` kept the staging pointer it took before the grow and wrote
+into the freed buffer (the still pond lost 127.99 of 128 m^3) - re-taken after it. Echo `gpu_pool_grows`. Measured live (same boxes as
+above): **24 x 24 x 2 m empty 102 -> 15 MB of GPU memory; 46 x 28 x 2 m empty 231 -> 25 MB; the same box holding a 10 x 10 m 0.3 m
+pond 85 MB** (two grows, 4,095 slots for 2,119 stored bricks; the water exact, 30.0000 m^3). Process memory 236 -> 95 MB empty - the
+CPU mirror (W1d.3). GPU water 51/53 (the known two) - the bit-identical sparse-vs-dense rows now run through grows.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

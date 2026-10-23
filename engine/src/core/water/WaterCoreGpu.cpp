@@ -99,6 +99,11 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
         }
         vol.pipes[k] = std::move(pipe);
     }
+    bindPipelines(vol);
+    return true;
+}
+
+void WaterCoreGpu::bindPipelines(Volume& vol) {
     auto bindAll = [](Vulkan::ComputePipeline& p, std::initializer_list<const Buffer*> bufs) {
         uint32_t i = 0; for (const Buffer* b : bufs) { p.bindBuffer(i++, b->buf, b->bytes); } p.updateDescriptors();
     };
@@ -156,7 +161,6 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
         }
         bindAll(*vol.pipes[FlipG2p], {&vol.posB, &vol.velB, &vol.u, &vol.v, &vol.w, &vol.uOld, &vol.vOld, &vol.wOld, &vol.occ});
     }
-    return true;
 }
 
 WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const WaterGrid& g, std::string* err, const BrickOptions& bricks) {
@@ -206,7 +210,10 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
                             + std::to_string(mapBytes) + " bytes map, " + std::to_string(fullBytes) + " bytes with every brick stored; world scale is 26.3 P5)";
             return nullptr;
         }
-        vol->capacity = kFirstSlot + (opts.capacity > 0 ? std::min(opts.capacity, vol->mapCount) : vol->mapCount);   // slot 0 = the absent brick, slot 1 = ground (26.18)
+        // slot 0 = the absent brick, slot 1 = ground (26.18). 27.23 W1d.1: a sparse volume with no fixed capacity starts with kInitialSlots
+        // and grows with its water (it reserved a slot for every brick of its box: ~123 B of GPU memory per cell of the box, measured)
+        vol->growable = opts.sparse && opts.capacity == 0;
+        vol->capacity = kFirstSlot + (opts.capacity > 0 ? std::min(opts.capacity, vol->mapCount) : (vol->growable ? std::min(kInitialSlots, vol->mapCount) : vol->mapCount));
         vol->colCap = static_cast<size_t>(vol->bn.x) * vol->bn.z;
         vol->cells = vol->capacity * vol->bc; vol->nu = vol->nv = vol->nw = vol->cells;
         vol->columns = vol->colCap * 64;
@@ -536,6 +543,7 @@ std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<cha
         }
     }
     vol.lastAllocated = static_cast<int>(fresh.size()); vol.lastFreed = freed; vol.lastHeld = held;
+    if (held > 0 && vol.growable) vol.growWant = vol.storedCount + static_cast<size_t>(fresh.size()) + static_cast<size_t>(held) + static_cast<size_t>(held) / 4;   // 27.23 W1d.1
     vol.storedCount += static_cast<int>(fresh.size()) - freed;
     if (fresh.empty() && freed == 0 && !vol.colEntries.empty()) return fresh;   // the steady state: tables, range and columns unchanged
     int top = 0;
@@ -550,6 +558,107 @@ std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<cha
     vol.colCount = static_cast<int>(vol.colEntries.size());
     if (!fresh.empty() || freed > 0) vol.tablesDirty = true;
     return fresh;
+}
+
+void WaterCoreGpu::ensureCapacity(Volume& vol, const std::vector<char>& need) {
+    if (!vol.growable || need.size() != vol.mapCount) return;
+    const bool ground = vol.groundOn && vol.allSolid.size() == vol.mapCount;
+    size_t want = 0;
+    for (size_t m = 0; m < vol.mapCount; ++m) if (need[m] >= 1 && !(ground && need[m] == 1 && vol.allSolid[m])) ++want;
+    if (want + kFirstSlot > vol.capacity) growPool(vol, want + want / 4);
+}
+
+bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
+    if (!vol.growable || !vol.bricked) return false;
+    size_t newCap = std::max<size_t>(vol.capacity, kFirstSlot + 1);
+    while (newCap < slots + kFirstSlot) newCap *= 2;
+    newCap = std::min(newCap, vol.mapCount + kFirstSlot);
+    if (newCap <= vol.capacity) return false;
+    settle(vol);
+    const size_t oldCap = vol.capacity, oldInfoOff = vol.infoOff, oldTallOff = vol.tallOff;
+    // the capacity-dependent buffers: the new ones replace them, the old kept until their contents are copied
+    Buffer* const keep[] = {&vol.f, &vol.fOrig, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.uOld, &vol.vOld, &vol.wOld, &vol.occ, &vol.src, &vol.fLo,
+                            &vol.solid, &vol.deposit, &vol.p, &vol.bricks};
+    Buffer* const scratchB[] = {&vol.liq, &vol.diag, &vol.rhs, &vol.res, &vol.valA, &vol.valB, &vol.knownA, &vol.knownB, &vol.first, &vol.keep,
+                                &vol.part, &vol.part2, &vol.staging, &vol.stageCap};
+    std::vector<Buffer> oldKeep, oldScratch;
+    for (Buffer* b : keep) { oldKeep.push_back(*b); *b = Buffer{}; }
+    for (Buffer* b : scratchB) { oldScratch.push_back(*b); *b = Buffer{}; }
+    // createVolume's layout at the new capacity
+    vol.capacity = newCap;
+    vol.cells = vol.capacity * vol.bc; vol.nu = vol.nv = vol.nw = vol.cells;
+    vol.colTableOff = vol.slotTableOff + vol.capacity; vol.counterOff = vol.colTableOff + vol.colCap; vol.infoOff = vol.counterOff + kCounters;
+    vol.brickInts = vol.infoOff + 2 * vol.capacity;
+    vol.tallOff = vol.brickInts; vol.brickInts += vol.dColumns;
+    vol.latticeMax = std::max({vol.nu, vol.nv, vol.nw});
+    vol.groups = std::max(2 * ((std::max({vol.cells, vol.latticeMax, vol.columns}) + 255) / 256), static_cast<size_t>(vol.bn.x) * vol.nuy * static_cast<size_t>(vol.bn.z)) + 1;
+    const VkDeviceSize F4 = sizeof(float);
+    std::string err;
+    bool ok = createBuffer(vol.f, vol.cells * F4, false, &err) && createBuffer(vol.fLo, vol.cells * F4, false, &err) && createBuffer(vol.fOrig, vol.cells * F4, false, &err) && createBuffer(vol.fPrev, vol.cells * F4, false, &err)
+           && createBuffer(vol.u, vol.nu * F4, false, &err) && createBuffer(vol.v, vol.nv * F4, false, &err) && createBuffer(vol.w, vol.nw * F4, false, &err)
+           && createBuffer(vol.uOld, vol.nu * F4, false, &err) && createBuffer(vol.vOld, vol.nv * F4, false, &err) && createBuffer(vol.wOld, vol.nw * F4, false, &err)
+           && createBuffer(vol.occ, vol.cells * 4, false, &err) && createBuffer(vol.src, vol.cells * F4, false, &err) && createBuffer(vol.liq, vol.cells * 4, false, &err)
+           && createBuffer(vol.diag, vol.cells * F4, false, &err) && createBuffer(vol.rhs, vol.cells * F4, false, &err) && createBuffer(vol.p, vol.cells * F4, false, &err) && createBuffer(vol.res, vol.cells * F4, false, &err)
+           && createBuffer(vol.valA, vol.latticeMax * F4, false, &err) && createBuffer(vol.valB, vol.latticeMax * F4, false, &err)
+           && createBuffer(vol.knownA, vol.latticeMax * 4, false, &err) && createBuffer(vol.knownB, vol.latticeMax * 4, false, &err)
+           && createBuffer(vol.first, vol.latticeMax * 4, false, &err) && createBuffer(vol.keep, vol.latticeMax * 4, false, &err)
+           && createBuffer(vol.part, vol.groups * 16, false, &err) && createBuffer(vol.part2, vol.groups * 16, false, &err)
+           && createBuffer(vol.solid, vol.cells * 16, false, &err) && createBuffer(vol.deposit, vol.cells * F4, false, &err)
+           && createBuffer(vol.bricks, vol.brickInts * 4, false, &err);
+    vol.offU = vol.cells * F4; vol.offV = vol.offU + vol.nu * F4; vol.offW = vol.offV + vol.nv * F4;
+    vol.offOcc = vol.offW + vol.nw * F4; vol.offSrc = vol.offOcc + vol.cells * 4; vol.offOut = vol.offSrc + vol.cells * F4;
+    vol.offP = vol.offOut + kOutSlots * 16; vol.offSources = vol.offP + vol.cells * F4;
+    vol.offSurf = vol.offSources + kMaxSources * sizeof(GpuSource);
+    vol.offSolid = vol.offSurf + 64 + vol.columns * (32 + sizeof(Core::Water::SurfaceColumn));
+    vol.offBirths = vol.offSolid + vol.cells * 16;
+    vol.offDeposit = vol.offBirths + vol.columns * 32;
+    vol.offBricks = vol.offDeposit + vol.cells * F4;
+    vol.offParticles = vol.offBricks + vol.brickInts * 4;
+    ok = ok && createBuffer(vol.staging, vol.offParticles, true, &err);
+    if (!ok) {   // out of device memory: keep the old pool (the residency's capacity backstop holds the water), loudly
+        std::fprintf(stderr, "[WaterCoreGpu] pool grow to %zu slots failed: %s - kept %zu\n", newCap, err.c_str(), oldCap);
+        for (Buffer* b : keep) destroyBuffer(*b);
+        for (Buffer* b : scratchB) destroyBuffer(*b);
+        for (size_t i = 0; i < std::size(keep); ++i) *keep[i] = oldKeep[i];
+        for (size_t i = 0; i < std::size(scratchB); ++i) *scratchB[i] = oldScratch[i];
+        vol.capacity = oldCap; vol.cells = oldCap * vol.bc; vol.nu = vol.nv = vol.nw = vol.cells;
+        vol.colTableOff = vol.slotTableOff + vol.capacity; vol.counterOff = vol.colTableOff + vol.colCap; vol.infoOff = vol.counterOff + kCounters;
+        vol.brickInts = vol.infoOff + 2 * vol.capacity; vol.tallOff = vol.brickInts; vol.brickInts += vol.dColumns;
+        vol.latticeMax = vol.cells;
+        vol.groups = std::max(2 * ((std::max({vol.cells, vol.latticeMax, vol.columns}) + 255) / 256), static_cast<size_t>(vol.bn.x) * vol.nuy * static_cast<size_t>(vol.bn.z)) + 1;
+        vol.offU = vol.cells * F4; vol.offV = vol.offU + vol.nu * F4; vol.offW = vol.offV + vol.nv * F4;
+        vol.offOcc = vol.offW + vol.nw * F4; vol.offSrc = vol.offOcc + vol.cells * 4; vol.offOut = vol.offSrc + vol.cells * F4;
+        vol.offP = vol.offOut + kOutSlots * 16; vol.offSources = vol.offP + vol.cells * F4;
+        vol.offSurf = vol.offSources + kMaxSources * sizeof(GpuSource);
+        vol.offSolid = vol.offSurf + 64 + vol.columns * (32 + sizeof(Core::Water::SurfaceColumn));
+        vol.offBirths = vol.offSolid + vol.cells * 16; vol.offDeposit = vol.offBirths + vol.columns * 32; vol.offBricks = vol.offDeposit + vol.cells * F4;
+        vol.offParticles = vol.offBricks + vol.brickInts * 4;
+        return false;
+    }
+    VkCommandBuffer cmd = beginCommands();
+    for (Buffer* b : keep) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
+    for (Buffer* b : scratchB) if (b->buf && b != &vol.staging) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
+    barrier(cmd);
+    // every per-cell field keeps its slots (slot numbers unchanged: the old pool is the new one's prefix)
+    for (size_t i = 0; i + 1 < std::size(keep); ++i) copy(cmd, oldKeep[i], *keep[i], oldKeep[i].bytes);
+    // the Bricks buffer: the map and the slot table keep their offsets; the water records and the tall heights move
+    const Buffer& ob = oldKeep.back();
+    copy(cmd, ob, vol.bricks, (vol.slotTableOff + oldCap) * 4);
+    copy(cmd, ob, vol.bricks, 2 * oldCap * 4, oldInfoOff * 4, vol.infoOff * 4);
+    copy(cmd, ob, vol.bricks, vol.dColumns * 4, oldTallOff * 4, vol.tallOff * 4);
+    submitAndWait(cmd);
+    for (Buffer& b : oldKeep) destroyBuffer(b);
+    for (Buffer& b : oldScratch) destroyBuffer(b);
+    vol.slotBrick.resize(vol.capacity, -1);
+    vol.hostInfo.resize(2 * vol.capacity, 0);
+    writeTablesToStaging(vol);   // the column table and the counters move with the capacity
+    cmd = beginCommands();
+    copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks);
+    submitAndWait(cmd);
+    bindPipelines(vol);
+    vol.listsSized = false;
+    ++vol.poolGrows;
+    return true;
 }
 
 void WaterCoreGpu::writeTablesToStaging(Volume& vol) const {
@@ -746,6 +855,7 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     auto tp = std::chrono::steady_clock::now();
     auto part = [&](int k) { const auto n = std::chrono::steady_clock::now(); s_tileGpuMs.seedPart[k] = std::chrono::duration<double, std::milli>(n - tp).count(); tp = n; };
     s_tileGpuMs.seedPart[0] = std::chrono::duration<double, std::milli>(tp - tq1).count();
+    ensureCapacity(vol, need);   // 27.23 W1d.1
     const std::vector<int> fresh = applyResidency(vol, need);
     part(1);
     VkCommandBuffer cmd = beginCommands();
@@ -1086,6 +1196,8 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
         std::fill(vol.map.begin(), vol.map.end(), 0);
         std::fill(vol.slotBrick.begin(), vol.slotBrick.end(), -1);
         vol.storedCount = 0; vol.colEntries.clear();
+        ensureCapacity(vol, need);   // 27.23 W1d.1 (the command buffer above holds nothing yet)
+        st = static_cast<char*>(vol.staging.mapped);   // a grow replaced the staging buffer (the pointer taken above is freed)
         applyResidency(vol, need);
         vol.unstoredM3 = 0.0;   // water in a brick the capacity could not store: counted (createVolume refuses this up front)
         for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x)
@@ -1823,6 +1935,7 @@ void WaterCoreGpu::updateOccupancy(Volume& vol, const WaterGrid& g, const std::v
 
 GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float dt, int ticks, int sweeps) {
     settle(vol);   // 26.16: the call in flight is collected first (its record decides this call's residency, its speed the substeps)
+    if (vol.growWant > 0) { const size_t want = vol.growWant; vol.growWant = 0; growPool(vol, want); }   // 27.23 W1d.1: before any recording
     GpuStepStats st; st.ticks = ticks; st.sweeps = sweeps;
     m_dispatchCount = 0; m_barrierCount = 0;   // 28: this call's launches
     st.capacity = vol.bricked ? static_cast<int>(vol.capacity) - 1 : 0;

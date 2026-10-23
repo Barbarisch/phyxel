@@ -224,6 +224,11 @@ public:
         int tallPending = 0;           ///< 1 = collapse at the next call (tallY / tallH set), 2 = expand at the next call
         long tallRegrids = 0;          ///< collapses + expands done
         int lastDispatches = 0, lastBarriers = 0;   ///< 28: the last submitted call's launches
+        // 27.23 W1d.1: the slot pool sized by the WATER - a growable (sparse, no fixed capacity) volume starts small and doubles when the
+        // residency needs more (growPool); an explicit BrickOptions capacity stays fixed (the capacity test's backstop)
+        bool growable = false;
+        size_t growWant = 0;            ///< slots a call could not store - the next call grows to hold them (held one call, counted)
+        long poolGrows = 0;
         int tallColumns = 0;           ///< columns with H > 1 while active
         VkQueryPool callTs = VK_NULL_HANDLE;   ///< 26.15: two timestamps round every step call - the device's own time, live
         int tsCount = 0;                 ///< stamps written this call
@@ -393,6 +398,8 @@ public:
     double diagLaunchCost(Volume& vol, int n, int groups, bool barriers);
     static inline float s_lineOmega = 1.0f;
     static constexpr int kLineMaxNy = 64;
+    /// 27.23 W1d.1: the slots a growable volume starts with (~8 MB at 2-tall bricks)
+    static constexpr size_t kInitialSlots = 510;
     static inline double s_tsMs[TsLabelCount] = {};
     static inline long s_tsCalls = 0;
     void setOmega(float w) { m_omega = w; }
@@ -491,6 +498,13 @@ private:
     // 26.6 P2a bricks (host side)
     long storageIndex(const Volume& vol, int x, int y, int z) const;   ///< -1 = absent / outside the brick box
     void fillPushBricks(const Volume& vol, WcPush& push) const;
+    /// 27.23 W1d.1: the descriptor bindings of every kernel (createPipelines; again after a pool grows)
+    void bindPipelines(Volume& vol);
+    /// 27.23 W1d.1: grow the slot pool to hold at least `slots` stored bricks (doubling): new device buffers, every stored slot copied
+    /// across (slot numbers unchanged), the tables rewritten, the kernels rebound. Between calls only (settles first). False = no change.
+    bool growPool(Volume& vol, size_t slots);
+    /// 27.23 W1d.1: grow before a residency that would need more slots than the pool has (upload, seed)
+    void ensureCapacity(Volume& vol, const std::vector<char>& need);
     void updatePartialWake(Volume& vol, const SolverParams& params);   // 26.31: the columns' state from the last unit map + wakes
     int partitionSlots(VkCommandBuffer cmd, Volume& vol);              // 26.31 step 2: awake bricks into the low slots (returns moves)
     size_t liveCells(const Volume& vol) const { return vol.bricked ? static_cast<size_t>(vol.slotsUsed) * vol.bc : vol.cells; }
