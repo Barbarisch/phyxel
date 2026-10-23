@@ -60,7 +60,7 @@ partial surface (26.33).
 
 **What water costs today (the limits pass, §27.20, 2026-10-23):** one awake pond fits 2 ms to ~25 x 25 m at 1 m deep
 (~20 x 20 m at 2 m; to the volume cap at 0.3 m); a sleeping pond ~0.37 us per m^2 drawn; each awake body ~0.4-0.5 ms whatever
-its size (~4 small ponds awake at once); 64 sleeping ponds cut the frame rate to 131 fps (CPU, ~0.09 ms each); a 2 m creek
+its size (~4 small ponds awake at once); 64 sleeping ponds cut the frame rate to 131 fps (the debris water map - fixed 27.21: 587 fps); a 2 m creek
 1.5-2.0 ms up to 100 m long and 2.7 m/s, a 6 m creek 2.7-3.5 ms (over); one volume holds 2 M cells (a ~1,300 m^2 pond at 1 m,
 a ~100 m creek) and 64 sources.
 
@@ -8189,6 +8189,63 @@ pond and ~1.5 ms per creek whatever the size - so the number of awake bodies, no
 sleeping volume** (finding 6); (c) **the 2 M-cell cap per volume** - one pond ~1,300 m^2 at 1 m, one creek ~100 m; (d) **wide
 shallow water's surface cost** (finding 8); (e) **deep ponds that do not settle** (finding 4 - the quiet-scale decision). Lakes
 (W1d / W1e) remove (c); (a) and (b) decide how many bodies a world can have.
+
+### 27.21 The costs nobody sees (2026-10-23): where the time goes, and the sleeping-pond frame fixed. Status: BUILT (cost only), not signed off
+
+**Why (owner, 2026-10-23):** "the simulation aspect of water should be driving function and appearance, but water under the surface of
+a pond is basically not seen ... maybe there is some work to be done still to be able to avoid performance bottlenecks on simulation
+algorithms that cant be seen" - then "we need to nail down some of these performance issues first". Measured before anything changed:
+`tools/water_cost_split.py` (new) on WaterBench_Creek, Release, GPU idle. Evidence: `cost_split.json`, `debris_tiles_check.json`.
+
+**1. Depth is the solver's cost, stage by stage** (a 32 x 28 m walled pond, 4 s after a stone; `water_av_kernel_timing`, ms per call -
+the stamps add a barrier each, so totals read a little high):
+
+| partial wake | depth | solver | sweeps | transport | surface copy | extrapolate | reductions | velocity advect | forces |
+|---|---|---|---|---|---|---|---|---|---|
+| ON (shipped) | 0.3 m | 0.89 | 0.26 | 0.07 | 0.10 | 0.12 | 0.12 | 0.03 | 0.03 |
+| | 1 m | 1.62 | 0.40 | 0.17 | 0.24 | 0.14 | 0.13 | 0.10 | 0.07 |
+| | 2 m | 2.73 | 0.78 | 0.36 | 0.30 | 0.25 | 0.19 | 0.15 | 0.10 |
+| OFF | 0.3 m | 1.63 | 0.43 | 0.17 | 0.44 | 0.17 | 0.09 | 0.11 | 0.09 |
+| | 1 m | 2.32 | 0.64 | 0.26 | 0.44 | 0.23 | 0.13 | 0.19 | 0.09 |
+| | 2 m | 3.50 | 1.10 | 0.52 | 0.43 | 0.37 | 0.14 | 0.22 | 0.15 |
+
+The drawn surface does not grow with depth (27.20: the same at every depth). The stages that do - sweeps, transport, extrapolation,
+advection, forces - are per-cell work on cells under the surface: at 2 m ~1.7 of the 2.73 ms. The deep water must move (it carries
+the wave and sets its speed), but nothing in it is seen at 1/9 m. The candidate is tall cells below a fine surface band (Irving et
+al. 2006; Chentanez & Mueller 2011 on the GPU) - same water, same rules, coarser below the band; it changes how the water is
+stored, so it is a design for the owner (next).
+
+**2. The sleeping-pond frame (27.20 #6) was not the water - it was the debris water map.** The update scopes (`/api/debug/frame_pacing`,
+new scopes 'API Commands', 'Debris Begin', 'Dirty Chunks', 'Physics Step', 'Debris Feeds') put 5.8 of the 7.4 ms frame of 64 sleeping
+ponds in `DebrisRuntime::beginFrame`. Its water map (the surface debris floats on, one 32 x 32 tile per chunk column) rebuilt EVERY
+frame (a) every tile under any volume box - asleep or not - and (b) every tile in the old water's (WaterManager) camera-following region
+- empty here (0 m^3) but still rebuilt - and each rebuilt column asked every volume's field in turn (64 fields x 1,024 columns x
+10-13 tiles). Fixed, cost only:
+- a live tile keeps its cells while its **signature** stands: `WaterCoreManager::fieldsSignature` = the (source, version) of every
+  field owning a column there (the version the surface tiler already trusts - an asleep volume's stands; 0 = unknown: rebuilt),
+  valid outside the old water's region or while that region holds no water (`WaterManager::anyWet` false - every column there reads
+  dry); otherwise rebuilt every frame as before;
+- a tile with no field over it reads the old water alone, not every field first.
+- The coupling switch is in the signature (off reads dry).
+
+| sleeping 5 x 5 m ponds | frame before | frame after | Debris Begin before | after | fps before | after |
+|---|---|---|---|---|---|---|
+| 0 | 1.61 ms | 1.49 ms | 0.61 | 0.15 | 703 | 697 |
+| 1 | 1.81 | 1.54 | 0.69 | 0.19 | 552 | 651 |
+| 16 | 3.01 | 1.58 | 1.83 | 0.18 | 268 | 589 |
+| 64 | 7.08 | 1.64 | 5.52 | 0.24 | 116 | 587 |
+
+**The gate** (`tools/water_debris_tiles_check.py`, `water_av_debris_tiles {check}`): every kept tile is ALSO rebuilt fresh and compared
+byte for byte, over 16 ponds with wood floats dropped into 4, stones in 4 others, 2 destroyed and 1 created: **29,931 kept tiles, 0
+different**. **Red control** (`{red: true}`, TEST ONLY - the signature blind to the versions): 33,473 checked, **5,273 different** -
+the check sees stale water when there is some. Tests: water unit 312/312; the full unit suite 4,283 passed, 3 failed -
+`WaterCouplingTest.BlastBesideThePondMovesItAndItSettles` only in the full run (passes alone and in the water set: order-dependent, it
+does not use the debris map), `AtlasManagerTest.BuildAtlasFromSourcePNGs`, `FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundary
+BetweenCubes`; integration 136/138 - the known `GpuFlipBulkParityAndRunup` and `SceneIntegrationTest.AddSceneThenTransitionToIt`
+(fails alone too; the scene system, untouched here). Nothing about how water moves or looks changed.
+
+**3. Left, by size** (the 27.20 order): the call's own cost per awake body (~0.35-0.55 ms: 4 awake ponds = 1.65 ms) - the reductions,
+the surface copy, the launches, one call per volume; the depth (1 above); wide shallow water's surface pass (27.20 #8).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 

@@ -553,7 +553,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // the A/B control: debris then ignores the volumes)
     if (debrisRuntime) debrisRuntime->setVolumeWater(
         [this](int wx, int wz, float& s, glm::vec2& f) { return waterCore && m_waterCouplingOn && waterCore->columnWater(wx, wz, s, f); },
-        &waterCore->volumeBoxes());
+        &waterCore->volumeBoxes(),
+        // 27.21: the tiles' cache key - the fields over the tile, and the coupling switch (off reads dry)
+        [this](int x0, int z0, int x1, int z1) -> uint64_t {
+            if (!waterCore) return 0;
+            const uint64_t s = waterCore->fieldsSignature(x0, z0, x1, z1);
+            return (s == 0 || m_waterCouplingOn) ? s : ((s ^ 0x9E3779B97F4A7C15ull) | 1ull);
+        });
     // G3 (docs/WaterCore.md 18.7): one look resolver for every renderer - the span grid, the underwater
     // overlay (and, inside the manager, the volumes' fields; the band below) all ask the body records.
     if (renderCoordinator) renderCoordinator->setWaterLookResolver([this](int x, int z, float top) { return waterCore ? waterCore->lookAt(x, z, top) : Core::Water::WaterLook{}; });
@@ -3664,7 +3670,7 @@ void Application::update(float deltaTime) {
     this->deltaTime = deltaTime;
     
     // Process HTTP API commands (from external agents)
-    processAPICommands();
+    { PROFILE_SCOPE(*performanceProfiler, "API Commands"); processAPICommands(); }
 
     // Process completed background jobs (finalize on main thread)
     if (jobSystem) {
@@ -3682,7 +3688,7 @@ void Application::update(float deltaTime) {
     // Update GPU particle physics (CPU-side slot tracking + staging upload)
     // Character movers are fed AFTER the NPC/entity updates below (Phase 3a: every animated
     // character, this frame's pose - the old player-only feed here was one frame stale).
-    if (debrisRuntime) debrisRuntime->beginFrame(deltaTime);
+    if (debrisRuntime) { PROFILE_SCOPE(*performanceProfiler, "Debris Begin"); debrisRuntime->beginFrame(deltaTime); }
 
     // Update-LOD: tell characters where the viewer is so distant ones can tick
     // at a reduced rate. Set before NPC/entity updates this frame.
@@ -4494,7 +4500,7 @@ void Application::update(float deltaTime) {
         // Slow-frame triage timers (streamed worlds hitch in this block; the profiler
         // doesn't cover it). Warn per stage above 100ms so the culprit is attributable.
         auto tChunk0 = std::chrono::steady_clock::now();
-        chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
+        { PROFILE_SCOPE(*performanceProfiler, "Dirty Chunks"); chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs); }
         auto tChunk1 = std::chrono::steady_clock::now();
         // Player position anchors chunk streaming (see ChunkManager::streamingAnchor)
         if (camera) chunkManager->setPlayerPosition(camera->getPosition());
@@ -4564,6 +4570,7 @@ void Application::update(float deltaTime) {
     static const int MAX_PHYSICS_STEPS_PER_FRAME = 3;
     int physicsSteps = 0;
     while (physicsDeltaAccumulator >= FIXED_TIMESTEP && physicsSteps < MAX_PHYSICS_STEPS_PER_FRAME) {
+        PROFILE_SCOPE(*performanceProfiler, "Physics Step");
         physicsWorld->stepSimulation(FIXED_TIMESTEP, 1, FIXED_TIMESTEP); // Pure fixed timestep
         physicsDeltaAccumulator -= FIXED_TIMESTEP;
         ++physicsSteps;
@@ -4576,7 +4583,7 @@ void Application::update(float deltaTime) {
     // compound boxes with point velocities; sleepers too, as supports. One-way: debris does not
     // push them back (Phase 4). Nearest the camera first, whole bodies only, in the slots the
     // character limbs left; a body that does not fit is counted and logged once.
-    if (debrisRuntime) debrisRuntime->feedRigidBodies(camera ? camera->getPosition() : glm::vec3(0.0f));
+    if (debrisRuntime) { PROFILE_SCOPE(*performanceProfiler, "Debris Feeds"); debrisRuntime->feedRigidBodies(camera ? camera->getPosition() : glm::vec3(0.0f)); }
 
     auto physicsEnd = std::chrono::high_resolution_clock::now();
     if (renderCoordinator) {
@@ -14107,6 +14114,18 @@ void Application::registerWaterCommands() {
     // 26.31 measurement: {capture: bool} copies every GPU call's unit map to the host; {id} returns it per unit COLUMN (8 x 8 cells,
     // all heights): mass (cells), ke (sum f |v|^2 / 2, cells m^2/s^2), max_df (largest |f - fPrev| in the column, last tick)
     // 26.31: {id, on} the partial wake for one volume; {default: bool} for new volumes. Echoes the state.
+    // 27.21: the debris water tiles kept by signature - {check: true} rebuilds every kept tile too and counts byte differences
+    // (must stay 0), {reset} zeroes the counts
+    reg.on("water_av_debris_tiles", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!debrisRuntime) { r = {{"error", "no debris runtime"}}; return; }
+        if (cmd.params.contains("check")) DebrisRuntime::s_checkKeptWaterTiles = cmd.params.value("check", false);
+        if (cmd.params.value("reset", false)) debrisRuntime->resetKeptWaterTileCheck();
+        if (cmd.params.contains("red")) Core::Water::WaterCoreManager::s_signatureIgnoresVersionForTest = cmd.params.value("red", false);   // TEST ONLY
+        const auto& w = debrisRuntime->waterStats();
+        r = {{"check", DebrisRuntime::s_checkKeptWaterTiles}, {"volume_tiles", w.volumeTiles}, {"kept", w.volumeTilesKept},
+             {"kept_checked", w.keptChecked}, {"kept_mismatch", w.keptMismatch}, {"tiles_uploaded", w.tilesUploaded},
+             {"gpu_update_ms", w.gpuUpdateMs}, {"water_ms", w.waterMs}, {"water_build_ms", w.waterBuildMs}, {"tiles_built", w.tilesBuilt}};
+    });
     reg.on("water_av_partial_wake", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         if (cmd.params.contains("default")) Core::Water::WaterCoreManager::s_partialWakeDefault = cmd.params.value("default", true);
@@ -14485,7 +14504,7 @@ void Application::registerWaterCommands() {
                                   {"last_frame_momentum", {m_exchangeStats.lastTotal.x, m_exchangeStats.lastTotal.y, m_exchangeStats.lastTotal.z}},
                                   {"gpu_records_total", debrisRuntime && debrisRuntime->gpu() ? debrisRuntime->gpu()->waterExchangeTotal() : 0},
                                   {"gpu_records_dropped", debrisRuntime && debrisRuntime->gpu() ? debrisRuntime->gpu()->waterExchangeDropped() : 0}}},
-             {"debris_water_tiles", debrisRuntime ? debrisRuntime->waterStats().volumeTiles : 0}, {"water_wakes_sent", m_waterWakes},
+             {"debris_water_tiles", debrisRuntime ? debrisRuntime->waterStats().volumeTiles : 0}, {"debris_water_tiles_kept", debrisRuntime ? debrisRuntime->waterStats().volumeTilesKept : 0}, {"water_wakes_sent", m_waterWakes},
              {"water_motion", waterCore ? nlohmann::json{{"max_rise_m", waterCore->motionStats().maxRise}, {"max_flow_ms", waterCore->motionStats().maxFlow},
                  {"rise_cols", waterCore->motionStats().riseCols}, {"flow_cols", waterCore->motionStats().flowCols}, {"spheres", waterCore->motionStats().spheres},
                  {"radius_m", waterCore->motionStats().lastRadius}} : nlohmann::json()},

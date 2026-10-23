@@ -216,6 +216,11 @@ float WaterSimulation::totalMass() const {
     return sum;
 }
 
+bool WaterSimulation::anyWet() const {
+    for (float m : m_mass) if (m > 0.0f) return true;
+    return false;
+}
+
 float WaterSimulation::minMass() const {
     float lo = 0.0f;
     for (float m : m_mass) lo = std::min(lo, m);

@@ -91,6 +91,8 @@ public:
 
     float massAt(int x, int y, int z) const;
     float totalMass() const;
+    /// 27.21: any cell holding water (mass > 0 - what columnWater reads as wet); false = every column of the region reads dry.
+    bool anyWet() const;
     float minMass() const; // for invariant checks (should never go negative)
 
     // ── FLOW PROXY (WaterSystemV3 Phase 3) ────────────────────────────────────────────────────

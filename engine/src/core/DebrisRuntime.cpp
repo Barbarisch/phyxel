@@ -3,6 +3,7 @@
 #include "core/DebrisMoverFeed.h"
 #include "core/KinematicVoxelManager.h"
 #include "core/SpellDefinition.h"
+#include <chrono>
 #include "core/WaterManager.h"
 #include <glm/gtc/packing.hpp>
 #include "graphics/RenderCoordinator.h"
@@ -96,9 +97,15 @@ DebrisRuntime::SpellBlast DebrisRuntime::spellBlast(const Core::SpellDefinition&
 
 void DebrisRuntime::beginFrame(float dt) {
     if (!m_gpu) return;
+    using BClock = std::chrono::steady_clock;
+    const auto t0 = BClock::now();
     m_gpu->update(dt);
+    const auto t1 = BClock::now();
     pumpEvents();
+    const auto t2 = BClock::now();
     updateWater();
+    m_waterStats.gpuUpdateMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    m_waterStats.waterMs = std::chrono::duration<double, std::milli>(BClock::now() - t2).count();
     // Phase 6a: the push-back read back this frame waits for the next feedCharacters (which has
     // the live character list to apply it to).
     for (const auto& [owner, j] : m_gpu->takeMoverImpulses()) {
@@ -191,7 +198,7 @@ void DebrisRuntime::updateWater() {
     const bool  sea   = m_water ? m_water->implicitSea() : false;
     const float seaY  = m_water ? m_water->seaLevel() : 0.0f;
     const glm::ivec3 ro = m_water ? m_water->regionOrigin() : glm::ivec3(0), rd = m_water ? m_water->regionDims() : glm::ivec3(0);
-    int volumeTiles = 0;
+    int volumeTiles = 0, volumeKept = 0;
     auto underVolume = [&](int cx, int cz) {   // E2: a chunk column an active volume's box touches
         if (!m_volumeColumn || !m_volumeBoxes) return false;
         const int x0 = cx * WATER_TILE_CELLS, z0 = cz * WATER_TILE_CELLS;
@@ -199,24 +206,62 @@ void DebrisRuntime::updateWater() {
             if (b.first.x < x0 + WATER_TILE_CELLS && b.second.x >= x0 && b.first.z < z0 + WATER_TILE_CELLS && b.second.z >= z0) return true;
         return false;
     };
-    auto inSim = [&](int cx, int cz) {
-        if (underVolume(cx, cz)) { ++volumeTiles; return true; }   // the volume moves: rebuilt every frame
+    auto inRegion = [&](int cx, int cz) {   // the old water's live region
         const int x0 = cx * WATER_TILE_CELLS, z0 = cz * WATER_TILE_CELLS;
         return x0 < ro.x + rd.x && x0 + WATER_TILE_CELLS > ro.x && z0 < ro.z + rd.z && z0 + WATER_TILE_CELLS > ro.z;
+    };
+    auto inSim = [&](int cx, int cz) {
+        if (underVolume(cx, cz)) { ++volumeTiles; return true; }   // the volume moves: rebuilt when its water changes (below)
+        return inRegion(cx, cz);
     };
     const WaterColumnFn fallback = m_water ? WaterColumnFn([this](int wx, int wz, float& s, glm::vec2& f) { return m_water->columnWater(wx, wz, s, f); }) : WaterColumnFn();
     const WaterColumnFn column = composeColumn(m_volumeColumn, fallback);
     auto key = [](int cx, int cz) { return (static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz); };
-    auto build = [&](int cx, int cz) {
+    // 27.21: a tile under a volume reads the volumes there and, where they hold no column, the old water: outside its region
+    // the static table, inside it the live cells - which change unless the region holds no water at all (anyWet false: every
+    // column there reads dry). So the signature = what the volumes hold, valid outside the region or while it is dry; 0 =
+    // unknown: rebuilt.
+    // The same holds for the old water's region tiles with no volume over them: dry region = every column dry, kept.
+    const bool regionDry = !m_water || !m_water->anyWet();
+    auto fieldsSig = [&](int cx, int cz) -> uint64_t {
+        if (!m_volumeSignature) return 0;
+        const int x0 = cx * WATER_TILE_CELLS, z0 = cz * WATER_TILE_CELLS;
+        return m_volumeSignature(x0, z0, x0 + WATER_TILE_CELLS - 1, z0 + WATER_TILE_CELLS - 1);
+    };
+    auto volumeSig = [&](int cx, int cz) -> uint64_t { return (inRegion(cx, cz) && !regionDry) ? 0 : fieldsSig(cx, cz); };
+    m_waterStats.waterBuildMs = 0.0; m_waterStats.tilesBuilt = 0;
+    auto build = [&](int cx, int cz, uint64_t sig = 0) {
+        const auto tb = std::chrono::steady_clock::now();
+        ++m_waterStats.tilesBuilt;
         CachedWaterTile t;
-        t.background = !buildWaterTile(cx, cz, column, sea, seaY, t.cells);
+        // 27.21: no volume field over the tile - the volumes answer none of its columns; read the fallback alone (the composed
+        // source asked every field first, for every column: 64 sleeping ponds made the old water's 10-13 tiles cost 3.6 ms a frame)
+        const bool fallbackOnly = (sig ? sig : fieldsSig(cx, cz)) == kNoVolumeWater;
+        t.background = !buildWaterTile(cx, cz, fallbackOnly ? (fallback ? fallback : WaterColumnFn([](int, int, float&, glm::vec2&) { return false; })) : column, sea, seaY, t.cells);
         t.builtFrame = m_waterFrame;
+        t.volumeSig = sig;
         m_waterCache[key(cx, cz)] = std::move(t);
+        m_waterStats.waterBuildMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tb).count();
     };
     int built = 0, pending = 0;
     for (int slot : m_waterOrder) {
         const int cx = minChunk.x + slot % WATER_DIR_CHUNKS, cz = minChunk.y + slot / WATER_DIR_CHUNKS;
-        if (inSim(cx, cz)) { build(cx, cz); continue; }          // live water: every frame
+        if (inSim(cx, cz)) {                                      // live water: every frame, unless what it reads there stands
+            const uint64_t sig = volumeSig(cx, cz);
+            const auto it = sig ? m_waterCache.find(key(cx, cz)) : m_waterCache.end();
+            if (it != m_waterCache.end() && it->second.volumeSig == sig) {
+                ++volumeKept;
+                if (s_checkKeptWaterTiles) {
+                    std::vector<uint32_t> fresh;
+                    const bool bgFresh = !buildWaterTile(cx, cz, column, sea, seaY, fresh);
+                    ++m_waterStats.keptChecked;
+                    if (bgFresh != it->second.background || fresh != it->second.cells) ++m_waterStats.keptMismatch;
+                }
+                continue;
+            }
+            build(cx, cz, sig);
+            continue;
+        }
         if (m_waterCache.count(key(cx, cz))) continue;
         if (built < WATER_TILE_BUILD_BUDGET) { build(cx, cz); ++built; } else ++pending;
     }
@@ -249,6 +294,7 @@ void DebrisRuntime::updateWater() {
     m_waterStats.tilesCached   = static_cast<int>(m_waterCache.size());
     m_waterStats.tilesPending  = pending;
     m_waterStats.volumeTiles   = volumeTiles;
+    m_waterStats.volumeTilesKept = volumeKept;
     m_waterStats.minChunk      = minChunk;
     m_gpu->setWater(minChunk, sea, seaY, std::move(dir), std::move(cells));
     m_waterUploaded = true;

@@ -347,6 +347,7 @@ public:
     const RippleField& ripple() const { return m_ripple; }
 
     float totalMass() const { return m_sim.totalMass(); }
+    bool anyWet() const { return m_sim.anyWet(); }   ///< 27.21: false = columnWater reads dry everywhere in the region
     const glm::ivec3& origin() const { return m_origin; }
     const glm::ivec3& dims() const   { return m_dims; }
     const WaterSimulation& sim() const { return m_sim; }

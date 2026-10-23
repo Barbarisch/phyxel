@@ -149,7 +149,11 @@ public:
     struct WaterStats {
         bool ready = false; int tilesUploaded = 0, tilesCached = 0, tilesPending = 0;
         uint64_t overflow = 0; glm::ivec2 minChunk{0};
-        int volumeTiles = 0;   ///< E2: chunk columns under an active volume (rebuilt every frame)
+        int volumeTiles = 0;   ///< E2: chunk columns under an active volume
+        int volumeTilesKept = 0;   ///< 27.21: of those, kept this frame (the water there unchanged by its signature)
+        double gpuUpdateMs = 0.0, waterMs = 0.0, waterBuildMs = 0.0;   ///< 27.21: beginFrame's parts, last frame (ms)
+        int tilesBuilt = 0;   ///< 27.21: tiles built last frame (any kind)
+        uint64_t keptChecked = 0, keptMismatch = 0;   ///< 27.21 check (s_checkKeptWaterTiles): kept tiles rebuilt and compared; differing
     };
     const WaterStats& waterStats() const { return m_waterStats; }
 
@@ -158,7 +162,18 @@ public:
     /// WaterCore E2 (docs/WaterCore.md 19): the active volumes are a water source AHEAD of the old one -
     /// a column a volume holds water in reads the volume's surface + surface velocity; tiles under a
     /// volume box are rebuilt every frame (the volume moves). `boxes` = WaterCoreManager::volumeBoxes().
-    void setVolumeWater(WaterColumnFn column, const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes) { m_volumeColumn = std::move(column); m_volumeBoxes = boxes; }
+    /// 27.21: `signature` (optional) = what the column source reads over world columns [x0, x1] x [z0, z1] (0 = unknown); a tile under a
+    /// volume whose signature stands is kept, not rebuilt (64 sleeping 5 x 5 m ponds cost this ~5 ms a frame rebuilding still water).
+    /// It returns kNoVolumeWater (1) when the volume column source answers no column there - the tile then reads the fallback alone.
+    using WaterSignatureFn = std::function<uint64_t(int x0, int z0, int x1, int z1)>;
+    static constexpr uint64_t kNoVolumeWater = 1;
+    /// 27.21 measurement: every kept tile is ALSO rebuilt and compared byte for byte (keptMismatch counts any difference) - the cost
+    /// saving is off while it runs. water_av_debris_tiles {check}.
+    static inline bool s_checkKeptWaterTiles = false;
+    void resetKeptWaterTileCheck() { m_waterStats.keptChecked = 0; m_waterStats.keptMismatch = 0; }
+    void setVolumeWater(WaterColumnFn column, const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, WaterSignatureFn signature = {}) {
+        m_volumeColumn = std::move(column); m_volumeBoxes = boxes; m_volumeSignature = std::move(signature);
+    }
     /// The column source debris reads: the volume where it answers, else the fallback. Pure.
     static WaterColumnFn composeColumn(WaterColumnFn volume, WaterColumnFn fallback);
     /// E2: the water's share of wet debris' drag + current since the last call (from the GPU readback).
@@ -213,7 +228,8 @@ private:
     std::unordered_map<uint32_t, glm::vec3> m_pendingPush;   // owner id -> impulse (N*s)
     // Phase 6c
     void updateWater();
-    struct CachedWaterTile { bool background = true; std::vector<uint32_t> cells; uint64_t builtFrame = 0; };
+    struct CachedWaterTile { bool background = true; std::vector<uint32_t> cells; uint64_t builtFrame = 0; uint64_t volumeSig = 0; };
+    WaterSignatureFn m_volumeSignature;                                        // 27.21
     Core::WaterManager* m_water = nullptr;
     WaterColumnFn m_volumeColumn;                                              // E2
     const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_volumeBoxes = nullptr;   // E2

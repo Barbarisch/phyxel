@@ -337,6 +337,13 @@ public:
     /// E2: one world voxel column's water from the last surface fields - the highest top over the
     /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
     bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
+    /// 27.21: a signature of what columnWater reads over world columns [x0, x1] x [z0, z1] - the (source, version) of every surface
+    /// field that owns a column there, in order. Equal signatures = the same answers (the tiler trusts the same version: an asleep
+    /// volume's stands). 0 = a field there carries no version (unknown - the caller must rebuild). The debris water tiles' cache key.
+    uint64_t fieldsSignature(int x0, int z0, int x1, int z1) const;
+    static constexpr uint64_t kNoFieldsSignature = 1;   ///< 27.21: no field owns a column there (columnWater answers false for all of them)
+    /// 27.21 TEST ONLY (the red control): the signature leaves out the fields' versions - moving water keeps stale debris tiles.
+    static inline bool s_signatureIgnoresVersionForTest = false;
     /// 26.20 measurement: the same column's top run over its WET sub-columns - the mean, the lowest and the highest top, and how
     /// many sub-columns are wet. A depth gauge reads the mean; the highest (columnWater's) reads a sloped or rippled surface high.
     struct ColumnSurfaceStats { float mean = 0.0f, lowest = 0.0f, highest = 0.0f; int wet = 0, sub = 0; };

@@ -1,0 +1,53 @@
+{
+ "cost": [
+  {
+   "ponds": 0,
+   "frame_ms": 1.4924499999999998,
+   "debris_begin_ms": 0.15234999999999999,
+   "update_ms": 0.1923,
+   "fps": 696.8641193858203,
+   "volume_tiles": 0,
+   "kept": 9
+  },
+  {
+   "ponds": 1,
+   "frame_ms": 1.5393500000000002,
+   "debris_begin_ms": 0.19065,
+   "update_ms": 0.24175000000000002,
+   "fps": 651.3809070991808,
+   "volume_tiles": 1,
+   "kept": 9
+  },
+  {
+   "ponds": 16,
+   "frame_ms": 1.5817999999999999,
+   "debris_begin_ms": 0.18,
+   "update_ms": 0.22725,
+   "fps": 589.3446493856327,
+   "volume_tiles": 4,
+   "kept": 10
+  },
+  {
+   "ponds": 64,
+   "frame_ms": 1.6426,
+   "debris_begin_ms": 0.23875000000000002,
+   "update_ms": 0.2974,
+   "fps": 587.164566324058,
+   "volume_tiles": 4,
+   "kept": 10
+  }
+ ],
+ "check": {
+  "red": false,
+  "kept_checked": 29931,
+  "kept_mismatch": 0,
+  "volume_tiles": 4
+ },
+ "red": {
+  "red": true,
+  "kept_checked": 33473,
+  "kept_mismatch": 5273,
+  "volume_tiles": 4
+ },
+ "pass": true
+}

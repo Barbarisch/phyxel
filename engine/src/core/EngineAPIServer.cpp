@@ -2187,6 +2187,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_units",       waterEndpoint("water_av_units"));   // 26.31 measurement: the unit map
     srv.Post("/api/debug/water_av_partial_wake", waterEndpoint("water_av_partial_wake"));   // 26.31
     srv.Post("/api/debug/water_av_kernel_timing", waterEndpoint("water_av_kernel_timing"));   // 26.31 measurement
+    srv.Post("/api/debug/water_av_debris_tiles", waterEndpoint("water_av_debris_tiles"));     // 27.21 the debris water tiles kept
     srv.Post("/api/debug/water_av_probe",       waterEndpoint("water_av_probe"));
     srv.Post("/api/debug/water_av_source",      waterEndpoint("water_av_source"));
     srv.Post("/api/debug/water_av_impulse",     waterEndpoint("water_av_impulse"));

@@ -1751,6 +1751,26 @@ int WaterCoreManager::dryRecordedColumns() const {
     return n;
 }
 
+uint64_t WaterCoreManager::fieldsSignature(int x0, int z0, int x1, int z1) const {
+    uint64_t sig = 1469598103934665603ull;
+    int owners = 0;
+    auto mix = [&sig](uint64_t v) { sig = (sig ^ v) * 1099511628211ull; sig ^= sig >> 29; };
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    for (const WaterSurfaceField* fp : m_fields) {
+        const WaterSurfaceField& f = *fp;
+        const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
+        // the world columns columnWater answers from this field: wx * per - origin.x in [0, nx - per]
+        const int fx0 = -floorDiv(-f.origin.x, per), fz0 = -floorDiv(-f.origin.z, per);
+        const int fx1 = floorDiv(f.origin.x + f.nx - per, per), fz1 = floorDiv(f.origin.z + f.nz - per, per);
+        if (fx1 < x0 || fx0 > x1 || fz1 < z0 || fz0 > z1) continue;
+        if (f.version == 0) return 0;
+        ++owners;
+        mix(static_cast<uint64_t>(f.source)); if (!s_signatureIgnoresVersionForTest) mix(f.version);
+    }
+    if (owners == 0) return kNoFieldsSignature;
+    return sig <= kNoFieldsSignature ? sig + 2 : sig;   // never 0 (unknown) or 1 (no fields)
+}
+
 bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const {
     for (const WaterSurfaceField* fp : m_fields) {
         const WaterSurfaceField& f = *fp;
