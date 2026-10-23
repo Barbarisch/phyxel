@@ -615,6 +615,8 @@ private:
     bool recordTile(Av& av, int tx, int tz);
     /// 27.22: decide the floor and the heights before a call (WaterCoreManager.cpp, updateTall)
     void updateTall(Av& av);
+    /// 27.22: the rest level (the median top of the wet columns of the volume's surface field) - read while the volume sleeps
+    bool captureTallRest(Av& av);
     void markRecordedColumns(Av& av, int tx, int tz);   // 27.15/27.16: a recorded tile's columns in the volume's field -> the record's (runs -1)
     bool wakeTile(Av& av, int tx, int tz);
     /// wake the recorded tiles a write at `world` touches (+ s_writeWakeReachM); deferred = before the next call (a write that

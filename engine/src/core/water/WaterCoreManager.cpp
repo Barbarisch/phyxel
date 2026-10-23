@@ -286,7 +286,10 @@ void WaterCoreManager::update(float dt) {
                 { const auto tc = UClock::now(); stepGpu(*av, 1, dt); m_updateCpu.stepCall += ums(tc); }
                 ++av->stepCount;
                 { const auto tb = UClock::now(); collectBirths(*av, dt); m_updateCpu.births += ums(tb); }
-            } else recordTilesStep(*av, dt);   // §27 W1b: an asleep body steps nothing, but its frozen tiles still count toward the record
+            } else {
+                recordTilesStep(*av, dt);   // §27 W1b: an asleep body steps nothing, but its frozen tiles still count toward the record
+                if (av->tallBand > 0.0f && std::isnan(av->tallRestY)) captureTallRest(*av);   // 27.22: the rest level, read while it sleeps
+            }
         }
         else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; ++av->stepCount; collectBirths(*av, dt); }
         m_updateCpu.step += ums(t);
@@ -618,6 +621,18 @@ bool WaterCoreManager::setTallBand(int id, float metres) {
 // would depend on the volume's extent and on which tiles are awake). It moves only DOWN while the water moves - here, v1: a trough
 // within one brick of B above it, a source below it, a moving body, an edit under it or a column that is not open from its bed
 // return every tall cell to ordinary cells, and the volume stays all fine until it sleeps again (a new rest level).
+bool WaterCoreManager::captureTallRest(Av& av) {
+    const WaterSurfaceField& fld = av.field;
+    if (fld.cols.size() != static_cast<size_t>(fld.nx) * fld.nz) return false;
+    std::vector<float> tops;
+    for (const SurfaceColumn& c : fld.cols) { const int runs = static_cast<int>(c.runs + 0.5f); if (runs >= 1) tops.push_back(c.top[std::min(runs, kSurfaceMaxRuns) - 1]); }
+    if (tops.empty()) return false;
+    std::nth_element(tops.begin(), tops.begin() + tops.size() / 2, tops.end());
+    av.tallRestY = tops[tops.size() / 2];
+    av.tallReason = "rest level read";
+    return true;
+}
+
 void WaterCoreManager::updateTall(Av& av) {
     WaterCoreGpu::Volume& vol = *av.gpuVol;
     auto off = [&](const char* why) { if (vol.tallActive || vol.tallPending) m_gpu->clearTall(vol); av.tallReason = why; };
@@ -627,20 +642,15 @@ void WaterCoreManager::updateTall(Av& av) {
     if (av.recordTiles || vol.anyRecorded) { off("record tiles (TC4)"); return; }
     if (vol.hasSolids) { off("a moving body in the volume"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); return; }
     const WaterSurfaceField& fld = av.field;
-    // the rest level: the median top of the wet columns, read while the volume sleeps (or before its first call)
     auto wetTops = [&](std::vector<float>& tops) {
         tops.clear();
         if (fld.cols.size() != static_cast<size_t>(fld.nx) * fld.nz) return;
         for (const SurfaceColumn& c : fld.cols) { const int runs = static_cast<int>(c.runs + 0.5f); if (runs >= 1) tops.push_back(c.top[std::min(runs, kSurfaceMaxRuns) - 1]); }
     };
     std::vector<float> tops;
-    if (std::isnan(av.tallRestY)) {
-        if (!(vol.asleep || av.gpuLast.asleep || av.stepCount == 0)) { av.tallReason = "waiting for rest"; return; }
-        wetTops(tops);
-        if (tops.empty()) { av.tallReason = "no water"; return; }
-        std::nth_element(tops.begin(), tops.begin() + tops.size() / 2, tops.end());
-        av.tallRestY = tops[tops.size() / 2];
-    }
+    // the rest level is read while the volume SLEEPS (WaterCoreManager::update -> captureTallRest): a sleeping volume is never stepped,
+    // and the call that decides it sleeps returns before the decision (26.16) - so rarely here
+    if (std::isnan(av.tallRestY) && !(vol.asleep && captureTallRest(av))) { av.tallReason = "waiting for rest"; return; }
     const glm::ivec3 n = vol.spec.dims;
     const float h = av.h;
     const int oy = av.grid->spec().origin.y;

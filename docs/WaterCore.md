@@ -8456,6 +8456,31 @@ better). The saving grows with the pond's area; the live number (with the partia
 the bench interleaved, the owner's clip at B = 0.44 / 0.67 / 0.89 m), and the stone gate's decision: the owner's eyes on the clip, not
 a loosened number.
 
+### 27.22c Tall cells live (TC5, 2026-10-23): no gain with the shipped settings. Status: MEASURED, tall cells stay OFF
+
+`tools/water_tall_l4.py` (new) on WaterBench_Creek, Release: a walled 24 x 24 m pond at x 4-27, z 2-25 (inside one chunk), a stone at
+the centre, the shipped settings (partial wake ON, 20 sweeps, quiet scale 3), off and on (B 0.5 m) INTERLEAVED on the same water.
+Evidence: `tall_l4.json`. Found and fixed on the way: a sleeping volume is never stepped and the call that decides sleep returns before
+the decision (26.16), so `updateTall` never saw rest and never made a tall cell - the rest level is now read while the volume sleeps
+(`WaterCoreManager::captureTallRest`, from `update`).
+
+| depth | off (solver, median) | on, B 0.5 m | prediction (27.22a) |
+|---|---|---|---|
+| 1 m | 1.63 / 1.64 ms | 1.73 / 1.77 ms (all 46,656 columns tall, 5,508 bricks vs 6,276) | 1.5 -> 1.3 |
+| 2 m | 2.30 / 2.30 ms | 2.44 / 2.37 ms | 2.4 -> 1.6 |
+| control: B past the bed | - | 1.64 / 2.39 ms ("the band reaches the bed": no tall cells) | = off |
+
+**The prediction failed.** With the partial wake the step already covers only the moving patch; the tall layer's own 40 dispatches a
+substep (20 sweep pairs) are a fixed cost about as large as the per-cell work it removes. In the integration rig (partial wake off,
+every brick stepped) the same 24 m 2 m pond went 3.79 -> 2.63 ms - the saving is real per cell, the dispatch count eats it live.
+**Open:** at 2 m the tall cells switched themselves off mid-run (`tall_reason` back to "waiting for rest" - a trough or obstruction
+rule fired; not yet traced).
+
+**What it says.** The cost that bites now is not cells but LAUNCHES: every awake volume pays ~40 sweep dispatches a substep plus the
+rest of the chain (~0.35-0.55 ms a call whatever its size - 27.20 #5), and tall cells add 40 more. Until the sweeps are fewer, larger
+dispatches (or the tall layer's sweeps are folded into the band's), tall cells cost about what they save. They stay OFF by default;
+the code, the gates and the tools stay.
+
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
 **Was: "0a. Where things stand, and what is next (2026-10-14)"**
