@@ -58,6 +58,9 @@ bool handleDebugDynamicSpawnCommand(
             response = {{"error", "GPU particle physics not available"}};
             return true;
         }
+        // the spawn spin's bound (rad/s per axis, random in [-spin, spin]); 0 = a body that starts axis-aligned and still
+        // (WaterCore 31 step 0: a floater's draft measured without tumbling). Omitted = 3, the old behaviour.
+        const float spin = std::clamp(cmd.params.value("spin", 3.0f), 0.0f, 50.0f);
         float spacing = scale * 1.1f;
         int gridSize = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(count))));
         int spawned = 0;
@@ -69,16 +72,16 @@ bool handleDebugDynamicSpawnCommand(
             sp.position = glm::vec3(x + gx * spacing, y + gy * spacing, z + gz * spacing);
             sp.velocity = vel;
             sp.angularVel = glm::vec3(
-                ((rand() % 1000) / 500.f - 1.f) * 3.0f,
-                ((rand() % 1000) / 500.f - 1.f) * 3.0f,
-                ((rand() % 1000) / 500.f - 1.f) * 3.0f);
+                ((rand() % 1000) / 500.f - 1.f) * spin,
+                ((rand() % 1000) / 500.f - 1.f) * spin,
+                ((rand() % 1000) / 500.f - 1.f) * spin);
             sp.materialName = material;
             sp.scale = glm::vec3(scale);
             sp.lifetime = lifetime;
             gpuParticles->queueSpawn(sp);
             ++spawned;
         }
-        response = {{"success", true}, {"spawned", spawned}, {"system", "gpu"},
+        response = {{"success", true}, {"spawned", spawned}, {"system", "gpu"}, {"spin", spin},
                     {"position", {{"x", x}, {"y", y}, {"z", z}}}};
         return true;
     }

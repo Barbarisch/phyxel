@@ -8957,6 +8957,128 @@ break) cannot be capped that way - handing it to the record would change where i
 tier needs an answer (cheaper cells, a slower step that still ends in the same place, or a declared exception the owner
 approves). It is designed in the fit step, not guessed now.
 
+## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: STEP 0 MEASURED; DESIGN
+
+**Why now.** The owner's order (2026-10-24): small bodies, physics first, the keys being floating debris and disturbing the surface.
+M4 (20.6 v2) is the cure 19.3, 20.6, 24.8 and the displacement gate's comment (`Application.h` kDisplaceOnSpeed) all point to.
+
+### 31.1 Step 0 - how a floater rests today (MEASURED, 2026-10-24)
+
+Rig: `tools/water_float_rest.py` (new) on the Small bench, Release: a 4 x 4 m pond 1.5 m deep (24 m^3, level 16.5) in a 1/9 m
+volume (`auto_sleep` off so the volume's own sleep test is read without acting on it); one Wood block (buoyancy 1.429: the physical
+draft 0.70 of its height) per run, released at the surface or 1 m above it, `spin` 0 (new `spawn_gpu_particle` parameter: starts
+axis-aligned and still) or the old random spin; its pose from the engine's per-frame particle log; 30 s. Control: no block.
+Evidence `docs/evidence/water_core_m4/float_rest_before.json`.
+
+| run | the block | draft, last 5 s | the pond |
+|---|---|---|---|
+| control | - | - | asleep throughout |
+| 1/3 m, placed | asleep at 0.33 s, centre 16.431 | **0.706** | woke, asleep again at 25 s |
+| 1/9 m, placed | asleep at 0.57 s, centre 16.485 | 0.638 (asleep mid-bob) | woke, asleep again at 25 s |
+| 1/3 m, from 1 m | **never rests: thrown to 19.8 m (3.3 m above the water) every ~1.5 s** | - | never sleeps (55 columns awake) |
+| 1/3 m, from 1 m, tumbling | same: to 19.9 m | - | never sleeps |
+| 1 m, placed | **never rests: to 19.6 m every ~1.3 s** | - | never sleeps (64 columns awake) |
+
+**What it is (measured, `water_av_probe` at the block's column vs 0.7 m from it, displacement ON vs OFF):** with moving solids ON,
+the water at the block's column climbs WITH the block - 17.4, 17.7, 18.2, 18.6, 19.1, 19.5 m while the pond 0.7 m away stays at
+16.42-16.59. The block, moving faster than the 0.6 m/s displacement gate, is rasterized; the water it moves into is carried
+straight up its column (the 26.32 carry) and lands ON TOP of it; the debris law reads the column's TOP as the waterline, counts
+the block as submerged (f = 1) and lifts it at b g - into its own cap, which it displaces upward again. At the top the cap
+spills, the block falls (fast enough to be rasterized again) and the loop restarts. OFF (the control): the surface at the block
+moves +-0.2 m and the block rests. A placed block never reaches 0.6 m/s, is never rasterized, and rests at the law's draft.
+
+So: (1) **the floater's law reads the wrong water** - a column's top, not the water around the body (two defects meet here: the
+law, and the 26.32 carry that builds the cap); (2) **a floater falls asleep mid-bob** (0.33-0.57 s after it lands: the 1/9 m block
+froze at 0.638); (3) **the drop is the repeatable rig 26.32 asked for** - the same launch every run, spin 0.
+
+### 31.2 The design - the force from the water's pressure
+
+**The rule.** Inside an awake GPU volume, a body's acceleration from the water is the pressure integral over its surface:
+a = (b / V) sum over its faces of (-n p dA), b = rho_w / rho_body (materials.json `buoyancy`), p the volume's KINEMATIC pressure
+(p / rho_w, m^2/s^2, total: hydrostatic included - `WaterCoreTest.HydrostaticPressure`). Unrotated and floating at draft d this
+is b g d / (2a) - the table law exactly, so the equilibrium draft stays 1 / b. What changes: water on top of a body pushes it
+DOWN, air under it pushes nothing (the cap above loses its lift), a fully submerged body gets b g whatever the column above it
+holds, and a wave or the crown of a splash beside it pushes it sideways with the pressure the solver actually made.
+
+**The sampling (one shared function, C++ and GLSL - `water_body_force.glsl`, new).** Each face of the body's ORIENTED box is cut
+into n x n patches, n = clamp(ceil(side / h), 1, 4). At each patch centre x_f, p is taken from the volume cell one half cell OUTSIDE
+the face (the cells inside a moving body are walls with p = 0): p_f = p_c + g (y_c - y_f) when the cell holds water (p_c > 0),
+0 when it is air - exact for hydrostatic water, and never a pressure invented in air. Tall cells (27.22): a point below the tall
+layer's cell reads p_tall + g (y_tall - y). The submerged fraction the subgrid laws (form drag, waterline damping, current pull)
+still use is taken from the same samples (the bottom face's p over g times the body's height; 1 when the top face is wet), not
+from the column's top.
+
+**Where p comes from - pressure WINDOWS.** The debris solver cannot bind every volume's bricked buffers. Instead each frame the
+host asks each volume, in its own call, for one small dense window of p per wet body inside it: the body's predicted centre (its
+WetBody record + velocity x age, as `setMovingSolids` does) +- (its bounding radius + 3 cells), capped at 24^3 cells. A new
+kernel (`wc_body_pressure.comp`, run after the last substep) writes the windows into an export buffer that the debris solver owns
+(binding 7: headers {origin cell, dims, h, frame tag}; binding 8: the floats; `windowOf[slot]`). It resolves absent bricks (0),
+tall cells (hydrostatic below the tall cell) and frozen columns (their last p - frozen water is still) so the debris side is a plain
+lookup. Same queue: the water call precedes the frame's debris ticks; a barrier at the start of the debris command buffer, and the
+existing WAR barrier at the start of the water call, order it. The ticks sample at the body's CURRENT pose every tick (the field is
+at most a frame old, the pose never is - a pose two frames late under a stiff buoyancy is the instability 20.6 warned of).
+
+**Fallback (counted, never silent).** A body outside any awake GPU volume (recorded water, the old CA water), larger than a window,
+past the window cap, or whose current pose has left its window keeps the table law on the surface tile, as today.
+
+**Not in v1 (stated):** the pressure TORQUE (it would turn a 0.7-density cube to float tilted - physical, a look call for the
+owner, v1b); the displacement gate (a resting floater is still not rasterized: it does not raise the level; after v1 the pond's
+quiet with a rasterized floater is re-measured, the original reason for the gate); the CPU rigid bodies (VoxelDynamicsWorld keeps
+the table law on its AABB); the 26.32 carry itself (the cap still FORMS - it just stops lifting; the drop rig now makes 26.32
+measurable); the floater falling asleep mid-bob (31.1 item 2, its own fix).
+
+### 31.3 Tests (red first; predictions written before building)
+
+- **L2 unit, CPU (`WaterBodyForceTest`, the shared function on an analytic field):** (1) an unrotated box at drafts 0, 0.1 .. 1:
+  a_y = b g f to 1e-5; (2) 200 random orientations, random drafts: a_y = b g V_sub / V within 2 % (V_sub by 10^6-point Monte Carlo),
+  |a_xz| < 1 % of b g; (3) **the cap case** - water only ABOVE the box, air under it: a_y < 0 (the table law says +b g: the red);
+  (4) fully submerged at any depth: a_y = b g; (5) a horizontal pressure gradient (a sloped surface): a_xz along the slope.
+- **Integration, GPU (`WaterBodyPressureTest`):** the windows equal `readPressure` at the same cells (bricked, tall cells
+  extended hydrostatically, absent = 0), on a pond and a 3 m tall-cell pond; RED control: a window written one cell off -> unequal.
+- **L4 live (`tools/water_float_rest.py`, the before numbers above):** every Wood run ends at draft 0.70 +- 0.03; no block rises
+  more than 0.2 m above where it was released once it has entered the water (today 3.3 m); the pond is asleep again within 30 s in
+  every run (today never, in three of five). Control unchanged. Then a video for the owner: the five drops, before and after.
+- **Gates:** `tools/debris_settle_bench.py` (solver_integrate changes - its dry path must be bit-unchanged), the GPU water suite
+  in `phyxel_integration_tests`, the unit water suite.
+
+### 31.4 API
+
+`POST /api/debug/water_coupling {pressure_force: bool}` (omitted = unchanged; OFF is the A/B control; default ON once the L4 gate
+passes, the owner's look call). Echo `pressure_force: {on, windows, window_cells, bodies_sampled, fallback_outside,
+fallback_too_big, fallback_cap, fallback_left_window}` - enough to assert the bodies took the new path. Clamps at the site: n <= 4
+patches a side (cost bounded; the integral of a linear field over a face is exact with one patch, n only resolves waves); window
+<= 24^3 cells (a bigger body falls back, counted).
+
+### 31.5 Tiers (`PerformanceTiers.md`)
+
+No knob: the cost is per wet body (6 n^2 samples a tick, one window copy a frame), tiny beside the volume's call; it is the SAME
+at every tier (a tier may not change where a floater ends up). Measured in step 3 at the five drops and at 100 wet bodies.
+
+### 31.6 Design-check (Feature Design Keys, 2026-10-24) - NEEDS WORK -> seven items folded in -> READY
+
+Answered: voxel look (physics; no flag or tier hides it); procedural (none - runtime, order-independent: a window is a copy of
+one call's p, a force a pure function of a window and a pose); API (31.4); tiers (31.5). The seven items, now part of the design
+(where they differ from 31.2-31.4, these win):
+1. **Recorded water inside the box.** A recorded tile has no bricks - its cells read p = 0, and a floater on it would sink. The
+   window kernel reads `surfDense` (29 S1): in an absent column it writes p = g max(0, level - y) below the record's level.
+2. **Samples ONE cell outside the face** (not half): a cell half a cell out can still be mostly body (a bodyWall, p = 0) when the
+   body is not cell-aligned; at one cell the hydrostatic step back to the face is exact and no body overlaps the sampled cell.
+3. **Window margin** = max(3 h, |v| x 0.1 s) - the centre is predicted from a record 2-3 frames old; a window past the cap falls
+   back (counted).
+4. **A window that crosses its volume's box** (into dry ground outside it, or another volume) falls back, counted
+   (`fallback_box_edge`) - cells outside the box would read as air.
+5. **Budgets, at the clamp site:** <= 1,024 windows a frame, <= 2^20 floats (4 MB) in all, <= 24^3 cells each.
+6. **Stale windows:** a window carries the frame tag of the call that wrote it; ticks accept it up to 3 frames old (the fixed tick
+   can skip a call), else fall back.
+7. **The equality test** (`FloraMarginTest` shape): `WaterBodyPressureTest.TheWindowIsTheSameWhateverTheBox` - one pond in two
+   volume boxes, one straddling the chunk seam at x = 96: every shared window cell equal. **And the shipped default:** one L4 run
+   with `auto_sleep` ON - the pond sleeps into the record under a resting floater and the floater moves to the fallback (same
+   1 / b draft): predicted jump <= 1 cm at the hand-over.
+
+Rig vs shipped: `auto_sleep` off (the volume kept, its sleep test read) except for item 7's run; spin 0 for the repeatable drops,
+the old random spin in one run. Tiers: no knob (a tier may not change where a floater ends up); cost measured in a realistic scene
+(a broken crate's ~20 pieces in the pond) and a worst case (500 wet bodies after a blast), whole frame, CPU and GPU.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
