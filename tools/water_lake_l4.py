@@ -2,7 +2,7 @@
 patch wakes, waves, freezes and (recording on) records, with the rest sums cached (27.23 W1e) or not, INTERLEAVED.
 
 WaterBench_Creek (port 8114, Release). The walled box x 4-63, z 2-61, y 16-18 (2 m of water, 1 m of air). The engine's defaults
-(partial wake on, tall band 0.5 m, 20 sweeps) except: auto-sleep off; --quiet-scale (the freeze test, default the engine's 3);
+(partial wake on, tall band 0.5 m, 20 sweeps) except: auto-sleep off; --quiet-scale (the freeze test, default the engine's 10);
 --record (tiles into the record after 2 s frozen). Per run: create, place, wait for the water, settle --settle s, the stone at the
 centre, poll --seconds s: gpu_device_ms, awake / frozen columns, recorded tiles, bricks, reduce slots / cached, the mass.
 
@@ -32,6 +32,8 @@ def run(api, cache, record, settle, seconds):
     # a lake left recorded by the last run stays in the world record (destroying a volume writes its water back): every run but the
     # first starts from it - the lake asleep in the record, as W1e means it - seeded into the new volume
     r = api.debug("water_av_create", {**box, "cellSize": H, "backend": "gpu", "auto_sleep": False, "seed": "spans"})
+    if "error" in r and "no stored water" in r["error"]:   # a dry record: a plain create, the water placed below
+        r = api.debug("water_av_create", {**box, "cellSize": H, "backend": "gpu", "auto_sleep": False})
     api.debug("water_av_record_tiles", {"default": rec0})
     if "error" in r: raise SystemExit("create refused: " + r["error"])
     vid = r["volume"]["id"]

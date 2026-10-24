@@ -60,7 +60,7 @@ def main():
     ap.add_argument("--partial", choices=["on", "off", "both"], default="both")
     ap.add_argument("--strength", type=float, default=4.0)
     ap.add_argument("--seconds", type=float, default=8.0)
-    ap.add_argument("--quiet-scale", type=float, default=3.0, help="26.34: the per-column freeze test's thresholds x this (the ON run)")
+    ap.add_argument("--quiet-scale", type=float, default=10.0, help="26.34/27.24 (default 10, the engine's): the per-column freeze test's thresholds x this (the ON run)")
     ap.add_argument("--tag", default="wave_reach")
     ap.add_argument("--sweeps", default="0", help="26.35: comma list of pressure sweep counts, one run each (0 = the volume's own)")
     ap.add_argument("--line", default="", help="28: comma list of zebra line sweep settings count:omega (e.g. 4:1.3), one run each after the --sweeps runs; 0 = off")
@@ -85,7 +85,7 @@ def main():
             print(f"partial wake {name.upper():3s} LINE {cnt} omega {om} (residual median {r['residual_median']} max {r['residual_max']}, solver {r['solver_ms_median']} ms):  " + "  ".join(
                 f"{q['d_m']:2d} m: rms {q['rms_mm']:5.2f} max {q['max_mm']:5.1f} mm first {q['first_s'] if q['first_s'] is not None else '-'}" for q in r["points"]), flush=True)
     api.debug("water_av_line_sweeps", {"count": 0})
-    api.debug("water_av_partial_wake", {"quiet_scale": 3.0})
+    api.debug("water_av_partial_wake", {"quiet_scale": 10.0})
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
     (EV / f"{args.tag}.json").write_text(json.dumps(out))
     print("wrote", EV / f"{args.tag}.json")

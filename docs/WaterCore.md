@@ -51,7 +51,7 @@ record is real water, a dry pit stays dry, edits never create water, each body h
 - the one water model (§26): the creek as pond water (P1 26.5, 26.14), flat bricks (26.17), a dig without a freeze (26.19),
   the air fix (26.21), the dam & pond on pond water (26.22), floats in the current (26.25-26.26), the surface fixes (26.9),
   the still-water guess (26.10);
-- the cost work of 2026-10-18/19: the partial wake's look (`pw_look4`), its freeze test x3 (26.34), 20 pressure sweeps (26.35),
+- the cost work of 2026-10-18/19: the partial wake's look (`pw_look4`), its freeze test x3 (26.34; x10 since 2026-10-23, 27.24), 20 pressure sweeps (26.35),
   the partial wake ON by default (26.35).
 
 **Built, not signed off:** moving solids M0-M2 (§20); clear water S0 (§21.10); the droplet pool (§21.12); the §24 wave items;
@@ -8650,8 +8650,8 @@ and is back to 130-200 by 9-15 s; **x30**: peaks at 790, 110-170 after. The ripp
 printed 0.01 mm until the x3 run's patch covers the lake. Live (WaterBench_Creek, `tools/water_lake_l4.py`, 60 x 28 m - see 4):
 x10 + recording: the stone's tiles wake, wave, freeze, every tile records, the volume sleeps by ~25 s; mean 2.8 ms over the 30 s
 (4.6 -> 3.9 -> 1.7 -> 1.8 -> 1.3 ms medians by 5 s, then 0), books 3,360.0000 -> 3,359.9998 m^3. x3 + recording: ~2,000 of 2,176
-columns still awake at 30 s, 6-10 ms a call (`lake_l4_60x28_qs3_rec.json`). **Owner's call (26.35 item 1, open since 2026-10-19):
-quiet scale 10** - the lake goes still and records ~10 s after the waves; the last sub-0.05 mm ripples stop where they are.
+columns still awake at 30 s, 6-10 ms a call (`lake_l4_60x28_qs3_rec.json`). **x10 SIGNED OFF by the owner 2026-10-23 ("10x sounds fine to me") and made the default** (26.35 item 1 closed;
+`kColumnQuietScaleDefault = 10`, the tools default to it) - - the lake goes still and records ~10 s after the waves; the last sub-0.05 mm ripples stop where they are.
 
 **2. BUILT - the rest sums follow the awake water.** Profiled at x10 after the patch shrank (130-200 awake): the call still cost
 10-12 ms, `reduce` 3.3 -> 6.6 ms of it - the rest reductions (26.31: "the record, the reductions and the surface cover every stored
@@ -8686,6 +8686,10 @@ these every call.
 **5. Tall cells in the lake:** the stone's crater sets off the trough rule (27.22d) - the floor steps down 0.44 m and the stored bricks
 go 28,450 -> 37,882, so most of the saving goes with the first splash (sync test, x3, all awake: tall on 14.1 ms median vs off 9.6).
 Not changed; the trough rule's reach is the lever (a crater is not a trough).
+
+**On the new default, live** (60 x 28 m, recording on, the stone; `lake_l4_60x28_default10_rec.json`): mean **1.43 ms** over
+the 30 s after the stone (medians by 5 s 2.6 / 1.9 / 1.05 / 0.96 / 0.99 / 1.2), 28 of 32 tiles back in the record by 30 s, 96 columns
+awake. The engine boots with `quiet_scale 10.0` (echo). GPU water 55/57 (the known two), unit 312/312 - no test pinned the old scale.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

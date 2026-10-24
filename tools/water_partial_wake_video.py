@@ -28,7 +28,7 @@ def main():
     ap.add_argument("--stone", type=float, default=1.0, help="the stone's edge (m; spawn_gpu_particle scale)")
     ap.add_argument("--push", choices=["stone", "impulse"], default="stone", help="impulse = the same push in both takes (water_av_impulse; the GPU stone tumbles differently every drop - the owner read that as a difference)")
     ap.add_argument("--strength", type=float, default=4.0, help="the impulse's strength (--push impulse)")
-    ap.add_argument("--quiet-scale", type=float, default=3.0, help="26.34: the ON take's per-column freeze thresholds x this (water_av_partial_wake {quiet_scale})")
+    ap.add_argument("--quiet-scale", type=float, default=10.0, help="26.34/27.24 (default 10, the engine's): the ON take's per-column freeze thresholds x this (water_av_partial_wake {quiet_scale})")
     ap.add_argument("--pose", default=None, help="x,y,z,yaw,pitch")
     ap.add_argument("--still", action="store_true", help="only set up the pond and the camera, grab one frame (framing check)")
     ap.add_argument("--tag", default="pw_look")
@@ -69,7 +69,7 @@ def main():
         print("wrote", EV / f"{args.tag}_still.png"); return
 
     for name, partial in (("off", False), ("on", True)):
-        api.debug("water_av_partial_wake", {"quiet_scale": args.quiet_scale if partial else 3.0})
+        api.debug("water_av_partial_wake", {"quiet_scale": args.quiet_scale if partial else 10.0})
         vid = pond(partial)
         mp4 = EV / f"{args.tag}_{name}.mp4"
         rec = subprocess.Popen([ff, "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-t", str(args.seconds),
@@ -99,7 +99,7 @@ def main():
             lines.append(f"{i + 1}\n{srt_time(r['t'])} --> {srt_time(t1)}\n{label}  |  solver {ms:.2f} ms  |  {stepped}\n")
         (EV / f"{args.tag}_{name}.srt").write_text("\n".join(lines), encoding="utf-8")
         print(name, "recorded;", "solver ms median", sorted(r["solver_ms"] or 0 for r in rows)[len(rows) // 2])
-    api.debug("water_av_partial_wake", {"quiet_scale": 3.0})
+    api.debug("water_av_partial_wake", {"quiet_scale": 10.0})
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
     (EV / f"{args.tag}.json").write_text(json.dumps(out, indent=1))
     # side by side: each half captioned, scaled to 960 wide; run in EV so the subtitle paths need no escaping

@@ -44,7 +44,7 @@ def main():
     ap.add_argument("--seconds", type=float, default=15.0)
     ap.add_argument("--tag", default=None)
     ap.add_argument("--partial", choices=["on", "off"], default="off", help="26.31: the partial wake on the volume (on = frozen columns are not stepped)")
-    ap.add_argument("--quiet-scale", type=float, default=3.0, help="26.34: the per-column freeze test's thresholds x this (water_av_partial_wake {quiet_scale})")
+    ap.add_argument("--quiet-scale", type=float, default=10.0, help="26.34/27.24 (default 10, the engine's): the per-column freeze test's thresholds x this (water_av_partial_wake {quiet_scale})")
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(120)
     api.debug("water_av_realtime", {"on": True})

@@ -27,7 +27,7 @@ def main():
     ap.add_argument("--record-off", action="store_true", help="the control: tile recording OFF (the pond only freezes)")
     ap.add_argument("--census-every", type=int, default=8, help="polls between exact censuses; 0 = only the first and the last. A census "
                     "collects the GPU call between two steps, which keeps columns 'moving' (27.13 open item 1) - 0 for a clip")
-    ap.add_argument("--quiet-scale", type=float, default=None, help="the per-column freeze thresholds x this (26.34; default 3)")
+    ap.add_argument("--quiet-scale", type=float, default=None, help="the per-column freeze thresholds x this (26.34; default 10, 27.24)")
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(300)
     api.debug("water_av_realtime", {"on": True})

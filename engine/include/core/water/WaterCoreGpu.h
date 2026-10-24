@@ -350,7 +350,7 @@ public:
     /// over the pond (66-79 % awake 11-20 s after a push whose waves were 0.5 mm at 8 m); at 10 nothing moves after ~11 s. A look
     /// decision (a frozen column is a wall: the waves too small to wake it reflect). water_av_partial_wake {quiet_scale}.
     /// Default 3: the owner's call on pw_look5 (2026-10-19, "multiplier 3 looks fine").
-    static constexpr float kColumnQuietScaleDefault = 3.0f;
+    static constexpr float kColumnQuietScaleDefault = 10.0f;   // owner 2026-10-23: x10 (was x3, 26.34) - a stone's lake records ~10 s after its waves (27.24)
     static inline float s_columnQuietScale = kColumnQuietScaleDefault;
     /// 27.14 measurement: ticks a column must stay quiet before it freezes (0 = the volume's restTicks, 30 = 0.5 s). A pond-wide
     /// slosh (46 m, 1 m deep: ~30 s period) is still at its turn for longer than 0.5 s. water_av_partial_wake {rest_ticks}.

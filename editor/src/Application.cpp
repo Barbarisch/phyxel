@@ -14099,7 +14099,7 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("default")) Core::Water::WaterCoreManager::s_partialWakeDefault = cmd.params.value("default", true);
         // surface (26.33): the surface kernel and its copy over the awake columns only; false = every column (the A/B)
         if (cmd.params.contains("surface")) Core::Water::WaterCoreGpu::s_partialSurface = cmd.params.value("surface", true);
-        // quiet_scale (26.34): the per-column freeze test's thresholds x this (1 = the volume's sleep test, default 3); clamped [0.1, 1000]:
+        // quiet_scale (26.34): the per-column freeze test's thresholds x this (1 = the volume's sleep test, default 10 - owner 2026-10-23, 27.24); clamped [0.1, 1000]:
         // below 0.1 no column ever freezes (float noise moves more), above 1000 a visible wave (cm/s) would count as still
         if (cmd.params.contains("quiet_scale")) Core::Water::WaterCoreGpu::s_columnQuietScale = std::clamp(cmd.params.value("quiet_scale", Core::Water::WaterCoreGpu::kColumnQuietScaleDefault), 0.1f, 1000.0f);
         // rest_ticks (27.14): ticks quiet before a column freezes; 0 = the volume's restTicks; clamped [0, 100000]

@@ -1,7 +1,7 @@
 """WaterCore.md 27.22 TC5 - tall cells live (L4): the cost, off vs on INTERLEAVED on the same water (separate runs drift ~0.2 ms).
 
 WaterBench_Creek (port 8114, Release, GPU idle). One walled 24 x 24 m pond at x 4-27, z 2-25 (inside the chunk at x 0-31, z 0-31),
-1 m and 2 m deep, the engine's defaults (partial wake on, 20 sweeps, quiet scale 3), auto-sleep off. Per run: the volume created with
+1 m and 2 m deep, the engine's defaults (partial wake on, 20 sweeps, quiet scale 3 when measured; 10 since 27.24), auto-sleep off. Per run: the volume created with
 tall_band_m = 0 (off) or B; the water placed; it sleeps (the rest level is read then); a stone-sized impulse at the centre; 6 s
 polled: the solver's GPU ms (gpu_device_ms), substeps, bricks, the tall echo (tall_active, tall_floor_y, tall_columns, tall_reason).
 Order: off, on, off, on per depth. CONTROL: on with B larger than the depth - must cost what off costs (no column under the floor).
