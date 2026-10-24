@@ -13,6 +13,7 @@
 #include <vulkan/vulkan.h>
 #include <chrono>
 #include <array>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -115,6 +116,21 @@ struct BrickOptions {
     int    height = 0;               ///< 26.17: brick height in cells (2, 4 or 8; 0 = WaterCoreGpu::s_brickHeight); x and z are 8
     int    ground = -1;              ///< 26.18: halo bricks that are all ground read the GROUND sentinel (1 on, 0 off, -1 = s_groundBricks); sparse only
     bool   groundAsAirForTest = false;   ///< TEST ONLY (the red control): the ground sentinel's occupancy left as air
+};
+
+/// 27.28 THE WATER'S CPU, BY PHASE. Every lap adds the time since the last lap (or the caller's start) to its key; WaterCoreManager::
+/// update() counts the frames. Read and reset with water_av_host_phases. Always on: ~30 map adds a frame.
+struct WaterHostProfile {
+    using Clock = std::chrono::steady_clock;
+    static inline std::map<std::string, double> ms;
+    static inline std::map<std::string, long> calls;
+    static inline long frames = 0;
+    static void lap(const char* key, Clock::time_point& t) {
+        const auto now = Clock::now();
+        ms[key] += std::chrono::duration<double, std::milli>(now - t).count(); ++calls[key];
+        t = now;
+    }
+    static void reset() { ms.clear(); calls.clear(); frames = 0; }
 };
 
 class WaterCoreGpu {

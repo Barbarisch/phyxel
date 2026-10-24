@@ -13939,6 +13939,18 @@ void Application::registerWaterCommands() {
     });
     // §27 W1a: {on?, radius?} recorded water near the camera drawn with the pond surface; radius in m, clamped 0-256 (above 256
     // the tiles near the camera would be rebuilt over ~1,000 tiles; the far record is W2's). Echoes the settings and the stats.
+    // 27.28: the water's CPU per frame by phase - {reset: true} starts a new window; returns frames and, per phase, ms a frame and
+    // calls a frame (mean over the window). Phases nest by name: mgr.4 = gpu.* + collect.*; ripples.1 = surf.*
+    reg.on("water_av_host_phases", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        using P = Core::Water::WaterHostProfile;
+        const double fr = static_cast<double>(std::max<long>(1, P::frames));
+        nlohmann::json ph = nlohmann::json::object();
+        for (const auto& [k, v] : P::ms) ph[k] = {{"ms_per_frame", v / fr}, {"calls_per_frame", P::calls[k] / fr}};
+        const auto& tl = renderCoordinator ? &renderCoordinator->waterCoreTiler().stats() : nullptr;
+        r = {{"frames", P::frames}, {"phases", ph}, {"app_water_cpu_ms_last", {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}}}};
+        if (tl) r["tiler_last"] = {{"ms", tl->ms}, {"build_ms", tl->buildMs}, {"rebuilt", tl->rebuilt}};
+        if (cmd.params.value("reset", false)) P::reset();
+    });
     reg.on("water_av_record_draw", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         using M = Core::Water::WaterCoreManager;
         if (!waterCore) return noCore(r);

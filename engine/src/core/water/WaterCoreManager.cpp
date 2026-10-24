@@ -331,6 +331,7 @@ void WaterCoreManager::update(float dt) {
     using UClock = std::chrono::steady_clock;
     auto ums = [](UClock::time_point a) { return std::chrono::duration<double, std::milli>(UClock::now() - a).count(); };
     m_updateCpu = UpdateCpu{};
+    ++WaterHostProfile::frames;   // 27.28
     int ticks = 1; float tickDt = dt;   // 27.26: the fixed water tick
     if (s_fixedTickS > 0.0f) {
         m_tickAccum += dt;
@@ -795,6 +796,7 @@ void WaterCoreManager::updateTall(Av& av) {
 
 void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     if (!av.gpuVol || !m_gpu) return;
+    auto hp = WaterHostProfile::Clock::now();   // 27.28
     if (av.gpuDirty) {
         const auto tUp = std::chrono::steady_clock::now();   // 26.18: what a world change costs the water (measured, reported)
         syncFromGpu(av); m_gpu->upload(*av.gpuVol, *av.grid);
@@ -810,10 +812,14 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     // act), after a pending upload (a record or wake marks the mirror stale: before the upload it would re-read over a push not yet
     // sent). Run after the call it collected the call just submitted; live, a pushed pond then never settled (KE 2-7e-2 at 24 s,
     // the pressure solve's residual climbing to 14; this order: 4e-8 J, the whole pond back in the record by 41 s - 27.13).
+    WaterHostProfile::lap("mgr.1 upload (world changes)", hp);
     if (!s_recordAfterStepForTest) recordTilesStep(av, dt * static_cast<float>(ticks));   // seconds, not ticks (a realtime tick is a frame)
+    WaterHostProfile::lap("mgr.2 record / wake tiles", hp);
     updateTall(av);   // 27.22: the floor and the heights for this call (after a pending upload: it resets the tall cells)
+    WaterHostProfile::lap("mgr.3 tall cells", hp);
     m_gpu->setAsync(*av.gpuVol, m_realtime);   // 26.16: realtime frames never wait on the water's call (collected next frame)
     const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, av.gpuSweeps);
+    WaterHostProfile::lap("mgr.4 the GPU step (= gpu.* + collect.*)", hp);
     av.gpuStale = true;
     av.gpuLast = st;
     av.carryBodyM3 += st.carryBodyM3; av.carryRateM3 += st.carryRateM3; av.carryFlowM3 += st.carryFlowM3; av.carryParkedM3 += st.carryParkedM3;
@@ -834,6 +840,7 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     av.residueDropped += st.residueDropped;
     if (s_recordAfterStepForTest) recordTilesStep(av, dt * static_cast<float>(ticks));   // the W1b order: the red control
     if (s_settleAfterStepForTest) m_gpu->settle(*av.gpuVol);   // 27.13 open item: a collect right after the submission
+    WaterHostProfile::lap("mgr.5 after the step", hp);
 }
 
 bool WaterCoreManager::clearSources(int id) {
@@ -1371,9 +1378,11 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
     // 26.30 step 3: the volumes' own fields - no copy (it was cleared and every field copied each call, up to three calls a frame:
     // 0.42 ms a frame on a sleeping 20 x 20 m pond, ~1 ms on an awake 32 x 28 m one)
     m_fields.resize(m_avs.size());
+    auto hp = WaterHostProfile::Clock::now();   // 27.28
     for (size_t i = 0; i < m_avs.size(); ++i) {
         auto& av = m_avs[i];
         if (av->fieldStep != av->stepCount) {
+            WaterHostProfile::lap("surf.0 (before)", hp);
             bool got = false;
             if (av->gpuVol && m_gpu && m_gpu->surfaceReady(*av->gpuVol)) {
                 WaterSurfaceField& f = av->field;
@@ -1383,6 +1392,7 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
                 f.origin = av->grid->spec().origin; f.nx = av->grid->nx(); f.nz = av->grid->nz(); f.h = av->h;
                 f.cols.resize(static_cast<size_t>(f.nx) * f.nz);
                 got = m_gpu->readSurface(*av->gpuVol, reinterpret_cast<float*>(f.cols.data()), keep);
+                WaterHostProfile::lap("surf.1 read the GPU surface", hp);
                 // 27.15: a woken tile's seed stays drawn until the surface read is of a call submitted after the seed
                 const uint64_t sc = m_gpu->surfaceCallId(*av->gpuVol);
                 for (auto it = av->seedPatches.begin(); it != av->seedPatches.end();) {
@@ -1394,11 +1404,14 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
                     ++it;
                 }
             }
+            WaterHostProfile::lap("surf.2 seed patches", hp);
             if (!got) { syncFromGpu(*av, false); extractSurfaceField(*av->grid, av->field); }
+            WaterHostProfile::lap("surf.3 CPU fallback", hp);
             // 27.15: the recorded tiles' columns are the record's to draw - marked "not this field's" (runs -1), so the volume's mesh
             // ends there like at its box edge instead of walling them off as dry (a wall from the surface to the bed showed - yellow
             // bed through it, a dark crease along its top - wherever the woken water moved beside a recorded tile, live)
             if (!(s_handoverRevertForTest & 8)) for (const auto& [tx, tz] : av->recordedTileList) markRecordedColumns(*av, tx, tz);   // bit 8: the C red control
+            WaterHostProfile::lap("surf.4 mark recorded columns", hp);
             av->fieldStep = av->stepCount;
             av->field.source = av->id; av->field.version = av->fieldStep + 1;   // 26.30: the tiler skips a field whose version stands (an asleep volume)
             av->field.look = packLook(lookAt((av->minVoxel.x + av->maxVoxel.x) / 2, (av->minVoxel.z + av->maxVoxel.z) / 2));   // G3
@@ -1407,7 +1420,9 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
         av->field.rippleLayer = (av->ripple && m_rstats.on) ? static_cast<int>(i) : -1;   // 22: parallel to rippleLayers()
         m_fields[i] = &av->field;
     }
+    WaterHostProfile::lap("surf.5 rest", hp);
     refreshRecordTiles();   // §27 W1a: the recorded water near the camera, after the volumes (a volume owns its columns first)
+    WaterHostProfile::lap("surf.6 record tiles' surfaces", hp);
     for (auto& [key, t] : m_recordTiles) if (t.wet) m_fields.push_back(&t.field);
     return m_fields;
 }
@@ -1555,6 +1570,8 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
 }
 
 std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float moveM) {
+    auto hp = WaterHostProfile::Clock::now();   // 27.28
+    struct Lap { WaterHostProfile::Clock::time_point& t; ~Lap() { WaterHostProfile::lap("motion.1 takeMotion scan", t); } } lapAtExit{hp};
     std::vector<std::pair<glm::vec3, float>> out;
     m_motionStats = MotionStats{};
     if (m_motionPrevTops.size() != m_fields.size()) { m_motionPrevTops.assign(m_fields.size(), {}); m_motionSeen.assign(m_fields.size(), {}); }
@@ -1752,7 +1769,9 @@ void WaterCoreManager::stepRipples(float dt) {
     const auto t0 = std::chrono::steady_clock::now();
     m_rstats.layers = 0; m_rstats.awake = 0; m_rstats.cells = 0; m_rstats.kinematicCells = 0;
     if (!m_rstats.on) { m_rstats.ms = 0.0; return; }
+    auto hpr = WaterHostProfile::Clock::now();   // 27.28
     surfaceFields();   // masks and body waterlines read each volume's field (cached per step)
+    WaterHostProfile::lap("ripples.1 surfaceFields (= surf.*)", hpr);
     const bool gpu = rippleGpuOn();
     using RClock = std::chrono::steady_clock;
     auto rms = [](RClock::time_point a) { return std::chrono::duration<double, std::milli>(RClock::now() - a).count(); };
@@ -1875,6 +1894,7 @@ void WaterCoreManager::stepRipples(float dt) {
         ++m_rstats.layers; m_rstats.cells += static_cast<long>(L.nx()) * L.nz();
         if (!L.asleep()) ++m_rstats.awake;   // the shape stats: refreshRippleShapeStats (on demand)
     }
+    WaterHostProfile::lap("ripples.2 masks + layers", hpr);
     m_rstats.gpu = gpu;
     if (gpu) {
         { const auto ts = RClock::now(); m_rgpu->submit(); m_updateCpu.rSubmit = rms(ts); }   // 25.34: no wait - the next frame collects it
