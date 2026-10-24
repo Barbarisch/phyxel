@@ -76,6 +76,8 @@ struct AvRecord {
     int gpuTicks = 0;                      ///< 26.15: ticks the last call stepped
     bool gpuAsync = false;                 ///< 26.16: the call is collected next frame (realtime) - the gpu_* numbers are the previous call's
     long gpuPoolGrows = 0;                 ///< 27.23 W1d.1: times the GPU slot pool grew (it starts small and follows the water)
+    int gpuReduceSlots = 0;                ///< 27.23 W1e: brick slots the last call's rest reductions ran over
+    bool gpuReduceCached = false;          ///< 27.23 W1e: ... the frozen columns' sums kept on the device (only the awake bricks reduced)
     int gpuDispatches = 0, gpuBarriers = 0;   ///< 28: the last GPU call's compute dispatches and barriers (all substeps)
     int gpuBricks = 0;                     ///< 26.12: bricks the GPU volume steps (stored: water + its halo); 0 = not on the GPU
     int gpuBrickCapacity = 0;              ///< 26.12: bricks it could store (the whole box)
@@ -489,6 +491,7 @@ public:
     const UpdateCpu& updateCpu() const { return m_updateCpu; }
 
     static constexpr size_t kMaxCellsPerVolume = 2'000'000;   ///< CPU reference ceiling (§15.4)
+    static constexpr size_t kMaxCellsPerGpuVolume = 16'000'000;   ///< 27.23 W1d: a GPU fill volume - its CPU mirror's ceiling until W1d.3
     static bool snapCellSize(float requested, float* snapped);  ///< power-of-three fractions only
     /// Phase D (16.4): the world voxel boxes of every live volume (awake or not - a volume draws its
     /// own surface until it is destroyed), and a revision that changes on create/destroy, so the

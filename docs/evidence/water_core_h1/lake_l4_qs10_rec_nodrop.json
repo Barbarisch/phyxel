@@ -1,0 +1,180 @@
+{
+ "quiet_scale": 10.0,
+ "record": true,
+ "runs": [
+  {
+   "cache": true,
+   "record": true,
+   "medians_by_5s": {
+    "0-5s": 4.22,
+    "5-10s": 10.04,
+    "10-15s": 12.68,
+    "15-20s": 13.52,
+    "20-25s": 14.41,
+    "25-30s": 13.52,
+    "30-35s": 13.85
+   },
+   "mean_ms": 11.351,
+   "mass_start": 7200.0,
+   "mass_end": 7200.000160932542,
+   "last": {
+    "t": 30.18,
+    "ms": 13.853439999999999,
+    "awake": 4567,
+    "frozen": 57,
+    "recorded_tiles": 0,
+    "bricks": 38077,
+    "reduce_slots": 37622,
+    "cached": true,
+    "asleep": false,
+    "mass": 7200.000160932542
+   },
+   "rows": [
+    {
+     "t": 2.17,
+     "ms": 3.105632,
+     "awake": 904,
+     "frozen": 392,
+     "recorded_tiles": 48,
+     "bricks": 10897,
+     "reduce_slots": 7763,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.000045776367
+    },
+    {
+     "t": 4.61,
+     "ms": 5.337632,
+     "awake": 1753,
+     "frozen": 677,
+     "recorded_tiles": 32,
+     "bricks": 20197,
+     "reduce_slots": 14783,
+     "cached": true,
+     "asleep": false,
+     "mass": 6944.0000858306885
+    },
+    {
+     "t": 7.16,
+     "ms": 8.591263999999999,
+     "awake": 2799,
+     "frozen": 945,
+     "recorded_tiles": 15,
+     "bricks": 31314,
+     "reduce_slots": 31316,
+     "cached": false,
+     "asleep": false,
+     "mass": 7072.000131607057
+    },
+    {
+     "t": 9.68,
+     "ms": 11.482111999999999,
+     "awake": 3834,
+     "frozen": 594,
+     "recorded_tiles": 4,
+     "bricks": 36376,
+     "reduce_slots": 31626,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.00015449524
+    },
+    {
+     "t": 12.22,
+     "ms": 12.672927999999999,
+     "awake": 3967,
+     "frozen": 622,
+     "recorded_tiles": 1,
+     "bricks": 37680,
+     "reduce_slots": 32706,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.000159859658
+    },
+    {
+     "t": 14.78,
+     "ms": 12.687648,
+     "awake": 4328,
+     "frozen": 233,
+     "recorded_tiles": 1,
+     "bricks": 37463,
+     "reduce_slots": 35601,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.000238895417
+    },
+    {
+     "t": 17.35,
+     "ms": 13.455903999999999,
+     "awake": 4348,
+     "frozen": 276,
+     "recorded_tiles": 0,
+     "bricks": 37976,
+     "reduce_slots": 35770,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.000160932542
+    },
+    {
+     "t": 19.94,
+     "ms": 13.585984,
+     "awake": 4317,
+     "frozen": 244,
+     "recorded_tiles": 1,
+     "bricks": 37497,
+     "reduce_slots": 35547,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.000064968216
+    },
+    {
+     "t": 22.51,
+     "ms": 14.405695999999999,
+     "awake": 4574,
+     "frozen": 50,
+     "recorded_tiles": 0,
+     "bricks": 38026,
+     "reduce_slots": 37628,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.000160932542
+    },
+    {
+     "t": 25.06,
+     "ms": 14.782079999999999,
+     "awake": 4533,
+     "frozen": 91,
+     "recorded_tiles": 0,
+     "bricks": 38039,
+     "reduce_slots": 37312,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.000160932542
+    },
+    {
+     "t": 27.63,
+     "ms": 12.254496,
+     "awake": 4487,
+     "frozen": 137,
+     "recorded_tiles": 0,
+     "bricks": 38064,
+     "reduce_slots": 36966,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.000160932542
+    },
+    {
+     "t": 30.18,
+     "ms": 13.853439999999999,
+     "awake": 4567,
+     "frozen": 57,
+     "recorded_tiles": 0,
+     "bricks": 38077,
+     "reduce_slots": 37622,
+     "cached": true,
+     "asleep": false,
+     "mass": 7200.000160932542
+    }
+   ]
+  }
+ ]
+}

@@ -404,3 +404,50 @@ TEST_F(WaterRecordTilesTest, TallCellsRecordAndWakeWithTheBooksExact) {
     }
     WaterCoreGpu::s_seedSkipsTallCollapseForTest = false;
 }
+
+// DiagLakeRecorded (27.23 W1e step 0): the 60 x 60 m lake (2 m deep, 3 m box) with the partial wake and RECORDING on - the lake at
+// rest records tile by tile (its bricks freed), a stone wakes the tiles round it, waves, freezes, records again. Per second: the
+// call's mean GPU ms, awake / frozen columns, recorded tiles, stored bricks, the books. LAKE_QS = the freeze test's scale.
+TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeRecorded) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    if (const char* q = std::getenv("LAKE_QS")) WaterCoreGpu::s_columnQuietScale = static_cast<float>(std::atof(q));
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    FakeRecord record; record.install(mgr);
+    const bool realtime = std::getenv("LAKE_RT") != nullptr;   // the live path: async calls (collected next frame), update()
+    if (realtime) mgr.setRealtime(true);   // before create: a volume takes its async mode at create
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(59, 2, 59), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    ASSERT_TRUE(id) << err;
+    mgr.setAutoSleep(id, false);
+    ASSERT_TRUE(mgr.setPartialWake(id, true) && mgr.setRecordTiles(id, true));
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(59, 1, 59), 1.0f, nullptr);
+    const double placed = mgr.totalMass();
+    std::printf("  quiet scale %.1f, record after %.1f s, placed %.4f m^3\n", WaterCoreGpu::s_columnQuietScale, WaterCoreManager::s_recordAfterS, placed);
+    AvRecord rec;
+    double msSum = 0.0, booksWorst = 0.0; int msN = 0;
+    for (int k = 1; k <= 60 * 31; ++k) {
+        if (k == 60 * 10) mgr.addImpulse(glm::vec3(30.0f, 1.9f, 30.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        if (realtime) mgr.update(1.0f / 60.0f); else mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        const AvRecord* r = mgr.find(id);
+        if (r) { msSum += r->gpuDeviceMs; ++msN; }
+        if (k % 60 || !r) continue;
+        booksWorst = std::max(booksWorst, std::abs(mgr.totalMass() + r->residueDropped + record.total() - placed));   // once a second: totalMass reads the volume back
+        std::printf("  t %4.1f s mean %6.2f ms | awake %4d frozen %4d recorded tiles %3d bricks %6d cached %d reduce slots %6d | tall %d | books worst %.5f m^3\n",
+                    k / 60.0, msN ? msSum / msN : 0.0, r->awakeColumns, r->frozenColumns, r->recordedTiles, r->gpuBricks, int(r->gpuReduceCached), r->gpuReduceSlots,
+                    int(r->tallActive), booksWorst);
+        msSum = 0.0; msN = 0;
+        if (k == 60 * 24) WaterCoreManager::setKernelTiming(true, true);
+        if (k == 60 * 30) {
+            long calls = 0; auto st = WaterCoreManager::kernelTiming(calls);
+            std::sort(st.begin(), st.end(), [](const auto& x, const auto& y) { return x.second > y.second; });
+            std::printf("      stages (%ld calls, ms a call):", calls);
+            for (const auto& e : st) if (calls && e.second / calls > 0.02) std::printf(" %s %.2f", e.first.c_str(), e.second / calls);
+            std::printf(" | dispatches %d\n", r->gpuDispatches);
+            WaterCoreManager::setKernelTiming(false, true);
+        }
+    }
+    WaterCoreGpu::s_columnQuietScale = WaterCoreGpu::kColumnQuietScaleDefault;
+}

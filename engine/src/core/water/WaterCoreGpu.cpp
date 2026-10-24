@@ -21,7 +21,7 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 11, 5, 10, 6, 7, 6, 9, 7, 7, 6};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 12, 5, 10, 6, 7, 6, 9, 7, 7, 6};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -140,7 +140,7 @@ void WaterCoreGpu::bindPipelines(Volume& vol) {
             p.updateDescriptors();
         }
     }
-    bindAll(*vol.pipes[Reduce],  {&vol.f, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.part, &vol.out, &vol.part2, &vol.res, &vol.dropped, br});
+    bindAll(*vol.pipes[Reduce],  {&vol.f, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.part, &vol.out, &vol.part2, &vol.res, &vol.dropped, br, vol.unitMap.buf ? &vol.unitMap : &vol.part2});   // 27.23 W1e: + the kept unit map (dense: unused, part2 stands in)
     bindAll(*vol.pipes[Sources], {&vol.f, &vol.occ, &vol.src, &vol.sources, br});
     bindAll(*vol.pipes[Momentum], {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, br, &vol.momentum});   // 26.26
     bindAll(*vol.pipes[Bricks],  {&vol.f, &vol.u, &vol.v, &vol.w, &vol.p, br});
@@ -245,7 +245,8 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
            && createBuffer(vol->solid, vol->cells * 16, false, err)                                     // 20: (s, q, wake, ledger) per cell
            && createBuffer(vol->births, vol->columns * 32, false, err) && createBuffer(vol->birthsPacked, vol->columns * 32, false, err) && createBuffer(vol->lists, 16, false, err) && createBuffer(vol->deposit, vol->cells * F4, false, err)   // 21: droplets
            && createBuffer(vol->bricks, vol->brickInts * 4, false, err)                                 // 26.6
-           && createBuffer(vol->momentum, kMaxMomentum * 32, true, err);                                 // 26.26: written by the host each call
+           && createBuffer(vol->momentum, kMaxMomentum * 32, true, err)                                  // 26.26: written by the host each call
+           && (!vol->bricked || createBuffer(vol->unitMap, std::max<size_t>(1, static_cast<size_t>(vol->bn.x) * vol->nuy * static_cast<size_t>(vol->bn.z)) * 16, false, err));   // 27.23 W1e
     // staging: [f | u | v | w | occ | src | out | p | sources | surf | solid | births | deposit | bricks | particles]
     vol->offU = vol->cells * F4; vol->offV = vol->offU + vol->nu * F4; vol->offW = vol->offV + vol->nv * F4;
     vol->offOcc = vol->offW + vol->nw * F4; vol->offSrc = vol->offOcc + vol->cells * 4; vol->offOut = vol->offSrc + vol->cells * F4;
@@ -271,8 +272,8 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         VkCommandBuffer cmd = beginCommands();
         for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                           &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep,
-                          &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->fLo, &vol->birthsPacked, &vol->lists})
-            vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
+                          &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->unitMap})
+            if (b->buf) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
         if (vol->bricked && !vol->groundAsAir) vkCmdFillBuffer(cmd, vol->occ.buf, kGround * vol->bc * 4, vol->bc * 4, 1u);   // 26.18: the ground sentinel: Solid
         submitAndWait(cmd);
     }
@@ -299,7 +300,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
-                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->scratch, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum})
+                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->scratch, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum, &vol->unitMap})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -569,6 +570,7 @@ void WaterCoreGpu::ensureCapacity(Volume& vol, const std::vector<char>& need) {
 }
 
 bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
+    vol.unitsFullNext = true;   // 27.23 W1e: this writes stored cells, frozen ones included - the next reduction computes every unit
     if (!vol.growable || !vol.bricked) return false;
     size_t newCap = std::max<size_t>(vol.capacity, kFirstSlot + 1);
     while (newCap < slots + kFirstSlot) newCap *= 2;
@@ -907,6 +909,7 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     s_tileGpuMs.seedSubmit = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tq2).count();
     vol.recordValid = false;   // the next residency keeps every stored brick (its record predates the seed)
     vol.surfaceFullNext = true;   // 27.15: the seeded columns are frozen, their surface must still be drawn
+    vol.unitsFullNext = true;     // 27.23 W1e: ... and weighed
     vol.tablesDirty = true;    // the frozen bits follow at the next call
 }
 
@@ -1145,6 +1148,7 @@ int WaterCoreGpu::partitionSlots(VkCommandBuffer cmd, Volume& vol) {
 }
 
 void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
+    vol.unitsFullNext = true;   // 27.23 W1e: this writes stored cells, frozen ones included - the next reduction computes every unit
     settle(vol);   // 26.16
     // 27.22: the grid is ordinary cells - no tall cells from here (the heights region is zeroed with the counters below) until asked
     // again. FIRST: with the tall state still set, the residency below read every brick under the floor as ground and the grid's
@@ -1859,14 +1863,28 @@ void WaterCoreGpu::recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush pus
             partials = groups; mode = mode == 2 ? 3 : 2;
         }
     };
+    // 27.23 W1e: a frozen column is not stepped (no kernel writes its cells), so its units are the ones the kept map holds - the
+    // CACHED call reduces the awake bricks only (slots [0, stepSlots) after the partition) and mode 6 reads the frozen units from
+    // the map. Anything that writes frozen cells (upload, seed, a regrid, a pool grow, occupancy) sets unitsFullNext: every unit.
+    const int fullSlots = vol.slotsUsed;
+    const bool cached = s_unitCache && vol.bricked && vol.unitMap.buf && vol.unitMapValid && (!vol.unitsFullNext || s_unitCacheStaleForTest)
+                        && vol.stepSlots > 0 && vol.stepSlots < fullSlots;
+    const bool speedLane = s_unitCache && vol.bricked && vol.unitMap.buf;
+    auto prefix = [&](bool on) { vol.slotsUsed = on ? vol.stepSlots : fullSlots; fillPushBricks(vol, push); push.setFrozenOn(0); };
+    if (cached) prefix(true);
     const size_t cells = liveCells(vol);
+    vol.lastReduceSlots = vol.slotsUsed; vol.lastReduceCached = cached; vol.lastSpeedLane = speedLane;
     push.mode = 0; dispatch(cmd, *vol.pipes[Reduce], push, cells, 256);
+    if (cached) prefix(false);
     if (vol.bricked) {
         // 26.6: the per-half-brick partials into MAP order (absent bricks as zero), then the fold - the same tree whichever
         // bricks are stored, so the sums the rest and settle decisions read are the dense run's bit for bit
         // 26.17: per 128-cell unit, gathered into the world-aligned unit map - the same tree for every brick height
         const size_t units = static_cast<size_t>(vol.bn.x) * vol.nuy * static_cast<size_t>(vol.bn.z);
-        push.mode = 6; push.param0 = static_cast<float>(vol.nuy); dispatch(cmd, *vol.pipes[Reduce], push, units, 256);
+        push.mode = 6; push.param0 = static_cast<float>(vol.nuy); push.param1 = cached ? 1.0f : 0.0f;
+        dispatch(cmd, *vol.pipes[Reduce], push, units, 256);
+        push.param1 = 0.0f;
+        if (vol.unitMap.buf) { vol.unitMapValid = true; if (!cached) vol.unitsFullNext = false; }
         vol.unitPending = false;
         if (s_unitCapture || vol.partialWake) {   // 26.31: the map before the fold overwrites its head (the partial wake reads it every call)
             if (vol.unitCap.buf && vol.unitCap.bytes < units * 16) destroyBuffer(vol.unitCap);
@@ -1877,17 +1895,22 @@ void WaterCoreGpu::recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush pus
     } else {
         fold(2 * ((cells + 255) / 256), 0, 2);   // 26.17: mode 0 writes a partial per 128-cell half
     }
-    for (int L = 0; L < 3; ++L) {
-        const size_t n = liveLattice(vol, L);
-        push.mode = 1; push.iparam = L; dispatch(cmd, *vol.pipes[Reduce], push, n, 256);
-        fold((n + 255) / 256, 1 + L, 2);
-    }
-    push.mode = 4; dispatch(cmd, *vol.pipes[Reduce], push, cells, 256); fold((cells + 255) / 256, 4, 2);
+    if (!speedLane)   // 27.23 W1e: with the speed lane the three maxima came with mode 0 (out[0].w)
+        for (int L = 0; L < 3; ++L) {
+            const size_t n = liveLattice(vol, L);
+            push.mode = 1; push.iparam = L; dispatch(cmd, *vol.pipes[Reduce], push, n, 256);
+            fold((n + 255) / 256, 1 + L, 2);
+        }
+    // the residual: of the cells the sweeps solved (a frozen cell's residual is its last awake call's - reported, never decided on)
+    if (cached) prefix(true);
+    push.mode = 4; dispatch(cmd, *vol.pipes[Reduce], push, liveCells(vol), 256); fold((liveCells(vol) + 255) / 256, 4, 2);
+    if (cached) prefix(false);
     const size_t cols = std::max<size_t>(liveColumns(vol), 1);
     push.mode = 5; dispatch(cmd, *vol.pipes[Reduce], push, cols, 256); fold((cols + 255) / 256, 5, 2);
 }
 
 void WaterCoreGpu::updateOccupancy(Volume& vol, const WaterGrid& g, const std::vector<int>& cells) {
+    vol.unitsFullNext = true;   // 27.23 W1e: this writes stored cells, frozen ones included - the next reduction computes every unit
     if (cells.empty() || vol.hostOcc.size() != vol.dCells) return;
     settle(vol);   // 26.16: the call in flight reads the occupancy we are about to write
     const glm::ivec3 n = vol.spec.dims;
@@ -2000,6 +2023,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         copy(cmd, vol.staging, vol.bricks, vol.dColumns * 4, vol.offBricks + vol.tallOff * 4, vol.tallOff * 4);
         barrier(cmd);
         WcPush tp = push; fillPushBricks(vol, tp); tp.tallY = vol.tallY; tp.tallOff = static_cast<int32_t>(vol.tallOff); tp.mode = 0; tp.setFrozenOn(0);
+        vol.unitsFullNext = true;   // 27.23 W1e: the regrid writes every column, frozen ones too
         dispatch(cmd, *vol.pipes[Tall], tp, liveColumns(vol));
         vol.tallActive = true; vol.tallPending = 0; ++vol.tallRegrids;
     }
@@ -2059,6 +2083,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     // 27.22: EXPAND - the bricks under the floor are stored again (the residency above, tallPending 2); the tall cells spread into them
     if (vol.tallPending == 2 && vol.bricked) {
         WcPush tp = push; fillPushBricks(vol, tp); tp.tallY = vol.tallY; tp.tallOff = static_cast<int32_t>(vol.tallOff); tp.mode = 1; tp.setFrozenOn(0);
+        vol.unitsFullNext = true;   // 27.23 W1e
         barrier(cmd);
         dispatch(cmd, *vol.pipes[Tall], tp, liveColumns(vol));
         vkCmdFillBuffer(cmd, vol.bricks.buf, vol.tallOff * 4, vol.dColumns * 4, 0);
@@ -2188,6 +2213,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     if (sub != VK_SUCCESS) std::fprintf(stderr, "[WaterCoreGpu] step submit %d\n", static_cast<int>(sub));
     vol.callCmd = cmd; vol.inFlight = true; vol.pend.callId = ++vol.callsSubmitted;   // 27.15
     vol.pend.n = n; vol.pend.ticks = ticks; vol.pend.capture = capture; vol.pend.params = params;
+    vol.pend.speedLane = vol.lastSpeedLane; st.reduceSlots = vol.lastReduceSlots; st.reduceCached = vol.lastReduceCached;   // 27.23 W1e
     vol.pend.t0 = t0; vol.pend.tResidency = tResidency;
     st.hostResidencyMs = std::chrono::duration<double, std::milli>(tResidency - t0).count();
     vol.pend.st = st;
@@ -2282,7 +2308,7 @@ void WaterCoreGpu::finishCall(Volume& vol) {
     const auto* out = reinterpret_cast<const float*>(static_cast<const char*>(vol.staging.mapped) + vol.offOut);
     st.substepsLast = n;
     st.kineticEnergy = out[0]; st.maxDeltaF = out[1]; st.totalMass = static_cast<double>(out[2]) * vol.spec.h * vol.spec.h * vol.spec.h;
-    st.maxSpeed = std::max({out[4 + 3], out[8 + 3], out[12 + 3]});
+    st.maxSpeed = vol.pend.speedLane ? out[3] : std::max({out[4 + 3], out[8 + 3], out[12 + 3]});   // 27.23 W1e: the speed lane
     st.rbgsResidualMax = out[16 + 3];
     st.residueDropped = out[20];
     if (vol.bricked) {

@@ -14,6 +14,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -502,4 +503,178 @@ TEST_F(WaterTallCellTest, WritesGoInPlace) {
     EXPECT_EQ(a.inPlace, 2); EXPECT_EQ(a.roundTrip, 0); EXPECT_EQ(b.roundTrip, 2);
     EXPECT_LT(a.ms, b.ms);
     EXPECT_NEAR(a.mass1, a.mass0, 1e-3);
+}
+
+// ALakeOverTheOldCapRuns (27.23 W1d, red first: refused with the cap's message before): a 60 x 60 m lake 2 m deep in a 3 m box (7.9 M
+// cells at 1/9 m) through the manager - created, filled, at rest (tall cells made), a stone, 4 s - the books exact, the device memory by
+// the water (bricks stored, pool grows), the call's GPU time reported. RED CONTROL: the same box on the CPU reference is still refused.
+TEST_F(WaterTallCellTest, ALakeOverTheOldCapRuns) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    EXPECT_EQ(mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(59, 2, 59), 1.0f / 9.0f, "eulerian", &err, "cpu", 0), 0) << "the CPU reference keeps its cap";
+    std::printf("  the CPU reference: %s\n", err.c_str());
+    const auto t0 = std::chrono::steady_clock::now();
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(59, 2, 59), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    const double createMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    ASSERT_TRUE(id) << err;
+    mgr.setAutoSleep(id, false);
+    if (std::getenv("LAKE_TALL_OFF")) mgr.setTallBand(id, 0.0f);   // the comparison run
+    const auto t1 = std::chrono::steady_clock::now();
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(59, 1, 59), 1.0f, nullptr);
+    const double placeMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count();
+    const double placed = mgr.totalMass();
+    AvRecord rec;
+    for (int k = 0; k < 90; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+    const AvRecord* r = mgr.find(id);
+    std::printf("  lake 60 x 60 m 2 m deep (%zu cells): create %.0f ms, fill %.0f ms; at rest: tall %d (%d columns, %s), bricks %d, pool grows %ld\n",
+                static_cast<size_t>(540) * 27 * 540, createMs, placeMs, r ? int(r->tallActive) : -1, r ? r->tallColumns : -1, r ? r->tallReason.c_str() : "", r ? r->gpuBricks : -1, r ? r->gpuPoolGrows : -1L);
+    mgr.addImpulse(glm::vec3(30.0f, 1.9f, 30.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    std::vector<double> ms;
+    for (int k = 0; k < 240; ++k) {
+        mgr.step(id, 1, 1.0f / 60.0f, &rec); r = mgr.find(id); if (r && k > 5) ms.push_back(r->gpuDeviceMs);
+        if (r && k % 40 == 0) std::printf("    k %3d: regrids %ld offs %ld (%s) dispatches %d | solver %.2f ms, awake %d, frozen %d, moving %d, bricks %d, KE %.2e\n", k, r->tallRegrids, r->tallOffs, r->tallLastOff.c_str(), r->gpuDispatches, r->gpuDeviceMs, r->awakeColumns, r->frozenColumns, r->movingColumns, r->gpuBricks, rec.kineticEnergy);
+    }
+    std::sort(ms.begin(), ms.end());
+    r = mgr.find(id);
+    const double end = mgr.totalMass();
+    std::printf("  after the stone: solver median %.2f ms (max %.2f), bricks %d, awake %d / frozen %d columns, tall %d, writes in place %ld; water %.4f -> %.4f m^3\n",
+                ms.empty() ? 0.0 : ms[ms.size() / 2], ms.empty() ? 0.0 : ms.back(), r ? r->gpuBricks : -1, r ? r->awakeColumns : -1, r ? r->frozenColumns : -1, r ? int(r->tallActive) : -1,
+                r ? r->writesInPlace : -1L, placed, end);
+    EXPECT_GT(placed, 7199.0);
+    EXPECT_NEAR(end + (r ? r->residueDropped : 0.0), placed, 1e-2) << "the books";
+    EXPECT_TRUE(r && r->tallActive) << "a 2 m lake makes tall cells";
+}
+
+// TheRestSumsFollowTheAwakeWater (27.23 W1e, red first): the rest reductions over the AWAKE bricks only, the frozen columns' units
+// kept on the device (WaterCoreGpu::s_unitCache), give the same call - every call's KE, max |df|, mass, max speed, substeps, awake
+// and frozen counts EQUAL (float for float) and the end state bit for bit - as reducing every stored brick, through a stone, tall
+// cells made while columns are frozen (the regrid writes them), a blast and water uploaded into the frozen far end (frozen columns
+// stay frozen across an upload). RED CONTROL: the cache that ignores the refresh (s_unitCacheStaleForTest) misses that water.
+TEST_F(WaterTallCellTest, TheRestSumsFollowTheAwakeWater) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const glm::ivec3 origin(288 - 40, 144, 0), dims(360, 18, 90);   // 40 x 2 x 10 m, 1 m deep, across a chunk seam
+    struct Call { float ke = 0, dF = 0, speed = 0; double mass = 0; int sub = 0, awake = 0, frozen = 0, reduceSlots = 0; bool cached = false; };
+    auto run = [&](bool cache, bool stale, std::vector<Call>& calls, WaterGrid& end, int& frozenInPatch) {
+        WaterCoreGpu::s_unitCache = cache; WaterCoreGpu::s_unitCacheStaleForTest = stale; WaterCoreGpu::s_columnRestTicks = 30;
+        WaterGrid g = pond(origin, dims, 9.0f);
+        WaterCoreGpu::Volume* v = make(g);
+        if (!v) return;
+        gpu.setPartialWake(*v, true);
+        const glm::vec3 o = glm::vec3(origin) * kH;
+        std::string err;
+        for (int k = 0; k < 330; ++k) {
+            if (k == 0) gpu.queueImpulse(*v, o + glm::vec3(3.0f, 0.9f, 5.0f), 0.5f, glm::vec3(0.0f, -4.0f, 0.0f));
+            if (k == 60) { const int T = tallLayer(9.0f, 0.5f); EXPECT_TRUE(gpu.setTall(*v, T, openHeights(g, T), &err)) << err; }
+            if (k == 150) gpu.queueRadialImpulse(*v, o + glm::vec3(6.0f, 0.8f, 5.0f), 1.5f, 3.0f, 0.3f, 20.0f);
+            if (k == 200) {   // water placed into the far end by an upload (the round-trip write path)
+                frozenInPatch = 0;
+                for (int bz = 0; bz < v->bn.z; ++bz) for (int bx = 0; bx < v->bn.x; ++bx) {
+                    const int x0 = bx * 8 - v->o.x;
+                    if (x0 >= 324 && x0 < 352 && v->colFrozen.size() == static_cast<size_t>(v->bn.x) * v->bn.z && v->colFrozen[static_cast<size_t>(bx) + static_cast<size_t>(v->bn.x) * bz]) ++frozenInPatch;
+                }
+                WaterGrid cur(g.spec()); gpu.download(*v, cur);
+                for (int z = 30; z < 60; ++z) for (int x = 328; x < 352; ++x) cur.f(x, 9, z) = 0.5f;
+                gpu.upload(*v, cur);
+            }
+            const GpuStepStats st = gpu.step(*v, prm, kDt, 1, kSweeps);
+            calls.push_back({static_cast<float>(st.kineticEnergy), static_cast<float>(st.maxDeltaF), static_cast<float>(st.maxSpeed), st.totalMass,
+                             st.substepsLast, st.awakeColumns, st.frozenColumns, st.reduceSlots, st.reduceCached});
+        }
+        end = WaterGrid(g.spec()); gpu.download(*v, end);
+        gpu.destroyVolume(v);
+        WaterCoreGpu::s_unitCache = true; WaterCoreGpu::s_unitCacheStaleForTest = false; WaterCoreGpu::s_columnRestTicks = 0;
+    };
+    std::vector<Call> a, b, c;
+    WaterGrid ea(GridSpec{origin, dims, kH}), eb(GridSpec{origin, dims, kH}), ec(GridSpec{origin, dims, kH});
+    int fa = 0, fb = 0, fc = 0;
+    run(false, false, a, ea, fa);
+    run(true, false, b, eb, fb);
+    run(true, true, c, ec, fc);
+    ASSERT_EQ(a.size(), b.size()); ASSERT_EQ(a.size(), c.size());
+    int differ = 0, firstDiffer = -1, cachedCalls = 0; double slotsA = 0, slotsB = 0;
+    for (size_t k = 0; k < a.size(); ++k) {
+        const bool same = a[k].ke == b[k].ke && a[k].dF == b[k].dF && a[k].speed == b[k].speed && a[k].mass == b[k].mass && a[k].sub == b[k].sub
+                          && a[k].awake == b[k].awake && a[k].frozen == b[k].frozen;
+        if (!same) { ++differ; if (firstDiffer < 0) firstDiffer = static_cast<int>(k); }
+        cachedCalls += b[k].cached; slotsA += a[k].reduceSlots; slotsB += b[k].reduceSlots;
+    }
+    long cellsDiffer = 0;
+    for (size_t i = 0; i < ea.fData().size(); ++i) cellsDiffer += ea.fData()[i] != eb.fData()[i];
+    for (size_t i = 0; i < ea.uData().size(); ++i) cellsDiffer += ea.uData()[i] != eb.uData()[i];
+    for (size_t i = 0; i < ea.vData().size(); ++i) cellsDiffer += ea.vData()[i] != eb.vData()[i];
+    for (size_t i = 0; i < ea.wData().size(); ++i) cellsDiffer += ea.wData()[i] != eb.wData()[i];
+    double staleMiss = 0.0;
+    for (size_t k = 200; k < a.size(); ++k) staleMiss = std::max(staleMiss, std::abs(c[k].mass - a[k].mass));
+    if (firstDiffer >= 0) std::printf("  first differing call %d: A ke %.9g dF %.9g speed %.9g mass %.9f sub %d awake %d | B ke %.9g dF %.9g speed %.9g mass %.9f sub %d awake %d\n",
+                                      firstDiffer, a[firstDiffer].ke, a[firstDiffer].dF, a[firstDiffer].speed, a[firstDiffer].mass, a[firstDiffer].sub, a[firstDiffer].awake,
+                                      b[firstDiffer].ke, b[firstDiffer].dF, b[firstDiffer].speed, b[firstDiffer].mass, b[firstDiffer].sub, b[firstDiffer].awake);
+    std::printf("  %zu calls: %d differ, %ld end values differ; cached %d calls, slots reduced a call %.0f (all) vs %.0f (cached); frozen columns in the far patch at the upload %d; "
+                "the stale cache misses up to %.4f m^3 (the upload added %.4f)\n",
+                a.size(), differ, cellsDiffer, cachedCalls, slotsA / a.size(), slotsB / b.size(), fb, staleMiss, 24.0 * 30.0 * 0.5 * kH * kH * kH);
+    EXPECT_EQ(differ, 0) << "the cached reductions decide exactly as the full ones";
+    EXPECT_EQ(cellsDiffer, 0);
+    EXPECT_GT(cachedCalls, 100) << "the cache is used";
+    EXPECT_LT(slotsB, 0.8 * slotsA) << "and reduces fewer bricks";
+    EXPECT_GT(fb, 0) << "the far patch is frozen when the water lands (else the red control proves nothing)";
+    EXPECT_GT(staleMiss, 0.1) << "RED CONTROL: a cache that ignores the refresh misses the uploaded water";
+}
+
+// DiagLakeRipple (27.23 W1e step 0): the stone in the 60 x 60 m lake - the ripple's height (max |surface - rest| over the drawn surface)
+// in 2 m rings round the stone, every 0.5 s, beside the awake count: is the spreading wake a wave above the freeze test, and how big?
+TEST_F(WaterTallCellTest, DISABLED_DiagLakeRipple) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    if (const char* q = std::getenv("LAKE_QS")) WaterCoreGpu::s_columnQuietScale = static_cast<float>(std::atof(q));
+    std::printf("  quiet scale %.1f\n", WaterCoreGpu::s_columnQuietScale);
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(59, 2, 59), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    ASSERT_TRUE(id) << err;
+    mgr.setAutoSleep(id, false);
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(59, 1, 59), 1.0f, nullptr);
+    AvRecord rec;
+    for (int k = 0; k < 90; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+    mgr.surfaceFields();
+    float rest = 0.0f, top = 0.0f;
+    mgr.surfaceAtWorld(10.0f, 10.0f, rest, top);
+    std::printf("  rest %.5f m\n", rest);
+    mgr.addImpulse(glm::vec3(30.0f, 1.9f, 30.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    double msSum = 0; int msN = 0;
+    for (int k = 1; k <= 900; ++k) {
+        mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        if (const AvRecord* q = mgr.find(id)) { msSum += q->gpuDeviceMs; ++msN; }
+        if (k % 60) continue;
+        mgr.surfaceFields();
+        double ring[15] = {0};
+        for (float x = 0.5f; x < 60.0f; x += 0.25f) for (float z = 30.0f; z < 30.13f; z += 0.25f) {   // the +x half line through the stone
+            float lv = 0.0f, tp = 0.0f;
+            if (!mgr.surfaceAtWorld(x, z, lv, tp)) continue;
+            const float r = std::abs(x - 30.0f);
+            const int b = std::min(14, static_cast<int>(r / 2.0f));
+            ring[b] = std::max(ring[b], static_cast<double>(std::abs(lv - rest)));
+        }
+        const AvRecord* r = mgr.find(id);
+        std::printf("  t %4.1f s mean %.2f ms awake %4d moving %4d | mm by 2 m ring:", k / 60.0, msN ? msSum / msN : 0.0, r ? r->awakeColumns : -1, r ? r->movingColumns : -1);
+        msSum = 0; msN = 0;
+        for (double v : ring) std::printf(" %6.3f", v * 1000.0);
+        std::printf("\n");
+        if (r) std::printf("      dispatches %d, bricks %d, tall %d (%s), regrids %ld\n", r->gpuDispatches, r->gpuBricks, int(r->tallActive), r->tallReason.c_str(), r->tallRegrids);
+        if (k % 180 == 120) WaterCoreManager::setKernelTiming(true, true);
+        if (k % 180 == 0) {
+            long calls = 0;
+            auto st = WaterCoreManager::kernelTiming(calls);
+            std::sort(st.begin(), st.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+            std::printf("      stages (%ld calls, ms a call):", calls);
+            for (size_t i = 0; i < st.size() && i < 8; ++i) std::printf(" %s %.2f", st[i].first.c_str(), calls ? st[i].second / calls : 0.0);
+            std::printf("\n");
+            WaterCoreManager::setKernelTiming(false, true);
+        }
+    }
+    WaterCoreGpu::s_columnQuietScale = WaterCoreGpu::kColumnQuietScaleDefault;
 }

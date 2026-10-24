@@ -15,6 +15,12 @@
 //           (part2: x 8, y 2, z 8 cells; an absent brick's units as zero) - the fold that follows is then the same tree
 //           whichever bricks are stored AND whatever their height (26.17), so a sparse volume's sums (the rest and settle
 //           decisions read them) equal the dense run's bit for bit. param0 = the unit map's y count.
+//           27.23 W1e: every unit it gathers is also kept in UnitMap (binding 11, world-aligned like part2). param1 == 1 (the
+//           CACHED call): a unit of a FROZEN brick column is read from UnitMap instead - no step kernel writes a frozen column, so
+//           its cells (f, fPrev, u, v, w) and therefore its partial are the ones UnitMap holds; mode 0 then ran over the awake
+//           bricks only (slots [0, stepSlots)). The host forces a full call after anything that writes frozen cells.
+//   27.23 W1e: on a bricked volume mode 0's w lane is the max |u|, |v|, |w| of the thread's own faces (the sites mode 1 visits,
+//           the same thread id) - the fold's max of it is mode 1's three maxima in one pass, kept per unit like the rest.
 #define WC_BRICKS_BINDING 10
 #include "water_core.glsl"
 layout(local_size_x = 256) in;
@@ -28,6 +34,7 @@ layout(std430, set = 0, binding = 6)          buffer Out   { vec4 outv[]; };
 layout(std430, set = 0, binding = 7)          buffer Part2 { vec4 part2[]; };
 layout(std430, set = 0, binding = 8) readonly buffer Res   { float res[]; };      // RBGS residual per cell
 layout(std430, set = 0, binding = 9) readonly buffer Drop  { float dropped[]; };  // residue dropped per column
+layout(std430, set = 0, binding = 11)         buffer UMap  { vec4 umap[]; };      // 27.23 W1e: the unit map kept between calls
 
 shared vec4 sh[256];
 
@@ -40,7 +47,12 @@ void main() {
             const int qy = 2 * uy + (pc.oy & ~1);   // the unit's lowest cell in brick coords (oy and the unit grid agree mod 2)
             const int by = qy >> pc.bly;
             const int slot = by < pc.bny ? bricks[ux + pc.bnx * (by + pc.bny * uz)] : 0;
-            part2[gid] = slot > 0 ? part[(uint(slot) << uint(pc.bly - 1)) + uint((qy & ((1 << pc.bly) - 1)) >> 1)] : vec4(0.0);
+            if (pc.param1 == 1.0 && slot >= 2 && (bricks[pc.slotTableOff + slot] & WC_FROZEN_BIT) != 0) {
+                part2[gid] = umap[gid];   // 27.23 W1e: a frozen column's unit, as it was when last computed
+            } else {
+                const vec4 q = slot > 0 ? part[(uint(slot) << uint(pc.bly - 1)) + uint((qy & ((1 << pc.bly) - 1)) >> 1)] : vec4(0.0);
+                part2[gid] = q; umap[gid] = q;
+            }
         }
         return;
     }
@@ -57,6 +69,12 @@ void main() {
             }
             mine.y = abs(fc - fp[gid]) / cellVolume(c.x, c.y, c.z);   // 27.22f: a FRACTION of the cell (a tall cell's f is a volume of H cells)
             mine.z = fc;
+        }
+        if (pc.bricked != 0) {   // 27.23 W1e: the speed lane - mode 1's sites for this thread id, all three lattices
+            ivec3 cl;
+            if (threadSite(gid, 0, cl)) mine.w = max(mine.w, abs(u[gid]));
+            if (threadSite(gid, 1, cl)) mine.w = max(mine.w, abs(v[gid]));
+            if (threadSite(gid, 2, cl)) mine.w = max(mine.w, abs(w[gid]));
         }
     } else if (pc.mode == 1) {
         ivec3 c;

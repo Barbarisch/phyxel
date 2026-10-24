@@ -458,7 +458,7 @@
     },
     "wc_reduce.comp": {
       "built": true,
-      "sources": "b706aaa080e87137a7416f2c9eb44db73bfa3cdc3b61374a8a12ab68faf81cc5",
+      "sources": "69bfab48ab05c82c3d2d6abef01a4b761e214b9f0fea925a8774c7293672cb0d",
       "spv_present": true
     },
     "wc_ripple.comp": {

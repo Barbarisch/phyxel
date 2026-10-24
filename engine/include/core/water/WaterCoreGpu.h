@@ -102,6 +102,8 @@ struct GpuStepStats {
     int    dispatches = 0;           ///< 28: compute dispatches this call recorded (all substeps), and the barriers between them
     int    barriers = 0;
     int    partitionMoves = 0;       ///< 26.31 step 2: bricks moved to keep the awake ones first
+    int    reduceSlots = 0;          ///< 27.23 W1e: slots the rest reductions ran over (the awake ones when the unit map is cached)
+    bool   reduceCached = false;     ///< 27.23 W1e: the frozen columns' units came from the kept unit map
 };
 
 /// 26.6 P2a: how a volume stores its cells. Dense = every brick of its box kept (the engine default); sparse = only the
@@ -189,6 +191,12 @@ public:
         Buffer unitCap;                  ///< 26.31 measurement: the unit map (per 8 x 2 x 8 unit: KE, max |df|, mass) of the last call (s_unitCapture)
         bool unitPending = false;        ///<   the call in flight copies it
         std::vector<glm::vec4> hostUnits; ///<   the collected call's map (bn.x x nuy x bn.z, x fastest), empty = none
+        // 27.23 W1e: the unit map kept on the device between calls (bricked volumes) - a frozen column's units are read from it
+        // instead of recomputed (wc_reduce mode 6); unitsFullNext = something wrote frozen cells, the next call computes every unit
+        Buffer unitMap;
+        bool unitMapValid = false, unitsFullNext = true;
+        bool lastSpeedLane = false;      ///<   the recorded call's max speed is mode 0's w lane (mode 1 not run)
+        int lastReduceSlots = 0; bool lastReduceCached = false;
         // 26.31 THE PARTIAL WAKE (docs/WaterCore.md 26.31): per brick column of the brick box (bn.x x bn.z)
         bool partialWake = false;        ///< on: quiet columns away from moving ones freeze (sparse volumes only)
         bool unitsFresh = false;         ///< hostUnits holds a call not yet counted
@@ -259,6 +267,7 @@ public:
             GpuStepStats st;
             std::vector<int> surfCols;   ///< 26.33: the column entries this call's surface covered (empty = every column)
             uint64_t callId = 0;         ///< 27.15: this call's number (callsSubmitted when it was submitted)
+            bool speedLane = false;      ///< 27.23 W1e: read the max speed from out[0].w
         } pend;
         uint64_t callsSubmitted = 0;                     ///< 27.15: calls submitted so far
         uint64_t surfCallId = 0;                         ///< 27.15: the call whose surface hostSurf holds (0 = none yet)
@@ -331,6 +340,11 @@ public:
     /// 26.33: with the partial wake, the surface kernel and its copy to the host cover the AWAKE columns only (a frozen column's
     /// surface cannot change); false = every column every call (the A/B, water_av_partial_wake {surface}).
     static inline bool s_partialSurface = true;
+    /// 27.23 W1e: the rest reductions follow the awake water - frozen columns' units kept in the unit map, mode 1's three face
+    /// passes folded into mode 0's speed lane. Off = every stored brick reduced every call (today's path, the parity test's A).
+    static inline bool s_unitCache = true;
+    /// TEST ONLY (the parity test's red control): the cache ignores unitsFullNext - a write to frozen cells is not seen
+    static inline bool s_unitCacheStaleForTest = false;
     /// 26.34: the per-column FREEZE test's thresholds as a multiple of the volume's sleep test (keWake, maxDeltaFQuiet). 1 = the
     /// same test (26.31). Measured: at 1 a waking column lets sub-0.1 mm waves in, they count as moving, and the awake patch creeps
     /// over the pond (66-79 % awake 11-20 s after a push whose waves were 0.5 mm at 8 m); at 10 nothing moves after ~11 s. A look

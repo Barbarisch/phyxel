@@ -8627,6 +8627,66 @@ against the round trip is NOT a fair gate: the round trip's upload also resets t
 the surface 104 mm by itself.) Live, the 46 x 28 m pond: no upload after an impulse (`gpu_uploads` stays 1; it was +1 per impulse,
 115 ms). Placed water and sources still round-trip (next). GPU water 53/55 (the known two), unit 312/312.
 
+### 27.24 W1e step 0 - the lake, measured (2026-10-23). Status: MEASURED; the rest sums by the awake water BUILT; ONE OWNER'S CALL
+
+**The cap (W1d):** a GPU fill volume's cap is now `kMaxCellsPerGpuVolume` = 16 M cells (its CPU mirror, ~50 B a cell, until W1d.3);
+the CPU reference and FLIP keep 2 M. `WaterTallCellTest.ALakeOverTheOldCapRuns` (red: refused before): a 60 x 60 m lake 2 m deep in a
+3 m box, 7.87 M cells, created in 0.9 s, filled, at rest, a stone - the books 7,200 -> 7,199.9998 m^3; the CPU reference still refused.
+
+**1. A stone wakes the whole lake - at the shipped freeze test (x3) - with waves nobody can see.** `DISABLED_DiagLakeRipple` (the lake,
+the stone at the centre; max |surface - rest| in 2 m rings; partial wake on, recording off):
+
+| t | awake columns (of 4,624) | ripple mm at 0-2 / 4-6 / 8-10 / 12-14 / 16-18 m |
+|---|---|---|
+| 2 s | 1,017 | 10.9 / 2.5 / 0.0 / 0.0 / 0.0 |
+| 4 s | 1,851 | 2.0 / 1.3 / 0.11 / 0.10 / 0.006 |
+| 6 s | 3,018 | 0.8 / 0.37 / 0.05 / 0.001 / 0.013 |
+| 10-15 s | 4,400-4,580 | 0.03 -> 0.001 everywhere |
+
+The patch outruns the visible ripple: the long-wave front (sqrt(g d) = 4.4 m/s at 2 m) carries sub-micron to 0.05 mm of motion, and
+the freeze test's |df| half (3e-5 a tick at x3 = the level moving 0.2 mm/s) counts it as moving - every stuck column fails |df|, never
+KE (26.35's finding, now the lake's whole cost: 24 ms a call by 10 s). The same run at **x10**: the patch peaks at 1,490 columns (5 s)
+and is back to 130-200 by 9-15 s; **x30**: peaks at 790, 110-170 after. The ripples at 0-10 m are the same at x3 / x10 / x30 to the
+printed 0.01 mm until the x3 run's patch covers the lake. Live (WaterBench_Creek, `tools/water_lake_l4.py`, 60 x 28 m - see 4):
+x10 + recording: the stone's tiles wake, wave, freeze, every tile records, the volume sleeps by ~25 s; mean 2.8 ms over the 30 s
+(4.6 -> 3.9 -> 1.7 -> 1.8 -> 1.3 ms medians by 5 s, then 0), books 3,360.0000 -> 3,359.9998 m^3. x3 + recording: ~2,000 of 2,176
+columns still awake at 30 s, 6-10 ms a call (`lake_l4_60x28_qs3_rec.json`). **Owner's call (26.35 item 1, open since 2026-10-19):
+quiet scale 10** - the lake goes still and records ~10 s after the waves; the last sub-0.05 mm ripples stop where they are.
+
+**2. BUILT - the rest sums follow the awake water.** Profiled at x10 after the patch shrank (130-200 awake): the call still cost
+10-12 ms, `reduce` 3.3 -> 6.6 ms of it - the rest reductions (26.31: "the record, the reductions and the surface cover every stored
+brick") ran one thread per cell of all ~38,000 stored bricks, five passes, every call. A frozen column is not stepped (no kernel
+writes its cells), so its units cannot change while it is frozen: `wc_reduce` keeps the per-unit sums (KE, max |df|, mass) in a
+device unit map (world-aligned, like the gathered map); a CACHED call reduces the awake bricks only (slots [0, stepSlots) after the
+partition) and mode 6 reads a frozen column's units from the map; the three max-|velocity| passes (mode 1) ride mode 0's spare lane
+(the same sites, the same thread id). Anything that writes frozen cells forces a full call (`unitsFullNext`: upload, seed, a tall
+regrid - it runs with frozenOn 0 -, a pool grow, an occupancy change). The residual (report only) covers the solved cells.
+`WaterCoreGpu::s_unitCache` (default ON - a cost change only), `water_av_reduce_cache {on}` (interleaved timing), echo
+`gpu_reduce_slots` / `gpu_reduce_cached`. Gate `WaterTallCellTest.TheRestSumsFollowTheAwakeWater` (red first): a 40 x 10 m pond with
+the partial wake - a stone, tall cells made while columns are frozen, a blast, water uploaded into the frozen far end - cache on vs
+off: **330 calls, every call's KE, max |df|, mass, max speed, substeps, awake / frozen counts equal float for float, the end state
+bit for bit**; 2,301 vs 4,398 slots reduced a call. RED CONTROL: the cache that ignores the refresh misses up to 43.95 m^3. The lake
+at x10: `reduce` 3.3-6.6 -> 1.1-1.6 ms; the call at 130-200 awake 10-12 -> 6.8-9 ms (the sync test harness - see 5).
+
+**3. What still scales with the stored bricks, not the awake ones:** the brick record (~1 ms), residency (~0.9), the reductions' box
+parts (~1.5: the unit gather and fold over the box's units), the surface copy (~0.5). Recording is what removes them - a recorded
+tile has no bricks (the live x10 run above: 0 bricks, 0 ms once recorded). With recording OFF (the default) a lake at rest costs
+these every call.
+
+**4. Two defects found, OPEN:**
+- **A box whose floor lies over air outside the box never settles live.** The 60 x 60 m box (y 16-18) spans the creek bench's trench
+  (x 10-109, z 31-32, y 15 cleared, below the box): at x10 + recording the whole lake stayed awake (4,400-4,600 columns, 12-15 ms)
+  where the same lake in the test, and the 60 x 28 m box beside the trench, settle. Not investigated: the box's bottom boundary over
+  out-of-box air (a real lake's box takes its bed in).
+- **Destroying an awake volume lost two whole tiles of water.** The 60 x 28 m run destroyed mid-wake (tiles recording / waking): the
+  next create seeded 3,103.9998 m^3 from the record, not 3,359.9998 - 256 m^3, two 8 x 8 x 2 m tiles. Not investigated yet.
+- (Measurement, not a defect: the integration harness steps SYNC, device ms ~2x the async path's - the recorded lake 5 vs 2 ms at the
+  same awake count, `LAKE_RT=1` in `DISABLED_DiagLakeRecorded`. Quote live or async numbers.)
+
+**5. Tall cells in the lake:** the stone's crater sets off the trough rule (27.22d) - the floor steps down 0.44 m and the stored bricks
+go 28,450 -> 37,882, so most of the saving goes with the first splash (sync test, x3, all awake: tall on 14.1 ms median vs off 9.6).
+Not changed; the trough rule's reach is the lever (a crater is not a trough).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
