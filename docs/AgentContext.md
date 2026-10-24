@@ -169,7 +169,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 ## Current workstreams & roadmap (update me at session end)
 
 - **▶ WATER CORE — ACTIVE (branch `feat/water-rethink`, pushed after every commit).** The design of record AND
-  build ledger is [`docs/WaterCore.md`](WaterCore.md); **read its §0a first** (where things stand, what is next).
+  build ledger is [`docs/WaterCore.md`](WaterCore.md); **read its §30 then §0a first** (where things stand, what is next).
+  **2026-10-24: aesthetics first** - the moonshot look, then fitted into the 30/60/120 fps tiers
+  ([`PerformanceTiers.md`](PerformanceTiers.md), engine-wide); the old "2 ms water budget" is superseded.
   As of 2026-10-11: the small still pond is built on a 3-D Eulerian core (CPU reference + GPU default), with debris
   coupling, moving solids, droplets, a ripple layer, pond friction and size-dependent stone drag; the owner signed off
   the pond feel (2026-10-09) and the ripples (2026-10-11). **Next: §25 Phase H, small flowing water (a creek in a

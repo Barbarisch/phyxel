@@ -56,6 +56,16 @@ where it fails.
   measuring the intended thing.
 - How does the rig differ from **shipped defaults**, and what does that do to the numbers?
 
+## 6. Performance tiers ([`PerformanceTiers.md`](../../docs/PerformanceTiers.md))
+
+- Is the design the **moonshot look** first, with performance a thought rather than the constraint?
+- Name its **scaling knobs** (how much is simulated, how far detail reaches, how often it updates). Can each be turned down
+  without a rewrite?
+- Fill in the **tier table** (moonshot / 30 / 60 / 120 / above): the knob values, what the player sees given up, and the
+  measured whole-frame CPU and GPU share (or "not measured yet").
+- Does any tier change the **outcome** (where things end up, mass, walkability)? That is a defect.
+- Which **realistic play scene** and which **worst case** will its cost be measured in?
+
 ## Output
 
 A short report, one heading per section above, ending with a clear verdict:

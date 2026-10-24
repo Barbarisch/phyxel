@@ -1,5 +1,9 @@
 # Water Core — the foundation for all future water work
 
+> **2026-10-24: the order of work changed - read §30 first.** Aesthetics first: the moonshot look, then measured, then fitted
+> into the performance tiers (30 / 60 / 120 fps / above, [`PerformanceTiers.md`](PerformanceTiers.md)). The "2 ms for all
+> water" budget below is superseded.
+>
 > **Status (2026-10-19): DESIGN OF RECORD and BUILD LEDGER, branch `feat/water-rethink`.** **Read §0a first** - one page:
 > the goal, the scale model, what is signed off, the path to large water, the open items. **§27 is the plan for water at
 > every scale** (simulated where it counts, cheap appearance elsewhere - the owner, 2026-10-19). §26 is the one water model
@@ -36,8 +40,9 @@
 ## 0a. Where things stand, and the plan (consolidated 2026-10-19)
 
 **The goal.** Water in the world that behaves physically where the player can touch it and looks right everywhere, from a
-puddle to an ocean, inside **2 ms of GPU for all water**. Small bodies are the foundation; large bodies are built on the same
-water, never the other way round.
+puddle to an ocean, ~~inside **2 ms of GPU for all water**~~ *(superseded 2026-10-24: the moonshot look first, then fitted into
+the performance tiers - §30)*. Small bodies are the foundation; large bodies are built on the same water, never the other way
+round.
 
 **The scale model (owner, 2026-10-19; the plan is §27).** We will never simulate a whole lake or ocean as cells - a 1 km^2
 lake 3 m deep is ~2 billion 1/9 m cells. So every body of water **exists** as a record (how much, where, its level per
@@ -96,7 +101,8 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
 the owner's explicit, plainly-explained approval); appearance water draws recorded water and never moves or makes it; no
 universal level; edits and digging never create water; ripples and splashes carry forward wherever water is simulated; always
 tools to measure and tune current speed; measure, don't argue; nothing is done until the owner sees it in motion; look
-decisions (thresholds, defaults) are the owner's; any `solver_*.comp` change passes `tools/debris_settle_bench.py`; GPU water
+decisions (thresholds, defaults) are the owner's; aesthetics first, then fitted into the performance tiers (§30; whole-frame
+numbers always); any `solver_*.comp` change passes `tools/debris_settle_bench.py`; GPU water
 tests are in `phyxel_integration_tests`, run from the repo root with the bench engine stopped, on Release; separate runs
 drift ~0.2 ms - compare costs only interleaved on the same water.
 
@@ -8776,7 +8782,7 @@ the water's CPU share falls to 0.15 ms, but the CPU frame stayed 13-16 ms (63-74
 water counters do not show it). **The 2 ms budget has to be read as water CPU + GPU per frame, and it is blown ~10x while the lake is
 awake.**
 
-## 29. The surface stays on the GPU (2026-10-24). Status: DESIGN, owner-approved direction ("the right fix")
+## 29. The surface stays on the GPU (2026-10-24). Status: S1, S3/S4, S2 (tall, motion) BUILT and ON; the rest PAUSED by §30
 
 **Why.** 27.28: with the 60 x 60 m lake awake, the water costs ~21 ms of CPU and ~4 ms of GPU a frame (budget: 2 ms, the two
 together). Almost all of the CPU is the SURFACE handled column by column on the host, every frame: read back (2.1 ms), meshed
@@ -8877,6 +8883,79 @@ covered columns only (a frozen column's flow is not rescanned). Live: motion 1.9
 columns (44-64 % of the lake; this run's push woke more), the CPU frame was 11.4-12.6 ms in two windows (19.0 in one, cause not
 found), and the water's CPU ~9 ms: the residency 2.2-2.9 + apply 1.0, the surface read 1.7-2.1, ripples 1.0-1.1, partition 0.6,
 collect 0.4. The water call's GPU time at that awake count: 4.2-5.5 ms.
+
+**Paused here (2026-10-24, §30).** What is built stays: the surface on the device is the scaling architecture §30 needs. Left as
+known levers for §30's fit step, with their measured sizes on the awake 60 x 60 m lake: the residency per awake brick (2.2-2.9 ms
++ apply 1.0), the host's surface read (1.7-2.1; S2 rest - ripple mask, probe queries, wet bitmap), ripples (1.0-1.1), partition
+(0.6), and the water call's GPU time (4.2-5.5 ms at 44-64 % of the lake awake; S5 - including the mesh passes, never measured).
+
+## 30. Aesthetics first, then the performance tiers (owner, 2026-10-24). Status: PLAN OF RECORD - supersedes the 2 ms budget
+
+**The owner's words.** *"2ms was a number you originally came up with. i dont know what a realistic number should be... once we
+start dropping below 120 fps i get concerned. and i want to have rich worlds with rich visuals and asthetic... i think we need to
+keep simulation in water to the smallest area possible and figure out how to cheaping render water and keep it all manageable."*
+Then: *"working towards graphics tiers... 30fps, 60fps, and 120fps, and then anything above"*; and *"developing for asthetic
+first (maybe some thought into performance)... have the moonshot quality looking stuff and then figure out optimizations after
+that to get it into our performance tiers... only sacrificing when we need to."* The engine-wide rules:
+[`PerformanceTiers.md`](PerformanceTiers.md).
+
+**What it changes for water.**
+- **The 2 ms budget is gone.** (The agent proposed it; the owner accepted it 2026-10-11, §25.1; it was never measured against
+  the rest of a rich frame.) Water is judged by the whole frame at each tier.
+- **The cost work stops until the look is set** (§29 paused above). Nothing built is undone.
+- **Every water feature carries a tier table** (`PerformanceTiers.md` §4a) and its scaling knobs from the start.
+
+### 30.1 Step 1 - the moonshot look (design; the owner's calls)
+
+What the best water looks like from a puddle to a creek to a lake, judged by the owner in motion. The owner's inputs first:
+**reference games or footage to aim at, and which parts matter most.** The parts, with where each stands today:
+
+| part | today | simulated or drawn |
+|---|---|---|
+| surface shading: reflection, refraction, depth colour, clarity | the pond surface (§17); clear water S0 built, not signed off (§21.10) | drawn |
+| caustics, the underwater view | not built | drawn |
+| ripples | signed off (§22.12.2), on simulated water only | simulated near; drawn beyond (§30.3 knob 2) |
+| splashes, droplets, whitewater, foam | droplet pool built (§21.12); pond whitewater not wired (§21.4); cosmetic splashes not designed | simulated near; drawn beyond |
+| flow you can see (creeks, currents) | the creek on pond water (§26) | simulated near; drawn far (W2, W5) |
+| shores: wet ground, the waterline, edges | not designed | drawn (the record's edge) |
+| far water: a lake or sea at distance | recorded water drawn by the pond surface (W1a) | drawn (W2, W6) |
+
+Each part gets its own design (the Feature Design Keys gate, with its §6 tiers), is built at moonshot quality, and the owner
+signs it off in motion.
+
+### 30.2 Step 2 - measure the moonshot
+
+As soon as a look exists: the whole frame (`engine_timing` cpuFrameTime, `gpu_timing` gpu_frame_ms, fps) plus the water's CPU
+(`water_av_host_phases`) and GPU share, in two scenes:
+- **the realistic play scene (a new rig, to build):** a camera walking across a lake at wading height while debris is thrown in
+  (wading itself, E4, is not built - the rig stands in for it, and says so);
+- **the worst case:** the churning 60 x 60 m lake (WaterBench_Creek, after the push).
+
+### 30.3 Step 3 - fit into the tiers
+
+The knobs water has or needs, and the tier table to fill (empty until step 2 measures it):
+
+| knob | what it scales | exists today |
+|---|---|---|
+| 1. **the simulated area** - a cap on awake brick columns, nearest the player and the disturbance first | sim CPU + GPU (both scale with the awake columns, 27.28 / §29) | partial wake, freeze, recording (26.31-26.35, §27); no cap |
+| 2. **the drawn-motion reach** - ripples and splashes drawn as appearance beyond the simulated area | draw GPU | no |
+| 3. **the step rate** - the fixed water step | sim CPU + GPU | built (27.27; its default is the owner's open decision) |
+| 4. **surface detail** - reflection / refraction quality, far detail | draw GPU | partly (W1a far drawing) |
+
+| | moonshot | 30 | 60 | 120 | above |
+|---|---|---|---|---|---|
+| simulated area | | | | | |
+| drawn-motion reach | | | | | |
+| step rate | | | | | |
+| surface detail | | | | | |
+| given up | - | | | | |
+| measured water CPU / GPU | | | | | |
+
+**An open problem, stated now (a tier must never change the outcome, `PerformanceTiers.md` rule 1).** Knob 1 keeps the outcome
+only for water that is SETTLING: it goes back to the record at the same rest level, just sooner. Flowing water (a creek, a dam
+break) cannot be capped that way - handing it to the record would change where it goes. Water that must keep flowing at a low
+tier needs an answer (cheaper cells, a slower step that still ends in the same place, or a declared exception the owner
+approves). It is designed in the fit step, not guessed now.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

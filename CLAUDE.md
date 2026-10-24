@@ -127,6 +127,9 @@ exist for optimization. Dynamic voxels are physics bodies and must behave physic
 - Is it exposed over an **API**? Is that interface robust and thought through?
 - Does the plan include **how it will be visually tested**?
 - Does the test plan include an appropriately **small, simplified test world**?
+- Where does it fit in the **performance tiers** (30 / 60 / 120 fps / above)? **Aesthetic first** - build the moonshot
+  look, measure its whole-frame cost, then scale it down into the tiers via knobs it keeps from the start; tiers change cost
+  and looks, never outcomes. See [`docs/PerformanceTiers.md`](docs/PerformanceTiers.md).
 
 ⚠️ **Chunks must not be visible.** Appearance is a pure function of world position + persistent
 world state; per-chunk quantities may only bound **cost**, never looks. `bladesForDistance` is the

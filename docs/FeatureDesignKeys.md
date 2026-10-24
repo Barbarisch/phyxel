@@ -38,6 +38,10 @@ Does the plan for the new feature also include a plan for how to visually test t
 
 Does the test plan include a appropiatly simplified and small test world to streamline testing?
 
+Where does this feature fit into the performance tiers (30 fps, 60 fps, 120 fps, and anything above)? Develop for aesthetic
+first - the moonshot quality look - then optimize it into the tiers, only sacrificing when a tier needs it. *(Owner,
+2026-10-24; the tiers, rules and the per-design tier table: [`PerformanceTiers.md`](PerformanceTiers.md).)*
+
 ---
 
 # Why each key matters
@@ -158,6 +162,22 @@ Hard-won; each line below is a specific failure that cost hours.
 - **Measure; do not infer from screenshots.** Eyeballing produced five consecutive wrong
   single-cause diagnoses for one bug that turned out to be two bugs masking each other. A/B the
   exact same frame with the feature on and off and diff the pixels.
+
+## Performance tiers - the moonshot first, then fit it
+
+> Where does this feature fit into the performance tiers? Develop for aesthetic first.
+
+The order is **look first, measure, then scale down into the tiers** ([`PerformanceTiers.md`](PerformanceTiers.md)). Two things
+make that work instead of forcing a rewrite later:
+
+- **Keep the scaling knobs from the start** - how much is simulated, how far detail reaches, how often it updates. A look that
+  only exists when the whole of something runs at full detail cannot be fitted into a tier.
+- **Tiers change cost and appearance, never the outcome.** Where water ends up, where debris settles, what can be walked on -
+  the same at every tier; and a tier's reach is a world distance, never a chunk count.
+
+Why it is written down: the water ran for two weeks against a "2 ms" budget that was a proposed number, not a measured need,
+and its cost was reported from one GPU timer instead of the whole frame. Measure the moonshot's whole-frame cost as soon as it
+exists, at a realistic play scene and at the worst case.
 
 ### A note on instrumentation
 
