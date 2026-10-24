@@ -8776,6 +8776,59 @@ the water's CPU share falls to 0.15 ms, but the CPU frame stayed 13-16 ms (63-74
 water counters do not show it). **The 2 ms budget has to be read as water CPU + GPU per frame, and it is blown ~10x while the lake is
 awake.**
 
+## 29. The surface stays on the GPU (2026-10-24). Status: DESIGN, owner-approved direction ("the right fix")
+
+**Why.** 27.28: with the 60 x 60 m lake awake, the water costs ~21 ms of CPU and ~4 ms of GPU a frame (budget: 2 ms, the two
+together). Almost all of the CPU is the SURFACE handled column by column on the host, every frame: read back (2.1 ms), meshed
+and uploaded (4.5-5), scanned for motion (2), scanned twice for the tall floor (2.5), its recorded columns re-marked (1-1.3),
+plus brick bookkeeping over every stored brick (~6). "Only the awake columns" is not enough: a third of the lake is awake
+after a stone (1,500 of 4,624 brick columns, ~100,000 water columns), and any per-column host work is over budget at that size.
+**The rule from here: the host never touches the surface per column.** The device makes the mesh and the few numbers the host
+needs; the host's water work is independent of the lake's size.
+
+**The design.**
+1. **A dense surface field on the device** (`surfDense`, one 64 B `SurfaceColumn` per dense column, device-local). `wc_surface`
+   writes it for every column it covers (dry ones too: runs 0, the solid top). The columns it does not cover (frozen ones)
+   keep their record. Host events write into it through staging, in the next call's command buffer: a tile recorded (its
+   columns marked "the record's", runs -1, with the record's level, as `markRecordedColumns`), a tile woken (the seed's
+   surface, as the seed patch), a full upload (the whole field from the host). The host's `seedPatches` / marking then exist
+   only for the host's own copy, while it still has one (S2 removes it).
+2. **The mesh on the device** (`wc_surface_mesh.comp`, in the water's own call, after `wc_surface`). Mode 0 runs over the
+   covered brick columns and a ONE-column ring round each (a frozen column beside an awake one has corners and walls that
+   read it). Per column it writes the corner heights of every run (`cornerY`, the 27.15 "other drawer" rule included) and a
+   meta word: the run count and, per run, which of its four side faces exist (`buildWaterSurfaceMeshRect`'s rules exactly).
+   Mode 1 runs over all columns and compacts the extras into a draw list: one entry (column, run, face) per top quad of a run
+   above the first and per side face. It counts them straight into an indirect draw's instance count. That is 291,600
+   threads reading 4 B each, about 0.05 ms.
+3. **Drawn by vertex pulling** (`water_surface_pull.vert`, the logic in `water_surface_pull.glsl`). The volume draws two
+   things: every column's first-run top quad (`vkCmdDraw(6 x columns)`; a dry or recorded column is a degenerate triangle),
+   and the extras list (`vkCmdDrawIndirect`, 6 vertices per entry). The vertex outputs equal `water_surface.vert`'s, so
+   `water_surface.frag` and the look are untouched. The ripple layer and the look go in the push constants, one draw pair per
+   volume. Same queue as the water's call (`initGpu` takes the graphics queue): a compute-to-vertex barrier before the draw;
+   the water's call begins with a vertex-to-compute barrier (the frame before may still be drawing the buffers it rewrites).
+4. **The host's tiler stops drawing GPU volumes** (the field is still handed to its other readers until S2). The CPU tiler
+   keeps the record tiles, the shore bands and CPU volumes.
+
+**The steps.** Each step is measured (whole frame CPU + GPU, the water's CPU by phase: `tools/water_host_phases.py`) and gated.
+- **S1 the mesh on the device** (1-4 above). Gate: the device mesh EQUALS the host mesh. A test kernel expands the extras
+  and the top quads through the same `water_surface_pull.glsl` the vertex shader uses, into a vertex buffer. It is compared,
+  as a multiset of quads (positions, normals, depth, side, foam, flow; 1e-5), to `buildWaterSurfaceMesh` of the same field,
+  through a push's waves, multi-run columns (an overhang), recorded and woken tiles, and tall cells. Red control: the mesh
+  kernel without the ring (corners beside the awake region go stale - a mismatch). Live: the same frame with
+  `water_render_core {gpu_surface}` on and off - a pixel difference near zero at a stated pose.
+- **S2 the host stops reading the surface.** The tall floor's numbers (lowest wet top, the field's water) join the
+  reductions. Motion goes on the device: per brick column, the largest rise from its reference, and a short list of rising
+  boxes. Probes (`columnWater` for floats, `drawnAtWorld`) go through a query buffer, one frame late (as now). The ripple masks
+  and velocities go on the device. Then the packed lists, `readSurface`, the seed patches and the host marking go. The
+  host's field stays only for CPU volumes and for debug reads on demand.
+- **S3 the brick bookkeeping follows the awake water** (residency, the record read, partition), not every stored brick.
+- **S4 the record tiles' surfaces** are rebuilt where the record changed, not everywhere in range on any change.
+- **S5 the GPU's water time** (~4 ms awake) measured by stage and cut.
+
+**Design keys** (`docs/FeatureDesignKeys.md`). The look must not change; the mesh equality is the gate. Not chunk-derived; a
+volume's field is world-aligned as before. API: `water_render_core {gpu_surface}` (A/B; echoed), `water_av_host_phases`
+(the CPU by phase). The test world: one GPU volume in a test (the parity), and the bench lake live (the cost).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
