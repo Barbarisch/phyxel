@@ -39,7 +39,7 @@ def main():
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(120)
     api.debug("water_av_realtime", {"on": True})
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     l, w = (int(v) for v in args.size.split("x"))
     box = {"x1": 2, "y1": 16, "z1": 0, "x2": 2 + l - 1, "y2": 17, "z2": w - 1}
     vid = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False})["volume"]["id"]
@@ -62,7 +62,7 @@ def main():
     out["tiles_vs_tiles"] = diff(shots["tiles1"], shots["tiles2"])
     out["whole_vs_tiles"] = diff(shots["whole2"], shots["tiles1"])
     out["pass"] = out["water_vs_nowater"]["share_over_8"] > 0.05 and out["whole_vs_tiles"]["mean_abs"] <= max(out["control_whole_vs_whole"]["mean_abs"], out["tiles_vs_tiles"]["mean_abs"]) * 1.25 + 0.02
-    api.debug("water_av_destroy", {"id": vid})
+    api.debug("water_av_destroy", {"id": vid, "discard": True})
     (EV / f"surface_ab_{args.tag}.json").write_text(json.dumps(out, indent=1))
     print(json.dumps({k: out[k] for k in ("water_vs_nowater", "control_whole_vs_whole", "tiles_vs_tiles", "whole_vs_tiles", "pass")}, indent=1))
 

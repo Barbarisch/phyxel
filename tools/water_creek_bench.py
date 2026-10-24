@@ -98,7 +98,7 @@ def bed_top(x):
 
 
 def run_pond(api, args):
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})   # one creek at a time
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})   # one creek at a time
     h = 1.0 / 9.0
     r = api.debug("water_av_create", {"x1": X0, "y1": 14, "z1": Z0 - 2, "x2": X1, "y2": 17, "z2": Z1 + 2, "cellSize": h, "backend": "gpu",
                                        "sweeps": args.sweeps, "auto_sleep": False, "manning_n": N, "brick_height": args.brick_height, **({"ground_bricks": bool(args.ground_bricks)} if args.ground_bricks >= 0 else {})})

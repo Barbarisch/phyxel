@@ -40,7 +40,7 @@ def main():
         items = [{"x": vx, "y": 16, "z": vz, "sx": k // 3, "sy": 0, "sz": j // 3, "mx": k % 3, "my": 0, "mz": j % 3, "material": "Stone"}
                  for vx in range(2, 8) for vz in range(10, 16) for k in range(5) for j in range(9)]
         print("rig C step:", api.post("/api/world/microcubes/batch", {"microcubes": items}))
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     box = {"x1": 2, "y1": 16, "z1": 0, "x2": 13, "y2": 17, "z2": 15}   # 12 x 16 m, rig C's step in its far corner
     if args.walls:
         # a real kerb round the pond (StoneBricks, 2 high): without it the water is held only by the VOLUME's box edge (solid to the

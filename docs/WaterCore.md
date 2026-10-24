@@ -8678,7 +8678,7 @@ these every call.
   (x 10-109, z 31-32, y 15 cleared, below the box): at x10 + recording the whole lake stayed awake (4,400-4,600 columns, 12-15 ms)
   where the same lake in the test, and the 60 x 28 m box beside the trench, settle. Not investigated: the box's bottom boundary over
   out-of-box air (a real lake's box takes its bed in).
-- **Destroying an awake volume lost two whole tiles of water.** The 60 x 28 m run destroyed mid-wake (tiles recording / waking): the
+- **FIXED (27.25 below)** **Destroying an awake volume lost two whole tiles of water.** The 60 x 28 m run destroyed mid-wake (tiles recording / waking): the
   next create seeded 3,103.9998 m^3 from the record, not 3,359.9998 - 256 m^3, two 8 x 8 x 2 m tiles. Not investigated yet.
 - (Measurement, not a defect: the integration harness steps SYNC, device ms ~2x the async path's - the recorded lake 5 vs 2 ms at the
   same awake count, `LAKE_RT=1` in `DISABLED_DiagLakeRecorded`. Quote live or async numbers.)
@@ -8690,6 +8690,21 @@ Not changed; the trough rule's reach is the lever (a crater is not a trough).
 **On the new default, live** (60 x 28 m, recording on, the stone; `lake_l4_60x28_default10_rec.json`): mean **1.43 ms** over
 the 30 s after the stone (medians by 5 s 2.6 / 1.9 / 1.05 / 0.96 / 0.99 / 1.2), 28 of 32 tiles back in the record by 30 s, 96 columns
 awake. The engine boots with `quiet_scale 10.0` (echo). GPU water 55/57 (the known two), unit 312/312 - no test pinned the old scale.
+
+### 27.25 Removing a volume never loses water (2026-10-23). Status: FIXED
+
+**Cause:** `water_av_destroy` was the raw free - the volume and its cells went, the record was not touched. With recording, a
+partly recorded lake kept its recorded tiles and deleted its awake ones (27.24: 256 m^3, two tiles); a volume seeded from the
+record and drained got its old record back (the spans under a live volume are the copy it was seeded from). **Fix:**
+`WaterCoreManager::remove(id, discard)`. keep (the default): a forced sleep - the cells written back, the recorded tiles untouched -
+the world holds exactly the water it held; discard: every drop in the box goes - cells, droplets in flight and the record's runs
+(spans cleared, bodies debited) - counted once as cells + recorded tiles. No record in the world: freed, reported as discarded.
+Route `water_av_destroy {id, discard}` echoes `kept_m3` / `discarded_m3` / `held_m3` / `unwritten_columns`; a refused write-back
+keeps the volume (`error`). Every tool reset (46 calls, 33 files) passes `discard: true`. Gate
+`WaterRecordTilesTest.RemovingAVolumeNeverLosesWater` (red first): a 32 x 16 m pond, recorded, pushed, removed with 4 tiles recorded
+and 141 columns awake - keep: the record 511.9993 of 512 placed (the fill's float rounding); discard: dry, 511.9993 reported;
+seeded then discarded: dry, 511.9993 (the live double count, 1,024, gone); RED: the raw free leaves 255.9997. Live (bench): keep 512.0
+kept, re-seeded 512.0. GPU water 56/58 (the known two), unit 312/312.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

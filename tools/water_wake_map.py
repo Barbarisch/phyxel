@@ -48,7 +48,7 @@ def main():
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(120)
     api.debug("water_av_realtime", {"on": True})
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     l, w = (int(v) for v in args.size.split("x"))
     box = {"x1": 2, "y1": 16, "z1": 0, "x2": 2 + l - 1, "y2": 16 + args.depth, "z2": w - 1}
     api.debug("water_av_partial_wake", {"quiet_scale": args.quiet_scale})   # 26.34
@@ -89,7 +89,7 @@ def main():
               f"  | x0.1: +2 {row['x0.1']['margin2']:.3f}  x10: +2 {row['x10']['margin2']:.3f}  | solver {row['solver_ms']:.2f} ms  awake {row['awake_columns']} frozen {row['frozen_columns']} slots {row['step_slots']}/{row['bricks']} moves {row['partition_moves']} asleep {row['asleep']}", flush=True)
         time.sleep(0.25)
     api.debug("water_av_units", {"capture": False})
-    api.debug("water_av_destroy", {"id": vid})
+    api.debug("water_av_destroy", {"id": vid, "discard": True})
     out = {"size_m": [l, w], "depth_m": args.depth, "partial": args.partial, "quiet_scale": args.quiet_scale, "at": args.at, "strength": args.strength, "before_stone": {k: pre.get(k) for k in ("asleep", "gpu_device_ms", "kinetic_energy")},
            "thresholds": {"ke_wake": KE_WAKE, "df_quiet": DF_QUIET}, "rows": rows}
     EV.mkdir(parents=True, exist_ok=True)

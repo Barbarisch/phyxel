@@ -54,7 +54,7 @@ def main():
     rc = api.debug("water_render_core", opts).get("tiles") or {}
     print("tiler:", {k: rc.get(k) for k in ("threads", "flow_tolerance", "foam_tolerance")}, flush=True)
     api.debug("water_av_realtime", {"on": True})
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     api.post("/api/camera", AWAY)
     out = {"control": sample(api), "ponds": [], "depth_m": args.depth, "wake": args.wake, "tiler": {k: rc.get(k) for k in ("threads", "flow_tolerance", "foam_tolerance")}}
     print("control", json.dumps(out["control"]), flush=True)
@@ -70,7 +70,7 @@ def main():
         row = {"size_m": [l, w], **sample(api, vid)}
         out["ponds"].append(row)
         print(json.dumps(row), flush=True)
-        api.debug("water_av_destroy", {"id": vid})
+        api.debug("water_av_destroy", {"id": vid, "discard": True})
     EV.mkdir(parents=True, exist_ok=True)
     (EV / f"cpu_split_{args.tag}.json").write_text(json.dumps(out, indent=1))
     print("wrote", EV / f"cpu_split_{args.tag}.json")

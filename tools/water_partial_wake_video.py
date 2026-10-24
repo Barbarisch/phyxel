@@ -55,7 +55,7 @@ def main():
     out = {"pose": pose, "size_m": [l, w], "stone_at": [sx, sz], "stone_edge_m": args.stone, "runs": {}}
 
     def pond(partial):
-        for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+        for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
         box = {"x1": x0, "y1": 16, "z1": z0, "x2": x0 + l - 1, "y2": 17, "z2": z0 + w - 1}
         vid = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False, "partial_wake": partial})["volume"]["id"]
         api.debug("place_water_box", {"target": "core", **{**box, "y2": 16}, "mass": 1.0})
@@ -100,7 +100,7 @@ def main():
         (EV / f"{args.tag}_{name}.srt").write_text("\n".join(lines), encoding="utf-8")
         print(name, "recorded;", "solver ms median", sorted(r["solver_ms"] or 0 for r in rows)[len(rows) // 2])
     api.debug("water_av_partial_wake", {"quiet_scale": 10.0})
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     (EV / f"{args.tag}.json").write_text(json.dumps(out, indent=1))
     # side by side: each half captioned, scaled to 960 wide; run in EV so the subtitle paths need no escaping
     style = "FontName=Arial,FontSize=14,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1,Alignment=2,MarginV=6"

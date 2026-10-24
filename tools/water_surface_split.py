@@ -52,7 +52,7 @@ def main():
     opts = {k: getattr(args, k) == "on" for k in ("tiles", "cull") if getattr(args, k) != "keep"}
     if opts: print("render:", api.debug("water_render_core", opts).get("tiles"))
     api.debug("water_av_realtime", {"on": True})
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     out = {"control": {}, "ponds": []}
     for name, cam in (("facing", FACING), ("away", AWAY)):
         api.post("/api/camera", cam); out["control"][name] = sample(api)
@@ -69,7 +69,7 @@ def main():
             api.post("/api/camera", cam); row[name] = sample(api)
         out["ponds"].append(row)
         print(row, flush=True)
-        api.debug("water_av_destroy", {"id": vid})
+        api.debug("water_av_destroy", {"id": vid, "discard": True})
     EV.mkdir(parents=True, exist_ok=True)
     (EV / f"surface_split_{args.tag}.json").write_text(json.dumps(out, indent=1))
     print("wrote", EV / f"surface_split_{args.tag}.json")

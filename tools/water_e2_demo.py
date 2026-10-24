@@ -23,7 +23,7 @@ REST = 16.5
 
 def make_pond():
     for v in api.debug("water_av_list").get("volumes", []):
-        api.debug("water_av_destroy", {"id": v["id"]})
+        api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     cr = api.debug("water_av_create", {"x1": 99, "y1": 14, "z1": 11, "x2": 104, "y2": 19, "z2": 16, "cellSize": 1.0 / 3.0,
                                        "transport": "eulerian", "backend": args.backend, "auto_sleep": False})
     if "error" in cr: raise SystemExit(f"create: {cr}")

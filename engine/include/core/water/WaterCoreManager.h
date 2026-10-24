@@ -182,7 +182,15 @@ public:
     /// the same as 40 within run noise: waves 1-8 m from a push, volume and level at rest (1 m and 3 m deep), the creek's depth and
     /// speed; 10 is broken (a false wave six times the real one at 4 m). Saves ~0.35 ms a call on the creek, ~0.9 on a full pond.
     static constexpr int kGpuSweepsAutoMax = 20;
+    /// The RAW free: the volume and its cells go, the record is not touched. Internal (sleep's last step) and the red control of
+    /// remove(): on a volume with recorded tiles it keeps the recorded water and deletes the rest (27.25: 256 m^3, two tiles).
     bool destroy(int id);
+    /// 27.25 removing a volume never creates or deletes water by accident. keep (discard = false): the cells are written back to the
+    /// record (a forced sleep: the recorded tiles are already there) - the world holds exactly the water it held. discard: every
+    /// drop in the box goes - the cells AND the record's water in the box (the spans cleared, the bodies debited), counted. Without
+    /// a span writer (no record) both free the volume and report its water as discarded.
+    struct RemoveResult { bool ok = false; double keptM3 = 0.0, discardedM3 = 0.0, heldM3 = 0.0; long unwrittenColumns = 0; std::string error; };
+    RemoveResult remove(int id, bool discard);
     // ── Phase D (16.2): rest, write-back, wake ────────────────────────────────────────────
     void setSpanIo(SpanWriter writer, SpanReader reader) { m_spanWriter = std::move(writer); m_spanReader = std::move(reader); }
     void setBakeBodyQuery(BakeBodyQuery q) { m_bakeBodyAt = std::move(q); }

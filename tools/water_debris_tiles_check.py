@@ -21,7 +21,7 @@ SLOTS = [(2 + i * 6, j * 6) for j in range(4) for i in range(20)]
 
 
 def destroy_all(api):
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
 
 
 def pond(api, x, z):
@@ -67,7 +67,7 @@ def scenario(api, red):
         x, z = SLOTS[k]
         api.debug("water_av_impulse", {"x": x + 2.5, "y": TOP + 0.2, "z": z + 2.5, "radius": 1 / 3, "strength": 4.0, "dx": 0.0, "dy": -1.0, "dz": 0.0})
     time.sleep(12.0)
-    api.debug("water_av_destroy", {"id": ids[8]}); api.debug("water_av_destroy", {"id": ids[9]})
+    api.debug("water_av_destroy", {"id": ids[8], "discard": True}); api.debug("water_av_destroy", {"id": ids[9], "discard": True})
     pond(api, *SLOTS[20])
     time.sleep(4.0)
     t = api.debug("water_av_debris_tiles", {"check": False, "red": False})

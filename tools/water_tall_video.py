@@ -50,7 +50,7 @@ def main():
     out = {"pose": pose, "push_at": [sx, sz], "strength": a.strength, "takes": {}}
 
     def pond(band):
-        for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+        for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
         box = {"x1": X0, "y1": 16, "z1": Z0, "x2": X0 + L - 1, "y2": 16 + DEPTH, "z2": Z0 + L - 1}
         vid = api.debug("water_av_create", {**box, "cellSize": H, "backend": "gpu", "auto_sleep": False, "tall_band_m": band})["volume"]["id"]
         for k in range(DEPTH): api.debug("place_water_box", {"target": "core", **box, "y1": 16 + k, "y2": 16 + k, "mass": 1.0})
@@ -92,7 +92,7 @@ def main():
         (EV / f"{a.tag}_{name}.srt").write_text("\n".join(lines), encoding="utf-8")
         awake = sorted(r["solver_ms"] or 0 for r in rows if not r["asleep"])
         print(name, "recorded; solver median", awake[len(awake) // 2] if awake else None, "tall", any(r["tall"] for r in rows), flush=True)
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     (EV / f"{a.tag}.json").write_text(json.dumps(out, indent=1))
     style = "FontName=Arial,FontSize=13,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1,Alignment=2,MarginV=6"
     ins = []

@@ -18,7 +18,7 @@ DIST = [1, 2, 4, 8, 16]
 
 def run(api, partial, strength, seconds, sweeps=0):
     l, w, x0, z0 = 46, 28, 2, 0
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     box = {"x1": x0, "y1": 16, "z1": z0, "x2": x0 + l - 1, "y2": 17, "z2": z0 + w - 1}
     vid = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False, "partial_wake": partial,
                                         **({"sweeps": sweeps} if sweeps else {})})["volume"]["id"]
@@ -86,7 +86,7 @@ def main():
                 f"{q['d_m']:2d} m: rms {q['rms_mm']:5.2f} max {q['max_mm']:5.1f} mm first {q['first_s'] if q['first_s'] is not None else '-'}" for q in r["points"]), flush=True)
     api.debug("water_av_line_sweeps", {"count": 0})
     api.debug("water_av_partial_wake", {"quiet_scale": 10.0})
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     (EV / f"{args.tag}.json").write_text(json.dumps(out))
     print("wrote", EV / f"{args.tag}.json")
 

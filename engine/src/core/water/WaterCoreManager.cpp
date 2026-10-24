@@ -110,6 +110,56 @@ bool WaterCoreManager::destroy(int id) {
     return true;
 }
 
+WaterCoreManager::RemoveResult WaterCoreManager::remove(int id, bool discard) {
+    RemoveResult out;
+    Av* av = nullptr;
+    for (auto& a : m_avs) if (a->id == id) av = a.get();
+    if (!av) { out.error = "no such volume"; return out; }
+    const glm::ivec3 lo = av->minVoxel, hi = av->maxVoxel;
+    if (!m_spanWriter) {   // no record in this world: the volume's water has nowhere to go
+        syncFromGpu(*av, false);
+        out.discardedM3 = av->grid->totalMass();
+        out.ok = destroy(id);
+        return out;
+    }
+    if (!discard) {
+        const double recorded = av->recordedM3;   // the tiles already in the record stay there
+        const WriteBackRecord rec = sleep(id, true);
+        if (!rec.ok) { out.error = "write-back failed: " + rec.error + " (volume kept)"; return out; }
+        out.ok = true; out.keptM3 = rec.massStored + recorded; out.heldM3 = rec.heldMass; out.unwrittenColumns = rec.unwrittenColumns;
+        return out;
+    }
+    // discard: the cells, the droplets in flight and every run the record holds in the box
+    syncFromGpu(*av, false);
+    double cells = av->grid->totalMass();
+    const double recorded = av->recordedM3;   // the books of a live volume: its cells + its recorded tiles (the spans under its
+                                              // awake columns are the copy it was seeded from - cleared below, not counted twice)
+    for (const Droplet& d : m_pool.take(id)) { cells += d.volume; m_dstats.destroyedM3 += d.volume; }
+    std::vector<WaterBodyTable::ColumnMass> before, written;
+    double spans = 0.0;
+    if (m_spanReader) {
+        std::vector<ColumnRuns> prior;
+        m_spanReader(lo, hi, prior);
+        for (const auto& c : prior) {
+            WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z;
+            for (const auto& r : c.runs) m.mass += static_cast<double>(r.topY - r.bottomY);
+            spans += m.mass; before.push_back(m);
+            WaterBodyTable::ColumnMass e; e.x = c.x; e.z = c.z; written.push_back(e);   // written empty: the body is debited its column
+        }
+    }
+    std::vector<ColumnRuns> empty;
+    for (int z = lo.z; z <= hi.z; ++z) for (int x = lo.x; x <= hi.x; ++x) { ColumnRuns c; c.x = x; c.z = z; empty.push_back(std::move(c)); }
+    long unwritten = 0, chunks = 0;
+    m_spanWriter(empty, static_cast<float>(lo.y), static_cast<float>(hi.y + 1), &unwritten, &chunks);
+    if (unwritten > 0) { out.error = std::to_string(unwritten) + " column(s) of the record could not be cleared (non-resident chunk); volume kept"; return out; }
+    m_bodies.credit(written, before, m_bakeBodyAt);
+    destroy(id);
+    buildRecordTilesNow(lo, hi);
+    (void)spans;
+    out.ok = true; out.discardedM3 = cells + recorded;
+    return out;
+}
+
 void WaterCoreManager::refreshBoxes() {
     m_boxes.clear();
     for (const auto& av : m_avs) m_boxes.emplace_back(av->minVoxel, av->maxVoxel);

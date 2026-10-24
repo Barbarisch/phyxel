@@ -405,6 +405,64 @@ TEST_F(WaterRecordTilesTest, TallCellsRecordAndWakeWithTheBooksExact) {
     WaterCoreGpu::s_seedSkipsTallCollapseForTest = false;
 }
 
+// RemovingAVolumeNeverLosesWater (27.25, red first): a 32 x 16 m pond with recording - at rest every tile records, a push wakes the
+// tiles round it, and the volume is removed while some tiles are awake and some recorded. keep: the record then holds exactly the
+// water placed (the awake tiles written back, the recorded ones untouched); discard: the box is dry and the reported discard is the
+// water placed. RED CONTROL: the raw free (destroy) keeps the recorded tiles and deletes the awake ones' water.
+TEST_F(WaterRecordTilesTest, RemovingAVolumeNeverLosesWater) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Out { double placed = 0, record = 0, reported = 0; int recordedAtRemove = 0, awakeAtRemove = 0; bool ok = false; };
+    auto run = [&](int mode) {   // 0 keep, 1 discard, 2 the raw destroy (red), 3 keep, then a volume seeded from the record discarded
+        Out o;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        const float afterBefore = WaterCoreManager::s_recordAfterS;
+        WaterCoreManager::s_recordAfterS = 0.5f;
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(31, 1, 15), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        if (!id) { ADD_FAILURE() << err; WaterCoreManager::s_recordAfterS = afterBefore; return o; }
+        mgr.setAutoSleep(id, false);
+        EXPECT_TRUE(mgr.setPartialWake(id, true) && mgr.setRecordTiles(id, true));
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(31, 0, 15), 1.0f, nullptr);
+        o.placed = mgr.totalMass();
+        AvRecord rec;
+        for (int k = 0; k < 300; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        mgr.addImpulse(glm::vec3(4.0f, 0.9f, 4.0f), 0.5f, 3.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        for (int k = 0; k < 20; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        if (const AvRecord* r = mgr.find(id)) { o.recordedAtRemove = r->recordedTiles; o.awakeAtRemove = r->awakeColumns; }
+        if (mode == 2) { o.ok = mgr.destroy(id); }
+        else if (mode == 3) {   // the seeded volume: its spans stay under it while it lives - a discard counts them once
+            o.ok = mgr.remove(id, false).ok;
+            const int id2 = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(31, 1, 15), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+            mgr.seedFromSpans(id2);
+            for (int k = 0; k < 5; ++k) mgr.step(id2, 1, 1.0f / 60.0f, &rec);
+            const auto res = mgr.remove(id2, true); o.ok = o.ok && res.ok; o.reported = res.discardedM3;
+        }
+        else { const auto res = mgr.remove(id, mode == 1); o.ok = res.ok; o.reported = mode == 1 ? res.discardedM3 : res.keptM3; if (!res.ok) ADD_FAILURE() << res.error; }
+        o.record = record.total();
+        WaterCoreManager::s_recordAfterS = afterBefore;
+        return o;
+    };
+    const Out keep = run(0), drop = run(1), raw = run(2), seeded = run(3);
+    std::printf("  at the remove: %d tiles recorded, %d columns awake | keep: record %.4f of %.4f placed (reported kept %.4f) | discard: record %.4f, "
+                "reported %.4f | RAW destroy: record %.4f of %.4f\n", keep.recordedAtRemove, keep.awakeAtRemove, keep.record, keep.placed, keep.reported,
+                drop.record, drop.reported, raw.record, raw.placed);
+    EXPECT_GT(keep.recordedAtRemove, 0) << "some tiles recorded";
+    EXPECT_GT(keep.awakeAtRemove, 0) << "and some awake - the case that lost water";
+    EXPECT_TRUE(keep.ok && drop.ok && raw.ok);
+    EXPECT_NEAR(keep.record, keep.placed, 1e-2) << "keep: nothing lost";
+    EXPECT_NEAR(keep.reported, keep.placed, 1e-2);
+    EXPECT_NEAR(drop.record, 0.0, 1e-9) << "discard: the box is dry";
+    EXPECT_NEAR(drop.reported, drop.placed, 1e-2) << "and the discard is counted";
+    std::printf("  seeded then discarded: record %.4f, reported %.4f of %.4f\n", seeded.record, seeded.reported, seeded.placed);
+    EXPECT_NEAR(seeded.record, 0.0, 1e-9);
+    EXPECT_NEAR(seeded.reported, seeded.placed, 1e-2) << "a seeded volume's discard counts its water once";
+    EXPECT_LT(raw.record, raw.placed - 1.0) << "RED CONTROL: the raw free deletes the awake tiles' water";
+}
+
 // DiagLakeRecorded (27.23 W1e step 0): the 60 x 60 m lake (2 m deep, 3 m box) with the partial wake and RECORDING on - the lake at
 // rest records tile by tile (its bricks freed), a stone wakes the tiles round it, waves, freezes, records again. Per second: the
 // call's mean GPU ms, awake / frozen columns, recorded tiles, stored bricks, the books. LAKE_QS = the freeze test's scale.

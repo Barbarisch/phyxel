@@ -33,7 +33,7 @@ def main():
     api.debug("water_av_realtime", {"on": True})
     if args.quiet_scale is not None: print("freeze test:", api.debug("water_av_partial_wake", {"quiet_scale": args.quiet_scale, "rest_ticks": 0}))
     l, w, x0, z0 = 46, 28, 2, 0
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     # the kerb (StoneBricks, 2 high) - the pond held by the world, not by the volume's box edge (27.11's rig lesson)
     for b in ((x0 - 1, z0 - 1, x0 - 1, z0 + w), (x0 + l, z0 - 1, x0 + l, z0 + w), (x0 - 1, z0 - 1, x0 + l, z0 - 1), (x0 - 1, z0 + w, x0 + l, z0 + w)):
         world_job(api, "/api/world/fill", {"x1": b[0], "y1": 16, "z1": b[1], "x2": b[2], "y2": 17, "z2": b[3]}, material="StoneBricks")

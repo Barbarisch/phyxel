@@ -39,7 +39,7 @@ def timed(api, route, body):
 
 
 def roundtrip(api, name, box, fill_box, wait_auto, h=1 / 9):
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     rect = (box["x1"], box["z1"], box["x2"], box["z2"])
     out = {"name": name, "box": box, "spans_before": spans(api, rect)}
     cr = api.debug("water_av_create", {**box, "cellSize": h, "backend": "gpu"})   # the engine defaults: auto_sleep, partial wake
@@ -84,7 +84,7 @@ def roundtrip(api, name, box, fill_box, wait_auto, h=1 / 9):
         if lv0:
             d = [b - a for a, b in zip(lv0, lv1) if a is not None and b is not None]
             out["level_change_mm"] = {"max_abs": 1000 * max((abs(x) for x in d), default=0), "mean": 1000 * statistics.mean(d) if d else None, "n": len(d)}
-        api.debug("water_av_destroy", {"id": wid})
+        api.debug("water_av_destroy", {"id": wid, "discard": True})
     return out
 
 

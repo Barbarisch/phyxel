@@ -21,7 +21,7 @@ H, TOP, SIDE, PITCH = 1.0 / 9.0, 16, 5, 6
 
 
 def destroy_all(api):
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
 
 
 def passes(api, frames=240):

@@ -23,7 +23,7 @@ def main():
     api = Api(a.url); api.wait_status(300)
     api.debug("water_av_realtime", {"on": True})
     l, w, x0, z0 = 46, 28, 2, 0
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     for b in ((x0 - 1, z0 - 1, x0 - 1, z0 + w), (x0 + l, z0 - 1, x0 + l, z0 + w), (x0 - 1, z0 - 1, x0 + l, z0 - 1), (x0 - 1, z0 + w, x0 + l, z0 + w)):
         world_job(api, "/api/world/fill", {"x1": b[0], "y1": 16, "z1": b[1], "x2": b[2], "y2": 17, "z2": b[3]}, material="StoneBricks")
     box = {"x1": x0, "y1": 16, "z1": z0, "x2": x0 + l - 1, "y2": 17, "z2": z0 + w - 1}
@@ -47,7 +47,7 @@ def main():
     c = api.debug("water_av_census", {"id": vid}); placed = c["mass_m3"] + c["record_m3"]
     v, t = wait_recorded(vid)
     stage("placed, recorded", placed_m3=placed, recorded_tiles=v.get("recorded_tiles"), after_s=t)
-    api.debug("water_av_destroy", {"id": vid})
+    api.debug("water_av_destroy", {"id": vid, "discard": True})
     stage("volume destroyed (the record keeps the water)")
     r1 = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False})
     refused = "error" in r1
@@ -59,7 +59,7 @@ def main():
         c = api.debug("water_av_census", {"id": vid1})
         v, t = wait_recorded(vid1)
         stage("UNSEEDED create, placed again, recorded", census_cells_plus_record_m3=c["mass_m3"] + c["record_m3"], recorded_tiles=v.get("recorded_tiles"))
-        api.debug("water_av_destroy", {"id": vid1})
+        api.debug("water_av_destroy", {"id": vid1, "discard": True})
     r2 = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False, "seed": "spans", "partial_wake": True})
     vid2 = r2["volume"]["id"]
     stage("create seed:spans", seeded_m3=r2.get("seeded_mass"))

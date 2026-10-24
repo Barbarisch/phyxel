@@ -26,7 +26,7 @@ POINTS = [[X, Z], [X + 1.0 / 3.0, Z], [X + 2.0 / 3.0, Z]]
 
 def pond():
     for v in api.debug("water_av_list").get("volumes", []):
-        api.debug("water_av_destroy", {"id": v["id"]})
+        api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     api.debug("water_av_create", {"x1": 99, "y1": 14, "z1": 11, "x2": 104, "y2": 19, "z2": 16, "cellSize": 1.0 / 3.0,
                                   "transport": "eulerian", "backend": "auto", "auto_sleep": False})
     api.debug("place_water_box", {"x1": 100, "y1": 15, "z1": 12, "x2": 103, "y2": 15, "z2": 15, "mass": 1.0, "target": "core"})

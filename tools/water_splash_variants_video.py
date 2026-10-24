@@ -48,7 +48,7 @@ def main():
     sx, sz = x0 + 4.0, z0 + w - 4.0
 
     def pond():
-        for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+        for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
         box = {"x1": x0, "y1": 16, "z1": z0, "x2": x0 + l - 1, "y2": 17, "z2": z0 + w - 1}
         api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False, "partial_wake": True})
         api.debug("place_water_box", {"target": "core", **{**box, "y2": 16}, "mass": 1.0})
@@ -76,7 +76,7 @@ def main():
         (EV / f"{args.tag}_{i}.txt").write_text(f"{label}  |  {peak} droplets at the peak", encoding="utf-8")
         time.sleep(1.0)
     api.debug("water_droplets", {"enabled": True, "size": 1.0, "lateral": 1.0})   # back to the default (microcube drops, the owner's pick 2026-10-18)
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     (EV / f"{args.tag}.json").write_text(json.dumps({"pose": pose, "variants": out}, indent=1))
     # 2 x 2, each captioned (drawtext from a file: no escaping of the label)
     font = "C\\:/Windows/Fonts/arial.ttf"

@@ -12,7 +12,7 @@ label = sys.argv[2] if len(sys.argv) > 2 else json.dumps(cfg)
 pw = cfg.pop("pw", None); rec = cfg.pop("rec", True); after = cfg.pop("after_s", 2.0); DUR = int(cfg.pop("dur", 28))
 base = {"after_step_test": False, "settle_after_test": False}
 api.debug("water_av_record_tiles", {**base, **cfg})
-for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
 box = {"x1": 2, "y1": 16, "z1": 0, "x2": 47, "y2": 17, "z2": 27}
 vid = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False, **({} if pw is None else {"partial_wake": pw})})["volume"]["id"]
 api.debug("water_av_record_tiles", {"id": vid, "on": rec, "after_s": after})

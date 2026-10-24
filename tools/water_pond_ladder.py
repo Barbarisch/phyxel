@@ -90,7 +90,7 @@ def summarise(rows, api=None, frames=120):
 
 
 def destroy_all(api):
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
 
 
 def rung(api, args, depth, area):

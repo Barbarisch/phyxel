@@ -88,7 +88,7 @@ def main():
     api.debug("water_coupling", {"enabled": True, "solids": True})
     api.debug("water_transport", {"carry_measure": True})   # the carry counters (off by default: they cost)
     if args.ripples == "off": api.debug("water_ripples", {"enabled": False})
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     box = {"x1": x0, "y1": 16, "z1": z0, "x2": x0 + l - 1, "y2": args.lid, "z2": z0 + w - 1}
     cr = api.debug("water_av_create", {**box, "cellSize": 1 / 9, "backend": "gpu", "auto_sleep": False, "partial_wake": True})
     if "error" in cr: sys.exit(f"water_av_create: {cr['error']}")

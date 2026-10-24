@@ -93,7 +93,7 @@ def passes(api, frames=240):
 
 
 def destroy_all(api):
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
 
 
 def run(api, name, q, length=None, max_s=480.0, window=15.0):

@@ -14029,10 +14029,14 @@ void Application::registerWaterCommands() {
     });
     reg.on("water_av_destroy", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
-        const bool ok = waterCore->destroy(cmd.params.value("id", 0));
+        // 27.25: removing a volume keeps its water (written back to the record) unless discard:true - then every drop in its box,
+        // cells and record, goes and is counted. The old raw free kept the recorded tiles and deleted the rest (256 m^3, two tiles).
+        const auto res = waterCore->remove(cmd.params.value("id", 0), cmd.params.value("discard", false));
         nlohmann::json list = nlohmann::json::array();
         for (const auto& a : waterCore->list()) list.push_back(avJson(a));
-        r = {{"success", ok}, {"volumes", list}};
+        r = {{"success", res.ok}, {"kept_m3", res.keptM3}, {"discarded_m3", res.discardedM3}, {"held_m3", res.heldM3},
+             {"unwritten_columns", res.unwrittenColumns}, {"volumes", list}};
+        if (!res.ok) r["error"] = res.error;
     });
     reg.on("water_av_manning", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 26.24
         if (!waterCore) return noCore(r);

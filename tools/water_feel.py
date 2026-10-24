@@ -111,7 +111,7 @@ class Engine:
 
     def destroy_volume(self):
         for vid in self.av_ids:
-            self.api.debug("water_av_destroy", {"id": vid})
+            self.api.debug("water_av_destroy", {"id": vid, "discard": True})
         self.av_ids = []
         self.av_id = None
 

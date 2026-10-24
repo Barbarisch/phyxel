@@ -103,7 +103,7 @@ def run_pond_water(api, args):
     head's 1/9 m cells, outfalls across the spill channel's end. Gauges: pond and pool levels = the drawn surface's mean (still
     water: 26.21), the flow INTO the pond by the books = d(pond + spill-channel water)/dt + the outfall rate (5 s windows),
     the ledger from the volume's record. Writes dam_pond_pondwater.json (+ .mp4 with --record)."""
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
     h = 1.0 / 9.0
     r = api.debug("water_av_create", {**AV_BOX, "cellSize": h, "backend": "gpu", "auto_sleep": False, "manning_n": cb.N, **({"sweeps": args.sweeps} if args.sweeps else {})})
     tag = f"_s{args.sweeps}" if args.sweeps else ""

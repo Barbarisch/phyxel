@@ -19,7 +19,7 @@ X0, Z0, L = 4, 2, 24
 
 
 def destroy_all(api):
-    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"]})
+    for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
 
 
 def vol(api, vid):
