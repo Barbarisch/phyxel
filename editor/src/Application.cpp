@@ -22,6 +22,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "graphics/FarTerrainManager.h"
 #include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §7)
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
+#include "graphics/WaterSurfaceRenderPipeline.h"   // 27.27 arena_no_grow red control
 #include "graphics/WaterRenderPipeline.h"   // water_render_grid probe (renderWaterAt)
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
@@ -14494,6 +14495,10 @@ void Application::registerWaterCommands() {
     reg.on("water_render_core", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         using Core::Water::WaterCoreRenderMode;
         if (!renderCoordinator) { r = {{"error", "no render coordinator"}}; return; }
+        // 27.27 TEST ONLY (the live red control): arena_no_grow:true - a full tile arena skips the tile again (the dry squares)
+        if (cmd.params.contains("arena_no_grow")) Graphics::WaterSurfaceRenderPipeline::s_arenaNoGrowForTest = cmd.params.value("arena_no_grow", false);
+        // 27.27 TEST ONLY: upload_key_order:true - deferred tiles uploaded in key order again (the back ones starve)
+        if (cmd.params.contains("upload_key_order")) Graphics::WaterSurfaceRenderPipeline::s_uploadKeyOrderForTest = cmd.params.value("upload_key_order", false);
         if (cmd.params.contains("mode")) {
             const std::string m = cmd.params.value("mode", std::string("mesh"));
             if (m == "mesh") renderCoordinator->setWaterCoreRenderMode(WaterCoreRenderMode::Mesh);
@@ -14536,6 +14541,10 @@ void Application::registerWaterCommands() {
                 tiles["drawn"] = gs->drawn; tiles["culled"] = gs->culled; tiles["uploaded"] = gs->uploaded; tiles["deferred"] = gs->deferred;
                 tiles["over_arena"] = gs->overArena; tiles["upload_bytes"] = gs->uploadBytes; tiles["drawn_vertices"] = gs->drawnVertices;
                 tiles["arena_vertex_bytes"] = gs->arenaVertexBytes; tiles["arena_index_bytes"] = gs->arenaIndexBytes;
+                // 27.27: the arenas grow - their sizes now, this frame's grows and every grow so far
+                tiles["arena_vertex_size"] = gs->arenaVertexSize; tiles["arena_index_size"] = gs->arenaIndexSize;
+                tiles["arena_grows"] = gs->grows; tiles["arena_grows_total"] = gs->growsTotal;
+                tiles["holes_deferred"] = gs->holesDeferred; tiles["oldest_wait_frames"] = gs->oldestWaitFrames;   // 27.27: the upload order
             }
         }
         tiles["water_cpu_ms"] = {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}};   // 26.30 step 3

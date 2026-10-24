@@ -305,22 +305,63 @@ void WaterSurfaceRenderPipeline::Arena::release(VkDeviceSize off, VkDeviceSize b
     }
 }
 
+void WaterSurfaceRenderPipeline::Arena::grow(VkDeviceSize newSize) {
+    // size = the buffer's bytes; the free list ends at whole multiples of align (as createTileStore's)
+    const VkDeviceSize end = size / align * align, newEnd = newSize / align * align;
+    if (newEnd <= end) return;
+    auto tail = freeList.empty() ? freeList.end() : std::prev(freeList.end());
+    if (tail != freeList.end() && tail->first + tail->second == end) tail->second += newEnd - end;   // a free tail extends
+    else freeList[end] = newEnd - end;
+    size = newSize;
+}
+
+static constexpr VkBufferUsageFlags kTileVertexUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+static constexpr VkBufferUsageFlags kTileIndexUsage  = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;   // 27.27: SRC - copied into a larger successor
+
+void WaterSurfaceRenderPipeline::makeDeviceBuffer(VkBuffer& buf, VkDeviceMemory& mem, VkDeviceSize bytes, VkBufferUsageFlags usage, VkMemoryPropertyFlags props) {
+    VkBufferCreateInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO; bi.size = bytes; bi.usage = usage; bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateBuffer(m_device, &bi, nullptr, &buf) != VK_SUCCESS) throw std::runtime_error("failed to create water-surface tile buffer");
+    VkMemoryRequirements mr; vkGetBufferMemoryRequirements(m_device, buf, &mr);
+    VkMemoryAllocateInfo ai{}; ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO; ai.allocationSize = mr.size;
+    ai.memoryTypeIndex = findMemoryType(m_physicalDevice, mr.memoryTypeBits, props);
+    if (vkAllocateMemory(m_device, &ai, nullptr, &mem) != VK_SUCCESS) {
+        vkDestroyBuffer(m_device, buf, nullptr); buf = VK_NULL_HANDLE;
+        throw std::runtime_error("failed to allocate water-surface tile memory");
+    }
+    vkBindBufferMemory(m_device, buf, mem, 0);
+}
+
+bool WaterSurfaceRenderPipeline::growArena(VkCommandBuffer cmd, Arena& a, VkDeviceSize need, VkDeviceSize maxBytes, VkBufferUsageFlags usage) {
+    // 27.27: a full arena doubles (at least room for `need` at its end) - a new buffer holding the old one's bytes at the same
+    // offsets (copied on the device), so every tile drawn and every held-back free stays valid; the old buffer is freed once no
+    // frame in flight can read it
+    if (s_arenaNoGrowForTest) return false;
+    const VkDeviceSize newSize = std::min(std::max(a.size * 2, a.size + need + a.align), maxBytes);
+    if (newSize < a.size + need + a.align) return false;
+    VkBuffer nb = VK_NULL_HANDLE; VkDeviceMemory nm = VK_NULL_HANDLE;
+    try { makeDeviceBuffer(nb, nm, newSize, usage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); }
+    catch (const std::exception& e) { LOG_WARN("WaterSurface", "tile arena could not grow to {} MB: {}", newSize >> 20, e.what()); return false; }
+    VkMemoryBarrier mb{}; mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    mb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; mb.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);   // earlier uploads land first
+    const VkBufferCopy all{0, 0, a.size};
+    vkCmdCopyBuffer(cmd, a.buffer, nb, 1, &all);
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);   // before this frame's uploads into it
+    m_retiredBuffers.push_back({m_frameCounter, a.buffer, a.memory});
+    LOG_INFO("WaterSurface", "tile arena grew {} -> {} MB ({} MB in use)", a.size >> 20, newSize >> 20, a.used >> 20);
+    a.buffer = nb; a.memory = nm;
+    a.grow(newSize);
+    ++m_arenaGrows; ++m_tileStats.grows;
+    return true;
+}
+
 void WaterSurfaceRenderPipeline::createTileStore() {
-    auto make = [&](VkBuffer& buf, VkDeviceMemory& mem, VkDeviceSize bytes, VkBufferUsageFlags usage, VkMemoryPropertyFlags props) {
-        VkBufferCreateInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO; bi.size = bytes; bi.usage = usage; bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        if (vkCreateBuffer(m_device, &bi, nullptr, &buf) != VK_SUCCESS) throw std::runtime_error("failed to create water-surface tile buffer");
-        VkMemoryRequirements mr; vkGetBufferMemoryRequirements(m_device, buf, &mr);
-        VkMemoryAllocateInfo ai{}; ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO; ai.allocationSize = mr.size;
-        ai.memoryTypeIndex = findMemoryType(m_physicalDevice, mr.memoryTypeBits, props);
-        if (vkAllocateMemory(m_device, &ai, nullptr, &mem) != VK_SUCCESS) throw std::runtime_error("failed to allocate water-surface tile memory");
-        vkBindBufferMemory(m_device, buf, mem, 0);
-    };
-    make(m_vArena.buffer, m_vArena.memory, kArenaVertexBytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    make(m_iArena.buffer, m_iArena.memory, kArenaIndexBytes, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    makeDeviceBuffer(m_vArena.buffer, m_vArena.memory, kArenaVertexBytes, kTileVertexUsage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    makeDeviceBuffer(m_iArena.buffer, m_iArena.memory, kArenaIndexBytes, kTileIndexUsage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     m_vArena.size = kArenaVertexBytes; m_vArena.align = kVertexArenaAlign; m_vArena.freeList = {{0, kArenaVertexBytes / kVertexArenaAlign * kVertexArenaAlign}};
     m_iArena.size = kArenaIndexBytes;  m_iArena.freeList = {{0, kArenaIndexBytes}};
     for (uint32_t i = 0; i < kFrames; ++i) {
-        make(m_staging[i], m_stagingMemory[i], kStagingBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        makeDeviceBuffer(m_staging[i], m_stagingMemory[i], kStagingBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         vkMapMemory(m_device, m_stagingMemory[i], 0, kStagingBytes, 0, &m_stagingMapped[i]);
     }
 }
@@ -332,7 +373,9 @@ void WaterSurfaceRenderPipeline::destroyTileStore() {
         m_staging[i] = VK_NULL_HANDLE; m_stagingMemory[i] = VK_NULL_HANDLE; m_stagingMapped[i] = nullptr;
     }
     for (Arena* a : {&m_vArena, &m_iArena}) { vkDestroyBuffer(m_device, a->buffer, nullptr); vkFreeMemory(m_device, a->memory, nullptr); *a = Arena{}; }
-    m_gpuTiles.clear(); m_pendingFree.clear();
+    for (const auto& r : m_retiredBuffers) { vkDestroyBuffer(m_device, r.buffer, nullptr); vkFreeMemory(m_device, r.memory, nullptr); }
+    m_retiredBuffers.clear();
+    m_gpuTiles.clear(); m_pendingFree.clear(); m_waitingSince.clear();
 }
 
 void WaterSurfaceRenderPipeline::uploadTiles(VkCommandBuffer cmd, const Core::Water::WaterSurfaceTiler& tiler, uint32_t frame) {
@@ -344,6 +387,10 @@ void WaterSurfaceRenderPipeline::uploadTiles(VkCommandBuffer cmd, const Core::Wa
         if (it->frame + kFrames + 1 <= m_frameCounter) { m_vArena.release(it->vOff, it->vBytes); m_iArena.release(it->iOff, it->iBytes); it = m_pendingFree.erase(it); }
         else ++it;
     }
+    for (auto it = m_retiredBuffers.begin(); it != m_retiredBuffers.end();) {   // 27.27: outgrown arenas no frame in flight reads
+        if (it->frame + kFrames + 1 <= m_frameCounter) { vkDestroyBuffer(m_device, it->buffer, nullptr); vkFreeMemory(m_device, it->memory, nullptr); it = m_retiredBuffers.erase(it); }
+        else ++it;
+    }
     auto retire = [&](const GpuTile& g) { if (g.vBytes || g.iBytes) m_pendingFree.push_back({m_frameCounter, g.vOff, g.vBytes, g.iOff, g.iBytes}); };
     for (auto it = m_gpuTiles.begin(); it != m_gpuTiles.end();) {   // tiles that are gone
         if (!tiler.tiles().count(it->first)) { retire(it->second); it = m_gpuTiles.erase(it); } else ++it;
@@ -352,27 +399,57 @@ void WaterSurfaceRenderPipeline::uploadTiles(VkCommandBuffer cmd, const Core::Wa
     char* staging = static_cast<char*>(m_stagingMapped[slot]);
     VkDeviceSize stagingUsed = 0;
     std::vector<VkBufferCopy> vCopies, iCopies;
+    // 27.27: the tiles to upload, in a fair order - HOLES first (drawing nothing on the device where the new mesh has water), then
+    // the longest-waiting; in key order (the old order) the same front tiles won the budget every frame and the back ones starved
+    struct Want { const Core::Water::SurfaceTileKey* key; const Core::Water::SurfaceTile* t; bool hole; uint64_t since; };
+    std::vector<Want> want;
     for (const auto& [key, t] : tiler.tiles()) {
         ++m_tileStats.tiles;
         auto found = m_gpuTiles.find(key);
-        if (found != m_gpuTiles.end() && found->second.generation == t.generation) continue;
+        if (found != m_gpuTiles.end() && found->second.generation == t.generation) { m_waitingSince.erase(key); continue; }
+        const bool hole = !t.mesh.indices.empty() && (found == m_gpuTiles.end() || found->second.indexCount == 0);
+        const uint64_t since = m_waitingSince.try_emplace(key, m_frameCounter).first->second;
+        want.push_back({&key, &t, hole, since});
+    }
+    for (auto it = m_waitingSince.begin(); it != m_waitingSince.end();) { if (!tiler.tiles().count(it->first)) it = m_waitingSince.erase(it); else ++it; }
+    if (!s_uploadKeyOrderForTest)
+        std::stable_sort(want.begin(), want.end(), [](const Want& a, const Want& b) { return a.hole != b.hole ? a.hole : a.since < b.since; });
+    for (const Want& wt : want) {
+        const auto& key = *wt.key; const auto& t = *wt.t;
+        auto found = m_gpuTiles.find(key);
         const VkDeviceSize vb = t.mesh.vertices.size() * sizeof(WaterSurfaceVertex), ib = t.mesh.indices.size() * sizeof(uint32_t);
-        if (stagingUsed + vb + ib > kStagingBytes) { ++m_tileStats.deferred; continue; }   // next frame; the old version (if any) still draws
+        if (stagingUsed + vb + ib > kStagingBytes) {   // next frame; the old version (if any) still draws
+            ++m_tileStats.deferred; m_tileStats.holesDeferred += wt.hole;
+            m_tileStats.oldestWaitFrames = std::max<long>(m_tileStats.oldestWaitFrames, static_cast<long>(m_frameCounter - wt.since));
+            continue;
+        }
         GpuTile g; g.generation = t.generation; g.indexCount = static_cast<uint32_t>(t.mesh.indices.size());
         if (vb > 0) {
             VkDeviceSize vo = 0, io = 0;
-            if (!m_vArena.alloc(vb, vo)) { ++m_tileStats.overArena; continue; }
-            if (!m_iArena.alloc(ib, io)) { m_vArena.release(vo, vb); ++m_tileStats.overArena; continue; }
+            // 27.27: a full arena grows (a skipped tile was a dry square on screen); only past the cap is a tile skipped - and said so
+            const bool okV = m_vArena.alloc(vb, vo) || (growArena(cmd, m_vArena, vb, kArenaVertexMaxBytes, kTileVertexUsage) && m_vArena.alloc(vb, vo));
+            const bool okI = okV && (m_iArena.alloc(ib, io) || (growArena(cmd, m_iArena, ib, kArenaIndexMaxBytes, kTileIndexUsage) && m_iArena.alloc(ib, io)));
+            if (!okI) {
+                if (okV) m_vArena.release(vo, vb);
+                ++m_tileStats.overArena;
+                if (!m_overArenaLogged && !s_arenaNoGrowForTest) {
+                    m_overArenaLogged = true;
+                    LOG_WARN("WaterSurface", "tile arenas full at their caps ({} / {} MB): water tiles are NOT drawn", m_vArena.size >> 20, m_iArena.size >> 20);
+                }
+                continue;
+            }
             g.vOff = vo; g.vBytes = vb; g.iOff = io; g.iBytes = ib;
             std::memcpy(staging + stagingUsed, t.mesh.vertices.data(), vb); vCopies.push_back({stagingUsed, vo, vb}); stagingUsed += vb;
             std::memcpy(staging + stagingUsed, t.mesh.indices.data(), ib);  iCopies.push_back({stagingUsed, io, ib}); stagingUsed += ib;
         }
         if (found != m_gpuTiles.end()) retire(found->second);
         m_gpuTiles[key] = g;
+        m_waitingSince.erase(key);
         ++m_tileStats.uploaded;
     }
     m_tileStats.uploadBytes = stagingUsed;
     m_tileStats.arenaVertexBytes = m_vArena.used; m_tileStats.arenaIndexBytes = m_iArena.used;
+    m_tileStats.arenaVertexSize = m_vArena.size; m_tileStats.arenaIndexSize = m_iArena.size; m_tileStats.growsTotal = m_arenaGrows;
     if (vCopies.empty()) return;
     vkCmdCopyBuffer(cmd, m_staging[slot], m_vArena.buffer, static_cast<uint32_t>(vCopies.size()), vCopies.data());
     vkCmdCopyBuffer(cmd, m_staging[slot], m_iArena.buffer, static_cast<uint32_t>(iCopies.size()), iCopies.data());

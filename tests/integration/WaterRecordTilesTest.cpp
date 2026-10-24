@@ -514,6 +514,74 @@ TEST_F(WaterRecordTilesTest, TheWaterMovesTheSameAtAnyFrameRate) {
     EXPECT_GT(red.awakeAt[3], 3 * std::max(b.awakeAt[3], 20)) << "RED CONTROL: a tick per 1/30 s frame stays awake";
 }
 
+// DIAGNOSTIC (run by name): the dry squares of the owner's lake clip (27.26 ft_look) in a test. The bench lake - 60 x 60 m, 2 m deep,
+// the box x 4-63, z 2-61 (partial tiles at its edges, as live), recording on (2 s), partial wake, the live path (update()) at a slow
+// frame's dt; the view where the clip's camera was. After every LAKE_EVERY-th frame every 1 m of the lake is asked whether ANY drawn
+// field holds water there (drawnAtWorld) - a HOLE if none - split by whether the column is in the record (the record's draw failed)
+// or not (the volume's). Env: LAKE_DT (default 1/33 s), LAKE_TALL (band m, default the engine's), LAKE_RADIUS (record draw m,
+// default 120), LAKE_SECONDS (after the push, default 30), LAKE_EVERY (frames, default 4).
+TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeHoles) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto env = [](const char* n, double d) { const char* v = std::getenv(n); return v ? std::atof(v) : d; };
+    const float dt = static_cast<float>(env("LAKE_DT", 1.0 / 33.0));
+    const float tall = static_cast<float>(env("LAKE_TALL", WaterCoreManager::s_tallBandDefault));
+    const float radius = static_cast<float>(env("LAKE_RADIUS", 120.0));
+    const int every = static_cast<int>(env("LAKE_EVERY", 4));
+    const float seconds = static_cast<float>(env("LAKE_SECONDS", 30.0));
+    const auto drawBefore = WaterCoreManager::s_recordDraw;
+    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_recordDraw.radiusM = radius;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    FakeRecord record; record.install(mgr);
+    mgr.setRealtime(true);
+    mgr.setViewPoint(glm::vec3(34.0f, 57.0f, 95.0f));
+    const int X0 = 4, Z0 = 2, L = 60;
+    const int id = mgr.create(glm::ivec3(X0, 0, Z0), glm::ivec3(X0 + L - 1, 2, Z0 + L - 1), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    ASSERT_TRUE(id) << err;
+    mgr.setAutoSleep(id, false);
+    ASSERT_TRUE(mgr.setPartialWake(id, true) && mgr.setRecordTiles(id, true) && mgr.setTallBand(id, tall));
+    mgr.placeBox(glm::ivec3(X0, 0, Z0), glm::ivec3(X0 + L - 1, 1, Z0 + L - 1), 1.0f, nullptr);
+    const int perS = static_cast<int>(std::lround(1.0f / dt));
+    int holeFrames = 0, worst = 0, worstRec = 0, worstLive = 0, frames = 0, printed = 0;
+    std::map<std::pair<int, int>, int> tileHoleFrames;
+    auto probe = [&](float t) {
+        mgr.surfaceFields();
+        int rec = 0, live = 0;
+        std::map<std::pair<int, int>, int> tiles;
+        for (int z = Z0; z < Z0 + L; ++z) for (int x = X0; x < X0 + L; ++x) {
+            float top = 0.0f; bool recorded = false;
+            if (mgr.drawnAtWorld(x + 0.55f, z + 0.55f, top, recorded)) continue;
+            (recorded ? rec : live)++;
+            ++tiles[{x >> 3, z >> 3}];
+        }
+        ++frames;
+        if (rec + live == 0) return;
+        ++holeFrames;
+        for (const auto& [k, n] : tiles) ++tileHoleFrames[k];
+        if (rec + live > worst) { worst = rec + live; worstRec = rec; worstLive = live; }
+        if (printed < 25) {
+            ++printed;
+            const AvRecord* r = mgr.find(id);
+            std::printf("    t %5.2f s HOLE: %4d m^2 in the record, %4d m^2 not | tiles:", t, rec, live);
+            for (const auto& [k, n] : tiles) std::printf(" (%d,%d)%s:%d", k.first, k.second, mgr.columnWaterRecordedForTest(id, k.first * 8 + 4, k.second * 8 + 4) ? "R" : "L", n);
+            const auto& rs = mgr.recordDrawStats();
+            std::printf(" | recorded %d woken %ld | draw tiles %d wet %d pending %d\n", r ? r->recordedTiles : -1, r ? r->tilesWoken : -1L, rs.tiles, rs.wetTiles, rs.pending);
+        }
+    };
+    for (int k = 0; k < 10 * perS; ++k) { mgr.update(dt); if (k % every == 0) probe(k * dt); }
+    const AvRecord* r = mgr.find(id);
+    std::printf("  dt %.4f tall %.2f radius %.0f: before the push recorded %d tiles, tall %d; hole frames so far %d\n", dt, tall, radius, r ? r->recordedTiles : -1, r ? int(r->tallActive) : -1, holeFrames);
+    mgr.addImpulse(glm::vec3(X0 + 30.0f, 1.9f, Z0 + 30.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    for (int k = 0; k < static_cast<int>(seconds * perS); ++k) { mgr.update(dt); if (k % every == 0) probe(10.0f + k * dt); }
+    r = mgr.find(id);
+    std::printf("  RESULT dt %.4f tall %.2f radius %.0f: hole frames %d of %d probed; worst %d m^2 (%d recorded, %d live); tiles holed %zu; end recorded %d woken %ld awake %d\n",
+                dt, tall, radius, holeFrames, frames, worst, worstRec, worstLive, tileHoleFrames.size(), r ? r->recordedTiles : -1, r ? r->tilesWoken : -1L, r ? r->awakeColumns : -1);
+    WaterCoreManager::s_recordDraw = drawBefore;
+}
+
 // DiagLakeRecorded (27.23 W1e step 0): the 60 x 60 m lake (2 m deep, 3 m box) with the partial wake and RECORDING on - the lake at
 // rest records tile by tile (its bricks freed), a stone wakes the tiles round it, waves, freezes, records again. Per second: the
 // call's mean GPU ms, awake / frozen columns, recorded tiles, stored bricks, the books. LAKE_QS = the freeze test's scale.

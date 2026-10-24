@@ -8727,6 +8727,43 @@ so fewer, longer ticks let waves live longer in seconds. A loop: more awake -> s
   uncapped frame pays for the water only every 1/60 s; the cost: above 60 fps the surface updates at 60 Hz (no interpolation yet),
   which may read as slight judder on a fast monitor. GPU water 57/59 (the known two), unit 312/312.
 
+### 27.27 Dry squares in the lake were the renderer dropping tiles (2026-10-24). Status: FIXED, not yet signed off by the owner
+
+**Found** in the owner's fixed-tick clip (`tools/water_fixed_tick_video.py`, `ft_look_side_by_side.mp4`). Square patches of the 60 x 60 m
+lake were drawn as bare sand: up to 12 % of the lake in the one-step-a-frame half, and once (6-9.5 s) in the fixed-tick half. The books
+held 7,200 m^3 throughout. The water was there, but it was NOT DRAWN. The handover probe (`drawnAtWorld`) found a field drawing water at
+18.0 m at every tile centre, in every frame, live (`water_av_watch`) and in a test (`DISABLED_DiagLakeHoles`, 0 holes in 331 probes). So
+the fields were right and the loss was after them, in `WaterSurfaceRenderPipeline::uploadTiles` (the 26.30 tile store). Two
+causes, the second found only after the first was fixed:
+1. **The vertex arena (96 MB) filled.** The lake keeps ~240 tiles resident. While awake, it re-uploads ~60-90 tiles a frame, and each
+   old copy is held kFrames frames. A tile that did not fit was SKIPPED (`over_arena`, up to 130 a frame). A tile that had never been
+   uploaded drew nothing. Fix: a full arena **grows** (x2, a new buffer with the old one copied in on the device at the same
+   offsets, the old one freed when no frame in flight reads it; caps 1 GB / 192 MB, past which it is still skipped, counted, logged).
+   Live: one grow, to 192 MB (~117 MB in use).
+2. **The upload budget starved tiles.** A frame uploads at most 24 MB; the rest waits. Waiting tiles were visited in KEY order, so the
+   same front tiles won every frame and the back ones never uploaded (one waited 687 frames, ~20 s). A tile that was empty while its
+   square was recorded kept drawing empty after the square woke: a dry L for 15 s+. Fix: holes first (a tile drawing nothing where
+   its new mesh has water), then the longest-waiting.
+
+**Measured live** (`arena_live.py` in the session scratchpad; the clip's left take, one step a frame, the worst case): the lake's
+dry-looking share of the screen, max / mean: RED no grow 22.5 % / 11.7 %; RED grow but key order 16.4 % / 6.7 % (holes deferred up
+to 56, the oldest waiting 687 frames); both fixes 0.06 % / 0.00 % (two 120-pixel blips, both the mouse cursor in the capture), holes
+deferred 0, the oldest waiting 1 frame. The owner's clip recorded again (`ft_look_fixed_side_by_side.mp4`): max 0.06 % on both
+halves, 0 frames over 0.2 %. Unit `WaterSurfaceTileTest.AFullArenaGrowsAndKeepsEveryOffset` (a churned arena filled until a block
+does not fit; grown, every block in use keeps its offset, the block fits, no overlap; the control: before the grow it does not
+fit). Live red controls: `water_render_core {arena_no_grow, upload_key_order}`. New stats on `water_render_core` tiles:
+`arena_vertex_size`, `arena_index_size`, `arena_grows`, `arena_grows_total`, `holes_deferred`, `oldest_wait_frames`.
+
+**Two things this exposed, NOT fixed here:**
+- **The 48 m record draw radius.** From the clip's camera, ~60 m back, the far half of the lake was simply not drawn. The rig sets
+  120 m (`water_av_record_draw {radius}`). Water beyond the radius is W2's (the far appearance), not built.
+- **`water_av_list`'s mass + recorded_m3 swings by a tile's water for one reading at a handover** (e.g. 7,072 or 7,328 for a moment, then
+  7,200 again; it was in the first clip's rows too). `mass` is the last collected call's total (async, one call behind) while
+  `recorded_m3` moves at once. It is a READOUT race, not water; the books tests read synchronously and are exact. To fix: report both
+  from the same call.
+
+GPU water 57/59 (the known two), unit 313/313.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

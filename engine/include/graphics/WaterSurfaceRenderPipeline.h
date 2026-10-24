@@ -33,6 +33,8 @@ public:
         std::map<VkDeviceSize, VkDeviceSize> freeList;
         bool alloc(VkDeviceSize bytes, VkDeviceSize& off);
         void release(VkDeviceSize off, VkDeviceSize bytes);
+        /// 27.27: the arena is now `newSize` bytes - every offset in use stays where it is, [size, newSize) joins the free list
+        void grow(VkDeviceSize newSize);
     };
     static constexpr VkDeviceSize kVertexArenaAlign = 768;   // lcm(256, sizeof(WaterSurfaceVertex) = 48)
 
@@ -60,10 +62,25 @@ public:
                      const Core::Water::WaterSurfaceTiler& tiler, const Core::Water::WaterSurfaceMesh& extra, VkExtent2D screenExtent, uint32_t frame);
     void setCull(bool on) { m_cull = on; }
     bool cull() const { return m_cull; }
-    struct TileStats { long tiles = 0, drawn = 0, culled = 0, uploaded = 0, deferred = 0, overArena = 0; size_t uploadBytes = 0, arenaVertexBytes = 0, arenaIndexBytes = 0; uint32_t drawnVertices = 0; };
+    struct TileStats { long tiles = 0, drawn = 0, culled = 0, uploaded = 0, deferred = 0, overArena = 0, grows = 0, growsTotal = 0, holesDeferred = 0, oldestWaitFrames = 0; size_t uploadBytes = 0, arenaVertexBytes = 0, arenaIndexBytes = 0, arenaVertexSize = 0, arenaIndexSize = 0; uint32_t drawnVertices = 0; };
     const TileStats& tileStats() const { return m_tileStats; }
     static constexpr VkDeviceSize kArenaVertexBytes = 96ull << 20;   ///< 2 M vertices (48 B) on the device
     static constexpr VkDeviceSize kArenaIndexBytes  = 16ull << 20;   ///< 4 M indices
+    /// 27.27 THE ARENAS GROW. At their first size a 60 x 60 m lake (240 tiles resident, ~64 awake tiles re-uploaded a frame, each
+    /// old copy held kFrames frames) filled the vertex arena, and a tile that did not fit was SKIPPED - not drawn: whole squares of
+    /// the lake showed dry on screen while the water was all there (the owner's fixed-tick clip, 2026-10-24). A full arena now
+    /// doubles (a new buffer, the old copied in on the device at the same offsets, the old freed once no frame in flight reads it)
+    /// up to these caps; past them a tile is still skipped - counted (overArena) and logged.
+    static constexpr VkDeviceSize kArenaVertexMaxBytes = 1024ull << 20;
+    static constexpr VkDeviceSize kArenaIndexMaxBytes  = 192ull << 20;
+    /// TEST ONLY (the live red control, water_render_core {arena_no_grow}): 27.27 undone - a full arena skips the tile
+    static inline bool s_arenaNoGrowForTest = false;
+    /// 27.27 THE UPLOAD ORDER. A frame uploads at most kStagingBytes; the rest waits. The tiles were visited in key order, so with
+    /// more changing tiles than fit (a 60 x 60 m lake awake: ~135 deferred a frame) the same front tiles won every frame and the
+    /// back ones NEVER uploaded - a tile empty while its square was in the record kept drawing empty after the water woke: a dry L
+    /// on screen for 15 s+. Now: tiles drawing nothing where the new mesh has water first, then the longest-waiting. TEST ONLY
+    /// (the live red control, water_render_core {upload_key_order}): the key order.
+    static inline bool s_uploadKeyOrderForTest = false;
     static constexpr VkDeviceSize kStagingBytes     = 24ull << 20;   ///< per frame slot: what one frame may upload (the rest waits a frame)
 
     bool lastTruncated() const { return m_lastTruncated; }
@@ -128,6 +145,13 @@ private:
     VkBuffer m_staging[kFrames] = {}; VkDeviceMemory m_stagingMemory[kFrames] = {}; void* m_stagingMapped[kFrames] = {};
     std::map<Core::Water::SurfaceTileKey, GpuTile> m_gpuTiles;
     std::vector<PendingFree> m_pendingFree;
+    struct RetiredBuffer { uint64_t frame; VkBuffer buffer; VkDeviceMemory memory; };
+    std::map<Core::Water::SurfaceTileKey, uint64_t> m_waitingSince;   ///< 27.27: tiles whose rebuilt mesh is not uploaded yet - the frame they began waiting
+    std::vector<RetiredBuffer> m_retiredBuffers;   ///< 27.27: arenas outgrown - freed once no frame in flight can read them
+    long m_arenaGrows = 0;
+    bool m_overArenaLogged = false;
+    void makeDeviceBuffer(VkBuffer& buf, VkDeviceMemory& mem, VkDeviceSize bytes, VkBufferUsageFlags usage, VkMemoryPropertyFlags props);
+    bool growArena(VkCommandBuffer cmd, Arena& a, VkDeviceSize need, VkDeviceSize maxBytes, VkBufferUsageFlags usage);
     uint64_t m_frameCounter = 0;
     bool m_cull = true;
     TileStats m_tileStats;

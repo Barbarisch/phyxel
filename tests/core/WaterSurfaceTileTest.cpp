@@ -210,4 +210,41 @@ TEST(WaterSurfaceTileTest, EveryVertexArenaOffsetIsAWholeVertex) {
     EXPECT_EQ(fixed.first, 0) << "every tile's vertices start on a whole vertex";
     EXPECT_GT(old.first, 0) << "control: the 256-byte arena put tiles mid-vertex (the test sees the defect)";
 }
+// 27.27: a full tile arena grows instead of skipping the tile (the dry squares of the owner's lake clip). Filled with tile-sized
+// blocks (churned as tiles rebuild) until one does not fit: grown, every block in use keeps its offset (the device copy keeps the
+// bytes at the same offsets), the one that did not fit now fits, the free list is one block past the old end (a free tail merged),
+// and nothing overlaps. Control: without the grow, the block does not fit (the test reaches the full arena).
+TEST(WaterSurfaceTileTest, AFullArenaGrowsAndKeepsEveryOffset) {
+    using Arena = Phyxel::Graphics::WaterSurfaceRenderPipeline::Arena;
+    const VkDeviceSize vsz = sizeof(WaterSurfaceVertex);
+    Arena a; a.align = Phyxel::Graphics::WaterSurfaceRenderPipeline::kVertexArenaAlign; a.size = 8ull << 20; a.freeList = {{0, a.size / a.align * a.align}};
+    std::vector<std::pair<VkDeviceSize, VkDeviceSize>> live;
+    uint32_t h = 11u;
+    VkDeviceSize failed = 0, off = 0;
+    for (int k = 0; k < 100000 && !failed; ++k) {
+        h = h * 1664525u + 1013904223u;
+        if (!live.empty() && (h >> 28) < 5) { const size_t i = (h >> 8) % live.size(); a.release(live[i].first, live[i].second); live.erase(live.begin() + static_cast<long>(i)); continue; }
+        const VkDeviceSize bytes = vsz * (4000 + (h >> 12) % 2000);   // a tile's vertices
+        if (a.alloc(bytes, off)) live.push_back({off, bytes}); else failed = bytes;
+    }
+    ASSERT_GT(failed, 0u) << "the arena never filled";
+    VkDeviceSize probe = 0;
+    EXPECT_FALSE(a.alloc(failed, probe)) << "control: full, the block does not fit";
+    const auto before = live;
+    const VkDeviceSize oldSize = a.size;
+    a.grow(oldSize * 2);
+    EXPECT_EQ(a.size, oldSize * 2);
+    EXPECT_TRUE(a.alloc(failed, off)) << "grown, the block that did not fit fits";
+    live.push_back({off, failed});
+    EXPECT_GT(off + failed, oldSize / a.align * a.align) << "it reaches past the old end (no gap below fitted it)";
+    const auto kept = decltype(live)(live.begin(), live.end() - 1);
+    EXPECT_EQ(kept, before) << "every block in use kept its offset";
+    std::sort(live.begin(), live.end());
+    for (size_t i = 1; i < live.size(); ++i) EXPECT_LE(live[i - 1].first + (live[i - 1].second + a.align - 1) / a.align * a.align, live[i].first) << "no overlap";
+    EXPECT_LE(live.back().first + live.back().second, a.size);
+    for (const auto& [o, b] : a.freeList) EXPECT_LE(o + b, a.size);
+    std::printf("  filled at %zu blocks (%.1f of %.1f MB in use), grown to %.1f MB; the failed block now at %.1f MB\n", before.size(),
+                static_cast<double>(a.used - (failed + a.align - 1) / a.align * a.align) / (1 << 20), static_cast<double>(oldSize) / (1 << 20),
+                static_cast<double>(a.size) / (1 << 20), static_cast<double>(off) / (1 << 20));
+}
 }  // namespace Phyxel::Core::Water
