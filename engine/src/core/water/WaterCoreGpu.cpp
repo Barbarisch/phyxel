@@ -1,6 +1,7 @@
 // WaterCoreGpu — docs/WaterCore.md §15.11, slice 3 (fills, device-local, one submission per call); §26.6 P2a (bricks).
 #include "core/water/WaterCoreGpu.h"
 #include "core/water/WaterSurfaceMesh.h"   // SurfaceColumn (the surface buffer layout)
+#include "solver_shared.h"                  // 31: the pressure windows' budgets (DebrisShared)
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -17,11 +18,11 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_face_ops.comp.spv", "wc_face_ops.comp.spv", "wc_face_ops.comp.spv",
     "wc_column_ops.comp.spv", "wc_classify.comp.spv", "wc_rbgs.comp.spv",
     "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv", "wc_sources.comp.spv", "wc_surface.comp.spv",
-    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv", "wc_tall.comp.spv", "wc_rbgs_line.comp.spv", "wc_surface_mesh.comp.spv"};
+    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv", "wc_tall.comp.spv", "wc_rbgs_line.comp.spv", "wc_surface_mesh.comp.spv", "wc_body_pressure.comp.spv"};
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 12};   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 12, 9};   // 31: + BodyPressure (p, bricks, surfDense, requests, windows, data, slot map, solid, occ)   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -47,6 +48,7 @@ void WaterCoreGpu::shutdown() {
     if (m_device == VK_NULL_HANDLE) return;
     vkDeviceWaitIdle(m_device);
     for (Volume* v : std::vector<Volume*>(m_volumes)) destroyVolume(v);
+    for (Buffer& b : m_pwTest) destroyBuffer(b);   // 31 TEST
     if (m_fence) vkDestroyFence(m_device, m_fence, nullptr);
     if (m_pool) vkDestroyCommandPool(m_device, m_pool, nullptr);
     m_fence = VK_NULL_HANDLE; m_pool = VK_NULL_HANDLE; m_device = VK_NULL_HANDLE;
@@ -103,6 +105,32 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     return true;
 }
 
+void WaterCoreGpu::setPressureWindowTargets(VkBuffer wins, VkDeviceSize winsBytes, VkBuffer data, VkDeviceSize dataBytes, VkBuffer of, VkDeviceSize ofBytes) {
+    m_pwWins = Buffer{}; m_pwWins.buf = wins; m_pwWins.bytes = winsBytes;
+    m_pwData = Buffer{}; m_pwData.buf = data; m_pwData.bytes = dataBytes;
+    m_pwOf = Buffer{};   m_pwOf.buf = of;     m_pwOf.bytes = ofBytes;
+    for (Volume* v : m_volumes) { settle(*v); bindPipelines(*v); }   // nothing in flight reads the old descriptors
+}
+
+bool WaterCoreGpu::makePressureTargetsForTest(std::string* err) {
+    const VkDeviceSize b[3] = {static_cast<VkDeviceSize>(DebrisShared::MAX_PRESSURE_WINDOWS) * 48, static_cast<VkDeviceSize>(DebrisShared::PRESSURE_WINDOW_FLOATS) * 4, 65536 * 4};
+    for (int i = 0; i < 3; ++i) if (!m_pwTest[i].buf && !createBuffer(m_pwTest[i], b[i], true, err)) return false;
+    setPressureWindowTargets(m_pwTest[0].buf, b[0], m_pwTest[1].buf, b[1], m_pwTest[2].buf, b[2]);
+    return true;
+}
+
+bool WaterCoreGpu::readPressureWindowForTest(uint32_t k, int32_t origin[4], int32_t dims[4], float meta[4], std::vector<float>& map) const {
+    if (!m_pwTest[0].mapped || k >= DebrisShared::MAX_PRESSURE_WINDOWS) return false;
+    vkDeviceWaitIdle(m_device);
+    const char* w = static_cast<const char*>(m_pwTest[0].mapped) + k * 48;
+    std::memcpy(origin, w, 16); std::memcpy(dims, w + 16, 16); std::memcpy(meta, w + 32, 16);
+    const size_t n = static_cast<size_t>(dims[0]) * dims[1] * dims[2];
+    if (n == 0 || static_cast<size_t>(dims[3]) + n > DebrisShared::PRESSURE_WINDOW_FLOATS) return false;
+    map.resize(n);
+    std::memcpy(map.data(), static_cast<const float*>(m_pwTest[1].mapped) + dims[3], n * 4);
+    return true;
+}
+
 void WaterCoreGpu::bindPipelines(Volume& vol) {
     auto bindAll = [](Vulkan::ComputePipeline& p, std::initializer_list<const Buffer*> bufs) {
         uint32_t i = 0; for (const Buffer* b : bufs) { p.bindBuffer(i++, b->buf, b->bytes); } p.updateDescriptors();
@@ -120,6 +148,10 @@ void WaterCoreGpu::bindPipelines(Volume& vol) {
     // 29 S1: bindings 6 / 7 are the test expansion's (expandSurfaceForTest rebinds them); otherwise placeholders
     bindAll(*vol.pipes[SurfaceMesh], {&vol.surfDense, &vol.meshCorners, &vol.meshMeta, &vol.meshList, &vol.meshArgs, br, &vol.meshList, &vol.meshArgs, &vol.solidTopD, &vol.colAgg, &vol.motionRef, &vol.motionOut});
     bindAll(*vol.pipes[Classify],   {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.src, &vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.solid, br});
+    {   // 31: the debris solver's window buffers (placeholders - this volume's own request buffer - until they are set; nothing dispatches then)
+        const bool t = m_pwWins.buf != VK_NULL_HANDLE;
+        bindAll(*vol.pipes[BodyPressure], {&vol.p, br, &vol.surfDense, &vol.winReq, t ? &m_pwWins : &vol.winReq, t ? &m_pwData : &vol.winReq, t ? &m_pwOf : &vol.winReq, &vol.solid, &vol.occ});
+    }
     bindAll(*vol.pipes[Rbgs],       {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res, br});
     // binding 8 = the lattice before the halo pass: a dedicated scratch, because uOld/vOld/wOld are
     // the FLIP delta base and overwriting them here left the particles with a ~zero delta (they
@@ -257,6 +289,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
            && createBuffer(vol->colAgg, (vol->bricked ? static_cast<size_t>(vol->bn.x) * vol->bn.z : 1) * 8, false, err)   // 29 S2
            && createBuffer(vol->motionRef, (vol->bricked ? vol->dColumns : 1) * 4, false, err) && createBuffer(vol->motionOut, 64, false, err)
            && createBuffer(vol->motionOutHost, 64, true, err)
+           && createBuffer(vol->winReq, static_cast<VkDeviceSize>(DebrisShared::MAX_PRESSURE_WINDOWS) * sizeof(PressureWindowReq), true, err)   // 31
            && (!vol->bricked || createBuffer(vol->surfUp, vol->dColumns * (sizeof(Core::Water::SurfaceColumn) + 4), true, err));
     vol->meshListCap = vol->bricked ? static_cast<uint32_t>(vol->dColumns * 4) : 0u;
     { static uint64_t s_serial = 0; vol->serial = ++s_serial; }
@@ -324,7 +357,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                       &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->scratch, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum, &vol->unitMap,
                       &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->meshArgsHost, &vol->surfUp, &vol->colAgg,
-                      &vol->motionRef, &vol->motionOut, &vol->motionOutHost})
+                      &vol->motionRef, &vol->motionOut, &vol->motionOutHost, &vol->winReq})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -2391,6 +2424,17 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     copy(cmd, vol.lists, vol.staging, 16, 0, vol.offSurf);
     if (surfPartial) { vol.colCount = fullCols; fillPushBricks(vol, push); push.setFrozenOn(0); }
     stamp(cmd, vol, TsSurfaceCopy);
+    if (gpuSurf && m_pwWins.buf != VK_NULL_HANDLE && !vol.windows.empty() && vol.winReq.mapped) {
+        // 31 (M4): the pressure windows for the debris solver - after the last substep (its p), with the dense field (the recorded
+        // columns' levels) current. The frame before's debris ticks may still read them (one queue: an execution dependency).
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+        const size_t nw = std::min<size_t>(vol.windows.size(), DebrisShared::MAX_PRESSURE_WINDOWS);
+        std::memcpy(vol.winReq.mapped, vol.windows.data(), nw * sizeof(PressureWindowReq));
+        WcPush wp = push; fillPushBricks(vol, wp); wp.setFrozenOn(0);
+        wp.iparam = static_cast<int32_t>(nw);
+        dispatch(cmd, *vol.pipes[BodyPressure], wp, nw * 64);
+        vol.lastWindows = static_cast<uint32_t>(nw);
+    } else vol.lastWindows = 0;
     push.param0 = 0.0f; push.param1 = 0.0f; push.iparam = 0;
     stamp(cmd, vol, TsReduceSurface);
     if (vol.sourceCount > 0) copy(cmd, vol.sources, vol.staging, vol.sourceCount * sizeof(GpuSource), 0, vol.offSources);   // 26.16: the totals ride the call

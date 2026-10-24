@@ -55,6 +55,7 @@ GpuParticlePhysics::~GpuParticlePhysics() {
 bool GpuParticlePhysics::initialize(Vulkan::VulkanDevice* vulkanDevice, const std::string& /*shaderDir*/) {
     m_device    = vulkanDevice->getDevice();
     m_physDevice = vulkanDevice->getPhysicalDevice();
+    m_vkdev = vulkanDevice;
 
     if (!createBuffers(vulkanDevice))             return false;
     if (!createSolverBuffers(vulkanDevice))       return false;
@@ -599,6 +600,14 @@ bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
         static_cast<VkDeviceSize>(MAX_PARTICLES + DebrisShared::MAX_KINEMATIC) * 208,   // + mover slots (Phase 2)
         m_solverBodyBuffer, m_solverBodyMem);
 
+    // WaterCore 31 (M4): the pressure windows (written by the water volumes' calls, read by solver_integrate)
+    m_pwWinBytes  = static_cast<VkDeviceSize>(DebrisShared::MAX_PRESSURE_WINDOWS) * sizeof(DebrisShared::PressureWindowGpu);
+    m_pwDataBytes = static_cast<VkDeviceSize>(DebrisShared::PRESSURE_WINDOW_FLOATS) * sizeof(float);
+    m_pwOfBytes   = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
+    dev->createStorageBuffer(m_pwWinBytes,  m_pwWinBuffer,  m_pwWinMem,  VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    dev->createStorageBuffer(m_pwDataBytes, m_pwDataBuffer, m_pwDataMem, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    dev->createStorageBuffer(m_pwOfBytes,   m_pwOfBuffer,   m_pwOfMem,   VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
     // Constraints: 128 bytes each (AVBD + warmstart fields: featureKey, wsKey, isNew, stick, C_init_t1/2)
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 128,
@@ -690,11 +699,14 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
 
     // solver_integrate: bodies, materials, particles, character collider, state (wake bits)
     // + bindings 3/4: this frame slot's water directory + tiles (Phase 6c).
-    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 7, sizeof(IntegratePC),
+    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 10, sizeof(IntegratePC),
                                       OCC_FRAME_SLOTS)) return false;
     m_solverIntegratePass.bindBuffer(0, m_solverBodyBuffer,   bodySize);
     m_solverIntegratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
     m_solverIntegratePass.bindBuffer(2, m_particleBuffer,     particleSize);
+    m_solverIntegratePass.bindBuffer(7, m_pwWinBuffer,  m_pwWinBytes);    // WaterCore 31: the pressure windows
+    m_solverIntegratePass.bindBuffer(8, m_pwDataBuffer, m_pwDataBytes);
+    m_solverIntegratePass.bindBuffer(9, m_pwOfBuffer,   m_pwOfBytes);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
         m_solverIntegratePass.bindBufferInSet(slot, 3, m_waterDirBuffer[slot],
             static_cast<VkDeviceSize>(WATER_DIR_CHUNKS) * WATER_DIR_CHUNKS * sizeof(uint32_t));
@@ -896,7 +908,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 2. Integrate: apply gravity + damping, predict position ----
     {
-        IntegratePC pc{ count, FIXED_DT, GRAVITY, m_solverFlags, m_waterPC };
+        IntegratePC pc{ count, FIXED_DT, GRAVITY, m_solverFlags, m_waterPC, { m_pressureTag, m_pressureOn ? 1u : 0u, 0u, 0u } };
         m_solverIntegratePass.bind(cmd, m_frameSlot);
         m_solverIntegratePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverIntegratePass.dispatch(cmd, groups);
@@ -1496,6 +1508,19 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
                       m_eventBuffer[m_frameSlot]);
         m_eventsWritten[m_frameSlot] = true;
     }
+    if (m_pwOfBuffer != VK_NULL_HANDLE && !m_pwCleared) {   // WaterCore 31: no body has a window until a water call writes one
+        vkCmdFillBuffer(cmd, m_pwOfBuffer, 0, VK_WHOLE_SIZE, 0u);
+        insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                      VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, m_pwOfBuffer);
+        m_pwCleared = true;
+    }
+    if (m_physicsTicks > 0 && m_pressureOn) {
+        // WaterCore 31: this frame's windows were written by the water volumes' calls, submitted earlier on this queue - a barrier's
+        // first scope covers every command submitted before it, so the ticks read the finished windows
+        VkMemoryBarrier mb{}; mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; mb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+    }
     for (uint32_t tick = 0; tick < m_physicsTicks; ++tick) {
         const float lifetimeDtThisTick = (tick == 0) ? m_lastRealDt : 0.0f;
         // Per-pass GPU timing only on the first tick (query-budget safe).
@@ -1602,6 +1627,7 @@ void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
         m_wetWritten[slot] = false;
         const auto* ww = static_cast<const uint32_t*>(m_wetMapped[slot]);
         const uint32_t wc = ww[0], wsN = std::min(wc, DebrisShared::MAX_WET_BODIES);
+        m_wetStats.pressPushed = ww[1]; m_wetStats.pressFellBack = ww[2]; m_wetStats.pressNoWindow = ww[3];   // WaterCore 31
         m_wetStats.recordsTotal += wc; m_wetStats.recordsDropped += wc - wsN;
         const auto* wr = reinterpret_cast<const DebrisShared::WetBodyGpu*>(reinterpret_cast<const char*>(ww) + DebrisShared::WET_HEADER_BYTES);
         const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -1615,6 +1641,7 @@ void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
             b.halfExtents = glm::vec3(wr[k].halfExt.x, wr[k].halfExt.y, wr[k].halfExt.z);
             b.velocity = glm::vec3(wr[k].vel.x, wr[k].vel.y, wr[k].vel.z);
             b.slot = bslot; b.serial = slotSerial(bslot); b.ageSeconds = age;
+            b.pressAccY = wr[k].halfExt.w; b.pressCap = wr[k].vel.w;   // 31 (0 when the pressure path did not run)
             auto it = at.find(bslot);
             if (it == at.end()) { at.emplace(bslot, latest.size()); latest.push_back(b); } else latest[it->second] = b;
         }
@@ -1673,6 +1700,34 @@ void GpuParticlePhysics::setWater(const glm::ivec2& dirMinChunkXZ, bool implicit
     int seaBits = 0;
     std::memcpy(&seaBits, &seaLevel, sizeof(int));
     m_waterPC = DebrisShared::ivec4{dirMinChunkXZ.x, dirMinChunkXZ.y, implicitSea ? 1 : 0, seaBits};
+}
+
+bool GpuParticlePhysics::readPressureWindow(uint32_t slot, DebrisShared::PressureWindowGpu& hdr, std::vector<float>& data) {
+    if (!m_vkdev || m_pwOfBuffer == VK_NULL_HANDLE || slot >= MAX_PARTICLES) return false;
+    vkDeviceWaitIdle(m_device);
+    const VkDeviceSize maxData = static_cast<VkDeviceSize>(DebrisShared::PRESSURE_WINDOW_MAX_DIM) * DebrisShared::PRESSURE_WINDOW_MAX_DIM * DebrisShared::PRESSURE_WINDOW_MAX_DIM * 4u;
+    VkBuffer st = VK_NULL_HANDLE; VkDeviceMemory sm = VK_NULL_HANDLE; void* mp = nullptr;
+    if (!createHostBuffer(64 + maxData, st, sm, mp, "pressure window readback")) return false;
+    auto copy = [&](VkBuffer src, VkDeviceSize off, VkDeviceSize bytes, VkDeviceSize dst) {
+        VkCommandBuffer cmd = m_vkdev->beginSingleTimeCommands();
+        VkBufferCopy r{off, dst, bytes}; vkCmdCopyBuffer(cmd, src, st, 1, &r);
+        m_vkdev->endSingleTimeCommands(cmd);
+    };
+    bool ok = false;
+    copy(m_pwOfBuffer, slot * 4u, 4, 0);
+    uint32_t k = 0; std::memcpy(&k, mp, 4);
+    if (k > 0 && k <= DebrisShared::MAX_PRESSURE_WINDOWS) {
+        copy(m_pwWinBuffer, (k - 1) * sizeof(DebrisShared::PressureWindowGpu), sizeof(DebrisShared::PressureWindowGpu), 0);
+        std::memcpy(&hdr, mp, sizeof(hdr));
+        const VkDeviceSize n = static_cast<VkDeviceSize>(hdr.dims.x) * hdr.dims.y * hdr.dims.z;
+        if (n > 0 && n * 4 <= maxData) {
+            copy(m_pwDataBuffer, static_cast<VkDeviceSize>(hdr.dims.w) * 4u, n * 4, 64);
+            data.resize(static_cast<size_t>(n)); std::memcpy(data.data(), static_cast<const char*>(mp) + 64, static_cast<size_t>(n * 4));
+            ok = true;
+        }
+    }
+    vkUnmapMemory(m_device, sm); vkDestroyBuffer(m_device, st, nullptr); vkFreeMemory(m_device, sm, nullptr);
+    return ok;
 }
 
 bool GpuParticlePhysics::createHostBuffer(VkDeviceSize size, VkBuffer& buf, VkDeviceMemory& mem, void*& mapped,
@@ -2132,6 +2187,9 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_matTexBuffer,        m_matTexMem);
     destroyBuf(m_readbackBuffer,      m_readbackMem);
     destroyBuf(m_solverBodyBuffer,          m_solverBodyMem);
+    destroyBuf(m_pwWinBuffer,  m_pwWinMem);    // WaterCore 31
+    destroyBuf(m_pwDataBuffer, m_pwDataMem);
+    destroyBuf(m_pwOfBuffer,   m_pwOfMem);
     destroyBuf(m_constraintBuffer,          m_constraintMem);
     destroyBuf(m_solverStateBuffer,         m_solverStateMem);
     destroyBuf(m_warmstartBuffer,           m_warmstartMem);

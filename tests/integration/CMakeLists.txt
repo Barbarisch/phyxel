@@ -19,6 +19,7 @@ set(INTEGRATION_TEST_SOURCES
     WaterRippleGpuParityTest.cpp
     WaterPartialWakeTest.cpp
     WaterRecordTilesTest.cpp
+    WaterBodyPressureTest.cpp
     WaterTallCellTest.cpp
 )
 

@@ -1,0 +1,97 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// wc_body_pressure.comp - WaterCore 31 (M4): the WATER LEVEL round each wet body, for the debris solver (docs/WaterCore.md 31.7).
+// One workgroup per window: a 2-D map over the columns round a body (dims.x x dims.z; dims.y = 1) of the level of the water the body
+// sits in, written where the debris solver reads it (solver_integrate.comp: the body's push from the water, every tick, at its own pose,
+// = the hydrostatic pressure of that level integrated over its faces, water_body_force.glsl).
+//
+// 31.7 MEASURED why a level and not the solver's pressure: the volume's instantaneous p beside an entering 1 m block read -90 .. +200
+// m^2/s^2 at 1 m depth (+10 still) and -870 .. +940 under it - the projection's transients of one substep (water shoved aside in ~4 ms)
+// and an under-converged solve; a frame's ticks pushing with one substep's p multiplied them. The level is the water itself.
+//
+// Per column: the top of the run the body sits in (the highest run starting below the body's top - a splash film above it is not its
+// water; a recorded column: the record's level). Columns under the body (its footprint, `d.z` from the centre) are not read - the water a
+// moving body throws on top of itself (26.32's carry) or the cells its raster swallowed are not the pond's level: they take the levels
+// round them (the nearest readable column along +x, -x, +z, -z, inverse-distance weighted). A column with no water reads NaN.
+#define WC_BRICKS_BINDING 1
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 2) readonly buffer SurfD { float surfD[]; };   // Core::Water::SurfaceColumn, 16 floats a dense column
+// the host's requests: a = origin in VOLUME cells xyz + data offset; b = dims xyz (y = 1) + window index;
+// c = origin in WORLD cells xyz + the debris solver slot; d = h, frame tag (uint bits), the body's footprint radius (m), its top (world y)
+struct Req { ivec4 a; ivec4 b; ivec4 c; vec4 d; };
+layout(std430, set = 0, binding = 3) readonly buffer Reqs { Req reqs[]; };
+struct Win { ivec4 origin; ivec4 dims; vec4 meta; };   // solver_shared.h PHX_PRESSURE_WINDOW
+layout(std430, set = 0, binding = 4) buffer Wins { Win wins[]; };
+layout(std430, set = 0, binding = 5) buffer WinData { float winData[]; };
+layout(std430, set = 0, binding = 6) buffer WinOf { uint winOf[]; };
+
+#define kNaN uintBitsToFloat(0x7fc00000u)
+shared int sCap;
+int orderedBits(float f) { const int i = floatBitsToInt(f); return i >= 0 ? i : i ^ 0x7fffffff; }
+float orderedFloat(int i) { return intBitsToFloat(i >= 0 ? i : i ^ 0x7fffffff); }
+
+// the level of the water at volume column (x, z) a body whose top is at bodyTop sits in; NaN = none
+float columnLevel(int x, int z, float bodyTop) {
+    if (x < 0 || z < 0 || x >= pc.nx || z >= pc.nz) return kNaN;
+    const uint c = uint(x + pc.nx * z) * 16u;
+    const float runs = surfD[c + 9u];
+    if (runs < 0.0) return surfD[c] > surfD[c + 4u] ? surfD[c] : kNaN;   // a recorded column: the record's level
+    const int n = min(int(runs + 0.5), 4);
+    float best = kNaN;
+    for (int r = 0; r < n; ++r) {
+        const float top = surfD[c + uint(r)], bottom = surfD[c + 4u + uint(r)];
+        if (top > bottom && bottom < bodyTop && (isnan(best) || top > best)) best = top;
+    }
+    return best;
+}
+
+void main() {
+    const uint k = gl_WorkGroupID.x;
+    if (k >= uint(pc.iparam)) return;
+    const Req r = reqs[k];
+    const ivec3 dims = r.b.xyz;
+    const uint cols = uint(dims.x * dims.z);
+    const vec2 ctr = (vec2(r.c.x, r.c.z) + 0.5 * vec2(dims.x, dims.z)) * pc.h;   // the window is centred on the body
+    if (gl_LocalInvocationID.x == 0u) sCap = orderedBits(-3.0e38);
+    barrier();
+    // pass 1: the ring - every column outside the footprint reads its own level (and the highest of them is the window's cap)
+    for (uint i = gl_LocalInvocationID.x; i < cols; i += 64u) {
+        const int lx = int(i % uint(dims.x)), lz = int(i / uint(dims.x));
+        const vec2 cc = (vec2(r.c.x + lx, r.c.z + lz) + 0.5) * pc.h;
+        float lv = kNaN;
+        if (length(cc - ctr) > r.d.z) lv = columnLevel(r.a.x + lx, r.a.z + lz, r.d.w);
+        winData[uint(r.a.w) + i] = lv;
+        if (!isnan(lv)) atomicMax(sCap, orderedBits(lv));
+    }
+    memoryBarrierBuffer();
+    barrier();
+    // pass 2: the footprint - the nearest readable column along each axis, inverse-distance weighted (the ring's levels are written)
+    for (uint i = gl_LocalInvocationID.x; i < cols; i += 64u) {
+        const int lx = int(i % uint(dims.x)), lz = int(i / uint(dims.x));
+        const vec2 cc = (vec2(r.c.x + lx, r.c.z + lz) + 0.5) * pc.h;
+        if (length(cc - ctr) > r.d.z) continue;
+        float sw = 0.0, sl = 0.0;
+        for (int d = 0; d < 4; ++d) {
+            const ivec2 dir = d == 0 ? ivec2(1, 0) : (d == 1 ? ivec2(-1, 0) : (d == 2 ? ivec2(0, 1) : ivec2(0, -1)));
+            for (int s = 1; s < 48; ++s) {   // PRESSURE_WINDOW_MAX_DIM
+                const int qx = lx + dir.x * s, qz = lz + dir.y * s;
+                if (qx < 0 || qz < 0 || qx >= dims.x || qz >= dims.z) break;
+                const vec2 qc = (vec2(r.c.x + qx, r.c.z + qz) + 0.5) * pc.h;
+                if (length(qc - ctr) <= r.d.z) continue;   // still under the body
+                const float lv = winData[uint(r.a.w) + uint(qx + dims.x * qz)];
+                if (!isnan(lv)) { const float wgt = 1.0 / float(s); sw += wgt; sl += wgt * lv; }
+                break;   // the first column out of the footprint along this axis
+            }
+        }
+        winData[uint(r.a.w) + i] = sw > 0.0 ? sl / sw : kNaN;
+    }
+    if (gl_LocalInvocationID.x == 0u) {
+        const uint w = uint(r.b.w);
+        const float cap = orderedFloat(sCap);
+        wins[w].origin = r.c;
+        wins[w].dims = ivec4(dims, r.a.w);
+        wins[w].meta = vec4(r.d.x, r.d.y, cap > -1.0e38 ? cap : kNaN, 0.0);   // z: the highest level round the body (NaN: no water round it)
+        winOf[uint(r.c.w)] = w + 1u;
+    }
+}

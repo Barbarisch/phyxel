@@ -1,0 +1,94 @@
+{
+ "count": 20,
+ "size": 0.3333333333333333,
+ "rows": [
+  {
+   "fps_mean": 299.4022162918724,
+   "cpu_frame_ms_mean": 3.4438200062140822,
+   "gpu_frame_ms_median": 1.297552,
+   "water_host_phases_ms": 0.817,
+   "pressure": {
+    "asked": 20,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "on": true,
+    "tag": 586608,
+    "targets": true,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 20,
+    "window_cells": 2964,
+    "windows": 20
+   },
+   "wet_bodies": 20,
+   "push": true
+  },
+  {
+   "fps_mean": 215.8329375537758,
+   "cpu_frame_ms_mean": 4.723189508934555,
+   "gpu_frame_ms_median": 1.6939199999999999,
+   "water_host_phases_ms": 1.353,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "on": false,
+    "tag": 590940,
+    "targets": true,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "wet_bodies": 20,
+   "push": false
+  },
+  {
+   "fps_mean": 286.2809659697444,
+   "cpu_frame_ms_mean": 3.634135005995631,
+   "gpu_frame_ms_median": 1.290864,
+   "water_host_phases_ms": 0.747,
+   "pressure": {
+    "asked": 20,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "on": true,
+    "tag": 595750,
+    "targets": true,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 20,
+    "window_cells": 2964,
+    "windows": 20
+   },
+   "wet_bodies": 20,
+   "push": true
+  },
+  {
+   "fps_mean": 212.4246182434302,
+   "cpu_frame_ms_mean": 4.816685023251921,
+   "gpu_frame_ms_median": 1.69432,
+   "water_host_phases_ms": 1.348,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "on": false,
+    "tag": 600150,
+    "targets": true,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "wet_bodies": 20,
+   "push": false
+  }
+ ]
+}

@@ -1,6 +1,7 @@
 // WaterCoreManager — docs/WaterCore.md §5, §15.1 (Phase B engine integration).
 #include "core/water/WaterCoreManager.h"
 #include "core/water/WaterDroplets.h"
+#include "solver_shared.h"   // 31: the pressure windows' budgets
 #include <array>
 #include <algorithm>
 #include <cstring>
@@ -939,6 +940,44 @@ WaterCoreManager::SolidsFeed WaterCoreManager::setMovingSolids(const std::vector
         av.hadSolids = !mine.empty() || rep.wakeCells > 0;
     }
     return out;
+}
+
+WaterCoreManager::PressureWindowStats WaterCoreManager::setPressureWindows(const std::vector<PressureAsk>& asks, uint32_t tag) {
+    PressureWindowStats st; st.tag = tag; st.asked = static_cast<uint32_t>(asks.size());
+    if (!m_gpu) { m_pwStats = st; return st; }
+    std::unordered_map<Av*, std::vector<PressureWindowReq>> per;
+    for (auto& avp : m_avs) if (avp->gpuVol && avp->backend == "gpu" && avp->gpuVol->bricked) per[avp.get()];   // every GPU volume: cleared if none
+    uint32_t offset = 0;
+    const bool targets = m_gpu->pressureWindowTargetsSet();
+    for (const PressureAsk& a : asks) {
+        if (!targets) break;
+        Av* home = nullptr;
+        for (auto& [av, list] : per) {
+            const glm::vec3 lo(av->minVoxel), hi = glm::vec3(av->maxVoxel) + glm::vec3(1.0f);
+            if (glm::all(glm::greaterThanEqual(a.centre, lo)) && glm::all(glm::lessThan(a.centre, hi))) { home = av; break; }
+        }
+        if (!home) { ++st.outside; continue; }
+        const float h = home->h;
+        const float r = glm::length(a.halfExtents) + std::max(3.0f * h, a.speed * 0.1f);
+        const glm::ivec3 o(glm::floor((a.centre - glm::vec3(r)) / h)), m(glm::floor((a.centre + glm::vec3(r)) / h));
+        glm::ivec3 dims = m - o + glm::ivec3(1);
+        dims.y = 1;   // 31.7: a 2-D map of the water's level over the columns round the body (wc_body_pressure.comp)
+        // the clamps (solver_shared.h): a window wider than the cap, or past either budget, would overrun the fixed buffers
+        if (glm::any(glm::greaterThan(dims, glm::ivec3(static_cast<int>(DebrisShared::PRESSURE_WINDOW_MAX_DIM))))) { ++st.tooBig; continue; }
+        const uint32_t cells = static_cast<uint32_t>(dims.x * dims.y * dims.z);
+        if (st.windows >= DebrisShared::MAX_PRESSURE_WINDOWS || offset + cells > DebrisShared::PRESSURE_WINDOW_FLOATS) { ++st.overBudget; continue; }
+        PressureWindowReq q;
+        q.originWorld = o; q.originVol = o - home->grid->spec().origin; q.dims = dims;
+        if (WaterCoreGpu::s_pwShiftForTest) q.originVol.x += 1;   // TEST: the red control
+        q.dataOffset = static_cast<int32_t>(offset); q.index = static_cast<int32_t>(st.windows); q.slot = a.slot; q.h = h; std::memcpy(&q.tag, &tag, 4);
+        q.pad0 = glm::length(a.halfExtents);   // 31.7: the footprint's radius at any orientation - the ring lies outside it
+        q.pad1 = a.centre.y + glm::length(a.halfExtents);   // its top: a column's water is the run starting below it
+        per[home].push_back(q);
+        offset += cells; ++st.windows; st.cells += cells;
+    }
+    for (auto& [av, list] : per) m_gpu->setPressureWindows(*av->gpuVol, std::move(list));
+    m_pwStats = st;
+    return st;
 }
 
 void WaterCoreManager::markWritten(Av& av, const glm::vec3* wakeCentre, float wakeRadius) {

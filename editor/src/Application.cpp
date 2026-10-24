@@ -3754,7 +3754,7 @@ void Application::update(float deltaTime) {
                         const auto prev = m_displacing.find(id);
                         const bool on = speed > kDisplaceOnSpeed || (prev != m_displacing.end() && prev->second && speed > kDisplaceOffSpeed);
                         displacing[id] = on;
-                        if (!on) continue;   // at rest / bobbing: the table law carries it (see kDisplaceOnSpeed)
+                        if (!on || !m_displaceOn) continue;   // at rest / bobbing: the table law carries it (see kDisplaceOnSpeed); 31 TEST: off
                         Core::Water::MovingSolid m;
                         m.centre = w.centre + w.velocity * w.ageSeconds; m.halfExtents = w.halfExtents; m.velocity = w.velocity; m.fresh = w.fresh;
                         m.id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);   // never 0
@@ -3762,6 +3762,20 @@ void Application::update(float deltaTime) {
                     }
                 m_displacing.swap(displacing);
                 m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f));
+                {   // 31 (M4): the pressure windows - every wet body inside a GPU volume; written by this frame's water calls, read by
+                    // this frame's debris ticks (one queue, the calls submitted first)
+                    auto* gp = debrisRuntime->gpu();
+                    if (!waterCore->pressureWindowTargetsSet()) {
+                        const auto t = gp->pressureWindowTargets();
+                        if (t.wins != VK_NULL_HANDLE) waterCore->setPressureWindowTargets(t.wins, t.winsBytes, t.data, t.dataBytes, t.of, t.ofBytes);
+                    }
+                    const bool on = m_pressureForceOn && m_waterCouplingOn && !boxes.empty() && waterCore->pressureWindowTargetsSet();
+                    std::vector<Core::Water::WaterCoreManager::PressureAsk> asks;
+                    if (on) for (const auto& w : gp->wetBodies()) asks.push_back({w.centre + w.velocity * w.ageSeconds, w.halfExtents, glm::length(w.velocity), w.slot});
+                    ++m_pressureTag;
+                    waterCore->setPressureWindows(asks, m_pressureTag);
+                    gp->setPressureForce(on, m_pressureTag);
+                }
             }
             if (camera) waterCore->setViewPoint(camera->getPosition());   // 25.26 RC: ripple windows follow the camera
             { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
@@ -14474,11 +14488,38 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("enabled")) m_waterCouplingOn = cmd.params.value("enabled", true);
         if (cmd.params.contains("exchange")) m_waterExchangeOn = cmd.params.value("exchange", true);   // debris -> water only
         if (cmd.params.contains("solids")) m_waterSolidsOn = cmd.params.value("solids", true);         // 20: debris displaces water
+        if (cmd.params.contains("pressure_force")) m_pressureForceOn = cmd.params.value("pressure_force", false);   // 31: the water's pressure pushes debris
+        if (cmd.params.contains("displace")) m_displaceOn = cmd.params.value("displace", true);   // 31 TEST: bodies recorded but not rasterized
+        if (cmd.params.value("dump_window", false) && debrisRuntime && debrisRuntime->gpu() && !debrisRuntime->gpu()->wetBodies().empty()) {
+            // 31 DEBUG: the first wet body's pressure window - its centre column (and one 1 m off it), p per cell bottom-up
+            auto* g2 = debrisRuntime->gpu();
+            const auto& wb = g2->wetBodies().front();
+            Phyxel::DebrisShared::PressureWindowGpu hdr{}; std::vector<float> d;
+            nlohmann::json dj;
+            if (g2->readPressureWindow(wb.slot, hdr, d)) {
+                const int dx = hdr.dims.x, dy = hdr.dims.y, dz = hdr.dims.z;
+                auto col = [&](int ix, int iz) { nlohmann::json c = nlohmann::json::array();
+                    for (int iy = 0; iy < dy; ++iy) { const float v = d[ix + dx * (iy + dy * iz)]; c.push_back({(hdr.origin.y + iy + 0.5f) * hdr.meta.x, std::isnan(v) ? -999.0f : (v < -1e28f ? (v < -2.5e29f ? -3.0f : -2.0f) : v)}); }
+                    return c; };
+                dj = {{"origin", {hdr.origin.x, hdr.origin.y, hdr.origin.z}}, {"slot", hdr.origin.w}, {"dims", {dx, dy, dz}}, {"h", hdr.meta.x},
+                      {"cap", hdr.meta.z}, {"body", {wb.centre.x, wb.centre.y, wb.centre.z}}, {"centre_col", col(dx / 2, dz / 2)}, {"edge_col", col(1, dz / 2)}};
+            }
+            r["window_dump"] = dj;
+            return;
+        }
         if (cmd.params.contains("wake_rule") && waterCore) waterCore->setSolidWakeRule(cmd.params.value("wake_rule", true));   // 20.5 A/B (GPU volumes)
         const auto& k = m_lastKick;
         const auto& sf = m_solidsFeed;
         const auto* gp = debrisRuntime ? debrisRuntime->gpu() : nullptr;
         r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn}, {"solids", m_waterSolidsOn}, {"wake_rule", waterCore ? waterCore->solidWakeRule() : true},
+             {"displace", m_displaceOn},
+             {"pressure_force", [&] {   // 31: the windows asked and written, and what the debris ticks did with them (the last frame read back)
+                 const auto& ps = waterCore ? waterCore->pressureWindowStats() : Core::Water::WaterCoreManager::PressureWindowStats{};
+                 return nlohmann::json{{"on", m_pressureForceOn}, {"targets", waterCore && waterCore->pressureWindowTargetsSet()},
+                                       {"asked", ps.asked}, {"windows", ps.windows}, {"window_cells", ps.cells}, {"fallback_outside", ps.outside},
+                                       {"fallback_too_big", ps.tooBig}, {"fallback_over_budget", ps.overBudget}, {"tag", ps.tag},
+                                       {"ticks_pushed", gp ? gp->wetStats().pressPushed : 0u}, {"ticks_fell_back", gp ? gp->wetStats().pressFellBack : 0u},
+                                       {"ticks_no_window", gp ? gp->wetStats().pressNoWindow : 0u}}; }()},
              {"moving_solids", {{"volumes", sf.volumes}, {"bodies", sf.bodies}, {"cells", sf.rasterCells}, {"body_volume_m3", sf.bodyVolume},
                                 {"fresh_cells", sf.freshCells}, {"wake_cells", sf.wakeCells}, {"cpu_rate_cells", sf.rateCells}, {"cpu_rate_m3s", sf.rate},
                                 {"clamped", sf.clamped}, {"flip_refused", sf.flipRefused},
@@ -14490,7 +14531,8 @@ void Application::registerWaterCommands() {
                  if (gp) for (const auto& w : gp->wetBodies()) {
                      if (a.size() >= 16) break;
                      const glm::vec3 c = w.centre + w.velocity * w.ageSeconds;
-                     a.push_back({{"centre", {c.x, c.y, c.z}}, {"velocity", {w.velocity.x, w.velocity.y, w.velocity.z}}, {"half", w.halfExtents.y}});
+                     a.push_back({{"centre", {c.x, c.y, c.z}}, {"velocity", {w.velocity.x, w.velocity.y, w.velocity.z}}, {"half", w.halfExtents.y},
+                                  {"press_acc_y", w.pressAccY}, {"press_cap", w.pressCap}});   // 31: the water's push (pressure path) + its cap
                  }
                  return a; }()},
              {"debris_exchange", {{"frames", m_exchangeStats.frames}, {"records", m_exchangeStats.records}, {"applied", m_exchangeStats.applied},

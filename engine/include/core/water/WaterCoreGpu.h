@@ -134,6 +134,16 @@ struct WaterHostProfile {
     static void reset() { ms.clear(); calls.clear(); frames = 0; }
 };
 
+/// 31 (M4): one pressure window a volume's call writes (wc_body_pressure.comp's Req, std430): a dense box of cells round a wet body.
+struct PressureWindowReq {
+    glm::ivec3 originVol{0}; int32_t dataOffset = 0;    ///< origin in the VOLUME's cells; the window's first float in the data buffer
+    glm::ivec3 dims{0};      int32_t index = 0;         ///< cells a side (<= PRESSURE_WINDOW_MAX_DIM); the window's index (< MAX_PRESSURE_WINDOWS)
+    glm::ivec3 originWorld{0}; uint32_t slot = 0;       ///< origin in WORLD cells (floor(x / h)); the body's debris solver slot
+    float h = 0.0f; uint32_t tag = 0; float pad0 = 0.0f, pad1 = 0.0f;   ///< the volume's cell size; the frame tag; pad0 = the body's
+                                                                        ///< footprint radius, pad1 = its top (31.7: the level map's ring and run)
+};
+static_assert(sizeof(PressureWindowReq) == 64, "wc_body_pressure.comp Req");
+
 class WaterCoreGpu {
 public:
     struct Buffer {
@@ -317,10 +327,14 @@ public:
         float fieldMinTop = 0.0f; double fieldWaterSum = 0.0; bool fieldStatsValid = false;
         // 29 S2: motion on the device (takeMotion): the per-column reference tops, the call's result
         Buffer motionRef, motionOut, motionOutHost;
+        // 31 (M4): this call's pressure windows (the host's requests, written into winReq at submit; wc_body_pressure.comp)
+        Buffer winReq;
+        std::vector<PressureWindowReq> windows;
+        uint32_t lastWindows = 0;   // the windows the last recorded call wrote
         struct Motion { bool fresh = false; int riseCols = 0, flowCols = 0; float maxRise = 0.0f, maxFlow = 0.0f; int x0 = 0, x1 = -1, z0 = 0, z1 = -1; float y0 = 0.0f, y1 = 0.0f; } motion;
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
-                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, SurfaceMesh, KernelCount };   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)   // 29 S1: + SurfaceMesh
+                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, SurfaceMesh, BodyPressure, KernelCount };   // 31: + BodyPressure   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)   // 29 S1: + SurfaceMesh
     static constexpr size_t kMaxMapEntries = 4u << 20;   ///< 26.6: brick-map cap (16 MB) - a larger box is refused (world scale is P5)
     static constexpr int kMaxSources = 64;
     static constexpr int kMaxMomentum = 256;   ///< 26.26: momentum records a call can take (more are counted as dropped)
@@ -530,6 +544,18 @@ public:
     bool surfaceReady(const Volume& vol) const { return vol.surfaceValid; }
     /// 29 S4: the readable surface covers only the awake columns (a partial read keeps every other column - a recorded tile's marks too)
     bool surfacePartial(const Volume& vol) const { return !vol.hostSurfCols.empty(); }
+    /// 31 (M4, docs/WaterCore.md 31.2): where the windows go - the debris solver's buffers (GpuParticlePhysics::pressureWindowTargets).
+    /// Unset (null) = no window is ever written (every wet body keeps the table law).
+    void setPressureWindowTargets(VkBuffer wins, VkDeviceSize winsBytes, VkBuffer data, VkDeviceSize dataBytes, VkBuffer of, VkDeviceSize ofBytes);
+    bool pressureWindowTargetsSet() const { return m_pwWins.buf != VK_NULL_HANDLE; }
+    /// The windows this volume's NEXT call writes (after its last substep): replaces the last frame's. Indices and data offsets are
+    /// global across the volumes (the host assigns them inside the budgets of solver_shared.h).
+    void setPressureWindows(Volume& vol, std::vector<PressureWindowReq> w) { vol.windows = std::move(w); }
+    /// TEST (31): window targets owned here, host-visible (no debris solver in the test), and a window's header + map read back
+    bool makePressureTargetsForTest(std::string* err);
+    bool readPressureWindowForTest(uint32_t k, int32_t origin[4], int32_t dims[4], float meta[4], std::vector<float>& map) const;
+    /// TEST (31): the RED control - every window's volume origin one column off in x (the map then is not the column it says)
+    static inline bool s_pwShiftForTest = false;
     /// 29 S2: the collected call's motion (the rising columns' box in the volume's cells, their tops' range, the counts) - `take`
     /// consumes it (once per call); false when the device surface is off for this volume
     bool motionResult(Volume& vol, Volume::Motion& out, bool take) const {
@@ -646,6 +672,8 @@ private:
     void recordParticleTransport(VkCommandBuffer cmd, Volume& vol, WcPush push);
     float            m_omega = 1.85f;   // measured: residual 0.14 at 40 sweeps on the 10 m column (1.6 at 1.7, 8.2 at 1.0); see GpuRbgsConvergenceScan
     std::vector<Volume*> m_volumes;
+    Buffer m_pwWins, m_pwData, m_pwOf;   // 31: not owned (the debris solver's); buf + bytes only
+    Buffer m_pwTest[3];                   // 31 TEST: owned host-visible targets (makePressureTargetsForTest)
 };
 
 }}} // namespace Phyxel::Core::Water

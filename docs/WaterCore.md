@@ -85,6 +85,9 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
    core cannot carry a swell).
 
 **Open small-body items** (polish and features; none blocks the path above):
+- *Found 2026-10-24 (31.9):* debris cannot see RECORDED water beyond 48 m of the camera and does not wake it (a floater thrown into
+  a pond that has slept sinks when the camera is far); the tall-cell floor depends on the volume's box (17 cm in a dam break).
+- *M4 (31): the water's push on floaters* - BUILT, OFF by default, not signed off (`water_coupling {pressure_force}`).
 - *Feel:* spiky water on a dropped stone - cause proved, waits for a repeatable rig (26.32) - and a 0.84 m late jet; wood
   floats high and a floating block's pond never sleeps (M4, §20.6); short waves on a half-full cell keep 0.53-0.82 per swing
   (§24.11); added mass (§24.10); the still-pond phantom current not re-measured (§19.6); water under a solid lid does not
@@ -8957,7 +8960,7 @@ break) cannot be capped that way - handing it to the record would change where i
 tier needs an answer (cheaper cells, a slower step that still ends in the same place, or a declared exception the owner
 approves). It is designed in the fit step, not guessed now.
 
-## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: STEP 0 MEASURED; DESIGN
+## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: BUILT, OFF by default, not signed off (31.8); two defects found (31.9)
 
 **Why now.** The owner's order (2026-10-24): small bodies, physics first, the keys being floating debris and disturbing the surface.
 M4 (20.6 v2) is the cure 19.3, 20.6, 24.8 and the displacement gate's comment (`Application.h` kDisplaceOnSpeed) all point to.
@@ -9078,6 +9081,85 @@ one call's p, a force a pure function of a window and a pose); API (31.4); tiers
 Rig vs shipped: `auto_sleep` off (the volume kept, its sleep test read) except for item 7's run; spin 0 for the repeatable drops,
 the old random spin in one run. Tiers: no knob (a tier may not change where a floater ends up); cost measured in a realistic scene
 (a broken crate's ~20 pieces in the pond) and a worst case (500 wet bodies after a blast), whole frame, CPU and GPU.
+
+### 31.7 Built (2026-10-24) - what the build found, and the design it ended on (where it differs from 31.2-31.6, this wins)
+
+**Built as designed:** the shared force function (`shaders/water_body_force.glsl`, compiled as C++ by `core/water/WaterBodyForce.h`
+for `WaterBodyForceTest`), per-body windows written by each volume's call (`wc_body_pressure.comp`, after the last substep) into
+debris-owned buffers (`GpuParticlePhysics::pressureWindowTargets`, bindings 7-9 of `solver_integrate`), the host's requests
+(`WaterCoreManager::setPressureWindows`, budgets clamped and counted), the switch `water_coupling {pressure_force}` (OFF by default)
+with its echo, and the per-tick counters in the wet-body header. Five findings changed the design on the way:
+
+1. **Midpoint samples clipped at the waterline pushed a tilted block sideways** (up to 3 % of g in still water - it would drift).
+   Each patch now reads the water's LEVEL near its lowest point and integrates its clipped depth exactly (closed form): still water
+   is Archimedes at any tilt to the Monte Carlo's noise (worst 0.0020 over 60 orientations), no sideways push.
+2. **The volume's instantaneous pressure is not a force** (measured, `water_coupling {dump_window}`): beside an entering 1 m block
+   it read -90 .. +200 m^2/s^2 at 1 m depth (+10 still) and -870 .. +940 under it - the projection's transients of one substep and an
+   under-converged solve; a frame's ticks pushing with one substep's p multiplied them (the block dove at ~7 g, flickered between 0
+   and 18 m/s^2 of push). **The window is a 2-D LEVEL map** instead: per column round the body, the top of the run it sits in (the
+   highest run starting below its top; a recorded column's record level). The push is that level's hydrostatic pressure over the
+   faces - Archimedes with the water actually round the body, so a wave's slope still pushes and tilts it.
+3. **A rasterized body is a pump** (the water it overlaps is pushed out by a source, never sucked back): its pressure implied
+   levels metres above any water and bounced a 1 m block at 1-3 m/s. The map never reads the FOOTPRINT's own columns - the water a
+   moving body throws on top of itself (26.32's carry: the cap that launched it, 31.1) and the cells its raster swallowed are not the
+   pond's level; the footprint takes the ring's levels (nearest readable column along +-x, +-z, inverse-distance weighted), and no
+   level may exceed the ring's highest (`levelCap`).
+4. **The raster runs ahead of an entering body** (placed at the PREDICTED pose): read under its bottom face, a 1 m block saw no water
+   and fell to the floor at free-fall speed; and a block **resting flat on the floor read solid** under it - a perfect seal, pressed
+   down. Both are gone with the level map (the level comes from round the body, so water seeps under it as in a real pond).
+5. **A floater fell asleep mid-bob** (31.1 item 2): the sleep test counts 0.5 s under 0.05 m/s, which a damped bob passes at its
+   turning points. A FLOATER (buoyancy ratio > 1) whose push and gravity disagree by more than 0.3 m/s^2 (~7 mm off a 1/3 m block's
+   draft) is not "slow" that tick (`PARTICLE_WATER_UNSETTLED`, solver_sync_out). Sinkers are not affected (a stone on the floor is
+   always "off balance" - the floor holds the rest).
+
+What the pressure path does NOT do (stated): the solver's dynamic pressure (a jet or a current hitting a body) stays the form drag
+on the velocity relative to the water, as before; true two-way coupling of the pressure (the body's velocity an unknown of the
+solve, Batty-style) is the way to the full integral and is not built.
+
+### 31.8 Result (2026-10-24): BUILT, OFF by default (`water_coupling {pressure_force: true}`), not signed off
+
+**L4, the five drops of 31.1 + a stone** (`tools/water_float_rest.py --pressure`, Small bench, Release, the same pond and spawns;
+evidence `docs/evidence/water_core_m4/float_rest_m4_level_sleep.json`; before = `float_rest_before.json`):
+
+| run | before (table law) | after (the water's push) |
+|---|---|---|
+| 1/3 m placed | draft 0.706; pond asleep again 25 s | draft **0.703**; 25.2 s |
+| 1/3 m from 1 m | thrown to 19.8 m every ~1.5 s; pond never sleeps | draft **0.702**, highest after entry 16.52; **26.6 s** |
+| 1/3 m tumbling | thrown to 19.9 m; never sleeps | rests (16.53 at most; its draft is not measured: it rests rotated); 26.7 s |
+| 1/9 m placed | draft 0.638 (asleep mid-bob) | draft **0.680**; 24.9 s |
+| 1 m placed | thrown to 19.6 m every ~1.3 s; never sleeps | draft **0.692**, highest 16.43; **26.7 s** |
+| stone 1/3 m from 1 m | - | on the floor (15.167), asleep 0.48 s; 26.4 s |
+
+Every axis-aligned Wood block within 0.70 +- 0.03 (31.3's gate), none rises after entering, every pond asleep again within 30 s. The
+proof of the pump (31.7 item 3): the push with displacement OFF (`water_coupling {displace: false}`, TEST) rested every block too
+(`float_rest_m4_on_nodisplace.json`); with displacement ON before the level map, the 1 m block bounced 17.0-17.6 m.
+**The hand-over** (`tools/water_float_handover.py`, the pond forced to sleep under a resting block): 0.0 mm for 1/3 m and 1 m blocks
+(drafts 0.700 / 0.693 before and after) - the block was asleep through it, so this shows the hand-over does not disturb it; the
+table law's own rest on the record was 0.651 (asleep mid-bob - 31.7 item 5 is the pressure path's only).
+**Unit:** `WaterBodyForceTest` 10/10 (Archimedes at any tilt, the cap, the floor seal, the raster ahead, the level cap - each with
+its control). **GPU:** `WaterBodyPressureTest` - the map equals the host's surface field on a dam break (0 of 120 ring columns off);
+RED one column off: 120 off; a box 5 m wider: 0 of 144 cells differ (tall cells off - 31.9 a). **Gates:** the GPU water suite 60/62
+(the 2 known failures), the unit water suite 323/323, `debris_settle_bench` the same verdicts as `water26_25` (drop_pile, blast,
+box_through_pile the known failures).
+
+**Cost** (`tools/water_float_cost.py`, a fresh pond and drop per window, 2-7 s after it, interleaved): 20 blocks - push ON CPU frame
+3.44 / 3.63 ms, GPU frame 1.30 / 1.29 ms, 299 / 286 fps; OFF 4.72 / 4.82 ms, 1.69 / 1.69 ms, 216 / 212 fps. 500 1/9 m blocks - ON
+10.0 / 10.6 ms, 5.49 / 3.48 ms, 114 / 107 fps; OFF 12.6 / 11.5 ms, 8.10 / 7.79 ms, 88 / 90 fps. **The push's frames are cheaper
+because the blocks settle** (under the table law they keep bouncing and stirring the water) - the windows' own cost (500 windows,
+38,000 columns, and the integrate's sampling) is inside those numbers, not separated: the debris integrate pass was not timed alone.
+
+### 31.9 Two defects found on the way (not M4's; logged, not fixed)
+
+a. **The tall-cell floor depends on the volume's box** (`WaterBodyPressureTest`'s first equality run): the same dam break in a 12 m
+   and a 17 m box differed by up to 17 cm by tick 40 with tall cells ON, 0 of 144 cells with them OFF (partial wake on in both).
+   Suspect: updateTall's "the water changed" tolerance is 0.5 h x the BOX's area (and the rest level from the box's mass) - a volume-
+   wide quantity, not a world-position one. Where a volume's box ends changes how its water flows.
+b. **Debris cannot see recorded water away from the camera, and a body does not wake it.** A still pond sleeps into the record
+   within a second of being filled (the shipped `auto_sleep`), so a floater thrown in later lands on RECORDED water: the debris reads
+   the record only where the record is built into surface fields - within the record-draw radius (48 m) of the CAMERA. With the
+   camera 100 m away a Wood block sank to the pond's floor; with it at the pond it floated (draft 0.651). Nothing woke the pond
+   either way (no volume exists to wake). Behaviour depending on the viewer breaks the chunk / world-position rule, and it is the
+   owner's key case (floating debris; disturbing the surface).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

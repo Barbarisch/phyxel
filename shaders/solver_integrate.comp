@@ -19,8 +19,25 @@ struct WaterExchange { PHX_WATER_EXCHANGE };
 layout(std430, set=0, binding=5) buffer WaterExchangeBuffer { uint exchangeCount; uint xPad0, xPad1, xPad2; WaterExchange exchanges[]; };
 // WaterCore 20 (moving solids): the water-volume boxes (written by the host) and the wet-body records
 struct WetBody { PHX_WET_BODY };
-layout(std430, set=0, binding=6) buffer WetBodyBuffer { uint wetCount; uint wPad0, wPad1, wPad2; uint boxCount; uint bPad0, bPad1, bPad2;
+layout(std430, set=0, binding=6) buffer WetBodyBuffer { uint wetCount; uint pressPushed, pressFellBack, pressNoWindow; uint boxCount; uint bPad0, bPad1, bPad2;
                                                         vec4 boxMin[MAX_WATER_BOXES]; vec4 boxMax[MAX_WATER_BOXES]; WetBody wetBodies[]; };
+// WaterCore 31 (M4): the pressure windows the water volumes' calls wrote this frame (wc_body_pressure.comp; solver_shared.h)
+struct PressureWindow { PHX_PRESSURE_WINDOW };
+layout(std430, set=0, binding=7) readonly buffer PressureWindowBuffer { PressureWindow pwins[]; };
+layout(std430, set=0, binding=8) readonly buffer PressureDataBuffer   { float pwData[]; };
+layout(std430, set=0, binding=9) readonly buffer PressureOfBuffer     { uint pwOf[]; };   // per solver slot: window index + 1 (0 none)
+
+// The window the force function reads (water_body_force.glsl's wbfP): set per body before wbfAccel. 31.7: a 2-D map of the LEVEL of
+// the water round the body (wc_body_pressure.comp); the pressure at x is that level's hydrostatic pressure, g (level - y)
+ivec3 gPwOrigin; ivec3 gPwDims; uint gPwOff; float gPwH; float gPwG;
+vec2 wbfP(vec3 x) {
+    const ivec2 c = ivec2(floor(x.xz / gPwH)) - gPwOrigin.xz;
+    if (any(lessThan(c, ivec2(0))) || any(greaterThanEqual(c, gPwDims.xz))) return vec2(uintBitsToFloat(0x7fc00000u), x.y);  // left its window: unknown
+    const float lv = pwData[gPwOff + uint(c.x + gPwDims.x * c.y)];
+    if (isnan(lv)) return vec2(0.0, x.y);   // a dry column (a shore): air
+    return vec2(gPwG * (lv - x.y), x.y);
+}
+#include "water_body_force.glsl"
 
 
 // Movers (the player, scripted boxes, later every character) are AVBD bodies since Phase 2:
@@ -65,6 +82,8 @@ void main() {
     GpuParticle     p   = particles[b.particleIdx];
     MaterialPhysics mat = materials[p.materialIndex & MATERIAL_MASK];
 
+    bool inWaterBox = false;   // WaterCore 31: a pressure window can only exist for a body inside a volume's box
+    uint wetSlot = 0xFFFFFFFFu;   // 31: this tick's record, so the push the water gave can be written into it (halfExt.w, vel.w)
     // WaterCore 20: a body inside a water volume's box reports its box - the volume treats it as a moving
     // solid (docs/WaterCore.md 20.4). Before any force: the pose the tick starts from.
     {
@@ -72,8 +91,10 @@ void main() {
         const vec3 r3 = vec3(max(b.radius, 1e-3));
         for (uint k = 0u; k < nb; ++k) {
             if (all(greaterThanEqual(b.pos + r3, boxMin[k].xyz)) && all(lessThanEqual(b.pos - r3, boxMax[k].xyz))) {
+                inWaterBox = true;
                 const uint s = atomicAdd(wetCount, 1u);
                 if (s < MAX_WET_BODIES) {
+                    wetSlot = s;
                     wetBodies[s].posSlot = vec4(b.pos, uintBitsToFloat(i));
                     wetBodies[s].halfExt = vec4(b.halfExt, 0.0);
                     wetBodies[s].vel     = vec4(b.vel, 0.0);
@@ -131,10 +152,43 @@ void main() {
         vec2 flow;
         const float surf = waterSurface(b.pos, flow);
         const float r = max(b.radius, 1e-3);
-        const float f = clamp((surf - (b.pos.y - r)) / (2.0 * r), 0.0, 1.0);
-        if (f > 0.0) {
+        float f = clamp((surf - (b.pos.y - r)) / (2.0 * r), 0.0, 1.0);
+        // WaterCore 31 (M4): inside an awake GPU volume the push is the PRESSURE over the body's faces (water_body_force.glsl), read
+        // from this frame's window at the body's own pose: water over a body presses it down, air under it holds nothing up (31.1:
+        // a rising block's own water cap read as its waterline lifted it 3 m, every 1.3 s). No fresh window, or a sample outside it,
+        // keeps the table law below (counted).
+        bool pressed = false;
+        b.flags &= ~PARTICLE_WATER_UNSETTLED;
+        if (pc.pressure.y != 0u && inWaterBox) {
+            const uint wi = pwOf[i];
+            bool fresh = false;
+            if (wi > 0u && wi <= MAX_PRESSURE_WINDOWS) {
+                const PressureWindow w = pwins[wi - 1u];
+                fresh = uint(w.origin.w) == i && pc.pressure.x - floatBitsToUint(w.meta.y) <= PRESSURE_WINDOW_MAX_AGE;
+                if (fresh) {
+                    gPwOrigin = w.origin.xyz; gPwDims = w.dims.xyz; gPwOff = uint(w.dims.w); gPwH = w.meta.x; gPwG = -pc.gravity;
+                    const vec4 fa = wbfAccel(b.pos, max(b.halfExt, vec3(1e-4)), quatRotate(b.quat, vec3(1, 0, 0)), quatRotate(b.quat, vec3(0, 1, 0)),
+                                             quatRotate(b.quat, vec3(0, 0, 1)), gPwH, -pc.gravity,
+                                             isnan(w.meta.z) ? 3.0e38 : w.meta.z);   // 31.7: the ring's highest surface
+                    if (wetSlot < MAX_WET_BODIES) { wetBodies[wetSlot].halfExt.w = fa.y * mat.buoyancy; wetBodies[wetSlot].vel.w = isnan(w.meta.z) ? -1.0e30 : w.meta.z; }
+                    if (fa.w >= 0.0) {
+                        pressed = true; f = fa.w;
+                        const vec3 acc = fa.xyz * mat.buoyancy;
+                        buoyAccY = acc.y;
+                        b.vel += acc * pc.dt;
+                        // 31.8: a FLOATER off balance does not sleep (a sinker on the floor is always "off balance" - the floor holds the rest)
+                        if (mat.buoyancy > 1.0 && abs(acc.y + pc.gravity) > WATER_UNSETTLED_ACC) b.flags |= PARTICLE_WATER_UNSETTLED;
+                        atomicAdd(pressPushed, 1u);
+                    } else atomicAdd(pressFellBack, 1u);
+                }
+            }
+            if (!fresh) atomicAdd(pressNoWindow, 1u);
+        }
+        if (!pressed && f > 0.0) {   // the table law (6c): buoyancy from the column's surface
             buoyAccY = -pc.gravity * f * mat.buoyancy;
             b.vel.y  += buoyAccY * pc.dt;
+        }
+        if (f > 0.0) {
             const vec3 vBeforeWater = b.vel;   // E2: the exchange is drag + current only (buoyancy is static pressure)
             // 24.9: the waterline's radiation damping only - on the velocity RELATIVE TO THE WATER (25.28: on the ground velocity
             // it braked every float riding a current - steady drift 3 / (3 + 2.3) = 0.57 of the current, measured 0.24 of 0.50 m/s)

@@ -93,7 +93,7 @@ void main() {
     bool strictSlow = linSpeed < SLEEP_LIN_SPEED && angSpeed < SLEEP_ANG_SPEED;
     bool laxSlow    = linSpeed < SLEEP_LAX_SPEED && angSpeed < SLEEP_LAX_SPEED;
     uint ctr = (p.flags & SLEEP_CTR_MASK) >> SLEEP_CTR_SHIFT;
-    if (age > SLEEP_GRACE && laxSlow) {
+    if (age > SLEEP_GRACE && laxSlow && (b.flags & PARTICLE_WATER_UNSETTLED) == 0u) {   // 31.8: a floater off balance is not slow
         ctr = min(ctr + 1u, 255u);
         // Strict tier freezes fast; the lax tier force-freezes chronic slow churners.
         if ((strictSlow && ctr >= SLEEP_TICKS) || ctr >= SLEEP_FORCE_TICKS) {

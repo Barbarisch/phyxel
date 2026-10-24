@@ -22,6 +22,10 @@ from water_bench import Api
 
 EV = pathlib.Path(__file__).resolve().parent.parent / "docs" / "evidence" / "water_core_m4"
 LEVEL = 16.5
+SETTLE = 8.0
+AUTO_SLEEP = False             # --auto-sleep: the shipped default (a still pond sleeps into the record; the volume goes)
+DISPLACE = True                # --no-displace (TEST): bodies recorded but not rasterized (WaterCore 31: the pump's share)
+PRESSURE = False               # --pressure: the water's pressure pushes the block (WaterCore 31); off = the table law (the control)
 CX, CZ = 102.0, 14.0           # the pond's centre (water x 100..104, z 12..16)
 FAR = (100.3, 12.3)            # the level probe, ~2.4 m from the block
 SCEN = [
@@ -31,6 +35,8 @@ SCEN = [
     {"name": "wood_third_tumble", "size": 1 / 3, "drop": 1.0, "spin": 3.0},
     {"name": "wood_ninth_gentle", "size": 1 / 9, "drop": 0.0, "spin": 0.0},
     {"name": "wood_one_gentle", "size": 1.0, "drop": 0.0, "spin": 0.0},
+    # a sinker: must reach the floor (centre 15 + 1/6) and fall asleep there (31.8's "no sleep off balance" is for floaters only)
+    {"name": "stone_third_drop1m", "size": 1 / 3, "drop": 1.0, "spin": 0.0, "material": "Stone"},
 ]
 
 
@@ -41,9 +47,18 @@ def pond(api):
     box = {"x1": 99, "y1": 14, "z1": 11, "x2": 104, "y2": 19, "z2": 16, "cellSize": 1.0 / 9.0, "transport": "eulerian", "backend": "auto",
            # kept as a volume (the shipped default sleeps a still pond into the record and removes the volume): "asleep" is the
            # volume's own sleep test, read without acting on it
-           "auto_sleep": False}
+           "auto_sleep": AUTO_SLEEP}
     cr = api.debug("water_av_create", box)
-    if "error" in cr and cr.get("recorded_m3"):
+    if "error" in cr and cr.get("recorded_m3") and AUTO_SLEEP:
+        # the hand-over run needs a pond AWAKE when the block lands: take the record into a volume, discard it, fill afresh
+        cr = api.debug("water_av_create", {**box, "seed": "spans", "auto_sleep": False})
+        if "error" in cr: raise SystemExit(f"create (seeded, to purge): {cr}")
+        api.debug("water_av_destroy", {"id": cr["volume"]["id"], "discard": True})
+        cr = api.debug("water_av_create", box)
+        if "error" in cr: raise SystemExit(f"create after the purge: {cr}")
+        api.debug("place_water_box", {"x1": 100, "y1": 15, "z1": 12, "x2": 103, "y2": 15, "z2": 15, "mass": 1.0, "target": "core"})
+        api.debug("place_water_box", {"x1": 100, "y1": 16, "z1": 12, "x2": 103, "y2": 16, "z2": 15, "mass": 0.5, "target": "core"})
+    elif "error" in cr and cr.get("recorded_m3"):
         # the last run's pond slept into the record (auto_sleep, the shipped default): wake THAT water, add none
         cr = api.debug("water_av_create", {**box, "seed": "spans"})
         if "error" in cr: raise SystemExit(f"create (seeded): {cr}")
@@ -53,9 +68,10 @@ def pond(api):
         api.debug("place_water_box", {"x1": 100, "y1": 16, "z1": 12, "x2": 103, "y2": 16, "z2": 15, "mass": 0.5, "target": "core"})
     time.sleep(1.0)
     m = api.debug("water_av_list").get("total_mass")
-    if m is None or abs(m - 24.0) > 0.05: raise SystemExit(f"the pond holds {m} m^3, not 24")
+    if not AUTO_SLEEP and (m is None or abs(m - 24.0) > 0.05): raise SystemExit(f"the pond holds {m} m^3, not 24")
     api.debug("water_av_realtime", {"on": True})
-    api.debug("water_coupling", {"enabled": True, "solids": True})
+    pc = api.debug("water_coupling", {"enabled": True, "solids": True, "pressure_force": PRESSURE, "displace": DISPLACE})
+    if pc.get("pressure_force", {}).get("on") != PRESSURE: raise SystemExit(f"pressure_force not taken (stale binary?): {pc.get('pressure_force')}")
     return cr
 
 
@@ -88,13 +104,13 @@ def read_log(path, a):
 def run(api, sc, seconds):
     pond(api)
     t_settle = time.time()                        # let the fill settle before the block goes in (the control's clock too)
-    while time.time() - t_settle < 8.0: time.sleep(0.5)
+    while time.time() - t_settle < SETTLE: time.sleep(0.5)
     a = sc["size"] / 2
     log = (EV / f"float_rest_{sc['name']}.csv").resolve()
     api.debug("particle_log", {"action": "start", "file": str(log)})
     if a > 0:
         y0 = LEVEL + a + sc["drop"] + 0.01
-        r = api.debug("spawn_gpu_particle", {"x": CX, "y": y0, "z": CZ, "material": "Wood", "scale": sc["size"],
+        r = api.debug("spawn_gpu_particle", {"x": CX, "y": y0, "z": CZ, "material": sc.get("material", "Wood"), "scale": sc["size"],
                                              "lifetime": seconds + 30.0, "spin": sc["spin"]})
         if not r.get("success"): raise SystemExit(f"spawn: {r}")
         if abs(r.get("spin", -1) - sc["spin"]) > 1e-6: raise SystemExit(f"spawn ignored spin (stale binary?): {r}")
@@ -108,6 +124,7 @@ def run(api, sc, seconds):
         if state == "awake": woke = True
         elif woke and asleep_again is None: asleep_again = round(t, 2)
         time.sleep(0.25)
+    press = api.debug("water_coupling", {}).get("pressure_force")
     api.debug("particle_log", {"action": "stop"})
     body = read_log(log, a) if a > 0 else []
     log.unlink(missing_ok=True)                   # the per-frame log is large; the JSON keeps every 10th row
@@ -115,6 +132,13 @@ def run(api, sc, seconds):
     tail = [b for b in body if b[0] > body[-1][0] - 5.0] if body else []
     drafts = [(lv - (b[1] - a)) / (2 * a) for b in tail]
     slept = next((b[0] for b in body if b[3]), None)
+    rec_t = next((p["t"] for p in pond_trace if p["state"] == "recorded"), None)
+    handover = None
+    if rec_t is not None and body:
+        before = [b[1] for b in body if rec_t - 1.0 <= b[0] < rec_t]
+        after = [b[1] for b in body if rec_t + 0.5 <= b[0] < rec_t + 3.0]
+        if before and after: handover = {"t": rec_t, "y_before": before[-1], "y_after_min": min(after), "y_after_max": max(after),
+                                          "jump_mm": 1000.0 * max(abs(min(after) - before[-1]), abs(max(after) - before[-1]))}
     out = {"scenario": sc, "pond_woke": woke, "pond_asleep_again_s": asleep_again, "pond_state_end": pond_trace[-1]["state"],
            "awake_columns_end": pond_trace[-1]["awake_columns"],
            "mass_min_max": [min(p["mass"] for p in pond_trace), max(p["mass"] for p in pond_trace)],
@@ -122,12 +146,14 @@ def run(api, sc, seconds):
            "draft_last5s": [min(drafts), sum(drafts) / len(drafts), max(drafts)] if drafts else None,
            "speed_last5s_max": max((b[2] for b in tail), default=None),
            "body_y_max_after_entry": max((b[1] for b in body if b[0] > 0.3), default=None),
-           "pond": pond_trace, "body": body[::10]}
+           "handover": handover, "pressure_force": press, "pond": pond_trace, "body": body[::10]}
     d = out["draft_last5s"]
     print(f"{sc['name']:20s} pond woke {woke} asleep again {asleep_again} end {out['pond_state_end']} awake_cols {out['awake_columns_end']}"
           f" mass {out['mass_min_max']} | body slept {slept} y_end {out['body_y_end']}"
           f" draft(last 5 s) {'-' if not d else f'{d[0]:.3f}/{d[1]:.3f}/{d[2]:.3f}'} speed max {out['speed_last5s_max']}"
           f" y_max {out['body_y_max_after_entry']}", flush=True)
+    if press and press.get("on"): print(f"    pressure: {press}", flush=True)
+    if handover: print(f"    hand-over to the record at {handover['t']} s: y {handover['y_before']:.4f} -> {handover['y_after_min']:.4f}..{handover['y_after_max']:.4f} ({handover['jump_mm']:.1f} mm)", flush=True)
     return out
 
 
@@ -137,7 +163,14 @@ def main():
     ap.add_argument("--seconds", type=float, default=40.0)
     ap.add_argument("--only", default="")
     ap.add_argument("--tag", default="now")
+    ap.add_argument("--pressure", action="store_true", help="WaterCore 31: the pressure push on (default: off, the table law)")
+    ap.add_argument("--no-displace", action="store_true", help="TEST: wet bodies never rasterized (the pump's pressure out)")
+    ap.add_argument("--auto-sleep", action="store_true", help="the shipped default: the pond sleeps into the record (31.6 item 7: the hand-over)")
+    ap.add_argument("--settle", type=float, default=8.0, help="seconds the fill settles before the block goes in")
     args = ap.parse_args()
+    ap2 = args
+    global PRESSURE, DISPLACE, AUTO_SLEEP; PRESSURE = args.pressure; DISPLACE = not args.no_displace; AUTO_SLEEP = args.auto_sleep
+    global SETTLE; SETTLE = args.settle
     api = Api(args.url); st = api.wait_status(900)
     EV.mkdir(parents=True, exist_ok=True)
     res = {"status": {k: st.get(k) for k in ("build_config", "version", "git") if k in st}, "runs": []}

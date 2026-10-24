@@ -146,6 +146,17 @@ PHX_CONST float WATER_EXCHANGE_MIN_DV = 1.0e-4f;   // m/s: smaller changes are n
 PHX_CONST uint  MAX_WET_BODIES      = 2048u;
 PHX_CONST uint  MAX_WATER_BOXES     = 8u;
 PHX_CONST uint  WET_HEADER_BYTES    = 32u + 2u * MAX_WATER_BOXES * 16u;   // 288
+// WaterCore 31 (M4, docs/WaterCore.md 31.2 / 31.6): PRESSURE WINDOWS - per wet body inside an awake GPU water volume, a dense box of
+// the volume's kinematic pressure, written by that volume's call (wc_body_pressure.comp) and read by solver_integrate every tick: the
+// body's push from the water is the pressure integral over its faces (water_body_force.glsl). Budgets, clamped where the host makes
+// the requests (WaterCoreManager::setPressureWindows): a bigger window, or one past either budget, is refused and its body keeps the
+// table law (counted) - the buffers are fixed, and an overflow would write over the next window.
+PHX_CONST uint  MAX_PRESSURE_WINDOWS    = 1024u;
+PHX_CONST uint  PRESSURE_WINDOW_FLOATS  = 1048576u;   // 4 MB in all
+PHX_CONST uint  PRESSURE_WINDOW_MAX_DIM = 48u;        // columns a side (31.7: the window is a 2-D level map)
+PHX_CONST uint  PRESSURE_WINDOW_MAX_AGE = 3u;         // frames: a window older than this is stale (the fixed tick can skip a call)
+// The water's counters in the wet-body header's pads (per frame): [1] body-ticks pushed by the pressure, [2] body-ticks that fell back
+// (a sample outside its window / unknown water), [3] body-ticks in a volume box with no fresh window
 // Linear falloff: full impulse at the centre, none at the radius.
 PHX_FN float phxImpulseWeight(float d, float radius) {
     return (radius <= 0.0f || d >= radius) ? 0.0f : 1.0f - d / radius;
@@ -182,6 +193,10 @@ PHX_CONST uint PARTICLE_TYPE_SUBCUBE = 1u << 2;
 PHX_CONST uint PARTICLE_TYPE_MICRO   = 2u << 2;
 PHX_CONST uint PARTICLE_TYPE_MASK    = 3u << 2;
 PHX_CONST uint PARTICLE_KINEMATIC    = 1u << 4;   // a mover body (invMass 0, moved by the CPU), Phase 2
+// WaterCore 31.8: in water (the pressure path) the push and gravity are out of balance this tick - not slow, whatever its speed: a
+// bobbing floater is slow at the top and bottom of every bob, and froze there (31.1: a 1/9 m block asleep at draft 0.638, 0.70 still)
+PHX_CONST uint PARTICLE_WATER_UNSETTLED = 1u << 5;
+PHX_CONST float WATER_UNSETTLED_ACC   = 0.3f;     // m/s^2 of imbalance: ~7 mm off a 1/3 m wood block's draft
 
 // ---- GpuParticle.materialIndex packing (DebrisInteractionPlan 1d texture parity) -------------
 // Bits 0-15: material index (~102 materials). Bits 16-25: the piece's micro position INSIDE its
@@ -212,7 +227,7 @@ PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetCol
 #define PHX_PC_CONSTRAINTS uint maxConstraints;                         /* csr_count, csr_scatter, warmstart_save */
 #define PHX_PC_CSR_CLEAR   uint bodyCount; uint maxConstraints;
 #define PHX_PC_SYNC_IN     uint count; float dt; uint impulseCount; uint pad0;   /* impulseCount: 0 except on the frame's first tick (Phase 4) */
-#define PHX_PC_INTEGRATE   uint count; float dt; float gravity; uint flags; ivec4 water;   /* water: xy = water-directory min chunk (x,z), z bit0 = implicit sea, w = floatBitsToInt(sea level) (6c) */
+#define PHX_PC_INTEGRATE   uint count; float dt; float gravity; uint flags; ivec4 water; uvec4 pressure;   /* water: xy = water-directory min chunk (x,z), z bit0 = implicit sea, w = floatBitsToInt(sea level) (6c); pressure: x = this frame's window tag, y = 1 = the pressure push on (WaterCore 31) */
 #define PHX_PC_CONTACTS    uint count; uint maxConstraints; uint flags; float coldScale; ivec4 occBox;  /* narrowphase, voxel; coldScale x m/dt² = cold stiffness; occBox = occupancy box min chunk + bit0 ready (1c) */
 #define PHX_PC_DUAL        uint maxConstraints; float dt; uint pad0; float alpha;         /* alpha: ALPHA, or 1 under post-stab */
 #define PHX_PC_PRIMAL      uint bodyCount; float dt; uint targetColor; float alpha;       /* targetColor: a colour, or PRIMAL_STORE_VELOCITY */
@@ -236,7 +251,8 @@ PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetCol
 // and current gave the body this tick (buoyancy excluded: a floater's weight is static pressure, not
 // a current), w = the body's bounding radius. The water receives -mass * dv (Newton's third law).
 #define PHX_WATER_EXCHANGE vec4 posMass; vec4 dvRadius;
-#define PHX_WET_BODY vec4 posSlot; vec4 halfExt; vec4 vel;   /* posSlot.w = the body's slot (uint bits); halfExt local (rotation ignored, v1) */
+#define PHX_PRESSURE_WINDOW ivec4 origin; ivec4 dims; vec4 meta;   /* origin: world cells xyz (floor(x / h)), w = the body's solver slot; dims: xyz cells, w = data offset (floats); meta: x = h, y = the frame tag (uint bits) */
+#define PHX_WET_BODY vec4 posSlot; vec4 halfExt; vec4 vel;   /* posSlot.w = the body's slot (uint bits); halfExt local (rotation ignored, v1); 31: halfExt.w = the water's vertical push (m/s^2, the pressure path; 0 otherwise), vel.w = its window's level cap */
 
 // One debris event (Phase 6). info: x = body slot, y = DEBRIS_EVENT_*, z = materialIndex (incl.
 // the texture-slice bits), w = floatBitsToUint(impact |dv| in m/s, 0 otherwise).
@@ -264,6 +280,7 @@ struct ImpulseGpu       { PHX_IMPULSE };
 struct DebrisEventGpu   { PHX_DEBRIS_EVENT };
 struct WaterExchangeGpu { PHX_WATER_EXCHANGE };
 struct WetBodyGpu       { PHX_WET_BODY };
+struct PressureWindowGpu { PHX_PRESSURE_WINDOW };
 
 // Sizes as the shaders see them (std430 push-constant packing of 4-byte scalars).
 static_assert(sizeof(GridCountPC)   == 4,  "PHX_PC_COUNT");
@@ -273,7 +290,8 @@ static_assert(sizeof(BodiesPC)      == 4,  "PHX_PC_BODIES");
 static_assert(sizeof(ConstraintsPC) == 4,  "PHX_PC_CONSTRAINTS");
 static_assert(sizeof(CsrClearPC)    == 8,  "PHX_PC_CSR_CLEAR");
 static_assert(sizeof(SyncInPC)      == 16, "PHX_PC_SYNC_IN");
-static_assert(sizeof(IntegratePC)   == 32, "PHX_PC_INTEGRATE");
+static_assert(sizeof(IntegratePC)   == 48, "PHX_PC_INTEGRATE");
+static_assert(sizeof(PressureWindowGpu) == 48, "PHX_PRESSURE_WINDOW");
 static_assert(sizeof(ContactsPC)    == 32, "PHX_PC_CONTACTS");
 static_assert(sizeof(DualPC)        == 16, "PHX_PC_DUAL");
 static_assert(sizeof(PrimalPC)      == 16, "PHX_PC_PRIMAL");

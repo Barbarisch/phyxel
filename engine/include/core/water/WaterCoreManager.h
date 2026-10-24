@@ -322,6 +322,24 @@ public:
     /// (their particles need their own displacement rule - counted, 20.5).
     struct SolidsFeed { int volumes = 0; long bodies = 0, rasterCells = 0, freshCells = 0, rateCells = 0, clamped = 0, wakeCells = 0, flipRefused = 0; double bodyVolume = 0.0, rate = 0.0; };
     SolidsFeed setMovingSolids(const std::vector<MovingSolid>& bodies, float frameSeconds);
+    /// 31 (M4, docs/WaterCore.md 31.2 / 31.6): a wet body asking for a pressure window - its predicted centre, half extents (any
+    /// rotation fits the bounding sphere), speed, and its debris solver slot.
+    struct PressureAsk { glm::vec3 centre{0.0f}, halfExtents{0.0f}; float speed = 0.0f; uint32_t slot = 0; };
+    struct PressureWindowStats { uint32_t asked = 0, windows = 0, cells = 0, outside = 0, tooBig = 0, overBudget = 0, tag = 0; };
+    /// The windows the volumes' next calls write (into the debris solver's buffers, setPressureWindowTargets): one per ask inside a
+    /// GPU volume's box - its bounding sphere + max(3 cells, speed x 0.1 s) (the centre is predicted from a record 2-3 frames old).
+    /// Refused, counted: outside every GPU volume, wider than PRESSURE_WINDOW_MAX_DIM, past MAX_PRESSURE_WINDOWS or
+    /// PRESSURE_WINDOW_FLOATS. An empty list clears every volume's windows.
+    PressureWindowStats setPressureWindows(const std::vector<PressureAsk>& asks, uint32_t tag);
+    void setPressureWindowTargets(VkBuffer wins, VkDeviceSize winsBytes, VkBuffer data, VkDeviceSize dataBytes, VkBuffer of, VkDeviceSize ofBytes) {
+        if (m_gpu) m_gpu->setPressureWindowTargets(wins, winsBytes, data, dataBytes, of, ofBytes);
+    }
+    bool pressureWindowTargetsSet() const { return m_gpu && m_gpu->pressureWindowTargetsSet(); }
+    bool makePressureTargetsForTest(std::string* err) { return m_gpu && m_gpu->makePressureTargetsForTest(err); }
+    bool readPressureWindowForTest(uint32_t k, int32_t origin[4], int32_t dims[4], float meta[4], std::vector<float>& map) const {
+        return m_gpu && m_gpu->readPressureWindowForTest(k, origin, dims, meta, map);
+    }
+    const PressureWindowStats& pressureWindowStats() const { return m_pwStats; }
     /// A body (with an id) is rasterized at a HELD centre that moves only when the body has moved more than
     /// this from it. Measured 2026-10-10 (M2): with every pose rasterized, a single floating wood piece never
     /// rested - it bobbed +-2.5 cm at up to 0.2 m/s forever (without solids it sleeps): its displacement moved
@@ -625,6 +643,7 @@ private:
     /// 26.19: re-sample only the cells of the changed boxes; patch what differs (grid, cache, GPU in place)
     void refreshOccupancyLocal(Av& av, const std::vector<SolidsChangeBox>& boxes);
     std::unique_ptr<WaterCoreGpu> m_gpu;
+    PressureWindowStats m_pwStats;   // 31: the last setPressureWindows
     std::unique_ptr<RippleGpu> m_rgpu;   // 25.34 (declared after m_gpu: torn down first)
     bool m_rgpuOn = true;
     std::string m_rgpuErr;

@@ -323,6 +323,12 @@ private:
     static constexpr float kDisplaceOnSpeed = 0.6f, kDisplaceOffSpeed = 0.3f;   // m/s
     std::unordered_map<uint64_t, bool> m_displacing;   // body id -> displacing now
     bool m_waterSolidsOn = true;     // 20 (M2): debris inside a volume's box displaces water (moving solids)
+    // 31 (M4, docs/WaterCore.md 31.2): debris inside a GPU volume is pushed by the water's PRESSURE over its faces (pressure windows);
+    // OFF = the table law everywhere (the A/B control; the default until the L4 gate passes and the owner has seen it)
+    bool m_pressureForceOn = false;
+    bool m_displaceOn = true;        // 31 TEST: false = wet bodies are recorded (boxes set) but never rasterized - the displacement's own
+                                     // pressure (its pump) out of the window, to tell its share of a floater's push from the still water's
+    uint32_t m_pressureTag = 0;      // the frame's window tag (written by the water calls, checked by the debris ticks)
     Core::Water::WaterCoreManager::SolidsFeed m_solidsFeed;   // the last frame's feed (water_coupling echo)
     bool m_waterExchangeOn = true;   // E2: debris -> water momentum only (the tiles stay) - a diagnostic split
     struct WaterKickStats { long blasts = 0; int volumes = 0; long faces = 0; long clamped = 0; float speed = 0.0f, reach = 0.0f; glm::vec3 centre{0.0f}; };

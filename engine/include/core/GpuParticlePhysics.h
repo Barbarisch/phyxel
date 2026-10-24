@@ -212,10 +212,22 @@ public:
     /// `ageSeconds` old (two frames: MAX_FRAMES_IN_FLIGHT). A frame with no physics tick keeps the previous
     /// list (no records is not "no bodies" - read naively, every body would vanish for a frame). `fresh` = the
     /// body (slot + serial) was not in the previous list.
-    struct WetBody { glm::vec3 centre{0.0f}, halfExtents{0.0f}, velocity{0.0f}; uint32_t slot = 0; uint32_t serial = 0; float ageSeconds = 0.0f; bool fresh = false; };
+    struct WetBody { glm::vec3 centre{0.0f}, halfExtents{0.0f}, velocity{0.0f}; uint32_t slot = 0; uint32_t serial = 0; float ageSeconds = 0.0f; bool fresh = false;
+                     float pressAccY = 0.0f, pressCap = 0.0f; };   // 31: the water's vertical push this tick (pressure path) and its window's level cap
     const std::vector<WetBody>& wetBodies() const { return m_wetBodies; }
-    struct WetStats { uint64_t recordsTotal = 0, recordsDropped = 0; uint32_t boxes = 0, boxesDropped = 0; };
+    struct WetStats { uint64_t recordsTotal = 0, recordsDropped = 0; uint32_t boxes = 0, boxesDropped = 0;
+                      // WaterCore 31 (M4), the last frame read back: body-ticks pushed by the pressure, fallen back, with no fresh window
+                      uint32_t pressPushed = 0, pressFellBack = 0, pressNoWindow = 0; };
     const WetStats& wetStats() const { return m_wetStats; }
+    /// WaterCore 31 (M4, docs/WaterCore.md 31.2): the pressure-window buffers the water volumes' calls write and the integrator reads
+    /// (device-local, fixed size - solver_shared.h MAX_PRESSURE_WINDOWS / PRESSURE_WINDOW_FLOATS; `of` = one uint per solver slot).
+    struct PressureWindowTargets { VkBuffer wins = VK_NULL_HANDLE, data = VK_NULL_HANDLE, of = VK_NULL_HANDLE; VkDeviceSize winsBytes = 0, dataBytes = 0, ofBytes = 0; };
+    PressureWindowTargets pressureWindowTargets() const { return {m_pwWinBuffer, m_pwDataBuffer, m_pwOfBuffer, m_pwWinBytes, m_pwDataBytes, m_pwOfBytes}; }
+    /// The push from the water's pressure on (the windows written this frame carry `tag`); off = the table law everywhere (the control).
+    void setPressureForce(bool on, uint32_t tag) { m_pressureOn = on; m_pressureTag = tag; }
+    bool pressureForce() const { return m_pressureOn; }
+    /// DEBUG (31): the window a solver slot reads, copied back after the device is idle - false = no window
+    bool readPressureWindow(uint32_t slot, DebrisShared::PressureWindowGpu& hdr, std::vector<float>& data);
     /** Phase 6a: per owner tag, the impulse (N*s) debris contacts put on its mover boxes, summed
      *  over the frames read back since the last call (two frames late). Normal force only. */
     std::unordered_map<uint32_t, glm::vec3> takeMoverImpulses() {
@@ -431,6 +443,13 @@ private:
     std::vector<std::pair<glm::vec3, glm::vec3>> m_waterBoxes;
     std::vector<WetBody> m_wetBodies;
     WetStats         m_wetStats;
+    VkBuffer         m_pwWinBuffer = VK_NULL_HANDLE, m_pwDataBuffer = VK_NULL_HANDLE, m_pwOfBuffer = VK_NULL_HANDLE;   // WaterCore 31
+    VkDeviceMemory   m_pwWinMem = VK_NULL_HANDLE, m_pwDataMem = VK_NULL_HANDLE, m_pwOfMem = VK_NULL_HANDLE;
+    VkDeviceSize     m_pwWinBytes = 0, m_pwDataBytes = 0, m_pwOfBytes = 0;
+    bool             m_pwCleared = false;   // the slot map zeroed once (device memory starts undefined)
+    bool             m_pressureOn = false;
+    Vulkan::VulkanDevice* m_vkdev = nullptr;   // 31: the debug window readback's one-off copies
+    uint32_t         m_pressureTag = 0;
     uint64_t         m_exchangeTotal = 0, m_exchangeDropped = 0;
     // Phase 6a push-back readback: per frame slot, with the owner tag of every kinematic body as
     // staged for that slot (the order changes every frame).
