@@ -8764,6 +8764,18 @@ fit). Live red controls: `water_render_core {arena_no_grow, upload_key_order}`. 
 
 GPU water 57/59 (the known two), unit 313/313.
 
+### 27.28 The awake lake's frame is CPU-bound - the solver's device ms was the wrong number (2026-10-24). Status: MEASURED
+
+The owner: awake water at 20 fps or lower. Every cost quoted since 27.24 ("1.43 ms", "1.92 ms") was `gpu_device_ms`, the GPU time of the
+step. It is not what limits the frame. Live, the 60 x 60 m lake after the push, no screen capture (`frame_cost.py` in the session
+scratchpad), one step a frame: **CPU frame 21-31 ms (32-47 fps), GPU frame 1.3-5.7 ms**. The water's own CPU share is 13-20 ms a
+frame (`water_render_core` water_cpu_ms total). Of that: the step call on the CPU 7-9 ms (30 ms on the first frame after the push),
+ripples 4-10 ms, the surface tiler 4-5 ms (rebuilding 50-120 tiles a frame, uploading up to the 24 MB budget), motion ~2 ms, ripple
+mask ~1 ms. The GPU's water surface draw is 0.4 ms. Fixed tick 1/60: the same costs while awake (28-52 fps). Once the lake settles,
+the water's CPU share falls to 0.15 ms, but the CPU frame stayed 13-16 ms (63-74 fps) in two readings, cause not yet found (the
+water counters do not show it). **The 2 ms budget has to be read as water CPU + GPU per frame, and it is blown ~10x while the lake is
+awake.**
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
