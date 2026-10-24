@@ -150,7 +150,7 @@ WaterCoreManager::RemoveResult WaterCoreManager::remove(int id, bool discard) {
     std::vector<ColumnRuns> empty;
     for (int z = lo.z; z <= hi.z; ++z) for (int x = lo.x; x <= hi.x; ++x) { ColumnRuns c; c.x = x; c.z = z; empty.push_back(std::move(c)); }
     long unwritten = 0, chunks = 0;
-    m_spanWriter(empty, static_cast<float>(lo.y), static_cast<float>(hi.y + 1), &unwritten, &chunks);
+    writeSpans(empty, static_cast<float>(lo.y), static_cast<float>(hi.y + 1), &unwritten, &chunks);
     if (unwritten > 0) { out.error = std::to_string(unwritten) + " column(s) of the record could not be cleared (non-resident chunk); volume kept"; return out; }
     m_bodies.credit(written, before, m_bakeBodyAt);
     destroy(id);
@@ -479,7 +479,7 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
         m_spanReader(av->minVoxel, av->maxVoxel, prior);
         for (const auto& c : prior) { WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) m.mass += static_cast<double>(r.topY - r.bottomY); before.push_back(m); }
     }
-    m_spanWriter(runs, yLo, yHi, &unwritten, &chunks);
+    writeSpans(runs, yLo, yHi, &unwritten, &chunks);
     rec.unwrittenColumns = st.heldColumns + unwritten; rec.chunksTouched = chunks;
     if (unwritten > 0 && !force) {
         // the writer refuses whole columns atomically (a non-resident vertical chunk): nothing of
@@ -729,11 +729,14 @@ void WaterCoreManager::updateTall(Av& av) {
         for (const SurfaceColumn& c : fld.cols) { const int runs = static_cast<int>(c.runs + 0.5f); if (runs >= 1) tops.push_back(c.top[std::min(runs, kSurfaceMaxRuns) - 1]); }
     };
     std::vector<float> tops;
+    // 29 S2: the field's lowest wet top and its water from the device (no scan of the host's field); the host's field when it has none
+    float devMinTop = 0.0f; double devWater = 0.0;
+    const bool dev = !s_tallHostScanForTest && m_gpu && m_gpu->surfaceStats(vol, devMinTop, devWater);
     // 27.22d: water added or taken since the rest level was read (more than half a cell over the surface) - read it again (the bench
     // fills a pond in layers: the first layer is flat, and a 2 m pond got the floor of a 1 m one)
     if (!std::isnan(av.tallRestY) && fld.cols.size() == static_cast<size_t>(fld.nx) * fld.nz) {
         const double area = static_cast<double>(fld.nx) * fld.nz * av.h * av.h;
-        if (std::abs(fieldWater(fld) + av.recordedM3 - av.tallRestMass) > 0.5 * av.h * area) { off("the water changed - a new rest level"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); }
+        if (std::abs((dev ? devWater : fieldWater(fld)) + av.recordedM3 - av.tallRestMass) > 0.5 * av.h * area) { off("the water changed - a new rest level"); av.tallRestY = std::numeric_limits<float>::quiet_NaN(); }
     }
     // the rest level is read while the volume SLEEPS (WaterCoreManager::update -> captureTallRest): a sleeping volume is never stepped,
     // and the call that decides it sleeps returns before the decision (26.16) - so rarely here
@@ -747,8 +750,9 @@ void WaterCoreManager::updateTall(Av& av) {
     if (T < 1 || T >= n.y) { off("the band reaches the bed"); return; }
     const float floorTop = (static_cast<float>(oy + T) + 1.0f) * h;
     // the trough rule: the lowest wet surface within one brick of B above the floor - all fine until the next rest
-    wetTops(tops);
-    const float minTop = tops.empty() ? av.tallRestY : *std::min_element(tops.begin(), tops.end());
+    float minTop;
+    if (dev) minTop = std::isfinite(devMinTop) ? devMinTop : av.tallRestY;   // 29 S2
+    else { wetTops(tops); minTop = tops.empty() ? av.tallRestY : *std::min_element(tops.begin(), tops.end()); }
     // a TROUGH: the lowest wet surface within one brick of the floor - the band must keep the surface's motion (27.22 item 7). The first
     // build used B - one brick, which turned the tall cells off for a stone's crater 0.28 m deep in a 2 m pond (27.22d)
     if (vol.tallActive && minTop - floorTop < static_cast<float>(vol.by) * h) {
@@ -1080,9 +1084,9 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     std::vector<ColumnRuns> prior;
     m_spanReader(vLo, vHi, prior);
     long unwritten = 0, chunks = 0;
-    m_spanWriter(runs, yLo, yHi, &unwritten, &chunks);
+    writeSpans(runs, yLo, yHi, &unwritten, &chunks);
     if (unwritten > 0) {   // a non-resident chunk: put back what was there, keep the tile in cells
-        long u2 = 0, c2 = 0; m_spanWriter(prior, yLo, yHi, &u2, &c2);
+        long u2 = 0, c2 = 0; writeSpans(prior, yLo, yHi, &u2, &c2);
         return false;
     }
     std::vector<WaterBodyTable::ColumnMass> before, written;
@@ -1162,7 +1166,7 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
     double back = 0.0;
     for (const auto& c : runs) { WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) m.mass += static_cast<double>(r.topY - r.bottomY); before.push_back(m); back += m.mass; }
     for (int vz = vLo.z; vz <= vHi.z; ++vz) for (int vx = vLo.x; vx <= vHi.x; ++vx) { ColumnRuns c; c.x = vx; c.z = vz; clear.push_back(c); }
-    if (m_spanWriter) { long u = 0, ch = 0; m_spanWriter(clear, static_cast<float>(av.minVoxel.y), static_cast<float>(av.maxVoxel.y + 1), &u, &ch); }
+    if (m_spanWriter) { long u = 0, ch = 0; writeSpans(clear, static_cast<float>(av.minVoxel.y), static_cast<float>(av.maxVoxel.y + 1), &u, &ch); }
     m_bodies.credit(written, before, m_bakeBodyAt);
     av.recordedTileList.erase(std::remove(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)), av.recordedTileList.end());
     av.recordedM3 -= back;
@@ -1424,7 +1428,9 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
             // 27.15: the recorded tiles' columns are the record's to draw - marked "not this field's" (runs -1), so the volume's mesh
             // ends there like at its box edge instead of walling them off as dry (a wall from the surface to the bed showed - yellow
             // bed through it, a dark crease along its top - wherever the woken water moved beside a recorded tile, live)
-            if (!(s_handoverRevertForTest & 8)) for (const auto& [tx, tz] : av->recordedTileList) markRecordedColumns(*av, tx, tz);   // bit 8: the C red control
+            const bool fullRead = !got || !av->gpuVol || !m_gpu || !m_gpu->surfacePartial(*av->gpuVol);   // 29 S4: a partial read kept the marks
+            if (!(s_handoverRevertForTest & 8) && (fullRead || s_markEveryRefreshForTest))
+                for (const auto& [tx, tz] : av->recordedTileList) markRecordedColumns(*av, tx, tz);   // bit 8: the C red control
             WaterHostProfile::lap("surf.4 mark recorded columns", hp);
             av->fieldStep = av->stepCount;
             av->field.source = av->id; av->field.version = av->fieldStep + 1;   // 26.30: the tiler skips a field whose version stands (an asleep volume)
@@ -1527,6 +1533,19 @@ void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec
         for (const auto& [key, t] : m_recordTiles)
             if (t.wet) m_recordBoxes.push_back({glm::ivec3(key.first * T, -1000000, key.second * T), glm::ivec3(key.first * T + T - 1, 1000000, key.second * T + T - 1)});
     }
+}
+
+void WaterCoreManager::writeSpans(const std::vector<ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunks) {
+    const uint64_t before = m_spanRevision ? m_spanRevision() : 0;
+    m_spanWriter(runs, yLo, yHi, unwritten, chunks);
+    const uint64_t after = m_spanRevision ? m_spanRevision() : 0;
+    if (!m_spanRevision || after == before || s_recordTilesAllStaleForTest) return;
+    std::set<std::pair<int, int>> touched;
+    const int T = kRecordTile;
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    for (const ColumnRuns& c : runs) touched.insert({floorDiv(c.x, T), floorDiv(c.z, T)});
+    for (auto& [key, t] : m_recordTiles)   // up to date before this write and not touched by it: still up to date
+        if (t.spanRev == before && !touched.count(key)) t.spanRev = after;
 }
 
 void WaterCoreManager::remarkRecordedTile(int tx, int tz) {
@@ -2234,6 +2253,24 @@ WaterCoreManager::MeshParity WaterCoreManager::surfaceMeshParityForTest(int id) 
     for (char u : used) if (!u) ++r.unmatched;
     r.ok = true;
     return r;
+}
+
+}  // namespace Phyxel::Core::Water
+
+namespace Phyxel::Core::Water {
+
+bool WaterCoreManager::tallStatsParityForTest(int id, float& devMin, float& hostMin, double& devWater, double& hostWater) {
+    Av* av = nullptr;
+    for (auto& a : m_avs) if (a->id == id) av = a.get();
+    if (!av || !av->gpuVol || !m_gpu) return false;
+    m_gpu->settle(*av->gpuVol);
+    surfaceFields();
+    if (!m_gpu->surfaceStats(*av->gpuVol, devMin, devWater)) return false;
+    const WaterSurfaceField& f = av->field;
+    hostMin = std::numeric_limits<float>::infinity();
+    for (const SurfaceColumn& c : f.cols) { const int runs = static_cast<int>(c.runs + 0.5f); if (runs >= 1) hostMin = std::min(hostMin, c.top[std::min(runs, kSurfaceMaxRuns) - 1]); }
+    hostWater = fieldWater(f);
+    return true;
 }
 
 }  // namespace Phyxel::Core::Water

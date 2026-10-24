@@ -488,7 +488,7 @@
     },
     "wc_surface_mesh.comp": {
       "built": true,
-      "sources": "488e7578c97d5a794058863221301a32315735e535ea29155e62d60bcbdb3b02",
+      "sources": "b296b88531de6332634790adc50d649f41f736f79b57c05d1e858763c290e7ca",
       "spv_present": true
     },
     "wc_tall.comp": {

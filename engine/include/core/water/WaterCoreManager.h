@@ -356,6 +356,8 @@ public:
     /// host's field, as multisets of quads. `pos` / `other`: the worst differences (m; normal, depth, flow...).
     struct MeshParity { bool ok = false; long hostQuads = 0, deviceQuads = 0, unmatched = 0; float worstPos = 0.0f, worstOther = 0.0f; long sideQuads = 0, multiRunQuads = 0; };
     MeshParity surfaceMeshParityForTest(int id);
+    /// 29 S2 TEST ONLY: the tall floor's numbers from the device against the host field's scan (lowest wet top m, water m^3)
+    bool tallStatsParityForTest(int id, float& devMin, float& hostMin, double& devWater, double& hostWater);
     /// §27 W1a (the owner's choice A, 2026-10-20): RECORDED water near the camera is drawn with the pond surface built from the
     /// record - 8 m world-aligned tiles within `radiusM` of the view point that hold stored water outside every live volume get a
     /// field (recordSurfaceField: the record woken into a scratch grid, the surface extracted), appended to surfaceFields() after
@@ -665,6 +667,17 @@ private:
     void markRecordedColumns(Av& av, int tx, int tz);   // 27.15/27.16: a recorded tile's columns in the volume's field -> the record's (runs -1)
     void queueTileSurface(Av& av, int tx, int tz);      // 29 S1: the tile's columns of the volume's field -> the device's field (next call)
     void remarkRecordedTile(int tx, int tz);            // 29 S1: a record tile rebuilt - its marks again, in every volume holding it
+    /// 29 S4: every write the manager makes to the record goes through here. The record tiles drawn near the camera were rebuilt on
+    /// ANY change of the record's revision - every tile in range stale after one tile recorded (2-3 ms a frame on the lake, four
+    /// rebuilds a call while a hundred waited). Now: a tile the write did not touch, up to date before it, stays up to date (its
+    /// revision advanced); a change the manager did not make (another writer) still marks every tile stale.
+    void writeSpans(const std::vector<ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunks);
+    static inline bool s_recordTilesAllStaleForTest = false;   ///< TEST ONLY: the old rule (every tile stale on any write)
+    /// 29 S4: a recorded tile's columns are re-marked only after a FULL read of the surface (it reset them; a partial read keeps them).
+    /// TEST ONLY: on every refresh (the old cost: 1-2 ms a frame on the lake)
+    static inline bool s_markEveryRefreshForTest = false;
+    /// 29 S2: the tall floor reads the field's lowest wet top and its water from the device. TEST ONLY: the host's scan (the control)
+    static inline bool s_tallHostScanForTest = false;
     bool wakeTile(Av& av, int tx, int tz);
     /// wake the recorded tiles a write at `world` touches (+ s_writeWakeReachM); deferred = before the next call (a write that
     /// lands then too - a droplet's deposit), not now (a collect between two calls breaks the freeze test, 27.13)

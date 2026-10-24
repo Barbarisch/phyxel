@@ -21,7 +21,7 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 9};   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 10};   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -118,7 +118,7 @@ void WaterCoreGpu::bindPipelines(Volume& vol) {
     bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped, &vol.solid, &vol.births, &vol.deposit, br, &vol.fLo});   // 21: + births, deposit; 26.10: + fLo
     bindAll(*vol.pipes[Surface],    {&vol.f, &vol.occ, &vol.surf, &vol.u, &vol.w, &vol.solid, br, &vol.births, &vol.birthsPacked, &vol.lists, &vol.surfDense, &vol.solidTopD});   // Phase F (+ u, w: E2; + solid: 20; 26.11: packed lists; 29 S1: the dense field)
     // 29 S1: bindings 6 / 7 are the test expansion's (expandSurfaceForTest rebinds them); otherwise placeholders
-    bindAll(*vol.pipes[SurfaceMesh], {&vol.surfDense, &vol.meshCorners, &vol.meshMeta, &vol.meshList, &vol.meshArgs, br, &vol.meshList, &vol.meshArgs, &vol.solidTopD});
+    bindAll(*vol.pipes[SurfaceMesh], {&vol.surfDense, &vol.meshCorners, &vol.meshMeta, &vol.meshList, &vol.meshArgs, br, &vol.meshList, &vol.meshArgs, &vol.solidTopD, &vol.colAgg});
     bindAll(*vol.pipes[Classify],   {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.src, &vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.solid, br});
     bindAll(*vol.pipes[Rbgs],       {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res, br});
     // binding 8 = the lattice before the halo pass: a dedicated scratch, because uOld/vOld/wOld are
@@ -254,6 +254,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
            && createBuffer(vol->meshCorners, (vol->bricked ? vol->dColumns : 1) * 64, false, err) && createBuffer(vol->meshMeta, (vol->bricked ? vol->dColumns : 1) * 4, false, err)
            && createBuffer(vol->meshList, (vol->bricked ? vol->dColumns * 4 : 1) * 4, false, err) && createBuffer(vol->meshArgs, 32, false, err)
            && createBuffer(vol->meshArgsHost, 32, true, err)
+           && createBuffer(vol->colAgg, (vol->bricked ? static_cast<size_t>(vol->bn.x) * vol->bn.z : 1) * 8, false, err)   // 29 S2
            && (!vol->bricked || createBuffer(vol->surfUp, vol->dColumns * (sizeof(Core::Water::SurfaceColumn) + 4), true, err));
     vol->meshListCap = vol->bricked ? static_cast<uint32_t>(vol->dColumns * 4) : 0u;
     { static uint64_t s_serial = 0; vol->serial = ++s_serial; }
@@ -283,7 +284,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                           &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep,
                           &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->unitMap,
-                          &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs})
+                          &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->colAgg})
             if (b->buf) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
         {   // 29 S1: the extras draw - vertexCount 6, instanceCount (counted each call), firstVertex 0, firstInstance 1 (the vertex shader's
             // "this is the list" mark)
@@ -319,7 +320,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                       &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->scratch, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum, &vol->unitMap,
-                      &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->meshArgsHost, &vol->surfUp})
+                      &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->meshArgsHost, &vol->surfUp, &vol->colAgg})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -2118,16 +2119,66 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
             if (vol.slotBrick[s] >= 0 && (vol.hostInfo[2 * s + 1] & 1)) vol.liquidAtStartForTest.push_back(vol.slotBrick[s]);
         if (vol.recordValid && !vol.freezeForTest) {
             const int32_t* info = vol.hostInfo.data();
-            for (size_t s = 1; s < static_cast<size_t>(vol.slotsUsed); ++s) {
-                const int packed = vol.slotBrick[s];
-                if (packed < 0 || !(info[2 * s] & 1)) continue;   // record 0: any water
-                const glm::ivec3 b(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
-                need[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 2;
-                for (int r = 0; r < 2; ++r) {
-                    const int rec = info[2 * s + r];
-                    if (!(rec & 1)) continue;
-                    int dist[6]; for (int k = 0; k < 6; ++k) dist[k] = (rec >> (1 + 3 * k)) & 7;
-                    markNeed(vol, need, b, dist, (r == 0 ? kReachFilm : kReachLiquid) + travel);
+            const size_t ncol = static_cast<size_t>(vol.bn.x) * vol.bn.z;
+            // 29 S3: round the awake water only - `active` columns are recomputed, the marks come from the slots in `src` (active dilated
+            // by the rings a mark reaches); every other entry keeps its state (a frozen column's water does not move)
+            const bool restrict = s_residencyAwakeOnly && vol.partialWake && vol.anyFrozen && vol.colFrozen.size() == ncol;
+            std::vector<char> active, src;
+            if (restrict) {
+                const int R = (reach + kB - 1) / kB;
+                auto dilate = [&](const std::vector<char>& in, int r) {
+                    if (r <= 0) return in;
+                    std::vector<char> rowOut(ncol, 0), out(ncol, 0);
+                    for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {   // separable: x, then z
+                        bool any = false;
+                        for (int k = std::max(0, bx - r); k <= std::min(vol.bn.x - 1, bx + r) && !any; ++k) any = in[static_cast<size_t>(k) + static_cast<size_t>(vol.bn.x) * bz] != 0;
+                        rowOut[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz] = any;
+                    }
+                    for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+                        bool any = false;
+                        for (int k = std::max(0, bz - r); k <= std::min(vol.bn.z - 1, bz + r) && !any; ++k) any = rowOut[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * k] != 0;
+                        out[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz] = any;
+                    }
+                    return out;
+                };
+                std::vector<char> awake(ncol, 0);
+                for (size_t c = 0; c < ncol; ++c) awake[c] = (vol.colFrozen[c] || s_residencyCopyAllForTest) ? 0 : 1;
+                active = dilate(awake, R);
+                src = dilate(active, R);
+                ++s_residencyRestrictedCallsForTest;
+            }
+            auto marks = [&](std::vector<char>& nd, bool onlySrc) {
+                for (size_t s = 1; s < static_cast<size_t>(vol.slotsUsed); ++s) {
+                    const int packed = vol.slotBrick[s];
+                    if (packed < 0 || !(info[2 * s] & 1)) continue;   // record 0: any water
+                    const glm::ivec3 b(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
+                    if (onlySrc && !src[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * b.z]) continue;
+                    nd[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 2;
+                    for (int r = 0; r < 2; ++r) {
+                        const int rec = info[2 * s + r];
+                        if (!(rec & 1)) continue;
+                        int dist[6]; for (int k = 0; k < 6; ++k) dist[k] = (rec >> (1 + 3 * k)) & 7;
+                        markNeed(vol, nd, b, dist, (r == 0 ? kReachFilm : kReachLiquid) + travel);
+                    }
+                }
+            };
+            marks(need, restrict);
+            if (restrict) {
+                const size_t sx = static_cast<size_t>(vol.bn.x), sxy = sx * static_cast<size_t>(vol.bn.y);
+                for (size_t m = 0; m < vol.mapCount; ++m)
+                    if (!active[(m % sx) + sx * (m / sxy)]) need[m] = vol.map[m] >= kFirstSlot ? 2 : (vol.map[m] == kGround ? 1 : 0);
+                if (s_residencyCheckForTest) {   // TEST ONLY: the full residency, outcome by outcome
+                    std::vector<char> full(vol.mapCount, 0);
+                    marks(full, false);
+                    const bool ground = vol.groundOn && vol.allSolid.size() == vol.mapCount;
+                    auto outcome = [&](size_t m, char nv) { return nv == 0 ? 0 : ((ground && nv == 1 && vol.allSolid[m]) ? 1 : 2); };
+                    for (size_t m = 0; m < vol.mapCount; ++m) {
+                        const size_t c = (m % sx) + sx * (m / sxy);
+                        if (vol.colRecorded.size() == ncol && vol.colRecorded[c]) continue;   // applyResidency's own rule there
+                        if (vol.tallActive && vol.tallPending != 2 && vol.tallY >= 0 && static_cast<int>((m / sx) % static_cast<size_t>(vol.bn.y)) < (vol.tallY + vol.o.y) / vol.by) continue;   // under the tall layer: its rule
+                        if (outcome(m, need[m]) != outcome(m, full[m])) ++s_residencyMismatchForTest;
+                    }
+                    ++s_residencyCallsCheckedForTest;
                 }
             }
         } else {
@@ -2303,6 +2354,10 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     if (gpuSurf) {   // 29 S1: the mesh - the covered columns and a ring round them (or every column), then the extras list
         if (meshFull) { mp.mode = 3; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, denseCols); }
         else { mp.mode = 0; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, static_cast<size_t>(vol.colCount) * 100); }
+        // 29 S2: the tall floor's numbers - per brick column (the covered ones, or all after host writes / a full pass), folded
+        if (meshFull && !s_tallAggNoFullForTest) { mp.mode = 7; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, static_cast<size_t>(vol.bn.x) * vol.bn.z); }
+        else { mp.mode = 5; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, static_cast<size_t>(vol.colCount)); }
+        mp.mode = 6; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, 64);
         vkCmdFillBuffer(cmd, vol.meshArgs.buf, 4, 4, 0);    // instanceCount
         vkCmdFillBuffer(cmd, vol.meshArgs.buf, 16, 8, 0);   // wanted, dropped
         barrier(cmd);
@@ -2433,6 +2488,8 @@ void WaterCoreGpu::finishCall(Volume& vol) {
     if (vol.meshArgsHost.mapped) {   // 29 S1: the extras list as the call left it
         const auto* a = static_cast<const uint32_t*>(vol.meshArgsHost.mapped);
         vol.lastMeshEntries = a[4]; vol.lastMeshDropped = a[5];
+        float mt, ws; std::memcpy(&mt, &a[6], 4); std::memcpy(&ws, &a[7], 4);   // 29 S2
+        vol.fieldMinTop = mt; vol.fieldWaterSum = ws; vol.fieldStatsValid = vol.meshValid && s_gpuSurface;
     }
     vol.surfaceValid = true;
     vol.birthsFresh = true;
@@ -2457,7 +2514,11 @@ void WaterCoreGpu::finishCall(Volume& vol) {
         st.allocated = vol.lastAllocated; st.freed = vol.lastFreed; st.heldByCapacity = vol.lastHeld; st.haloRings = vol.lastRings;
         st.compacted = vol.lastCompacted;
         st.unstoredWater = vol.unstoredM3;
-        if (vol.sparse) st.haloShort = haloShortAfterCall(vol);
+        if (vol.sparse) {   // 29 S3: every synchronous call; a live one once a second (the last value between)
+            const auto now = std::chrono::steady_clock::now();
+            if (!vol.async || s_haloCheckEveryCall || now - vol.lastHaloCheck >= std::chrono::seconds(1)) { vol.lastHaloShort = haloShortAfterCall(vol); vol.lastHaloCheck = now; }
+            st.haloShort = vol.lastHaloShort;
+        }
         st.hostAfterMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tFence).count();
         vol.recordValid = vol.sparse;
     }

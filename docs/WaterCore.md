@@ -8847,6 +8847,26 @@ per column, the dropped counted). `water_surface_pull.vert` draws it (set 2, pus
   NOT measured yet (S5). **The water's CPU is still ~16 ms a frame** (the GPU step's host side ~8, tall cells ~3, motion ~2.4, the
   surface read ~2.2, ripples ~1): S2 and S3.
 
+**S3 / S4 / S2 (tall) RESULT (2026-10-24): BUILT, ON.**
+- **The halo check, once a second live** (`s_haloCheckEveryCall`). `haloShortAfterCall` is a DIAGNOSTIC: nothing steps on it. It
+  re-ran the whole residency over every stored brick after every call, ~2.5 ms. A synchronous call (the tests) still checks every call.
+- **The residency only round the awake water** (`s_residencyAwakeOnly`). The awake brick columns, dilated by the rings a call's reach
+  crosses, are recomputed; every other entry keeps its state (a frozen column's water does not move). Gate:
+  `TheResidencyRoundTheAwakeWaterIsTheWholeResidency` - every call, the restricted residency against the whole one, entry by entry: 600
+  calls checked, 0 differing. RED (nothing recomputed): 5,345 differing. Measured: the dilation itself is not needed on the test pond
+  (the partial wake's 2-column margin already keeps quiet awake columns between moving water and frozen ones); it stays as a margin.
+- **S4 the record tiles rebuilt where the record changed** (`writeSpans`: a write by the manager advances the tiles it did not touch;
+  a write by anyone else still makes every tile stale). And a recorded tile's columns are **re-marked only after a FULL read** of
+  the surface (a partial read keeps them).
+- **S2 the tall floor's numbers from the device** (`wc_surface_mesh` modes 5/7: per brick column the lowest wet top and the water;
+  mode 6 folds them). Gate, in `TheDeviceMeshIsTheHostMesh`: the device's numbers against the host field's scan at every check -
+  0 off; RED (never redone whole after host writes): 4 off (a recorded tile's 256 m^3 still counted).
+- **Live** (the 60 x 60 m lake, recording on, after the push, no capture), at 1,794 awake brick columns (more than 27.28's 1,510):
+  **CPU frame 13.3 ms (76 fps)** vs 27.8 (37 fps); collect 3.0 -> 0.4 ms, tall cells 2.4 -> 0.7 (then < 0.05), record tiles' surfaces
+  2.0 -> 0.18, the marks 1-2 -> 0. **The water's CPU is still ~11 ms**: the residency 2.4 + apply 1.0 (per AWAKE brick - 39 % of
+  the lake), motion 1.9, the surface read 1.7, ripples 1.1, partition 0.5. The water call's GPU time is 2.9-3.4 ms on its own:
+  **the 2 ms budget is not met by the CPU work alone, and the GPU's share is over it too** (S5).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

@@ -589,6 +589,7 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeHoles) {
 // through the vertex shader's own function, against buildWaterSurfaceMesh of the host's field, as multisets of quads.
 // Prediction: 0 unmatched quads at every check, positions within 1e-4 m, the rest within 1e-3. RED CONTROL: the mesh pass without its
 // ring (s_meshNoRingForTest) - a frozen column beside the awake region keeps stale corners: unmatched quads after the push.
+static long tallBad = 0;   // 29 S2: checks where the device's tall-floor numbers differ from the host field's scan
 static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool noRing, bool damBreak,
                                                   long& checks, long& checksBad, long& sideMax, long& multiMax, long& recordedMax, long& wokenEnd) {
     (void)fx;
@@ -632,6 +633,13 @@ static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevic
         sideMax = std::max(sideMax, p.sideQuads);
         multiMax = std::max(multiMax, p.hostQuads - 32L * 9 * 16 * 9);   // more quads than one top a column: the walls and the second runs
         if (const AvRecord* r = mgr.find(id)) recordedMax = std::max<long>(recordedMax, r->recordedTiles);
+        float dm = 0.0f, hm = 0.0f; double dw = 0.0, hw = 0.0;   // 29 S2: the tall floor's numbers from the device
+        if (!mgr.tallStatsParityForTest(id, dm, hm, dw, hw)) { ADD_FAILURE() << "tall stats read failed at tick " << k; return; }
+        const bool minOk = (std::isinf(dm) && std::isinf(hm)) || std::abs(dm - hm) <= 1e-5f;
+        if (!minOk || std::abs(dw - hw) > 1e-3 * std::max(1.0, hw)) {
+            ++tallBad;
+            if (tallBad <= 3) std::printf("    tick %d tall stats: lowest top device %.6f host %.6f, water device %.4f host %.4f\n", k, dm, hm, dw, hw);
+        }
     };
     int k = 0;
     for (; k < 360; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); mgr.surfaceFields(); if (k % 10 == 9) check(k); }
@@ -644,6 +652,7 @@ static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevic
 
 TEST_F(WaterRecordTilesTest, TheDeviceMeshIsTheHostMesh) {
     if (!isVulkanAvailable()) GTEST_SKIP();
+    tallBad = 0;
     // A: the dam break - water running over dry ground (side faces, every column awake)
     long checks = 0, bad = 0, sideMax = 0, multiMax = 0, recordedMax = 0, woken = 0;
     const auto dam = runDeviceMesh(*this, device, physicalDevice, queue, queueFamilyIndex, false, true, checks, bad, sideMax, multiMax, recordedMax, woken);
@@ -665,6 +674,55 @@ TEST_F(WaterRecordTilesTest, TheDeviceMeshIsTheHostMesh) {
     EXPECT_EQ(bad, 0) << "A: the device mesh differs from the host's";
     EXPECT_EQ(pBad, 0) << "B: the device mesh differs from the host's";
     EXPECT_GT(rBad, 0) << "RED CONTROL: without the ring the frozen columns beside the awake region kept stale corners - unseen";
+    const long tallShipped = tallBad;
+    tallBad = 0;
+    WaterCoreGpu::s_tallAggNoFullForTest = true;   // RED: the brick-column numbers never redone whole - a recorded tile's water stays counted
+    long tc = 0, tb = 0, s3 = 0, m3 = 0, r3 = 0, w3 = 0;
+    runDeviceMesh(*this, device, physicalDevice, queue, queueFamilyIndex, false, false, tc, tb, s3, m3, r3, w3);
+    WaterCoreGpu::s_tallAggNoFullForTest = false;
+    const long tallRed = tallBad;
+    tallBad = tallShipped;
+    std::printf("  tall-floor numbers (lowest wet top, water) device vs host scan: %ld checks off | RED (never redone whole): %ld off\n", tallShipped, tallRed);
+    EXPECT_GT(tallRed, 0) << "RED CONTROL: the tall-floor numbers without the whole pass went unseen";
+    EXPECT_EQ(tallBad, 0) << "29 S2: the device's tall-floor numbers differ from the host field's";
+}
+
+// 29 S3 THE RESIDENCY ROUND THE AWAKE WATER IS THE WHOLE RESIDENCY (red first). A 40 x 24 m pond 1 m deep, partial wake on, a push at
+// one end: the waves wake part of it and the rest stays frozen. Every call, with WaterCoreGpu::s_residencyCheckForTest, the residency
+// recomputed only round the awake columns (dilated by the rings a call's reach crosses) is compared, entry by entry (absent / ground /
+// stored), with the residency over every stored brick. Prediction: 0 differing entries over every call, the restricted path taken on
+// most calls. RED CONTROL: nothing recomputed, every entry kept (s_residencyCopyAllForTest) - the water's own residency changes differ. (Measured: the dilation itself is not needed here - the partial wake's 2-column margin separates the moving water from the frozen columns; it stays as a margin of safety.)
+static void runResidency(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool noDilate, long& mismatches, long& checked, long& restricted, long& calls) {
+    WaterCoreGpu::s_residencyCheckForTest = true; WaterCoreGpu::s_residencyCopyAllForTest = noDilate;
+    WaterCoreGpu::s_residencyMismatchForTest = 0; WaterCoreGpu::s_residencyCallsCheckedForTest = 0; WaterCoreGpu::s_residencyRestrictedCallsForTest = 0;
+    struct Restore { ~Restore() { WaterCoreGpu::s_residencyCheckForTest = false; WaterCoreGpu::s_residencyCopyAllForTest = false; } } restore;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return; }
+    mgr.setDroplets(false);
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(39, 1, 23), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    if (!id) { ADD_FAILURE() << err; return; }
+    mgr.setAutoSleep(id, false);
+    EXPECT_TRUE(mgr.setPartialWake(id, true));
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(39, 0, 23), 1.0f, nullptr);
+    AvRecord rec;
+    for (int k = 0; k < 120; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); ++calls; }
+    mgr.addImpulse(glm::vec3(4.0f, 0.9f, 12.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    for (int k = 0; k < 600; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); ++calls; }
+    mismatches = WaterCoreGpu::s_residencyMismatchForTest; checked = WaterCoreGpu::s_residencyCallsCheckedForTest; restricted = WaterCoreGpu::s_residencyRestrictedCallsForTest;
+}
+
+TEST_F(WaterRecordTilesTest, TheResidencyRoundTheAwakeWaterIsTheWholeResidency) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    long mm = 0, ck = 0, rs = 0, calls = 0, rmm = 0, rck = 0, rrs = 0, rcalls = 0;
+    runResidency(device, physicalDevice, queue, queueFamilyIndex, false, mm, ck, rs, calls);
+    runResidency(device, physicalDevice, queue, queueFamilyIndex, true, rmm, rck, rrs, rcalls);
+    std::printf("  shipped: %ld calls, the restricted residency on %ld, checked %ld, entries differing %ld | RED (nothing recomputed): checked %ld, differing %ld\n",
+                calls, rs, ck, mm, rck, rmm);
+    EXPECT_GT(rs, calls / 2) << "the restricted path ran (frozen columns beside awake ones)";
+    EXPECT_EQ(mm, 0) << "the residency round the awake water differs from the whole residency";
+    EXPECT_GT(rmm, 0) << "RED CONTROL: with nothing recomputed the residency changes went unseen";
 }
 
 // DiagLakeRecorded (27.23 W1e step 0): the 60 x 60 m lake (2 m deep, 3 m box) with the partial wake and RECORDING on - the lake at

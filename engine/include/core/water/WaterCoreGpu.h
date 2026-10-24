@@ -274,6 +274,8 @@ public:
         bool asleep = false;
         bool quietBefore = false;
         double lastMaxSpeed = 0.0;       ///< from the last call's reduction (or the upload), drives the CFL count
+        long lastHaloShort = 0;          ///< 29 S3: the last measured haloShort (live calls measure it once a second)
+        std::chrono::steady_clock::time_point lastHaloCheck{};
         bool surfaceValid = false;       ///< Phase F: staging holds a surface field from the last step
         // 26.16: one call in flight (ASYNC) - what the host reads of a call is copied out of staging when it is collected
         bool async = false, inFlight = false;
@@ -310,6 +312,9 @@ public:
         bool meshFullNext = true;        ///< the next mesh pass covers every column (host writes, a template)
         bool meshValid = false;          ///< the device field and mesh are whole (false: the first call, the switch was off - the next call builds them whole)
         uint32_t lastMeshEntries = 0, lastMeshDropped = 0;   ///< the collected call's extras list (wanted, dropped past the capacity)
+        // 29 S2: the field's numbers the tall floor reads, made on the device (per brick column, folded): the lowest wet top and the water
+        Buffer colAgg;
+        float fieldMinTop = 0.0f; double fieldWaterSum = 0.0; bool fieldStatsValid = false;
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
                         ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, SurfaceMesh, KernelCount };   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)   // 29 S1: + SurfaceMesh
@@ -346,6 +351,20 @@ public:
     /// in place), or a FILM record
     static inline long s_haloShortLiquidOldForTest = 0, s_haloShortLiquidNewForTest = 0, s_haloShortFilmForTest = 0;
     static inline std::string s_haloShortDetailForTest;   ///< 26.23: per short brick - the film brick's offset, its face distances, the call's travel
+    /// 29 S3: the halo check (haloShortAfterCall - a DIAGNOSTIC, nothing steps on it) redoes the whole residency over every stored brick:
+    /// ~2.5 ms a call on the 60 x 60 m lake. A synchronous call (the tests, the harness) measures it every call; a live (async) call
+    /// once a second, reporting the last value between. true = every call (the old behaviour).
+    static inline bool s_haloCheckEveryCall = false;
+    /// 29 S3: the residency recomputed only round the AWAKE water - the awake brick columns dilated by the rings a call's reach can
+    /// cross (R = ceil(reach / 8)); the marks read from the slots within R of those. Every other entry keeps its state: a frozen
+    /// column's water does not move, so its need is what it was. Off = every stored brick (the old way, ~3 ms on the lake).
+    static inline bool s_residencyAwakeOnly = true;
+    /// TEST ONLY: compute the full residency too and count the entries whose outcome (absent / ground / stored) differs; and the
+    /// red control - nothing recomputed, every entry kept (the check must see the water's own residency changes). Measured: the
+    /// dilation itself was not needed on the test pond (the partial wake's 2-column margin already keeps quiet awake columns
+    /// between the moving water and the frozen ones) - it stays as a margin of safety (cheap: a few thousand flags)
+    static inline bool s_residencyCheckForTest = false, s_residencyCopyAllForTest = false;
+    static inline long s_residencyMismatchForTest = 0, s_residencyCallsCheckedForTest = 0, s_residencyRestrictedCallsForTest = 0;
     /// 26.10 test hook: copy f after every stage of each single-tick, single-substep call and sum it on the host in double -
     /// exact per-stage mass changes (the device's own sums are float). s_stageDm[k] accumulates stage k's change in cell
     /// fractions: 0 between calls, 1 sources, 2 transport gather, 3 transport carry, 4 ledger, 5 compaction, 6 rest of the
@@ -375,6 +394,7 @@ public:
     /// volume (the A/B control). TEST ONLY: the mesh pass without its one-column ring (the parity test's red control).
     static inline bool s_gpuSurface = true;    // ON since 29 S1 passed (mesh parity, red control, live pixels)
     static inline bool s_meshNoRingForTest = false;
+    static inline bool s_tallAggNoFullForTest = false;   ///< 29 S2 TEST ONLY: the brick-column numbers never redone whole (the red control)
     /// 27.23 W1e: the rest reductions follow the awake water - frozen columns' units kept in the unit map, mode 1's three face
     /// passes folded into mode 0's speed lane. Off = every stored brick reduced every call (today's path, the parity test's A).
     static inline bool s_unitCache = true;
@@ -503,6 +523,14 @@ public:
     /// field) without `keep` or if a collected call's surface was never read (its columns would be lost).
     bool readSurface(const Volume& vol, float* out, bool keep = false) const;
     bool surfaceReady(const Volume& vol) const { return vol.surfaceValid; }
+    /// 29 S4: the readable surface covers only the awake columns (a partial read keeps every other column - a recorded tile's marks too)
+    bool surfacePartial(const Volume& vol) const { return !vol.hostSurfCols.empty(); }
+    /// 29 S2: the collected call's lowest wet top (m; +inf = no water) and its field's water (m^3: the runs' heights x h^2) - what
+    /// updateTall scanned the host's field for. False until the device surface has run.
+    bool surfaceStats(const Volume& vol, float& minTop, double& waterM3) const {
+        if (!vol.fieldStatsValid) return false;
+        minTop = vol.fieldMinTop; waterM3 = vol.fieldWaterSum * static_cast<double>(vol.spec.h) * vol.spec.h; return true;
+    }
     /// 29 S1: host writes into the device's surface field - the columns [x0, x1) x [z0, z1) of `field` (the volume's own lattice), sent
     /// in the next call's command buffer before its surface pass (a recorded tile's marks, a woken tile's seed)
     void queueSurfaceColumns(Volume& vol, const Core::Water::WaterSurfaceField& field, int x0, int z0, int x1, int z1);
