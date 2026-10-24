@@ -15,6 +15,11 @@
 //           its runs' heights, m) over its 8 x 8 columns into colAgg - what the tall floor reads (updateTall: the trough rule, the water
 //           changed). mode 7: the same over every brick column of the box (after host writes or a full pass). mode 6: one workgroup
 //           folds colAgg into args[6] (the lowest wet top, float bits; +inf = none) and args[7] (the water, float bits)
+//   mode 8  29 S2: MOTION (WaterCoreManager::takeMotion, on the device) over the covered columns (mode 9: every column, after host writes
+//           or a full pass): per column a reference top held while the surface moves no more than pc.vcBand (moveM) from it; a column
+//           that moved further ROSE (its reference follows) - the rising columns' box (cells), their tops' range, how many, the largest
+//           move, and the flow's largest and how many over 0.08 m/s, into motion[] (atomics; the host reads them after the call). A dry
+//           column or one with a body at its surface has no reference (NaN), as takeMotion's
 //   mode 2  TEST ONLY: expand every quad (each column's first-run top, then the list) into vertices (WaterSurfaceVertex, 12 floats)
 //           through wspQuad - what the vertex shader draws; pc.iparam = the ripple layer + 1
 // pc.param0 / pc.param1 = the field's origin x / z (cells, exact as floats); pc.h the cell size.
@@ -34,6 +39,8 @@ layout(std430, set = 0, binding = 6) buffer Expand { float vtx[]; };
 layout(std430, set = 0, binding = 7) buffer ExpandCount { uint quads[]; };
 layout(std430, set = 0, binding = 8) readonly buffer SolidTopD { float solidTopD[]; };
 layout(std430, set = 0, binding = 9) buffer ColAgg { vec2 colAgg[]; };   // 29 S2: per brick column (lowest wet top, water m)
+layout(std430, set = 0, binding = 10) buffer MotionRef { float motionRef[]; };   // 29 S2: per dense column
+layout(std430, set = 0, binding = 11) buffer Motion { int motion[]; };   // [rise cols, flow cols, max rise bits, max flow bits, x lo, x hi, z lo, z hi, y lo, y hi (ordered)]
 shared float sMin[64];
 shared float sSum[64];
 
@@ -85,6 +92,27 @@ void brickColumnAgg(WspGeo g, int bx, int bz) {
     colAgg[uint(bx) + uint(pc.bnx) * uint(bz)] = vec2(lo, water);
 }
 
+int orderedBits(float f) { const int i = floatBitsToInt(f); return i >= 0 ? i : (i ^ 0x7FFFFFFF); }
+void motionColumn(WspGeo g, int x, int z) {
+    const uint c = wspIdx(g, x, z);
+    const int runs = int(surfD[c].runs + 0.5);
+    if (runs <= 0 || surfD[c].body > 0.0) { motionRef[c] = uintBitsToFloat(0x7FC00000u); return; }   // dry, or a body's level: no reference
+    const float top = surfD[c].top[min(runs, 4) - 1];
+    const float ref = motionRef[c];
+    const bool haveRef = !isnan(ref);
+    const float dTop = haveRef ? abs(top - ref) : 0.0;
+    const bool rose = dTop > (pc.dt == 2.0 ? 0.5 * pc.vcBand : pc.vcBand);   // pc.dt 2: TEST ONLY, half the threshold (the red control)
+    motionRef[c] = (haveRef && !rose) ? ref : top;   // the reference moves only when the surface did
+    const float flow = sqrt(surfD[c].u * surfD[c].u + surfD[c].w * surfD[c].w);
+    if (dTop > 0.0) atomicMax(motion[2], floatBitsToInt(dTop));
+    if (flow > 0.0) atomicMax(motion[3], floatBitsToInt(flow));
+    if (flow > 0.08) atomicAdd(motion[1], 1);
+    if (!rose) return;
+    atomicAdd(motion[0], 1);
+    atomicMin(motion[4], x); atomicMax(motion[5], x); atomicMin(motion[6], z); atomicMax(motion[7], z);
+    atomicMin(motion[8], orderedBits(top)); atomicMax(motion[9], orderedBits(top));
+}
+
 void emit(uint e) {
     const uint k = atomicAdd(args[4], 1u);
     if (k < uint(pc.iparam)) { list[k] = e; atomicAdd(args[1], 1u); }
@@ -129,6 +157,16 @@ void main() {
         barrier();
         for (uint k = 32u; k > 0u; k >>= 1u) { if (t < k) { sMin[t] = min(sMin[t], sMin[t + k]); sSum[t] += sSum[t + k]; } barrier(); }
         if (t == 0u) { args[6] = floatBitsToUint(sMin[0]); args[7] = floatBitsToUint(sSum[0]); }
+    } else if (pc.mode == 8) {
+        const int e = int(id >> 6u), l = int(id & 63u);
+        if (e >= pc.colCount) return;
+        const int packed = bricks[pc.colTableOff + e];
+        const int x = (packed & 1023) * 8 + (l & 7) - pc.ox, z = ((packed >> 10) & 1023) * 8 + (l >> 3) - pc.oz;
+        if (!wspIn(g, x, z)) return;
+        motionColumn(g, x, z);
+    } else if (pc.mode == 9) {
+        if (id >= nCols) return;
+        motionColumn(g, int(id % uint(pc.nx)), int(id / uint(pc.nx)));
     } else if (pc.mode == 1) {
         if (id >= nCols) return;
         const uint m = meshMeta[id];

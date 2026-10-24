@@ -590,6 +590,7 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeHoles) {
 // Prediction: 0 unmatched quads at every check, positions within 1e-4 m, the rest within 1e-3. RED CONTROL: the mesh pass without its
 // ring (s_meshNoRingForTest) - a frozen column beside the awake region keeps stale corners: unmatched quads after the push.
 static long tallBad = 0;   // 29 S2: checks where the device's tall-floor numbers differ from the host field's scan
+static long motionBad = 0, motionSteps = 0, motionRiseMax = 0;   // 29 S2: steps where the device's motion differs from takeMotion's scan
 static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool noRing, bool damBreak,
                                                   long& checks, long& checksBad, long& sideMax, long& multiMax, long& recordedMax, long& wokenEnd) {
     (void)fx;
@@ -641,10 +642,19 @@ static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevic
             if (tallBad <= 3) std::printf("    tick %d tall stats: lowest top device %.6f host %.6f, water device %.4f host %.4f\n", k, dm, hm, dw, hw);
         }
     };
+    auto motionStep = [&](int kk) {   // 29 S2: every step (the host scan keeps its own references)
+        const auto mp = mgr.motionParityForTest(id);
+        if (!mp.ok) return;
+        ++motionSteps; motionRiseMax = std::max<long>(motionRiseMax, mp.hostRise);
+        if (mp.devRise != mp.hostRise || !mp.boxSame || mp.riseDiff > 1e-5f) {
+            ++motionBad;
+            if (motionBad <= 3) std::printf("    tick %d motion: device %d rising, host %d, box same %d, largest move differs by %.2e\n", kk, mp.devRise, mp.hostRise, int(mp.boxSame), mp.riseDiff);
+        }
+    };
     int k = 0;
-    for (; k < 360; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); mgr.surfaceFields(); if (k % 10 == 9) check(k); }
+    for (; k < 360; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); mgr.surfaceFields(); motionStep(k); if (k % 10 == 9) check(k); }
     mgr.addImpulse(glm::vec3(10.0f, 1.9f, 8.0f), 0.5f, 3.0f, glm::vec3(0.0f, -1.0f, 0.0f));   // a push among the recorded tiles
-    for (; k < 900; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); mgr.surfaceFields(); if (k % 10 == 9) check(k); }
+    for (; k < 900; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); mgr.surfaceFields(); motionStep(k); if (k % 10 == 9) check(k); }
     if (const AvRecord* r = mgr.find(id)) wokenEnd = r->tilesWoken;
     worst.ok = true;
     return worst;
@@ -652,7 +662,7 @@ static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevic
 
 TEST_F(WaterRecordTilesTest, TheDeviceMeshIsTheHostMesh) {
     if (!isVulkanAvailable()) GTEST_SKIP();
-    tallBad = 0;
+    tallBad = 0; motionBad = 0; motionSteps = 0; motionRiseMax = 0;
     // A: the dam break - water running over dry ground (side faces, every column awake)
     long checks = 0, bad = 0, sideMax = 0, multiMax = 0, recordedMax = 0, woken = 0;
     const auto dam = runDeviceMesh(*this, device, physicalDevice, queue, queueFamilyIndex, false, true, checks, bad, sideMax, multiMax, recordedMax, woken);
@@ -684,6 +694,20 @@ TEST_F(WaterRecordTilesTest, TheDeviceMeshIsTheHostMesh) {
     tallBad = tallShipped;
     std::printf("  tall-floor numbers (lowest wet top, water) device vs host scan: %ld checks off | RED (never redone whole): %ld off\n", tallShipped, tallRed);
     EXPECT_GT(tallRed, 0) << "RED CONTROL: the tall-floor numbers without the whole pass went unseen";
+    std::printf("  motion: %ld steps compared, %ld differing, up to %ld rising columns\n", motionSteps, motionBad, motionRiseMax);
+    EXPECT_GT(motionRiseMax, 0) << "the rig's surface rose (motion was exercised)";
+    EXPECT_EQ(motionBad, 0) << "29 S2: the device's motion differs from takeMotion's scan";
+    {   // RED: the device's motion at half the threshold - the dam break's columns moving between the two differ
+        const long mb = motionBad, ms = motionSteps, mr = motionRiseMax;
+        motionBad = 0; motionSteps = 0;
+        WaterCoreGpu::s_motionHalfThresholdForTest = true;
+        long c4 = 0, b4 = 0, s4 = 0, m4 = 0, r4 = 0, w4 = 0;
+        runDeviceMesh(*this, device, physicalDevice, queue, queueFamilyIndex, false, true, c4, b4, s4, m4, r4, w4);
+        WaterCoreGpu::s_motionHalfThresholdForTest = false;
+        std::printf("  motion RED (half the threshold on the device): %ld steps, %ld differing\n", motionSteps, motionBad);
+        EXPECT_GT(motionBad, 0) << "RED CONTROL: the device motion at half the threshold went unseen";
+        motionBad = mb; motionSteps = ms; motionRiseMax = mr;
+    }
     EXPECT_EQ(tallBad, 0) << "29 S2: the device's tall-floor numbers differ from the host field's";
 }
 

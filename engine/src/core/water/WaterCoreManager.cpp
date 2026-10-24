@@ -1624,6 +1624,24 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
     if (m_motionPrevTops.size() != m_fields.size()) { m_motionPrevTops.assign(m_fields.size(), {}); m_motionSeen.assign(m_fields.size(), {}); }
     for (size_t fi = 0; fi < m_fields.size(); ++fi) {
         const WaterSurfaceField& f = *m_fields[fi];
+        if (f.gpuDrawn && m_gpu) {   // 29 S2: the device scanned it in the water's call (the covered columns; a frozen column cannot move)
+            Av* av = nullptr;
+            for (auto& a : m_avs) if (a->id == f.source) av = a.get();
+            WaterCoreGpu::Volume::Motion mo;
+            if (av && av->gpuVol && m_gpu->motionResult(*av->gpuVol, mo, true)) {
+                MotionSeen& seen = m_motionSeen[fi];
+                if (!mo.fresh) { m_motionStats.maxFlow = std::max(m_motionStats.maxFlow, seen.maxFlow); m_motionStats.flowCols += seen.flowCols; continue; }
+                seen = MotionSeen{f.source, f.version, mo.maxFlow, mo.flowCols};
+                m_motionStats.maxRise = std::max(m_motionStats.maxRise, mo.maxRise); m_motionStats.maxFlow = std::max(m_motionStats.maxFlow, mo.maxFlow);
+                m_motionStats.riseCols += mo.riseCols; m_motionStats.flowCols += mo.flowCols;
+                if (mo.riseCols <= 0) continue;
+                const glm::vec2 lo((f.origin.x + mo.x0 + 0.5f) * f.h, (f.origin.z + mo.z0 + 0.5f) * f.h), hi((f.origin.x + mo.x1 + 0.5f) * f.h, (f.origin.z + mo.z1 + 0.5f) * f.h);
+                const glm::vec3 c(0.5f * (lo.x + hi.x), 0.5f * (mo.y0 + mo.y1), 0.5f * (lo.y + hi.y));
+                const float r = 0.5f * glm::length(glm::vec3(hi.x - lo.x, mo.y1 - mo.y0, hi.y - lo.y)) + f.h;
+                out.push_back({c, r}); ++m_motionStats.spheres; m_motionStats.lastRadius = r;
+                continue;
+            }
+        }
         // 26.30 step 3: the same field as the last scan (source + version): no column moved since, so nothing rose; its flow
         // figures stand (the scan cost 0.24 ms a frame on a sleeping 20 x 20 m pond)
         MotionSeen& seen = m_motionSeen[fi];
@@ -2271,6 +2289,44 @@ bool WaterCoreManager::tallStatsParityForTest(int id, float& devMin, float& host
     for (const SurfaceColumn& c : f.cols) { const int runs = static_cast<int>(c.runs + 0.5f); if (runs >= 1) hostMin = std::min(hostMin, c.top[std::min(runs, kSurfaceMaxRuns) - 1]); }
     hostWater = fieldWater(f);
     return true;
+}
+
+}  // namespace Phyxel::Core::Water
+
+namespace Phyxel::Core::Water {
+
+WaterCoreManager::MotionParity WaterCoreManager::motionParityForTest(int id) {
+    MotionParity r;
+    Av* av = nullptr;
+    for (auto& a : m_avs) if (a->id == id) av = a.get();
+    if (!av || !av->gpuVol || !m_gpu) return r;
+    m_gpu->settle(*av->gpuVol);
+    surfaceFields();
+    WaterCoreGpu::Volume::Motion mo;
+    if (!m_gpu->motionResult(*av->gpuVol, mo, false)) return r;
+    const WaterSurfaceField& f = av->field;
+    const float moveM = WaterCoreGpu::s_motionMoveM;
+    if (m_motionTestRef.size() != f.cols.size()) m_motionTestRef.assign(f.cols.size(), std::numeric_limits<float>::quiet_NaN());
+    int x0 = INT32_MAX, x1 = INT32_MIN, z0 = INT32_MAX, z1 = INT32_MIN; float maxRise = 0.0f;
+    for (int z = 0; z < f.nz; ++z) for (int x = 0; x < f.nx; ++x) {   // takeMotion's rule exactly
+        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(f.nx) * z;
+        const SurfaceColumn& c = f.cols[i];
+        const int runs = static_cast<int>(c.runs + 0.5f);
+        if (runs <= 0 || c.bodyAtSurface > 0.0f) { m_motionTestRef[i] = std::numeric_limits<float>::quiet_NaN(); continue; }
+        const float top = c.top[std::min(runs, kSurfaceMaxRuns) - 1];
+        const bool haveRef = !std::isnan(m_motionTestRef[i]);
+        const float dTop = haveRef ? std::abs(top - m_motionTestRef[i]) : 0.0f;
+        const bool rose = dTop > moveM;
+        m_motionTestRef[i] = (haveRef && !rose) ? m_motionTestRef[i] : top;
+        maxRise = std::max(maxRise, dTop);
+        if (!rose) continue;
+        ++r.hostRise; x0 = std::min(x0, x); x1 = std::max(x1, x); z0 = std::min(z0, z); z1 = std::max(z1, z);
+    }
+    r.devRise = mo.fresh ? mo.riseCols : 0;
+    r.boxSame = r.hostRise == 0 ? r.devRise == 0 : (mo.x0 == x0 && mo.x1 == x1 && mo.z0 == z0 && mo.z1 == z1);
+    r.riseDiff = std::abs((mo.fresh ? mo.maxRise : 0.0f) - maxRise);
+    r.ok = true;
+    return r;
 }
 
 }  // namespace Phyxel::Core::Water

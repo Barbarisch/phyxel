@@ -21,7 +21,7 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 10};   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 12};   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -118,7 +118,7 @@ void WaterCoreGpu::bindPipelines(Volume& vol) {
     bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped, &vol.solid, &vol.births, &vol.deposit, br, &vol.fLo});   // 21: + births, deposit; 26.10: + fLo
     bindAll(*vol.pipes[Surface],    {&vol.f, &vol.occ, &vol.surf, &vol.u, &vol.w, &vol.solid, br, &vol.births, &vol.birthsPacked, &vol.lists, &vol.surfDense, &vol.solidTopD});   // Phase F (+ u, w: E2; + solid: 20; 26.11: packed lists; 29 S1: the dense field)
     // 29 S1: bindings 6 / 7 are the test expansion's (expandSurfaceForTest rebinds them); otherwise placeholders
-    bindAll(*vol.pipes[SurfaceMesh], {&vol.surfDense, &vol.meshCorners, &vol.meshMeta, &vol.meshList, &vol.meshArgs, br, &vol.meshList, &vol.meshArgs, &vol.solidTopD, &vol.colAgg});
+    bindAll(*vol.pipes[SurfaceMesh], {&vol.surfDense, &vol.meshCorners, &vol.meshMeta, &vol.meshList, &vol.meshArgs, br, &vol.meshList, &vol.meshArgs, &vol.solidTopD, &vol.colAgg, &vol.motionRef, &vol.motionOut});
     bindAll(*vol.pipes[Classify],   {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.src, &vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.solid, br});
     bindAll(*vol.pipes[Rbgs],       {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res, br});
     // binding 8 = the lattice before the halo pass: a dedicated scratch, because uOld/vOld/wOld are
@@ -255,6 +255,8 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
            && createBuffer(vol->meshList, (vol->bricked ? vol->dColumns * 4 : 1) * 4, false, err) && createBuffer(vol->meshArgs, 32, false, err)
            && createBuffer(vol->meshArgsHost, 32, true, err)
            && createBuffer(vol->colAgg, (vol->bricked ? static_cast<size_t>(vol->bn.x) * vol->bn.z : 1) * 8, false, err)   // 29 S2
+           && createBuffer(vol->motionRef, (vol->bricked ? vol->dColumns : 1) * 4, false, err) && createBuffer(vol->motionOut, 64, false, err)
+           && createBuffer(vol->motionOutHost, 64, true, err)
            && (!vol->bricked || createBuffer(vol->surfUp, vol->dColumns * (sizeof(Core::Water::SurfaceColumn) + 4), true, err));
     vol->meshListCap = vol->bricked ? static_cast<uint32_t>(vol->dColumns * 4) : 0u;
     { static uint64_t s_serial = 0; vol->serial = ++s_serial; }
@@ -292,6 +294,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
             VkMemoryBarrier mb{}; mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER; mb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; mb.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
             vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
             vkCmdUpdateBuffer(cmd, vol->meshArgs.buf, 0, sizeof(args), args);
+            if (vol->motionRef.buf) vkCmdFillBuffer(cmd, vol->motionRef.buf, 0, vol->motionRef.bytes, 0x7FC00000u);   // 29 S2: no reference (NaN)
         }
         if (vol->bricked && !vol->groundAsAir) vkCmdFillBuffer(cmd, vol->occ.buf, kGround * vol->bc * 4, vol->bc * 4, 1u);   // 26.18: the ground sentinel: Solid
         submitAndWait(cmd);
@@ -320,7 +323,8 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                       &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->scratch, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum, &vol->unitMap,
-                      &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->meshArgsHost, &vol->surfUp, &vol->colAgg})
+                      &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->meshArgsHost, &vol->surfUp, &vol->colAgg,
+                      &vol->motionRef, &vol->motionOut, &vol->motionOutHost})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -2358,6 +2362,15 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         if (meshFull && !s_tallAggNoFullForTest) { mp.mode = 7; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, static_cast<size_t>(vol.bn.x) * vol.bn.z); }
         else { mp.mode = 5; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, static_cast<size_t>(vol.colCount)); }
         mp.mode = 6; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, 64);
+        {   // 29 S2: motion - the covered columns (or every column after host writes / a full pass)
+            const int32_t init[10] = {0, 0, 0, 0, INT32_MAX, INT32_MIN, INT32_MAX, INT32_MIN, INT32_MAX, INT32_MIN};
+            vkCmdUpdateBuffer(cmd, vol.motionOut.buf, 0, sizeof(init), init);
+            barrier(cmd);
+            mp.vcBand = s_motionMoveM; mp.dt = s_motionHalfThresholdForTest ? 2.0f : 1.0f;
+            if (meshFull) { mp.mode = 9; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, denseCols); }
+            else { mp.mode = 8; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, static_cast<size_t>(vol.colCount) * 64); }
+            copy(cmd, vol.motionOut, vol.motionOutHost, 40);
+        }
         vkCmdFillBuffer(cmd, vol.meshArgs.buf, 4, 4, 0);    // instanceCount
         vkCmdFillBuffer(cmd, vol.meshArgs.buf, 16, 8, 0);   // wanted, dropped
         barrier(cmd);
@@ -2490,6 +2503,15 @@ void WaterCoreGpu::finishCall(Volume& vol) {
         vol.lastMeshEntries = a[4]; vol.lastMeshDropped = a[5];
         float mt, ws; std::memcpy(&mt, &a[6], 4); std::memcpy(&ws, &a[7], 4);   // 29 S2
         vol.fieldMinTop = mt; vol.fieldWaterSum = ws; vol.fieldStatsValid = vol.meshValid && s_gpuSurface;
+        if (vol.motionOutHost.mapped) {   // 29 S2: the call's motion
+            const auto* m = static_cast<const int32_t*>(vol.motionOutHost.mapped);
+            auto unorder = [](int32_t i) { const int32_t b = i >= 0 ? i : (i ^ 0x7FFFFFFF); float f; std::memcpy(&f, &b, 4); return f; };
+            auto bitsF = [](int32_t i) { float f; std::memcpy(&f, &i, 4); return f; };
+            Volume::Motion mo; mo.fresh = true; mo.riseCols = m[0]; mo.flowCols = m[1]; mo.maxRise = bitsF(m[2]); mo.maxFlow = bitsF(m[3]);
+            mo.x0 = m[4]; mo.x1 = m[5]; mo.z0 = m[6]; mo.z1 = m[7];
+            if (mo.riseCols > 0) { mo.y0 = unorder(m[8]); mo.y1 = unorder(m[9]); }
+            vol.motion = mo;
+        }
     }
     vol.surfaceValid = true;
     vol.birthsFresh = true;

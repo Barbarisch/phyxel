@@ -358,6 +358,10 @@ public:
     MeshParity surfaceMeshParityForTest(int id);
     /// 29 S2 TEST ONLY: the tall floor's numbers from the device against the host field's scan (lowest wet top m, water m^3)
     bool tallStatsParityForTest(int id, float& devMin, float& hostMin, double& devWater, double& hostWater);
+    /// 29 S2 TEST ONLY: the device's motion for the collected call against takeMotion's scan of the host field (its own references,
+    /// kept by this hook - call it after every step): the rising columns, their box, the largest move
+    struct MotionParity { bool ok = false; int devRise = 0, hostRise = 0; bool boxSame = true; float riseDiff = 0.0f; };
+    MotionParity motionParityForTest(int id);
     /// §27 W1a (the owner's choice A, 2026-10-20): RECORDED water near the camera is drawn with the pond surface built from the
     /// record - 8 m world-aligned tiles within `radiusM` of the view point that hold stored water outside every live volume get a
     /// field (recordSurfaceField: the record woken into a scratch grid, the surface extracted), appended to surfaceFields() after
@@ -692,7 +696,8 @@ private:
     struct MotionSeen { int source = 0; uint64_t version = 0; float maxFlow = 0.0f; int flowCols = 0; };
     std::vector<MotionSeen> m_motionSeen;   // 26.30 step 3: the field each takeMotion() slot last scanned
     UpdateCpu m_updateCpu;
-    std::vector<std::vector<float>> m_motionPrevTops;   // E2: per field, the held reference top per column (NaN = dry)
+    std::vector<std::vector<float>> m_motionPrevTops;
+    std::vector<float> m_motionTestRef;   // 29 S2: motionParityForTest's host references   // E2: per field, the held reference top per column (NaN = dry)
     std::vector<glm::vec4> m_particleDraw;
 };
 

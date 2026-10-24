@@ -8867,6 +8867,17 @@ per column, the dropped counted). `water_surface_pull.vert` draws it (set 2, pus
   the lake), motion 1.9, the surface read 1.7, ripples 1.1, partition 0.5. The water call's GPU time is 2.9-3.4 ms on its own:
   **the 2 ms budget is not met by the CPU work alone, and the GPU's share is over it too** (S5).
 
+**S2 (motion) RESULT (2026-10-24): BUILT, ON.** `wc_surface_mesh` modes 8/9: per covered column (every column after host writes or
+a full pass) the reference top held while the surface moves no more than moveM (`s_motionMoveM` = takeMotion's 0.015 m). The
+rising columns' box, their tops' range, the counts and the largest move come back in 40 bytes. `takeMotion` reads them for a
+device-drawn volume instead of scanning the field. Gate, in `TheDeviceMeshIsTheHostMesh` (`motionParityForTest`, every step,
+takeMotion's own rule on the host field with its own references): 3,600 steps, 0 differing, up to 5,985 rising columns. RED (the
+device at half the threshold): 899 of 900 steps differ. The flow statistics (largest flow, columns over 0.08 m/s) cover the
+covered columns only (a frozen column's flow is not rescanned). Live: motion 1.9-2.1 ms -> under 0.05. At 2,015-2,960 awake brick
+columns (44-64 % of the lake; this run's push woke more), the CPU frame was 11.4-12.6 ms in two windows (19.0 in one, cause not
+found), and the water's CPU ~9 ms: the residency 2.2-2.9 + apply 1.0, the surface read 1.7-2.1, ripples 1.0-1.1, partition 0.6,
+collect 0.4. The water call's GPU time at that awake count: 4.2-5.5 ms.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

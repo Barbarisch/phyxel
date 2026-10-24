@@ -315,6 +315,9 @@ public:
         // 29 S2: the field's numbers the tall floor reads, made on the device (per brick column, folded): the lowest wet top and the water
         Buffer colAgg;
         float fieldMinTop = 0.0f; double fieldWaterSum = 0.0; bool fieldStatsValid = false;
+        // 29 S2: motion on the device (takeMotion): the per-column reference tops, the call's result
+        Buffer motionRef, motionOut, motionOutHost;
+        struct Motion { bool fresh = false; int riseCols = 0, flowCols = 0; float maxRise = 0.0f, maxFlow = 0.0f; int x0 = 0, x1 = -1, z0 = 0, z1 = -1; float y0 = 0.0f, y1 = 0.0f; } motion;
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
                         ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, SurfaceMesh, KernelCount };   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)   // 29 S1: + SurfaceMesh
@@ -394,7 +397,9 @@ public:
     /// volume (the A/B control). TEST ONLY: the mesh pass without its one-column ring (the parity test's red control).
     static inline bool s_gpuSurface = true;    // ON since 29 S1 passed (mesh parity, red control, live pixels)
     static inline bool s_meshNoRingForTest = false;
-    static inline bool s_tallAggNoFullForTest = false;   ///< 29 S2 TEST ONLY: the brick-column numbers never redone whole (the red control)
+    static inline bool s_tallAggNoFullForTest = false;
+    static inline bool s_motionHalfThresholdForTest = false;   ///< 29 S2 TEST ONLY: the device's motion at half moveM (the red control)
+    static inline float s_motionMoveM = 0.015f;   ///< 29 S2: the surface move (m) a column must exceed to count as rising (takeMotion's moveM)   ///< 29 S2 TEST ONLY: the brick-column numbers never redone whole (the red control)
     /// 27.23 W1e: the rest reductions follow the awake water - frozen columns' units kept in the unit map, mode 1's three face
     /// passes folded into mode 0's speed lane. Off = every stored brick reduced every call (today's path, the parity test's A).
     static inline bool s_unitCache = true;
@@ -525,6 +530,12 @@ public:
     bool surfaceReady(const Volume& vol) const { return vol.surfaceValid; }
     /// 29 S4: the readable surface covers only the awake columns (a partial read keeps every other column - a recorded tile's marks too)
     bool surfacePartial(const Volume& vol) const { return !vol.hostSurfCols.empty(); }
+    /// 29 S2: the collected call's motion (the rising columns' box in the volume's cells, their tops' range, the counts) - `take`
+    /// consumes it (once per call); false when the device surface is off for this volume
+    bool motionResult(Volume& vol, Volume::Motion& out, bool take) const {
+        if (!s_gpuSurface || !vol.bricked || !vol.meshValid) return false;
+        out = vol.motion; if (take) vol.motion.fresh = false; return true;
+    }
     /// 29 S2: the collected call's lowest wet top (m; +inf = no water) and its field's water (m^3: the runs' heights x h^2) - what
     /// updateTall scanned the host's field for. False until the device surface has run.
     bool surfaceStats(const Volume& vol, float& minTop, double& waterM3) const {
