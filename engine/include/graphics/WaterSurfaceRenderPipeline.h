@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "core/water/WaterSurfaceMesh.h"
+#include "core/water/WaterGpuSurfaceDraw.h"
 
 namespace Phyxel {
 namespace Graphics {
@@ -60,6 +61,14 @@ public:
     void uploadTiles(VkCommandBuffer commandBuffer, const Core::Water::WaterSurfaceTiler& tiler, uint32_t frame);
     void renderTiles(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet, const Camera& camera, const glm::mat4& projectionMatrix,
                      const Core::Water::WaterSurfaceTiler& tiler, const Core::Water::WaterSurfaceMesh& extra, VkExtent2D screenExtent, uint32_t frame);
+    // 29 S1 (docs/WaterCore.md 29): the volumes whose surface the device made, drawn by vertex pulling (water_surface_pull.vert): each
+    // column's first-run top (vkCmdDraw) and the extras list (vkCmdDrawIndirect). gpuSurfaceBarrier goes OUTSIDE the render pass,
+    // before it: the water's call (same queue, submitted earlier) wrote the buffers.
+    void renderGpuSurfaces(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet, const Camera& camera, const glm::mat4& projectionMatrix,
+                           const std::vector<Core::Water::GpuSurfaceDraw>& draws, VkExtent2D screenExtent, uint32_t frame);
+    static void gpuSurfaceBarrier(VkCommandBuffer commandBuffer);
+    bool gpuSurfaceReady() const { return m_pullPipeline != VK_NULL_HANDLE; }
+    long lastGpuSurfaceDraws() const { return m_lastGpuSurfaceDraws; }
     void setCull(bool on) { m_cull = on; }
     bool cull() const { return m_cull; }
     struct TileStats { long tiles = 0, drawn = 0, culled = 0, uploaded = 0, deferred = 0, overArena = 0, grows = 0, growsTotal = 0, holesDeferred = 0, oldestWaitFrames = 0; size_t uploadBytes = 0, arenaVertexBytes = 0, arenaIndexBytes = 0, arenaVertexSize = 0, arenaIndexSize = 0; uint32_t drawnVertices = 0; };
@@ -114,6 +123,7 @@ private:
     VkPipelineLayout      m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline            m_pipeline = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_uboLayout = VK_NULL_HANDLE;   // 29 S1: the scene's (the pull layout's set 0)
     VkDescriptorPool      m_descriptorPool = VK_NULL_HANDLE;
     VkDescriptorSet       m_descriptorSet = VK_NULL_HANDLE;
     bool                  m_texturesBound = false;
@@ -157,6 +167,17 @@ private:
     TileStats m_tileStats;
     void createTileStore();
     void destroyTileStore();
+    // 29 S1: the pull pipeline (no vertex input; set 2 = the volume's field / corners / meta / list; push 128 B shared + 32 B vertex)
+    VkPipeline m_pullPipeline = VK_NULL_HANDLE;
+    VkPipelineLayout m_pullLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_pullSetLayout = VK_NULL_HANDLE;
+    VkDescriptorPool m_pullPool = VK_NULL_HANDLE;
+    struct PullSet { uint64_t serial = 0; VkDescriptorSet set = VK_NULL_HANDLE; uint64_t lastFrame = 0; };
+    std::vector<PullSet> m_pullSets;
+    uint64_t m_pullFrame = 0;
+    long m_lastGpuSurfaceDraws = 0;
+    void createPullPipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
+    void destroyPullPipeline();
 };
 
 } // namespace Graphics

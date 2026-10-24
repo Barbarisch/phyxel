@@ -9,6 +9,7 @@
 #pragma once
 
 #include "core/water/WaterCore.h"
+#include "core/water/WaterSurfaceMesh.h"   // 29 S1: SurfaceColumn / WaterSurfaceField (the host writes into the device field)
 #include "vulkan/ComputePipeline.h"
 #include <vulkan/vulkan.h>
 #include <chrono>
@@ -298,9 +299,20 @@ public:
         uint64_t surfCollected = 0;                      ///< 26.33: calls collected; readSurface keeps the rest of a field only if it read the call before
         mutable uint64_t surfReadAt = 0;                 ///< 26.33: the collected call the host last read the surface of
         std::vector<GpuSource> hostSources;              ///< the sources' totals as the collected call left them (or as set)
+        // 29 S1 THE SURFACE ON THE DEVICE (docs/WaterCore.md 29): the dense surface field (a SurfaceColumn per dense column, written by
+        // wc_surface for every column it covers), the host's solid tops it reads, the mesh wc_surface_mesh makes from it (corners
+        // 16 floats + a meta word per column, the extras list, the indirect draw's args), the host's writes (surfUp: [records | solid tops])
+        Buffer surfDense, solidTopD, meshCorners, meshMeta, meshList, meshArgs, meshArgsHost, surfUp;
+        uint32_t meshListCap = 0;
+        uint64_t serial = 0;             ///< unique per volume (WaterCoreGpu lifetime) - the renderer's descriptor sets are keyed by it
+        std::vector<std::pair<uint32_t, Core::Water::SurfaceColumn>> surfPending;   ///< host writes for the next call (later ones win)
+        bool solidTopDirty = true;       ///< hostSolidTop changed - re-sent to solidTopD
+        bool meshFullNext = true;        ///< the next mesh pass covers every column (host writes, a template)
+        bool meshValid = false;          ///< the device field and mesh are whole (false: the first call, the switch was off - the next call builds them whole)
+        uint32_t lastMeshEntries = 0, lastMeshDropped = 0;   ///< the collected call's extras list (wanted, dropped past the capacity)
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
-                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, KernelCount };   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)
+                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, SurfaceMesh, KernelCount };   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)   // 29 S1: + SurfaceMesh
     static constexpr size_t kMaxMapEntries = 4u << 20;   ///< 26.6: brick-map cap (16 MB) - a larger box is refused (world scale is P5)
     static constexpr int kMaxSources = 64;
     static constexpr int kMaxMomentum = 256;   ///< 26.26: momentum records a call can take (more are counted as dropped)
@@ -359,6 +371,10 @@ public:
     /// 26.33: with the partial wake, the surface kernel and its copy to the host cover the AWAKE columns only (a frozen column's
     /// surface cannot change); false = every column every call (the A/B, water_av_partial_wake {surface}).
     static inline bool s_partialSurface = true;
+    /// 29 S1: the surface mesh made and drawn on the device (water_render_core {gpu_surface}). Off = the host's tiler draws every
+    /// volume (the A/B control). TEST ONLY: the mesh pass without its one-column ring (the parity test's red control).
+    static inline bool s_gpuSurface = true;    // ON since 29 S1 passed (mesh parity, red control, live pixels)
+    static inline bool s_meshNoRingForTest = false;
     /// 27.23 W1e: the rest reductions follow the awake water - frozen columns' units kept in the unit map, mode 1's three face
     /// passes folded into mode 0's speed lane. Off = every stored brick reduced every call (today's path, the parity test's A).
     static inline bool s_unitCache = true;
@@ -487,6 +503,19 @@ public:
     /// field) without `keep` or if a collected call's surface was never read (its columns would be lost).
     bool readSurface(const Volume& vol, float* out, bool keep = false) const;
     bool surfaceReady(const Volume& vol) const { return vol.surfaceValid; }
+    /// 29 S1: host writes into the device's surface field - the columns [x0, x1) x [z0, z1) of `field` (the volume's own lattice), sent
+    /// in the next call's command buffer before its surface pass (a recorded tile's marks, a woken tile's seed)
+    void queueSurfaceColumns(Volume& vol, const Core::Water::WaterSurfaceField& field, int x0, int z0, int x1, int z1);
+    /// 29 S1: the next call starts the device field from the dry template (an upload, the first call, the switch turned on) - the
+    /// host's own writes (the recorded tiles' marks) must be queued again for it
+    bool surfaceTemplatePending(const Volume& vol) const { return s_gpuSurface && vol.bricked && !vol.meshValid; }
+    /// 29 S1: what the renderer draws a volume from (valid: the switch on and a mesh pass has run)
+    struct SurfaceView { VkBuffer surf = VK_NULL_HANDLE, corners = VK_NULL_HANDLE, meta = VK_NULL_HANDLE, list = VK_NULL_HANDLE, args = VK_NULL_HANDLE;
+                         VkDeviceSize surfBytes = 0, cornersBytes = 0, metaBytes = 0, listBytes = 0; glm::ivec3 origin{0}; int nx = 0, nz = 0; float h = 0.0f; uint64_t serial = 0; bool ok = false; };
+    SurfaceView surfaceView(const Volume& vol) const;
+    /// 29 S1 TEST ONLY: every quad of the device mesh expanded through wspQuad (what the vertex shader draws) - 4 vertices of 12 floats
+    /// each (WaterSurfaceVertex) per quad; settles the volume first. False if the device surface is off for it.
+    bool expandSurfaceForTest(Volume& vol, std::vector<float>& vertices);
     /// 27.15: the call the readable surface came from, and how many calls were submitted - a write applied now (a seed) shows in
     /// the surface of call callsSubmitted() + 1 and later
     uint64_t surfaceCallId(const Volume& vol) const { return vol.surfCallId; }

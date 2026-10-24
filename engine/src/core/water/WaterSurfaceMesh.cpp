@@ -255,6 +255,7 @@ void WaterSurfaceTiler::update(const std::vector<const WaterSurfaceField*>& fiel
         if (!fields[fi]) continue;
         const WaterSurfaceField& f = *fields[fi];
         if (f.nx <= 0 || f.nz <= 0) continue;
+        if (f.gpuDrawn) continue;   // 29 S1: the device draws it (its tiles go: not seen)
         const int source = f.source != 0 ? f.source : -(1000 + static_cast<int>(fi));
         // a known source at an unchanged version: its tiles stand as they are (nothing read)
         FieldMark& mark = m_fieldVersion[source];

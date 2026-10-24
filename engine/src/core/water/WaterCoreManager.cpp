@@ -817,6 +817,8 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     WaterHostProfile::lap("mgr.2 record / wake tiles", hp);
     updateTall(av);   // 27.22: the floor and the heights for this call (after a pending upload: it resets the tall cells)
     WaterHostProfile::lap("mgr.3 tall cells", hp);
+    if (m_gpu->surfaceTemplatePending(*av.gpuVol) && av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz)   // 29 S1
+        for (const auto& [tx, tz] : av.recordedTileList) { markRecordedColumns(av, tx, tz); queueTileSurface(av, tx, tz); }
     m_gpu->setAsync(*av.gpuVol, m_realtime);   // 26.16: realtime frames never wait on the water's call (collected next frame)
     const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, av.gpuSweeps);
     WaterHostProfile::lap("mgr.4 the GPU step (= gpu.* + collect.*)", hp);
@@ -1106,7 +1108,7 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
             if (fx >= 0 && fz >= 0 && fx < av.field.nx && fz < av.field.nz && av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz)
                 av.field.cols[static_cast<size_t>(fx) + static_cast<size_t>(av.field.nx) * fz] = SurfaceColumn{};
         }
-    } else if (av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz) markRecordedColumns(av, tx, tz);
+    } else if (av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz) { markRecordedColumns(av, tx, tz); queueTileSurface(av, tx, tz); }   // 29 S1
     av.field.version = (1ull << 62) + (++m_fieldBumps);
     lap(P.rec, P.recMax, 4); ++P.recN;
     av.lastRecordMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -1144,6 +1146,8 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
                 av.field.cols[static_cast<size_t>(fx) + static_cast<size_t>(av.field.nx) * fz] = sf.at(x, z);
         }
         av.field.version = (1ull << 62) + (++m_fieldBumps);
+        if (av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz)   // 29 S1: the seed's surface to the device (its next call)
+            m_gpu->queueSurfaceColumns(vol, av.field, x0, z0, std::min(x0 + sf.nx, av.field.nx), std::min(z0 + sf.nz, av.field.nz));
         // 27.15: ... and keeps drawing it until a surface computed after the seed is read (surfaceFields re-applies it)
         Av::SeedPatch sp; sp.x0 = x0; sp.z0 = z0; sp.nx = sf.nx; sp.nz = sf.nz; sp.cols = sf.cols; sp.afterCall = m_gpu->callsSubmitted(vol);
         if (!(s_handoverRevertForTest & 4)) av.seedPatches.push_back(std::move(sp));   // TEST ONLY bit 4: the B red control
@@ -1348,6 +1352,16 @@ size_t WaterCoreManager::totalCells() const {
     return n;
 }
 
+void WaterCoreManager::queueTileSurface(Av& av, int tx, int tz) {
+    if (!av.gpuVol || !m_gpu || !WaterCoreGpu::s_gpuSurface) return;
+    const WaterSurfaceField& f = av.field;
+    if (f.cols.size() != static_cast<size_t>(f.nx) * f.nz) return;
+    const glm::ivec3 so = av.grid->spec().origin;
+    const int x0 = std::max(0, tx * kTileVoxels * av.per - so.x), x1 = std::min(f.nx - 1, (tx + 1) * kTileVoxels * av.per - 1 - so.x);
+    const int z0 = std::max(0, tz * kTileVoxels * av.per - so.z), z1 = std::min(f.nz - 1, (tz + 1) * kTileVoxels * av.per - 1 - so.z);
+    if (x1 >= x0 && z1 >= z0) m_gpu->queueSurfaceColumns(*av.gpuVol, f, x0, z0, x1 + 1, z1 + 1);
+}
+
 void WaterCoreManager::markRecordedColumns(Av& av, int tx, int tz) {
     // 27.15: a recorded tile's columns are the record's to draw - marked "not this field's" (runs -1), so the volume's mesh ends
     // there like at its box edge instead of walling them off as dry (a wall from the surface to the bed showed - yellow bed through
@@ -1418,6 +1432,7 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
             av->fieldStepSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         }
         av->field.rippleLayer = (av->ripple && m_rstats.on) ? static_cast<int>(i) : -1;   // 22: parallel to rippleLayers()
+        av->field.gpuDrawn = av->gpuVol && m_gpu && m_gpu->surfaceView(*av->gpuVol).ok;   // 29 S1
         m_fields[i] = &av->field;
     }
     WaterHostProfile::lap("surf.5 rest", hp);
@@ -1466,6 +1481,7 @@ void WaterCoreManager::refreshRecordTiles() {
         RecordTile& t = m_recordTiles[key];
         const bool wasWet = t.wet;
         buildRecordTile(key.first, key.second, t);
+        remarkRecordedTile(key.first, key.second);   // 29 S1
         t.spanRev = sr; t.occRev = orv; t.avRev = m_avRevision;
         ++m_recordStats.builtLastCall;
         changed |= wasWet || t.wet;
@@ -1499,6 +1515,7 @@ void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec
         RecordTile& t = m_recordTiles[{tx, tz}];
         const bool wasWet = t.wet;
         buildRecordTile(tx, tz, t);
+        remarkRecordedTile(tx, tz);   // 29 S1
         t.spanRev = sr; t.occRev = orv; t.avRev = m_avRevision;
         changed |= wasWet || t.wet;
     }
@@ -1509,6 +1526,17 @@ void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec
         m_recordBoxes.clear(); ++m_recordRevision;
         for (const auto& [key, t] : m_recordTiles)
             if (t.wet) m_recordBoxes.push_back({glm::ivec3(key.first * T, -1000000, key.second * T), glm::ivec3(key.first * T + T - 1, 1000000, key.second * T + T - 1)});
+    }
+}
+
+void WaterCoreManager::remarkRecordedTile(int tx, int tz) {
+    // 29 S1: a record tile's drawn level changed - the volumes holding it mark its columns with the new level, on the device too
+    if (!WaterCoreGpu::s_gpuSurface) return;
+    for (auto& up : m_avs) {
+        Av& av = *up;
+        if (!av.gpuVol || av.field.cols.size() != static_cast<size_t>(av.field.nx) * av.field.nz) continue;
+        if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) == av.recordedTileList.end()) continue;
+        markRecordedColumns(av, tx, tz); queueTileSurface(av, tx, tz);
     }
 }
 
@@ -2134,3 +2162,78 @@ const std::vector<WaterSurfaceCell>& WaterCoreManager::surfaceCells() {
 } // namespace Water
 } // namespace Core
 } // namespace Phyxel
+
+namespace Phyxel::Core::Water {
+
+std::vector<GpuSurfaceDraw> WaterCoreManager::gpuSurfaceDraws() {
+    std::vector<GpuSurfaceDraw> out;
+    if (!m_gpu || !WaterCoreGpu::s_gpuSurface) return out;
+    for (auto& up : m_avs) {
+        Av& av = *up;
+        if (!av.gpuVol) continue;
+        const WaterCoreGpu::SurfaceView v = m_gpu->surfaceView(*av.gpuVol);
+        if (!v.ok) continue;
+        GpuSurfaceDraw d;
+        d.surf = v.surf; d.corners = v.corners; d.meta = v.meta; d.list = v.list; d.args = v.args;
+        d.surfBytes = v.surfBytes; d.cornersBytes = v.cornersBytes; d.metaBytes = v.metaBytes; d.listBytes = v.listBytes;
+        d.originX = v.origin.x; d.originZ = v.origin.z; d.nx = v.nx; d.nz = v.nz; d.h = v.h; d.serial = v.serial;
+        d.rippleLayer = av.field.rippleLayer; d.look = av.field.look;
+        out.push_back(d);
+    }
+    return out;
+}
+
+WaterCoreManager::MeshParity WaterCoreManager::surfaceMeshParityForTest(int id) {
+    MeshParity r;
+    Av* av = nullptr;
+    for (auto& a : m_avs) if (a->id == id) av = a.get();
+    if (!av || !av->gpuVol || !m_gpu) return r;
+    std::vector<float> dv;
+    if (!m_gpu->expandSurfaceForTest(*av->gpuVol, dv)) return r;
+    surfaceFields();
+    WaterSurfaceField f = av->field; f.rippleLayer = -1; f.gpuDrawn = false;
+    WaterSurfaceMesh hm; buildWaterSurfaceMesh(f, hm);
+    using Q = std::array<float, 48>;
+    std::vector<Q> hq, dq;
+    for (size_t q = 0; q + 3 < hm.vertices.size(); q += 4) {
+        Q a{};
+        for (int k = 0; k < 4; ++k) {
+            const WaterSurfaceVertex& v = hm.vertices[q + k];
+            const float row[12] = {v.pos.x, v.pos.y, v.pos.z, v.depth, v.normal.x, v.normal.y, v.normal.z, v.side, v.foam, v.flow.x, v.flow.y, v.pad};
+            for (int j = 0; j < 12; ++j) a[k * 12 + j] = row[j];
+        }
+        hq.push_back(a);
+        r.sideQuads += a[7] > 0.5f ? 1 : 0;
+    }
+    for (size_t q = 0; q + 47 < dv.size(); q += 48) { Q a{}; for (int j = 0; j < 48; ++j) a[j] = dv[q + j]; dq.push_back(a); }
+    r.hostQuads = static_cast<long>(hq.size()); r.deviceQuads = static_cast<long>(dq.size());
+    // a quad's key: its side flag, then its first two corners' positions rounded to 0.1 mm (the same quad has the same corners in the
+    // same order on both sides; a host/device difference in the last bits does not move a rounded key except at a rounding edge -
+    // a key mismatch is then counted as unmatched and shows in the numbers)
+    auto key = [](const Q& a) { std::array<long long, 7> k{}; k[0] = std::llround(a[7]); for (int j = 0; j < 3; ++j) { k[1 + j] = std::llround(a[j] * 1e4); k[4 + j] = std::llround(a[12 + j] * 1e4); } return k; };
+    std::multimap<std::array<long long, 7>, size_t> dk;
+    for (size_t i = 0; i < dq.size(); ++i) dk.insert({key(dq[i]), i});
+    std::vector<char> used(dq.size(), 0);
+    for (const Q& a : hq) {
+        auto range = dk.equal_range(key(a));
+        bool found = false;
+        for (auto it = range.first; it != range.second; ++it) {
+            if (used[it->second]) continue;
+            const Q& b = dq[it->second];
+            float wp = 0.0f, wo = 0.0f;
+            for (int k = 0; k < 4; ++k) for (int j = 0; j < 12; ++j) {
+                const float d = std::abs(a[k * 12 + j] - b[k * 12 + j]);
+                if (j < 3) wp = std::max(wp, d); else if (j != 11) wo = std::max(wo, d);
+            }
+            used[it->second] = 1; found = true;
+            r.worstPos = std::max(r.worstPos, wp); r.worstOther = std::max(r.worstOther, wo);
+            break;
+        }
+        if (!found) ++r.unmatched;
+    }
+    for (char u : used) if (!u) ++r.unmatched;
+    r.ok = true;
+    return r;
+}
+
+}  // namespace Phyxel::Core::Water

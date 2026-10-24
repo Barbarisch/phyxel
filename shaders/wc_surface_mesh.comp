@@ -1,0 +1,123 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore 29 S1: the surface mesh ON THE DEVICE (docs/WaterCore.md 29). Runs in the water's own call, after wc_surface wrote the
+// dense surface field (surfD). The rules are water_surface_pull.glsl's (= buildWaterSurfaceMeshRect's).
+//   mode 0  the covered brick columns (the column table's first pc.colCount entries, as wc_surface covered them) AND a one-column
+//           ring round each brick column: every run's corners and the meta word (the run count, which side faces exist). A frozen
+//           column beside an awake one reads it - its corners and walls are recomputed here. pc.dt = 0: no ring (the red control).
+//   mode 3  the same for every dense column (after host writes into surfD, or a full upload)
+//   mode 1  every dense column: the extras into the draw list - one entry per top quad of a run above the first and per side face
+//           (column | run << 24 | face << 26), counted into the indirect draw's instance count (args[1]); pc.iparam = capacity,
+//           args[4] = entries wanted, args[5] = entries dropped (over capacity - never silent: the host reads them)
+//   mode 4  every dense column DRY over the host's solid top (binding 8), a recorded one (runs < 0) kept - before a FULL surface pass,
+//           as the host's full read resets every column it does not cover (the covered ones are rewritten by wc_surface after it)
+//   mode 2  TEST ONLY: expand every quad (each column's first-run top, then the list) into vertices (WaterSurfaceVertex, 12 floats)
+//           through wspQuad - what the vertex shader draws; pc.iparam = the ripple layer + 1
+// pc.param0 / pc.param1 = the field's origin x / z (cells, exact as floats); pc.h the cell size.
+#define WC_BRICKS_BINDING 5
+#include "water_core.glsl"
+#define WSP_SET 0
+#define WSP_B_SURF 0
+#define WSP_B_CORNERS 1
+#define WSP_B_META 2
+#define WSP_MESH_QUAL
+#define WSP_SURF_QUAL
+#include "water_surface_pull.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 3) buffer List { uint list[]; };
+layout(std430, set = 0, binding = 4) buffer Args { uint args[]; };   // [vertexCount 6, instanceCount, firstVertex 0, firstInstance 1, wanted, dropped, -, -]
+layout(std430, set = 0, binding = 6) buffer Expand { float vtx[]; };
+layout(std430, set = 0, binding = 7) buffer ExpandCount { uint quads[]; };
+layout(std430, set = 0, binding = 8) readonly buffer SolidTopD { float solidTopD[]; };
+
+WspGeo geo() { WspGeo g; g.ox = int(pc.param0); g.oz = int(pc.param1); g.nx = pc.nx; g.nz = pc.nz; g.h = pc.h; return g; }
+
+void meshColumn(WspGeo g, int x, int z) {
+    const uint c = wspIdx(g, x, z);
+    const int n = max(0, wspRuns(c));
+    uint meta = uint(n);
+    for (int r = 0; r < 4; ++r) {
+        if (r >= n) break;
+        const float top = surfD[c].top[r], bottom = surfD[c].bottom[r];
+        precise float hi = top + g.h;
+        const float lo = bottom;
+        const float y00 = wspCornerY(g, x, z, 0, 0, lo, hi, top), y10 = wspCornerY(g, x, z, 1, 0, lo, hi, top);
+        const float y11 = wspCornerY(g, x, z, 1, 1, lo, hi, top), y01 = wspCornerY(g, x, z, 0, 1, lo, hi, top);
+        meshCorners[16u * c + 4u * uint(r) + 0u] = y00; meshCorners[16u * c + 4u * uint(r) + 1u] = y10;
+        meshCorners[16u * c + 4u * uint(r) + 2u] = y11; meshCorners[16u * c + 4u * uint(r) + 3u] = y01;
+        for (int s = 0; s < 4; ++s) {
+            const ivec2 d = kWspSideDir[s];
+            if (!wspCol(g, x + d.x, z + d.y)) continue;                    // the volume's edge (or the record's column): no wall
+            const uint nb = wspIdx(g, x + d.x, z + d.y);
+            if (wspOverlap(nb, lo, hi) >= 0) continue;                     // a shared surface, no edge
+            const float nbSolid = surfD[nb].solidTopY;
+            precise float topEps = top - 1e-4;
+            if (nbSolid >= topEps) continue;                               // a wall: the voxel is the edge
+            const float floorY = max(bottom, nbSolid);
+            const float ya = s == 0 ? y00 : (s == 1 ? y11 : (s == 2 ? y10 : y01));
+            const float yb = s == 0 ? y01 : (s == 1 ? y10 : (s == 2 ? y00 : y11));
+            precise float rise = max(ya, yb) - floorY;
+            if (rise < 1e-4) continue;
+            meta |= 1u << uint(4 + 4 * r + s);
+        }
+    }
+    meshMeta[c] = meta;
+}
+
+void emit(uint e) {
+    const uint k = atomicAdd(args[4], 1u);
+    if (k < uint(pc.iparam)) { list[k] = e; atomicAdd(args[1], 1u); }
+    else atomicAdd(args[5], 1u);
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    const WspGeo g = geo();
+    const uint nCols = uint(pc.nx) * uint(pc.nz);
+    if (pc.mode == 0) {
+        const int e = int(id / 100u), l = int(id % 100u);
+        if (e >= pc.colCount) return;
+        const int lx = l % 10 - 1, lz = l / 10 - 1;
+        if (pc.dt == 0.0 && (lx < 0 || lz < 0 || lx > 7 || lz > 7)) return;   // the red control: no ring
+        const int packed = bricks[pc.colTableOff + e];
+        const int x = (packed & 1023) * 8 + lx - pc.ox, z = ((packed >> 10) & 1023) * 8 + lz - pc.oz;
+        if (!wspIn(g, x, z)) return;
+        meshColumn(g, x, z);
+    } else if (pc.mode == 3) {
+        if (id >= nCols) return;
+        meshColumn(g, int(id % uint(pc.nx)), int(id / uint(pc.nx)));
+    } else if (pc.mode == 4) {
+        if (id >= nCols) return;
+        if (surfD[id].runs < 0.0) return;   // a recorded tile's column: the record's (its mark stays - the host re-marks it after its own full read)
+        for (int r = 0; r < 4; ++r) { surfD[id].top[r] = 0.0; surfD[id].bottom[r] = 0.0; }
+        surfD[id].solidTopY = solidTopD[id]; surfD[id].runs = 0.0; surfD[id].foam = 0.0; surfD[id].u = 0.0; surfD[id].w = 0.0;
+        surfD[id].body = 0.0; surfD[id].pad1 = 0.0; surfD[id].pad2 = 0.0;
+    } else if (pc.mode == 1) {
+        if (id >= nCols) return;
+        const uint m = meshMeta[id];
+        const uint n = m & 7u;
+        for (uint r = 0u; r < 4u; ++r) {
+            if (r >= n) break;
+            if (r > 0u) emit(id | (r << 24) | (0u << 26));
+            for (uint s = 0u; s < 4u; ++s) if ((m & (1u << (4u + 4u * r + s))) != 0u) emit(id | (r << 24) | ((s + 1u) << 26));
+        }
+    } else if (pc.mode == 2) {
+        uint c; int r, face;
+        if (id < nCols) { c = id; r = 0; face = 0; }
+        else {
+            const uint k = id - nCols;
+            if (k >= args[1]) return;
+            const uint e = list[k];
+            c = e & 0xFFFFFFu; r = int((e >> 24) & 3u); face = int((e >> 26) & 7u);
+        }
+        vec3 p[4]; vec3 nrm; float depth, side, foam; vec2 flow;
+        if (!wspQuad(g, c, r, face, p, nrm, depth, side, foam, flow)) return;
+        const uint q = atomicAdd(quads[0], 1u);
+        for (int k = 0; k < 4; ++k) {
+            const uint o = (q * 4u + uint(k)) * 12u;
+            vtx[o + 0u] = p[k].x; vtx[o + 1u] = p[k].y; vtx[o + 2u] = p[k].z; vtx[o + 3u] = depth;
+            vtx[o + 4u] = nrm.x; vtx[o + 5u] = nrm.y; vtx[o + 6u] = nrm.z; vtx[o + 7u] = side;
+            vtx[o + 8u] = foam; vtx[o + 9u] = flow.x; vtx[o + 10u] = flow.y; vtx[o + 11u] = float(pc.iparam);
+        }
+    }
+}

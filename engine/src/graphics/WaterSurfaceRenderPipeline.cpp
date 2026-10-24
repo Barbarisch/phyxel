@@ -25,6 +25,13 @@ struct WaterSurfacePush {
     glm::vec4 look1;   // G3: turbidity (< 0 unset), roughness (< 0 unset)
 };
 static_assert(sizeof(WaterSurfacePush) == 128, "push block must stay within the 128-byte guarantee");
+// 29 S1: water_surface_pull.vert's block - the shared 128 bytes, then the vertex stage's own (the field's lattice)
+struct WaterSurfacePullPush {
+    WaterSurfacePush base;
+    glm::ivec4 field;    // origin x, origin z (cells), nx, nz
+    glm::vec4 field2;    // h, the ripple layer + 1, -, -
+};
+static_assert(sizeof(WaterSurfacePullPush) == 160, "29 S1: the pull block is 160 bytes");
 static_assert(WaterSurfaceRenderPipeline::kVertexArenaAlign % sizeof(Core::Water::WaterSurfaceVertex) == 0 && WaterSurfaceRenderPipeline::kVertexArenaAlign % 256 == 0,
               "26.30: a vertex-arena offset must be a whole number of vertices (vertexOffset = offset / vertex size)");
 
@@ -63,6 +70,7 @@ void WaterSurfaceRenderPipeline::cleanup() {
     if (m_rippleMapped) vkUnmapMemory(m_device, m_rippleMemory);
     vkDestroyBuffer(m_device, m_rippleBuffer, nullptr); vkFreeMemory(m_device, m_rippleMemory, nullptr);
     m_rippleMapped = nullptr; m_rippleBuffer = VK_NULL_HANDLE; m_rippleMemory = VK_NULL_HANDLE;
+    destroyPullPipeline();
     vkDestroyPipeline(m_device, m_pipeline, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
     vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
@@ -73,12 +81,14 @@ void WaterSurfaceRenderPipeline::cleanup() {
 void WaterSurfaceRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalDevice,
                                             VkRenderPass renderPass, VkExtent2D swapChainExtent,
                                             VkDescriptorSetLayout uboLayout) {
-    m_device = device; m_physicalDevice = physicalDevice;
+    m_device = device; m_physicalDevice = physicalDevice; m_uboLayout = uboLayout;
     createBuffers();
     createTileStore();
     createDescriptorSetLayout(uboLayout);
     createDescriptorPool();
     createPipeline(renderPass, swapChainExtent);
+    try { createPullPipeline(renderPass, swapChainExtent); }
+    catch (const std::exception& e) { LOG_WARN("WaterSurface", "29 S1: the device-surface pipeline is not available ({}) - the host's tiler draws every volume", e.what()); destroyPullPipeline(); }
 }
 
 void WaterSurfaceRenderPipeline::setSceneTextures(VkImageView refractionView, VkSampler refractionSampler,
@@ -512,6 +522,136 @@ void WaterSurfaceRenderPipeline::renderTiles(VkCommandBuffer cmd, VkDescriptorSe
 void WaterSurfaceRenderPipeline::recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent) {
     vkDestroyPipeline(m_device, m_pipeline, nullptr);
     createPipeline(renderPass, swapChainExtent);
+    if (m_pullPipeline != VK_NULL_HANDLE) {   // 29 S1: the pipeline only (its layout and sets stand)
+        vkDestroyPipeline(m_device, m_pullPipeline, nullptr); m_pullPipeline = VK_NULL_HANDLE;
+        try { createPullPipeline(renderPass, swapChainExtent); } catch (const std::exception& e) { LOG_WARN("WaterSurface", "29 S1: pull pipeline: {}", e.what()); }
+    }
+}
+
+// ---- 29 S1: the surface drawn from the device -----------------------------------------------------------------------------------
+
+void WaterSurfaceRenderPipeline::createPullPipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent) {
+    VkPhysicalDeviceProperties props; vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
+    if (props.limits.maxPushConstantsSize < sizeof(WaterSurfacePullPush)) throw std::runtime_error("push constants under 160 bytes");
+    if (m_pullLayout == VK_NULL_HANDLE) {
+        std::array<VkDescriptorSetLayoutBinding, 4> binds{};
+        for (uint32_t i = 0; i < 4; ++i) { binds[i].binding = i; binds[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; binds[i].descriptorCount = 1; binds[i].stageFlags = VK_SHADER_STAGE_VERTEX_BIT; }
+        VkDescriptorSetLayoutCreateInfo li{}; li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO; li.bindingCount = 4; li.pBindings = binds.data();
+        if (vkCreateDescriptorSetLayout(m_device, &li, nullptr, &m_pullSetLayout) != VK_SUCCESS) throw std::runtime_error("pull set layout");
+        VkPushConstantRange pcs[2]{};
+        pcs[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT; pcs[0].offset = 0; pcs[0].size = sizeof(WaterSurfacePush);
+        pcs[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT; pcs[1].offset = sizeof(WaterSurfacePush); pcs[1].size = sizeof(WaterSurfacePullPush) - sizeof(WaterSurfacePush);
+        // set 0 (the scene UBO) is the scene's layout - the same one the plain pipeline's layout was made with
+        VkDescriptorSetLayout uboLayout = m_uboLayout;
+        std::array<VkDescriptorSetLayout, 3> sets = {uboLayout, m_descriptorSetLayout, m_pullSetLayout};
+        VkPipelineLayoutCreateInfo pli{}; pli.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; pli.setLayoutCount = 3; pli.pSetLayouts = sets.data(); pli.pushConstantRangeCount = 2; pli.pPushConstantRanges = pcs;
+        if (vkCreatePipelineLayout(m_device, &pli, nullptr, &m_pullLayout) != VK_SUCCESS) throw std::runtime_error("pull pipeline layout");
+        VkDescriptorPoolSize size{}; size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; size.descriptorCount = 4 * 64;
+        VkDescriptorPoolCreateInfo pi{}; pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; pi.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        pi.poolSizeCount = 1; pi.pPoolSizes = &size; pi.maxSets = 64;
+        if (vkCreateDescriptorPool(m_device, &pi, nullptr, &m_pullPool) != VK_SUCCESS) throw std::runtime_error("pull descriptor pool");
+    }
+    auto vsCode = readFile(Core::AssetManager::instance().resolveShader("water_surface_pull.vert.spv"));
+    auto fsCode = readFile(Core::AssetManager::instance().resolveShader("water_surface.frag.spv"));
+    VkShaderModule vs, fs;
+    VkShaderModuleCreateInfo ci{}; ci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    ci.codeSize = vsCode.size(); ci.pCode = reinterpret_cast<const uint32_t*>(vsCode.data()); vkCreateShaderModule(m_device, &ci, nullptr, &vs);
+    ci.codeSize = fsCode.size(); ci.pCode = reinterpret_cast<const uint32_t*>(fsCode.data()); vkCreateShaderModule(m_device, &ci, nullptr, &fs);
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = vs; stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = fs; stages[1].pName = "main";
+    VkPipelineVertexInputStateCreateInfo vi{}; vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;   // no vertex input: pulled
+    VkPipelineInputAssemblyStateCreateInfo ia{}; ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkViewport vp{}; vp.width = (float)swapChainExtent.width; vp.height = (float)swapChainExtent.height; vp.minDepth = 0.0f; vp.maxDepth = 1.0f;
+    VkRect2D sc{}; sc.extent = swapChainExtent;
+    VkPipelineViewportStateCreateInfo vps{}; vps.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO; vps.viewportCount = 1; vps.pViewports = &vp; vps.scissorCount = 1; vps.pScissors = &sc;
+    VkDynamicState dynStates[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynState{}; dynState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; dynState.dynamicStateCount = 2; dynState.pDynamicStates = dynStates;
+    // the plain pipeline's states exactly (both sides, depth test without write, alpha blend)
+    VkPipelineRasterizationStateCreateInfo rs{}; rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO; rs.polygonMode = VK_POLYGON_MODE_FILL; rs.lineWidth = 1.0f;
+    rs.cullMode = VK_CULL_MODE_NONE; rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    VkPipelineMultisampleStateCreateInfo ms{}; ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineDepthStencilStateCreateInfo ds{}; ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    ds.depthTestEnable = VK_TRUE; ds.depthWriteEnable = VK_FALSE; ds.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
+    VkPipelineColorBlendAttachmentState cba{};
+    cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    cba.blendEnable = VK_TRUE; cba.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; cba.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; cba.colorBlendOp = VK_BLEND_OP_ADD;
+    cba.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; cba.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; cba.alphaBlendOp = VK_BLEND_OP_ADD;
+    VkPipelineColorBlendStateCreateInfo cb{}; cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; cb.attachmentCount = 1; cb.pAttachments = &cba;
+    VkGraphicsPipelineCreateInfo gpi{}; gpi.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    gpi.stageCount = 2; gpi.pStages = stages; gpi.pVertexInputState = &vi; gpi.pInputAssemblyState = &ia; gpi.pViewportState = &vps;
+    gpi.pRasterizationState = &rs; gpi.pMultisampleState = &ms; gpi.pDepthStencilState = &ds; gpi.pColorBlendState = &cb;
+    gpi.layout = m_pullLayout; gpi.renderPass = renderPass; gpi.subpass = 0; gpi.pDynamicState = &dynState;
+    const VkResult res = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &gpi, nullptr, &m_pullPipeline);
+    vkDestroyShaderModule(m_device, vs, nullptr); vkDestroyShaderModule(m_device, fs, nullptr);
+    if (res != VK_SUCCESS) { m_pullPipeline = VK_NULL_HANDLE; throw std::runtime_error("pull graphics pipeline"); }
+}
+
+void WaterSurfaceRenderPipeline::destroyPullPipeline() {
+    if (m_device == VK_NULL_HANDLE) return;
+    if (m_pullPipeline) vkDestroyPipeline(m_device, m_pullPipeline, nullptr);
+    if (m_pullPool) vkDestroyDescriptorPool(m_device, m_pullPool, nullptr);   // frees the sets
+    if (m_pullLayout) vkDestroyPipelineLayout(m_device, m_pullLayout, nullptr);
+    if (m_pullSetLayout) vkDestroyDescriptorSetLayout(m_device, m_pullSetLayout, nullptr);
+    m_pullPipeline = VK_NULL_HANDLE; m_pullPool = VK_NULL_HANDLE; m_pullLayout = VK_NULL_HANDLE; m_pullSetLayout = VK_NULL_HANDLE;
+    m_pullSets.clear();
+}
+
+void WaterSurfaceRenderPipeline::gpuSurfaceBarrier(VkCommandBuffer cmd) {
+    VkMemoryBarrier mb{}; mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+    mb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+}
+
+void WaterSurfaceRenderPipeline::renderGpuSurfaces(VkCommandBuffer cmd, VkDescriptorSet uboSet, const Camera& camera, const glm::mat4& projectionMatrix,
+                                                   const std::vector<Core::Water::GpuSurfaceDraw>& draws, VkExtent2D screenExtent, uint32_t frame) {
+    m_lastGpuSurfaceDraws = 0;
+    ++m_pullFrame;
+    if (m_pullPipeline == VK_NULL_HANDLE || draws.empty() || !m_texturesBound || uboSet == VK_NULL_HANDLE) return;
+    // sets of volumes not drawn for longer than the frames in flight are freed (a destroyed volume's: destroyVolume waited idle)
+    for (auto it = m_pullSets.begin(); it != m_pullSets.end();) {
+        if (it->lastFrame + kFrames + 1 < m_pullFrame) { vkFreeDescriptorSets(m_device, m_pullPool, 1, &it->set); it = m_pullSets.erase(it); }
+        else ++it;
+    }
+    const uint32_t slot = frame % kFrames;
+    writeRipples(slot);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pullPipeline);
+    VkDescriptorSet sets[] = {uboSet, m_descriptorSet};
+    const uint32_t dynOff = static_cast<uint32_t>(slot * m_rippleSlotBytes);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pullLayout, 0, 2, sets, 1, &dynOff);
+    for (const auto& d : draws) {
+        if (d.nx <= 0 || d.nz <= 0 || d.surf == VK_NULL_HANDLE) continue;
+        PullSet* ps = nullptr;
+        for (auto& s : m_pullSets) if (s.serial == d.serial) ps = &s;
+        if (!ps) {
+            VkDescriptorSetAllocateInfo ai{}; ai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; ai.descriptorPool = m_pullPool; ai.descriptorSetCount = 1; ai.pSetLayouts = &m_pullSetLayout;
+            VkDescriptorSet set = VK_NULL_HANDLE;
+            if (vkAllocateDescriptorSets(m_device, &ai, &set) != VK_SUCCESS) continue;   // the pool is full (64 volumes drawn at once): not drawn this frame
+            VkDescriptorBufferInfo bi[4] = {{d.surf, 0, d.surfBytes}, {d.corners, 0, d.cornersBytes}, {d.meta, 0, d.metaBytes}, {d.list, 0, d.listBytes}};
+            VkWriteDescriptorSet w[4]{};
+            for (uint32_t i = 0; i < 4; ++i) { w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; w[i].dstSet = set; w[i].dstBinding = i; w[i].descriptorCount = 1; w[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; w[i].pBufferInfo = &bi[i]; }
+            vkUpdateDescriptorSets(m_device, 4, w, 0, nullptr);
+            m_pullSets.push_back({d.serial, set, m_pullFrame});
+            ps = &m_pullSets.back();
+        }
+        ps->lastFrame = m_pullFrame;
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pullLayout, 2, 1, &ps->set, 0, nullptr);
+        WaterSurfacePullPush pc{};
+        pc.base.viewProj = projectionMatrix * camera.getViewMatrix();
+        const float t = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_startTime).count();
+        pc.base.camPosTime = glm::vec4(camera.getPosition(), t);
+        pc.base.screen = glm::vec4(static_cast<float>(screenExtent.width), static_cast<float>(screenExtent.height), static_cast<float>(m_debugMode), m_scatterLegacy ? 1.0f : 0.0f);
+        pc.base.look0 = d.look.look0; pc.base.look1 = d.look.look1; pc.base.look1.z = m_horizonGuard ? 0.0f : 1.0f; pc.base.look1.w = m_defaultClarity;   // as pushLook
+        pc.field = glm::ivec4(d.originX, d.originZ, d.nx, d.nz);
+        pc.field2 = glm::vec4(d.h, static_cast<float>(d.rippleLayer + 1), 0.0f, 0.0f);
+        vkCmdPushConstants(cmd, m_pullLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(WaterSurfacePush), &pc.base);
+        vkCmdPushConstants(cmd, m_pullLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(WaterSurfacePush), sizeof(WaterSurfacePullPush) - sizeof(WaterSurfacePush), &pc.field);
+        vkCmdDraw(cmd, 6u * static_cast<uint32_t>(d.nx) * static_cast<uint32_t>(d.nz), 1, 0, 0);   // every column's first-run top
+        vkCmdDrawIndirect(cmd, d.args, 0, 1, 16);                                                   // the extras (firstInstance 1)
+        ++m_lastGpuSurfaceDraws;
+    }
 }
 
 } // namespace Graphics

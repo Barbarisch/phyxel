@@ -8829,6 +8829,24 @@ needs; the host's water work is independent of the lake's size.
 volume's field is world-aligned as before. API: `water_render_core {gpu_surface}` (A/B; echoed), `water_av_host_phases`
 (the CPU by phase). The test world: one GPU volume in a test (the parity), and the bench lake live (the cost).
 
+**S1 RESULT (2026-10-24): BUILT, ON by default** (`WaterCoreGpu::s_gpuSurface`; `water_render_core {gpu_surface}` A/B).
+`wc_surface` writes the dense field (`surfDense`, solid tops from `solidTopD` = the host's). Before a FULL surface pass, a template
+(`wc_surface_mesh` mode 4) makes every column dry over its solid top and keeps the recorded columns (runs < 0), exactly as the
+host's full read. The host's writes go through `surfUp`: a recorded tile's marks (and again when its record tile is rebuilt:
+`remarkRecordedTile`), a woken tile's seed, and every recorded tile's marks when the field is first built. Then mode 0 (the covered
+brick columns + a 1-column ring) or mode 3 (every column, after host writes or a full pass), and mode 1 (the extras list, capacity 4
+per column, the dropped counted). `water_surface_pull.vert` draws it (set 2, push 160 B; a degenerate column is clipped). Measured:
+- **Parity** (`WaterRecordTilesTest.TheDeviceMeshIsTheHostMesh`, red first). A dam break (side faces up to 288 quads, extra quads up
+  to 1,450: a slab with water over and under it): 90 checks, 0 off, positions within 2.4e-7 m. A pond (tiles recorded and woken):
+  90 checks, 0 off. RED (the pond without the ring): 3 checks off, up to 50 quads unmatched.
+- **Live, at rest** (the 60 x 60 m lake): the host-drawn and device-drawn frames differ by less than two host-drawn frames 1 s apart
+  (mean 0.074 vs 0.079; pixels off by > 8: 0.017 % vs 0.029 %).
+- **Live, awake** (switch alternated in 4 s windows after a push, no capture): the tiler 4.3-5.0 ms -> 0; **CPU frame 20.3-20.5 ms
+  (49 fps) vs 23.8-27.0 (37-42 fps)**; the GPU frame 1.0-1.2 ms vs 2.5-5.2 (no tile uploads); the surface draw 0.39-0.42 ms either
+  way. The water call's device time read 4.3-5.7 ms on vs 2.9-3.7 off at different awake counts: the mesh passes' own GPU cost is
+  NOT measured yet (S5). **The water's CPU is still ~16 ms a frame** (the GPU step's host side ~8, tall cells ~3, motion ~2.4, the
+  surface read ~2.2, ripples ~1): S2 and S3.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

@@ -17,11 +17,11 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_face_ops.comp.spv", "wc_face_ops.comp.spv", "wc_face_ops.comp.spv",
     "wc_column_ops.comp.spv", "wc_classify.comp.spv", "wc_rbgs.comp.spv",
     "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv", "wc_sources.comp.spv", "wc_surface.comp.spv",
-    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv", "wc_tall.comp.spv", "wc_rbgs_line.comp.spv"};
+    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv", "wc_tall.comp.spv", "wc_rbgs_line.comp.spv", "wc_surface_mesh.comp.spv"};
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 12, 5, 10, 6, 7, 6, 9, 7, 7, 6};   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 7, 7, 7, 11, 12, 6, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 9};   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -62,7 +62,7 @@ uint32_t WaterCoreGpu::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
 bool WaterCoreGpu::createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible, std::string* err) {
     b.bytes = std::max<VkDeviceSize>(bytes, 16);
     VkBufferCreateInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bi.size = b.bytes; bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    bi.size = b.bytes; bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;   // 29 S1: + indirect (the mesh's draw args)
     bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     if (vkCreateBuffer(m_device, &bi, nullptr, &b.buf) != VK_SUCCESS) { if (err) *err = "vkCreateBuffer failed for " + std::to_string(b.bytes) + " bytes"; return false; }
     VkMemoryRequirements mr; vkGetBufferMemoryRequirements(m_device, b.buf, &mr);
@@ -116,7 +116,9 @@ void WaterCoreGpu::bindPipelines(Volume& vol) {
     bindAll(*vol.pipes[FaceOpsV],   {&vol.f, &vol.occ, &vol.v, &vol.p, &vol.liq, &vol.solid, br});
     bindAll(*vol.pipes[FaceOpsW],   {&vol.f, &vol.occ, &vol.w, &vol.p, &vol.liq, &vol.solid, br});
     bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped, &vol.solid, &vol.births, &vol.deposit, br, &vol.fLo});   // 21: + births, deposit; 26.10: + fLo
-    bindAll(*vol.pipes[Surface],    {&vol.f, &vol.occ, &vol.surf, &vol.u, &vol.w, &vol.solid, br, &vol.births, &vol.birthsPacked, &vol.lists});   // Phase F (+ u, w: E2; + solid: 20; 26.11: packed lists)
+    bindAll(*vol.pipes[Surface],    {&vol.f, &vol.occ, &vol.surf, &vol.u, &vol.w, &vol.solid, br, &vol.births, &vol.birthsPacked, &vol.lists, &vol.surfDense, &vol.solidTopD});   // Phase F (+ u, w: E2; + solid: 20; 26.11: packed lists; 29 S1: the dense field)
+    // 29 S1: bindings 6 / 7 are the test expansion's (expandSurfaceForTest rebinds them); otherwise placeholders
+    bindAll(*vol.pipes[SurfaceMesh], {&vol.surfDense, &vol.meshCorners, &vol.meshMeta, &vol.meshList, &vol.meshArgs, br, &vol.meshList, &vol.meshArgs, &vol.solidTopD});
     bindAll(*vol.pipes[Classify],   {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.src, &vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.solid, br});
     bindAll(*vol.pipes[Rbgs],       {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res, br});
     // binding 8 = the lattice before the halo pass: a dedicated scratch, because uOld/vOld/wOld are
@@ -246,7 +248,15 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
            && createBuffer(vol->births, vol->columns * 32, false, err) && createBuffer(vol->birthsPacked, vol->columns * 32, false, err) && createBuffer(vol->lists, 16, false, err) && createBuffer(vol->deposit, vol->cells * F4, false, err)   // 21: droplets
            && createBuffer(vol->bricks, vol->brickInts * 4, false, err)                                 // 26.6
            && createBuffer(vol->momentum, kMaxMomentum * 32, true, err)                                  // 26.26: written by the host each call
-           && (!vol->bricked || createBuffer(vol->unitMap, std::max<size_t>(1, static_cast<size_t>(vol->bn.x) * vol->nuy * static_cast<size_t>(vol->bn.z)) * 16, false, err));   // 27.23 W1e
+           && (!vol->bricked || createBuffer(vol->unitMap, std::max<size_t>(1, static_cast<size_t>(vol->bn.x) * vol->nuy * static_cast<size_t>(vol->bn.z)) * 16, false, err))   // 27.23 W1e
+           // 29 S1: the surface on the device - the dense field and its solid tops (wc_surface writes every volume's), the mesh (bricked)
+           && createBuffer(vol->surfDense, vol->dColumns * sizeof(Core::Water::SurfaceColumn), false, err) && createBuffer(vol->solidTopD, vol->dColumns * 4, false, err)
+           && createBuffer(vol->meshCorners, (vol->bricked ? vol->dColumns : 1) * 64, false, err) && createBuffer(vol->meshMeta, (vol->bricked ? vol->dColumns : 1) * 4, false, err)
+           && createBuffer(vol->meshList, (vol->bricked ? vol->dColumns * 4 : 1) * 4, false, err) && createBuffer(vol->meshArgs, 32, false, err)
+           && createBuffer(vol->meshArgsHost, 32, true, err)
+           && (!vol->bricked || createBuffer(vol->surfUp, vol->dColumns * (sizeof(Core::Water::SurfaceColumn) + 4), true, err));
+    vol->meshListCap = vol->bricked ? static_cast<uint32_t>(vol->dColumns * 4) : 0u;
+    { static uint64_t s_serial = 0; vol->serial = ++s_serial; }
     // staging: [f | u | v | w | occ | src | out | p | sources | surf | solid | births | deposit | bricks | particles]
     vol->offU = vol->cells * F4; vol->offV = vol->offU + vol->nu * F4; vol->offW = vol->offV + vol->nv * F4;
     vol->offOcc = vol->offW + vol->nw * F4; vol->offSrc = vol->offOcc + vol->cells * 4; vol->offOut = vol->offSrc + vol->cells * F4;
@@ -272,8 +282,16 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         VkCommandBuffer cmd = beginCommands();
         for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                           &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep,
-                          &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->unitMap})
+                          &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->unitMap,
+                          &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs})
             if (b->buf) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
+        {   // 29 S1: the extras draw - vertexCount 6, instanceCount (counted each call), firstVertex 0, firstInstance 1 (the vertex shader's
+            // "this is the list" mark)
+            const uint32_t args[4] = {6u, 0u, 0u, 1u};
+            VkMemoryBarrier mb{}; mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER; mb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; mb.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+            vkCmdUpdateBuffer(cmd, vol->meshArgs.buf, 0, sizeof(args), args);
+        }
         if (vol->bricked && !vol->groundAsAir) vkCmdFillBuffer(cmd, vol->occ.buf, kGround * vol->bc * 4, vol->bc * 4, 1u);   // 26.18: the ground sentinel: Solid
         submitAndWait(cmd);
     }
@@ -300,7 +318,8 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
     for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
-                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->scratch, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum, &vol->unitMap})
+                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->scratch, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum, &vol->unitMap,
+                      &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->meshArgsHost, &vol->surfUp})
         destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -1169,6 +1188,7 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     vol.lastMaxSpeed = mx;
     vol.hostOcc.resize(vol.dCells);
     vol.hostSolidTop.assign(vol.dColumns, -1e30f);   // 26.11: a dry column's record is rebuilt from this (wc_surface's solidTop, whole column)
+    vol.solidTopDirty = true;   // 29 S1: the device's copy is re-sent
     for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) for (int y = g.ny() - 1; y >= 0; --y)
         if (g.occ(x, y, z) == Occ::Solid) { vol.hostSolidTop[static_cast<size_t>(x) + static_cast<size_t>(g.nx()) * z] = (static_cast<float>(g.spec().origin.y) + static_cast<float>(y) + 1.0f) * g.spec().h; break; }
     vol.listsSized = false;
@@ -1490,6 +1510,48 @@ bool WaterCoreGpu::readSurface(const Volume& vol, float* out, bool keep) const {
     }
     for (size_t c = 0; c < vol.dColumns; ++c)
         if (!wet[c]) { cols[c] = Core::Water::SurfaceColumn{}; cols[c].solidTopY = solidTop(c); }
+    return true;
+}
+
+void WaterCoreGpu::queueSurfaceColumns(Volume& vol, const Core::Water::WaterSurfaceField& field, int x0, int z0, int x1, int z1) {
+    if (!vol.bricked || field.nx != vol.spec.dims.x || field.nz != vol.spec.dims.z || field.cols.size() != vol.dColumns) return;
+    x0 = std::max(x0, 0); z0 = std::max(z0, 0); x1 = std::min(x1, field.nx); z1 = std::min(z1, field.nz);
+    for (int z = z0; z < z1; ++z) for (int x = x0; x < x1; ++x) {
+        const uint32_t c = static_cast<uint32_t>(x + field.nx * z);
+        vol.surfPending.push_back({c, field.cols[c]});
+    }
+}
+
+WaterCoreGpu::SurfaceView WaterCoreGpu::surfaceView(const Volume& vol) const {
+    SurfaceView v;
+    if (!s_gpuSurface || !vol.bricked || !vol.meshValid) return v;
+    v.surf = vol.surfDense.buf; v.surfBytes = vol.surfDense.bytes; v.corners = vol.meshCorners.buf; v.cornersBytes = vol.meshCorners.bytes;
+    v.meta = vol.meshMeta.buf; v.metaBytes = vol.meshMeta.bytes; v.list = vol.meshList.buf; v.listBytes = vol.meshList.bytes; v.args = vol.meshArgs.buf;
+    v.origin = vol.spec.origin; v.nx = vol.spec.dims.x; v.nz = vol.spec.dims.z; v.h = vol.spec.h; v.serial = vol.serial; v.ok = true;
+    return v;
+}
+
+bool WaterCoreGpu::expandSurfaceForTest(Volume& vol, std::vector<float>& vertices) {
+    vertices.clear();
+    settle(vol);
+    if (!s_gpuSurface || !vol.bricked || !vol.meshValid) return false;
+    const uint32_t entries = std::min(vol.lastMeshEntries, vol.meshListCap);
+    const size_t quadsMax = vol.dColumns + entries + 16;
+    Buffer out, count;
+    if (!createBuffer(out, quadsMax * 4 * 12 * 4, true, nullptr) || !createBuffer(count, 16, true, nullptr)) { destroyBuffer(out); destroyBuffer(count); return false; }
+    Vulkan::ComputePipeline& p = *vol.pipes[SurfaceMesh];
+    p.bindBuffer(6, out.buf, out.bytes); p.bindBuffer(7, count.buf, count.bytes); p.updateDescriptors();
+    WcPush mp{}; mp.nx = vol.spec.dims.x; mp.ny = vol.spec.dims.y; mp.nz = vol.spec.dims.z; mp.h = vol.spec.h; mp.mode = 2;
+    mp.param0 = static_cast<float>(vol.spec.origin.x); mp.param1 = static_cast<float>(vol.spec.origin.z); mp.iparam = 0;   // the ripple layer + 1: none
+    fillPushBricks(vol, mp);
+    VkCommandBuffer cmd = beginCommands();
+    dispatch(cmd, p, mp, vol.dColumns + entries);
+    submitAndWait(cmd);
+    const uint32_t q = std::min<uint32_t>(*static_cast<const uint32_t*>(count.mapped), static_cast<uint32_t>(quadsMax));
+    const auto* v = static_cast<const float*>(out.mapped);
+    vertices.assign(v, v + static_cast<size_t>(q) * 4 * 12);
+    p.bindBuffer(6, vol.meshList.buf, vol.meshList.bytes); p.bindBuffer(7, vol.meshArgs.buf, vol.meshArgs.bytes); p.updateDescriptors();
+    destroyBuffer(out); destroyBuffer(count);
     return true;
 }
 
@@ -1940,6 +2002,7 @@ void WaterCoreGpu::updateOccupancy(Volume& vol, const WaterGrid& g, const std::v
                 if (g.occ(x, y, z) == Occ::Solid) { top = (static_cast<float>(g.spec().origin.y) + static_cast<float>(y) + 1.0f) * g.spec().h; break; }
             vol.hostSolidTop[c] = top;
         }
+    vol.solidTopDirty = true;   // 29 S1
     auto* st = static_cast<char*>(vol.staging.mapped);
     VkCommandBuffer cmd = beginCommands();
     if (vol.bricked) {
@@ -2014,6 +2077,12 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     push.dt = ds;
     const auto t0 = std::chrono::steady_clock::now();
     VkCommandBuffer cmd = beginCommands();
+    const bool gpuSurf = s_gpuSurface && vol.bricked;   // 29 S1
+    if (!gpuSurf) vol.meshValid = false;   // the switch off: turned on again, the field is built whole first
+    if (gpuSurf) {   // 29 S1: the frame before may still be drawing the mesh this call rewrites (one queue: an execution dependency)
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+    }
     vol.tsCount = -1;   // 26.11 test hook: armed only for single-tick, single-substep calls
     if (!vol.callTs) { VkQueryPoolCreateInfo qi{}; qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO; qi.queryType = VK_QUERY_TYPE_TIMESTAMP; qi.queryCount = 2;
                        if (vkCreateQueryPool(m_device, &qi, nullptr, &vol.callTs) != VK_SUCCESS) vol.callTs = VK_NULL_HANDLE; }
@@ -2187,7 +2256,8 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     push.param1 = static_cast<float>(vol.columns);   // 26.11: where the multi-run records start in surf (x 8 floats)
     // 26.33: with frozen columns the surface covers the awake column entries only (they lie first after the partition); the host
     // keeps the frozen columns' last surface (readSurface) - it cannot change while they are frozen
-    const bool surfPartial = s_partialSurface && !vol.surfaceFullNext && vol.stepSlots > 0 && vol.stepCols > 0 && vol.stepCols < fullCols;
+    const bool surfPartial = s_partialSurface && !vol.surfaceFullNext && vol.stepSlots > 0 && vol.stepCols > 0 && vol.stepCols < fullCols
+                             && !(gpuSurf && !vol.meshValid);   // 29 S1: the device field is built whole once first
     vol.surfaceFullNext = false;
     vol.pend.surfCols.clear();
     if (surfPartial) {
@@ -2195,8 +2265,51 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         vol.colCount = vol.stepCols; fillPushBricks(vol, push); push.setFrozenOn(0);
     }
     const size_t colsSurf = surfPartial ? liveColumns(vol) : colsAll;
+    WcPush mp = push;   // 29 S1: the mesh kernel's push (the field's lattice: origin x / z, every dense column)
+    mp.param0 = static_cast<float>(vol.spec.origin.x); mp.param1 = static_cast<float>(vol.spec.origin.z); mp.dt = s_meshNoRingForTest ? 0.0f : 1.0f;
+    const size_t denseCols = vol.dColumns;
+    bool meshFull = !surfPartial || vol.meshFullNext;
+    if (gpuSurf) {   // 29 S1: before the surface pass - the solid tops, the dry template (a full pass), the host's writes
+        if (vol.solidTopDirty && vol.hostSolidTop.size() == vol.dColumns) {
+            auto* up = reinterpret_cast<float*>(static_cast<char*>(vol.surfUp.mapped) + vol.dColumns * sizeof(Core::Water::SurfaceColumn));
+            std::memcpy(up, vol.hostSolidTop.data(), vol.dColumns * 4);
+            copy(cmd, vol.surfUp, vol.solidTopD, vol.dColumns * 4, vol.dColumns * sizeof(Core::Water::SurfaceColumn), 0);
+            barrier(cmd);
+            vol.solidTopDirty = false;
+        }
+        if (!surfPartial) {   // as the host's full read: every column not holding water is dry over its solid top (a recorded one kept)
+            mp.mode = 4; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, denseCols);
+        }
+        if (!vol.surfPending.empty()) {
+            auto* rec = static_cast<Core::Water::SurfaceColumn*>(vol.surfUp.mapped);
+            std::vector<uint32_t> cols; cols.reserve(vol.surfPending.size());
+            for (const auto& [c, r] : vol.surfPending) if (c < vol.dColumns) { rec[c] = r; cols.push_back(c); }   // later writes win
+            std::sort(cols.begin(), cols.end()); cols.erase(std::unique(cols.begin(), cols.end()), cols.end());
+            std::vector<VkBufferCopy> regions;
+            const VkDeviceSize R = sizeof(Core::Water::SurfaceColumn);
+            for (size_t i = 0; i < cols.size();) {   // runs of consecutive columns, one region each
+                size_t j = i + 1; while (j < cols.size() && cols[j] == cols[j - 1] + 1) ++j;
+                regions.push_back({cols[i] * R, cols[i] * R, (j - i) * R});
+                i = j;
+            }
+            vkCmdCopyBuffer(cmd, vol.surfUp.buf, vol.surfDense.buf, static_cast<uint32_t>(regions.size()), regions.data());
+            barrier(cmd);
+            vol.surfPending.clear();
+            meshFull = true;
+        }
+    }
     dispatch(cmd, *vol.pipes[Surface], push, colsSurf);
     stamp(cmd, vol, TsSurfaceKernel);
+    if (gpuSurf) {   // 29 S1: the mesh - the covered columns and a ring round them (or every column), then the extras list
+        if (meshFull) { mp.mode = 3; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, denseCols); }
+        else { mp.mode = 0; dispatch(cmd, *vol.pipes[SurfaceMesh], mp, static_cast<size_t>(vol.colCount) * 100); }
+        vkCmdFillBuffer(cmd, vol.meshArgs.buf, 4, 4, 0);    // instanceCount
+        vkCmdFillBuffer(cmd, vol.meshArgs.buf, 16, 8, 0);   // wanted, dropped
+        barrier(cmd);
+        mp.mode = 1; mp.iparam = static_cast<int32_t>(vol.meshListCap); dispatch(cmd, *vol.pipes[SurfaceMesh], mp, denseCols);
+        copy(cmd, vol.meshArgs, vol.meshArgsHost, 32);
+        vol.meshFullNext = false; vol.meshValid = true;
+    }
     // 26.11: only the packed lists cross to the host - the counts, then as many entries as the last call's lists + 25 % + 64 (all of
     // them on a first call); a longer list is completed after the fence. Copying every column cost 0.57 ms of the creek's 1.6.
     const VkDeviceSize kRec[3] = {32, 32, sizeof(Core::Water::SurfaceColumn)};                       // one-run, births, multi-run
@@ -2317,6 +2430,10 @@ void WaterCoreGpu::finishCall(Volume& vol) {
         }
     }
     WaterHostProfile::lap("collect.2 lists + copies", hp);
+    if (vol.meshArgsHost.mapped) {   // 29 S1: the extras list as the call left it
+        const auto* a = static_cast<const uint32_t*>(vol.meshArgsHost.mapped);
+        vol.lastMeshEntries = a[4]; vol.lastMeshDropped = a[5];
+    }
     vol.surfaceValid = true;
     vol.birthsFresh = true;
     // 26.16: the host's share of the call - SYNC: start to here; ASYNC: recording + this collection

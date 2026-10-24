@@ -582,6 +582,91 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeHoles) {
     WaterCoreManager::s_recordDraw = drawBefore;
 }
 
+// 29 S1 THE DEVICE MESH IS THE HOST MESH (red first). A 32 x 16 m box, water placed over x 0-23 m only (its edge against dry ground:
+// side faces), a stone slab 1 m up over x 4-7 m / z 4-7 m with water under and over it (columns of two runs: their tops and walls are
+// the extras list), recording on (tiles record at rest and wake when the push reaches them: the record's marks, the seeds), the
+// partial wake (the surface pass covers the awake columns; the mesh pass them and a ring). Every 10 ticks: the device mesh, expanded
+// through the vertex shader's own function, against buildWaterSurfaceMesh of the host's field, as multisets of quads.
+// Prediction: 0 unmatched quads at every check, positions within 1e-4 m, the rest within 1e-3. RED CONTROL: the mesh pass without its
+// ring (s_meshNoRingForTest) - a frozen column beside the awake region keeps stale corners: unmatched quads after the push.
+static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool noRing, bool damBreak,
+                                                  long& checks, long& checksBad, long& sideMax, long& multiMax, long& recordedMax, long& wokenEnd) {
+    (void)fx;
+    WaterCoreManager::MeshParity worst;
+    const bool gpuBefore = WaterCoreGpu::s_gpuSurface;
+    const float afterBefore = WaterCoreManager::s_recordAfterS;
+    const auto drawBefore = WaterCoreManager::s_recordDraw;
+    struct Restore { bool g; float a; WaterCoreManager::RecordDraw d; ~Restore() { WaterCoreGpu::s_gpuSurface = g; WaterCoreGpu::s_meshNoRingForTest = false; WaterCoreManager::s_recordAfterS = a; WaterCoreManager::s_recordDraw = d; } } restore{gpuBefore, afterBefore, drawBefore};
+    WaterCoreGpu::s_gpuSurface = true;
+    WaterCoreGpu::s_meshNoRingForTest = noRing;
+    WaterCoreManager::s_recordAfterS = 0.5f;
+    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_recordDraw.radiusM = 48.0f;
+    // the ground, and the slab: micro cells y 9 (1.00-1.11 m) over x 36-71, z 36-71
+    auto state = [](const glm::ivec3& m) -> int {
+        if (m.y < 0) return 1;
+        if (m.y == 9 && m.x >= 36 && m.x < 72 && m.z >= 36 && m.z < 72) return 1;
+        return 0;
+    };
+    WaterCoreManager mgr(state);
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return worst; }
+    mgr.setDroplets(false);
+    mgr.setViewPoint(glm::vec3(16.0f, 2.0f, 8.0f));
+    FakeRecord record; record.install(mgr);
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(31, 2, 15), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    if (!id) { ADD_FAILURE() << err; return worst; }
+    mgr.setAutoSleep(id, false);
+    if (!mgr.setPartialWake(id, true) || !mgr.setRecordTiles(id, true)) { ADD_FAILURE() << "partial wake / recording refused"; return worst; }
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(damBreak ? 23 : 31, 1, 15), 1.0f, nullptr);   // the dam break: its edge runs over dry ground (side faces)
+    AvRecord rec;
+    auto check = [&](int k) {
+        const WaterCoreManager::MeshParity p = mgr.surfaceMeshParityForTest(id);
+        if (!p.ok) { ADD_FAILURE() << "parity read failed at tick " << k; return; }
+        ++checks;
+        if (p.unmatched > 0 || p.worstPos > 1e-4f || p.worstOther > 1e-3f) {
+            ++checksBad;
+            if (checksBad <= 3) std::printf("    tick %d: host %ld quads, device %ld, unmatched %ld, worst pos %.2e, other %.2e\n", k, p.hostQuads, p.deviceQuads, p.unmatched, p.worstPos, p.worstOther);
+        }
+        if (p.unmatched > worst.unmatched) { worst.unmatched = p.unmatched; worst.hostQuads = p.hostQuads; worst.deviceQuads = p.deviceQuads; }
+        worst.worstPos = std::max(worst.worstPos, p.worstPos); worst.worstOther = std::max(worst.worstOther, p.worstOther);
+        sideMax = std::max(sideMax, p.sideQuads);
+        multiMax = std::max(multiMax, p.hostQuads - 32L * 9 * 16 * 9);   // more quads than one top a column: the walls and the second runs
+        if (const AvRecord* r = mgr.find(id)) recordedMax = std::max<long>(recordedMax, r->recordedTiles);
+    };
+    int k = 0;
+    for (; k < 360; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); mgr.surfaceFields(); if (k % 10 == 9) check(k); }
+    mgr.addImpulse(glm::vec3(10.0f, 1.9f, 8.0f), 0.5f, 3.0f, glm::vec3(0.0f, -1.0f, 0.0f));   // a push among the recorded tiles
+    for (; k < 900; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); mgr.surfaceFields(); if (k % 10 == 9) check(k); }
+    if (const AvRecord* r = mgr.find(id)) wokenEnd = r->tilesWoken;
+    worst.ok = true;
+    return worst;
+}
+
+TEST_F(WaterRecordTilesTest, TheDeviceMeshIsTheHostMesh) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    // A: the dam break - water running over dry ground (side faces, every column awake)
+    long checks = 0, bad = 0, sideMax = 0, multiMax = 0, recordedMax = 0, woken = 0;
+    const auto dam = runDeviceMesh(*this, device, physicalDevice, queue, queueFamilyIndex, false, true, checks, bad, sideMax, multiMax, recordedMax, woken);
+    std::printf("  A dam break: %ld checks, %ld off; worst unmatched %ld, positions %.2e m, other %.2e | side quads up to %ld, extra quads up to %ld\n",
+                checks, bad, dam.unmatched, dam.worstPos, dam.worstOther, sideMax, multiMax);
+    // B: the pond - at rest every tile records (the marks), the push wakes some (the seeds) and leaves frozen columns beside awake ones
+    long pChecks = 0, pBad = 0, s1 = 0, m1 = 0, recorded = 0, wokenP = 0;
+    const auto pond = runDeviceMesh(*this, device, physicalDevice, queue, queueFamilyIndex, false, false, pChecks, pBad, s1, m1, recorded, wokenP);
+    std::printf("  B pond: %ld checks, %ld off; worst unmatched %ld, positions %.2e m, other %.2e | tiles in the record up to %ld, woken %ld, extra quads up to %ld\n",
+                pChecks, pBad, pond.unmatched, pond.worstPos, pond.worstOther, recorded, wokenP, m1);
+    long rChecks = 0, rBad = 0, s2 = 0, m2 = 0, r2 = 0, w2 = 0;
+    const auto red = runDeviceMesh(*this, device, physicalDevice, queue, queueFamilyIndex, true, false, rChecks, rBad, s2, m2, r2, w2);
+    std::printf("  RED (B without the ring): %ld checks, %ld off; worst unmatched %ld\n", rChecks, rBad, red.unmatched);
+    ASSERT_TRUE(dam.ok && pond.ok && red.ok);
+    EXPECT_GT(checks + pChecks, 160);
+    EXPECT_GT(sideMax, 0) << "A has side faces";
+    EXPECT_GT(recorded, 0) << "B: tiles recorded (the record's marks were exercised)";
+    EXPECT_GT(wokenP, 0) << "B: tiles woke (the seeds were exercised)";
+    EXPECT_EQ(bad, 0) << "A: the device mesh differs from the host's";
+    EXPECT_EQ(pBad, 0) << "B: the device mesh differs from the host's";
+    EXPECT_GT(rBad, 0) << "RED CONTROL: without the ring the frozen columns beside the awake region kept stale corners - unseen";
+}
+
 // DiagLakeRecorded (27.23 W1e step 0): the 60 x 60 m lake (2 m deep, 3 m box) with the partial wake and RECORDING on - the lake at
 // rest records tile by tile (its bricks freed), a stone wakes the tiles round it, waves, freezes, records again. Per second: the
 // call's mean GPU ms, awake / frozen columns, recorded tiles, stored bricks, the books. LAKE_QS = the freeze test's scale.

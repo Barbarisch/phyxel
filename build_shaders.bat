@@ -276,8 +276,11 @@ echo Compiling WaterCore GPU kernel wc_tall - 27.22 tall cells collapse / expand
 %GLSLANG% -V -Ishaders shaders\wc_tall.comp -o shaders\wc_tall.comp.spv || goto :shader_error
 echo Compiling WaterCore GPU kernel wc_surface...
 %GLSLANG% -V -Ishaders shaders\wc_surface.comp -o shaders\wc_surface.comp.spv || goto :shader_error
+echo Compiling WaterCore GPU kernel wc_surface_mesh (29 S1: the surface mesh on the device)...
+%GLSLANG% -V -Ishaders shaders\wc_surface_mesh.comp -o shaders\wc_surface_mesh.comp.spv || goto :shader_error
 echo Compiling water surface mesh shaders...
 %GLSLANG% -V -I. shaders\water_surface.vert -o shaders\water_surface.vert.spv || goto :shader_error
+%GLSLANG% -V -Ishaders shaders\water_surface_pull.vert -o shaders\water_surface_pull.vert.spv || goto :shader_error
 %GLSLANG% -V -I. shaders\water_surface.frag -o shaders\water_surface.frag.spv || goto :shader_error
 
 

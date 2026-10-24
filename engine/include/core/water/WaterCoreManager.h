@@ -10,6 +10,7 @@
 #include "core/water/WaterCoreGpu.h"   // Phase C backend (optional; CPU reference without it)
 #include "core/water/WaterBodyTable.h"   // Phase D Tier A records
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
+#include "core/water/WaterGpuSurfaceDraw.h" // 29 S1: the surface drawn from the device
 #include "core/water/WaterDroplets.h"      // 21: the droplet crown
 #include "core/water/RippleLayer.h"        // 22: ripples
 #include "core/water/RippleGpu.h"          // 25.34: the ripple step on the GPU
@@ -348,6 +349,13 @@ public:
     /// 26.30 step 3: the volumes' own fields (pointers, parallel to the volumes; valid until a volume is destroyed - destroy()
     /// drops its pointer at once). Was a copy of every field, made on every call (4.6 MB a 32 x 28 m pond, ~1 ms a frame awake).
     const std::vector<const WaterSurfaceField*>& surfaceFields();
+    /// 29 S1: the volumes the device draws (WaterCoreGpu::s_gpuSurface, once their mesh has been built) - their fields carry
+    /// gpuDrawn (the host's tiler skips them). Rebuilt on each call (cheap: a few handles per volume).
+    std::vector<GpuSurfaceDraw> gpuSurfaceDraws();
+    /// 29 S1 TEST ONLY: the device mesh (expanded through the vertex shader's own function) against buildWaterSurfaceMesh of the
+    /// host's field, as multisets of quads. `pos` / `other`: the worst differences (m; normal, depth, flow...).
+    struct MeshParity { bool ok = false; long hostQuads = 0, deviceQuads = 0, unmatched = 0; float worstPos = 0.0f, worstOther = 0.0f; long sideQuads = 0, multiRunQuads = 0; };
+    MeshParity surfaceMeshParityForTest(int id);
     /// §27 W1a (the owner's choice A, 2026-10-20): RECORDED water near the camera is drawn with the pond surface built from the
     /// record - 8 m world-aligned tiles within `radiusM` of the view point that hold stored water outside every live volume get a
     /// field (recordSurfaceField: the record woken into a scratch grid, the surface extracted), appended to surfaceFields() after
@@ -655,6 +663,8 @@ private:
     /// 27.22: the rest level (the median top of the wet columns of the volume's surface field) - read while the volume sleeps
     bool captureTallRest(Av& av);
     void markRecordedColumns(Av& av, int tx, int tz);   // 27.15/27.16: a recorded tile's columns in the volume's field -> the record's (runs -1)
+    void queueTileSurface(Av& av, int tx, int tz);      // 29 S1: the tile's columns of the volume's field -> the device's field (next call)
+    void remarkRecordedTile(int tx, int tz);            // 29 S1: a record tile rebuilt - its marks again, in every volume holding it
     bool wakeTile(Av& av, int tx, int tz);
     /// wake the recorded tiles a write at `world` touches (+ s_writeWakeReachM); deferred = before the next call (a write that
     /// lands then too - a droplet's deposit), not now (a collect between two calls breaks the freeze test, 27.13)

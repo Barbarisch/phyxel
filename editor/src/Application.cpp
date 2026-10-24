@@ -3776,6 +3776,8 @@ void Application::update(float deltaTime) {
                     // for even with no volume live
                     const auto& sf = waterCore->surfaceFields();
                     renderCoordinator->setWaterCoreSurfaceFields(sf.empty() ? nullptr : &sf);
+                    m_gpuSurfaceDraws = waterCore->gpuSurfaceDraws();   // 29 S1: the volumes the device draws
+                    renderCoordinator->setWaterCoreGpuSurfaces(m_gpuSurfaceDraws.empty() ? nullptr : &m_gpuSurfaceDraws);
                 }
                 renderCoordinator->setWaterCoreDroplets(&waterCore->dropletDrawList());   // 21: the droplet crown
                 m_rippleLayers = waterCore->rippleLayers();   // 22
@@ -14509,6 +14511,9 @@ void Application::registerWaterCommands() {
         if (!renderCoordinator) { r = {{"error", "no render coordinator"}}; return; }
         // 27.27 TEST ONLY (the live red control): arena_no_grow:true - a full tile arena skips the tile again (the dry squares)
         if (cmd.params.contains("arena_no_grow")) Graphics::WaterSurfaceRenderPipeline::s_arenaNoGrowForTest = cmd.params.value("arena_no_grow", false);
+        // 29 S1: gpu_surface - the surface mesh made and drawn on the device (off: the host's tiler, the A/B control); echoed
+        if (cmd.params.contains("gpu_surface")) Core::Water::WaterCoreGpu::s_gpuSurface = cmd.params.value("gpu_surface", false);
+        if (cmd.params.contains("mesh_no_ring")) Core::Water::WaterCoreGpu::s_meshNoRingForTest = cmd.params.value("mesh_no_ring", false);   // TEST ONLY
         // 27.27 TEST ONLY: upload_key_order:true - deferred tiles uploaded in key order again (the back ones starve)
         if (cmd.params.contains("upload_key_order")) Graphics::WaterSurfaceRenderPipeline::s_uploadKeyOrderForTest = cmd.params.value("upload_key_order", false);
         if (cmd.params.contains("mode")) {

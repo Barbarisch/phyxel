@@ -568,6 +568,8 @@ public:
     void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
     /// Phase F (17): the volumes' surface fields; the mesh is rebuilt from them every frame.
     void setWaterCoreSurfaceFields(const std::vector<const Core::Water::WaterSurfaceField*>* fields) { m_waterCoreFields = fields; }
+    /// 29 S1: the volumes whose surface the device made - drawn by vertex pulling (their fields carry gpuDrawn: the tiler skips them)
+    void setWaterCoreGpuSurfaces(const std::vector<Core::Water::GpuSurfaceDraw>* draws) { m_waterCoreGpuSurfaces = draws; }
     void setWaterFineField(const Core::Water::WaterSurfaceField* field) { m_waterFineField = field; }   // G4: the nested fine band
     void setWaterShoreField(const Core::Water::WaterSurfaceField* field) { m_waterShoreField = field; }   // Phase G: the shore band's surface, meshed with the volumes'
     /// G3: the per-body look of a world column (the span grid packs it per column, the underwater overlay
@@ -1452,6 +1454,7 @@ private:
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
     const std::vector<Core::WaterSurfaceCell>* m_waterCoreCells = nullptr;   // WaterCore debug feed
     const std::vector<const Core::Water::WaterSurfaceField*>* m_waterCoreFields = nullptr;   // Phase F: the volumes' surface fields
+    const std::vector<Core::Water::GpuSurfaceDraw>* m_waterCoreGpuSurfaces = nullptr;        // 29 S1
     const std::vector<glm::vec4>* m_waterCoreDroplets = nullptr;   // 21: droplet cubes
     Core::Water::WaterCoreRenderMode m_waterCoreMode = Core::Water::kWaterCoreRenderModeDefault;
     Core::Water::WaterSurfaceMesh m_waterCoreMesh;   // rebuilt every frame from the fields

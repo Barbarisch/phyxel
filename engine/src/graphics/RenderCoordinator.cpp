@@ -4414,10 +4414,15 @@ void RenderCoordinator::drawFrame() {
     } else if (m_waterTilesOn) {
         m_waterTiler.clear();
     }
+    // 29 S1: the surfaces the device made (the water's call wrote them, submitted before this frame on the same queue)
+    const bool drawGpuSurfaces = waterSurfacePipeline && waterSurfacePipeline->gpuSurfaceReady() && m_waterCoreMode == WaterCoreRenderMode::Mesh
+                                 && m_waterCoreGpuSurfaces && !m_waterCoreGpuSurfaces->empty();
+    drawCoreMesh = drawCoreMesh || drawGpuSurfaces;
     const bool drawWaterCells = (m_waterManager && waterCellPipeline &&
                                  !m_waterManager->surfaceCells().empty()) || drawCoreCells;
     if (drawWaterPlane || drawWaterCells || drawCoreMesh || m_uiSystem) {
         if (drawCoreTiles) waterSurfacePipeline->uploadTiles(vulkanDevice->getCommandBuffer(currentFrame), m_waterTiler, static_cast<uint32_t>(currentFrame));   // 26.30: outside any pass
+        if (drawGpuSurfaces) Graphics::WaterSurfaceRenderPipeline::gpuSurfaceBarrier(vulkanDevice->getCommandBuffer(currentFrame));   // 29 S1: outside any pass
         // Snapshot the scene colour for refraction BEFORE the pass begins (outside any pass).
         if (drawWaterPlane || drawWaterCells || drawCoreMesh) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterRefractCapture");
@@ -4471,6 +4476,8 @@ void RenderCoordinator::drawFrame() {
                 waterSurfacePipeline->renderTiles(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getDescriptorSet(currentFrame), *camera, cachedProjectionMatrix, m_waterTiler, m_waterCoreMesh, vulkanDevice->getSwapChainExtent(), static_cast<uint32_t>(currentFrame));
             else
                 waterSurfacePipeline->render(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getDescriptorSet(currentFrame), *camera, cachedProjectionMatrix, m_waterCoreMesh, vulkanDevice->getSwapChainExtent(), static_cast<uint32_t>(currentFrame));
+            if (drawGpuSurfaces)   // 29 S1
+                waterSurfacePipeline->renderGpuSurfaces(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getDescriptorSet(currentFrame), *camera, cachedProjectionMatrix, *m_waterCoreGpuSurfaces, vulkanDevice->getSwapChainExtent(), static_cast<uint32_t>(currentFrame));
         }
 
         // Underwater fog (WaterSystemV3 Phase 1 item 5) — AFTER the surfaces so it also fogs the

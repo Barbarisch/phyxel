@@ -67,6 +67,7 @@ struct WaterSurfaceField {
     int rippleLayer = -1;              ///< 22: the ripple layer drawn on this field (an index the renderer's atlas uses); -1 = none
     int source = 0;                    ///< 26.30: who made it (a volume's id; 0 = unknown) - the tiler's key for its tiles
     uint64_t version = 0;              ///< 26.30: the producer's step counter; same source + version = same columns (0 = unknown: compared)
+    bool gpuDrawn = false;             ///< 29 S1: the device draws this field (WaterCoreManager::gpuSurfaceDraws) - the host's tiler skips it
     const SurfaceColumn& at(int x, int z) const { return cols[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]; }
 };
 
