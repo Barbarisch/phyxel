@@ -87,7 +87,7 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
 **Open small-body items** (polish and features; none blocks the path above):
 - *Found 2026-10-24 (31.9):* debris cannot see RECORDED water beyond 48 m of the camera and does not wake it (a floater thrown into
   a pond that has slept sinks when the camera is far); the tall-cell floor depends on the volume's box (17 cm in a dam break).
-- *M4 (31): the water's push on floaters* - BUILT, OFF by default, not signed off (`water_coupling {pressure_force}`).
+- *M4 (31): the water's push on floaters* - SIGNED OFF and ON by default 2026-10-24 (`water_coupling {pressure_force}`).
 - *Feel:* spiky water on a dropped stone - cause proved, waits for a repeatable rig (26.32) - and a 0.84 m late jet; wood
   floats high and a floating block's pond never sleeps (M4, §20.6); short waves on a half-full cell keep 0.53-0.82 per swing
   (§24.11); added mass (§24.10); the still-pond phantom current not re-measured (§19.6); water under a solid lid does not
@@ -8960,7 +8960,7 @@ break) cannot be capped that way - handing it to the record would change where i
 tier needs an answer (cheaper cells, a slower step that still ends in the same place, or a declared exception the owner
 approves). It is designed in the fit step, not guessed now.
 
-## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: BUILT, OFF by default, not signed off (31.8); two defects found (31.9)
+## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: BUILT, SIGNED OFF by the owner and ON by default 2026-10-24 (31.8); two defects found (31.9)
 
 **Why now.** The owner's order (2026-10-24): small bodies, physics first, the keys being floating debris and disturbing the surface.
 M4 (20.6 v2) is the cure 19.3, 20.6, 24.8 and the displacement gate's comment (`Application.h` kDisplaceOnSpeed) all point to.
@@ -9116,7 +9116,9 @@ What the pressure path does NOT do (stated): the solver's dynamic pressure (a je
 on the velocity relative to the water, as before; true two-way coupling of the pressure (the body's velocity an unknown of the
 solve, Batty-style) is the way to the full integral and is not built.
 
-### 31.8 Result (2026-10-24): BUILT, OFF by default (`water_coupling {pressure_force: true}`), not signed off
+### 31.8 Result (2026-10-24): BUILT; SIGNED OFF by the owner, ON by default (`water_coupling {pressure_force}`)
+
+**The owner, on `m4_look_side_by_side.mp4` (2026-10-24):** "that looks way way way better. yes that right one should be the default."
 
 **L4, the five drops of 31.1 + a stone** (`tools/water_float_rest.py --pressure`, Small bench, Release, the same pond and spawns;
 evidence `docs/evidence/water_core_m4/float_rest_m4_level_sleep.json`; before = `float_rest_before.json`):

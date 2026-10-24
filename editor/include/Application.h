@@ -324,8 +324,8 @@ private:
     std::unordered_map<uint64_t, bool> m_displacing;   // body id -> displacing now
     bool m_waterSolidsOn = true;     // 20 (M2): debris inside a volume's box displaces water (moving solids)
     // 31 (M4, docs/WaterCore.md 31.2): debris inside a GPU volume is pushed by the water's PRESSURE over its faces (pressure windows);
-    // OFF = the table law everywhere (the A/B control; the default until the L4 gate passes and the owner has seen it)
-    bool m_pressureForceOn = false;
+    // OFF = the table law everywhere (the A/B control)
+    bool m_pressureForceOn = true;   // ON since 2026-10-24 (owner: "that right one should be the default")
     bool m_displaceOn = true;        // 31 TEST: false = wet bodies are recorded (boxes set) but never rasterized - the displacement's own
                                      // pressure (its pump) out of the window, to tell its share of a floater's push from the still water's
     uint32_t m_pressureTag = 0;      // the frame's window tag (written by the water calls, checked by the debris ticks)
