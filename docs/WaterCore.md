@@ -8674,7 +8674,7 @@ tile has no bricks (the live x10 run above: 0 bricks, 0 ms once recorded). With 
 these every call.
 
 **4. Two defects found, OPEN:**
-- **A box whose floor lies over air outside the box never settles live.** The 60 x 60 m box (y 16-18) spans the creek bench's trench
+- **CAUSE FOUND (27.26 below): not the trench - the frame rate.** **A box whose floor lies over air outside the box never settles live.** The 60 x 60 m box (y 16-18) spans the creek bench's trench
   (x 10-109, z 31-32, y 15 cleared, below the box): at x10 + recording the whole lake stayed awake (4,400-4,600 columns, 12-15 ms)
   where the same lake in the test, and the 60 x 28 m box beside the trench, settle. Not investigated: the box's bottom boundary over
   out-of-box air (a real lake's box takes its bed in).
@@ -8705,6 +8705,27 @@ keeps the volume (`error`). Every tool reset (46 calls, 33 files) passes `discar
 and 141 columns awake - keep: the record 511.9993 of 512 placed (the fill's float rounding); discard: dry, 511.9993 reported;
 seeded then discarded: dry, 511.9993 (the live double count, 1,024, gone); RED: the raw free leaves 255.9997. Live (bench): keep 512.0
 kept, re-seeded 512.0. GPU water 56/58 (the known two), unit 312/312.
+
+### 27.26 The water moves the same at any frame rate (2026-10-23). Status: BUILT; the fixed tick OFF by default - THE OWNER'S CALL
+
+**Cause of 27.24's never-settling 60 x 60 m lake:** not the trench (a 60 x 28 m lake over it settles, 1.5 ms mean). Live, a water tick
+was a FRAME (`update(frame dt)`, one tick). The big lake's own cost slowed the frame, and (1) the freeze / sleep tests were per tick -
+|df| < 3e-5 a tick, quiet for 30 ticks - so a slow frame's same wave failed them; (2) the solver's numerical dissipation is per step,
+so fewer, longer ticks let waves live longer in seconds. A loop: more awake -> slower frame -> more awake. Measured in the test lake
+(`DISABLED_DiagLakeRecorded`, `LAKE_DT`): 1/60 s ticks settle to ~150 columns; 1/30 s ticks keep 4,400-4,600 awake (11.7 ms).
+- **The freeze and sleep tests in time** (ON, no switch to turn back but the red control `s_freezePerTickForTest`): |df| compared
+  as a rate (threshold x dt / (1/60 s)), the quiet run counted in seconds (`colQuiet` in 1/600 s units, the volume's `quietRef` in
+  1/60 s ticks). At 60 fps exactly as before; at 600 fps a column now needs 0.5 s quiet, not 50 ms.
+- **The fixed water tick** `WaterCoreManager::s_fixedTickS` (route `water_av_fixed_tick {seconds}`, clamped 0 or 1/240-1/20 s,
+  echo `ticks_dropped`): `update()` steps the water in fixed ticks from an accumulator, 0-4 a frame (a longer backlog dropped and
+  counted). Gate `WaterRecordTilesTest.TheWaterMovesTheSameAtAnyFrameRate` (red first; through `update()`, realtime / async): a 40 x
+  24 m pond and stone, awake columns at 6 / 12 / 18 / 24 s - frames 1/60: 1162 190 157 127; 1/30: 1044 159 84 0; 1/144: 1162 190 157
+  127 (identical to 1/60); RED, frames 1/30 without the fixed tick: 1137 1131 1172 906. Live, the 60 x 60 m lake (recording on):
+  fixed tick 1/60 - mean 1.92 ms over 40 s after the stone (1.2-1.5 ms from 10 s), all 64 tiles recorded, asleep by ~42 s; without -
+  1,442 columns still awake at 41 s, 3.5 ms (`lake_l4_60x60_tick*.json`).
+- **Owner's call - the fixed tick as the default:** the water then moves the same at every frame rate and live = the tests, and an
+  uncapped frame pays for the water only every 1/60 s; the cost: above 60 fps the surface updates at 60 Hz (no interpolation yet),
+  which may read as slight judder on a fast monitor. GPU water 57/59 (the known two), unit 312/312.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

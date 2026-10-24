@@ -201,7 +201,9 @@ public:
         bool partialWake = false;        ///< on: quiet columns away from moving ones freeze (sparse volumes only)
         bool unitsFresh = false;         ///< hostUnits holds a call not yet counted
         int unitsTicks = 0;              ///<   its ticks
-        std::vector<int> colQuiet;       ///< ticks each column has passed the sleep test in a row
+        std::vector<int> colQuiet;       ///< QUIET UNITS (1/600 s, 27.26) each column has passed the freeze test in a row
+        float unitsDt = 1.0f / 60.0f;    ///< 27.26: the collected call's tick (s)
+        double quietRef = 0.0;           ///< 27.26: the volume's quiet time in 1/60 s ticks (quietTicks = its integer part)
         std::vector<char> colFrozen, colWake;   ///< frozen now; a wake asked for since the last call
         bool wakeAllPending = false, anyFrozen = false;
         // §27 W1b: RECORDED brick columns - the record (chunk spans + bodies) holds their water. Every brick of such a column reads the
@@ -267,6 +269,7 @@ public:
             GpuStepStats st;
             std::vector<int> surfCols;   ///< 26.33: the column entries this call's surface covered (empty = every column)
             uint64_t callId = 0;         ///< 27.15: this call's number (callsSubmitted when it was submitted)
+            float dt = 1.0f / 60.0f;     ///< 27.26: the call's tick
             bool speedLane = false;      ///< 27.23 W1e: read the max speed from out[0].w
         } pend;
         uint64_t callsSubmitted = 0;                     ///< 27.15: calls submitted so far
@@ -343,6 +346,12 @@ public:
     /// 27.23 W1e: the rest reductions follow the awake water - frozen columns' units kept in the unit map, mode 1's three face
     /// passes folded into mode 0's speed lane. Off = every stored brick reduced every call (today's path, the parity test's A).
     static inline bool s_unitCache = true;
+    /// 27.26 THE FREEZE AND SLEEP TESTS IN TIME, NOT TICKS. A live tick is a frame: at 30 fps the same wave moves the level twice
+    /// as far a tick and failed |df| < 3e-5 a tick (the 60 x 60 m lake stayed awake for ever, its own cost slowing the frame); at
+    /// 600 fps 30 quiet ticks were 50 ms. Now |df| is compared as a RATE (the threshold x dt / (1/60 s)) and the quiet run counts
+    /// seconds (restTicks x 1/60 s) - at 60 fps exactly as before. TEST ONLY (the red control): the old per-tick tests.
+    static inline bool s_freezePerTickForTest = false;
+    static constexpr int kQuietUnitsPerTick = 10;   ///< colQuiet counts 1/600 s
     /// TEST ONLY (the parity test's red control): the cache ignores unitsFullNext - a write to frozen cells is not seen
     static inline bool s_unitCacheStaleForTest = false;
     /// 26.34: the per-column FREEZE test's thresholds as a multiple of the volume's sleep test (keWake, maxDeltaFQuiet). 1 = the

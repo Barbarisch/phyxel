@@ -14071,6 +14071,14 @@ void Application::registerWaterCommands() {
     });
     // 27.23 W1e: the rest reductions over the awake bricks only (the frozen columns' sums kept on the device) - on by default; off =
     // every stored brick reduced every call (the parity test's reference, for interleaved live timing)
+    // 27.26: the fixed water tick (s; 0 = one tick of the frame's dt). Clamped 0 or [1/240, 1/20] s: under 1/240 a frame at 60 fps runs
+    // past kMaxTicksPerFrame and drops time; over 1/20 the CFL substeps grow and the wave look coarsens
+    reg.on("water_av_fixed_tick", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        using M = Core::Water::WaterCoreManager;
+        if (cmd.params.contains("seconds")) { const float s = cmd.params.value("seconds", 0.0f); M::s_fixedTickS = s <= 0.0f ? 0.0f : std::clamp(s, 1.0f / 240.0f, 1.0f / 20.0f); }
+        r = {{"seconds", M::s_fixedTickS}, {"max_ticks_per_frame", M::kMaxTicksPerFrame}, {"ticks_dropped", waterCore->ticksDropped()}};
+    });
     reg.on("water_av_reduce_cache", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         if (cmd.params.contains("on")) Core::Water::WaterCoreGpu::s_unitCache = cmd.params.value("on", true);

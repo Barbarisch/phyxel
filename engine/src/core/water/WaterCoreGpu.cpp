@@ -689,12 +689,12 @@ void WaterCoreGpu::setPartialWake(Volume& vol, bool on) {
 
 void WaterCoreGpu::wakeAll(Volume& vol) {
     ++vol.wakeAllCount;   // §27 W1b diagnostic: a whole-volume wake (every column moving -> every recorded tile in the margin wakes)
-    vol.asleep = false; vol.quietTicks = 0;
+    vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0;
     vol.wakeAllPending = true;
 }
 
 void WaterCoreGpu::wakeBox(Volume& vol, const glm::ivec3& lo, const glm::ivec3& hi) {
-    vol.asleep = false; vol.quietTicks = 0;
+    vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0;
     if (!vol.partialWake) return;
     const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
     if (vol.colWake.size() != nc) vol.colWake.assign(nc, 0);
@@ -935,9 +935,12 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
             }
             const double qs = static_cast<double>(s_columnQuietScale);   // 26.34: the freeze test's thresholds (1 = the volume's own)
             const size_t ci = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
-            const bool quiet = m < 1e-3 || (k / m < params.keWake * qs && d < params.maxDeltaFQuiet * qs);
+            const double rate = s_freezePerTickForTest ? 1.0 : static_cast<double>(vol.unitsDt) * 60.0;   // 27.26: |df| a tick at this dt
+            const bool quiet = m < 1e-3 || (k / m < params.keWake * qs && d < params.maxDeltaFQuiet * qs * rate);
             int& qt = vol.colQuiet[ci];
-            qt = quiet ? std::min(qt + vol.unitsTicks, 1 << 30) : 0;
+            const int add = s_freezePerTickForTest ? vol.unitsTicks * kQuietUnitsPerTick
+                                                   : std::max(1, static_cast<int>(std::lround(static_cast<double>(vol.unitsTicks) * vol.unitsDt * 600.0)));
+            qt = quiet ? std::min(qt + add, 1 << 30) : 0;
         }
         vol.unitsFresh = false;
     }
@@ -951,8 +954,9 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
     const int M = kPartialWakeMargin;
     std::vector<char> moving(nc), rowGrown(nc, 0), awake(nc, 0);
     int nMoving = 0;
-    const int restTicks = s_columnRestTicks > 0 ? s_columnRestTicks : params.restTicks;   // 27.14
-    for (size_t c = 0; c < nc; ++c) { moving[c] = vol.colQuiet[c] < restTicks && !(anyRec && vol.colRecorded[c]); nMoving += moving[c]; }
+    const int restTicks = (s_columnRestTicks > 0 ? s_columnRestTicks : params.restTicks);   // 27.14 (1/60 s ticks)
+    const long restUnits = static_cast<long>(restTicks) * kQuietUnitsPerTick;   // 27.26: in quiet units
+    for (size_t c = 0; c < nc; ++c) { moving[c] = vol.colQuiet[c] < restUnits && !(anyRec && vol.colRecorded[c]); nMoving += moving[c]; }
     for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
         if (!moving[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]) continue;
         for (int x = std::max(0, bx - M); x <= std::min(vol.bn.x - 1, bx + M); ++x) rowGrown[static_cast<size_t>(x) + static_cast<size_t>(vol.bn.x) * bz] = 1;
@@ -1245,7 +1249,7 @@ void WaterCoreGpu::queueMomentum(Volume& vol, const glm::vec3& pos, float radius
     const glm::vec3 local = pos - glm::vec3(vol.spec.origin) * vol.spec.h;   // the kernel works in metres from the grid's origin
     const float r[8] = {local.x, local.y, local.z, radius, momentum.x, momentum.y, momentum.z, maxSpeed};
     vol.pendingMomentum.insert(vol.pendingMomentum.end(), r, r + 8);
-    vol.asleep = false; vol.quietTicks = 0;   // moving water wakes, as the CPU path's re-upload did
+    vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0;   // moving water wakes, as the CPU path's re-upload did
     {   // 26.31: the sphere's columns (the margin grows round them)
         const float h = vol.spec.h;
         wakeBox(vol, glm::ivec3(glm::floor((local - glm::vec3(radius)) / h)), glm::ivec3(glm::floor((local + glm::vec3(radius)) / h)));
@@ -1257,7 +1261,7 @@ void WaterCoreGpu::queueImpulse(Volume& vol, const glm::vec3& worldPos, float ra
     const glm::vec3 local = worldPos - glm::vec3(vol.spec.origin) * vol.spec.h;
     const float r[8] = {local.x, local.y, local.z, radius, deltaV.x, deltaV.y, deltaV.z, -1.0f};
     vol.pendingMomentum.insert(vol.pendingMomentum.end(), r, r + 8);
-    vol.asleep = false; vol.quietTicks = 0;
+    vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0;
     const float h = vol.spec.h;
     wakeBox(vol, glm::ivec3(glm::floor((local - glm::vec3(radius)) / h)), glm::ivec3(glm::floor((local + glm::vec3(radius)) / h)));
 }
@@ -1267,7 +1271,7 @@ void WaterCoreGpu::queueRadialImpulse(Volume& vol, const glm::vec3& worldCentre,
     const glm::vec3 local = worldCentre - glm::vec3(vol.spec.origin) * vol.spec.h;
     const float r[8] = {local.x, local.y, local.z, reach, speedAtCentre, upBias, maxSpeed, -2.0f};
     vol.pendingMomentum.insert(vol.pendingMomentum.end(), r, r + 8);
-    vol.asleep = false; vol.quietTicks = 0;
+    vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0;
     const float h = vol.spec.h;
     wakeBox(vol, glm::ivec3(glm::floor((local - glm::vec3(reach)) / h)), glm::ivec3(glm::floor((local + glm::vec3(reach)) / h)));
 }
@@ -1395,7 +1399,7 @@ void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const 
     // a body is there (or just left): the water must move. 26.31: with the partial wake, the box's columns (it holds the bodies and
     // the cells they left - the caller's contract); a stone in the pond woke all of it every frame it moved (measured: 1,664 of
     // 1,664 columns awake for the whole 15 s of the owner's video take)
-    if (vol.partialWake) { if (!emptyBox) wakeBox(vol, lo, hi); else { vol.asleep = false; vol.quietTicks = 0; } }
+    if (vol.partialWake) { if (!emptyBox) wakeBox(vol, lo, hi); else { vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0; } }
     else wakeAll(vol);
 }
 
@@ -1406,7 +1410,7 @@ void WaterCoreGpu::setDeposits(Volume& vol, const std::vector<float>& cellFracti
     vol.depositPending = true;
     // water arrived: the volume must step. 26.31: with the partial wake only the columns it landed in wake (the caller's wakeBox per
     // landing; a stone's splash raining back woke the whole pond 1 s after the stone, measured) - without it, the whole volume
-    if (vol.partialWake) { vol.asleep = false; vol.quietTicks = 0; } else wakeAll(vol);
+    if (vol.partialWake) { vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0; } else wakeAll(vol);
 }
 
 bool WaterCoreGpu::readBirths(Volume& vol, std::vector<float>& out) const {
@@ -2212,7 +2216,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const VkResult sub = vkQueueSubmit(m_queue, 1, &si, vol.callFence);
     if (sub != VK_SUCCESS) std::fprintf(stderr, "[WaterCoreGpu] step submit %d\n", static_cast<int>(sub));
     vol.callCmd = cmd; vol.inFlight = true; vol.pend.callId = ++vol.callsSubmitted;   // 27.15
-    vol.pend.n = n; vol.pend.ticks = ticks; vol.pend.capture = capture; vol.pend.params = params;
+    vol.pend.n = n; vol.pend.ticks = ticks; vol.pend.capture = capture; vol.pend.params = params; vol.pend.dt = dt;
     vol.pend.speedLane = vol.lastSpeedLane; st.reduceSlots = vol.lastReduceSlots; st.reduceCached = vol.lastReduceCached;   // 27.23 W1e
     vol.pend.t0 = t0; vol.pend.tResidency = tResidency;
     st.hostResidencyMs = std::chrono::duration<double, std::milli>(tResidency - t0).count();
@@ -2262,7 +2266,7 @@ void WaterCoreGpu::finishCall(Volume& vol) {
         const auto* u = static_cast<const glm::vec4*>(vol.unitCap.mapped);
         vol.hostUnits.assign(u, u + units);
         vol.unitPending = false;
-        vol.unitsFresh = true; vol.unitsTicks = ticks;   // 26.31
+        vol.unitsFresh = true; vol.unitsTicks = ticks; vol.unitsDt = vol.pend.dt;   // 26.31; 27.26 the tick
     }
     if (capture && vol.stageCap.buf) {   // 26.10 test hook: exact stage sums (double on the host)
         const auto* sc = static_cast<const float*>(vol.stageCap.mapped);
@@ -2329,8 +2333,10 @@ void WaterCoreGpu::finishCall(Volume& vol) {
     }
     vol.lastMaxSpeed = st.maxSpeed;
     const double specificKE = st.kineticEnergy / std::max(static_cast<double>(out[2]), 1e-9);
-    const bool quiet = specificKE < params.keWake && st.maxDeltaF < params.maxDeltaFQuiet;
-    vol.quietTicks = quiet ? vol.quietTicks + ticks : 0;
+    const double rate = s_freezePerTickForTest ? 1.0 : static_cast<double>(vol.pend.dt) * 60.0;   // 27.26: the sleep test in time
+    const bool quiet = specificKE < params.keWake && st.maxDeltaF < params.maxDeltaFQuiet * rate;
+    vol.quietRef = quiet ? vol.quietRef + (s_freezePerTickForTest ? static_cast<double>(ticks) : static_cast<double>(ticks) * rate) : 0.0;
+    vol.quietTicks = static_cast<int>(std::min(vol.quietRef, 1e9));
     vol.quietBefore = specificKE < params.keSettle;   // the settle band (SolverParams::keSettle), as on the CPU: rest damping + compaction only below it
     if (vol.quietTicks >= params.restTicks) vol.asleep = true;
     st.quietTicks = vol.quietTicks; st.asleep = vol.asleep;

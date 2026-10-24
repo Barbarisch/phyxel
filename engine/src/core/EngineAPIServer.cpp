@@ -2191,6 +2191,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_tall", waterEndpoint("water_av_tall"));                     // 27.22 tall cells: the band
     srv.Post("/api/debug/water_av_line_sweeps", waterEndpoint("water_av_line_sweeps"));       // 28 the zebra line sweeps
     srv.Post("/api/debug/water_av_reduce_cache", waterEndpoint("water_av_reduce_cache"));     // 27.23 W1e the rest sums by the awake water
+    srv.Post("/api/debug/water_av_fixed_tick", waterEndpoint("water_av_fixed_tick"));         // 27.26 the fixed water tick
     srv.Post("/api/debug/water_av_probe",       waterEndpoint("water_av_probe"));
     srv.Post("/api/debug/water_av_source",      waterEndpoint("water_av_source"));
     srv.Post("/api/debug/water_av_impulse",     waterEndpoint("water_av_impulse"));

@@ -463,6 +463,57 @@ TEST_F(WaterRecordTilesTest, RemovingAVolumeNeverLosesWater) {
     EXPECT_LT(raw.record, raw.placed - 1.0) << "RED CONTROL: the raw free deletes the awake tiles' water";
 }
 
+// TheWaterMovesTheSameAtAnyFrameRate (27.26, red first): live, a tick was a frame - and the solver's dissipation is per step, so a
+// 30 fps frame let a pushed pond slosh far longer in SECONDS than 60 fps did (the 60 x 60 m lake never settled live, 27.24). With
+// the fixed water tick (1/60 s from an accumulator) and the freeze / sleep tests in time, the same 40 x 24 m pond and stone driven
+// through update() (the live path: realtime, async) at frames of 1/30, 1/60 and 1/144 s have the same awake patch after the same
+// seconds. RED CONTROL: frames of 1/30 s without the fixed tick stay awake.
+TEST_F(WaterRecordTilesTest, TheWaterMovesTheSameAtAnyFrameRate) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Out { int peak = 0; std::vector<int> awakeAt; };   // awake columns at 6 / 12 / 18 / 24 s after the stone
+    auto run = [&](float frame, bool fixedTick) {
+        Out o;
+        const float tick0 = WaterCoreManager::s_fixedTickS;
+        WaterCoreManager::s_fixedTickS = fixedTick ? 1.0f / 60.0f : 0.0f;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+        mgr.setDroplets(false);
+        mgr.setRealtime(true);
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(39, 1, 23), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        if (!id) { ADD_FAILURE() << err; return o; }
+        mgr.setAutoSleep(id, false);
+        EXPECT_TRUE(mgr.setPartialWake(id, true));
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(39, 0, 23), 1.0f, nullptr);
+        double t = 0.0;
+        while (t < 3.0) { mgr.update(frame); t += frame; }
+        mgr.addImpulse(glm::vec3(20.0f, 0.9f, 12.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        double next = 6.0; t = 0.0;
+        while (t < 24.0 + 1e-6) {
+            mgr.update(frame); t += frame;
+            const AvRecord* r = mgr.find(id);
+            if (!r) continue;
+            o.peak = std::max(o.peak, r->awakeColumns);
+            if (t >= next - 1e-6) { o.awakeAt.push_back(r->asleep ? 0 : r->awakeColumns); next += 6.0; }
+        }
+        WaterCoreManager::s_fixedTickS = tick0;
+        return o;
+    };
+    const Out a = run(1.0f / 60.0f, true), b = run(1.0f / 30.0f, true), c = run(1.0f / 144.0f, true), red = run(1.0f / 30.0f, false);
+    auto line = [](const char* name, const Out& o) {
+        std::printf("  %-28s peak %4d | awake at 6 / 12 / 18 / 24 s:", name, o.peak);
+        for (int v : o.awakeAt) std::printf(" %4d", v);
+        std::printf("\n");
+    };
+    line("frames 1/60 s, fixed tick", a); line("frames 1/30 s, fixed tick", b); line("frames 1/144 s, fixed tick", c); line("frames 1/30 s, NO fixed tick", red);
+    ASSERT_EQ(a.awakeAt.size(), 4u); ASSERT_EQ(b.awakeAt.size(), 4u); ASSERT_EQ(c.awakeAt.size(), 4u); ASSERT_EQ(red.awakeAt.size(), 4u);
+    const int settled = std::max(50, a.awakeAt[3] * 2);
+    EXPECT_LE(b.awakeAt[3], settled) << "a slow frame settles as 60 fps does";
+    EXPECT_LE(c.awakeAt[3], settled) << "a fast frame too";
+    EXPECT_GT(red.awakeAt[3], 3 * std::max(b.awakeAt[3], 20)) << "RED CONTROL: a tick per 1/30 s frame stays awake";
+}
+
 // DiagLakeRecorded (27.23 W1e step 0): the 60 x 60 m lake (2 m deep, 3 m box) with the partial wake and RECORDING on - the lake at
 // rest records tile by tile (its bricks freed), a stone wakes the tiles round it, waves, freezes, records again. Per second: the
 // call's mean GPU ms, awake / frozen columns, recorded tiles, stored bricks, the books. LAKE_QS = the freeze test's scale.
@@ -475,6 +526,7 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeRecorded) {
     ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
     mgr.setDroplets(false);
     FakeRecord record; record.install(mgr);
+    const float dtTick = std::getenv("LAKE_DT") ? static_cast<float>(std::atof(std::getenv("LAKE_DT"))) : 1.0f / 60.0f;   // a live frame's dt
     const bool realtime = std::getenv("LAKE_RT") != nullptr;   // the live path: async calls (collected next frame), update()
     if (realtime) mgr.setRealtime(true);   // before create: a volume takes its async mode at create
     const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(59, 2, 59), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
@@ -486,9 +538,9 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeRecorded) {
     std::printf("  quiet scale %.1f, record after %.1f s, placed %.4f m^3\n", WaterCoreGpu::s_columnQuietScale, WaterCoreManager::s_recordAfterS, placed);
     AvRecord rec;
     double msSum = 0.0, booksWorst = 0.0; int msN = 0;
-    for (int k = 1; k <= 60 * 31; ++k) {
+    for (int k = 1; k <= 60 * 31; ++k) {   // k counts 1/60 s only at the default dt
         if (k == 60 * 10) mgr.addImpulse(glm::vec3(30.0f, 1.9f, 30.0f), 0.5f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
-        if (realtime) mgr.update(1.0f / 60.0f); else mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        if (realtime) mgr.update(dtTick); else mgr.step(id, 1, dtTick, &rec);
         const AvRecord* r = mgr.find(id);
         if (r) { msSum += r->gpuDeviceMs; ++msN; }
         if (k % 60 || !r) continue;

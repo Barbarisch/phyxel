@@ -278,6 +278,13 @@ public:
     bool step(int id, int ticks, float dt, AvRecord* out);
     /// Realtime: step every awake volume once per call (Application::update) when enabled.
     void update(float dt);
+    /// 27.26 THE FIXED WATER TICK: > 0 = update(frame dt) steps the water in ticks of this many seconds from an accumulator (0, 1, 2 ...
+    /// a frame, at most kMaxTicksPerFrame - a longer backlog is dropped and counted), so the water moves the same at any frame rate
+    /// and the same live as in the tests. 0 = one tick of the frame's dt (until 2026-10-23: a 30 fps frame let the 60 x 60 m lake
+    /// slosh for ever - the solver's dissipation is per step). Not the default yet: at > 60 fps the surface then moves at 60 Hz.
+    static inline float s_fixedTickS = 0.0f;
+    static constexpr int kMaxTicksPerFrame = 4;
+    long ticksDropped() const { return m_ticksDropped; }
     void setRealtime(bool on) { m_realtime = on; }
     bool realtime() const { return m_realtime; }
     /// The world changed: every volume re-samples its solids before its next tick.
@@ -628,6 +635,8 @@ private:
     std::vector<std::pair<glm::ivec3, glm::ivec3>> m_boxes;   // mirrors m_avs (16.4)
     void refreshBoxes();
     bool m_realtime = false;
+    double m_tickAccum = 0.0;   ///< 27.26: frame time not yet stepped (s)
+    long m_ticksDropped = 0;   ///< 27.26: ticks a frame's backlog dropped (over kMaxTicksPerFrame)
     std::vector<WaterSurfaceCell> m_surface;
     std::vector<const WaterSurfaceField*> m_fields;   // Phase F, parallel to m_avs (26.30 step 3: each volume's own field); then the record tiles (§27 W1a)
     struct RecordTile { WaterSurfaceField field; uint64_t spanRev = ~0ull, occRev = ~0ull, avRev = ~0ull; bool wet = false; };

@@ -331,21 +331,33 @@ void WaterCoreManager::update(float dt) {
     using UClock = std::chrono::steady_clock;
     auto ums = [](UClock::time_point a) { return std::chrono::duration<double, std::milli>(UClock::now() - a).count(); };
     m_updateCpu = UpdateCpu{};
+    int ticks = 1; float tickDt = dt;   // 27.26: the fixed water tick
+    if (s_fixedTickS > 0.0f) {
+        m_tickAccum += dt;
+        ticks = static_cast<int>(std::floor(m_tickAccum / s_fixedTickS));
+        if (ticks > kMaxTicksPerFrame) { m_ticksDropped += ticks - kMaxTicksPerFrame; ticks = kMaxTicksPerFrame; m_tickAccum = 0.0; }
+        else m_tickAccum -= ticks * static_cast<double>(s_fixedTickS);
+        tickDt = s_fixedTickS;
+    }
     for (auto& av : m_avs) {
+        if (ticks == 0) break;   // 27.26: no water tick due this frame - nothing steps (droplets and ripples still run on the frame)
         { const auto t = UClock::now(); refreshOccupancy(*av); m_updateCpu.occupancy += ums(t); }
         const auto t = UClock::now();
         if (av->backend == "gpu") {
             if (av->gpuVol && m_gpu) m_gpu->setDroplets(*av->gpuVol, m_dstats.on);
             if (!av->gpuLast.asleep || (av->gpuVol && !av->gpuVol->asleep)) {
-                { const auto tc = UClock::now(); stepGpu(*av, 1, dt); m_updateCpu.stepCall += ums(tc); }
+                { const auto tc = UClock::now(); stepGpu(*av, ticks, tickDt); m_updateCpu.stepCall += ums(tc); }
                 ++av->stepCount;
-                { const auto tb = UClock::now(); collectBirths(*av, dt); m_updateCpu.births += ums(tb); }
+                { const auto tb = UClock::now(); collectBirths(*av, ticks * tickDt); m_updateCpu.births += ums(tb); }
             } else {
                 recordTilesStep(*av, dt);   // §27 W1b: an asleep body steps nothing, but its frozen tiles still count toward the record
                 if (av->tallBand > 0.0f && std::isnan(av->tallRestY)) captureTallRest(*av);   // 27.22: the rest level, read while it sleeps
             }
         }
-        else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; ++av->stepCount; collectBirths(*av, dt); }
+        else if (!av->solver->asleep()) {
+            for (int t = 0; t < ticks && !av->solver->asleep(); ++t) { av->last = av->solver->step(tickDt); av->residueDropped += av->last.residueDropped; }
+            ++av->stepCount; collectBirths(*av, ticks * tickDt);
+        }
         m_updateCpu.step += ums(t);
     }
     { const auto t = UClock::now(); stepDroplets(dt); m_updateCpu.droplets = ums(t); }   // 21: flight + landing (deposits reach a GPU volume at its next step)
@@ -528,7 +540,7 @@ long WaterCoreManager::placeBox(const glm::ivec3& minVoxel, const glm::ivec3& ma
         if (av->solver->transport().ownsMass()) av->solver->transport().seed(*av->grid);
         av->solver->wake();
         av->gpuDirty = true; av->gpuLast.asleep = false;
-        if (av->gpuVol) { av->gpuVol->asleep = false; av->gpuVol->quietTicks = 0; }
+        if (av->gpuVol) { av->gpuVol->asleep = false; av->gpuVol->quietTicks = 0; av->gpuVol->quietRef = 0.0; }
     }
     if (outsideCells) *outsideCells = outside;
     return set;

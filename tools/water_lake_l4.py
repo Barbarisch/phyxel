@@ -23,7 +23,7 @@ def vol(api, vid):
     return next(v for v in api.debug("water_av_list")["volumes"] if v["id"] == vid)
 
 
-def run(api, cache, record, settle, seconds):
+def run(api, cache, record, settle, seconds, tall=None):
     print(api.debug("water_av_reduce_cache", {"on": cache}))
     destroy_all(api)
     box = {"x1": X0, "y1": TOP, "z1": Z0, "x2": X0 + L - 1, "y2": TOP + 2, "z2": Z0 + W - 1}
@@ -31,9 +31,9 @@ def run(api, cache, record, settle, seconds):
     api.debug("water_av_record_tiles", {"default": record})   # applied at create
     # a lake left recorded by the last run stays in the world record (destroying a volume writes its water back): every run but the
     # first starts from it - the lake asleep in the record, as W1e means it - seeded into the new volume
-    r = api.debug("water_av_create", {**box, "cellSize": H, "backend": "gpu", "auto_sleep": False, "seed": "spans"})
+    r = api.debug("water_av_create", {**box, "cellSize": H, "backend": "gpu", "auto_sleep": False, "seed": "spans", **({"tall_band_m": tall} if tall is not None else {})})
     if "error" in r and "no stored water" in r["error"]:   # a dry record: a plain create, the water placed below
-        r = api.debug("water_av_create", {**box, "cellSize": H, "backend": "gpu", "auto_sleep": False})
+        r = api.debug("water_av_create", {**box, "cellSize": H, "backend": "gpu", "auto_sleep": False, **({"tall_band_m": tall} if tall is not None else {})})
     api.debug("water_av_record_tiles", {"default": rec0})
     if "error" in r: raise SystemExit("create refused: " + r["error"])
     vid = r["volume"]["id"]
@@ -55,7 +55,7 @@ def run(api, cache, record, settle, seconds):
         v = vol(api, vid)
         rows.append({"t": round(time.time() - t1, 2), "ms": v.get("gpu_device_ms"), "awake": v.get("awake_columns"), "frozen": v.get("frozen_columns"),
                      "recorded_tiles": v.get("recorded_tiles"), "bricks": v.get("gpu_bricks"), "reduce_slots": v.get("gpu_reduce_slots"),
-                     "cached": v.get("gpu_reduce_cached"), "asleep": v.get("asleep"), "mass": v["mass"] + v.get("recorded_m3", 0.0)})
+                     "cached": v.get("gpu_reduce_cached"), "tall": v.get("tall_active"), "regrids": v.get("tall_regrids"), "offs": v.get("tall_offs"), "reason": v.get("tall_reason"), "asleep": v.get("asleep"), "mass": v["mass"] + v.get("recorded_m3", 0.0)})
         time.sleep(0.25)
     bins = {}
     for x in rows:
@@ -80,12 +80,16 @@ def main():
     ap.add_argument("--no-droplets", action="store_true")
     ap.add_argument("--z0", type=int, default=2)
     ap.add_argument("--width", type=int, default=60)
+    ap.add_argument("--tall-band", type=float, default=None)
+    ap.add_argument("--fixed-tick", type=float, default=None, help="27.26: water_av_fixed_tick seconds (0 = per-frame dt)")
     ap.add_argument("--json")
     a = ap.parse_args()
     global Z0, W
     Z0, W = a.z0, a.width
     api = Api(f"http://localhost:{a.port}")
     api.debug("water_av_realtime", {"on": True})   # the bench steps volumes only in realtime mode
+    tick0 = api.debug("water_av_fixed_tick", {}).get("seconds", 0.0)
+    if a.fixed_tick is not None: print(api.debug("water_av_fixed_tick", {"seconds": a.fixed_tick}))
     drop0 = api.debug("water_droplets", {}).get("enabled", True)
     if a.no_droplets: api.debug("water_droplets", {"enabled": False})
     qs0 = api.debug("water_av_partial_wake", {}).get("quiet_scale")
@@ -93,11 +97,12 @@ def main():
     order = [True, False, True, False] if a.cache == "both" else [a.cache == "on"]
     res = []
     try:
-        for c in order: res.append(run(api, c, a.record, a.settle, a.seconds))
+        for c in order: res.append(run(api, c, a.record, a.settle, a.seconds, a.tall_band))
     finally:
         api.debug("water_av_reduce_cache", {"on": True})
         if a.quiet_scale is not None and qs0 is not None: api.debug("water_av_partial_wake", {"quiet_scale": qs0})
         api.debug("water_droplets", {"enabled": drop0})
+        api.debug("water_av_fixed_tick", {"seconds": tick0})
         destroy_all(api)
     if a.json:
         pathlib.Path(a.json).write_text(json.dumps({"quiet_scale": a.quiet_scale, "record": a.record, "runs": res}, indent=1))
