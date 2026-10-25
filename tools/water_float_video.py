@@ -34,6 +34,8 @@ def main():
     ap.add_argument("--crop", default="954:560:243:60")
     ap.add_argument("--still", action="store_true")
     ap.add_argument("--tag", default="m4_look")
+    ap.add_argument("--ab", default="push", choices=["push", "wake"],
+                    help="push: the old floating law vs the water's push (31); wake: a pond SLEPT into the record, waking off vs on (32)")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
     if not ff: raise SystemExit("ffmpeg not on PATH")
@@ -49,7 +51,11 @@ def main():
                         str(w.EV / f"{a.tag}_still.png")], check=True)
         print("wrote", w.EV / f"{a.tag}_still.png"); return
     for name, on in (("off", False), ("on", True)):
-        w.PRESSURE = on
+        if a.ab == "wake":   # 32: the shipped auto-sleep - the pond is in the record when the blocks arrive; waking off is the control
+            w.PRESSURE = True; w.AUTO_SLEEP = True
+            api.debug("water_coupling", {"wake_on_touch": on})
+        else:
+            w.PRESSURE = on
         w.pond(api)
         camera_set(api, pose)
         time.sleep(4.0)
@@ -67,7 +73,10 @@ def main():
             except Exception: fps = None
             rows.append({"t": round(time.time() - t0, 2), "fps": fps})
             time.sleep(0.25)
-        label = "THE WATER'S PUSH (M4)" if on else "THE OLD FLOATING RULE (today's default)"
+        if a.ab == "wake":
+            label = "A SLEEPING POND WAKES WHEN TOUCHED (32)" if on else "A SLEEPING POND, NOT WOKEN (before)"
+        else:
+            label = "THE WATER'S PUSH (M4)" if on else "THE OLD FLOATING RULE (today's default)"
         lines = []
         for i, r in enumerate(rows):
             t1 = rows[i + 1]["t"] if i + 1 < len(rows) else r["t"] + 0.25
@@ -77,6 +86,7 @@ def main():
         (w.EV / f"{a.tag}_{name}.srt").write_text("\n".join(lines), encoding="utf-8")
         api.debug("clear_dynamics")
         print(name, "recorded", flush=True)
+    if a.ab == "wake": api.debug("water_coupling", {"wake_on_touch": True})
     style = "FontName=Arial,FontSize=12,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1,Alignment=2,MarginV=6"
     fc = (f"[0:v]crop={a.crop},scale=960:-2,subtitles={a.tag}_off.srt:force_style='{style}'[l];"
           f"[1:v]crop={a.crop},scale=960:-2,subtitles={a.tag}_on.srt:force_style='{style}'[r];[l][r]hstack=inputs=2[v]")
