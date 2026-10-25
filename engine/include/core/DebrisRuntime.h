@@ -174,6 +174,16 @@ public:
     void setVolumeWater(WaterColumnFn column, const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, WaterSignatureFn signature = {}) {
         m_volumeColumn = std::move(column); m_volumeBoxes = boxes; m_volumeSignature = std::move(signature);
     }
+    /// WaterCore 32.4 (A2b): drop the cached water tiles of these chunk columns (their record changed by residency) - a static tile is
+    /// otherwise only rebuilt in rotation (up to 256 frames). The tile loop rebuilds a missing tile within its build budget.
+    size_t invalidateWaterTiles(const std::vector<glm::ivec2>& chunkColumns) {
+        size_t n = 0;
+        for (const glm::ivec2& c : chunkColumns)
+            n += m_waterCache.erase((static_cast<uint64_t>(static_cast<uint32_t>(c.x)) << 32) | static_cast<uint32_t>(c.y));
+        m_waterTilesDropped += n;
+        return n;
+    }
+    uint64_t waterTilesDropped() const { return m_waterTilesDropped; }
     /// The column source debris reads: the volume where it answers, else the fallback. Pure.
     static WaterColumnFn composeColumn(WaterColumnFn volume, WaterColumnFn fallback);
     /// E2: the water's share of wet debris' drag + current since the last call (from the GPU readback).
@@ -234,6 +244,7 @@ private:
     WaterColumnFn m_volumeColumn;                                              // E2
     const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_volumeBoxes = nullptr;   // E2
     std::unordered_map<uint64_t, CachedWaterTile> m_waterCache;
+    uint64_t m_waterTilesDropped = 0;   // 32.4
     std::vector<int> m_waterOrder;           // directory slots, nearest the window centre first
     glm::ivec2 m_waterMinChunk{INT32_MIN, INT32_MIN};
     size_t     m_waterRefreshCursor = 0;

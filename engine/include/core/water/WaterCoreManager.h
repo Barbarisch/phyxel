@@ -422,6 +422,20 @@ public:
     /// column, re-read when the span revision moves or the entry is older than kRecordColumnTtlS (chunks stream in without a bump).
     bool recordColumnWater(int wx, int wz, float& surfaceY) const;
     static constexpr double kRecordColumnTtlS = 2.0;
+    /// 32.4 (A2b): the record cache follows chunk residency. `global` = a hash of the whole resident set (cheap, every update());
+    /// `column(cx, cz)` = a hash of the resident chunks in that chunk column (0 = none). When `global` moves, update() compares each
+    /// cached entry's column: changed = stale + queued, none resident = evicted + queued. Null = no residency tracking (the 2 s age only).
+    void setRecordResidency(std::function<uint64_t()> global, std::function<uint64_t(int cx, int cz)> column) {
+        m_resGlobal = std::move(global); m_resColumn = std::move(column);
+    }
+    /// the chunk columns whose record entry changed by residency since the last call (the debris drops those water tiles)
+    std::vector<glm::ivec2> takeRecordChanged() { std::vector<glm::ivec2> o; o.swap(m_recordChanged); return o; }
+    struct RecordCacheStats { long checks = 0, markedStale = 0, evicted = 0; };
+    const RecordCacheStats& recordCacheStats() const { return m_recordCacheStats; }
+    size_t recordCacheEntries() const { return m_recordCols.size(); }
+    /// the residency check alone (update() runs it first, realtime or not)
+    void checkRecordResidency();
+    static constexpr double kRecordIdleEvictS = 10.0;   ///< 32.4: an entry for a column with nothing resident, unasked this long, is dropped
     /// 32: a volume that slept into the record remembers its box and its settings; a body moving through the box, or a blast that
     /// reaches it, wakes it again from the record (the same box and settings, seeded from the spans) - the splash, the ripples and
     /// the water's push need a volume. Forgotten when the box is destroyed by hand or woken with nothing in it.
@@ -672,7 +686,13 @@ private:
     PressureWindowStats m_pwStats;   // 31: the last setPressureWindows
     std::vector<SleptVolume> m_slept;   // 32
     SleptWakeStats m_sleptWake;         // 32
-    struct RecordCol { uint64_t rev = ~0ull; double t = -1.0; uint64_t gen = 0; bool any = false; std::vector<float> top; };   // 32
+    struct RecordCol { uint64_t rev = ~0ull; double t = -1.0; uint64_t gen = 0; bool any = false; std::vector<float> top;   // 32
+                       uint64_t res = 0; };   // 32.4: the chunk column's residency signature at the read
+    std::function<uint64_t()> m_resGlobal;
+    std::function<uint64_t(int, int)> m_resColumn;
+    uint64_t m_resGlobalSeen = 0;
+    std::vector<glm::ivec2> m_recordChanged;
+    RecordCacheStats m_recordCacheStats;
     mutable std::unordered_map<uint64_t, RecordCol> m_recordCols;
     mutable uint64_t m_recordGen = 0;
     const RecordCol& recordCol(int cx, int cz) const;

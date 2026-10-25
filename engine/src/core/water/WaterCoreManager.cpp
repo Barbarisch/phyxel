@@ -331,6 +331,7 @@ bool WaterCoreManager::step(int id, int ticks, float dt, AvRecord* out) {
 }
 
 void WaterCoreManager::update(float dt) {
+    checkRecordResidency();   // 32.4: before the realtime return - a harness that steps by hand still follows residency
     if (!m_realtime) return;
     using UClock = std::chrono::steady_clock;
     auto ums = [](UClock::time_point a) { return std::chrono::duration<double, std::milli>(UClock::now() - a).count(); };
@@ -2232,7 +2233,32 @@ const WaterCoreManager::RecordCol& WaterCoreManager::recordCol(int cx, int cz) c
     }
     if (top != e.top) { e.gen = ++m_recordGen; e.top.swap(top); }
     e.any = any; e.rev = rev; e.t = now;
+    e.res = m_resColumn ? m_resColumn(cx, cz) : 0;
     return e;
+}
+
+void WaterCoreManager::checkRecordResidency() {
+    // 32.4 (A2b): streaming loads and unloads chunks without bumping the span revision - a pond whose chunk just loaded read dry
+    // (and one whose chunk left read wet) until the 2 s age ran out, and a STATIC debris tile was never asked again at all
+    if (!m_resGlobal || !m_resColumn) return;
+    const uint64_t g = m_resGlobal();
+    if (g == m_resGlobalSeen) return;
+    m_resGlobalSeen = g;
+    const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    for (auto it = m_recordCols.begin(); it != m_recordCols.end();) {
+        const int cx = static_cast<int>(static_cast<int32_t>(it->first >> 32)), cz = static_cast<int>(static_cast<int32_t>(it->first & 0xffffffffull));
+        const uint64_t s = m_resColumn(cx, cz);
+        ++m_recordCacheStats.checks;
+        if (s == it->second.res) {
+            // read while nothing was resident: KEPT and watched (its load is what this check exists to see), but dropped once nothing
+            // has asked for kRecordIdleEvictS - the debris tiles' rotation re-asks every column it holds within ~4 s
+            if (s == 0 && it->second.t >= 0.0 && now - it->second.t > kRecordIdleEvictS) { ++m_recordCacheStats.evicted; it = m_recordCols.erase(it); continue; }
+            ++it; continue;
+        }
+        m_recordChanged.push_back({cx, cz});
+        if (s == 0) { ++m_recordCacheStats.evicted; it = m_recordCols.erase(it); continue; }   // nothing resident: forget it (bounded cache)
+        ++m_recordCacheStats.markedStale; it->second.t = -1.0; ++it;                             // re-read on the next ask
+    }
 }
 
 bool WaterCoreManager::recordColumnWater(int wx, int wz, float& surfaceY) const {

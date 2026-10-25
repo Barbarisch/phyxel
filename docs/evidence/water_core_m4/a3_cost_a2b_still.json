@@ -1,0 +1,259 @@
+{
+ "seconds": 5.0,
+ "still": [
+  {
+   "label": "still pond AWAKE #1",
+   "fps_mean": 696.0,
+   "fps_min": 496.8,
+   "cpu_frame_ms_mean": 1.462,
+   "cpu_frame_ms_max_sampled": 2.013,
+   "gpu_frame_ms_median": 1.332,
+   "gpu_frame_ms_max": 2.687,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 0.029,
+   "app_water_cpu_ms": {
+    "bodies": 0.001,
+    "exchange": 0.0,
+    "feed": 0.007,
+    "motion": 0.001,
+    "pressure": 0.001,
+    "solids": 0.0,
+    "total": 0.027,
+    "update": 0.016
+   },
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 35837,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "last_error": "",
+    "last_wake_ms": 40.4472,
+    "max_wake_ms": 40.4472,
+    "record_cache": {
+     "entries": 1149,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "wake_on_touch": true,
+    "woken": 1,
+    "woken_empty": 0
+   }
+  },
+  {
+   "label": "still pond SLEPT #1",
+   "fps_mean": 726.0,
+   "fps_min": 507.1,
+   "cpu_frame_ms_mean": 1.394,
+   "cpu_frame_ms_max_sampled": 1.972,
+   "gpu_frame_ms_median": 1.33,
+   "gpu_frame_ms_max": 2.2,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 0.027,
+   "app_water_cpu_ms": {
+    "bodies": 0.001,
+    "exchange": 0.0,
+    "feed": 0.006,
+    "motion": 0.0,
+    "pressure": 0.001,
+    "solids": 0.0,
+    "total": 0.025,
+    "update": 0.015
+   },
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 0,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 41401,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [
+     [
+      99,
+      14,
+      11,
+      104,
+      19,
+      16
+     ]
+    ],
+    "last_error": "",
+    "last_wake_ms": 40.4472,
+    "max_wake_ms": 40.4472,
+    "record_cache": {
+     "entries": 1149,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "wake_on_touch": true,
+    "woken": 1,
+    "woken_empty": 0
+   }
+  },
+  {
+   "label": "still pond AWAKE #2",
+   "fps_mean": 693.1,
+   "fps_min": 452.9,
+   "cpu_frame_ms_mean": 1.476,
+   "cpu_frame_ms_max_sampled": 2.208,
+   "gpu_frame_ms_median": 1.334,
+   "gpu_frame_ms_max": 2.371,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 0.029,
+   "app_water_cpu_ms": {
+    "bodies": 0.001,
+    "exchange": 0.0,
+    "feed": 0.007,
+    "motion": 0.0,
+    "pressure": 0.001,
+    "solids": 0.0,
+    "total": 0.025,
+    "update": 0.015
+   },
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 47640,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "last_error": "",
+    "last_wake_ms": 40.4472,
+    "max_wake_ms": 40.4472,
+    "record_cache": {
+     "entries": 1149,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "wake_on_touch": true,
+    "woken": 1,
+    "woken_empty": 0
+   }
+  },
+  {
+   "label": "still pond SLEPT #2",
+   "fps_mean": 705.2,
+   "fps_min": 509.8,
+   "cpu_frame_ms_mean": 1.438,
+   "cpu_frame_ms_max_sampled": 1.962,
+   "gpu_frame_ms_median": 1.328,
+   "gpu_frame_ms_max": 2.394,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 0.027,
+   "app_water_cpu_ms": {
+    "bodies": 0.001,
+    "exchange": 0.0,
+    "feed": 0.006,
+    "motion": 0.0,
+    "pressure": 0.0,
+    "solids": 0.0,
+    "total": 0.023,
+    "update": 0.013
+   },
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 0,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 53259,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [
+     [
+      99,
+      14,
+      11,
+      104,
+      19,
+      16
+     ]
+    ],
+    "last_error": "",
+    "last_wake_ms": 40.4472,
+    "max_wake_ms": 40.4472,
+    "record_cache": {
+     "entries": 1149,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "wake_on_touch": true,
+    "woken": 1,
+    "woken_empty": 0
+   }
+  }
+ ]
+}

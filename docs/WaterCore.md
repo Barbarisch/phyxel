@@ -9006,7 +9006,7 @@ row's reason says why it sits where it does.
 | A3 | **Close A1 and A2's open gates:** the full `/design-check` of §32, and whole-frame CPU and GPU frame times plus water's share for both (the push windows, an awake pond against a slept one, the wake hitch live) | DONE 2026-10-25. Design-check: NEEDS WORK, items A2a-A2f below (32.2). Live costs: 32.3 (the push ~0.01-0.02 ms CPU and ~0.01 ms GPU; the wake stall 33-98 ms) | remedies for D3 and D4. Small, and owed before new work starts |
 | A2g | **No block ever floats up (owner 2026-10-25, a standing rule).** The push's fallback (the table law, 31.2: a body larger than a window, past the 1,024-window cap, or with a stale window) still meets the displacing pump inside an awake pond, and that combination is 31.1's launch. Make the fallback safe, with a red test that forces a fallback while the body displaces. The API's `pressure_force:false` (the old rule) is now REFUSED, and the tools no longer run it | SIGNED OFF 2026-10-25 (§33: design-check NEEDS WORK, seven items folded in; red with a sinking stone; green and a 1,100-block stress). The owner preferred the look of the refused side (33.1) - open question, default unchanged | first, by the owner's rule: "in no circumstance should we be running code that results in voxels floating up" |
 | A2a | Test: a recorded pond across a chunk-column seam (including negative coordinates) reads the same as each column's own spans (32.2 item 1) | DONE 2026-10-25: `WaterRecordSeam.ThePerChunkReadEqualsEachColumnsOwnSpansAcrossSeams` (unit). An 80 x 80 m recorded pond over the four chunk columns meeting at (0, 0), a level unique to every column, cave runs under some and dry holes in it, 8 dry columns round it: 9,216 columns, 0 mismatched, one reader call per chunk column (16). RED shown: a truncating chunk index (x / 32) fails it at once (column (-47, -48) read wet 1.105 where its own spans are dry); reverted, the floor division's reason written at the site | the chunk rule's pinned test |
-| A2b | The record cache re-reads when chunk residency changes, not only after the 2 s age (item 2) | open | behaviour must not depend on when a chunk loaded |
+| A2b | The record cache re-reads when chunk residency changes, not only after the 2 s age (item 2) | DONE 2026-10-25 (32.4: design-check NEEDS WORK, seven items folded in - the debris tile cache was a second stale layer; unit test with its red control in the same run; live smoke; residency path unit-depth only, no unload route on the bench) | behaviour must not depend on when a chunk loaded |
 | A2c | Slept boxes survive a save and reload, derived from the persisted pond records (item 3) | open | a slept pond must still wake after a reload (P7) |
 | A2d | Pin the `wake_on_touch` default (item 4) | open | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | open | stacked water: a cave pool, a floor of water |
@@ -9371,6 +9371,64 @@ none. **Not measured:** the debris solver's integrate pass on its own (the `GPU 
 solver's compute submission may sit outside it); any scene but these two rigs (the realistic play scene, §30.2, is not built);
 a box at the volume cap; a frame-accurate CPU maximum (the stall is read from its own timer, not the frame trace).
 
+
+### 32.4 A2b - the record read follows chunk residency (2026-10-25). Status: BUILT, ON (result at the end of this section)
+
+**The defect (32.2 item 2).** `recordCol` caches one chunk column's record (the highest run top per world column) keyed by the span
+revision, plus a 2 s age (`kRecordColumnTtlS`). Streaming loads and unloads chunks WITHOUT bumping the span revision. So after a chunk
+loads, its column reads as it did before for up to 2 s: a pond whose chunk just loaded is dry to debris (a floater sinks), and a pond
+whose chunk unloaded is still water. Behaviour depends on when a chunk loaded - the chunk rule, broken in time.
+
+**A second cache (found by the design-check).** GPU debris reads `DebrisRuntime::m_waterCache` tiles, one per chunk column. A slept
+pond has no volume, so its tile is STATIC: built once, then rebuilt only in rotation (4 tiles a frame over a 32 x 32 directory, up
+to 256 frames, 1-4 s). Nothing asks a static tile's column again, so a check that waits for a read never fires for it.
+
+**The fix (pushed, not pulled).**
+1. Each record-cache entry stores a **residency signature** of its chunk column: an order-independent hash of the resident chunks
+   at (cx, y, cz) for every chunk y the read covers (-4..31, world y -128..1023), each chunk's coordinate and object address. The
+   editor installs two queries (`setRecordResidency(global, column)`): `global()` = `residentSetHash` over the whole chunk map
+   (O(chunks): ~5,000 additions, tens of microseconds), and `column(cx, cz)` (36 `getChunkAtCoord` lookups).
+2. **Every `update()`, before its realtime early return** (a harness that steps by hand still checks): if `global()` moved, each
+   cached entry's `column()` is compared. A changed one is marked stale (re-read on the next ask) and its chunk column is queued as
+   changed; an entry whose column has NO resident chunk is **evicted** (the cache no longer grows without bound - 32.2's adjacent
+   find).
+3. The editor drains the queue (`takeRecordChanged()`) each frame into `DebrisRuntime::invalidateWaterTiles()`, which drops those
+   tiles; the tile loop rebuilds a missing tile within its build budget, reading the fresh record.
+4. The 2 s age stays as the guard against span edits that bump no revision. **Out of scope, stated:** a span-revision bump (a
+   write-back, an edit) still reaches static tiles only by the rotation; it is not residency.
+
+**API:** no endpoint changes; `water_coupling.slept.record_cache` echoes `{entries, residency_checks, marked_stale, evicted,
+tiles_dropped}`. Both hooks null = today's behaviour (written at the hook). **Tiers:** none. **Cost:** `global()` every frame; the
+per-column check only on a frame residency changed (bounded by the entries: the columns read near bodies and tiles). Not measured live.
+
+**Test (unit, red first), `WaterRecordSeam.TheRecordFollowsResidency`:** a FakeRecord whose reader returns only RESIDENT chunk
+columns; ponds in chunk columns (1, 1) and (-1, -1) (the negative seam, A2a's floor division). (1) Not resident: both read dry.
+(2) Both "load" (the residency changes, **no span revision bump**), `update(0)` with realtime off. Prediction: both wet at once,
+and `takeRecordChanged()` names both. **RED CONTROL in the same test:** a second manager with no residency hooks reads dry after the
+same load (today's behaviour, until the 2 s age). (3) Unload: both evicted, both queued, both dry. Control: an `update()` with
+nothing changed makes no `column()` calls and no reader calls.
+**Validation depth: L3 unit only.** No API evicts a single chunk on the bench (searched: no unload route), and the bench worlds do
+not stream; `invalidateWaterTiles` is an erase, read in code. Stated, not hidden.
+
+**Design-check (2026-10-25): NEEDS WORK, seven items, folded in above:** the debris tile cache (pushed invalidation); its test; the
+check before `update()`'s early return; the negative column; the echo; the validation depth; eviction.
+
+**Result (2026-10-25): BUILT, ON.** `WaterCoreManager::setRecordResidency` / `checkRecordResidency` (in `update()`, before the
+realtime return) / `takeRecordChanged`; `DebrisRuntime::invalidateWaterTiles`; the editor's two queries (`residentSetHash` over the
+chunk map; a chunk column's coordinates + objects, chunk y -4..31) and the per-frame drain; `water_coupling.slept.record_cache`. An
+entry read while nothing was resident is KEPT and watched (its load is what the check is for), dropped only after 10 s unasked
+(`kRecordIdleEvictS`; the tile rotation re-asks its columns within ~4 s).
+- **Unit, `WaterRecordSeam.TheRecordFollowsResidency`:** after the load (no span revision bump, one `update(0)` with realtime off)
+  (40, 40) reads wet 1.250 and (-20, -20) wet 1.750, both chunk columns queued; **the RED CONTROL in the same run - a manager with
+  no residency hooks, the old cache - still reads dry**; a frame with nothing changed makes no column check and no reader call;
+  after the unload both are evicted, queued and dry. Water + debris unit 350/350.
+- **Live smoke (the Small bench, a 1/3 m Wood block into the slept pond):** the pond woke, the block floats at draft 0.698;
+  `record_cache {entries 1024, residency_checks 0}` - the bench does not stream, so the residency path never fired live (stated).
+- **Cost:** the still pond, awake / slept: 693-696 / 705-726 fps, CPU 1.46-1.48 / 1.39-1.44 ms (`a3_cost_a2b_still.json`) - the
+  same as A3's 666-752 fps, 1.34-1.54 ms. The global hash runs every frame; on this bench's few chunks it does not show. **Not
+  measured:** its cost on a streaming world of thousands of chunks (estimated tens of microseconds); a live load/unload.
+- A first smoke run used a STALE editor (a compile error in the editor left the 11:51 binary; caught because the new echo was
+  missing) - re-run on the rebuilt binary above.
 
 ## 33. A2g - no block ever floats up: the push's fallback made safe (owner 2026-10-25). Status: BUILT, ON, not signed off (33.1)
 

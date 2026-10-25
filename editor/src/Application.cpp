@@ -146,6 +146,7 @@ float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.
 #include <sstream>
 #include <algorithm>
 #include <unordered_set>
+#include "core/WaterSpanGridKey.h"
 #include <set>
 #include <chrono>
 #include <thread>
@@ -470,6 +471,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // never half-written.
     // §27 W1a: the record's revision - a record tile drawn near the camera is rebuilt when the stored water changes
     waterCore->setSpanRevisionQuery([this]() -> uint64_t { return chunkManager ? chunkManager->waterSpanRevision() : 0; });
+    // 32.4 (A2b): the record cache follows residency - the whole set's hash every frame (cheap), one chunk column's on a change
+    // (chunk y -4..31 = the record read's world y -128..1023; each chunk's coordinate AND object, a reload into a new object counts)
+    waterCore->setRecordResidency(
+        [this]() -> uint64_t { return chunkManager ? Core::residentSetHash(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end()) : 0; },
+        [this](int cx, int cz) -> uint64_t {
+            if (!chunkManager) return 0;
+            uint64_t h = 0;
+            for (int cy = -4; cy <= 31; ++cy)
+                if (const Chunk* c = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz)))
+                    h += Core::chunkCoordHash64(glm::ivec3(cx, cy, cz)) ^ static_cast<uint64_t>(reinterpret_cast<uintptr_t>(c));
+            return h;
+        });
     waterCore->setSpanIo(
         [this](const std::vector<Core::Water::ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunksTouched) {
             using namespace Core::Water;
@@ -3801,6 +3814,8 @@ void Application::update(float deltaTime) {
             }
             if (camera) waterCore->setViewPoint(camera->getPosition());   // 25.26 RC: ripple windows follow the camera
             { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
+            // 32.4 (A2b): chunk columns whose record changed by residency - their debris water tiles are rebuilt, not left to the rotation
+            if (auto ch = waterCore->takeRecordChanged(); !ch.empty() && debrisRuntime) debrisRuntime->invalidateWaterTiles(ch);
             const auto wtFeed = WClock::now();
             if (renderCoordinator) {
                 // 26.12: the per-voxel cell list feeds only the Cells debug draw - building it read the whole volume back once a second
@@ -14552,6 +14567,9 @@ void Application::registerWaterCommands() {
                  const auto& ws = waterCore->sleptWakeStats();
                  s["boxes"] = boxes; s["woken"] = ws.woken; s["woken_empty"] = ws.wokenEmpty; s["refused"] = ws.refused;
                  s["last_wake_ms"] = ws.lastMs; s["max_wake_ms"] = ws.maxMs; s["last_error"] = ws.lastError;
+                 const auto& rc = waterCore->recordCacheStats();   // 32.4 (A2b): the record cache following residency
+                 s["record_cache"] = {{"entries", waterCore->recordCacheEntries()}, {"residency_checks", rc.checks}, {"marked_stale", rc.markedStale},
+                                      {"evicted", rc.evicted}, {"tiles_dropped", debrisRuntime ? debrisRuntime->waterTilesDropped() : 0}};
                  return s; }()},
              {"pressure_force", [&] {   // 31: the windows asked and written, and what the debris ticks did with them (the last frame read back)
                  const auto& ps = waterCore ? waterCore->pressureWindowStats() : Core::Water::WaterCoreManager::PressureWindowStats{};
