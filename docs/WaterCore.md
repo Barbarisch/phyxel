@@ -105,7 +105,8 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
 - *Not started:* wading (E4), containers, pipes, scoop, volume merge / split, the §23 liquids. Scenarios never run: S7 wading,
   S9 waterfall, S10 stream over rocks, S13 scoop, S14 pipe, C1-C5.
 
-**Standing rules:** small bodies first; one water model - the pond's - for everything simulated (a second kind of water needs
+**Standing rules:** no voxel ever floats up as if gravity were off, in any run, control or demo included (owner 2026-10-25; only a
+material made to do that could, and none exists); small bodies first; one water model - the pond's - for everything simulated (a second kind of water needs
 the owner's explicit, plainly-explained approval); appearance water draws recorded water and never moves or makes it; no
 universal level; edits and digging never create water; ripples and splashes carry forward wherever water is simulated; always
 tools to measure and tune current speed; measure, don't argue; nothing is done until the owner sees it in motion; look
@@ -9002,13 +9003,14 @@ row's reason says why it sits where it does.
 |---|---|---|---|
 | A1 | **M4 - the water pushes the body** (§31) | SIGNED OFF and ON 2026-10-24 (31.8) | the owner's keys: floating debris |
 | A2 | **A pond that slept is still water** (§32) | BUILT, ON, not signed off. Owner's look: `s32_look_side_by_side.mp4` | entered as drift D2. Under shipped settings A1 failed in any pond that had slept |
-| A3 | **Close A1 and A2's open gates:** the full `/design-check` of §32, and whole-frame CPU and GPU frame times plus water's share for both (the push windows, an awake pond against a slept one, the wake hitch live) | design-check DONE 2026-10-24: NEEDS WORK, items A2a-A2f below (32.2). Live costs open | remedies for D3 and D4. Small, and owed before new work starts |
+| A3 | **Close A1 and A2's open gates:** the full `/design-check` of §32, and whole-frame CPU and GPU frame times plus water's share for both (the push windows, an awake pond against a slept one, the wake hitch live) | DONE 2026-10-25. Design-check: NEEDS WORK, items A2a-A2f below (32.2). Live costs: 32.3 (the push ~0.01-0.02 ms CPU and ~0.01 ms GPU; the wake stall 33-98 ms) | remedies for D3 and D4. Small, and owed before new work starts |
+| A2g | **No block ever floats up (owner 2026-10-25, a standing rule).** The push's fallback (the table law, 31.2: a body larger than a window, past the 1,024-window cap, or with a stale window) still meets the displacing pump inside an awake pond, and that combination is 31.1's launch. Make the fallback safe, with a red test that forces a fallback while the body displaces. The API's `pressure_force:false` (the old rule) is now REFUSED, and the tools no longer run it | open. In the A3 runs the fallback counters read 0 | first, by the owner's rule: "in no circumstance should we be running code that results in voxels floating up" |
 | A2a | Test: a recorded pond across a chunk-column seam (including negative coordinates) reads the same as each column's own spans (32.2 item 1) | open | the chunk rule's pinned test |
 | A2b | The record cache re-reads when chunk residency changes, not only after the 2 s age (item 2) | open | behaviour must not depend on when a chunk loaded |
 | A2c | Slept boxes survive a save and reload, derived from the persisted pond records (item 3) | open | a slept pond must still wake after a reload (P7) |
 | A2d | Pin the `wake_on_touch` default (item 4) | open | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | open | stacked water: a cave pool, a floor of water |
-| A2f | The wake hitch at a large box, live, whole frame (item 6); if it is too big, W1's patch wake or keeping the volume allocated | open | merged with A7 below |
+| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | measured, open | a 98 ms frame is visible at every tier. Merged with A7 below |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
@@ -9023,7 +9025,8 @@ row's reason says why it sits where it does.
 | D1 | 2026-10-24 | M4 (§31) was built before any track-B look work | the old §30 put the moonshot LOOK first (step 1) | the owner's directive: "the water physics are the primary concern right now" | the owner ("yeah, lets do it") | **good reason, but the plan was not rewritten until later the same day** (breaking rule 3). Rewritten 2026-10-24: track A. CLOSED |
 | D2 | 2026-10-24 | §32, a slept pond is still water | not in the plan. Found while measuring M4 (31.9b) | a defect in signed-off work. Under shipped settings (auto-sleep on) a floater sank in a slept pond whenever the camera was more than 48 m away, so A1's outcome depended on the camera | the agent, under the owner's "take the next step you think is right". Reported to the owner afterwards | **good reason.** Now A2. Awaiting the owner's look |
 | D3 | 2026-10-24 | §32's design-check was written inline, not run as `/design-check` | the gate: `/design-check` before building (as M4 had: NEEDS WORK, seven items) | none beyond speed | nobody | **no good reason.** Remedy: A3 ran it 2026-10-24 (32.2: NEEDS WORK, seven items, now A2a-A2f and A4). CLOSED |
-| D4 | 2026-10-24 | M4 and §32 were reported with fps only. The push windows' own cost was not separated, and the wake hitch was measured in a test, not live | `PerformanceTiers.md` rule 4: the CPU frame, the GPU frame, fps and the feature's own share, plus what was not measured | none beyond speed | nobody | **no good reason.** Remedy: A3 measures them. OPEN |
+| D4 | 2026-10-24 | M4 and §32 were reported with fps only. The push windows' own cost was not separated, and the wake hitch was measured in a test, not live | `PerformanceTiers.md` rule 4: the CPU frame, the GPU frame, fps and the feature's own share, plus what was not measured | none beyond speed | nobody | **no good reason.** Remedy: A3 measured them, 2026-10-25 (32.3). CLOSED |
+| D6 | 2026-10-25 | During A3's cost runs the agent alternated the push with the OLD floating rule (`pressure_force:false`) as a control, on the owner's visible bench, without warning. Blocks were launched | rule 4 of `PerformanceTiers.md` asked for the push's own cost, and an on/off comparison was the agent's choice of method | none good: a control must itself be physically sane | nobody | **no good reason.** Owner: "in no circumstance should we be running code that results in voxels floating up as if gravity turned off". Remedy: the off rule is refused by the API, the tools compare against fewer or no bodies, the push's own share comes from timers, and A2g makes the fallback safe. CLOSED except A2g |
 | D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
 
 ### 30.6 The plan-check log (newest last)
@@ -9031,6 +9034,7 @@ row's reason says why it sits where it does.
 | # | date | range checked | verdict | drift found | logged as |
 |---|---|---|---|---|---|
 | C1 | 2026-10-24 | §30-§32, commits 58b16a82..e20d939f (the owner asked "are you updating the plan, and following the plan?") | DRIFTING. The plan was stale, and two drifts had no logged reason | the plan missed the physics-first order. §32 was unplanned. §32's design-check was inline. Costs were fps-only | D1-D5. The plan was rewritten (this commit) |
+| C2 | 2026-10-25 | after A3, commits 41b5ad14..this one | DRIFTING (logged) | A3's cost runs ran the old floating rule as a control on the owner's bench (D6). Everything else maps to A3 | D6, and new item A2g |
 
 ## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: BUILT, SIGNED OFF by the owner and ON by default 2026-10-24 (31.8); two defects found (31.9)
 
@@ -9330,6 +9334,41 @@ The full `/design-check` gate was run against the code as built. Evidence is `Wa
   matters for wading (A4) and is folded into it.
 
 Items 1-6 are A2a-A2f in §30.4. Item 7 belongs to A4.
+
+### 32.3 A3 - the whole-frame cost of A1 and A2, live (2026-10-25; drift D4's remedy)
+
+**Rig:** `tools/water_a3_cost.py` (new) on the Small bench, Release, camera at the 4 x 4 m pond (~6 m off). Each 5 s window
+reports fps, the CPU frame (`engine_timing`), the GPU frame (`gpu_timing`, median), the water's GPU (kernel timing per call x calls
+per second), and the editor's water block by part. Those parts are new A3 timers (`app_water_cpu_ms`: bodies / solids /
+pressure / exchange beside update / feed / motion). Shipped settings, except auto-sleep is off in the push scene so the pond
+stays a volume. The push is always on: the old rule is refused (D6), so the control is the same pond with fewer or no bodies.
+Evidence: `a3_cost_a3_still.json`, `a3_cost_a3.json`.
+
+| scene | fps | CPU frame | GPU frame | water: editor block (of it: rasterizing moving bodies / the push) | water GPU |
+|---|---|---|---|---|---|
+| still pond, no bodies, awake vs slept | 666-752 vs 666-713 | 1.34-1.54 ms | 1.30-1.31 ms | 0.02-0.03 ms | 0 (a still awake volume makes no calls) |
+| 20 blocks, 3 s after the drop | 233 | 4.34 ms | 1.34 ms | 2.68 ms (1.93 / **0.009**) | 0.77 ms/call x 237/s |
+| 20 blocks, 25 s | 317 | 3.28 ms | 1.35 ms | 1.79 ms (1.28 / **0.007**) | 0.72 ms/call x 317/s |
+| 100 blocks, 3 s | 203 | 5.00 ms | 1.37 ms | 3.44 ms (2.84 / **0.022**) | 1.27 ms/call x 198/s |
+| 100 blocks, 25 s | 278 | 3.92 ms | 1.40 ms | 3.27 ms (2.74 / **0.018**) | 1.20 ms/call x 233/s |
+| a slept pond woken by a stone (4 x 4 m pond) | 361-389 | 2.64-2.90 ms | 1.26 ms | 1.31-1.37 ms | 0.58 ms/call x 352/s |
+| a slept pit woken by a stone (8 x 8 m, 256 m^3) | 326-330 | 3.31-3.48 ms | 1.19 ms | 1.86 ms (7.10 in the window holding the wake) | 1.02 ms/call x 284/s |
+
+**A1 - the push's own cost: CPU 0.007-0.022 ms per frame** (the asks, 20-100 bodies). **GPU about 0.01 ms per water call.** That is
+the window interval, 0.021-0.025 ms per call with windows, against 0.007-0.015 ms when the same interval runs without them. The
+water's moving bodies cost far more: rasterizing them (`setMovingSolids`) is 1.3-2.8 ms of CPU per frame. That part is also
+~1.0 ms in the wake scenes with no wet body at all, so it follows the water's motion as well as the bodies (not yet explained).
+
+**A2 - the wake stall (the create + seed, on the main thread, inside one frame): 32.8 and 35.2 ms** for the 4 x 4 m pond's box
+(6 x 6 x 6 m). **98.0 and 98.4 ms** for the pit's box (10 x 9 x 10 m, ~0.66 M cells). About 0.1 ms per m^3 of box: a box at the
+2 M-cell cap (~2,700 m^3) would stall ~0.3 s (projected, not measured). The GPU frame shows nothing (max 1.6-2.1 ms). The stall
+is CPU.
+
+**Against the tiers** (`PerformanceTiers.md`): every scene above stays above 120 fps (worst 203 fps, 5.0 ms CPU). The wake is the
+exception: a 98 ms frame drops about 6 frames at 60 fps, which no tier hides, so A2f is needed. The push has no knob and needs
+none. **Not measured:** the debris solver's integrate pass on its own (the `GPU Particles` scope reads 0.011-0.018 ms, but the
+solver's compute submission may sit outside it); any scene but these two rigs (the realistic play scene, §30.2, is not built);
+a box at the volume cap; a frame-accurate CPU maximum (the stall is read from its own timer, not the frame trace).
 
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF

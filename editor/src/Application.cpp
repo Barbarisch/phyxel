@@ -1,4 +1,4 @@
-﻿#ifdef _WIN32
+#ifdef _WIN32
 // Must define NOMINMAX before any Windows header to avoid min/max macro conflicts
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -3722,6 +3722,7 @@ void Application::update(float deltaTime) {
             using WClock = std::chrono::steady_clock;
             auto wms = [](WClock::time_point a) { return std::chrono::duration<double, std::milli>(WClock::now() - a).count(); };
             const auto wt0 = WClock::now();
+            m_waterCpu.bodies = m_waterCpu.solids = m_waterCpu.pressure = m_waterCpu.exchange = 0.0;
             // 20 (M2): debris inside a volume's box is a moving solid - it displaces water. The integrator
             // reports the bodies inside the boxes two frames late; predict each forward by its own age.
             if (debrisRuntime && debrisRuntime->gpu()) {
@@ -3766,9 +3767,11 @@ void Application::update(float deltaTime) {
                     }
                 m_displacing.swap(displacing);
                 waterCore->wakeSleptTouching(solids);   // 32: a moving body in a slept pond's box wakes it from the record, then displaces
-                m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f));
+                m_waterCpu.bodies = wms(wt0);
+                { const auto t = WClock::now(); m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f)); m_waterCpu.solids = wms(t); }
                 {   // 31 (M4): the pressure windows - every wet body inside a GPU volume; written by this frame's water calls, read by
                     // this frame's debris ticks (one queue, the calls submitted first)
+                    const auto tp = WClock::now();
                     auto* gp = debrisRuntime->gpu();
                     if (!waterCore->pressureWindowTargetsSet()) {
                         const auto t = gp->pressureWindowTargets();
@@ -3780,6 +3783,7 @@ void Application::update(float deltaTime) {
                     ++m_pressureTag;
                     waterCore->setPressureWindows(asks, m_pressureTag);
                     gp->setPressureForce(on, m_pressureTag);
+                    m_waterCpu.pressure = wms(tp);
                 }
             }
             if (camera) waterCore->setViewPoint(camera->getPosition());   // 25.26 RC: ripple windows follow the camera
@@ -3880,6 +3884,7 @@ void Application::update(float deltaTime) {
             }
             // E2 (docs/WaterCore.md 19): wet debris gives the water the momentum the water took from it
             if (debrisRuntime) {
+                const auto te = WClock::now();
                 auto ex = debrisRuntime->takeWaterExchange();
                 if (!ex.empty() && m_waterCouplingOn && m_waterExchangeOn) {
                     std::vector<Core::Water::WaterCoreManager::MomentumRecord> recs;
@@ -3890,6 +3895,7 @@ void Application::update(float deltaTime) {
                     m_exchangeStats.outside += rep.outside; m_exchangeStats.dry += rep.dry; m_exchangeStats.clamped += rep.clamped;
                     m_exchangeStats.lastTotal = rep.total; m_exchangeStats.totalMagnitude += glm::length(rep.total);
                 }
+                m_waterCpu.exchange = wms(te);
             }
             m_waterCpu.total = wms(wt0);
             for (const auto& rec : waterCore->drainAutoSleepRecords()) {
@@ -13968,7 +13974,7 @@ void Application::registerWaterCommands() {
         nlohmann::json ph = nlohmann::json::object();
         for (const auto& [k, v] : P::ms) ph[k] = {{"ms_per_frame", v / fr}, {"calls_per_frame", P::calls[k] / fr}};
         const auto& tl = renderCoordinator ? &renderCoordinator->waterCoreTiler().stats() : nullptr;
-        r = {{"frames", P::frames}, {"phases", ph}, {"app_water_cpu_ms_last", {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}}}};
+        r = {{"frames", P::frames}, {"phases", ph}, {"app_water_cpu_ms_last", {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}, {"bodies", m_waterCpu.bodies}, {"solids", m_waterCpu.solids}, {"pressure", m_waterCpu.pressure}, {"exchange", m_waterCpu.exchange}}}};
         if (tl) r["tiler_last"] = {{"ms", tl->ms}, {"build_ms", tl->buildMs}, {"rebuilt", tl->rebuilt}};
         if (cmd.params.value("reset", false)) P::reset();
     });
@@ -14493,7 +14499,11 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("enabled")) m_waterCouplingOn = cmd.params.value("enabled", true);
         if (cmd.params.contains("exchange")) m_waterExchangeOn = cmd.params.value("exchange", true);   // debris -> water only
         if (cmd.params.contains("solids")) m_waterSolidsOn = cmd.params.value("solids", true);         // 20: debris displaces water
-        if (cmd.params.contains("pressure_force")) m_pressureForceOn = cmd.params.value("pressure_force", false);   // 31: the water's pressure pushes debris
+        // 31: the water's pressure pushes debris. OFF is REFUSED (owner 2026-10-25: "in no circumstance should we be running code
+        // that results in voxels floating up as if gravity turned off"). Off was the old floating rule, the table law plus the
+        // displacing pump, which launches floaters (31.1).
+        const bool pressureRefused = cmd.params.contains("pressure_force") && !cmd.params.value("pressure_force", true);
+        m_pressureForceOn = true;
         if (cmd.params.contains("displace")) m_displaceOn = cmd.params.value("displace", true);   // 31 TEST: bodies recorded but not rasterized
         if (cmd.params.contains("wake_on_touch")) Core::Water::WaterCoreManager::s_wakeOnTouch = cmd.params.value("wake_on_touch", true);   // 32: the A/B control
         if (cmd.params.value("dump_window", false) && debrisRuntime && debrisRuntime->gpu() && !debrisRuntime->gpu()->wetBodies().empty()) {
@@ -14530,7 +14540,7 @@ void Application::registerWaterCommands() {
                  return s; }()},
              {"pressure_force", [&] {   // 31: the windows asked and written, and what the debris ticks did with them (the last frame read back)
                  const auto& ps = waterCore ? waterCore->pressureWindowStats() : Core::Water::WaterCoreManager::PressureWindowStats{};
-                 return nlohmann::json{{"on", m_pressureForceOn}, {"targets", waterCore && waterCore->pressureWindowTargetsSet()},
+                 return nlohmann::json{{"on", m_pressureForceOn}, {"off_refused", pressureRefused}, {"targets", waterCore && waterCore->pressureWindowTargetsSet()},
                                        {"asked", ps.asked}, {"windows", ps.windows}, {"window_cells", ps.cells}, {"fallback_outside", ps.outside},
                                        {"fallback_too_big", ps.tooBig}, {"fallback_over_budget", ps.overBudget}, {"tag", ps.tag},
                                        {"ticks_pushed", gp ? gp->wetStats().pressPushed : 0u}, {"ticks_fell_back", gp ? gp->wetStats().pressFellBack : 0u},
@@ -14621,7 +14631,7 @@ void Application::registerWaterCommands() {
                 tiles["holes_deferred"] = gs->holesDeferred; tiles["oldest_wait_frames"] = gs->oldestWaitFrames;   // 27.27: the upload order
             }
         }
-        tiles["water_cpu_ms"] = {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}};   // 26.30 step 3
+        tiles["water_cpu_ms"] = {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}, {"bodies", m_waterCpu.bodies}, {"solids", m_waterCpu.solids}, {"pressure", m_waterCpu.pressure}, {"exchange", m_waterCpu.exchange}};   // 26.30 step 3
         if (waterCore) { const auto& u = waterCore->updateCpu(); tiles["water_cpu_ms"]["in_update"] = {{"occupancy", u.occupancy}, {"step", u.step}, {"droplets", u.droplets}, {"ripples", u.ripples}, {"sleep", u.sleep},
                                                                                        {"step_call", u.stepCall}, {"births", u.births}, {"r_collect", u.rCollect}, {"r_mask", u.rMask}, {"r_layer", u.rLayer}, {"r_submit", u.rSubmit}}; }
         r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())}, {"tiles", tiles},

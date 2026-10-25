@@ -1,0 +1,183 @@
+{
+ "seconds": 5.0,
+ "still": [
+  {
+   "label": "still pond AWAKE #1",
+   "fps_mean": 713.7,
+   "fps_min": 589.6,
+   "cpu_frame_ms_mean": 1.417,
+   "cpu_frame_ms_max_sampled": 1.696,
+   "gpu_frame_ms_median": 1.312,
+   "gpu_frame_ms_max": 2.196,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 0.033,
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 1,
+   "wet_bodies": 5,
+   "pressure": {
+    "asked": 5,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "on": true,
+    "tag": 5883325,
+    "targets": true,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 5,
+    "window_cells": 1106,
+    "windows": 5
+   },
+   "slept": {
+    "boxes": [],
+    "last_error": "",
+    "last_wake_ms": 35.3603,
+    "max_wake_ms": 35.3603,
+    "refused": 0,
+    "wake_on_touch": true,
+    "woken": 1,
+    "woken_empty": 0
+   }
+  },
+  {
+   "label": "still pond SLEPT #1",
+   "fps_mean": 712.7,
+   "fps_min": 424.7,
+   "cpu_frame_ms_mean": 1.438,
+   "cpu_frame_ms_max_sampled": 2.354,
+   "gpu_frame_ms_median": 1.296,
+   "gpu_frame_ms_max": 2.221,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 0.031,
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 0,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "on": true,
+    "tag": 5888828,
+    "targets": true,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 5,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [
+     [
+      99,
+      14,
+      11,
+      104,
+      19,
+      16
+     ]
+    ],
+    "last_error": "",
+    "last_wake_ms": 35.3603,
+    "max_wake_ms": 35.3603,
+    "refused": 0,
+    "wake_on_touch": true,
+    "woken": 1,
+    "woken_empty": 0
+   }
+  },
+  {
+   "label": "still pond AWAKE #2",
+   "fps_mean": 751.6,
+   "fps_min": 623.6,
+   "cpu_frame_ms_mean": 1.342,
+   "cpu_frame_ms_max_sampled": 1.604,
+   "gpu_frame_ms_median": 1.311,
+   "gpu_frame_ms_max": 2.168,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 0.033,
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "on": true,
+    "tag": 5895040,
+    "targets": true,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 5,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "last_error": "",
+    "last_wake_ms": 35.3603,
+    "max_wake_ms": 35.3603,
+    "refused": 0,
+    "wake_on_touch": true,
+    "woken": 1,
+    "woken_empty": 0
+   }
+  },
+  {
+   "label": "still pond SLEPT #2",
+   "fps_mean": 665.6,
+   "fps_min": 429.8,
+   "cpu_frame_ms_mean": 1.54,
+   "cpu_frame_ms_max_sampled": 2.327,
+   "gpu_frame_ms_median": 1.299,
+   "gpu_frame_ms_max": 2.421,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 0.031,
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 0,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "on": true,
+    "tag": 5900466,
+    "targets": true,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 5,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [
+     [
+      99,
+      14,
+      11,
+      104,
+      19,
+      16
+     ]
+    ],
+    "last_error": "",
+    "last_wake_ms": 35.3603,
+    "max_wake_ms": 35.3603,
+    "refused": 0,
+    "wake_on_touch": true,
+    "woken": 1,
+    "woken_empty": 0
+   }
+  }
+ ]
+}

@@ -25,7 +25,7 @@ LEVEL = 16.5
 SETTLE = 8.0
 AUTO_SLEEP = False             # --auto-sleep: the shipped default (a still pond sleeps into the record; the volume goes)
 DISPLACE = True                # --no-displace (TEST): bodies recorded but not rasterized (WaterCore 31: the pump's share)
-PRESSURE = False               # --pressure: the water's pressure pushes the block (WaterCore 31); off = the table law (the control)
+PRESSURE = True                # the water's push, always (owner 2026-10-25: the old floating rule launched blocks; it is never run)
 CX, CZ = 102.0, 14.0           # the pond's centre (water x 100..104, z 12..16)
 FAR = (100.3, 12.3)            # the level probe, ~2.4 m from the block
 SCEN = [
@@ -163,13 +163,13 @@ def main():
     ap.add_argument("--seconds", type=float, default=40.0)
     ap.add_argument("--only", default="")
     ap.add_argument("--tag", default="now")
-    ap.add_argument("--pressure", action="store_true", help="WaterCore 31: the pressure push on (default: off, the table law)")
+    ap.add_argument("--pressure", action="store_true", help="kept for old command lines: the push is always on (the off rule is refused)")
     ap.add_argument("--no-displace", action="store_true", help="TEST: wet bodies never rasterized (the pump's pressure out)")
     ap.add_argument("--auto-sleep", action="store_true", help="the shipped default: the pond sleeps into the record (31.6 item 7: the hand-over)")
     ap.add_argument("--settle", type=float, default=8.0, help="seconds the fill settles before the block goes in")
     args = ap.parse_args()
     ap2 = args
-    global PRESSURE, DISPLACE, AUTO_SLEEP; PRESSURE = args.pressure; DISPLACE = not args.no_displace; AUTO_SLEEP = args.auto_sleep
+    global PRESSURE, DISPLACE, AUTO_SLEEP; PRESSURE = True; DISPLACE = not args.no_displace; AUTO_SLEEP = args.auto_sleep
     global SETTLE; SETTLE = args.settle
     api = Api(args.url); st = api.wait_status(900)
     EV.mkdir(parents=True, exist_ok=True)

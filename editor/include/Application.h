@@ -335,7 +335,10 @@ private:
     WaterKickStats m_lastKick;
     struct WaterExchangeStats { long frames = 0, records = 0, applied = 0, outside = 0, dry = 0, clamped = 0; glm::vec3 lastTotal{0.0f}; double totalMagnitude = 0.0; };
     WaterExchangeStats m_exchangeStats;   // E2
-    struct WaterCpuMs { double total = 0, update = 0, feed = 0, motion = 0; } m_waterCpu;   // 26.30 step 3: the water's CPU per frame, by part
+    // 26.30 step 3: the water's CPU per frame, by part. A3: bodies = the wet-body loops (boxes, ripple bodies, the displacement
+    // gate, the slept-pond wake), solids = setMovingSolids (rasterizing the displacing bodies), pressure = the M4 window asks,
+    // exchange = the momentum handed back to the water
+    struct WaterCpuMs { double total = 0, update = 0, feed = 0, motion = 0, bodies = 0, solids = 0, pressure = 0, exchange = 0; } m_waterCpu;
     long m_waterWakes = 0;                 // E2 (19.6): wake requests sent to sleeping debris over moving water
     Core::Water::BedQuery shoreBedQuery();                              // the micro-occupancy bed both bands use
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering

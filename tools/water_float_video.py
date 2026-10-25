@@ -34,8 +34,9 @@ def main():
     ap.add_argument("--crop", default="954:560:243:60")
     ap.add_argument("--still", action="store_true")
     ap.add_argument("--tag", default="m4_look")
-    ap.add_argument("--ab", default="push", choices=["push", "wake"],
-                    help="push: the old floating law vs the water's push (31); wake: a pond SLEPT into the record, waking off vs on (32)")
+    # the "push" A/B (the old floating rule vs the push) is REMOVED: the old rule launches blocks, and the owner ruled it is never
+    # run (2026-10-25). Its recording stays in docs/evidence/water_core_m4/m4_look_side_by_side.mp4.
+    ap.add_argument("--ab", default="wake", choices=["wake"], help="wake: a pond SLEPT into the record, waking off vs on (32)")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
     if not ff: raise SystemExit("ffmpeg not on PATH")
@@ -55,7 +56,7 @@ def main():
             w.PRESSURE = True; w.AUTO_SLEEP = True
             api.debug("water_coupling", {"wake_on_touch": on})
         else:
-            w.PRESSURE = on
+            raise SystemExit("only --ab wake (the old floating rule is never run)")
         w.pond(api)
         camera_set(api, pose)
         time.sleep(4.0)
