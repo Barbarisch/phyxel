@@ -20,6 +20,7 @@ set(INTEGRATION_TEST_SOURCES
     WaterPartialWakeTest.cpp
     WaterRecordTilesTest.cpp
     WaterBodyPressureTest.cpp
+    WaterRecordedPondTest.cpp
     WaterTallCellTest.cpp
 )
 

@@ -551,6 +551,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (!waterCore || !m_waterCouplingOn) return;
         const float reach = DamageSystem::IMPULSE_RADIUS_SCALE * radius;
         const float speed = DamageSystem::blastSpeed(energy);
+        waterCore->wakeSleptNear(c, reach);   // 32: a blast by a pond that slept into the record wakes it first
         const auto k = waterCore->addRadialImpulse(c, reach, speed, DamageSystem::IMPULSE_UP_BIAS);
         ++m_lastKick.blasts;
         m_lastKick.volumes = k.volumes; m_lastKick.faces = k.faces; m_lastKick.clamped = k.clamped;
@@ -3725,8 +3726,11 @@ void Application::update(float deltaTime) {
             // reports the bodies inside the boxes two frames late; predict each forward by its own age.
             if (debrisRuntime && debrisRuntime->gpu()) {
                 std::vector<std::pair<glm::vec3, glm::vec3>> boxes;
-                if (m_waterCouplingOn && m_waterSolidsOn)
+                if (m_waterCouplingOn && m_waterSolidsOn) {
                     for (const auto& [lo, hi] : waterCore->volumeBoxes()) boxes.push_back({glm::vec3(lo), glm::vec3(hi) + glm::vec3(1.0f)});
+                    // 32: and the boxes of ponds that slept into the record - a body moving through one wakes it (below)
+                    for (const auto& b : waterCore->sleptBoxesWorld()) boxes.push_back(b);
+                }
                 debrisRuntime->gpu()->setWaterVolumeBoxes(boxes);
                 std::vector<Core::Water::MovingSolid> solids;
                 std::vector<Core::Water::MovingSolid> rippleBodies;   // 22: every wet body, resting and bobbing ones too
@@ -3761,6 +3765,7 @@ void Application::update(float deltaTime) {
                         solids.push_back(m);
                     }
                 m_displacing.swap(displacing);
+                waterCore->wakeSleptTouching(solids);   // 32: a moving body in a slept pond's box wakes it from the record, then displaces
                 m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f));
                 {   // 31 (M4): the pressure windows - every wet body inside a GPU volume; written by this frame's water calls, read by
                     // this frame's debris ticks (one queue, the calls submitted first)
@@ -14490,6 +14495,7 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("solids")) m_waterSolidsOn = cmd.params.value("solids", true);         // 20: debris displaces water
         if (cmd.params.contains("pressure_force")) m_pressureForceOn = cmd.params.value("pressure_force", false);   // 31: the water's pressure pushes debris
         if (cmd.params.contains("displace")) m_displaceOn = cmd.params.value("displace", true);   // 31 TEST: bodies recorded but not rasterized
+        if (cmd.params.contains("wake_on_touch")) Core::Water::WaterCoreManager::s_wakeOnTouch = cmd.params.value("wake_on_touch", true);   // 32: the A/B control
         if (cmd.params.value("dump_window", false) && debrisRuntime && debrisRuntime->gpu() && !debrisRuntime->gpu()->wetBodies().empty()) {
             // 31 DEBUG: the first wet body's pressure window - its centre column (and one 1 m off it), p per cell bottom-up
             auto* g2 = debrisRuntime->gpu();
@@ -14513,6 +14519,15 @@ void Application::registerWaterCommands() {
         const auto* gp = debrisRuntime ? debrisRuntime->gpu() : nullptr;
         r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn}, {"solids", m_waterSolidsOn}, {"wake_rule", waterCore ? waterCore->solidWakeRule() : true},
              {"displace", m_displaceOn},
+             {"slept", [&] {   // 32: ponds that slept into the record and wake when touched
+                 nlohmann::json s = {{"wake_on_touch", Core::Water::WaterCoreManager::s_wakeOnTouch}};
+                 if (!waterCore) return s;
+                 nlohmann::json boxes = nlohmann::json::array();
+                 for (const auto& v : waterCore->sleptVolumes()) boxes.push_back({v.lo.x, v.lo.y, v.lo.z, v.hi.x, v.hi.y, v.hi.z});
+                 const auto& ws = waterCore->sleptWakeStats();
+                 s["boxes"] = boxes; s["woken"] = ws.woken; s["woken_empty"] = ws.wokenEmpty; s["refused"] = ws.refused;
+                 s["last_wake_ms"] = ws.lastMs; s["max_wake_ms"] = ws.maxMs; s["last_error"] = ws.lastError;
+                 return s; }()},
              {"pressure_force", [&] {   // 31: the windows asked and written, and what the debris ticks did with them (the last frame read back)
                  const auto& ps = waterCore ? waterCore->pressureWindowStats() : Core::Water::WaterCoreManager::PressureWindowStats{};
                  return nlohmann::json{{"on", m_pressureForceOn}, {"targets", waterCore && waterCore->pressureWindowTargetsSet()},

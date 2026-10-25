@@ -37,6 +37,9 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     if (!snapCellSize(cellSize, &h)) { if (err) *err = "cellSize must be 1, 1/3, 1/9, 1/27 or 1/81 (a cell that does not divide a microcube would sit half inside a wall)"; return 0; }
     const int per = static_cast<int>(std::lround(1.0f / h));
     const glm::ivec3 lo = glm::min(minVoxel, maxVoxel), hi = glm::max(minVoxel, maxVoxel);
+    // 32: a new volume over a remembered (slept) box replaces it - two volumes would wake over the same record
+    m_slept.erase(std::remove_if(m_slept.begin(), m_slept.end(), [&](const SleptVolume& s) {
+        return glm::all(glm::lessThanEqual(s.lo, hi)) && glm::all(glm::greaterThanEqual(s.hi, lo)); }), m_slept.end());
     const glm::ivec3 dims = (hi - lo + glm::ivec3(1)) * per;
     const size_t cells = static_cast<size_t>(dims.x) * dims.y * dims.z;
     if (transport != "eulerian" && transport != "flip") { if (err) *err = "transport must be 'eulerian' or 'flip'"; return 0; }
@@ -369,7 +372,8 @@ void WaterCoreManager::update(float dt) {
     // first - sleep() destroys. A refused write-back (held or non-resident columns) leaves the
     // volume alive and is reported through the drained records, never silent.
     std::vector<int> slept;
-    for (const auto& av : m_avs) if (av->autoSleep && isAsleep(*av) && !m_pool.anyFor(av->id) && !(av->ripple && !av->ripple->asleep())) slept.push_back(av->id);   // 21: not with droplets in flight; 22 (F5): nor with rings running
+    const double nowS = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    for (const auto& av : m_avs) if (av->autoSleep && isAsleep(*av) && !m_pool.anyFor(av->id) && !(av->ripple && !av->ripple->asleep()) && nowS >= av->noSleepBefore) slept.push_back(av->id);   // 32: not inside a woken volume's grace   // 21: not with droplets in flight; 22 (F5): nor with rings running
     for (int id : slept) {
         WriteBackRecord rec = sleep(id, false);
         if (!rec.ok) { for (auto& av : m_avs) if (av->id == id) av->autoSleep = false; }   // once: do not retry every tick
@@ -498,6 +502,12 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     rec.bodyId = m_bodies.credit(written, before, m_bakeBodyAt);
     rec.ok = true;
     const glm::ivec3 lo = av->minVoxel, hi = av->maxVoxel;
+    if (const AvRecord* ar = find(id)) {   // 32: remembered - a disturbance inside the box wakes it from the record
+        SleptVolume sv; sv.lo = lo; sv.hi = hi; sv.cellSize = ar->cellSize; sv.transport = av->transport; sv.backend = ar->backend;
+        sv.sweeps = ar->gpuSweeps; sv.partialWake = ar->partialWake; sv.recordTiles = ar->recordTiles; sv.tallBandM = ar->tallBandM;
+        m_slept.erase(std::remove_if(m_slept.begin(), m_slept.end(), [&](const SleptVolume& s) { return s.lo == lo && s.hi == hi; }), m_slept.end());
+        m_slept.push_back(std::move(sv));
+    }
     destroy(id);
     buildRecordTilesNow(lo, hi);   // §27 W1a: the record draws these columns in the frame the volume stops drawing them
     return rec;
@@ -978,6 +988,56 @@ WaterCoreManager::PressureWindowStats WaterCoreManager::setPressureWindows(const
     for (auto& [av, list] : per) m_gpu->setPressureWindows(*av->gpuVol, std::move(list));
     m_pwStats = st;
     return st;
+}
+
+std::vector<std::pair<glm::vec3, glm::vec3>> WaterCoreManager::sleptBoxesWorld() const {
+    std::vector<std::pair<glm::vec3, glm::vec3>> out;
+    for (const SleptVolume& s : m_slept) out.push_back({glm::vec3(s.lo), glm::vec3(s.hi) + glm::vec3(1.0f)});
+    return out;
+}
+
+int WaterCoreManager::wakeSlept(size_t i) {
+    const auto t0 = std::chrono::steady_clock::now();
+    const SleptVolume sv = m_slept[i];
+    m_slept.erase(m_slept.begin() + static_cast<long>(i));   // woken (or found empty): forgotten either way
+    std::string err;
+    const int id = create(sv.lo, sv.hi, sv.cellSize, sv.transport.empty() ? "eulerian" : sv.transport, &err, sv.backend.empty() ? "auto" : sv.backend, sv.sweeps);
+    if (!id) { ++m_sleptWake.refused; m_sleptWake.lastError = err; return 0; }
+    setPartialWake(id, sv.partialWake);
+    setTallBand(id, sv.tallBandM);
+    if (sv.recordTiles) setRecordTiles(id, true);
+    const double seeded = seedFromSpans(id);
+    if (seeded <= 0.0) { destroy(id); ++m_sleptWake.wokenEmpty; return 0; }   // the record there is gone (drained, dug away)
+    for (auto& av : m_avs) if (av->id == id)
+        av->noSleepBefore = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kWokenNoSleepS;
+    ++m_sleptWake.woken;
+    m_sleptWake.lastMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    m_sleptWake.maxMs = std::max(m_sleptWake.maxMs, m_sleptWake.lastMs);
+    return id;
+}
+
+std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSolid>& bodies) {
+    std::vector<int> ids;
+    if (!s_wakeOnTouch || m_slept.empty() || bodies.empty()) return ids;
+    for (size_t i = m_slept.size(); i-- > 0;) {
+        const glm::vec3 lo(m_slept[i].lo), hi = glm::vec3(m_slept[i].hi) + glm::vec3(1.0f);
+        bool touched = false;
+        for (const MovingSolid& b : bodies)
+            if (glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi))) { touched = true; break; }
+        if (touched) { const int id = wakeSlept(i); if (id) ids.push_back(id); }
+    }
+    return ids;
+}
+
+std::vector<int> WaterCoreManager::wakeSleptNear(const glm::vec3& c, float radius) {
+    std::vector<int> ids;
+    if (!s_wakeOnTouch || m_slept.empty()) return ids;
+    for (size_t i = m_slept.size(); i-- > 0;) {
+        const glm::vec3 lo(m_slept[i].lo), hi = glm::vec3(m_slept[i].hi) + glm::vec3(1.0f);
+        const glm::vec3 q = glm::clamp(c, lo, hi);
+        if (glm::length(q - c) <= radius) { const int id = wakeSlept(i); if (id) ids.push_back(id); }
+    }
+    return ids;
 }
 
 void WaterCoreManager::markWritten(Av& av, const glm::vec3* wakeCentre, float wakeRadius) {
@@ -2100,7 +2160,15 @@ uint64_t WaterCoreManager::fieldsSignature(int x0, int z0, int x1, int z1) const
         ++owners;
         mix(static_cast<uint64_t>(f.source)); if (!s_signatureIgnoresVersionForTest) mix(f.version);
     }
-    if (owners == 0) return kNoFieldsSignature;
+    {   // 32: where no field owns a column, columnWater reads the record - the tile's key carries what the record holds there
+        bool recorded = false;
+        for (int cz = floorDiv(z0, 32); cz <= floorDiv(z1, 32); ++cz)
+            for (int cx = floorDiv(x0, 32); cx <= floorDiv(x1, 32); ++cx) {
+                const RecordCol& e = recordCol(cx, cz);
+                if (e.any) { recorded = true; mix(e.gen); mix((static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz)); }
+            }
+        if (owners == 0 && !recorded) return kNoFieldsSignature;
+    }
     return sig <= kNoFieldsSignature ? sig + 2 : sig;   // never 0 (unknown) or 1 (no fields)
 }
 
@@ -2120,7 +2188,12 @@ bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& f
         for (int k = 0; k < per; ++k) for (int i = 0; i < per; ++i) {
             const SurfaceColumn& c = f.at(bx + i, bz + k);
             const int runs = static_cast<int>(c.runs + 0.5f);
-            if (runs <= 0) continue;
+            if (runs <= 0) {
+                // 32: a recorded tile's column inside a live volume (runs -1, the record's level in top[0] over bottom[0], 27.15) is
+                // water - read as dry, a floater over a recorded tile sank whatever the camera did
+                if (c.runs < 0.0f && c.top[0] > c.bottom[0]) { top = std::max(top, c.top[0]); ++wet; }
+                continue;
+            }
             if (anyClear && c.bodyAtSurface > 0.0f) continue;
             top = std::max(top, c.top[std::min(runs, kSurfaceMaxRuns) - 1]);
             sum += glm::vec2(c.u, c.w); ++wet;
@@ -2129,7 +2202,45 @@ bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& f
         surfaceY = top; flow = sum / static_cast<float>(wet);
         return true;
     }
+    // 32: no field owns the column - the record itself (the chunk spans), wherever the camera is
+    if (recordColumnWater(wx, wz, surfaceY)) { flow = glm::vec2(0.0f); return true; }
     return false;
+}
+
+const WaterCoreManager::RecordCol& WaterCoreManager::recordCol(int cx, int cz) const {
+    const uint64_t key = (static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz);
+    RecordCol& e = m_recordCols[key];
+    const uint64_t rev = m_spanRevision ? m_spanRevision() : 0;
+    const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    if (e.rev == rev && e.t >= 0.0 && now - e.t < kRecordColumnTtlS) return e;
+    std::vector<float> top(1024, -1e30f);
+    bool any = false;
+    if (m_spanReader) {
+        // every height: one reader call per 32 x 32 chunk column (it assembles the column's chunks once)
+        std::vector<ColumnRuns> runs;
+        const int x0 = cx * 32, z0 = cz * 32;
+        m_spanReader(glm::ivec3(x0, -128, z0), glm::ivec3(x0 + 31, 1023, z0 + 31), runs);
+        for (const ColumnRuns& c : runs) {
+            const int lx = c.x - x0, lz = c.z - z0;
+            if (lx < 0 || lz < 0 || lx > 31 || lz > 31) continue;
+            for (const ColumnRun& r : c.runs)
+                if (r.topY > r.bottomY + 1e-4f) { float& t = top[static_cast<size_t>(lx + 32 * lz)]; t = std::max(t, r.topY); any = true; }
+        }
+    }
+    if (top != e.top) { e.gen = ++m_recordGen; e.top.swap(top); }
+    e.any = any; e.rev = rev; e.t = now;
+    return e;
+}
+
+bool WaterCoreManager::recordColumnWater(int wx, int wz, float& surfaceY) const {
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    const int cx = floorDiv(wx, 32), cz = floorDiv(wz, 32);
+    const RecordCol& e = recordCol(cx, cz);
+    if (!e.any) return false;
+    const float t = e.top[static_cast<size_t>((wx - cx * 32) + 32 * (wz - cz * 32))];
+    if (t < -1e29f) return false;
+    surfaceY = t;
+    return true;
 }
 
 bool WaterCoreManager::columnSurfaceStats(int wx, int wz, ColumnSurfaceStats& out) const {

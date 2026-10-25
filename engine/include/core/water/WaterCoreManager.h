@@ -414,6 +414,28 @@ public:
     /// volume's stands). 0 = a field there carries no version (unknown - the caller must rebuild). The debris water tiles' cache key.
     uint64_t fieldsSignature(int x0, int z0, int x1, int z1) const;
     static constexpr uint64_t kNoFieldsSignature = 1;   ///< 27.21: no field owns a column there (columnWater answers false for all of them)
+    /// 32 (docs/WaterCore.md 32): RECORDED water read straight from the record (the chunk spans) - the highest run's top at world
+    /// column (wx, wz) - wherever the camera is. columnWater falls back to it where no field owns the column (the record's draw
+    /// tiles exist only near the camera: a floater thrown into a slept pond 100 m from the camera sank). Cached per 32 x 32 chunk
+    /// column, re-read when the span revision moves or the entry is older than kRecordColumnTtlS (chunks stream in without a bump).
+    bool recordColumnWater(int wx, int wz, float& surfaceY) const;
+    static constexpr double kRecordColumnTtlS = 2.0;
+    /// 32: a volume that slept into the record remembers its box and its settings; a body moving through the box, or a blast that
+    /// reaches it, wakes it again from the record (the same box and settings, seeded from the spans) - the splash, the ripples and
+    /// the water's push need a volume. Forgotten when the box is destroyed by hand or woken with nothing in it.
+    struct SleptVolume { glm::ivec3 lo{0}, hi{0}; float cellSize = 1.0f; std::string transport, backend; int sweeps = 0;
+                         bool partialWake = true, recordTiles = false; float tallBandM = 0.0f; };
+    const std::vector<SleptVolume>& sleptVolumes() const { return m_slept; }
+    /// the slept boxes as (lo, hi + 1) world corners - handed to the debris solver with the live ones, so a body inside one reports
+    std::vector<std::pair<glm::vec3, glm::vec3>> sleptBoxesWorld() const;
+    /// wake every slept volume a moving body overlaps / a blast reaches; returns the ids made
+    std::vector<int> wakeSleptTouching(const std::vector<MovingSolid>& bodies);
+    std::vector<int> wakeSleptNear(const glm::vec3& centre, float radius);
+    struct SleptWakeStats { long woken = 0, wokenEmpty = 0, refused = 0; double lastMs = 0.0, maxMs = 0.0; std::string lastError; };
+    const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }
+    static inline bool s_wakeOnTouch = true;   ///< 32: OFF = a slept volume stays in the record whatever touches it (the A/B control)
+    static constexpr double kWokenNoSleepS = 2.0;   ///< 32: a woken volume does not sleep again for this long (it woke still: the body
+                                                    ///< that woke it is still falling in, and re-sleeping first would wake it again)
     /// 27.21 TEST ONLY (the red control): the signature leaves out the fields' versions - moving water keeps stale debris tiles.
     static inline bool s_signatureIgnoresVersionForTest = false;
     /// 26.20 measurement: the same column's top run over its WET sub-columns - the mean, the lowest and the highest top, and how
@@ -593,6 +615,7 @@ private:
         bool gpuStale = false;         // the GPU copy is newer than the grid (a step ran, no download yet)
         double gpuLastDownloadSec = -1.0;
         bool autoSleep = true;         // Phase D
+        double noSleepBefore = 0.0;    // 32: a woken volume's grace (steady seconds) - auto-sleep waits for it
         double seededMass = 0.0;
         std::vector<WaterBodyTable::ColumnMass> seededColumns;   // per-column seed for the body credit
         WaterSurfaceField field;        // Phase F: the last surface field
@@ -644,6 +667,13 @@ private:
     void refreshOccupancyLocal(Av& av, const std::vector<SolidsChangeBox>& boxes);
     std::unique_ptr<WaterCoreGpu> m_gpu;
     PressureWindowStats m_pwStats;   // 31: the last setPressureWindows
+    std::vector<SleptVolume> m_slept;   // 32
+    SleptWakeStats m_sleptWake;         // 32
+    struct RecordCol { uint64_t rev = ~0ull; double t = -1.0; uint64_t gen = 0; bool any = false; std::vector<float> top; };   // 32
+    mutable std::unordered_map<uint64_t, RecordCol> m_recordCols;
+    mutable uint64_t m_recordGen = 0;
+    const RecordCol& recordCol(int cx, int cz) const;
+    int wakeSlept(size_t i);
     std::unique_ptr<RippleGpu> m_rgpu;   // 25.34 (declared after m_gpu: torn down first)
     bool m_rgpuOn = true;
     std::string m_rgpuErr;

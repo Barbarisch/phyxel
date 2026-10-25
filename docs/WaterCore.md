@@ -85,8 +85,9 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
    core cannot carry a swell).
 
 **Open small-body items** (polish and features; none blocks the path above):
-- *Found 2026-10-24 (31.9):* debris cannot see RECORDED water beyond 48 m of the camera and does not wake it (a floater thrown into
-  a pond that has slept sinks when the camera is far); the tall-cell floor depends on the volume's box (17 cm in a dam break).
+- *Found 2026-10-24 (31.9):* debris could not see RECORDED water beyond 48 m of the camera, nor wake it - FIXED in 32 (a slept pond
+  is read from the record and wakes when a body moves through it; the wake is a ~33 ms one-off hitch); the tall-cell floor depends
+  on the volume's box (17 cm in a dam break) - open.
 - *M4 (31): the water's push on floaters* - SIGNED OFF and ON by default 2026-10-24 (`water_coupling {pressure_force}`).
 - *Feel:* spiky water on a dropped stone - cause proved, waits for a repeatable rig (26.32) - and a 0.84 m late jet; wood
   floats high and a floating block's pond never sleeps (M4, §20.6); short waves on a half-full cell keep 0.53-0.82 per swing
@@ -9162,6 +9163,64 @@ b. **Debris cannot see recorded water away from the camera, and a body does not 
    camera 100 m away a Wood block sank to the pond's floor; with it at the pond it floated (draft 0.651). Nothing woke the pond
    either way (no volume exists to wake). Behaviour depending on the viewer breaks the chunk / world-position rule, and it is the
    owner's key case (floating debris; disturbing the surface).
+
+## 32. A pond that slept is still water (2026-10-24; 31.9 b). Status: BUILT, ON, not signed off (32.1)
+
+**Why.** The owner's keys are floating debris and disturbing the surface (31). A still pond sleeps into the record within a second
+of being filled (the shipped `auto_sleep`): the volume is DESTROYED, its water written to the chunk spans and the body table
+(`WaterCoreManager::sleep`). After that (measured 2026-10-24, `tools/water_float_rest.py --auto-sleep`): debris read the record only
+through its draw tiles, which exist within 48 m (and +-64 voxels of height) of the CAMERA - with the camera 100 m away a Wood block
+thrown in sank to the floor, with it at the pond it floated (0.651); and nothing woke the pond - no splash, no ripples, no push.
+Also: a recorded tile's columns INSIDE a live volume read dry to debris (`columnWater` took their runs -1 for "owned, dry").
+
+**The design.**
+1. **Debris reads the record itself.** `columnWater` falls back, where no field owns the column, to `recordColumnWater`: the highest
+   run's top in the chunk spans at that world column. Cached per 32 x 32 chunk column (one span-reader call for every height),
+   re-read when the span revision moves or after 2 s (chunks stream in without a bump). The debris tiles' key
+   (`fieldsSignature`) carries the record's generation for the tile, so a tile is rebuilt when the record under it changes. A
+   recorded tile's column inside a live volume reads its record level (27.15's top[0]).
+2. **A slept pond remembers its box.** `sleep()` keeps the box and settings (cell size, transport, backend, sweeps, partial wake,
+   tall band, recording) in `m_slept`. The slept boxes go to the debris solver with the live ones, so a body inside one reports;
+   a body that moves (the displacement gate: faster than 0.6 m/s relative to the water) through a slept box wakes it - the same
+   volume, re-made and seeded from the spans - before it displaces; a blast that reaches one wakes it first. A woken volume does
+   not auto-sleep for 2 s (it woke still: it would sleep before the stone reached it, and be woken again). A new volume over a
+   remembered box replaces it; a box woken with no water left is forgotten.
+3. **Not in this step (stated):** water that was never a volume (a generated lake: spans only) is read by debris (item 1) but not
+   woken - the world's water on the new core is W4; a big lake should wake a PATCH (record tiles, W1), not the whole box.
+
+**Feature Design Keys gate (2026-10-24) - READY.** Chunks: the record cache is per chunk column for cost only; the value is the
+spans' own run top at the world column - identical from any chunk, any camera (the test: `TheRecordIsWaterWhereverTheCameraIs`,
+the same column read with the camera at the pond and 1 km away). Procedural: none (runtime); reads the record any stage wrote.
+API: `water_coupling` echoes `slept {wake_on_touch, boxes, woken, woken_empty, refused, last_wake_ms, max_wake_ms}`;
+`{wake_on_touch: false}` is the A/B control (default on). Test plan: red first - live, the float rig with the shipped auto-sleep
+and the camera 100 m off: the block sank (before); unit/GPU: `WaterRecordedPondTest` (camera-independence; a moving body wakes the
+pond holding the record's water; RED waking off -> nothing); L4: the rig, camera far and near, Wood floats at its draft, the pond
+wakes and sleeps again, a stone sinks. Rig vs shipped: none (auto-sleep on - the shipped default). Tiers: no knob (a tier may not
+decide whether a block floats); the wake is a one-off hitch (a create + seed) - measured and reported.
+
+### 32.1 Result (2026-10-24): BUILT, ON (`water_coupling {wake_on_touch}`, default true), not signed off
+
+**L4, the shipped settings** (auto-sleep ON: the pond sleeps into the record before every drop; the camera where the bench leaves
+it, ~100 m off; `tools/water_float_rest.py --pressure --auto-sleep --settle 3`, evidence `float_rest_s32_far_all.json`). Before:
+the Wood block sank to the floor. After, every drop woke the pond (0 -> 24 m^3 in the volume) and it slept again (25-28 s):
+
+| run | the block | pond asleep again |
+|---|---|---|
+| 1/3 m placed | draft 0.702 | 25.0 s |
+| 1/3 m from 1 m | draft 0.703 | 26.6 s |
+| 1/3 m tumbling | rests (rotated: no draft) | 28.0 s |
+| 1/9 m placed | draft 0.678 | 24.9 s |
+| 1 m placed | draft 0.692 | 25.7 s |
+| stone from 1 m | on the floor (15.1665) | 25.7 s |
+
+**GPU tests** (`WaterRecordedPondTest`): the slept pond's column reads 1.0000 m with the camera at the pond and 1 km away (a dry
+column dry; the record drained there: read dry at once, not after the cache's 2 s); a stone moving into the slept box wakes it -
+the same box, 64.0000 m^3 = the record; a body outside does not; RED (waking off): nothing woke. **The wake's cost: 32.8 ms, once**
+(the 8 x 8 x 3 m test pond, 1/9 m cells: a create and a seed - a one-frame hitch when a stone lands in a slept pond; measured in
+the test, not live). **Gates:** unit water + debris 360/360; GPU water 62/64 (the 2 known).
+
+**Open (stated):** the wake hitch (keep the GPU volume allocated while asleep, or wake a patch - W1); water that was never a volume
+is read but not woken (W4); the tall floor's box-dependence (31.9 a) is unchanged.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
