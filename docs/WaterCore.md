@@ -3,7 +3,7 @@
 > **2026-10-24: §30 is the plan of record - read it first.** The order: small-body water PHYSICS first (floating debris,
 > disturbing the surface - track A, §30.4), then the moonshot LOOK (track B), each measured and fitted into the performance
 > tiers (30 / 60 / 120 fps / above, [`PerformanceTiers.md`](PerformanceTiers.md)). Work outside the plan is logged with its
-> reason in the drift log (§30.5); `/plan-check` checks the work against the plan (§30.6). The "2 ms for all water" budget
+> reason in the drift log (§30.5). The "2 ms for all water" budget
 > below is superseded.
 >
 > **Status (2026-10-19): DESIGN OF RECORD and BUILD LEDGER, branch `feat/water-rethink`.** **Read §0a first** - one page:
@@ -111,7 +111,7 @@ universal level; edits and digging never create water; ripples and splashes carr
 tools to measure and tune current speed; measure, don't argue; nothing is done until the owner sees it in motion; look
 decisions (thresholds, defaults) are the owner's; the order is §30's: small-body physics (track A), then the moonshot look
 (track B), each fitted into the performance tiers (whole-frame numbers always); work outside the plan is logged with its
-reason (§30.5) and `/plan-check` runs after every finished item (§30.6); any `solver_*.comp` change passes `tools/debris_settle_bench.py`; GPU water
+reason (§30.5); any `solver_*.comp` change passes `tools/debris_settle_bench.py`; GPU water
 tests are in `phyxel_integration_tests`, run from the repo root with the bench engine stopped, on Release; separate runs
 drift ~0.2 ms - compare costs only interleaved on the same water.
 
@@ -8922,9 +8922,7 @@ known levers for §30's fit step, with their measured sizes on the awake 60 x 60
    physics-first change of 2026-10-24 was not, which is drift D1.
 4. **The owner's calls stay the owner's:** look decisions, defaults, and any reordering beyond choosing the next item.
    The agent proposes the order inside a track (§30.4). The owner can reorder it at any time.
-5. **`/plan-check` runs** after every finished plan item, whenever the owner asks, and at the start of a session that picks the
-   work up. Each run appends a row to §30.6. A new feature still passes `/design-check` before it is built, and the plan
-   check confirms that it did.
+5. **A new feature passes `/design-check` before it is built.**
 
 ### 30.0a Why the plan changed (the record)
 
@@ -9022,7 +9020,7 @@ row's reason says why it sits where it does.
 | D4 | 2026-10-24 | M4 and §32 were reported with fps only. The push windows' own cost was not separated, and the wake hitch was measured in a test, not live | `PerformanceTiers.md` rule 4: the CPU frame, the GPU frame, fps and the feature's own share, plus what was not measured | none beyond speed | nobody | **no good reason.** Remedy: A3 measures them. OPEN |
 | D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
 
-### 30.6 The plan-check log (`/plan-check`; newest last)
+### 30.6 The plan-check log (newest last)
 
 | # | date | range checked | verdict | drift found | logged as |
 |---|---|---|---|---|---|
