@@ -2236,6 +2236,8 @@ const WaterCoreManager::RecordCol& WaterCoreManager::recordCol(int cx, int cz) c
 }
 
 bool WaterCoreManager::recordColumnWater(int wx, int wz, float& surfaceY) const {
+    // floor division: a truncating index puts x = -1..-31 in chunk column 0 and reads another chunk's water there
+    // (WaterRecordSeam.ThePerChunkReadEqualsEachColumnsOwnSpansAcrossSeams - red with truncation, 2026-10-25)
     auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
     const int cx = floorDiv(wx, 32), cz = floorDiv(wz, 32);
     const RecordCol& e = recordCol(cx, cz);
