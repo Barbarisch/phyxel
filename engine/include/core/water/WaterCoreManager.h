@@ -460,7 +460,12 @@ public:
     std::vector<int> wakeSleptNear(const glm::vec3& centre, float radius);
     struct SleptWakeStats { long woken = 0, wokenEmpty = 0, refused = 0, deferredNotResident = 0; double lastMs = 0.0, maxMs = 0.0; std::string lastError; };
     const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }
-    static inline bool s_wakeOnTouch = true;   ///< 32: OFF = a slept volume stays in the record whatever touches it (the A/B control)
+    /// 32 / 36 (A2d): the shipped default - a body moving into a slept pond wakes it (A1's push then works in a pond that slept).
+    /// Pinned by WaterWakeDefault.TouchingASleptPondWakesItByDefault.
+    static constexpr bool kWakeOnTouchByDefault = true;
+    /// 32: OFF = a slept volume stays in the record whatever touches it (the A/B control). One flag for the process, never saved,
+    /// and NOT reset by a world load (an engine control, not world state): water_coupling echoes it next to the default.
+    static inline bool s_wakeOnTouch = kWakeOnTouchByDefault;
     static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
     /// 34 (A2h, owner 2026-10-25: "keep the more chaotic feature as a turn on, but not by default"): the shipped default of debris
     /// DISPLACEMENT (20 - a moving body rasterized into the volume, shoving its water: heaving waves, thrown water, rocking). Off, the

@@ -116,6 +116,19 @@ TEST(WaterSleptPersist, BadBoxesAreSkippedAndCounted) {
     EXPECT_FLOAT_EQ(m.sleptVolumes()[0].cellSize, 1.0f / 9.0f) << "the cell size is snapped to the exact grid fraction";
 }
 
+// WaterCore 36 (plan A2d, 32.2 item 4): the wake-on-touch default is a pinned contract. Red shown with the constant flipped to false.
+TEST(WaterWakeDefault, TouchingASleptPondWakesItByDefault) {
+    EXPECT_TRUE(WaterCoreManager::kWakeOnTouchByDefault) << "the shipped default is not 'touching wakes' (WaterCore 32/36)";
+    EXPECT_EQ(WaterCoreManager::s_wakeOnTouch, WaterCoreManager::kWakeOnTouchByDefault) << "a test left wake_on_touch changed";
+    // behaviour, with no setting touched: outside the box nothing wakes (the control), inside it wakes holding the record's water
+    WaterCoreManager m([](const glm::ivec3& v) -> int { return v.y < 0 ? 1 : 0; });
+    SpanStore st; st.install(m);
+    sleepPond(m, {0, 0, 0}, {3, 3, 3});
+    EXPECT_TRUE(m.wakeSleptTouching({bodyAt({20.0f, 1.0f, 20.0f})}).empty()) << "a body outside the box woke the pond";
+    EXPECT_EQ(m.wakeSleptTouching({bodyAt({2.0f, 1.0f, 2.0f})}).size(), 1u) << "a body moving into a slept pond did not wake it";
+    EXPECT_NEAR(m.totalMass(), 16.0 * 0.5, 1e-3);
+}
+
 // 35.1 item 2: a wake that could not read its chunks keeps the box (RED before 35: forgotten as "woken empty"); one that read every
 // cell and found no water forgets it (the control: the record there is really gone)
 TEST(WaterSleptPersist, AWakeThatCannotReadItsChunksKeepsTheBox) {

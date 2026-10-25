@@ -14583,7 +14583,8 @@ void Application::registerWaterCommands() {
         r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn}, {"solids", m_waterSolidsOn}, {"wake_rule", waterCore ? waterCore->solidWakeRule() : true},
              {"displace", m_displaceOn},
              {"slept", [&] {   // 32: ponds that slept into the record and wake when touched
-                 nlohmann::json s = {{"wake_on_touch", Core::Water::WaterCoreManager::s_wakeOnTouch}};
+                 nlohmann::json s = {{"wake_on_touch", Core::Water::WaterCoreManager::s_wakeOnTouch},
+                                     {"wake_on_touch_default", Core::Water::WaterCoreManager::kWakeOnTouchByDefault}};   // 36: a session that differs shows
                  if (!waterCore) return s;
                  nlohmann::json boxes = nlohmann::json::array();
                  for (const auto& v : waterCore->sleptVolumes()) boxes.push_back({v.lo.x, v.lo.y, v.lo.z, v.hi.x, v.hi.y, v.hi.z});

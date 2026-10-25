@@ -10,7 +10,7 @@ auto-sleep off so the volume stays awake to be seen - the shipped default would 
     python tools/water_float_video.py [--seconds 14] [--tag m4_look]
 Writes docs/evidence/water_core_m4/<tag>_off.mp4, <tag>_on.mp4 (+ .srt), <tag>_side_by_side.mp4.
 """
-import argparse, pathlib, shutil, subprocess, sys, time
+import argparse, atexit, pathlib, shutil, subprocess, sys, time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from water_bench import Api, camera_set
 import water_float_rest as w
@@ -53,6 +53,10 @@ def main():
         subprocess.run([ff, "-y", "-loglevel", "error", "-f", "gdigrab", "-i", f"title={a.window}", "-frames:v", "1", "-vf", f"crop={a.crop}",
                         str(w.EV / f"{a.tag}_still.png")], check=True)
         print("wrote", w.EV / f"{a.tag}_still.png"); return
+    def restore():   # 36: the A/B controls go back to the shipped defaults even when a run dies part way (one process-wide flag)
+        try: api.debug("water_coupling", {"wake_on_touch": True, "test_refuse_windows": False, "displace": False})
+        except Exception as e: print("restoring the water_coupling defaults failed:", e)
+    atexit.register(restore)
     for name, on in (("off", False), ("on", True)):
         if a.ab == "wake":   # 32: the shipped auto-sleep - the pond is in the record when the blocks arrive; waking off is the control
             w.PRESSURE = True; w.AUTO_SLEEP = True
@@ -105,9 +109,7 @@ def main():
         (w.EV / f"{a.tag}_{name}.srt").write_text("\n".join(lines), encoding="utf-8")
         api.debug("clear_dynamics")
         print(name, "recorded", flush=True)
-    if a.ab == "wake": api.debug("water_coupling", {"wake_on_touch": True})
-    if a.ab == "refuse": api.debug("water_coupling", {"test_refuse_windows": False})
-    if a.ab == "displace": api.debug("water_coupling", {"displace": False})
+    restore()
     style = "FontName=Arial,FontSize=12,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1,Alignment=2,MarginV=6"
     fc = (f"[0:v]crop={a.crop},scale=960:-2,subtitles={a.tag}_off.srt:force_style='{style}'[l];"
           f"[1:v]crop={a.crop},scale=960:-2,subtitles={a.tag}_on.srt:force_style='{style}'[r];[l][r]hstack=inputs=2[v]")

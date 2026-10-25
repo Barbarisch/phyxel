@@ -111,9 +111,9 @@ TEST_F(WaterRecordedPondTest, ASleptPondWakesWhenABodyMovesThroughIt) {
     {   // RED: waking off - the pond stays in the record
         SleptPond p(*this, device, physicalDevice, queue, queueFamilyIndex);
         ASSERT_TRUE(p.ok);
+        struct Restore { ~Restore() { WaterCoreManager::s_wakeOnTouch = WaterCoreManager::kWakeOnTouchByDefault; } } restore;   // 36: never leaks 'off'
         WaterCoreManager::s_wakeOnTouch = false;
         const auto ids = p.mgr.wakeSleptTouching({stone});
-        WaterCoreManager::s_wakeOnTouch = true;
         EXPECT_TRUE(ids.empty() && p.mgr.list().empty()) << "RED CONTROL: woke with waking off";
     }
     SleptPond p(*this, device, physicalDevice, queue, queueFamilyIndex);

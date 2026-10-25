@@ -9010,7 +9010,7 @@ row's reason says why it sits where it does.
 | A2b | The record cache re-reads when chunk residency changes, not only after the 2 s age (item 2) | DONE 2026-10-25 (32.4: design-check NEEDS WORK, seven items folded in - the debris tile cache was a second stale layer; unit test with its red control in the same run; live smoke; residency path unit-depth only, no unload route on the bench) | behaviour must not depend on when a chunk loaded |
 | A2c | Slept boxes survive a save and reload (item 3) - persisted as the boxes themselves (`world_meta.water_slept`), not derived from the pond rows (a row has no y range or settings, and av rows merge ponds; §35); written at every editor save point; a wake that cannot read its chunks keeps the box | BUILT, not signed off (35.2): red/green live on both shutdown paths, unit red/green | a slept pond must still wake after a reload (P7) |
 | A2i | The water core across world and scene changes (found in §35): it is never reset - live volumes and, when the new world has none, body rows carry over; scene loads restore no water meta and scene saves write none; a save with an AWAKE volume writes nothing of its water (not checked) | open | another world's water must never appear in this one; P7 |
-| A2d | Pin the `wake_on_touch` default (item 4) | open | defaults are a pinned contract |
+| A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | open | stacked water: a cave pool, a floor of water |
 | A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | measured, open | a 98 ms frame is visible at every tier. Merged with A7 below |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
@@ -9759,6 +9759,32 @@ not retry within the second; the control (every cell known, the record drained) 
 
 **Not covered (stated):** the async save job and the WorldForge checkpoint write the meta but were not run live; scene transitions
 (A2i); a reload with the box's chunks still streaming was tested in the unit rig only (the bench pond is resident at start).
+
+## 36. A2d - the wake-on-touch default is pinned (32.2 item 4). Status: DONE 2026-10-25 (a test; no behaviour change)
+
+**The design check (2026-10-25): READY**, two findings folded in:
+- **(a)** `s_wakeOnTouch` is one flag for the whole process. A tool that turned it off and then died left the engine running with
+  it off until restart (`water_float_video.py` restored it only at the end of a clean run). Fixed: the tool restores every A/B
+  control at exit (`atexit`), and the integration test that turns it off restores it with a scope guard.
+- **(b)** A world load does not reset it. That is deliberate: it is an engine control, not world state, and it is never saved.
+  The API now echoes the default next to the live value, so a session that differs shows.
+
+**Built:** `WaterCoreManager::kWakeOnTouchByDefault = true` (`s_wakeOnTouch` starts from it); `water_coupling.slept` echoes
+`wake_on_touch_default`; `WaterWakeDefault.TouchingASleptPondWakesItByDefault` (unit, CPU 4 x 4 m pond) checks:
+- the constant;
+- that the live flag equals the constant at test start;
+- with no setting touched, a body 20 m off does NOT wake the pond (the control);
+- a body moving into the box wakes it, holding 8.000 m³.
+
+**Red (the constant flipped to false):** the pin fails ("the shipped default is not 'touching wakes'"), the in-box wake returns 0
+volumes, the mass is 0, and two §35 persist tests that rely on the default fail too. Restored: green. The leak check (the live flag
+at test start) cannot fail in the unit exe today, since no unit test changes the flag. It guards the future, and its red was not
+shown on its own.
+
+**Gates:** unit water + debris 356/356 (368 listed, 12 disabled; §35.2's "357" does not match this count and was not re-derived);
+integration water 62/64 (the two known). **Live (Small bench, read-only, nothing dropped):** `water_coupling {}` echoes
+`wake_on_touch` true / default true; after `{wake_on_touch:false}` false / true, and an empty call keeps it false (omitted =
+unchanged); `{wake_on_touch:true}` restores it. No `solver_*.comp` change.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
