@@ -41,7 +41,7 @@ def summarize(rows, frames):
             "isolated": bucket([r for r in above if r[7] > 0.5]), "not_isolated": bucket([r for r in above if r[7] <= 0.5])}
 
 
-api.debug("water_coupling", {"enabled": True, "solids": True})
+api.debug("water_coupling", {"enabled": True, "solids": True, "displace": True})
 out = {"runs": []}
 for k in range(args.runs):
     pond(); time.sleep(6)

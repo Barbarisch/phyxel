@@ -451,6 +451,11 @@ public:
     const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }
     static inline bool s_wakeOnTouch = true;   ///< 32: OFF = a slept volume stays in the record whatever touches it (the A/B control)
     static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
+    /// 34 (A2h, owner 2026-10-25: "keep the more chaotic feature as a turn on, but not by default"): the shipped default of debris
+    /// DISPLACEMENT (20 - a moving body rasterized into the volume, shoving its water: heaving waves, thrown water, rocking). Off, the
+    /// ripple layer (22) still draws the small splashes and rings; the slept-pond wake does not depend on it. The editor's
+    /// water_coupling {displace} starts from this; pinned by WaterDisplaceDefault.ItIsOffByDefault.
+    static constexpr bool kDisplaceByDefault = false;
     static constexpr double kWokenNoSleepS = 2.0;   ///< 32: a woken volume does not sleep again for this long (it woke still: the body
                                                     ///< that woke it is still falling in, and re-sleeping first would wake it again)
     /// 27.21 TEST ONLY (the red control): the signature leaves out the fields' versions - moving water keeps stale debris tiles.

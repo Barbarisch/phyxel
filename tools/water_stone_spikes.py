@@ -85,7 +85,7 @@ def main():
     for b in ((x0 - 1, z0 - 1, x0 - 1, z0 + w), (x0 + l, z0 - 1, x0 + l, z0 + w), (x0 - 1, z0 - 1, x0 + l, z0 - 1), (x0 - 1, z0 + w, x0 + l, z0 + w)):
         world_job(api, "/api/world/fill", {"x1": b[0], "y1": 16, "z1": b[1], "x2": b[2], "y2": 17, "z2": b[3]}, material="StoneBricks")
     api.debug("water_av_realtime", {"on": True})
-    api.debug("water_coupling", {"enabled": True, "solids": True})
+    api.debug("water_coupling", {"enabled": True, "solids": True, "displace": True})
     api.debug("water_transport", {"carry_measure": True})   # the carry counters (off by default: they cost)
     if args.ripples == "off": api.debug("water_ripples", {"enabled": False})
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
@@ -130,7 +130,7 @@ def main():
                       f"{carry[0]:.1f} {carry[1]:.1f} {carry[2]:.1f} {carry[3]:.1f}", flush=True)
         time.sleep(0.08)
     if rec: rec.wait()
-    if args.ripples == "off": api.debug("water_ripples", {"enabled": True})
+    if args.ripples == "off": api.debug("water_ripples", {"enabled": True, "displace": True})
     (EV / f"{args.tag}.json").write_text(json.dumps({"stone_s": t_stone, "rect": rect, "rows": rows, "dumps": dumps}))
     print("wrote", EV / f"{args.tag}.json")
 

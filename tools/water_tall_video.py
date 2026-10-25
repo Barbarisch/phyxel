@@ -46,7 +46,7 @@ def main():
     for b in ((X0 - 1, Z0 - 1, X0 - 1, Z0 + L), (X0 + L, Z0 - 1, X0 + L, Z0 + L), (X0 - 1, Z0 - 1, X0 + L, Z0 - 1), (X0 - 1, Z0 + L, X0 + L, Z0 + L)):
         world_job(api, "/api/world/fill", {"x1": b[0], "y1": 16, "z1": b[1], "x2": b[2], "y2": 15 + DEPTH, "z2": b[3]}, material="StoneBricks")
     api.debug("water_av_realtime", {"on": True})
-    api.debug("water_coupling", {"enabled": True, "solids": True})
+    api.debug("water_coupling", {"enabled": True, "solids": True, "displace": True})
     out = {"pose": pose, "push_at": [sx, sz], "strength": a.strength, "takes": {}}
 
     def pond(band):

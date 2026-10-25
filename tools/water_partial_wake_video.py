@@ -51,7 +51,7 @@ def main():
     for b in ((x0 - 1, z0 - 1, x0 - 1, z0 + w), (x0 + l, z0 - 1, x0 + l, z0 + w), (x0 - 1, z0 - 1, x0 + l, z0 - 1), (x0 - 1, z0 + w, x0 + l, z0 + w)):
         world_job(api, "/api/world/fill", {"x1": b[0], "y1": 16, "z1": b[1], "x2": b[2], "y2": 17, "z2": b[3]}, material="StoneBricks")   # two high: the water sits inside the rim (level with its top, a trough of a few mm showed the kerb's face as a bright line - "the water pulls away from the edges", the owner)
     api.debug("water_av_realtime", {"on": True})
-    api.debug("water_coupling", {"enabled": True, "solids": True})
+    api.debug("water_coupling", {"enabled": True, "solids": True, "displace": True})
     out = {"pose": pose, "size_m": [l, w], "stone_at": [sx, sz], "stone_edge_m": args.stone, "runs": {}}
 
     def pond(partial):

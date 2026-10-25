@@ -155,3 +155,9 @@ TEST(WaterRecordSeam, TheRecordFollowsResidency) {
     EXPECT_FALSE(mgr.columnWater(40, 40, s, fl)) << "a pond whose chunk left still read wet";
     EXPECT_FALSE(mgr.columnWater(-20, -20, s, fl));
 }
+
+// 34 (A2h, owner 2026-10-25: "keep the more chaotic feature as a turn on, but not by default"): debris displacement ships OFF. The
+// editor's water_coupling {displace} starts from this constant; turning it on is the owner's opt-in, never a silent default flip.
+TEST(WaterDisplaceDefault, ItIsOffByDefault) {
+    EXPECT_FALSE(WaterCoreManager::kDisplaceByDefault) << "debris displacement is the owner's opt-in (WaterCore 34)";
+}

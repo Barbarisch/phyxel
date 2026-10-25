@@ -33,7 +33,7 @@ api.debug("water_av_create", {"x1": 99, "y1": 14, "z1": 11, "x2": 104, "y2": 19,
 api.debug("place_water_box", {"x1": 100, "y1": 15, "z1": 12, "x2": 103, "y2": 15, "z2": 15, "mass": 1.0, "target": "core"})
 api.debug("place_water_box", {"x1": 100, "y1": 16, "z1": 12, "x2": 103, "y2": 16, "z2": 15, "mass": 0.5, "target": "core"})
 api.debug("water_av_realtime", {"on": True})
-api.debug("water_coupling", {"enabled": True, "solids": True})
+api.debug("water_coupling", {"enabled": True, "solids": True, "displace": True})
 api.debug("spawn_gpu_particle", {"x": 101.5, "y": 17.5, "z": 13.5, "material": "Stone", "scale": 1.0 / 3.0, "lifetime": 120.0})
 POSE = {"x": 109.5, "y": 20.5, "z": 13.5, "yaw": 180, "pitch": -38}
 camera_set(api, POSE)

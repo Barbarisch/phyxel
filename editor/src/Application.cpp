@@ -3756,6 +3756,7 @@ void Application::update(float deltaTime) {
                     }
                 waterCore->setRippleBodies(std::move(rippleBodies));
                 std::unordered_map<uint64_t, bool> displacing;
+                std::vector<Core::Water::MovingSolid> waking;   // 34 (A2h): the moving bodies, whatever the displace switch - the wake's list
                 if (!boxes.empty())
                     for (const auto& w : debrisRuntime->gpu()->wetBodies()) {
                         const uint64_t id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);
@@ -3772,16 +3773,18 @@ void Application::update(float deltaTime) {
                         const auto prev = m_displacing.find(id);
                         const bool on = speed > kDisplaceOnSpeed || (prev != m_displacing.end() && prev->second && speed > kDisplaceOffSpeed);
                         displacing[id] = on;
-                        if (!on || !m_displaceOn) continue;   // at rest / bobbing: the table law carries it (see kDisplaceOnSpeed); 31 TEST: off
+                        if (!on) continue;   // at rest / bobbing: the table law carries it (see kDisplaceOnSpeed)
                         Core::Water::MovingSolid m;
                         m.centre = w.centre + w.velocity * w.ageSeconds; m.halfExtents = w.halfExtents; m.velocity = w.velocity; m.fresh = w.fresh;
                         m.id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);   // never 0
-                        solids.push_back(m);
+                        waking.push_back(m);
+                        if (m_displaceOn) solids.push_back(m);   // 34: displacement is opt-in - off, the body is never rasterized
                     }
                 m_displacing.swap(displacing);
-                // 32: a moving body in a slept pond's box wakes it from the record. The UNFILTERED list (33): a slept box has no
-                // volume, so no window - filtered first, a slept pond could never wake
-                waterCore->wakeSleptTouching(solids);
+                // 32: a moving body in a slept pond's box wakes it from the record. The UNFILTERED list (33: a slept box has no
+                // volume, so no window - filtered first, a slept pond could never wake), and built before the displace switch (34: with
+                // the switch off the floater sank to the pond floor - 31.9 b)
+                waterCore->wakeSleptTouching(waking);
                 m_waterCpu.bodies = wms(wt0);
                 std::vector<uint32_t> granted;
                 {   // 31 (M4): the pressure windows - every wet body inside a GPU volume; written by this frame's water calls, read by

@@ -36,8 +36,9 @@ def main():
     ap.add_argument("--tag", default="m4_look")
     # the "push" A/B (the old floating rule vs the push) is REMOVED: the old rule launches blocks, and the owner ruled it is never
     # run (2026-10-25). Its recording stays in docs/evidence/water_core_m4/m4_look_side_by_side.mp4.
-    ap.add_argument("--ab", default="wake", choices=["wake", "refuse"],
-                    help="wake: a pond SLEPT into the record, waking off vs on (32); refuse: the shipped push vs every window refused (33, A2g)")
+    ap.add_argument("--ab", default="wake", choices=["wake", "refuse", "displace"],
+                    help="wake: a pond SLEPT into the record, waking off vs on (32); refuse: the shipped push vs every window refused (33, A2g); "
+                         "displace: debris displacement on (left) vs the shipped default, off (right) - auto-sleep on, as shipped (34, A2h)")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
     if not ff: raise SystemExit("ffmpeg not on PATH")
@@ -58,12 +59,19 @@ def main():
             api.debug("water_coupling", {"wake_on_touch": on})
         elif a.ab == "refuse":   # 33: both sides are physically sane (measured, a2g_green_wood.json) - the push vs the safe fallback
             w.PRESSURE = True; w.AUTO_SLEEP = False
+        elif a.ab == "displace":   # 34: ONE variable - left displacement on, right off (the new default); both as shipped otherwise
+            w.PRESSURE = True; w.AUTO_SLEEP = True; w.DISPLACE = not on
         else:
             raise SystemExit("only --ab wake (the old floating rule is never run)")
         w.pond(api)
         if a.ab == "refuse": api.debug("water_coupling", {"test_refuse_windows": on})
         camera_set(api, pose)
         time.sleep(4.0)
+        if a.ab == "displace":   # as shipped: the still pond sleeps into the record before anything lands (both halves alike)
+            t_s = time.time()
+            while api.debug("water_av_list").get("volumes") and time.time() - t_s < 40.0: time.sleep(0.5)
+            slept = not api.debug("water_av_list").get("volumes")
+            print(f"  pond {'recorded' if slept else 'STILL AWAKE'} after {time.time() - t_s:.1f} s", flush=True)
         mp4 = w.EV / f"{a.tag}_{name}.mp4"
         rec = subprocess.Popen([ff, "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-t", str(a.seconds), "-i", f"title={a.window}",
                                 "-c:v", "libx264", "-pix_fmt", "yuv420p", str(mp4)])
@@ -76,12 +84,15 @@ def main():
         while rec.poll() is None:
             try: fps = api.get("/api/debug/engine_timing").get("fps")
             except Exception: fps = None
-            rows.append({"t": round(time.time() - t0, 2), "fps": fps})
+            pond_awake = bool(api.debug("water_av_list").get("volumes")) if a.ab == "displace" else None
+            rows.append({"t": round(time.time() - t0, 2), "fps": fps, "awake": pond_awake})
             time.sleep(0.25)
         if a.ab == "wake":
             label = "A SLEEPING POND WAKES WHEN TOUCHED (32)" if on else "A SLEEPING POND, NOT WOKEN (before)"
         elif a.ab == "refuse":
             label = "EVERY PUSH WINDOW REFUSED: THE SAFE FALLBACK (33)" if on else "THE WATER'S PUSH (shipped)"
+        elif a.ab == "displace":
+            label = "DISPLACEMENT OFF (the new default, 34)" if on else "DISPLACEMENT ON (opt-in)"
         else:
             label = "THE WATER'S PUSH (M4)" if on else "THE OLD FLOATING RULE (today's default)"
         lines = []
@@ -89,12 +100,14 @@ def main():
             t1 = rows[i + 1]["t"] if i + 1 < len(rows) else r["t"] + 0.25
             since = r["t"] - td
             when = f"{since:4.1f} s after the drop" if since >= 0 else "before the drop"
-            lines.append(f"{i + 1}\n{srt_time(r['t'])} --> {srt_time(t1)}\n{label}   {when}\n{(r['fps'] or 0):.0f} fps\n")
+            pond = "" if r.get("awake") is None else ("   pond awake" if r["awake"] else "   pond asleep (record)")
+            lines.append(f"{i + 1}\n{srt_time(r['t'])} --> {srt_time(t1)}\n{label}   {when}\n{(r['fps'] or 0):.0f} fps{pond}\n")
         (w.EV / f"{a.tag}_{name}.srt").write_text("\n".join(lines), encoding="utf-8")
         api.debug("clear_dynamics")
         print(name, "recorded", flush=True)
     if a.ab == "wake": api.debug("water_coupling", {"wake_on_touch": True})
     if a.ab == "refuse": api.debug("water_coupling", {"test_refuse_windows": False})
+    if a.ab == "displace": api.debug("water_coupling", {"displace": False})
     style = "FontName=Arial,FontSize=12,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1,Alignment=2,MarginV=6"
     fc = (f"[0:v]crop={a.crop},scale=960:-2,subtitles={a.tag}_off.srt:force_style='{style}'[l];"
           f"[1:v]crop={a.crop},scale=960:-2,subtitles={a.tag}_on.srt:force_style='{style}'[r];[l][r]hstack=inputs=2[v]")

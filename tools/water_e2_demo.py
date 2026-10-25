@@ -42,7 +42,7 @@ def surface():
     return max(abs(y - REST) for y in ys) if ys else None, len(ys)
 
 def drop(tag, coupling):
-    api.debug("water_coupling", {"enabled": coupling})
+    api.debug("water_coupling", {"enabled": coupling, "displace": True})
     make_pond()
     m0 = api.debug("water_av_list")["volumes"][0]["mass"]
     dev0, n = surface()
@@ -81,7 +81,7 @@ out = {"pose": POSE, "backend": args.backend}
 out["coupled"] = drop("e2_coupled", True)
 time.sleep(10)   # the first drop's pieces expire (lifetime 20 s)
 out["control"] = drop("e2_control", False)
-api.debug("water_coupling", {"enabled": True})
+api.debug("water_coupling", {"enabled": True, "displace": True})
 (EV / "e2_demo.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
 for k in ("coupled", "control"):
     r = out[k]

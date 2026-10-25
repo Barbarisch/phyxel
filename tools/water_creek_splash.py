@@ -47,7 +47,7 @@ def main_pond(api, args):
     if not vols: raise SystemExit("start the creek first: python tools/water_creek_bench.py --run, and let it settle")
     vid = vols[0]["id"]
     EV.mkdir(parents=True, exist_ok=True)
-    api.debug("water_coupling", {"enabled": True})
+    api.debug("water_coupling", {"enabled": True, "displace": True})
     api.debug("water_ripples", {"flow_forcing": args.forcing})
     zc = ZC - 0.5 + (0.5 / 3.0)
     xc = int(args.x * 3) / 3.0 + 1.0 / 6.0

@@ -9005,6 +9005,7 @@ row's reason says why it sits where it does.
 | A2 | **A pond that slept is still water** (§32) | BUILT, ON, not signed off. Owner's look: `s32_look_side_by_side.mp4` | entered as drift D2. Under shipped settings A1 failed in any pond that had slept |
 | A3 | **Close A1 and A2's open gates:** the full `/design-check` of §32, and whole-frame CPU and GPU frame times plus water's share for both (the push windows, an awake pond against a slept one, the wake hitch live) | DONE 2026-10-25. Design-check: NEEDS WORK, items A2a-A2f below (32.2). Live costs: 32.3 (the push ~0.01-0.02 ms CPU and ~0.01 ms GPU; the wake stall 33-98 ms) | remedies for D3 and D4. Small, and owed before new work starts |
 | A2g | **No block ever floats up (owner 2026-10-25, a standing rule).** The push's fallback (the table law, 31.2: a body larger than a window, past the 1,024-window cap, or with a stale window) still meets the displacing pump inside an awake pond, and that combination is 31.1's launch. Make the fallback safe, with a red test that forces a fallback while the body displaces. The API's `pressure_force:false` (the old rule) is now REFUSED, and the tools no longer run it | SIGNED OFF 2026-10-25 (§33: design-check NEEDS WORK, seven items folded in; red with a sinking stone; green and a 1,100-block stress). The owner preferred the look of the refused side (33.1) - open question, default unchanged | first, by the owner's rule: "in no circumstance should we be running code that results in voxels floating up" |
+| A2h | **The shoving is a switch, off by default (owner 2026-10-25, §34):** debris displacement (`water_coupling {displace}`) opt-in; the ripple layer, the push, the exchange and the slept-pond wake stay on | BUILT, not signed off (34.2): the wake red/green live, no block rises, 1,100-block pit 75 -> 176 fps; the owner's side-by-side `a2h_look_side_by_side.mp4` to review. Entered by the owner's look call on 33's video, ahead of A2c | the owner: "keep the more chaotic feature as a turn on, but not by default" |
 | A2a | Test: a recorded pond across a chunk-column seam (including negative coordinates) reads the same as each column's own spans (32.2 item 1) | DONE 2026-10-25: `WaterRecordSeam.ThePerChunkReadEqualsEachColumnsOwnSpansAcrossSeams` (unit). An 80 x 80 m recorded pond over the four chunk columns meeting at (0, 0), a level unique to every column, cave runs under some and dry holes in it, 8 dry columns round it: 9,216 columns, 0 mismatched, one reader call per chunk column (16). RED shown: a truncating chunk index (x / 32) fails it at once (column (-47, -48) read wet 1.105 where its own spans are dry); reverted, the floor division's reason written at the site | the chunk rule's pinned test |
 | A2b | The record cache re-reads when chunk residency changes, not only after the 2 s age (item 2) | DONE 2026-10-25 (32.4: design-check NEEDS WORK, seven items folded in - the debris tile cache was a second stale layer; unit test with its red control in the same run; live smoke; residency path unit-depth only, no unload route on the bench) | behaviour must not depend on when a chunk loaded |
 | A2c | Slept boxes survive a save and reload, derived from the persisted pond records (item 3) | open | a slept pond must still wake after a reload (P7) |
@@ -9549,6 +9550,115 @@ baseline `m4_31` and `water26_25` - unchanged.
 **Cost:** the filter is not separately timed (it sits inside `app_water_cpu_ms.pressure`). A refused body costs LESS than a pushed
 one (it is not rasterized): 403 fps vs 216 fps in the recording's two halves. **Not measured:** case e live (the unit test is its
 red); a body over 5.3 m live (it is refused like case c); the frame cost at the stress's moment of over-cap refusal on its own.
+
+## 34. A2h - the shoving is a switch, off by default (owner 2026-10-25). Status: BUILT, not signed off (34.2)
+
+**The owner's call** (on 33's side-by-side): "i thought the right side video looked like better quality physics... there was
+definitely splashes and waves on the right side too. jsut way smaller and less chaotic and messy" - "maybe we can keep the more
+chaotic feature as a turn on, but not by default".
+
+**What the two sides were.** Both sides draw the RIPPLE LAYER (22: sub-cell waves round every wet body - the small splashes and rings
+on the right). The left adds DISPLACEMENT (20: a moving body is rasterized into the volume and shoves its water aside - the heaving
+waves, the water thrown up, the rocking; ~216 vs ~403 fps in that recording). The right had displacement off for every body (and,
+as 33's test, no pressure windows: the table law).
+
+**The change.** Displacement by debris becomes opt-in: `water_coupling {displace}` defaults to **false** (it is today's 31 TEST
+knob, `m_displaceOn`, default true). Kept and ON whatever the switch: the ripple layer, the water's push (31: pressure windows for
+every wet body - in still water it is Archimedes, as the table law; it still handles a tilted or capped body), the exchange (the
+current drags floats), and the WAKE of a slept pond.
+- **The wake must not depend on the switch** (found writing this): today `Application.cpp` builds ONE list of moving bodies and
+  skips it entirely when `m_displaceOn` is false - that list also wakes slept ponds (32). With the switch off, a body moving into a
+  slept pond would no longer wake it: the floater sinks to the floor again (31.9 b). The fix: the wake reads the moving bodies before
+  the switch; the switch filters only what is rasterized (next to A2g's window filter).
+- **Default pinned:** a unit-reachable static (`WaterCoreManager::s_displaceByDefault`-style constant, or the editor's member
+  initializer read by a test) - the pin is a test asserting the shipped default is false, updated in this commit with the reason.
+- **Saved?** No: like every `water_coupling` knob it is a session setting (the bench tools set it explicitly). A per-world or
+  game.json setting is not asked for; stated.
+
+**What the player sees:** smaller, calmer splashes and waves from falling and floating debris (the ripple layer); no heaving or
+thrown water from debris. Blasts (E1: a radial kick into the water) are NOT debris displacement and are unchanged. Characters
+(A4, wading) are not built.
+
+**Tests (red first):**
+1. **The wake with the switch off** (the found defect; unit-reachable through `wakeSleptTouching` with the list the editor builds -
+   the filter's placement is editor code, so it is shown LIVE): Small bench, the pond slept, `displace` off, a 1/3 m Wood block
+   dropped in. RED (today's code with the switch off): the pond stays slept (`slept.woken` unchanged) and the block reads its
+   waterline from the record only. GREEN: `woken` +1, the block floats at draft ~0.70.
+2. **The look, for the owner:** the side-by-side recorded again with ONE variable - left = `displace` on, right = the new default
+   (off) - both with the push and windows as shipped (33's right half also refused the windows; this recording does not).
+3. **No block floats up:** the 33 rig's control/peak check with `displace` off (1/3 m and 1 m Wood): the peak after entry within
+   the displace-on control's + 2 cm, at rest.
+4. **The default pinned** (unit), and `water_float_rest.py` / `water_a2g_safe.py` / `water_float_video.py` set `displace`
+   explicitly so their numbers do not move with the default.
+
+**Tiers:** the switch is a knob with a cost: off is the default at every tier (~403 vs ~216 fps in 33's recording, both whole frame,
+the same scene); on is the richer, messier look - offered, not tiered. Outcome: where a body ends up is the same either way (the push
+and the table law agree in still water, 33.1). Not measured yet with the push on and displacement off.
+
+### 34.1 The design check (2026-10-25): NEEDS WORK - folded in
+
+1. **The pin needs an engine-side default** (the test binaries do not link `phyxel_editor`): `WaterCoreManager::kDisplaceByDefault`
+   (false), which the editor's `m_displaceOn` starts from; the member's old "31 TEST" comment is rewritten as the owner's opt-in.
+2. **"The push stays on" is not what acts in a still pond.** The push lives in a volume's step; a still awake volume makes no calls
+   (A3: 0) and only rasterizing a body (`setSolidsBox`) woke the device volume. With displacement off, a block landing in a still pond
+   gets no fresh window: it floats by the table law without the pump - safe, the same rest (33.1 measured it, and it is the right half
+   of 33's video). The push still acts where the water is already moving (a creek, a stirred pond, the wake's grace). Stated, not
+   changed: waking the volume for windows only would buy cost for the same rest.
+3. **The look is recorded with auto-sleep ON, as shipped.** Prediction: the ripple layer draws round the block while the pond is awake
+   (the wake's grace and any motion); once the pond sleeps back into the record the rings stop - a block still bobbing then shows none.
+   The recording says when the pond slept.
+4. **The impact spray goes with it:** the droplet crown (21) is born from water the grid cannot hold, which debris makes by shoving;
+   with displacement off debris throws next to none. Blasts (E1) still do.
+5. **The red's prediction** (`water_float_rest.py --auto-sleep --no-displace --only wood_third_drop1m` on the binary built BEFORE this
+   change, the pond slept when the block lands): the pond is NOT woken (`pond_woke` false, state "recorded" throughout), and the block
+   floats on the record's level by the table law at draft ~0.70 - nothing rises (the record read is A2b's; a sinking to the floor
+   would mean the record read failed, also a red, not a launch). GREEN (after): `pond_woke` true, the block at draft ~0.70, the peak
+   after entry within the displace-on run's + 2 cm.
+6. **Cost, whole frame, as shipped (windows on, displacement off):** the small pond with one block and the 1,100-block pit
+   (`water_a2g_safe.py stress`), against displacement on.
+
+### 34.2 Results (2026-10-25, Release, Small bench port 8111)
+
+**Built:** `WaterCoreManager::kDisplaceByDefault = false` (the editor's `m_displaceOn` starts from it); `Application.cpp` builds the
+wake's list (`waking`: every moving wet body) before the switch, and the switch filters only what is rasterized; unit pin
+`WaterDisplaceDefault.ItIsOffByDefault`; the measuring tools set `displace` explicitly (the 13 that study the shove's splashes set
+it on, so their numbers do not move); `water_float_video.py --ab displace`; `water_a2g_safe.py --displace on|off`.
+
+| run | pond woke | rest draft | peak after entry | evidence |
+|---|---|---|---|---|
+| RED: the old binary, displace off, slept pond, 1/3 m Wood from 1 m | **no** (recorded throughout) | 0.731 | 16.533 | `float_rest_a2h_red.json` |
+| GREEN: the new binary, the same | **yes**, slept again at 9.9 s | 0.702 | 16.523 | `float_rest_a2h_green.json` |
+| control: displace on, the same | yes, still awake at 20 s (49 columns) | 0.702 | 16.515 | `float_rest_a2h_control_displace_on.json` |
+| 1 m Wood, displace off | yes, slept again at 17.1 s | 0.66-0.72 (last 5 s) | 16.399 | `float_rest_a2h_one_off.json` |
+| 1 m Wood, displace on | yes, still awake at 20 s | 0.67-0.70 | 16.413 | `float_rest_a2h_one_on.json` |
+
+The red is as predicted (the pond stays in the record; the block floats on it - nothing rises); green wakes it. The peak with
+displacement off is within the control's + 2 cm for both sizes (+0.8 cm, -1.4 cm).
+
+**The 1,100-block pit** (`a2g_a2h_stress_{on,off}.json`, the stone gate passed in each run; auto-sleep off, the rig's setting):
+
+| displacement | highest rise above spawn | rasterized <= windows, every sample | fps mean / min | CPU frame mean |
+|---|---|---|---|---|
+| on | -0.85 m (1,080 bodies; 20 slots never logged at the spawn height, not measured) | yes | 75 / 52 | 14.0 ms |
+| off (shipped) | -0.85 m (all 1,100) | yes | **176 / 72** | **6.9 ms** |
+
+**A metric fault found and fixed, nothing rose:** the first pit run read a "max rise" of 1.83 m with displacement on. It is exactly
+17.0 - 15.166: a slot the stone scene's body had held opened the log at the stone's rest, and the stress took a slot's first row
+as its spawn. The stress now trims each slot from its spawn pose (`from_spawn`, as the single drops already did) and counts the
+slots it cannot match. The stone gate, which required a refused displacing body, now accepts none when displacement is off (nothing
+displaces, so the A2g filter is untested there - it is tested with `--displace on`).
+
+**The owner's look:** `a2h_look_side_by_side.mp4` - left displacement on, right off (the new default); auto-sleep ON as shipped,
+the pond slept into the record before the drops in both halves, the pond's state captioned. Predicted ripples-stop-on-re-sleep (34.1
+item 3) was not seen: with five blocks dropped the pond stayed awake the whole 15 s in both halves. Caption fps (the window's
+counter, noisy): left ~170-250, right ~190-570.
+
+**Gates:** unit water + debris 353/353; integration water 62/64 (the two known, `GpuFlipBulkParityAndRunup`,
+`ShortWaveMatchesAllFineAndTheBooksAreExact`). The whole integration exe also fails `SceneIntegrationTest` cases (at least three) ("Game definition
+must be a JSON object") - not water, untouched here, not investigated. No `solver_*.comp` change, so no debris settle bench.
+
+**Not measured:** GPU time per frame in the pit (the tool reads fps and CPU only); the small pond's cost beyond the caption fps;
+debris displacement in a creek (`water_creek_*` now set it on explicitly).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

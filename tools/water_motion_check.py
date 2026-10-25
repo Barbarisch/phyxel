@@ -47,7 +47,7 @@ def make_pond():
     api.debug("place_water_box", {"x1": 100, "y1": 15, "z1": 12, "x2": 103, "y2": 15, "z2": 15, "mass": 1.0, "target": "core"})
     api.debug("place_water_box", {"x1": 100, "y1": 16, "z1": 12, "x2": 103, "y2": 16, "z2": 15, "mass": 0.5, "target": "core"})
     api.debug("water_av_realtime", {"on": True})
-    api.debug("water_coupling", {"enabled": True, "solids": args.solids == "on"})
+    api.debug("water_coupling", {"enabled": True, "solids": args.solids == "on", "displace": True})
 
 def stimulus():
     if args.scenario == "blast":

@@ -69,7 +69,7 @@ def main():
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(60)
     EV.mkdir(parents=True, exist_ok=True)
-    api.debug("water_coupling", {"enabled": True})
+    api.debug("water_coupling", {"enabled": True, "displace": True})
     return main_pond(api, args)
 
 

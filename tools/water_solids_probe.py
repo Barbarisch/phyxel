@@ -34,7 +34,7 @@ def pond():
     api.debug("water_av_realtime", {"on": True})
 
 def run(solids):
-    api.debug("water_coupling", {"enabled": True, "solids": solids})
+    api.debug("water_coupling", {"enabled": True, "solids": solids, "displace": True})
     pond(); time.sleep(6)
     api.debug("water_av_watch", {"points": POINTS})
     api.debug("spawn_gpu_particle", {"x": X, "y": 19.5, "z": Z, "material": "Stone", "scale": 1.0 / 3.0, "lifetime": 4.0})
@@ -60,5 +60,5 @@ for r in range(args.runs):
         print("%-3s frames %4d | entry level min %+.3f | 0.33 m level max %+.3f (splash top %+.3f) | 0.67 m level max %+.3f (top %+.3f) | bodies %s" % (
             mode, o["frames"], o["0.00"]["level_min"], o["0.33"]["level_max"], o["0.33"]["top_max"], o["0.67"]["level_max"], o["0.67"]["top_max"],
             (o["feed"] or {}).get("bodies")), flush=True)
-api.debug("water_coupling", {"solids": True})
+api.debug("water_coupling", {"solids": True, "displace": True})
 (Path(__file__).resolve().parents[1] / "docs" / "evidence" / "water_core_e" / f"{args.tag}.json").write_text(json.dumps(res, indent=1), encoding="utf-8")

@@ -326,8 +326,9 @@ private:
     // 31 (M4, docs/WaterCore.md 31.2): debris inside a GPU volume is pushed by the water's PRESSURE over its faces (pressure windows);
     // OFF = the table law everywhere (the A/B control)
     bool m_pressureForceOn = true;   // ON since 2026-10-24 (owner: "that right one should be the default")
-    bool m_displaceOn = true;        // 31 TEST: false = wet bodies are recorded (boxes set) but never rasterized - the displacement's own
-                                     // pressure (its pump) out of the window, to tell its share of a floater's push from the still water's
+    // 34 (A2h): debris DISPLACEMENT is the owner's opt-in (water_coupling {displace}), off by default - the ripple layer draws the
+    // splashes either way, and the slept-pond wake reads the moving bodies before this switch
+    bool m_displaceOn = Core::Water::WaterCoreManager::kDisplaceByDefault;
     uint32_t m_pressureTag = 0;      // the frame's window tag (written by the water calls, checked by the debris ticks)
     Core::Water::WaterCoreManager::SolidsFeed m_solidsFeed;   // the last frame's feed (water_coupling echo)
     bool m_waterExchangeOn = true;   // E2: debris -> water momentum only (the tiles stay) - a diagnostic split
