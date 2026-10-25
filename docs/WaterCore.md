@@ -9002,8 +9002,14 @@ row's reason says why it sits where it does.
 |---|---|---|---|
 | A1 | **M4 - the water pushes the body** (§31) | SIGNED OFF and ON 2026-10-24 (31.8) | the owner's keys: floating debris |
 | A2 | **A pond that slept is still water** (§32) | BUILT, ON, not signed off. Owner's look: `s32_look_side_by_side.mp4` | entered as drift D2. Under shipped settings A1 failed in any pond that had slept |
-| A3 | **Close A1 and A2's open gates:** the full `/design-check` of §32, and whole-frame CPU and GPU frame times plus water's share for both (the push windows, an awake pond against a slept one, the wake hitch live) | open | remedies for D3 and D4. Small, and owed before new work starts |
-| A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
+| A3 | **Close A1 and A2's open gates:** the full `/design-check` of §32, and whole-frame CPU and GPU frame times plus water's share for both (the push windows, an awake pond against a slept one, the wake hitch live) | design-check DONE 2026-10-24: NEEDS WORK, items A2a-A2f below (32.2). Live costs open | remedies for D3 and D4. Small, and owed before new work starts |
+| A2a | Test: a recorded pond across a chunk-column seam (including negative coordinates) reads the same as each column's own spans (32.2 item 1) | open | the chunk rule's pinned test |
+| A2b | The record cache re-reads when chunk residency changes, not only after the 2 s age (item 2) | open | behaviour must not depend on when a chunk loaded |
+| A2c | Slept boxes survive a save and reload, derived from the persisted pond records (item 3) | open | a slept pond must still wake after a reload (P7) |
+| A2d | Pin the `wake_on_touch` default (item 4) | open | defaults are a pinned contract |
+| A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | open | stacked water: a cave pool, a floor of water |
+| A2f | The wake hitch at a large box, live, whole frame (item 6); if it is too big, W1's patch wake or keeping the volume allocated | open | merged with A7 below |
+| A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
 | A7 | **The wake hitch** (~33 ms once, §32.1) | open | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
@@ -9016,7 +9022,7 @@ row's reason says why it sits where it does.
 |---|---|---|---|---|---|---|
 | D1 | 2026-10-24 | M4 (§31) was built before any track-B look work | the old §30 put the moonshot LOOK first (step 1) | the owner's directive: "the water physics are the primary concern right now" | the owner ("yeah, lets do it") | **good reason, but the plan was not rewritten until later the same day** (breaking rule 3). Rewritten 2026-10-24: track A. CLOSED |
 | D2 | 2026-10-24 | §32, a slept pond is still water | not in the plan. Found while measuring M4 (31.9b) | a defect in signed-off work. Under shipped settings (auto-sleep on) a floater sank in a slept pond whenever the camera was more than 48 m away, so A1's outcome depended on the camera | the agent, under the owner's "take the next step you think is right". Reported to the owner afterwards | **good reason.** Now A2. Awaiting the owner's look |
-| D3 | 2026-10-24 | §32's design-check was written inline, not run as `/design-check` | the gate: `/design-check` before building (as M4 had: NEEDS WORK, seven items) | none beyond speed | nobody | **no good reason.** Remedy: A3 runs it retroactively. OPEN |
+| D3 | 2026-10-24 | §32's design-check was written inline, not run as `/design-check` | the gate: `/design-check` before building (as M4 had: NEEDS WORK, seven items) | none beyond speed | nobody | **no good reason.** Remedy: A3 ran it 2026-10-24 (32.2: NEEDS WORK, seven items, now A2a-A2f and A4). CLOSED |
 | D4 | 2026-10-24 | M4 and §32 were reported with fps only. The push windows' own cost was not separated, and the wake hitch was measured in a test, not live | `PerformanceTiers.md` rule 4: the CPU frame, the GPU frame, fps and the feature's own share, plus what was not measured | none beyond speed | nobody | **no good reason.** Remedy: A3 measures them. OPEN |
 | D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
 
@@ -9286,6 +9292,45 @@ the test, not live). **Gates:** unit water + debris 360/360; GPU water 62/64 (th
 
 **Open (stated):** the wake hitch (keep the GPU volume allocated while asleep, or wake a patch - W1); water that was never a volume
 is read but not woken (W4); the tall floor's box-dependence (31.9 a) is unchanged.
+
+### 32.2 Design-check, run retroactively (plan A3 / drift D3, 2026-10-24): NEEDS WORK, seven items
+
+The full `/design-check` gate was run against the code as built. Evidence is `WaterCoreManager.cpp` (`recordCol` :2210,
+`recordColumnWater` :2235, `fieldsSignature` :2163, `sleep` :505, `wakeSlept*` :999-1041) and `Application.cpp` :3759-3768.
+
+- **Voxel look:** no assets. The woken pond is the same 1/9 m water, so its look carries forward: the body displaces in the
+  same frame it wakes the pond, because `wakeSleptTouching` runs before `setMovingSolids`. PASS.
+- **Chunks:** the record cache is per 32 x 32 chunk column, but the value it holds is per world column (that column's own span
+  run top), so the cache bounds cost only. The tile key mixes in a chunk column's generation, which also bounds cost only.
+  **Two failures:**
+  - **(1)** No test checks a pond across a chunk-column seam. `TheRecordIsWaterWhereverTheCameraIs` tests the camera,
+    not the seam.
+  - **(2)** The cache keys on the span revision and a 2 s age. Its comment admits chunks stream in without a revision bump,
+    so a column in a chunk that just arrived reads dry, or reads its old level, for up to 2 s. Behaviour then depends on
+    when the chunk loaded. The renderer's key (`SpanGridKey`) already carries residency, and this cache should too.
+- **Generation:** none. It reads whatever wrote the record. Order-independent, because each column is a pure read of its
+  spans. **(3)** The slept boxes (`m_slept`) live only in memory. After a save and reload, a slept pond becomes water that
+  is read but never woken, so the world behaves differently across a reload (P7). `WaterBodyTable` already persists a
+  bbox per pond (origin `av`), and the boxes could be derived from that. Whether `m_slept` is cleared on a world or scene
+  change was **not checked**.
+- **API:** `water_coupling {wake_on_touch}`, a bool, with `slept{...}` echoed (boxes, woken counts, wake ms). PASS on
+  echo. **(4)** No test pins the default (true).
+- **Test plan:** red-before-green and a control (waking off) exist at L2 (GPU test) and L4 (the float rig with the shipped
+  auto-sleep, camera 100 m off). The owner's video is `s32_look_side_by_side.mp4`. **(5)** The record read is
+  height-blind: it returns the column's HIGHEST run top, wherever the body is. A body in a cave pool under a recorded pond,
+  or a pool under a recorded floor of water, would read the upper level. The awake path already chooses by height
+  (`wc_body_pressure.comp` `columnLevel`: the highest run whose bottom is below the body's top); the record path does not.
+  No test covers it. Two hard-coded limits are also not stated at their code sites: the reader's range (y -128..1023) and
+  the 2 s age.
+- **Tiers:** no knob, and no tier changes whether a block floats. PASS on outcome. **(6)** The wake re-makes and seeds the
+  WHOLE box, so its hitch grows with the box, up to the 2 M-cell volume cap. It was measured once (32.8 ms, 8 x 8 x 3 m, in
+  the GPU test) and never live, never at a large box, and never as whole-frame CPU and GPU (D4). The cost knob that would
+  fix it is W1's patch wake.
+- **Also found:** **(7)** only GPU debris wakes a slept pond. A character (CPU body) walking into one does not. This
+  matters for wading (A4) and is folded into it.
+
+Items 1-6 are A2a-A2f in §30.4. Item 7 belongs to A4.
+
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
