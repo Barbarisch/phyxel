@@ -952,8 +952,9 @@ WaterCoreManager::SolidsFeed WaterCoreManager::setMovingSolids(const std::vector
     return out;
 }
 
-WaterCoreManager::PressureWindowStats WaterCoreManager::setPressureWindows(const std::vector<PressureAsk>& asks, uint32_t tag) {
+WaterCoreManager::PressureWindowStats WaterCoreManager::setPressureWindows(const std::vector<PressureAsk>& asks, uint32_t tag, std::vector<uint32_t>* granted) {
     PressureWindowStats st; st.tag = tag; st.asked = static_cast<uint32_t>(asks.size());
+    if (granted) granted->clear();
     if (!m_gpu) { m_pwStats = st; return st; }
     std::unordered_map<Av*, std::vector<PressureWindowReq>> per;
     for (auto& avp : m_avs) if (avp->gpuVol && avp->backend == "gpu" && avp->gpuVol->bricked) per[avp.get()];   // every GPU volume: cleared if none
@@ -972,10 +973,11 @@ WaterCoreManager::PressureWindowStats WaterCoreManager::setPressureWindows(const
         const glm::ivec3 o(glm::floor((a.centre - glm::vec3(r)) / h)), m(glm::floor((a.centre + glm::vec3(r)) / h));
         glm::ivec3 dims = m - o + glm::ivec3(1);
         dims.y = 1;   // 31.7: a 2-D map of the water's level over the columns round the body (wc_body_pressure.comp)
-        // the clamps (solver_shared.h): a window wider than the cap, or past either budget, would overrun the fixed buffers
+        // the clamps (solver_shared.h): a window wider than the cap, or past either budget, would overrun the fixed buffers. A refused
+        // body is not rasterized (33, A2g: the editor filters by `granted`) - it keeps the table law and makes no splash
         if (glm::any(glm::greaterThan(dims, glm::ivec3(static_cast<int>(DebrisShared::PRESSURE_WINDOW_MAX_DIM))))) { ++st.tooBig; continue; }
         const uint32_t cells = static_cast<uint32_t>(dims.x * dims.y * dims.z);
-        if (st.windows >= DebrisShared::MAX_PRESSURE_WINDOWS || offset + cells > DebrisShared::PRESSURE_WINDOW_FLOATS) { ++st.overBudget; continue; }
+        if (s_refuseWindowsForTest || st.windows >= DebrisShared::MAX_PRESSURE_WINDOWS || offset + cells > DebrisShared::PRESSURE_WINDOW_FLOATS) { ++st.overBudget; continue; }
         PressureWindowReq q;
         q.originWorld = o; q.originVol = o - home->grid->spec().origin; q.dims = dims;
         if (WaterCoreGpu::s_pwShiftForTest) q.originVol.x += 1;   // TEST: the red control
@@ -983,6 +985,7 @@ WaterCoreManager::PressureWindowStats WaterCoreManager::setPressureWindows(const
         q.pad0 = glm::length(a.halfExtents);   // 31.7: the footprint's radius at any orientation - the ring lies outside it
         q.pad1 = a.centre.y + glm::length(a.halfExtents);   // its top: a column's water is the run starting below it
         per[home].push_back(q);
+        if (granted) granted->push_back(a.slot);
         offset += cells; ++st.windows; st.cells += cells;
     }
     for (auto& [av, list] : per) m_gpu->setPressureWindows(*av->gpuVol, std::move(list));

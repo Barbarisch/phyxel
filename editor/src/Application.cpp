@@ -3766,9 +3766,11 @@ void Application::update(float deltaTime) {
                         solids.push_back(m);
                     }
                 m_displacing.swap(displacing);
-                waterCore->wakeSleptTouching(solids);   // 32: a moving body in a slept pond's box wakes it from the record, then displaces
+                // 32: a moving body in a slept pond's box wakes it from the record. The UNFILTERED list (33): a slept box has no
+                // volume, so no window - filtered first, a slept pond could never wake
+                waterCore->wakeSleptTouching(solids);
                 m_waterCpu.bodies = wms(wt0);
-                { const auto t = WClock::now(); m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f)); m_waterCpu.solids = wms(t); }
+                std::vector<uint32_t> granted;
                 {   // 31 (M4): the pressure windows - every wet body inside a GPU volume; written by this frame's water calls, read by
                     // this frame's debris ticks (one queue, the calls submitted first)
                     const auto tp = WClock::now();
@@ -3781,10 +3783,21 @@ void Application::update(float deltaTime) {
                     std::vector<Core::Water::WaterCoreManager::PressureAsk> asks;
                     if (on) for (const auto& w : gp->wetBodies()) asks.push_back({w.centre + w.velocity * w.ageSeconds, w.halfExtents, glm::length(w.velocity), w.slot});
                     ++m_pressureTag;
-                    waterCore->setPressureWindows(asks, m_pressureTag);
+                    waterCore->setPressureWindows(asks, m_pressureTag, &granted);
                     gp->setPressureForce(on, m_pressureTag);
                     m_waterCpu.pressure = wms(tp);
                 }
+                {   // 33 (A2g, owner 2026-10-25: no block ever floats up): a body is rasterized only if it holds a window this frame. A
+                    // rasterized body is a pump (31.7) and the table law reads the cap it pumps as its waterline (31.1: launched 19.8 m);
+                    // a refused body (outside every GPU volume, wider than a window, past the window cap, no targets yet) keeps the table
+                    // law without the pump - it floats, and makes no splash (its ripples are separate, setRippleBodies)
+                    const std::unordered_set<uint32_t> has(granted.begin(), granted.end());
+                    const size_t before = solids.size();
+                    solids.erase(std::remove_if(solids.begin(), solids.end(), [&](const Core::Water::MovingSolid& m) {
+                        return !has.count(static_cast<uint32_t>((m.id >> 32) & 0x7FFFFFFFull)); }), solids.end());
+                    m_refusedNoWindow = static_cast<uint32_t>(before - solids.size());
+                }
+                { const auto t = WClock::now(); m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f)); m_waterCpu.solids = wms(t); }
             }
             if (camera) waterCore->setViewPoint(camera->getPosition());   // 25.26 RC: ripple windows follow the camera
             { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
@@ -14506,6 +14519,8 @@ void Application::registerWaterCommands() {
         m_pressureForceOn = true;
         if (cmd.params.contains("displace")) m_displaceOn = cmd.params.value("displace", true);   // 31 TEST: bodies recorded but not rasterized
         if (cmd.params.contains("wake_on_touch")) Core::Water::WaterCoreManager::s_wakeOnTouch = cmd.params.value("wake_on_touch", true);   // 32: the A/B control
+        // 33 (A2g) TEST: refuse every pressure window (as over budget) - forces the push's fallback; not saved, echoed
+        if (cmd.params.contains("test_refuse_windows")) Core::Water::WaterCoreManager::s_refuseWindowsForTest = cmd.params.value("test_refuse_windows", false);
         if (cmd.params.value("dump_window", false) && debrisRuntime && debrisRuntime->gpu() && !debrisRuntime->gpu()->wetBodies().empty()) {
             // 31 DEBUG: the first wet body's pressure window - its centre column (and one 1 m off it), p per cell bottom-up
             auto* g2 = debrisRuntime->gpu();
@@ -14541,13 +14556,14 @@ void Application::registerWaterCommands() {
              {"pressure_force", [&] {   // 31: the windows asked and written, and what the debris ticks did with them (the last frame read back)
                  const auto& ps = waterCore ? waterCore->pressureWindowStats() : Core::Water::WaterCoreManager::PressureWindowStats{};
                  return nlohmann::json{{"on", m_pressureForceOn}, {"off_refused", pressureRefused}, {"targets", waterCore && waterCore->pressureWindowTargetsSet()},
+                                       {"test_refuse_windows", Core::Water::WaterCoreManager::s_refuseWindowsForTest},
                                        {"asked", ps.asked}, {"windows", ps.windows}, {"window_cells", ps.cells}, {"fallback_outside", ps.outside},
                                        {"fallback_too_big", ps.tooBig}, {"fallback_over_budget", ps.overBudget}, {"tag", ps.tag},
                                        {"ticks_pushed", gp ? gp->wetStats().pressPushed : 0u}, {"ticks_fell_back", gp ? gp->wetStats().pressFellBack : 0u},
                                        {"ticks_no_window", gp ? gp->wetStats().pressNoWindow : 0u}}; }()},
              {"moving_solids", {{"volumes", sf.volumes}, {"bodies", sf.bodies}, {"cells", sf.rasterCells}, {"body_volume_m3", sf.bodyVolume},
                                 {"fresh_cells", sf.freshCells}, {"wake_cells", sf.wakeCells}, {"cpu_rate_cells", sf.rateCells}, {"cpu_rate_m3s", sf.rate},
-                                {"clamped", sf.clamped}, {"flip_refused", sf.flipRefused},
+                                {"clamped", sf.clamped}, {"flip_refused", sf.flipRefused}, {"refused_no_window", m_refusedNoWindow},
                                 {"wet_bodies", gp ? gp->wetBodies().size() : 0}, {"boxes", gp ? gp->wetStats().boxes : 0u},
                                 {"boxes_dropped", gp ? gp->wetStats().boxesDropped : 0u}, {"records_total", gp ? gp->wetStats().recordsTotal : 0ull},
                                 {"records_dropped", gp ? gp->wetStats().recordsDropped : 0ull}}},

@@ -9004,7 +9004,7 @@ row's reason says why it sits where it does.
 | A1 | **M4 - the water pushes the body** (§31) | SIGNED OFF and ON 2026-10-24 (31.8) | the owner's keys: floating debris |
 | A2 | **A pond that slept is still water** (§32) | BUILT, ON, not signed off. Owner's look: `s32_look_side_by_side.mp4` | entered as drift D2. Under shipped settings A1 failed in any pond that had slept |
 | A3 | **Close A1 and A2's open gates:** the full `/design-check` of §32, and whole-frame CPU and GPU frame times plus water's share for both (the push windows, an awake pond against a slept one, the wake hitch live) | DONE 2026-10-25. Design-check: NEEDS WORK, items A2a-A2f below (32.2). Live costs: 32.3 (the push ~0.01-0.02 ms CPU and ~0.01 ms GPU; the wake stall 33-98 ms) | remedies for D3 and D4. Small, and owed before new work starts |
-| A2g | **No block ever floats up (owner 2026-10-25, a standing rule).** The push's fallback (the table law, 31.2: a body larger than a window, past the 1,024-window cap, or with a stale window) still meets the displacing pump inside an awake pond, and that combination is 31.1's launch. Make the fallback safe, with a red test that forces a fallback while the body displaces. The API's `pressure_force:false` (the old rule) is now REFUSED, and the tools no longer run it | open. In the A3 runs the fallback counters read 0 | first, by the owner's rule: "in no circumstance should we be running code that results in voxels floating up" |
+| A2g | **No block ever floats up (owner 2026-10-25, a standing rule).** The push's fallback (the table law, 31.2: a body larger than a window, past the 1,024-window cap, or with a stale window) still meets the displacing pump inside an awake pond, and that combination is 31.1's launch. Make the fallback safe, with a red test that forces a fallback while the body displaces. The API's `pressure_force:false` (the old rule) is now REFUSED, and the tools no longer run it | BUILT, ON, not signed off 2026-10-25 (§33: design-check NEEDS WORK, seven items folded in; red with a sinking stone; green and a 1,100-block stress). Owner's look: `a2g_look_side_by_side.mp4` | first, by the owner's rule: "in no circumstance should we be running code that results in voxels floating up" |
 | A2a | Test: a recorded pond across a chunk-column seam (including negative coordinates) reads the same as each column's own spans (32.2 item 1) | open | the chunk rule's pinned test |
 | A2b | The record cache re-reads when chunk residency changes, not only after the 2 s age (item 2) | open | behaviour must not depend on when a chunk loaded |
 | A2c | Slept boxes survive a save and reload, derived from the persisted pond records (item 3) | open | a slept pond must still wake after a reload (P7) |
@@ -9026,7 +9026,7 @@ row's reason says why it sits where it does.
 | D2 | 2026-10-24 | §32, a slept pond is still water | not in the plan. Found while measuring M4 (31.9b) | a defect in signed-off work. Under shipped settings (auto-sleep on) a floater sank in a slept pond whenever the camera was more than 48 m away, so A1's outcome depended on the camera | the agent, under the owner's "take the next step you think is right". Reported to the owner afterwards | **good reason.** Now A2. Awaiting the owner's look |
 | D3 | 2026-10-24 | §32's design-check was written inline, not run as `/design-check` | the gate: `/design-check` before building (as M4 had: NEEDS WORK, seven items) | none beyond speed | nobody | **no good reason.** Remedy: A3 ran it 2026-10-24 (32.2: NEEDS WORK, seven items, now A2a-A2f and A4). CLOSED |
 | D4 | 2026-10-24 | M4 and §32 were reported with fps only. The push windows' own cost was not separated, and the wake hitch was measured in a test, not live | `PerformanceTiers.md` rule 4: the CPU frame, the GPU frame, fps and the feature's own share, plus what was not measured | none beyond speed | nobody | **no good reason.** Remedy: A3 measured them, 2026-10-25 (32.3). CLOSED |
-| D6 | 2026-10-25 | During A3's cost runs the agent alternated the push with the OLD floating rule (`pressure_force:false`) as a control, on the owner's visible bench, without warning. Blocks were launched | rule 4 of `PerformanceTiers.md` asked for the push's own cost, and an on/off comparison was the agent's choice of method | none good: a control must itself be physically sane | nobody | **no good reason.** Owner: "in no circumstance should we be running code that results in voxels floating up as if gravity turned off". Remedy: the off rule is refused by the API, the tools compare against fewer or no bodies, the push's own share comes from timers, and A2g makes the fallback safe. CLOSED except A2g |
+| D6 | 2026-10-25 | During A3's cost runs the agent alternated the push with the OLD floating rule (`pressure_force:false`) as a control, on the owner's visible bench, without warning. Blocks were launched | rule 4 of `PerformanceTiers.md` asked for the push's own cost, and an on/off comparison was the agent's choice of method | none good: a control must itself be physically sane | nobody | **no good reason.** Owner: "in no circumstance should we be running code that results in voxels floating up as if gravity turned off". Remedy: the off rule is refused by the API, the tools compare against fewer or no bodies, the push's own share comes from timers, and A2g makes the fallback safe (built 2026-10-25, §33). CLOSED |
 | D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
 
 ### 30.6 The plan-check log (newest last)
@@ -9035,6 +9035,7 @@ row's reason says why it sits where it does.
 |---|---|---|---|---|---|
 | C1 | 2026-10-24 | §30-§32, commits 58b16a82..e20d939f (the owner asked "are you updating the plan, and following the plan?") | DRIFTING. The plan was stale, and two drifts had no logged reason | the plan missed the physics-first order. §32 was unplanned. §32's design-check was inline. Costs were fps-only | D1-D5. The plan was rewritten (this commit) |
 | C2 | 2026-10-25 | after A3, commits 41b5ad14..this one | DRIFTING (logged) | A3's cost runs ran the old floating rule as a control on the owner's bench (D6). Everything else maps to A3 | D6, and new item A2g |
+| C3 | 2026-10-25 | A2g, commits a9a7f618..this one | ON PLAN | everything maps to A2g (§33); `/design-check` ran before building; the red run used only a sinking stone; the owner was warned before each bench run. One support change beside it: `particle_log {max}` (the stress needed every body logged) | - |
 
 ## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: BUILT, SIGNED OFF by the owner and ON by default 2026-10-24 (31.8); two defects found (31.9)
 
@@ -9370,6 +9371,121 @@ none. **Not measured:** the debris solver's integrate pass on its own (the `GPU 
 solver's compute submission may sit outside it); any scene but these two rigs (the realistic play scene, §30.2, is not built);
 a box at the volume cap; a frame-accurate CPU maximum (the stall is read from its own timer, not the frame trace).
 
+
+## 33. A2g - no block ever floats up: the push's fallback made safe (owner 2026-10-25). Status: BUILT, ON, not signed off (33.1)
+
+**The defect.** 31.1's launch needs two things at once, inside an awake volume: the body is RASTERIZED (a displacing body, faster
+than 0.6 m/s relative to the water, `Application.cpp` kDisplaceOnSpeed) and it is pushed by the TABLE LAW (`solver_integrate.comp`
+6c, f from the column's top). The raster is a pump (31.7): it pushes water out of the body's cells and never takes it back, so the
+column's top is the cap over the body, f reads 1, and a floater is lifted out of the water by the water it lifted. M4 fixed it only
+where the body holds a fresh pressure window. It still falls back to the table law, rasterized, when:
+
+| fallback | where decided | today |
+|---|---|---|
+| a. outside every GPU volume (the centre is outside; the body's box overlaps) | `setPressureWindows`, `outside` | rasterized if its box overlaps a volume |
+| b. wider than `PRESSURE_WINDOW_MAX_DIM` (48 columns = 5.3 m at 1/9 m) | `tooBig` | rasterized |
+| c. past `MAX_PRESSURE_WINDOWS` (1,024) or `PRESSURE_WINDOW_FLOATS` | `overBudget` | rasterized |
+| d. no window targets yet (the debris buffers not handed over) | `targets` false | rasterized |
+| e. a fresh window, but a sample unknown (outside the window) | the shader, `pressFellBack` | rasterized, table law on the cap |
+| f. a stale window (older than 3 frames) | the shader, `pressNoWindow` | rasterized only if the water is not stepping - then the pump is not running either |
+
+**The rule (one invariant): a body that pumps the water is pushed by the water's pressure, never by the table law.**
+1. **The editor rasterizes a body only if it holds a pressure window this frame** (cases a-d). The asks are made first;
+   `setPressureWindows` returns which slots got one; the list handed to `setMovingSolids` is filtered by it. **The wake reads the
+   unfiltered list** (`wakeSleptTouching`): a slept box has no volume and so no window, and a filtered wake could never fire (A2
+   undone). A body that just woke a pond is refused for at most the frame of the wake, until the new volume's window exists.
+   A CPU-backend volume serves no windows (`setPressureWindows` is GPU-only), so GPU debris is never rasterized into one - the
+   pump with the table law launches there too. The CPU backend is the reference for the solver tests (which call `setMovingSolids`
+   directly and are unchanged); the editor's volumes are `auto` = GPU. A refused body keeps the table law
+   and does not pump - the law it had for months before M2, which floats a block at its waterline. What the player gives up: a
+   refused body makes no splash and no bow wave (it still makes ripples, 22: `setRippleBodies` is separate). Counted:
+   `water_coupling` echoes `moving_solids.refused_no_window` (bodies, this frame) beside the window stats.
+2. **The shader's fallback inside a window never reads above the ring** (case e): with a fresh window whose sample was unknown,
+   the table law's surface is clamped to the window's ring top (`w.meta.z`, 31.7: the highest real surface round the body, outside
+   its footprint - its own cap is not in it). A ring with no water at all (`meta.z` NaN) gives f = 0 - no water round the body,
+   no buoyancy from the table law. One helper in `water_body_force.glsl` (`wbfFallbackSurface`), so the C++ unit tests
+   run the shader's arithmetic.
+3. Case f needs nothing: no water step, no pump. Stated at the code site.
+
+**Not chosen:** a per-body memory of the last push (needs a per-slot buffer and is wrong for a body that moved); a coarser
+window for big bodies (a larger body loses its splash instead - see open items).
+
+**Red-before-green without anything floating up (the owner's rule holds for the red run too).** A test knob,
+`water_coupling {test_refuse_windows: true}` (refuses every ask as `overBudget`; not saved, echoed, reset on `false`):
+- **Red** (before part 1): a 1/3 m **Stone** dropped from 1 m into the Small bench pond with the knob on. A stone cannot rise under
+  any of these laws (its buoyancy ratio is under 1, so b f g < g at f = 1). Prediction: `refused_no_window` = 0 (not counted yet)
+  and `moving_solids.bodies` >= 1 while it falls through the water - a refused body is rasterized. That is the defect, read
+  without a floater.
+- **Green, step 1 - the gate** (after): the same stone: rasterized bodies 0 while refused, `refused_no_window` >= 1. **No Wood is
+  dropped until this passes** (a wrong part 1 would launch the first Wood in front of the owner).
+- **Green, step 2:** the CONTROL first - a 1/3 m and a 1 m **Wood** block dropped from 1 m with the knob off (the shipped,
+  signed-off push; the splash shows: rasterized bodies >= 1). Its peak after entry (the highest bottom, at 10 Hz, after the first
+  sample with the bottom under the level) is the bound. Then the same drops with the knob on: the peak after entry never exceeds
+  the control's + 2 cm, and each comes to rest floating (|v| < 0.05 m/s by 10 s). A fixed height would fail honestly at the first
+  sample (the drop starts 1 m up) and a real block can pop up after entry - the signed-off push is the reference.
+- **Stress (count; case c as it happens in play):** 1,100 1/3 m Wood blocks, shipped settings, knob off. At every sample:
+  `refused_no_window` = asks - 1,024 while more than 1,024 are wet, and no block's peak after entry exceeds the control's bound
+  (per-block, over all blocks, from `get_dynamic_bodies` or the wet-body readback). Whole frame + water share reported.
+- **For the owner:** the green step 2 recorded (gdigrab, as 31's look), knob on vs off side by side - two floating blocks that
+  look alike.
+- **Unit (part 2):** `WaterBodyForceTest`: a body under its own cap - the raw table-law surface gives f = 1 (the existing control),
+  `wbfFallbackSurface` with the ring top gives the true waterline's f, and a NaN ring gives f = 0. Case e has no live red: it
+  cannot be forced live without a new solver flag; the unit test is its red.
+- **Gates:** `debris_settle_bench.py` (part 2 touches `solver_integrate.comp`), the water suites (unit + integration exe).
+
+**Rig:** the Small bench pond (4 x 4 m, 1.5 m deep, 1/9 m cells, inside one chunk), auto-sleep off so it stays a volume. One
+variable: the knob. Shipped settings otherwise. The owner is warned before the run (blocks will drop into the pond; none rises).
+
+**Tiers:** no knob and no cost of its own (one compare per body per tick on the GPU; the filter is a hash lookup per body on the CPU).
+Every tier the same. The outcome where a body ends up does not change with tier.
+
+**Open, stated:** a body over 5.3 m, or beyond the 1,024th wet body, makes no splash. That is a budget changing a look, and it is
+written at the clamp; if a big falling body must splash, the window's columns can be coarsened for it (a later item, not this one).
+A body whose centre is outside the volume's box (case a) makes no splash there: the box edge shows as "no splash", like A5's box
+dependence; where it ends up does not change (the table law without the pump floats it).
+
+**Design-check (2026-10-25, `/design-check`): NEEDS WORK, seven items, all folded in above:** the wake reads the unfiltered list;
+a NaN ring gives f = 0; the green bound is the shipped push's peak (not a fixed height); the Stone gate before any Wood; the
+1,100-block stress; the owner's recording; the CPU-backend volume and the box edge stated.
+
+### 33.1 Result (2026-10-25): BUILT, ON, not signed off. Owner's look: `a2g_look_side_by_side.mp4`
+
+**Built:** `setPressureWindows(asks, tag, &granted)` returns the slots given a window; `Application.cpp` wakes slept ponds from the
+unfiltered list, then makes the asks, then rasterizes only the granted bodies (`moving_solids.refused_no_window` = the displacing
+bodies refused this frame). `solver_integrate.comp`: a fresh window with an unknown sample uses `wbfFallbackSurface` (the ring top;
+NaN = f 0). Test knob `water_coupling {test_refuse_windows}`. `particle_log {max}` (default 200; the stress logs 1,100). Rig:
+`tools/water_a2g_safe.py`; video: `water_float_video.py --ab refuse`.
+
+**Red (before the fix, knob on, one Stone):** rasterized 1 body with windows 0 and over_budget 1 - a body pumping the water with no
+push window, the defect, read without a floater (the stone sank to the floor, y 15.17). `a2g_red.json`.
+
+**Green** (`a2g_green.json`, `a2g_green_wood.json`, Release, the Small bench):
+
+| scene | rasterized max | windows max | refused_no_window max | peak bottom after entry | rest |
+|---|---|---|---|---|---|
+| Stone 1/3 m, knob ON (the gate) | **0** | 0 | 1 | 16.467 (it sinks; end 15.167) | still |
+| Wood 1/3 m, knob off (control) | 1 | 1 | 0 | 16.450 | still by 2 s |
+| Wood 1/3 m, knob ON | **0** | 0 | 1 | 16.450 (control + 0.000) | still by 2 s |
+| Wood 1 m, knob off (control) | 1 | 1 | 0 | 16.450 | bob 3.5 / 0.8 cm in the 2nd / 3rd 2 s, then still |
+| Wood 1 m, knob ON | **0** | 0 | 1 | 16.450 (control + 0.000) | bob 20 / 10 cm in the 2nd / 3rd 2 s, then still |
+
+No block's bottom rose above where it entered the water, in any scene. The 1 m block under the fallback bobs longer (no pump, so
+no radiated wave to carry its energy away) and comes to the same rest (end centre 16.308 vs 16.307). The 2 s windows are LOG time
+(the position log writes every other frame and its clock sums only those frames' dt, so they are ~4 s of wall time each).
+
+**Stress** (1,100 1/9 m Wood blocks, 11 heaps, the S9 pit, shipped settings): 1,100 bodies logged, all entered; **the highest any
+rose after entry is 0.25 m below its spawn height**; asks max 1,100, windows max 1,024 (the cap), refused_no_window max 76; at
+every sample (60 of them with more than 1,024 asks) every rasterized body held a window. Whole frame: **75 fps mean, 53 min, CPU 14.0 ms** (the 1,100
+bodies' rasterizing and solve; no tier holds 120 there - the 1,100-body pit is a worst case, not a play scene).
+
+**Gates:** water unit 311/311 (with `TheFallbackNeverReadsTheBodysOwnCap`: its red is the raw table law's f = 1 under the cap);
+GPU water integration 62/64 (the two known: `GpuFlipBulkParityAndRunup`, `ShortWaveMatchesAllFine` - as 32.1 recorded);
+`debris_settle_bench` (tag `a2g`): the same 5/8 SETTLES and the same 3 FAILS (drop_pile, blast, box_through_pile) as the M4
+baseline `m4_31` and `water26_25` - unchanged.
+
+**Cost:** the filter is not separately timed (it sits inside `app_water_cpu_ms.pressure`). A refused body costs LESS than a pushed
+one (it is not rasterized): 403 fps vs 216 fps in the recording's two halves. **Not measured:** case e live (the unit test is its
+red); a body over 5.3 m live (it is refused like case c); the frame cost at the stress's moment of over-cap refusal on its own.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

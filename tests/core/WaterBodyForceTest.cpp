@@ -76,6 +76,19 @@ TEST(WaterBodyForce, AWaterCapOverABlockPushesItDown) {
     EXPECT_EQ(r.w, 0.0f) << "nothing under it is water: no drag or current from the cap";
 }
 
+TEST(WaterBodyForce, TheFallbackNeverReadsTheBodysOwnCap) {
+    // 33 (A2g): a body holding a window whose sample was unknown falls back to the table law. Under its own pumped cap the column's
+    // top is the cap's (f = 1, the launch); the fallback's waterline is the ring's surface round it - here the pond at 16.5 with the
+    // block's centre at 16.6 (a 1/3 m block, bottom 16.433): the true f = 0.2. No water in the ring (NaN): f = 0.
+    const float a = 1.0f / 6.0f, cy = 16.6f, ring = 16.5f, capTop = cy + a + 0.3f;
+    EXPECT_GT(tableF(capTop, cy, a), 0.99f) << "the control: the raw table law under the cap counts the block as submerged";
+    EXPECT_NEAR(tableF(BodyForce::wbfFallbackSurface(capTop, ring), cy, a), (ring - (cy - a)) / (2.0f * a), 1e-5f);
+    EXPECT_NEAR(tableF(BodyForce::wbfFallbackSurface(16.45f, ring), cy, a), (16.45f - (cy - a)) / (2.0f * a), 1e-5f)
+        << "a column lower than the ring keeps its own surface (a trough beside the body)";
+    EXPECT_EQ(tableF(BodyForce::wbfFallbackSurface(capTop, std::numeric_limits<float>::quiet_NaN()), cy, a), 0.0f)
+        << "no water round the body: no buoyancy from the table law";
+}
+
 TEST(WaterBodyForce, FullySubmergedIsArchimedesAtAnyDepth) {
     const float a = 1.0f / 6.0f;
     for (float depth : {0.5f, 2.0f, 10.0f}) {

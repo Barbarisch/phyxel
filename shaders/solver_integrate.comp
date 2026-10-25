@@ -156,7 +156,9 @@ void main() {
         // WaterCore 31 (M4): inside an awake GPU volume the push is the PRESSURE over the body's faces (water_body_force.glsl), read
         // from this frame's window at the body's own pose: water over a body presses it down, air under it holds nothing up (31.1:
         // a rising block's own water cap read as its waterline lifted it 3 m, every 1.3 s). No fresh window, or a sample outside it,
-        // keeps the table law below (counted).
+        // keeps the table law below (counted). 33 (A2g): a body with NO window is never rasterized (the editor filters the moving
+        // solids by the windows granted), so its column holds no cap of its own; a stale window (older than PRESSURE_WINDOW_MAX_AGE)
+        // means the water has not stepped, and an unstepped volume pumps nothing.
         bool pressed = false;
         b.flags &= ~PARTICLE_WATER_UNSETTLED;
         if (pc.pressure.y != 0u && inWaterBox) {
@@ -179,7 +181,11 @@ void main() {
                         // 31.8: a FLOATER off balance does not sleep (a sinker on the floor is always "off balance" - the floor holds the rest)
                         if (mat.buoyancy > 1.0 && abs(acc.y + pc.gravity) > WATER_UNSETTLED_ACC) b.flags |= PARTICLE_WATER_UNSETTLED;
                         atomicAdd(pressPushed, 1u);
-                    } else atomicAdd(pressFellBack, 1u);
+                    } else {
+                        // 33 (A2g): the fallback never reads the body's own cap - the waterline is at most the ring's surface
+                        f = clamp((wbfFallbackSurface(surf, w.meta.z) - (b.pos.y - r)) / (2.0 * r), 0.0, 1.0);
+                        atomicAdd(pressFellBack, 1u);
+                    }
                 }
             }
             if (!fresh) atomicAdd(pressNoWindow, 1u);

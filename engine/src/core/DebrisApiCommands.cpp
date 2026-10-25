@@ -149,7 +149,9 @@ bool handleDebugDynamicSpawnCommand(
         const std::string action = cmd.params.value("action", "");
         const std::string file   = cmd.params.value("file", "particle_positions.csv");
         if (action == "start") {
-            response = {{"success", gpuParticles->startPositionLog(file)}, {"action", "start"}, {"file", file}};
+            // "max": active bodies written per frame (default 200; clamped to the solver's cap - every line is ~80 bytes a frame)
+            const uint32_t maxBodies = static_cast<uint32_t>(std::clamp(cmd.params.value("max", 200), 1, 20000));
+            response = {{"success", gpuParticles->startPositionLog(file, maxBodies)}, {"action", "start"}, {"file", file}, {"max", maxBodies}};
         } else if (action == "stop") {
             gpuParticles->stopPositionLog();
             response = {{"success", true}, {"action", "stop"}};

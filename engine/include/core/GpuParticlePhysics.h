@@ -322,7 +322,7 @@ public:
 
     // ---- Position logging (GPU readback to CSV file) ----
     /** Start logging particle positions to a file. Returns true if logging started. */
-    bool startPositionLog(const std::string& filePath);
+    bool startPositionLog(const std::string& filePath, uint32_t maxBodies = 200);   ///< maxBodies: active bodies written per frame
     /** Stop logging and close the file. */
     void stopPositionLog();
     bool isPositionLogging() const { return m_positionLogging; }
@@ -630,6 +630,7 @@ private:
     bool             m_readbackPending       = false; // true after copy cmd recorded
     std::ofstream    m_posLogFile;
     uint32_t         m_posLogFrameCounter    = 0;
+    uint32_t         m_posLogMax             = 200;   // active bodies written per logged frame (WaterCore 33: the stress logs 1,100)
 
     // ---- Settle probe readback ring ----
     // Per tick: GpuParticle[MAX_PARTICLES] | header uint[PROBE_HDR_UINTS] | color uint[MAX_PARTICLES]

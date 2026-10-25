@@ -1220,7 +1220,7 @@ void GpuParticlePhysics::update(float dt) {
 
         // Particle lines: P,frame,slot,pos_x,pos_y,pos_z,prev_x,prev_y,prev_z,flags,material
         uint32_t logged = 0;
-        for (uint32_t i = 0; i < m_highWaterSlot && logged < 200; ++i) {
+        for (uint32_t i = 0; i < m_highWaterSlot && logged < m_posLogMax; ++i) {
             if (!(particles[i].flags & 1u)) continue; // not active
             const auto& p = particles[i];
             m_posLogFile << "P," << m_posLogFrameCounter
@@ -1919,8 +1919,9 @@ void GpuParticlePhysics::writeColliderBuffer() {
 // Position logging
 // ============================================================
 
-bool GpuParticlePhysics::startPositionLog(const std::string& filePath) {
+bool GpuParticlePhysics::startPositionLog(const std::string& filePath, uint32_t maxBodies) {
     if (m_positionLogging) stopPositionLog();
+    m_posLogMax = maxBodies;
     m_posLogFile.open(filePath, std::ios::out | std::ios::trunc);
     if (!m_posLogFile.is_open()) {
         LOG_ERROR("GpuParticlePhysics", "Failed to open position log: {}", filePath);

@@ -339,6 +339,7 @@ private:
     // gate, the slept-pond wake), solids = setMovingSolids (rasterizing the displacing bodies), pressure = the M4 window asks,
     // exchange = the momentum handed back to the water
     struct WaterCpuMs { double total = 0, update = 0, feed = 0, motion = 0, bodies = 0, solids = 0, pressure = 0, exchange = 0; } m_waterCpu;
+    uint32_t m_refusedNoWindow = 0;   // 33 (A2g): displacing bodies NOT rasterized this frame because they hold no pressure window
     long m_waterWakes = 0;                 // E2 (19.6): wake requests sent to sleeping debris over moving water
     Core::Water::BedQuery shoreBedQuery();                              // the micro-occupancy bed both bands use
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering

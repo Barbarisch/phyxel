@@ -330,7 +330,9 @@ public:
     /// GPU volume's box - its bounding sphere + max(3 cells, speed x 0.1 s) (the centre is predicted from a record 2-3 frames old).
     /// Refused, counted: outside every GPU volume, wider than PRESSURE_WINDOW_MAX_DIM, past MAX_PRESSURE_WINDOWS or
     /// PRESSURE_WINDOW_FLOATS. An empty list clears every volume's windows.
-    PressureWindowStats setPressureWindows(const std::vector<PressureAsk>& asks, uint32_t tag);
+    /// `granted` (optional) receives the solver slot of every ask that got a window: 33 (A2g) - only those bodies may be rasterized,
+    /// since a body that pumps the water under the table law is lifted by its own cap (31.1's launch).
+    PressureWindowStats setPressureWindows(const std::vector<PressureAsk>& asks, uint32_t tag, std::vector<uint32_t>* granted = nullptr);
     void setPressureWindowTargets(VkBuffer wins, VkDeviceSize winsBytes, VkBuffer data, VkDeviceSize dataBytes, VkBuffer of, VkDeviceSize ofBytes) {
         if (m_gpu) m_gpu->setPressureWindowTargets(wins, winsBytes, data, dataBytes, of, ofBytes);
     }
@@ -434,6 +436,7 @@ public:
     struct SleptWakeStats { long woken = 0, wokenEmpty = 0, refused = 0; double lastMs = 0.0, maxMs = 0.0; std::string lastError; };
     const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }
     static inline bool s_wakeOnTouch = true;   ///< 32: OFF = a slept volume stays in the record whatever touches it (the A/B control)
+    static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
     static constexpr double kWokenNoSleepS = 2.0;   ///< 32: a woken volume does not sleep again for this long (it woke still: the body
                                                     ///< that woke it is still falling in, and re-sleeping first would wake it again)
     /// 27.21 TEST ONLY (the red control): the signature leaves out the fields' versions - moving water keeps stale debris tiles.

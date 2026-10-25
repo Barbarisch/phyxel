@@ -36,7 +36,8 @@ def main():
     ap.add_argument("--tag", default="m4_look")
     # the "push" A/B (the old floating rule vs the push) is REMOVED: the old rule launches blocks, and the owner ruled it is never
     # run (2026-10-25). Its recording stays in docs/evidence/water_core_m4/m4_look_side_by_side.mp4.
-    ap.add_argument("--ab", default="wake", choices=["wake"], help="wake: a pond SLEPT into the record, waking off vs on (32)")
+    ap.add_argument("--ab", default="wake", choices=["wake", "refuse"],
+                    help="wake: a pond SLEPT into the record, waking off vs on (32); refuse: the shipped push vs every window refused (33, A2g)")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
     if not ff: raise SystemExit("ffmpeg not on PATH")
@@ -55,9 +56,12 @@ def main():
         if a.ab == "wake":   # 32: the shipped auto-sleep - the pond is in the record when the blocks arrive; waking off is the control
             w.PRESSURE = True; w.AUTO_SLEEP = True
             api.debug("water_coupling", {"wake_on_touch": on})
+        elif a.ab == "refuse":   # 33: both sides are physically sane (measured, a2g_green_wood.json) - the push vs the safe fallback
+            w.PRESSURE = True; w.AUTO_SLEEP = False
         else:
             raise SystemExit("only --ab wake (the old floating rule is never run)")
         w.pond(api)
+        if a.ab == "refuse": api.debug("water_coupling", {"test_refuse_windows": on})
         camera_set(api, pose)
         time.sleep(4.0)
         mp4 = w.EV / f"{a.tag}_{name}.mp4"
@@ -76,6 +80,8 @@ def main():
             time.sleep(0.25)
         if a.ab == "wake":
             label = "A SLEEPING POND WAKES WHEN TOUCHED (32)" if on else "A SLEEPING POND, NOT WOKEN (before)"
+        elif a.ab == "refuse":
+            label = "EVERY PUSH WINDOW REFUSED: THE SAFE FALLBACK (33)" if on else "THE WATER'S PUSH (shipped)"
         else:
             label = "THE WATER'S PUSH (M4)" if on else "THE OLD FLOATING RULE (today's default)"
         lines = []
@@ -88,6 +94,7 @@ def main():
         api.debug("clear_dynamics")
         print(name, "recorded", flush=True)
     if a.ab == "wake": api.debug("water_coupling", {"wake_on_touch": True})
+    if a.ab == "refuse": api.debug("water_coupling", {"test_refuse_windows": False})
     style = "FontName=Arial,FontSize=12,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1,Alignment=2,MarginV=6"
     fc = (f"[0:v]crop={a.crop},scale=960:-2,subtitles={a.tag}_off.srt:force_style='{style}'[l];"
           f"[1:v]crop={a.crop},scale=960:-2,subtitles={a.tag}_on.srt:force_style='{style}'[r];[l][r]hstack=inputs=2[v]")

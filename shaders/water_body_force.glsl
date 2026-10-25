@@ -107,4 +107,11 @@ WBF_FN vec4 wbfAccel(vec3 c, vec3 he, vec3 a0, vec3 a1, vec3 a2, float h, float 
     return vec4(a, clamp(a.y / g, 0.0f, 1.0f));
 }
 
+// 33 (A2g): the table law's waterline when a body holding a fresh window still falls back (a sample unknown). The column's top over a
+// body the volume rasterizes is the cap it pumped (31.1: read as the waterline, it launched a block 19.8 m); the ring's highest surface
+// (the window's meta.z, outside the body's footprint) is the water round it. No water in the ring (NaN) = no waterline: f = 0.
+WBF_FN float wbfFallbackSurface(float columnTop, float ringTop) {
+    return WBF_ISNAN(ringTop) ? -3.0e38f : min(columnTop, ringTop);
+}
+
 #endif
