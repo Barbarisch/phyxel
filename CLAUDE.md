@@ -131,6 +131,10 @@ exist for optimization. Dynamic voxels are physics bodies and must behave physic
   look, measure its whole-frame cost, then scale it down into the tiers via knobs it keeps from the start; tiers change cost
   and looks, never outcomes. See [`docs/PerformanceTiers.md`](docs/PerformanceTiers.md).
 
+**Staying on the plan:** `/design-check <feature>` gates a feature before it is built. `/plan-check [plan]` audits the work
+done against a plan of record (for water, `docs/WaterCore.md` §30). Every piece of work maps to a plan item, or it is drift
+with a logged reason. Run it after every finished item and whenever the owner asks.
+
 ⚠️ **Chunks must not be visible.** Appearance is a pure function of world position + persistent
 world state; per-chunk quantities may only bound **cost**, never looks. `bladesForDistance` is the
 model (conservative bound from the chunk's nearest corner). Reaching for cross-chunk lookups to

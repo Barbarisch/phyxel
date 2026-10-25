@@ -1,8 +1,10 @@
 # Water Core — the foundation for all future water work
 
-> **2026-10-24: the order of work changed - read §30 first.** Aesthetics first: the moonshot look, then measured, then fitted
-> into the performance tiers (30 / 60 / 120 fps / above, [`PerformanceTiers.md`](PerformanceTiers.md)). The "2 ms for all
-> water" budget below is superseded.
+> **2026-10-24: §30 is the plan of record - read it first.** The order: small-body water PHYSICS first (floating debris,
+> disturbing the surface - track A, §30.4), then the moonshot LOOK (track B), each measured and fitted into the performance
+> tiers (30 / 60 / 120 fps / above, [`PerformanceTiers.md`](PerformanceTiers.md)). Work outside the plan is logged with its
+> reason in the drift log (§30.5); `/plan-check` checks the work against the plan (§30.6). The "2 ms for all water" budget
+> below is superseded.
 >
 > **Status (2026-10-19): DESIGN OF RECORD and BUILD LEDGER, branch `feat/water-rethink`.** **Read §0a first** - one page:
 > the goal, the scale model, what is signed off, the path to large water, the open items. **§27 is the plan for water at
@@ -84,6 +86,8 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
 6. **W6 - shores and open sea.** A simulated band at the shore near the player; the swell offshore as appearance (§18.4: the 3-D
    core cannot carry a swell).
 
+**The current track is §30.4 (track A, small-body physics), in its stated order.** The list below is the full backlog it draws on.
+
 **Open small-body items** (polish and features; none blocks the path above):
 - *Found 2026-10-24 (31.9):* debris could not see RECORDED water beyond 48 m of the camera, nor wake it - FIXED in 32 (a slept pond
   is read from the record and wakes when a body moves through it; the wake is a ~33 ms one-off hitch); the tall-cell floor depends
@@ -105,8 +109,9 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
 the owner's explicit, plainly-explained approval); appearance water draws recorded water and never moves or makes it; no
 universal level; edits and digging never create water; ripples and splashes carry forward wherever water is simulated; always
 tools to measure and tune current speed; measure, don't argue; nothing is done until the owner sees it in motion; look
-decisions (thresholds, defaults) are the owner's; aesthetics first, then fitted into the performance tiers (§30; whole-frame
-numbers always); any `solver_*.comp` change passes `tools/debris_settle_bench.py`; GPU water
+decisions (thresholds, defaults) are the owner's; the order is §30's: small-body physics (track A), then the moonshot look
+(track B), each fitted into the performance tiers (whole-frame numbers always); work outside the plan is logged with its
+reason (§30.5) and `/plan-check` runs after every finished item (§30.6); any `solver_*.comp` change passes `tools/debris_settle_bench.py`; GPU water
 tests are in `phyxel_integration_tests`, run from the repo root with the bench engine stopped, on Release; separate runs
 drift ~0.2 ms - compare costs only interleaved on the same water.
 
@@ -8893,7 +8898,35 @@ known levers for §30's fit step, with their measured sizes on the awake 60 x 60
 + apply 1.0), the host's surface read (1.7-2.1; S2 rest - ripple mask, probe queries, wet bitmap), ripples (1.0-1.1), partition
 (0.6), and the water call's GPU time (4.2-5.5 ms at 44-64 % of the lake awake; S5 - including the mesh passes, never measured).
 
-## 30. Aesthetics first, then the performance tiers (owner, 2026-10-24). Status: PLAN OF RECORD - supersedes the 2 ms budget
+## 30. The plan of record (owner, 2026-10-24). Status: PLAN OF RECORD - revised 2026-10-24 (physics first, track A); supersedes the 2 ms budget
+
+### 30.0 How the plan is kept (owner, 2026-10-24: "make sure if we are drifting we have good reason and it is recorded. i need to be able to run design checks periodically so we stay on track")
+
+**The order of work.**
+1. **Track A - small-body water physics (NOW, §30.4).** The owner: *"the water physics are the primary concern right now...
+   floating debris, or being able to disturb the water on the surface with debris was the keys... we started on the small scale
+   first to make sure it felt right before trying to scale up. i dont think we need to change that approach."*
+2. **Track B - the moonshot look (§30.1),** after track A, or when the owner moves it up.
+3. **Track C - measure and fit into the tiers (§30.2, §30.3).** It runs alongside A and B rather than after them. Every item
+   that lands in A or B records its whole-frame cost (`PerformanceTiers.md` rule 4) when it is finished. The fit step itself
+   (filling the tier table, building the knobs) comes once the look is set.
+4. **Then the path to large water, W1-W6 (§0a, §27),** on the same water.
+
+**The rules of the plan.**
+1. **Every piece of work names its plan item:** A-n, a track-B part, a track-C step or W-n. The name goes in its section
+   heading and in its commit message.
+2. **Work that is not in the plan is drift, and drift is logged before it is built** (§30.5): what was done, what the plan
+   said, why, and who approved it. The one exception is a defect found in the middle of a build, which is logged the same day.
+   A drift without a good reason gets its remedy logged too.
+3. **When the owner changes the order, the plan is rewritten in the same commit as the first work under the new order.** The
+   physics-first change of 2026-10-24 was not, which is drift D1.
+4. **The owner's calls stay the owner's:** look decisions, defaults, and any reordering beyond choosing the next item.
+   The agent proposes the order inside a track (§30.4). The owner can reorder it at any time.
+5. **`/plan-check` runs** after every finished plan item, whenever the owner asks, and at the start of a session that picks the
+   work up. Each run appends a row to §30.6. A new feature still passes `/design-check` before it is built, and the plan
+   check confirms that it did.
+
+### 30.0a Why the plan changed (the record)
 
 **The owner's words.** *"2ms was a number you originally came up with. i dont know what a realistic number should be... once we
 start dropping below 120 fps i get concerned. and i want to have rich worlds with rich visuals and asthetic... i think we need to
@@ -8909,7 +8942,7 @@ that to get it into our performance tiers... only sacrificing when we need to."*
 - **The cost work stops until the look is set** (§29 paused above). Nothing built is undone.
 - **Every water feature carries a tier table** (`PerformanceTiers.md` §4a) and its scaling knobs from the start.
 
-### 30.1 Step 1 - the moonshot look (design; the owner's calls)
+### 30.1 Track B - the moonshot look (design; the owner's calls; after track A)
 
 What the best water looks like from a puddle to a creek to a lake, judged by the owner in motion. The owner's inputs first:
 **reference games or footage to aim at, and which parts matter most.** The parts, with where each stands today:
@@ -8927,7 +8960,7 @@ What the best water looks like from a puddle to a creek to a lake, judged by the
 Each part gets its own design (the Feature Design Keys gate, with its §6 tiers), is built at moonshot quality, and the owner
 signs it off in motion.
 
-### 30.2 Step 2 - measure the moonshot
+### 30.2 Track C, step 1 - measure (each item as it lands, and the moonshot)
 
 As soon as a look exists: the whole frame (`engine_timing` cpuFrameTime, `gpu_timing` gpu_frame_ms, fps) plus the water's CPU
 (`water_av_host_phases`) and GPU share, in two scenes:
@@ -8935,7 +8968,7 @@ As soon as a look exists: the whole frame (`engine_timing` cpuFrameTime, `gpu_ti
   (wading itself, E4, is not built - the rig stands in for it, and says so);
 - **the worst case:** the churning 60 x 60 m lake (WaterBench_Creek, after the push).
 
-### 30.3 Step 3 - fit into the tiers
+### 30.3 Track C, step 2 - fit into the tiers
 
 The knobs water has or needs, and the tier table to fill (empty until step 2 measures it):
 
@@ -8960,6 +8993,40 @@ only for water that is SETTLING: it goes back to the record at the same rest lev
 break) cannot be capped that way - handing it to the record would change where it goes. Water that must keep flowing at a low
 tier needs an answer (cheaper cells, a slower step that still ends in the same place, or a declared exception the owner
 approves). It is designed in the fit step, not guessed now.
+
+### 30.4 Track A - small-body water physics (the current track)
+
+Each item is designed, passes `/design-check`, gets a red test, is built, has its whole-frame cost measured, and is then shown
+to the owner in motion. An item is done only when the owner signs it off. The agent proposes the order below (rule 4). Each
+row's reason says why it sits where it does.
+
+| # | item | status | why here |
+|---|---|---|---|
+| A1 | **M4 - the water pushes the body** (§31) | SIGNED OFF and ON 2026-10-24 (31.8) | the owner's keys: floating debris |
+| A2 | **A pond that slept is still water** (§32) | BUILT, ON, not signed off. Owner's look: `s32_look_side_by_side.mp4` | entered as drift D2. Under shipped settings A1 failed in any pond that had slept |
+| A3 | **Close A1 and A2's open gates:** the full `/design-check` of §32, and whole-frame CPU and GPU frame times plus water's share for both (the push windows, an awake pond against a slept one, the wake hitch live) | open | remedies for D3 and D4. Small, and owed before new work starts |
+| A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
+| A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
+| A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
+| A7 | **The wake hitch** (~33 ms once, §32.1) | open | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
+| A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
+| A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
+
+### 30.5 The drift log (work outside the plan: what, why, who approved)
+
+| # | date | what was done | what the plan said | reason | approved | remedy / status |
+|---|---|---|---|---|---|---|
+| D1 | 2026-10-24 | M4 (§31) was built before any track-B look work | the old §30 put the moonshot LOOK first (step 1) | the owner's directive: "the water physics are the primary concern right now" | the owner ("yeah, lets do it") | **good reason, but the plan was not rewritten until later the same day** (breaking rule 3). Rewritten 2026-10-24: track A. CLOSED |
+| D2 | 2026-10-24 | §32, a slept pond is still water | not in the plan. Found while measuring M4 (31.9b) | a defect in signed-off work. Under shipped settings (auto-sleep on) a floater sank in a slept pond whenever the camera was more than 48 m away, so A1's outcome depended on the camera | the agent, under the owner's "take the next step you think is right". Reported to the owner afterwards | **good reason.** Now A2. Awaiting the owner's look |
+| D3 | 2026-10-24 | §32's design-check was written inline, not run as `/design-check` | the gate: `/design-check` before building (as M4 had: NEEDS WORK, seven items) | none beyond speed | nobody | **no good reason.** Remedy: A3 runs it retroactively. OPEN |
+| D4 | 2026-10-24 | M4 and §32 were reported with fps only. The push windows' own cost was not separated, and the wake hitch was measured in a test, not live | `PerformanceTiers.md` rule 4: the CPU frame, the GPU frame, fps and the feature's own share, plus what was not measured | none beyond speed | nobody | **no good reason.** Remedy: A3 measures them. OPEN |
+| D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
+
+### 30.6 The plan-check log (`/plan-check`; newest last)
+
+| # | date | range checked | verdict | drift found | logged as |
+|---|---|---|---|---|---|
+| C1 | 2026-10-24 | §30-§32, commits 58b16a82..e20d939f (the owner asked "are you updating the plan, and following the plan?") | DRIFTING. The plan was stale, and two drifts had no logged reason | the plan missed the physics-first order. §32 was unplanned. §32's design-check was inline. Costs were fps-only | D1-D5. The plan was rewritten (this commit) |
 
 ## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: BUILT, SIGNED OFF by the owner and ON by default 2026-10-24 (31.8); two defects found (31.9)
 
