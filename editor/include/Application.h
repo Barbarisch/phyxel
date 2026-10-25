@@ -329,6 +329,7 @@ private:
     // 34 (A2h): debris DISPLACEMENT is the owner's opt-in (water_coupling {displace}), off by default - the ripple layer draws the
     // splashes either way, and the slept-pond wake reads the moving bodies before this switch
     bool m_displaceOn = Core::Water::WaterCoreManager::kDisplaceByDefault;
+    void saveWaterMeta();            // 35 (A2c): world_meta water_bodies + water_slept, at every chunk save point
     uint32_t m_pressureTag = 0;      // the frame's window tag (written by the water calls, checked by the debris ticks)
     Core::Water::WaterCoreManager::SolidsFeed m_solidsFeed;   // the last frame's feed (water_coupling echo)
     bool m_waterExchangeOn = true;   // E2: debris -> water momentum only (the tiles stay) - a diagnostic split

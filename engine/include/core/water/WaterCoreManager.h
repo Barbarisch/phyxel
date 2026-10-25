@@ -440,14 +440,25 @@ public:
     /// reaches it, wakes it again from the record (the same box and settings, seeded from the spans) - the splash, the ripples and
     /// the water's push need a volume. Forgotten when the box is destroyed by hand or woken with nothing in it.
     struct SleptVolume { glm::ivec3 lo{0}, hi{0}; float cellSize = 1.0f; std::string transport, backend; int sweeps = 0;
-                         bool partialWake = true, recordTiles = false; float tallBandM = 0.0f; };
+                         bool partialWake = true, recordTiles = false; float tallBandM = 0.0f;
+                         double retryAfter = 0.0;   ///< 35: not persisted - a wake deferred for non-resident chunks retries after this (steady s)
+                       };
     const std::vector<SleptVolume>& sleptVolumes() const { return m_slept; }
+    /// 35 (A2c): the slept boxes persist with the world (world_meta.water_slept, next to water_bodies) - a pond asleep when saved
+    /// still wakes after the reload (P7). serializeSlept() is versioned JSON; loadSlept() REPLACES the list (a load is the world's
+    /// state, never a merge): "" = no boxes; malformed or an unknown version = no boxes and false. Boxes it cannot take are skipped
+    /// and counted (sleptLoadStats).
+    std::string serializeSlept() const;
+    bool loadSlept(const std::string& json);
+    struct SleptLoadStats { long restored = 0, skipped = 0; std::string error; };
+    const SleptLoadStats& sleptLoadStats() const { return m_sleptLoad; }
+    static constexpr double kSleptRetryS = 1.0;   ///< 35: a wake that found the box's chunks not resident waits this long to retry
     /// the slept boxes as (lo, hi + 1) world corners - handed to the debris solver with the live ones, so a body inside one reports
     std::vector<std::pair<glm::vec3, glm::vec3>> sleptBoxesWorld() const;
     /// wake every slept volume a moving body overlaps / a blast reaches; returns the ids made
     std::vector<int> wakeSleptTouching(const std::vector<MovingSolid>& bodies);
     std::vector<int> wakeSleptNear(const glm::vec3& centre, float radius);
-    struct SleptWakeStats { long woken = 0, wokenEmpty = 0, refused = 0; double lastMs = 0.0, maxMs = 0.0; std::string lastError; };
+    struct SleptWakeStats { long woken = 0, wokenEmpty = 0, refused = 0, deferredNotResident = 0; double lastMs = 0.0, maxMs = 0.0; std::string lastError; };
     const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }
     static inline bool s_wakeOnTouch = true;   ///< 32: OFF = a slept volume stays in the record whatever touches it (the A/B control)
     static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
@@ -691,6 +702,7 @@ private:
     PressureWindowStats m_pwStats;   // 31: the last setPressureWindows
     std::vector<SleptVolume> m_slept;   // 32
     SleptWakeStats m_sleptWake;         // 32
+    SleptLoadStats m_sleptLoad;         // 35
     struct RecordCol { uint64_t rev = ~0ull; double t = -1.0; uint64_t gen = 0; bool any = false; std::vector<float> top;   // 32
                        uint64_t res = 0; };   // 32.4: the chunk column's residency signature at the read
     std::function<uint64_t()> m_resGlobal;

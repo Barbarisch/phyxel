@@ -9008,7 +9008,8 @@ row's reason says why it sits where it does.
 | A2h | **The shoving is a switch, off by default (owner 2026-10-25, §34):** debris displacement (`water_coupling {displace}`) opt-in; the ripple layer, the push, the exchange and the slept-pond wake stay on | BUILT, not signed off (34.2): the wake red/green live, no block rises, 1,100-block pit 75 -> 176 fps; the owner's side-by-side `a2h_look_side_by_side.mp4` to review. Entered by the owner's look call on 33's video, ahead of A2c | the owner: "keep the more chaotic feature as a turn on, but not by default" |
 | A2a | Test: a recorded pond across a chunk-column seam (including negative coordinates) reads the same as each column's own spans (32.2 item 1) | DONE 2026-10-25: `WaterRecordSeam.ThePerChunkReadEqualsEachColumnsOwnSpansAcrossSeams` (unit). An 80 x 80 m recorded pond over the four chunk columns meeting at (0, 0), a level unique to every column, cave runs under some and dry holes in it, 8 dry columns round it: 9,216 columns, 0 mismatched, one reader call per chunk column (16). RED shown: a truncating chunk index (x / 32) fails it at once (column (-47, -48) read wet 1.105 where its own spans are dry); reverted, the floor division's reason written at the site | the chunk rule's pinned test |
 | A2b | The record cache re-reads when chunk residency changes, not only after the 2 s age (item 2) | DONE 2026-10-25 (32.4: design-check NEEDS WORK, seven items folded in - the debris tile cache was a second stale layer; unit test with its red control in the same run; live smoke; residency path unit-depth only, no unload route on the bench) | behaviour must not depend on when a chunk loaded |
-| A2c | Slept boxes survive a save and reload, derived from the persisted pond records (item 3) | open | a slept pond must still wake after a reload (P7) |
+| A2c | Slept boxes survive a save and reload (item 3) - persisted as the boxes themselves (`world_meta.water_slept`), not derived from the pond rows (a row has no y range or settings, and av rows merge ponds; §35); written at every editor save point; a wake that cannot read its chunks keeps the box | BUILT, not signed off (35.2): red/green live on both shutdown paths, unit red/green | a slept pond must still wake after a reload (P7) |
+| A2i | The water core across world and scene changes (found in §35): it is never reset - live volumes and, when the new world has none, body rows carry over; scene loads restore no water meta and scene saves write none; a save with an AWAKE volume writes nothing of its water (not checked) | open | another world's water must never appear in this one; P7 |
 | A2d | Pin the `wake_on_touch` default (item 4) | open | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | open | stacked water: a cave pool, a floor of water |
 | A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | measured, open | a 98 ms frame is visible at every tier. Merged with A7 below |
@@ -9659,6 +9660,105 @@ must be a JSON object") - not water, untouched here, not investigated. No `solve
 
 **Not measured:** GPU time per frame in the pit (the tool reads fps and CPU only); the small pond's cost beyond the caption fps;
 debris displacement in a creek (`water_creek_*` now set it on explicitly).
+
+## 35. A2c - a slept pond still wakes after a save and reload (32.2 item 3, P7). Status: BUILT, not signed off (35.2)
+
+**The defect.** A pond that slept into the record remembers its box (32: `m_slept`, the box and the volume's settings) only in
+memory. `save_world` persists the spans (the water) and the body table (`world_meta.water_bodies`), not the boxes. After a reload
+the pond is water debris reads (A2b) but nothing wakes: no splash, no ripples, no push - the same world behaves differently across a
+reload (P7: rest survives save/load exactly).
+
+**Found writing this (code read, `Application.cpp`, `SceneManager.cpp`):** the water core is made once at start and never reset.
+A world load or a scene transition keeps the last world's live volumes, slept boxes and (when the new world has no
+`water_bodies`) its body rows - world coordinates from another world. Slept boxes are fixed here (a load REPLACES them, an empty
+list included); the live volumes and the body rows are a new plan row (A2i), not this step.
+
+**The design.**
+1. **Persist the boxes themselves**, as `world_meta.water_slept` (JSON, versioned: `{"v":1,"boxes":[{lo,hi,cellSize,transport,
+   backend,sweeps,partialWake,recordTiles,tallBandM}]}`), written by `save_world` next to `water_bodies`, read by the world load
+   next to it. `WaterCoreManager::serializeSlept()` / `loadSlept(json)`.
+   - **Not derived from the body rows** (the plan row's first idea): a row holds columns only (no y range, no cell size or
+     settings), and av rows MERGE ponds (`avPondAt` grows a box), so a derived box is a different box - a different seed, and one
+     wake could re-make two ponds. The box as it slept is the same world after the reload. The plan row is rewritten in this commit.
+2. **A load replaces** the list (absent or empty meta = no boxes: a world without slept ponds starts with none). Malformed JSON:
+   nothing restored, a warning (as `water_bodies`); a box with a cell size `snapCellSize` refuses, or lo > hi, is skipped and
+   counted. A restored box needs nothing else: its water is the spans, already loaded with the chunks; one emptied since is found
+   at the wake (`woken_empty`, forgotten - 32).
+3. **Echo:** `water_coupling.slept` gains `restored` (boxes the last load restored) and `restore_skipped`.
+
+**What the player sees:** after a reload, a block thrown into a pond that was asleep when saved splashes, ripples and floats as it
+did before the save.
+
+**Tests (red first):**
+1. **Unit** (`WaterRecordSeamTest`'s neighbour, no device): a manager with two slept boxes (made by `sleep()` over a CPU volume)
+   serializes; a fresh manager loads it -> the same boxes and settings, bit-exact; a load of `""` / `{"v":1,"boxes":[]}` into a
+   manager holding boxes leaves none; a malformed string restores none and keeps what was there? NO - replaces with none and
+   reports false (a load is the world's state, never a merge); a bad cell size is skipped and counted.
+2. **Live, the shipped settings** (Small bench, auto-sleep ON): the pond sleeps into the record, `save_world`, the engine
+   restarted, a 1/3 m Wood block dropped from 1 m. Prediction RED (today's binary): after the restart `slept.boxes` = 0, the pond
+   is not woken (`pond_woke` false), the block floats on the record at draft ~0.70-0.73 - nothing rises (the A2h red's numbers).
+   GREEN: `slept.boxes` = 1 and `restored` = 1 after the restart, the pond wakes, draft ~0.70, the peak after entry within the
+   pre-save run's + 2 cm. Control: the same drop before the save (the pond wakes - 34.2's green).
+3. **The world switch:** load a world with no `water_slept` after one with a slept box -> `boxes` 0 (unit, through `loadSlept`).
+
+**Tiers:** none - a save format. Cost: one JSON string per save and load (a box is ~150 bytes).
+
+### 35.1 The design check (2026-10-25): NEEDS WORK, seven items - folded in
+
+1. **Every editor save point that writes chunks writes the water's records too** - one helper, `saveWaterMeta`, writing
+   `water_bodies` and `water_slept`: the API save (sync, today's only writer of `water_bodies`), the async `save_world` job's
+   main-thread finalize, the WorldForge checkpoint, and the editor's shutdown (`Application::cleanup`, before `runtime->shutdown()`
+   saves the dirty chunks - so a quit, the commonest save, carries the boxes). The placed-object rule, applied to water: records
+   save only where chunks save, and wherever they do. Scene transitions save chunks in engine code with no water core: A2i.
+2. **A wake never forgets a box it could not read.** `seedFromSpans` has no residency check: a column whose chunk is not resident
+   reads no runs, and `wakeSlept` forgot a box that seeded 0. After a reload chunks are still streaming, so a body at a box's edge
+   could erase it for good - waking would depend on load timing. Now: a 0 seed with any Unknown occupancy in the made volume (the
+   5.1 hold boundary `sleep()` already uses) keeps the box, counted `deferred_not_resident`, retried no sooner than 1 s later (a
+   wake is a ~33 ms create; every frame would be a stall). Forgotten only when every cell is known and the box holds no water.
+3. **An unknown format version** is refused: a warning, nothing restored, `restore_skipped` counts the boxes it held.
+4. **The clamp sites** say what each check prevents (a cell size that does not divide a microcube; an inverted box).
+5. **The malformed load, once:** it REPLACES the list with none and returns false - a load is the world's state, never a merge.
+6. **The live rig** (`tools/water_a2c_reload.py`) runs both ends: `--shutdown kill` (API save, then the process killed - the save
+   alone) and `--shutdown close` (no API save; WM_CLOSE - the editor's own shutdown). Both red on today's binary, both green after.
+   Predictions, both: RED `slept.boxes` 0 after the reload, the pond not woken, the block floats on the record (draft ~0.70-0.73,
+   nothing rises); GREEN `boxes` 1, `restored` 1, woken, peak after entry within the control's + 2 cm. The control: the same drop
+   before the save, in the same run. (The editor has no quit API; the close path is the window's.)
+7. **Plan row A2i (new):** the water core is not reset across world or scene changes (live volumes, slept boxes before this step,
+   body rows when the new world has none); scene loads restore no water meta; saving with an AWAKE volume writes nothing of its
+   water (not checked - stated).
+
+### 35.2 Results (2026-10-25, Release, Small bench port 8111, the shipped settings: auto-sleep on, displacement off, push on)
+
+**Built:** `WaterCoreManager::serializeSlept` / `loadSlept` (`{"v":1,"boxes":[...]}`; a load replaces; unknown version and
+malformed JSON refused; a box with a corner missing or short, inverted, or a cell size off the grid skipped and counted, the cell
+size snapped to its exact fraction); `wakeSlept` keeps a box whose 0 seed had Unknown occupancy (`deferred_not_resident`, retried
+after `kSleptRetryS` = 1 s); `Application::saveWaterMeta` (`water_bodies` + `water_slept`) at the API save, the async save job's
+finalize, the WorldForge checkpoint and `Application::cleanup` before the runtime's shutdown save; the world load restores
+`water_slept` next to `water_bodies` (an absent key = no boxes); `water_coupling.slept` echoes `restored`, `restore_skipped`,
+`restore_error`, `deferred_not_resident`. Rig: `tools/water_a2c_reload.py`.
+
+| run (`a2c_<tag>.json`) | boxes after the reload | pond woke | rest draft | control (before the save) |
+|---|---|---|---|---|
+| RED, kill (API save, killed) - the A2h binary | **0** | **no** | 0.731 (the record, table law) | woke, 0.703 |
+| RED, close (window closed, no API save) | **0** | **no** | 0.731 | woke, 0.703 |
+| GREEN, kill | 1, `restored` 1 | **yes** (36.9 ms wake) | 0.703 | woke, 0.703 |
+| GREEN, close | 1, `restored` 1 | **yes** | 0.703 | woke, 0.702 |
+| GREEN, close, ISOLATED (`water_slept` deleted from the DB first: the control run shows `restored` 0) | 1, `restored` 1 | **yes** | 0.702 | woke, 0.702 |
+
+The isolated run is the shutdown path's proof: the green close run could have read the key the green kill run's API save wrote, so
+the key was deleted from `worlds/default.db` before it; only `cleanup()`'s write can have put the box back. Nothing rose in any run
+(the peak after entry is the entry row itself, 16.616, in every run; the rest within 0.1 mm of the control's).
+
+**Unit** (`WaterSleptPersistTest`, 4): two boxes (one at negative coordinates) round-trip bit-exact and re-serialize identically,
+the restored box wakes holding the record's 8.000 m^3; a load of `""`, of an empty list, of malformed JSON and of version 2 each
+leaves no boxes (the malformed and v2 return false, v2 counts its box skipped); four bad boxes skipped and counted; a wake over
+non-resident chunks keeps the box (RED, the keep branch disabled: forgotten, `woken_empty` 1 - shown failing, then restored) and does
+not retry within the second; the control (every cell known, the record drained) forgets it.
+
+**Gates:** unit water + debris 357/357; integration water 62/64 (the two known). No `solver_*.comp` change.
+
+**Not covered (stated):** the async save job and the WorldForge checkpoint write the meta but were not run live; scene transitions
+(A2i); a reload with the box's chunks still streaming was tested in the unit rig only (the bench pond is resident at start).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

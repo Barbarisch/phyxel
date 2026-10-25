@@ -3542,6 +3542,16 @@ void Application::run() {
     LOG_INFO("Application", "Application shutting down...");
 }
 
+// 35 (A2c): the water core's records - the body rows (Phase D) and the slept boxes - written wherever chunks are saved (the
+// placed-object rule, applied to water: a save that wrote the spans without the boxes reloaded a pond nothing could wake)
+void Application::saveWaterMeta() {
+    if (!waterCore || !chunkManager) return;
+    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+    if (!ws || !ws->getDb()) return;
+    ws->setMeta("water_bodies", waterCore->bodies().serialize());
+    ws->setMeta("water_slept", waterCore->serializeSlept());
+}
+
 void Application::cleanup() {
     // Guard against double cleanup
     if (!m_initialized) {
@@ -3615,6 +3625,10 @@ void Application::cleanup() {
     dialogueSystem.reset();
     speechBubbleManager.reset();
     storyEngine.reset();
+
+    // 35 (A2c): runtime->shutdown() below saves the dirty chunks (a quit is the commonest save) - the water's records go with them,
+    // while chunkManager is still reachable
+    saveWaterMeta();
 
     // Null out convenience pointers (owned by EngineRuntime)
     windowManager = nullptr;
@@ -7067,6 +7081,12 @@ void Application::autoLoadGameDefinition() {
                                 const std::string wb = ws->getMeta("water_bodies");
                                 if (!wb.empty() && !waterCore->bodies().load(wb))
                                     LOG_WARN("Application", "world_meta water_bodies failed to parse - body records not restored");
+                                // 35 (A2c): the slept boxes - REPLACED, an absent key included (no boxes from the last world)
+                                if (!waterCore->loadSlept(ws->getMeta("water_slept")))
+                                    LOG_WARN("Application", "world_meta water_slept not restored: {}", waterCore->sleptLoadStats().error);
+                                else if (waterCore->sleptLoadStats().restored || waterCore->sleptLoadStats().skipped)
+                                    LOG_INFO("Application", "[WATER] {} slept pond box(es) restored, {} skipped", waterCore->sleptLoadStats().restored,
+                                             waterCore->sleptLoadStats().skipped);
                             }
                         }
                     }
@@ -14570,6 +14590,9 @@ void Application::registerWaterCommands() {
                  const auto& ws = waterCore->sleptWakeStats();
                  s["boxes"] = boxes; s["woken"] = ws.woken; s["woken_empty"] = ws.wokenEmpty; s["refused"] = ws.refused;
                  s["last_wake_ms"] = ws.lastMs; s["max_wake_ms"] = ws.maxMs; s["last_error"] = ws.lastError;
+                 s["deferred_not_resident"] = ws.deferredNotResident;   // 35: wakes that found the box's chunks not resident (box kept)
+                 const auto& ls = waterCore->sleptLoadStats();           // 35 (A2c): what the last world load restored
+                 s["restored"] = ls.restored; s["restore_skipped"] = ls.skipped; s["restore_error"] = ls.error;
                  const auto& rc = waterCore->recordCacheStats();   // 32.4 (A2b): the record cache following residency
                  s["record_cache"] = {{"entries", waterCore->recordCacheEntries()}, {"residency_checks", rc.checks}, {"marked_stale", rc.markedStale},
                                       {"evicted", rc.evicted}, {"tiles_dropped", debrisRuntime ? debrisRuntime->waterTilesDropped() : 0}};
@@ -15234,6 +15257,7 @@ void Application::registerWorldForgeCommands() {
         // make the site's residents respawnable).
         d.checkpointWorld = [this] {
             chunkManager->saveAllChunks();
+            saveWaterMeta();   // 35: the water's records ride every chunk save
             if (auto* ws = chunkManager->m_streamingManager.getWorldStorage()) {
                 if (placedObjectManager) placedObjectManager->saveToDb(ws->getDb());
                 if (locationRegistry)
@@ -18288,9 +18312,9 @@ void Application::processAPICommands() {
                             if (ws && ws->getDb()) {
                                 waterManager->captureOverridesInWindow();
                                 ws->setMeta("water_overrides", waterManager->serializeOverrides());
-                                if (waterCore) ws->setMeta("water_bodies", waterCore->bodies().serialize());   // Phase D
                             }
                         }
+                        saveWaterMeta();   // Phase D body rows + 35 slept boxes
                         LOG_INFO("Application", "World saved via API (mode: {})", saveAll ? "all" : "dirty");
                         if (gameEventLog) {
                             gameEventLog->emit("world_saved", {{"mode", saveAll ? "all" : "dirty"}});
@@ -20709,8 +20733,9 @@ void Application::processAPICommands() {
                         };
                         Core::LocationRegistry* locSave =
                             locationRegistry ? &*locationRegistry : nullptr;
-                        desc.mainThreadFinalize = [evSave, cmSave, pomSave,
+                        desc.mainThreadFinalize = [this, evSave, cmSave, pomSave,
                                                    locSave](nlohmann::json& result) {
+                            if (result.value("success", false)) saveWaterMeta();   // 35: the water's records ride every chunk save
                             // Placed-object records save WITH the chunks (atomic world save —
                             // the ghost-record rule). Main thread: the registry isn't locked
                             // for the background chunk write.

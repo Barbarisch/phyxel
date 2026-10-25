@@ -2,6 +2,7 @@
 #include "core/water/WaterCoreManager.h"
 #include "core/water/WaterDroplets.h"
 #include "solver_shared.h"   // 31: the pressure windows' budgets
+#include <nlohmann/json.hpp>   // 35: the slept boxes' save format
 #include <array>
 #include <algorithm>
 #include <cstring>
@@ -1011,7 +1012,26 @@ int WaterCoreManager::wakeSlept(size_t i) {
     setTallBand(id, sv.tallBandM);
     if (sv.recordTiles) setRecordTiles(id, true);
     const double seeded = seedFromSpans(id);
-    if (seeded <= 0.0) { destroy(id); ++m_sleptWake.wokenEmpty; return 0; }   // the record there is gone (drained, dug away)
+    if (seeded <= 0.0) {
+        // 35 (A2c): an empty seed is the record gone (drained, dug away) ONLY if every cell was readable. A chunk that is not resident
+        // reads no runs (the span reader has no residency check), so a box at the edge of streaming - likeliest just after a reload -
+        // seeded 0 and was forgotten for good: whether a pond wakes would depend on when its chunks loaded. Unknown occupancy in the
+        // made volume (the 5.1 hold boundary sleep() uses) = not resident: keep the box, retry after kSleptRetryS (a wake is a ~35 ms
+        // create - retrying every frame would stall every frame)
+        bool unknown = false;
+        for (const auto& av : m_avs)
+            if (av->id == id) { unknown = std::find(av->occCache.begin(), av->occCache.end(), Occ::Unknown) != av->occCache.end(); break; }
+        destroy(id);
+        if (unknown) {
+            SleptVolume kept = sv;
+            kept.retryAfter = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kSleptRetryS;
+            m_slept.push_back(std::move(kept));
+            ++m_sleptWake.deferredNotResident;
+            return 0;
+        }
+        ++m_sleptWake.wokenEmpty;
+        return 0;
+    }
     for (auto& av : m_avs) if (av->id == id)
         av->noSleepBefore = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kWokenNoSleepS;
     ++m_sleptWake.woken;
@@ -1023,7 +1043,9 @@ int WaterCoreManager::wakeSlept(size_t i) {
 std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSolid>& bodies) {
     std::vector<int> ids;
     if (!s_wakeOnTouch || m_slept.empty() || bodies.empty()) return ids;
+    const double nowS = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     for (size_t i = m_slept.size(); i-- > 0;) {
+        if (m_slept[i].retryAfter > nowS) continue;   // 35: deferred (its chunks were not resident) - not yet
         const glm::vec3 lo(m_slept[i].lo), hi = glm::vec3(m_slept[i].hi) + glm::vec3(1.0f);
         bool touched = false;
         for (const MovingSolid& b : bodies)
@@ -1036,12 +1058,62 @@ std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSol
 std::vector<int> WaterCoreManager::wakeSleptNear(const glm::vec3& c, float radius) {
     std::vector<int> ids;
     if (!s_wakeOnTouch || m_slept.empty()) return ids;
+    const double nowS = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     for (size_t i = m_slept.size(); i-- > 0;) {
+        if (m_slept[i].retryAfter > nowS) continue;   // 35: deferred (its chunks were not resident) - not yet
         const glm::vec3 lo(m_slept[i].lo), hi = glm::vec3(m_slept[i].hi) + glm::vec3(1.0f);
         const glm::vec3 q = glm::clamp(c, lo, hi);
         if (glm::length(q - c) <= radius) { const int id = wakeSlept(i); if (id) ids.push_back(id); }
     }
     return ids;
+}
+
+std::string WaterCoreManager::serializeSlept() const {
+    nlohmann::json boxes = nlohmann::json::array();
+    for (const SleptVolume& s : m_slept)
+        boxes.push_back({{"lo", {s.lo.x, s.lo.y, s.lo.z}}, {"hi", {s.hi.x, s.hi.y, s.hi.z}}, {"cellSize", s.cellSize}, {"transport", s.transport},
+                         {"backend", s.backend}, {"sweeps", s.sweeps}, {"partialWake", s.partialWake}, {"recordTiles", s.recordTiles},
+                         {"tallBandM", s.tallBandM}});
+    return nlohmann::json{{"v", 1}, {"boxes", boxes}}.dump();
+}
+
+bool WaterCoreManager::loadSlept(const std::string& text) {
+    m_slept.clear();   // a load is the world's state: whatever the last world remembered is not this world's (35, the world switch)
+    m_sleptLoad = SleptLoadStats{};
+    if (text.empty()) return true;   // a world saved before 35, or with no slept pond
+    const nlohmann::json j = nlohmann::json::parse(text, nullptr, false);
+    if (j.is_discarded() || !j.is_object()) { m_sleptLoad.error = "water_slept is not JSON"; return false; }
+    const auto* boxes = j.contains("boxes") && j["boxes"].is_array() ? &j["boxes"] : nullptr;
+    if (j.value("v", 0) != 1) {   // a format this build does not know: take nothing rather than guess at its fields
+        m_sleptLoad.skipped = boxes ? static_cast<long>(boxes->size()) : 0;
+        m_sleptLoad.error = "water_slept version " + std::to_string(j.value("v", 0)) + " unknown (this build reads 1)";
+        return false;
+    }
+    if (!boxes) return true;
+    for (const auto& b : *boxes) {
+        auto ivec = [&](const char* k, glm::ivec3& out) {
+            if (!b.contains(k) || !b[k].is_array() || b[k].size() != 3) return false;
+            for (int i = 0; i < 3; ++i) { if (!b[k][i].is_number_integer()) return false; out[i] = b[k][i].get<int>(); }
+            return true;
+        };
+        SleptVolume s;
+        float snapped = 0.0f;
+        if (!b.is_object() || !ivec("lo", s.lo) || !ivec("hi", s.hi)) { ++m_sleptLoad.skipped; continue; }
+        // an inverted box would wake into create()'s min/max of its corners - a different box than the one that slept
+        if (glm::any(glm::greaterThan(s.lo, s.hi))) { ++m_sleptLoad.skipped; continue; }
+        // a cell that does not divide a microcube would sit half inside a wall (create() refuses it; refused here, before a wake)
+        if (!snapCellSize(b.value("cellSize", 0.0f), &snapped)) { ++m_sleptLoad.skipped; continue; }
+        s.cellSize = snapped;
+        s.transport = b.value("transport", std::string("eulerian"));
+        s.backend = b.value("backend", std::string("auto"));
+        s.sweeps = b.value("sweeps", 0);
+        s.partialWake = b.value("partialWake", true);
+        s.recordTiles = b.value("recordTiles", false);
+        s.tallBandM = b.value("tallBandM", 0.0f);
+        m_slept.push_back(std::move(s));
+        ++m_sleptLoad.restored;
+    }
+    return true;
 }
 
 void WaterCoreManager::markWritten(Av& av, const glm::vec3* wakeCentre, float wakeRadius) {

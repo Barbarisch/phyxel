@@ -1,0 +1,152 @@
+{
+ "shutdown": "close",
+ "status_before": {
+  "build_config": "Release"
+ },
+ "slept_s_first": 0.5,
+ "control": {
+  "pond_woke": true,
+  "slept": {
+   "boxes": [
+    [
+     99,
+     14,
+     11,
+     104,
+     19,
+     16
+    ]
+   ],
+   "deferred_not_resident": 0,
+   "last_error": "",
+   "last_wake_ms": 34.6821,
+   "max_wake_ms": 34.6821,
+   "record_cache": {
+    "entries": 1024,
+    "evicted": 0,
+    "marked_stale": 0,
+    "residency_checks": 0,
+    "tiles_dropped": 0
+   },
+   "refused": 0,
+   "restore_error": "",
+   "restore_skipped": 0,
+   "restored": 0,
+   "wake_on_touch": true,
+   "woken": 1,
+   "woken_empty": 0
+  },
+  "spawn_y": 17.67666666666667,
+  "draft_last3s": [
+   0.7022000000000013,
+   0.7022000000000013
+  ],
+  "peak_y_after_entry": 16.6162,
+  "end_y": 16.4326
+ },
+ "slept_s_before_save": 0.0,
+ "slept_before_save": {
+  "boxes": [
+   [
+    99,
+    14,
+    11,
+    104,
+    19,
+    16
+   ]
+  ],
+  "deferred_not_resident": 0,
+  "last_error": "",
+  "last_wake_ms": 34.6821,
+  "max_wake_ms": 34.6821,
+  "record_cache": {
+   "entries": 1024,
+   "evicted": 0,
+   "marked_stale": 0,
+   "residency_checks": 0,
+   "tiles_dropped": 0
+  },
+  "refused": 0,
+  "restore_error": "",
+  "restore_skipped": 0,
+  "restored": 0,
+  "wake_on_touch": true,
+  "woken": 1,
+  "woken_empty": 0
+ },
+ "down_s": 2.9,
+ "slept_after_reload": {
+  "boxes": [
+   [
+    99,
+    14,
+    11,
+    104,
+    19,
+    16
+   ]
+  ],
+  "deferred_not_resident": 0,
+  "last_error": "",
+  "last_wake_ms": 0.0,
+  "max_wake_ms": 0.0,
+  "record_cache": {
+   "entries": 1024,
+   "evicted": 0,
+   "marked_stale": 0,
+   "residency_checks": 0,
+   "tiles_dropped": 0
+  },
+  "refused": 0,
+  "restore_error": "",
+  "restore_skipped": 0,
+  "restored": 1,
+  "wake_on_touch": true,
+  "woken": 0,
+  "woken_empty": 0
+ },
+ "volumes_after_reload": 0,
+ "after": {
+  "pond_woke": true,
+  "slept": {
+   "boxes": [
+    [
+     99,
+     14,
+     11,
+     104,
+     19,
+     16
+    ]
+   ],
+   "deferred_not_resident": 0,
+   "last_error": "",
+   "last_wake_ms": 37.2515,
+   "max_wake_ms": 37.2515,
+   "record_cache": {
+    "entries": 1024,
+    "evicted": 0,
+    "marked_stale": 0,
+    "residency_checks": 0,
+    "tiles_dropped": 0
+   },
+   "refused": 0,
+   "restore_error": "",
+   "restore_skipped": 0,
+   "restored": 1,
+   "wake_on_touch": true,
+   "woken": 1,
+   "woken_empty": 0
+  },
+  "spawn_y": 17.67666666666667,
+  "draft_last3s": [
+   0.7016000000000027,
+   0.7016000000000027
+  ],
+  "peak_y_after_entry": 16.6162,
+  "end_y": 16.4328
+ },
+ "peak_within_control_2cm": true,
+ "green": true
+}
