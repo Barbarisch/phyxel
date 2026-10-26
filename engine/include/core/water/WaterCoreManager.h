@@ -471,7 +471,11 @@ public:
     /// wake every slept volume a moving body overlaps / a blast reaches; returns the ids made
     std::vector<int> wakeSleptTouching(const std::vector<MovingSolid>& bodies);
     std::vector<int> wakeSleptNear(const glm::vec3& centre, float radius);
-    struct SleptWakeStats { long woken = 0, wokenEmpty = 0, refused = 0, deferredNotResident = 0; double lastMs = 0.0, maxMs = 0.0; std::string lastError; };
+    struct SleptWakeStats { long woken = 0, wokenEmpty = 0, refused = 0, deferredNotResident = 0; double lastMs = 0.0, maxMs = 0.0; std::string lastError;
+                            /// A2f: the last wake's parts, ms - create's (grid + solver allocation, occupancy read, solids, GPU create + upload)
+                            /// and the seed's (span read, occupancy read again, seed); cells = the box's
+                            double allocMs = 0.0, occMs = 0.0, solidsMs = 0.0, gpuMs = 0.0, spanReadMs = 0.0, seedOccMs = 0.0, seedMs = 0.0; long cells = 0;
+                            double gpuOccCopyMs = 0.0, gpuCreateVolumeMs = 0.0, gpuUploadMs = 0.0; };
     const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }
     /// 32 / 36 (A2d): the shipped default - a body moving into a slept pond wakes it (A1's push then works in a pond that slept).
     /// Pinned by WaterWakeDefault.TouchingASleptPondWakesItByDefault.
@@ -720,6 +724,11 @@ private:
     PressureWindowStats m_pwStats;   // 31: the last setPressureWindows
     std::vector<SleptVolume> m_slept;   // 32
     SleptWakeStats m_sleptWake;         // 32
+    struct CreateSplit { double allocMs = 0.0, occMs = 0.0, solidsMs = 0.0, gpuMs = 0.0; long cells = 0; };
+    struct SeedSplit { double spanReadMs = 0.0, occMs = 0.0, seedMs = 0.0; };
+    CreateSplit m_createSplit;          // A2f: the last create()'s parts
+    struct { double occCopyMs = 0.0, createVolumeMs = 0.0, uploadMs = 0.0; } m_createGpuSplit;   // A2f: create()'s GPU part, split
+    SeedSplit m_seedSplit;              // A2f: the last seedFromSpans()'s parts
     SleptLoadStats m_sleptLoad;         // 35
     // 32: `lv` = per world column (lx + 32 lz) kRecordLevels floats: top1, bottom1, top2, bottom2, more (37; top1 -1e30 = dry)
     static constexpr int kRecordLevels = 5;

@@ -58,6 +58,8 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         if (err) *err = "a FLIP volume of " + std::to_string(cells) + " cells could hold " + std::to_string(cells * FlipTransport::kParticlesPerCell) + " particles; the CPU reference caps at " + std::to_string(FlipTransport::kMaxParticlesPerVolume);
         return 0;
     }
+    using PClock = std::chrono::steady_clock;   // A2f: the parts' times (m_createSplit; a wake copies them)
+    const auto pc0 = PClock::now();
     auto av = std::make_unique<Av>();
     av->id = m_nextId++;
     av->h = h; av->per = per; av->minVoxel = lo; av->maxVoxel = hi; av->transport = transport;
@@ -83,19 +85,28 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     const int longest = std::max({dims.x, dims.y, dims.z});
     const int autoSweeps = static_cast<int>(std::lround(1.5 * longest));
     av->gpuSweeps = gpuSweeps > 0 ? std::clamp(gpuSweeps, kGpuSweepsMin, kGpuSweepsMax) : std::clamp(autoSweeps, kGpuSweepsMin, kGpuSweepsAutoMax);   // 26.23
+    const auto pc1 = PClock::now();
     refreshOccupancy(*av);
+    const auto pc2 = PClock::now();
     av->solver->refreshSolids();
+    const auto pc3 = PClock::now();
     if (be == "gpu") {
         // the grid's occupancy must hold the hold boundary the GPU reads (it is the solver's query on the CPU)
         for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
             av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
         // 26.12 P2b: a fill volume is SPARSE - it stores and steps only the bricks holding water and their halo (26.6), bit-identical
         // to keeping every brick (WaterBrickTest); the particle transport stays dense (26.6 point 7)
+        const auto pg0 = PClock::now();
         av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, BrickOptions{transport != "flip", 0, false, brickHeight, groundBricks});   // 26.17: the brick height (refused with the reason unless 2 / 4 / 8)
         if (!av->gpuVol) return 0;   // the refusal carries the byte count
+        const auto pg1 = PClock::now();
         m_gpu->upload(*av->gpuVol, *av->grid);
+        m_createGpuSplit = {std::chrono::duration<double, std::milli>(pg0 - pc3).count(), std::chrono::duration<double, std::milli>(pg1 - pg0).count(),
+                            std::chrono::duration<double, std::milli>(PClock::now() - pg1).count()};   // A2f: occ copy / createVolume / upload
         av->gpuDirty = false;
     }
+    {   auto ms = [](PClock::time_point x, PClock::time_point y) { return std::chrono::duration<double, std::milli>(y - x).count(); };
+        m_createSplit = {ms(pc0, pc1), ms(pc1, pc2), ms(pc2, pc3), ms(pc3, PClock::now()), static_cast<long>(cells)}; }
     m_avs.push_back(std::move(av));
     refreshBoxes();
     if (s_partialWakeDefault && raw->gpuVol && m_gpu && raw->gpuVol->sparse) m_gpu->setPartialWake(*raw->gpuVol, true);   // 26.31
@@ -418,14 +429,20 @@ double WaterCoreManager::seedFromSpans(int id) {
     if (!m_spanReader) return -1.0;
     for (auto& av : m_avs) {
         if (av->id != id) continue;
+        using SClock = std::chrono::steady_clock;   // A2f: the parts' times (m_seedSplit)
+        auto ms = [](SClock::time_point x, SClock::time_point y) { return std::chrono::duration<double, std::milli>(y - x).count(); };
+        const auto s0 = SClock::now();
         std::vector<ColumnRuns> runs;
         m_spanReader(av->minVoxel, av->maxVoxel, runs);
+        const auto s1 = SClock::now();
         // §27.8: the seed fills AIR cells only - the grid's occupancy must be the world's now (the GPU path mirrors it at create,
         // a CPU volume's grid never did)
         refreshOccupancy(*av);
         for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
             av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
+        const auto s2 = SClock::now();
         const double placed = seedGridFromRuns(*av->grid, runs);
+        m_seedSplit = {ms(s0, s1), ms(s1, s2), ms(s2, SClock::now())};
         av->seededMass = placed;
         av->seededColumns.clear();
         for (const auto& c : runs) { WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) { m.mass += r.mass; m.top = std::max(m.top, r.topY); } av->seededColumns.push_back(m); }
@@ -1035,6 +1052,10 @@ int WaterCoreManager::wakeSlept(size_t i) {
     for (auto& av : m_avs) if (av->id == id)
         av->noSleepBefore = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kWokenNoSleepS;
     ++m_sleptWake.woken;
+    m_sleptWake.allocMs = m_createSplit.allocMs; m_sleptWake.occMs = m_createSplit.occMs; m_sleptWake.solidsMs = m_createSplit.solidsMs;
+    m_sleptWake.gpuMs = m_createSplit.gpuMs; m_sleptWake.cells = m_createSplit.cells;
+    m_sleptWake.gpuOccCopyMs = m_createGpuSplit.occCopyMs; m_sleptWake.gpuCreateVolumeMs = m_createGpuSplit.createVolumeMs; m_sleptWake.gpuUploadMs = m_createGpuSplit.uploadMs;
+    m_sleptWake.spanReadMs = m_seedSplit.spanReadMs; m_sleptWake.seedOccMs = m_seedSplit.occMs; m_sleptWake.seedMs = m_seedSplit.seedMs;
     m_sleptWake.lastMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     m_sleptWake.maxMs = std::max(m_sleptWake.maxMs, m_sleptWake.lastMs);
     return id;

@@ -14601,6 +14601,9 @@ void Application::registerWaterCommands() {
                  s["boxes"] = boxes; s["woken"] = ws.woken; s["woken_empty"] = ws.wokenEmpty; s["refused"] = ws.refused;
                  s["last_wake_ms"] = ws.lastMs; s["max_wake_ms"] = ws.maxMs; s["last_error"] = ws.lastError;
                  s["deferred_not_resident"] = ws.deferredNotResident;   // 35: wakes that found the box's chunks not resident (box kept)
+                 s["last_wake_split_ms"] = {{"alloc", ws.allocMs}, {"occupancy", ws.occMs}, {"solids", ws.solidsMs}, {"gpu_create_upload", ws.gpuMs},
+                                            {"span_read", ws.spanReadMs}, {"seed_occupancy", ws.seedOccMs}, {"seed", ws.seedMs}, {"cells", ws.cells},
+                                            {"gpu_occ_copy", ws.gpuOccCopyMs}, {"gpu_create_volume", ws.gpuCreateVolumeMs}, {"gpu_upload", ws.gpuUploadMs}};   // A2f
                  const auto& ls = waterCore->sleptLoadStats();           // 35 (A2c): what the last world load restored
                  s["restored"] = ls.restored; s["restore_skipped"] = ls.skipped; s["restore_error"] = ls.error;
                  const auto& rc = waterCore->recordCacheStats();   // 32.4 (A2b): the record cache following residency

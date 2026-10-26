@@ -136,8 +136,9 @@ def wake(api, seconds):
             api.debug("spawn_gpu_particle", {"x": drop[0], "y": drop[1], "z": drop[2], "material": "Stone", "scale": 1 / 3, "lifetime": 120, "spin": 0})
             r = window(api, seconds, f"wake {name} #{rep + 1}")
             s = r["slept"] or {}
-            r["woke"] = s.get("woken", 0) > before; r["wake_ms"] = s.get("last_wake_ms")
+            r["woke"] = s.get("woken", 0) > before; r["wake_ms"] = s.get("last_wake_ms"); r["wake_split_ms"] = s.get("last_wake_split_ms")   # A2f
             print(f"    woke {r['woke']}  wake (create + seed) {r['wake_ms']} ms  GPU frame max {r['gpu_frame_ms_max']} ms", flush=True)
+            print(f"    split {r['wake_split_ms']}", flush=True)
             r["scene"] = name; rows.append(r)
             api.debug("clear_dynamics")
     return rows

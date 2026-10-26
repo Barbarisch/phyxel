@@ -9013,7 +9013,7 @@ row's reason says why it sits where it does.
 | A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
 | A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
-| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | measured, open | a 98 ms frame is visible at every tier. Merged with A7 below |
+| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) ready; step 2 (the wake across frames) needs the owner's look call | a 98 ms frame is visible at every tier. Merged with A7 below |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
@@ -9938,6 +9938,87 @@ They are not re-measured: the 31.1 launches are never run again (the owner's rul
 always wall-clock and are unaffected.
 
 **Gates:** pytest 4/4; the engine change is one log column (no solver change; `debris_settle_bench` not needed, the log is off in it).
+
+## 39. A2f - the wake stall (32.2 item 6, merged with A7). Status: MEASURED, DESIGN (not built)
+
+### 39.1 Where the time goes (2026-10-25, Release, Small bench, `water_a3_cost.py --only wake`, `a3_cost_a2f_split.json`)
+
+New timers on every part of a wake (`water_coupling.slept.last_wake_split_ms`). It all runs on the main thread inside one frame.
+Two runs per box, ms:
+
+| part | small pond, 4 x 5 x 4 m box (157,464 cells) | S9 pit, 10 x 9 x 10 m box (656,100 cells) |
+|---|---|---|
+| allocate the grid + solver (dense CPU arrays, ~50 B a cell) | 5.5-5.8 | 22.5-24.6 |
+| read the box's occupancy (`refreshOccupancy`: one `stateAtMicro` per cell) | 5.7-6.0 | 23.7-25.2 |
+| the solver's solids (`refreshSolids`: the SAME occupancy again, cell by cell through a std::function, written into the grid) | 4.5-4.9 | 18.7-20.7 |
+| GPU: the occupancy copied into the grid a THIRD time | 0.3 | 0.9-1.0 |
+| GPU: `createVolume` (device memory, descriptors) | 13.6-13.9 | 12.9-13.9 (fixed: does not grow with the box) |
+| GPU: upload | 4.4-4.8 | 16.4-16.7 |
+| seed from the record (span read 0.02, the occupancy re-read 0.3-1.4, the fill 0.4-2.2) | ~0.8 | ~3.5 |
+| **the wake** | **35.5-37.9** | **99.3-105.0** |
+
+**What it says:**
+- About 60 % of the pit's wake is CPU work over every cell of the box: allocation, two passes over the occupancy, and a third copy.
+  At least one of the occupancy passes is pure duplication.
+- About 13 ms is a fixed device setup.
+- The upload grows with the box.
+- None of it depends on how much of the box the body touches.
+- At every tier a frame is 8-33 ms (120 / 30 fps), so even the small pond's 36 ms is a visible hitch at 30 fps.
+
+### 39.2 The design: three steps, each its own red / green
+
+**Step 1 - the same wake, cheaper (bit-identical; no look change).**
+- (a) The solver's solids come straight from the occupancy just read: a copy, then `enforceSolidFaces`. It no longer asks a
+  std::function per cell, and the GPU path's third copy goes.
+- (b) The occupancy read runs fork-join over z slabs on the existing worker count, joined before `create` returns. It is safe only
+  if the packed pool is not repacked while it runs: the pool is repacked on the main thread, and `create` runs there too (CHECKED
+  in the design check).
+- (c) The grid's arrays come from a reuse pool: the arrays of a volume that slept are kept, up to a memory cap, and handed to the
+  next wake of that size or smaller. Fresh allocation is mostly page faults and zeroing.
+- (d) Device memory and descriptors are pooled the same way, for `createVolume`'s fixed 13 ms.
+- Red / green: a unit test that the volume after a step-1 wake equals the old wake's, cell for cell (f, occ, the solver's solids,
+  the GPU upload's bytes). Live: the split again.
+- Predicted: the pit about 100 -> 40-50 ms (the upload and the seed stay), the small pond about 36 -> 10-15 ms. Still a hitch.
+
+**Step 2 - off the frame (the look call is the owner's).**
+- The wake is built in slices across frames: no frame spends more than ~2 ms on it (the 120 fps budget's share, a knob).
+- Until the volume is ready, the body reads the record: the table law, correct since §37, so it floats or sinks as in a slept pond.
+- **What the player would see:** for the build's frames (predicted 3-25 at 120 fps for the small pond to the pit) the water does
+  not answer the stone yet. No push wave, no ripple from the live volume, then the pond wakes. The body's motion stays physical
+  throughout. Whether a short delay before the water answers is acceptable is a look call: the owner's.
+
+**Step 3 - W1's patch wake (the root fix, not designed here).**
+- Wake only the part of the pond near the body, with the rest left in the record and its edge a boundary.
+- The cost then follows the patch, not the box. Big: §27 W1's open part.
+- Steps 1 and 2 do not block it, and step 1's pools serve it.
+
+**Tiers:**
+- The step-2 slice budget is the knob: 2 ms at 120 fps, more at lower tiers, so a slower tier finishes in fewer frames.
+- Outcome: the body's path through the build frames is the record's law at every tier. The tier changes when the water answers,
+  not where anything ends up. That is a stated exception for the owner to approve, like 30.3's open problem.
+
+**Not covered:** the A2c reload wake path (the same `wakeSlept`, so it gains step 1 for free); CPU-backend volumes (step 1(d) is
+GPU only).
+
+### 39.3 The design check (2026-10-25): NEEDS WORK, six items
+
+Checked: step 1(b)'s fork-join is safe. The packed pool is rewritten only in `VoxelLightOccupancyGpu::flushIfDirty`
+(`m_packed = packOccupancyPool(...)`), called from `RenderCoordinator.cpp` on the main thread, and `create` runs there with its
+workers joined before it returns.
+
+1. **Step 2 vs the tier rule.** The slice budget makes the moment the water answers depend on the tier. Before step 2: the same
+   drop, immediate against a 2 ms and an 8 ms slice. Compare the body's rest pose (1 mm), its time to rest, and the pond's mass and
+   rest level. If they differ, step 2 is an exception only the owner can approve.
+2. **Step 2's occupancy across slices.** Record the pack revision at the start; on completion patch the changes since then
+   (`refreshOccupancyLocal`). Test: a voxel edited mid-build.
+3. **The pools' memory cap** (a stated number, clamped, echoed), and their stats (bytes held, hits, misses) in `slept`.
+4. **Step 1(c) measured before it is built.** A reused array must be re-zeroed to stay bit-identical, so the pool saves only page
+   faults: time the allocation against a memset of the same bytes.
+5. **`createVolume`'s fixed 13 ms split** (memory allocation, buffers, descriptors) before (d) is designed.
+6. **The whole frame.** The cost tool samples the CPU frame and can miss the one wake frame. It needs the engine's frame-time
+   maximum over the window, reported with the wake's own timers.
+
+Step 1(a) and (b) are ready: the same occupancy, read once and in parallel, gated by the cell-for-cell equality test.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
