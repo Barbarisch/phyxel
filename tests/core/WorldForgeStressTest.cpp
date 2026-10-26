@@ -45,7 +45,10 @@ void assertPlanInvariants(const WorldForgePlan& plan, float minSpacing) {
         std::function<int(int)> find = [&](int v) {
             return parent[v] == v ? v : parent[v] = find(parent[v]);
         };
-        for (const auto& r : plan.roads()) parent[find(r.a)] = find(r.b);
+        for (const auto& r : plan.roads()) {
+            if (r.a < 0 || r.b < 0) continue;   // M4a: a box-edge exit road has no site at that end
+            parent[find(r.a)] = find(r.b);
+        }
         for (size_t i = 1; i < sites.size(); ++i)
             EXPECT_EQ(find(0), find(static_cast<int>(i)))
                 << "site " << sites[i].id << " disconnected at scale";

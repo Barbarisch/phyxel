@@ -2,6 +2,7 @@
 
 #include "core/CivPlan.h"
 #include "core/CorridorGraph.h"
+#include "core/HydrologyMap.h"
 #include "core/WorldForgeParams.h"
 #include "core/WorldForgePlan.h"
 #include "core/WorldGenerator.h"
@@ -10,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <climits>
 #include <cstdio>
 #include <set>
 #include <string>
@@ -163,6 +165,9 @@ TEST(RouteGraphTest, ReuseDiscountMergesRoutesIntoTrunks) {
     EXPECT_LT(da, db) << "the reuse discount did not shrink the network";
     EXPECT_GT(a.corridors()->sharedCells(), b.corridors()->sharedCells());
     EXPECT_EQ(a.corridors()->routes().size(), b.corridors()->routes().size());
+    // the effect that matters (measured 295 vs 636 = 0.46): merged junctions, not a shorter network
+    EXPECT_LE(a.corridors()->junctionCells(), b.corridors()->junctionCells() * 7 / 10)
+        << "the reuse discount did not merge junctions (with " << a.corridors()->junctionCells() << ", without " << b.corridors()->junctionCells() << ")";
 }
 
 TEST(RouteGraphTest, DeterministicAcrossGenerators) {
@@ -212,13 +217,16 @@ TEST(RouteGraphTest, CorridorsAreStampedBeyondTheBox) {
     g.applyRecipe(civRecipe(20260816u));
     const CorridorGraph* cg = g.corridors();
     ASSERT_TRUE(cg);
-    const float half = 16384.0f;
+    const HydrologyMap* h = g.hydrology();
+    ASSERT_TRUE(h);
+    const float bx0 = h->originX(), bz0 = h->originZ(), bx1 = bx0 + h->cellsX() * h->cellSize(), bz1 = bz0 + h->cellsZ() * h->cellSize();
+    auto inBox = [&](const glm::vec2& p) { return p.x >= bx0 && p.x < bx1 && p.y >= bz0 && p.y < bz1; };
     int tested = 0, stamped = 0, offStamped = 0, wetSkipped = 0;
     for (const auto& r : cg->routes()) {
         if (tested >= 40) break;
         for (size_t k = 1; k + 1 < r.polyline.size(); k += 7) {
             const glm::vec2 p = r.polyline[k];
-            if (std::fabs(p.x) < half + 600.0f && std::fabs(p.y) < half + 600.0f) continue;   // outside the box only
+            if (inBox(p)) continue;   // outside the box only (no exclusion band: the edge is the seam under test)
             const auto col = g.sampleSurface(static_cast<int>(std::lround(p.x)), static_cast<int>(std::lround(p.y)));
             ++tested;
             if (col.surfaceY < 16) { ++wetSkipped; continue; }
@@ -262,4 +270,78 @@ TEST(RouteGraphTest, StressTenTimesTheSites) {
     EXPECT_GE(cg->routes().size() + static_cast<size_t>(cg->unroutable()), civ->sites().size() - seats.size());
     EXPECT_EQ(static_cast<int>(cg->refusals().size()), cg->unroutable()) << "every unroutable demand names itself";
     EXPECT_LT(cg->bakeMs(), 120000.0f);
+}
+
+// Audit 2026-10-22: the box plan's roads end at the box edge inset by the pin margin while the
+// macro stamp began only at the full box edge — a 512 u ring with neither (at every exit). Walk
+// every exit road's end outward along its corridor to 512 u past the box edge, sampling every
+// 16 u: each column on the corridor (within the class half-width) must carry a road, from the
+// fine road's last vertex to the macro stamp, with no gap.
+TEST(RouteGraphTest, FineRoadMeetsTheMacroStampAtTheBoxEdge) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(civRecipe(20260816u));
+    const CorridorGraph* cg = g.corridors();
+    const WorldForgePlan* box = g.worldForge();
+    const HydrologyMap* h = g.hydrology();
+    ASSERT_TRUE(cg && box && h);
+    const float bx0 = h->originX(), bz0 = h->originZ(), bx1 = bx0 + h->cellsX() * h->cellSize(), bz1 = bz0 + h->cellsZ() * h->cellSize();
+    auto inBox = [&](const glm::vec2& p) { return p.x >= bx0 && p.x < bx1 && p.y >= bz0 && p.y < bz1; };
+    int exits = 0, samples = 0, gaps = 0, exitsWithGap = 0;
+    int gapInset = 0, gapRing = 0, gapOutside = 0, wetSkipped = 0;   // where the gaps are: inside the 512 u inset box / the ring / outside
+    auto inInset = [&](const glm::vec2& p) { return p.x >= bx0 + 512.0f && p.x < bx1 - 512.0f && p.y >= bz0 + 512.0f && p.y < bz1 - 512.0f; };
+    for (const auto& road : box->roads()) {
+        if (road.a >= 0 && road.b >= 0) continue;
+        if (road.centerline.size() < 2) continue;
+        for (int end = 0; end < 2; ++end) {
+            if ((end == 0 && road.a >= 0) || (end == 1 && road.b >= 0)) continue;
+            const glm::vec2 e = end == 0 ? road.centerline.front() : road.centerline.back();
+            int cls = 0, route = -1;
+            const float d0 = cg->distanceToCorridorU(e.x, e.y, &cls, &route);
+            if (route < 0 || d0 > 256.0f) continue;
+            const auto& pl = cg->routes()[static_cast<size_t>(route)].polyline;
+            // nearest polyline vertex to the road end, then walk outward (toward the box edge and beyond)
+            size_t k0 = 0; float bestD = 1e30f;
+            for (size_t k = 0; k < pl.size(); ++k) { const float d = glm::length(pl[k] - e); if (d < bestD) { bestD = d; k0 = k; } }
+            ++exits;
+            int gapHere = 0;
+            // walk BOTH ways from the road end along the corridor, 1024 u each way, and judge only
+            // the ring and the outside: inside the inset box the fine road is free to leave the
+            // macro polyline (the band discount is a bias, 96 % of vertices inside it, not a wall)
+            for (int dir = -1; dir <= 1; dir += 2) {
+                float walked = 0.0f;
+                for (int k = static_cast<int>(k0); k + dir >= 0 && k + dir < static_cast<int>(pl.size()) && walked < 1024.0f; k += dir) {
+                    const glm::vec2 a = pl[static_cast<size_t>(k)], b = pl[static_cast<size_t>(k + dir)];
+                    const float len = glm::length(b - a);
+                    for (float t = 0.0f; t < len && walked + t < 1024.0f; t += 16.0f) {
+                        const glm::vec2 p = a + (b - a) * (t / len);
+                        if (inInset(p)) continue;
+                        const auto col = g.sampleSurface(static_cast<int>(std::lround(p.x)), static_cast<int>(std::lround(p.y)));
+                        if (col.surfaceY < 16 || col.riverOrder > 0 || col.bridgeDeckY != INT_MIN) continue;
+                        // a column under standing water (a meso lake the 512 u macro corridor cannot
+                        // see) is never stamped - a causeway must not dam a lake; the diagnostics
+                        // found the 12 residual "gaps" to be ONE such pair of columns hit by six exits
+                        if (g.waterLevelAt(p.x, p.y) > static_cast<float>(col.surfaceY)) { ++wetSkipped; continue; }
+                        ++samples;
+                        bool road = col.roadClass > 0;
+                        if (!road && inBox(p)) { const auto rh = box->roadAt(p.x, p.y); road = rh.cls > 0 && rh.dist <= 256.0f; }
+                        if (!road) {
+                            ++gaps; ++gapHere; if (inBox(p)) ++gapRing; else ++gapOutside;
+                            int gcls = 0, groute = -1;
+                            const float gd = cg->distanceToCorridorU(p.x, p.y, &gcls, &groute);
+                            const auto rh = box->roadAt(p.x, p.y);
+                            if (gaps <= 12)
+                                std::printf("    gap at (%.0f,%.0f): inBox %d, corridor d %.1f cls %d route %d (road end at %.0f,%.0f, %.0f u away), roadAt cls %d dist %.1f, column class %d mat %s\n",
+                                            p.x, p.y, inBox(p) ? 1 : 0, gd, gcls, groute, e.x, e.y, glm::length(p - e), rh.cls, rh.dist, col.roadClass, col.surfaceMat.c_str());
+                        }
+                    }
+                    walked += len;
+                }
+            }
+            if (gapHere) ++exitsWithGap;
+        }
+    }
+    std::printf("[ M4a ] box-edge seam: %d exits walked, %d dry columns sampled, %d without a road (%d exits with a gap): %d inside the inset box, %d in the 512 u ring, %d outside; %d columns under standing water skipped\n",
+                exits, samples, gaps, exitsWithGap, gapInset, gapRing, gapOutside, wetSkipped);   // gapInset stays 0 by construction
+    EXPECT_GT(exits, 5);
+    EXPECT_EQ(gaps, 0) << "a corridor column between the fine road's end and the macro stamp carries no road";
 }

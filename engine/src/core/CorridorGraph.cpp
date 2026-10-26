@@ -1,6 +1,7 @@
 #include "core/CorridorGraph.h"
 
 #include "core/CivPlan.h"
+#include "core/WorldForgePlan.h"
 #include "core/WorldSheet.h"
 
 #include <algorithm>
@@ -265,15 +266,24 @@ float CorridorGraph::distanceToCorridorU(float worldX, float worldZ, int* clsOut
     const int j = static_cast<int>(std::floor((worldZ - m_originU) / m_cellU));
     if (i < 0 || j < 0 || i >= m_cells || j >= m_cells) return 1e30f;
     const glm::vec2 p(worldX, worldZ);
-    float best = 1e30f;
+    // Two routes sharing a trunk have separately smoothed polylines tens of u apart, so the
+    // NEAREST segment's class is not the class of the road under the point (audit 2026-10-22):
+    // the class is the highest one whose own half-width reaches the point; the distance returned
+    // is to that segment (the nearest segment when none reaches).
+    float best = 1e30f; int bestCls = None, bestRoute = -1;
+    float within = 1e30f; int withinCls = None, withinRoute = -1;
     for (int si : m_cellSegs[static_cast<size_t>(j) * m_cells + i]) {
         const Seg& s = m_segs[static_cast<size_t>(si)];
         const glm::vec2 ab = s.b - s.a;
         const float len2 = glm::dot(ab, ab);
         const float t = len2 > 0.0f ? glm::clamp(glm::dot(p - s.a, ab) / len2, 0.0f, 1.0f) : 0.0f;
         const float d = glm::length(p - (s.a + ab * t));
-        if (d < best || (d == best && clsOut && s.cls > *clsOut)) { best = d; if (clsOut) *clsOut = s.cls; if (routeOut) *routeOut = s.route; }
+        if (d < best || (d == best && s.cls > bestCls)) { best = d; bestCls = s.cls; bestRoute = s.route; }
+        if (d <= WorldForgePlan::roadHalfWidth(s.cls) && (s.cls > withinCls || (s.cls == withinCls && d < within))) { within = d; withinCls = s.cls; withinRoute = s.route; }
     }
+    if (withinCls > None) { if (clsOut) *clsOut = withinCls; if (routeOut) *routeOut = withinRoute; return within; }
+    if (clsOut) *clsOut = bestCls;
+    if (routeOut) *routeOut = bestRoute;
     return best;
 }
 

@@ -86,3 +86,55 @@ REGRESSION caught right after 317798ef (scratchpad m4a_regress.txt): every VERSI
 [D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
 [D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
 [  PASSED  ] 37 tests.
+
+AUDIT FOLLOW-UP (box-edge seam) RED (scratchpad m4a_seam_red3.txt; the test walked the corridor from every exit road's end):
+[ M4a ] box-edge seam: 36 exits walked, 2870 dry columns sampled, 1609 without a road (28 exits with a gap): 500 inside the inset box, 1109 in the 512 u ring, 0 outside
+[  FAILED  ] RouteGraphTest.FineRoadMeetsTheMacroStampAtTheBoxEdge (133159 ms)
+[  FAILED  ] RouteGraphTest.FineRoadMeetsTheMacroStampAtTheBoxEdge
+-> 1109 of the gaps are the 512 u ring between the box edge and the inset where the fine road ends (the auditor's gap); the 500 inside the inset are the fine road leaving the 256 u band (a bias, not a wall - the test now judges only the ring and the outside). FIX: the stamp's box test uses the same kBoxEdgeInsetU inset as the demand clipping.
+
+==================================================================
+AUDIT FOLLOW-UP 2026-10-22/24 (solution-auditor on 317798ef: FAIL - the V1 regression (fixed in 82731b2c), a 512 u gap at every box-edge exit, the reuse test asserting any difference, nearest-segment class attribution, a -1 road index in the stress helper, a 600 u exclusion band in the stamp test)
+==================================================================
+Fixes: the D28 stamp's box test uses the same kBoxEdgeInsetU inset as the demand clipping (the ring is stamped); distanceToCorridorU returns the highest class whose own half-width reaches the point (shared trunks); the stress helper skips exit roads; the stamp test has no exclusion band and reads the box from the hydrology bake; the reuse test asserts junction cells with reuse <= 0.7 x without (measured 295 vs 636).
+
+SEAM GREEN (Debug; scratchpad m4a_seam_green2.txt):
+[ M4a ] classes: 1 highway, 18 road, 133 track; 0 against the hierarchy
+[       OK ] RouteGraphTest.ClassFollowsTheHierarchy (134044 ms)
+[ M4a ] reuse 1/3: 152 routes, 7671.0 km, shared cells 1682, junction cells 295, unroutable 2, bake 596.5 ms
+[ M4a ] reuse 1 (none): 152 routes, 6714.8 km, shared cells 1604, junction cells 636, unroutable 2, bake 785.8 ms
+[ M4a ] distinct network cells: 2941 with reuse, 3046 without
+[       OK ] RouteGraphTest.ReuseDiscountMergesRoutesIntoTrunks (152940 ms)
+[ M4a ] box-edge seam: 36 exits walked, 1719 dry columns sampled, 0 without a road (0 exits with a gap): 0 inside the inset box, 0 in the 512 u ring, 0 outside; 12 columns under standing water skipped
+[       OK ] RouteGraphTest.FineRoadMeetsTheMacroStampAtTheBoxEdge (140251169 ms)
+(the 12 residual 'gaps' of m4a_seam_green.txt were ONE pair of columns under a meso lake hit by six exits - a causeway must not dam a lake, so the stamp refuses them; the macro corridor cannot see meso lakes: an M4c item - bridges/causeways)
+
+MUTATION RED for the reuse assertion (onNet never set; scratchpad m4a_reuse_mutation.txt):
+[ M4a ] reuse 1/3: 152 routes, 6714.8 km, shared cells 1604, junction cells 636, unroutable 2, bake 1234.5 ms
+[ M4a ] reuse 1 (none): 152 routes, 6714.8 km, shared cells 1604, junction cells 636, unroutable 2, bake 1042.2 ms
+[ M4a ] distinct network cells: 3046 with reuse, 3046 without
+the reuse discount did not shrink the network
+the reuse discount did not merge junctions (with 636, without 636)
+[  FAILED  ] RouteGraphTest.ReuseDiscountMergesRoutesIntoTrunks (238585 ms)
+[  FAILED  ] RouteGraphTest.ReuseDiscountMergesRoutesIntoTrunks
+mutation reverted; green rerun below
+
+FINAL GREEN after every audit fix (Debug; scratchpad m4a_final_regress_a.txt 42/42 fast fixtures incl. the pinned hashes, m4a_final_civ.txt CivHistoryTest 12/12 + CivPlanTest 7/8 before the wall-clock cap, m4a_final_route.txt the 8th CivPlanTest + RouteGraphTest 8/8 = 9/9):
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[  PASSED  ] 42 tests.
+[ M3a ] real terrain at 154 sites (104 in macro river cells, 14 inside the meso box): wet 0, on a bed 0, worst margin 2.0 u
+[ M4a ] baseline: 152 routes, 7671.0 km, shared cells 1682, junction cells 295, unroutable 2, bake 592.2 ms
+[ M4a ] 6 seats, 152 sites on a route, 2 live sites on none, 2 land components, 2 members not land-connected to their seat
+[ M4a ] 12671 corridor cells, 0 in sea or a basin
+[ M4a ] classes: 1 highway, 18 road, 133 track; 0 against the hierarchy
+[ M4a ] reuse 1/3: 152 routes, 7671.0 km, shared cells 1682, junction cells 295, unroutable 2, bake 585.1 ms
+[ M4a ] reuse 1 (none): 152 routes, 6714.8 km, shared cells 1604, junction cells 636, unroutable 2, bake 784.7 ms
+[ M4a ] distinct network cells: 2941 with reuse, 3046 without
+[ M4a ] box road vertices inside the corridor band: 96.2 % of 45332 with the discount, 22.0 % of 36316 without
+[ M4a ] D28 stamp: 40 corridor columns outside the box, 40 stamped with their class, 0 below sea (skipped), 0 off-corridor columns stamped
+[ M4a ] box-edge seam: 36 exits walked, 1719 dry columns sampled, 0 without a road (0 exits with a gap): 0 inside the inset box, 0 in the 512 u ring, 0 outside; 12 columns under standing water skipped
+[  PASSED  ] 9 tests.
+(the x10 stress rig last ran on the pre-attribution code: its assertions are corridor-graph invariants the attribution change does not touch; the machine sleeps between turns, so Debug wall-clock timings in these logs are not costs)
+
+RELEASE L4 after the fixes (idle machine; m3a_l4_m4a2_*): corridors 121 routes / 55.8 ms, box plan 29 roads (27 exits) / 39150 segments / 3.4-5.9 s, raster_truncated 0, civ map glyphs 97/541/890

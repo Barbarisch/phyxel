@@ -25,6 +25,10 @@
 
 namespace Phyxel {
 
+// M4a: the hydrology box edge inset shared by the civ pin margin, the box-plan demand clipping
+// and the D28 stamp's box test — one constant so the fine road and the macro stamp meet.
+constexpr float kBoxEdgeInsetU = 512.0f;
+
 using json = nlohmann::json;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -602,7 +606,7 @@ void WorldGenerator::bakeWorldForgePlan() {
                 // M3b (D22): a ruin is a state the forge cannot dress yet - never seeded as a live
                 // settlement (red 2026-10-22: an abandoned hamlet came back as a live box hamlet)
                 if (site.state == CivPlan::Abandoned) continue;
-                if (site.pos.x < x0 + 512.0f || site.pos.x >= x1 - 512.0f || site.pos.y < z0 + 512.0f || site.pos.y >= z1 - 512.0f) continue;
+                if (site.pos.x < x0 + kBoxEdgeInsetU || site.pos.x >= x1 - kBoxEdgeInsetU || site.pos.y < z0 + kBoxEdgeInsetU || site.pos.y >= z1 - kBoxEdgeInsetU) continue;
                 boxParams.sitePins.push_back(glm::ivec2(static_cast<int>(std::lround(site.pos.x)), static_cast<int>(std::lround(site.pos.y))));
                 boxParams.pinTiers.push_back(site.tier <= CivPlan::Town ? "town" : (site.tier == CivPlan::Village ? "village" : "hamlet"));
             }
@@ -615,9 +619,9 @@ void WorldGenerator::bakeWorldForgePlan() {
         // fine road meets the macro stamp outside. Corridors to outposts (not pinned) still get
         // their inside runs as exit-to-exit edges where they pass through.
         if (m_corridors && m_hydro) {
-            const float x0 = m_hydro->originX() + 512.0f, z0 = m_hydro->originZ() + 512.0f;
-            const float x1 = m_hydro->originX() + m_hydro->cellsX() * m_hydro->cellSize() - 512.0f;
-            const float z1 = m_hydro->originZ() + m_hydro->cellsZ() * m_hydro->cellSize() - 512.0f;
+            const float x0 = m_hydro->originX() + kBoxEdgeInsetU, z0 = m_hydro->originZ() + kBoxEdgeInsetU;
+            const float x1 = m_hydro->originX() + m_hydro->cellsX() * m_hydro->cellSize() - kBoxEdgeInsetU;
+            const float z1 = m_hydro->originZ() + m_hydro->cellsZ() * m_hydro->cellSize() - kBoxEdgeInsetU;
             auto inside = [&](const glm::vec2& p) { return p.x >= x0 && p.x < x1 && p.y >= z0 && p.y < z1; };
             std::unordered_map<int, int> pinOf;   // civ site id -> pin index
             for (size_t i = 0; i < boxParams.sitePins.size(); ++i) {
@@ -1602,9 +1606,13 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     // plan's roads already follow the corridor at full fidelity, so the stamp is box-exclusive.
     if (m_corridors && col.roadClass == 0 && col.riverOrder == 0 && col.bridgeDeckY == INT_MIN &&
         col.surfaceY >= static_cast<int>(terrainParams.seaLevelY)) {
-        const bool inBox = m_hydro && static_cast<float>(wx) >= m_hydro->originX() && static_cast<float>(wz) >= m_hydro->originZ() &&
-                           static_cast<float>(wx) < m_hydro->originX() + m_hydro->cellsX() * m_hydro->cellSize() &&
-                           static_cast<float>(wz) < m_hydro->originZ() + m_hydro->cellsZ() * m_hydro->cellSize();
+        // The box plan's roads end at the box edge INSET by the pin margin (kBoxEdgeInsetU, the
+        // same inset the demand builder uses), so the stamp must begin there — with the full box
+        // here the 512 u ring carried neither road (audit 2026-10-22: a gap at all 27 exits).
+        const bool inBox = m_hydro && static_cast<float>(wx) >= m_hydro->originX() + kBoxEdgeInsetU &&
+                           static_cast<float>(wz) >= m_hydro->originZ() + kBoxEdgeInsetU &&
+                           static_cast<float>(wx) < m_hydro->originX() + m_hydro->cellsX() * m_hydro->cellSize() - kBoxEdgeInsetU &&
+                           static_cast<float>(wz) < m_hydro->originZ() + m_hydro->cellsZ() * m_hydro->cellSize() - kBoxEdgeInsetU;
         {
             int cls = 0, route = -1;
             const float d = m_corridors->distanceToCorridorU(static_cast<float>(wx), static_cast<float>(wz), &cls, &route);
