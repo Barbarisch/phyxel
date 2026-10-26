@@ -89,7 +89,7 @@ TEST(DebrisWaterTiles, BackgroundTilesAreOmittedAndReadBackAsTheBackground) {
         s = seaY; return true;
     };
     const Window isl = buildWindow({0, 0}, 4, 4, true, seaY, island);
-    EXPECT_EQ(isl.cells.size(), static_cast<size_t>(DS::WATER_TILE_CELLS) * DS::WATER_TILE_CELLS * 2u)
+    EXPECT_EQ(isl.cells.size(), static_cast<size_t>(DS::WATER_TILE_CELLS) * DS::WATER_TILE_CELLS * DS::WATER_CELL_WORDS)
         << "exactly one tile (the island's chunk column)";
     EXPECT_EQ(DebrisRuntime::sampleWaterTiles(11, 12, isl.minChunk, isl.dir, isl.cells, true, seaY), DS::WATER_DRY);
     EXPECT_EQ(DebrisRuntime::sampleWaterTiles(9, 12, isl.minChunk, isl.dir, isl.cells, true, seaY), seaY);

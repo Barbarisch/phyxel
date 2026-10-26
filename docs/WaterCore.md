@@ -9011,7 +9011,8 @@ row's reason says why it sits where it does.
 | A2c | Slept boxes survive a save and reload (item 3) - persisted as the boxes themselves (`world_meta.water_slept`), not derived from the pond rows (a row has no y range or settings, and av rows merge ponds; §35); written at every editor save point; a wake that cannot read its chunks keeps the box | BUILT, not signed off (35.2): red/green live on both shutdown paths, unit red/green | a slept pond must still wake after a reload (P7) |
 | A2i | The water core across world and scene changes (found in §35): it is never reset - live volumes and, when the new world has none, body rows carry over; scene loads restore no water meta and scene saves write none; a save with an AWAKE volume writes nothing of its water (not checked) | open | another world's water must never appear in this one; P7 |
 | A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
-| A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | open | stacked water: a cave pool, a floor of water |
+| A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
+| A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | open | measure, don't argue: a number from a wrong clock is not a measurement |
 | A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | measured, open | a 98 ms frame is visible at every tier. Merged with A7 below |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
@@ -9785,6 +9786,102 @@ shown on its own.
 integration water 62/64 (the two known). **Live (Small bench, read-only, nothing dropped):** `water_coupling {}` echoes
 `wake_on_touch` true / default true; after `{wake_on_touch:false}` false / true, and an empty call keeps it false (omitted =
 unchanged); `{wake_on_touch:true}` restores it. No `solver_*.comp` change.
+
+## 37. A2e - a body reads the water run it is in (32.2 item 5). Status: BUILT, not signed off (37.2)
+
+### 37.1 The design check (2026-10-25): NEEDS WORK until the owner picked the scope - two runs (the owner: "ill go with your recommendation")
+
+**The defect, sharper than 32.2 said.** It was not only "the record read is height-blind". The debris fallback (the table law,
+`solver_integrate.comp`) computes the submerged fraction from ONE surface per world column - the top of the column's highest run -
+as `f = clamp((surf - (y - r)) / 2r)`. Any body anywhere below that surface is fully under water. A body in a DRY cave, tunnel or
+room under a pond is buoyed and dragged as if submerged, so a **wood block there would rise through the air to the ceiling**. This
+breaks the owner's standing rule. It was read from the code and never run with wood; the red below uses a stone.
+
+**Scope (the owner's call): two runs, not the safety cut.** Each tile cell carries the column's two highest runs (top and bottom).
+The shader picks the run the body is in by the awake path's rule (`wc_body_pressure.comp` `columnLevel`: the highest run whose
+bottom is below the body's top), otherwise dry. **Only the choice of run changes.** `f` is still computed from that run's top, so a
+body anywhere in a pond reads exactly what it read before (a body whose top is below a run's bottom would be inside that run's bed).
+- A third run down reads dry and is counted, so a body there sinks, never rises.
+- Sources with no bottom (the old water, the implicit sea) are one run reaching down: their law exactly.
+- Flow is the top run's (the second run's is 0).
+
+**Other answers:**
+- **Chunks:** a column's runs are a pure read of its own spans or sub-columns, so the cache per chunk column bounds cost only. The
+  pin is `TheTopRunIsColumnWatersSurface`, over four chunk columns' seams with negative coordinates.
+- **API:** none new.
+- **Tiers:** no knob, and the outcome is the same at every tier.
+- **Not covered:** CPU bodies (furniture, `VoxelDynamicsWorld`) read the OLD water through `WaterManager::submergedFraction`, not
+  this path. They belong to A4.
+- Item 5's other half: the reader's height range (`kRecordMinY` / `kRecordMaxY`, y -128..1023) and the cache age
+  (`kRecordColumnTtlS`, 2 s) are now named and stated at their sites.
+
+### 37.2 Results (2026-10-25, Release; Small bench port 8111, the shipped settings: auto-sleep on, displacement off, push on)
+
+**Built:**
+- `solver_shared.h` `WATER_CELL_WORDS` = 6 (top1, bottom1, flow, top2, bottom2, more; was 2), `WATER_NO_BOTTOM`, and
+  `phxWaterRunSurface`, shared by the shader and its CPU mirror;
+- `solver_integrate.comp` `waterSurface(p, bodyTop)`, with the body's top = `y + r`;
+- `DebrisRuntime::WaterRuns`, `WaterRunsFn`, `runsOf`, `composeRuns`, and a `buildWaterTile` over runs (the old signature wraps it);
+  `sampleWaterTiles(..., bodyTop)`;
+- `WaterCoreManager::columnRuns` / `recordColumnRuns`: sub-column or span runs merged where they overlap or touch, the two highest
+  kept. The record cache holds 5 floats per column (was 1);
+- the editor feeds `columnRuns` to the debris tiles.
+
+**Live red / green** (`tools/water_a2e_dryroom.py`, new). Two sealed 2 x 3 x 2 rooms are carved in the bench ground (y 10..12): one
+under the slept pond, behind two voxels of floor, and one 8 m away (the control). A 1/3 m STONE is released at rest at y 12.75 in
+each. The rooms are refilled afterwards and the engine is killed, so nothing of the rig is saved.
+
+| build (`a2e_<tag>.json`) | under the pond: 1.5 m / landed | control: 1.5 m / landed | highest point | verdict |
+|---|---|---|---|---|
+| RED, the A2d binary | **0.867 s / 1.233 s** | 0.567 / 0.750 s | 12.7500 (the release height) | the dry room under water: 64 % slower |
+| GREEN, this build | **0.567 s / 0.750 s** | 0.567 / 0.750 s | 12.7500 | the dry room is dry |
+
+Free fall over 1.5 m is 0.553 s and over 2.58 m 0.725 s, plus up to one 1/60 s step. Nothing rose in either run.
+
+**The log's clock (a tool defect found here, not an engine one):** the particle log's frame header is not the solver's clock. Its
+`dt` column summed gave ~10 g for a free fall, and its `ticks` column logged 19 ticks in 1 s of wall time. The true clock is each
+particle's own step count, `flags >> 16`, at 1/60 s a step: in open air its per-step drop grows 0.0027 m a step = g (1/60)². The new
+tool uses it. `water_float_rest.read_log` (and the tools built on it) still sum `dt`, so the TIMES they report ("body slept at
+1.4 s", speeds) are not trustworthy; their heights are. New plan row A2j.
+
+**A body IN a pond reads what it read before** (`water_float_rest.py --auto-sleep --no-displace`, against §34.2's A2h numbers):
+
+| run | before (§34.2) | A2e |
+|---|---|---|
+| 1/3 m Wood from 1 m into the slept pond (it wakes) | draft 0.702, peak 16.523 | 0.702, 16.5232 (`float_rest_a2e_wood.json`) |
+| the same with waking OFF (floating on the RECORD - the changed path) | 0.731, 16.533 (A2h red) | 0.731, 16.5326 (`float_rest_a2e_wood_record.json`) |
+| 1/3 m Stone from 1 m | - | rests on the floor, 15.1657 (`float_rest_a2e_stone.json`) |
+
+**Unit** (`WaterRunReadTest`, 3):
+- `TheTopRunIsColumnWatersSurface`: 9,216 columns over four chunk columns' seams. Stacked, touching (merged) and holed columns:
+  5,867 wet (842 with a cave pool), 0 mismatched with `columnWater`. The merged bottoms, the second run and the `more` count are
+  checked too.
+- `ADryRoomUnderAPondReadsDry`: the tile path. In, on, or above the pond reads 16.5. The dry room reads dry. A room over a cave pool
+  reads the pool's surface below it (no buoyancy until the body reaches it). The pool reads its own level, and below every run reads
+  dry. RED with the selection disabled: the dry room and the room over the pool both read 16.5.
+- `ASourceWithNoBottomReadsItsLevelAtEveryHeight`: the old water and the sea are unchanged.
+
+**Gates:**
+- Unit water + debris 359/359. Integration water 62/64 (the two known).
+- `tools/debris_settle_bench.py` (DebrisLab, `debris_settle/a2e`): the same verdicts as every run since 2026-10-07 (drop_pile,
+  blast and box_through_pile FAIL there as they did before). drop_pile's settle time of 7.17 s sits in its spread: the same binary
+  ran 5.52 and 7.00 s (`a2e_rep1`, `a2e_rep2`), and earlier runs 5.0-7.02 s, with random spawn spins. DebrisLab uploads no water
+  tiles (`tiles_uploaded` 0), so the changed selection never runs there.
+- `shader_manifest --check` OK; the regenerated `.spv` is committed. Three comments were reworded after the tests ran (comments
+  only).
+
+**Cost** (whole frame, `water_a3_cost.py --tag a2e` against §32.3 / A2b on the same rig):
+- **The still 4 x 4 m pond:** awake/slept 651-692 fps, CPU 1.47-1.58 ms, GPU 1.34-1.35 ms. Earlier: 666-752 fps, CPU 1.34-1.54,
+  GPU 1.30-1.33. A shift of up to ~0.1 ms CPU and ~0.02 ms GPU, inside these runs' spread.
+- **20 floating blocks:** 262 / 458 fps at 3 / 25 s. This beats A3's 233 / 317, but A2g and A2h changed that scene since.
+- **The debris solver's GPU share:** 0.013 ms (unchanged).
+- **The tiles' own build, this build:** 0.11 ms a frame for the still awake pond and 0.27 ms (max 0.37) while its water moves after
+  a stone (1-2 tiles uploaded).
+- **Memory and upload:** the tile buffer is 6 MB per frame slot x 2 (was 2 MB). The per-frame upload is 24 KB per wet tile (was
+  8 KB).
+
+**Not measured:** the old build's tile build ms in the same session; a scene with many wet tiles (the 256-tile cap); a body in a
+column with three or more runs, live.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

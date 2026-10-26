@@ -128,12 +128,12 @@ public:
     }
     /** Phase 6c water for the integrate pass (built by DebrisRuntime). `dir` has
      *  WATER_DIR_CHUNKS^2 entries (a tile index or WATER_TILE_NONE) for the window whose min chunk
-     *  column is `dirMinChunkXZ`; `cells` holds the tiles (WATER_TILE_CELLS^2 cells of 2 uints:
-     *  surface-Y bits, packHalf2x16(flow)). Columns with no tile read the background: `seaLevel`
+     *  column is `dirMinChunkXZ`; `cells` holds the tiles (WATER_TILE_CELLS^2 cells of WATER_CELL_WORDS uints, solver_shared.h:
+     *  the two highest runs' top/bottom bits, packHalf2x16(flow), WaterCore 37). Columns with no tile read the background: `seaLevel`
      *  when `implicitSea`, else dry. Uploaded after the frame slot's fence like the impulses. */
     void setWater(const glm::ivec2& dirMinChunkXZ, bool implicitSea, float seaLevel,
                   std::vector<uint32_t> dir, std::vector<uint32_t> cells);
-    uint32_t waterTiles() const { return static_cast<uint32_t>(m_waterCellStage.size() / (2u * 32u * 32u)); }
+    uint32_t waterTiles() const { return static_cast<uint32_t>(m_waterCellStage.size() / (static_cast<size_t>(DebrisShared::WATER_CELL_WORDS) * 32u * 32u)); }
     bool staticOccupancyWired() const { return m_staticOccWired; }
 
     // ---- Character collision interface ----

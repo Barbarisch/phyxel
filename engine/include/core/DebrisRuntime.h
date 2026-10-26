@@ -159,6 +159,18 @@ public:
 
     /// One column's water: true + surface Y + flow (m/s) when wet (WaterManager::columnWater).
     using WaterColumnFn = std::function<bool(int wx, int wz, float& surfaceY, glm::vec2& flow)>;
+    /// WaterCore 37 (A2e): a column's two highest water runs (top-down; bottom WATER_NO_BOTTOM = reaches down without limit, top2
+    /// WATER_DRY = no second run; `more` = runs below the second, read dry) and the top run's flow - the tile cell
+    /// (solver_shared.h WATER_CELL_WORDS). A body reads the run it is in (phxWaterRunSurface), not the column's top.
+    struct WaterRuns {
+        float top1 = DebrisShared::WATER_DRY, bottom1 = DebrisShared::WATER_NO_BOTTOM;
+        float top2 = DebrisShared::WATER_DRY, bottom2 = DebrisShared::WATER_NO_BOTTOM;
+        uint32_t more = 0;
+        glm::vec2 flow{0.0f};
+    };
+    using WaterRunsFn = std::function<bool(int wx, int wz, WaterRuns& out)>;
+    /// A top-only source (the old water, a test's flat level) as runs: one run, no bottom - the old law exactly.
+    static WaterRunsFn runsOf(WaterColumnFn column);
     /// WaterCore E2 (docs/WaterCore.md 19): the active volumes are a water source AHEAD of the old one -
     /// a column a volume holds water in reads the volume's surface + surface velocity; tiles under a
     /// volume box are rebuilt every frame (the volume moves). `boxes` = WaterCoreManager::volumeBoxes().
@@ -171,8 +183,8 @@ public:
     /// saving is off while it runs. water_av_debris_tiles {check}.
     static inline bool s_checkKeptWaterTiles = false;
     void resetKeptWaterTileCheck() { m_waterStats.keptChecked = 0; m_waterStats.keptMismatch = 0; }
-    void setVolumeWater(WaterColumnFn column, const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, WaterSignatureFn signature = {}) {
-        m_volumeColumn = std::move(column); m_volumeBoxes = boxes; m_volumeSignature = std::move(signature);
+    void setVolumeWater(WaterRunsFn runs, const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, WaterSignatureFn signature = {}) {
+        m_volumeColumn = std::move(runs); m_volumeBoxes = boxes; m_volumeSignature = std::move(signature);
     }
     /// WaterCore 32.4 (A2b): drop the cached water tiles of these chunk columns (their record changed by residency) - a static tile is
     /// otherwise only rebuilt in rotation (up to 256 frames). The tile loop rebuilds a missing tile within its build budget.
@@ -186,18 +198,21 @@ public:
     uint64_t waterTilesDropped() const { return m_waterTilesDropped; }
     /// The column source debris reads: the volume where it answers, else the fallback. Pure.
     static WaterColumnFn composeColumn(WaterColumnFn volume, WaterColumnFn fallback);
+    static WaterRunsFn composeRuns(WaterRunsFn volume, WaterRunsFn fallback);   ///< 37: the same, as runs
     /// E2: the water's share of wet debris' drag + current since the last call (from the GPU readback).
     std::vector<GpuParticlePhysics::WaterExchange> takeWaterExchange() { return m_gpu ? m_gpu->takeWaterExchange() : std::vector<GpuParticlePhysics::WaterExchange>{}; }
-    /// Build chunk column (chunkX, chunkZ)'s tile (WATER_TILE_CELLS^2 cells x 2 words: surface-Y
-    /// bits, packHalf2x16(flow)). Returns false - and leaves `out` empty - when every cell is just
-    /// the background (implicit sea at seaLevel with no flow, or dry), so it needs no tile.
-    static bool buildWaterTile(int chunkX, int chunkZ, const WaterColumnFn& column, bool implicitSea,
+    /// Build chunk column (chunkX, chunkZ)'s tile (WATER_TILE_CELLS^2 cells x WATER_CELL_WORDS words: top1, bottom1,
+    /// packHalf2x16(flow), top2, bottom2, more - WaterCore 37). Returns false - and leaves `out` empty - when every cell is just
+    /// the background (implicit sea at seaLevel with no flow and no bottom, or dry), so it needs no tile.
+    static bool buildWaterTile(int chunkX, int chunkZ, const WaterRunsFn& runs, bool implicitSea,
                                float seaLevel, std::vector<uint32_t>& out);
-    /// CPU mirror of solver_integrate's waterSurface() lookup (same phxWaterDirIndex /
-    /// phxWaterCellIndex): the surface over world column (x, z) through the directory + tiles.
+    static bool buildWaterTile(int chunkX, int chunkZ, const WaterColumnFn& column, bool implicitSea,
+                               float seaLevel, std::vector<uint32_t>& out) { return buildWaterTile(chunkX, chunkZ, runsOf(column), implicitSea, seaLevel, out); }
+    /// CPU mirror of solver_integrate's waterSurface() lookup (same phxWaterDirIndex / phxWaterCellIndex / phxWaterRunSurface):
+    /// the surface a body whose top is at `bodyTop` reads over world column (x, z). The default (+inf) = the column's top run.
     static float sampleWaterTiles(int x, int z, const glm::ivec2& dirMinChunk, const std::vector<uint32_t>& dir,
                                   const std::vector<uint32_t>& cells, bool implicitSea, float seaLevel,
-                                  glm::vec2* flow = nullptr);
+                                  glm::vec2* flow = nullptr, float bodyTop = 3.0e38f);
 
     // ---- Phase 6a: debris pushes back on characters -----------------------------------------------
     // The contacts' force on a character's limb boxes (read back two frames late) is applied to that
@@ -241,7 +256,7 @@ private:
     struct CachedWaterTile { bool background = true; std::vector<uint32_t> cells; uint64_t builtFrame = 0; uint64_t volumeSig = 0; };
     WaterSignatureFn m_volumeSignature;                                        // 27.21
     Core::WaterManager* m_water = nullptr;
-    WaterColumnFn m_volumeColumn;                                              // E2
+    WaterRunsFn m_volumeColumn;                                                // E2 (37: runs)
     const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_volumeBoxes = nullptr;   // E2
     std::unordered_map<uint64_t, CachedWaterTile> m_waterCache;
     uint64_t m_waterTilesDropped = 0;   // 32.4

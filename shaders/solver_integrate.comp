@@ -12,7 +12,7 @@ layout(std430, set=0, binding=2) readonly buffer ParticleBuffer { GpuParticle pa
 // WATER_TILE_NONE) and tile pool (WATER_TILE_CELLS^2 cells per tile: x = surface Y bits, y = flow
 // xz as half2). Everything else (no tile) is the background: the implicit sea, or dry.
 layout(std430, set=0, binding=3) readonly buffer WaterDirBuffer  { uint waterDir[]; };
-layout(std430, set=0, binding=4) readonly buffer WaterTileBuffer { uvec2 waterCells[]; };
+layout(std430, set=0, binding=4) readonly buffer WaterTileBuffer { uint waterCells[]; };   // WATER_CELL_WORDS per cell (37)
 // WaterCore E2: the water's share of each wet body's drag + current, appended per tick (host-visible,
 // per frame slot, read back after its fence - the event-buffer pattern).
 struct WaterExchange { PHX_WATER_EXCHANGE };
@@ -47,8 +47,10 @@ vec2 wbfP(vec3 x) {
 
 layout(push_constant) uniform PC { PHX_PC_INTEGRATE } pc;  // shaders/solver_shared.h
 
-// Top water surface Y over world column (x, z) and its flow; WATER_DRY when dry.
-float waterSurface(vec3 p, out vec2 flow) {
+// The water surface Y a body whose top is at bodyTop reads over world column (x, z), and its flow; WATER_DRY when dry.
+// 37 (A2e): the run the body is IN (phxWaterRunSurface) - not the column's top run, which put a body in a dry cave under a
+// pond under the pond's level.
+float waterSurface(vec3 p, float bodyTop, out vec2 flow) {
     flow = vec2(0.0);
     const int x = int(floor(p.x)), z = int(floor(p.z));
     const int d = phxWaterDirIndex(x, z, pc.water.x, pc.water.y);
@@ -57,9 +59,11 @@ float waterSurface(vec3 p, out vec2 flow) {
     if (d < 0) return sea ? seaY : WATER_DRY;          // outside the window: the background
     const uint t = waterDir[d];
     if (t == WATER_TILE_NONE) return sea ? seaY : WATER_DRY;
-    const uvec2 c = waterCells[t * uint(WATER_TILE_CELLS * WATER_TILE_CELLS) + uint(phxWaterCellIndex(x, z))];
-    flow = unpackHalf2x16(c.y);
-    return uintBitsToFloat(c.x);
+    const uint c = (t * uint(WATER_TILE_CELLS * WATER_TILE_CELLS) + uint(phxWaterCellIndex(x, z))) * uint(WATER_CELL_WORDS);
+    const float s = phxWaterRunSurface(uintBitsToFloat(waterCells[c]), uintBitsToFloat(waterCells[c + 1u]),
+                                       uintBitsToFloat(waterCells[c + 3u]), uintBitsToFloat(waterCells[c + 4u]), bodyTop);
+    if (s == uintBitsToFloat(waterCells[c]) && s > WATER_DRY) flow = unpackHalf2x16(waterCells[c + 2u]);   // the top run's flow only
+    return s;
 }
 
 void main() {
@@ -134,8 +138,8 @@ void main() {
     vec3 dampRef = vec3(0.0);
     if ((pc.flags & SOLVER_FLAG_WATER) != 0u) {
         vec2 flowD;
-        const float surfD = waterSurface(b.pos, flowD);
         const float rD = max(b.radius, 1e-3);
+        const float surfD = waterSurface(b.pos, b.pos.y + rD, flowD);
         const float fD = clamp((surfD - (b.pos.y - rD)) / (2.0 * rD), 0.0, 1.0);
         if (fD > 0.0) dampRef = vec3(flowD.x, 0.0, flowD.y);
     }
@@ -150,8 +154,8 @@ void main() {
     float buoyAccY = 0.0;
     if ((pc.flags & SOLVER_FLAG_WATER) != 0u) {
         vec2 flow;
-        const float surf = waterSurface(b.pos, flow);
         const float r = max(b.radius, 1e-3);
+        const float surf = waterSurface(b.pos, b.pos.y + r, flow);
         float f = clamp((surf - (b.pos.y - r)) / (2.0 * r), 0.0, 1.0);
         // WaterCore 31 (M4): inside an awake GPU volume the push is the PRESSURE over the body's faces (water_body_force.glsl), read
         // from this frame's window at the body's own pose: water over a body presses it down, air under it holds nothing up (31.1:

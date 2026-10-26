@@ -122,25 +122,44 @@ DebrisRuntime::WaterColumnFn DebrisRuntime::composeColumn(WaterColumnFn volume, 
     };
 }
 
-bool DebrisRuntime::buildWaterTile(int chunkX, int chunkZ, const WaterColumnFn& column, bool implicitSea,
+DebrisRuntime::WaterRunsFn DebrisRuntime::runsOf(WaterColumnFn column) {
+    if (!column) return {};
+    return [column = std::move(column)](int wx, int wz, WaterRuns& r) {
+        r = WaterRuns{};
+        return column(wx, wz, r.top1, r.flow);   // one run, no bottom: the old law exactly
+    };
+}
+
+DebrisRuntime::WaterRunsFn DebrisRuntime::composeRuns(WaterRunsFn volume, WaterRunsFn fallback) {
+    return [volume = std::move(volume), fallback = std::move(fallback)](int wx, int wz, WaterRuns& r) {
+        if (volume && volume(wx, wz, r)) return true;
+        return fallback ? fallback(wx, wz, r) : false;
+    };
+}
+
+bool DebrisRuntime::buildWaterTile(int chunkX, int chunkZ, const WaterRunsFn& runs, bool implicitSea,
                                    float seaLevel, std::vector<uint32_t>& out) {
     using namespace DebrisShared;
     const int n = WATER_TILE_CELLS;
-    out.assign(static_cast<size_t>(n) * n * 2u, 0u);
+    const size_t W = static_cast<size_t>(WATER_CELL_WORDS);
+    out.assign(static_cast<size_t>(n) * n * W, 0u);
     const float bg = implicitSea ? seaLevel : WATER_DRY;
     bool any = false;
+    auto put = [&out](size_t at, float v) { std::memcpy(&out[at], &v, sizeof(float)); };
     for (int lz = 0; lz < n; ++lz)
         for (int lx = 0; lx < n; ++lx) {
             const int wx = chunkX * n + lx, wz = chunkZ * n + lz;
-            float surf = WATER_DRY;
-            glm::vec2 flow(0.0f);
-            if (!column(wx, wz, surf, flow)) { surf = WATER_DRY; flow = glm::vec2(0.0f); }
+            WaterRuns r;
+            if (!runs || !runs(wx, wz, r)) r = WaterRuns{};
+            if (r.top1 <= WATER_DRY) r = WaterRuns{};   // dry: no runs, no flow
             // Note: a dry column inside a sea world stays DRY (the sim says so), which differs from
-            // the background - so it needs a tile.
-            if (surf != bg || flow.x != 0.0f || flow.y != 0.0f) any = true;
-            const size_t c = static_cast<size_t>(phxWaterCellIndex(wx, wz)) * 2u;
-            std::memcpy(&out[c], &surf, sizeof(float));
-            out[c + 1] = glm::packHalf2x16(flow);
+            // the background - so it needs a tile. A column with a bottom, or a second run, is not the background either.
+            if (r.top1 != bg || r.flow.x != 0.0f || r.flow.y != 0.0f || r.bottom1 != WATER_NO_BOTTOM || r.top2 > WATER_DRY) any = true;
+            const size_t c = static_cast<size_t>(phxWaterCellIndex(wx, wz)) * W;
+            put(c, r.top1); put(c + 1, r.bottom1);
+            out[c + 2] = glm::packHalf2x16(r.flow);
+            put(c + 3, r.top2); put(c + 4, r.bottom2);
+            out[c + 5] = r.more;
         }
     if (!any) out.clear();
     return any;
@@ -148,7 +167,7 @@ bool DebrisRuntime::buildWaterTile(int chunkX, int chunkZ, const WaterColumnFn& 
 
 float DebrisRuntime::sampleWaterTiles(int x, int z, const glm::ivec2& dirMinChunk, const std::vector<uint32_t>& dir,
                                       const std::vector<uint32_t>& cells, bool implicitSea, float seaLevel,
-                                      glm::vec2* flow) {
+                                      glm::vec2* flow, float bodyTop) {
     using namespace DebrisShared;
     if (flow) *flow = glm::vec2(0.0f);
     const float bg = implicitSea ? seaLevel : WATER_DRY;
@@ -156,12 +175,14 @@ float DebrisRuntime::sampleWaterTiles(int x, int z, const glm::ivec2& dirMinChun
     if (d < 0 || static_cast<size_t>(d) >= dir.size()) return bg;
     const uint32_t t = dir[d];
     if (t == WATER_TILE_NONE) return bg;
+    const size_t W = static_cast<size_t>(WATER_CELL_WORDS);
     const size_t c = (static_cast<size_t>(t) * WATER_TILE_CELLS * WATER_TILE_CELLS +
-                      static_cast<size_t>(phxWaterCellIndex(x, z))) * 2u;
-    if (c + 1 >= cells.size()) return bg;
-    float surf;
-    std::memcpy(&surf, &cells[c], sizeof(float));
-    if (flow) *flow = glm::unpackHalf2x16(cells[c + 1]);
+                      static_cast<size_t>(phxWaterCellIndex(x, z))) * W;
+    if (c + W > cells.size()) return bg;
+    auto get = [&cells](size_t at) { float v; std::memcpy(&v, &cells[at], sizeof(float)); return v; };
+    const float top1 = get(c);
+    const float surf = phxWaterRunSurface(top1, get(c + 1), get(c + 3), get(c + 4), bodyTop);
+    if (flow && surf == top1 && surf > WATER_DRY) *flow = glm::unpackHalf2x16(cells[c + 2]);   // the top run's flow only (as the shader)
     return surf;
 }
 
@@ -214,8 +235,9 @@ void DebrisRuntime::updateWater() {
         if (underVolume(cx, cz)) { ++volumeTiles; return true; }   // the volume moves: rebuilt when its water changes (below)
         return inRegion(cx, cz);
     };
-    const WaterColumnFn fallback = m_water ? WaterColumnFn([this](int wx, int wz, float& s, glm::vec2& f) { return m_water->columnWater(wx, wz, s, f); }) : WaterColumnFn();
-    const WaterColumnFn column = composeColumn(m_volumeColumn, fallback);
+    // the old water has no bottoms (a flat level per column): one run reaching down, its law unchanged (37)
+    const WaterRunsFn fallback = m_water ? runsOf([this](int wx, int wz, float& s, glm::vec2& f) { return m_water->columnWater(wx, wz, s, f); }) : WaterRunsFn();
+    const WaterRunsFn column = composeRuns(m_volumeColumn, fallback);
     auto key = [](int cx, int cz) { return (static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz); };
     // 27.21: a tile under a volume reads the volumes there and, where they hold no column, the old water: outside its region
     // the static table, inside it the live cells - which change unless the region holds no water at all (anyWet false: every
@@ -237,7 +259,7 @@ void DebrisRuntime::updateWater() {
         // 27.21: no volume field over the tile - the volumes answer none of its columns; read the fallback alone (the composed
         // source asked every field first, for every column: 64 sleeping ponds made the old water's 10-13 tiles cost 3.6 ms a frame)
         const bool fallbackOnly = (sig ? sig : fieldsSig(cx, cz)) == kNoVolumeWater;
-        t.background = !buildWaterTile(cx, cz, fallbackOnly ? (fallback ? fallback : WaterColumnFn([](int, int, float&, glm::vec2&) { return false; })) : column, sea, seaY, t.cells);
+        t.background = !buildWaterTile(cx, cz, fallbackOnly ? fallback : column, sea, seaY, t.cells);   // an empty fn reads dry
         t.builtFrame = m_waterFrame;
         t.volumeSig = sig;
         m_waterCache[key(cx, cz)] = std::move(t);

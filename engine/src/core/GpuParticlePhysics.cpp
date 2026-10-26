@@ -242,7 +242,7 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
                                        DebrisShared::WATER_DIR_CHUNKS * sizeof(uint32_t);
         const VkDeviceSize tileBytes = static_cast<VkDeviceSize>(DebrisShared::WATER_MAX_TILES) *
                                        DebrisShared::WATER_TILE_CELLS * DebrisShared::WATER_TILE_CELLS *
-                                       2u * sizeof(uint32_t);
+                                       DebrisShared::WATER_CELL_WORDS * sizeof(uint32_t);   // 37: 6 words a cell
         if (!createHostBuffer(dirBytes, m_waterDirBuffer[slot], m_waterDirMem[slot], m_waterDirMapped[slot], "water directory") ||
             !createHostBuffer(tileBytes, m_waterTileBuffer[slot], m_waterTileMem[slot], m_waterTileMapped[slot], "water tiles"))
             return false;
@@ -711,7 +711,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
         m_solverIntegratePass.bindBufferInSet(slot, 3, m_waterDirBuffer[slot],
             static_cast<VkDeviceSize>(WATER_DIR_CHUNKS) * WATER_DIR_CHUNKS * sizeof(uint32_t));
         m_solverIntegratePass.bindBufferInSet(slot, 4, m_waterTileBuffer[slot],
-            static_cast<VkDeviceSize>(WATER_MAX_TILES) * WATER_TILE_CELLS * WATER_TILE_CELLS * 2u * sizeof(uint32_t));
+            static_cast<VkDeviceSize>(WATER_MAX_TILES) * WATER_TILE_CELLS * WATER_TILE_CELLS * WATER_CELL_WORDS * sizeof(uint32_t));
         m_solverIntegratePass.bindBufferInSet(slot, 5, m_exchangeBuffer[slot],   // WaterCore E2
             static_cast<VkDeviceSize>(EVENT_HEADER_UINTS) * 4u + static_cast<VkDeviceSize>(MAX_WATER_EXCHANGE) * sizeof(WaterExchangeGpu));
         m_solverIntegratePass.bindBufferInSet(slot, 6, m_wetBuffer[slot],        // WaterCore 20
@@ -1692,7 +1692,7 @@ void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
 
 void GpuParticlePhysics::setWater(const glm::ivec2& dirMinChunkXZ, bool implicitSea, float seaLevel,
                                   std::vector<uint32_t> dir, std::vector<uint32_t> cells) {
-    const size_t tileWords = static_cast<size_t>(DebrisShared::WATER_TILE_CELLS) * DebrisShared::WATER_TILE_CELLS * 2u;
+    const size_t tileWords = static_cast<size_t>(DebrisShared::WATER_TILE_CELLS) * DebrisShared::WATER_TILE_CELLS * DebrisShared::WATER_CELL_WORDS;
     const size_t maxWords  = DebrisShared::WATER_MAX_TILES * tileWords;
     if (cells.size() > maxWords) cells.resize(maxWords);   // the builder caps first (and counts)
     m_waterDirStage  = std::move(dir);

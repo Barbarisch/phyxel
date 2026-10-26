@@ -2283,27 +2283,92 @@ bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& f
     return false;
 }
 
+namespace {
+// 37: water intervals [bottom, top] of one world column (sub-column runs, span runs) merged where they overlap or touch, the two
+// highest kept top-down, the rest counted. Few merged runs in practice (one, for a plain pond), so merging into a short list costs
+// O(intervals) - no sort of the up to 81 x 4 sub-column runs.
+struct RunMerge {
+    static constexpr int kCap = 8;
+    float b[kCap], t[kCap]; int n = 0, dropped = 0;
+    void add(float bottom, float top) {
+        if (!(top > bottom + 1e-4f)) return;
+        for (int i = 0; i < n;) {
+            if (top >= b[i] - 1e-4f && bottom <= t[i] + 1e-4f) {   // overlaps or touches: absorb it, re-scan (the union may reach others)
+                bottom = std::min(bottom, b[i]); top = std::max(top, t[i]);
+                b[i] = b[n - 1]; t[i] = t[n - 1]; --n; i = 0; continue;
+            }
+            ++i;
+        }
+        if (n < kCap) { b[n] = bottom; t[n] = top; ++n; } else ++dropped;   // past 8 separate runs in one column: counted, read dry
+    }
+    void out(WaterCoreManager::ColumnLevels& o) const {
+        int idx[kCap]; for (int i = 0; i < n; ++i) idx[i] = i;
+        std::sort(idx, idx + n, [this](int a, int c) { return t[a] > t[c]; });
+        o.n = std::min(n, 2); o.more = std::max(0, n - 2) + dropped;
+        for (int k = 0; k < 2; ++k) { o.top[k] = k < n ? t[idx[k]] : -1e30f; o.bottom[k] = k < n ? b[idx[k]] : -1e30f; }
+    }
+};
+}  // namespace
+
+bool WaterCoreManager::columnRuns(int wx, int wz, ColumnLevels& out) const {
+    out = ColumnLevels{};
+    for (const WaterSurfaceField* fp : m_fields) {
+        const WaterSurfaceField& f = *fp;
+        const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
+        const int bx = wx * per - f.origin.x, bz = wz * per - f.origin.z;
+        if (bx < 0 || bz < 0 || bx + per > f.nx || bz + per > f.nz) continue;
+        // the same sub-columns columnWater reads (a body's own level at the top skipped unless every one holds a body)
+        bool anyClear = false;
+        for (int k = 0; k < per && !anyClear; ++k) for (int i = 0; i < per; ++i) { const SurfaceColumn& c = f.at(bx + i, bz + k); if (c.runs >= 0.5f && c.bodyAtSurface <= 0.0f) { anyClear = true; break; } }
+        RunMerge m; glm::vec2 sum(0.0f); int wet = 0;
+        for (int k = 0; k < per; ++k) for (int i = 0; i < per; ++i) {
+            const SurfaceColumn& c = f.at(bx + i, bz + k);
+            const int runs = static_cast<int>(c.runs + 0.5f);
+            if (runs <= 0) {
+                if (c.runs < 0.0f && c.top[0] > c.bottom[0]) { m.add(c.bottom[0], c.top[0]); ++wet; }   // a recorded tile's column (27.15)
+                continue;
+            }
+            if (anyClear && c.bodyAtSurface > 0.0f) continue;
+            for (int r = 0; r < std::min(runs, kSurfaceMaxRuns); ++r) m.add(c.bottom[r], c.top[r]);
+            sum += glm::vec2(c.u, c.w); ++wet;
+        }
+        if (wet == 0) return false;   // the volume owns this column and it is dry
+        m.out(out);
+        if (out.n == 0) return false;
+        out.flow = sum / static_cast<float>(wet);
+        return true;
+    }
+    return recordColumnRuns(wx, wz, out);
+}
+
 const WaterCoreManager::RecordCol& WaterCoreManager::recordCol(int cx, int cz) const {
     const uint64_t key = (static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 32) | static_cast<uint32_t>(cz);
     RecordCol& e = m_recordCols[key];
     const uint64_t rev = m_spanRevision ? m_spanRevision() : 0;
     const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    // kRecordColumnTtlS: the age limit - streaming does not bump the revision; residency changes re-read at once (32.4)
     if (e.rev == rev && e.t >= 0.0 && now - e.t < kRecordColumnTtlS) return e;
-    std::vector<float> top(1024, -1e30f);
+    std::vector<float> lv(static_cast<size_t>(1024) * kRecordLevels, -1e30f);
+    for (size_t i = 0; i < 1024; ++i) lv[i * kRecordLevels + 4] = 0.0f;   // more = 0
     bool any = false;
     if (m_spanReader) {
-        // every height: one reader call per 32 x 32 chunk column (it assembles the column's chunks once)
+        // every height in [kRecordMinY, kRecordMaxY]: one reader call per 32 x 32 chunk column (it assembles the column's chunks once)
         std::vector<ColumnRuns> runs;
         const int x0 = cx * 32, z0 = cz * 32;
-        m_spanReader(glm::ivec3(x0, -128, z0), glm::ivec3(x0 + 31, 1023, z0 + 31), runs);
+        m_spanReader(glm::ivec3(x0, kRecordMinY, z0), glm::ivec3(x0 + 31, kRecordMaxY, z0 + 31), runs);
         for (const ColumnRuns& c : runs) {
             const int lx = c.x - x0, lz = c.z - z0;
             if (lx < 0 || lz < 0 || lx > 31 || lz > 31) continue;
-            for (const ColumnRun& r : c.runs)
-                if (r.topY > r.bottomY + 1e-4f) { float& t = top[static_cast<size_t>(lx + 32 * lz)]; t = std::max(t, r.topY); any = true; }
+            RunMerge m;
+            for (const ColumnRun& r : c.runs) m.add(r.bottomY, r.topY);
+            if (m.n == 0) continue;
+            ColumnLevels o; m.out(o);
+            float* p = &lv[static_cast<size_t>(lx + 32 * lz) * kRecordLevels];
+            p[0] = o.top[0]; p[1] = o.bottom[0]; p[2] = o.top[1]; p[3] = o.bottom[1]; p[4] = static_cast<float>(o.more);
+            any = true;
         }
     }
-    if (top != e.top) { e.gen = ++m_recordGen; e.top.swap(top); }
+    if (lv != e.lv) { e.gen = ++m_recordGen; e.lv.swap(lv); }
     e.any = any; e.rev = rev; e.t = now;
     e.res = m_resColumn ? m_resColumn(cx, cz) : 0;
     return e;
@@ -2340,9 +2405,22 @@ bool WaterCoreManager::recordColumnWater(int wx, int wz, float& surfaceY) const 
     const int cx = floorDiv(wx, 32), cz = floorDiv(wz, 32);
     const RecordCol& e = recordCol(cx, cz);
     if (!e.any) return false;
-    const float t = e.top[static_cast<size_t>((wx - cx * 32) + 32 * (wz - cz * 32))];
+    const float t = e.lv[static_cast<size_t>((wx - cx * 32) + 32 * (wz - cz * 32)) * kRecordLevels];
     if (t < -1e29f) return false;
     surfaceY = t;
+    return true;
+}
+
+bool WaterCoreManager::recordColumnRuns(int wx, int wz, ColumnLevels& out) const {
+    out = ColumnLevels{};
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };   // as recordColumnWater (A2a)
+    const int cx = floorDiv(wx, 32), cz = floorDiv(wz, 32);
+    const RecordCol& e = recordCol(cx, cz);
+    if (!e.any) return false;
+    const float* p = &e.lv[static_cast<size_t>((wx - cx * 32) + 32 * (wz - cz * 32)) * kRecordLevels];
+    if (p[0] < -1e29f) return false;
+    out.top[0] = p[0]; out.bottom[0] = p[1]; out.top[1] = p[2]; out.bottom[1] = p[3];
+    out.n = p[2] > -1e29f ? 2 : 1; out.more = static_cast<int>(p[4]);
     return true;
 }
 

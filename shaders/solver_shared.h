@@ -82,11 +82,20 @@ PHX_CONST float WATER_ANGULAR_DRAG   = 0.85f;
 PHX_CONST float WATER_CURRENT_COUPLE = 3.0f;    // drift converges to ~ the current's own speed
 // GPU water: a sparse table of per-chunk-column TILES over the same XZ window as the static
 // occupancy directory (32 x 32 chunk columns, recentred on the viewer). A tile = 32 x 32 cells of
-// {top water surface Y, flow xz (half2)}; columns whose water is just the background (the implicit
-// sea, or dry) have no tile - the directory says WATER_TILE_NONE and the shader uses the background.
+// WATER_CELL_WORDS words: {top1, bottom1, flow xz (half2), top2, bottom2, more} - the column's two highest water
+// runs (WaterCore 37, A2e: a body reads the run it is IN - the highest run whose bottom is below the body's top,
+// wc_body_pressure.comp's columnLevel rule - so a dry cave or room under a pond reads dry instead of under water:
+// read as the pond's level, a wood block there would rise through the air to the ceiling - read from the code, never run; a STONE
+// there fell 64 % slower than free fall, a2e_red.json). bottom = WATER_NO_BOTTOM
+// when the source has no bottom (the old water, the sea): the run is always chosen, the old law exactly. top2 =
+// WATER_DRY when there is no second run; `more` counts runs below the second (they read dry: a body there sinks,
+// never rises). Flow is the top run's (the second run's is 0). Columns whose water is just the background (the
+// implicit sea, or dry) have no tile - the directory says WATER_TILE_NONE and the shader uses the background.
 PHX_CONST int   WATER_DIR_CHUNKS     = 32;      // == PackedOccupancyPool::kDirChunksX / kDirChunksZ
 PHX_CONST int   WATER_TILE_CELLS     = 32;      // == chunk size
-PHX_CONST uint  WATER_MAX_TILES      = 256u;    // 2 MB per frame slot; more are counted, treated as background
+PHX_CONST int   WATER_CELL_WORDS     = 6;       // 37: was 2 (top + flow)
+PHX_CONST uint  WATER_MAX_TILES      = 256u;    // 6 MB per frame slot (37: 2 MB at 2 words); more are counted, treated as background
+PHX_CONST float WATER_NO_BOTTOM      = -3.0e38f; // a run that reaches down without limit (sources with no bottom)
 PHX_CONST uint  WATER_TILE_NONE      = 0xFFFFFFFFu;
 PHX_CONST float WATER_DRY            = -1.0e30f; // a cell's surface when it has no water
 // Floor division (GLSL % and / truncate toward zero; a world column west of x = 0 must not fold).
@@ -103,6 +112,14 @@ PHX_FN int phxWaterCellIndex(int x, int z) {
     const int lx = x - phxWaterFloorDiv(x, WATER_TILE_CELLS) * WATER_TILE_CELLS;
     const int lz = z - phxWaterFloorDiv(z, WATER_TILE_CELLS) * WATER_TILE_CELLS;
     return lz * WATER_TILE_CELLS + lx;
+}
+// 37 (A2e): the surface a body whose top is at bodyTop reads from a cell's two runs - the highest run whose bottom is
+// below the body's top (wc_body_pressure.comp columnLevel), else dry. Shared by the shader and its CPU mirror.
+PHX_FN float phxWaterRunSurface(float top1, float bottom1, float top2, float bottom2, float bodyTop) {
+    if (top1 <= WATER_DRY) return WATER_DRY;
+    if (bodyTop > bottom1) return top1;
+    if (top2 > WATER_DRY && bodyTop > bottom2) return top2;
+    return WATER_DRY;
 }
 
 // ---- Mover push-back (Phase 6a): debris pushes on the movers that push it ----------------------

@@ -573,7 +573,16 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // E2 (docs/WaterCore.md 19): debris reads the active volumes ahead of the old water (coupling off =
     // the A/B control: debris then ignores the volumes)
     if (debrisRuntime) debrisRuntime->setVolumeWater(
-        [this](int wx, int wz, float& s, glm::vec2& f) { return waterCore && m_waterCouplingOn && waterCore->columnWater(wx, wz, s, f); },
+        // 37 (A2e): the column's two highest runs, so a body reads the run it is in (a dry cave under a pond is dry)
+        [this](int wx, int wz, DebrisRuntime::WaterRuns& r) {
+            Core::Water::WaterCoreManager::ColumnLevels lv;
+            if (!waterCore || !m_waterCouplingOn || !waterCore->columnRuns(wx, wz, lv)) return false;
+            r = DebrisRuntime::WaterRuns{};
+            r.top1 = lv.top[0]; r.bottom1 = lv.bottom[0]; r.flow = lv.flow;
+            if (lv.n > 1) { r.top2 = lv.top[1]; r.bottom2 = lv.bottom[1]; }
+            r.more = static_cast<uint32_t>(lv.more);
+            return true;
+        },
         &waterCore->volumeBoxes(),
         // 27.21: the tiles' cache key - the fields over the tile, and the coupling switch (off reads dry)
         [this](int x0, int z0, int x1, int z1) -> uint64_t {

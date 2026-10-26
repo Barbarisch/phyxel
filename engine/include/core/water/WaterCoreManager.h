@@ -411,6 +411,13 @@ public:
     /// E2: one world voxel column's water from the last surface fields - the highest top over the
     /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
     bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
+    /// 37 (A2e): the same column as its two highest water RUNS (top-down) - overlapping sub-column runs merged into one, the rest
+    /// counted in `more` - so a body reads the run it is in (solver_shared.h phxWaterRunSurface), not the column's top: read by its
+    /// top alone, a dry cave or room under a pond was under the pond's level, and a wood block there would rise through the air. top[0]
+    /// equals columnWater's surface wherever that is wet (pinned by WaterRunRead.TheTopRunIsColumnWatersSurface). Flow = columnWater's.
+    struct ColumnLevels { int n = 0; float top[2] = {-1e30f, -1e30f}; float bottom[2] = {-1e30f, -1e30f}; int more = 0; glm::vec2 flow{0.0f}; };
+    bool columnRuns(int wx, int wz, ColumnLevels& out) const;
+    bool recordColumnRuns(int wx, int wz, ColumnLevels& out) const;   ///< 37: the record's (the chunk spans') runs, cached like recordColumnWater
     /// 27.21: a signature of what columnWater reads over world columns [x0, x1] x [z0, z1] - the (source, version) of every surface
     /// field that owns a column there, in order. Equal signatures = the same answers (the tiler trusts the same version: an asleep
     /// volume's stands). 0 = a field there carries no version (unknown - the caller must rebuild). The debris water tiles' cache key.
@@ -421,7 +428,13 @@ public:
     /// tiles exist only near the camera: a floater thrown into a slept pond 100 m from the camera sank). Cached per 32 x 32 chunk
     /// column, re-read when the span revision moves or the entry is older than kRecordColumnTtlS (chunks stream in without a bump).
     bool recordColumnWater(int wx, int wz, float& surfaceY) const;
+    /// The cache's age limit: chunks stream in and out without a span-revision bump. Since 32.4 residency changes re-read at once,
+    /// so this only bounds how long a missed change can stand (37 / A2e item 5: stated at the site, recordCol).
     static constexpr double kRecordColumnTtlS = 2.0;
+    /// 37 (A2e item 5): the heights the record read covers, world voxels - a run outside [kRecordMinY, kRecordMaxY] is not read
+    /// (the reader's span window per chunk column; the world's water lives well inside it - surfaces reach ~400 m above sea level,
+    /// TerrainGenerationV2). Water above or below it reads dry to debris.
+    static constexpr int kRecordMinY = -128, kRecordMaxY = 1023;
     /// 32.4 (A2b): the record cache follows chunk residency. `global` = a hash of the whole resident set (cheap, every update());
     /// `column(cx, cz)` = a hash of the resident chunks in that chunk column (0 = none). When `global` moves, update() compares each
     /// cached entry's column: changed = stale + queued, none resident = evicted + queued. Null = no residency tracking (the 2 s age only).
@@ -708,7 +721,9 @@ private:
     std::vector<SleptVolume> m_slept;   // 32
     SleptWakeStats m_sleptWake;         // 32
     SleptLoadStats m_sleptLoad;         // 35
-    struct RecordCol { uint64_t rev = ~0ull; double t = -1.0; uint64_t gen = 0; bool any = false; std::vector<float> top;   // 32
+    // 32: `lv` = per world column (lx + 32 lz) kRecordLevels floats: top1, bottom1, top2, bottom2, more (37; top1 -1e30 = dry)
+    static constexpr int kRecordLevels = 5;
+    struct RecordCol { uint64_t rev = ~0ull; double t = -1.0; uint64_t gen = 0; bool any = false; std::vector<float> lv;
                        uint64_t res = 0; };   // 32.4: the chunk column's residency signature at the read
     std::function<uint64_t()> m_resGlobal;
     std::function<uint64_t(int, int)> m_resColumn;
