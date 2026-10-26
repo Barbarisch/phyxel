@@ -1,0 +1,98 @@
+M4b-1 RED (Debug; caps/params in, the routing + envelope unchanged = M4a; scratchpad m4b1_red.txt; earthwork measured against baseHeightFn, i.e. the sheet surface WITHOUT valley/coast shaping - re-measured below against the exact pre-grading surface):
+[ M4b ] baseline Perlin: 32 roads, 45300 profile segments, 6783 over the class cap (worst 6.25 x cap); 11344 vertices: max cut 30.5 u, max fill 16.1 u, 5647 deeper than 6 u
+[  FAILED  ] RouteFieldTest.EveryProfileStepWithinItsClassCap (134824 ms)
+[ M4b ] baseline earthwork: 32 roads, 45300 profile segments, 6783 over the class cap (worst 6.25 x cap); 11344 vertices: max cut 30.5 u, max fill 16.1 u, 5647 deeper than 6 u
+[  FAILED  ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (89921 ms)
+[ M4b ] Mountains 424242: 33 roads, 58620 profile segments, 33422 over the class cap (worst 6.25 x cap); 14678 vertices: max cut 171.6 u, max fill 24.8 u, 14510 deeper than 6 u
+[ M4b ] Mountains detour: 936.9 km of road for 561.3 km of endpoint distance (x1.67); corridors 154, unroutable 2
+[  FAILED  ] RouteFieldTest.MountainRoadsKeepTheCapAndDetour (270751 ms)
+[ M4b ] walkability: 234924 centreline steps, 8 taller than 1 cube (0.003 %)
+[       OK ] RouteFieldTest.RealizedRoadsAreStepWalkable (96772 ms)
+[ M4b ] version-1 Mountains (legacy 0.5): 10 roads, 432 profile segments, 154 over the class cap (worst 6.25 x cap); 115 vertices: max cut 65.3 u, max fill 14.4 u, 95 deeper than 6 u
+[       OK ] RouteFieldTest.VersionOneKeepsTheLegacyEnvelope (463 ms)
+[  FAILED  ] RouteFieldTest.EveryProfileStepWithinItsClassCap
+[  FAILED  ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline
+[  FAILED  ] RouteFieldTest.MountainRoadsKeepTheCapAndDetour
+
+RED RE-MEASURE against the exact pre-grading surface (road.naturalY; scratchpad m4b1_red2.txt):
+[ M4b ] baseline earthwork: 32 roads, 45300 profile segments, 6783 over the class cap (worst 6.25 x cap); 11344 vertices: max cut 8.9 u, max fill 1.2 u, 3 deeper than 6 u
+[       OK ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (132637 ms)
+[ M4b ] Mountains 424242: 33 roads, 58620 profile segments, 33422 over the class cap (worst 6.25 x cap); 14678 vertices: max cut 91.5 u, max fill 31.0 u, 2256 deeper than 6 u
+[ M4b ] Mountains detour: 936.9 km of road for 561.3 km of endpoint distance (x1.67); corridors 154, unroutable 2
+[  FAILED  ] RouteFieldTest.MountainRoadsKeepTheCapAndDetour (267737 ms)
+[  FAILED  ] RouteFieldTest.MountainRoadsKeepTheCapAndDetour
+-> the baseline earthwork is ALREADY bounded under the 0.5 envelope (max cut 8.9 u); the earthwork test is a guard that the caps do not make it worse, not a red for them; the caps themselves and the mountain cut are the red.
+
+FIRST GREEN ATTEMPT (caps + k-neighbourhood on the 128 u stride; scratchpad m4b1_green.txt): the caps hold everywhere, the EARTHWORK got worse - the 128 u search cannot see the fine band's bumps and the capped envelope cut trenches:
+[ M4b ] baseline Perlin: 32 roads, 43493 profile segments, 0 over the class cap (worst 1.00 x cap); 10891 vertices: max cut 36.4 u, max fill 7.0 u, 1038 deeper than 6 u
+[       OK ] RouteFieldTest.EveryProfileStepWithinItsClassCap (130477 ms)
+[ M4b ] baseline earthwork: 32 roads, 43493 profile segments, 0 over the class cap (worst 1.00 x cap); 10891 vertices: max cut 36.4 u, max fill 7.0 u, 1038 deeper than 6 u
+[  FAILED  ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (87650 ms)
+[ M4b ] Mountains 424242: 33 roads, 56033 profile segments, 0 over the class cap (worst 1.00 x cap); 14026 vertices: max cut 178.2 u, max fill 54.0 u, 9711 deeper than 6 u
+[ M4b ] Mountains detour: 895.6 km of road for 561.3 km of endpoint distance (x1.60); corridors 154, unroutable 2
+[       OK ] RouteFieldTest.MountainRoadsKeepTheCapAndDetour (277098 ms)
+[ M4b ] walkability: 223541 centreline steps, 184 taller than 1 cube (0.082 %)
+[       OK ] RouteFieldTest.RealizedRoadsAreStepWalkable (95036 ms)
+[ M4b ] version-1 Mountains (legacy 0.5): 10 roads, 432 profile segments, 154 over the class cap (worst 6.25 x cap); 115 vertices: max cut 32.0 u, max fill 25.0 u, 3 deeper than 6 u
+[       OK ] RouteFieldTest.VersionOneKeepsTheLegacyEnvelope (461 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (956 ms)
+[  FAILED  ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline
+-> next: refine each demand on the 32 u bake grid inside a +-256 u band around the coarse line (the M4 contract's macro-then-meso).
+
+SECOND/THIRD ATTEMPTS (scratchpad m4b1_green2.txt, m4b1_green3.txt): the fine band refinement on the 32 u grid cut the baseline max cut only to 26.9 u (931 vertices > 6 u) at 320-360 s Debug per box plan; with the grade measured along each step the box plan had not finished after 27 min (killed). Both dropped: fine-band refinement OFF (kept in code for M4b-2), grade-along-step KEPT on the 128 u coarse search (cheap there). The earthwork bound comes from a BOUNDED-CUT ENVELOPE instead: the capped envelope may not cut deeper than cutLimit(cls) = (half-width + the 3 u shoulder) x the repose slope 0.70 (both existing grounded constants; 3.15 / 3.85 / 4.2 u); where it would, the profile stays at the floor and the grade becomes a short pitch (USFS) bounded by the legacy 0.5; pitches are counted and each must be explained by an active floor or a bridge pin.
+
+FOURTH ATTEMPT (bounded-cut envelope in the first profile pass; scratchpad m4b1_green4.txt): the floor was UNDONE by the post-reconciliation envelope (the class cap re-applied after it): 0 pitches, max cut 31.6 u on the baseline, 152 u on Mountains; walkability 299 of 230698 steps (0.130 %) over the 0.1 % budget - the nearest-road seam between roads of different caps. -> the floor + 0.5 envelope move after the reconciliation stage, the reconciliation is skipped on corridor-driven plans, and the column grade becomes the CONTINUOUS blend over every road in reach (M4b-2, gradeBlendAt).
+
+FIFTH ATTEMPT = GREEN (floor + 0.5 envelope after the reconciliation stage, reconciliation skipped on corridor-driven plans, continuous grade blend at realization; scratchpad m4b_green5/6.txt, final m4b_final.txt 47/47 with the pinned hashes, RoadFieldSeamTest, WorldForgePlanTest, WorldForgeRecipeTest, the M4a box tests):
+[       OK ] CivHistoryTest.RuinsAreNotSeededIntoTheBoxPlan (63449 ms)
+[12:23:40.993] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 44688 segments in 33333 ms (hash 4704591372743009278)
+[       OK ] CivPlanTest.TheBoxPlanIsSeededByTheCivSites (34207 ms)
+[12:25:30.722] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 44688 segments in 33485 ms (hash 4704591372743009278)
+[ M4b ] baseline Perlin: 32 roads, 44688 profile segments, 2380 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 11194 vertices: max cut 7.6 u, max fill 1.0 u, 4 deeper than 6 u
+[       OK ] RouteFieldTest.EveryProfileStepWithinItsClassCapExceptBoundedPitches (34376 ms)
+[12:26:05.077] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 44688 segments in 33469 ms (hash 4704591372743009278)
+[ M4b ] baseline earthwork: 32 roads, 44688 profile segments, 2380 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 11194 vertices: max cut 7.6 u, max fill 1.0 u, 4 deeper than 6 u
+[ M4b ] cuts deeper than the floor: 41 next to a natural slope above 0.5, 0 unexplained
+[       OK ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (34355 ms)
+[ M4b ] Mountains 424242: 33 roads, 57996 profile segments, 26502 over the class cap = 45.7 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 14521 vertices: max cut 95.8 u, max fill 34.0 u, 2673 deeper than 6 u
+[ M4b ] Mountains detour: 926.9 km of road for 561.2 km of endpoint distance (x1.65); corridors 154, unroutable 2
+[       OK ] RouteFieldTest.MountainRoadsKeepTheCapAndDetour (169113 ms)
+[12:29:29.978] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 44688 segments in 34912 ms (hash 4704591372743009278)
+[ M4b ] walkability: 230698 centreline steps, 25 taller than 1 cube (0.011 %)
+[       OK ] RouteFieldTest.RealizedRoadsAreStepWalkable (43637 ms)
+[ M4b ] version-1 Mountains (legacy 0.5): 10 roads, 432 profile segments, 154 over the class cap = 35.5 % of the length (worst 6.25 x cap, 142 unexplained by a cut floor or a pin); 115 vertices: max cut 32.0 u, max fill 25.0 u, 3 deeper than 6 u
+[       OK ] RouteFieldTest.VersionOneKeepsTheLegacyEnvelope (412 ms)
+[12:30:20.266] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 44688 segments in 41103 ms (hash 4704591372743009278)
+[12:30:35.390] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 6 bridges, 35779 segments in 14123 ms (hash 17444758226620379375)
+[ M4a ] box road vertices inside the corridor band: 94.7 % of 44720 with the discount, 20.8 % of 35811 without
+[       OK ] RouteGraphTest.BoxRoadsFollowTheCorridors (57631 ms)
+[12:31:10.271] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 44688 segments in 33460 ms (hash 4704591372743009278)
+[ M4a ] D28 stamp: 40 corridor columns outside the box, 40 stamped with their class, 0 below sea (skipped), 0 off-corridor columns stamped
+[       OK ] RouteGraphTest.CorridorsAreStampedBeyondTheBox (35530 ms)
+[12:31:46.873] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 32 roads, 1 bridges, 44688 segments in 34587 ms (hash 4704591372743009278)
+[ M4a ] box-edge seam: 36 exits walked, 1719 dry columns sampled, 0 without a road (0 exits with a gap): 0 inside the inset box, 0 in the 512 u ring, 0 outside; 12 columns under standing water skipped
+[       OK ] RouteGraphTest.FineRoadMeetsTheMacroStampAtTheBoxEdge (36714 ms)
+[12:31:48.285] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 139 ms (hash 7792085882321095912)
+[12:31:48.434] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 138 ms (hash 7792085882321095912)
+[12:31:48.582] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 138 ms (hash 7792085882321095912)
+[12:31:48.728] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 135 ms (hash 7792085882321095912)
+[12:31:48.874] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 135 ms (hash 7792085882321095912)
+[12:31:49.224] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 140 ms (hash 7792085882321095912)
+[12:31:49.372] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 137 ms (hash 7792085882321095912)
+[12:31:49.521] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 138 ms (hash 7792085882321095912)
+[12:31:50.069] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 135 ms (hash 7792085882321095912)
+[12:31:50.215] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 135 ms (hash 7792085882321095912)
+[12:31:50.364] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 138 ms (hash 7792085882321095912)
+[12:31:50.550] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 140 ms (hash 7792085882321095912)
+[12:31:50.689] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 135 ms (hash 7792085882321095912)
+[12:31:50.848] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 136 ms (hash 7792085882321095912)
+[12:31:50.987] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 136 ms (hash 7792085882321095912)
+[12:31:51.126] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 135 ms (hash 15177877851190361490)
+[12:31:51.274] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 419 segments in 136 ms (hash 7792085882321095912)
+[12:31:51.423] [INFO] [WorldForge] [WORLDFORGE] plan baked: 5 sites, 8 roads, 3 bridges, 20 segments in 136 ms (hash 7792085882321095912)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1998 ms)
+[  PASSED  ] 47 tests.

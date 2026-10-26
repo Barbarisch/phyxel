@@ -71,6 +71,9 @@ struct WorldForgeRoad {
     /// pulls corridor surfaceY to the interpolated profile — cut AND fill both fall out
     /// of moving surfaceY. Empty = ungraded (legacy drape).
     std::vector<float> gradeProfile;
+    /// M4b: the REAL emitted surface at each centreline vertex before any grading (the height the
+    /// profile started from) - the earthwork at a vertex is gradeProfile - naturalY.
+    std::vector<float> naturalY;
 };
 
 /// One bridge deck spanning an order>=3 channel (placer #44, V2 of the road field). The
@@ -146,6 +149,11 @@ public:
     };
     static constexpr float kPierSpacing = 12.0f;   // interior pier stations along a span
     static constexpr float kMaxRoadGrade = 0.5f;   // grade profile: max |dY| per u of arclength
+    /// M4b: the deepest cut a road of this class takes before the grade may exceed its cap (a
+    /// "short pitch"): the lateral room of the corridor — half-width + the 3 u grading shoulder
+    /// (WorldGenerator kGradeBlend) — times the angle of repose of loose scree (kRockSlope 0.70,
+    /// TerrainGenerationV2 P0). DERIVED, not typed: track 3.15 u, road 3.85 u, highway 4.2 u.
+    static float cutLimit(int cls);
     BridgeHit bridgeAt(float worldX, float worldZ) const;
 
     /// Road query for one world column — the per-column generation hook (sampleColumn).
@@ -158,6 +166,18 @@ public:
                                 // (interpolated from the road's gradeProfile; -1e30 = none)
     };
     RoadHit roadAt(float worldX, float worldZ) const;
+    /// M4b-2: the CONTINUOUS grade field — every road whose corridor + 3 u shoulder reaches the
+    /// point contributes its graded Y with a weight that falls from 1 inside the corridor to 0
+    /// at the shoulder's edge; gradeY = the weighted mean, weight = the largest weight (how much
+    /// of the natural surface survives). Continuous by construction where corridors overlap,
+    /// which the nearest-road pick was not (the junction seam, section 10). Corridor-driven
+    /// (demand) plans only — blendsGrades() — the version-1 path keeps roadAt + reconciliation.
+    struct GradeBlend {
+        float gradeY = -1e30f;
+        float weight = 0.0f;
+    };
+    GradeBlend gradeBlendAt(float worldX, float worldZ) const;
+    bool blendsGrades() const { return m_blendGrades; }
 
     /// Paved half-width / surface material per road class. GROUNDED in
     /// resources/settlement_program.json street specs: track = hamlet Dirt lane, road =
@@ -215,6 +235,7 @@ private:
         uint16_t vert = 0;   // index of `a` in its road's centerline (grade interpolation)
     };
     std::vector<Segment> m_segments;
+    bool m_blendGrades = false;   // M4b-2: set for corridor-driven plans
     size_t m_rasterTruncatedSegments = 0;   ///< M0: segments dropped at the raster's uint16 cap (0 = none)
 };
 

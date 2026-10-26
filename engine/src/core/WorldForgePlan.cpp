@@ -3,6 +3,7 @@
 #include "utils/Logger.h"
 
 #include <algorithm>
+#include <climits>
 #include <chrono>
 #include <cmath>
 #include <functional>
@@ -19,6 +20,12 @@ namespace {
 constexpr float kRoadWidth[4] = {0.0f, 3.0f, 5.0f, 6.0f};
 constexpr const char* kRoadMaterial[4] = {"", "Dirt", "Gravel", "Cobblestone"};
 }  // namespace
+
+float WorldForgePlan::cutLimit(int cls) {
+    constexpr float kShoulderU = 3.0f;    // = WorldGenerator kGradeBlend, the grading shoulder
+    constexpr float kReposeSlope = 0.70f; // = WorldGenerator kRockSlope, loose scree (P0)
+    return (roadHalfWidth(cls) + kShoulderU) * kReposeSlope;
+}
 
 float WorldForgePlan::roadHalfWidth(int cls) {
     if (cls < 1 || cls > 3) return 0.0f;
@@ -182,7 +189,16 @@ struct RoutingGrid {
     }
 };
 
-std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, float& outCost) {
+// M4b (D26): a step whose rise/run exceeds the class cap costs kOverCapPenalty times more, so the
+// search takes the oblique traverse (a switchback is an emergent zig-zag of such steps) wherever
+// one exists and only climbs straight where nothing else reaches the goal (DESIGN, reported per
+// route as maxGrade). The k-neighbourhood (Galin 2010: every offset within radius 3 cells with
+// gcd 1, 32 directions) gives the search long oblique steps whose grade is low across a slope that
+// every 8-neighbour step would climb straight.
+constexpr float kOverCapPenalty = 25.0f;
+constexpr int   kNeighbourRadius = 3;
+
+std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, float& outCost, float cap = 0.0f) {
     outCost = 1e30f;
     const int n = g.nx * g.nz;
     if (startIdx < 0 || goalIdx < 0 || startIdx >= n || goalIdx >= n) return {};
@@ -202,24 +218,52 @@ std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, flo
     open.push({heur(startIdx), startIdx});
     static const int NB[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1},
                                  {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+    // the k-neighbourhood (cap > 0): every offset within the radius whose gcd is 1
+    static std::vector<std::pair<int, int>> kNB;
+    if (cap > 0.0f && kNB.empty())
+        for (int dz = -kNeighbourRadius; dz <= kNeighbourRadius; ++dz)
+            for (int dx = -kNeighbourRadius; dx <= kNeighbourRadius; ++dx) {
+                if (!dx && !dz) continue;
+                int a = std::abs(dx), b = std::abs(dz);
+                while (b) { const int t = a % b; a = b; b = t; }
+                if (a == 1) kNB.push_back({dx, dz});
+            }
+    const size_t nNb = cap > 0.0f ? kNB.size() : 8;
     while (!open.empty()) {
         const auto [f, cur] = open.top();
         open.pop();
         if (cur == goalIdx) break;
         if (f > gCost[cur] + heur(cur) + 1e-4f) continue;   // stale entry
         const int cx = cur % g.nx, cz = cur / g.nx;
-        for (const auto& nb : NB) {
-            const int tx = cx + nb[0], tz = cz + nb[1];
+        for (size_t k = 0; k < nNb; ++k) {
+            const int ox = cap > 0.0f ? kNB[k].first : NB[k][0], oz = cap > 0.0f ? kNB[k].second : NB[k][1];
+            const int tx = cx + ox, tz = cz + oz;
             if (tx < 0 || tz < 0 || tx >= g.nx || tz >= g.nz) continue;
             const int ti = tz * g.nx + tx;
             if (g.wet[ti]) continue;
-            const float stepLen = (nb[0] != 0 && nb[1] != 0) ? 1.41421356f : 1.0f;
-            const float grade = std::fabs(g.height[ti] - g.height[cur]) / (stepLen * g.cellSize);
+            const float stepLen = std::sqrt(static_cast<float>(ox * ox + oz * oz));
+            // a long step's grade is the steepest rise between CONSECUTIVE cells along it, not the
+            // endpoint difference: endpoints at equal heights with a 20 u bump between them read as
+            // flat otherwise and the capped envelope then cuts the bump (measured 2026-10-26: 26.9 u)
+            bool carved = g.carved[ti] != 0, river = g.order[ti] >= 1, shore = g.shore[ti] != 0, blocked = false;
+            const int steps = std::max(std::abs(ox), std::abs(oz));
+            const float subLen = stepLen / static_cast<float>(steps) * g.cellSize;
+            float grade = 0.0f, prevH = g.height[cur];
+            for (int m = 1; m <= steps; ++m) {
+                const int mx = cx + (ox * m) / steps, mz = cz + (oz * m) / steps;
+                const int mi = (m == steps) ? ti : mz * g.nx + mx;
+                if (g.wet[mi]) { blocked = true; break; }
+                grade = std::max(grade, std::fabs(g.height[mi] - prevH) / subLen);
+                prevH = g.height[mi];
+                if (m < steps) { carved = carved || g.carved[mi]; river = river || g.order[mi] >= 1; shore = shore || g.shore[mi]; }
+            }
+            if (blocked) continue;
             float c = stepLen * (1.0f + kSlopeAversion * grade) * (1.0f + kSlopeAversion * grade);
-            if (g.carved[ti]) c += kPenaltyRiverMajor;          // M2b-2: the class, not the order
-            else if (g.order[ti] >= 1) c += kPenaltyRiverMinor;
-            else if (g.shore[ti]) c += kPenaltyShore;
-            if (!g.corr.empty()) c *= g.corr[ti];                // M4a: follow the continent corridor
+            if (carved) c += kPenaltyRiverMajor;          // M2b-2: the class, not the order
+            else if (river) c += kPenaltyRiverMinor;
+            else if (shore) c += kPenaltyShore;
+            if (!g.corr.empty()) c *= g.corr[ti];          // M4a: follow the continent corridor
+            if (cap > 0.0f && grade > cap) c *= kOverCapPenalty;   // M4b: only where no gentler way exists
             if (gCost[cur] + c < gCost[ti] - 1e-6f) {
                 gCost[ti] = gCost[cur] + c;
                 parent[ti] = cur;
@@ -488,6 +532,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             std::vector<int> path;
             glm::vec2 pa{0.0f}, pb{0.0f};   // M4a: the endpoint when a / b is -1 (a box-edge exit)
             int cls = 0;                     // M4a: the corridor's class (0 = by endpoint tiers)
+            std::vector<glm::vec2> pts;      // M4b: the refined fine-grid line (world XZ); empty = use `path` on the coarse grid
         };
         std::vector<Pair> pairs;
         auto pointCell = [&](const glm::vec2& p) {
@@ -505,10 +550,88 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 Pair pr{d.a, d.b, 1e30f, {}, d.pa, d.pb, d.cls};
                 const int ca = d.a >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(d.a)]) : pointCell(d.pa);
                 const int cb = d.b >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(d.b)]) : pointCell(d.pb);
-                pr.path = astarRoute(g, ca, cb, pr.cost);
+                const float capHere = P.gradeCap[glm::clamp(d.cls, 1, 3)];
+                pr.path = astarRoute(g, ca, cb, pr.cost, capHere);   // M4b: the class cap
                 if (pr.path.empty()) {
                     LOG_WARN_FMT("WorldForge", "[WORLDFORGE] demand " << d.a << " -> " << d.b << " unroutable inside the box (water in every way)");
                     continue;
+                }
+                // M4b: refine on the BAKE grid inside a band around the coarse line ("solved on
+                // macro for corridors then refined on meso", the M4 contract). The 128 u search
+                // cannot see the fine band's bumps, so its line crossed them and the capped
+                // envelope cut trenches (measured 2026-10-26: max cut 8.9 u -> 36.4 u on the
+                // baseline, 178 u on Mountains). The fine search sees every 32 u cell and takes
+                // the oblique line around a bump where one exists inside the band.
+                // Fine-band refinement: OFF. Measured 2026-10-26: 320-360 s Debug per baseline box
+                // plan (vs ~100 s) for a max cut of 26.9 u instead of 36.4 u - the capped envelope
+                // still cut trenches wherever the band held no gentler line. The bounded-cut
+                // envelope in the profile pass is what bounds the earthwork; the fine search is
+                // kept for M4b-2 (switchbacks), which needs it inside a steep stretch only.
+                constexpr bool kFineBandRefine = false;
+                if (stride > 1 && kFineBandRefine) {
+                    constexpr int kBandCoarseCells = 2;   // +-2 coarse cells = +-256 u, the corridor band (DESIGN)
+                    const int bandFine = kBandCoarseCells * stride;
+                    int fx0 = INT_MAX, fz0 = INT_MAX, fx1 = INT_MIN, fz1 = INT_MIN;
+                    for (const int ci : pr.path) {
+                        const int cx = (g.x0 + ci % g.nx) * stride + stride / 2, cz = (g.z0 + ci / g.nx) * stride + stride / 2;
+                        fx0 = std::min(fx0, cx - bandFine); fz0 = std::min(fz0, cz - bandFine);
+                        fx1 = std::max(fx1, cx + bandFine); fz1 = std::max(fz1, cz + bandFine);
+                    }
+                    RoutingGrid f;
+                    f.x0 = std::max(0, fx0); f.z0 = std::max(0, fz0);
+                    f.nx = std::min(nx - 1, fx1) - f.x0 + 1; f.nz = std::min(nz - 1, fz1) - f.z0 + 1;
+                    f.originX = ox; f.originZ = oz; f.cellSize = cell;
+                    const int fn = f.nx * f.nz;
+                    f.height.assign(fn, 0.0f); f.wet.assign(fn, 1); f.shore.assign(fn, 0); f.order.assign(fn, 0); f.carved.assign(fn, 0);
+                    if (!g.corr.empty()) f.corr.assign(fn, 1.0f);
+                    // the band: every fine cell within bandFine of a coarse path cell centre
+                    for (const int ci : pr.path) {
+                        const int cx = (g.x0 + ci % g.nx) * stride + stride / 2, cz = (g.z0 + ci / g.nx) * stride + stride / 2;
+                        for (int dz = -bandFine; dz <= bandFine; ++dz)
+                            for (int dx = -bandFine; dx <= bandFine; ++dx) {
+                                if (dx * dx + dz * dz > bandFine * bandFine) continue;
+                                const int tx = cx + dx, tz = cz + dz;
+                                if (!f.contains(tx, tz)) continue;
+                                const int fi = f.idx(tx, tz);
+                                if (f.wet[fi] != 1 || f.height[fi] != 0.0f) continue;   // already sampled (height 0 with wet 1 = unsampled)
+                                const glm::vec2 p = f.cellCentre(tx, tz);
+                                f.height[fi] = heightAt(p.x, p.y);
+                                f.wet[fi] = levelAt(p.x, p.y) > f.height[fi] + 0.1f ? 1 : 0;
+                                f.order[fi] = flow.orderAt(p.x, p.y);
+                                f.carved[fi] = flow.carvedRiverAt(p.x, p.y) ? 1 : 0;
+                                if (!f.corr.empty()) f.corr[fi] = corridorMulAt ? corridorMulAt(p.x, p.y) : 1.0f;
+                                if (f.height[fi] == 0.0f) f.height[fi] = 1e-6f;   // keep the sampled mark distinct
+                            }
+                    }
+                    for (int cz = f.z0; cz < f.z0 + f.nz; ++cz)
+                        for (int cx = f.x0; cx < f.x0 + f.nx; ++cx) {
+                            const int i = f.idx(cx, cz);
+                            if (f.wet[i]) continue;
+                            if ((f.contains(cx + 1, cz) && f.wet[f.idx(cx + 1, cz)]) || (f.contains(cx - 1, cz) && f.wet[f.idx(cx - 1, cz)]) ||
+                                (f.contains(cx, cz + 1) && f.wet[f.idx(cx, cz + 1)]) || (f.contains(cx, cz - 1) && f.wet[f.idx(cx, cz - 1)]))
+                                f.shore[i] = 1;
+                        }
+                    auto fineCellOf = [&](const glm::vec2& p) {
+                        const int cx = glm::clamp(static_cast<int>(std::floor((p.x - ox) / cell)), f.x0, f.x0 + f.nx - 1);
+                        const int cz = glm::clamp(static_cast<int>(std::floor((p.y - oz) / cell)), f.z0, f.z0 + f.nz - 1);
+                        return f.idx(cx, cz);
+                    };
+                    const glm::vec2 pStart = d.a >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(d.a)].pos) : d.pa;
+                    const glm::vec2 pGoal = d.b >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(d.b)].pos) : d.pb;
+                    int fs = fineCellOf(pStart), fg = fineCellOf(pGoal);
+                    // an endpoint cell that sampled wet (a site centre on a pond edge, an exit on a bank)
+                    // falls back to the coarse path's first / last cell centre
+                    if (f.wet[fs]) fs = fineCellOf(g.cellCentre(g.x0 + pr.path.front() % g.nx, g.z0 + pr.path.front() / g.nx));
+                    if (f.wet[fg]) fg = fineCellOf(g.cellCentre(g.x0 + pr.path.back() % g.nx, g.z0 + pr.path.back() / g.nx));
+                    float fineCost = 1e30f;
+                    const std::vector<int> fine = astarRoute(f, fs, fg, fineCost, capHere);
+                    if (!fine.empty()) {
+                        pr.pts.reserve(fine.size());
+                        for (const int fi : fine) pr.pts.push_back(f.cellCentre(f.x0 + fi % f.nx, f.z0 + fi / f.nx));
+                        pr.cost = fineCost;
+                    } else {
+                        LOG_WARN_FMT("WorldForge", "[WORLDFORGE] demand " << d.a << " -> " << d.b << " kept its coarse line (no fine route inside the band)");
+                    }
                 }
                 pairs.push_back(std::move(pr));
             }
@@ -577,6 +700,9 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             std::vector<glm::vec2> pts;
             pts.reserve(pr->path.size() + 2);
             pts.push_back(pr->a >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(pr->a)].pos) : pr->pa);
+            if (!pr->pts.empty()) {
+                for (const glm::vec2& p : pr->pts) pts.push_back(p);   // M4b: the refined fine line
+            } else
             for (const int ci : pr->path) {
                 const int cx = g.x0 + (ci % g.nx), cz = g.z0 + (ci / g.nx);
                 pts.push_back(g.cellCentre(cx, cz));
@@ -701,8 +827,14 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     // are kMaxRoadGrade-Lipschitz, so their max is too — every step along the graded line
     // is walkable by construction. Consumed by sampleColumn via RoadHit.gradeY.
     {
-        auto stepLimOf = [](const std::vector<glm::vec2>& cl, size_t i, size_t j) {
-            return kMaxRoadGrade * glm::length(cl[j] - cl[i]);
+        // M4b (D26): a corridor-driven (demand) road's envelope slope is its class cap; the pinned
+        // version-1 path keeps kMaxRoadGrade. `curCap` is set before every use below.
+        auto capOfRoad = [&](const WorldForgeRoad& road) {
+            return demand ? P.gradeCap[glm::clamp(road.cls, 1, 3)] : kMaxRoadGrade;
+        };
+        float curCap = kMaxRoadGrade;
+        auto stepLimOf = [&curCap](const std::vector<glm::vec2>& cl, size_t i, size_t j) {
+            return curCap * glm::length(cl[j] - cl[i]);
         };
         auto lowerEnvelope = [&](const std::vector<glm::vec2>& cl, std::vector<float>& h) {
             const size_t n = h.size();
@@ -715,6 +847,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             const auto& cl = road.centerline;
             const size_t n = cl.size();
             if (n < 2) continue;
+            curCap = capOfRoad(road);
             std::vector<float> h(n);
             std::vector<bool> wet(n, false);
             for (size_t i = 0; i < n; ++i) {
@@ -723,6 +856,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 const FlowField::ChannelHit ch = channelAt(cl[i].x, cl[i].y);
                 wet[i] = ch.hit && ch.depth >= 0.15f;
             }
+            road.naturalY = h;   // M4b: the pre-grading surface (earthwork = profile - this)
             // A carved-bed vertex must not pull the envelope down: borrow the nearest dry
             // height.
             for (size_t i = 0; i < n; ++i) {
@@ -737,6 +871,10 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             lowerEnvelope(cl, h);
             road.gradeProfile = std::move(h);
         }
+        // M4b-2: corridor-driven plans blend the grade field at realization (gradeBlendAt), so the
+        // O(roads^2 x verts^2) junction reconciliation below is the version-1 path's only (it was
+        // the box plan's cost driver at 30+ roads, measured 2026-10-22: 95-135 s Debug).
+        if (!demand)
         // Junction reconciliation: where two corridors overlap, the SINGLE emitted surface
         // takes the nearest road's grade — so both profiles must agree there or a walker
         // crossing the nearest-road boundary steps the disagreement (measured 2 cubes at a
@@ -769,20 +907,39 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                     const float hB = roadB.gradeProfile[bj] * (1.0f - bt) +
                                      roadB.gradeProfile[bj + 1] * bt;
                     const float m = std::min(roadA.gradeProfile[i], hB);
+                    const float capAB = std::min(capOfRoad(roadA), capOfRoad(roadB));
                     roadA.gradeProfile[i] = m;
                     roadB.gradeProfile[bj] = std::min(roadB.gradeProfile[bj],
-                                                      m + kMaxRoadGrade * bt * glm::length(
+                                                      m + capAB * bt * glm::length(
                                                               roadB.centerline[bj + 1] -
                                                               roadB.centerline[bj]));
                     roadB.gradeProfile[bj + 1] = std::min(
                         roadB.gradeProfile[bj + 1],
-                        m + kMaxRoadGrade * (1.0f - bt) *
+                        m + capAB * (1.0f - bt) *
                                 glm::length(roadB.centerline[bj + 1] - roadB.centerline[bj]));
                 }
             }
         }
-        for (auto& road : plan->m_roads)
-            if (road.gradeProfile.size() >= 2) lowerEnvelope(road.centerline, road.gradeProfile);
+        for (auto& road : plan->m_roads) {
+            if (road.gradeProfile.size() < 2) continue;
+            curCap = capOfRoad(road);
+            lowerEnvelope(road.centerline, road.gradeProfile);
+            if (demand && road.naturalY.size() == road.gradeProfile.size()) {
+                // M4b bounded earthwork: the class-capped envelope may not cut deeper than the
+                // road's cutLimit (lateral room x repose) - where it would, the profile stays at
+                // that floor and the grade becomes a SHORT PITCH steeper than the cap (USFS: short
+                // pitches steeper than the ruling grade), limited to the legacy 0.5 by a second
+                // envelope so every step stays walkable. Pitches are reported, never silent:
+                // RouteFieldTest counts the over-cap length and ties each one to an active floor.
+                const float floorU = cutLimit(road.cls);
+                for (size_t i = 0; i < road.gradeProfile.size(); ++i)
+                    road.gradeProfile[i] = std::max(road.gradeProfile[i], road.naturalY[i] - floorU);
+                curCap = kMaxRoadGrade;
+                lowerEnvelope(road.centerline, road.gradeProfile);
+                curCap = capOfRoad(road);
+            }
+        }
+        plan->m_blendGrades = demand != nullptr;
         // Deck pin cones — pinned by PROJECTION, not vertex-to-span distance: a short span
         // can fall entirely between 16 u vertices and a distance test then pins NOTHING,
         // leaving the old multi-cube deck mount (measured 5 cubes, red). Pin every vertex
@@ -793,6 +950,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             const auto& cl = road.centerline;
             const size_t n = cl.size();
             if (n < 2 || road.gradeProfile.size() != n) continue;
+            curCap = capOfRoad(road);
             // TWO-SIDED pins: a low bank FILLS up to the deck (lower cone, max) and a high
             // approach CUTS down to it (upper cone, min) — a bank 5 above the deck was a
             // 5-cube drop onto the span, measured red. clamp of Lipschitz functions stays
@@ -943,6 +1101,64 @@ WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) c
         return hit;
     }
     return hit;
+}
+
+WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worldZ) const {
+    GradeBlend out;
+    if (m_raster.cellsX <= 0 || m_raster.cellsZ <= 0) return out;
+    const int cx = static_cast<int>(std::floor((worldX - m_raster.originX) / m_raster.cellSize));
+    const int cz = static_cast<int>(std::floor((worldZ - m_raster.originZ) / m_raster.cellSize));
+    constexpr float kShoulderU = 3.0f;   // = WorldGenerator kGradeBlend
+    const glm::vec2 p(worldX, worldZ);
+    // candidate roads: every raster cell within reach of the point (the shoulder spans a cell)
+    int roads[16]; int nRoads = 0;
+    for (int dz = -1; dz <= 1; ++dz)
+        for (int dx = -1; dx <= 1; ++dx) {
+            const int qx = cx + dx, qz = cz + dz;
+            if (qx < 0 || qz < 0 || qx >= m_raster.cellsX || qz >= m_raster.cellsZ) continue;
+            const uint16_t segIdx = m_raster.nearestSeg[static_cast<size_t>(qz) * m_raster.cellsX + qx];
+            if (segIdx == 0xFFFF) continue;
+            const int r = m_segments[segIdx].roadIdx;
+            bool seen = false;
+            for (int k = 0; k < nRoads; ++k) if (roads[k] == r) { seen = true; break; }
+            if (!seen && nRoads < 16) roads[nRoads++] = r;
+        }
+    float wSum = 0.0f, gSum = 0.0f, wMax = 0.0f;
+    for (int k = 0; k < nRoads; ++k) {
+        // this road's nearest segment: the raster cells' candidates for it, plus their neighbours
+        float best = 1e30f, gradeY = -1e30f; int cls = 0;
+        for (int dz = -1; dz <= 1; ++dz)
+            for (int dx = -1; dx <= 1; ++dx) {
+                const int qx = cx + dx, qz = cz + dz;
+                if (qx < 0 || qz < 0 || qx >= m_raster.cellsX || qz >= m_raster.cellsZ) continue;
+                const uint16_t segIdx = m_raster.nearestSeg[static_cast<size_t>(qz) * m_raster.cellsX + qx];
+                if (segIdx == 0xFFFF || m_segments[segIdx].roadIdx != roads[k]) continue;
+                for (int di = -2; di <= 2; ++di) {
+                    const int i = static_cast<int>(segIdx) + di;
+                    if (i < 0 || i >= static_cast<int>(m_segments.size())) continue;
+                    const Segment& s = m_segments[static_cast<size_t>(i)];
+                    if (s.roadIdx != roads[k]) continue;
+                    const glm::vec2 ab = s.b - s.a;
+                    const float len2 = glm::dot(ab, ab);
+                    const float t = len2 > 0.0f ? glm::clamp(glm::dot(p - s.a, ab) / len2, 0.0f, 1.0f) : 0.0f;
+                    const float d = glm::length(p - (s.a + ab * t));
+                    if (d < best) {
+                        best = d; cls = s.cls;
+                        const auto& prof = m_roads[static_cast<size_t>(roads[k])].gradeProfile;
+                        gradeY = (s.vert + 1 < prof.size()) ? prof[s.vert] * (1.0f - t) + prof[s.vert + 1] * t : -1e30f;
+                    }
+                }
+            }
+        if (cls <= 0 || gradeY <= -1e29f) continue;
+        const float half = roadHalfWidth(cls);
+        const float w = best <= half ? 1.0f : std::max(0.0f, 1.0f - (best - half) / kShoulderU);
+        if (w <= 0.0f) continue;
+        wSum += w; gSum += w * gradeY; wMax = std::max(wMax, w);
+    }
+    if (wSum <= 0.0f) return out;
+    out.gradeY = gSum / wSum;
+    out.weight = wMax;
+    return out;
 }
 
 WorldForgePlan::RoadHit WorldForgePlan::roadAt(float worldX, float worldZ) const {

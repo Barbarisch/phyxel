@@ -1568,6 +1568,16 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             // (the bridge deck spans it), below sea, or under standing water (a filled
             // causeway must not dam a lake).
             constexpr float kGradeBlend = 3.0f;
+            // M4b-2: a corridor-driven plan grades through the CONTINUOUS blend over every road
+            // whose corridor + shoulder reaches the column (no nearest-road seam); the version-1
+            // plan keeps the nearest road's grade below.
+            if (m_worldForge->blendsGrades()) {
+                const WorldForgePlan::GradeBlend gb = m_worldForge->gradeBlendAt(static_cast<float>(wx), static_cast<float>(wz));
+                if (gb.weight > 0.0f && col.riverOrder == 0 &&
+                    col.surfaceY >= static_cast<int>(terrainParams.seaLevelY) &&
+                    !(m_hydro && waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > static_cast<float>(col.surfaceY)))
+                    col.surfaceY = static_cast<int>(std::lround(gb.gradeY * gb.weight + static_cast<float>(col.surfaceY) * (1.0f - gb.weight)));
+            } else
             if (rh.cls > 0 && rh.gradeY > -1e29f && rh.dist <= half + kGradeBlend &&
                 col.riverOrder == 0 &&
                 col.surfaceY >= static_cast<int>(terrainParams.seaLevelY) &&
