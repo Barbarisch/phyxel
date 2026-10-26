@@ -671,6 +671,8 @@ void WorldGenerator::bakeWorldForgePlan() {
                 }
             }
             LOG_INFO_FMT("WorldGenerator", "[CORRIDORS] box demand: " << m_boxDemand.size() << " edges from " << m_corridors->routes().size() << " corridors");
+            if (m_boxDemand.empty())
+                LOG_WARN_FMT("WorldGenerator", "[CORRIDORS] no corridor runs inside the box - the box plan falls back to the version-1 siting/routing path (no grade caps, no grade blend)");
         }
     }
     m_worldForge = previewWorldForge(boxParams);
@@ -1572,7 +1574,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             // whose corridor + shoulder reaches the column (no nearest-road seam); the version-1
             // plan keeps the nearest road's grade below.
             if (m_worldForge->blendsGrades()) {
-                const WorldForgePlan::GradeBlend gb = m_worldForge->gradeBlendAt(static_cast<float>(wx), static_cast<float>(wz));
+                const WorldForgePlan::GradeBlend gb = m_worldForge->gradeBlendAt(static_cast<float>(wx), static_cast<float>(wz), static_cast<float>(col.surfaceY));
                 if (gb.weight > 0.0f && col.riverOrder == 0 &&
                     col.surfaceY >= static_cast<int>(terrainParams.seaLevelY) &&
                     !(m_hydro && waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > static_cast<float>(col.surfaceY)))

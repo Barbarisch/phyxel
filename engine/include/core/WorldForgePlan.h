@@ -154,6 +154,12 @@ public:
     /// (WorldGenerator kGradeBlend) — times the angle of repose of loose scree (kRockSlope 0.70,
     /// TerrainGenerationV2 P0). DERIVED, not typed: track 3.15 u, road 3.85 u, highway 4.2 u.
     static float cutLimit(int cls);
+    static constexpr float kShoulderU = 3.0f;    // the grading shoulder (= WorldGenerator kGradeBlend)
+    static constexpr float kReposeSlope = 0.70f; // loose scree (= WorldGenerator kRockSlope, P0)
+    /// The widest shoulder the repose bank may take (DESIGN: 4x the grading shoulder, 12 u = an
+    /// 8.4 u cut at repose; deeper cuts stand steeper and the bank test reports them - M4b-3's
+    /// retaining walls own those). Bounds the raster's per-cell road index reach.
+    static constexpr float kShoulderMaxU = 12.0f;
     BridgeHit bridgeAt(float worldX, float worldZ) const;
 
     /// Road query for one world column — the per-column generation hook (sampleColumn).
@@ -175,8 +181,12 @@ public:
     struct GradeBlend {
         float gradeY = -1e30f;
         float weight = 0.0f;
+        int coreRoad = -1;   // the road whose profile the surface follows here (inside its corridor), -1 = a shoulder blend
     };
-    GradeBlend gradeBlendAt(float worldX, float worldZ) const;
+    /// naturalY = the column's pre-grading surface (the bank below a cut runs from the road edge
+    /// down to it at the repose slope, so a deep cut widens its own shoulder); roadsOut (tests)
+    /// receives every road index that contributed.
+    GradeBlend gradeBlendAt(float worldX, float worldZ, float naturalY, std::vector<int>* roadsOut = nullptr) const;
     bool blendsGrades() const { return m_blendGrades; }
 
     /// Paved half-width / surface material per road class. GROUNDED in
@@ -226,6 +236,11 @@ private:
         float cellSize = 8.0f;
         int cellsX = 0, cellsZ = 0;
         std::vector<uint16_t> nearestSeg;
+        // M4b-2 audit: EVERY road within reach of a cell, with that road's nearest segment to the
+        // cell centre (compressed rows: cellRoadsStart[cell]..cellRoadsStart[cell+1] index
+        // cellRoadSeg) - two slots could not hold the 3-6 roads that bundle on a shared trunk.
+        std::vector<uint32_t> cellRoadsStart;
+        std::vector<uint16_t> cellRoadSeg;
     } m_raster;
     // Global segment table (all roads concatenated; raster values index this).
     struct Segment {

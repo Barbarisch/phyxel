@@ -96,3 +96,40 @@ FIFTH ATTEMPT = GREEN (floor + 0.5 envelope after the reconciliation stage, reco
 [D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
 [       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1998 ms)
 [  PASSED  ] 47 tests.
+
+==================================================================
+AUDIT FOLLOW-UP (solution-auditor on 9c0eed9a: FAIL - the grade blend's gather missed roads on shared trunks (one road slot per raster cell), the box A* heuristic inadmissible under the corridor discount, the earthwork census sampled every 4th vertex, the cut-limit 'repose' label wrong (a C u cut over a fixed 3 u shoulder = a bank of C/3), the Mountains detour threshold met by the uncapped routing too)
+==================================================================
+RED (the three new tests with the fixes gated off = the audited behaviour; scratchpad m4b_audit_red.txt):
+[ M4b ] baseline earthwork: 32 roads, 45660 profile segments, 2415 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 45692 vertices: max cut 11.1 u, max fill 6.0 u, 13 deeper than 6 u
+[ M4b ] cuts deeper than the floor: 38 next to a natural slope above 0.5, 0 unexplained
+[       OK ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (54061 ms)
+[ M4b ] blend gather: 8604 points (7612 with more than one road in reach), 45045 roads missing from the gather, 66 gathered beyond reach
+[  FAILED  ] RouteFieldTest.GradeBlendGathersEveryRoadInReach (41078 ms)
+[ M4b ] realized surface: 21556 windows outside pitches, 29 over their class cap (worst 0.188 after rounding); 1232 pitch windows skipped
+[  FAILED  ] RouteFieldTest.RealizedSurfaceKeepsTheClassCapOutsidePitches (18203 ms)
+[ M4b ] cut banks at the 40 deepest cuts (deepest 11.1 u): 80 banks measured, 24 steeper than repose (worst 1.50 vs 0.70)
+[  FAILED  ] RouteFieldTest.CutBanksStandAtTheReposeSlope (15326 ms)
+[  FAILED  ] RouteFieldTest.GradeBlendGathersEveryRoadInReach
+[  FAILED  ] RouteFieldTest.RealizedSurfaceKeepsTheClassCapOutsidePitches
+[  FAILED  ] RouteFieldTest.CutBanksStandAtTheReposeSlope
+
+GREEN after the audit fixes (Debug; scratchpad m4b_audit_final.txt): 44/44 incl. RouteFieldTest 9/9, the pinned version-1 hashes, RoadFieldSeamTest, WorldForgePlanTest, the M4a box tests, CivPlanTest.TheBoxPlanIsSeededByTheCivSites
+[ M4b ] baseline Perlin: 32 roads, 45660 profile segments, 2415 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 45692 vertices: max cut 11.1 u, max fill 6.0 u, 13 deeper than 6 u
+[ M4b ] baseline earthwork: 32 roads, 45660 profile segments, 2415 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 45692 vertices: max cut 11.1 u, max fill 6.0 u, 13 deeper than 6 u
+[ M4b ] cuts deeper than the floor: 38 next to a natural slope above 0.5, 0 unexplained
+[ M4b ] Mountains 424242 (caps): 33 roads, 57977 profile segments, 26271 over the class cap = 45.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 58010 vertices: max cut 96.9 u, max fill 177.0 u, 10528 deeper than 6 u
+[ M4b ] Mountains 424242 (caps off = 0.5): 33 roads, 58058 profile segments, 32401 over the class cap = 55.8 % of the length (worst 6.25 x cap, 21134 unexplained by a cut floor or a pin); 58091 vertices: max cut 102.1 u, max fill 177.0 u, 7361 deeper than 6 u
+[ M4b ] Mountains detour: 926.6 km of road for 561.2 km of endpoint distance (x1.65); corridors 154, unroutable 2
+[ M4b ] walkability: 236452 centreline steps, 28 taller than 1 cube (0.012 %)
+[ M4b ] version-1 Mountains (legacy 0.5): 10 roads, 432 profile segments, 154 over the class cap = 35.5 % of the length (worst 6.25 x cap, 142 unexplained by a cut floor or a pin); 442 vertices: max cut 33.0 u, max fill 25.0 u, 14 deeper than 6 u
+[ M4b ] blend gather: 8604 points (7600 with more than one road in reach), 0 roads missing from the gather, 188 gathered beyond reach
+[ M4b ] realized surface: 21556 windows outside pitches, 0 over their class cap (worst 0.251 after rounding); 1232 pitch windows skipped
+[ M4b ] cut banks: 5157 cut vertices scanned, the deepest single-road cut 3.9 u: 78 single-road banks measured (386 bundled cuts skipped), 0 steeper than repose (worst 0.60 vs 0.70)
+[ M4a ] box road vertices inside the corridor band: 97.5 % of 45692 with the discount, 20.8 % of 35811 without
+[ M4a ] D28 stamp: 40 corridor columns outside the box, 40 stamped with their class, 0 below sea (skipped), 0 off-corridor columns stamped
+[ M4a ] box-edge seam: 36 exits walked, 1719 dry columns sampled, 0 without a road (0 exits with a gap): 0 inside the inset box, 0 in the 512 u ring, 0 outside; 12 columns under standing water skipped
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[  PASSED  ] 44 tests.
+Intermediate: two road slots per raster cell were not enough (33066 roads still missing at 8604 points, scratchpad m4b_audit_green.txt) -> a per-cell road list (compressed rows, each road's nearest segment to the cell); the first bank test measured the deepest cuts, all on shared trunks whose composite banks are not the single-road claim (64 bundled) -> single-road cuts; the realized-surface windows on a six-road trunk followed a pitched CORE road (diagnostics in m4b_csr_green2.txt) -> the rise may not exceed the cap unless the blend's own profile does.

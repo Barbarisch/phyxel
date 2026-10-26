@@ -22,8 +22,12 @@ constexpr const char* kRoadMaterial[4] = {"", "Dirt", "Gravel", "Cobblestone"};
 }  // namespace
 
 float WorldForgePlan::cutLimit(int cls) {
-    constexpr float kShoulderU = 3.0f;    // = WorldGenerator kGradeBlend, the grading shoulder
-    constexpr float kReposeSlope = 0.70f; // = WorldGenerator kRockSlope, loose scree (P0)
+    // The cut depth at which a road stops cutting and climbs a short pitch instead. Audit
+    // 2026-10-26: this is NOT a repose derivation - the bank below a cut is carried by the
+    // shoulder, which gradeBlendAt now widens to cut / kReposeSlope so the bank IS at repose
+    // whatever the depth. The trigger depth stays (half-width + shoulder) x repose = 3.15 /
+    // 3.85 / 4.2 u, relabelled DESIGN: the depth whose repose bank would be as wide as the
+    // corridor itself (section 10 row).
     return (roadHalfWidth(cls) + kShoulderU) * kReposeSlope;
 }
 
@@ -209,18 +213,24 @@ std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, flo
     using QE = std::pair<float, int>;
     std::priority_queue<QE, std::vector<QE>, std::greater<QE>> open;
     const int gx = goalIdx % g.nx, gz = goalIdx / g.nx;
+    // M4b-2 audit: the corridor discount (g.corr < 1) lowers step costs, so the Euclidean
+    // heuristic must be scaled by the smallest multiplier to stay admissible (CorridorGraph did;
+    // this search did not - a weighted A* up to 3x inside the band, valid but not least-cost)
+    float heurScale = 1.0f;
+    for (const float m : g.corr) heurScale = std::min(heurScale, m);
     auto heur = [&](int i) {
         const int cx = i % g.nx, cz = i / g.nx;
         const float dx = float(cx - gx), dz = float(cz - gz);
-        return std::sqrt(dx * dx + dz * dz);
+        return std::sqrt(dx * dx + dz * dz) * heurScale;
     };
     gCost[startIdx] = 0.0f;
     open.push({heur(startIdx), startIdx});
     static const int NB[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1},
                                  {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
-    // the k-neighbourhood (cap > 0): every offset within the radius whose gcd is 1
-    static std::vector<std::pair<int, int>> kNB;
-    if (cap > 0.0f && kNB.empty())
+    // the k-neighbourhood (cap > 0): every offset within the radius whose gcd is 1 (a local, not
+    // a static - two plans may bake on two threads)
+    std::vector<std::pair<int, int>> kNB;
+    if (cap > 0.0f)
         for (int dz = -kNeighbourRadius; dz <= kNeighbourRadius; ++dz)
             for (int dx = -kNeighbourRadius; dx <= kNeighbourRadius; ++dx) {
                 if (!dx && !dz) continue;
@@ -1024,9 +1034,28 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         R.cellsZ = static_cast<int>(std::ceil((hi.y - lo.y) / rcell)) + 1;
         R.nearestSeg.assign(static_cast<size_t>(R.cellsX) * R.cellsZ, 0xFFFF);
         std::vector<float> bestDist(R.nearestSeg.size(), 1e30f);
+        struct RoadHit { uint32_t cell; uint16_t road; uint16_t seg; float d; };
+        std::vector<RoadHit> roadHits;   // M4b-2 audit: every (cell, road) within the blend's reach
         for (size_t si = 0; si < plan->m_segments.size(); ++si) {
             const auto& s = plan->m_segments[si];
             const float reach = roadHalfWidth(s.cls) + 2.0f * rcell;
+            // the blend's reach: half-width + the widest repose shoulder + a cell of slack
+            const float blendReach = roadHalfWidth(s.cls) + kShoulderMaxU + rcell;
+            {
+                const glm::vec2 blo = glm::min(s.a, s.b) - glm::vec2(blendReach);
+                const glm::vec2 bhi = glm::max(s.a, s.b) + glm::vec2(blendReach);
+                const int bx0 = std::max(0, static_cast<int>((blo.x - R.originX) / rcell));
+                const int bz0 = std::max(0, static_cast<int>((blo.y - R.originZ) / rcell));
+                const int bx1 = std::min(R.cellsX - 1, static_cast<int>((bhi.x - R.originX) / rcell));
+                const int bz1 = std::min(R.cellsZ - 1, static_cast<int>((bhi.y - R.originZ) / rcell));
+                for (int iz = bz0; iz <= bz1; ++iz)
+                    for (int ix = bx0; ix <= bx1; ++ix) {
+                        const glm::vec2 c(R.originX + (ix + 0.5f) * rcell, R.originZ + (iz + 0.5f) * rcell);
+                        const float d = distToSegment(c, s.a, s.b);
+                        if (d > blendReach) continue;
+                        roadHits.push_back({static_cast<uint32_t>(static_cast<size_t>(iz) * R.cellsX + ix), s.roadIdx, static_cast<uint16_t>(si), d});
+                    }
+            }
             const glm::vec2 slo = glm::min(s.a, s.b) - glm::vec2(reach);
             const glm::vec2 shi = glm::max(s.a, s.b) + glm::vec2(reach);
             const int ix0 = std::max(0, static_cast<int>((slo.x - R.originX) / rcell));
@@ -1045,6 +1074,28 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                         R.nearestSeg[cellIdx] = static_cast<uint16_t>(si);
                     }
                 }
+        }
+        // the per-cell road index: one entry per (cell, road) = that road's nearest segment
+        std::sort(roadHits.begin(), roadHits.end(), [](const RoadHit& a, const RoadHit& b) {
+            if (a.cell != b.cell) return a.cell < b.cell;
+            if (a.road != b.road) return a.road < b.road;
+            if (a.d != b.d) return a.d < b.d;
+            return a.seg < b.seg;
+        });
+        R.cellRoadsStart.assign(R.nearestSeg.size() + 1, 0);
+        R.cellRoadSeg.clear();
+        R.cellRoadSeg.reserve(roadHits.size() / 4 + 1);
+        {
+            size_t k = 0;
+            for (size_t cell = 0; cell < R.nearestSeg.size(); ++cell) {
+                R.cellRoadsStart[cell] = static_cast<uint32_t>(R.cellRoadSeg.size());
+                uint16_t lastRoad = 0xFFFF;
+                while (k < roadHits.size() && roadHits[k].cell == cell) {
+                    if (roadHits[k].road != lastRoad) { R.cellRoadSeg.push_back(roadHits[k].seg); lastRoad = roadHits[k].road; }
+                    ++k;
+                }
+            }
+            R.cellRoadsStart[R.nearestSeg.size()] = static_cast<uint32_t>(R.cellRoadSeg.size());
         }
     }
 
@@ -1103,61 +1154,68 @@ WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) c
     return hit;
 }
 
-WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worldZ) const {
+WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worldZ, float naturalY, std::vector<int>* roadsOut) const {
     GradeBlend out;
+    constexpr bool kAuditFixes = true;   // audit 2026-10-26: both road slots, the repose shoulder, the core road (false = the audited behaviour, red)
+    if (roadsOut) roadsOut->clear();
     if (m_raster.cellsX <= 0 || m_raster.cellsZ <= 0) return out;
     const int cx = static_cast<int>(std::floor((worldX - m_raster.originX) / m_raster.cellSize));
     const int cz = static_cast<int>(std::floor((worldZ - m_raster.originZ) / m_raster.cellSize));
-    constexpr float kShoulderU = 3.0f;   // = WorldGenerator kGradeBlend
     const glm::vec2 p(worldX, worldZ);
-    // candidate roads: every raster cell within reach of the point (the shoulder spans a cell)
-    int roads[16]; int nRoads = 0;
-    for (int dz = -1; dz <= 1; ++dz)
-        for (int dx = -1; dx <= 1; ++dx) {
-            const int qx = cx + dx, qz = cz + dz;
-            if (qx < 0 || qz < 0 || qx >= m_raster.cellsX || qz >= m_raster.cellsZ) continue;
-            const uint16_t segIdx = m_raster.nearestSeg[static_cast<size_t>(qz) * m_raster.cellsX + qx];
-            if (segIdx == 0xFFFF) continue;
-            const int r = m_segments[segIdx].roadIdx;
-            bool seen = false;
-            for (int k = 0; k < nRoads; ++k) if (roads[k] == r) { seen = true; break; }
-            if (!seen && nRoads < 16) roads[nRoads++] = r;
-        }
+    // candidate roads: every road the point's own raster cell indexes (the index reach covers
+    // half-width + the widest shoulder + a cell), each with its nearest-segment hint
+    int roads[64], hints[64]; int nRoads = 0;
+    auto addRoad = [&](uint16_t segIdx) {
+        if (segIdx == 0xFFFF) return;
+        const int r = m_segments[segIdx].roadIdx;
+        for (int k = 0; k < nRoads; ++k) if (roads[k] == r) return;
+        if (nRoads < 64) { roads[nRoads] = r; hints[nRoads] = segIdx; ++nRoads; }
+    };
+    if (cx < 0 || cz < 0 || cx >= m_raster.cellsX || cz >= m_raster.cellsZ) return out;
+    {
+        const size_t ci = static_cast<size_t>(cz) * m_raster.cellsX + cx;
+        addRoad(m_raster.nearestSeg[ci]);
+        if (kAuditFixes && !m_raster.cellRoadsStart.empty())
+            for (uint32_t e = m_raster.cellRoadsStart[ci]; e < m_raster.cellRoadsStart[ci + 1]; ++e) addRoad(m_raster.cellRoadSeg[e]);
+    }
+    // Rule: where a point lies INSIDE a corridor the surface is that road's profile — the
+    // highest class when corridors share a trunk (the trunk carries the highway's cap; a mean of
+    // two profiles would exceed the stricter cap). Shoulders blend in around it; a cut's bank is
+    // carried by a shoulder widened to cut / repose so the bank stands at the repose slope.
+    float coreGrade = -1e30f; int coreCls = 0, coreRoad = INT_MAX;
     float wSum = 0.0f, gSum = 0.0f, wMax = 0.0f;
     for (int k = 0; k < nRoads; ++k) {
-        // this road's nearest segment: the raster cells' candidates for it, plus their neighbours
         float best = 1e30f, gradeY = -1e30f; int cls = 0;
-        for (int dz = -1; dz <= 1; ++dz)
-            for (int dx = -1; dx <= 1; ++dx) {
-                const int qx = cx + dx, qz = cz + dz;
-                if (qx < 0 || qz < 0 || qx >= m_raster.cellsX || qz >= m_raster.cellsZ) continue;
-                const uint16_t segIdx = m_raster.nearestSeg[static_cast<size_t>(qz) * m_raster.cellsX + qx];
-                if (segIdx == 0xFFFF || m_segments[segIdx].roadIdx != roads[k]) continue;
-                for (int di = -2; di <= 2; ++di) {
-                    const int i = static_cast<int>(segIdx) + di;
-                    if (i < 0 || i >= static_cast<int>(m_segments.size())) continue;
-                    const Segment& s = m_segments[static_cast<size_t>(i)];
-                    if (s.roadIdx != roads[k]) continue;
-                    const glm::vec2 ab = s.b - s.a;
-                    const float len2 = glm::dot(ab, ab);
-                    const float t = len2 > 0.0f ? glm::clamp(glm::dot(p - s.a, ab) / len2, 0.0f, 1.0f) : 0.0f;
-                    const float d = glm::length(p - (s.a + ab * t));
-                    if (d < best) {
-                        best = d; cls = s.cls;
-                        const auto& prof = m_roads[static_cast<size_t>(roads[k])].gradeProfile;
-                        gradeY = (s.vert + 1 < prof.size()) ? prof[s.vert] * (1.0f - t) + prof[s.vert + 1] * t : -1e30f;
-                    }
-                }
+        // the road's nearest segment: the hint and its neighbours along the polyline (the hint
+        // is the road's nearest segment to the CELL centre; the point is within a cell of it)
+        for (int di = -3; di <= 3; ++di) {
+            const int i = hints[k] + di;
+            if (i < 0 || i >= static_cast<int>(m_segments.size())) continue;
+            const Segment& s = m_segments[static_cast<size_t>(i)];
+            if (s.roadIdx != roads[k]) continue;
+            const glm::vec2 ab = s.b - s.a;
+            const float len2 = glm::dot(ab, ab);
+            const float t = len2 > 0.0f ? glm::clamp(glm::dot(p - s.a, ab) / len2, 0.0f, 1.0f) : 0.0f;
+            const float d = glm::length(p - (s.a + ab * t));
+            if (d < best) {
+                best = d; cls = s.cls;
+                const auto& prof = m_roads[static_cast<size_t>(roads[k])].gradeProfile;
+                gradeY = (s.vert + 1 < prof.size()) ? prof[s.vert] * (1.0f - t) + prof[s.vert + 1] * t : -1e30f;
             }
+        }
         if (cls <= 0 || gradeY <= -1e29f) continue;
         const float half = roadHalfWidth(cls);
-        const float w = best <= half ? 1.0f : std::max(0.0f, 1.0f - (best - half) / kShoulderU);
+        const float shoulder = kAuditFixes ? std::min(kShoulderMaxU, std::max(kShoulderU, std::fabs(gradeY - naturalY) / kReposeSlope)) : kShoulderU;
+        const float w = best <= half ? 1.0f : std::max(0.0f, 1.0f - (best - half) / shoulder);
         if (w <= 0.0f) continue;
+        if (roadsOut) roadsOut->push_back(roads[k]);
+        if (best <= half && (cls > coreCls || (cls == coreCls && roads[k] < coreRoad))) { coreCls = cls; coreRoad = roads[k]; coreGrade = gradeY; }
         wSum += w; gSum += w * gradeY; wMax = std::max(wMax, w);
     }
     if (wSum <= 0.0f) return out;
-    out.gradeY = gSum / wSum;
+    out.gradeY = (kAuditFixes && coreCls > 0) ? coreGrade : gSum / wSum;
     out.weight = wMax;
+    out.coreRoad = (kAuditFixes && coreCls > 0) ? coreRoad : -1;
     return out;
 }
 

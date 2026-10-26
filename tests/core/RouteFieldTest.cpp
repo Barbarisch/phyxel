@@ -10,6 +10,7 @@
 #include <climits>
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -78,7 +79,7 @@ Census census(WorldGenerator& g, const WorldForgePlan& box, const float* cap) {
             c.worstRatio = std::max(c.worstRatio, slope / capHere);
             c.worstSlope = std::max(c.worstSlope, slope);
         }
-        for (size_t i = 0; i < cl.size(); i += 4) {
+        for (size_t i = 0; i < cl.size(); ++i) {   // EVERY vertex (audit: the first census sampled every 4th)
             const float d = pr[i] - (road.naturalY.size() == cl.size() ? road.naturalY[i] : natural(cl[i].x, cl[i].y));
             ++c.vertices;
             if (d < 0.0f) c.maxCut = std::max(c.maxCut, -d); else c.maxFill = std::max(c.maxFill, d);
@@ -151,17 +152,29 @@ TEST(RouteFieldTest, EarthworkIsBoundedOnTheBaseline) {
     EXPECT_EQ(deepUnexplained, 0) << "a cut deeper than the class floor with no steep natural slope to explain it";
 }
 
-// Mountains, version 2, with the civ plan: the caps still hold on every segment (the cut is
-// reported, not bounded here — a site on a ridge may need one), and the roads detour: the
-// network's length against the sum of its endpoint distances exceeds the Perlin baseline's.
-TEST(RouteFieldTest, MountainRoadsKeepTheCapAndDetour) {
+// Mountains, version 2, with the civ plan: the caps steer the route — against the SAME world
+// routed with the caps off (gradeCap 0.5 by class = the legacy envelope) the capped plan has a
+// smaller pitched share and a shallower deepest cut (both reported); every pitch is explained.
+// The cut is NOT bounded here (95.8 u measured): the red that M4b-3 (switchbacks) owns. Audit
+// 2026-10-26: the earlier detour threshold (x1.15) was met by the uncapped routing too (x1.67).
+TEST(RouteFieldTest, MountainCapsCutLessThanTheLegacyEnvelope) {
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 424242u);
     g.applyRecipe(civRecipe(424242u, "Mountains"));
     const WorldForgePlan* box = g.worldForge();
     const CorridorGraph* cg = g.corridors();
     ASSERT_TRUE(box && cg) << "no corridor-driven box plan on the Mountains v2 world";
     const Census c = census(g, *box, g.getWorldForgeParams().clamped().gradeCap);
-    printCensus("Mountains 424242", c);
+    printCensus("Mountains 424242 (caps)", c);
+    WorldRecipe off = civRecipe(424242u, "Mountains");
+    for (int k = 1; k < 4; ++k) off.worldforge.gradeCap[k] = 0.5f;
+    WorldGenerator h(WorldGenerator::GenerationType::Mountains, 424242u);
+    h.applyRecipe(off);
+    ASSERT_TRUE(h.worldForge());
+    const float caps[4] = {0.0f, 0.15f, 0.08f, 0.05f};
+    const Census u = census(h, *h.worldForge(), caps);   // judged against the real caps
+    printCensus("Mountains 424242 (caps off = 0.5)", u);
+    EXPECT_LT(c.overCapLenU / std::max(1.0f, c.lenU), u.overCapLenU / std::max(1.0f, u.lenU)) << "the caps did not reduce the pitched share";
+    EXPECT_LT(c.maxCut, u.maxCut) << "the caps did not reduce the deepest cut";
     float length = 0.0f, straight = 0.0f;
     for (const auto& road : box->roads()) {
         const auto& cl = road.centerline;
@@ -173,7 +186,6 @@ TEST(RouteFieldTest, MountainRoadsKeepTheCapAndDetour) {
                 length / 1000.0f, straight / 1000.0f, straight > 0.0f ? length / straight : 0.0f, cg->routes().size(), cg->unroutable());
     EXPECT_GT(c.roads, 0);
     EXPECT_EQ(c.pitchUnexplained, 0) << "a mountain profile segment exceeds its cap with no cut floor or pin to explain it";
-    EXPECT_GE(length, straight * 1.15f) << "mountain roads barely detour: the caps are not steering the route";
 }
 
 // The realized centreline is step-walkable: between consecutive 1 u samples the emitted surface
@@ -229,4 +241,176 @@ TEST(RouteFieldTest, VersionOneKeepsTheLegacyEnvelope) {
     printCensus("version-1 Mountains (legacy 0.5)", c);
     EXPECT_GT(c.overCap, 0) << "the version-1 plan was re-capped (D10 forbids it)";
     EXPECT_EQ(plan->planHash(), 18197215997962677593ull);
+}
+
+// Audit 2026-10-26 (the grade blend had no test of its own; a Python replica of the raster
+// showed a road's own entry absent from the gather at 43.8 % of its centreline points where
+// corridors share a trunk): at centreline points and lateral offsets of every road, the set of
+// roads the blend gathers must equal the brute-force set of roads whose corridor + shoulder
+// reaches the point.
+TEST(RouteFieldTest, GradeBlendGathersEveryRoadInReach) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(civRecipe(20260816u));
+    const WorldForgePlan* box = g.worldForge();
+    ASSERT_TRUE(box && box->blendsGrades());
+    const auto& roads = box->roads();
+    auto distToRoad = [&](const glm::vec2& p, const WorldForgeRoad& r, float& gradeY) {
+        float best = 1e30f;
+        for (size_t i = 0; i + 1 < r.centerline.size(); ++i) {
+            const glm::vec2 a = r.centerline[i], b = r.centerline[i + 1], ab = b - a;
+            const float len2 = glm::dot(ab, ab);
+            const float t = len2 > 0.0f ? glm::clamp(glm::dot(p - a, ab) / len2, 0.0f, 1.0f) : 0.0f;
+            const float d = glm::length(p - (a + ab * t));
+            if (d < best) { best = d; gradeY = r.gradeProfile.size() == r.centerline.size() ? r.gradeProfile[i] * (1.0f - t) + r.gradeProfile[i + 1] * t : 0.0f; }
+        }
+        return best;
+    };
+    int points = 0, missing = 0, extra = 0, sharedPoints = 0;
+    std::vector<int> got;
+    for (size_t ri = 0; ri < roads.size(); ++ri) {
+        const auto& r = roads[ri];
+        for (size_t i = 0; i < r.centerline.size(); i += 16) {
+            const glm::vec2 c = r.centerline[i];
+            glm::vec2 n(0.0f, 1.0f);
+            if (i + 1 < r.centerline.size()) { const glm::vec2 d = glm::normalize(r.centerline[i + 1] - c); n = glm::vec2(-d.y, d.x); }
+            for (const float off : {0.0f, WorldForgePlan::roadHalfWidth(r.cls), WorldForgePlan::roadHalfWidth(r.cls) + 2.0f}) {
+                const glm::vec2 p = c + n * off;
+                const float natural = g.baseHeightFn()(p.x, p.y);
+                std::set<int> expect;
+                for (size_t rj = 0; rj < roads.size(); ++rj) {
+                    float gy = 0.0f;
+                    const float d = distToRoad(p, roads[rj], gy);
+                    const float shoulder = std::min(WorldForgePlan::kShoulderMaxU, std::max(WorldForgePlan::kShoulderU, std::fabs(gy - natural) / WorldForgePlan::kReposeSlope));
+                    if (d < WorldForgePlan::roadHalfWidth(roads[rj].cls) + shoulder - 0.05f) expect.insert(static_cast<int>(rj));
+                }
+                box->gradeBlendAt(p.x, p.y, natural, &got);
+                std::set<int> have(got.begin(), got.end());
+                ++points;
+                if (expect.size() > 1) ++sharedPoints;
+                for (int e : expect) if (!have.count(e)) ++missing;
+                for (int h : have) if (!expect.count(h)) ++extra;
+            }
+        }
+    }
+    std::printf("[ M4b ] blend gather: %d points (%d with more than one road in reach), %d roads missing from the gather, %d gathered beyond reach\n", points, sharedPoints, missing, extra);
+    EXPECT_GT(sharedPoints, 0) << "no shared-trunk point sampled";
+    EXPECT_EQ(missing, 0) << "a road within reach was not gathered";
+    // an extra road at the very edge of reach (the gather's shoulder is computed from its own
+    // nearest segment's grade, the brute force from the true nearest's) weighs ~0: bounded, not zero
+    EXPECT_LE(extra * 20, points) << "more than 5 % of points gathered a road beyond reach";
+}
+
+// Audit 2026-10-26: the cap claim must hold on the REALIZED surface, not only on each road's own
+// profile - on a shared trunk the surface followed another road's profile. Along every road's
+// centreline, the emitted surface over each 16 u window may rise by at most cap x 16 u + 1 cube
+// of rounding, except inside a pitch (where the road's own profile exceeds its cap) or over
+// water / a deck.
+TEST(RouteFieldTest, RealizedSurfaceKeepsTheClassCapOutsidePitches) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(civRecipe(20260816u));
+    const WorldForgePlan* box = g.worldForge();
+    ASSERT_TRUE(box && box->blendsGrades());
+    const float* cap = g.getWorldForgeParams().clamped().gradeCap;
+    int windows = 0, over = 0, pitchWindows = 0;
+    float worst = 0.0f;
+    for (const auto& road : box->roads()) {
+        const auto& cl = road.centerline; const auto& pr = road.gradeProfile;
+        if (cl.size() < 2 || pr.size() != cl.size()) continue;
+        const float capHere = cap[std::clamp(road.cls, 1, 3)];
+        for (size_t i = 0; i + 1 < cl.size(); i += 2) {   // every second 16 u segment keeps the Debug cost down
+            const float len = glm::length(cl[i + 1] - cl[i]);
+            if (len < 8.0f) continue;
+            const bool pitch = std::fabs(pr[i + 1] - pr[i]) / len > capHere + 1e-4f;
+            const auto a = g.sampleSurface(static_cast<int>(std::lround(cl[i].x)), static_cast<int>(std::lround(cl[i].y)));
+            const auto b = g.sampleSurface(static_cast<int>(std::lround(cl[i + 1].x)), static_cast<int>(std::lround(cl[i + 1].y)));
+            if (a.riverOrder > 0 || b.riverOrder > 0 || a.bridgeDeckY != INT_MIN || b.bridgeDeckY != INT_MIN) continue;
+            if (pitch) { ++pitchWindows; continue; }
+            ++windows;
+            const float rise = static_cast<float>(std::abs(b.surfaceY - a.surfaceY));
+            // on a shared trunk the surface follows the CORE road (the highest class there), which
+            // may be in its own short pitch: the rise may not exceed the class cap unless the
+            // blend's own profile rises that much (the diagnostics showed road 10 under a six-road
+            // trunk following a pitched core)
+            const float natA0 = road.naturalY.size() == cl.size() ? road.naturalY[i] : 0.0f, natB0 = road.naturalY.size() == cl.size() ? road.naturalY[i + 1] : 0.0f;
+            const auto ga0 = box->gradeBlendAt(cl[i].x, cl[i].y, natA0), gb0 = box->gradeBlendAt(cl[i + 1].x, cl[i + 1].y, natB0);
+            const float blendRise = (ga0.weight > 0.0f && gb0.weight > 0.0f) ? std::fabs(gb0.gradeY - ga0.gradeY) : 0.0f;
+            const float allowed = std::max(capHere * len, blendRise) + 1.0f;   // + 1 cube of integer rounding
+            if (rise > allowed + 1e-3f) {
+                ++over;
+                if (over <= 8) {
+                    int clsA = 0, clsB = 0; std::vector<int> ra, rb;
+                    const float natA = road.naturalY.size() == cl.size() ? road.naturalY[i] : 0.0f, natB = road.naturalY.size() == cl.size() ? road.naturalY[i + 1] : 0.0f;
+                    const auto ga = box->gradeBlendAt(cl[i].x, cl[i].y, natA, &ra), gb = box->gradeBlendAt(cl[i + 1].x, cl[i + 1].y, natB, &rb);
+                    (void)clsA; (void)clsB;
+                    std::printf("    over-cap window: road %zu cls %d i %zu len %.1f: profile %.2f -> %.2f (natural %.2f -> %.2f), surface %d -> %d, blend %.2f (w %.2f, %zu roads) -> %.2f (w %.2f, %zu roads)\n",
+                                static_cast<size_t>(&road - &box->roads()[0]), road.cls, i, len, pr[i], pr[i + 1], natA, natB, a.surfaceY, b.surfaceY, ga.gradeY, ga.weight, ra.size(), gb.gradeY, gb.weight, rb.size());
+                }
+            }
+            worst = std::max(worst, (rise - 1.0f) / len);
+        }
+    }
+    std::printf("[ M4b ] realized surface: %d windows outside pitches, %d over their class cap (worst %.3f after rounding); %d pitch windows skipped\n", windows, over, worst, pitchWindows);
+    EXPECT_GT(windows, 2000);
+    EXPECT_EQ(over, 0) << "the realized surface climbs faster than the class cap outside a pitch";
+}
+
+// Audit 2026-10-26: a cut of C u over a fixed 3 u shoulder made a bank of slope C / 3 (1.05 to
+// 1.4), twice the repose slope the cut limit was named after. The shoulder now widens to
+// C / 0.70: at the deepest cuts the surface drop across the shoulder, measured perpendicular to
+// the road, must not exceed the repose slope (plus one cube of rounding over the span).
+TEST(RouteFieldTest, CutBanksStandAtTheReposeSlope) {
+    WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
+    g.applyRecipe(civRecipe(20260816u));
+    const WorldForgePlan* box = g.worldForge();
+    ASSERT_TRUE(box && box->blendsGrades());
+    struct Deep { glm::vec2 p, n; float cut; int cls; };
+    std::vector<Deep> deepest;
+    for (const auto& road : box->roads()) {
+        const auto& cl = road.centerline; const auto& pr = road.gradeProfile; const auto& nat = road.naturalY;
+        if (cl.size() < 3 || pr.size() != cl.size() || nat.size() != cl.size()) continue;
+        for (size_t i = 1; i + 1 < cl.size(); ++i) {
+            const float cut = nat[i] - pr[i];
+            if (cut < 2.0f) continue;
+            const glm::vec2 d = glm::normalize(cl[i + 1] - cl[i - 1]);
+            deepest.push_back({cl[i], glm::vec2(-d.y, d.x), cut, road.cls});
+        }
+    }
+    std::sort(deepest.begin(), deepest.end(), [](const Deep& a, const Deep& b) { return a.cut > b.cut; });
+    // the deepest cuts sit on shared trunks (all 40 of the first census were bundled): walk the
+    // list from the deepest down and measure the 40 deepest SINGLE-road cuts
+    int banks = 0, steep = 0, bundled = 0, measuredCuts = 0; float worstSlope = 0.0f, deepestMeasured = 0.0f;
+    for (const Deep& d : deepest) {
+        if (measuredCuts >= 40) break;
+        std::vector<int> rhere;
+        box->gradeBlendAt(d.p.x, d.p.y, g.baseHeightFn()(d.p.x, d.p.y), &rhere);
+        if (rhere.size() != 1) { ++bundled; continue; }
+        ++measuredCuts;
+        if (deepestMeasured == 0.0f) deepestMeasured = d.cut;
+        for (const float side : {-1.0f, 1.0f}) {
+            const float half = WorldForgePlan::roadHalfWidth(d.cls);
+            const float shoulder = std::min(WorldForgePlan::kShoulderMaxU, std::max(WorldForgePlan::kShoulderU, d.cut / WorldForgePlan::kReposeSlope));
+            const glm::vec2 inner = d.p + d.n * (side * half), outer = d.p + d.n * (side * (half + shoulder));
+            const auto a = g.sampleSurface(static_cast<int>(std::lround(inner.x)), static_cast<int>(std::lround(inner.y)));
+            const auto b = g.sampleSurface(static_cast<int>(std::lround(outer.x)), static_cast<int>(std::lround(outer.y)));
+            if (a.riverOrder > 0 || b.riverOrder > 0) continue;
+            if (d.cut > WorldForgePlan::kShoulderMaxU * WorldForgePlan::kReposeSlope) continue;   // beyond the widest shoulder: M4b-3 walls
+            std::vector<int> rin, rout;
+            box->gradeBlendAt(inner.x, inner.y, g.baseHeightFn()(inner.x, inner.y), &rin);
+            box->gradeBlendAt(outer.x, outer.y, g.baseHeightFn()(outer.x, outer.y), &rout);
+            if (rin.size() != 1 || rout.size() > 1) { ++bundled; continue; }   // a bundle's composite bank is not this claim
+            ++banks;
+            // the bank is the realized drop across the shoulder BEYOND what the natural surface
+            // does there (the ground itself may fall away from the road)
+            const float natIn = g.baseHeightFn()(inner.x, inner.y), natOut = g.baseHeightFn()(outer.x, outer.y);
+            const float realizedRise = static_cast<float>(b.surfaceY - a.surfaceY);
+            const float naturalRise = natOut - natIn;
+            const float slope = (std::fabs(realizedRise - naturalRise) - 1.0f) / shoulder;   // - 1 cube of rounding
+            worstSlope = std::max(worstSlope, slope);
+            if (slope > WorldForgePlan::kReposeSlope + 1e-3f) ++steep;
+        }
+    }
+    std::printf("[ M4b ] cut banks: %zu cut vertices scanned, the deepest single-road cut %.1f u: %d single-road banks measured (%d bundled cuts skipped), %d steeper than repose (worst %.2f vs %.2f)\n",
+                deepest.size(), deepestMeasured, banks, bundled, steep, worstSlope, WorldForgePlan::kReposeSlope);
+    EXPECT_GT(banks, 4);
+    EXPECT_EQ(steep, 0) << "a cut bank stands steeper than the repose slope";
 }
