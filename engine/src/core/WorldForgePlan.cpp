@@ -200,6 +200,7 @@ struct RoutingGrid {
 // gcd 1, 32 directions) gives the search long oblique steps whose grade is low across a slope that
 // every 8-neighbour step would climb straight.
 constexpr float kOverCapPenalty = 25.0f;
+constexpr float kSwitchbackBandU = 256.0f;   // M4b-3: the half-width the legs fold inside (= the corridor band, DESIGN)
 constexpr int   kNeighbourRadius = 3;
 
 std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, float& outCost, float cap = 0.0f) {
@@ -290,6 +291,93 @@ std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, flo
 }
 
 // Chaikin corner cutting (endpoints preserved), then arc-length resample at kResampleU.
+// ── M4b-3 (Galin: switchbacks as edges): where a corridor-driven road's coarse line climbs
+// steeper than its class cap over a stretch, the stretch is replaced by legs that cross the slope
+// at the cap, folded inside the corridor band (+-W) with hairpins at the band edges. The face is
+// taken as planar along the stretch (gradient s = climb / run): a leg at angle theta to the contour
+// climbs s*sin(theta) per unit length, so sin(theta) = cap / s; each leg spans the band (2W across)
+// and advances 2W*tan(theta) along the stretch; the legs needed = run / advance. A leg that would
+// cross water, or a stretch too short for one leg, keeps the straight pitch (reported). Hairpins
+// are the sharp reversals at the band edges; the 16 u Chaikin resample rounds them. DESIGN inside
+// Galin's form: W = the corridor band (256 u), the planar-face assumption (rough faces leave small
+// cuts the envelope handles). Returns the number of stretches replaced; legsLenU sums the legs.
+struct SwitchbackStats { int stretches = 0, replaced = 0, water = 0, tooShort = 0; float climbReplacedU = 0.0f, climbKeptU = 0.0f; };
+int insertSwitchbacks(std::vector<glm::vec2>& pts, float cap, float bandW,
+                      const std::function<float(float, float)>& heightAt,
+                      const std::function<bool(float, float)>& wetAt, float& legsLenU, SwitchbackStats* stats = nullptr) {
+    legsLenU = 0.0f;
+    if (pts.size() < 3 || cap <= 0.0f) return 0;
+    std::vector<float> h(pts.size());
+    for (size_t i = 0; i < pts.size(); ++i) h[i] = heightAt(pts[i].x, pts[i].y);
+    std::vector<glm::vec2> out;
+    out.reserve(pts.size() * 2);
+    int inserted = 0;
+    size_t i = 0;
+    while (i < pts.size()) {
+        // a pitched stretch: consecutive steps steeper than the cap, same sign
+        size_t j = i;
+        float run = 0.0f;
+        while (j + 1 < pts.size()) {
+            const float len = glm::length(pts[j + 1] - pts[j]);
+            if (len < 1e-3f) break;
+            const float grade = (h[j + 1] - h[j]) / len;
+            const float grade0 = (h[i + 1 < pts.size() ? i + 1 : i] - h[i]) / std::max(1e-3f, glm::length(pts[std::min(i + 1, pts.size() - 1)] - pts[i]));
+            if (std::fabs(grade) <= cap || (grade > 0) != (grade0 > 0)) break;
+            run += len;
+            ++j;
+        }
+        if (j == i) { out.push_back(pts[i]); ++i; continue; }
+        const float climb = h[j] - h[i];
+        const float s = std::fabs(climb) / std::max(1e-3f, run);
+        bool replaced = false, anyWet = false, anyShort = false;
+        if (stats) ++stats->stretches;
+        if (s > cap) {
+            const glm::vec2 axis = glm::normalize(pts[j] - pts[i]);
+            const glm::vec2 across(-axis.y, axis.x);
+            const float sinT = std::min(1.0f, cap / s);
+            const float tanT = sinT / std::sqrt(std::max(1e-6f, 1.0f - sinT * sinT));
+            for (float W = bandW; W >= bandW * 0.25f && !replaced; W *= 0.5f) {
+                const float advance = 2.0f * W * tanT;   // along the stretch per leg
+                const float along = glm::length(pts[j] - pts[i]);
+                // at least two legs: one leg would be the straight line itself (both ends on the
+                // axis); a short stretch becomes a V out to the band edge and back (diagnostics
+                // 2026-10-26: 12 of 16 mountain stretches were single 128 u steps skipped as "short")
+                const int legs = std::max(2, static_cast<int>(std::ceil(along / std::max(1.0f, advance))));
+                (void)anyShort;
+                // build the legs: from pts[i], alternate the band side, advancing evenly
+                std::vector<glm::vec2> zig;
+                zig.push_back(pts[i]);
+                float side = 1.0f;
+                for (int k = 1; k <= legs; ++k) {
+                    const float t = static_cast<float>(k) / legs;
+                    const glm::vec2 base = pts[i] + axis * (along * t);
+                    zig.push_back(k == legs ? pts[j] : base + across * (side * W));
+                    side = -side;
+                }
+                // water check along every leg at 16 u
+                bool wet = false;
+                for (size_t k = 0; k + 1 < zig.size() && !wet; ++k) {
+                    const float len = glm::length(zig[k + 1] - zig[k]);
+                    for (float t = 0.0f; t <= len; t += 16.0f)
+                        if (wetAt(zig[k].x + (zig[k + 1].x - zig[k].x) * t / std::max(1.0f, len), zig[k].y + (zig[k + 1].y - zig[k].y) * t / std::max(1.0f, len))) { wet = true; break; }
+                }
+                if (wet) { anyWet = true; continue; }
+                for (size_t k = 0; k + 1 < zig.size(); ++k) { out.push_back(zig[k]); legsLenU += glm::length(zig[k + 1] - zig[k]); }
+                replaced = true;
+                ++inserted;
+            }
+        }
+        if (!replaced) for (size_t k = i; k < j; ++k) out.push_back(pts[k]);
+        if (stats) {
+            if (replaced) { ++stats->replaced; stats->climbReplacedU += std::fabs(climb); }
+            else { stats->climbKeptU += std::fabs(climb); if (anyWet) ++stats->water; else if (anyShort) ++stats->tooShort; }
+        }
+        i = j;
+    }
+    pts = std::move(out);
+    return inserted;
+}
+
 std::vector<glm::vec2> smoothResample(std::vector<glm::vec2> pts) {
     for (int pass = 0; pass < 2 && pts.size() >= 3; ++pass) {
         std::vector<glm::vec2> out;
@@ -474,6 +562,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
 
     // ── Routing: A* per pair on the bake-cell grid, MST + detour-relaxed loops ────────────────
     const size_t nSites = plan->m_sites.size();
+    SwitchbackStats swStatsTotal;   // M4b-3 diagnostics over every road
     if (nSites >= 2) {
         // Routing subgrid: site bbox in cell coords + margin, clamped to the bake grid.
         // M4a: the route search runs on a 128 u routing cell (V1 routed on 128 u bake cells; the
@@ -718,6 +807,12 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 pts.push_back(g.cellCentre(cx, cz));
             }
             pts.push_back(pr->b >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(pr->b)].pos) : pr->pb);
+            if (demand) {   // M4b-3: switchbacks on the pitched stretches of a corridor-driven road
+                float legs = 0.0f;
+                road.switchbacks = insertSwitchbacks(pts, P.gradeCap[glm::clamp(road.cls, 1, 3)], kSwitchbackBandU, heightAt,
+                                                     [&](float x, float z) { return levelAt(x, z) > heightAt(x, z) + 0.1f || flow.carvedRiverAt(x, z); }, legs, &swStatsTotal);
+                road.switchbackLengthU = legs;
+            }
             road.centerline = smoothResample(std::move(pts));
             // Trim inside the endpoint footprints. Inset 1 (was 8): the road must REACH the
             // footprint boundary so the arrival-aligned main street can meet it — an 8-cube
@@ -773,6 +868,10 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         }
     }
 
+    if (demand)
+        LOG_INFO_FMT("WorldForge", "[SWITCHBACKS] pitched stretches " << swStatsTotal.stretches << ", replaced " << swStatsTotal.replaced
+                     << " (climb " << swStatsTotal.climbReplacedU << " u), kept straight: water " << swStatsTotal.water << ", too short " << swStatsTotal.tooShort
+                     << " (climb kept " << swStatsTotal.climbKeptU << " u)");
     // ── Bridge spans (placer #44): every order>=3 crossing gets a flat plank deck ────────────
     // Endpoints are found by marching along the road's local tangent from the crossing point
     // until the CARVE-ACCURATE channel (meander-warped channelAt, not the raw cell line) has
@@ -1309,7 +1408,7 @@ nlohmann::json WorldForgePlan::toJson() const {
             grade = {std::round(lo * 10.0f) / 10.0, std::round(hi * 10.0f) / 10.0,
                      std::round(sum * 10.0) / 10.0};
         }
-        roads.push_back({{"a", r.a}, {"b", r.b}, {"class", r.cls},
+        roads.push_back({{"a", r.a}, {"b", r.b}, {"class", r.cls}, {"switchbacks", r.switchbacks}, {"switchback_length_u", r.switchbackLengthU},
                          {"points", static_cast<int>(r.centerline.size())},
                          {"centerline", line}, {"crossings", crossings}, {"grade", grade}});
     }
@@ -1336,9 +1435,12 @@ uint64_t WorldForgePlan::planHash() const {
     // version-1 hashes in WorldForgePlanTest). The class is derived from the crossing's
     // position, so it is reported, never hashed.
     if (j.contains("roads"))
-        for (auto& road : j["roads"])
+        for (auto& road : j["roads"]) {
+            road.erase("switchbacks");           // M4b-3 diagnostics: reported, never hashed (the pinned
+            road.erase("switchback_length_u");   // version-1 hashes moved when they were added, 2026-10-26)
             if (road.contains("crossings"))
                 for (auto& c : road["crossings"]) c.erase("carved");
+        }
     const std::string s = j.dump();
     uint64_t h = 1469598103934665603ull;  // FNV-1a 64
     for (unsigned char c : s) {

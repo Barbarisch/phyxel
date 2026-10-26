@@ -1,0 +1,25 @@
+M4b-3 RED (Debug, the M4b-2 code; scratchpad m4b3_red.txt):
+[ M4b ] Mountains 424242 (switchbacks): 33 roads, 57977 profile segments, 26271 over the class cap = 45.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 58010 vertices: max cut 96.9 u, max fill 177.0 u, 10528 deeper than 6 u
+[  FAILED  ] RouteFieldTest.MountainSwitchbacksRetireMostPitches (147246 ms)
+[  FAILED  ] RouteFieldTest.MountainSwitchbacksRetireMostPitches
+
+M4b-3 GREEN (Debug; scratchpad m4b3_green2.txt, 44/44 with the regression fixtures) - the switchbacks exist and the mountain figures did not move:
+[  PASSED  ] 44 tests.
+[ M4b ] Mountains 424242 (switchbacks): 33 roads, 58310 profile segments, 26481 over the class cap = 45.4 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 58343 vertices: max cut 96.9 u, max fill 177.0 u, 10512 deeper than 6 u
+[ M4b ] baseline Perlin: 32 roads, 45675 profile segments, 2413 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 45707 vertices: max cut 11.1 u, max fill 6.0 u, 13 deeper than 6 u
+[ M4b ] switchbacks: 16 stretches replaced, 10.0 km of legs in 931.9 km of road
+[14:56:45.098] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[14:57:03.702] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[14:59:29.736] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 16, replaced 16 (climb 655.251 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[15:00:33.889] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[15:01:02.057] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[15:01:49.316] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[15:02:08.959] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[15:02:53.808] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 16, replaced 16 (climb 655.251 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[15:03:11.546] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[15:03:30.195] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[15:03:48.511] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[15:04:08.130] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 1, replaced 1 (climb 11.691 u), kept straight: water 0, too short 0 (climb kept 0 u)
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+Diagnostics before the legs>=2 change (scratchpad m4b3_diag.txt): 16 stretches, 4 replaced, 12 'too short' (single 128 u steps) -> at least two legs now. PREDICTIONS MISSED: pitched <= 20 % (measured 45.4 %), max cut <= 40 u (96.9 u): the pitched length is sub-128 u roughness, not slope - D29 in the plan.

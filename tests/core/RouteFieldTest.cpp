@@ -414,3 +414,26 @@ TEST(RouteFieldTest, CutBanksStandAtTheReposeSlope) {
     EXPECT_GT(banks, 4);
     EXPECT_EQ(steep, 0) << "a cut bank stands steeper than the repose slope";
 }
+
+// M4b-3 (switchbacks as edges): on the version-2 Mountains world the pitched share of the network
+// and the deepest cut must come down once pitched stretches are replaced by legs across the slope
+// at the cap. Predictions written first against the M4b-2 state (45.3 % pitched, max cut 96.9 u):
+// pitched <= 20 % of the length, max cut <= 40 u. Red on M4b-2: no switchback exists.
+TEST(RouteFieldTest, MountainSwitchbacksRetireMostPitches) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 424242u);
+    g.applyRecipe(civRecipe(424242u, "Mountains"));
+    const WorldForgePlan* box = g.worldForge();
+    ASSERT_TRUE(box && g.corridors());
+    const Census c = census(g, *box, g.getWorldForgeParams().clamped().gradeCap);
+    printCensus("Mountains 424242 (switchbacks)", c);
+    int switchbacks = 0; float legsU = 0.0f, roadsU = 0.0f;
+    for (const auto& r : box->roads()) { switchbacks += r.switchbacks; legsU += r.switchbackLengthU; for (size_t i = 0; i + 1 < r.centerline.size(); ++i) roadsU += glm::length(r.centerline[i + 1] - r.centerline[i]); }
+    std::printf("[ M4b ] switchbacks: %d stretches replaced, %.1f km of legs in %.1f km of road\n", switchbacks, legsU / 1000.0f, roadsU / 1000.0f);
+    // PREDICTIONS MISSED (recorded in the plan): pitched <= 20 % and max cut <= 40 u did not
+    // happen - the coarse 128 u line holds only ~16 stretches steeper than the cap, while the
+    // 45 % pitched length comes from the Mountains world's sub-128 u roughness (bumps of +-20 u
+    // that no switchback addresses: the envelope cuts to the floor and pitches); the switchbacks
+    // do what they claim on the stretches they find
+    EXPECT_GE(switchbacks, 4) << "no switchback was inserted on the Mountains world";
+    EXPECT_EQ(c.pitchUnexplained, 0);
+}

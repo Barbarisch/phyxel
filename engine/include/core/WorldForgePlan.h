@@ -74,6 +74,10 @@ struct WorldForgeRoad {
     /// M4b: the REAL emitted surface at each centreline vertex before any grading (the height the
     /// profile started from) - the earthwork at a vertex is gradeProfile - naturalY.
     std::vector<float> naturalY;
+    /// M4b-3: switchback stretches inserted on this road (a pitched stretch replaced by legs
+    /// across the slope at the class cap, folded inside the corridor band with hairpins).
+    int switchbacks = 0;
+    float switchbackLengthU = 0.0f;   // the legs' total length
 };
 
 /// One bridge deck spanning an order>=3 channel (placer #44, V2 of the road field). The
