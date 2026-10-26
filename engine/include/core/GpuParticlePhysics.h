@@ -656,6 +656,7 @@ private:
     bool                 m_frozen          = false;
     uint32_t             m_stepBudget      = 0;
     uint64_t             m_totalTicks      = 0;
+    uint64_t             m_readbackTicks   = 0;   // A2j: m_totalTicks when the position-log readback was copied (the log's snap_ticks)
     uint32_t             m_solverFlags     = SOLVER_FLAGS_DEFAULT;
     float                m_coldPenaltyScale = 1.0f;
     // Shared static occupancy (1c): pushed to solver_voxel / solver_hardcontact as `occBox`.

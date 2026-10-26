@@ -18,7 +18,7 @@ Writes docs/evidence/water_core_m4/float_rest_<tag>.json.
 """
 import argparse, json, pathlib, sys, time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from water_bench import Api
+from water_bench import Api, particle_tracks
 
 EV = pathlib.Path(__file__).resolve().parent.parent / "docs" / "evidence" / "water_core_m4"
 LEVEL = 16.5
@@ -85,20 +85,23 @@ def level(api):
 
 
 def read_log(path, a):
-    """The engine's per-frame particle log -> [(t, y, speed, sleeping)] for the one block (slot of the first active particle)."""
-    rows, t, dt = [], 0.0, 0.0
-    prev = None
-    for line in pathlib.Path(path).read_text().splitlines():
-        if line.startswith("F,"):
-            f = line.split(","); dt = float(f[2]); t += dt
-        elif line.startswith("P,"):
-            f = line.split(",")
-            flags = int(f[9])    # P,frame,slot,x,y,z,px,py,pz,flags,material
-            if not flags & 1: continue
-            y, py = float(f[4]), float(f[7])
-            speed = abs(y - py) / dt if dt > 0 else 0.0     # vertical speed from the particle's own previous pose
-            rows.append((round(t, 3), y, speed, bool(flags & 2)))
-    return rows
+    """The engine's particle log -> [(t, y, speed, sleeping)] for the one block: the longest track (a slot the last run's body held
+    can open the log with a row or two). t on the solver's clock from the first row (water_bench.particle_tracks, WaterCore A2j:
+    before it, t was the frame dt summed - an undercount, so every time and speed this tool reported was wrong; heights were not)."""
+    tracks = particle_tracks(path)
+    if not tracks: return []
+    tr = max(tracks.values(), key=len)
+    t0 = tr[0][0]
+    return [(round(t - t0, 4), y, abs(vy), sl) for t, y, vy, sl in tr]
+
+
+def after_dive(body, a):
+    """The highest centre after the dive: rows after entry (bottom below the level), from the lowest point of their first 2 s on."""
+    e = next((i for i, b in enumerate(body) if b[1] - a < LEVEL), None)
+    if e is None: return None
+    win = [i for i in range(e, len(body)) if body[i][0] <= body[e][0] + 2.0]
+    k = min(win, key=lambda i: body[i][1])
+    return max(b[1] for b in body[k:])
 
 
 def run(api, sc, seconds):
@@ -145,13 +148,17 @@ def run(api, sc, seconds):
            "body_slept_at_s": slept, "body_y_end": body[-1][1] if body else None,
            "draft_last5s": [min(drafts), sum(drafts) / len(drafts), max(drafts)] if drafts else None,
            "speed_last5s_max": max((b[2] for b in tail), default=None),
-           "body_y_max_after_entry": max((b[1] for b in body if b[0] > 0.3), default=None),
+           # A2j: after ENTRY (the first row whose bottom is below the level). It was "after 0.3 s" on the old clock, which ran ~3x fast:
+           # 0.3 s there was ~0.9 s of solver time, after entry; on the true clock 0.3 s is still above the water (a 1 m drop takes 0.45 s)
+           "body_y_max_after_entry": max((b[1] for b in body[next((i for i, b in enumerate(body) if b[1] - a < LEVEL), len(body)):]), default=None),
+           # the REBOUND: the highest point after the dive (the lowest point in the 2 s after entry) - what "nothing rises" is judged on
+           "body_y_max_after_dive": after_dive(body, a),
            "handover": handover, "pressure_force": press, "pond": pond_trace, "body": body[::10]}
     d = out["draft_last5s"]
     print(f"{sc['name']:20s} pond woke {woke} asleep again {asleep_again} end {out['pond_state_end']} awake_cols {out['awake_columns_end']}"
           f" mass {out['mass_min_max']} | body slept {slept} y_end {out['body_y_end']}"
           f" draft(last 5 s) {'-' if not d else f'{d[0]:.3f}/{d[1]:.3f}/{d[2]:.3f}'} speed max {out['speed_last5s_max']}"
-          f" y_max {out['body_y_max_after_entry']}", flush=True)
+          f" y_max {out['body_y_max_after_entry']} after the dive {out['body_y_max_after_dive']}", flush=True)
     if press and press.get("on"): print(f"    pressure: {press}", flush=True)
     if handover: print(f"    hand-over to the record at {handover['t']} s: y {handover['y_before']:.4f} -> {handover['y_after_min']:.4f}..{handover['y_after_max']:.4f} ({handover['jump_mm']:.1f} mm)", flush=True)
     return out

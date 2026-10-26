@@ -81,6 +81,42 @@ def world_job(api, path, box, **extra):
     return res.get("result") or res
 
 
+SOLVER_TICK = 1.0 / 60.0   # GpuParticlePhysics::FIXED_DT
+
+
+def particle_tracks(path):
+    """The GPU particle log (/api/debug/particle_log) -> {slot: [(t, y, vy, sleeping)]}, active bodies only, one row per logged snapshot.
+
+    t = the solver's own clock: the frame header's last column snap_ticks (the total ticks at the snapshot) x 1/60 s - WaterCore
+    A2j. Do NOT sum the header's dt or ticks: they are the logging frame's, the snapshot is older, and frames whose copy was skipped
+    are not logged at all - summed they undercount time (a free fall read ~10 g, WaterCore 37). vy = (y - prev_y) / one tick
+    (prev = the body's pose one solver step earlier). A slot reused by a new body starts a new track - seen as the body's spawn age
+    (flags bits 16..23, solver_sync_out.comp: counts ticks, stops at 255) going DOWN, or the slot inactive the logged frame before;
+    one slot's tracks are keyed slot, "slot#1", "slot#2"... in order. A log without
+    snap_ticks (a binary from before A2j) is refused - its times cannot be trusted."""
+    tracks, last, t, frame = {}, {}, None, -1
+    with open(path) as f:
+        for line in f:
+            if line.startswith("F,"):
+                p = line.rstrip("\n").split(",")
+                if len(p) < 14:
+                    raise SystemExit(f"{path}: the particle log has no snap_ticks column - a stale engine binary (WaterCore A2j)")
+                t = int(p[13]) * SOLVER_TICK; frame += 1
+            elif line.startswith("P,") and t is not None:
+                p = line.split(",")
+                flags = int(p[9])
+                if not flags & 1: continue
+                slot, y, py, age = int(p[2]), float(p[4]), float(p[7]), (flags >> 16) & 0xFF
+                key, seen, last_age, n = last.get(slot, (slot, None, None, 0))
+                if seen is not None and (seen != frame - 1 or age < last_age):   # a new body in the slot
+                    n += 1; key = f"{slot}#{n}"
+                tr = tracks.setdefault(key, [])
+                if not tr or tr[-1][0] != t:   # one row per snapshot time
+                    tr.append((t, y, (y - py) / SOLVER_TICK, bool(flags & 2)))   # 2 = PARTICLE_SLEEPING
+                last[slot] = (key, frame, age, n)
+    return tracks
+
+
 def surface_y(api, x, z):
     # max_y defaults to 255 and Mountains terrain exceeds it: a None here then means "higher than
     # 255", not "unloaded" (cost an hour on the River bench, 2026-10-07). Ask for the full range.

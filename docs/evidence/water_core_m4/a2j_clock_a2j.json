@@ -1,0 +1,37 @@
+{
+ "tag": "a2j",
+ "old_dt_summed": {
+  "rows": 743,
+  "g_measured": 77.5836,
+  "g_ratio": 7.9086,
+  "span_s": 0.4051
+ },
+ "spawn_age": {
+  "rows": 743,
+  "g_measured": 8.602,
+  "g_ratio": 0.8769,
+  "span_s": 1.2167
+ },
+ "snap_ticks": {
+  "rows": 182,
+  "g_measured": 8.602,
+  "g_ratio": 0.8769,
+  "span_s": 1.2167
+ },
+ "age_vs_snap": {
+  "pairs": 74,
+  "max_diff_s": 0.0
+ },
+ "vy_vs_finite_difference": {
+  "pairs": 73,
+  "max_abs_diff_ms": 0.0
+ },
+ "g_first_10_ticks": {
+  "steps": 10,
+  "g_ratio_median": 0.9541
+ },
+ "vy_at_last_free_row": {
+  "vy": -9.63,
+  "g_t_undamped": -11.9355
+ }
+}

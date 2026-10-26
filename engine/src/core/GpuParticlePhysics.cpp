@@ -1200,7 +1200,10 @@ void GpuParticlePhysics::update(float dt) {
         m_readbackReady   = false;
         const GpuParticle* particles = static_cast<const GpuParticle*>(m_readbackMapped);
 
-        // Frame header: F,frame,dt,ticks,alpha,activeCount,char_cx,char_cy,char_cz,char_vx,char_vy,char_vz,char_active
+        // Frame header: F,frame,dt,ticks,alpha,activeCount,char_cx,char_cy,char_cz,char_vx,char_vy,char_vz,char_active,snap_ticks
+        // dt / ticks are THIS frame's; the snapshot is an earlier frame's, and frames whose copy was skipped (one pending) are not
+        // logged - summed, they undercount time (~10 g for a free fall, WaterCore 37). snap_ticks = the solver's total ticks at the
+        // snapshot: the clock to use (A2j). Appended last so older readers' columns do not move.
         m_posLogFile << "F," << m_posLogFrameCounter
                      << "," << m_lastRealDt
                      << "," << m_physicsTicks
@@ -1216,7 +1219,7 @@ void GpuParticlePhysics::update(float dt) {
         } else {
             m_posLogFile << ",0,0,0,0,0,0,0";
         }
-        m_posLogFile << "\n";
+        m_posLogFile << "," << m_readbackTicks << "\n";
 
         // Particle lines: P,frame,slot,pos_x,pos_y,pos_z,prev_x,prev_y,prev_z,flags,material
         uint32_t logged = 0;
@@ -1601,6 +1604,7 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
             vkCmdCopyBuffer(cmd, m_particleBuffer, m_readbackBuffer, 1, &region);
         }
         m_readbackPending = true;
+        m_readbackTicks = m_totalTicks;   // WaterCore A2j: the snapshot's own time (this frame's ticks are dispatched above)
     }
 }
 
@@ -1929,7 +1933,7 @@ bool GpuParticlePhysics::startPositionLog(const std::string& filePath, uint32_t 
     }
     // Write CSV header comment
     m_posLogFile << "# Phyxel GPU Particle Position Log\n"
-                 << "# F,frame,dt,ticks,alpha,activeCount,char_cx,char_cy,char_cz,char_vx,char_vy,char_vz,char_active\n"
+                 << "# F,frame,dt,ticks,alpha,activeCount,char_cx,char_cy,char_cz,char_vx,char_vy,char_vz,char_active,snap_ticks\n"
                  << "# P,frame,slot,pos_x,pos_y,pos_z,prev_x,prev_y,prev_z,flags,material\n";
     m_posLogFile.flush();
     m_posLogFrameCounter = 0;

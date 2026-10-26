@@ -9012,7 +9012,7 @@ row's reason says why it sits where it does.
 | A2i | The water core across world and scene changes (found in §35): it is never reset - live volumes and, when the new world has none, body rows carry over; scene loads restore no water meta and scene saves write none; a save with an AWAKE volume writes nothing of its water (not checked) | open | another world's water must never appear in this one; P7 |
 | A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
-| A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | open | measure, don't argue: a number from a wrong clock is not a measurement |
+| A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
 | A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | measured, open | a 98 ms frame is visible at every tier. Merged with A7 below |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
@@ -9882,6 +9882,62 @@ tool uses it. `water_float_rest.read_log` (and the tools built on it) still sum 
 
 **Not measured:** the old build's tile build ms in the same session; a scene with many wet tiles (the 256-tile cap); a body in a
 column with three or more runs, live.
+
+## 38. A2j - the measuring tools' clock. Status: DONE 2026-10-25 (tools and a debug log column; no behaviour change)
+
+**The design check (2026-10-25): READY**, two points folded in: (a) a log from a binary without the new column is refused, not
+guessed; (b) the spawn age (an independent exact counter) is the control.
+
+**Why the old clock was wrong (`GpuParticlePhysics.cpp`):** the log writes a frame only when a readback copy is ready. The header's
+`dt` and `ticks` are the logging frame's, while the snapshot is an older frame's. Frames whose copy was skipped (one pending) are
+never logged. Summed, the header undercounts time. The spawn age in `flags` bits 16..23 is exact, but it stops at 255 ticks
+(4.25 s).
+
+**Built:**
+- The `F` header gains a last column, `snap_ticks` = `m_totalTicks` when the readback copy was recorded (`m_readbackTicks`).
+  Appended, so older readers' columns do not move.
+- `tools/water_bench.py` `particle_tracks`: per track, `[(t, y, vy, sleeping)]`.
+  - t = `snap_ticks` / 60.
+  - vy = (y - the pose one tick before) x 60.
+  - A reused slot starts a new track (the spawn age goes down, or the slot was inactive the logged frame before).
+  - A log without `snap_ticks` is refused.
+- `water_float_rest.read_log` (and through it `water_a2c_reload`, `water_float_handover`), `water_a2g_safe.read_log` and
+  `water_a2e_dryroom` now use it.
+- `tools/water_a2j_clock.py` (new) is the live check.
+- `tests/test_particle_tracks.py` (pytest, 4): a synthetic free fall logged every 4th tick reads g within 1 %; the old summed-`dt`
+  reader on the same log reads > 5 g (the red, kept); a reused slot splits; a stale log is refused.
+
+**Live check** (a stone released at rest in open air, the Small bench; one log read three ways, `a2j_clock_a2j.json`):
+
+| clock | what it reads over the fall |
+|---|---|
+| old: the header's `dt` summed | **7.7 g** (37.2's "~10 g" was an estimate) |
+| the spawn age | 0.88 g over 1.2 s |
+| `snap_ticks` (new) | 0.88 g over 1.2 s. Against the spawn age, row for row over 74 free-fall rows: **0.0 s** apart. Logged vy against the finite difference over the new clock, 73 one-tick pairs: **0.0** apart |
+
+**Not the clock - physics, recorded, not judged:** debris in AIR falls below g. It is 0.95 g over its first 10 ticks and 0.88 g
+over 1.2 s, from the solver's per-tick damping in air (`solver_integrate.comp` `b.vel = dampRef + (b.vel - dampRef) * (mat.linearDamp * GAMMA)`).
+37.2's "free fall" control (0.567 s over 1.5 m against 0.553 s) is this same damping. It is outside the water track; noted for the
+debris owner.
+
+**What moved in past numbers** (the A2e wood run re-measured on this build, `float_rest_a2j_wood*.json` against `float_rest_a2e_wood*.json`):
+
+| quantity | old clock | true clock |
+|---|---|---|
+| body asleep (woken pond) | 1.42 s | **4.32 s** |
+| body asleep (on the record, waking off) | 1.00 s | **3.05 s** |
+| rest draft, last 5 s | 0.702 / 0.731 | 0.703 / 0.731 (the window is now 5 real seconds; the body is at rest either way) |
+| "peak after entry" | 16.523 / 16.533 | was "after 0.3 s", which on the old clock was ~0.9 s of solver time and fell after the dive by luck. On the true clock 0.3 s is still above the water. Now `body_y_max_after_entry` is truly after entry (16.616, the entry row itself), and the rebound is the new `body_y_max_after_dive`: **16.524 / 16.533**, the old values |
+
+So the **peaks and drafts reported in §31-§37 stand** (they are heights). The **times from these tools are ~3x too short**:
+- the body sleep times in 31.x ("asleep at 0.33 s / 0.57 s");
+- the launch periods of 31.1 ("every ~1.5 s", "every ~1.3 s");
+- `water_a2g_safe`'s "by 2 s" windows (each was ~6 s of solver time).
+
+They are not re-measured: the 31.1 launches are never run again (the owner's rule). The pond's times (asleep again at N s) were
+always wall-clock and are unaffected.
+
+**Gates:** pytest 4/4; the engine change is one log column (no solver change; `debris_settle_bench` not needed, the log is off in it).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

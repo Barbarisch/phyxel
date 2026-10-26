@@ -19,7 +19,7 @@ Writes docs/evidence/water_core_m4/a2g_<tag>.json.
 """
 import argparse, json, pathlib, sys, time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from water_bench import Api
+from water_bench import Api, particle_tracks
 import water_float_rest as w
 
 PIT_BOX = {"x1": 149, "y1": 11, "z1": 9, "x2": 158, "y2": 19, "z2": 18}
@@ -28,18 +28,9 @@ PIT_LEVEL = 16.0
 
 
 def read_log(path):
-    """-> {slot: [(t, y, vy)]} from the particle log (P,frame,slot,x,y,z,px,py,pz,flags,material); active bodies only."""
-    out, t, dt = {}, 0.0, 0.0
-    with open(path) as f:
-        for line in f:
-            if line.startswith("F,"):
-                p = line.split(","); dt = float(p[2]); t += dt
-            elif line.startswith("P,"):
-                p = line.split(",")
-                if not int(p[9]) & 1: continue
-                y, py = float(p[4]), float(p[7])
-                out.setdefault(int(p[2]), []).append((t, y, (y - py) / dt if dt > 0 else 0.0))
-    return out
+    """-> {track: [(t, y, vy, sleeping)]} from the particle log, on the solver's clock (water_bench.particle_tracks, WaterCore A2j:
+    the frame dt summed here before undercounted time - this tool's times and vy were wrong, its heights were not)."""
+    return particle_tracks(path)
 
 
 def from_spawn(rows, y0):

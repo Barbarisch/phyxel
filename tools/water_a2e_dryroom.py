@@ -22,7 +22,7 @@ Writes docs/evidence/water_core_m4/a2e_<tag>.json.
 """
 import argparse, json, pathlib, sys, time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from water_bench import Api, world_job
+from water_bench import Api, world_job, particle_tracks
 import water_float_rest as w
 
 ROOMS = {"under_pond": (101, 102), "control": (109, 110)}
@@ -40,24 +40,11 @@ def room_cells(x0, x1):
 
 
 def read_stone(path):
-    """[(t, y)] for the ONE released stone: physics time (ticks / 60 - the log's dt column is the render frame's, not the solver's),
-    and only the slot whose first row is at the release height (a stone cleared just before can still be in the first frames)."""
-    # the clock: the particle's OWN solver step count (flags >> 16) / 60 - one row per step. Measured 2026-10-25 on a stone in open
-    # air: its pose changes exactly when that count moves, and the per-step drop grows 0.0027 m a step = g (1/60)^2. The frame
-    # header's dt (summed) and tick count are not the solver's clock (19 ticks logged in 1 s of wall time).
-    tracks = {}
-    for line in pathlib.Path(path).read_text().splitlines():
-        f = line.split(",")
-        if f[0] == "P" and int(f[9]) & 1:
-            tr = tracks.setdefault(int(f[2]), [])
-            step = int(f[9]) >> 16
-            if tr and tr[-1][0] == step / 60.0: continue      # the same step, re-logged on a frame with no tick
-            if tr and step / 60.0 < tr[-1][0]: tr.clear()      # the step count restarted: a new particle in a reused slot
-            tr.append((step / 60.0, float(f[4])))
-    # a slot is reused: the cleared stone's last row can open the slot's track - start at the first row at the release height
-    for tr in tracks.values():
-        k = next((i for i, (_, y) in enumerate(tr) if abs(y - REL_Y) < 0.02), None)
-        if k is not None: return [(t - tr[k][0], y) for t, y in tr[k:]]
+    """[(t, y)] for the ONE released stone, on the solver's clock (water_bench.particle_tracks: the log's snap_ticks, A2j - the
+    37 runs used the spawn age, flags >> 16, which agreed while under 255 ticks). The track that starts at the release height."""
+    for tr in particle_tracks(path).values():
+        k = next((i for i, r in enumerate(tr) if abs(r[1] - REL_Y) < 0.02), None)
+        if k is not None: return [(r[0] - tr[k][0], r[1]) for r in tr[k:]]
     return []
 
 
