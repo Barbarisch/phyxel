@@ -36,9 +36,11 @@ def main():
     ap.add_argument("--tag", default="m4_look")
     # the "push" A/B (the old floating rule vs the push) is REMOVED: the old rule launches blocks, and the owner ruled it is never
     # run (2026-10-25). Its recording stays in docs/evidence/water_core_m4/m4_look_side_by_side.mp4.
-    ap.add_argument("--ab", default="wake", choices=["wake", "refuse", "displace"],
+    ap.add_argument("--ab", default="wake", choices=["wake", "refuse", "displace", "delay"],
                     help="wake: a pond SLEPT into the record, waking off vs on (32); refuse: the shipped push vs every window refused (33, A2g); "
-                         "displace: debris displacement on (left) vs the shipped default, off (right) - auto-sleep on, as shipped (34, A2h)")
+                         "displace: debris displacement on (left) vs the shipped default, off (right) - auto-sleep on, as shipped (34, A2h); "
+                         "delay: a slept pond woken at once (left, shipped) vs --delay s after the first touch (right) - the step-2 look preview (39.4)")
+    ap.add_argument("--delay", type=float, default=0.3, help="--ab delay: the right half's wake delay, s")
     a = ap.parse_args()
     ff = shutil.which("ffmpeg")
     if not ff: raise SystemExit("ffmpeg not on PATH")
@@ -54,7 +56,7 @@ def main():
                         str(w.EV / f"{a.tag}_still.png")], check=True)
         print("wrote", w.EV / f"{a.tag}_still.png"); return
     def restore():   # 36: the A/B controls go back to the shipped defaults even when a run dies part way (one process-wide flag)
-        try: api.debug("water_coupling", {"wake_on_touch": True, "test_refuse_windows": False, "displace": False})
+        try: api.debug("water_coupling", {"wake_on_touch": True, "test_refuse_windows": False, "displace": False, "test_wake_delay_s": 0})
         except Exception as e: print("restoring the water_coupling defaults failed:", e)
     atexit.register(restore)
     for name, on in (("off", False), ("on", True)):
@@ -63,6 +65,9 @@ def main():
             api.debug("water_coupling", {"wake_on_touch": on})
         elif a.ab == "refuse":   # 33: both sides are physically sane (measured, a2g_green_wood.json) - the push vs the safe fallback
             w.PRESSURE = True; w.AUTO_SLEEP = False
+        elif a.ab == "delay":   # 39.4: ONE variable - the wake at once (left) vs delayed (right); both as shipped otherwise
+            w.PRESSURE = True; w.AUTO_SLEEP = True; w.DISPLACE = False
+            api.debug("water_coupling", {"test_wake_delay_s": a.delay if on else 0})
         elif a.ab == "displace":   # 34: ONE variable - left displacement on, right off (the new default); both as shipped otherwise
             w.PRESSURE = True; w.AUTO_SLEEP = True; w.DISPLACE = not on
         else:
@@ -71,7 +76,7 @@ def main():
         if a.ab == "refuse": api.debug("water_coupling", {"test_refuse_windows": on})
         camera_set(api, pose)
         time.sleep(4.0)
-        if a.ab == "displace":   # as shipped: the still pond sleeps into the record before anything lands (both halves alike)
+        if a.ab in ("displace", "delay"):   # as shipped: the still pond sleeps into the record before anything lands (both halves alike)
             t_s = time.time()
             while api.debug("water_av_list").get("volumes") and time.time() - t_s < 40.0: time.sleep(0.5)
             slept = not api.debug("water_av_list").get("volumes")
@@ -88,7 +93,7 @@ def main():
         while rec.poll() is None:
             try: fps = api.get("/api/debug/engine_timing").get("fps")
             except Exception: fps = None
-            pond_awake = bool(api.debug("water_av_list").get("volumes")) if a.ab == "displace" else None
+            pond_awake = bool(api.debug("water_av_list").get("volumes")) if a.ab in ("displace", "delay") else None
             rows.append({"t": round(time.time() - t0, 2), "fps": fps, "awake": pond_awake})
             time.sleep(0.25)
         if a.ab == "wake":
@@ -97,6 +102,8 @@ def main():
             label = "EVERY PUSH WINDOW REFUSED: THE SAFE FALLBACK (33)" if on else "THE WATER'S PUSH (shipped)"
         elif a.ab == "displace":
             label = "DISPLACEMENT OFF (the new default, 34)" if on else "DISPLACEMENT ON (opt-in)"
+        elif a.ab == "delay":
+            label = f"WAKE {a.delay:.2f} s AFTER THE TOUCH (preview, 39.4)" if on else "WAKE AT ONCE (shipped)"
         else:
             label = "THE WATER'S PUSH (M4)" if on else "THE OLD FLOATING RULE (today's default)"
         lines = []

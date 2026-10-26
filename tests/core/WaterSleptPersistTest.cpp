@@ -6,6 +6,7 @@
 #include "core/water/WaterCore.h"
 #include "core/water/WaterCoreManager.h"
 
+#include <chrono>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <vector>
@@ -127,6 +128,28 @@ TEST(WaterWakeDefault, TouchingASleptPondWakesItByDefault) {
     EXPECT_TRUE(m.wakeSleptTouching({bodyAt({20.0f, 1.0f, 20.0f})}).empty()) << "a body outside the box woke the pond";
     EXPECT_EQ(m.wakeSleptTouching({bodyAt({2.0f, 1.0f, 2.0f})}).size(), 1u) << "a body moving into a slept pond did not wake it";
     EXPECT_NEAR(m.totalMass(), 16.0 * 0.5, 1e-3);
+}
+
+// 39.4 (the step-2 look preview): with the test delay a touched pond does not wake at once, wakes once the delay has passed even with
+// its body gone, and 0 restores the shipped wake. The delay is reset by a scope guard - it never leaks into another test.
+TEST(WaterWakeDelay, ADelayedWakeFiresAfterTheDelayEvenWithTheBodyGone) {
+    struct Restore { ~Restore() { WaterCoreManager::s_wakeDelaySForTest = 0.0; } } restore;
+    WaterCoreManager m([](const glm::ivec3& v) -> int { return v.y < 0 ? 1 : 0; });
+    SpanStore st; st.install(m);
+    sleepPond(m, {0, 0, 0}, {3, 3, 3});
+    WaterCoreManager::s_wakeDelaySForTest = 0.05;
+    EXPECT_TRUE(m.wakeSleptTouching({bodyAt({2.0f, 1.0f, 2.0f})}).empty()) << "the delayed wake fired at the first touch";
+    EXPECT_EQ(m.sleptVolumes().size(), 1u);
+    const auto t0 = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - t0 < std::chrono::milliseconds(60)) {}
+    EXPECT_EQ(m.wakeSleptTouching({}).size(), 1u) << "the delayed wake did not fire once the delay had passed";
+    EXPECT_NEAR(m.totalMass(), 16.0 * 0.5, 1e-3);
+    // the control: an untouched pond never wakes under the delay
+    WaterCoreManager k([](const glm::ivec3& v) -> int { return v.y < 0 ? 1 : 0; });
+    SpanStore st2; st2.install(k);
+    sleepPond(k, {0, 0, 0}, {3, 3, 3});
+    EXPECT_TRUE(k.wakeSleptTouching({}).empty());
+    EXPECT_EQ(k.sleptVolumes().size(), 1u);
 }
 
 // 35.1 item 2: a wake that could not read its chunks keeps the box (RED before 35: forgotten as "woken empty"); one that read every

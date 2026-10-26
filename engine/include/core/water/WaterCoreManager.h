@@ -455,6 +455,7 @@ public:
     struct SleptVolume { glm::ivec3 lo{0}, hi{0}; float cellSize = 1.0f; std::string transport, backend; int sweeps = 0;
                          bool partialWake = true, recordTiles = false; float tallBandM = 0.0f;
                          double retryAfter = 0.0;   ///< 35: not persisted - a wake deferred for non-resident chunks retries after this (steady s)
+                         double touchedAt = -1.0;   ///< 39.4 TEST: not persisted - when a body first touched it under s_wakeDelaySForTest (steady s)
                        };
     const std::vector<SleptVolume>& sleptVolumes() const { return m_slept; }
     /// 35 (A2c): the slept boxes persist with the world (world_meta.water_slept, next to water_bodies) - a pond asleep when saved
@@ -484,6 +485,10 @@ public:
     /// and NOT reset by a world load (an engine control, not world state): water_coupling echoes it next to the default.
     static inline bool s_wakeOnTouch = kWakeOnTouchByDefault;
     static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
+    /// 39.4 (A2f look preview) TEST: a touched slept pond wakes this many seconds after the first touch, not at once - what step 2's
+    /// wake built across frames would look like (the body reads the record meanwhile). The wake still runs whole when it fires (the
+    /// stall moves, it does not shrink). Blasts (wakeSleptNear) still wake at once. 0 = shipped behaviour; never saved, echoed.
+    static inline double s_wakeDelaySForTest = 0.0;
     /// 34 (A2h, owner 2026-10-25: "keep the more chaotic feature as a turn on, but not by default"): the shipped default of debris
     /// DISPLACEMENT (20 - a moving body rasterized into the volume, shoving its water: heaving waves, thrown water, rocking). Off, the
     /// ripple layer (22) still draws the small splashes and rings; the slept-pond wake does not depend on it. The editor's

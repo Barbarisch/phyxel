@@ -14568,6 +14568,9 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("wake_on_touch")) Core::Water::WaterCoreManager::s_wakeOnTouch = cmd.params.value("wake_on_touch", true);   // 32: the A/B control
         // 33 (A2g) TEST: refuse every pressure window (as over budget) - forces the push's fallback; not saved, echoed
         if (cmd.params.contains("test_refuse_windows")) Core::Water::WaterCoreManager::s_refuseWindowsForTest = cmd.params.value("test_refuse_windows", false);
+        // 39.4 TEST: the slept-pond wake delayed after the first touch (the step-2 look preview); clamped 0..5 s, not saved, echoed
+        if (cmd.params.contains("test_wake_delay_s"))
+            Core::Water::WaterCoreManager::s_wakeDelaySForTest = std::clamp(cmd.params.value("test_wake_delay_s", 0.0), 0.0, 5.0);
         if (cmd.params.value("dump_window", false) && debrisRuntime && debrisRuntime->gpu() && !debrisRuntime->gpu()->wetBodies().empty()) {
             // 31 DEBUG: the first wet body's pressure window - its centre column (and one 1 m off it), p per cell bottom-up
             auto* g2 = debrisRuntime->gpu();
@@ -14593,7 +14596,8 @@ void Application::registerWaterCommands() {
              {"displace", m_displaceOn},
              {"slept", [&] {   // 32: ponds that slept into the record and wake when touched
                  nlohmann::json s = {{"wake_on_touch", Core::Water::WaterCoreManager::s_wakeOnTouch},
-                                     {"wake_on_touch_default", Core::Water::WaterCoreManager::kWakeOnTouchByDefault}};   // 36: a session that differs shows
+                                     {"wake_on_touch_default", Core::Water::WaterCoreManager::kWakeOnTouchByDefault},   // 36: a session that differs shows
+                                     {"test_wake_delay_s", Core::Water::WaterCoreManager::s_wakeDelaySForTest}};   // 39.4 TEST
                  if (!waterCore) return s;
                  nlohmann::json boxes = nlohmann::json::array();
                  for (const auto& v : waterCore->sleptVolumes()) boxes.push_back({v.lo.x, v.lo.y, v.lo.z, v.hi.x, v.hi.y, v.hi.z});

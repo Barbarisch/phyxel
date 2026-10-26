@@ -1063,7 +1063,9 @@ int WaterCoreManager::wakeSlept(size_t i) {
 
 std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSolid>& bodies) {
     std::vector<int> ids;
-    if (!s_wakeOnTouch || m_slept.empty() || bodies.empty()) return ids;
+    // 39.4: with a test delay a touched pond keeps waking after its body has gone (step 2 would finish a wake it started), so an
+    // empty body list still runs the loop
+    if (!s_wakeOnTouch || m_slept.empty() || (bodies.empty() && s_wakeDelaySForTest <= 0.0)) return ids;
     const double nowS = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     for (size_t i = m_slept.size(); i-- > 0;) {
         if (m_slept[i].retryAfter > nowS) continue;   // 35: deferred (its chunks were not resident) - not yet
@@ -1071,6 +1073,10 @@ std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSol
         bool touched = false;
         for (const MovingSolid& b : bodies)
             if (glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi))) { touched = true; break; }
+        if (s_wakeDelaySForTest > 0.0) {
+            if (touched && m_slept[i].touchedAt < 0.0) m_slept[i].touchedAt = nowS;
+            touched = m_slept[i].touchedAt >= 0.0 && nowS - m_slept[i].touchedAt >= s_wakeDelaySForTest;
+        }
         if (touched) { const int id = wakeSlept(i); if (id) ids.push_back(id); }
     }
     return ids;

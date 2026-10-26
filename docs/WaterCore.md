@@ -10020,6 +10020,24 @@ workers joined before it returns.
 
 Step 1(a) and (b) are ready: the same occupancy, read once and in parallel, gated by the cell-for-cell equality test.
 
+### 39.4 The look preview for the owner's call (2026-10-26). Status: BUILT (test-only), awaiting the owner's judgement
+
+The owner, on whether the water may answer a touch a few frames late: "i would have to see it and judge for my self". Nothing showed
+it, so a TEST knob shows it: `water_coupling {"test_wake_delay_s": s}` (0..5 s, clamped; 0 = shipped; not saved; echoed as
+`slept.test_wake_delay_s`; `WaterCoreManager::s_wakeDelaySForTest`). A touched slept pond wakes `s` seconds after the first touch,
+even if the body has left the box by then, as step 2 would finish a wake it had started. Meanwhile the body reads the record (37).
+Blasts still wake at once. Pinned by `WaterWakeDelay.ADelayedWakeFiresAfterTheDelayEvenWithTheBodyGone` (its control: an
+untouched pond never wakes).
+
+How the preview differs from step 2: the wake still runs whole when it fires, so the ~37 ms stall is still there. It is moved,
+not split. The delay is wall-clock seconds, where step 2's would be frames (3-25 frames is 0.05-0.4 s at 60 fps).
+
+Videos (`water_float_video.py --ab delay --delay s`, the Small bench, as shipped otherwise: auto-sleep on, displacement off; left =
+woken at once, right = woken after the delay; the two halves are separate takes, not frame-synced):
+`a2f_delay015_side_by_side.mp4` (0.15 s) and `a2f_delay040_side_by_side.mp4` (0.4 s, the top of step 2's estimate). Measured in
+the 0.4 s take: the pond still asleep 0.3 s after the drop and awake at 0.5 s (captions sampled every 0.25 s, too coarse to show
+0.15 s). The knob reads 0 after the run. The drops are the M4 set (wood and one stone, on the push, which A2g measured sane).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
