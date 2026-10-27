@@ -14611,7 +14611,9 @@ void Application::registerWaterCommands() {
                  s["last_wake_split_ms"] = {{"alloc", ws.allocMs}, {"occupancy", ws.occMs}, {"solids", ws.solidsMs}, {"gpu_create_upload", ws.gpuMs},
                                             {"span_read", ws.spanReadMs}, {"seed_occupancy", ws.seedOccMs}, {"seed", ws.seedMs}, {"cells", ws.cells},
                                             {"gpu_occ_copy", ws.gpuOccCopyMs}, {"gpu_create_volume", ws.gpuCreateVolumeMs}, {"gpu_upload", ws.gpuUploadMs},
-                                            {"occupancy_threads", waterCore->occupancyThreads()}};   // A2f
+                                            {"occupancy_threads", waterCore->occupancyThreads()},
+                                            {"gpu_buffers", ws.gpuBuffersMs}, {"gpu_pipelines", ws.gpuPipelinesMs}, {"gpu_fill", ws.gpuFillMs},
+                                            {"gpu_pipeline_count", ws.gpuPipelines}, {"gpu_pipelines_reused", ws.gpuPipelinesReused}};   // A2f (39.3 item 5: createVolume split)
                  const auto& ls = waterCore->sleptLoadStats();           // 35 (A2c): what the last world load restored
                  s["restored"] = ls.restored; s["restore_skipped"] = ls.skipped; s["restore_error"] = ls.error;
                  const auto& rc = waterCore->recordCacheStats();   // 32.4 (A2b): the record cache following residency

@@ -500,6 +500,10 @@ public:
     float omega() const { return m_omega; }
 
     Volume* createVolume(const WaterGrid& g, std::string* err, const BrickOptions& bricks = BrickOptions{});
+    /// 39 (A2f, 39.3 item 5): the last createVolume's parts, ms - the buffers (create + allocate + bind, ~45 of them), the compute
+    /// pipelines (read from disk, built, descriptors written), the zero fill (one submit, waited) and the dense residency (0 for sparse)
+    struct CreateSplit { double buffersMs = 0.0, pipelinesMs = 0.0, fillMs = 0.0, residencyMs = 0.0; int pipelines = 0, pipelinesReused = 0; };
+    const CreateSplit& lastCreateSplit() const { return m_lastCreateSplit; }
     /// Allocation only (no upload): refuses with the byte count when the device cannot hold it. A particle volume is
     /// dense-laid (the FLIP kernels index the grid directly); every other volume is bricked (26.6).
     Volume* createVolume(const GridSpec& spec, std::string* err, bool particles = false, size_t particleCapacity = 0,
@@ -672,6 +676,13 @@ private:
     void recordParticleTransport(VkCommandBuffer cmd, Volume& vol, WcPush push);
     float            m_omega = 1.85f;   // measured: residual 0.14 at 40 sweeps on the 10 m column (1.6 at 1.7, 8.2 at 1.0); see GpuRbgsConvergenceScan
     std::vector<Volume*> m_volumes;
+    CreateSplit m_lastCreateSplit;   // 39
+    /// 39 (A2f step 1d): a destroyed volume's compute pipelines, kept per kernel for the next volume (a wake built the same 22 from
+    /// disk, ~8 ms). bindPipelines rewrites every binding of every kernel at each create, so a kept pipeline is the fresh one with
+    /// its new volume's buffers. At most kPipeSpareSets per kernel (one set ~ 22 small pipeline objects); freed at shutdown.
+    static constexpr size_t kPipeSpareSets = 2;
+    std::array<std::vector<std::unique_ptr<Vulkan::ComputePipeline>>, 32> m_pipeSpare;
+    long m_pipesReused = 0, m_pipesBuilt = 0;
     Buffer m_pwWins, m_pwData, m_pwOf;   // 31: not owned (the debris solver's); buf + bytes only
     Buffer m_pwTest[3];                   // 31 TEST: owned host-visible targets (makePressureTargetsForTest)
 };

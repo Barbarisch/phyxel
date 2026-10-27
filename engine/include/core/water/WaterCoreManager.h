@@ -278,6 +278,8 @@ public:
     std::vector<WriteBackRecord> drainAutoSleepRecords() { std::vector<WriteBackRecord> r; r.swap(m_autoSlept); return r; }
     std::vector<AvRecord> list() const;
     /// TEST ONLY (26.19): a volume's grid as the solver reads it (its occupancy is the refreshed cache), or null.
+    /// 39: the last GPU createVolume's parts (zeros without a device) - the reuse test reads pipelinesReused
+    WaterCoreGpu::CreateSplit gpuCreateSplitForTest() const { return m_gpu ? m_gpu->lastCreateSplit() : WaterCoreGpu::CreateSplit{}; }
     const WaterGrid* gridForTest(int id) const { for (const auto& av : m_avs) if (av->id == id) return av->grid.get(); return nullptr; }
     const AvRecord* find(int id) const;
 
@@ -482,7 +484,9 @@ public:
                             /// A2f: the last wake's parts, ms - create's (grid + solver allocation, occupancy read, solids, GPU create + upload)
                             /// and the seed's (span read, occupancy read again, seed); cells = the box's
                             double allocMs = 0.0, occMs = 0.0, solidsMs = 0.0, gpuMs = 0.0, spanReadMs = 0.0, seedOccMs = 0.0, seedMs = 0.0; long cells = 0;
-                            double gpuOccCopyMs = 0.0, gpuCreateVolumeMs = 0.0, gpuUploadMs = 0.0; };
+                            double gpuOccCopyMs = 0.0, gpuCreateVolumeMs = 0.0, gpuUploadMs = 0.0;
+                            /// 39.3 item 5: createVolume's own parts (WaterCoreGpu::CreateSplit)
+                            double gpuBuffersMs = 0.0, gpuPipelinesMs = 0.0, gpuFillMs = 0.0; int gpuPipelines = 0, gpuPipelinesReused = 0; };
     const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }
     /// 32 / 36 (A2d): the shipped default - a body moving into a slept pond wakes it (A1's push then works in a pond that slept).
     /// Pinned by WaterWakeDefault.TouchingASleptPondWakesItByDefault.

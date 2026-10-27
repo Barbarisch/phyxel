@@ -48,6 +48,7 @@ void WaterCoreGpu::shutdown() {
     if (m_device == VK_NULL_HANDLE) return;
     vkDeviceWaitIdle(m_device);
     for (Volume* v : std::vector<Volume*>(m_volumes)) destroyVolume(v);
+    for (auto& spare : m_pipeSpare) { for (auto& p : spare) p->cleanup(); spare.clear(); }   // 39
     for (Buffer& b : m_pwTest) destroyBuffer(b);   // 31 TEST
     if (m_fence) vkDestroyFence(m_device, m_fence, nullptr);
     if (m_pool) vkDestroyCommandPool(m_device, m_pool, nullptr);
@@ -95,6 +96,11 @@ void WaterCoreGpu::destroyBuffer(Buffer& b) {
 bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     for (int k = 0; k < KernelCount; ++k) {
         if (!vol.particles && k >= FlipSort && k <= FlipG2p) continue;   // 26.26: skip only the particle kernels (Momentum comes after them)
+        if (!m_pipeSpare[k].empty()) {   // 39: a destroyed volume's - bindPipelines below rewrites every binding
+            vol.pipes[k] = std::move(m_pipeSpare[k].back()); m_pipeSpare[k].pop_back(); ++m_pipesReused;
+            continue;
+        }
+        ++m_pipesBuilt;
         auto pipe = std::make_unique<Vulkan::ComputePipeline>();
         if (!pipe->create(m_device, m_shaderDir + "/" + kKernelFiles[k], kKernelBindings[k], sizeof(WcPush), k == FlipP2g ? 3u : (k >= ExtrapU && k <= ExtrapW) ? 4u : 1u)) {
             if (err) *err = std::string("failed to create pipeline ") + kKernelFiles[k] + " from " + m_shaderDir; return false;
@@ -264,6 +270,9 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     // partials: two per 256-wide group (26.17: mode 0 folds per 128-cell unit), and the bricked unit map they are gathered into
     vol->groups = std::max(2 * ((std::max({vol->cells, vol->latticeMax, vol->columns}) + 255) / 256),
                            static_cast<size_t>(vol->bn.x) * vol->nuy * static_cast<size_t>(vol->bn.z)) + 1;
+    using CClock = std::chrono::steady_clock;   // 39: the parts' times (m_lastCreateSplit)
+    auto cms = [](CClock::time_point a, CClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    const auto ct0 = CClock::now();
     const VkDeviceSize F4 = sizeof(float);
     bool ok = createBuffer(vol->f, vol->cells * F4, false, err) && createBuffer(vol->fLo, vol->cells * F4, false, err) && createBuffer(vol->fOrig, vol->cells * F4, false, err) && createBuffer(vol->fPrev, vol->cells * F4, false, err)
            && createBuffer(vol->u, vol->nu * F4, false, err) && createBuffer(vol->v, vol->nv * F4, false, err) && createBuffer(vol->w, vol->nw * F4, false, err)
@@ -312,7 +321,10 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
                 && createBuffer(vol->pcount, vol->cells * 4, false, err) && createBuffer(vol->pstart, vol->cells * 4, false, err) && createBuffer(vol->pcursor, vol->cells * 4, false, err);
     }
     ok = ok && createBuffer(vol->staging, vol->offParticles + particleBytes, true, err);
+    const auto ct1 = CClock::now();
+    const long reused0 = m_pipesReused;
     if (!ok || !createPipelines(*vol, err)) { Volume* raw = vol.release(); destroyVolume(raw); return nullptr; }
+    const auto ct2 = CClock::now();
     {   // every buffer starts all zero: no body, every rule exactly as before; 26.6: the absent brick (slot 0) reads as dry
         // air in EVERY buffer, scratch included (the extrapolation reads its neighbours' known flags there)
         VkCommandBuffer cmd = beginCommands();
@@ -332,6 +344,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         if (vol->bricked && !vol->groundAsAir) vkCmdFillBuffer(cmd, vol->occ.buf, kGround * vol->bc * 4, vol->bc * 4, 1u);   // 26.18: the ground sentinel: Solid
         submitAndWait(cmd);
     }
+    const auto ct3 = CClock::now();
     if (vol->bricked && !vol->sparse) {   // dense: every brick of the box is kept from the start
         std::vector<char> all(vol->mapCount, 1);
         applyResidency(*vol, all);
@@ -341,6 +354,8 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         submitAndWait(cmd);
         vol->lastAllocated = 0;
     }
+    {   int pipes = 0; for (const auto& pp : vol->pipes) if (pp) ++pipes;
+        m_lastCreateSplit = {cms(ct0, ct1), cms(ct1, ct2), cms(ct2, ct3), cms(ct3, CClock::now()), pipes, static_cast<int>(m_pipesReused - reused0)}; }
     Volume* raw = vol.release();
     m_volumes.push_back(raw);
     return raw;
@@ -350,7 +365,12 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (!vol) return;
     settle(*vol);   // 26.16: its call in flight collected (and its command buffer freed)
     vkDeviceWaitIdle(m_device);
-    for (auto& p : vol->pipes) if (p) { p->cleanup(); p.reset(); }
+    for (size_t k = 0; k < vol->pipes.size(); ++k) {   // 39: kept for the next volume (the device is idle: no set is in use)
+        auto& p = vol->pipes[k];
+        if (!p) continue;
+        if (m_pipeSpare[k].size() < kPipeSpareSets) m_pipeSpare[k].push_back(std::move(p));
+        else { p->cleanup(); p.reset(); }
+    }
     if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);

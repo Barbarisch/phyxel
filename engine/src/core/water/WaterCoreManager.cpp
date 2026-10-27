@@ -1076,7 +1076,7 @@ int WaterCoreManager::wakeSlept(size_t i) {
     ++m_sleptWake.woken;
     m_sleptWake.allocMs = m_createSplit.allocMs; m_sleptWake.occMs = m_createSplit.occMs; m_sleptWake.solidsMs = m_createSplit.solidsMs;
     m_sleptWake.gpuMs = m_createSplit.gpuMs; m_sleptWake.cells = m_createSplit.cells;
-    m_sleptWake.gpuOccCopyMs = m_createGpuSplit.occCopyMs; m_sleptWake.gpuCreateVolumeMs = m_createGpuSplit.createVolumeMs; m_sleptWake.gpuUploadMs = m_createGpuSplit.uploadMs;
+    m_sleptWake.gpuOccCopyMs = m_createGpuSplit.occCopyMs; m_sleptWake.gpuCreateVolumeMs = m_createGpuSplit.createVolumeMs; m_sleptWake.gpuUploadMs = m_createGpuSplit.uploadMs; if (m_gpu) { const auto& cs = m_gpu->lastCreateSplit(); m_sleptWake.gpuBuffersMs = cs.buffersMs; m_sleptWake.gpuPipelinesMs = cs.pipelinesMs; m_sleptWake.gpuFillMs = cs.fillMs; m_sleptWake.gpuPipelines = cs.pipelines; m_sleptWake.gpuPipelinesReused = cs.pipelinesReused; }
     m_sleptWake.spanReadMs = m_seedSplit.spanReadMs; m_sleptWake.seedOccMs = m_seedSplit.occMs; m_sleptWake.seedMs = m_seedSplit.seedMs;
     m_sleptWake.lastMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     m_sleptWake.maxMs = std::max(m_sleptWake.maxMs, m_sleptWake.lastMs);

@@ -9013,7 +9013,7 @@ row's reason says why it sits where it does.
 | A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
 | A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
-| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Step 2's look: the owner could not tell a 0.4 s late wake (39.4); its outcome check (item 1) is next, with items 5-6 | a 98 ms frame is visible at every tier. Merged with A7 below |
+| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Item 5 split; 1(d) pipeline reuse BUILT (39.6): pit 34 ms, small 13-16 ms. Step 2's look: the owner could not tell a 0.4 s late wake (39.4); its outcome check (item 1) is next, with items 5-6 | a 98 ms frame is visible at every tier. Merged with A7 below |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
@@ -10083,6 +10083,38 @@ cannot save enough to be worth building, so it is dropped. What is left is the G
 split next) and the upload (~25 bytes a cell). The pit's wake still costs about two and a half frames at 60 fps. Not measured:
 the wake frame's whole-frame time (item 6). The cost tool samples every 0.25 s and can miss it: the pit window's sampled minimum
 was 136-179 fps against 7.4 before.
+
+### 39.6 `createVolume` split (39.3 item 5) and step 1(d), pipeline reuse (2026-10-27). Status: BUILT, not signed off
+
+**The split** (`WaterCoreGpu::CreateSplit`, echoed as `gpu_buffers`, `gpu_pipelines`, `gpu_fill` in `slept.last_wake_split_ms`;
+`a3_cost_a2f_item5.json`): about 45 buffers, 3.5-6.6 ms; **22 compute pipelines built from disk, 7.9-8.7 ms**; the zero fill,
+0.6-0.7 ms. The pipelines were the same 22 for every volume.
+
+**Step 1(d):** a destroyed volume's pipelines are kept per kernel (at most `kPipeSpareSets` = 2 sets; freed at shutdown) and
+handed to the next volume. `bindPipelines` already rewrites every binding of every kernel at each create (checked: each kernel's
+bound list is its full binding count), so a kept pipeline holds only its new volume's buffers. The device is idle when a volume is
+destroyed (`destroyVolume` waits), so no kept set is in use. Echoed as `gpu_pipelines_reused`.
+
+**Red / green:** `WaterRecordedPondTest.AVolumeOnKeptPipelinesStepsTheSameAsOnBuiltOnes` runs one dam break three times in one
+manager: on built pipelines, then twice on kept ones. The written record must match byte for byte (it did: 15.999637 m^3 in 24
+columns, every run bottom and top equal), and the second volume must take all 22. Red shown with `kPipeSpareSets = 0`: reused 0,
+expected 22. The equality half was not shown red. A mutation that leaves a stale binding risks losing the device, so it was not
+run.
+
+**Gates:** unit water + debris 361/361; integration water 63/65 (the known two; the new test passes).
+
+**Measured** (`--tag a2f_step1d`, Release, two wakes each; the bench pond slept first, so its pipelines were kept):
+
+| part (ms) | small pond 39.5 -> now | pit 39.5 -> now |
+|---|---|---|
+| pipelines | 7.9-8.3 -> 0.04 | 7.9-8.7 -> 0.04 |
+| buffers | 5.6-6.6 -> 4.8-7.1 | 3.5-4.6 -> 4.0-4.6 |
+| zero fill | 0.7 -> 0.9-1.3 | 0.6 -> 1.8-2.5 |
+| upload | 4.4 -> 4.2-4.4 | 16.4 -> 16.1-16.3 |
+| **the wake** | **20.5-21.6 -> 13.3-15.7** | **41-42 -> 33.9-34.6** |
+
+The first volume after an engine start still builds its pipelines (no volume destroyed yet). The pit is now mostly the upload
+(16 ms); the buffers (4-7 ms) come next.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

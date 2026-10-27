@@ -130,3 +130,43 @@ TEST_F(WaterRecordedPondTest, ASleptPondWakesWhenABodyMovesThroughIt) {
     EXPECT_NEAR(vols[0].mass, p.record.total(), 1e-3) << "the woken pond does not hold the record's water";
     EXPECT_TRUE(p.mgr.sleptVolumes().empty()) << "woken, it is no longer remembered as slept";
 }
+
+// 39 (A2f step 1d): a destroyed volume's compute pipelines are kept for the next one. The same dam break run twice in one manager -
+// the first on pipelines built from disk, the second on the first's, kept - must write the same record, byte for byte (every binding
+// is rewritten at each create; a kept pipeline still pointing at a freed buffer would read garbage or lose the device).
+TEST_F(WaterRecordedPondTest, AVolumeOnKeptPipelinesStepsTheSameAsOnBuiltOnes) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    WaterCoreManager mgr{[](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; }};
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    FakeRecord record; record.install(mgr);
+    std::vector<std::map<std::pair<int, int>, std::vector<ColumnRun>>> written;
+    std::vector<int> reused;
+    for (int run = 0; run < 3; ++run) {
+        record.cols.clear();
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(5, 2, 3), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_NE(id, 0) << err;
+        reused.push_back(mgr.gpuCreateSplitForTest().pipelinesReused);
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(1, 1, 3), 1.0f, nullptr);   // a dam: 2 m of water at one end
+        AvRecord rec;
+        for (int k = 0; k < 40; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        const WriteBackRecord wb = mgr.sleep(id, true);
+        ASSERT_TRUE(wb.ok) << wb.error;
+        written.push_back(record.cols);
+        std::printf("  run %d: pipelines reused %d, record %.6f m^3 in %zu columns\n", run, reused.back(), record.total(), record.cols.size());
+    }
+    EXPECT_EQ(reused[0], 0) << "the first volume of a manager has no kept pipelines";
+    EXPECT_EQ(reused[1], mgr.gpuCreateSplitForTest().pipelines) << "the second volume did not take the first's pipelines";
+    for (int run = 1; run < 3; ++run) {
+        ASSERT_EQ(written[run].size(), written[0].size()) << "run " << run;
+        for (const auto& [k, v] : written[0]) {
+            const auto& w = written[run].at(k);
+            ASSERT_EQ(w.size(), v.size()) << "run " << run << " column " << k.first << "," << k.second;
+            for (size_t i = 0; i < v.size(); ++i) {
+                EXPECT_EQ(w[i].bottomY, v[i].bottomY) << "run " << run << " column " << k.first << "," << k.second;
+                EXPECT_EQ(w[i].topY, v[i].topY) << "run " << run << " column " << k.first << "," << k.second;
+            }
+        }
+    }
+}
