@@ -6,6 +6,9 @@
 > reason in the drift log (§30.5). The "2 ms for all water" budget
 > below is superseded.
 >
+> **2026-10-27: locality (§30.0b).** Where things happen decides what is simulated; distance from the camera decides cost and
+> detail (ripples, kept GPU memory, wake pace, update rate); the camera never changes an outcome. Items L1-L5 in §30.4.
+>
 > **Status (2026-10-19): DESIGN OF RECORD and BUILD LEDGER, branch `feat/water-rethink`.** **Read §0a first** - one page:
 > the goal, the scale model, what is signed off, the path to large water, the open items. **§27 is the plan for water at
 > every scale** (simulated where it counts, cheap appearance elsewhere - the owner, 2026-10-19). §26 is the one water model
@@ -8941,6 +8944,41 @@ that to get it into our performance tiers... only sacrificing when we need to."*
 - **The cost work stops until the look is set** (§29 paused above). Nothing built is undone.
 - **Every water feature carries a tier table** (`PerformanceTiers.md` §4a) and its scaling knobs from the start.
 
+### 30.0b Locality decides cost and detail, never outcomes (owner, 2026-10-27)
+
+**The owner's words.** *"i would think that we would hold bodies of water in memory for things that are close to the camera
+right?"* Then: *"water bodies far from the camera dont really need to be displaying small ripples that cant even be seen... in
+gneeral locality to the camera should be driving most decisions right?"* And: *"lets get this worked into the plan. if we need to
+rethink the whole plan, then so be it."*
+
+**Does the whole plan need rethinking? No: its order stands, and this becomes the rule every track follows.** The plan already
+leans this way without saying so: track C's knob 1 caps the simulated area "nearest the player first", and knob 2 is a
+"drawn-motion reach". This section makes locality the stated rule, gives it one implementation, and adds the items it creates
+(L1-L5 in §30.4).
+
+**The rule, in three parts.**
+1. **Two kinds of locality, kept apart.**
+   - *Where things happen* (a body enters water, a blast, an edit, later a wading character) decides **what must be simulated** for
+     the outcome to be right. It never depends on the camera: a stone thrown into a pond 200 m away must sink, a block must float,
+     the pond must keep its water (A1, A2, A2e).
+   - *Distance from the camera* decides **how much it costs and how detailed it looks**: ripple and splash detail, how far a
+     sleeping pond keeps its GPU memory, how fast a far pond's wake is built, how often far water updates, surface detail.
+2. **The camera never changes an outcome.** Where camera distance makes something cheaper (a slower wake, coarser far ripples),
+   the end state must be the same as near the camera: the body's rest pose, the pond's mass and its level. This is the tier rule
+   (`PerformanceTiers.md` rule 1) applied to distance; both are checked by the same kind of test (39.3 item 1). Where a cheaper
+   far path cannot keep the outcome, the slower correct path wins, or the owner approves the exception.
+3. **Distance is measured one way, from world position.** One function (L1) answers "how far is this from the viewer" for every
+   water system, with bands and smooth fades, never per chunk or per tile (`FeatureDesignKeys.md`: chunks must not be visible).
+   The band distances are tier knobs: farther at high tiers, nearer at low ones. The viewer is the camera; in a game it is the
+   player's camera. (In multiplayer it would be every player's, which the plan does not cover yet.)
+
+**What it does to the tracks.**
+- **Track A** gets L1 (the distance function), L3 (keep a sleeping pond's GPU memory near the camera) and L4 (pace a far wake), all
+  continuing A2f.
+- **Track B's** parts each name what they draw near and far (the table's last column already does).
+- **Track C's** knobs become distance bands from L1. The tier table is filled in bands, not as one global value.
+- **W1-W6** (large water) already follow it: simulate patches where things happen, draw the rest from the record.
+
 ### 30.1 Track B - the moonshot look (design; the owner's calls; after track A)
 
 What the best water looks like from a puddle to a creek to a lake, judged by the owner in motion. The owner's inputs first:
@@ -8977,6 +9015,11 @@ The knobs water has or needs, and the tier table to fill (empty until step 2 mea
 | 2. **the drawn-motion reach** - ripples and splashes drawn as appearance beyond the simulated area | draw GPU | no |
 | 3. **the step rate** - the fixed water step | sim CPU + GPU | built (27.27; its default is the owner's open decision) |
 | 4. **surface detail** - reflection / refraction quality, far detail | draw GPU | partly (W1a far drawing) |
+| 5. **ripple detail by distance** (L2) - full near, fading out, not simulated beyond its reach | ripple CPU + GPU, draw GPU | the creek's camera window (25.29, 42.7 m); none inside a pond |
+| 6. **the memory reach** (L3) - how near a sleeping pond keeps its GPU memory, under a total cap | GPU memory; the wake stall | no (every sleeping pond frees it) |
+| 7. **the wake pace by distance** (L4) - a near wake at once, a far one built across frames | the wake frame | no (39.2 step 2, not built) |
+
+From §30.0b: knobs 2 and 4-7 are distance bands from L1, and the tier table below is filled per band.
 
 | | moonshot | 30 | 60 | 120 | above |
 |---|---|---|---|---|---|
@@ -8999,6 +9042,11 @@ Each item is designed, passes `/design-check`, gets a red test, is built, has it
 to the owner in motion. An item is done only when the owner signs it off. The agent proposes the order below (rule 4). Each
 row's reason says why it sits where it does.
 
+**The proposed order from 2026-10-27 (after §30.0b), for the owner to change:** A2f's rest (threading, the frame-time maximum),
+then L1 (the distance function), then L5 (the outcome check, before any saving it guards), then L3 (kept memory), then L4 (the
+paced far wake), then L2 (ripple detail by distance). After those: A2i, A4 (wading, which also reads L1 for its own detail), then
+A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
+
 | # | item | status | why here |
 |---|---|---|---|
 | A1 | **M4 - the water pushes the body** (§31) | SIGNED OFF and ON 2026-10-24 (31.8) | the owner's keys: floating debris |
@@ -9013,11 +9061,16 @@ row's reason says why it sits where it does.
 | A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
 | A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
-| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Item 5 split; 1(d) pipeline reuse BUILT (39.6). 1(e) one upload per wake BUILT (39.7): the wake frame is now create + seed + the first step's upload, pit ~18 + 42 ms, small ~9 + 5 ms; the seeded upload is next. Step 2's look: the owner could not tell a 0.4 s late wake (39.4); its outcome check (item 1) is next, with items 5-6 | a 98 ms frame is visible at every tier. Merged with A7 below |
+| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Item 5 split; 1(d) pipeline reuse BUILT (39.6). 1(e) one upload per wake BUILT (39.7): the wake frame is now create + seed + the first step's upload, pit ~18 + 42 ms, small ~9 + 5 ms; the seeded upload is next. Seeded upload split (39.8): the pool grow 13 of 41 ms. Left in A2f: step 1's rest (thread the upload's host / ground / scatter parts, the same result) and item 6 (the frame-time maximum over the wake). Step 2 (the wake across frames) moves to L4, the kept memory to L3 (§30.0b) | a 98 ms frame is visible at every tier. Merged with A7 below |
+| L1 | **The viewer-distance function (§30.0b):** one answer to "how far is this world position from the viewer", in bands with smooth fades, read by every water system; the band distances are tier knobs, echoed by the API. A pure function of world position and the camera, never per chunk | not designed | every L item and track C's knobs read it. Built once, so no two systems disagree on what "near" means |
+| L5 | **The outcome check (§30.0b rule 2, 39.3 item 1):** one rig and test runs the same interaction near the camera and far (and at each tier). The body's rest pose (1 mm), its time to rest, the pond's mass and its rest level must match | not designed | the guard for L2-L4 and every tier knob: before any distance or tier saving is built |
+| L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | not designed | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
+| L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | designed (39.2), not built | the stall's last part, without changing any outcome |
+| L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | not designed | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
-| A7 | **The wake hitch** (~33 ms once, §32.1) | open | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
+| A7 | **The wake hitch** (~33 ms once, §32.1) | merged into A2f, L3 and L4 | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
 | A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
 | A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
 
@@ -9039,6 +9092,7 @@ row's reason says why it sits where it does.
 | C1 | 2026-10-24 | §30-§32, commits 58b16a82..e20d939f (the owner asked "are you updating the plan, and following the plan?") | DRIFTING. The plan was stale, and two drifts had no logged reason | the plan missed the physics-first order. §32 was unplanned. §32's design-check was inline. Costs were fps-only | D1-D5. The plan was rewritten (this commit) |
 | C2 | 2026-10-25 | after A3, commits 41b5ad14..this one | DRIFTING (logged) | A3's cost runs ran the old floating rule as a control on the owner's bench (D6). Everything else maps to A3 | D6, and new item A2g |
 | C3 | 2026-10-25 | A2g, commits a9a7f618..this one | ON PLAN | everything maps to A2g (§33); `/design-check` ran before building; the red run used only a sinking stone; the owner was warned before each bench run. One support change beside it: `particle_log {max}` (the stress needed every body logged) | - |
+| C4 | 2026-10-27 | A2f, commits 6a3707dd..f05cc1c1, and the owner's locality direction | ON PLAN, then REVISED | A2f's work all maps to A2f (39.4-39.8), including the test-only wake delay for the owner's look call. The owner's direction changed the plan: §30.0b written, items L1-L5 added, A2f's step 2 moved to L4, its kept memory to L3, and A7 merged. This revision is in the same commit as the direction, before any work under it (rule 3) | - |
 
 ## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: BUILT, SIGNED OFF by the owner and ON by default 2026-10-24 (31.8); two defects found (31.9)
 
