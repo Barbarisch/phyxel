@@ -630,11 +630,11 @@ void FlipTransport::advect(WaterGrid& g, float dt) {
 }
 
 // ─────────────────────────────────────────────────────────────────── WaterSolver ─────────────
-WaterSolver::WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params)
+WaterSolver::WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params, bool refreshNow)
     : m_grid(grid), m_solids(std::move(solids)), m_params(params),
       m_transport(std::make_unique<EulerianTransport>()) {
     m_transport->setLiquidThreshold(m_params.liquidThreshold);
-    refreshSolids();
+    if (refreshNow) refreshSolids();
 }
 
 void WaterSolver::setTransport(std::unique_ptr<IWaterTransport> t) { if (t) { m_transport = std::move(t); m_transport->setLiquidThreshold(m_params.liquidThreshold); } }

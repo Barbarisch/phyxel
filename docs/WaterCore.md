@@ -9013,7 +9013,7 @@ row's reason says why it sits where it does.
 | A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
 | A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
-| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) ready; step 2 (the wake across frames) needs the owner's look call | a 98 ms frame is visible at every tier. Merged with A7 below |
+| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Step 2's look: the owner could not tell a 0.4 s late wake (39.4); its outcome check (item 1) is next, with items 5-6 | a 98 ms frame is visible at every tier. Merged with A7 below |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
@@ -10039,8 +10039,50 @@ the 0.4 s take: the pond still asleep 0.3 s after the drop and awake at 0.5 s (c
 0.15 s). The knob reads 0 after the run. The drops are the M4 set (wood and one stone, on the push, which A2g measured sane).
 
 **The owner's judgement (2026-10-26):** "i checked both videos and i could really tell a difference between any of them lol",
-read as "could not tell", so up to 0.4 s late is not visible in this scene. That settles the look half of step 2. The outcome half
+confirmed: "i meant i couldnt tell a difference between left and right in either video". Up to 0.4 s late is not visible in this
+scene. That settles the look half of step 2. The outcome half
 (39.3 item 1: the same rest pose, mass and level whatever the slice budget) is still to be measured before step 2 is built.
+
+### 39.5 Step 1(a)(b) built (2026-10-26). Status: BUILT, measured, not signed off
+
+**(a) The passes that changed nothing are gone.** A new volume ran `refreshSolids` twice: once in the solver's constructor
+(against an all-Air cache) and once after the occupancy read. Each asked the query for every cell, then zeroed water and face
+velocities that a new grid does not have yet. `WaterSolver(..., refreshNow = false)` skips the first; the second is removed. The
+occupancy the solver sees is the cache `refreshOccupancy` has just mirrored into the grid.
+
+**(b) The occupancy read is split over threads.** `setStateQueryThreadSafe(true)` (the editor sets it; one thread by default)
+splits a whole-box read of 32,768 cells or more into z slabs over up to 8 workers (`occupancy_threads` in
+`slept.last_wake_split_ms`). Safe because the query reads only the packed pool, which only `flushIfDirty` rewrites, on the main
+thread. Each cell is read on its own and written to its own slot.
+
+**Red / green.** `WaterWakeSame.ACreateAndAWakeMakeTheSameVolumeCellForCell` pins FNV fingerprints of the grid (occupancy, water,
+u, v, w), taken from the code before step 1: a create at 1/9 m and at 1/3 m (the 3x3x3 lattice) over scattered solids and an
+Unknown patch, and a wake from the record. Same values on 1 and 4 threads. Red shown: a split leaving one z row unread changed
+the 4-thread fingerprints (create 1/9: 0x33971f92..., wake: 0x59173d2d...) and the test failed.
+
+**Gates.** Unit water + debris 361/361. Integration water 62/64 (the known two). The full unit suite fails three tests that
+fail identically on the code before step 1 (checked by building it): `AtlasManagerTest.BuildAtlasFromSourcePNGs`,
+`FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes` and `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles`
+(0.221 m near-side drop in the full suite, 0.290 m alone or with the water tests: state another suite leaves behind; not chased
+here). No `solver_*.comp` change, so no settle bench.
+
+**Measured** (`water_a3_cost.py --only wake --tag a2f_step1`, Release, two wakes each):
+
+| part (ms) | small pond before -> now | 8 x 8 m pit before -> now |
+|---|---|---|
+| alloc | 5.5 -> 0.3-0.9 | 23 -> 2.7-3.8 |
+| occupancy (8 threads) | 5.9 -> 1.7-1.9 | 24 -> 5.1-5.2 |
+| solids | 4.6 -> 0 | 19 -> 0 |
+| GPU createVolume (fixed) | 13.7 -> 12.8-13.5 | 13.4 -> 12.3-12.4 |
+| GPU upload | 4.6 -> 4.3-4.5 | 16.5 -> 16.2-16.7 |
+| seed (span read + occupancy + seed) | 0.8 -> 0.7-0.8 | 3.5 -> 3.3-3.5 |
+| **the wake** | **36 -> 20.5-21.6** | **100 -> 41-42** |
+
+Most of "alloc" was the constructor's pass. That answers 39.3 item 4: with allocation at 3 ms, the grid-array pool (step 1c)
+cannot save enough to be worth building, so it is dropped. What is left is the GPU: `createVolume`'s fixed ~13 ms (item 5, to
+split next) and the upload (~25 bytes a cell). The pit's wake still costs about two and a half frames at 60 fps. Not measured:
+the wake frame's whole-frame time (item 6). The cost tool samples every 0.25 s and can miss it: the pit window's sampled minimum
+was 136-179 fps against 7.4 before.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

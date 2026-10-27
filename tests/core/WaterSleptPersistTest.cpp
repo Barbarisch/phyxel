@@ -7,7 +7,9 @@
 #include "core/water/WaterCoreManager.h"
 
 #include <chrono>
+#include <cstdio>
 #include <map>
+#include <string>
 #include <nlohmann/json.hpp>
 #include <vector>
 
@@ -150,6 +152,65 @@ TEST(WaterWakeDelay, ADelayedWakeFiresAfterTheDelayEvenWithTheBodyGone) {
     sleepPond(k, {0, 0, 0}, {3, 3, 3});
     EXPECT_TRUE(k.wakeSleptTouching({}).empty());
     EXPECT_EQ(k.sleptVolumes().size(), 1u);
+}
+
+// 39 (A2f step 1): the cheaper wake must make the SAME volume, cell for cell. The fingerprints below were taken from the code before
+// step 1 (2026-10-26) - any change to what a create or a wake produces turns them red. The world: a floor, scattered solid micro
+// cells and an Unknown patch (the hold boundary), read at 1/9 m (one sample a cell) and 1/3 m (the 3x3x3 lattice).
+namespace {
+int patternState(const glm::ivec3& m) {
+    if (m.y < 0) return 1;
+    const uint32_t hsh = static_cast<uint32_t>(m.x * 73856093) ^ static_cast<uint32_t>(m.y * 19349663) ^ static_cast<uint32_t>(m.z * 83492791);
+    if (hsh % 7u == 0u) return 1;
+    if (m.x >= 30 && m.x < 36 && m.z >= 30 && m.z < 36 && m.y >= 18) return 2;
+    return 0;
+}
+uint64_t fnv(uint64_t h, const void* p, size_t n) {
+    const auto* b = static_cast<const unsigned char*>(p);
+    for (size_t i = 0; i < n; ++i) { h ^= b[i]; h *= 1099511628211ull; }
+    return h;
+}
+uint64_t gridPrint(const WaterGrid& cg) {
+    auto& g = const_cast<WaterGrid&>(cg);
+    uint64_t h = 1469598103934665603ull;
+    for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x) {
+        const Occ o = g.occ(x, y, z); h = fnv(h, &o, sizeof o); }
+    h = fnv(h, g.fData().data(), g.fData().size() * sizeof(float));
+    h = fnv(h, g.uData().data(), g.uData().size() * sizeof(float));
+    h = fnv(h, g.vData().data(), g.vData().size() * sizeof(float));
+    h = fnv(h, g.wData().data(), g.wData().size() * sizeof(float));
+    return h;
+}
+}  // namespace
+
+TEST(WaterWakeSame, ACreateAndAWakeMakeTheSameVolumeCellForCell) {
+    const std::map<std::string, uint64_t> want = {{"create_1/9", 0x74fccb2bfd545cf6ull}, {"create_1/3", 0xf2184c12c831cd32ull},
+                                                  {"wake_1/9", 0x47f942147d559e17ull}};
+    for (const int threads : {1, 4}) {   // step 1b: one thread, and the read split over four (patternState only reads)
+    SCOPED_TRACE("occupancy threads " + std::to_string(threads));
+    std::map<std::string, uint64_t> got;
+    for (const float h : {1.0f / 9.0f, 1.0f / 3.0f}) {
+        WaterCoreManager m(patternState);
+        m.setStateQueryThreadSafe(threads > 1, threads);
+        std::string err;
+        const int id = m.create({0, 0, 0}, {5, 3, 5}, h, "eulerian", &err, "cpu");
+        ASSERT_NE(id, 0) << err;
+        got[h < 0.2f ? "create_1/9" : "create_1/3"] = gridPrint(*m.gridForTest(id));
+    }
+    {   // a wake: slept into the record and woken from it (create + the seed from the spans)
+        WaterCoreManager m(patternState);
+        m.setStateQueryThreadSafe(threads > 1, threads);
+        SpanStore st; st.install(m);
+        sleepPond(m, {0, 0, 0}, {3, 3, 3});
+        const auto ids = m.wakeSleptTouching({bodyAt({2.0f, 1.0f, 2.0f})});
+        ASSERT_EQ(ids.size(), 1u);
+        got["wake_1/9"] = gridPrint(*m.gridForTest(ids[0]));
+    }
+    for (const auto& [k, v] : got) {
+        std::printf("  threads %d  %s = 0x%016llxull\n", threads, k.c_str(), static_cast<unsigned long long>(v));
+        EXPECT_EQ(v, want.at(k)) << k << ": the volume differs from the one the code before step 1 made";
+    }
+    }
 }
 
 // 35.1 item 2: a wake that could not read its chunks keeps the box (RED before 35: forgotten as "woken empty"); one that read every

@@ -455,6 +455,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
             return occ ? occ->packRevision() : 0;
         });
+    // 39 (A2f step 1b): the state query only reads the packed pool, which only VoxelLightOccupancyGpu::flushIfDirty rewrites - on
+    // this (the main) thread, never while a water refresh runs (its workers are joined before it returns)
+    waterCore->setStateQueryThreadSafe(true);
     // 26.19: WHERE solids changed between pack revisions - the water re-reads only those cells and patches them in place
     waterCore->setSolidsChangesQuery([this](uint64_t since, std::vector<Core::Water::SolidsChangeBox>& out) -> bool {
         const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
@@ -14607,7 +14610,8 @@ void Application::registerWaterCommands() {
                  s["deferred_not_resident"] = ws.deferredNotResident;   // 35: wakes that found the box's chunks not resident (box kept)
                  s["last_wake_split_ms"] = {{"alloc", ws.allocMs}, {"occupancy", ws.occMs}, {"solids", ws.solidsMs}, {"gpu_create_upload", ws.gpuMs},
                                             {"span_read", ws.spanReadMs}, {"seed_occupancy", ws.seedOccMs}, {"seed", ws.seedMs}, {"cells", ws.cells},
-                                            {"gpu_occ_copy", ws.gpuOccCopyMs}, {"gpu_create_volume", ws.gpuCreateVolumeMs}, {"gpu_upload", ws.gpuUploadMs}};   // A2f
+                                            {"gpu_occ_copy", ws.gpuOccCopyMs}, {"gpu_create_volume", ws.gpuCreateVolumeMs}, {"gpu_upload", ws.gpuUploadMs},
+                                            {"occupancy_threads", waterCore->occupancyThreads()}};   // A2f
                  const auto& ls = waterCore->sleptLoadStats();           // 35 (A2c): what the last world load restored
                  s["restored"] = ls.restored; s["restore_skipped"] = ls.skipped; s["restore_error"] = ls.error;
                  const auto& rc = waterCore->recordCacheStats();   // 32.4 (A2b): the record cache following residency

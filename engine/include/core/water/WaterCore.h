@@ -386,7 +386,8 @@ public:
     static inline bool s_bedManningColumnSpeedForTest = false;
     /// 26.21 A/B: the volume correction also under a THIN surface cell (any water above, not only a liquid cell)
     static inline bool s_volumeCorrectionUnderFilm = true;
-    WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params = SolverParams{});
+    /// `refreshNow` false (39, A2f): skip the first refreshSolids - for a caller that writes the occupancy itself before the first step
+    WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params = SolverParams{}, bool refreshNow = true);
 
     void setTransport(std::unique_ptr<IWaterTransport> t);
     IWaterTransport& transport() { return *m_transport; }

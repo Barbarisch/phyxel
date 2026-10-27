@@ -10,6 +10,7 @@
 #include <cmath>
 #include <limits>
 #include <set>
+#include <thread>
 
 namespace Phyxel {
 namespace Core {
@@ -23,6 +24,12 @@ int floorDiv(int a, int b) { return (a >= 0) ? (a / b) : -(((-a) + b - 1) / b); 
 
 WaterCoreManager::WaterCoreManager(MicroStateQuery state, SolidsRevisionQuery revision)
     : m_state(std::move(state)), m_revision(std::move(revision)) {}
+
+void WaterCoreManager::setStateQueryThreadSafe(bool on, int threads) {
+    if (!on) { m_occThreads = 1; return; }
+    if (threads <= 0) threads = std::clamp(static_cast<int>(std::thread::hardware_concurrency()) - 2, 1, 8);
+    m_occThreads = std::clamp(threads, 1, 16);
+}
 
 bool WaterCoreManager::snapCellSize(float requested, float* snapped) {
     static const float kAllowed[] = {1.0f, 1.0f / 3.0f, 1.0f / 9.0f, 1.0f / 27.0f, 1.0f / 81.0f};
@@ -72,7 +79,9 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         if (!raw->grid->inBounds(c.x, c.y, c.z)) return Occ::Solid;
         return raw->occCache[raw->grid->idx(c.x, c.y, c.z)];
     };
-    av->solver = std::make_unique<WaterSolver>(*av->grid, q);
+    // 39 (A2f): no first refreshSolids - refreshOccupancy below writes the grid's occupancy, and a new grid has no water or velocity
+    // for the solid cells and faces to clear (WaterWakeSame pins the volume cell for cell)
+    av->solver = std::make_unique<WaterSolver>(*av->grid, q, SolverParams{}, false);
     av->solver->setPondFriction(m_pondFriction);   // 24.7: the session's setting, not just the default
     av->solver->setVolumeCorrection(m_vcTime, m_vcBand);   // 26.21: likewise
     if (transport == "flip") av->solver->setTransport(std::make_unique<FlipTransport>());   // empty until water is placed
@@ -88,7 +97,9 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     const auto pc1 = PClock::now();
     refreshOccupancy(*av);
     const auto pc2 = PClock::now();
-    av->solver->refreshSolids();
+    // 39 (A2f step 1a): the refreshSolids that stood here asked the query again for every cell (19 ms on an 8 m pit) for the
+    // occupancy refreshOccupancy has just mirrored into the grid, then cleared water and velocities a new grid does not have yet -
+    // nothing to do (WaterWakeSame pins the volume cell for cell)
     const auto pc3 = PClock::now();
     if (be == "gpu") {
         // the grid's occupancy must hold the hold boundary the GPU reads (it is the solver's query on the CPU)
@@ -270,10 +281,21 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
     if (!av.occDirty) return;
     const auto tOcc = std::chrono::steady_clock::now();   // 26.18: measured - it runs on every world change
     const WaterGrid& g = *av.grid;
-    for (int z = 0; z < g.nz(); ++z)
-        for (int y = 0; y < g.ny(); ++y)
-            for (int x = 0; x < g.nx(); ++x)
-                av.occCache[g.idx(x, y, z)] = sampleOccupancy(av, glm::ivec3(x, y, z));
+    auto slab = [&](int z0, int z1) {
+        for (int z = z0; z < z1; ++z)
+            for (int y = 0; y < g.ny(); ++y)
+                for (int x = 0; x < g.nx(); ++x)
+                    av.occCache[g.idx(x, y, z)] = sampleOccupancy(av, glm::ivec3(x, y, z));
+    };
+    // 39 (A2f step 1b): split by z slabs over the workers (each cell its own slot - the same result); a small box stays on this thread
+    const int workers = (m_occThreads > 1 && g.cellCount() >= 32768) ? std::min(m_occThreads, g.nz()) : 1;
+    if (workers == 1) slab(0, g.nz());
+    else {
+        std::vector<std::thread> pool;
+        for (int i = 1; i < workers; ++i) pool.emplace_back(slab, g.nz() * i / workers, g.nz() * (i + 1) / workers);
+        slab(0, g.nz() / workers);
+        for (auto& t : pool) t.join();
+    }
     av.occDirty = false;
     // the GPU reads occupancy from the grid, and so does the Phase F surface extraction: mirror the cache
     for (int z = 0; z < av.grid->nz(); ++z) for (int y = 0; y < av.grid->ny(); ++y) for (int x = 0; x < av.grid->nx(); ++x)

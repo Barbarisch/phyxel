@@ -162,6 +162,12 @@ public:
     void setSolidsChangesQuery(SolidsChangesQuery q) { m_changes = std::move(q); }
     /// 26.19 TEST ONLY: ignore the change list (every change re-reads the whole box), so the two can be compared.
     static inline bool s_forceFullRefreshForTest = false;
+    /// 39 (A2f step 1b): the state query may be called from several threads at once (it only reads, and nothing changes what it
+    /// reads while a refresh runs) - a whole-box occupancy read is then split over `threads` workers (0 = the hardware's count
+    /// less two, 1..8; clamped 1..16). Off (the default, one thread): a query that is not safe to share is never shared. The result is
+    /// the same cell for cell either way: each cell is read on its own and written to its own slot (WaterWakeSame pins it).
+    void setStateQueryThreadSafe(bool on, int threads = 0);
+    int occupancyThreads() const { return m_occThreads; }
 
     /// Create a volume over an inclusive world voxel box. `cellSize` must be a power-of-three
     /// fraction of a voxel (1, 1/3, 1/9, 1/27, 1/81); `transport` is "eulerian" (Phase B).
@@ -721,6 +727,7 @@ private:
     const Av* volumeAtVoxel(int x, int y, int z) const;
 
     MicroStateQuery m_state;
+    int m_occThreads = 1;   ///< 39: setStateQueryThreadSafe
     SolidsRevisionQuery m_revision;
     SolidsChangesQuery m_changes;   // 26.19
     /// 26.19: re-sample only the cells of the changed boxes; patch what differs (grid, cache, GPU in place)
