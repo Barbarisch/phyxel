@@ -14613,7 +14613,12 @@ void Application::registerWaterCommands() {
                                             {"gpu_occ_copy", ws.gpuOccCopyMs}, {"gpu_create_volume", ws.gpuCreateVolumeMs}, {"gpu_upload", ws.gpuUploadMs},
                                             {"occupancy_threads", waterCore->occupancyThreads()},
                                             {"gpu_buffers", ws.gpuBuffersMs}, {"gpu_pipelines", ws.gpuPipelinesMs}, {"gpu_fill", ws.gpuFillMs},
-                                            {"gpu_pipeline_count", ws.gpuPipelines}, {"gpu_pipelines_reused", ws.gpuPipelinesReused}};   // A2f (39.3 item 5: createVolume split)
+                                            {"gpu_pipeline_count", ws.gpuPipelines}, {"gpu_pipelines_reused", ws.gpuPipelinesReused}};
+                 {   const auto us = waterCore->gpuUploadSplit();   // 39.8: the last upload (after a wake: the first step's, the seeded grid)
+                     s["last_upload_split_ms"] = {{"settle", us.settleMs}, {"host", us.hostMs}, {"residency", us.residencyMs}, {"clear", us.clearMs},
+                                                  {"scatter", us.scatterMs}, {"tables", us.tablesMs}, {"submit", us.submitMs}, {"bricks", us.bricks}};
+                     const auto rs = waterCore->gpuResidencySplit();
+                     s["last_upload_split_ms"]["residency_split"] = {{"need", rs.needMs}, {"ground", rs.groundMs}, {"grow", rs.growMs}, {"apply", rs.applyMs}}; }   // A2f (39.3 item 5: createVolume split)
                  const auto& ls = waterCore->sleptLoadStats();           // 35 (A2c): what the last world load restored
                  s["restored"] = ls.restored; s["restore_skipped"] = ls.skipped; s["restore_error"] = ls.error;
                  const auto& rc = waterCore->recordCacheStats();   // 32.4 (A2b): the record cache following residency

@@ -143,6 +143,8 @@ def wake(api, seconds):
             vols = api.debug("water_av_list").get("volumes", [])
             r["step_uploads"] = [{"uploads": v.get("gpu_uploads"), "last_upload_ms": v.get("gpu_upload_ms")} for v in vols]
             print(f"    first-step upload {r['step_uploads']}", flush=True)
+            r["upload_split_ms"] = (api.debug("water_coupling", {}).get("slept") or {}).get("last_upload_split_ms")   # 39.8
+            print(f"    upload split {r['upload_split_ms']}", flush=True)
             r["scene"] = name; rows.append(r)
             api.debug("clear_dynamics")
     return rows

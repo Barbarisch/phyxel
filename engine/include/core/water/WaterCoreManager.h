@@ -280,6 +280,9 @@ public:
     /// TEST ONLY (26.19): a volume's grid as the solver reads it (its occupancy is the refreshed cache), or null.
     /// 39: the last GPU createVolume's parts (zeros without a device) - the reuse test reads pipelinesReused
     WaterCoreGpu::CreateSplit gpuCreateSplitForTest() const { return m_gpu ? m_gpu->lastCreateSplit() : WaterCoreGpu::CreateSplit{}; }
+    /// 39.8: the last GPU upload's parts (any volume's; after a wake, the first step's is the seeded grid's)
+    WaterCoreGpu::UploadSplit gpuUploadSplit() const { return m_gpu ? m_gpu->lastUploadSplit() : WaterCoreGpu::UploadSplit{}; }
+    WaterCoreGpu::ResidencySplit gpuResidencySplit() const { return m_gpu ? m_gpu->lastResidencySplit() : WaterCoreGpu::ResidencySplit{}; }
     const WaterGrid* gridForTest(int id) const { for (const auto& av : m_avs) if (av->id == id) return av->grid.get(); return nullptr; }
     const AvRecord* find(int id) const;
 

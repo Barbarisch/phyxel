@@ -1229,8 +1229,12 @@ int WaterCoreGpu::partitionSlots(VkCommandBuffer cmd, Volume& vol) {
 }
 
 void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
+    using UClock = std::chrono::steady_clock;   // 39.8: the parts' times (m_lastUploadSplit)
+    const auto u0 = UClock::now();
+    UClock::time_point u2, u3, u4, u5, u6;
     vol.unitsFullNext = true;   // 27.23 W1e: this writes stored cells, frozen ones included - the next reduction computes every unit
     settle(vol);   // 26.16
+    const auto u1 = UClock::now();
     // 27.22: the grid is ordinary cells - no tall cells from here (the heights region is zeroed with the counters below) until asked
     // again. FIRST: with the tall state still set, the residency below read every brick under the floor as ground and the grid's
     // water there was never stored - each write to a tall pond deleted one brick layer of it (27.22d, 128 m^3 in a 24 x 24 m pond)
@@ -1252,6 +1256,7 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     vol.listsSized = false;
     for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x)
         vol.hostOcc[g.idx(x, y, z)] = static_cast<uint32_t>(g.occ(x, y, z));
+    u2 = u3 = u4 = u5 = u6 = UClock::now();
     VkCommandBuffer cmd = beginCommands();
     if (vol.bricked) {
         // residency from the grid: dense - every brick; sparse - the water and one full ring round it (the first call's reach is
@@ -1268,6 +1273,7 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
             }
             if (!vol.hostDeposit.empty()) needFromDenseFill(vol, vol.hostDeposit, need, kB);
         }
+        const auto ur1 = UClock::now();   // 39.8: the residency's parts
         // 26.18: which bricks are all ground - from THIS upload's occupancy (an upload follows every occupancy change: a dig
         // opens its brick here, before the next step reads it). Out-of-box cells count as Solid (scatterSlots writes them so).
         if (vol.groundOn) {
@@ -1279,12 +1285,17 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
                 vol.allSolid[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 0;
             }
         }
+        const auto ur2 = UClock::now();
         std::fill(vol.map.begin(), vol.map.end(), 0);
         std::fill(vol.slotBrick.begin(), vol.slotBrick.end(), -1);
         vol.storedCount = 0; vol.colEntries.clear();
         ensureCapacity(vol, need);   // 27.23 W1d.1 (the command buffer above holds nothing yet)
         st = static_cast<char*>(vol.staging.mapped);   // a grow replaced the staging buffer (the pointer taken above is freed)
+        const auto ur3 = UClock::now();
         applyResidency(vol, need);
+        u3 = UClock::now();
+        {   auto rms = [](UClock::time_point a, UClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+            m_lastResidencySplit = {rms(u2, ur1), rms(ur1, ur2), rms(ur2, ur3), rms(ur3, u3)}; }
         vol.unstoredM3 = 0.0;   // water in a brick the capacity could not store: counted (createVolume refuses this up front)
         for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x)
             if (g.f(x, y, z) != 0.0f && storageIndex(vol, x, y, z) < 0) vol.unstoredM3 += static_cast<double>(g.f(x, y, z)) * g.cellVolume();
@@ -1293,8 +1304,11 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
         if (!vol.groundAsAir) { auto* so = reinterpret_cast<uint32_t*>(st + vol.offOcc); std::fill(so + kGround * vol.bc, so + (kGround + 1) * vol.bc, 1u); }   // 26.18: the ground sentinel
         std::vector<int> all;
         for (size_t s = kFirstSlot; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) all.push_back(static_cast<int>(s));
+        u4 = UClock::now();
         scatterSlots(vol, all, &g);
+        u5 = UClock::now();
         writeTablesToStaging(vol);
+        u6 = UClock::now();
         for (Buffer* b : {&vol.fOrig, &vol.uOld, &vol.vOld, &vol.wOld, &vol.liq, &vol.diag, &vol.rhs, &vol.res, &vol.valA, &vol.valB,
                           &vol.knownA, &vol.knownB, &vol.first, &vol.keep, &vol.deposit})
             vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
@@ -1318,7 +1332,11 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     vkCmdFillBuffer(cmd, vol.src.buf, 0, vol.src.bytes, 0);
     vkCmdFillBuffer(cmd, vol.p.buf, 0, vol.p.bytes, 0);   // 26.5: a replaced state starts its solve fresh (deterministic, as a new volume)
     vkCmdFillBuffer(cmd, vol.fLo.buf, 0, vol.fLo.bytes, 0);   // 26.10: the remainders belonged to the water that was there
+    if (!vol.bricked) u3 = u4 = u5 = u6 = UClock::now();
     submitAndWait(cmd);
+    {   auto ms = [](UClock::time_point a, UClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+        long stored = 0; for (int sb : vol.slotBrick) if (sb >= 0) ++stored;
+        m_lastUploadSplit = {ms(u0, u1), ms(u1, u2), ms(u2, u3), ms(u3, u4), ms(u4, u5), ms(u5, u6), ms(u6, UClock::now()), stored}; }
     vol.tallActive = false; vol.tallPending = 0; vol.tallY = -1; vol.tallH.clear(); vol.tallColumns = 0;   // (the red control's late reset)
 }
 

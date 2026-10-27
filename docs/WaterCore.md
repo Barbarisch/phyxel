@@ -10152,6 +10152,33 @@ step 1 was about 100 + 42 = ~142 ms on the pit and 36 + 5 = ~41 ms on the small 
 (residency, `scatterSlots`) on one thread. Split it before designing anything. Item 6 (the engine's frame-time maximum over the
 wake window) is still not measured; the cost tool's 0.25 s samples did not catch the wake frame (minimum 197-207 fps).
 
+### 39.8 The seeded upload, split (2026-10-27). Status: MEASURED
+
+Timers in `WaterCoreGpu::upload` (`UploadSplit`, `ResidencySplit`; echoed as `slept.last_upload_split_ms`; the cost tool records
+them; `a3_cost_a2f_upload_split.json`). The first step's upload after a wake, two wakes each:
+
+| part (ms) | small pond (372 bricks) | pit (2,200 bricks) |
+|---|---|---|
+| host (max speed, host occupancy, solid tops) | 1.6 | 6.7 |
+| residency: need (the water's bricks) | 0.3 | 2.0-2.1 |
+| residency: ground (all-ground bricks) | 1.3 | 5.6 |
+| **residency: grow (`ensureCapacity` -> `growPool`)** | **0.003** | **12.7-13.1** |
+| residency: apply | 0.02 | 0.07-0.09 |
+| clear (the unstored count, staging zeroed) | 0.4 | 2.6-2.7 |
+| scatter (`scatterSlots`) | 0.7-0.8 | 6.7-7.4 |
+| submit (copies, fills, waited) | 0.6 | 3.8-3.9 |
+| **the upload** | **5.0** | **40.5-41.0** |
+
+**The grow is the largest part.** A sparse volume starts with `kInitialSlots` and grows once, to about 2,750 slots (2,200 x 1.25,
+doubled), when the pit's water arrives. `growPool` makes about 30 buffers at the new size (~1.4 M cells), copies the old ones in,
+and rebinds. Sizing the volume right at create would save only the small first allocation (4.5 ms of buffers), not the large one.
+Keeping the device memory across sleeps (39.2's alternative) would save both, at the price of holding the pond's GPU memory
+while it sleeps. That is a memory-for-stall trade. Every other part scales with the box or the bricks on one thread (host 6.7,
+scatter 7, ground 5.6) and can be threaded like the occupancy read (39.5).
+
+What the wake's frame costs now on the pit: about 18 ms (create + seed) + 41 ms (the first step's upload) = ~60 ms, from ~142 ms
+(estimated) before step 1. Small pond: ~9 + 5 = ~14 ms.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
