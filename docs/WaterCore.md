@@ -10038,6 +10038,10 @@ woken at once, right = woken after the delay; the two halves are separate takes,
 the 0.4 s take: the pond still asleep 0.3 s after the drop and awake at 0.5 s (captions sampled every 0.25 s, too coarse to show
 0.15 s). The knob reads 0 after the run. The drops are the M4 set (wood and one stone, on the push, which A2g measured sane).
 
+**The owner's judgement (2026-10-26):** "i checked both videos and i could really tell a difference between any of them lol",
+read as "could not tell", so up to 0.4 s late is not visible in this scene. That settles the look half of step 2. The outcome half
+(39.3 item 1: the same rest pose, mass and level whatever the slice budget) is still to be measured before step 2 is built.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
