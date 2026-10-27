@@ -111,10 +111,12 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, BrickOptions{transport != "flip", 0, false, brickHeight, groundBricks});   // 26.17: the brick height (refused with the reason unless 2 / 4 / 8)
         if (!av->gpuVol) return 0;   // the refusal carries the byte count
         const auto pg1 = PClock::now();
-        m_gpu->upload(*av->gpuVol, *av->grid);
+        // 39.7 (A2f step 1e): a wake seeds the grid next and the first step uploads it whole - an upload here sent an empty grid that
+        // upload replaces in full (16 ms on an 8 m pit, twice per wake). Left pending (gpuDirty) for the step, as after any seed.
+        if (!m_createLeavesUploadToStep || s_wakeUploadsTwiceForTest) m_gpu->upload(*av->gpuVol, *av->grid);
         m_createGpuSplit = {std::chrono::duration<double, std::milli>(pg0 - pc3).count(), std::chrono::duration<double, std::milli>(pg1 - pg0).count(),
                             std::chrono::duration<double, std::milli>(PClock::now() - pg1).count()};   // A2f: occ copy / createVolume / upload
-        av->gpuDirty = false;
+        av->gpuDirty = m_createLeavesUploadToStep && !s_wakeUploadsTwiceForTest;
     }
     {   auto ms = [](PClock::time_point x, PClock::time_point y) { return std::chrono::duration<double, std::milli>(y - x).count(); };
         m_createSplit = {ms(pc0, pc1), ms(pc1, pc2), ms(pc2, pc3), ms(pc3, PClock::now()), static_cast<long>(cells)}; }
@@ -1045,7 +1047,9 @@ int WaterCoreManager::wakeSlept(size_t i) {
     const SleptVolume sv = m_slept[i];
     m_slept.erase(m_slept.begin() + static_cast<long>(i));   // woken (or found empty): forgotten either way
     std::string err;
+    m_createLeavesUploadToStep = true;   // 39.7: the seed below replaces the grid - one upload, at the first step
     const int id = create(sv.lo, sv.hi, sv.cellSize, sv.transport.empty() ? "eulerian" : sv.transport, &err, sv.backend.empty() ? "auto" : sv.backend, sv.sweeps);
+    m_createLeavesUploadToStep = false;
     if (!id) { ++m_sleptWake.refused; m_sleptWake.lastError = err; return 0; }
     setPartialWake(id, sv.partialWake);
     setTallBand(id, sv.tallBandM);

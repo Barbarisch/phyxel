@@ -9013,7 +9013,7 @@ row's reason says why it sits where it does.
 | A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
 | A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
-| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Item 5 split; 1(d) pipeline reuse BUILT (39.6): pit 34 ms, small 13-16 ms. Step 2's look: the owner could not tell a 0.4 s late wake (39.4); its outcome check (item 1) is next, with items 5-6 | a 98 ms frame is visible at every tier. Merged with A7 below |
+| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Item 5 split; 1(d) pipeline reuse BUILT (39.6). 1(e) one upload per wake BUILT (39.7): the wake frame is now create + seed + the first step's upload, pit ~18 + 42 ms, small ~9 + 5 ms; the seeded upload is next. Step 2's look: the owner could not tell a 0.4 s late wake (39.4); its outcome check (item 1) is next, with items 5-6 | a 98 ms frame is visible at every tier. Merged with A7 below |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
@@ -10115,6 +10115,42 @@ run.
 
 The first volume after an engine start still builds its pipelines (no volume destroyed yet). The pit is now mostly the upload
 (16 ms); the buffers (4-7 ms) come next.
+
+### 39.7 Step 1(e): one upload per wake, and the cost the wake timer never saw (2026-10-27). Status: BUILT, not signed off
+
+**Found:** a wake uploaded twice. `create` uploaded the empty grid (the 16 ms above), then the seed marked the volume dirty and the
+first step uploaded the seeded grid (`WaterCoreManager.cpp`, the `gpuDirty` branch of the step). That second upload sat outside
+`last_wake_ms`, in the same frame. It had never been measured; the cost tool now records it (`step_uploads`: the volume's
+`gpu_uploads`, `gpu_upload_ms` after the wake).
+
+**Step 1(e):** a wake's create skips its upload (`m_createLeavesUploadToStep`, set by `wakeSlept` around its `create`). `upload`
+replaces the whole device state, and nothing between the create and the first step reads what the first upload built: the host
+copies are read only by the step and by patches, which skip a dirty volume. Every other `create` still uploads.
+`s_wakeUploadsTwiceForTest` restores the old way as the control.
+
+**Equality:** `WaterRecordedPondTest.AWakeWithOneUploadStepsTheSameAsWithTwo` wakes the same slept pond both ways, kicks it (a
+radial impulse) and steps 40 ticks. The written record is equal byte for byte (mass 63.999975 and KE 1.33294 both ways), and the
+water moved (the test fails on a still pond). Not shown red. The control is the old path itself, run in the same test; a mutation
+that drops the step's upload drops it on both sides.
+
+**Gates:** unit water + debris 361/361; integration water 64/66 (the known two).
+
+**Measured** (`--tag a2f_step1e`, Release, two wakes each):
+
+| part (ms) | small pond | pit |
+|---|---|---|
+| the wake (create + seed) | 9.1-9.4 (was 13-16) | 17.9-18.9 (was 34) |
+| of which: buffers / fill / `createVolume` total | 3.6 / 2.4-2.6 / 6.0-6.3 | 4.4-4.5 / 1.7-1.9 / 6.2-6.5 |
+| of which: occupancy / seed | 1.7-1.9 / 0.7 | 5.0-5.2 / 3.3-3.4 |
+| **the first step's upload (the seeded grid)** | **5.3-5.5** | **41.5-42.5** |
+| **the wake's frame, both together** | **~15** | **~60** |
+
+The first step's upload was not measured before 1(e). It is the same call on the same seeded grid, so the wake frame before
+step 1 was about 100 + 42 = ~142 ms on the pit and 36 + 5 = ~41 ms on the small pond. These are estimates, not measured.
+
+**Next:** the seeded upload, 42 ms on the pit against 16 ms for the same box empty. It lays out every brick holding water
+(residency, `scatterSlots`) on one thread. Split it before designing anything. Item 6 (the engine's frame-time maximum over the
+wake window) is still not measured; the cost tool's 0.25 s samples did not catch the wake frame (minimum 197-207 fps).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

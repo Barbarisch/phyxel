@@ -499,6 +499,9 @@ public:
     /// wake built across frames would look like (the body reads the record meanwhile). The wake still runs whole when it fires (the
     /// stall moves, it does not shrink). Blasts (wakeSleptNear) still wake at once. 0 = shipped behaviour; never saved, echoed.
     static inline double s_wakeDelaySForTest = 0.0;
+    /// 39.7 TEST: a wake's create uploads its empty grid as before step 1e (the seed's upload follows at the first step) - the
+    /// control the single-upload wake is compared with, byte for byte
+    static inline bool s_wakeUploadsTwiceForTest = false;
     /// 34 (A2h, owner 2026-10-25: "keep the more chaotic feature as a turn on, but not by default"): the shipped default of debris
     /// DISPLACEMENT (20 - a moving body rasterized into the volume, shoving its water: heaving waves, thrown water, rocking). Off, the
     /// ripple layer (22) still draws the small splashes and rings; the slept-pond wake does not depend on it. The editor's
@@ -732,6 +735,7 @@ private:
 
     MicroStateQuery m_state;
     int m_occThreads = 1;   ///< 39: setStateQueryThreadSafe
+    bool m_createLeavesUploadToStep = false;   ///< 39.7: set by wakeSlept around its create (the seed follows)
     SolidsRevisionQuery m_revision;
     SolidsChangesQuery m_changes;   // 26.19
     /// 26.19: re-sample only the cells of the changed boxes; patch what differs (grid, cache, GPU in place)

@@ -139,6 +139,10 @@ def wake(api, seconds):
             r["woke"] = s.get("woken", 0) > before; r["wake_ms"] = s.get("last_wake_ms"); r["wake_split_ms"] = s.get("last_wake_split_ms")   # A2f
             print(f"    woke {r['woke']}  wake (create + seed) {r['wake_ms']} ms  GPU frame max {r['gpu_frame_ms_max']} ms", flush=True)
             print(f"    split {r['wake_split_ms']}", flush=True)
+            # 39.7: the first step after a wake uploads the seeded grid - outside the wake's own timer, in the same frame
+            vols = api.debug("water_av_list").get("volumes", [])
+            r["step_uploads"] = [{"uploads": v.get("gpu_uploads"), "last_upload_ms": v.get("gpu_upload_ms")} for v in vols]
+            print(f"    first-step upload {r['step_uploads']}", flush=True)
             r["scene"] = name; rows.append(r)
             api.debug("clear_dynamics")
     return rows

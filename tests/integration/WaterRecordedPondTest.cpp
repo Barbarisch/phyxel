@@ -170,3 +170,39 @@ TEST_F(WaterRecordedPondTest, AVolumeOnKeptPipelinesStepsTheSameAsOnBuiltOnes) {
         }
     }
 }
+
+// 39.7 (A2f step 1e): a wake uploads its grid once - at the first step, after the seed - where it uploaded the empty grid inside
+// create and the seeded one again at the first step. The same slept pond woken both ways, kicked and stepped, must write the same
+// record byte for byte (WaterCoreManager::s_wakeUploadsTwiceForTest is the old way, the control).
+TEST_F(WaterRecordedPondTest, AWakeWithOneUploadStepsTheSameAsWithTwo) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Restore { ~Restore() { WaterCoreManager::s_wakeUploadsTwiceForTest = false; } } restore;
+    std::map<std::pair<int, int>, std::vector<ColumnRun>> written[2];
+    for (int twice = 0; twice < 2; ++twice) {
+        WaterCoreManager::s_wakeUploadsTwiceForTest = twice != 0;
+        SleptPond p(*this, device, physicalDevice, queue, queueFamilyIndex);
+        ASSERT_TRUE(p.ok);
+        MovingSolid stone; stone.centre = glm::vec3(4.0f, 1.6f, 4.0f); stone.halfExtents = glm::vec3(1.0f / 6.0f); stone.velocity = glm::vec3(0.0f, -3.0f, 0.0f);
+        const auto ids = p.mgr.wakeSleptTouching({stone});
+        ASSERT_EQ(ids.size(), 1u);
+        p.mgr.addRadialImpulse(glm::vec3(4.0f, 1.0f, 4.0f), 1.5f, 2.0f, 0.5f);   // a splash, so the water moves
+        AvRecord rec;
+        for (int k = 0; k < 40; ++k) p.mgr.step(ids[0], 1, 1.0f / 60.0f, &rec);
+        std::printf("  %s: uploads %ld, mass %.6f, KE %.6g\n", twice ? "two uploads (before)" : "one upload", static_cast<long>(rec.gpuUploads), static_cast<double>(rec.mass), static_cast<double>(rec.kineticEnergy));
+        const WriteBackRecord wb = p.mgr.sleep(ids[0], true);
+        ASSERT_TRUE(wb.ok) << wb.error;
+        written[twice] = p.record.cols;
+    }
+    ASSERT_EQ(written[0].size(), written[1].size());
+    bool moved = false;
+    for (const auto& [k, v] : written[1]) {
+        const auto& w = written[0].at(k);
+        ASSERT_EQ(w.size(), v.size()) << "column " << k.first << "," << k.second;
+        for (size_t i = 0; i < v.size(); ++i) {
+            EXPECT_EQ(w[i].bottomY, v[i].bottomY) << "column " << k.first << "," << k.second;
+            EXPECT_EQ(w[i].topY, v[i].topY) << "column " << k.first << "," << k.second;
+            if (std::abs(v[i].topY - 1.0f) > 1e-4f) moved = true;
+        }
+    }
+    EXPECT_TRUE(moved) << "the kick did not move the water: the comparison would pass on a still pond";
+}
