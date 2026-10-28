@@ -38,10 +38,12 @@ def scope(gt, name):
 def window(api, seconds, label):
     api.debug("water_av_host_phases", {"reset": True})
     api.debug("water_av_kernel_timing", {"on": True, "reset": True})
-    fps, cpu, parts = [], [], {}
+    fps, cpu, parts, fmax = [], [], {}, []
+    api.get("/api/debug/engine_timing")   # 39.3 item 6: clears the worst-frame tracker, so the window's first read starts here
     t0 = time.time()
     while time.time() - t0 < seconds:
         et = api.get("/api/debug/engine_timing"); fps.append(et.get("fps", 0)); cpu.append(et.get("cpuFrameTime", 0))
+        if et.get("frame_ms_max_since_last_read") is not None: fmax.append(et["frame_ms_max_since_last_read"])
         for k, v in api.debug("water_av_host_phases", {}).get("app_water_cpu_ms_last", {}).items(): parts.setdefault(k, []).append(v)
         time.sleep(0.15)
     el = time.time() - t0
@@ -53,6 +55,7 @@ def window(api, seconds, label):
     calls = kt.get("calls", 0)
     r = {"label": label, "fps_mean": round(sum(fps) / len(fps), 1), "fps_min": round(min(fps), 1),
          "cpu_frame_ms_mean": round(sum(cpu) / len(cpu), 3), "cpu_frame_ms_max_sampled": round(max(cpu), 3),
+         "frame_ms_max": round(max(fmax), 3) if fmax else None,   # 39.3 item 6: every frame of the window, not a sample
          "gpu_frame_ms_median": round(gt.get("gpu_frame_ms", {}).get("median_ms", 0.0), 3),
          "gpu_frame_ms_max": round(gt.get("gpu_frame_ms", {}).get("max_ms", 0.0), 3),
          "gpu_particles_ms_median": scope(gt, "GPU Particles"),
@@ -63,8 +66,12 @@ def window(api, seconds, label):
          "water_gpu_ms_per_call": round(kt.get("total_ms_per_call", 0.0), 4), "water_gpu_calls_per_s": round(calls / el, 1),
          "push_windows_gpu_ms_per_call": round(kt.get("ms_per_call", {}).get("reduce_surface", 0.0), 4),
          "volumes": len(api.debug("water_av_list").get("volumes", [])),
-         "wet_bodies": c.get("moving_solids", {}).get("wet_bodies"), "pressure": c.get("pressure_force"), "slept": c.get("slept")}
-    print(f"  {label:28s} fps {r['fps_mean']:6.1f} (min {r['fps_min']:6.1f})  CPU {r['cpu_frame_ms_mean']:.3f} ms  GPU {r['gpu_frame_ms_median']:.3f} ms"
+         "wet_bodies": c.get("moving_solids", {}).get("wet_bodies"), "pressure": c.get("pressure_force"), "slept": c.get("slept"),
+         # 39.3 item 6: the longest water block of the window, by part, and the manager's phases by their longest single call
+         "water_worst_frame_ms": ph.get("app_water_cpu_ms_worst_frame"),
+         "phase_max_ms": dict(sorted(((k, round(v.get("max_ms_per_call", 0.0), 3)) for k, v in ph.get("phases", {}).items()),
+                                     key=lambda kv: -kv[1])[:8])}
+    print(f"  {label:28s} fps {r['fps_mean']:6.1f} (min {r['fps_min']:6.1f}, worst frame {r['frame_ms_max']} ms)  CPU {r['cpu_frame_ms_mean']:.3f} ms  GPU {r['gpu_frame_ms_median']:.3f} ms"
           f" (max {r['gpu_frame_ms_max']:.3f})  water: host {r['water_host_cpu_ms_per_frame']:.3f} ms/frame, GPU {r['water_gpu_ms_per_call']:.3f} ms/call"
           f" x {r['water_gpu_calls_per_s']}/s, push windows {r['push_windows_gpu_ms_per_call']:.4f} ms/call  vols {r['volumes']}  wet {r['wet_bodies']}\n"
           f"    app water CPU: {r['app_water_cpu_ms']}", flush=True)
@@ -143,6 +150,7 @@ def wake(api, seconds):
             vols = api.debug("water_av_list").get("volumes", [])
             r["step_uploads"] = [{"uploads": v.get("gpu_uploads"), "last_upload_ms": v.get("gpu_upload_ms")} for v in vols]
             print(f"    first-step upload {r['step_uploads']}", flush=True)
+            print(f"    worst water block {r['water_worst_frame_ms']}\n    phases by longest call {r['phase_max_ms']}", flush=True)
             r["upload_split_ms"] = (api.debug("water_coupling", {}).get("slept") or {}).get("last_upload_split_ms")   # 39.8
             print(f"    upload split {r['upload_split_ms']}", flush=True)
             r["scene"] = name; rows.append(r)

@@ -10233,6 +10233,37 @@ scatter 7, ground 5.6) and can be threaded like the occupancy read (39.5).
 What the wake's frame costs now on the pit: about 18 ms (create + seed) + 41 ms (the first step's upload) = ~60 ms, from ~142 ms
 (estimated) before step 1. Small pond: ~9 + 5 = ~14 ms.
 
+### 39.9 Item 6: the wake's whole frame, measured (2026-10-27). Status: MEASURED
+
+**The measure.** `engine_timing` gains `frame_ms_max_since_last_read`: the longest main-loop frame since the route was last
+read (each read resets it; an atomic written by the main thread). The cost tool reads it on every sample, so a window's
+`frame_ms_max` covers every frame, not one in 0.15 s. `water_av_host_phases` gains each phase's longest single call
+(`max_ms_per_call`) and `app_water_cpu_ms_worst_frame`: the editor's water block, by part, for its longest frame since the reset.
+
+**Measured** (`--only still,wake`, `a3_cost_a2f_item6.json`, Release):
+
+| window | worst frame (ms) |
+|---|---|
+| still pond, awake or slept | 2.8-4.7 |
+| the small pond's wake | 20.2-21.7 |
+| the pit's wake | 77.8-83.3 |
+
+**Where the pit's wake frame goes** (the water block 76-78 ms of the 78-80 ms frame):
+
+| part | ms |
+|---|---|
+| the wake (create + seed, `bodies`) | 19 |
+| the first step's upload (`mgr.1`) | 42-44 |
+| **the surface built on the CPU (`surf.3 CPU fallback`, inside `ripples.1 surfaceFields`)** | **11.8-12.2** |
+| the GPU step (`mgr.4`) | 3.6-4.1 |
+| solids (moving bodies) | 2.1-2.4 |
+
+The small pond's: wake 9.4-10.7, upload 5.4-5.5, the CPU surface 2.4-2.8, step 1.2-1.3.
+
+**Found: a third hidden part.** An upload clears `surfaceValid` (the device's surface predates the new grid), so that frame
+builds the surface on the CPU over the whole box. That is 12 ms on the pit, in the same frame as the upload. Neither the wake timer
+nor the upload timer saw it. 39.3 item 6 is closed: the wake's frame is now measured whole, with every part named.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

@@ -116,6 +116,7 @@
 #include <array>
 #include <chrono>
 #include <thread>
+#include <atomic>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -329,6 +330,9 @@ private:
     // 34 (A2h): debris DISPLACEMENT is the owner's opt-in (water_coupling {displace}), off by default - the ripple layer draws the
     // splashes either way, and the slept-pond wake reads the moving bodies before this switch
     bool m_displaceOn = Core::Water::WaterCoreManager::kDisplaceByDefault;
+    /// WaterCore 39.3 item 6: the longest frame (ms, the main loop's delta) since engine_timing last read it - a sampler can no longer
+    /// miss one slow frame between its reads. Written by the main thread, read and reset by the API thread.
+    std::atomic<double> m_frameMsMax{0.0};
     void saveWaterMeta();            // 35 (A2c): world_meta water_bodies + water_slept, at every chunk save point
     uint32_t m_pressureTag = 0;      // the frame's window tag (written by the water calls, checked by the debris ticks)
     Core::Water::WaterCoreManager::SolidsFeed m_solidsFeed;   // the last frame's feed (water_coupling echo)
@@ -341,6 +345,7 @@ private:
     // gate, the slept-pond wake), solids = setMovingSolids (rasterizing the displacing bodies), pressure = the M4 window asks,
     // exchange = the momentum handed back to the water
     struct WaterCpuMs { double total = 0, update = 0, feed = 0, motion = 0, bodies = 0, solids = 0, pressure = 0, exchange = 0; } m_waterCpu;
+    WaterCpuMs m_waterCpuAtMax;   ///< 39.3 item 6: the parts of the frame whose water block was longest, since water_av_host_phases reset
     uint32_t m_refusedNoWindow = 0;   // 33 (A2g): displacing bodies NOT rasterized this frame because they hold no pressure window
     long m_waterWakes = 0;                 // E2 (19.6): wake requests sent to sleeping debris over moving water
     Core::Water::BedQuery shoreBedQuery();                              // the micro-occupancy bed both bands use

@@ -1370,6 +1370,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             {"cpuFrameTime", ft.cpuFrameTime},
             {"gpuFrameTime", ft.gpuFrameTime},
             {"gpu_frame_ms", gpuFrameMs >= 0.0 ? nlohmann::json(gpuFrameMs) : nlohmann::json(nullptr)},
+            // WaterCore 39.3 item 6: the longest frame since the last read of this route (each read resets it)
+            {"frame_ms_max_since_last_read", m_frameMsMax.exchange(0.0, std::memory_order_relaxed)},
             {"present_mode", vulkanDevice ? Core::PerfApi::presentModeName(vulkanDevice->getActivePresentMode())
                                           : "unknown"},
             {"drawCalls", ft.drawCalls},
@@ -3063,6 +3065,9 @@ void Application::run() {
         double currentTime = glfwGetTime();
         deltaTime = currentTime - lastFrameTime;
         lastFrameTime = currentTime;
+        {   const double ms = deltaTime * 1000.0;   // 39.3 item 6: the worst frame between engine_timing reads
+            double cur = m_frameMsMax.load(std::memory_order_relaxed);
+            while (ms > cur && !m_frameMsMax.compare_exchange_weak(cur, ms, std::memory_order_relaxed)) {} }
         
         // Reset mouse delta before polling new events
         if (inputManager) {
@@ -3955,6 +3960,7 @@ void Application::update(float deltaTime) {
                 m_waterCpu.exchange = wms(te);
             }
             m_waterCpu.total = wms(wt0);
+            if (m_waterCpu.total > m_waterCpuAtMax.total) m_waterCpuAtMax = m_waterCpu;   // 39.3 item 6
             for (const auto& rec : waterCore->drainAutoSleepRecords()) {
                 if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId);
                 else LOG_WARN("WaterCore", "volume {} could not write back: {} (held {}, unwritten {}); auto_sleep is off for it", rec.id, rec.error, rec.heldColumns, rec.unwrittenColumns);
@@ -14035,11 +14041,14 @@ void Application::registerWaterCommands() {
         using P = Core::Water::WaterHostProfile;
         const double fr = static_cast<double>(std::max<long>(1, P::frames));
         nlohmann::json ph = nlohmann::json::object();
-        for (const auto& [k, v] : P::ms) ph[k] = {{"ms_per_frame", v / fr}, {"calls_per_frame", P::calls[k] / fr}};
+        for (const auto& [k, v] : P::ms) ph[k] = {{"ms_per_frame", v / fr}, {"calls_per_frame", P::calls[k] / fr}, {"max_ms_per_call", P::maxMs[k]}};   // 39.3 item 6: + the max
         const auto& tl = renderCoordinator ? &renderCoordinator->waterCoreTiler().stats() : nullptr;
         r = {{"frames", P::frames}, {"phases", ph}, {"app_water_cpu_ms_last", {{"total", m_waterCpu.total}, {"update", m_waterCpu.update}, {"feed", m_waterCpu.feed}, {"motion", m_waterCpu.motion}, {"bodies", m_waterCpu.bodies}, {"solids", m_waterCpu.solids}, {"pressure", m_waterCpu.pressure}, {"exchange", m_waterCpu.exchange}}}};
         if (tl) r["tiler_last"] = {{"ms", tl->ms}, {"build_ms", tl->buildMs}, {"rebuilt", tl->rebuilt}};
-        if (cmd.params.value("reset", false)) P::reset();
+        {   const auto& m = m_waterCpuAtMax;   // 39.3 item 6: the longest water block since the reset, by part
+            r["app_water_cpu_ms_worst_frame"] = {{"total", m.total}, {"update", m.update}, {"feed", m.feed}, {"motion", m.motion}, {"bodies", m.bodies},
+                                                 {"solids", m.solids}, {"pressure", m.pressure}, {"exchange", m.exchange}}; }
+        if (cmd.params.value("reset", false)) { P::reset(); m_waterCpuAtMax = WaterCpuMs{}; }
     });
     reg.on("water_av_record_draw", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         using M = Core::Water::WaterCoreManager;

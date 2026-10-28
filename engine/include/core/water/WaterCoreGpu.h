@@ -125,13 +125,16 @@ struct WaterHostProfile {
     using Clock = std::chrono::steady_clock;
     static inline std::map<std::string, double> ms;
     static inline std::map<std::string, long> calls;
+    static inline std::map<std::string, double> maxMs;   ///< 39.3 item 6: the longest single call of each phase since reset
     static inline long frames = 0;
     static void lap(const char* key, Clock::time_point& t) {
         const auto now = Clock::now();
-        ms[key] += std::chrono::duration<double, std::milli>(now - t).count(); ++calls[key];
+        const double d = std::chrono::duration<double, std::milli>(now - t).count();
+        ms[key] += d; ++calls[key];
+        double& mx = maxMs[key]; if (d > mx) mx = d;
         t = now;
     }
-    static void reset() { ms.clear(); calls.clear(); frames = 0; }
+    static void reset() { ms.clear(); calls.clear(); maxMs.clear(); frames = 0; }
 };
 
 /// 31 (M4): one pressure window a volume's call writes (wc_body_pressure.comp's Req, std430): a dense box of cells round a wet body.
