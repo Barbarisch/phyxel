@@ -8971,6 +8971,13 @@ leans this way without saying so: track C's knob 1 caps the simulated area "near
    water system, with bands and smooth fades, never per chunk or per tile (`FeatureDesignKeys.md`: chunks must not be visible).
    The band distances are tier knobs: farther at high tiers, nearer at low ones. The viewer is the camera; in a game it is the
    player's camera. (In multiplayer it would be every player's, which the plan does not cover yet.)
+4. **Detail falls off continuously, not in a few levels (owner, 2026-10-28).** *"ideally LOD would be variable without dramatic
+   steps between a small handful of levels."* Where a look thins with distance (ripple size, splash detail, surface detail), it
+   is a continuous function of distance (`WaterLocality::detail`, a smoothstep with no step over 1e-3 per mm), not a handful of
+   levels with a visible switch between them. Where something cannot vary continuously (whether a pond's GPU memory is kept,
+   which solver path runs), it changes cost only (rule 2), and the change it makes to the picture, if any, is faded, never
+   switched. The one inherited exception is the record's 48 m tile edge (40.1 item 2), which W2's far drawing or a fade
+   replaces. Each L-item's design says which of the two kinds it is.
 
 **What it does to the tracks.**
 - **Track A** gets L1 (the distance function), L3 (keep a sleeping pond's GPU memory near the camera) and L4 (pace a far wake), all
