@@ -2210,6 +2210,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_column",      waterEndpoint("water_av_column"));      // 26.13: the drawn surface at voxel columns (no read-back)
     srv.Post("/api/debug/water_av_census",      waterEndpoint("water_av_census"));
     srv.Post("/api/debug/water_av_record_draw", waterEndpoint("water_av_record_draw")); // §27 W1a: recorded water drawn by the pond surface
+    srv.Post("/api/debug/water_locality", waterEndpoint("water_locality")); // §40 (L1): the viewer distances every water system reads
     srv.Post("/api/debug/water_av_record_tiles", waterEndpoint("water_av_record_tiles")); // §27 W1b: frozen tiles sleep into / wake from the record      // §27 W1: where a volume's water is (air / ground / unknown)
     srv.Post("/api/debug/water_surface_dump",   waterEndpoint("water_surface_dump"));   // the surface field per sub-column over a rect (measurement)
     srv.Post("/api/debug/water_jet_scan",      waterEndpoint("water_jet_scan"));       // 21.7 S1: per-frame detached-run recorder

@@ -7,6 +7,7 @@
 // Solids come from a three-state micro-occupancy query the engine binds (Empty / Solid / Unknown
 // per world micro cell, 9 per voxel per axis); Unknown is a hold wall (§5.1).
 #include "core/water/WaterCore.h"
+#include "core/water/WaterLocality.h"   // 40 (L1): the viewer distances
 #include "core/water/WaterCoreGpu.h"   // Phase C backend (optional; CPU reference without it)
 #include "core/water/WaterBodyTable.h"   // Phase D Tier A records
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
@@ -398,8 +399,11 @@ public:
     /// field (recordSurfaceField: the record woken into a scratch grid, the surface extracted), appended to surfaceFields() after
     /// the volumes' own. Rebuilt when the record, the ground or the volumes change; at most kRecordBuildsPerCall a call. Beyond the
     /// radius the span sheet / far tiles draw it (W2). The span sheet leaves these tiles to the pond surface (recordTileBoxes()).
-    struct RecordDraw { bool on = true; float radiusM = 48.0f; };
+    /// 40 (L1): the radius is WaterLocality::drawM (s_locality) - one value; `on` stays here
+    struct RecordDraw { bool on = true; };
     static inline RecordDraw s_recordDraw;
+    /// §40 (L1): the viewer distances every water system reads - one process-wide setting, like the tiers will be; never saved
+    static inline WaterLocality s_locality;
     static constexpr int kRecordTile = 8;               ///< m: 72 cells = 9 brick columns = 8 record columns (27.10)
     static constexpr int kRecordBuildsPerCall = 4;      ///< bounds a frame's cost when many tiles change at once
     static constexpr int kRecordBandVoxels = 64;        ///< the record is read within +-64 voxels of the view point's height
@@ -409,9 +413,12 @@ public:
     /// The wet record tiles drawn by the pond surface (inclusive voxel boxes) and their revision - the span sheet's mask.
     const std::vector<std::pair<glm::ivec3, glm::ivec3>>& recordTileBoxes() const { return m_recordBoxes; }
     uint64_t recordRevision() const { return m_recordRevision; }
-    /// 25.26 RC: where the camera is - a volume's ripple window (kColumnRippleWindow lattice cells square) follows it.
+    /// 25.26 RC: where the viewer is - a volume's ripple window (s_locality.rippleWindowCells lattice cells square) follows it, and
+    /// the record's draw tiles are those within s_locality.drawM of it. 40 (L1): the editor passes the camera, or water_locality's
+    /// test viewer.
     void setViewPoint(const glm::vec3& p) { m_view = p; }
-    static constexpr int kColumnRippleWindow = 384;   ///< 42.7 m at 1/9 m: the renderer's atlas holds <= 512 per axis; 1/9 m facets
+    const glm::vec3& viewPoint() const { return m_view; }
+    static constexpr int kColumnRippleWindow = WaterLocality::kRippleWindowCellsDefault;   ///< the default; 42.7 m at 1/9 m: the renderer's atlas holds <= 512 per axis; 1/9 m facets
                                                       ///< are sub-pixel well before 40 m, so a window - not the whole creek - is drawn
     /// 25.26 RC flow forcing: the turbulence moving water feeds into its own ripple layer - an impulse per unit area per step
     /// C_f rho u*^2 dt xi (xi a deterministic hash in [-1, 1] of the world lattice cell and the step; u* the bed shear velocity

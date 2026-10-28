@@ -235,10 +235,10 @@ static Handover runHandover(VulkanTestFixture& fx, VkDevice device, VkPhysicalDe
     Handover out;
     WaterCoreManager::s_handoverRevertForTest = revert;
     const float afterBefore = WaterCoreManager::s_recordAfterS;
-    const auto drawBefore = WaterCoreManager::s_recordDraw;
-    struct Restore { float a; WaterCoreManager::RecordDraw d; ~Restore() { WaterCoreManager::s_handoverRevertForTest = 0; WaterCoreManager::s_recordAfterS = a; WaterCoreManager::s_recordDraw = d; } } restore{afterBefore, drawBefore};
+    const auto drawBefore = WaterCoreManager::s_recordDraw; const float drawMBefore = WaterCoreManager::s_locality.drawM;   // 40: the radius lives in s_locality
+    struct Restore { float a; WaterCoreManager::RecordDraw d; ~Restore() { WaterCoreManager::s_handoverRevertForTest = 0; WaterCoreManager::s_recordAfterS = a; WaterCoreManager::s_recordDraw = d; WaterCoreManager::s_locality.drawM = m; } float m; } restore{afterBefore, drawBefore, drawMBefore};
     WaterCoreManager::s_recordAfterS = 0.5f;
-    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_recordDraw.radiusM = 48.0f;
+    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_locality.drawM = 48.0f;
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr(state);
     std::string err;
@@ -528,8 +528,8 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeHoles) {
     const float radius = static_cast<float>(env("LAKE_RADIUS", 120.0));
     const int every = static_cast<int>(env("LAKE_EVERY", 4));
     const float seconds = static_cast<float>(env("LAKE_SECONDS", 30.0));
-    const auto drawBefore = WaterCoreManager::s_recordDraw;
-    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_recordDraw.radiusM = radius;
+    const auto drawBefore = WaterCoreManager::s_recordDraw; const float drawMBefore = WaterCoreManager::s_locality.drawM;   // 40: the radius lives in s_locality
+    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_locality.drawM = radius;
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr(state);
     std::string err;
@@ -579,7 +579,7 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeHoles) {
     r = mgr.find(id);
     std::printf("  RESULT dt %.4f tall %.2f radius %.0f: hole frames %d of %d probed; worst %d m^2 (%d recorded, %d live); tiles holed %zu; end recorded %d woken %ld awake %d\n",
                 dt, tall, radius, holeFrames, frames, worst, worstRec, worstLive, tileHoleFrames.size(), r ? r->recordedTiles : -1, r ? r->tilesWoken : -1L, r ? r->awakeColumns : -1);
-    WaterCoreManager::s_recordDraw = drawBefore;
+    WaterCoreManager::s_recordDraw = drawBefore; WaterCoreManager::s_locality.drawM = drawMBefore;
 }
 
 // 29 S1 THE DEVICE MESH IS THE HOST MESH (red first). A 32 x 16 m box, water placed over x 0-23 m only (its edge against dry ground:
@@ -597,12 +597,12 @@ static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevic
     WaterCoreManager::MeshParity worst;
     const bool gpuBefore = WaterCoreGpu::s_gpuSurface;
     const float afterBefore = WaterCoreManager::s_recordAfterS;
-    const auto drawBefore = WaterCoreManager::s_recordDraw;
-    struct Restore { bool g; float a; WaterCoreManager::RecordDraw d; ~Restore() { WaterCoreGpu::s_gpuSurface = g; WaterCoreGpu::s_meshNoRingForTest = false; WaterCoreManager::s_recordAfterS = a; WaterCoreManager::s_recordDraw = d; } } restore{gpuBefore, afterBefore, drawBefore};
+    const auto drawBefore = WaterCoreManager::s_recordDraw; const float drawMBefore = WaterCoreManager::s_locality.drawM;   // 40: the radius lives in s_locality
+    struct Restore { bool g; float a; WaterCoreManager::RecordDraw d; ~Restore() { WaterCoreGpu::s_gpuSurface = g; WaterCoreGpu::s_meshNoRingForTest = false; WaterCoreManager::s_recordAfterS = a; WaterCoreManager::s_recordDraw = d; WaterCoreManager::s_locality.drawM = m; } float m; } restore{gpuBefore, afterBefore, drawBefore, drawMBefore};
     WaterCoreGpu::s_gpuSurface = true;
     WaterCoreGpu::s_meshNoRingForTest = noRing;
     WaterCoreManager::s_recordAfterS = 0.5f;
-    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_recordDraw.radiusM = 48.0f;
+    WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_locality.drawM = 48.0f;
     // the ground, and the slab: micro cells y 9 (1.00-1.11 m) over x 36-71, z 36-71
     auto state = [](const glm::ivec3& m) -> int {
         if (m.y < 0) return 1;

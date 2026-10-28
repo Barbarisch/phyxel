@@ -1,0 +1,25 @@
+{
+ "tag": "before_b",
+ "slept": true,
+ "pose": {
+  "x": 102.0,
+  "y": 18.4,
+  "z": 20.5,
+  "yaw": -90,
+  "pitch": -22
+ },
+ "record_draw": {
+  "build_ms_last_call": 0.004,
+  "build_ms_max": 6.8763,
+  "build_ms_on_sleep_last": 5.7144,
+  "built_last_call": 0,
+  "on": true,
+  "pending": 0,
+  "radius_m": 48.0,
+  "revision": 16,
+  "tile_m": 8,
+  "tiles": 140,
+  "wet_tiles": 1
+ },
+ "locality": "none (HTTP Error 404: Not Found)"
+}

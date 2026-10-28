@@ -1701,16 +1701,16 @@ void WaterCoreManager::refreshRecordTiles() {
         return;
     }
     const uint64_t sr = m_spanRevision ? m_spanRevision() : 0, orv = m_revision ? m_revision() : 0;
-    const float r = std::max(0.0f, s_recordDraw.radiusM);
+    const float r = std::max(0.0f, s_locality.drawM);   // 40 (L1)
     auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
     const int T = kRecordTile;
     const int tx0 = floorDiv(static_cast<int>(std::floor(m_view.x - r)), T), tx1 = floorDiv(static_cast<int>(std::floor(m_view.x + r)), T);
     const int tz0 = floorDiv(static_cast<int>(std::floor(m_view.z - r)), T), tz1 = floorDiv(static_cast<int>(std::floor(m_view.z + r)), T);
-    // a tile is in range when its nearest point is within the radius (the bound is conservative: cost, never a cut-off mid-tile)
+    // a tile is in range when its nearest point is within the radius (the bound is conservative: cost, never a cut-off mid-tile).
+    // 40.1 item 2: a whole tile switches at the radius - an edge L1 inherits; W2's far drawing (or a fade) removes it
     auto inRange = [&](int tx, int tz) {
-        const float nx = std::clamp(m_view.x, static_cast<float>(tx * T), static_cast<float>(tx * T + T)) - m_view.x;
-        const float nz = std::clamp(m_view.z, static_cast<float>(tz * T), static_cast<float>(tz * T + T)) - m_view.z;
-        return nx * nx + nz * nz <= r * r;
+        return WaterLocality::horizontalDistanceSqToBox(m_view, glm::vec2(static_cast<float>(tx * T), static_cast<float>(tz * T)),
+                                                        glm::vec2(static_cast<float>(tx * T + T), static_cast<float>(tz * T + T))) <= r * r;
     };
     bool changed = false;
     for (auto it = m_recordTiles.begin(); it != m_recordTiles.end();) {
@@ -1756,13 +1756,13 @@ void WaterCoreManager::buildRecordTilesNow(const glm::ivec3& lo, const glm::ivec
     const uint64_t sr = m_spanRevision ? m_spanRevision() : 0, orv = m_revision ? m_revision() : 0;
     const int T = kRecordTile;
     auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
-    const float r = std::max(0.0f, s_recordDraw.radiusM);
+    const float r = std::max(0.0f, s_locality.drawM);   // 40 (L1)
     const auto t0 = std::chrono::steady_clock::now();
     bool changed = false;
     for (int tz = floorDiv(lo.z, T); tz <= floorDiv(hi.z, T); ++tz) for (int tx = floorDiv(lo.x, T); tx <= floorDiv(hi.x, T); ++tx) {
-        const float nx = std::clamp(m_view.x, static_cast<float>(tx * T), static_cast<float>(tx * T + T)) - m_view.x;
-        const float nz = std::clamp(m_view.z, static_cast<float>(tz * T), static_cast<float>(tz * T + T)) - m_view.z;
-        if (nx * nx + nz * nz > r * r) continue;   // out of range: W2's (the sheet / far tiles)
+        if (WaterLocality::horizontalDistanceSqToBox(m_view, glm::vec2(static_cast<float>(tx * T), static_cast<float>(tz * T)),
+                                                     glm::vec2(static_cast<float>(tx * T + T), static_cast<float>(tz * T + T))) > r * r)
+            continue;   // out of range: W2's (the sheet / far tiles)
         RecordTile& t = m_recordTiles[{tx, tz}];
         const bool wasWet = t.wet;
         buildRecordTile(tx, tz, t);
@@ -2059,7 +2059,8 @@ std::vector<const RippleLayer*> WaterCoreManager::rippleLayers() const {
 
 RippleLayer& WaterCoreManager::rippleWindow(std::unique_ptr<RippleLayer>& layer, const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, bool gpu) {
     const int boxX = (maxVoxel.x - minVoxel.x + 1) * 9, boxZ = (maxVoxel.z - minVoxel.z + 1) * 9;
-    const int lnx = std::min(kColumnRippleWindow, boxX), lnz = std::min(kColumnRippleWindow, boxZ);
+    const int win = s_locality.rippleWindowCells;   // 40 (L1): the window's side (default kColumnRippleWindow)
+    const int lnx = std::min(win, boxX), lnz = std::min(win, boxZ);
     const glm::ivec2 lo(minVoxel.x * 9, minVoxel.z * 9);
     const glm::ivec2 hi((maxVoxel.x + 1) * 9 - lnx, (maxVoxel.z + 1) * 9 - lnz);
     glm::ivec2 want(static_cast<int>(std::floor(m_view.x * 9.0f)) - lnx / 2, static_cast<int>(std::floor(m_view.z * 9.0f)) - lnz / 2);

@@ -3846,7 +3846,11 @@ void Application::update(float deltaTime) {
                 }
                 { const auto t = WClock::now(); m_solidsFeed = waterCore->setMovingSolids(solids, std::min(deltaTime, 0.05f)); m_waterCpu.solids = wms(t); }
             }
-            if (camera) waterCore->setViewPoint(camera->getPosition());   // 25.26 RC: ripple windows follow the camera
+            {   // 25.26 RC: ripple windows follow the camera. 40 (L1): or water_locality's test viewer (the camera stays)
+                const auto& loc = Core::Water::WaterCoreManager::s_locality;
+                if (loc.testViewerOn) waterCore->setViewPoint(loc.testViewer);
+                else if (camera) waterCore->setViewPoint(camera->getPosition());
+            }
             { const auto t = WClock::now(); waterCore->update(std::min(deltaTime, 0.05f)); m_waterCpu.update = wms(t); }
             // 32.4 (A2b): chunk columns whose record changed by residency - their debris water tiles are rebuilt, not left to the rotation
             if (auto ch = waterCore->takeRecordChanged(); !ch.empty() && debrisRuntime) debrisRuntime->invalidateWaterTiles(ch);
@@ -14054,9 +14058,10 @@ void Application::registerWaterCommands() {
         using M = Core::Water::WaterCoreManager;
         if (!waterCore) return noCore(r);
         if (cmd.params.contains("on")) M::s_recordDraw.on = cmd.params.value("on", true);
-        if (cmd.params.contains("radius")) M::s_recordDraw.radiusM = std::clamp(cmd.params.value("radius", 48.0f), 0.0f, 256.0f);
+        // 40 (L1): an alias of water_locality draw_m - one value. 0..256 m (the record cache's reach)
+        if (cmd.params.contains("radius")) M::s_locality.drawM = std::clamp(cmd.params.value("radius", Core::Water::WaterLocality::kDrawMDefault), 0.0f, Core::Water::WaterLocality::kDrawMMax);
         const auto& s = waterCore->recordDrawStats();
-        r = {{"on", M::s_recordDraw.on}, {"radius_m", M::s_recordDraw.radiusM}, {"tile_m", M::kRecordTile}, {"tiles", s.tiles},
+        r = {{"on", M::s_recordDraw.on}, {"radius_m", M::s_locality.drawM}, {"tile_m", M::kRecordTile}, {"tiles", s.tiles},
              {"wet_tiles", s.wetTiles}, {"built_last_call", s.builtLastCall}, {"pending", s.pending},
              {"build_ms_last_call", s.buildMsLastCall}, {"build_ms_max", s.buildMsMax}, {"build_ms_on_sleep_last", s.buildMsOnSleepLast},
              {"revision", waterCore->recordRevision()}};
@@ -14069,6 +14074,35 @@ void Application::registerWaterCommands() {
         r = {{"mass_m3", c.massM3}, {"in_air_m3", c.inAirM3}, {"in_solid_m3", c.inSolidM3}, {"in_unknown_m3", c.inUnknownM3},
              {"over_full_m3", c.overFullM3}, {"record_m3", c.recordM3}, {"sentinel_max_fuvw", {c.sentinel.x, c.sentinel.y, c.sentinel.z, c.sentinel.w}}, {"wet_cells", c.wetCells}, {"in_solid_cells", c.inSolidCells},
              {"in_unknown_cells", c.inUnknownCells}, {"over_full_cells", c.overFullCells}};
+    });
+    // §40 (L1): the viewer distances every water system reads. Omitted or negative = unchanged (the /api/debug convention).
+    //   draw_m               recorded water is drawn within this horizontal distance (m), 0..256 (the record cache's reach)
+    //   ripple_window_cells  a creek's ripple window side (1/9 m lattice cells), 9..512 (one voxel; the renderer's atlas side).
+    //                        Applies to windows made after the change (a live window keeps its size)
+    //   test_viewer [x,y,z]  TEST (40.1 item 5): the water's viewer without moving the camera; clear_test_viewer: true ends it
+    // The echo: the values in force, their defaults, and the viewer the water used this frame. Not saved.
+    reg.on("water_locality", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        using L = Core::Water::WaterLocality;
+        auto& loc = Core::Water::WaterCoreManager::s_locality;
+        if (cmd.params.contains("draw_m") && cmd.params["draw_m"].is_number()) {
+            const float v = cmd.params["draw_m"].get<float>();
+            if (v >= 0.0f) loc.drawM = std::min(v, L::kDrawMMax);
+        }
+        if (cmd.params.contains("ripple_window_cells") && cmd.params["ripple_window_cells"].is_number()) {
+            const int v = cmd.params["ripple_window_cells"].get<int>();
+            if (v >= 0) loc.rippleWindowCells = std::clamp(v, L::kRippleWindowCellsMin, L::kRippleWindowCellsMax);
+        }
+        if (cmd.params.contains("test_viewer") && cmd.params["test_viewer"].is_array() && cmd.params["test_viewer"].size() == 3) {
+            const auto& t = cmd.params["test_viewer"];
+            loc.testViewer = glm::vec3(t[0].get<float>(), t[1].get<float>(), t[2].get<float>()); loc.testViewerOn = true;
+        }
+        if (cmd.params.value("clear_test_viewer", false)) loc.testViewerOn = false;
+        const glm::vec3 v = waterCore ? waterCore->viewPoint() : glm::vec3(0.0f);
+        r = {{"draw_m", loc.drawM}, {"draw_m_default", L::kDrawMDefault},
+             {"ripple_window_cells", loc.rippleWindowCells}, {"ripple_window_cells_default", L::kRippleWindowCellsDefault},
+             {"test_viewer_on", loc.testViewerOn}, {"test_viewer", {loc.testViewer.x, loc.testViewer.y, loc.testViewer.z}},
+             {"viewer", {v.x, v.y, v.z}}};
+        if (!waterCore) r["note"] = "no water core: the settings are held for when one exists";
     });
     // Phase D (16.2): write the volume back to spans + body records and free it. {id, force?}
     reg.on("water_av_sleep", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {

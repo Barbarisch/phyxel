@@ -1,0 +1,38 @@
+{
+ "cursor_box_masked": [
+  104,
+  385,
+  128,
+  415
+ ],
+ "rows": [
+  {
+   "a": "before_a",
+   "b": "before_b",
+   "mean": 0.133,
+   "max": 7,
+   "share_over_8": 0.0
+  },
+  {
+   "a": "before_a",
+   "b": "after",
+   "mean": 0.1212,
+   "max": 7,
+   "share_over_8": 0.0
+  },
+  {
+   "a": "before_b",
+   "b": "after",
+   "mean": 0.1023,
+   "max": 5,
+   "share_over_8": 0.0
+  },
+  {
+   "a": "after",
+   "b": "draw0",
+   "mean": 1.8179,
+   "max": 90,
+   "share_over_8": 0.042319
+  }
+ ]
+}

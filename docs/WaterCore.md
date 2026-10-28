@@ -9062,8 +9062,8 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
 | A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
 | A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Item 5 split; 1(d) pipeline reuse BUILT (39.6). 1(e) one upload per wake BUILT (39.7): the wake frame is now create + seed + the first step's upload, pit ~18 + 42 ms, small ~9 + 5 ms; the seeded upload is next. Seeded upload split (39.8): the pool grow 13 of 41 ms. Item 6 measured (39.9: the wake's whole frame, pit 78-83 ms). Step 1's rest BUILT (39.10): the host work threaded (the same bytes) and the wake frame's download dropped (draws one step behind, as every frame does): worst frame pit 57-60 ms, small 19-20 ms. A2f's step 1 is complete. Step 2 (the wake across frames) moves to L4, the kept memory to L3 (§30.0b) | a 98 ms frame is visible at every tier. Merged with A7 below |
-| L1 | **The viewer-distance function (§30.0b):** one answer to "how far is this world position from the viewer", in bands with smooth fades, read by every water system; the band distances are tier knobs, echoed by the API. A pure function of world position and the camera, never per chunk | not designed | every L item and track C's knobs read it. Built once, so no two systems disagree on what "near" means |
-| L5 | **The outcome check (§30.0b rule 2, 39.3 item 1):** one rig and test runs the same interaction near the camera and far (and at each tier). The body's rest pose (1 mm), its time to rest, the pond's mass and its rest level must match | not designed | the guard for L2-L4 and every tier knob: before any distance or tier saving is built |
+| L1 | **The viewer-distance function (§30.0b):** one answer to "how far is this world position from the viewer", in bands with smooth fades, read by every water system; the band distances are tier knobs, echoed by the API. A pure function of world position and the camera, never per chunk | BUILT, not signed off (§40.2): the record's draw radius and the ripple window moved into it unchanged (pixels equal to the run-to-run spread), `water_locality` with the test viewer, design-check folded in (40.1) | every L item and track C's knobs read it. Built once, so no two systems disagree on what "near" means |
+| L5 | **The outcome check (§30.0b rule 2, 39.3 item 1):** one rig and test runs the same interaction near the camera and far (and at each tier). The body's rest pose (1 mm), its time to rest, the pond's mass and its rest level must match | designed (§40, 40.1 items 5-7: the water's viewer moved, not the camera; a repeatability run first; the red `test_far_record_dry`) | the guard for L2-L4 and every tier knob: before any distance or tier saving is built |
 | L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | not designed | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
 | L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | designed (39.2), not built | the stall's last part, without changing any outcome |
 | L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | not designed | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
@@ -10369,6 +10369,39 @@ and get widened before L2-L4 are built on them. Off by default, never saved, ech
    games the game's camera sets it, with the same call.
 
 Verdict after folding: READY for L1. L5 is built after L1, on items 5-7.
+
+### 40.2 L1 built (2026-10-27). Status: BUILT, not signed off (it is meant to change nothing you can see)
+
+**Built.** `core/water/WaterLocality.h` (new): `drawM`, `rippleWindowCells`, the test viewer, and the distance functions
+(`horizontalDistanceToBox`, its squared form, `horizontalDistance`, `detail`). `WaterCoreManager::s_locality` holds one
+process-wide copy. `RecordDraw` keeps only `on`; its radius is `s_locality.drawM`, and `water_av_record_draw {radius}` is now an
+alias of it. The two record-tile tests use the squared helper, the same arithmetic as before. A creek's ripple window reads
+`s_locality.rippleWindowCells` when it is made; a live window keeps its size, and the API note says so. The editor passes the
+camera, or the test viewer, to `setViewPoint`. API: `water_locality` (route `/api/debug/water_locality`; omitted or negative =
+unchanged; clamped `draw_m` 0..256, `ripple_window_cells` 9..512; it echoes the values in force, their defaults and the viewer
+used).
+
+**Tests.** `WaterLocalityTest` (new, unit, 3): the defaults pinned (and a check that no test left them changed); the box
+distance (inside 0, the 3-4-5 corner, negative coordinates); the fade (1 to 0, never rising, no step over 1e-3 per mm across
+0-50 m in 1 mm steps). Red shown: `kDrawMDefault` 40 fails the pin (40 against 48). `WaterRecordTilesTest` sets and restores
+`s_locality.drawM` in place of the old field. Gates: unit water + debris 365/365; integration water 66/68 (the known two).
+
+**Live** (Small bench, Release):
+- **the echo:** the viewer is the camera (102, 18.4, 20.5); the test viewer (300, 18, 300) takes over, and the pond's draw tile
+  goes (wet tiles 1 -> 0) and comes back when it is cleared (0 -> 1); the clamps hold (9999 -> 256, 2 -> 9); `-1` leaves a value
+  unchanged.
+- **nothing drawn changed** (`water_l1_pixels.py`, the slept pond at the bench pose, `l1_px_compare_masked.json`). The capture
+  includes the OS mouse pointer, so its 24 x 30 px box is masked; unmasked, all 144 differing pixels sat in it:
+
+| pair | mean diff | max | share > 8 |
+|---|---|---|---|
+| before vs before (the control's spread) | 0.133 | 7 | 0 |
+| before vs after L1 | 0.102-0.121 | 5-7 | 0 |
+| after vs `draw_m` 0 (the metric's control: the record not drawn) | 1.82 | 90 | 4.23 % |
+
+The comparison sees the pond's drawing go (the last row), and L1 changes nothing beyond the run-to-run spread.
+
+Next: L5 (the outcome check), on 40.1 items 5-7.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
