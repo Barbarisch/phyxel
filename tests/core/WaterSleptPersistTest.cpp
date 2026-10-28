@@ -154,6 +154,37 @@ TEST(WaterWakeDelay, ADelayedWakeFiresAfterTheDelayEvenWithTheBodyGone) {
     EXPECT_EQ(k.sleptVolumes().size(), 1u);
 }
 
+// 40.1 item 7 (L5's red): the test-only far-dry switch - off (the shipped state) a pond wakes wherever the viewer is; on, a pond
+// beyond the record's drawn reach never wakes, one within it still does. Reset by a scope guard.
+TEST(WaterFarRecordDry, OffItChangesNothingOnAFarPondNeverWakes) {
+    struct Restore { ~Restore() { WaterCoreManager::s_testFarRecordDry = false; } } restore;
+    EXPECT_FALSE(WaterCoreManager::s_testFarRecordDry) << "a test left the far-dry switch on";
+    auto occFn = [](const glm::ivec3& v) -> int { return v.y < 0 ? 1 : 0; };
+    {   // off, the viewer 200 m away: the touch wakes it (locality never decides an outcome)
+        WaterCoreManager m(occFn); SpanStore st; st.install(m);
+        sleepPond(m, {0, 0, 0}, {3, 3, 3});
+        m.setViewPoint(glm::vec3(200.0f, 1.0f, 0.0f));
+        EXPECT_FALSE(m.farRecordDryForTest(glm::vec2(0.0f), glm::vec2(4.0f)));
+        EXPECT_EQ(m.wakeSleptTouching({bodyAt({2.0f, 1.0f, 2.0f})}).size(), 1u) << "with the switch off a far pond did not wake";
+    }
+    WaterCoreManager::s_testFarRecordDry = true;
+    {   // on, far: no wake
+        WaterCoreManager m(occFn); SpanStore st; st.install(m);
+        sleepPond(m, {0, 0, 0}, {3, 3, 3});
+        m.setViewPoint(glm::vec3(200.0f, 1.0f, 0.0f));
+        EXPECT_TRUE(m.farRecordDryForTest(glm::vec2(0.0f), glm::vec2(4.0f)));
+        EXPECT_TRUE(m.wakeSleptTouching({bodyAt({2.0f, 1.0f, 2.0f})}).empty()) << "the switch on, a far pond woke";
+        EXPECT_EQ(m.sleptVolumes().size(), 1u);
+    }
+    {   // on, near (the control): it wakes
+        WaterCoreManager m(occFn); SpanStore st; st.install(m);
+        sleepPond(m, {0, 0, 0}, {3, 3, 3});
+        m.setViewPoint(glm::vec3(10.0f, 1.0f, 2.0f));
+        EXPECT_FALSE(m.farRecordDryForTest(glm::vec2(0.0f), glm::vec2(4.0f)));
+        EXPECT_EQ(m.wakeSleptTouching({bodyAt({2.0f, 1.0f, 2.0f})}).size(), 1u) << "the switch on, a near pond did not wake";
+    }
+}
+
 // 39 (A2f step 1): the cheaper wake must make the SAME volume, cell for cell. The fingerprints below were taken from the code before
 // step 1 (2026-10-26) - any change to what a create or a wake produces turns them red. The world: a floor, scattered solid micro
 // cells and an Unknown patch (the hold boundary), read at 1/9 m (one sample a cell) and 1/3 m (the 3x3x3 lattice).

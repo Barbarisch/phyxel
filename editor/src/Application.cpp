@@ -590,7 +590,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         // 27.21: the tiles' cache key - the fields over the tile, and the coupling switch (off reads dry)
         [this](int x0, int z0, int x1, int z1) -> uint64_t {
             if (!waterCore) return 0;
-            const uint64_t s = waterCore->fieldsSignature(x0, z0, x1, z1);
+            uint64_t s = waterCore->fieldsSignature(x0, z0, x1, z1);
+            // 40.1 item 7 TEST: the far-dry switch changes what the tiles read, so it is part of their key
+            if (s != 0 && Core::Water::WaterCoreManager::s_testFarRecordDry) s = (s ^ 0xC2B2AE3D27D4EB4Full) | 1ull;
             return (s == 0 || m_waterCouplingOn) ? s : ((s ^ 0x9E3779B97F4A7C15ull) | 1ull);
         });
     // G3 (docs/WaterCore.md 18.7): one look resolver for every renderer - the span grid, the underwater
@@ -14080,6 +14082,7 @@ void Application::registerWaterCommands() {
     //   ripple_window_cells  a creek's ripple window side (1/9 m lattice cells), 9..512 (one voxel; the renderer's atlas side).
     //                        Applies to windows made after the change (a live window keeps its size)
     //   test_viewer [x,y,z]  TEST (40.1 item 5): the water's viewer without moving the camera; clear_test_viewer: true ends it
+    //   test_far_record_dry  TEST (40.1 item 7, L5's red): recorded water beyond draw_m reads dry and such a slept pond never wakes
     // The echo: the values in force, their defaults, and the viewer the water used this frame. Not saved.
     reg.on("water_locality", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         using L = Core::Water::WaterLocality;
@@ -14097,11 +14100,13 @@ void Application::registerWaterCommands() {
             loc.testViewer = glm::vec3(t[0].get<float>(), t[1].get<float>(), t[2].get<float>()); loc.testViewerOn = true;
         }
         if (cmd.params.value("clear_test_viewer", false)) loc.testViewerOn = false;
+        if (cmd.params.contains("test_far_record_dry") && cmd.params["test_far_record_dry"].is_boolean())   // 40.1 item 7 TEST
+            Core::Water::WaterCoreManager::s_testFarRecordDry = cmd.params["test_far_record_dry"].get<bool>();
         const glm::vec3 v = waterCore ? waterCore->viewPoint() : glm::vec3(0.0f);
         r = {{"draw_m", loc.drawM}, {"draw_m_default", L::kDrawMDefault},
              {"ripple_window_cells", loc.rippleWindowCells}, {"ripple_window_cells_default", L::kRippleWindowCellsDefault},
              {"test_viewer_on", loc.testViewerOn}, {"test_viewer", {loc.testViewer.x, loc.testViewer.y, loc.testViewer.z}},
-             {"viewer", {v.x, v.y, v.z}}};
+             {"viewer", {v.x, v.y, v.z}}, {"test_far_record_dry", Core::Water::WaterCoreManager::s_testFarRecordDry}};
         if (!waterCore) r["note"] = "no water core: the settings are held for when one exists";
     });
     // Phase D (16.2): write the volume back to spans + body records and free it. {id, force?}

@@ -514,6 +514,14 @@ public:
     static inline bool s_wakeUploadsTwiceForTest = false;
     /// 39.10 TEST: the frame after an upload downloads the grid before drawing its surface on the CPU, as before (the control)
     static inline bool s_uploadFallbackSyncsForTest = false;
+    /// 40.1 item 7 (L5's red) TEST: the WRONG distance saving L5 must catch - recorded water farther than s_locality.drawM from the
+    /// water's viewer reads DRY to debris, and a slept pond that far never wakes (a woken one would read wet again and lift a sunk
+    /// block: a rise, the owner's rule). A wood block in a far pond then sinks to the bed; nothing rises. Never saved; echoed.
+    static inline bool s_testFarRecordDry = false;
+    /// true when the test switch is on and the box [lo, hi] (x, z) lies beyond the record's drawn reach from the water's viewer
+    bool farRecordDryForTest(const glm::vec2& lo, const glm::vec2& hi) const {
+        return s_testFarRecordDry && WaterLocality::horizontalDistanceSqToBox(m_view, lo, hi) > s_locality.drawM * s_locality.drawM;
+    }
     /// 34 (A2h, owner 2026-10-25: "keep the more chaotic feature as a turn on, but not by default"): the shipped default of debris
     /// DISPLACEMENT (20 - a moving body rasterized into the volume, shoving its water: heaving waves, thrown water, rocking). Off, the
     /// ripple layer (22) still draws the small splashes and rings; the slept-pond wake does not depend on it. The editor's

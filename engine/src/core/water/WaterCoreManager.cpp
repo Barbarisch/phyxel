@@ -1101,6 +1101,7 @@ std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSol
     for (size_t i = m_slept.size(); i-- > 0;) {
         if (m_slept[i].retryAfter > nowS) continue;   // 35: deferred (its chunks were not resident) - not yet
         const glm::vec3 lo(m_slept[i].lo), hi = glm::vec3(m_slept[i].hi) + glm::vec3(1.0f);
+        if (farRecordDryForTest(glm::vec2(lo.x, lo.z), glm::vec2(hi.x, hi.z))) continue;   // 40.1 item 7 TEST: L5's red
         bool touched = false;
         for (const MovingSolid& b : bodies)
             if (glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi))) { touched = true; break; }
@@ -1120,6 +1121,7 @@ std::vector<int> WaterCoreManager::wakeSleptNear(const glm::vec3& c, float radiu
     for (size_t i = m_slept.size(); i-- > 0;) {
         if (m_slept[i].retryAfter > nowS) continue;   // 35: deferred (its chunks were not resident) - not yet
         const glm::vec3 lo(m_slept[i].lo), hi = glm::vec3(m_slept[i].hi) + glm::vec3(1.0f);
+        if (farRecordDryForTest(glm::vec2(lo.x, lo.z), glm::vec2(hi.x, hi.z))) continue;   // 40.1 item 7 TEST: L5's red
         const glm::vec3 q = glm::clamp(c, lo, hi);
         if (glm::length(q - c) <= radius) { const int id = wakeSlept(i); if (id) ids.push_back(id); }
     }
@@ -2490,6 +2492,7 @@ bool WaterCoreManager::recordColumnRuns(int wx, int wz, ColumnLevels& out) const
     if (!e.any) return false;
     const float* p = &e.lv[static_cast<size_t>((wx - cx * 32) + 32 * (wz - cz * 32)) * kRecordLevels];
     if (p[0] < -1e29f) return false;
+    if (farRecordDryForTest(glm::vec2(wx, wz), glm::vec2(wx + 1, wz + 1))) return false;   // 40.1 item 7 TEST: L5's red
     out.top[0] = p[0]; out.bottom[0] = p[1]; out.top[1] = p[2]; out.bottom[1] = p[3];
     out.n = p[2] > -1e29f ? 2 : 1; out.more = static_cast<int>(p[4]);
     return true;
