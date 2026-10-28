@@ -10301,6 +10301,75 @@ kicked so its first call moves it, stepped once in realtime. The drawn field equ
 The pit's wake frame is now about 20 (wake) + 31 (upload, of it the 13-15 ms pool grow) + 3 (step) + a few ms of the rest. The
 largest part left is the pool grow, and only L3 (kept memory) removes it; L4 (paced wake) spreads the rest.
 
+## 40. L1 + L5 - one viewer distance, and the outcome check that guards it (§30.0b). Status: DESIGN (not built)
+
+**L1, the distance function.** Today water has two camera distances, each its own number: the creek ripple window follows the
+camera (`kColumnRippleWindow`, 42.7 m, 25.29), and recorded water is drawn within `s_recordDraw.radiusM` (48 m, 27.10). Both
+read `setViewPoint`. L1 replaces them with one object, `WaterLocality` (new, `core/water/WaterLocality.h`), that every water
+system asks:
+- **the viewer:** the camera position, set once a frame (`setViewPoint`, unchanged). In a game it is the player's camera. One
+  viewer only (multiplayer is not covered).
+- **distance:** 3D Euclidean, from the viewer to a world position. A water body asks for the **nearest point of its box**: the
+  conservative bound, as `bladesForDistance` uses the chunk's nearest corner. A per-column look (L2's ripple fade) asks for the
+  column's own world position, so it is a pure function of world position and the viewer and never shows a chunk or tile edge.
+- **bands:** `near_m` (full detail), `far_m` (the reach), and `detail(d)` = 1 up to `near_m`, a smoothstep down to 0 at
+  `far_m`. One reach per consumer, all on the same distance: `ripple_m` (L2), `memory_m` (L3), `wake_now_m` (L4), `draw_m`
+  (the record's drawing). These are tier knobs. Today's two numbers become the defaults: `draw_m` 48, the ripple reach 42.7 / 2
+  ≈ 21 m (the window is centred), so nothing changes when L1 lands.
+- **API:** `water_locality {ripple_m, memory_m, wake_now_m, draw_m, fade_m}`. Each is clamped (0..1024 m, fade 0..64 m;
+  `far >= near` by construction); the echo returns the values in force and the viewer. "Unchanged" = a field left out. Not saved
+  (an engine setting, as the tiers will be); the defaults are constants, pinned by a unit test.
+- **what it never decides:** whether water reacts. A wake is still "a body touched it" (A2, A2d), wherever the viewer is
+  (§30.0b rule 1).
+
+**L5, the outcome check.** One rig that runs the same interaction twice and compares the results: once with the viewer beside
+the pond, and once with the viewer 200 m away (beyond every reach). Later, also once per tier setting. Small bench, the 4 x 4 m
+pond, as shipped (auto-sleep on, so the pond is in the record when the body arrives). The interaction: one 1/3 m Stone and one 1/3
+m Wood block dropped 1 m (the stone sinks, the wood floats; nothing rises). Compared: each body's rest position (1 mm), its time to
+rest (one solver tick, on the A2j clock), and the pond's mass and rest level once it has slept again. The written prediction:
+today, with no distance saving built, they match, because nothing reads the viewer. **The red:** L5 has to show it catches a
+saving that changes an outcome, so it gets a test-only switch, `test_far_skips_wake`: a far pond never wakes (the record carries
+the body). The prediction for that run: the wood's rest position matches (the record floats it), but the pond's ripples, push and
+level change differ. The rest level is the measure most likely to move, and if nothing measured moves, the measures are too weak
+and get widened before L2-L4 are built on them. Off by default, never saved, echoed.
+
+**The order, from §30.4:** L1 first (it changes nothing; the two existing numbers move into it); then L5, run as the control
+(green, nothing differs) and with its red switch; then L3, L4 and L2, each run through L5 before it is called done.
+
+### 40.1 The design check (2026-10-27): NEEDS WORK, eight items, folded in here (these override 40 where they differ)
+
+1. **Each existing distance keeps its own shape as its default.** The creek ripple window is a SQUARE, horizontal, centred on the
+   viewer and clamped to the volume's box (`rippleWindow`, `WaterCoreManager.cpp`); the record's draw tiles use the HORIZONTAL
+   distance to the 8 m tile's nearest point. L1 v1 measures horizontal distance, holds the window as a side length in cells
+   (`ripple_window_cells`, default `kColumnRippleWindow` = 384), and holds the draw radius (`draw_m`, default 48). A 3D distance
+   or a round ripple reach would change what is drawn, so it is a later change, shown to the owner, not part of L1.
+2. **The 48 m tile edge is inherited.** Beyond `draw_m` a whole 8 m tile of recorded water is not drawn ("W2's"). L1 neither
+   makes nor fixes that edge; the fix is W2's far drawing or a fade.
+3. **API:** `water_locality`. Omitted or negative = unchanged (the `/api/debug` convention). `draw_m` is clamped to 0..256 m
+   (`water_av_record_draw`'s range today; it becomes an alias of `draw_m`, one value, not two). `ripple_window_cells` is clamped
+   to 9..512 (the renderer's atlas holds at most 512 a side; under one voxel is no window). The reasons are written at the
+   clamp sites. The defaults are constants, pinned by a unit test. `memory_m` and `wake_now_m` arrive with L3 and L4, not
+   before (no setting that nothing reads).
+4. **L1's tests:** a pure-function unit test (`WaterLocalityTest`: the distance to a box is 0 inside and exact outside,
+   negative coordinates included; `detail()` is 1 at or under near, 0 at or over far, never rises with distance, and moves less
+   than 1e-3 per mm, so there is no jump; the defaults pinned). The live check is a before/after pixel comparison at the bench
+   pose: two captures on the old build (the control's spread) and one on the new, the same pose.
+5. **L5 moves only the water's viewer** (`water_locality {test_viewer: [x, y, z]}` / `{clear_test_viewer: true}`), not the
+   camera. Moving the camera would also move the occupancy box (it spans 1,024 m: `kDirChunksX` 32 x 32 m, so 200 m stays
+   inside), chunk streaming and the render distance, and the capture.
+6. **L5's repeatability control:** the near drop runs twice before near and far are compared. The 1 mm and one-tick tolerances
+   hold only if two identical runs are equal; otherwise the tolerance is the measured spread, stated.
+7. **L5's red is `test_far_record_dry`:** a far pond reads DRY to debris. The prediction: the wood's rest height falls about
+   0.5 m (it sinks to the floor, 1.5 m of water), the stone is unchanged (it sinks either way), nothing rises. A2e showed the
+   record floats and sinks bodies right, so 40's `test_far_skips_wake` would probably have changed nothing L5 measures: a red that
+   comes out green.
+8. **Named for later:** L2's equality test is one volume against two abutting volumes over the same water, across a chunk seam
+   at negative coordinates, comparing every column's ripple detail (the `WaterRecordSeam` shape). The viewer in a game: the water
+   core is editor-only today (no `GameShell` use; `setViewPoint` is called only from `Application.cpp`). When water ships in
+   games the game's camera sets it, with the same call.
+
+Verdict after folding: READY for L1. L5 is built after L1, on items 5-7.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
