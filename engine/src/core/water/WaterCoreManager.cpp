@@ -1857,7 +1857,7 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     bpart(1);
     recordSurfaceField(scratch, kept, t.field);
     bpart(2);
-    t.field.source = 0x40000000 | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
+    t.field.source = kRecordDrawSourceBit | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
     t.field.version = ++m_recordBuilds;
     t.field.rippleLayer = -1;
     t.field.look = packLook(lookAt(tx * T + T / 2, tz * T + T / 2));
@@ -2300,6 +2300,7 @@ uint64_t WaterCoreManager::fieldsSignature(int x0, int z0, int x1, int z1) const
     auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
     for (const WaterSurfaceField* fp : m_fields) {
         const WaterSurfaceField& f = *fp;
+        if (isRecordDrawField(f)) continue;   // L6: columnWater never reads a draw tile (the record's e.gen below keys those columns)
         const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
         // the world columns columnWater answers from this field: wx * per - origin.x in [0, nx - per]
         const int fx0 = -floorDiv(-f.origin.x, per), fz0 = -floorDiv(-f.origin.z, per);
@@ -2324,6 +2325,7 @@ uint64_t WaterCoreManager::fieldsSignature(int x0, int z0, int x1, int z1) const
 bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const {
     for (const WaterSurfaceField* fp : m_fields) {
         const WaterSurfaceField& f = *fp;
+        if (isRecordDrawField(f)) continue;   // L6 (§40.4): a body reads the record itself, never the viewer's draw tile
         const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
         const int bx = wx * per - f.origin.x, bz = wz * per - f.origin.z;
         if (bx < 0 || bz < 0 || bx + per > f.nx || bz + per > f.nz) continue;
@@ -2387,6 +2389,9 @@ bool WaterCoreManager::columnRuns(int wx, int wz, ColumnLevels& out) const {
     out = ColumnLevels{};
     for (const WaterSurfaceField* fp : m_fields) {
         const WaterSurfaceField& f = *fp;
+        // L6 (§40.4): a draw tile exists only within drawM of the viewer and holds only +-kRecordBandVoxels round its height - read
+        // through it, a pool deep under a pond went missing and a lone deep pool in its tile read DRY near the viewer, wet far
+        if (isRecordDrawField(f)) continue;
         const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
         const int bx = wx * per - f.origin.x, bz = wz * per - f.origin.z;
         if (bx < 0 || bz < 0 || bx + per > f.nx || bz + per > f.nz) continue;
@@ -2501,6 +2506,7 @@ bool WaterCoreManager::recordColumnRuns(int wx, int wz, ColumnLevels& out) const
 bool WaterCoreManager::columnSurfaceStats(int wx, int wz, ColumnSurfaceStats& out) const {
     for (const WaterSurfaceField* fp : m_fields) {
         const WaterSurfaceField& f = *fp;
+        if (isRecordDrawField(f)) continue;   // L6: as columnWater (the gauge beside it in water_av_column)
         const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
         const int bx = wx * per - f.origin.x, bz = wz * per - f.origin.z;
         if (bx < 0 || bz < 0 || bx + per > f.nx || bz + per > f.nz) continue;

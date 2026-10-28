@@ -9070,8 +9070,8 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
 | A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Item 5 split; 1(d) pipeline reuse BUILT (39.6). 1(e) one upload per wake BUILT (39.7): the wake frame is now create + seed + the first step's upload, pit ~18 + 42 ms, small ~9 + 5 ms; the seeded upload is next. Seeded upload split (39.8): the pool grow 13 of 41 ms. Item 6 measured (39.9: the wake's whole frame, pit 78-83 ms). Step 1's rest BUILT (39.10): the host work threaded (the same bytes) and the wake frame's download dropped (draws one step behind, as every frame does): worst frame pit 57-60 ms, small 19-20 ms. A2f's step 1 is complete. Step 2 (the wake across frames) moves to L4, the kept memory to L3 (§30.0b) | a 98 ms frame is visible at every tier. Merged with A7 below |
 | L1 | **The viewer-distance function (§30.0b):** one answer to "how far is this world position from the viewer", in bands with smooth fades, read by every water system; the band distances are tier knobs, echoed by the API. A pure function of world position and the camera, never per chunk | BUILT, not signed off (§40.2): the record's draw radius and the ripple window moved into it unchanged (pixels equal to the run-to-run spread), `water_locality` with the test viewer, design-check folded in (40.1) | every L item and track C's knobs read it. Built once, so no two systems disagree on what "near" means |
-| L5 | **The outcome check (§30.0b rule 2, 39.3 item 1):** one rig and test runs the same interaction near the camera and far (and at each tier). The body's rest pose (1 mm), its time to rest, the pond's mass and its rest level must match | BUILT, not signed off (§40.3): `tools/water_l5_outcome.py`; 14 near / 7 far / 2 red runs. Far matches near within the near runs' own spread; the red sinks the wood 1.27 m and is caught. Two of 40's tolerances could not hold (the wood's drift and the stone's time to rest vary run to run), so the tolerance is the measured spread | the guard for L2-L4 and every tier knob: before any distance or tier saving is built |
-| L6 | **One reader for a slept pond** (found in L5, §40.3): near the viewer debris reads a slept pond through the record's draw tile, far through the span cache. They agree today (0 of 16 columns differ). Pin it with an equality test (runs and bottoms, column for column), or make debris read the span cache only | found, not designed | before L3 or W2 change either reader: the viewer must never pick which water a body reads |
+| L5 | **The outcome check (§30.0b rule 2, 39.3 item 1):** one rig and test runs the same interaction near the camera and far (and at each tier). The body's rest pose (1 mm), its time to rest, the pond's mass and its rest level must match | BUILT, not signed off (§40.3): `tools/water_l5_outcome.py`; 14 near / 7 far / 2 red runs. Far matches near within the near runs' own spread; the red sinks the wood 1.27 m and is caught. Two of 40's tolerances could not hold (the wood's drift and the stone's time to rest vary run to run), so the tolerance is the measured spread. Its statistic was fixed in §40.4 (a spread fence plus a leave-one-out self-check; 9 of 10 far runs pass, 16 of 17 near runs pass) | the guard for L2-L4 and every tier knob: before any distance or tier saving is built |
+| L6 | **One reader for a slept pond** (found in L5, §40.3): near the viewer debris reads a slept pond through the record's draw tile, far through the span cache. They agree today (0 of 16 columns differ). Pin it with an equality test (runs and bottoms, column for column), or make debris read the span cache only | BUILT, not signed off (§40.4): worse than found - the draw tile's ±64 m height band made a deep pool read dry near the viewer. Bodies now read the span cache only; red/green unit test, L5 rerun green | the viewer must never pick which water a body reads |
 | L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | not designed | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
 | L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | designed (39.2), not built | the stall's last part, without changing any outcome |
 | L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | not designed | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
@@ -10470,6 +10470,51 @@ tiers (none exist yet); the Pit or larger ponds; the camera itself moving (the r
 **Cost:** none in the shipped game (the switch is off; the rig is a tool).
 
 Next: L3 (keep a sleeping pond's memory near the camera), designed through `/design-check` first, then run through L5.
+
+### 40.4 L6 built (2026-10-28): a body reads the record itself, never the viewer's draw tile. Status: BUILT, not signed off
+
+**Worse than 40.3 said.** A draw tile reads only ±`kRecordBandVoxels` (64) round the viewer's HEIGHT (`buildRecordTile`), and
+`columnRuns` / `columnWater` read the tiles first. So near the viewer, a pool more than 64 m under a pond was missing (the column
+read one run, not two), and a lone deep pool in the pond's 8 m tile read DRY; far away both read right. A wood block in that pool
+would sink near the viewer and float far from it. The 0-of-16 comparison in 40.3 could not see this: its pond was in the band.
+
+**The design check:** READY (one turn, no items open). Two notes, recorded here: the deep-pool case is covered by the unit test
+only (the Small bench has no terrain for it), and the debris tiles' cache key changes in the same commit.
+
+**Built.**
+- `WaterCoreManager::kRecordDrawSourceBit` / `isRecordDrawField` name the draw tiles' source bit (was a bare `0x40000000`).
+- `columnRuns`, `columnWater`, `columnSurfaceStats` and `fieldsSignature` skip draw-tile fields, so recorded columns always read
+  the span cache (y −128..1023), wherever the viewer is. `fieldsSignature` already keys those columns by the record's own
+  generation.
+- Unchanged: a volume's own recorded tiles (W1b, `runs < 0` in the volume's field), what is drawn, and the drawn-surface recorder
+  (`surfaceAtWorld` / `drawnAtWorld`, which are about looks).
+
+**Tests.**
+- `WaterRunRead.TheViewerNeverPicksWhichWaterABodyReads` (new, unit). One 8 m tile holds a pond, the pond over a pool 100 m
+  down, and a lone deep pool. The engine's clipping span reader is stood in, and every column is read with the viewer near and
+  far. The test also requires that a draw tile exists near, so the near reader really is exercised.
+- **RED on the old code:** 16 columns differ (the pond-over-pool columns: near n 1, far n 2). **GREEN** after the fix.
+- Gates: unit water + debris 367/367; integration water 66/68 (the known two).
+
+**Live** (Small bench, Release, `l5_l6.json`).
+- The reader comparison: 16 wet columns near and far, 0 differing.
+- L5, three near and three far drops: all three far runs pass on this session's fence.
+- Pooled with 40.3's sessions, 17 near and 10 far runs (`l5_pooled_*.json`): 9 of 10 far runs pass. The one that fails is the
+  unexplained far_c@l5_gate (40.3). Both red runs fail by 1.27 m.
+- The leave-one-out self-check fails 1 of 17 NEAR runs (a 2.3 mm stone offset). So the rule rejects about one honest run in
+  seventeen, and one far failure in ten is that rate, not a viewer effect.
+- L6 changes nothing in these drops, as predicted: the bodies are released inside the pond's box, so the pond wakes before they
+  reach the water.
+
+**L5's statistic, fixed.** 40.3's per-session min..max envelope with a hairline tolerance rejects runs drawn from the same
+distribution: with n near runs, a new one falls outside a measure's range with chance 2 / (n + 1), across ten measures. The
+fence is now [near min − spread − resolution, near max + spread + resolution]. A leave-one-out self-check judges each near run
+against the others: it must pass them, or the rule is wrong. `--rejudge a,b,...` pools sessions. The red still fails by
+three orders of magnitude (1.27 m against a 0.8 mm spread). Time to rest is the weak measure: the stone's spread (1.27 s) would
+let the red's stone through, but the red's wood fails anyway.
+
+**Not measured:** a live deep pool (no terrain for one); the reader switch under a body already resting on a slept pond while
+the viewer leaves (now the same reader either way, by construction).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

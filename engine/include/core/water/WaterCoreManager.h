@@ -407,6 +407,11 @@ public:
     static constexpr int kRecordTile = 8;               ///< m: 72 cells = 9 brick columns = 8 record columns (27.10)
     static constexpr int kRecordBuildsPerCall = 4;      ///< bounds a frame's cost when many tiles change at once
     static constexpr int kRecordBandVoxels = 64;        ///< the record is read within +-64 voxels of the view point's height
+    /// a record draw tile's field.source carries this bit (never a volume id: those count up from 1). L6 (§40.4): the draw tiles
+    /// exist only within drawM of the viewer and read only kRecordBandVoxels round its height, so what a BODY reads skips them and
+    /// reads the record itself - the viewer never picks which water a body is in (§30.0b rule 2)
+    static constexpr int kRecordDrawSourceBit = 0x40000000;
+    static bool isRecordDrawField(const WaterSurfaceField& f) { return f.source >= 0 && (f.source & kRecordDrawSourceBit) != 0; }
     struct RecordDrawStats { int tiles = 0, wetTiles = 0, builtLastCall = 0, pending = 0; double buildMsLastCall = 0.0, buildMsMax = 0.0, buildMsOnSleepLast = 0.0; };
     const RecordDrawStats& recordDrawStats() const { return m_recordStats; }
     void setSpanRevisionQuery(std::function<uint64_t()> q) { m_spanRevision = std::move(q); }

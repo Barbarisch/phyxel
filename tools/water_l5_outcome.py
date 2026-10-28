@@ -147,11 +147,16 @@ def compare(ref, o):
     return d
 
 
-def verdict(runs):
-    """Each measure's spread over the near runs (max - min) is its tolerance (40.1 item 6), widened by the log's resolution (1 mm
-    across, 0.1 mm up, one tick). Every other kind of run passes when each measure lies inside [near min - tol, near max + tol]."""
+def verdict(runs, self_check=True):
+    """Each measure's spread over the near runs (40.1 item 6) sets its fence: a run passes when every measure lies inside
+    [near min - spread - res, near max + spread + res] (res = the log's resolution: 1 mm across, 0.1 mm up, one tick).
+
+    Why the spread is added on both sides: a plain min..max envelope fails runs drawn from the SAME distribution - with n near runs
+    a new one falls outside a measure's range with chance 2 / (n + 1), and there are ten measures (40.4: 17 near runs, and most
+    far runs 'failed' by a millimetre of drift). The self-check judges each near run against the others with the same rule; it
+    must pass them all, or the rule is wrong, not the far runs."""
     near = [r for r in runs if r["run"].startswith("near")]
-    if len(near) < 2: return {"note": "fewer than two near runs: no spread, no verdict"}
+    if len(near) < 3: return {"note": "fewer than three near runs: no spread, no verdict"}
     def measures(r):
         m = {"m3": r["recorded_m3_after"], "level": r["level"]}
         for k in BODIES:
@@ -162,8 +167,19 @@ def verdict(runs):
     nm = [measures(r) for r in near]
     for key in nm[0]:
         vals = [m[key] for m in nm if m[key] is not None]
-        pad = SOLVER_TICK if key.endswith("rest_t") else (1e-4 if key.endswith("_y") or key == "level" else (1e-3 if key[-2:] in ("_x", "_z") else 1e-5))
-        res["spread"][key] = {"min": min(vals), "max": max(vals), "tol": pad}
+        # a hair over one tick for times: they are tick multiples, rounded in the JSON
+        pad = 1.01 * SOLVER_TICK if key.endswith("rest_t") else (1e-4 if key.endswith("_y") or key == "level" else (1e-3 if key[-2:] in ("_x", "_z") else 1e-5))
+        res["spread"][key] = {"min": min(vals), "max": max(vals), "tol": (max(vals) - min(vals)) + pad}
+    if self_check and len(near) < 4:
+        res["self_check"] = {"note": "fewer than four near runs: no leave-one-out check (pool sessions with --rejudge a,b,...)"}
+        print("  self-check: skipped (fewer than four near runs) - the fence below is thin", flush=True)
+    elif self_check:   # leave-one-out: each near run against the rest
+        fails = []
+        for i, r in enumerate(near):
+            v = verdict([{**o, "run": "near" + str(j)} for j, o in enumerate(near) if j != i] + [{**r, "run": "self"}], self_check=False)
+            if not v["runs"]["self"]["pass"]: fails.append((r["run"], v["runs"]["self"]["outside"]))
+        res["self_check"] = {"near_runs": len(near), "failed": fails}
+        print(f"  self-check: {len(fails)} of {len(near)} near runs fall outside the others' fence {fails}", flush=True)
     for r in runs:
         if r["run"].startswith("near"): continue
         out = {}
@@ -173,7 +189,7 @@ def verdict(runs):
         rose = any(r["bodies"][k]["y_max"] > Y0 + 1e-4 for k in BODIES)
         res["runs"][r["run"]] = {"pass": all(o["inside"] for o in out.values()) and not rose, "rose": rose,
                                  "outside": [k for k, o in out.items() if not o["inside"]], "measures": out}
-        print(f"  verdict {r['run']}: {'PASS' if res['runs'][r['run']]['pass'] else 'FAIL'}; outside the near spread: "
+        if self_check: print(f"  verdict {r['run']}: {'PASS' if res['runs'][r['run']]['pass'] else 'FAIL'}; outside the near spread: "
               f"{res['runs'][r['run']]['outside']}; rose: {rose}", flush=True)
     return res
 
@@ -186,9 +202,15 @@ def main():
     ap.add_argument("--seconds", type=float, default=30.0)
     ap.add_argument("--tag", default="l5")
     a = ap.parse_args()
-    if a.rejudge:
-        p = w.EV / f"l5_{a.rejudge}.json"; d = json.loads(p.read_text(encoding="utf-8"))
-        d["verdict"] = verdict(d["runs"]); p.write_text(json.dumps(d, indent=1), encoding="utf-8"); return
+    if a.rejudge:   # one tag re-scores that file; several pool their runs (three near runs a session is a thin spread)
+        tags = a.rejudge.split(",")
+        runs = []
+        for t in tags:
+            for r in json.loads((w.EV / f"l5_{t}.json").read_text(encoding="utf-8"))["runs"]:
+                runs.append({**r, "run": f"{r['run']}@{t}"})
+        v = verdict(runs)
+        (w.EV / f"l5_pooled_{'_'.join(tags)}.json" if len(tags) > 1 else w.EV / f"l5_{tags[0]}_verdict.json").write_text(json.dumps(v, indent=1), encoding="utf-8")
+        return
     api = Api(a.url); st = api.wait_status(300)
     try: api.debug("editor_panels", {"item_equipper": False, "tool_panels": False})
     except Exception as e: print("editor_panels:", e)

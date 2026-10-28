@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <map>
+#include <string>
 #include <vector>
 
 using namespace Phyxel::Core::Water;
@@ -127,6 +128,72 @@ TEST(WaterRunRead, ADryRoomUnderAPondReadsDry) {
     EXPECT_FLOAT_EQ(t.at(13, 11, 6.8f), 7.0f) << "a body in the cave pool";
     EXPECT_EQ(t.at(13, 11, 5.5f), DS::WATER_DRY) << "under every run";
     EXPECT_EQ(t.at(20, 20, 16.0f), DS::WATER_DRY);
+}
+
+// 40.3 / L6 (§30.0b rule 2): the viewer never picks which water a body reads. Within draw_m the record's draw tiles join the fields
+// columnRuns reads first, and a tile reads only +-kRecordBandVoxels round the viewer's height; beyond draw_m the span cache reads
+// every height. Same record, only the viewer moved: every column must answer the same. The engine's span reader clips runs to the
+// asked heights, as here. RED before L6: a pool 100 m under the pond went missing near the viewer (n 1, not 2), and a lone deep
+// pool in the pond's tile read DRY near the viewer and wet far from it.
+TEST(WaterRunRead, TheViewerNeverPicksWhichWaterABodyReads) {
+    std::map<std::pair<int, int>, std::vector<ColumnRun>> cols;
+    for (int z = 0; z < 4; ++z) {
+        for (int x = 0; x < 2; ++x) cols[{x, z}] = {run(0.0f, 1.5f)};                       // the pond
+        for (int x = 2; x < 4; ++x) cols[{x, z}] = {run(-100.0f, -99.0f), run(0.0f, 1.5f)};  // the pond over a deep pool
+        for (int x = 5; x < 7; ++x) cols[{x, z}] = {run(-100.0f, -99.0f)};                   // a lone deep pool, the same 8 m tile
+    }
+    WaterCoreManager mgr([](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; });
+    mgr.setSpanIo([](const std::vector<ColumnRuns>&, float, float, long* u, long* c) { if (u) *u = 0; if (c) *c = 0; },
+        [&cols](const glm::ivec3& lo, const glm::ivec3& hi, std::vector<ColumnRuns>& out) {
+            out.clear();
+            const float yLo = static_cast<float>(lo.y), yHi = static_cast<float>(hi.y + 1);
+            for (int z = lo.z; z <= hi.z; ++z) for (int x = lo.x; x <= hi.x; ++x) {
+                const auto it = cols.find({x, z});
+                if (it == cols.end()) continue;
+                ColumnRuns c; c.x = x; c.z = z;
+                for (ColumnRun r : it->second) {
+                    r.bottomY = std::max(r.bottomY, yLo); r.topY = std::min(r.topY, yHi);
+                    if (r.topY > r.bottomY) { r.mass = r.topY - r.bottomY; c.runs.push_back(r); }
+                }
+                if (!c.runs.empty()) out.push_back(std::move(c));
+            }
+        });
+    mgr.setSpanRevisionQuery([] { return uint64_t(1); });
+    ASSERT_TRUE(WaterCoreManager::s_recordDraw.on);
+    auto readAll = [&](const glm::vec3& viewer, int& drawnTiles) {
+        mgr.setViewPoint(viewer);
+        mgr.surfaceFields();   // builds (or drops) the draw tiles in reach, as a frame does
+        drawnTiles = mgr.recordDrawStats().wetTiles;
+        std::map<std::pair<int, int>, std::pair<bool, WaterCoreManager::ColumnLevels>> m;
+        for (int z = -2; z < 6; ++z) for (int x = -2; x < 10; ++x) { WaterCoreManager::ColumnLevels lv; const bool w = mgr.columnRuns(x, z, lv); m[{x, z}] = {w, lv}; }
+        return m;
+    };
+    int nearTiles = 0, farTiles = 0;
+    const auto nearRead = readAll(glm::vec3(2.0f, 1.0f, 2.0f), nearTiles);
+    const auto farRead = readAll(glm::vec3(302.0f, 1.0f, 2.0f), farTiles);
+    EXPECT_GE(nearTiles, 1) << "the near viewer drew no record tile - the test would not test the near reader";
+    EXPECT_EQ(farTiles, 0);
+    long differ = 0;
+    for (const auto& [k, a] : nearRead) {
+        const auto& b = farRead.at(k);
+        bool same = a.first == b.first;
+        if (same && a.first) {
+            same = a.second.n == b.second.n && a.second.more == b.second.more;
+            for (int i = 0; i < std::min(a.second.n, 2) && same; ++i) same = a.second.top[i] == b.second.top[i] && a.second.bottom[i] == b.second.bottom[i];
+        }
+        if (!same) {
+            ++differ;
+            if (differ <= 6) ADD_FAILURE() << "column " << k.first << "," << k.second << ": near " << (a.first ? "wet n " + std::to_string(a.second.n) : std::string("dry"))
+                                           << ", far " << (b.first ? "wet n " + std::to_string(b.second.n) : std::string("dry"));
+        }
+    }
+    EXPECT_EQ(differ, 0) << "columns a body reads differently with the viewer near and far";
+    // and the far answers are the record's: the deep pool under the pond is the second run
+    WaterCoreManager::ColumnLevels lv;
+    ASSERT_TRUE(mgr.columnRuns(2, 1, lv));
+    EXPECT_EQ(lv.n, 2); EXPECT_FLOAT_EQ(lv.top[0], 1.5f); EXPECT_FLOAT_EQ(lv.top[1], -99.0f);
+    ASSERT_TRUE(mgr.columnRuns(5, 1, lv)) << "the lone deep pool";
+    EXPECT_FLOAT_EQ(lv.top[0], -99.0f);
 }
 
 // The old water and the sea have no bottoms: one run reaching down, read at every height - their law exactly as before 37.

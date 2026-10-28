@@ -1,0 +1,205 @@
+{
+ "near_runs": [
+  "near_a@l6",
+  "near_b@l6",
+  "near_c@l6"
+ ],
+ "spread": {
+  "m3": {
+   "min": 23.999996185302734,
+   "max": 24.000003814697266,
+   "tol": 1.762939453125e-05
+  },
+  "level": {
+   "min": 16.500003814697266,
+   "max": 16.50000762939453,
+   "tol": 0.000103814697265625
+  },
+  "stone_x": {
+   "min": 101.0,
+   "max": 101.0,
+   "tol": 0.001
+  },
+  "stone_y": {
+   "min": 15.1664,
+   "max": 15.1666,
+   "tol": 0.00030000000000131023
+  },
+  "stone_z": {
+   "min": 14.0,
+   "max": 14.0,
+   "tol": 0.001
+  },
+  "stone_rest_t": {
+   "min": 2.75,
+   "max": 3.3167,
+   "tol": 0.5835333333333333
+  },
+  "wood_x": {
+   "min": 102.973,
+   "max": 103.041,
+   "tol": 0.06899999999999784
+  },
+  "wood_y": {
+   "min": 16.4313,
+   "max": 16.4318,
+   "tol": 0.0005999999999988348
+  },
+  "wood_z": {
+   "min": 14.0675,
+   "max": 14.0828,
+   "tol": 0.01629999999999987
+  },
+  "wood_rest_t": {
+   "min": 5.5,
+   "max": 5.5,
+   "tol": 0.016833333333333332
+  }
+ },
+ "runs": {
+  "far_a@l6": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.00000762939453,
+     "inside": true
+    },
+    "level": {
+     "value": 16.5000057220459,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1664,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9999,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 3.3333,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.972,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4316,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0812,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.5,
+     "inside": true
+    }
+   }
+  },
+  "far_b@l6": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.000003814697266,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500001907348633,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1664,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9998,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 2.85,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.969,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4318,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0799,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.4833,
+     "inside": true
+    }
+   }
+  },
+  "far_c@l6": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.000001907348633,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500003814697266,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1666,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0001,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 3.1833,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.055,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4313,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0673,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.4833,
+     "inside": true
+    }
+   }
+  }
+ },
+ "self_check": {
+  "note": "fewer than four near runs: no leave-one-out check (pool sessions with --rejudge a,b,...)"
+ }
+}
