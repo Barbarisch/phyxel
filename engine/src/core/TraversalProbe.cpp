@@ -75,8 +75,16 @@ void TraversalProbe::bfs(glm::ivec3 start, glm::ivec3 boundLo, glm::ivec3 boundH
         return x >= boundLo.x && x <= boundHi.x && y >= boundLo.y && y <= boundHi.y &&
                z >= boundLo.z && z <= boundHi.z;
     };
+    // The visited key: three 21-bit fields, each coordinate offset by 2^20 micro (+-116 km).
+    // The original 17-bit packing (offset 32768) went negative below -32768 micro = -3641 u and
+    // the sign bits smeared across the fields, so every step read as already visited and a flat
+    // deck at z = -4248 u was "unwalkable" (BridgeSpanTest, 2026-10-27; the same false
+    // "unreachable" reached the walkability gate at any site beyond 3.6 km from the origin).
+    // TraversalProbeTest.FarCoordinatesTraverseLikeTheOrigin pins it. Coordinates beyond the
+    // offset alias instead of smearing (masked) - the continent is +-51 200 u = +-460 800 micro.
     auto key = [](int x, int y, int z) {
-        return ((long long)(x + 32768) << 34) | ((long long)(y + 32768) << 17) | (long long)(z + 32768);
+        constexpr long long kOff = 1LL << 20, kMask = (1LL << 21) - 1;
+        return (((long long)x + kOff) & kMask) << 42 | (((long long)y + kOff) & kMask) << 21 | (((long long)z + kOff) & kMask);
     };
 
     int sy = settle(start.x, start.y, start.z, boundLo.y);

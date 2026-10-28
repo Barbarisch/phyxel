@@ -15315,6 +15315,29 @@ bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
             }
         }
     }
+    // M4c: the box plan's crossings — a bridge deck as a white bar along the span, a ford as a
+    // cyan dot (the creek notch); refused demands are in the plan JSON, not drawn.
+    if (const Phyxel::WorldForgePlan* wf = g->worldForge()) {
+        auto plot = [&](int qx, int qz, glm::ivec3 c) {
+            if (qx < 0 || qz < 0 || qx >= px || qz >= px) return;
+            const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
+            img[i] = static_cast<unsigned char>(c.r); img[i + 1] = static_cast<unsigned char>(c.g); img[i + 2] = static_cast<unsigned char>(c.b);
+        };
+        for (const auto& b : wf->bridges()) {
+            const glm::vec2 a = (b.a - glm::vec2(x0, z0)) / stepU, e = (b.b - glm::vec2(x0, z0)) / stepU;
+            const int steps = std::max(2, static_cast<int>(std::ceil(glm::length(e - a))));
+            for (int t = 0; t <= steps; ++t) {
+                const glm::vec2 p = a + (e - a) * (static_cast<float>(t) / steps);
+                for (int d = -1; d <= 1; ++d) plot(static_cast<int>(p.x) + d, static_cast<int>(p.y), {255, 255, 255});
+            }
+        }
+        for (const auto& r : wf->roads())
+            for (const auto& c : r.crossings) {
+                if (c.kind != Phyxel::WorldForgeRoad::Crossing::Kind::Ford) continue;
+                const int mx = static_cast<int>((c.pos.x - x0) / stepU), mz = static_cast<int>((c.pos.y - z0) / stepU);
+                plot(mx, mz, {40, 220, 240});
+            }
+    }
     // M3a: the continent-wide civ sites (version-2 + civ) — the same squares, two more tiers:
     // city magenta-red (largest), outpost grey (smallest). Drawn over the box plan's markers
     // (inside the box they are the same positions).

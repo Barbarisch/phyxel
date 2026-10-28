@@ -6,6 +6,7 @@
 #include <memory>
 #include <tuple>
 
+#include "ForgeTestUtil.h"
 #include "core/Chunk.h"
 #include "core/TraversalProbe.h"
 #include "core/WorldForgePlan.h"
@@ -13,6 +14,7 @@
 #include "core/WorldRecipe.h"
 
 using namespace Phyxel;
+using namespace Phyxel::ForgeTest;   // ChunkMicroWorld, genChunkAt, floorDiv32 (shared with BridgeSpanTest)
 
 // ============================================================================
 // WorldForge M1 — the road FIELD in chunk generation (docs/WorldForge.md).
@@ -82,49 +84,6 @@ struct BridgeWorld {
         if (gen.worldForge() && !gen.worldForge()->bridges().empty()) plan = gen.worldForge();
     }
 };
-
-int floorDiv32(int a) { return a >= 0 ? a / 32 : (a - 31) / 32; }
-int floorDivN(int a, int n) { return a >= 0 ? a / n : (a - n + 1) / n; }
-int floorModN(int a, int n) { return a - floorDivN(a, n) * n; }
-
-// Generated chunks as a MICRO-cell occupancy field (1 cube = 9 micros per axis) for
-// TraversalProbe — cubes, subcubes and microcubes all count as solid. Chunks generate
-// lazily on first touch and are cached.
-struct ChunkMicroWorld {
-    WorldGenerator& gen;
-    std::map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> chunks;
-    explicit ChunkMicroWorld(WorldGenerator& g) : gen(g) {}
-    Chunk& chunkAt(int cx, int cy, int cz) {
-        auto key = std::make_tuple(cx, cy, cz);
-        auto it = chunks.find(key);
-        if (it == chunks.end()) {
-            auto c = std::make_unique<Chunk>(glm::ivec3(cx, cy, cz) * 32);
-            c->initializeForLoading();
-            gen.generateChunk(*c, glm::ivec3(cx, cy, cz));
-            it = chunks.emplace(key, std::move(c)).first;
-        }
-        return *it->second;
-    }
-    bool solidMicro(int mx, int my, int mz) {
-        const int wx = floorDivN(mx, 9), wy = floorDivN(my, 9), wz = floorDivN(mz, 9);
-        Chunk& c = chunkAt(floorDiv32(wx), floorDiv32(wy), floorDiv32(wz));
-        const glm::ivec3 lp(floorModN(wx, 32), floorModN(wy, 32), floorModN(wz, 32));
-        if (c.getCubeAt(lp)) return true;
-        const glm::ivec3 sp(floorModN(mx, 9) / 3, floorModN(my, 9) / 3, floorModN(mz, 9) / 3);
-        if (c.hasSubcubeAt(lp, sp)) return true;
-        const glm::ivec3 mp(floorModN(mx, 3), floorModN(my, 3), floorModN(mz, 3));
-        return c.getMicrocubeAt(lp, sp, mp) != nullptr;
-    }
-};
-
-// Generate the chunk holding one world cell (initializeForLoading wires the voxel-manager
-// callbacks — the FloraMarginTest pattern; a bare Chunk throws bad_function_call).
-std::unique_ptr<Chunk> genChunkAt(WorldGenerator& gen, const glm::ivec3& chunkCoord) {
-    auto chunk = std::make_unique<Chunk>(chunkCoord * 32);
-    chunk->initializeForLoading();
-    gen.generateChunk(*chunk, chunkCoord);
-    return chunk;
-}
 
 }  // namespace
 
@@ -432,6 +391,9 @@ TEST(RoadFieldSeamTest, OffRoadColumnsIdenticalToDisabledWorld) {
 // proves the probe would catch a parapet-height wall ACROSS the walkway — the
 // exact failure shape of the endpoint-arc rail bug.
 // ============================================================================
+// Audit 2026-10-28: this test proves the ROAD across the crossing is hop-walkable and that the
+// probe can fail (the parapet wall); it does NOT prove the deck is needed - no deck-removed
+// control exists on any fixture (the M3 name is kept: it is referenced across the docs).
 TEST(RoadFieldSeamTest, BridgeCrossingIsAgentWalkable) {
     BridgeWorld w;
     if (!w.plan) GTEST_SKIP() << "no order>=3 channel within 5 km of origin on this seed";

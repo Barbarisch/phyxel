@@ -1,0 +1,1278 @@
+M4c (D30-D32) red -> green: crossings as routing edges. Red run 2026-10-27 on the M4b-3 code (commit 1c315782 + the new BridgeSpanTest, Debug phyxel_tests.exe 14:05): the three measurements the design check named.
+
+=== RED (pre-M4c code) ===
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 12.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 310 crossings (55 carved, 255 creeks), 55 bridges, longest deck 28.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 10.2 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (236119 ms)
+[ M4c ] baseline Perlin: 45707 vertices, 1 dry fills, 0 above the class floor (cutLimit 3.15/3.85/4.20 u); deepest dry fill 2.0 u at (-3425,-4255) class 1; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: 58343 vertices, 48 dry fills, 44 above the class floor (cutLimit 3.15/3.85/4.20 u); deepest dry fill 30.0 u at (-1775,6240) class 2; deepest over-bed deck height 177.0 u
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(186): error: Expected equality of these values:
+    Which is: 44
+[  FAILED  ] BridgeSpanTest.ApproachFillIsBounded (3 ms)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 12.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 310 crossings (55 carved, 255 creeks), 55 bridges, longest deck 28.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 10.2 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[ M4c ] v2 bridge walk: deckY=53 bankA.surfaceY=53 bankB.surfaceY=53 approachA=53 approachB=53 span=12.0001 class=1 order=4
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(252): error: Value of: hopProbe.reachable(start, goal - glm::ivec3(9, 18, 9), goal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+Expected: true
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(261): error: Value of: strictProbe.reachable(deckStart, deckGoal - glm::ivec3(9, 18, 9), deckGoal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+Expected: true
+[  FAILED  ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo (14862 ms)
+[  PASSED  ] 2 tests.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] BridgeSpanTest.ApproachFillIsBounded
+[  FAILED  ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo
+ 2 FAILED TESTS
+EXIT 1
+
+=== GREEN 1 (2026-10-27 14:20, M4c patches 1+2: span rule as a routing edge, lazy crossing check with re-routing, deck at the LOWER bank, fills clamped to the class floor; Debug phyxel_tests.exe) ===
+[14:20:04.660] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[14:22:45.780] [INFO] [WorldForge] [CROSSINGS] fords 206, bridges 24, crossings refused and re-routed 52, demands refused 5 (span <= 25 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 12.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] baseline Perlin: 0 refused demands
+[ M4c ] Mountains 424242: 230 crossings (24 carved, 206 creeks), 24 bridges, longest deck 17.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 8.9 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 5 refused demands
+[ M4c ]   demand 2 -> 0 class 1 at (-2508,6592): banks 12.000000 u apart at an order-3 crossing: the approach earthwork would exceed the class floor 3.150000 u
+[ M4c ]   demand 3 -> 0 class 1 at (-2285,-3819): banks 150.000000 u apart at an order-3 crossing: the approach earthwork would exceed the class floor 3.150000 u
+[ M4c ]   demand 4 -> 0 class 1 at (-2528,6848): banks 10.000000 u apart at an order-3 crossing: the approach earthwork would exceed the class floor 3.150000 u
+[ M4c ]   demand -1 -> 0 class 1 at (-1782,7306): banks 7.000000 u apart at an order-5 crossing: the approach earthwork would exceed the class floor 3.150000 u
+[ M4c ]   demand -1 -> 0 class 1 at (-1553,5616): banks 17.000000 u apart at an order-5 crossing: the approach earthwork would exceed the class floor 3.150000 u
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (225577 ms)
+[ M4c ] baseline Perlin: 45707 vertices, 0 dry fills, 0 above the class floor (cutLimit 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: 47938 vertices, 5 dry fills, 3 above the class floor (cutLimit 3.15/3.85/4.20 u); deepest dry fill 12.0 u at (-2503,6336) class 2; deepest over-bed deck height 45.0 u
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(210): error: Expected equality of these values:
+    Which is: 3
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 12.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 230 crossings (24 carved, 206 creeks), 24 bridges, longest deck 17.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 8.9 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[14:23:04.874] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 3 u, ford depth < 0.5 u)
+[ M4c ] baseline, span 3 u: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] span 3 u: 32 roads, 0 refused (default: 32 roads, 0 refused, 1 bridges)
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (18846 ms)
+[ M4c ] v2 bridge walk: deckY=51 bankA.surfaceY=51 bankB.surfaceY=51 approachA=51 approachB=52 span=12.0001 class=1 order=4
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(308): error: Value of: hopProbe.reachable(start, goal - glm::ivec3(9, 18, 9), goal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(317): error: Value of: strictProbe.reachable(deckStart, deckGoal - glm::ivec3(9, 18, 9), deckGoal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (231 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+EXIT 1
+
+--- GREEN 1 diagnostic: the version-2 bridge's columns on the baseline (1 u steps along the first bridge; surf = emitted terrain top, the channel columns stand ABOVE both banks) ---
+(s = 1 u steps along the road through the first bridge, s=0..12 the deck; surf = the generator's column surfaceY, topMicroY = the
+ chunk's emitted top; order 4 = the carved channel. The channel's four columns are emitted at 55 u between banks at 51 u (the M2d-1
+ bed profile holds the downstream basin level, 55.9 u, and the land beside it dips to 51), so the bank-level deck at 51 is buried -
+ the walk red. The hydro level 55.9 u reads from s=12 on over land at 51-53 u: that approach lies inside a basin cell, an open item
+ for the box routing's water avoidance (128 u cells), not an M4c rule.)
+[ M4c-diag ] s=  -12 (-3441,-4239) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=52.89
+[ M4c-diag ] s=  -11 (-3440,-4240) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=52.89
+[ M4c-diag ] s=  -10 (-3439,-4241) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=52.89
+[ M4c-diag ] s=   -9 (-3439,-4241) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=52.89
+[ M4c-diag ] s=   -8 (-3438,-4242) surf=51 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   -7 (-3437,-4243) surf=51 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   -6 (-3436,-4244) surf=51 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   -5 (-3436,-4244) surf=51 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   -4 (-3435,-4245) surf=51 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   -3 (-3434,-4246) surf=51 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   -2 (-3434,-4246) surf=51 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   -1 (-3433,-4247) surf=51 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=    0 (-3432,-4248) surf=51 deck=51 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=    1 (-3431,-4249) surf=51 deck=51 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=    2 (-3431,-4249) surf=51 deck=51 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=    3 (-3430,-4250) surf=51 deck=51 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=    4 (-3429,-4251) surf=55 deck=51 rail=0 pierTop=-2147483648 cls=1 order=4 water=none topMicroY=55.22
+[ M4c-diag ] s=    5 (-3429,-4251) surf=55 deck=51 rail=0 pierTop=-2147483648 cls=1 order=4 water=none topMicroY=55.22
+[ M4c-diag ] s=    6 (-3428,-4252) surf=55 deck=51 rail=0 pierTop=-2147483648 cls=1 order=4 water=none topMicroY=55.22
+[ M4c-diag ] s=    7 (-3427,-4253) surf=55 deck=51 rail=0 pierTop=-2147483648 cls=1 order=4 water=none topMicroY=55.56
+[ M4c-diag ] s=    8 (-3426,-4254) surf=51 deck=51 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=    9 (-3426,-4254) surf=51 deck=51 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   10 (-3425,-4255) surf=51 deck=51 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   11 (-3424,-4256) surf=51 deck=51 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=51.89
+[ M4c-diag ] s=   12 (-3424,-4256) surf=51 deck=51 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=51.89
+[ M4c-diag ] s=   13 (-3423,-4257) surf=51 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=51.89
+[ M4c-diag ] s=   14 (-3422,-4258) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=52.89
+[ M4c-diag ] s=   15 (-3422,-4258) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=52.89
+[ M4c-diag ] s=   16 (-3421,-4259) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=52.89
+[ M4c-diag ] s=   17 (-3420,-4260) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=52.89
+[ M4c-diag ] s=   18 (-3419,-4261) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=52.89
+[ M4c-diag ] s=   19 (-3419,-4261) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=52.89
+[ M4c-diag ] s=   20 (-3418,-4262) surf=52 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=52.89
+[ M4c-diag ] s=   21 (-3417,-4263) surf=53 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=53.89
+[ M4c-diag ] s=   22 (-3417,-4263) surf=53 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=53.89
+[ M4c-diag ] s=   23 (-3416,-4264) surf=53 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=53.89
+[ M4c-diag ] s=   24 (-3415,-4265) surf=53 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=53.89
+
+=== GREEN 2 (2026-10-27 15:38, patch 3: the deck clears the channel's emitted rim and water, the 48 u approach check, pin cones from the span geometry; fills still clamped to the CLASS FLOOR 3.15-4.2 u) ===
+Result: the rim rule refuses nearly every carved crossing - the bed profile stands above the land beside it (M2d-1 fills the terrain up to the longitudinal profile with no lateral blend): ZERO bridges on both version-2 worlds, the knob test and the walk test lose their fixture; RouteFieldTest's deepest-cut comparison flips (80.7 vs 79.0 u, two different road sets after the re-routing).
+[15:39:08.939] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:41:52.432] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] baseline Perlin: 0 refused demands
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 11 refused demands
+[ M4c ]   demand -1 -> 0 class 2 at (-2523,6026): banks 42.000000 / 58.000000 u, channel top 30.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 54.150002 u needs an approach fill beyond the class floor 3.850000 u
+[ M4c ]   demand 0 -> -1 class 2 at (-2504,8020): the approach rises 15.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the class floor 3.850000 u)
+[ M4c ]   demand -1 -> -1 class 2 at (-2250,-3835): banks 74.000000 / 78.000000 u, channel top 236.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 237.000000 u needs an approach fill beyond the class floor 3.850000 u
+[ M4c ]   demand 1 -> 0 class 2 at (-1759,5864): the approach rises 18.849998 u above a deck at 67.150002 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.850000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-1777,7055): the approach rises 20.000000 u above a deck at 54.000000 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.850000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-2518,8640): the approach rises 11.000000 u above a deck at 43.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the class floor 3.850000 u)
+[ M4c ]   demand 2 -> 0 class 1 at (-7983,-9937): banks 12.000000 / 14.000000 u, channel top 45.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 46.000000 u needs an approach fill beyond the class floor 3.150000 u
+[ M4c ]   demand -1 -> 0 class 1 at (-2693,5440): banks 88.000000 / 101.000000 u, channel top 44.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 97.849998 u needs an approach fill beyond the class floor 3.150000 u
+[ M4c ]   demand -1 -> 0 class 1 at (-3750,8917): order-5 channel 10.193741 u wide needs a deck beyond the grounded 25.000000 u span
+[ M4c ]   demand -1 -> 0 class 1 at (48,8136): banks 72.000000 / 74.000000 u, channel top 170.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 171.000000 u needs an approach fill beyond the class floor 3.150000 u
+[ M4c ]   demand -1 -> 0 class 1 at (248,7800): the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the class floor 3.150000 u)
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (225758 ms)
+[ M4c ] baseline Perlin: 44734 vertices, 0 dry fills, 0 above the class floor (cutLimit 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: 36288 vertices, 0 dry fills, 0 above the class floor (cutLimit 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 5.4 u
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (0 ms)
+[ M4c ] baseline Perlin: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(256): error: Value of: gp
+control: no version-2 fixture bakes a bridge with the default span, so the knob cannot be judged
+[  SKIPPED ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo (0 ms)
+[  SKIPPED ] BridgeSpanTest.DiagVersionTwoBridgeColumns (0 ms)
+[15:43:43.363] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.EveryProfileStepWithinItsClassCapExceptBoundedPitches (19068 ms)
+[15:44:02.141] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (18777 ms)
+[15:44:58.576] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[15:45:57.987] [INFO] [WorldForge] [CROSSINGS] fords 213, bridges 0, crossings refused and re-routed 65, demands refused 10 (span <= 25 u, ford depth < 0.5 u)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\RouteFieldTest.cpp(177): error: Expected: (c.maxCut) < (u.maxCut), actual: 80.72 vs 79
+[15:46:16.770] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.RealizedRoadsAreStepWalkable (28490 ms)
+[       OK ] RouteFieldTest.VersionOneKeepsTheLegacyEnvelope (460 ms)
+[15:46:45.766] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.GradeBlendGathersEveryRoadInReach (47916 ms)
+[15:47:33.691] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.RealizedSurfaceKeepsTheClassCapOutsidePitches (21817 ms)
+[15:47:55.960] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.CutBanksStandAtTheReposeSlope (19916 ms)
+[15:48:55.797] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.MountainSwitchbacksRetireMostPitches (59217 ms)
+[15:49:14.741] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:49:34.899] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:49:54.051] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:50:13.766] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:50:32.178] [INFO] [WorldForge] [CROSSINGS] fords 359, bridges 6, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:50:50.170] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:51:08.787] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:51:27.770] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:51:45.932] [INFO] [WorldForge] [CROSSINGS] fords 359, bridges 6, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:52:04.666] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[15:52:39.368] [INFO] [WorldForge] [CROSSINGS] fords 645, bridges 23, crossings refused and re-routed 32, demands refused 27 (span <= 25 u, ford depth < 0.5 u)
+[15:53:05.800] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[  SKIPPED ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo
+[  SKIPPED ] BridgeSpanTest.DiagVersionTwoBridgeColumns
+EXIT 1
+
+Refusal reasons on Mountains in GREEN 2 (every [CROSSINGS] line; 'channel top' = the emitted rim of the carved channel between the banks):
+     16 demand -1 -> 0 refused at (-3473.16,-4551.42): banks 46.000000 / 47.000000 u, channel top 52.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 53.000000 u needs an approach fill beyond the class floor 3.150000 u
+     16 demand -1 -> 0 refused at (-3427.89,-4252.11): banks 50.000000 / 51.000000 u, channel top 55.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 56.000000 u needs an approach fill beyond the class floor 3.150000 u
+     12 demand -1 -> 0 refused at (-2515.51,6362.63): banks 38.000000 / 49.000000 u, channel top 31.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 45.849998 u needs an approach fill beyond the class floor 3.150000 u
+     11 demand -1 -> 1 refused at (12950.1,-4945.96): banks 43.000000 / 43.000000 u, channel top 48.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 49.000000 u needs an approach fill beyond the class floor 4.200000 u
+      9 demand -1 -> 0 refused at (-3520,8885.86): banks 46.000000 / 49.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.150000 u
+      6 demand -1 -> 0 refused at (-2517.6,7499.19): the approach rises 8.000000 u above a deck at 37.000000 u within 4.000000 u of the bank at an order-3 crossing (cut beyond the class floor 3.850000 u)
+      5 demand 1 -> -1 refused at (12976.5,-4929.01): banks 42.000000 / 44.000000 u, channel top 49.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 50.000000 u needs an approach fill beyond the class floor 4.200000 u
+      4 demand 6 -> 0 refused at (-2514.9,6362.17): banks 31.000000 / 49.000000 u, channel top 30.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 45.849998 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand 5 -> 0 refused at (-3520,8886.2): banks 44.000000 / 53.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand 4 -> 0 refused at (-2516.32,6363.48): banks 37.000000 / 49.000000 u, channel top 31.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 45.849998 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand 3 -> 0 refused at (882.969,-3954.97): banks 88.000000 / 99.000000 u, channel top 42.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 95.849998 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand 2 -> 0 refused at (-8512,-10478.4): the approach rises 6.000000 u above a deck at 18.000000 u within 3.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.150000 u)
+      4 demand 2 -> 0 refused at (-8319.49,-10368.5): banks 21.000000 / 29.000000 u, channel top 58.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 59.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand 2 -> 0 refused at (-8174.67,-10129.3): banks 22.000000 / 33.000000 u, channel top 55.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 56.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand 0 -> -1 refused at (-2513.04,7106.08): banks 34.000000 / 45.000000 u, channel top 26.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 41.150002 u needs an approach fill beyond the class floor 3.850000 u
+      4 demand -1 -> 0 refused at (7676.52,-11139.5): banks 125.000000 / 142.000000 u, channel top 341.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 342.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (6976,-11271.5): banks 123.000000 / 195.000000 u, channel top 327.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 328.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-3520,8886.32): banks 44.000000 / 53.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-3520,8886.25): banks 44.000000 / 53.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-3520,8885.69): banks 46.000000 / 49.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-3520,8885.34): banks 44.000000 / 53.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-3520,8885.33): banks 44.000000 / 53.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-3520,8885.19): banks 44.000000 / 53.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-2515.55,6362.66): banks 38.000000 / 49.000000 u, channel top 31.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 45.849998 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-2515.31,6362.48): banks 38.000000 / 49.000000 u, channel top 33.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 45.849998 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-2514.82,6362.12): banks 31.000000 / 49.000000 u, channel top 30.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 45.849998 u needs an approach fill beyond the class floor 3.150000 u
+      4 demand -1 -> 0 refused at (-2020.3,8791): the approach rises 4.000000 u above a deck at 32.000000 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.150000 u)
+      4 demand -1 -> 0 refused at (-1728,8779.35): the approach rises 6.000000 u above a deck at 30.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the class floor 3.150000 u)
+      3 demand 5 -> 0 refused at (-136.714,8790.81): the approach rises 17.000000 u above a deck at 46.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the class floor 3.150000 u)
+      3 demand 2 -> 0 refused at (-7982.5,-9937.5): banks 12.000000 / 14.000000 u, channel top 45.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 46.000000 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand 1 -> 0 refused at (-1779.16,6240): the approach rises 17.000000 u above a deck at 68.000000 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.850000 u)
+      3 demand 1 -> 0 refused at (-1777.02,6691.24): banks 48.000000 / 60.000000 u, channel top 30.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 56.150002 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand 1 -> 0 refused at (-1760.64,6463.68): the approach rises 12.000000 u above a deck at 52.000000 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.850000 u)
+      3 demand 1 -> 0 refused at (-1759.04,5863.52): the approach rises 18.849998 u above a deck at 67.150002 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.850000 u)
+      3 demand 0 -> -1 refused at (-2503.79,8019.89): the approach rises 15.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the class floor 3.850000 u)
+      3 demand 0 -> -1 refused at (-1780.71,6260.71): the approach rises 18.849998 u above a deck at 75.150002 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.850000 u)
+      3 demand 0 -> -1 refused at (-1290.94,5056.46): banks 58.000000 / 76.000000 u, channel top 204.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 205.000000 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand -1 -> 0 refused at (47.5129,8135.88): banks 72.000000 / 74.000000 u, channel top 170.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 171.000000 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (248.332,7800.34): the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the class floor 3.150000 u)
+      3 demand -1 -> 0 refused at (-3749.57,8916.86): order-5 channel 10.193741 u wide needs a deck beyond the grounded 25.000000 u span
+      3 demand -1 -> 0 refused at (-3520,8886.41): banks 44.000000 / 53.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (-3505.62,8884.86): banks 42.000000 / 50.000000 u, channel top 147.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 148.000000 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand -1 -> 0 refused at (-3148.52,8774.96): banks 42.000000 / 56.000000 u, channel top 36.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 52.849998 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (-2972.86,5276.86): banks 70.000000 / 80.000000 u, channel top 236.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 237.000000 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (-2692.98,5440): banks 88.000000 / 101.000000 u, channel top 44.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 97.849998 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (-2528.9,6848): banks 48.000000 / 58.000000 u, channel top 26.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 54.849998 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (-2523.3,6026.35): banks 42.000000 / 58.000000 u, channel top 30.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 54.150002 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand -1 -> 0 refused at (-2517.61,8640): the approach rises 11.000000 u above a deck at 43.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the class floor 3.850000 u)
+      3 demand -1 -> 0 refused at (-2515.96,6363.29): banks 37.000000 / 50.000000 u, channel top 31.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 46.849998 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (-2515.65,8403.65): banks 50.000000 / 65.000000 u, channel top 25.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 61.150002 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand -1 -> 0 refused at (-2514.74,6362.35): banks 31.000000 / 49.000000 u, channel top 31.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 45.849998 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (-2510.48,5824): banks 52.000000 / 72.000000 u, channel top 33.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 68.849998 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (-2510.18,6592): the approach rises 8.000000 u above a deck at 54.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the class floor 3.850000 u)
+      3 demand -1 -> 0 refused at (-2507.13,6336): the approach rises 11.849998 u above a deck at 68.150002 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the class floor 3.850000 u)
+      3 demand -1 -> 0 refused at (-2502.04,7763.02): banks 42.000000 / 51.000000 u, channel top 23.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 47.150002 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand -1 -> 0 refused at (-2240,8793.86): the approach rises 10.000000 u above a deck at 45.000000 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.150000 u)
+      3 demand -1 -> 0 refused at (-1779.47,6240): the approach rises 17.000000 u above a deck at 68.000000 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.850000 u)
+      3 demand -1 -> 0 refused at (-1779.31,6240): the approach rises 17.000000 u above a deck at 68.000000 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.850000 u)
+      3 demand -1 -> 0 refused at (-1776.92,7055.08): the approach rises 20.000000 u above a deck at 54.000000 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the class floor 3.850000 u)
+      3 demand -1 -> 0 refused at (-1553.64,5615.24): banks 52.000000 / 69.000000 u, channel top 161.000000 u, water -1000000015047466219876688855040.000000 u at an order-5 crossing: a deck at 162.000000 u needs an approach fill beyond the class floor 3.150000 u
+      3 demand -1 -> 0 refused at (-103.845,8435.03): banks 42.000000 / 50.000000 u, channel top 32.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 46.150002 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand -1 -> -1 refused at (882.982,-3954.74): banks 99.000000 / 124.000000 u, channel top 54.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 120.150002 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand -1 -> -1 refused at (256.633,-4096.63): banks 55.000000 / 74.000000 u, channel top 53.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 70.150002 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand -1 -> -1 refused at (1088,-3958.03): banks 82.000000 / 83.000000 u, channel top 186.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 187.000000 u needs an approach fill beyond the class floor 3.850000 u
+      3 demand -1 -> -1 refused at (-2250.45,-3834.78): banks 74.000000 / 78.000000 u, channel top 236.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 237.000000 u needs an approach fill beyond the class floor 3.850000 u
+      2 demand -1 -> 0 refused at (-4600.36,8553.07): banks 47.000000 / 47.000000 u, channel top 51.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 52.000000 u needs an approach fill beyond the class floor 3.150000 u
+      2 demand -1 -> 0 refused at (-4218.95,8304.85): banks 43.000000 / 44.000000 u, channel top 48.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 49.000000 u needs an approach fill beyond the class floor 3.150000 u
+      2 demand -1 -> 0 refused at (-2514.82,6362.12): banks 31.000000 / 49.000000 u, channel top 30.000000 u, water -1000000015047466219876688855040.000000 u at an order-3 crossing: a deck at 45.150002 u needs an approach fill beyond the class floor 3.850000 u
+      1 demand 43 -> 1 refused at (12950.5,-4945.63): banks 43.000000 / 43.000000 u, channel top 49.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 50.000000 u needs an approach fill beyond the class floor 3.150000 u
+      1 demand 34 -> 5 refused at (304.871,-6704.87): banks 50.000000 / 51.000000 u, channel top 55.000000 u, water -1000000015047466219876688855040.000000 u at an order-4 crossing: a deck at 56.000000 u needs an approach fill beyond the class floor 3.150000 u
+
+=== GREEN 3 (2026-10-27 16:04, patch 4: the bank limit 8.4 u = kShoulderMaxU x repose (DERIVED) bounds a bridge approach's fill and the higher bank's cut instead of the class floor; RouteFieldTest's deepest-cut comparison becomes a report) ===
+Result: the baseline bakes its bridge again (deck 56 u over the channel rim 55 u, 5 u fill, bounded); the knob test passes with its control; the pinned version-1 hashes hold; Mountains still 0 bridges - every refusal there is a cliff 1-3 u past a bank found on the channel's dry shelf (a slot canyon) or a rim 34-163 u above the banks (a river on an embankment); the version-2 walk still fails on a deck whose centreline dump is flat (localized by the next run).
+[16:04:33.191] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:07:09.376] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 12.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] baseline Perlin: 0 refused demands
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 11 refused demands
+[ M4c ]   demand -1 -> 0 class 2 at (-2523,6026): the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 0 -> -1 class 2 at (-2504,8020): the approach rises 15.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> -1 class 2 at (-2250,-3835): banks 74.000000 / 78.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 163.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand 1 -> 0 class 2 at (-1759,5864): the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-1777,7055): the approach rises 20.000000 u above a deck at 54.000000 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-2518,8640): the approach rises 11.000000 u above a deck at 43.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 2 -> 0 class 1 at (-7983,-9937): banks 12.000000 / 14.000000 u, channel rim 45.000000 u, water none at an order-5 crossing: a deck at 46.000000 u needs an approach fill of 34.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (-2693,5440): the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 1 at (-3750,8917): order-5 channel 10.193741 u wide needs a deck beyond the grounded 25.000000 u span
+[ M4c ]   demand -1 -> 0 class 1 at (48,8136): banks 72.000000 / 74.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 99.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (248,7800): the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (216639 ms)
+[ M4c ] baseline Perlin: 45707 vertices, 2 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 5.0 u at (-3425,-4255) class 1; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: 36288 vertices, 0 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 5.4 u
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (0 ms)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 12.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[16:07:27.173] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 3 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin, span 3 u: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] span 3 u: 32 roads, 0 refused (default: 32 roads, 0 refused, 1 bridges)
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (18269 ms)
+[ M4c ] walking the first bridge of baseline Perlin (1 bridges)
+[ M4c ] v2 bridge walk: deckY=56 bankA.surfaceY=55 bankB.surfaceY=56 approachA=55 approachB=55 span=12.0001 class=1 order=4
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(330): error: Value of: hopProbe.reachable(start, goal - glm::ivec3(9, 18, 9), goal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(339): error: Value of: strictProbe.reachable(deckStart, deckGoal - glm::ivec3(9, 18, 9), deckGoal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (254 ms)
+[16:08:11.350] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 458 ms (hash 18197215997962677593)
+[16:09:03.502] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 454 ms (hash 18197215997962677593)
+[16:09:19.230] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.EveryProfileStepWithinItsClassCapExceptBoundedPitches (18029 ms)
+[16:09:37.298] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (18055 ms)
+[16:10:32.656] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] Mountains 424242 (caps): 22 roads, 36266 profile segments, 16538 over the class cap = 45.6 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 36288 vertices: max cut 80.7 u, max fill 5.4 u, 5254 deeper than 6 u
+[16:11:28.965] [INFO] [WorldForge] [CROSSINGS] fords 213, bridges 0, crossings refused and re-routed 65, demands refused 10 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] Mountains 424242 (caps off = 0.5): 23 roads, 37550 profile segments, 19561 over the class cap = 52.1 % of the length (worst 6.25 x cap, 13118 unexplained by a cut floor or a pin); 37573 vertices: max cut 79.0 u, max fill 9.0 u, 3959 deeper than 6 u
+[ M4b ] Mountains deepest cut: caps 80.7 u, caps off 79.0 u (reported)
+[ M4b ] Mountains detour: 579.7 km of road for 334.1 km of endpoint distance (x1.74); corridors 154, unroutable 2
+[       OK ] RouteFieldTest.MountainCapsCutLessThanTheLegacyEnvelope (111131 ms)
+[16:11:46.066] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.RealizedRoadsAreStepWalkable (26548 ms)
+[16:11:58.036] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 450 ms (hash 18197215997962677593)
+[       OK ] RouteFieldTest.VersionOneKeepsTheLegacyEnvelope (463 ms)
+[16:12:13.412] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.GradeBlendGathersEveryRoadInReach (46670 ms)
+[16:13:00.326] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.RealizedSurfaceKeepsTheClassCapOutsidePitches (19855 ms)
+[16:13:20.093] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.CutBanksStandAtTheReposeSlope (18110 ms)
+[16:14:15.390] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] Mountains 424242 (switchbacks): 22 roads, 36266 profile segments, 16538 over the class cap = 45.6 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 36288 vertices: max cut 80.7 u, max fill 5.4 u, 5254 deeper than 6 u
+[       OK ] RouteFieldTest.MountainSwitchbacksRetireMostPitches (54722 ms)
+[16:14:32.942] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:14:51.018] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:15:09.177] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:15:27.340] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:15:45.632] [INFO] [WorldForge] [CROSSINGS] fords 355, bridges 6, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:16:03.192] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:16:21.355] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:16:39.525] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:16:57.901] [INFO] [WorldForge] [CROSSINGS] fords 355, bridges 6, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:17:15.975] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:17:43.580] [INFO] [WorldForge] [CROSSINGS] fords 893, bridges 75, crossings refused and re-routed 1, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:18:10.559] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:18:21.708] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 491 ms (hash 9693137997320541182)
+[16:18:22.809] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 463 ms (hash 18197215997962677593)
+[16:18:23.317] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 490 ms (hash 9693137997320541182)
+[16:18:23.824] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 489 ms (hash 9693137997320541182)
+[16:18:24.451] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 453 ms (hash 18197215997962677593)
+[16:18:25.263] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 488 ms (hash 9693137997320541182)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[16:18:25.748] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 452 ms (hash 18197215997962677593)
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+EXIT 1
+
+--- GREEN 3 diagnostic: the baseline's bridge columns (deck 56 u) ---
+[ M4c-diag ] s=  -12 (-3441,-4239) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=  -11 (-3440,-4240) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=  -10 (-3439,-4241) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=   -9 (-3439,-4241) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=   -8 (-3438,-4242) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=   -7 (-3437,-4243) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=   -6 (-3436,-4244) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=   -5 (-3436,-4244) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=   -4 (-3435,-4245) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=   -3 (-3434,-4246) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=   -2 (-3434,-4246) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=   -1 (-3433,-4247) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=55.89
+[ M4c-diag ] s=    0 (-3432,-4248) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=56.89
+[ M4c-diag ] s=    1 (-3431,-4249) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=56.89
+[ M4c-diag ] s=    2 (-3431,-4249) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=56.89
+[ M4c-diag ] s=    3 (-3430,-4250) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=56.89
+[ M4c-diag ] s=    4 (-3429,-4251) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none topMicroY=56.89
+[ M4c-diag ] s=    5 (-3429,-4251) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none topMicroY=56.89
+[ M4c-diag ] s=    6 (-3428,-4252) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none topMicroY=56.89
+[ M4c-diag ] s=    7 (-3427,-4253) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none topMicroY=56.89
+[ M4c-diag ] s=    8 (-3426,-4254) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=56.89
+[ M4c-diag ] s=    9 (-3426,-4254) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=56.89
+[ M4c-diag ] s=   10 (-3425,-4255) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=56.89
+[ M4c-diag ] s=   11 (-3424,-4256) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none topMicroY=56.89
+[ M4c-diag ] s=   12 (-3424,-4256) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=56.89
+[ M4c-diag ] s=   13 (-3423,-4257) surf=56 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=56.89
+[ M4c-diag ] s=   14 (-3422,-4258) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=55.89
+[ M4c-diag ] s=   15 (-3422,-4258) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=55.89
+[ M4c-diag ] s=   16 (-3421,-4259) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=55.89
+[ M4c-diag ] s=   17 (-3420,-4260) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=55.89
+[ M4c-diag ] s=   18 (-3419,-4261) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=55.89
+[ M4c-diag ] s=   19 (-3419,-4261) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=55.89
+[ M4c-diag ] s=   20 (-3418,-4262) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=55.89
+[ M4c-diag ] s=   21 (-3417,-4263) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=55.89
+[ M4c-diag ] s=   22 (-3417,-4263) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=55.89
+[ M4c-diag ] s=   23 (-3416,-4264) surf=54 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=54.89
+[ M4c-diag ] s=   24 (-3415,-4265) surf=54 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 topMicroY=54.89
+
+=== GREEN 4 (2026-10-27 16:22, patch 5: the bank is NATURAL land - any channel-hit column, wet bed or dry shelf, is the channel; the diagnostic adds lateral tops, headroom and per-leg strict reachability) ===
+Result: the walk still fails and EVERY 1 u leg fails, even on dead-flat 56.00 u ground 12 u before the deck with no ceiling - the probe, not the deck.
+[16:22:30.102] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[16:25:08.382] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] baseline Perlin: 0 refused demands
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 11 refused demands
+[ M4c ]   demand -1 -> 0 class 2 at (-2523,6026): the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 0 -> -1 class 2 at (-2504,8020): the approach rises 15.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> -1 class 2 at (-2250,-3835): banks 72.000000 / 98.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 165.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand 1 -> 0 class 2 at (-1759,5864): the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-1777,7055): the approach rises 12.400002 u above a deck at 61.599998 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-2518,8640): the approach rises 11.000000 u above a deck at 51.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 2 -> 0 class 1 at (-7983,-9937): banks 12.000000 / 14.000000 u, channel rim 45.000000 u, water none at an order-5 crossing: a deck at 46.000000 u needs an approach fill of 34.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (-2693,5440): the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 1 at (-3750,8917): order-5 channel 10.193741 u wide needs a deck beyond the grounded 25.000000 u span
+[ M4c ]   demand -1 -> 0 class 1 at (48,8136): banks 74.000000 / 85.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 97.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (248,7800): the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (219304 ms)
+[ M4c ] baseline Perlin: 45707 vertices, 2 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 5.0 u at (-3425,-4255) class 1; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: 36288 vertices, 0 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 5.4 u
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (0 ms)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[16:25:26.599] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 3 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin, span 3 u: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] span 3 u: 32 roads, 0 refused (default: 32 roads, 0 refused, 1 bridges)
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (18795 ms)
+[ M4c ] walking the first bridge of baseline Perlin (1 bridges)
+[ M4c ] v2 bridge walk: deckY=56 bankA.surfaceY=55 bankB.surfaceY=56 approachA=55 approachB=55 span=13.0002 class=1 order=4
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(330): error: Value of: hopProbe.reachable(start, goal - glm::ivec3(9, 18, 9), goal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(339): error: Value of: strictProbe.reachable(deckStart, deckGoal - glm::ivec3(9, 18, 9), deckGoal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (5154 ms)
+EXIT 1
+[ M4c-diag ] s=  -12 (-3441,-4239) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=  -11 (-3441,-4239) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=  -10 (-3440,-4240) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   -9 (-3439,-4241) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   -8 (-3439,-4241) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   -7 (-3438,-4242) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   -6 (-3437,-4243) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   -5 (-3436,-4244) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   -4 (-3436,-4244) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   -3 (-3435,-4245) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   -2 (-3434,-4246) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   -1 (-3434,-4246) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=    0 (-3433,-4247) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=    1 (-3432,-4248) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=    2 (-3431,-4249) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.67 leg->FAIL
+[ M4c-diag ] s=    3 (-3431,-4249) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.67 leg->FAIL
+[ M4c-diag ] s=    4 (-3430,-4250) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=57.67 57.67 57.00 57.67 57.67 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=    5 (-3429,-4251) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none top[-2..2]=56.00 57.67 57.00 57.67 55.33 ceil=-1.00 feetY=57.67 leg->FAIL
+[ M4c-diag ] s=    6 (-3429,-4251) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none top[-2..2]=55.67 57.67 57.00 57.67 55.33 ceil=-1.00 feetY=57.67 leg->FAIL
+[ M4c-diag ] s=    7 (-3428,-4252) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none top[-2..2]=55.67 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=    8 (-3427,-4253) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none top[-2..2]=55.67 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=    9 (-3426,-4254) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=55.33 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.67 leg->FAIL
+[ M4c-diag ] s=   10 (-3426,-4254) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=57.00 57.67 57.00 57.67 57.00 ceil=-1.00 feetY=57.67 leg->FAIL
+[ M4c-diag ] s=   11 (-3425,-4255) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=57.67 57.67 57.00 57.67 57.67 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=   12 (-3424,-4256) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.67 leg->FAIL
+[ M4c-diag ] s=   13 (-3424,-4256) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 57.00 57.00 57.00 57.00 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=   14 (-3423,-4257) surf=56 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=57.00 57.00 57.00 57.00 57.00 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=   15 (-3422,-4258) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 57.00 56.00 57.00 57.00 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=   16 (-3422,-4258) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   17 (-3421,-4259) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   18 (-3420,-4260) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   19 (-3419,-4261) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   20 (-3419,-4261) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   21 (-3418,-4262) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   22 (-3417,-4263) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   23 (-3417,-4263) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 55.00 56.00 55.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=   24 (-3416,-4264) surf=54 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 55.00 55.00 55.00 56.00 ceil=-1.00 feetY=55.00 leg->FAIL
+[ M4c-diag ] s=   25 (-3415,-4265) surf=54 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 55.00 55.00 55.00 56.00 ceil=-1.00 feetY=55.00 leg->FAIL
+
+=== TraversalProbe RED (2026-10-27 16:30, the original BFS, new test TraversalProbeTest.FarCoordinatesTraverseLikeTheOrigin: the flat corridor translated to the bridge's micro coordinates -30888 / -38232 and far positive) ===
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\TraversalProbeTest.cpp(116): error: Value of: ok
+the flat corridor is unwalkable when translated by (-30888,0,-38232) micro
+[  FAILED  ] TraversalProbeTest.FarCoordinatesTraverseLikeTheOrigin (5 ms)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] TraversalProbeTest.FarCoordinatesTraverseLikeTheOrigin
+Cause (TraversalProbe.cpp, bfs): visited key = (x+32768)<<34 | (y+32768)<<17 | (z+32768) - 17-bit fields; below -32768 micro (-3641 u) the field goes negative and its sign bits smear across the others, so every step reads as already visited. Fix: 21-bit fields, offset 2^20, masked (+-116 km). Reaches NavGraph micro pathing, PathPlanner, SettlementWalkability, RealizedStructureValidator, StructureForge, SettlementBuildService: any site beyond 3.6 km from the origin.
+
+=== GREEN 5 (2026-10-27 16:36, the probe fix; filter: TraversalProbeTest + BridgeSpanTest + RoadFieldSeamTest + RouteFieldTest + WorldForgeStressTest + the first 8 probe-using test files) ===
+Result: 77 OK, 1 FAILED - the version-2 walk now PASSES both probes (hop bank to bank, strict between the parapets); the sensitivity CONTROL fails because its wall spanned only +-4 u of the deck and the probe walked around it through the dry 1 u bed (the test world has no water).
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (233950 ms)
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (0 ms)
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (20854 ms)
+[ M4c ] v2 bridge walk: deckY=56 bankA.surfaceY=55 bankB.surfaceY=56 approachA=55 approachB=55 span=13.0002 class=1 order=4
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(352): error: Value of: blockedProbe.reachable(deckStart, deckGoal - glm::ivec3(9, 18, 9), deckGoal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (87730 ms)
+[       OK ] TraversalProbeTest.FlatCorridorIsTraversable (1 ms)
+[       OK ] TraversalProbeTest.LowLedgeWithinStepUpIsClimbed (1 ms)
+[       OK ] TraversalProbeTest.LedgeTallerThanStepUpBlocks (0 ms)
+[       OK ] TraversalProbeTest.TallWallBlocks (1 ms)
+[       OK ] TraversalProbeTest.LowCeilingBlocksEntry (0 ms)
+[       OK ] TraversalProbeTest.AdequateCeilingAllowsPassage (1 ms)
+[       OK ] TraversalProbeTest.FloodAgreesWithReachableOnAnOpenCorridor (5 ms)
+[       OK ] TraversalProbeTest.FloodStopsAtAWallAndStaysOnTheStartSide (1 ms)
+[       OK ] TraversalProbeTest.FloodOfAnUnsupportedStartIsEmpty (0 ms)
+[       OK ] TraversalProbeTest.FarCoordinatesTraverseLikeTheOrigin (7 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+EXIT 1
+
+=== GREEN 6 (2026-10-27 16:50, the control wall across the whole box to parapet height; filter: BridgeSpanTest + the other 19 probe-using test files - typologies, settlement layout/paths/traversal/walkability, NavGraph micro, PathPlanner, realizer, tower, town wall) ===
+Result: 130 OK, 1 FAILED - still the control: the graded road surface beside the deck ends sits at 57.67 u, level with the wall's top (57.67 u), so the probe walks over it. Every other probe user is green after the key fix.
+[ M4c ] v2 bridge walk: deckY=56 bankA.surfaceY=55 bankB.surfaceY=56 approachA=55 approachB=55 span=13.0002 class=1 order=4
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(357): error: Value of: blockedProbe.reachable(deckStart, deckGoal - glm::ivec3(9, 18, 9), deckGoal + glm::ivec3(9, 18, 9), boundLo, boundHi)
+[  FAILED  ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo (69895 ms)
+[  PASSED  ] 130 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo
+EXIT 1
+
+=== GREEN 7 - FINAL (2026-10-27 17:00, the control wall full height across the box; Debug phyxel_tests.exe built 16:57 from the committed-to-be sources) ===
+[16:59:14.201] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[17:01:53.518] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] baseline Perlin: 0 refused demands
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 11 refused demands
+[ M4c ]   demand -1 -> 0 class 2 at (-2523,6026): the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 0 -> -1 class 2 at (-2504,8020): the approach rises 15.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> -1 class 2 at (-2250,-3835): banks 72.000000 / 98.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 165.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand 1 -> 0 class 2 at (-1759,5864): the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-1777,7055): the approach rises 12.400002 u above a deck at 61.599998 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-2518,8640): the approach rises 11.000000 u above a deck at 51.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 2 -> 0 class 1 at (-7983,-9937): banks 12.000000 / 14.000000 u, channel rim 45.000000 u, water none at an order-5 crossing: a deck at 46.000000 u needs an approach fill of 34.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (-2693,5440): the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 1 at (-3750,8917): order-5 channel 10.193741 u wide needs a deck beyond the grounded 25.000000 u span
+[ M4c ]   demand -1 -> 0 class 1 at (48,8136): banks 74.000000 / 85.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 97.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (248,7800): the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (220815 ms)
+[ M4c ] baseline Perlin: 45707 vertices, 2 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 5.0 u at (-3425,-4255) class 1; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: 36288 vertices, 0 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 5.4 u
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (0 ms)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[17:02:12.010] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 3 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin, span 3 u: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u (0 beyond the grounded 25 u + shoulders), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] span 3 u: 32 roads, 0 refused (default: 32 roads, 0 refused, 1 bridges)
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (19019 ms)
+[ M4c ] walking the first bridge of baseline Perlin (1 bridges)
+[ M4c ] v2 bridge walk: deckY=56 bankA.surfaceY=55 bankB.surfaceY=56 approachA=55 approachB=55 span=13.0002 class=1 order=4
+[       OK ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo (74839 ms)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (83519 ms)
+[       OK ] TraversalProbeTest.FlatCorridorIsTraversable (1 ms)
+[       OK ] TraversalProbeTest.LowLedgeWithinStepUpIsClimbed (1 ms)
+[       OK ] TraversalProbeTest.LedgeTallerThanStepUpBlocks (0 ms)
+[       OK ] TraversalProbeTest.TallWallBlocks (0 ms)
+[       OK ] TraversalProbeTest.LowCeilingBlocksEntry (0 ms)
+[       OK ] TraversalProbeTest.AdequateCeilingAllowsPassage (1 ms)
+[       OK ] TraversalProbeTest.FloodAgreesWithReachableOnAnOpenCorridor (5 ms)
+[       OK ] TraversalProbeTest.FloodStopsAtAWallAndStaysOnTheStartSide (2 ms)
+[       OK ] TraversalProbeTest.FloodOfAnUnsupportedStartIsEmpty (0 ms)
+[       OK ] TraversalProbeTest.FarCoordinatesTraverseLikeTheOrigin (8 ms)
+[  PASSED  ] 16 tests.
+EXIT 0
+
+--- FINAL diagnostic: the baseline's bridge columns with lateral tops [-2..2] u, headroom and per-leg strict reachability: 35 of 38 legs ok; the 3 FAIL legs (s=0, 4, 7) are centreline steps of 9, 6 and 6 micro
+ (the 1 u bank-to-deck step and the 2/3 u plank-to-graded-surface steps) beyond the strict 4-micro step-up - the hop probe takes them and
+ the strict deck walk between the parapets passes around them (lateral columns at 57.67 u). A 2/3 u lip at the plank ends is a real
+ walkability detail, recorded. ---
+[ M4c-diag ] s=  -12 (-3441,-4239) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=  -11 (-3441,-4239) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=  -10 (-3440,-4240) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   -9 (-3439,-4241) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   -8 (-3439,-4241) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   -7 (-3438,-4242) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   -6 (-3437,-4243) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   -5 (-3436,-4244) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   -4 (-3436,-4244) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   -3 (-3435,-4245) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   -2 (-3434,-4246) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   -1 (-3434,-4246) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=    0 (-3433,-4247) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->FAIL
+[ M4c-diag ] s=    1 (-3432,-4248) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.00 leg->ok
+[ M4c-diag ] s=    2 (-3431,-4249) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.67 leg->ok
+[ M4c-diag ] s=    3 (-3431,-4249) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.67 leg->ok
+[ M4c-diag ] s=    4 (-3430,-4250) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=57.67 57.67 57.00 57.67 57.67 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=    5 (-3429,-4251) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none top[-2..2]=56.00 57.67 57.00 57.67 55.33 ceil=-1.00 feetY=57.67 leg->ok
+[ M4c-diag ] s=    6 (-3429,-4251) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none top[-2..2]=55.67 57.67 57.00 57.67 55.33 ceil=-1.00 feetY=57.67 leg->ok
+[ M4c-diag ] s=    7 (-3428,-4252) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none top[-2..2]=55.67 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.00 leg->FAIL
+[ M4c-diag ] s=    8 (-3427,-4253) surf=55 deck=56 rail=0 pierTop=-2147483648 cls=1 order=4 water=none top[-2..2]=55.67 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.00 leg->ok
+[ M4c-diag ] s=    9 (-3426,-4254) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=55.33 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.67 leg->ok
+[ M4c-diag ] s=   10 (-3426,-4254) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=57.00 57.67 57.00 57.67 57.00 ceil=-1.00 feetY=57.67 leg->ok
+[ M4c-diag ] s=   11 (-3425,-4255) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=57.67 57.67 57.00 57.67 57.67 ceil=-1.00 feetY=57.00 leg->ok
+[ M4c-diag ] s=   12 (-3424,-4256) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=none top[-2..2]=56.00 57.67 57.00 57.67 56.00 ceil=-1.00 feetY=57.67 leg->ok
+[ M4c-diag ] s=   13 (-3424,-4256) surf=56 deck=56 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 57.00 57.00 57.00 57.00 ceil=-1.00 feetY=57.00 leg->ok
+[ M4c-diag ] s=   14 (-3423,-4257) surf=56 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=57.00 57.00 57.00 57.00 57.00 ceil=-1.00 feetY=57.00 leg->ok
+[ M4c-diag ] s=   15 (-3422,-4258) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 57.00 56.00 57.00 57.00 ceil=-1.00 feetY=57.00 leg->ok
+[ M4c-diag ] s=   16 (-3422,-4258) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   17 (-3421,-4259) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   18 (-3420,-4260) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   19 (-3419,-4261) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   20 (-3419,-4261) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   21 (-3418,-4262) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   22 (-3417,-4263) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 56.00 56.00 56.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   23 (-3417,-4263) surf=55 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 55.00 56.00 55.00 56.00 ceil=-1.00 feetY=56.00 leg->ok
+[ M4c-diag ] s=   24 (-3416,-4264) surf=54 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 55.00 55.00 55.00 56.00 ceil=-1.00 feetY=55.00 leg->ok
+[ M4c-diag ] s=   25 (-3415,-4265) surf=54 deck=-2147483648 rail=0 pierTop=-2147483648 cls=1 order=0 water=55.9 top[-2..2]=56.00 55.00 55.00 55.00 56.00 ceil=-1.00 feetY=55.00 leg->ok
+
+Whole-set greens on the same sources: GREEN 5 (77 OK: TraversalProbeTest, RoadFieldSeamTest, RouteFieldTest, WorldForgeStressTest incl. both pinned version-1 hashes, 8 probe-using files) and GREEN 6 (130 OK: the other 19 probe-using files) - only the walk test's control differed between those runs and this one.
+
+=== RELEASE L4 (2026-10-27 17:09, CivLab project, fresh DB, Release phyxel.exe built 17:09:21 from the same sources; script m4c_l4.sh; raw responses m3a_l4_m4c_{status,plan,civ}.json, minimaps m3a_l4_m4c_minimap_{continent,box}.png) ===
+exe: C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Release/phyxel.exe 2026-10-27_17:09:21  commit: 1c315782  config: Release
+--- status
+{"applied":true,"enabled":true,"plan_hash":"11773178333440644877","roads":29,"site_list":[{"depth":60,"id":0,"score":{"biome":1.0,"relief":0.9866994023323059,"total":0.7690147161483765,"water":0.25},"seed":752911612,"surface":"Grass","surfaceY":20.529294967651367,"tier":"town","width":140,"x":-2360,
+
+--- plan (applied)
+keys: ['applied', 'civ', 'corridors', 'plan', 'plan_hash', 'success']
+box plan: sites 4 roads 29 bridges 1 params.civ True hash 11773178333440644877
+civ: {'land_km2': 7750.287109375, 'bake_ms': 38.714698791503906} sites 154
+--- M4c: crossings / bridges / refused demands in the applied plan JSON
+roads 29 crossings by kind {'ford': 138, 'bridge': 1}
+bridges 1 span_u max 13.000164985656738 pier_spacing_u [10.0] single_span_u [6.0]
+bridge crossing span_u max 13.000164985656738 bank_step_u max 1.0 widest crossed channel 5.782899856567383
+refused_demands 0
+params {'bridgeMaxSpanU': 25.0, 'bridgeSingleSpanU': 6.0, 'pierSpacingU': 10.0, 'fordMaxDepthU': 0.5}
+--- civ (continent map, step 2 = 1024 u/char)
+{"bake_ms":38.714698791503906,"cell_units":1024.0,"corridors":{"bake_ms":60.10530090332031,"junction_cells":231,"refusals":["no corridor from site 15 to site 1 (sea or basin in every way)","no corrido
+--- minimap: whole continent (px 512, radius 51200) and the hydrology box (px 512, radius 16384)
+{"legend":"terrain biome colors + NW hillshade | blue water (depth-shaded) | tan/gray roads | brown bridge decks | squares: magenta-red city, red town, orange village, yellow hamlet, light grey outpost, dark grey abandoned (M3b) | magenta cross: camera","path":"C:\\Users\\bpete\\Documents\\GitHub\\p
+
+{"legend":"terrain biome colors + NW hillshade | blue water (depth-shaded) | tan/gray roads | brown bridge decks | squares: magenta-red city, red town, orange village, yellow hamlet, light grey outpost, dark grey abandoned (M3b) | magenta cross: camera","path":"C:\\Users\\bpete\\Documents\\GitHub\\p
+
+--- M4c: minimap marks by exact colour (white = bridge bars, cyan 40,220,240 = ford dots)
+minimap 512 x 512 white bridge pixels 2863 cyan ford pixels 50
+minimap 512 x 512 white bridge pixels 6384 cyan ford pixels 45
+--- engine log: crossings
+[17:09:52.688] [INFO] [WorldForge] [CROSSINGS] fords 138, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[17:09:52.923] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 29 roads, 1 bridges, 39477 segments in 3848 ms (hash 11773178333440644877)
+[17:09:54.380] [INFO] [WorldForge] [CROSSINGS] fords 138, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[17:09:54.612] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 29 roads, 1 bridges, 39477 segments in 1575 ms (hash 11773178333440644877)
+[17:09:45.110] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+[17:09:48.962] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1
+[17:09:49.001] [INFO] [WorldGenerator] [CIV] continent plan: 154 sites over 7750.29 km2 of land in 38.5831 ms; refusals 2
+[17:09:52.963] [INFO] [WorldGenerator] [CIV] continent plan: 154 sites over 7750.29 km2 of land in 38.7147 ms; refusals 2
+engines left: 0
+L4 EXIT 0
+
+--- minimap pixel probe at the bridge (plan JSON bridges[0] centre (-3428,-4252) -> box px (202,189) at 64 u/px): the 3 px white bar is at (201..203,189); the other 2860 white pixels are alpine snow spread over many 64 px tiles; control window at px 256,256: 0 white ---
+ 92,133, 74  79,116, 65  79,116, 65  60, 87, 49  76,111, 62 148,112, 64 204,212,204
+ 79,116, 65  79,116, 65  79,116, 65  79,116, 65 143,108, 62  82,120, 67  82,120, 67
+162,140, 77  79,116, 65 255,255,255 255,255,255 255,255,255 211,219,211 204,212,204
+168,146, 80 134,101, 57 139,105, 60  73,107, 60 198,205,198 211,219,211 191,197,191
+139,105, 60 144,125, 68  86,125, 70  70,103, 57 218,226,218 211,219,211 184,190,184
+
+=== AUDIT (solution-auditor, 2026-10-27 evening, on the working tree after GREEN 7 + the Release L4; from sources, diffs and this file only - no builds or runs): VERDICT FAIL ===
+Accepted as real: the version-1 pinned hashes cover the toJson change (fields gated on m_blendGrades); the bank limit 8.4 u IS derived from gradeBlendAt's |grade - natural| / repose shoulder capped at kShoulderMaxU (not invented, though introduced when the baseline needed it); the TraversalProbe key defect, its red/green and the 27 re-run probe-using test files; the knob test's control (N = 1).
+Found, and fixed in the AUDIT FOLLOW-UP below:
+ (1) the deck's 2 u shoulders were OUTSIDE the grounded overall length (a 29 u deck passed a 25 u rule) -> overall = banks + shoulders <= bridgeMaxSpanU (rule, routing span, census);
+ (2) the ford bound at the default (0.5 u) IS the river/creek class split, so "no creek deeper than the bound is forded" was a tautology and the refusal branch could not fire -> FordBoundIsAKnobWithItsControl (0.2 u on the baseline vs the default's creeks between 0.2 and 0.5 u);
+ (3) the span knob at the 3 u clamp floor could not detect a wrong width formula -> the knob goes one unit under the overall length the fixture's own bridge needed (12 u for the 13 u deck);
+ (4) ApproachFillIsBounded read the plan's arrays with the rule's own bankLimit() -> an emitted-terrain census (sampleSurface at every dry vertex within 64 u of a bridge: cut AND fill vs natural, bound + 1 u of cube rounding);
+ (5) the approach check extrapolated the deck's tangent as a straight line for 48 u (a road curving away from a canyon wall was refused anyway) -> sampled along the road's own centreline arc from the bank;
+ (6) the Mountains refusals had no measurement independent of the rule's strings -> RefusalsMatchTheEmittedTerrain dumps the emitted surface + channel hit every 1 u along the recorded deck line at every refused demand and asserts the judged rim equals the dump's highest channel column; the refused-demand record and JSON carry bank_low_u / bank_high_u / rim_u / deck_u / the tangent;
+ (7) the walk's control (a wall across the whole box) proves only that the probe can fail; the strict 4/9 u walker meets a 1 u lip at every plank end (the plank is a whole cube at deckY on a bank at deckY - 1) -> the strict bank-to-bank walk inside +-1.5 u of the deck line is REPORTED, the 1-cube hop (M4b's road standard, RealizedRoadsAreStepWalkable) is the assertion, the lip is an open item in the plan;
+ (8) a deck-removed control is impossible on the baseline fixture: its channel is 1 u deep and dry in a test world without water, so the deck's NECESSITY is not testable there (recorded; the version-1 fixture's deep channel keeps that control in RoadFieldSeamTest).
+Recorded, not changed: RouteFieldTest's deepest-cut assertion became a report because the data contradict the old claim (caps 80.7 u vs caps-off 79.0 u; vertices deeper than 6 u 5254 vs 3959 of 36288 / 37573) - asserting it would assert a falsehood; the plan records the finding; a re-routed demand restarts from the coarse path (cur.pts.clear(), by design); blockAround's permanent 3x3 block is class-independent now that no class term remains in the crossing rule, so the order dependence it creates is only between demands that would refuse at the same cell anyway.
+
+=== AUDIT FOLLOW-UP, GREEN 8 (2026-10-28, first log line 09:04:20, log file written 09:17:27, patch 6: overall length incl. shoulders, the ford knob test, the span knob one unit under the measured need, the emitted-terrain census, the road-following approach check, the refusal terrain dump, the strict bank-to-bank walk reported) ===
+Result: 53 OK, 1 FAILED - RefusalsMatchTheEmittedTerrain: 3 of 11 rim mismatches (62, 79, 1 u) because the dump's 30 u window crossed another channel OUTSIDE the banks while the rule's rim is the highest channel column BETWEEN them (fixed in GREEN 9 by recording the banks' distances and comparing inside them). The ford knob: 105 creeks between 0.2 and 0.5 u forded on the default plan -> 0 at 0.2 u, 17 roads + 15 refusals = the default's 32. The span knob at 12 u (the 13 u deck's need minus 1): 0 bridges, 32 roads. Emitted terrain within 64 u of the baseline's bridge: 9 dry vertices, max cut 2.0 u, max fill 5.0 u. Strict 4/9 u walker bank to bank: NOT walkable (the 1 u lip at the plank ends; reported, not asserted - the hop is the M4b road standard).
+[09:04:20.492] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[09:06:57.973] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] baseline Perlin: 0 refused demands
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 11 refused demands
+[ M4c ]   demand -1 -> 0 class 2 at (-2523,6026): the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 0 -> -1 class 2 at (-2504,8020): the approach rises 11.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> -1 class 2 at (-2250,-3835): banks 72.000000 / 98.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 165.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand 1 -> 0 class 2 at (-1759,5864): the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-1777,7055): the approach rises 12.400002 u above a deck at 61.599998 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-2518,8640): the approach rises 11.000000 u above a deck at 51.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 2 -> 0 class 1 at (-7983,-9937): banks 12.000000 / 14.000000 u, channel rim 45.000000 u, water none at an order-5 crossing: a deck at 46.000000 u needs an approach fill of 34.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (-2693,5440): the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 1 at (-3750,8917): order-5 channel 10.193741 u wide needs a deck of more than 25.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c ]   demand -1 -> 0 class 1 at (48,8136): banks 74.000000 / 85.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 97.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (248,7800): the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (218396 ms)
+[ M4c ] baseline Perlin: emitted terrain at 9 dry vertices within 64 u of a bridge: max cut 2.0 u, max fill 5.0 u, 0 fills above the bank limit + 1
+[ M4c ] baseline Perlin: 45707 vertices, 2 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 5.0 u at (-3425,-4255) class 1; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: emitted terrain at 0 dry vertices within 64 u of a bridge: max cut 0.0 u, max fill 0.0 u, 0 fills above the bank limit + 1
+[ M4c ] Mountains 424242: 36288 vertices, 0 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 5.4 u
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (12 ms)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[ M4c ] the longest bridge on baseline Perlin needs 13.0 u overall; the knob goes to 12 u
+[09:07:16.298] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 12 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin, span knob 12 u: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] span knob 12 u: 32 roads, 0 refused (default: 32 roads, 0 refused, 1 bridges)
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (18867 ms)
+[09:07:43.319] [INFO] [WorldForge] [CROSSINGS] fords 27, bridges 0, crossings refused and re-routed 64, demands refused 15 (span <= 25 u, ford depth < 0.2 u)
+[ M4c ] ford bound 0.2 u: 0 creek crossings at or above 0.2 u on realized roads (default plan: 105), 17 roads + 15 refused (default 32 + 0)
+[ M4c ]   refused -1 -> 0 class 2 at (-1237,4928): creek 0.303799 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 0 -> -1 class 2 at (-1228,4416): creek 0.305161 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 2 at (10416,-8368): creek 0.458584 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 2 at (14515,9231): creek 0.271032 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (9715,-8563): creek 0.491993 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 2 -> 0 class 1 at (64,6030): creek 0.259528 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 3 -> 0 class 1 at (368,6033): creek 0.252248 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 4 -> 0 class 1 at (3347,-14358): creek 0.273464 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (9005,-467): creek 0.242143 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-10065,-7619): creek 0.217010 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-524,7104): creek 0.374442 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (824,6702): creek 0.317909 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (14928,9512): creek 0.207739 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-7252,84): creek 0.353332 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (1600,6447): creek 0.239644 u deep at the crossing: deeper than the ford bound 0.200000 u
+[       OK ] BridgeSpanTest.FordBoundIsAKnobWithItsControl (25149 ms)
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 2 at (-2523,6026): banks 42 / 58, rim 30, deck 49.6 | dump (~ = channel column) hit max 30, dry 34..111 | the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand 0 -> -1 class 2 at (-2504,8020): banks 49 / 51, rim 20, deck 50.0 | dump (~ = channel column) hit max 82, dry 26..85 | the approach rises 11.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(384): error: The difference between rd.rimU and hitMax is 62, which exceeds 0.01f, where
+[ M4c-refusal ] Mountains 424242: demand -1 -> -1 class 2 at (-2250,-3835): banks 72 / 98, rim 236, deck 237.0 | dump (~ = channel column) hit max 236, dry 66..236 | banks 72.000000 / 98.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 165.000000 u, beyond the bank limit 8.400000 u
+[ M4c-refusal ] Mountains 424242: demand 1 -> 0 class 2 at (-1759,5864): banks 64 / 71, rim 30, deck 65.0 | dump (~ = channel column) hit max 30, dry 40..105 | the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 2 at (-1777,7055): banks 57 / 70, rim 35, deck 61.6 | dump (~ = channel column) hit max 35, dry 26..97 | the approach rises 12.400002 u above a deck at 61.599998 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 2 at (-2518,8640): banks 50 / 54, rim 31, deck 51.0 | dump (~ = channel column) hit max 110, dry 35..114 | the approach rises 11.000000 u above a deck at 51.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(384): error: The difference between rd.rimU and hitMax is 79, which exceeds 0.01f, where
+[ M4c-refusal ] Mountains 424242: demand 2 -> 0 class 1 at (-7983,-9937): banks 12 / 14, rim 45, deck 46.0 | dump (~ = channel column) hit max 46, dry 11..46 | banks 12.000000 / 14.000000 u, channel rim 45.000000 u, water none at an order-5 crossing: a deck at 46.000000 u needs an approach fill of 34.000000 u, beyond the bank limit 8.400000 u
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(384): error: The difference between rd.rimU and hitMax is 1, which exceeds 0.01f, where
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (-2693,5440): banks 88 / 101, rim 44, deck 92.6 | dump (~ = channel column) hit max 44, dry 56..167 | the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (-3750,8917): banks none / none, rim none, deck none | dump (~ = channel column) hit max 143, dry 45..143 | order-5 channel 10.193741 u wide needs a deck of more than 25.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (48,8136): banks 74 / 85, rim 170, deck 171.0 | dump (~ = channel column) hit max 170, dry 45..155 | banks 74.000000 / 85.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 97.000000 u, beyond the bank limit 8.400000 u
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (248,7800): banks 73 / 74, rim 44, deck 74.0 | dump (~ = channel column) hit max 44, dry 53..143 | the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[  FAILED  ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain (27 ms)
+[ M4c ] walking the first bridge of baseline Perlin (1 bridges)
+[ M4c ] v2 bridge walk: deckY=56 bankA.surfaceY=55 bankB.surfaceY=56 approachA=55 approachB=55 span=13.0002 class=1 order=4
+[ M4c ] strict 4/9 u walker bank to bank within +-1.5 u of the deck line: NOT walkable (reported; the 1 u lip at the plank ends)
+[       OK ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo (78295 ms)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (86494 ms)
+[       OK ] RoadFieldSeamTest.TestWorldHasRoads (60 ms)
+[       OK ] RoadFieldSeamTest.RoadColumnsStampedWithRoadMaterial (59 ms)
+[       OK ] RoadFieldSeamTest.RoadNeverOverridesRiverOrSea (60 ms)
+[       OK ] RoadFieldSeamTest.GeneratorCopyStampsIdenticalRoadColumns (66 ms)
+[       OK ] RoadFieldSeamTest.FloraKeepsOffTheRoadCorridor (415 ms)
+[       OK ] RoadFieldSeamTest.BridgeDeckEmittedOverOrder3Channel (16039 ms)
+[       OK ] RoadFieldSeamTest.BridgeRailsGuardDeckEdgesAndPiersReachTheBed (15568 ms)
+[09:11:01.608] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 455 ms (hash 18197215997962677593)
+[       OK ] RoadFieldSeamTest.BridgePiersStandSolidOnALongSpan (14087 ms)
+[       OK ] RoadFieldSeamTest.OffRoadColumnsIdenticalToDisabledWorld (83 ms)
+[       OK ] RoadFieldSeamTest.BridgeCrossingIsAgentWalkable (41825 ms)
+[09:11:57.604] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 454 ms (hash 18197215997962677593)
+[       OK ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains (784 ms)
+[09:12:13.399] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.EveryProfileStepWithinItsClassCapExceptBoundedPitches (18091 ms)
+[09:12:31.543] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (18113 ms)
+[09:13:29.032] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[09:14:27.888] [INFO] [WorldForge] [CROSSINGS] fords 213, bridges 0, crossings refused and re-routed 65, demands refused 10 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.MountainCapsCutLessThanTheLegacyEnvelope (115856 ms)
+[09:14:45.467] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.RealizedRoadsAreStepWalkable (27383 ms)
+[09:14:57.845] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 450 ms (hash 18197215997962677593)
+[       OK ] RouteFieldTest.VersionOneKeepsTheLegacyEnvelope (464 ms)
+[09:15:13.407] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.GradeBlendGathersEveryRoadInReach (47427 ms)
+[09:16:01.048] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.RealizedSurfaceKeepsTheClassCapOutsidePitches (20108 ms)
+[09:16:21.128] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.CutBanksStandAtTheReposeSlope (18382 ms)
+[09:17:17.359] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[       OK ] RouteFieldTest.MountainSwitchbacksRetireMostPitches (55640 ms)
+[       OK ] WorldForgePlanTest.FixtureTerrainIsHydrologicallyViable (9 ms)
+[       OK ] WorldForgePlanTest.ViableRegionYieldsRequestedSiteCount (179 ms)
+[       OK ] WorldForgePlanTest.TierMixIsOneTownTwoVillages (176 ms)
+[       OK ] WorldForgePlanTest.SitesNotInWater (176 ms)
+[       OK ] WorldForgePlanTest.SitesRespectMinSpacing (178 ms)
+[       OK ] WorldForgePlanTest.SitesWithinRegion (179 ms)
+[       OK ] WorldForgePlanTest.SiteCountClamped (252 ms)
+[       OK ] WorldForgePlanTest.RoadsConnectAllSites (178 ms)
+[       OK ] WorldForgePlanTest.RoadsAvoidStandingWater (178 ms)
+[       OK ] WorldForgePlanTest.RoadCenterlinesContinuous (180 ms)
+[       OK ] WorldForgePlanTest.CrossingsMarkedWhereOrder3 (156 ms)
+[       OK ] WorldForgePlanTest.CrossingsGetBridgeSpans (154 ms)
+[       OK ] WorldForgePlanTest.SitePinsSeatedVerbatim (160 ms)
+[       OK ] WorldForgePlanTest.RoadsReachTheFootprintEdge (181 ms)
+[       OK ] WorldForgePlanTest.RoadAtHitsCenterlineMissesFar (178 ms)
+[       OK ] WorldForgePlanTest.RoadQueryPerf (211 ms)
+[       OK ] WorldForgePlanTest.PlanDeterminism (370 ms)
+[       OK ] WorldForgePlanTest.SiteSeedDerivation (517 ms)
+[       OK ] WorldForgePlanTest.UnviableRegionYieldsFewerSitesHonestly (1 ms)
+[       OK ] WorldForgePlanTest.RasterCapSurfaces (353 ms)
+[09:17:23.916] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 500 ms (hash 9693137997320541182)
+[       OK ] WorldForgeStressTest.EightSitesOverFullRegion (517 ms)
+[09:17:24.388] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 462 ms (hash 18197215997962677593)
+[       OK ] WorldForgeStressTest.MountainWorldDegradesHonestly (471 ms)
+[09:17:24.854] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 449 ms (hash 9693137997320541182)
+[09:17:25.320] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 451 ms (hash 9693137997320541182)
+[       OK ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators (975 ms)
+[       OK ] WorldForgeStressTest.RoadStepProfileMostlyWalkable (111 ms)
+[09:17:25.950] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 466 ms (hash 18197215997962677593)
+[       OK ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains (797 ms)
+[09:17:26.799] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 18 roads, 0 bridges, 1923 segments in 508 ms (hash 9693137997320541182)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[09:17:27.300] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 10 roads, 3 bridges, 432 segments in 466 ms (hash 18197215997962677593)
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1035 ms)
+[  PASSED  ] 53 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain
+EXIT 1
+
+--- the refusal dumps (surfaceY every 1 u along the deck line, ~ = channel column) ---
+[ M4c-refusal ]   111 111 111 111 111 111 111 111 111 111 111 111 110 111 110 110 110 108 106 103 92 87 72 72 57 53 42 40 37 ~30 ~28 ~24 ~24 ~29 34 49 58 68 86 95 104 106 107 106 106 106 106 106 106 106 106 106 106 106 106 106 106 106 106 105 105 
+[ M4c-refusal ]   77 77 78 78 78 78 78 78 78 78 78 78 79 79 79 79 79 79 79 79 79 79 79 76 65 65 51 40 26 ~19 ~20 29 49 49 71 79 81 81 81 81 82 82 82 82 82 82 82 83 82 ~82 ~82 ~82 83 83 83 83 84 84 85 85 85 
+[ M4c-refusal ]   232 232 232 232 231 231 231 231 231 231 230 230 230 230 230 230 229 229 219 216 177 177 128 125 88 92 98 74 79 ~236 ~236 ~235 ~235 ~235 ~235 ~235 ~236 ~235 ~236 236 78 72 89 79 66 72 236 236 ~235 ~63 ~236 ~236 ~235 ~235 ~235 ~235 ~235 ~235 ~235 ~235 ~235 
+[ M4c-refusal ]   105 105 105 105 105 105 105 105 105 104 104 104 104 104 104 103 103 103 103 102 102 102 102 98 86 70 71 54 41 ~30 ~25 ~29 40 50 64 72 72 76 85 85 91 95 93 96 94 94 91 96 94 98 100 100 101 101 101 101 101 101 101 101 100 
+[ M4c-refusal ]   97 97 97 97 97 97 96 96 96 96 96 96 96 96 96 96 95 95 95 95 95 95 95 88 74 74 57 39 26 ~26 ~24 ~35 35 53 70 70 84 91 91 91 91 90 90 90 90 89 89 89 89 89 88 88 88 88 88 87 87 87 87 87 87 
+[ M4c-refusal ]   111 111 ~110 ~110 111 113 113 113 114 114 114 114 114 114 114 114 114 114 110 103 95 86 78 70 62 54 46 38 ~31 ~26 ~21 ~21 ~24 ~29 35 42 50 58 65 71 78 83 89 93 97 101 103 106 108 109 110 110 110 110 110 110 110 109 109 109 109 
+[ M4c-refusal ]   41 41 41 41 41 41 41 41 41 41 41 41 41 41 41 39 36 36 33 30 30 27 23 19 19 16 14 14 12 ~45 ~45 ~45 ~45 ~45 ~45 ~45 ~45 ~45 11 12 12 12 ~46 ~46 ~46 ~45 ~45 ~45 ~45 ~46 ~46 46 14 19 19 23 28 32 32 36 39 
+[ M4c-refusal ]   161 161 161 160 159 158 157 154 152 150 147 144 141 138 136 135 134 129 131 133 132 131 127 121 113 102 88 72 57 ~44 ~37 ~35 ~43 56 76 101 128 152 164 165 165 165 165 165 166 166 166 167 167 167 167 167 167 167 167 167 167 167 167 167 167 
+[ M4c-refusal ]   140 140 140 140 140 140 140 139 139 139 139 138 138 133 128 124 119 110 105 99 96 94 83 76 69 62 50 45 143 ~143 ~143 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~143 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 ~142 
+[ M4c-refusal ]   155 155 155 155 155 154 154 154 154 154 154 153 153 153 153 153 153 153 152 152 151 149 147 132 126 118 85 72 60 ~170 ~170 ~169 ~170 45 50 74 77 97 96 94 108 105 101 113 109 104 113 113 107 114 108 101 107 103 101 113 118 126 137 142 143 
+[ M4c-refusal ]   142 142 141 141 141 140 140 140 141 142 142 142 142 143 143 143 143 143 142 141 134 134 123 108 108 90 73 57 57 ~44 ~36 ~36 ~40 53 53 74 99 121 121 136 142 142 141 141 141 141 141 141 141 141 141 140 141 141 141 141 142 142 142 142 142 
+
+=== GREEN 9 (2026-10-28, log file written 09:27:18 - the earlier label '09:40' was my estimate, not the clock, corrected after the second audit; the refusal record carries the banks' distances; the engine patch only - the test patch had failed to apply, so the 3 rim mismatches repeat; the pinned version-1 hashes hold with the new JSON fields) ===
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (219647 ms)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(384): error: The difference between rd.rimU and hitMax is 62, which exceeds 0.01f, where
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(384): error: The difference between rd.rimU and hitMax is 79, which exceeds 0.01f, where
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(384): error: The difference between rd.rimU and hitMax is 1, which exceeds 0.01f, where
+[  FAILED  ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain (26 ms)
+[       OK ] RouteFieldTest.VersionOneKeepsTheLegacyEnvelope (471 ms)
+[       OK ] WorldForgeStressTest.EightSitesOverFullRegion (508 ms)
+[       OK ] WorldForgeStressTest.MountainWorldDegradesHonestly (463 ms)
+[       OK ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators (1064 ms)
+[       OK ] WorldForgeStressTest.RoadStepProfileMostlyWalkable (115 ms)
+[       OK ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains (790 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1032 ms)
+[  PASSED  ] 8 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain
+EXIT 1
+
+=== GREEN 10 (2026-10-28, log file written 09:31:53 - the earlier label '09:55' was my estimate, not the clock, corrected after the second audit; a 2-test run (NoDeckBeyondTheGroundedSpan + RefusalsMatchTheEmittedTerrain) of the final test source; the rim compared between the banks only; the dump marks columns outside the banks with '.') ===
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (220176 ms)
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 2 at (-2523,6026): banks 42 / 58 at -4 / +6 u, rim 30, deck 49.6 | dump (~ = channel column, . = outside the banks) hit max between the banks 30, dry 34..111 | the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ]   .111 .111 .111 .111 .111 .111 .111 .111 .111 .111 .111 .111 .110 .111 .110 .110 .110 .108 .106 .103 .92 .87 .72 .72 .57 .53 42 40 37 ~30 ~28 ~24 ~24 ~29 34 49 58 .68 .86 .95 .104 .106 .107 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .105 .105 
+[ M4c-refusal ] Mountains 424242: demand 0 -> -1 class 2 at (-2504,8020): banks 49 / 51 at -4 / +3 u, rim 20, deck 50.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 20, dry 26..85 | the approach rises 11.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ]   .77 .77 .78 .78 .78 .78 .78 .78 .78 .78 .78 .78 .79 .79 .79 .79 .79 .79 .79 .79 .79 .79 .79 .76 .65 .65 51 40 26 ~19 ~20 29 49 49 .71 .79 .81 .81 .81 .81 .82 .82 .82 .82 .82 .82 .82 .83 .82 .~82 .~82 .~82 .83 .83 .83 .83 .84 .84 .85 .85 .85 
+[ M4c-refusal ] Mountains 424242: demand -1 -> -1 class 2 at (-2250,-3835): banks 72 / 98 at -4 / +11 u, rim 236, deck 237.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 236, dry 63..236 | banks 72.000000 / 98.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 165.000000 u, beyond the bank limit 8.
+[ M4c-refusal ]   .232 .232 .232 .232 .231 .231 .231 .231 .231 .231 .230 .230 .230 .230 .230 .230 .229 .229 .219 .216 .177 .177 .128 .125 .88 .92 98 74 79 ~236 ~236 ~235 ~235 ~235 ~235 ~235 ~236 ~235 ~236 236 78 72 .89 .79 .66 .72 .236 .236 .~235 .~63 .~236 .~236 .~235 .~235 .~235 .~235 .~235 .~235 .~235 .~235 .~235 
+[ M4c-refusal ] Mountains 424242: demand 1 -> 0 class 2 at (-1759,5864): banks 64 / 71 at -4 / +4 u, rim 30, deck 65.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 30, dry 40..105 | the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ]   .105 .105 .105 .105 .105 .105 .105 .105 .105 .104 .104 .104 .104 .104 .104 .103 .103 .103 .103 .102 .102 .102 .102 .98 .86 .70 71 54 41 ~30 ~25 ~29 40 50 64 .72 .72 .76 .85 .85 .91 .95 .93 .96 .94 .94 .91 .96 .94 .98 .100 .100 .101 .101 .101 .101 .101 .101 .101 .101 .100 
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 2 at (-1777,7055): banks 57 / 70 at -4 / +4 u, rim 35, deck 61.6 | dump (~ = channel column, . = outside the banks) hit max between the banks 35, dry 26..97 | the approach rises 12.400002 u above a deck at 61.599998 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ]   .97 .97 .97 .97 .97 .97 .96 .96 .96 .96 .96 .96 .96 .96 .96 .96 .95 .95 .95 .95 .95 .95 .95 .88 .74 .74 57 39 26 ~26 ~24 ~35 35 53 70 .70 .84 .91 .91 .91 .91 .90 .90 .90 .90 .89 .89 .89 .89 .89 .88 .88 .88 .88 .88 .87 .87 .87 .87 .87 .87 
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 2 at (-2518,8640): banks 50 / 54 at -5 / +6 u, rim 31, deck 51.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 31, dry 35..114 | the approach rises 11.000000 u above a deck at 51.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ]   .111 .111 .~110 .~110 .111 .113 .113 .113 .114 .114 .114 .114 .114 .114 .114 .114 .114 .114 .110 .103 .95 .86 .78 .70 .62 54 46 38 ~31 ~26 ~21 ~21 ~24 ~29 35 42 50 .58 .65 .71 .78 .83 .89 .93 .97 .101 .103 .106 .108 .109 .110 .110 .110 .110 .110 .110 .110 .109 .109 .109 .109 
+[ M4c-refusal ] Mountains 424242: demand 2 -> 0 class 1 at (-7983,-9937): banks 12 / 14 at -4 / +10 u, rim 45, deck 46.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 45, dry 11..46 | banks 12.000000 / 14.000000 u, channel rim 45.000000 u, water none at an order-5 crossing: a deck at 46.000000 u needs an approach fill of 34.000000 u, beyond the bank limit 8.400000 u
+[ M4c-refusal ]   .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .39 .36 .36 .33 .30 .30 .27 .23 .19 .19 .16 14 14 12 ~45 ~45 ~45 ~45 ~45 ~45 ~45 ~45 ~45 11 12 12 .12 .~46 .~46 .~46 .~45 .~45 .~45 .~45 .~46 .~46 .46 .14 .19 .19 .23 .28 .32 .32 .36 .39 
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (-2693,5440): banks 88 / 101 at -4 / +5 u, rim 44, deck 92.6 | dump (~ = channel column, . = outside the banks) hit max between the banks 44, dry 56..167 | the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ]   .161 .161 .161 .160 .159 .158 .157 .154 .152 .150 .147 .144 .141 .138 .136 .135 .134 .129 .131 .133 .132 .131 .127 .121 .113 .102 88 72 57 ~44 ~37 ~35 ~43 56 76 101 .128 .152 .164 .165 .165 .165 .165 .165 .166 .166 .166 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (-3750,8917): banks none / none at -4 / +none u, rim none, deck none | dump (~ = channel column, . = outside the banks) hit max between the banks none, dry 45..143 | order-5 channel 10.193741 u wide needs a deck of more than 25.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c-refusal ]   .140 .140 .140 .140 .140 .140 .140 .139 .139 .139 .139 .138 .138 .133 .128 .124 .119 .110 .105 .99 .96 .94 .83 .76 .69 .62 .50 .45 .143 .~143 .~143 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~143 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (48,8136): banks 74 / 85 at -4 / +5 u, rim 170, deck 171.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 170, dry 45..155 | banks 74.000000 / 85.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 97.000000 u, beyond the bank limit 8.400000 
+[ M4c-refusal ]   .155 .155 .155 .155 .155 .154 .154 .154 .154 .154 .154 .153 .153 .153 .153 .153 .153 .153 .152 .152 .151 .149 .147 .132 .126 .118 85 72 60 ~170 ~170 ~169 ~170 45 50 74 .77 .97 .96 .94 .108 .105 .101 .113 .109 .104 .113 .113 .107 .114 .108 .101 .107 .103 .101 .113 .118 .126 .137 .142 .143 
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (248,7800): banks 73 / 74 at -4 / +5 u, rim 44, deck 74.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 44, dry 53..143 | the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ]   .142 .142 .141 .141 .141 .140 .140 .140 .141 .142 .142 .142 .142 .143 .143 .143 .143 .143 .142 .141 .134 .134 .123 .108 .108 .90 73 57 57 ~44 ~36 ~36 ~40 53 53 74 .99 .121 .121 .136 .142 .142 .141 .141 .141 .141 .141 .141 .141 .141 .141 .140 .141 .141 .141 .141 .142 .142 .142 .142 .142 
+[       OK ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain (25 ms)
+[  PASSED  ] 2 tests.
+EXIT 0
+
+=== RELEASE L4 #2 (2026-10-28 09:36, after the audit follow-up; Release phyxel.exe built 09:36:40; raw responses m3a_l4_m4c2_*) - same plan hash 11773178333440644877 as L4 #1 (the overall-length rule and the refusal fields change nothing on CivLab: 0 refusals), 138 fords + 1 bridge, refused_demands = [] ===
+exe: C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Release/phyxel.exe 2026-10-28_09:36:40  commit: 1c315782  config: Release
+--- status
+{"applied":true,"enabled":true,"plan_hash":"11773178333440644877","roads":29,"site_list":[{"depth":60,"id":0,"score":{"biome":1.0,"relief":0.9866994023323059,"total":0.7690147161483765,"water":0.25},"seed":752911612,"surface":"Grass","surfaceY":20.529294967651367,"tier":"town","width":140,"x":-2360,
+
+--- plan (applied)
+keys: ['applied', 'civ', 'corridors', 'plan', 'plan_hash', 'success']
+box plan: sites 4 roads 29 bridges 1 params.civ True hash 11773178333440644877
+civ: {'land_km2': 7750.287109375, 'bake_ms': 34.57569885253906} sites 154
+--- M4c: crossings / bridges / refused demands in the applied plan JSON
+roads 29 crossings by kind {'ford': 138, 'bridge': 1}
+bridges 1 span_u max 13.000164985656738 pier_spacing_u [10.0] single_span_u [6.0]
+bridge crossing span_u max 13.000164985656738 bank_step_u max 1.0 widest crossed channel 5.782899856567383
+refused_demands 0
+params {'bridgeMaxSpanU': 25.0, 'bridgeSingleSpanU': 6.0, 'pierSpacingU': 10.0, 'fordMaxDepthU': 0.5}
+--- civ (continent map, step 2 = 1024 u/char)
+{"bake_ms":34.57569885253906,"cell_units":1024.0,"corridors":{"bake_ms":53.09299850463867,"junction_cells":231,"refusals":["no corridor from site 15 to site 1 (sea or basin in every way)","no corridor
+--- minimap: whole continent (px 512, radius 51200) and the hydrology box (px 512, radius 16384)
+
+
+--- M4c: minimap marks by exact colour (white = bridge bars, cyan 40,220,240 = ford dots)
+minimap 512 x 512 white bridge pixels 2863 cyan ford pixels 50
+minimap 512 x 512 white bridge pixels 6384 cyan ford pixels 45
+--- engine log: crossings
+[09:36:54.268] [INFO] [WorldForge] [CROSSINGS] fords 138, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[09:36:54.471] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 29 roads, 1 bridges, 39477 segments in 3365 ms (hash 11773178333440644877)
+[09:36:55.694] [INFO] [WorldForge] [CROSSINGS] fords 138, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[09:36:55.899] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 29 roads, 1 bridges, 39477 segments in 1326 ms (hash 11773178333440644877)
+[09:36:47.657] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+[09:36:51.006] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1
+[09:36:51.040] [INFO] [WorldGenerator] [CIV] continent plan: 154 sites over 7750.29 km2 of land in 33.3903 ms; refusals 2
+[09:36:54.506] [INFO] [WorldGenerator] [CIV] continent plan: 154 sites over 7750.29 km2 of land in 34.5757 ms; refusals 2
+engines left: 0
+L4 EXIT 0
+
+=== GREEN 11 - the SECOND AUDITOR'S OWN RUN (2026-10-28, log file written 09:46:37; filter BridgeSpanTest.*:TraversalProbeTest.* on the exe of 09:28:09 built from BridgeSpanTest.cpp of 09:28:03 - the full 8 BridgeSpanTest tests on one source version; scratchpad audit2_run.txt) ===
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] baseline Perlin: 0 refused demands
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 11 refused demands
+[ M4c ]   demand -1 -> 0 class 2 at (-2523,6026): the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 0 -> -1 class 2 at (-2504,8020): the approach rises 11.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> -1 class 2 at (-2250,-3835): banks 72.000000 / 98.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 165.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand 1 -> 0 class 2 at (-1759,5864): the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-1777,7055): the approach rises 12.400002 u above a deck at 61.599998 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-2518,8640): the approach rises 11.000000 u above a deck at 51.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 2 -> 0 class 1 at (-7983,-9937): banks 12.000000 / 14.000000 u, channel rim 45.000000 u, water none at an order-5 crossing: a deck at 46.000000 u needs an approach fill of 34.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (-2693,5440): the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 1 at (-3750,8917): order-5 channel 10.193741 u wide needs a deck of more than 25.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c ]   demand -1 -> 0 class 1 at (48,8136): banks 74.000000 / 85.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 97.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (248,7800): the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (219473 ms)
+[ M4c ] baseline Perlin: emitted terrain at 9 dry vertices within 64 u of a bridge: max cut 2.0 u, max fill 5.0 u, 0 fills above the bank limit + 1
+[ M4c ] baseline Perlin: 45707 vertices, 2 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 5.0 u at (-3425,-4255) class 1; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: emitted terrain at 0 dry vertices within 64 u of a bridge: max cut 0.0 u, max fill 0.0 u, 0 fills above the bank limit + 1
+[ M4c ] Mountains 424242: 36288 vertices, 0 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 5.4 u
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (12 ms)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[ M4c ] the longest bridge on baseline Perlin needs 13.0 u overall; the knob goes to 12 u
+[ M4c ] baseline Perlin, span knob 12 u: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u
+[ M4c ] span knob 12 u: 32 roads, 0 refused (default: 32 roads, 0 refused, 1 bridges)
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (18311 ms)
+[ M4c ] ford bound 0.2 u: 0 creek crossings at or above 0.2 u on realized roads (default plan: 105), 17 roads + 15 refused (default 32 + 0)
+[ M4c ]   refused -1 -> 0 class 2 at (-1237,4928): creek 0.303799 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 0 -> -1 class 2 at (-1228,4416): creek 0.305161 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 2 at (10416,-8368): creek 0.458584 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 2 at (14515,9231): creek 0.271032 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (9715,-8563): creek 0.491993 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 2 -> 0 class 1 at (64,6030): creek 0.259528 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 3 -> 0 class 1 at (368,6033): creek 0.252248 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 4 -> 0 class 1 at (3347,-14358): creek 0.273464 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (9005,-467): creek 0.242143 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-10065,-7619): creek 0.217010 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-524,7104): creek 0.374442 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (824,6702): creek 0.317909 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (14928,9512): creek 0.207739 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-7252,84): creek 0.353332 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (1600,6447): creek 0.239644 u deep at the crossing: deeper than the ford bound 0.200000 u
+[       OK ] BridgeSpanTest.FordBoundIsAKnobWithItsControl (24835 ms)
+[       OK ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain (25 ms)
+[ M4c ] walking the first bridge of baseline Perlin (1 bridges)
+[ M4c ] v2 bridge walk: deckY=56 bankA.surfaceY=55 bankB.surfaceY=56 approachA=55 approachB=55 span=13.0002 class=1 order=4
+[ M4c ] strict 4/9 u walker bank to bank within +-1.5 u of the deck line: NOT walkable (reported; the 1 u lip at the plank ends)
+[       OK ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo (77498 ms)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (86358 ms)
+[       OK ] TraversalProbeTest.FlatCorridorIsTraversable (1 ms)
+[       OK ] TraversalProbeTest.LowLedgeWithinStepUpIsClimbed (1 ms)
+[       OK ] TraversalProbeTest.LedgeTallerThanStepUpBlocks (0 ms)
+[       OK ] TraversalProbeTest.TallWallBlocks (0 ms)
+[       OK ] TraversalProbeTest.LowCeilingBlocksEntry (0 ms)
+[       OK ] TraversalProbeTest.AdequateCeilingAllowsPassage (1 ms)
+[       OK ] TraversalProbeTest.FloodAgreesWithReachableOnAnOpenCorridor (4 ms)
+[       OK ] TraversalProbeTest.FloodStopsAtAWallAndStaysOnTheStartSide (1 ms)
+[       OK ] TraversalProbeTest.FloodOfAnUnsupportedStartIsEmpty (0 ms)
+[       OK ] TraversalProbeTest.FarCoordinatesTraverseLikeTheOrigin (7 ms)
+[  PASSED  ] 18 tests.
+EXIT 0
+
+=== AUDIT 2 (solution-auditor, 2026-10-28 ~09:50, on the follow-up tree; it ran the exe itself): VERDICT FAIL ===
+Reproduced: the eight BridgeSpanTest tests and the probe tests green on the current source (GREEN 11 above); the ford knob 105 -> 0 counts the crossings the rule judged (same channelHitAt / fullDepthAt fallback); the span knob at 12 u carries the overall-length claim; the between-the-banks rim restriction is the rule's own loop and the two excluded channels are 13-27 u away; the RouteFieldTest report is acceptable with the data recorded.
+Found (fixed in the SECOND FOLLOW-UP below): (a) the GREEN 9 / GREEN 10 labels carried times I estimated instead of the log's (corrected above, from the files' write times); the plan's 'BridgeSpanTest 8/8 (GREEN 8-10)' stitched runs of different source versions - GREEN 11 is the single-source run; (b) the rim assertion skipped silently when the dump found no channel column - now the dump MUST find one when the rule judged one; (c) a REAL rule weakness: bankFrom accepted any 3 consecutive non-hit columns, so a 3-column gap inside a channel mask counted as a bank (the (-7983,-9937) refusal: channel columns resumed 4 u past the 'bank') - the bank now needs the 2 u shoulder beyond it natural as well, asserted for accepted decks (census: 0 channel columns under a shoulder) and refusals (dump: 0 channel columns in the shoulder beyond a bank); (d) the emitted CUT was printed, not asserted - asserted within 16 u of the span; (e) the arc helpers (approach along the road) had no test - exposed as statics and unit-tested on a hairpin; the 'road curving away from a wall' behaviour has no fixture and stays UNFALSIFIED; the check stops at a road's end (recorded limitation); (f) the hop walk can pass without the deck on the baseline (a 1 u dry channel) and no fixture has a bridged channel deep enough for a deck-removed control: the plan no longer claims L3 for the DECK - the crossing is hop-walkable, the deck's necessity is unfalsified on every current fixture (open item: a version-2 fixture with a deep bridged channel); (g) MountainCapsCutLessThanTheLegacyEnvelope renamed MountainCapsReduceThePitchedShare.
+
+=== SECOND FOLLOW-UP, GREEN 12 (2026-10-28, first log line 09:56:25, log file written 10:09:16; patch 8: the bank needs its 2 u shoulder natural, the rim assertion requires a dump rim, shoulder columns asserted on decks and refusals, the emitted cut asserted within 16 u, the arc helpers as statics with a hairpin unit test, the RouteFieldTest rename; filter BridgeSpanTest + RouteFieldTest + WorldForgeStressTest + RoadFieldSeamTest + TraversalProbeTest on one source version) ===
+Result: 45/45 OK. The (-7983,-9937) refusal changed shape: the 3-column gap no longer counts as a bank, the search runs to +23 u and the crossing refuses on the overall length (a 9.8 u channel needing more than 25 u along the road). Baseline and Mountains counts unchanged (157 fords + 1 bridge; 195 fords, 0 bridges, 11 refusals); pinned version-1 hashes hold.
+[09:56:25.108] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[09:59:03.140] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] baseline Perlin: 0 refused demands
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] Mountains 424242: 11 refused demands
+[ M4c ]   demand -1 -> 0 class 2 at (-2523,6026): the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 0 -> -1 class 2 at (-2504,8020): the approach rises 11.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> -1 class 2 at (-2250,-3835): banks 72.000000 / 98.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 165.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand 1 -> 0 class 2 at (-1759,5864): the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-1777,7055): the approach rises 12.400002 u above a deck at 61.599998 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-2518,8640): the approach rises 11.000000 u above a deck at 51.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 2 -> 0 class 1 at (-7983,-9937): order-5 channel 9.844921 u wide needs a deck of 31.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c ]   demand -1 -> 0 class 1 at (-2693,5440): the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 1 at (-3750,8917): order-5 channel 10.193741 u wide needs a deck of more than 25.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c ]   demand -1 -> 0 class 1 at (48,8136): banks 74.000000 / 85.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 97.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (248,7800): the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (218451 ms)
+[ M4c ] baseline Perlin: emitted terrain at 9 dry vertices within 64 u of a bridge: max cut 2.0 u (2.0 u within 16 u), max fill 5.0 u, 0 fills above the bank limit + 1
+[ M4c ] baseline Perlin: 45707 vertices, 2 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 5.0 u at (-3425,-4255) class 1; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: emitted terrain at 0 dry vertices within 64 u of a bridge: max cut 0.0 u (0.0 u within 16 u), max fill 0.0 u, 0 fills above the bank limit + 1
+[ M4c ] Mountains 424242: 36288 vertices, 0 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 5.4 u
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (13 ms)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[ M4c ] the longest bridge on baseline Perlin needs 13.0 u overall; the knob goes to 12 u
+[09:59:21.624] [INFO] [WorldForge] [CROSSINGS] fords 170, bridges 0, crossings refused and re-routed 2, demands refused 0 (span <= 12 u, ford depth < 0.5 u)
+[ M4c ] baseline Perlin, span knob 12 u: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] span knob 12 u: 32 roads, 0 refused (default: 32 roads, 0 refused, 1 bridges)
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (19115 ms)
+[09:59:48.911] [INFO] [WorldForge] [CROSSINGS] fords 27, bridges 0, crossings refused and re-routed 64, demands refused 15 (span <= 25 u, ford depth < 0.2 u)
+[ M4c ] ford bound 0.2 u: 0 creek crossings at or above 0.2 u on realized roads (default plan: 105), 17 roads + 15 refused (default 32 + 0)
+[ M4c ]   refused -1 -> 0 class 2 at (-1237,4928): creek 0.303799 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 0 -> -1 class 2 at (-1228,4416): creek 0.305161 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 2 at (10416,-8368): creek 0.458584 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 2 at (14515,9231): creek 0.271032 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (9715,-8563): creek 0.491993 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 2 -> 0 class 1 at (64,6030): creek 0.259528 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 3 -> 0 class 1 at (368,6033): creek 0.252248 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 4 -> 0 class 1 at (3347,-14358): creek 0.273464 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (9005,-467): creek 0.242143 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-10065,-7619): creek 0.217010 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-524,7104): creek 0.374442 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (824,6702): creek 0.317909 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (14928,9512): creek 0.207739 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-7252,84): creek 0.353332 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (1600,6447): creek 0.239644 u deep at the crossing: deeper than the ford bound 0.200000 u
+[       OK ] BridgeSpanTest.FordBoundIsAKnobWithItsControl (25321 ms)
+[       OK ] BridgeSpanTest.ArcHelpersProjectOntoTheOwnLegOfAHairpin (0 ms)
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 2 at (-2523,6026): banks 42 / 58 at -4 / +6 u, rim 30, deck 49.6 | dump (~ = channel column, . = outside the banks) hit max between the banks 30, dry 24..111 | the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand 0 -> -1 class 2 at (-2504,8020): banks 49 / 51 at -4 / +3 u, rim 20, deck 50.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 20, dry 19..85 | the approach rises 11.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand -1 -> -1 class 2 at (-2250,-3835): banks 72 / 98 at -4 / +11 u, rim 236, deck 237.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 236, dry 63..236 | banks 72.000000 / 98.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 165.000000 u, beyond the bank limit 8.
+[ M4c-refusal ] Mountains 424242: demand 1 -> 0 class 2 at (-1759,5864): banks 64 / 71 at -4 / +4 u, rim 30, deck 65.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 30, dry 25..105 | the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 2 at (-1777,7055): banks 57 / 70 at -4 / +4 u, rim 35, deck 61.6 | dump (~ = channel column, . = outside the banks) hit max between the banks 35, dry 24..97 | the approach rises 12.400002 u above a deck at 61.599998 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 2 at (-2518,8640): banks 50 / 54 at -5 / +6 u, rim 31, deck 51.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 31, dry 21..114 | the approach rises 11.000000 u above a deck at 51.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand 2 -> 0 class 1 at (-7983,-9937): banks none / none at -4 / +23 u, rim none, deck none | dump (~ = channel column, . = outside the banks) hit max between the banks 46, dry 11..46 | order-5 channel 9.844921 u wide needs a deck of 31.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (-2693,5440): banks 88 / 101 at -4 / +5 u, rim 44, deck 92.6 | dump (~ = channel column, . = outside the banks) hit max between the banks 44, dry 35..167 | the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (-3750,8917): banks none / none at -4 / +none u, rim none, deck none | dump (~ = channel column, . = outside the banks) hit max between the banks none, dry 45..143 | order-5 channel 10.193741 u wide needs a deck of more than 25.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (48,8136): banks 74 / 85 at -4 / +5 u, rim 170, deck 171.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 170, dry 45..170 | banks 74.000000 / 85.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 97.000000 u, beyond the bank limit 8.400000 
+[ M4c-refusal ] Mountains 424242: demand -1 -> 0 class 1 at (248,7800): banks 73 / 74 at -4 / +5 u, rim 44, deck 74.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 44, dry 36..143 | the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[       OK ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain (26 ms)
+[ M4c ] walking the first bridge of baseline Perlin (1 bridges)
+[ M4c ] v2 bridge walk: deckY=56 bankA.surfaceY=55 bankB.surfaceY=56 approachA=55 approachB=55 span=13.0002 class=1 order=4
+[ M4c ] strict 4/9 u walker bank to bank within +-1.5 u of the deck line: NOT walkable (reported; the 1 u lip at the plank ends)
+[       OK ] BridgeSpanTest.BridgeCrossingIsAgentWalkableOnVersionTwo (76886 ms)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (83575 ms)
+[       OK ] RoadFieldSeamTest.TestWorldHasRoads (57 ms)
+[       OK ] RoadFieldSeamTest.RoadColumnsStampedWithRoadMaterial (58 ms)
+[       OK ] RoadFieldSeamTest.RoadNeverOverridesRiverOrSea (60 ms)
+[       OK ] RoadFieldSeamTest.GeneratorCopyStampsIdenticalRoadColumns (64 ms)
+[       OK ] RoadFieldSeamTest.FloraKeepsOffTheRoadCorridor (405 ms)
+[       OK ] RoadFieldSeamTest.BridgeDeckEmittedOverOrder3Channel (15572 ms)
+[       OK ] RoadFieldSeamTest.BridgeRailsGuardDeckEdgesAndPiersReachTheBed (15711 ms)
+[       OK ] RoadFieldSeamTest.BridgePiersStandSolidOnALongSpan (13900 ms)
+[       OK ] RoadFieldSeamTest.OffRoadColumnsIdenticalToDisabledWorld (69 ms)
+[       OK ] RoadFieldSeamTest.BridgeCrossingIsAgentWalkable (38444 ms)
+[       OK ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains (773 ms)
+[10:04:12.695] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] baseline Perlin: 32 roads, 45675 profile segments, 2413 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 45707 vertices: max cut 11.1 u, max fill 6.0 u, 13 deeper than 6 u
+[       OK ] RouteFieldTest.EveryProfileStepWithinItsClassCapExceptBoundedPitches (20158 ms)
+[10:04:31.234] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] baseline earthwork: 32 roads, 45675 profile segments, 2413 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 45707 vertices: max cut 11.1 u, max fill 6.0 u, 13 deeper than 6 u
+[ M4b ] cuts deeper than the floor: 37 next to a natural slope above 0.5, 0 unexplained
+[       OK ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (18494 ms)
+[10:05:26.565] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] Mountains 424242 (caps): 22 roads, 36266 profile segments, 16538 over the class cap = 45.6 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 36288 vertices: max cut 80.7 u, max fill 5.4 u, 5254 deeper than 6 u
+[10:06:23.243] [INFO] [WorldForge] [CROSSINGS] fords 213, bridges 0, crossings refused and re-routed 65, demands refused 10 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] Mountains 424242 (caps off = 0.5): 23 roads, 37550 profile segments, 19561 over the class cap = 52.1 % of the length (worst 6.25 x cap, 13118 unexplained by a cut floor or a pin); 37573 vertices: max cut 79.0 u, max fill 9.0 u, 3959 deeper than 6 u
+[ M4b ] Mountains deepest cut: caps 80.7 u, caps off 79.0 u (reported)
+[ M4b ] Mountains detour: 579.7 km of road for 334.1 km of endpoint distance (x1.74); corridors 154, unroutable 2
+[       OK ] RouteFieldTest.MountainCapsReduceThePitchedShare (111404 ms)
+[10:06:40.618] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] walkability: 236526 centreline steps, 28 taller than 1 cube (0.012 %)
+[       OK ] RouteFieldTest.RealizedRoadsAreStepWalkable (27065 ms)
+[ M4b ] version-1 Mountains (legacy 0.5): 10 roads, 432 profile segments, 154 over the class cap = 35.5 % of the length (worst 6.25 x cap, 142 unexplained by a cut floor or a pin); 442 vertices: max cut 33.0 u, max fill 25.0 u, 14 deeper than 6 u
+[       OK ] RouteFieldTest.VersionOneKeepsTheLegacyEnvelope (464 ms)
+[10:07:08.401] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] blend gather: 8607 points (7603 with more than one road in reach), 0 roads missing from the gather, 203 gathered beyond reach
+[       OK ] RouteFieldTest.GradeBlendGathersEveryRoadInReach (46557 ms)
+[10:07:54.854] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] realized surface: 21574 windows outside pitches, 0 over their class cap (worst 0.251 after rounding); 1224 pitch windows skipped
+[       OK ] RouteFieldTest.RealizedSurfaceKeepsTheClassCapOutsidePitches (19698 ms)
+[10:08:14.711] [INFO] [WorldForge] [CROSSINGS] fords 157, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] cut banks: 5150 cut vertices scanned, the deepest single-road cut 3.9 u: 79 single-road banks measured (363 bundled cuts skipped), 0 steeper than repose (worst 0.60 vs 0.70)
+[       OK ] RouteFieldTest.CutBanksStandAtTheReposeSlope (18214 ms)
+[10:09:10.079] [INFO] [WorldForge] [CROSSINGS] fords 195, bridges 0, crossings refused and re-routed 65, demands refused 11 (span <= 25 u, ford depth < 0.5 u)
+[ M4b ] Mountains 424242 (switchbacks): 22 roads, 36266 profile segments, 16538 over the class cap = 45.6 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 36288 vertices: max cut 80.7 u, max fill 5.4 u, 5254 deeper than 6 u
+[ M4b ] switchbacks: 9 stretches replaced, 5.2 km of legs in 579.7 km of road
+[       OK ] RouteFieldTest.MountainSwitchbacksRetireMostPitches (54741 ms)
+[       OK ] TraversalProbeTest.FlatCorridorIsTraversable (2 ms)
+[       OK ] TraversalProbeTest.LowLedgeWithinStepUpIsClimbed (1 ms)
+[       OK ] TraversalProbeTest.LedgeTallerThanStepUpBlocks (0 ms)
+[       OK ] TraversalProbeTest.TallWallBlocks (0 ms)
+[       OK ] TraversalProbeTest.LowCeilingBlocksEntry (0 ms)
+[       OK ] TraversalProbeTest.AdequateCeilingAllowsPassage (1 ms)
+[       OK ] TraversalProbeTest.FloodAgreesWithReachableOnAnOpenCorridor (4 ms)
+[       OK ] TraversalProbeTest.FloodStopsAtAWallAndStaysOnTheStartSide (1 ms)
+[       OK ] TraversalProbeTest.FloodOfAnUnsupportedStartIsEmpty (0 ms)
+[       OK ] TraversalProbeTest.FarCoordinatesTraverseLikeTheOrigin (7 ms)
+[       OK ] WorldForgeStressTest.EightSitesOverFullRegion (527 ms)
+[       OK ] WorldForgeStressTest.MountainWorldDegradesHonestly (470 ms)
+[       OK ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators (1065 ms)
+[       OK ] WorldForgeStressTest.RoadStepProfileMostlyWalkable (118 ms)
+[       OK ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains (771 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1012 ms)
+[  PASSED  ] 45 tests.
+EXIT 0
+
+--- the refusal dumps after the shoulder rule ---
+[ M4c-refusal ]   .111 .111 .111 .111 .111 .111 .111 .111 .111 .111 .111 .111 .110 .111 .110 .110 .110 .108 .106 .103 .92 .87 .72 .72 .57 .53 42 40 37 ~30 ~28 ~24 ~24 ~29 34 49 58 .68 .86 .95 .104 .106 .107 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .106 .105 .105 
+[ M4c-refusal ]   .77 .77 .78 .78 .78 .78 .78 .78 .78 .78 .78 .78 .79 .79 .79 .79 .79 .79 .79 .79 .79 .79 .79 .76 .65 .65 51 40 26 ~19 ~20 29 49 49 .71 .79 .81 .81 .81 .81 .82 .82 .82 .82 .82 .82 .82 .83 .82 .~82 .~82 .~82 .83 .83 .83 .83 .84 .84 .85 .85 .85 
+[ M4c-refusal ]   .232 .232 .232 .232 .231 .231 .231 .231 .231 .231 .230 .230 .230 .230 .230 .230 .229 .229 .219 .216 .177 .177 .128 .125 .88 .92 98 74 79 ~236 ~236 ~235 ~235 ~235 ~235 ~235 ~236 ~235 ~236 236 78 72 .89 .79 .66 .72 .236 .236 .~235 .~63 .~236 .~236 .~235 .~235 .~235 .~235 .~235 .~235 .~235 .~235 .~235 
+[ M4c-refusal ]   .105 .105 .105 .105 .105 .105 .105 .105 .105 .104 .104 .104 .104 .104 .104 .103 .103 .103 .103 .102 .102 .102 .102 .98 .86 .70 71 54 41 ~30 ~25 ~29 40 50 64 .72 .72 .76 .85 .85 .91 .95 .93 .96 .94 .94 .91 .96 .94 .98 .100 .100 .101 .101 .101 .101 .101 .101 .101 .101 .100 
+[ M4c-refusal ]   .97 .97 .97 .97 .97 .97 .96 .96 .96 .96 .96 .96 .96 .96 .96 .96 .95 .95 .95 .95 .95 .95 .95 .88 .74 .74 57 39 26 ~26 ~24 ~35 35 53 70 .70 .84 .91 .91 .91 .91 .90 .90 .90 .90 .89 .89 .89 .89 .89 .88 .88 .88 .88 .88 .87 .87 .87 .87 .87 .87 
+[ M4c-refusal ]   .111 .111 .~110 .~110 .111 .113 .113 .113 .114 .114 .114 .114 .114 .114 .114 .114 .114 .114 .110 .103 .95 .86 .78 .70 .62 54 46 38 ~31 ~26 ~21 ~21 ~24 ~29 35 42 50 .58 .65 .71 .78 .83 .89 .93 .97 .101 .103 .106 .108 .109 .110 .110 .110 .110 .110 .110 .110 .109 .109 .109 .109 
+[ M4c-refusal ]   .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .41 .39 .36 .36 .33 .30 .30 .27 .23 .19 .19 .16 14 14 12 ~45 ~45 ~45 ~45 ~45 ~45 ~45 ~45 ~45 11 12 12 12 ~46 ~46 ~46 ~45 ~45 ~45 ~45 ~46 ~46 46 14 19 .19 .23 .28 .32 .32 .36 .39 
+[ M4c-refusal ]   .161 .161 .161 .160 .159 .158 .157 .154 .152 .150 .147 .144 .141 .138 .136 .135 .134 .129 .131 .133 .132 .131 .127 .121 .113 .102 88 72 57 ~44 ~37 ~35 ~43 56 76 101 .128 .152 .164 .165 .165 .165 .165 .165 .166 .166 .166 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 .167 
+[ M4c-refusal ]   .140 .140 .140 .140 .140 .140 .140 .139 .139 .139 .139 .138 .138 .133 .128 .124 .119 .110 .105 .99 .96 .94 .83 .76 .69 .62 .50 .45 .143 .~143 .~143 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~143 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 .~142 
+[ M4c-refusal ]   .155 .155 .155 .155 .155 .154 .154 .154 .154 .154 .154 .153 .153 .153 .153 .153 .153 .153 .152 .152 .151 .149 .147 .132 .126 .118 85 72 60 ~170 ~170 ~169 ~170 45 50 74 .77 .97 .96 .94 .108 .105 .101 .113 .109 .104 .113 .113 .107 .114 .108 .101 .107 .103 .101 .113 .118 .126 .137 .142 .143 
+[ M4c-refusal ]   .142 .142 .141 .141 .141 .140 .140 .140 .141 .142 .142 .142 .142 .143 .143 .143 .143 .143 .142 .141 .134 .134 .123 .108 .108 .90 73 57 57 ~44 ~36 ~36 ~40 53 53 74 .99 .121 .121 .136 .142 .142 .141 .141 .141 .141 .141 .141 .141 .141 .141 .140 .141 .141 .141 .141 .142 .142 .142 .142 .142 
+
+=== RELEASE L4 #3 (2026-10-28, Release phyxel.exe built 10:13:09 from the final sources after the second follow-up; raw responses m3a_l4_m4c3_*) - plan hash 11773178333440644877 unchanged from L4 #1 and #2, 138 fords + 1 bridge (13.0 u overall), refused_demands = [], bake 1.3-3.3 s ===
+exe: C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Release/phyxel.exe 2026-10-28_10:13:09  commit: 1c315782  config: Release
+--- status
+{"applied":true,"enabled":true,"plan_hash":"11773178333440644877","roads":29,"site_list":[{"depth":60,"id":0,"score":{"biome":1.0,"relief":0.9866994023323059,"total":0.7690147161483765,"water":0.25},"seed":752911612,"surface":"Grass","surfaceY":20.529294967651367,"tier":"town","width":140,"x":-2360,
+
+--- plan (applied)
+keys: ['applied', 'civ', 'corridors', 'plan', 'plan_hash', 'success']
+box plan: sites 4 roads 29 bridges 1 params.civ True hash 11773178333440644877
+civ: {'land_km2': 7750.287109375, 'bake_ms': 33.75080108642578} sites 154
+--- M4c: crossings / bridges / refused demands in the applied plan JSON
+roads 29 crossings by kind {'ford': 138, 'bridge': 1}
+bridges 1 span_u max 13.000164985656738 pier_spacing_u [10.0] single_span_u [6.0]
+bridge crossing span_u max 13.000164985656738 bank_step_u max 1.0 widest crossed channel 5.782899856567383
+refused_demands 0
+params {'bridgeMaxSpanU': 25.0, 'bridgeSingleSpanU': 6.0, 'pierSpacingU': 10.0, 'fordMaxDepthU': 0.5}
+--- civ (continent map, step 2 = 1024 u/char)
+{"bake_ms":33.75080108642578,"cell_units":1024.0,"corridors":{"bake_ms":53.30870056152344,"junction_cells":231,"refusals":["no corridor from site 15 to site 1 (sea or basin in every way)","no corridor
+--- minimap: whole continent (px 512, radius 51200) and the hydrology box (px 512, radius 16384)
+
+
+--- M4c: minimap marks by exact colour (white = bridge bars, cyan 40,220,240 = ford dots)
+minimap 512 x 512 white bridge pixels 2863 cyan ford pixels 50
+minimap 512 x 512 white bridge pixels 6384 cyan ford pixels 45
+--- engine log: crossings
+[10:13:26.101] [INFO] [WorldForge] [CROSSINGS] fords 138, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[10:13:26.304] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 29 roads, 1 bridges, 39477 segments in 3308 ms (hash 11773178333440644877)
+[10:13:27.515] [INFO] [WorldForge] [CROSSINGS] fords 138, bridges 1, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u)
+[10:13:27.725] [INFO] [WorldForge] [WORLDFORGE] plan baked: 4 sites, 29 roads, 1 bridges, 39477 segments in 1318 ms (hash 11773178333440644877)
+[10:13:19.383] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1
+[10:13:22.895] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1
+[10:13:22.930] [INFO] [WorldGenerator] [CIV] continent plan: 154 sites over 7750.29 km2 of land in 34.8929 ms; refusals 2
+[10:13:26.339] [INFO] [WorldGenerator] [CIV] continent plan: 154 sites over 7750.29 km2 of land in 33.7508 ms; refusals 2
+engines left: 0
+L4 EXIT 0
+
+=== AUDIT 3 (solution-auditor, 2026-10-28 ~10:20, on the tree after the second follow-up + L4 #3; it ran the hairpin + probe tests itself, 11/11, and read GREEN 12): VERDICT FAIL ===
+Closed: the evidence labels (checked against the log files' write times), the rim assertion, the hairpin arithmetic (recomputed by the auditor: 88 / 65 / (40,4)), the L3 wording, the rename, L4 #3's provenance.
+Not closed, acted on in the THIRD FOLLOW-UP below: (1) the shoulder rule had no red run and its census shared the rule's own 1 u lattice -> a MUTATION run (the old 3-column bank restored; the deck forced 12 u below the rule's) shows RefusalsMatchTheEmittedTerrain / the shoulder census / the emitted-cut bound FAIL, then the restore shows them green; the shoulder census moves to a half-unit lattice; (2) the emitted-cut bound (9.4 u vs 2.0 measured) never seen red -> the same mutation; (3) the plan's Mountains refusal breakdown was stale (now 7 approach / 2 rim / 2 length; the rim compared at 9) and the bank described as 3 columns (now the 3rd of 5) -> corrected; (4) the walk tests named for the bridge -> the version-2 one renamed RoadIsHopWalkableAcrossTheVersionTwoCrossing (the version-1 RoadFieldSeamTest.BridgeCrossingIsAgentWalkable keeps its M3 name - referenced across the docs - and its deck-necessity is equally unproven: recorded); (5) a stale RouteFieldTest comment -> rewritten. Recorded trade-off: a 4-column natural island between two channel runs is now channel, and such a crossing refuses on length (a single deck cannot cross two channels); accepted-deck evidence is N = 1 (one bridge on the baseline, none on Mountains).
+
+=== THIRD FOLLOW-UP, MUTATION 1 (2026-10-28, log file written 10:21:43; engine mutated: the OLD 3-column bank rule restored AND the deck forced 12 u below the rule's; tests as shipped) ===
+Result: RefusalsMatchTheEmittedTerrain FAILS - the shoulder assertion fires at the (-7983,-9937) refusal (1 channel column in the shoulder beyond the false 4-column 'bank'); the emitted-cut bound did NOT fire: the 12 u deck drop produced a 9.0 u emitted cut, under the 9.4 u bound (the pin cones' floor clamp and 0.5 cone limit how far the approach follows the deck) - a stronger mutation follows.
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (223702 ms)
+[ M4c ] baseline Perlin: emitted terrain at 9 dry vertices within 64 u of a bridge: max cut 9.0 u (9.0 u within 16 u), max fill 0.0 u, 0 fills above the bank limit + 1
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (21 ms)
+[ M4c-refusal ] Mountains 424242: demand 2 -> 0 class 1 at (-7983,-9937): banks 12 / 14 at -4 / +10 u, rim 45, deck 46.0 | dump (~ = channel column, . = outside the banks) hit max between the banks 45, dry 11..46 | banks 12.000000 / 14.000000 u, channel rim 45.000000 u, water none at an order-5 crossing: a deck at 46.000000 u ne
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(428): error: Expected equality of these values:
+    Which is: 1
+[  FAILED  ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain (42 ms)
+[  PASSED  ] 2 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain
+MUT EXIT 1
+
+=== GREEN 13 (2026-10-28, log file written 10:31:05; the mutation reverted, the shoulder census on a half-unit lattice, the walk test renamed RoadIsHopWalkableAcrossTheVersionTwoCrossing, the RouteFieldTest comment rewritten; filter BridgeSpanTest.* + MountainCapsReduceThePitchedShare + the pinned hashes) ===
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (223579 ms)
+[ M4c ] baseline Perlin: emitted terrain at 9 dry vertices within 64 u of a bridge: max cut 2.0 u (2.0 u within 16 u), max fill 5.0 u, 0 fills above the bank limit + 1
+[ M4c ] Mountains 424242: emitted terrain at 0 dry vertices within 64 u of a bridge: max cut 0.0 u (0.0 u within 16 u), max fill 0.0 u, 0 fills above the bank limit + 1
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (13 ms)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[ M4c ] baseline Perlin, span knob 12 u: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (18487 ms)
+[       OK ] BridgeSpanTest.FordBoundIsAKnobWithItsControl (25397 ms)
+[       OK ] BridgeSpanTest.ArcHelpersProjectOntoTheOwnLegOfAHairpin (0 ms)
+[       OK ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain (26 ms)
+[       OK ] BridgeSpanTest.RoadIsHopWalkableAcrossTheVersionTwoCrossing (76784 ms)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (84580 ms)
+[       OK ] RouteFieldTest.MountainCapsReduceThePitchedShare (112922 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1005 ms)
+[  PASSED  ] 11 tests.
+EXIT 0
+
+=== MUTATION 2 (2026-10-28, log file written 10:36:06; engine mutated: the deck forced 30 u below where the rule put it; tests as shipped) ===
+Result: ApproachFillIsBounded FAILS on the emitted-cut bound: 27 u against bankLimit + 1 = 9.4 u (the approach follows the deck through the 0.5 cone) - the bound is live.
+[ M4c ] baseline Perlin: emitted terrain at 9 dry vertices within 64 u of a bridge: max cut 27.0 u (27.0 u within 16 u), max fill 0.0 u, 0 fills above the bank limit + 1
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\BridgeSpanTest.cpp(262): error: Expected: (f.maxEmittedCutNear) <= (WorldForgePlan::bankLimit() + 1.0f), actual: 27 vs 9.4
+[  FAILED  ] BridgeSpanTest.ApproachFillIsBounded (216681 ms)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] BridgeSpanTest.ApproachFillIsBounded
+MUT EXIT 1
+
+=== GREEN 14 - FINAL (2026-10-28, log file written 10:50:23; the mutation reverted at 10:36:06 (0 'MUTATION' markers left in WorldForgePlan.cpp), exe relinked 10:36:13 after the restore; filter BridgeSpanTest + RoadFieldSeamTest + RouteFieldTest + WorldForgeStressTest + TraversalProbeTest on the final sources: BridgeSpanTest.cpp 10:21:44, RoadFieldSeamTest.cpp 10:32:01) ===
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] baseline Perlin: 0 refused demands
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] Mountains 424242: 11 refused demands
+[ M4c ]   demand -1 -> 0 class 2 at (-2523,6026): the approach rises 22.400002 u above a deck at 49.599998 u within 3.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 0 -> -1 class 2 at (-2504,8020): the approach rises 11.000000 u above a deck at 50.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> -1 class 2 at (-2250,-3835): banks 72.000000 / 98.000000 u, channel rim 236.000000 u, water none at an order-3 crossing: a deck at 237.000000 u needs an approach fill of 165.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand 1 -> 0 class 2 at (-1759,5864): the approach rises 21.000000 u above a deck at 65.000000 u within 2.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-1777,7055): the approach rises 12.400002 u above a deck at 61.599998 u within 1.000000 u of the bank at an order-5 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 2 at (-2518,8640): the approach rises 11.000000 u above a deck at 51.000000 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand 2 -> 0 class 1 at (-7983,-9937): order-5 channel 9.844921 u wide needs a deck of 31.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c ]   demand -1 -> 0 class 1 at (-2693,5440): the approach rises 9.400002 u above a deck at 92.599998 u within 1.000000 u of the bank at an order-3 crossing (cut beyond the bank limit 8.400000 u)
+[ M4c ]   demand -1 -> 0 class 1 at (-3750,8917): order-5 channel 10.193741 u wide needs a deck of more than 25.000000 u along the road, beyond the grounded 25.000000 u overall
+[ M4c ]   demand -1 -> 0 class 1 at (48,8136): banks 74.000000 / 85.000000 u, channel rim 170.000000 u, water none at an order-4 crossing: a deck at 171.000000 u needs an approach fill of 97.000000 u, beyond the bank limit 8.400000 u
+[ M4c ]   demand -1 -> 0 class 1 at (248,7800): the approach rises 16.000000 u above a deck at 74.000000 u within 1.000000 u of the bank at an order-4 crossing (cut beyond the bank limit 8.400000 u)
+[       OK ] BridgeSpanTest.NoDeckBeyondTheGroundedSpan (215579 ms)
+[ M4c ] baseline Perlin: emitted terrain at 9 dry vertices within 64 u of a bridge: max cut 2.0 u (2.0 u within 16 u), max fill 5.0 u, 0 fills above the bank limit + 1
+[ M4c ] baseline Perlin: 45707 vertices, 2 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 5.0 u at (-3425,-4255) class 1; deepest over-bed deck height 6.0 u
+[ M4c ] Mountains 424242: emitted terrain at 0 dry vertices within 64 u of a bridge: max cut 0.0 u (0.0 u within 16 u), max fill 0.0 u, 0 fills above the bank limit + 1
+[ M4c ] Mountains 424242: 36288 vertices, 0 dry fills, 0 above the bank limit (8.4 u = kShoulderMaxU x repose; class floors 3.15/3.85/4.20 u); deepest dry fill 0.0 u at (0,0) class 0; deepest over-bed deck height 5.4 u
+[       OK ] BridgeSpanTest.ApproachFillIsBounded (12 ms)
+[ M4c ] baseline Perlin: 158 crossings (1 carved, 157 creeks), 1 bridges, longest deck 13.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 5.8 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] Mountains 424242: 195 crossings (0 carved, 195 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[       OK ] BridgeSpanTest.EveryCarvedCrossingIsFordBridgeOrRefused (1 ms)
+[ M4c ] the longest bridge on baseline Perlin needs 13.0 u overall; the knob goes to 12 u
+[ M4c ] baseline Perlin, span knob 12 u: 170 crossings (0 carved, 170 creeks), 0 bridges, longest deck 0.0 u overall (0 beyond the grounded 25 u), widest carved channel crossed 0.0 u (0 wider than the span), 0 carved crossings without a deck, 0 creek crossings deeper than 0.5 u, 0 channel columns under a deck's shoulders
+[ M4c ] span knob 12 u: 32 roads, 0 refused (default: 32 roads, 0 refused, 1 bridges)
+[       OK ] BridgeSpanTest.UncrossableChannelsAreRoutedAround (18457 ms)
+[ M4c ] ford bound 0.2 u: 0 creek crossings at or above 0.2 u on realized roads (default plan: 105), 17 roads + 15 refused (default 32 + 0)
+[ M4c ]   refused -1 -> 0 class 2 at (-1237,4928): creek 0.303799 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 0 -> -1 class 2 at (-1228,4416): creek 0.305161 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 2 at (10416,-8368): creek 0.458584 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 2 at (14515,9231): creek 0.271032 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (9715,-8563): creek 0.491993 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 2 -> 0 class 1 at (64,6030): creek 0.259528 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 3 -> 0 class 1 at (368,6033): creek 0.252248 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused 4 -> 0 class 1 at (3347,-14358): creek 0.273464 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (9005,-467): creek 0.242143 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-10065,-7619): creek 0.217010 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-524,7104): creek 0.374442 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (824,6702): creek 0.317909 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (14928,9512): creek 0.207739 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (-7252,84): creek 0.353332 u deep at the crossing: deeper than the ford bound 0.200000 u
+[ M4c ]   refused -1 -> 0 class 1 at (1600,6447): creek 0.239644 u deep at the crossing: deeper than the ford bound 0.200000 u
+[       OK ] BridgeSpanTest.FordBoundIsAKnobWithItsControl (26043 ms)
+[       OK ] BridgeSpanTest.ArcHelpersProjectOntoTheOwnLegOfAHairpin (0 ms)
+[       OK ] BridgeSpanTest.RefusalsMatchTheEmittedTerrain (27 ms)
+[ M4c ] walking the first bridge of baseline Perlin (1 bridges)
+[ M4c ] v2 bridge walk: deckY=56 bankA.surfaceY=55 bankB.surfaceY=56 approachA=55 approachB=55 span=13.0002 class=1 order=4
+[ M4c ] strict 4/9 u walker bank to bank within +-1.5 u of the deck line: NOT walkable (reported; the 1 u lip at the plank ends)
+[       OK ] BridgeSpanTest.RoadIsHopWalkableAcrossTheVersionTwoCrossing (79167 ms)
+[       OK ] BridgeSpanTest.DiagVersionTwoBridgeColumns (83406 ms)
+[       OK ] RoadFieldSeamTest.TestWorldHasRoads (60 ms)
+[       OK ] RoadFieldSeamTest.RoadColumnsStampedWithRoadMaterial (58 ms)
+[       OK ] RoadFieldSeamTest.RoadNeverOverridesRiverOrSea (61 ms)
+[       OK ] RoadFieldSeamTest.GeneratorCopyStampsIdenticalRoadColumns (64 ms)
+[       OK ] RoadFieldSeamTest.FloraKeepsOffTheRoadCorridor (404 ms)
+[       OK ] RoadFieldSeamTest.BridgeDeckEmittedOverOrder3Channel (16315 ms)
+[       OK ] RoadFieldSeamTest.BridgeRailsGuardDeckEdgesAndPiersReachTheBed (17832 ms)
+[       OK ] RoadFieldSeamTest.BridgePiersStandSolidOnALongSpan (16327 ms)
+[       OK ] RoadFieldSeamTest.OffRoadColumnsIdenticalToDisabledWorld (112 ms)
+[       OK ] RoadFieldSeamTest.BridgeCrossingIsAgentWalkable (45299 ms)
+[       OK ] RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains (769 ms)
+[ M4b ] baseline Perlin: 32 roads, 45675 profile segments, 2413 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 45707 vertices: max cut 11.1 u, max fill 6.0 u, 13 deeper than 6 u
+[       OK ] RouteFieldTest.EveryProfileStepWithinItsClassCapExceptBoundedPitches (18097 ms)
+[ M4b ] baseline earthwork: 32 roads, 45675 profile segments, 2413 over the class cap = 5.3 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 45707 vertices: max cut 11.1 u, max fill 6.0 u, 13 deeper than 6 u
+[ M4b ] cuts deeper than the floor: 37 next to a natural slope above 0.5, 0 unexplained
+[       OK ] RouteFieldTest.EarthworkIsBoundedOnTheBaseline (18176 ms)
+[ M4b ] Mountains 424242 (caps): 22 roads, 36266 profile segments, 16538 over the class cap = 45.6 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 36288 vertices: max cut 80.7 u, max fill 5.4 u, 5254 deeper than 6 u
+[ M4b ] Mountains 424242 (caps off = 0.5): 23 roads, 37550 profile segments, 19561 over the class cap = 52.1 % of the length (worst 6.25 x cap, 13118 unexplained by a cut floor or a pin); 37573 vertices: max cut 79.0 u, max fill 9.0 u, 3959 deeper than 6 u
+[ M4b ] Mountains deepest cut: caps 80.7 u, caps off 79.0 u (reported)
+[ M4b ] Mountains detour: 579.7 km of road for 334.1 km of endpoint distance (x1.74); corridors 154, unroutable 2
+[       OK ] RouteFieldTest.MountainCapsReduceThePitchedShare (113305 ms)
+[ M4b ] walkability: 236526 centreline steps, 28 taller than 1 cube (0.012 %)
+[       OK ] RouteFieldTest.RealizedRoadsAreStepWalkable (27602 ms)
+[ M4b ] version-1 Mountains (legacy 0.5): 10 roads, 432 profile segments, 154 over the class cap = 35.5 % of the length (worst 6.25 x cap, 142 unexplained by a cut floor or a pin); 442 vertices: max cut 33.0 u, max fill 25.0 u, 14 deeper than 6 u
+[       OK ] RouteFieldTest.VersionOneKeepsTheLegacyEnvelope (475 ms)
+[ M4b ] blend gather: 8607 points (7603 with more than one road in reach), 0 roads missing from the gather, 203 gathered beyond reach
+[       OK ] RouteFieldTest.GradeBlendGathersEveryRoadInReach (47355 ms)
+[ M4b ] realized surface: 21574 windows outside pitches, 0 over their class cap (worst 0.251 after rounding); 1224 pitch windows skipped
+[       OK ] RouteFieldTest.RealizedSurfaceKeepsTheClassCapOutsidePitches (20044 ms)
+[ M4b ] cut banks: 5150 cut vertices scanned, the deepest single-road cut 3.9 u: 79 single-road banks measured (363 bundled cuts skipped), 0 steeper than repose (worst 0.60 vs 0.70)
+[       OK ] RouteFieldTest.CutBanksStandAtTheReposeSlope (18327 ms)
+[ M4b ] Mountains 424242 (switchbacks): 22 roads, 36266 profile segments, 16538 over the class cap = 45.6 % of the length (worst 6.25 x cap, 0 unexplained by a cut floor or a pin); 36288 vertices: max cut 80.7 u, max fill 5.4 u, 5254 deeper than 6 u
+[ M4b ] switchbacks: 9 stretches replaced, 5.2 km of legs in 579.7 km of road
+[       OK ] RouteFieldTest.MountainSwitchbacksRetireMostPitches (57159 ms)
+[       OK ] TraversalProbeTest.FlatCorridorIsTraversable (3 ms)
+[       OK ] TraversalProbeTest.LowLedgeWithinStepUpIsClimbed (1 ms)
+[       OK ] TraversalProbeTest.LedgeTallerThanStepUpBlocks (0 ms)
+[       OK ] TraversalProbeTest.TallWallBlocks (0 ms)
+[       OK ] TraversalProbeTest.LowCeilingBlocksEntry (0 ms)
+[       OK ] TraversalProbeTest.AdequateCeilingAllowsPassage (1 ms)
+[       OK ] TraversalProbeTest.FloodAgreesWithReachableOnAnOpenCorridor (4 ms)
+[       OK ] TraversalProbeTest.FloodStopsAtAWallAndStaysOnTheStartSide (1 ms)
+[       OK ] TraversalProbeTest.FloodOfAnUnsupportedStartIsEmpty (0 ms)
+[       OK ] TraversalProbeTest.FarCoordinatesTraverseLikeTheOrigin (7 ms)
+[       OK ] WorldForgeStressTest.EightSitesOverFullRegion (517 ms)
+[       OK ] WorldForgeStressTest.MountainWorldDegradesHonestly (466 ms)
+[       OK ] WorldForgeStressTest.EightSitePlanDeterministicAcrossGenerators (1092 ms)
+[       OK ] WorldForgeStressTest.RoadStepProfileMostlyWalkable (119 ms)
+[       OK ] WorldForgeStressTest.RoadStepProfileMeasuredOnMountains (790 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1028 ms)
+[  PASSED  ] 45 tests.
+EXIT 0
+
+=== AUDIT 4 (solution-auditor, 2026-10-28 ~11:00, on the final tree; it re-ran the fast filter itself, 11/11, and read the mutation scripts, build logs and raw runs): VERDICT PASS ===
+All five audit-3 items closed by measurement; the plan text checked number by number against m4c_green14.txt; docs/WorldForge.md's refused_demands fields checked against toJson; L4 #1/#2/#3 hashes identical. Remaining, stated as non-blocking: (1) measurement gap - the half-unit shoulder census was added at the restore and has no red run of its own (mutation 1 ran with the integer-lattice census); (2) evidence limit - accepted-deck evidence is N = 1 (one bridge on the baseline, none on Mountains); (3) unchanged - the deck's necessity is unproven on any fixture, and the plan says so.

@@ -62,12 +62,27 @@ struct WorldForgeParams {
     // Applied to corridor-driven (version-2 civ) box plans only; the pinned version-1 path keeps
     // WorldForgePlan::kMaxRoadGrade = 0.5.
     float gradeCap[4] = {0.0f, 0.15f, 0.08f, 0.05f};
+    // ── M4c (D31/D32): crossings as routing edges on corridor-driven plans. A carved river is
+    // bridged only where the banks lie within bridgeMaxSpanU of each other along the road
+    // (GROUNDED, section 10: piered medieval timber/stone bridges ≈ 25 m overall — Hemington,
+    // Aldwincle), with a pier every pierSpacingU (GROUNDED ≈ 10 m between piers) once the deck is
+    // longer than a single timber span (bridgeSingleSpanU, GROUNDED 3–6 m); a wider channel is
+    // uncrossable for the route search (the road crosses elsewhere or the demand is refused with
+    // its reason). A creek is forded where its channel is shallower than fordMaxDepthU (= the
+    // M2b-2 river/creek class split, FlowField::kRiverCarveDepth; NWS: 0.15 m of MOVING water
+    // knocks an adult down, so a ford is slow shallow water — the bound). The version-1 path
+    // keeps its 96 u march and its order-based decks (pinned hashes).
+    float bridgeMaxSpanU = 25.0f;
+    float bridgeSingleSpanU = 6.0f;
+    float pierSpacingU = 10.0f;
+    float fordMaxDepthU = 0.5f;
 
     bool operator==(const WorldForgeParams& o) const {
         if (civ != o.civ || civDensityScale != o.civDensityScale || pinTiers != o.pinTiers || pinRefine != o.pinRefine) return false;
         if (civEpochs != o.civEpochs || civShockEpoch != o.civShockEpoch || civShockFraction != o.civShockFraction || civAbandonShare != o.civAbandonShare) return false;
         if (routeReuseFraction != o.routeReuseFraction) return false;
         for (int c = 1; c < 4; ++c) if (gradeCap[c] != o.gradeCap[c]) return false;
+        if (bridgeMaxSpanU != o.bridgeMaxSpanU || bridgeSingleSpanU != o.bridgeSingleSpanU || pierSpacingU != o.pierSpacingU || fordMaxDepthU != o.fordMaxDepthU) return false;
         for (int t = 0; t < 5; ++t) if (civSpacingKm[t] != o.civSpacingKm[t] || civSlopeCap[t] != o.civSlopeCap[t]) return false;
         return enabled == o.enabled && version == o.version && siteCount == o.siteCount &&
                regionRadius == o.regionRadius && minSpacing == o.minSpacing &&
@@ -92,6 +107,10 @@ struct WorldForgeParams {
         p.routeReuseFraction = glm::clamp(p.routeReuseFraction, 0.05f, 1.0f);   // 0 would make every network cell free and A* degenerate
         for (int c = 1; c < 4; ++c) p.gradeCap[c] = glm::clamp(p.gradeCap[c], 0.01f, 0.5f);   // 0.5 = the legacy cap; below 0.01 nothing routes
         p.civShockFraction = glm::clamp(p.civShockFraction, 0.0f, 0.9f);   // a 100 % shock would abandon every site
+        p.bridgeMaxSpanU = glm::clamp(p.bridgeMaxSpanU, 3.0f, 96.0f);        // 96 = the version-1 march; under 3 u no carved channel fits
+        p.bridgeSingleSpanU = glm::clamp(p.bridgeSingleSpanU, 1.0f, p.bridgeMaxSpanU);
+        p.pierSpacingU = glm::clamp(p.pierSpacingU, 2.0f, p.bridgeMaxSpanU);  // a pier at least every span
+        p.fordMaxDepthU = glm::clamp(p.fordMaxDepthU, 0.1f, 1.0f);            // deeper than 1 u is never a ford (NWS)
         p.regionRadius = glm::clamp(p.regionRadius, 512.0f, 8192.0f);
         p.minSpacing = glm::clamp(p.minSpacing, 64.0f, 2.0f * p.regionRadius);
         p.maxSpacing = glm::clamp(p.maxSpacing, p.minSpacing, 4.0f * p.regionRadius);
@@ -117,6 +136,10 @@ struct WorldForgeParams {
             j["civAbandonShare"] = civAbandonShare;
             j["routeReuseFraction"] = routeReuseFraction;
             j["gradeCap"] = nlohmann::json::array({gradeCap[1], gradeCap[2], gradeCap[3]});   // track, road, highway
+            j["bridgeMaxSpanU"] = bridgeMaxSpanU;
+            j["bridgeSingleSpanU"] = bridgeSingleSpanU;
+            j["pierSpacingU"] = pierSpacingU;
+            j["fordMaxDepthU"] = fordMaxDepthU;
         }
         if (!pinTiers.empty()) j["pinTiers"] = pinTiers;
         if (!sitePins.empty()) {
@@ -152,6 +175,10 @@ struct WorldForgeParams {
         p.routeReuseFraction = j.value("routeReuseFraction", 1.0f / 3.0f);
         if (j.contains("gradeCap") && j["gradeCap"].is_array() && j["gradeCap"].size() == 3)
             for (int c = 0; c < 3; ++c) p.gradeCap[c + 1] = j["gradeCap"][c].get<float>();
+        p.bridgeMaxSpanU = j.value("bridgeMaxSpanU", 25.0f);
+        p.bridgeSingleSpanU = j.value("bridgeSingleSpanU", 6.0f);
+        p.pierSpacingU = j.value("pierSpacingU", 10.0f);
+        p.fordMaxDepthU = j.value("fordMaxDepthU", 0.5f);
         if (j.contains("pinTiers") && j["pinTiers"].is_array())
             for (const auto& t : j["pinTiers"]) p.pinTiers.push_back(t.get<std::string>());
         return p;

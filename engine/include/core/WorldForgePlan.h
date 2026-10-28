@@ -63,7 +63,20 @@ struct WorldForgeRoad {
         glm::vec2 pos{0.0f};
         int riverOrder = 0;     // Strahler order of the channel crossed here
         bool carved = false;    // M2b-2: a CARVED river crossing -> realized as a bridge span
+        /// M4c (D31/D32): what the crossing IS on a corridor-driven road — a ford (a creek,
+        /// depth < fordMaxDepthU), a bridge within the grounded span, or refused (the road was
+        /// re-routed, or the demand refused, with the reason). Legacy = the version-1 path.
+        enum class Kind : uint8_t { Legacy = 0, Ford, Bridge, Refused };
+        Kind kind = Kind::Legacy;
+        float widthU = 0.0f;      // the channel's full width at the crossing (the M2b-2 law)
+        float depthU = 0.0f;      // the channel's centreline depth
+        float bankStepU = 0.0f;   // |bank A - bank B| surface step (bridges)
+        float spanU = 0.0f;       // deck length (bridges)
     };
+    static const char* crossingKindName(Crossing::Kind k) {
+        switch (k) { case Crossing::Kind::Ford: return "ford"; case Crossing::Kind::Bridge: return "bridge";
+                     case Crossing::Kind::Refused: return "refused"; default: return "legacy"; }
+    }
     std::vector<Crossing> crossings;
     /// Slope-limited road surface Y per centerline vertex (road GRADING): the cut lower
     /// envelope of the real terrain (ascent <= kMaxRoadGrade in both walk directions)
@@ -89,6 +102,24 @@ struct WorldForgeBridgeSpan {
     float deckY = 0.0f;           // flat deck height (world Y of the deck cube layer)
     int cls = 1;                  // road class (width follows roadHalfWidth)
     int crossingOrder = 0;        // Strahler order of the channel spanned
+    /// M4c: the pier rule of a corridor-driven span — a pier every pierSpacingU once the deck is
+    /// longer than singleSpanU (0 = the version-1 rule: stations every kPierSpacing, none under 2x).
+    float pierSpacingU = 0.0f;
+    float singleSpanU = 0.0f;
+    int road = -1;                // M4c: the road this span belongs to (its pin cones); not serialized
+};
+
+/// M4c: a demand the box plan could not realize — no crossable crossing on any route (the reason
+/// names the last refused crossing) or no dry route at all. Reported in the plan, never silent.
+struct WorldForgeRefusedDemand {
+    int a = -1, b = -1, cls = 1;
+    glm::vec2 pos{0.0f};
+    std::string reason;
+    // M4c audit: the numbers the refusal was judged on (−1e30 where not reached), so a test can
+    // measure the terrain at the refusal independently of the reason string.
+    float bankLowU = -1e30f, bankHighU = -1e30f, rimU = -1e30f, deckU = -1e30f;
+    float spanAU = -1e30f, spanBU = -1e30f;   // the banks' distances from pos along -tangent / +tangent
+    glm::vec2 tangent{0.0f};   // the deck's direction at the crossing (the bank search line)
 };
 
 class WorldForgePlan {
@@ -138,6 +169,7 @@ public:
     const std::vector<WorldForgeSite>& sites() const { return m_sites; }
     const std::vector<WorldForgeRoad>& roads() const { return m_roads; }
     const std::vector<WorldForgeBridgeSpan>& bridges() const { return m_bridges; }
+    const std::vector<WorldForgeRefusedDemand>& refusedDemands() const { return m_refused; }   // M4c
 
     /// Bridge query for one world column (sampleColumn, gated on a roadAt hit — decks lie
     /// inside the road corridor). Linear over the few spans; hit() false = no deck here.
@@ -164,6 +196,19 @@ public:
     /// 8.4 u cut at repose; deeper cuts stand steeper and the bank test reports them - M4b-3's
     /// retaining walls own those). Bounds the raster's per-cell road index reach.
     static constexpr float kShoulderMaxU = 12.0f;
+    /// M4c: the deepest cut or fill a bank at repose can carry inside the widest shoulder,
+    /// kShoulderMaxU x kReposeSlope = 8.4 u (DERIVED from the two constants above; gradeBlendAt
+    /// widens the shoulder by |profile - natural| / repose for a fill exactly as for a cut, so an
+    /// embankment approach stands at repose like a cutting). A bridge abutment may cut the higher
+    /// bank or fill the lower one this much; cutLimit (3.15-4.2 u) stays the PITCH trigger.
+    static float bankLimit() { return kShoulderMaxU * kReposeSlope; }
+    /// M4c: a centreline as an arc - cumulative length per vertex, a point's arc (its projection
+    /// onto the NEAREST segment; legs of a hairpin closer than twice the point's offset would
+    /// misproject - the bank offset is 3 u, DESIGN) and the point at an arc (clamped to the ends).
+    /// Public statics so the bridge approach check is unit-tested (BridgeSpanTest).
+    static std::vector<float> cumulativeArc(const std::vector<glm::vec2>& cl);
+    static float arcOfPoint(const std::vector<glm::vec2>& cl, const std::vector<float>& cum, const glm::vec2& q);
+    static glm::vec2 pointAtArc(const std::vector<glm::vec2>& cl, const std::vector<float>& cum, float arc);
     BridgeHit bridgeAt(float worldX, float worldZ) const;
 
     /// Road query for one world column — the per-column generation hook (sampleColumn).
@@ -232,6 +277,7 @@ private:
     std::vector<WorldForgeSite> m_sites;
     std::vector<WorldForgeRoad> m_roads;
     std::vector<WorldForgeBridgeSpan> m_bridges;
+    std::vector<WorldForgeRefusedDemand> m_refused;   // M4c
 
     // Road raster: 8 u cells over the road-network bbox. Per cell the nearest global segment
     // index (0xFFFF = none within reach) — roadAt refines with exact segment distances.

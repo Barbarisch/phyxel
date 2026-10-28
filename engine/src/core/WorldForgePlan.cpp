@@ -3,6 +3,7 @@
 #include "utils/Logger.h"
 
 #include <algorithm>
+#include <array>
 #include <climits>
 #include <chrono>
 #include <cmath>
@@ -29,6 +30,34 @@ float WorldForgePlan::cutLimit(int cls) {
     // 3.85 / 4.2 u, relabelled DESIGN: the depth whose repose bank would be as wide as the
     // corridor itself (section 10 row).
     return (roadHalfWidth(cls) + kShoulderU) * kReposeSlope;
+}
+
+std::vector<float> WorldForgePlan::cumulativeArc(const std::vector<glm::vec2>& cl) {
+    std::vector<float> cum(cl.size(), 0.0f);
+    for (size_t i = 1; i < cl.size(); ++i) cum[i] = cum[i - 1] + glm::length(cl[i] - cl[i - 1]);
+    return cum;
+}
+
+float WorldForgePlan::arcOfPoint(const std::vector<glm::vec2>& cl, const std::vector<float>& cum, const glm::vec2& q) {
+    float best = 1e30f, arc = 0.0f;
+    for (size_t i = 0; i + 1 < cl.size(); ++i) {
+        const glm::vec2 ab = cl[i + 1] - cl[i];
+        const float len2 = glm::dot(ab, ab);
+        const float t = len2 > 0.0f ? glm::clamp(glm::dot(q - cl[i], ab) / len2, 0.0f, 1.0f) : 0.0f;
+        const float d = glm::length(q - (cl[i] + ab * t));
+        if (d < best) { best = d; arc = cum[i] + t * std::sqrt(len2); }
+    }
+    return arc;
+}
+
+glm::vec2 WorldForgePlan::pointAtArc(const std::vector<glm::vec2>& cl, const std::vector<float>& cum, float arc) {
+    if (cl.empty()) return glm::vec2(0.0f);
+    const auto it = std::upper_bound(cum.begin(), cum.end(), arc);
+    size_t i = static_cast<size_t>(std::max<std::ptrdiff_t>(0, (it - cum.begin()) - 1));
+    if (i + 1 >= cl.size()) return cl.back();
+    const float seg = cum[i + 1] - cum[i];
+    const float t = seg > 0.0f ? glm::clamp((arc - cum[i]) / seg, 0.0f, 1.0f) : 0.0f;
+    return cl[i] + (cl[i + 1] - cl[i]) * t;
 }
 
 float WorldForgePlan::roadHalfWidth(int cls) {
@@ -184,6 +213,8 @@ struct RoutingGrid {
     std::vector<int> order;
     std::vector<uint8_t> carved;   // M2b-2: carved-river class per cell
     std::vector<float> corr;       // M4a: cost multiplier inside the continent corridor band (1 = none)
+    std::vector<float> span;       // M4c: the deck a carved cell needs (channel width + the dry margins); empty = no rule
+    std::vector<uint8_t> blocked;  // M4c: cells a refused crossing closed (the lazy edge check); empty = none
     int idx(int cx, int cz) const { return (cz - z0) * nx + (cx - x0); }
     bool contains(int cx, int cz) const {
         return cx >= x0 && cz >= z0 && cx < x0 + nx && cz < z0 + nz;
@@ -202,8 +233,18 @@ struct RoutingGrid {
 constexpr float kOverCapPenalty = 25.0f;
 constexpr float kSwitchbackBandU = 256.0f;   // M4b-3: the half-width the legs fold inside (= the corridor band, DESIGN)
 constexpr int   kNeighbourRadius = 3;
+// M4c (D31): a carved channel is crossable where the deck it needs fits the grounded span; the
+// bank search marches kBankDryU dry steps past the channel on each side (the bank), so the deck a
+// channel needs is its width + 2 x kBankDryU. A crossing the lazy check refuses (the banks step
+// more than the earthwork floor allows, or the carve-accurate width differs from the cell's) closes
+// its 3x3 routing cells and the demand is routed again, up to kCrossingRetries times (DESIGN).
+constexpr float kBankDryU = 3.0f;
+constexpr float kDeckShoulderU = 2.0f;   // the deck's shoulder onto each bank (M4c audit: inside the grounded OVERALL length)
+constexpr float kDeckFreeboardU = 1.0f;   // the deck sits one cube above the lower bank, the channel's emitted terrain and its water (DESIGN)
+constexpr int   kCrossingRetries = 4;
+constexpr float kApproachReachU = 48.0f;  // how far past each bank the approach is checked against the deck's pitch cone (24 u of 0.5 = 24 u of height; DESIGN)
 
-std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, float& outCost, float cap = 0.0f) {
+std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, float& outCost, float cap = 0.0f, float maxSpanU = 0.0f) {
     outCost = 1e30f;
     const int n = g.nx * g.nz;
     if (startIdx < 0 || goalIdx < 0 || startIdx >= n || goalIdx >= n) return {};
@@ -264,6 +305,10 @@ std::vector<int> astarRoute(const RoutingGrid& g, int startIdx, int goalIdx, flo
                 const int mx = cx + (ox * m) / steps, mz = cz + (oz * m) / steps;
                 const int mi = (m == steps) ? ti : mz * g.nx + mx;
                 if (g.wet[mi]) { blocked = true; break; }
+                // M4c: a channel wider than the grounded span, or a cell a refused crossing closed,
+                // is impassable for a corridor-driven route (the crossing is the edge, D31)
+                if (maxSpanU > 0.0f && g.carved[mi] && !g.span.empty() && g.span[mi] > maxSpanU) { blocked = true; break; }
+                if (!g.blocked.empty() && g.blocked[mi]) { blocked = true; break; }
                 grade = std::max(grade, std::fabs(g.height[mi] - prevH) / subLen);
                 prevH = g.height[mi];
                 if (m < steps) { carved = carved || g.carved[mi]; river = river || g.order[mi] >= 1; shore = shore || g.shore[mi]; }
@@ -606,6 +651,10 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 g.order[i] = flow.orderAt(p.x, p.y);
                 g.carved[i] = flow.carvedRiverAt(p.x, p.y) ? 1 : 0;
                 if (corridorMulAt) { if (g.corr.empty()) g.corr.assign(gn, 1.0f); g.corr[i] = corridorMulAt(p.x, p.y); }
+                if (demand) {   // M4c: the deck a carved cell needs
+                    if (g.span.empty()) { g.span.assign(gn, 0.0f); g.blocked.assign(gn, 0); }
+                    if (g.carved[i]) g.span[i] = 2.0f * flow.halfWidthAt(p.x, p.y) + 2.0f * kBankDryU + 2.0f * kDeckShoulderU;
+                }
             }
         for (int cz = g.z0; cz < g.z0 + g.nz; ++cz)
             for (int cx = g.x0; cx < g.x0 + g.nx; ++cx) {
@@ -650,9 +699,11 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 const int ca = d.a >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(d.a)]) : pointCell(d.pa);
                 const int cb = d.b >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(d.b)]) : pointCell(d.pb);
                 const float capHere = P.gradeCap[glm::clamp(d.cls, 1, 3)];
-                pr.path = astarRoute(g, ca, cb, pr.cost, capHere);   // M4b: the class cap
+                pr.path = astarRoute(g, ca, cb, pr.cost, capHere, P.bridgeMaxSpanU);   // M4b: the class cap; M4c: the span rule
                 if (pr.path.empty()) {
-                    LOG_WARN_FMT("WorldForge", "[WORLDFORGE] demand " << d.a << " -> " << d.b << " unroutable inside the box (water in every way)");
+                    LOG_WARN_FMT("WorldForge", "[WORLDFORGE] demand " << d.a << " -> " << d.b << " unroutable inside the box (water or an uncrossable channel in every way)");
+                    plan->m_refused.push_back({d.a, d.b, d.cls, d.a >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(d.a)].pos) : d.pa,
+                                               "unroutable inside the box: water or an uncrossable channel in every way"});
                     continue;
                 }
                 // M4b: refine on the BAKE grid inside a band around the coarse line ("solved on
@@ -788,25 +839,25 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         }
         }   // !demand
 
-        // ── Realize each chosen edge: smooth, resample, trim at footprints, mark crossings ───
-        for (const Pair* pr : chosen) {
+        // ── Realize one chosen edge: smooth, resample, trim at footprints, mark crossings ────
+        auto realizeFrom = [&](const Pair& pr) -> WorldForgeRoad {
             WorldForgeRoad road;
-            road.a = pr->a;
-            road.b = pr->b;
-            road.cls = pr->cls > 0 ? pr->cls
-                                   : std::min(tierRank(plan->m_sites[static_cast<size_t>(pr->a)].tier),
-                                              tierRank(plan->m_sites[static_cast<size_t>(pr->b)].tier));
+            road.a = pr.a;
+            road.b = pr.b;
+            road.cls = pr.cls > 0 ? pr.cls
+                                   : std::min(tierRank(plan->m_sites[static_cast<size_t>(pr.a)].tier),
+                                              tierRank(plan->m_sites[static_cast<size_t>(pr.b)].tier));
             std::vector<glm::vec2> pts;
-            pts.reserve(pr->path.size() + 2);
-            pts.push_back(pr->a >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(pr->a)].pos) : pr->pa);
-            if (!pr->pts.empty()) {
-                for (const glm::vec2& p : pr->pts) pts.push_back(p);   // M4b: the refined fine line
+            pts.reserve(pr.path.size() + 2);
+            pts.push_back(pr.a >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(pr.a)].pos) : pr.pa);
+            if (!pr.pts.empty()) {
+                for (const glm::vec2& p : pr.pts) pts.push_back(p);   // M4b: the refined fine line
             } else
-            for (const int ci : pr->path) {
+            for (const int ci : pr.path) {
                 const int cx = g.x0 + (ci % g.nx), cz = g.z0 + (ci / g.nx);
                 pts.push_back(g.cellCentre(cx, cz));
             }
-            pts.push_back(pr->b >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(pr->b)].pos) : pr->pb);
+            pts.push_back(pr.b >= 0 ? glm::vec2(plan->m_sites[static_cast<size_t>(pr.b)].pos) : pr.pb);
             if (demand) {   // M4b-3: switchbacks on the pitched stretches of a corridor-driven road
                 float legs = 0.0f;
                 road.switchbacks = insertSwitchbacks(pts, P.gradeCap[glm::clamp(road.cls, 1, 3)], kSwitchbackBandU, heightAt,
@@ -825,10 +876,10 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             {
                 auto& cl = road.centerline;
                 size_t first = 0;
-                while (pr->a >= 0 && first + 2 < cl.size() && insideFootprint(cl[first + 1], plan->m_sites[static_cast<size_t>(pr->a)]))
+                while (pr.a >= 0 && first + 2 < cl.size() && insideFootprint(cl[first + 1], plan->m_sites[static_cast<size_t>(pr.a)]))
                     ++first;
                 size_t last = cl.size() - 1;
-                while (pr->b >= 0 && last > first + 1 && insideFootprint(cl[last - 1], plan->m_sites[static_cast<size_t>(pr->b)]))
+                while (pr.b >= 0 && last > first + 1 && insideFootprint(cl[last - 1], plan->m_sites[static_cast<size_t>(pr.b)]))
                     --last;
                 cl = std::vector<glm::vec2>(cl.begin() + first, cl.begin() + last + 1);
             }
@@ -864,8 +915,210 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 }
             }
             if (runMaxOrder >= 1) road.crossings.push_back({runPos, runMaxOrder, runCarved});
-            plan->m_roads.push_back(std::move(road));
+            return road;
+        };
+
+        // ── M4c (D31/D32): the crossing rule, decided BEFORE a corridor-driven road is accepted ──
+        // Every crossing on the realized line is a ford (a creek shallower than fordMaxDepthU), a
+        // bridge (banks within bridgeMaxSpanU along the road, the deck one cube above the LOWER
+        // bank and above the channel's emitted rim and water, the higher bank cut to it within the
+        // bank limit — the rest, if any, an approach fill no deeper than the bank limit), or
+        // refused with its reason. The deck's 2 u shoulder on each bank is outside the grounded
+        // overall length (abutments on dry ground). The bank limit is bankLimit() = 8.4 u, the
+        // deepest cut or fill the widest repose shoulder carries (the first green bounded both at
+        // the class floor 3.15-4.2 u, the PITCH trigger, and bridged nothing on either version-2
+        // world: the generator's bed profile stands above the land beside it at most crossings).
+        // the centreline as an arc (cumulativeArc / arcOfPoint / pointAtArc, unit-tested): the
+        // approach check walks the road itself
+        std::array<float, 6> refusedBanks{-1e30f, -1e30f, -1e30f, -1e30f, -1e30f, -1e30f};   // low bank, high bank, rim, deck, sA, sB at the last refusal
+        glm::vec2 refusedTan(0.0f);
+        auto decideCrossings = [&](WorldForgeRoad& road, std::vector<WorldForgeBridgeSpan>& spans,
+                                   std::string& reason, glm::vec2& where) -> bool {
+            const float bankU = bankLimit();
+            const std::vector<float> cum = cumulativeArc(road.centerline);
+            auto fmtWater = [](float w) { return w > -1e29f ? std::to_string(w) + " u" : std::string("none"); };
+            for (auto& cross : road.crossings) {
+                const FlowField::ChannelHit ch0 = channelAt(cross.pos.x, cross.pos.y);
+                cross.widthU = 2.0f * (ch0.hit ? ch0.halfWidth : flow.halfWidthAt(cross.pos.x, cross.pos.y));
+                cross.depthU = ch0.hit ? ch0.fullDepth : flow.fullDepthAt(cross.pos.x, cross.pos.y);
+                where = cross.pos;
+                if (!cross.carved) {
+                    if (cross.depthU >= P.fordMaxDepthU) {
+                        cross.kind = WorldForgeRoad::Crossing::Kind::Refused;
+                        reason = "creek " + std::to_string(cross.depthU) + " u deep at the crossing: deeper than the ford bound " + std::to_string(P.fordMaxDepthU) + " u";
+                        return false;
+                    }
+                    cross.kind = WorldForgeRoad::Crossing::Kind::Ford;
+                    continue;
+                }
+                if (road.centerline.size() < 2) { reason = "no road line at the crossing"; return false; }
+                size_t ci = 0;
+                float best = 1e30f;
+                for (size_t i = 0; i < road.centerline.size(); ++i) {
+                    const float d = glm::length(road.centerline[i] - cross.pos);
+                    if (d < best) { best = d; ci = i; }
+                }
+                const glm::vec2 tan = glm::normalize(road.centerline[std::min(ci + 1, road.centerline.size() - 1)] -
+                                                     road.centerline[ci > 0 ? ci - 1 : 0]);
+                if (!std::isfinite(tan.x)) { reason = "degenerate road line at the crossing"; return false; }
+                // the bank: kBankDryU consecutive NATURAL 1 u steps past the carve-accurate channel.
+                // Any channel-hit column is the channel - the wet bed or the dry outer shelf of the
+                // parabolic section, which on a carved mountain river lies 10-22 u below the land
+                // (measured 2026-10-27: a bank found on that shelf saw a cliff 1 u past it and every
+                // Mountains crossing was refused). A gorge is bridged rim to rim, piers to the bed.
+                // The bank is the 3rd consecutive natural column, and the 2 u shoulder beyond it is
+                // natural too: a 3-column gap inside a channel mask is NOT a bank (audit 2026-10-28:
+                // at one Mountains refusal the channel columns resumed 4 u past such a "bank").
+                auto bankFrom = [&](float sign, float& sOut) -> std::pair<bool, glm::vec2> {
+                    int dry = 0;
+                    for (float sm = 0.0f; sm <= P.bridgeMaxSpanU + kDeckShoulderU; sm += 1.0f) {
+                        const glm::vec2 pt = cross.pos + tan * (sign * sm);
+                        const FlowField::ChannelHit ch = channelAt(pt.x, pt.y);
+                        if (ch.hit) dry = 0;
+                        else if (++dry >= static_cast<int>(kBankDryU + kDeckShoulderU)) {
+                            sOut = sm - kDeckShoulderU;
+                            return {true, cross.pos + tan * (sign * sOut)};
+                        }
+                    }
+                    return {false, glm::vec2(0.0f)};
+                };
+                float sA = 0.0f, sB = 0.0f;
+                const auto [okA, bankA] = bankFrom(-1.0f, sA);
+                const auto [okB, bankB] = bankFrom(+1.0f, sB);
+                // the deck's OVERALL length - bank to bank plus the 2 u shoulder onto each - is the
+                // grounded figure (audit 2026-10-27: the shoulders were outside it, a 29 u deck passed)
+                where = cross.pos;
+                refusedBanks = {-1e30f, -1e30f, -1e30f, -1e30f, okA ? sA : -1e30f, okB ? sB : -1e30f};
+                refusedTan = tan;
+                if (!okA || !okB || sA + sB + 2.0f * kDeckShoulderU > P.bridgeMaxSpanU + 1e-3f) {
+                    cross.kind = WorldForgeRoad::Crossing::Kind::Refused;
+                    reason = "order-" + std::to_string(cross.riverOrder) + " channel " + std::to_string(cross.widthU) + " u wide needs a deck of "
+                           + (okA && okB ? std::to_string(sA + sB + 2.0f * kDeckShoulderU) + " u" : std::string("more than " + std::to_string(P.bridgeMaxSpanU) + " u"))
+                           + " along the road, beyond the grounded " + std::to_string(P.bridgeMaxSpanU) + " u overall";
+                    return false;
+                }
+                auto surfAt = [&](const glm::vec2& q) {
+                    return static_cast<float>(surfaceYAt(static_cast<int>(std::lround(q.x)), static_cast<int>(std::lround(q.y))));
+                };
+                const float hA = surfAt(bankA), hB = surfAt(bankB);
+                const float hLow = std::min(hA, hB), hHigh = std::max(hA, hB);
+                cross.bankStepU = hHigh - hLow;
+                refusedBanks[0] = hLow; refusedBanks[1] = hHigh;
+                // The deck clears everything between the banks: the channel's EMITTED terrain (a bed
+                // profile can stand ABOVE the land beside it - measured 2026-10-27: a bed at 55 u
+                // between banks at 51 u buried a bank-level deck) and the water level along the span.
+                float chanTop = -1e30f, waterTop = -1e30f;
+                for (float sm = -sA; sm <= sB; sm += 1.0f) {
+                    const glm::vec2 pt = cross.pos + tan * sm;
+                    const FlowField::ChannelHit ch = channelAt(pt.x, pt.y);
+                    if (ch.hit) chanTop = std::max(chanTop, surfAt(pt));   // the rim: the shelf's top
+                    const float wl = levelAt(pt.x, pt.y);
+                    if (wl > -1e29f) waterTop = std::max(waterTop, wl);
+                }
+                float deckY = hLow + kDeckFreeboardU;                         // the deck meets the LOWER bank
+                deckY = std::max(deckY, chanTop + kDeckFreeboardU);           // ... and clears the channel's terrain
+                deckY = std::max(deckY, std::floor(waterTop) + kDeckFreeboardU);   // ... and its water
+                refusedBanks[2] = chanTop;
+                if (hHigh - deckY > bankU) deckY = hHigh - bankU;             // the higher bank is cut to it within the bank limit
+                refusedBanks[3] = deckY;
+                if (deckY - hLow > bankU + 1e-3f) {                           // the rest would be a fill beyond the bank limit: a dam
+                    cross.kind = WorldForgeRoad::Crossing::Kind::Refused;
+                    reason = "banks " + std::to_string(hLow) + " / " + std::to_string(hHigh) + " u, channel rim " + std::to_string(chanTop) + " u, water " + fmtWater(waterTop)
+                           + " at an order-" + std::to_string(cross.riverOrder) + " crossing: a deck at " + std::to_string(deckY) + " u needs an approach fill of " + std::to_string(deckY - hLow)
+                           + " u, beyond the bank limit " + std::to_string(bankU) + " u";
+                    return false;
+                }
+                // The approach: past each bank the natural surface must stay inside the deck's pitch
+                // band (deckY +- (bank limit + 0.5 d)) over the reach, or the pin cone would fill a
+                // dam or cut a cliff that no short pitch can hide (the profile's fill/cut clamp +
+                // 0.5 cones). Sampled ALONG THE ROAD (the centreline's arc from the bank, where the
+                // pin cones grade), not along a straight extrapolation of the deck's tangent - audit
+                // 2026-10-27: a road that curves away from a canyon wall was refused by the line.
+                for (float sign : {-1.0f, 1.0f}) {
+                    const glm::vec2 bank = sign < 0.0f ? bankA : bankB;
+                    const float bankArc = arcOfPoint(road.centerline, cum, bank);
+                    for (float d = 1.0f; d <= kApproachReachU; d += 1.0f) {
+                        const float arc = bankArc + sign * d;
+                        // the road ends: at a site (the lot's own grading) or the box edge (the macro
+                        // stamp, ungraded) - a bridge within 48 u of either is checked only to the end
+                        // (recorded limitation, audit 2026-10-28)
+                        if (arc < 0.0f || arc > cum.back()) break;
+                        const float h = surfAt(pointAtArc(road.centerline, cum, arc));
+                        if (h < deckY - bankU - 0.5f * d) {
+                            cross.kind = WorldForgeRoad::Crossing::Kind::Refused;
+                            reason = "the approach falls " + std::to_string(deckY - h) + " u below a deck at " + std::to_string(deckY) + " u within " + std::to_string(d) + " u of the bank at an order-" + std::to_string(cross.riverOrder) + " crossing (fill beyond the bank limit " + std::to_string(bankU) + " u)";
+                            return false;
+                        }
+                        if (h > deckY + bankU + 0.5f * d) {
+                            cross.kind = WorldForgeRoad::Crossing::Kind::Refused;
+                            reason = "the approach rises " + std::to_string(h - deckY) + " u above a deck at " + std::to_string(deckY) + " u within " + std::to_string(d) + " u of the bank at an order-" + std::to_string(cross.riverOrder) + " crossing (cut beyond the bank limit " + std::to_string(bankU) + " u)";
+                            return false;
+                        }
+                    }
+                }
+                WorldForgeBridgeSpan span;
+                span.a = bankA - tan * 2.0f;   // 2 u shoulder onto each bank
+                span.b = bankB + tan * 2.0f;
+                span.deckY = std::round(deckY);
+                span.cls = road.cls;
+                span.crossingOrder = cross.riverOrder;
+                span.pierSpacingU = P.pierSpacingU;
+                span.singleSpanU = P.bridgeSingleSpanU;
+                span.road = static_cast<int>(plan->m_roads.size());   // the index this road takes when accepted
+                cross.kind = WorldForgeRoad::Crossing::Kind::Bridge;
+                cross.spanU = glm::length(span.b - span.a);
+                spans.push_back(span);
+            }
+            return true;
+        };
+        auto blockAround = [&](const glm::vec2& p) {   // close the 3x3 routing cells around a refused crossing
+            const int cx = static_cast<int>(std::floor((p.x - ox) / rcell)), cz = static_cast<int>(std::floor((p.y - oz) / rcell));
+            for (int dz = -1; dz <= 1; ++dz)
+                for (int dx = -1; dx <= 1; ++dx)
+                    if (g.contains(cx + dx, cz + dz)) g.blocked[g.idx(cx + dx, cz + dz)] = 1;
+        };
+        int fords = 0, bridgesMade = 0, reroutes = 0;
+        for (const Pair* pr : chosen) {
+            if (!demand) { plan->m_roads.push_back(realizeFrom(*pr)); continue; }
+            Pair cur = *pr;
+            bool placed = false;
+            std::string reason;
+            glm::vec2 where(0.0f);
+            for (int attempt = 0; attempt < kCrossingRetries; ++attempt) {
+                WorldForgeRoad road = realizeFrom(cur);
+                std::vector<WorldForgeBridgeSpan> spans;
+                if (decideCrossings(road, spans, reason, where)) {
+                    for (const auto& c : road.crossings) {
+                        if (c.kind == WorldForgeRoad::Crossing::Kind::Ford) ++fords;
+                        else if (c.kind == WorldForgeRoad::Crossing::Kind::Bridge) ++bridgesMade;
+                    }
+                    plan->m_roads.push_back(std::move(road));
+                    for (const auto& sp : spans) plan->m_bridges.push_back(sp);
+                    placed = true;
+                    break;
+                }
+                ++reroutes;
+                LOG_INFO_FMT("WorldForge", "[CROSSINGS] demand " << cur.a << " -> " << cur.b << " refused at (" << where.x << "," << where.y << "): " << reason << " - routing again");
+                blockAround(where);
+                const int ca = cur.a >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(cur.a)]) : pointCell(cur.pa);
+                const int cb = cur.b >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(cur.b)]) : pointCell(cur.pb);
+                cur.pts.clear();
+                cur.path = astarRoute(g, ca, cb, cur.cost, P.gradeCap[glm::clamp(cur.cls, 1, 3)], P.bridgeMaxSpanU);
+                if (cur.path.empty()) { reason += "; no other dry route inside the box"; break; }
+            }
+            if (!placed) {
+                LOG_WARN_FMT("WorldForge", "[WORLDFORGE] demand " << cur.a << " -> " << cur.b << " REFUSED: " << reason);
+                WorldForgeRefusedDemand rd;
+                rd.a = cur.a; rd.b = cur.b; rd.cls = cur.cls; rd.pos = where; rd.reason = reason;
+                rd.bankLowU = refusedBanks[0]; rd.bankHighU = refusedBanks[1]; rd.rimU = refusedBanks[2]; rd.deckU = refusedBanks[3];
+                rd.spanAU = refusedBanks[4]; rd.spanBU = refusedBanks[5];
+                rd.tangent = refusedTan;
+                plan->m_refused.push_back(rd);
+            }
         }
+        if (demand)
+            LOG_INFO_FMT("WorldForge", "[CROSSINGS] fords " << fords << ", bridges " << bridgesMade << ", crossings refused and re-routed " << reroutes
+                         << ", demands refused " << plan->m_refused.size() << " (span <= " << P.bridgeMaxSpanU << " u, ford depth < " << P.fordMaxDepthU << " u)");
     }
 
     if (demand)
@@ -879,6 +1132,8 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     // deck is FLAT at the higher bank's REAL emitted surface (surfaceYAt = sampleColumn), so
     // the deck meets the road the generator actually produces. A channel too wide to clear
     // within 96 u yields NO deck — surfaced in the log, never a half-bridge.
+    // M4c: the version-1 path only — a corridor-driven plan decided its crossings as edges above.
+    if (!demand)
     for (const auto& road : plan->m_roads) {
         for (const auto& cross : road.crossings) {
             if (!cross.carved) continue;   // M2b-2: creeks get no deck (the class, not the order)
@@ -1049,12 +1304,59 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             }
         }
         plan->m_blendGrades = demand != nullptr;
+        // M4c: a corridor-driven road's deck pins are cones from the SPAN GEOMETRY (the distance
+        // from each vertex to the span segment, 0 over the deck): the class-cap cones bring the
+        // approach to the deck, the dry vertices are then clamped to the class floor for a cut
+        // (M4b's pitch trigger) and to the bank limit for a fill (bounded earthwork - the
+        // pinned-vertex scheme below filled 30 u on Mountains where the vertex nearest a bank lay
+        // 16 u down the slope; an embankment stands at repose inside the widest shoulder exactly
+        // as a cutting does), the 0.5 envelope keeps every step
+        // walkable, and the 0.5 cones keep the deck reachable where the floor and the deck
+        // disagree (a short pitch, reported by the census, bounded by decideCrossings' approach
+        // check). Over the channel (wet vertices) the profile IS the deck.
+        if (demand)
+        for (size_t ri = 0; ri < plan->m_roads.size(); ++ri) {
+            auto& road = plan->m_roads[ri];
+            const auto& cl = road.centerline;
+            const size_t n = cl.size();
+            if (n < 2 || road.gradeProfile.size() != n || road.naturalY.size() != n) continue;
+            std::vector<float> dist(n, 1e30f), deck(n, 0.0f);
+            bool any = false;
+            for (const auto& span : plan->m_bridges) {
+                if (span.road != static_cast<int>(ri)) continue;
+                const glm::vec2 ab = span.b - span.a;
+                const float len2 = glm::dot(ab, ab);
+                for (size_t i = 0; i < n; ++i) {
+                    const float t = len2 > 0.0f ? glm::clamp(glm::dot(cl[i] - span.a, ab) / len2, 0.0f, 1.0f) : 0.0f;
+                    const float d = glm::length(cl[i] - (span.a + ab * t));
+                    if (d < dist[i]) { dist[i] = d; deck[i] = span.deckY; any = true; }
+                }
+            }
+            if (!any) continue;
+            const float capR = capOfRoad(road), floorU = cutLimit(road.cls), fillU = bankLimit();
+            auto& pr = road.gradeProfile;
+            std::vector<bool> wet(n, false);
+            for (size_t i = 0; i < n; ++i) {
+                const FlowField::ChannelHit ch = channelAt(cl[i].x, cl[i].y);
+                wet[i] = ch.hit && ch.depth >= 0.15f;
+            }
+            for (size_t i = 0; i < n; ++i)   // 1. the class-cap cones (the approach meets the deck at the cap)
+                if (dist[i] < 1e29f) pr[i] = std::min(std::max(pr[i], deck[i] - capR * dist[i]), deck[i] + capR * dist[i]);
+            for (size_t i = 0; i < n; ++i)   // 2. bounded earthwork at every dry vertex
+                if (!wet[i]) pr[i] = glm::clamp(pr[i], road.naturalY[i] - floorU, road.naturalY[i] + fillU);
+            curCap = kMaxRoadGrade;          // 3. walkable: the 0.5 envelope ...
+            lowerEnvelope(cl, pr);
+            curCap = capR;
+            for (size_t i = 0; i < n; ++i)   // ... and the 0.5 cones: the deck stays reachable
+                if (dist[i] < 1e29f) pr[i] = std::min(std::max(pr[i], deck[i] - kMaxRoadGrade * dist[i]), deck[i] + kMaxRoadGrade * dist[i]);
+        }
         // Deck pin cones — pinned by PROJECTION, not vertex-to-span distance: a short span
         // can fall entirely between 16 u vertices and a distance test then pins NOTHING,
         // leaving the old multi-cube deck mount (measured 5 cubes, red). Pin every vertex
         // from the one nearest bank A to the one nearest bank B, banks included, so the
         // approach fills up to the deck; the cone spreads outward at the grade limit and
-        // the final profile is the max of envelope and cone.
+        // the final profile is the max of envelope and cone. (The version-1 path; M4c above.)
+        if (!demand)
         for (auto& road : plan->m_roads) {
             const auto& cl = road.centerline;
             const size_t n = cl.size();
@@ -1237,7 +1539,11 @@ WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) c
         // Piers: interior stations every ~kPierSpacing along the span, DERIVED here per
         // query (nothing baked, planHash unchanged — pre-pier ledgers stay valid). A span
         // shorter than 2x the spacing carries no station.
-        const int n = std::max(0, static_cast<int>(std::floor(len / kPierSpacing)) - 1);
+        int n = std::max(0, static_cast<int>(std::floor(len / kPierSpacing)) - 1);
+        if (b.singleSpanU > 0.0f) {   // M4c: a pier every pierSpacingU once the deck exceeds a single timber span
+            n = std::max(0, static_cast<int>(std::ceil(len / std::max(1.0f, b.pierSpacingU))) - 1);
+            if (len > b.singleSpanU) n = std::max(n, 1);
+        }
         if (n > 0 && lateral <= 1.5f) {
             const float along = tRaw * len;
             for (int i = 0; i < n; ++i) {
@@ -1391,8 +1697,16 @@ nlohmann::json WorldForgePlan::toJson() const {
         if (!r.centerline.empty() && (r.centerline.size() - 1) % 4 != 0)
             line.push_back({{"x", r.centerline.back().x}, {"z", r.centerline.back().y}});
         nlohmann::json crossings = nlohmann::json::array();
-        for (const auto& c : r.crossings)
-            crossings.push_back({{"x", c.pos.x}, {"z", c.pos.y}, {"order", c.riverOrder}, {"carved", c.carved}});
+        for (const auto& c : r.crossings) {
+            nlohmann::json cj = {{"x", c.pos.x}, {"z", c.pos.y}, {"order", c.riverOrder}, {"carved", c.carved}};
+            if (m_blendGrades) {   // M4c: the crossing rule's record (corridor-driven plans)
+                cj["kind"] = WorldForgeRoad::crossingKindName(c.kind);
+                cj["width_u"] = c.widthU;
+                cj["depth_u"] = c.depthU;
+                if (c.kind == WorldForgeRoad::Crossing::Kind::Bridge) { cj["span_u"] = c.spanU; cj["bank_step_u"] = c.bankStepU; }
+            }
+            crossings.push_back(cj);
+        }
         // Grade summary (min/max/sum, 0.1-quantized): the profile is part of the plan's
         // identity — grading changes what generation EMITS, so planHash must move with it
         // (the ledger drift guard exists for exactly this) — without bloating the payload.
@@ -1414,10 +1728,22 @@ nlohmann::json WorldForgePlan::toJson() const {
     }
     j["roads"] = roads;
     nlohmann::json bridges = nlohmann::json::array();
-    for (const auto& b : m_bridges)
-        bridges.push_back({{"ax", b.a.x}, {"az", b.a.y}, {"bx", b.b.x}, {"bz", b.b.y},
-                           {"deckY", b.deckY}, {"class", b.cls}, {"order", b.crossingOrder}});
+    for (const auto& b : m_bridges) {
+        nlohmann::json bj = {{"ax", b.a.x}, {"az", b.a.y}, {"bx", b.b.x}, {"bz", b.b.y},
+                             {"deckY", b.deckY}, {"class", b.cls}, {"order", b.crossingOrder}};
+        if (m_blendGrades) { bj["span_u"] = glm::length(b.b - b.a); bj["pier_spacing_u"] = b.pierSpacingU; bj["single_span_u"] = b.singleSpanU; }
+        bridges.push_back(bj);
+    }
     j["bridges"] = bridges;
+    if (m_blendGrades) {   // M4c: refused demands, with reasons (part of the plan's identity: a refusal changes what is emitted)
+        nlohmann::json refused = nlohmann::json::array();
+        for (const auto& r : m_refused)
+            refused.push_back({{"a", r.a}, {"b", r.b}, {"class", r.cls}, {"x", r.pos.x}, {"z", r.pos.y}, {"reason", r.reason},
+                               {"bank_low_u", r.bankLowU}, {"bank_high_u", r.bankHighU}, {"rim_u", r.rimU}, {"deck_u", r.deckU},
+                               {"span_a_u", r.spanAU}, {"span_b_u", r.spanBU},
+                               {"tx", r.tangent.x}, {"tz", r.tangent.y}});
+        j["refused_demands"] = refused;
+    }
     j["raster_truncated_segments"] = m_rasterTruncatedSegments;   // M0: 0 unless the uint16 cap bit
     return j;
 }

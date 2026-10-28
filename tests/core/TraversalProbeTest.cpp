@@ -99,3 +99,24 @@ TEST(TraversalProbeTest, FloodOfAnUnsupportedStartIsEmpty) {
     EXPECT_TRUE(set.empty()) << "an unsupported start must flood nothing (it is bad probe input, "
                                 "not a walkable region)";
 }
+
+// The probe works anywhere in the world: the same corridor translated to the micro coordinates of
+// a real WorldForge bridge (x = -3432 u, z = -4248 u -> -30888 / -38232 micro, BridgeSpanTest
+// 2026-10-27) and far on the positive side. Red on the original BFS: its visited-set key packed
+// each coordinate + 32768 into 17 bits, so below -32768 micro (-3641 u) or above 98303 micro the
+// fields went negative or overflowed and collided - every step read as already visited and the
+// probe called a flat deck unwalkable. The walkability gate at any site beyond 3.6 km from the
+// origin inherited the same false "unreachable".
+TEST(TraversalProbeTest, FarCoordinatesTraverseLikeTheOrigin) {
+    for (const glm::ivec3 off : {glm::ivec3(-30888, 0, -38232), glm::ivec3(200000, 0, 150000), glm::ivec3(-30888, 500, 20)}) {
+        World w;
+        TraversalProbe pr([w, off](int x, int y, int z) { return w.occ(x - off.x, y - off.y, z - off.z); }, kAgent);
+        const bool ok = pr.reachable(glm::ivec3(10, 3, 11) + off, glm::ivec3(38, 3, 8) + off, glm::ivec3(44, 6, 14) + off,
+                                     glm::ivec3(0, 0, 0) + off, glm::ivec3(60, 40, 22) + off);
+        EXPECT_TRUE(ok) << "the flat corridor is unwalkable when translated by (" << off.x << "," << off.y << "," << off.z << ") micro";
+        World wall; wall.barrierX0 = 24; wall.barrierX1 = 27; wall.barrierTop = 3 + 12;   // control: a wall still blocks there
+        TraversalProbe pw([wall, off](int x, int y, int z) { return wall.occ(x - off.x, y - off.y, z - off.z); }, kAgent);
+        EXPECT_FALSE(pw.reachable(glm::ivec3(10, 3, 11) + off, glm::ivec3(38, 3, 8) + off, glm::ivec3(44, 6, 14) + off,
+                                  glm::ivec3(0, 0, 0) + off, glm::ivec3(60, 40, 22) + off));
+    }
+}
