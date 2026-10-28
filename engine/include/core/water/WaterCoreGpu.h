@@ -507,6 +507,10 @@ public:
     /// pipelines (read from disk, built, descriptors written), the zero fill (one submit, waited) and the dense residency (0 for sparse)
     struct CreateSplit { double buffersMs = 0.0, pipelinesMs = 0.0, fillMs = 0.0, residencyMs = 0.0; int pipelines = 0, pipelinesReused = 0; };
     const CreateSplit& lastCreateSplit() const { return m_lastCreateSplit; }
+    /// 39.10: host-side work of an upload (host copies, the all-ground marking, scatterSlots) split over this many threads (1..16;
+    /// 1 = the default). Each range writes its own slots, so the uploaded bytes are the same for any count.
+    void setHostThreads(int n) { m_hostThreads = std::clamp(n, 1, 16); }
+    int hostThreads() const { return m_hostThreads; }
     /// 39.8: the last upload's parts, ms - settle (the call in flight), host (max speed, host occupancy, solid tops), residency (which
     /// bricks: the need, ground, capacity, slots), clear (the unstored count, staging zeroed), scatter (scatterSlots), tables, and
     /// submit (the copies and fills recorded and waited); bricks = the bricks stored
@@ -688,6 +692,7 @@ private:
     float            m_omega = 1.85f;   // measured: residual 0.14 at 40 sweeps on the 10 m column (1.6 at 1.7, 8.2 at 1.0); see GpuRbgsConvergenceScan
     std::vector<Volume*> m_volumes;
     CreateSplit m_lastCreateSplit;   // 39
+    int m_hostThreads = 1;           // 39.10
     UploadSplit m_lastUploadSplit;   // 39.8
     ResidencySplit m_lastResidencySplit;   // 39.8
     /// 39 (A2f step 1d): a destroyed volume's compute pipelines, kept per kernel for the next volume (a wake built the same 22 from

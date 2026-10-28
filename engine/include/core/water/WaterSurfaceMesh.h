@@ -73,7 +73,9 @@ struct WaterSurfaceField {
 
 /// CPU extraction from the grid (runs of layers with f * h >= 1 mm; the top of a run is its highest
 /// wet cell's bottom + fill * h; solidTopY from the grid's occupancy).
-void extractSurfaceField(const WaterGrid& grid, WaterSurfaceField& out);
+/// `threads` > 1 (39.10): the columns split by z rows over that many threads - each column is read and written on its own, so the
+/// field is the same whatever the count (WaterSurfaceMesh.ThreadedExtractionIsTheSame pins it). A small grid stays on one thread.
+void extractSurfaceField(const WaterGrid& grid, WaterSurfaceField& out, int threads = 1);
 
 /// §27 W1a: the pond surface of RECORDED water - the record's runs woken into `scratch` (the level-fill a wake makes, 27.9) and
 /// the surface extracted from it, so a recorded tile draws what the same water drew awake at rest. `scratch` must hold the

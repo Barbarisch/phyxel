@@ -26,9 +26,12 @@ WaterCoreManager::WaterCoreManager(MicroStateQuery state, SolidsRevisionQuery re
     : m_state(std::move(state)), m_revision(std::move(revision)) {}
 
 void WaterCoreManager::setStateQueryThreadSafe(bool on, int threads) {
-    if (!on) { m_occThreads = 1; return; }
-    if (threads <= 0) threads = std::clamp(static_cast<int>(std::thread::hardware_concurrency()) - 2, 1, 8);
-    m_occThreads = std::clamp(threads, 1, 16);
+    if (!on) m_occThreads = 1;
+    else {
+        if (threads <= 0) threads = std::clamp(static_cast<int>(std::thread::hardware_concurrency()) - 2, 1, 8);
+        m_occThreads = std::clamp(threads, 1, 16);
+    }
+    if (m_gpu) m_gpu->setHostThreads(m_occThreads);   // 39.10: the upload's host work uses the same count
 }
 
 bool WaterCoreManager::snapCellSize(float requested, float* snapped) {
@@ -649,6 +652,7 @@ bool WaterCoreManager::settle(int id) {
 bool WaterCoreManager::initGpu(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t queueFamily, const std::string& shaderDir, std::string* err) {
     auto gpu = std::make_unique<WaterCoreGpu>();
     if (!gpu->init(device, physical, queue, queueFamily, shaderDir, err)) return false;
+    gpu->setHostThreads(m_occThreads);   // 39.10 (setStateQueryThreadSafe may have run before the device)
     m_gpu = std::move(gpu);
     auto rg = std::make_unique<RippleGpu>();   // 25.34: the ripple step; without it the layers step on the CPU (said in water_ripples)
     if (rg->init(device, physical, queue, queueFamily, shaderDir, &m_rgpuErr)) m_rgpu = std::move(rg);
@@ -858,6 +862,7 @@ void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     if (av.gpuDirty) {
         const auto tUp = std::chrono::steady_clock::now();   // 26.18: what a world change costs the water (measured, reported)
         syncFromGpu(av); m_gpu->upload(*av.gpuVol, *av.grid);
+        av.uploadedAtStep = av.stepCount;   // 39.10: the call below is the first after this upload
         av.gpuUploadMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tUp).count(); ++av.gpuUploads;
         if (av.solver->transport().ownsMass()) {
             const auto* flip = dynamic_cast<const FlipTransport*>(&av.solver->transport());
@@ -1651,8 +1656,20 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
                 }
             }
             WaterHostProfile::lap("surf.2 seed patches", hp);
-            if (!got) { syncFromGpu(*av, false); extractSurfaceField(*av->grid, av->field); }
-            WaterHostProfile::lap("surf.3 CPU fallback", hp);
+            // 39.10: the first frame after an upload (a wake) reads no device surface - 12 ms on an 8 m pit on one thread; the
+            // extraction only reads the grid, so it takes the occupancy read's worker count (the same field, pinned)
+            if (!got) {
+                // 39.10: in the frame after an upload (a wake, an edit) the device has no surface yet - the one call since the upload
+                // is still in flight. Every other frame draws the last COLLECTED call, one call behind; the CPU grid is the uploaded
+                // state, which is exactly one call behind here too. The download waited for the call in flight and read the whole
+                // grid back (9.7 ms on an 8 m pit) to draw a state one call NEWER than any other frame does.
+                const bool gridIsTheUpload = av->gpuVol && av->uploadedAtStep != ~0ull && av->stepCount == av->uploadedAtStep + 1
+                                             && !s_uploadFallbackSyncsForTest;
+                if (!gridIsTheUpload) syncFromGpu(*av, false);
+                WaterHostProfile::lap("surf.3a CPU fallback: sync", hp);   // 39.10: the two parts, timed apart
+                extractSurfaceField(*av->grid, av->field, m_occThreads);
+            }
+            WaterHostProfile::lap("surf.3 CPU fallback (extract)", hp);
             // 27.15: the recorded tiles' columns are the record's to draw - marked "not this field's" (runs -1), so the volume's mesh
             // ends there like at its box edge instead of walling them off as dry (a wall from the surface to the bed showed - yellow
             // bed through it, a dark crease along its top - wherever the woken water moved beside a recorded tile, live)

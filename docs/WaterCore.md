@@ -9061,7 +9061,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
 | A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
-| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Item 5 split; 1(d) pipeline reuse BUILT (39.6). 1(e) one upload per wake BUILT (39.7): the wake frame is now create + seed + the first step's upload, pit ~18 + 42 ms, small ~9 + 5 ms; the seeded upload is next. Seeded upload split (39.8): the pool grow 13 of 41 ms. Left in A2f: step 1's rest (thread the upload's host / ground / scatter parts, the same result) and item 6 (the frame-time maximum over the wake). Step 2 (the wake across frames) moves to L4, the kept memory to L3 (§30.0b) | a 98 ms frame is visible at every tier. Merged with A7 below |
+| A2f | The wake stall (item 6): measured live 33-35 ms (6 m box) and 98 ms (10 m box), about 0.1 ms per m^3 of box (32.3). Fix: W1's patch wake, or keep the volume allocated while it sleeps | MEASURED and DESIGNED (§39): the split (pit: allocation 23, occupancy 24, a duplicate solids pass 19, device setup 13 fixed, upload 16 ms); design-check NEEDS WORK, six items (39.3). Step 1(a)(b) BUILT, not signed off (39.5): the same volume cell for cell, the wake 100 -> 41 ms (pit) and 36 -> 21 ms (small); 1(c) dropped (item 4). Item 5 split; 1(d) pipeline reuse BUILT (39.6). 1(e) one upload per wake BUILT (39.7): the wake frame is now create + seed + the first step's upload, pit ~18 + 42 ms, small ~9 + 5 ms; the seeded upload is next. Seeded upload split (39.8): the pool grow 13 of 41 ms. Item 6 measured (39.9: the wake's whole frame, pit 78-83 ms). Step 1's rest BUILT (39.10): the host work threaded (the same bytes) and the wake frame's download dropped (draws one step behind, as every frame does): worst frame pit 57-60 ms, small 19-20 ms. A2f's step 1 is complete. Step 2 (the wake across frames) moves to L4, the kept memory to L3 (§30.0b) | a 98 ms frame is visible at every tier. Merged with A7 below |
 | L1 | **The viewer-distance function (§30.0b):** one answer to "how far is this world position from the viewer", in bands with smooth fades, read by every water system; the band distances are tier knobs, echoed by the API. A pure function of world position and the camera, never per chunk | not designed | every L item and track C's knobs read it. Built once, so no two systems disagree on what "near" means |
 | L5 | **The outcome check (§30.0b rule 2, 39.3 item 1):** one rig and test runs the same interaction near the camera and far (and at each tier). The body's rest pose (1 mm), its time to rest, the pond's mass and its rest level must match | not designed | the guard for L2-L4 and every tier knob: before any distance or tier saving is built |
 | L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | not designed | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
@@ -10263,6 +10263,43 @@ The small pond's: wake 9.4-10.7, upload 5.4-5.5, the CPU surface 2.4-2.8, step 1
 **Found: a third hidden part.** An upload clears `surfaceValid` (the device's surface predates the new grid), so that frame
 builds the surface on the CPU over the whole box. That is 12 ms on the pit, in the same frame as the upload. Neither the wake timer
 nor the upload timer saw it. 39.3 item 6 is closed: the wake's frame is now measured whole, with every part named.
+
+### 39.10 Step 1's rest: the host work threaded, and the wake frame's download dropped (2026-10-27). Status: BUILT, not signed off
+
+**Threaded, the same bytes** (one worker count: `setStateQueryThreadSafe` sets it, `WaterCoreGpu::setHostThreads` takes it; 1 by
+default, 8 in the editor; grids under 32,768 cells and scatters under 64 slots stay on one thread):
+- `extractSurfaceField(grid, field, threads)`, split by z rows (each column its own slot). `WaterSurfaceMesh.ThreadedExtractionIsTheSame`:
+  1, 4 and 8 threads byte-equal on 2,916 columns with stacked runs; red with a split that leaves one row unwritten.
+- in `upload`: the host occupancy and solid tops (z rows); the all-ground marking, split by rows of BRICKS so no two threads
+  write one entry (`allSolid` is `vector<char>`, separate bytes); `scatterSlots`, split by slots; the max-speed scan, one set of
+  workers over all three lattices (a set per lattice cost the small pond more than it saved). The unstored-water sum stays serial
+  (a double sum in another order is another number). `WaterRecordedPondTest.AnUploadOnEightThreadsStepsTheSameAsOnOne`: a dam break,
+  slept, woken and stepped, on 1 and 8 threads, the same record byte for byte (675 bricks, 47.418372 m^3); red with a scatter that
+  skips one slot (678 bricks, 47.075827 m^3, columns differ).
+
+**The wake frame's download, dropped (`uploadedAtStep`).** In the frame after an upload the device has no surface yet (its one
+call is in flight), so the CPU fallback ran `syncFromGpu`. That waited for the call and read the whole grid back (9.7-9.8 ms on
+the pit) to draw a state one call newer than any other frame draws: every other frame draws the last collected call, one call
+behind. Now, when exactly one call has run since the upload, the fallback extracts from the CPU grid, which is the uploaded
+state, one call behind like every other frame. **What is drawn changes** for that one frame: the state one solver step earlier
+than before, on a pond that has just woken. `WaterRecordedPondTest.TheFrameAfterAnUploadDrawsTheUploadedState`: a woken pond,
+kicked so its first call moves it, stepped once in realtime. The drawn field equals the uploaded state's. The control
+(`s_uploadFallbackSyncsForTest`, the old download) differs from it, so the test tells the two apart.
+
+**Gates:** unit water + debris 362/362; integration water 66/68 (the known two). No `solver_*.comp` change.
+
+**Measured** (`--tag a2f_step1f`, Release, the worst frame over each window):
+
+| | small pond | pit |
+|---|---|---|
+| worst frame, 39.9 -> now | 20.2-21.7 -> **19.4-19.8 ms** | 77.8-83.3 -> **57.2-59.9 ms** |
+| the first step's upload | 5.4-5.5 -> 4.8-5.1 | 42-44 -> 29.6-33.0 |
+| the upload's max-speed scan | 1.4 -> 0.8-1.0 | 5.6 -> under 1.3 (not in the top 8) |
+| the CPU surface's download | 2.0-2.1 -> 0 | 9.7-9.8 -> 0 |
+| the wake (create + seed) | 9.4-10.7 -> 10.8-11.0 | 19 -> 20.4 |
+
+The pit's wake frame is now about 20 (wake) + 31 (upload, of it the 13-15 ms pool grow) + 3 (step) + a few ms of the rest. The
+largest part left is the pool grow, and only L3 (kept memory) removes it; L4 (paced wake) spreads the rest.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

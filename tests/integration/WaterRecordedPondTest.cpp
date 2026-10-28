@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <map>
 #include <vector>
 
@@ -205,4 +206,78 @@ TEST_F(WaterRecordedPondTest, AWakeWithOneUploadStepsTheSameAsWithTwo) {
         }
     }
     EXPECT_TRUE(moved) << "the kick did not move the water: the comparison would pass on a still pond";
+}
+
+// 39.10: the upload's host work (host copies, the all-ground marking, scatterSlots) and the CPU surface extraction split over
+// threads. The same dam break, uploaded and stepped by a manager on one thread and by one on eight, must write the same record
+// byte for byte; the second half sleeps and wakes it (the seeded upload) and steps again. 54 x 27 x 72 cells: over the threshold.
+TEST_F(WaterRecordedPondTest, AnUploadOnEightThreadsStepsTheSameAsOnOne) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    std::map<std::pair<int, int>, std::vector<ColumnRun>> written[2];
+    for (int t = 0; t < 2; ++t) {
+        WaterCoreManager mgr{[](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : ((m.x * 7 + m.z * 13) % 41 == 0 && m.y < 9 ? 1 : 0); }};
+        mgr.setStateQueryThreadSafe(t == 1, 8);
+        std::string err;
+        ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(5, 2, 7), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_NE(id, 0) << err;
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(2, 1, 7), 1.0f, nullptr);   // a dam: 2 m of water over half the box
+        AvRecord rec;
+        for (int k = 0; k < 30; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        WriteBackRecord wb = mgr.sleep(id, true);
+        ASSERT_TRUE(wb.ok) << wb.error;
+        MovingSolid stone; stone.centre = glm::vec3(3.0f, 1.0f, 4.0f); stone.halfExtents = glm::vec3(1.0f / 6.0f); stone.velocity = glm::vec3(0.0f, -3.0f, 0.0f);
+        const auto ids = mgr.wakeSleptTouching({stone});
+        ASSERT_EQ(ids.size(), 1u);
+        for (int k = 0; k < 30; ++k) mgr.step(ids[0], 1, 1.0f / 60.0f, &rec);
+        std::printf("  %d thread(s): bricks %ld, mass %.6f, KE %.6g\n", t == 1 ? 8 : 1, mgr.gpuUploadSplit().bricks, static_cast<double>(rec.mass), static_cast<double>(rec.kineticEnergy));
+        wb = mgr.sleep(ids[0], true);
+        ASSERT_TRUE(wb.ok) << wb.error;
+        written[t] = record.cols;
+    }
+    ASSERT_EQ(written[0].size(), written[1].size());
+    for (const auto& [k, v] : written[0]) {
+        const auto& w = written[1].at(k);
+        ASSERT_EQ(w.size(), v.size()) << "column " << k.first << "," << k.second;
+        for (size_t i = 0; i < v.size(); ++i) {
+            EXPECT_EQ(w[i].bottomY, v[i].bottomY) << "column " << k.first << "," << k.second;
+            EXPECT_EQ(w[i].topY, v[i].topY) << "column " << k.first << "," << k.second;
+        }
+    }
+}
+
+// 39.10: the frame after an upload draws the uploaded state on the CPU - one call behind, as every other frame draws the last
+// COLLECTED call - instead of downloading the grid the call in flight is changing (9.7 ms on an 8 m pit). A woken pond, kicked so
+// the first call moves it, stepped once in realtime (the call stays in flight): the drawn field must equal the uploaded state's.
+// The control (s_uploadFallbackSyncsForTest, the old download) must NOT equal it - it draws the call's newer state - so the test
+// tells the two apart.
+TEST_F(WaterRecordedPondTest, TheFrameAfterAnUploadDrawsTheUploadedState) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Restore { ~Restore() { WaterCoreManager::s_uploadFallbackSyncsForTest = false; } } restore;
+    bool equal[2] = {false, false};
+    for (int control = 0; control < 2; ++control) {
+        WaterCoreManager::s_uploadFallbackSyncsForTest = control != 0;
+        SleptPond p(*this, device, physicalDevice, queue, queueFamilyIndex);
+        ASSERT_TRUE(p.ok);
+        p.mgr.setRealtime(true);
+        MovingSolid stone; stone.centre = glm::vec3(4.0f, 1.6f, 4.0f); stone.halfExtents = glm::vec3(1.0f / 6.0f); stone.velocity = glm::vec3(0.0f, -3.0f, 0.0f);
+        const auto ids = p.mgr.wakeSleptTouching({stone});
+        ASSERT_EQ(ids.size(), 1u);
+        p.mgr.addRadialImpulse(glm::vec3(4.0f, 1.0f, 4.0f), 2.0f, 3.0f, 0.5f);   // the first call moves the water
+        WaterSurfaceField uploaded;
+        extractSurfaceField(*p.mgr.gridForTest(ids[0]), uploaded);   // the state the step below uploads
+        AvRecord rec;
+        p.mgr.step(ids[0], 1, 1.0f / 60.0f, &rec);
+        const WaterSurfaceField* drawn = nullptr;
+        for (const WaterSurfaceField* f : p.mgr.surfaceFields()) if (f && f->source == ids[0]) drawn = f;
+        ASSERT_NE(drawn, nullptr);
+        ASSERT_EQ(drawn->cols.size(), uploaded.cols.size());
+        equal[control] = std::memcmp(drawn->cols.data(), uploaded.cols.data(), uploaded.cols.size() * sizeof(SurfaceColumn)) == 0;
+        std::printf("  %s: the drawn field %s the uploaded state\n", control ? "control (download)" : "no download", equal[control] ? "equals" : "differs from");
+        p.mgr.setRealtime(false);
+    }
+    EXPECT_TRUE(equal[0]) << "the frame after the upload did not draw the uploaded state";
+    EXPECT_FALSE(equal[1]) << "the control drew the uploaded state too: the kick did not move the water in the first call, so the test cannot tell the two apart";
 }

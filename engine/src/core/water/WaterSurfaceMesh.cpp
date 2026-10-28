@@ -19,13 +19,14 @@ double recordSurfaceField(WaterGrid& scratch, const std::vector<ColumnRuns>& run
     return placed;
 }
 
-void extractSurfaceField(const WaterGrid& g, WaterSurfaceField& out) {
+void extractSurfaceField(const WaterGrid& g, WaterSurfaceField& out, int threads) {
     const GridSpec& sp = g.spec();
     out.origin = sp.origin; out.nx = g.nx(); out.nz = g.nz(); out.h = sp.h;
     out.cols.assign(static_cast<size_t>(out.nx) * out.nz, SurfaceColumn{});
     const float h = sp.h;
     const float fMin = WaterGrid::kSurfaceMinDepth / h;
-    for (int z = 0; z < g.nz(); ++z)
+    auto rows = [&](int z0, int z1) {
+    for (int z = z0; z < z1; ++z)
         for (int x = 0; x < g.nx(); ++x) {
             SurfaceColumn& c = out.cols[static_cast<size_t>(x) + static_cast<size_t>(out.nx) * z];
             int runs = 0;
@@ -66,6 +67,14 @@ void extractSurfaceField(const WaterGrid& g, WaterSurfaceField& out) {
                 c.w = 0.5f * (gm.w(x, topCell, z) + gm.w(x, topCell, z + 1));
             }
         }
+    };
+    // 39.10: z rows over the workers (each column its own slot - the same field); a small grid stays on this thread
+    const int workers = (threads > 1 && g.cellCount() >= 32768) ? std::min(threads, g.nz()) : 1;
+    if (workers == 1) { rows(0, g.nz()); return; }
+    std::vector<std::thread> pool;
+    for (int i = 1; i < workers; ++i) pool.emplace_back(rows, g.nz() * i / workers, g.nz() * (i + 1) / workers);
+    rows(0, g.nz() / workers);
+    for (auto& t : pool) t.join();
 }
 
 namespace {

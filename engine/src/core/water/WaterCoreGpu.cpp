@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <thread>
 
 namespace Phyxel { namespace Core { namespace Water {
 
@@ -29,6 +30,16 @@ constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the
 constexpr int kFirstSlot = 2;  // 26.18: the first slot a real brick can take
 constexpr int kCounters = 6;   // Bricks[counterOff + k]: 0 flux into absent, 1 sentinel dirty, 2-5 the over-full carry (26.32); = water_core.glsl WC_COUNTERS
 int floorMod(int v, int n) { return ((v % n) + n) % n; }
+// 39.10: [0, n) split into `threads` contiguous ranges, f(lo, hi) on each, joined before returning. Callers pass work whose
+// ranges write disjoint slots, so the result is the same for any count.
+template <class F> void forRanges(int n, int threads, F&& f) {
+    const int workers = std::max(1, std::min(threads, n));
+    if (workers == 1) { if (n > 0) f(0, n); return; }
+    std::vector<std::thread> pool;
+    for (int i = 1; i < workers; ++i) pool.emplace_back([&f, n, i, workers] { f(n * i / workers, n * (i + 1) / workers); });
+    f(0, n / workers);
+    for (auto& t : pool) t.join();
+}
 } // namespace
 
 WaterCoreGpu::~WaterCoreGpu() { shutdown(); }
@@ -1072,7 +1083,10 @@ void WaterCoreGpu::scatterSlots(Volume& vol, const std::vector<int>& slots, cons
     auto* sv = reinterpret_cast<float*>(st + vol.offV); auto* sw = reinterpret_cast<float*>(st + vol.offW);
     auto* so = reinterpret_cast<uint32_t*>(st + vol.offOcc); auto* ss = reinterpret_cast<float*>(st + vol.offSolid);
     const glm::ivec3 n = vol.spec.dims;
-    for (int slot : slots) {
+    // 39.10: the slots over the workers - each slot writes only its own staging range and reads the grid (the same bytes)
+    forRanges(static_cast<int>(slots.size()), slots.size() >= 64 ? m_hostThreads : 1, [&](int s0, int s1) {
+    for (int si = s0; si < s1; ++si) {
+        const int slot = slots[static_cast<size_t>(si)];
         const int packed = vol.slotBrick[static_cast<size_t>(slot)];
         const glm::ivec3 b(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023);
         for (int l = 0; l < static_cast<int>(vol.bc); ++l) {
@@ -1092,6 +1106,7 @@ void WaterCoreGpu::scatterSlots(Volume& vol, const std::vector<int>& slots, cons
             }
         }
     }
+    });
 }
 
 // New slots: zero every per-cell and per-face buffer over them (a brick is born as dry air), then copy their occupancy and
@@ -1244,18 +1259,37 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     WaterGrid& gm = const_cast<WaterGrid&>(g);
     auto* st = static_cast<char*>(vol.staging.mapped);
     float mx = 0.0f;
-    for (float v : gm.uData()) mx = std::max(mx, std::abs(v));
-    for (float v : gm.vData()) mx = std::max(mx, std::abs(v));
-    for (float v : gm.wData()) mx = std::max(mx, std::abs(v));
+    {   // 39.10: per range, then the largest (a max of |v| is the same in any order); 5.6 ms on an 8 m pit on one thread
+        // one set of workers for all three lattices (a set per lattice cost the small pond more than it saved)
+        const int parts = g.cellCount() >= 32768 ? m_hostThreads : 1;
+        const std::vector<float>* lats[3] = {&gm.uData(), &gm.vData(), &gm.wData()};
+        std::vector<float> part(static_cast<size_t>(parts), 0.0f);
+        forRanges(parts, parts, [&](int p0, int p1) {
+            for (int p = p0; p < p1; ++p) {
+                float m = 0.0f;
+                for (const std::vector<float>* lat : lats) {
+                    const size_t n = lat->size(), a = n * p / parts, b = n * (p + 1) / parts;
+                    for (size_t i = a; i < b; ++i) m = std::max(m, std::abs((*lat)[i]));
+                }
+                part[static_cast<size_t>(p)] = m;
+            }
+        });
+        for (float m : part) mx = std::max(mx, m);
+    }
     vol.lastMaxSpeed = mx;
+    auto hp = u1; WaterHostProfile::lap("up.0 max speed", hp);   // 39.10: the host part, timed apart
     vol.hostOcc.resize(vol.dCells);
     vol.hostSolidTop.assign(vol.dColumns, -1e30f);   // 26.11: a dry column's record is rebuilt from this (wc_surface's solidTop, whole column)
     vol.solidTopDirty = true;   // 29 S1: the device's copy is re-sent
-    for (int z = 0; z < g.nz(); ++z) for (int x = 0; x < g.nx(); ++x) for (int y = g.ny() - 1; y >= 0; --y)
-        if (g.occ(x, y, z) == Occ::Solid) { vol.hostSolidTop[static_cast<size_t>(x) + static_cast<size_t>(g.nx()) * z] = (static_cast<float>(g.spec().origin.y) + static_cast<float>(y) + 1.0f) * g.spec().h; break; }
+    const int ht = g.cellCount() >= 32768 ? m_hostThreads : 1;   // 39.10: z rows over the workers, each column / cell its own slot
+    forRanges(g.nz(), ht, [&](int z0, int z1) {
+        for (int z = z0; z < z1; ++z) for (int x = 0; x < g.nx(); ++x) for (int y = g.ny() - 1; y >= 0; --y)
+            if (g.occ(x, y, z) == Occ::Solid) { vol.hostSolidTop[static_cast<size_t>(x) + static_cast<size_t>(g.nx()) * z] = (static_cast<float>(g.spec().origin.y) + static_cast<float>(y) + 1.0f) * g.spec().h; break; }
+        for (int z = z0; z < z1; ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x)
+            vol.hostOcc[g.idx(x, y, z)] = static_cast<uint32_t>(g.occ(x, y, z));
+    });
+    WaterHostProfile::lap("up.1 host occupancy + solid tops", hp);
     vol.listsSized = false;
-    for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x)
-        vol.hostOcc[g.idx(x, y, z)] = static_cast<uint32_t>(g.occ(x, y, z));
     u2 = u3 = u4 = u5 = u6 = UClock::now();
     VkCommandBuffer cmd = beginCommands();
     if (vol.bricked) {
@@ -1279,11 +1313,15 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
         if (vol.groundOn) {
             vol.allSolid.assign(vol.mapCount, 1);
             const glm::ivec3 n = vol.spec.dims;
-            for (int z = 0; z < n.z; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
-                if (vol.hostOcc[g.idx(x, y, z)] == static_cast<uint32_t>(Occ::Solid)) continue;
-                const glm::ivec3 b = (glm::ivec3(x, y, z) + vol.o) / vol.bs();
-                vol.allSolid[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 0;
-            }
+            // 39.10: split by rows of BRICKS (bz) - every cell of a brick is in one range, so no two threads write one entry
+            forRanges(vol.bn.z, ht, [&](int bz0, int bz1) {
+                const int z0 = std::max(0, bz0 * kB - vol.o.z), z1 = std::min(n.z, bz1 * kB - vol.o.z);
+                for (int z = z0; z < z1; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
+                    if (vol.hostOcc[g.idx(x, y, z)] == static_cast<uint32_t>(Occ::Solid)) continue;
+                    const glm::ivec3 b = (glm::ivec3(x, y, z) + vol.o) / vol.bs();
+                    vol.allSolid[static_cast<size_t>(b.x) + static_cast<size_t>(vol.bn.x) * (b.y + static_cast<size_t>(vol.bn.y) * b.z)] = 0;
+                }
+            });
         }
         const auto ur2 = UClock::now();
         std::fill(vol.map.begin(), vol.map.end(), 0);

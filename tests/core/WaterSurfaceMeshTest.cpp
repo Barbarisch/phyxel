@@ -3,6 +3,8 @@
 #include "core/water/WaterSurfaceMesh.h"
 
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 #include <map>
 
 // WaterCore Phase F (docs/WaterCore.md 17.2 key 5): the surface mesh is a pure function of the
@@ -176,3 +178,32 @@ TEST(WaterSurfaceMeshTest, DefaultModeIsMesh) {
 
 }  // namespace
 }  // namespace Phyxel::Core::Water
+
+// 39.10: the surface extraction split over threads makes the same field, byte for byte. The grid: two runs per column in places
+// (a slab of solid with water above and below), partial cells, scattered solids, a moving solid fraction, velocities - every
+// field of SurfaceColumn is written. 54 x 36 x 54 cells (over the 32,768-cell threshold, so the threads run).
+TEST(WaterSurfaceMeshTest, ThreadedExtractionIsTheSame) {
+    using namespace Phyxel::Core::Water;
+    GridSpec sp; sp.origin = glm::ivec3(-27, 0, 9); sp.dims = glm::ivec3(54, 36, 54); sp.h = 1.0f / 9.0f;
+    WaterGrid g(sp);
+    for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x) {
+        const uint32_t hs = static_cast<uint32_t>(x * 73856093) ^ static_cast<uint32_t>(y * 19349663) ^ static_cast<uint32_t>(z * 83492791);
+        if (y < 2 || (y == 14 && (x + z) % 3 != 0) || hs % 23u == 0u) { g.occ(x, y, z) = Occ::Solid; continue; }
+        if (y < 10 || (y > 14 && y < 20 + (x % 5))) g.f(x, y, z) = (hs % 7u == 0u) ? 0.37f : 1.0f;
+        if (y == 20 + (x % 5)) g.f(x, y, z) = 0.25f + 0.01f * static_cast<float>(z % 50);
+        g.sData()[g.idx(x, y, z)] = (hs % 11u == 0u) ? 0.3f : 0.0f;
+    }
+    for (size_t i = 0; i < g.uData().size(); ++i) g.uData()[i] = 0.001f * static_cast<float>(i % 997);
+    for (size_t i = 0; i < g.wData().size(); ++i) g.wData()[i] = -0.002f * static_cast<float>(i % 991);
+    WaterSurfaceField one, four, eight;
+    extractSurfaceField(g, one);
+    extractSurfaceField(g, four, 4);
+    extractSurfaceField(g, eight, 8);
+    ASSERT_EQ(one.cols.size(), four.cols.size());
+    ASSERT_EQ(one.cols.size(), eight.cols.size());
+    EXPECT_EQ(std::memcmp(one.cols.data(), four.cols.data(), one.cols.size() * sizeof(SurfaceColumn)), 0) << "4 threads made another field";
+    EXPECT_EQ(std::memcmp(one.cols.data(), eight.cols.data(), one.cols.size() * sizeof(SurfaceColumn)), 0) << "8 threads made another field";
+    int twoRuns = 0; for (const auto& c : one.cols) if (c.runs > 1.5f) ++twoRuns;
+    EXPECT_GT(twoRuns, 100) << "the grid did not make stacked runs: the comparison would not cover them";
+    std::printf("  %zu columns, %d with two runs or more\n", one.cols.size(), twoRuns);
+}

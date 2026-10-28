@@ -505,6 +505,8 @@ public:
     /// 39.7 TEST: a wake's create uploads its empty grid as before step 1e (the seed's upload follows at the first step) - the
     /// control the single-upload wake is compared with, byte for byte
     static inline bool s_wakeUploadsTwiceForTest = false;
+    /// 39.10 TEST: the frame after an upload downloads the grid before drawing its surface on the CPU, as before (the control)
+    static inline bool s_uploadFallbackSyncsForTest = false;
     /// 34 (A2h, owner 2026-10-25: "keep the more chaotic feature as a turn on, but not by default"): the shipped default of debris
     /// DISPLACEMENT (20 - a moving body rasterized into the volume, shoving its water: heaving waves, thrown water, rocking). Off, the
     /// ripple layer (22) still draws the small splashes and rings; the slept-pond wake does not depend on it. The editor's
@@ -702,6 +704,7 @@ private:
         std::vector<SeedPatch> seedPatches;
         uint64_t fieldStep = ~0ull;     // the step counter the field was built from
         uint64_t stepCount = 0;         // steps taken (CPU ticks or GPU calls)
+        uint64_t uploadedAtStep = ~0ull;   // 39.10: stepCount when the grid was last uploaded (the CPU grid is that state until a download)
         double fieldStepSec = -1.0;     // wall time of that step
         bool hadSolids = false;         // 20: fed bodies (or a wake) last frame - keep feeding until it clears
         std::vector<float> pendingDeposit;   // 21: GPU volume - landed droplets (cell fractions) for the next step
