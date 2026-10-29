@@ -480,6 +480,7 @@ public:
                          bool partialWake = true, recordTiles = false; float tallBandM = 0.0f;
                          double retryAfter = 0.0;   ///< 35: not persisted - a wake deferred for non-resident chunks retries after this (steady s)
                          double touchedAt = -1.0;   ///< 39.4 TEST: not persisted - when a body first touched it under s_wakeDelaySForTest (steady s)
+                         bool waking = false;       ///< L4 (42): a paced wake is building it - still a slept box (saved, drawn, read) until live
                        };
     const std::vector<SleptVolume>& sleptVolumes() const { return m_slept; }
     /// 35 (A2c): the slept boxes persist with the world (world_meta.water_slept, next to water_bodies) - a pond asleep when saved
@@ -494,7 +495,25 @@ public:
     /// the slept boxes as (lo, hi + 1) world corners - handed to the debris solver with the live ones, so a body inside one reports
     std::vector<std::pair<glm::vec3, glm::vec3>> sleptBoxesWorld() const;
     /// wake every slept volume a moving body overlaps / a blast reaches; returns the ids made
-    std::vector<int> wakeSleptTouching(const std::vector<MovingSolid>& bodies);
+    /// `bodies`: the moving bodies (they start wakes); `inBoxes`: every body in the water's boxes, moving or not (L4, 42.4 item 5:
+    /// a paced wake is due when ANY of them can reach the water). Paced wakes (s_wakePace) are pumped here, under s_wakeBudgetMs.
+    std::vector<int> wakeSleptTouching(const std::vector<MovingSolid>& bodies, const std::vector<MovingSolid>* inBoxes = nullptr);
+    /// L4 (42.4 item 4): the bodies' clock - the debris solver's ticks so far and one tick's length. A paced wake's deadline is in
+    /// these ticks (a long frame runs several at once), never wall time. Without a clock (tickS <= 0) every wake is immediate.
+    void setPhysicsClock(uint64_t ticks, double tickS) { m_physTicks = ticks; m_physTickS = tickS; }
+    /// L4 (42.3): seconds until a body's lowest point can fall to `top` (free fall, g = 9.81; 0 if it is there already). Its lowest
+    /// point is centre.y - |halfExtents| (any orientation); velocity.y > 0 is up.
+    static double secondsToWater(const MovingSolid& b, float top);
+    /// L4 (42.3): pace wakes over frames, due before the first body can reach the water. Off by default (the owner's sign-off).
+    static constexpr bool kWakePaceByDefault = false;
+    static inline bool s_wakePace = kWakePaceByDefault;
+    static constexpr double kWakeBudgetMsDefault = 2.0, kWakeBudgetMsMin = 0.5, kWakeBudgetMsMax = 33.0;   ///< the frame's wake budget, ms
+    static inline double s_wakeBudgetMs = kWakeBudgetMsDefault;
+    /// 42.4 item 2 TEST (the red): a paced wake goes live no sooner than 0.3 s AFTER its bodies can reach the water
+    static inline bool s_paceLateForTest = false;
+    struct PacedStats { long started = 0, live = 0, forcedByDeadline = 0, immediate = 0, rebuilt = 0, cancelled = 0, stages = 0;
+                        double maxStageMs = 0.0, lastJobMs = 0.0; int building = 0; double lastDueS = 0.0; };
+    PacedStats pacedStats() const { PacedStats s = m_paced; s.building = static_cast<int>(m_jobs.size()); return s; }
     std::vector<int> wakeSleptNear(const glm::vec3& centre, float radius);
     struct SleptWakeStats { long woken = 0, wokenEmpty = 0, refused = 0, deferredNotResident = 0; double lastMs = 0.0, maxMs = 0.0; std::string lastError;
                             /// A2f: the last wake's parts, ms - create's (grid + solver allocation, occupancy read, solids, GPU create + upload)
@@ -690,6 +709,7 @@ private:
         std::vector<Occ> occCache;         ///< per grid cell, refreshed when dirty
         bool occDirty = true;
         uint64_t occRevision = ~0ull;   // pack revision the cache was sampled at
+        int brickHeightReq = 0, groundBricksReq = -1; long cellsReq = 0;   // L4 (42): create's GPU options, for buildGpu
         StepReport last;
         double residueDropped = 0.0;   // cumulative
         std::string backend = "cpu";
@@ -806,6 +826,28 @@ private:
     mutable uint64_t m_recordGen = 0;
     const RecordCol& recordCol(int cx, int cz) const;
     int wakeSlept(size_t i);
+    // L4 (42): create() in its parts - a paced wake runs them in later frames, the immediate path in a row
+    std::unique_ptr<Av> buildCpu(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize, const std::string& transport, std::string* err,
+                                 const std::string& backend, int gpuSweeps, int brickHeight, int groundBricks, bool eraseSlept);
+    bool buildGpu(Av& av, std::string* err);
+    void applyNewVolumeDefaults(Av& av);
+    void applySleptSettings(Av& av, const SleptVolume& sv);   ///< what wakeSlept set by id after create (partial wake, tall band, tiles)
+    int adopt(std::unique_ptr<Av> av, bool applyDefaults);
+    void eraseSleptOverlapping(const glm::ivec3& lo, const glm::ivec3& hi);
+    double seedAv(Av& av, std::vector<ColumnRuns>* seeded = nullptr);
+    std::chrono::steady_clock::time_point m_createT[4];
+    struct WakeJob { glm::ivec3 lo{0}, hi{0}; SleptVolume sv; std::unique_ptr<Av> av; int stage = 0; uint64_t startTick = 0, dueTick = 0,
+                     contactTick = 0; std::vector<ColumnRuns> seeded; uint64_t occRev = ~0ull; int keptHandle = 0; size_t keptSlots = 0;
+                     float top = 0.0f; double ms = 0.0; bool forced = false; };
+    std::vector<WakeJob> m_jobs;
+    PacedStats m_paced;
+    uint64_t m_physTicks = 0; double m_physTickS = 0.0;
+    bool startWakeJob(size_t i, const std::vector<MovingSolid>& bodies, const std::vector<MovingSolid>* inBoxes);
+    void dueFromBodies(WakeJob& j, const std::vector<MovingSolid>& bodies);
+    void pumpWakeJobs();
+    bool runWakeStage(WakeJob& j);   ///< false = the job ended (refused, empty, deferred, cancelled, or live)
+    void endWakeJob(WakeJob& j);     ///< frees a job's half-built volume
+    long sleptIndex(const glm::ivec3& lo, const glm::ivec3& hi) const;
     std::unique_ptr<RippleGpu> m_rgpu;   // 25.34 (declared after m_gpu: torn down first)
     bool m_rgpuOn = true;
     std::string m_rgpuErr;

@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <vector>
 
@@ -345,6 +346,127 @@ TEST_F(WaterRecordedPondTest, KeptMemoryChurnsWithoutGrowingAndTheCapDropsTheFar
     ASSERT_NE(wake(44.0f), 0); EXPECT_FALSE(mgr.keptMemoryStats().lastWakeHit) << "a pond 36 m away kept its memory with memory_m 20";
     ASSERT_NE(wake(4.0f), 0); EXPECT_TRUE(mgr.keptMemoryStats().lastWakeHit) << "the pond at the viewer lost its memory";
     EXPECT_EQ(mgr.keptMemoryStats().ponds, 0u);
+}
+
+namespace {
+struct RestorePace { ~RestorePace() { WaterCoreManager::s_wakePace = WaterCoreManager::kWakePaceByDefault;
+                                      WaterCoreManager::s_wakeBudgetMs = WaterCoreManager::kWakeBudgetMsDefault; WaterCoreManager::s_paceLateForTest = false; } };
+// a stone held 1.4 m over the 1 m pond (its lowest point): ~0.54 s to the water, due at half that (16 ticks)
+MovingSolid stoneAbove() {
+    MovingSolid s; s.centre = glm::vec3(4.0f, 2.7f, 4.0f); s.halfExtents = glm::vec3(1.0f / 6.0f); s.velocity = glm::vec3(0.0f); s.id = 7;
+    return s;
+}
+// L4: drive the touch frame by frame (one physics tick a frame) until the paced wake is live; the id, and the frames it took
+int pacedWake(WaterCoreManager& mgr, const MovingSolid& s, int* frames, std::vector<std::function<void(int)>> during = {}) {
+    uint64_t tick = 1000;
+    for (int f = 0; f < 40; ++f) {
+        mgr.setPhysicsClock(tick, 1.0 / 60.0);
+        mgr.wakeSleptTouching({s});
+        for (auto& d : during) d(f);
+        if (!mgr.list().empty()) { if (frames) *frames = f + 1; return mgr.list()[0].id; }
+        ++tick;
+    }
+    return 0;
+}
+}  // namespace
+
+// L4 (42.3): a wake built over frames, live before its body can reach the water, makes the same pond: woken immediately and paced
+// (the smallest budget: about a stage a frame), stepped once (the immediate wake's first step uploads; the paced one uploaded in its
+// stages), kicked, stepped 39 more - the written record byte for byte. The paced wake must take more than one frame and go live
+// before its deadline (not forced by it).
+TEST_F(WaterRecordedPondTest, APacedWakeMakesTheSamePondAsAnImmediateOne) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    RestorePace restore;
+    Cols written[2];
+    int frames = 0;
+    WaterCoreManager::PacedStats ps;
+    for (int paced = 0; paced < 2; ++paced) {
+        WaterCoreManager::s_wakePace = paced != 0; WaterCoreManager::s_wakeBudgetMs = WaterCoreManager::kWakeBudgetMsMin;
+        SleptPond p(*this, device, physicalDevice, queue, queueFamilyIndex);
+        ASSERT_TRUE(p.ok);
+        int id = 0;
+        if (paced) id = pacedWake(p.mgr, stoneAbove(), &frames);
+        else { p.mgr.setPhysicsClock(1000, 1.0 / 60.0); const auto ids = p.mgr.wakeSleptTouching({stoneAbove()}); id = ids.empty() ? 0 : ids[0]; }
+        ASSERT_NE(id, 0) << (paced ? "the paced wake never went live" : "the immediate wake did not wake");
+        AvRecord rec;
+        p.mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        p.mgr.addRadialImpulse(glm::vec3(4.0f, 1.0f, 4.0f), 1.5f, 2.0f, 0.5f);
+        for (int k = 0; k < 39; ++k) p.mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        std::printf("  %s: uploads %ld, mass %.6f, KE %.6g\n", paced ? "paced" : "immediate", static_cast<long>(rec.gpuUploads), static_cast<double>(rec.mass), static_cast<double>(rec.kineticEnergy));
+        if (paced) ps = p.mgr.pacedStats();
+        ASSERT_TRUE(p.mgr.sleep(id, true).ok);
+        written[paced] = p.record.cols;
+    }
+    std::printf("  paced: live after %d frame(s), %ld stages, the longest %.2f ms, due in %.3f s, forced by the deadline %ld, immediate %ld\n",
+                frames, ps.stages, ps.maxStageMs, ps.lastDueS, ps.forcedByDeadline, ps.immediate);
+    EXPECT_EQ(ps.started, 1); EXPECT_EQ(ps.live, 1); EXPECT_EQ(ps.immediate, 0);
+    EXPECT_GE(frames, 2) << "the wake was not spread over frames (the test would not show pacing)";
+    EXPECT_EQ(ps.forcedByDeadline, 0) << "the deadline forced the wake: it was not paced to completion";
+    EXPECT_NEAR(ps.lastDueS, 0.25, 0.03) << "the deadline is not half the stone's ~0.54 s to the water";
+    const long d = columnsDiffering(written[0], written[1]);
+    EXPECT_EQ(d, 0) << "the paced wake wrote a different record (" << d << " columns; -1 = different columns)";
+    bool moved = false;
+    for (const auto& [k, v] : written[0]) for (const auto& r : v) if (std::abs(r.topY - 1.0f) > 1e-4f) moved = true;
+    EXPECT_TRUE(moved) << "the kick did not move the water: the comparison would pass on a still pond";
+}
+
+// L4 (42.3): the record changes while the wake is built (another write to the pond's columns) - the build is stale, so it is
+// rebuilt at once, and the pond holds the CHANGED record (as an immediate wake after the change would). And a stone at the water
+// (no time to pace) wakes immediately.
+TEST_F(WaterRecordedPondTest, APacedWakeRebuildsWhenTheRecordChangesAndABodyAtTheWaterIsImmediate) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    RestorePace restore;
+    WaterCoreManager::s_wakePace = true; WaterCoreManager::s_wakeBudgetMs = WaterCoreManager::kWakeBudgetMsMin;
+    {
+        SleptPond p(*this, device, physicalDevice, queue, queueFamilyIndex);
+        ASSERT_TRUE(p.ok);
+        const double before = p.record.total();
+        // after the seed (stage 2, frame 2 at a stage a frame): drained before it, the seed reads the drained record and nothing is stale
+        auto drain = [&](int f) { if (f == 3) { p.record.cols.erase({3, 3}); p.record.cols.erase({3, 4}); ++p.record.revision; } };
+        int frames = 0;
+        const int id = pacedWake(p.mgr, stoneAbove(), &frames, {drain});
+        ASSERT_NE(id, 0);
+        const auto ps = p.mgr.pacedStats();
+        double mass = 0.0; for (const auto& v : p.mgr.list()) mass += v.mass;
+        std::printf("  record %.4f -> %.4f m^3 during the build; the woken pond %.4f m^3; rebuilt %ld, live %ld, frames %d\n", before, p.record.total(), mass, ps.rebuilt, ps.live, frames);
+        EXPECT_EQ(ps.rebuilt, 1) << "the stale build went live";
+        EXPECT_NEAR(mass, p.record.total(), 1e-3) << "the woken pond does not hold the record as it is now";
+    }
+    {
+        SleptPond p(*this, device, physicalDevice, queue, queueFamilyIndex);
+        ASSERT_TRUE(p.ok);
+        MovingSolid atWater = stoneAbove(); atWater.centre.y = 1.1f;
+        p.mgr.setPhysicsClock(1000, 1.0 / 60.0);
+        const auto ids = p.mgr.wakeSleptTouching({atWater});
+        EXPECT_EQ(ids.size(), 1u) << "a body at the water did not wake the pond at once";
+        EXPECT_EQ(p.mgr.pacedStats().immediate, 1);
+        EXPECT_EQ(p.mgr.pacedStats().started, 0);
+    }
+}
+
+// L4 (42.4 item 3): the first frame drawn after a paced wake goes live is the uploaded state, as after an immediate wake (39.10's
+// TheFrameAfterAnUploadDrawsTheUploadedState with the wake paced).
+TEST_F(WaterRecordedPondTest, TheFrameAfterAPacedWakeDrawsTheUploadedState) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    RestorePace restore;
+    WaterCoreManager::s_wakePace = true; WaterCoreManager::s_wakeBudgetMs = WaterCoreManager::kWakeBudgetMsMin;
+    SleptPond p(*this, device, physicalDevice, queue, queueFamilyIndex);
+    ASSERT_TRUE(p.ok);
+    const int id = pacedWake(p.mgr, stoneAbove(), nullptr);
+    ASSERT_NE(id, 0);
+    p.mgr.setRealtime(true);
+    p.mgr.addRadialImpulse(glm::vec3(4.0f, 1.0f, 4.0f), 2.0f, 3.0f, 0.5f);   // the first call moves the water
+    WaterSurfaceField uploaded;
+    extractSurfaceField(*p.mgr.gridForTest(id), uploaded);
+    AvRecord rec;
+    p.mgr.step(id, 1, 1.0f / 60.0f, &rec);
+    const WaterSurfaceField* drawn = nullptr;
+    for (const WaterSurfaceField* f : p.mgr.surfaceFields()) if (f && f->source == id) drawn = f;
+    ASSERT_NE(drawn, nullptr);
+    ASSERT_EQ(drawn->cols.size(), uploaded.cols.size());
+    EXPECT_EQ(std::memcmp(drawn->cols.data(), uploaded.cols.data(), uploaded.cols.size() * sizeof(SurfaceColumn)), 0)
+        << "the frame after the paced wake did not draw the uploaded state";
+    p.mgr.setRealtime(false);
 }
 
 // 39.10: the upload's host work (host copies, the all-ground marking, scatterSlots) and the CPU surface extraction split over

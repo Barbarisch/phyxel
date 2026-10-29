@@ -36,6 +36,7 @@ FAR = [302.0, 18.0, 14.0]        # 200 m east: beyond draw_m (48), the ripple wi
 RUNS = {"near_a": (NEAR, False), "near_b": (NEAR, False), "far": (FAR, False), "far_dry": (FAR, True)}
 POND_BOX = {"x1": 99, "y1": 14, "z1": 11, "x2": 104, "y2": 19, "z2": 16}
 WAKE_DELAY_S = 0.0               # L4 (42): --wake-delay; the bodies' bottoms reach the water 1.01 m below, ~0.45 s after release
+WAKE_PACE = PACE_LATE = False    # L4 (42.3): --wake-pace, --pace-late (the red)
 
 
 def tracks_xyz(path):
@@ -95,8 +96,11 @@ def run(api, name, seconds):
     loc = api.debug("water_locality", {})
     if loc.get("test_far_record_dry") != dry or not loc.get("test_viewer_on"): raise SystemExit(f"{name}: water_locality not taken: {loc}")
     # L4 (42): a late wake - the touched pond wakes WAKE_DELAY_S after the touch (39.4's test knob; 0 = shipped)
-    got = (api.debug("water_coupling", {"test_wake_delay_s": WAKE_DELAY_S}).get("slept") or {}).get("test_wake_delay_s")
+    sl = api.debug("water_coupling", {"test_wake_delay_s": WAKE_DELAY_S, "wake_pace": WAKE_PACE, "test_pace_late": PACE_LATE}).get("slept") or {}
+    got = sl.get("test_wake_delay_s")
     if abs((got or 0.0) - WAKE_DELAY_S) > 1e-6: raise SystemExit(f"{name}: test_wake_delay_s not taken: {got}")
+    if sl.get("wake_pace") != WAKE_PACE or sl.get("test_pace_late") != PACE_LATE: raise SystemExit(f"{name}: wake_pace not taken: {sl}")
+    paced0 = sl.get("paced") or {}
     m_before = recorded_m3(api)
     kept0 = (api.debug("water_coupling", {}).get("slept") or {}).get("kept") or {}   # L3 (41.4 item 1): which wake path ran
     log = (w.EV / f"l5_{name}.csv").resolve()
@@ -111,7 +115,11 @@ def run(api, name, seconds):
         if v: woke = True
         trace.append({"t": round(time.time() - t0, 2), "volumes": len(v), "mass": v[0].get("mass") if v else None})
         time.sleep(0.5)
-    kept1 = (api.debug("water_coupling", {}).get("slept") or {}).get("kept") or {}
+    sl1 = api.debug("water_coupling", {}).get("slept") or {}
+    kept1 = sl1.get("kept") or {}
+    paced1 = sl1.get("paced") or {}
+    paced = {k: paced1.get(k, 0) - paced0.get(k, 0) for k in ("started", "live", "forced_by_deadline", "immediate", "rebuilt", "cancelled")}
+    paced["max_stage_ms"] = paced1.get("max_stage_ms"); paced["due_s"] = paced1.get("last_due_s")
     hits, misses = kept1.get("hits", 0) - kept0.get("hits", 0), kept1.get("misses", 0) - kept0.get("misses", 0)
     wake_path = ("no wake" if hits == 0 and misses == 0 else "kept" if misses == 0 else "fresh" if hits == 0
                  else f"mixed ({hits} kept, {misses} fresh)")
@@ -123,7 +131,7 @@ def run(api, name, seconds):
     # the bodies go BEFORE the switch: a wood block sunk on the bed of a pond that reads dry would read wet again and rise
     api.debug("clear_dynamics"); time.sleep(0.3)
     api.debug("water_locality", {"clear_test_viewer": True, "test_far_record_dry": False})
-    api.debug("water_coupling", {"test_wake_delay_s": 0.0})
+    api.debug("water_coupling", {"test_wake_delay_s": 0.0, "wake_pace": False, "test_pace_late": False})
     tr = tracks_xyz(log)
     log.unlink(missing_ok=True)
     bodies = {}
@@ -138,8 +146,9 @@ def run(api, name, seconds):
                        "y_max": max(r[2] for r in rows), "y_min": min(r[2] for r in rows), "rows": len(rows)}
     out = {"run": name, "viewer": viewer, "far_record_dry": dry, "locality": loc, "pond_woke": woke, "pond_slept_again": slept_again,
            "recorded_m3_before": m_before, "recorded_m3_after": m_after, "level": lvl, "bodies": bodies, "pond": trace,
-           "wake_path": wake_path, "kept_before_drop": kept0, "wake_delay_s": WAKE_DELAY_S}
-    print(f"{name:7s} woke {woke} ({wake_path} memory) slept again {slept_again} m3 {m_before}->{m_after} level {lvl} | " +
+           "wake_path": wake_path, "kept_before_drop": kept0, "wake_delay_s": WAKE_DELAY_S, "wake_pace": WAKE_PACE,
+           "pace_late": PACE_LATE, "paced": paced}
+    print(f"{name:7s} woke {woke} ({wake_path} memory; paced {paced}) slept again {slept_again} m3 {m_before}->{m_after} level {lvl} | " +
           " | ".join(f"{k} rest {[round(c, 4) for c in v['rest_pose']]} at {v['rest_t']} s, y max {v['y_max']:.4f}" for k, v in bodies.items()),
           flush=True)
     return out
@@ -219,9 +228,12 @@ def main():
     ap.add_argument("--seconds", type=float, default=30.0)
     ap.add_argument("--tag", default="l5")
     ap.add_argument("--wake-delay", type=float, default=0.0, help="L4 (42): the touched pond wakes this many seconds late (test knob)")
+    ap.add_argument("--wake-pace", action="store_true", help="L4 (42.3): paced wakes (wake_pace)")
+    ap.add_argument("--pace-late", action="store_true", help="L4 (42.4 item 2) TEST, the red: paced wakes go live 0.3 s after contact")
     a = ap.parse_args()
-    global WAKE_DELAY_S
+    global WAKE_DELAY_S, WAKE_PACE, PACE_LATE
     WAKE_DELAY_S = a.wake_delay
+    WAKE_PACE, PACE_LATE = a.wake_pace, a.pace_late
     if a.rejudge:   # one tag re-scores that file; several pool their runs (three near runs a session is a thin spread)
         tags = a.rejudge.split(",")
         runs = []
@@ -244,7 +256,7 @@ def main():
     finally:
         api.debug("clear_dynamics"); time.sleep(0.3)   # the bodies first (see run)
         api.debug("water_locality", {"clear_test_viewer": True, "test_far_record_dry": False})
-        api.debug("water_coupling", {"test_wake_delay_s": 0.0})   # never leave a delay on
+        api.debug("water_coupling", {"test_wake_delay_s": 0.0, "wake_pace": False, "test_pace_late": False})   # never leave a test knob on
         (w.EV / f"l5_{a.tag}.json").write_text(json.dumps(res, indent=1), encoding="utf-8")
 
 

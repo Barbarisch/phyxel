@@ -44,29 +44,38 @@ bool WaterCoreManager::snapCellSize(float requested, float* snapped) {
 
 int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
                              const std::string& transport, std::string* err, const std::string& backend, int gpuSweeps, int brickHeight, int groundBricks) {
+    // L4 (42.4 item 8): the same three parts a paced wake runs over frames, in this order - one code path, not two
+    std::unique_ptr<Av> av = buildCpu(minVoxel, maxVoxel, cellSize, transport, err, backend, gpuSweeps, brickHeight, groundBricks, true);
+    if (!av || !buildGpu(*av, err)) return 0;
+    return adopt(std::move(av), true);
+}
+
+std::unique_ptr<WaterCoreManager::Av> WaterCoreManager::buildCpu(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
+                                                                 const std::string& transport, std::string* err, const std::string& backend, int gpuSweeps,
+                                                                 int brickHeight, int groundBricks, bool eraseSlept) {
     float h = 1.0f;
-    if (!snapCellSize(cellSize, &h)) { if (err) *err = "cellSize must be 1, 1/3, 1/9, 1/27 or 1/81 (a cell that does not divide a microcube would sit half inside a wall)"; return 0; }
+    if (!snapCellSize(cellSize, &h)) { if (err) *err = "cellSize must be 1, 1/3, 1/9, 1/27 or 1/81 (a cell that does not divide a microcube would sit half inside a wall)"; return nullptr; }
     const int per = static_cast<int>(std::lround(1.0f / h));
     const glm::ivec3 lo = glm::min(minVoxel, maxVoxel), hi = glm::max(minVoxel, maxVoxel);
-    // 32: a new volume over a remembered (slept) box replaces it - two volumes would wake over the same record
-    m_slept.erase(std::remove_if(m_slept.begin(), m_slept.end(), [&](const SleptVolume& s) {
-        return glm::all(glm::lessThanEqual(s.lo, hi)) && glm::all(glm::greaterThanEqual(s.hi, lo)); }), m_slept.end());
+    // 32: a new volume over a remembered (slept) box replaces it - two volumes would wake over the same record. L4: a paced wake
+    // erases when it goes live (adopt's caller), not here - its box stays a slept box while it is built
+    if (eraseSlept) eraseSleptOverlapping(lo, hi);
     const glm::ivec3 dims = (hi - lo + glm::ivec3(1)) * per;
     const size_t cells = static_cast<size_t>(dims.x) * dims.y * dims.z;
-    if (transport != "eulerian" && transport != "flip") { if (err) *err = "transport must be 'eulerian' or 'flip'"; return 0; }
+    if (transport != "eulerian" && transport != "flip") { if (err) *err = "transport must be 'eulerian' or 'flip'"; return nullptr; }
     std::string be = backend;
     if (be.empty() || be == "auto") be = (gpuReady() && transport == "eulerian") ? "gpu" : "cpu";   // the default: fills on the device once their parity rows passed (15.13-15.15); particles stay on the CPU until the splash row closes
-    if (be != "cpu" && be != "gpu") { if (err) *err = "backend must be 'cpu', 'gpu' or 'auto'"; return 0; }
+    if (be != "cpu" && be != "gpu") { if (err) *err = "backend must be 'cpu', 'gpu' or 'auto'"; return nullptr; }
     // 27.23 W1d: a GPU fill volume's device memory follows its water (W1d.1) and its writes go in place (W1d.2) - its cap is the CPU
     // mirror's (~50 B a cell of the box: ~800 MB at 16 M cells, until W1d.3 removes it); the CPU reference and FLIP keep theirs
     const bool gpuFill = be == "gpu" && transport == "eulerian";
     const size_t cap = gpuFill ? kMaxCellsPerGpuVolume : kMaxCellsPerVolume;
-    if (cells > cap) { if (err) *err = "volume would be " + std::to_string(cells) + " cells; the " + std::string(gpuFill ? "GPU volume (its CPU mirror)" : "CPU reference") + " caps at " + std::to_string(cap); return 0; }
-    if (be == "gpu" && !gpuReady()) { if (err) *err = "no GPU backend: WaterCoreGpu was not initialised (no device, or a kernel failed to load) - the CPU reference is the fallback, say so"; return 0; }
+    if (cells > cap) { if (err) *err = "volume would be " + std::to_string(cells) + " cells; the " + std::string(gpuFill ? "GPU volume (its CPU mirror)" : "CPU reference") + " caps at " + std::to_string(cap); return nullptr; }
+    if (be == "gpu" && !gpuReady()) { if (err) *err = "no GPU backend: WaterCoreGpu was not initialised (no device, or a kernel failed to load) - the CPU reference is the fallback, say so"; return nullptr; }
 
     if (transport == "flip" && cells * static_cast<size_t>(FlipTransport::kParticlesPerCell) > FlipTransport::kMaxParticlesPerVolume) {
         if (err) *err = "a FLIP volume of " + std::to_string(cells) + " cells could hold " + std::to_string(cells * FlipTransport::kParticlesPerCell) + " particles; the CPU reference caps at " + std::to_string(FlipTransport::kMaxParticlesPerVolume);
-        return 0;
+        return nullptr;
     }
     using PClock = std::chrono::steady_clock;   // A2f: the parts' times (m_createSplit; a wake copies them)
     const auto pc0 = PClock::now();
@@ -104,7 +113,18 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     // occupancy refreshOccupancy has just mirrored into the grid, then cleared water and velocities a new grid does not have yet -
     // nothing to do (WaterWakeSame pins the volume cell for cell)
     const auto pc3 = PClock::now();
-    if (be == "gpu") {
+    av->brickHeightReq = brickHeight; av->groundBricksReq = groundBricks; av->cellsReq = static_cast<long>(cells);
+    m_createT[0] = pc0; m_createT[1] = pc1; m_createT[2] = pc2; m_createT[3] = pc3;
+    return av;
+}
+
+bool WaterCoreManager::buildGpu(Av& avr, std::string* err) {
+    using PClock = std::chrono::steady_clock;
+    Av* av = &avr;
+    const std::string& transport = av->transport;
+    const int brickHeight = av->brickHeightReq, groundBricks = av->groundBricksReq;
+    const auto pc3 = PClock::now();
+    if (av->backend == "gpu") {
         // the grid's occupancy must hold the hold boundary the GPU reads (it is the solver's query on the CPU)
         for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
             av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
@@ -122,7 +142,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
             bo.adoptKept = 0; bo.initialSlots = 0;
             av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, bo);
         }
-        if (!av->gpuVol) return 0;   // the refusal carries the byte count
+        if (!av->gpuVol) return false;   // the refusal carries the byte count
         const auto pg1 = PClock::now();
         // 39.7 (A2f step 1e): a wake seeds the grid next and the first step uploads it whole - an upload here sent an empty grid that
         // upload replaces in full (16 ms on an 8 m pit, twice per wake). Left pending (gpuDirty) for the step, as after any seed.
@@ -132,13 +152,28 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         av->gpuDirty = m_createLeavesUploadToStep && !s_wakeUploadsTwiceForTest;
     }
     {   auto ms = [](PClock::time_point x, PClock::time_point y) { return std::chrono::duration<double, std::milli>(y - x).count(); };
-        m_createSplit = {ms(pc0, pc1), ms(pc1, pc2), ms(pc2, pc3), ms(pc3, PClock::now()), static_cast<long>(cells)}; }
+        // the GPU part is timed from its own start (a paced wake runs it in a later frame than the CPU part)
+        m_createSplit = {ms(m_createT[0], m_createT[1]), ms(m_createT[1], m_createT[2]), ms(m_createT[2], m_createT[3]), ms(pc3, PClock::now()), av->cellsReq}; }
+    return true;
+}
+
+void WaterCoreManager::applyNewVolumeDefaults(Av& av) {
+    if (s_partialWakeDefault && av.gpuVol && m_gpu && av.gpuVol->sparse) m_gpu->setPartialWake(*av.gpuVol, true);   // 26.31
+    av.tallBand = s_tallBandDefault;   // 27.22
+    av.recordTiles = s_recordTilesDefault && av.gpuVol && av.gpuVol->sparse;   // §27 W1b
+}
+
+int WaterCoreManager::adopt(std::unique_ptr<Av> av, bool applyDefaults) {
+    Av* raw = av.get();
     m_avs.push_back(std::move(av));
     refreshBoxes();
-    if (s_partialWakeDefault && raw->gpuVol && m_gpu && raw->gpuVol->sparse) m_gpu->setPartialWake(*raw->gpuVol, true);   // 26.31
-    raw->tallBand = s_tallBandDefault;   // 27.22
-    raw->recordTiles = s_recordTilesDefault && raw->gpuVol && raw->gpuVol->sparse;   // §27 W1b
+    if (applyDefaults) applyNewVolumeDefaults(*raw);
     return raw->id;
+}
+
+void WaterCoreManager::eraseSleptOverlapping(const glm::ivec3& lo, const glm::ivec3& hi) {
+    m_slept.erase(std::remove_if(m_slept.begin(), m_slept.end(), [&](const SleptVolume& s) {
+        return glm::all(glm::lessThanEqual(s.lo, hi)) && glm::all(glm::greaterThanEqual(s.hi, lo)); }), m_slept.end());
 }
 
 bool WaterCoreManager::destroy(int id) {
@@ -380,6 +415,13 @@ bool WaterCoreManager::step(int id, int ticks, float dt, AvRecord* out) {
 }
 
 void WaterCoreManager::updateKeptMemory(double freeBudgetMs) {
+    // L4 (42.4 item 7): a paced wake whose box is no longer slept (a load, a world switch, a new volume over it) is dropped here too -
+    // the touch pump may not run in a frame with no water boxes
+    for (size_t k = m_jobs.size(); k-- > 0;) {
+        const long si = sleptIndex(m_jobs[k].lo, m_jobs[k].hi);
+        if (si >= 0 && m_slept[static_cast<size_t>(si)].waking) continue;
+        ++m_paced.cancelled; endWakeJob(m_jobs[k]); m_jobs.erase(m_jobs.begin() + static_cast<long>(k));
+    }
     if (!m_gpu) return;
     const WaterLocality& L = s_locality;
     // orphans: a kept set whose box no longer sleeps (re-slept, loaded over, forgotten) - nothing will ever adopt it
@@ -500,8 +542,13 @@ bool WaterCoreManager::setAutoSleep(int id, bool on) {
 
 double WaterCoreManager::seedFromSpans(int id) {
     if (!m_spanReader) return -1.0;
-    for (auto& av : m_avs) {
-        if (av->id != id) continue;
+    for (auto& av : m_avs) if (av->id == id) return seedAv(*av);
+    return -1.0;
+}
+
+double WaterCoreManager::seedAv(Av& avr, std::vector<ColumnRuns>* seeded) {
+    if (!m_spanReader) return -1.0;
+    {   Av* av = &avr;   // (the body below is seedFromSpans' as it was; L4 seeds a volume that is not in m_avs yet)
         using SClock = std::chrono::steady_clock;   // A2f: the parts' times (m_seedSplit)
         auto ms = [](SClock::time_point x, SClock::time_point y) { return std::chrono::duration<double, std::milli>(y - x).count(); };
         const auto s0 = SClock::now();
@@ -522,9 +569,9 @@ double WaterCoreManager::seedFromSpans(int id) {
         av->solver->wake();
         av->gpuDirty = true; av->gpuStale = false;
         if (av->gpuVol) av->gpuLast = GpuStepStats{};
+        if (seeded) *seeded = std::move(runs);   // L4: what the seed read, for the go-live check (42.3: the record changed meanwhile?)
         return placed;
     }
-    return -1.0;
 }
 
 WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
@@ -1169,13 +1216,200 @@ int WaterCoreManager::wakeSlept(size_t i) {
     return id;
 }
 
-std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSolid>& bodies) {
+double WaterCoreManager::secondsToWater(const MovingSolid& b, float top) {
+    constexpr double g = 9.81;
+    const double bottom = static_cast<double>(b.centre.y) - static_cast<double>(glm::length(b.halfExtents));   // any orientation
+    const double drop = bottom - static_cast<double>(top);
+    if (drop <= 0.0) return 0.0;
+    const double v = b.velocity.y;   // up is positive
+    return (v + std::sqrt(v * v + 2.0 * g * drop)) / g;
+}
+
+long WaterCoreManager::sleptIndex(const glm::ivec3& lo, const glm::ivec3& hi) const {
+    for (size_t i = 0; i < m_slept.size(); ++i) if (m_slept[i].lo == lo && m_slept[i].hi == hi) return static_cast<long>(i);
+    return -1;
+}
+
+void WaterCoreManager::applySleptSettings(Av& av, const SleptVolume& sv) {
+    // exactly what wakeSlept sets by id after its create: setPartialWake, setTallBand, setRecordTiles (if asked)
+    if (av.gpuVol && m_gpu && av.gpuVol->sparse) { m_gpu->setPartialWake(*av.gpuVol, sv.partialWake); av.gpuLast.asleep = false; }
+    av.tallBand = std::max(0.0f, sv.tallBandM);
+    if (av.tallBand <= 0.0f && av.gpuVol && m_gpu) { m_gpu->clearTall(*av.gpuVol); av.tallReason = "off"; }
+    av.tallRestY = std::numeric_limits<float>::quiet_NaN();
+    if (sv.recordTiles && av.gpuVol && m_gpu && av.gpuVol->sparse) av.recordTiles = true;
+}
+
+void WaterCoreManager::dueFromBodies(WakeJob& j, const std::vector<MovingSolid>& bodies) {
+    const glm::vec3 lo(j.lo), hi = glm::vec3(j.hi) + glm::vec3(1.0f);
+    for (const MovingSolid& b : bodies) {
+        if (!(glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi)))) continue;
+        const double t = secondsToWater(b, j.top);
+        // 42.3: due at half the time to the water (42.2: 0.4 s late passed with contact at 0.45 s); ticks, never wall time
+        const uint64_t due = m_physTicks + static_cast<uint64_t>(std::floor(0.5 * t / m_physTickS));
+        const uint64_t contact = m_physTicks + static_cast<uint64_t>(std::ceil(t / m_physTickS));
+        j.dueTick = std::min(j.dueTick, due);
+        j.contactTick = std::min(j.contactTick, contact);
+    }
+}
+
+bool WaterCoreManager::startWakeJob(size_t i, const std::vector<MovingSolid>& bodies, const std::vector<MovingSolid>* inBoxes) {
+    const SleptVolume& sv = m_slept[i];
+    const std::string be = sv.backend.empty() || sv.backend == "auto" ? ((gpuReady() && (sv.transport.empty() || sv.transport == "eulerian")) ? "gpu" : "cpu") : sv.backend;
+    if (m_physTickS <= 0.0 || be != "gpu" || sv.transport == "flip" || !m_spanReader) return false;   // not paceable: today's path
+    WakeJob j; j.lo = sv.lo; j.hi = sv.hi; j.sv = sv; j.startTick = m_physTicks; j.dueTick = ~0ull; j.contactTick = ~0ull;
+    {   // the highest recorded water in the box: a body that can reach it can reach the water (conservative)
+        std::vector<ColumnRuns> runs;
+        m_spanReader(sv.lo, sv.hi, runs);
+        j.top = -1e30f;
+        for (const auto& c : runs) for (const auto& r : c.runs) j.top = std::max(j.top, r.topY);
+        if (runs.empty()) return false;   // nothing recorded: the immediate wake finds it empty, as today
+    }
+    dueFromBodies(j, bodies);
+    if (inBoxes) dueFromBodies(j, *inBoxes);
+    if (j.dueTick <= m_physTicks) return false;   // a body is (nearly) at the water already: today's immediate wake
+    auto k = std::find_if(m_kept.begin(), m_kept.end(), [&](const KeptEntry& e) { return e.lo == sv.lo && e.hi == sv.hi; });   // L3
+    m_keptMem.lastWakeHit = k != m_kept.end() && m_gpu;
+    if (m_keptMem.lastWakeHit) { j.keptHandle = k->handle; j.keptSlots = m_gpu->keptSlots(k->handle); m_kept.erase(k); ++m_keptMem.hits; }
+    else ++m_keptMem.misses;
+    m_slept[i].waking = true;
+    m_paced.lastDueS = static_cast<double>(j.dueTick - m_physTicks) * m_physTickS;
+    ++m_paced.started;
+    m_jobs.push_back(std::move(j));
+    return true;
+}
+
+void WaterCoreManager::endWakeJob(WakeJob& j) {
+    if (j.av && j.av->gpuVol && m_gpu) { m_gpu->destroyVolume(j.av->gpuVol); j.av->gpuVol = nullptr; }
+    j.av.reset();
+    if (j.keptHandle && m_gpu) { m_gpu->releaseKept(j.keptHandle); j.keptHandle = 0; }
+}
+
+bool WaterCoreManager::runWakeStage(WakeJob& j) {
+    const long si = sleptIndex(j.lo, j.hi);
+    if (si < 0 || !m_slept[static_cast<size_t>(si)].waking) { ++m_paced.cancelled; endWakeJob(j); return false; }   // 42.4 item 7: loaded over, replaced
+    std::string err;
+    auto forget = [&](bool refused) {   // as wakeSlept: a refused or empty wake forgets the box
+        if (refused) { ++m_sleptWake.refused; m_sleptWake.lastError = err; }
+        m_slept.erase(m_slept.begin() + si); endWakeJob(j);
+    };
+    switch (j.stage) {
+    case 0:   // the CPU side: grid, solver, the occupancy read
+        j.av = buildCpu(j.sv.lo, j.sv.hi, j.sv.cellSize, j.sv.transport.empty() ? "eulerian" : j.sv.transport, &err,
+                        j.sv.backend.empty() ? "auto" : j.sv.backend, j.sv.sweeps, 0, -1, false);
+        if (!j.av) { forget(true); return false; }
+        j.occRev = j.av->occRevision;
+        break;
+    case 1: {   // the GPU volume (on kept memory where L3 kept it)
+        m_adoptForCreate = j.keptHandle; m_slotsForCreate = j.keptSlots; m_createLeavesUploadToStep = true;
+        const bool ok = buildGpu(*j.av, &err);
+        m_createLeavesUploadToStep = false; m_adoptForCreate = 0; m_slotsForCreate = 0;
+        if (j.keptHandle && m_gpu) m_gpu->releaseKept(j.keptHandle);   // not taken: given up (no-op if taken)
+        j.keptHandle = 0;
+        if (!ok) { forget(true); return false; }
+        break;
+    }
+    case 2: {   // the settings, then the seed
+        applyNewVolumeDefaults(*j.av);
+        applySleptSettings(*j.av, j.sv);
+        const double seeded = seedAv(*j.av, &j.seeded);
+        if (seeded <= 0.0) {   // 35 (A2c), as wakeSlept: not resident -> keep the box, retry; else the record is gone
+            const bool unknown = std::find(j.av->occCache.begin(), j.av->occCache.end(), Occ::Unknown) != j.av->occCache.end();
+            if (unknown) {
+                SleptVolume& s = m_slept[static_cast<size_t>(si)];
+                s.waking = false;
+                s.retryAfter = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kSleptRetryS;
+                ++m_sleptWake.deferredNotResident; endWakeJob(j); return false;
+            }
+            ++m_sleptWake.wokenEmpty; forget(false); return false;
+        }
+        break;
+    }
+    case 3:   // the upload's host work into staging
+        m_gpu->uploadPrepare(*j.av->gpuVol, *j.av->grid);
+        break;
+    case 4:   // the copies and fills; the first step then finds nothing to upload (as stepGpu's upload would leave it)
+        m_gpu->uploadSubmit(*j.av->gpuVol);
+        j.av->uploadedAtStep = j.av->stepCount; ++j.av->gpuUploads; j.av->gpuDirty = false;
+        break;
+    default: {   // live
+        if (s_paceLateForTest && m_physTicks < j.contactTick + static_cast<uint64_t>(std::ceil(0.3 / m_physTickS))) return true;   // the red: late
+        // 42.3: did the world or the record change in the box since the build read them? Then the build is stale: rebuild now, at once
+        bool changed = false;
+        if (m_revision && m_revision() != j.occRev) {
+            std::vector<SolidsChangeBox> boxes;
+            if (!m_changes || j.occRev == ~0ull || !m_changes(j.occRev, boxes)) changed = true;
+            else for (const SolidsChangeBox& b : boxes)
+                if (glm::all(glm::lessThanEqual(b.lo, j.hi + glm::ivec3(1))) && glm::all(glm::greaterThanEqual(b.hi, j.lo - glm::ivec3(1)))) { changed = true; break; }
+        }
+        if (!changed) {
+            std::vector<ColumnRuns> now;
+            m_spanReader(j.lo, j.hi, now);
+            changed = now.size() != j.seeded.size();
+            for (size_t c = 0; !changed && c < now.size(); ++c) {
+                const ColumnRuns &a = now[c], &b = j.seeded[c];
+                changed = a.x != b.x || a.z != b.z || a.runs.size() != b.runs.size();
+                for (size_t r = 0; !changed && r < a.runs.size(); ++r) changed = a.runs[r].bottomY != b.runs[r].bottomY || a.runs[r].topY != b.runs[r].topY;
+            }
+        }
+        if (changed) {   // keep the memory (L3) and wake as today
+            ++m_paced.rebuilt;
+            const int h = j.av && j.av->gpuVol && m_gpu ? m_gpu->keepVolume(j.av->gpuVol) : 0;
+            if (j.av) j.av->gpuVol = nullptr;
+            endWakeJob(j);
+            if (h) m_kept.push_back({j.lo, j.hi, h});
+            m_slept[static_cast<size_t>(si)].waking = false;
+            const int id = wakeSlept(static_cast<size_t>(si));
+            (void)id;
+            return false;
+        }
+        eraseSleptOverlapping(j.lo, j.hi);   // as create() did at the start of an immediate wake
+        Av* raw = j.av.get();
+        adopt(std::move(j.av), false);   // the defaults were applied before the seed (stage 2), as the immediate wake applies them
+        raw->noSleepBefore = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kWokenNoSleepS;
+        ++m_sleptWake.woken; ++m_paced.live;
+        if (j.forced) ++m_paced.forcedByDeadline;
+        return false;
+    }
+    }
+    ++j.stage;
+    return true;
+}
+
+void WaterCoreManager::pumpWakeJobs() {
+    if (m_jobs.empty()) return;
+    using JClock = std::chrono::steady_clock;
+    const auto t0 = JClock::now();
+    std::sort(m_jobs.begin(), m_jobs.end(), [](const WakeJob& a, const WakeJob& b) { return a.dueTick != b.dueTick ? a.dueTick < b.dueTick : a.startTick < b.startTick; });
+    bool ranOne = false;
+    for (size_t k = 0; k < m_jobs.size();) {
+        WakeJob& j = m_jobs[k];
+        const bool due = m_physTicks >= j.dueTick;
+        if (due && j.stage < 5) j.forced = true;
+        bool alive = true;
+        // a due job runs every remaining stage now; otherwise stages run while the frame's budget lasts (at least one a frame)
+        while (alive && (due || !ranOne || std::chrono::duration<double, std::milli>(JClock::now() - t0).count() < s_wakeBudgetMs)) {
+            const auto ts = JClock::now();
+            const int stage = j.stage;
+            alive = runWakeStage(j);
+            const double ms = std::chrono::duration<double, std::milli>(JClock::now() - ts).count();
+            j.ms += ms; ++m_paced.stages; ranOne = true;
+            m_paced.maxStageMs = std::max(m_paced.maxStageMs, ms);
+            if (alive && j.stage == stage) break;   // waiting (the red's hold): no progress this frame
+        }
+        if (!alive) { m_paced.lastJobMs = j.ms; m_jobs.erase(m_jobs.begin() + static_cast<long>(k)); continue; }
+        ++k;
+    }
+}
+
+std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSolid>& bodies, const std::vector<MovingSolid>* inBoxes) {
     std::vector<int> ids;
+    for (WakeJob& j : m_jobs) { dueFromBodies(j, bodies); if (inBoxes) dueFromBodies(j, *inBoxes); }   // 42.3: the deadline only comes forward
     // 39.4: with a test delay a touched pond keeps waking after its body has gone (step 2 would finish a wake it started), so an
     // empty body list still runs the loop
-    if (!s_wakeOnTouch || m_slept.empty() || (bodies.empty() && s_wakeDelaySForTest <= 0.0)) return ids;
+    if (!s_wakeOnTouch || m_slept.empty() || (bodies.empty() && s_wakeDelaySForTest <= 0.0)) { pumpWakeJobs(); return ids; }
     const double nowS = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     for (size_t i = m_slept.size(); i-- > 0;) {
+        if (m_slept[i].waking) continue;   // L4: a paced wake is building it (its deadline was taken above)
         if (m_slept[i].retryAfter > nowS) continue;   // 35: deferred (its chunks were not resident) - not yet
         const glm::vec3 lo(m_slept[i].lo), hi = glm::vec3(m_slept[i].hi) + glm::vec3(1.0f);
         if (farRecordDryForTest(glm::vec2(lo.x, lo.z), glm::vec2(hi.x, hi.z))) continue;   // 40.1 item 7 TEST: L5's red
@@ -1186,8 +1420,14 @@ std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSol
             if (touched && m_slept[i].touchedAt < 0.0) m_slept[i].touchedAt = nowS;
             touched = m_slept[i].touchedAt >= 0.0 && nowS - m_slept[i].touchedAt >= s_wakeDelaySForTest;
         }
-        if (touched) { const int id = wakeSlept(i); if (id) ids.push_back(id); }
+        if (!touched) continue;
+        if (s_wakePace && s_wakeDelaySForTest <= 0.0) {   // L4 (42): paced - built over frames, live before the bodies reach the water
+            if (startWakeJob(i, bodies, inBoxes)) continue;
+            ++m_paced.immediate;   // no time to pace (a body at the water) or not paceable: today's wake
+        }
+        const int id = wakeSlept(i); if (id) ids.push_back(id);
     }
+    pumpWakeJobs();   // a job that goes live returns no id here (it is not this frame's touch); water_av_list shows it
     return ids;
 }
 
@@ -1200,8 +1440,14 @@ std::vector<int> WaterCoreManager::wakeSleptNear(const glm::vec3& c, float radiu
         const glm::vec3 lo(m_slept[i].lo), hi = glm::vec3(m_slept[i].hi) + glm::vec3(1.0f);
         if (farRecordDryForTest(glm::vec2(lo.x, lo.z), glm::vec2(hi.x, hi.z))) continue;   // 40.1 item 7 TEST: L5's red
         const glm::vec3 q = glm::clamp(c, lo, hi);
-        if (glm::length(q - c) <= radius) { const int id = wakeSlept(i); if (id) ids.push_back(id); }
+        if (glm::length(q - c) > radius) continue;
+        if (m_slept[i].waking) {   // L4: a blast never waits - the paced wake is due now
+            for (WakeJob& j : m_jobs) if (j.lo == m_slept[i].lo && j.hi == m_slept[i].hi) j.dueTick = 0;
+            continue;
+        }
+        const int id = wakeSlept(i); if (id) ids.push_back(id);
     }
+    pumpWakeJobs();
     return ids;
 }
 

@@ -1372,7 +1372,7 @@ int WaterCoreGpu::partitionSlots(VkCommandBuffer cmd, Volume& vol) {
     return static_cast<int>(k);
 }
 
-void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
+void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
     using UClock = std::chrono::steady_clock;   // 39.8: the parts' times (m_lastUploadSplit)
     const auto u0 = UClock::now();
     UClock::time_point u2, u3, u4, u5, u6;
@@ -1420,7 +1420,6 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     WaterHostProfile::lap("up.1 host occupancy + solid tops", hp);
     vol.listsSized = false;
     u2 = u3 = u4 = u5 = u6 = UClock::now();
-    VkCommandBuffer cmd = beginCommands();
     if (vol.bricked) {
         // residency from the grid: dense - every brick; sparse - the water and one full ring round it (the first call's reach is
         // not known yet; a ring of 8 cells is more than any one tick moves at the CFL the step will use)
@@ -1476,12 +1475,6 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
         u5 = UClock::now();
         writeTablesToStaging(vol);
         u6 = UClock::now();
-        for (Buffer* b : {&vol.fOrig, &vol.uOld, &vol.vOld, &vol.wOld, &vol.liq, &vol.diag, &vol.rhs, &vol.res, &vol.valA, &vol.valB,
-                          &vol.knownA, &vol.knownB, &vol.first, &vol.keep, &vol.deposit})
-            vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
-        copy(cmd, vol.staging, vol.solid, vol.cells * 16, vol.offSolid);
-        copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks);
-        vkCmdFillBuffer(cmd, vol.bricks.buf, vol.counterOff * 4, (vol.brickInts - vol.counterOff) * 4, 0);
         vol.recordValid = false; vol.tablesDirty = false;
     } else {
         std::memcpy(st, gm.fData().data(), vol.cells * sizeof(float));
@@ -1489,6 +1482,30 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
         std::memcpy(st + vol.offV, gm.vData().data(), vol.nv * sizeof(float));
         std::memcpy(st + vol.offW, gm.wData().data(), vol.nw * sizeof(float));
         std::memcpy(st + vol.offOcc, vol.hostOcc.data(), vol.cells * 4);
+    }
+    if (!vol.bricked) u3 = u4 = u5 = u6 = UClock::now();
+    m_upT[0] = u0; m_upT[1] = u1; m_upT[2] = u2; m_upT[3] = u3; m_upT[4] = u4; m_upT[5] = u5; m_upT[6] = u6;
+    vol.uploadPrepared = true;
+}
+
+void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
+    uploadPrepare(vol, g);
+    uploadSubmit(vol);
+}
+
+void WaterCoreGpu::uploadSubmit(Volume& vol) {
+    // L4 (42): the device half of upload - the staging uploadPrepare wrote, copied in; the fills that make a replaced state fresh
+    using UClock = std::chrono::steady_clock;
+    if (!vol.uploadPrepared) return;
+    vol.uploadPrepared = false;
+    VkCommandBuffer cmd = beginCommands();
+    if (vol.bricked) {
+        for (Buffer* b : {&vol.fOrig, &vol.uOld, &vol.vOld, &vol.wOld, &vol.liq, &vol.diag, &vol.rhs, &vol.res, &vol.valA, &vol.valB,
+                          &vol.knownA, &vol.knownB, &vol.first, &vol.keep, &vol.deposit})
+            vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
+        copy(cmd, vol.staging, vol.solid, vol.cells * 16, vol.offSolid);
+        copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks);
+        vkCmdFillBuffer(cmd, vol.bricks.buf, vol.counterOff * 4, (vol.brickInts - vol.counterOff) * 4, 0);
     }
     copy(cmd, vol.staging, vol.f, vol.cells * sizeof(float));
     copy(cmd, vol.staging, vol.fPrev, vol.cells * sizeof(float));
@@ -1499,11 +1516,13 @@ void WaterCoreGpu::upload(Volume& vol, const WaterGrid& g) {
     vkCmdFillBuffer(cmd, vol.src.buf, 0, vol.src.bytes, 0);
     vkCmdFillBuffer(cmd, vol.p.buf, 0, vol.p.bytes, 0);   // 26.5: a replaced state starts its solve fresh (deterministic, as a new volume)
     vkCmdFillBuffer(cmd, vol.fLo.buf, 0, vol.fLo.bytes, 0);   // 26.10: the remainders belonged to the water that was there
-    if (!vol.bricked) u3 = u4 = u5 = u6 = UClock::now();
+    const auto s0 = UClock::now();
     submitAndWait(cmd);
     {   auto ms = [](UClock::time_point a, UClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
         long stored = 0; for (int sb : vol.slotBrick) if (sb >= 0) ++stored;
-        m_lastUploadSplit = {ms(u0, u1), ms(u1, u2), ms(u2, u3), ms(u3, u4), ms(u4, u5), ms(u5, u6), ms(u6, UClock::now()), stored}; }
+        const auto* u = m_upT;
+        // the submit part is its own time (recording + the wait): split from the prepare, it no longer runs straight after it
+        m_lastUploadSplit = {ms(u[0], u[1]), ms(u[1], u[2]), ms(u[2], u[3]), ms(u[3], u[4]), ms(u[4], u[5]), ms(u[5], u[6]), ms(s0, UClock::now()), stored}; }
     vol.tallActive = false; vol.tallPending = 0; vol.tallY = -1; vol.tallH.clear(); vol.tallColumns = 0;   // (the red control's late reset)
 }
 

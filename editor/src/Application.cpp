@@ -3790,9 +3790,12 @@ void Application::update(float deltaTime) {
                 waterCore->setRippleBodies(std::move(rippleBodies));
                 std::unordered_map<uint64_t, bool> displacing;
                 std::vector<Core::Water::MovingSolid> waking;   // 34 (A2h): the moving bodies, whatever the displace switch - the wake's list
+                std::vector<Core::Water::MovingSolid> inBoxes;  // L4 (42.4 item 5): every body in the boxes - a paced wake's deadline
                 if (!boxes.empty())
                     for (const auto& w : debrisRuntime->gpu()->wetBodies()) {
                         const uint64_t id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);
+                        {   Core::Water::MovingSolid a; a.centre = w.centre + w.velocity * w.ageSeconds; a.halfExtents = w.halfExtents; a.velocity = w.velocity; a.id = id;
+                            inBoxes.push_back(a); }
                         // 26.25: the speed RELATIVE TO THE WATER - a float riding a creek at 0.6-0.9 m/s moves WITH the water and
                         // displaces nothing as it goes; on the ground speed every float in the creek became a moving solid (4 floats:
                         // 82 -> 7 FPS, +1,545 bricks). A stone dropped in still displaces; a body in still water is unchanged.
@@ -3817,7 +3820,9 @@ void Application::update(float deltaTime) {
                 // 32: a moving body in a slept pond's box wakes it from the record. The UNFILTERED list (33: a slept box has no
                 // volume, so no window - filtered first, a slept pond could never wake), and built before the displace switch (34: with
                 // the switch off the floater sank to the pond floor - 31.9 b)
-                waterCore->wakeSleptTouching(waking);
+                // L4 (42.4 item 4): the bodies' clock for a paced wake's deadline (ticks, not wall time)
+                waterCore->setPhysicsClock(debrisRuntime->gpu()->totalTicks(), static_cast<double>(Phyxel::DebrisShared::SOLVER_TICK_DT));
+                waterCore->wakeSleptTouching(waking, &inBoxes);
                 m_waterCpu.bodies = wms(wt0);
                 std::vector<uint32_t> granted;
                 {   // 31 (M4): the pressure windows - every wet body inside a GPU volume; written by this frame's water calls, read by
@@ -14636,6 +14641,15 @@ void Application::registerWaterCommands() {
         // 39.4 TEST: the slept-pond wake delayed after the first touch (the step-2 look preview); clamped 0..5 s, not saved, echoed
         if (cmd.params.contains("test_wake_delay_s"))
             Core::Water::WaterCoreManager::s_wakeDelaySForTest = std::clamp(cmd.params.value("test_wake_delay_s", 0.0), 0.0, 5.0);
+        {   // L4 (42): wake_pace (bool) builds a slept pond's wake over frames, live before its bodies can reach the water (off by
+            // default: the owner's sign-off); wake_budget_ms the frame's share for it, clamped 0.5..33 ms (under 0.5 a stage still runs
+            // a frame - the floor only bounds the loop; over 33 is a whole 30 fps frame: no pacing). Omitted = unchanged
+            using M = Core::Water::WaterCoreManager;
+            if (cmd.params.contains("wake_pace") && cmd.params["wake_pace"].is_boolean()) M::s_wakePace = cmd.params["wake_pace"].get<bool>();
+            if (cmd.params.contains("wake_budget_ms") && cmd.params["wake_budget_ms"].is_number() && cmd.params["wake_budget_ms"].get<double>() >= 0.0)
+                M::s_wakeBudgetMs = std::clamp(cmd.params["wake_budget_ms"].get<double>(), M::kWakeBudgetMsMin, M::kWakeBudgetMsMax);
+            if (cmd.params.contains("test_pace_late") && cmd.params["test_pace_late"].is_boolean()) M::s_paceLateForTest = cmd.params["test_pace_late"].get<bool>();   // 42.4 item 2 TEST
+        }
         if (cmd.params.value("dump_window", false) && debrisRuntime && debrisRuntime->gpu() && !debrisRuntime->gpu()->wetBodies().empty()) {
             // 31 DEBUG: the first wet body's pressure window - its centre column (and one 1 m off it), p per cell bottom-up
             auto* g2 = debrisRuntime->gpu();
@@ -14662,8 +14676,14 @@ void Application::registerWaterCommands() {
              {"slept", [&] {   // 32: ponds that slept into the record and wake when touched
                  nlohmann::json s = {{"wake_on_touch", Core::Water::WaterCoreManager::s_wakeOnTouch},
                                      {"wake_on_touch_default", Core::Water::WaterCoreManager::kWakeOnTouchByDefault},   // 36: a session that differs shows
-                                     {"test_wake_delay_s", Core::Water::WaterCoreManager::s_wakeDelaySForTest}};   // 39.4 TEST
+                                     {"test_wake_delay_s", Core::Water::WaterCoreManager::s_wakeDelaySForTest},   // 39.4 TEST
+                                     {"wake_pace", Core::Water::WaterCoreManager::s_wakePace}, {"wake_pace_default", Core::Water::WaterCoreManager::kWakePaceByDefault},
+                                     {"wake_budget_ms", Core::Water::WaterCoreManager::s_wakeBudgetMs}, {"test_pace_late", Core::Water::WaterCoreManager::s_paceLateForTest}};
                  if (!waterCore) return s;
+                 {   const auto ps = waterCore->pacedStats();   // L4 (42)
+                     s["paced"] = {{"started", ps.started}, {"live", ps.live}, {"forced_by_deadline", ps.forcedByDeadline}, {"immediate", ps.immediate},
+                                   {"rebuilt", ps.rebuilt}, {"cancelled", ps.cancelled}, {"stages", ps.stages}, {"max_stage_ms", ps.maxStageMs},
+                                   {"last_job_ms", ps.lastJobMs}, {"building", ps.building}, {"last_due_s", ps.lastDueS}}; }
                  nlohmann::json boxes = nlohmann::json::array();
                  for (const auto& v : waterCore->sleptVolumes()) boxes.push_back({v.lo.x, v.lo.y, v.lo.z, v.hi.x, v.hi.y, v.hi.z});
                  const auto& ws = waterCore->sleptWakeStats();
