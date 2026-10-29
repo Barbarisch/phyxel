@@ -9057,7 +9057,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | # | item | status | why here |
 |---|---|---|---|
 | A1 | **M4 - the water pushes the body** (§31) | SIGNED OFF and ON 2026-10-24 (31.8) | the owner's keys: floating debris |
-| A2 | **A pond that slept is still water** (§32) | BUILT, ON, not signed off. Owner's look: `s32_look_side_by_side.mp4` | entered as drift D2. Under shipped settings A1 failed in any pond that had slept |
+| A2 | **A pond that slept is still water** (§32) | BUILT, ON, **look SIGNED OFF by the owner 2026-10-29** on `s32_look_side_by_side.mp4` ("left side looks still and lifeless and not really good at all. the right side looks way better" - right = the pond woken by the touch, as shipped) | entered as drift D2. Under shipped settings A1 failed in any pond that had slept |
 | A3 | **Close A1 and A2's open gates:** the full `/design-check` of §32, and whole-frame CPU and GPU frame times plus water's share for both (the push windows, an awake pond against a slept one, the wake hitch live) | DONE 2026-10-25. Design-check: NEEDS WORK, items A2a-A2f below (32.2). Live costs: 32.3 (the push ~0.01-0.02 ms CPU and ~0.01 ms GPU; the wake stall 33-98 ms) | remedies for D3 and D4. Small, and owed before new work starts |
 | A2g | **No block ever floats up (owner 2026-10-25, a standing rule).** The push's fallback (the table law, 31.2: a body larger than a window, past the 1,024-window cap, or with a stale window) still meets the displacing pump inside an awake pond, and that combination is 31.1's launch. Make the fallback safe, with a red test that forces a fallback while the body displaces. The API's `pressure_force:false` (the old rule) is now REFUSED, and the tools no longer run it | SIGNED OFF 2026-10-25 (§33: design-check NEEDS WORK, seven items folded in; red with a sinking stone; green and a 1,100-block stress). The owner preferred the look of the refused side (33.1) - open question, default unchanged | first, by the owner's rule: "in no circumstance should we be running code that results in voxels floating up" |
 | A2h | **The shoving is a switch, off by default (owner 2026-10-25, §34):** debris displacement (`water_coupling {displace}`) opt-in; the ripple layer, the push, the exchange and the slept-pond wake stay on | BUILT, not signed off (34.2): the wake red/green live, no block rises, 1,100-block pit 75 -> 176 fps; the owner's side-by-side `a2h_look_side_by_side.mp4` to review. Entered by the owner's look call on 33's video, ahead of A2c | the owner: "keep the more chaotic feature as a turn on, but not by default" |
@@ -9717,6 +9717,12 @@ displaces, so the A2g filter is untested there - it is tested with `--displace o
 the pond slept into the record before the drops in both halves, the pond's state captioned. Predicted ripples-stop-on-re-sleep (34.1
 item 3) was not seen: with five blocks dropped the pond stayed awake the whole 15 s in both halves. Caption fps (the window's
 counter, noisy): left ~170-250, right ~190-570.
+
+**The owner on this video (2026-10-29):** "honestly the left one looks more water like, and more exciting with better splashes, and
+more liquid like water. the right side of the video looks 'thicker' and definetly less dynamic and interesting." The LEFT half is
+displacement ON - the opposite of the 2026-10-25 call that made it off by default (33.1 / 34: "less chaotic and messy"). Recorded as
+said; the default is the owner's to change (asked, 2026-10-29). Its known price: the 1,100-block pit 75 vs 176 fps (34.2); the small
+pond's whole-frame cost with it on is not measured.
 
 **Gates:** unit water + debris 353/353; integration water 62/64 (the two known, `GpuFlipBulkParityAndRunup`,
 `ShortWaveMatchesAllFineAndTheBooksAreExact`). The whole integration exe also fails `SceneIntegrationTest` cases (at least three) ("Game definition
@@ -11092,6 +11098,10 @@ the nearest every 0.3 s; 20 passes at ripple_m 21, 10 at 0, 10 at 24, 10 at 21 w
 
 **The owner's look:** `l2_flyaway_side_by_side.mp4` (`tools/water_l2_flyaway_video.py`, new): the lake, stones everywhere, the
 camera gliding 3 m over the water along it and back, OFF | ON. Not signed off.
+**The owner (2026-10-29): "i cant tell the difference between the two side by side videos."** That is what ON promises (no
+visible band, no lost detail), but it also means this clip did not show OFF's window edge either - the measured step (1 -> 0 at
+25.5 m in the debug capture) is not visible at this pose in the shaded view. So the look gives no reason to turn it on or keep it
+off; the saving is ~0.2 ms per far disturbed pond. The default is the owner's (asked, 2026-10-29).
 
 **L5 with the reach on** (Small bench, Release, pacing on - the new default; `--ripple-reach on --ripple-m 21 / 0 / 24`,
 `l5_l2_r21.json`, `_r0`, `_r24`): every near run held one ripple slot (r 21, 24), every far run none, ripple_m 0 none anywhere;
