@@ -9081,7 +9081,8 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A7 | **The wake hitch** (~33 ms once, §32.1) | merged into A2f, L3 and L4 | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
 | A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
 | A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
-| A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | MEASURED, DESIGNED (§44), not built | the livelier water the owner chose, at a cost every tier can carry |
+| A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | steps 1-2 BUILT, displacement ON by default (44.5-44.7: pond 225 -> 310 fps, the pit back to its off cost, L5 far 10 of 10); step 3 (the distance fade) not built; not signed off | the livelier water the owner chose, at a cost every tier can carry |
+| A11 | **A sleep conserves mass exactly** (found in 44.7): the write-back drops the water of a column holding only sub-millimetre film (`thinDropped`, counted) - 0.3-0.5 L a splash with displacement on | found, fix proposed (the film joins the nearest column with a run), not designed | water is physical: a pond must not drain by being splashed (owner's standing rule) |
 
 ### 30.5 The drift log (work outside the plan: what, why, who approved)
 
@@ -11366,6 +11367,42 @@ entry. Not today's changes: the same with the old upload path (`test_solid_uploa
 cm); that body is rasterized by neither (no window). The tools' clock also changed since (A2j: 33.1's "2 s" windows were log time,
 ~4 s of wall each), so part of the difference may be the axis. Logged for the A2g path - the forced fallback is not the shipped path
 (it runs only over the window cap, outside a GPU volume or for a body wider than a window).
+
+### 44.7 L5 with displacement ON, and what it found (2026-10-29, Release, Small bench)
+
+**The outcome gate passes.** `water_l5_outcome.py` with the shipped settings (displacement on, pacing on, the ripple reach on):
+`l5_displace_on.json`, `l5_displace_on2.json` (`--sleep-wait 120`), `l5_displace_interleaved.json` (far and near alternated).
+Judged against the 16 pooled near runs (self-check: 1 of 16 outside, the wood's x): **far 10 of 10 PASS**, the far-dry red FAILS as
+it must (the wood on the bed), nothing rose in any run. The rests are wider than with displacement off - the shove moves the floater
+(the wood's x 102.8-103.3, z 13.65-14.33; the stone's z 13.97-14.02) - so a session's own six near runs could not fence it (the
+first session's far runs "failed" on the stone's z; interleaved, a NEAR run landed on that same 14.01 and the far ones did not: run
+order, not distance - tested also with every wake fresh, `l5_displace_nokeep.json`, and with no ripple layer, `l5_displace_noripple.json`).
+
+**Found 1: the rings keep a near pond awake ~twice as long.** With displacement on, a near pond slept at 59-76 s after the drop,
+a far one at 26-34 s. Probed (`awake_probe`): the volume's own sleep test says asleep at ~28 s, but the ripple layer is still awake
+- nothing feeds it after 2 s (no impulses, no kinematic cells, no droplets); the shove's bigger rings ring down from 13 mm to 0.3 mm
+over 50 s and the layer sleeps only under 0.2 mm (`kSleepHeight`, RippleLayer.cpp) - and a pond does not sleep while its rings
+run (22 F5). With no ripple layer near (ripple_m 0) the near pond sleeps at 26-35 s, as far. This is COST by distance (an awake
+volume ~40 s longer near the viewer), not an outcome: the water is at rest in both and the bodies rest the same (above). Options
+for the owner: leave it; or let rings under a visible height (~1-2 mm) stop counting for the sleep (they would stop when the pond
+sleeps - a look call); or keep a ringing layer drawing over the record after the pond sleeps (the layer carries no mass).
+
+**Found 2: a splash with displacement leaks 0.3-0.5 L at the next sleep** (`tools/water_displace_mass_probe.py`, new;
+`displace_mass.json`): the volume holds 24.0000005 m^3 right before it sleeps, the record after it 23.9995-23.9997 (off: +0.002 /
+-0.004 L). The write-back (`columnRunsFromGrid`) folds a column's sub-millimetre leftovers into its top run, but a column with
+ONLY film (no run) is dropped - `thinDropped`, "residue, counted" by design - and the shove splashes film into more such columns.
+Small (0.002 % of this pond a splash) but it accumulates: a pond pelted for an hour would lose real depth. Proposed (not built: the
+write-back shapes the record everywhere, so it needs its own design check): a film-only column's water joins the nearest column
+with a run (the water would drain there), so a sleep conserves mass exactly. Logged as A11 in the plan.
+
+**The size floor, for the owner** (44.3 item 8; `tools/water_displace_floor_video.py`, new; `displace_floor_side_by_side.mp4`):
+the S9 pit, displacement on both halves, 400 1/9 m blocks then three 1/3 m Wood blocks and a Stone. LEFT no floor: up to 32
+shoving (the budget; 371 more refused by it), ~137 fps while they fall. RIGHT the 1/6 m floor (shipped): the 1/9 m blocks only
+ripple, up to 4 shoving (the 1/3 m blocks), ~294 fps. **Disclosed:** the floor shipped in 44.6 before the owner saw this clip
+(item 8 asked for the clip first); before 44.6 displacement was off for every body, so nothing that shoved before shoves less now.
+
+**Not done yet: step 3** (the distance fade of a shove, latched per body - 44.3 items 3 and 5). Its outcome gate is this L5 with the
+fade on, against the pool above.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

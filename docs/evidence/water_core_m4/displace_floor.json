@@ -1,0 +1,643 @@
+{
+ "build": "Release",
+ "takes": {
+  "floor0": {
+   "floor_m": 0.0,
+   "small_at_s": 1.15,
+   "big_at_s": 5.39,
+   "rows": [
+    {
+     "t": 0.03,
+     "fps": 677.0480913522172,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 0.3,
+     "fps": 752.5020746088273,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 0.56,
+     "fps": 621.4654042985187,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 0.84,
+     "fps": 675.9040338008097,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 1.18,
+     "fps": 640.573949083454,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 1.46,
+     "fps": 193.02783091514135,
+     "shoving": 32,
+     "rasterized": 32
+    },
+    {
+     "t": 1.74,
+     "fps": 178.11024938361774,
+     "shoving": 32,
+     "rasterized": 32
+    },
+    {
+     "t": 2.02,
+     "fps": 136.58402923346614,
+     "shoving": 32,
+     "rasterized": 32
+    },
+    {
+     "t": 2.3,
+     "fps": 156.46024331337742,
+     "shoving": 15,
+     "rasterized": 15
+    },
+    {
+     "t": 2.58,
+     "fps": 119.51000513660418,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 2.86,
+     "fps": 137.93674400775097,
+     "shoving": 10,
+     "rasterized": 10
+    },
+    {
+     "t": 3.12,
+     "fps": 112.56191335009657,
+     "shoving": 18,
+     "rasterized": 18
+    },
+    {
+     "t": 3.4,
+     "fps": 143.04719067832795,
+     "shoving": 13,
+     "rasterized": 13
+    },
+    {
+     "t": 3.69,
+     "fps": 138.53102121846945,
+     "shoving": 5,
+     "rasterized": 5
+    },
+    {
+     "t": 3.95,
+     "fps": 210.313793311138,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 4.23,
+     "fps": 215.8382182994814,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 4.51,
+     "fps": 196.53700964214707,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 4.78,
+     "fps": 199.85610697441237,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 5.09,
+     "fps": 193.9676064856397,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 5.42,
+     "fps": 180.84164197882262,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 5.68,
+     "fps": 135.22284787971793,
+     "shoving": 4,
+     "rasterized": 4
+    },
+    {
+     "t": 5.96,
+     "fps": 135.4499671448544,
+     "shoving": 4,
+     "rasterized": 4
+    },
+    {
+     "t": 6.24,
+     "fps": 128.41256511717714,
+     "shoving": 4,
+     "rasterized": 4
+    },
+    {
+     "t": 6.5,
+     "fps": 90.18189661174691,
+     "shoving": 4,
+     "rasterized": 4
+    },
+    {
+     "t": 6.78,
+     "fps": 73.89835885550306,
+     "shoving": 4,
+     "rasterized": 4
+    },
+    {
+     "t": 7.08,
+     "fps": 122.18815172726146,
+     "shoving": 1,
+     "rasterized": 1
+    },
+    {
+     "t": 7.36,
+     "fps": 119.29758204319677,
+     "shoving": 3,
+     "rasterized": 3
+    },
+    {
+     "t": 7.64,
+     "fps": 130.05084999702652,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 7.93,
+     "fps": 133.47748688476588,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 8.19,
+     "fps": 138.03193868057173,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 8.45,
+     "fps": 119.69167679757366,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 8.71,
+     "fps": 121.24445054701847,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 8.98,
+     "fps": 119.60434903103867,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 9.25,
+     "fps": 114.16046250995025,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 9.51,
+     "fps": 127.07288056502092,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 9.78,
+     "fps": 109.33502962174526,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 10.07,
+     "fps": 162.26916878184912,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 10.37,
+     "fps": 120.13887813209615,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 10.63,
+     "fps": 127.25074946669827,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 10.91,
+     "fps": 96.6445063514038,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 11.2,
+     "fps": 131.88262252817995,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 11.48,
+     "fps": 125.05940865055474,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 11.74,
+     "fps": 119.78056190144821,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 12.02,
+     "fps": 81.23543134053895,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 12.32,
+     "fps": 138.96609525012533,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 12.58,
+     "fps": 143.81867631831832,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 12.85,
+     "fps": 123.3730233451688,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 13.11,
+     "fps": 125.22540149114704,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 13.38,
+     "fps": 121.61159198629286,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 13.65,
+     "fps": 139.25443018890437,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 13.93,
+     "fps": 130.88662255393285,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 14.22,
+     "fps": 128.46535452939088,
+     "shoving": 0,
+     "rasterized": 0
+    }
+   ],
+   "gate_total": {
+    "admitted": 343,
+    "max_shoving": 32,
+    "refused_budget": 740,
+    "refused_size": 448
+   }
+  },
+  "floor16": {
+   "floor_m": 0.16666666666666666,
+   "small_at_s": 1.2,
+   "big_at_s": 5.5,
+   "rows": [
+    {
+     "t": 0.02,
+     "fps": 790.0142352636161,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 0.31,
+     "fps": 703.1359851611802,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 0.59,
+     "fps": 639.999990463257,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 0.87,
+     "fps": 852.8057564727605,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 1.25,
+     "fps": 240.1075654305086,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 1.51,
+     "fps": 459.8546801035907,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 1.78,
+     "fps": 327.385814352307,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 2.06,
+     "fps": 293.6081528392808,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 2.34,
+     "fps": 122.27180337792734,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 2.59,
+     "fps": 369.9182509752954,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 2.87,
+     "fps": 95.2063618816272,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 3.17,
+     "fps": 300.5981841631773,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 3.46,
+     "fps": 377.0170496396102,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 3.74,
+     "fps": 278.5127433357456,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 4.03,
+     "fps": 87.99563423597532,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 4.33,
+     "fps": 300.27323996244286,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 4.61,
+     "fps": 102.98873661519892,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 4.89,
+     "fps": 307.6165797646196,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 5.16,
+     "fps": 172.99541878864585,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 5.53,
+     "fps": 166.38104547904587,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 5.82,
+     "fps": 160.7329363941808,
+     "shoving": 4,
+     "rasterized": 4
+    },
+    {
+     "t": 6.1,
+     "fps": 136.72222276692233,
+     "shoving": 4,
+     "rasterized": 4
+    },
+    {
+     "t": 6.38,
+     "fps": 82.65350953899967,
+     "shoving": 1,
+     "rasterized": 1
+    },
+    {
+     "t": 6.68,
+     "fps": 83.48638891307864,
+     "shoving": 4,
+     "rasterized": 4
+    },
+    {
+     "t": 6.95,
+     "fps": 74.09438029438137,
+     "shoving": 4,
+     "rasterized": 4
+    },
+    {
+     "t": 7.26,
+     "fps": 121.36511663629737,
+     "shoving": 1,
+     "rasterized": 1
+    },
+    {
+     "t": 7.51,
+     "fps": 154.05709474730534,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 7.79,
+     "fps": 123.15574081021782,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 8.06,
+     "fps": 121.84275350946682,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 8.36,
+     "fps": 203.2726865877625,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 8.65,
+     "fps": 177.98661729361808,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 8.93,
+     "fps": 172.14962918807765,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 9.21,
+     "fps": 136.42378588258762,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 9.49,
+     "fps": 130.45633749563598,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 9.76,
+     "fps": 123.31216930123185,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 10.04,
+     "fps": 123.49032420784164,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 10.32,
+     "fps": 128.48845970391724,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 10.6,
+     "fps": 145.15262893183277,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 10.86,
+     "fps": 155.01232081233283,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 11.16,
+     "fps": 131.06503237041048,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 11.43,
+     "fps": 151.94566565585768,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 11.69,
+     "fps": 215.25280975967178,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 11.99,
+     "fps": 149.68491333264654,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 12.25,
+     "fps": 80.38391605721657,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 12.54,
+     "fps": 121.04778907277645,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 12.82,
+     "fps": 122.97399997755242,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 13.11,
+     "fps": 177.33011463994075,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 13.4,
+     "fps": 149.20250898348374,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 13.66,
+     "fps": 140.40999297846614,
+     "shoving": 0,
+     "rasterized": 0
+    },
+    {
+     "t": 13.95,
+     "fps": 162.73922074638875,
+     "shoving": 0,
+     "rasterized": 0
+    }
+   ],
+   "gate_total": {
+    "admitted": 353,
+    "max_shoving": 32,
+    "refused_budget": 740,
+    "refused_size": 899
+   }
+  }
+ }
+}

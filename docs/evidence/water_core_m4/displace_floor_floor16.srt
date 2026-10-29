@@ -1,0 +1,249 @@
+1
+00:00:00,020 --> 00:00:00,310
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 790 fps
+
+2
+00:00:00,310 --> 00:00:00,590
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 703 fps
+
+3
+00:00:00,590 --> 00:00:00,870
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 640 fps
+
+4
+00:00:00,870 --> 00:00:01,250
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 853 fps
+
+5
+00:00:01,250 --> 00:00:01,510
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 240 fps
+
+6
+00:00:01,510 --> 00:00:01,780
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 460 fps
+
+7
+00:00:01,780 --> 00:00:02,060
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 327 fps
+
+8
+00:00:02,060 --> 00:00:02,340
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 294 fps
+
+9
+00:00:02,340 --> 00:00:02,590
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 122 fps
+
+10
+00:00:02,590 --> 00:00:02,870
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 370 fps
+
+11
+00:00:02,870 --> 00:00:03,170
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 95 fps
+
+12
+00:00:03,170 --> 00:00:03,460
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 301 fps
+
+13
+00:00:03,460 --> 00:00:03,740
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 377 fps
+
+14
+00:00:03,740 --> 00:00:04,030
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 279 fps
+
+15
+00:00:04,030 --> 00:00:04,330
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 88 fps
+
+16
+00:00:04,330 --> 00:00:04,610
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 300 fps
+
+17
+00:00:04,610 --> 00:00:04,890
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 103 fps
+
+18
+00:00:04,890 --> 00:00:05,160
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 308 fps
+
+19
+00:00:05,160 --> 00:00:05,530
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 173 fps
+
+20
+00:00:05,530 --> 00:00:05,820
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 166 fps
+
+21
+00:00:05,820 --> 00:00:06,100
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+4 bodies shoving | 161 fps
+
+22
+00:00:06,100 --> 00:00:06,380
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+4 bodies shoving | 137 fps
+
+23
+00:00:06,380 --> 00:00:06,680
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+1 bodies shoving | 83 fps
+
+24
+00:00:06,680 --> 00:00:06,950
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+4 bodies shoving | 83 fps
+
+25
+00:00:06,950 --> 00:00:07,260
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+4 bodies shoving | 74 fps
+
+26
+00:00:07,260 --> 00:00:07,510
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+1 bodies shoving | 121 fps
+
+27
+00:00:07,510 --> 00:00:07,790
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 154 fps
+
+28
+00:00:07,790 --> 00:00:08,060
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 123 fps
+
+29
+00:00:08,060 --> 00:00:08,360
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 122 fps
+
+30
+00:00:08,360 --> 00:00:08,650
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 203 fps
+
+31
+00:00:08,650 --> 00:00:08,930
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 178 fps
+
+32
+00:00:08,930 --> 00:00:09,210
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 172 fps
+
+33
+00:00:09,210 --> 00:00:09,490
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 136 fps
+
+34
+00:00:09,490 --> 00:00:09,760
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 130 fps
+
+35
+00:00:09,760 --> 00:00:10,040
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 123 fps
+
+36
+00:00:10,040 --> 00:00:10,320
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 123 fps
+
+37
+00:00:10,320 --> 00:00:10,600
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 128 fps
+
+38
+00:00:10,600 --> 00:00:10,860
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 145 fps
+
+39
+00:00:10,860 --> 00:00:11,160
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 155 fps
+
+40
+00:00:11,160 --> 00:00:11,430
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 131 fps
+
+41
+00:00:11,430 --> 00:00:11,690
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 152 fps
+
+42
+00:00:11,690 --> 00:00:11,990
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 215 fps
+
+43
+00:00:11,990 --> 00:00:12,250
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 150 fps
+
+44
+00:00:12,250 --> 00:00:12,540
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 80 fps
+
+45
+00:00:12,540 --> 00:00:12,820
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 121 fps
+
+46
+00:00:12,820 --> 00:00:13,110
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 123 fps
+
+47
+00:00:13,110 --> 00:00:13,400
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 177 fps
+
+48
+00:00:13,400 --> 00:00:13,660
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 149 fps
+
+49
+00:00:13,660 --> 00:00:13,950
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 140 fps
+
+50
+00:00:13,950 --> 00:00:14,200
+FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove
+0 bodies shoving | 163 fps

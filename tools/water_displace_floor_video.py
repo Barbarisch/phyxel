@@ -60,23 +60,25 @@ def main():
             mp4 = EV / f"{a.tag}_{name}.mp4"
             rec = subprocess.Popen([ff, "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-t", str(a.seconds), "-i", f"title={a.window}",
                                     "-c:v", "libx264", "-pix_fmt", "yuv420p", str(mp4)])
-            t0 = time.time(); time.sleep(1.0)
+            t0 = time.time(); rows = []
+            def sample_until(t_end):   # the captions' rows, from the start of the take (the small blocks' phase included)
+                while rec.poll() is None and time.time() - t0 < t_end:
+                    c = api.debug("water_coupling", {})
+                    try: fps = api.get("/api/debug/engine_timing").get("fps")
+                    except Exception: fps = None
+                    last = (c.get("displace_gate") or {}).get("last") or {}
+                    rows.append({"t": round(time.time() - t0, 2), "fps": fps, "shoving": (last.get("kept", 0) + last.get("admitted", 0)),
+                                 "rasterized": (c.get("moving_solids") or {}).get("bodies")})
+                    time.sleep(0.25)
+            sample_until(1.0)
             for (x, z) in [(151.5, 11.5), (155.5, 11.5), (151.5, 15.5), (155.5, 15.5)]:
                 api.debug("spawn_gpu_particle", {"x": x, "y": g.PIT_LEVEL + 1.0, "z": z, "material": "Wood", "scale": 1 / 9, "count": 100, "lifetime": 60, "spin": 0})
             t_small = time.time() - t0
-            time.sleep(4.0)
+            sample_until(t_small + 4.0)
             for (x, z, mat) in [(152.5, 13.0, "Wood"), (154.5, 13.0, "Wood"), (153.5, 15.0, "Wood"), (153.5, 11.5, "Stone")]:
                 api.debug("spawn_gpu_particle", {"x": x, "y": g.PIT_LEVEL + 1.0 + 1 / 6, "z": z, "material": mat, "scale": 1 / 3, "lifetime": 60, "spin": 0})
             t_big = time.time() - t0
-            rows = []
-            while rec.poll() is None:
-                c = api.debug("water_coupling", {})
-                try: fps = api.get("/api/debug/engine_timing").get("fps")
-                except Exception: fps = None
-                last = (c.get("displace_gate") or {}).get("last") or {}
-                rows.append({"t": round(time.time() - t0, 2), "fps": fps, "shoving": (last.get("kept", 0) + last.get("admitted", 0)),
-                             "rasterized": (c.get("moving_solids") or {}).get("bodies")})
-                time.sleep(0.25)
+            sample_until(1e9)
             out["takes"][name] = {"floor_m": floor, "small_at_s": round(t_small, 2), "big_at_s": round(t_big, 2), "rows": rows,
                                   "gate_total": (api.debug("water_coupling", {}).get("displace_gate") or {}).get("total")}
             label = "NO SIZE FLOOR: every block shoves (1/9 m too)" if floor == 0.0 else "FLOOR 1/6 m: 1/9 m blocks ripple, 1/3 m blocks shove"

@@ -1,0 +1,259 @@
+1
+00:00:00,030 --> 00:00:00,300
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 677 fps
+
+2
+00:00:00,300 --> 00:00:00,560
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 753 fps
+
+3
+00:00:00,560 --> 00:00:00,840
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 621 fps
+
+4
+00:00:00,840 --> 00:00:01,180
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 676 fps
+
+5
+00:00:01,180 --> 00:00:01,460
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 641 fps
+
+6
+00:00:01,460 --> 00:00:01,740
+NO SIZE FLOOR: every block shoves (1/9 m too)
+32 bodies shoving | 193 fps
+
+7
+00:00:01,740 --> 00:00:02,020
+NO SIZE FLOOR: every block shoves (1/9 m too)
+32 bodies shoving | 178 fps
+
+8
+00:00:02,020 --> 00:00:02,300
+NO SIZE FLOOR: every block shoves (1/9 m too)
+32 bodies shoving | 137 fps
+
+9
+00:00:02,300 --> 00:00:02,580
+NO SIZE FLOOR: every block shoves (1/9 m too)
+15 bodies shoving | 156 fps
+
+10
+00:00:02,580 --> 00:00:02,860
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 120 fps
+
+11
+00:00:02,860 --> 00:00:03,120
+NO SIZE FLOOR: every block shoves (1/9 m too)
+10 bodies shoving | 138 fps
+
+12
+00:00:03,120 --> 00:00:03,400
+NO SIZE FLOOR: every block shoves (1/9 m too)
+18 bodies shoving | 113 fps
+
+13
+00:00:03,400 --> 00:00:03,690
+NO SIZE FLOOR: every block shoves (1/9 m too)
+13 bodies shoving | 143 fps
+
+14
+00:00:03,690 --> 00:00:03,950
+NO SIZE FLOOR: every block shoves (1/9 m too)
+5 bodies shoving | 139 fps
+
+15
+00:00:03,950 --> 00:00:04,230
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 210 fps
+
+16
+00:00:04,230 --> 00:00:04,510
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 216 fps
+
+17
+00:00:04,510 --> 00:00:04,780
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 197 fps
+
+18
+00:00:04,780 --> 00:00:05,090
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 200 fps
+
+19
+00:00:05,090 --> 00:00:05,420
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 194 fps
+
+20
+00:00:05,420 --> 00:00:05,680
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 181 fps
+
+21
+00:00:05,680 --> 00:00:05,960
+NO SIZE FLOOR: every block shoves (1/9 m too)
+4 bodies shoving | 135 fps
+
+22
+00:00:05,960 --> 00:00:06,240
+NO SIZE FLOOR: every block shoves (1/9 m too)
+4 bodies shoving | 135 fps
+
+23
+00:00:06,240 --> 00:00:06,500
+NO SIZE FLOOR: every block shoves (1/9 m too)
+4 bodies shoving | 128 fps
+
+24
+00:00:06,500 --> 00:00:06,780
+NO SIZE FLOOR: every block shoves (1/9 m too)
+4 bodies shoving | 90 fps
+
+25
+00:00:06,780 --> 00:00:07,080
+NO SIZE FLOOR: every block shoves (1/9 m too)
+4 bodies shoving | 74 fps
+
+26
+00:00:07,080 --> 00:00:07,360
+NO SIZE FLOOR: every block shoves (1/9 m too)
+1 bodies shoving | 122 fps
+
+27
+00:00:07,360 --> 00:00:07,640
+NO SIZE FLOOR: every block shoves (1/9 m too)
+3 bodies shoving | 119 fps
+
+28
+00:00:07,640 --> 00:00:07,930
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 130 fps
+
+29
+00:00:07,930 --> 00:00:08,190
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 133 fps
+
+30
+00:00:08,190 --> 00:00:08,450
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 138 fps
+
+31
+00:00:08,450 --> 00:00:08,710
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 120 fps
+
+32
+00:00:08,710 --> 00:00:08,980
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 121 fps
+
+33
+00:00:08,980 --> 00:00:09,250
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 120 fps
+
+34
+00:00:09,250 --> 00:00:09,510
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 114 fps
+
+35
+00:00:09,510 --> 00:00:09,780
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 127 fps
+
+36
+00:00:09,780 --> 00:00:10,070
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 109 fps
+
+37
+00:00:10,070 --> 00:00:10,370
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 162 fps
+
+38
+00:00:10,370 --> 00:00:10,630
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 120 fps
+
+39
+00:00:10,630 --> 00:00:10,910
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 127 fps
+
+40
+00:00:10,910 --> 00:00:11,200
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 97 fps
+
+41
+00:00:11,200 --> 00:00:11,480
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 132 fps
+
+42
+00:00:11,480 --> 00:00:11,740
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 125 fps
+
+43
+00:00:11,740 --> 00:00:12,020
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 120 fps
+
+44
+00:00:12,020 --> 00:00:12,320
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 81 fps
+
+45
+00:00:12,320 --> 00:00:12,580
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 139 fps
+
+46
+00:00:12,580 --> 00:00:12,850
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 144 fps
+
+47
+00:00:12,850 --> 00:00:13,110
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 123 fps
+
+48
+00:00:13,110 --> 00:00:13,380
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 125 fps
+
+49
+00:00:13,380 --> 00:00:13,650
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 122 fps
+
+50
+00:00:13,650 --> 00:00:13,930
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 139 fps
+
+51
+00:00:13,930 --> 00:00:14,220
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 131 fps
+
+52
+00:00:14,220 --> 00:00:14,470
+NO SIZE FLOOR: every block shoves (1/9 m too)
+0 bodies shoving | 128 fps

@@ -40,6 +40,8 @@ WAKE_PACE = PACE_LATE = False    # L4 (42.3): wake_pace (the engine's default un
 SHIPPED_PACE = False             # the engine's wake_pace when the tool started (restored at the end; on since 42.6)
 RIPPLE = None                    # L2 (43): {"ripple_reach": bool, "ripple_m": m} for every run, or None = the engine's settings
 DISPLACE = False                 # 44.6: debris displacement for every run - the engine's setting when the tool started (--displace)
+SLEEP_WAIT_S = 30.0              # 44.6: how long after the window the pond may take to sleep again (--sleep-wait); its mass is read then
+NO_KEEP = False                  # 44.6 TEST: --no-kept-memory - every wake fresh (L3's control), to tell the wake path from distance
 
 
 def tracks_xyz(path):
@@ -90,7 +92,7 @@ def run(api, name, seconds):
     viewer, dry = kind(name)
     # 42.1: the run's viewer from BEFORE the pond's first sleep - L3 decides at the sleep whether the memory is kept, so a viewer set
     # after it left the path to wherever the camera happened to be (all 42.1 runs went fresh with the camera 85 m away)
-    api.debug("water_locality", {"test_viewer": viewer, "test_far_record_dry": False, **(RIPPLE or {})})
+    api.debug("water_locality", {"test_viewer": viewer, "test_far_record_dry": False, **(RIPPLE or {}), **({"test_keep_memory_off": True} if NO_KEEP else {})})
     w.AUTO_SLEEP = True; w.PRESSURE = True; w.DISPLACE = DISPLACE   # 44.6: the engine's shipped setting unless --displace says
     w.pond(api)
     if not wait_slept(api, 60.0): raise SystemExit(f"{name}: the pond did not sleep into the record within 60 s")
@@ -135,7 +137,7 @@ def run(api, name, seconds):
     hits, misses = kept1.get("hits", 0) - kept0.get("hits", 0), kept1.get("misses", 0) - kept0.get("misses", 0)
     wake_path = ("no wake" if hits == 0 and misses == 0 else "kept" if misses == 0 else "fresh" if hits == 0
                  else f"mixed ({hits} kept, {misses} fresh)")
-    slept_again = wait_slept(api, 30.0)
+    slept_again = wait_slept(api, SLEEP_WAIT_S)   # 44.6: with displacement on a near pond's rings keep it awake ~60 s (--sleep-wait)
     if asleep_by is None and slept_again: asleep_by = round(time.time() - t0, 1)   # slept after the window (0.5 s resolution)
     api.debug("particle_log", {"action": "stop"})
     m_after = recorded_m3(api)
@@ -246,8 +248,11 @@ def main():
     ap.add_argument("--ripple-reach", choices=["default", "on", "off"], default="default", help="L2 (43): ripple detail by distance")
     ap.add_argument("--ripple-m", type=float, default=None, help="L2: ripple_m for every run (with --ripple-reach on)")
     ap.add_argument("--displace", choices=["default", "on", "off"], default="default", help="44.6: debris displacement (default = the engine's)")
+    ap.add_argument("--sleep-wait", type=float, default=30.0, help="44.6: seconds after the window for the pond to sleep again")
+    ap.add_argument("--no-kept-memory", action="store_true", help="44.6 TEST: every wake fresh (water_locality test_keep_memory_off)")
     a = ap.parse_args()
-    global WAKE_DELAY_S, WAKE_PACE, PACE_LATE, SHIPPED_PACE, RIPPLE, DISPLACE
+    global WAKE_DELAY_S, WAKE_PACE, PACE_LATE, SHIPPED_PACE, RIPPLE, DISPLACE, SLEEP_WAIT_S, NO_KEEP
+    SLEEP_WAIT_S = a.sleep_wait; NO_KEEP = a.no_kept_memory
     WAKE_DELAY_S = a.wake_delay
     PACE_LATE = a.pace_late
     if a.rejudge:   # one tag re-scores that file; several pool their runs (three near runs a session is a thin spread)
@@ -283,6 +288,7 @@ def main():
         api.debug("water_locality", {"clear_test_viewer": True, "test_far_record_dry": False})
         api.debug("water_coupling", {"test_wake_delay_s": 0.0, "wake_pace": SHIPPED_PACE, "test_pace_late": False})   # never leave a test knob on
         api.debug("water_coupling", {"displace": bool(c0.get("displace", False))})   # 44.6: as found
+        api.debug("water_locality", {"test_keep_memory_off": False})
         if RIPPLE is not None:   # the L2 settings back as found
             api.debug("water_locality", {"ripple_reach": loc0.get("ripple_reach"), "ripple_m": loc0.get("ripple_m")})
         (w.EV / f"l5_{a.tag}.json").write_text(json.dumps(res, indent=1), encoding="utf-8")
