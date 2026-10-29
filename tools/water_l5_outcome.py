@@ -92,6 +92,7 @@ def run(api, name, seconds):
     loc = api.debug("water_locality", {})
     if loc.get("test_far_record_dry") != dry or not loc.get("test_viewer_on"): raise SystemExit(f"{name}: water_locality not taken: {loc}")
     m_before = recorded_m3(api)
+    kept0 = (api.debug("water_coupling", {}).get("slept") or {}).get("kept") or {}   # L3 (41.4 item 1): which wake path ran
     log = (w.EV / f"l5_{name}.csv").resolve()
     api.debug("particle_log", {"action": "start", "file": str(log)})
     for b in BODIES.values():
@@ -104,6 +105,10 @@ def run(api, name, seconds):
         if v: woke = True
         trace.append({"t": round(time.time() - t0, 2), "volumes": len(v), "mass": v[0].get("mass") if v else None})
         time.sleep(0.5)
+    kept1 = (api.debug("water_coupling", {}).get("slept") or {}).get("kept") or {}
+    hits, misses = kept1.get("hits", 0) - kept0.get("hits", 0), kept1.get("misses", 0) - kept0.get("misses", 0)
+    wake_path = ("no wake" if hits == 0 and misses == 0 else "kept" if misses == 0 else "fresh" if hits == 0
+                 else f"mixed ({hits} kept, {misses} fresh)")
     slept_again = wait_slept(api, 30.0)
     api.debug("particle_log", {"action": "stop"})
     m_after = recorded_m3(api)
@@ -125,8 +130,9 @@ def run(api, name, seconds):
         bodies[key] = {"rest_pose": list(rows[-1][1:4]), "rest_t": round(rows[rest][0] - rows[0][0], 4) if rest is not None else None,
                        "y_max": max(r[2] for r in rows), "y_min": min(r[2] for r in rows), "rows": len(rows)}
     out = {"run": name, "viewer": viewer, "far_record_dry": dry, "locality": loc, "pond_woke": woke, "pond_slept_again": slept_again,
-           "recorded_m3_before": m_before, "recorded_m3_after": m_after, "level": lvl, "bodies": bodies, "pond": trace}
-    print(f"{name:7s} woke {woke} slept again {slept_again} m3 {m_before}->{m_after} level {lvl} | " +
+           "recorded_m3_before": m_before, "recorded_m3_after": m_after, "level": lvl, "bodies": bodies, "pond": trace,
+           "wake_path": wake_path, "kept_before_drop": kept0}
+    print(f"{name:7s} woke {woke} ({wake_path} memory) slept again {slept_again} m3 {m_before}->{m_after} level {lvl} | " +
           " | ".join(f"{k} rest {[round(c, 4) for c in v['rest_pose']]} at {v['rest_t']} s, y max {v['y_max']:.4f}" for k, v in bodies.items()),
           flush=True)
     return out
@@ -164,6 +170,10 @@ def verdict(runs, self_check=True):
             m[f"{k}_x"], m[f"{k}_y"], m[f"{k}_z"], m[f"{k}_rest_t"] = *b["rest_pose"], b["rest_t"]
         return m
     res = {"near_runs": [r["run"] for r in near], "spread": {}, "runs": {}}
+    if self_check:   # 41.4 item 1: with L3, near and far must take different wake paths, or near-vs-far compares one path with itself
+        paths = {r["run"]: r.get("wake_path") for r in runs if "wake_path" in r}
+        res["wake_paths"] = paths
+        if paths: print(f"  wake paths: {paths}", flush=True)
     nm = [measures(r) for r in near]
     for key in nm[0]:
         vals = [m[key] for m in nm if m[key] is not None]

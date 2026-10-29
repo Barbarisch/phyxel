@@ -117,6 +117,12 @@ struct BrickOptions {
     int    height = 0;               ///< 26.17: brick height in cells (2, 4 or 8; 0 = WaterCoreGpu::s_brickHeight); x and z are 8
     int    ground = -1;              ///< 26.18: halo bricks that are all ground read the GROUND sentinel (1 on, 0 off, -1 = s_groundBricks); sparse only
     bool   groundAsAirForTest = false;   ///< TEST ONLY (the red control): the ground sentinel's occupancy left as air
+    /// L3 (41): a growable volume's first slot count (0 = kInitialSlots). It stays growable - unlike `capacity`, which fixes the size.
+    /// The wake of a pond that kept its memory starts at the slots it slept with, so the kept buffers fit and nothing grows.
+    size_t initialSlots = 0;
+    /// L3 (41): a kept set (WaterCoreGpu::keepVolume's handle) whose buffers this volume takes instead of allocating; 0 = none.
+    /// Whatever it does not take is queued for release.
+    int    adoptKept = 0;
 };
 
 /// 27.28 THE WATER'S CPU, BY PHASE. Every lap adds the time since the last lap (or the caller's start) to its key; WaterCoreManager::
@@ -154,6 +160,8 @@ public:
         VkDeviceMemory mem = VK_NULL_HANDLE;
         VkDeviceSize   bytes = 0;
         void*          mapped = nullptr;   // staging only
+        VkDeviceSize   made = 0;           ///< L3 (41): the VkBuffer's own size (>= bytes when a kept buffer was adopted)
+        VkDeviceSize   held = 0;           ///< L3 (41): the device memory it holds (the driver's size for `made`)
     };
     struct Volume {
         GridSpec spec;
@@ -527,6 +535,24 @@ public:
     /// L3 (41): the bytes a volume holds, device-local and host-visible (requested sizes; the driver rounds each up a little)
     struct VolumeBytes { unsigned long long device = 0, host = 0; size_t buffers = 0; };
     VolumeBytes volumeBytes(Volume& vol) const;
+
+    /// L3 (41): destroy a volume but KEEP its buffers, still allocated, as a set for a later createVolume (BrickOptions::adoptKept).
+    /// Returns the set's handle (> 0), or 0 when the volume cannot be kept (a particle volume, or not sparse and growable) - then it
+    /// is destroyed as by destroyVolume. The device is idle on return (as destroyVolume), so no kept buffer is in use.
+    int keepVolume(Volume* vol);
+    /// L3 (41): a kept set's held device memory, bytes (0 if no such set)
+    unsigned long long keptHeldBytes(int handle) const;
+    size_t keptSlots(int handle) const;
+    /// L3 (41): give a kept set up: queued, freed by pumpRelease a few buffers at a time
+    void releaseKept(int handle);
+    /// L3 (41): free queued buffers for up to `budgetMs` (at least one buffer when any is queued). `budgetMs` < 0 frees them all.
+    /// Returns the buffers freed.
+    size_t pumpRelease(double budgetMs);
+    struct KeptStats { size_t sets = 0, queuedBuffers = 0; unsigned long long heldBytes = 0, queuedBytes = 0; long kept = 0, adopted = 0,
+                       buffersAdopted = 0, buffersAllocated = 0, released = 0, freed = 0; double lastFreeMs = 0.0, maxFreeMs = 0.0; };
+    KeptStats keptStats() const;
+    /// L3 (41) TEST (the red control of the equality test): an adopted device buffer keeps its last life's contents (no zero fill)
+    static inline bool s_keptSkipsClearForTest = false;
     /// Allocation only (no upload): refuses with the byte count when the device cannot hold it. A particle volume is
     /// dense-laid (the FLIP kernels index the grid directly); every other volume is bricked (26.6).
     Volume* createVolume(const GridSpec& spec, std::string* err, bool particles = false, size_t particleCapacity = 0,
@@ -704,6 +730,13 @@ private:
     UploadSplit m_lastUploadSplit;   // 39.8
     ResidencySplit m_lastResidencySplit;   // 39.8
     GrowSplit m_lastGrowSplit;             // L3 (41)
+    struct KeptSet { std::vector<Buffer> bufs; size_t slots = 0; };
+    std::map<int, KeptSet> m_kept;         // L3 (41): by handle
+    int m_nextKept = 1;
+    std::vector<Buffer> m_releaseQueue;    // L3 (41): released kept buffers, freed by pumpRelease
+    KeptSet* m_adopting = nullptr;         // L3 (41): set by createVolume while it creates buffers; createBuffer takes from it
+    std::vector<Buffer*> m_adoptedDevice;  // L3 (41): device buffers this create adopted (cleared by its zero fill)
+    KeptStats m_keptStats;
     static std::vector<Buffer*> allBuffers(Volume& vol);   ///< every buffer a volume can own (destroyVolume frees these)
     /// 39 (A2f step 1d): a destroyed volume's compute pipelines, kept per kernel for the next volume (a wake built the same 22 from
     /// disk, ~8 ms). bindPipelines rewrites every binding of every kernel at each create, so a kept pipeline is the fresh one with

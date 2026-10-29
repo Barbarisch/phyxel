@@ -111,7 +111,17 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         // 26.12 P2b: a fill volume is SPARSE - it stores and steps only the bricks holding water and their halo (26.6), bit-identical
         // to keeping every brick (WaterBrickTest); the particle transport stays dense (26.6 point 7)
         const auto pg0 = PClock::now();
-        av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, BrickOptions{transport != "flip", 0, false, brickHeight, groundBricks});   // 26.17: the brick height (refused with the reason unless 2 / 4 / 8)
+        BrickOptions bo{transport != "flip", 0, false, brickHeight, groundBricks};   // 26.17: the brick height (refused with the reason unless 2 / 4 / 8)
+        bo.adoptKept = m_adoptForCreate; bo.initialSlots = m_slotsForCreate;   // L3 (41): a wake on kept memory (0 = none)
+        av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, bo);
+        if (!av->gpuVol && !m_kept.empty()) {   // 41.4 item 7: out of device memory - give every kept set back and try once more
+            m_keptMem.releasedOom += static_cast<long>(m_kept.size());
+            for (const KeptEntry& k : m_kept) m_gpu->releaseKept(k.handle);
+            m_kept.clear();
+            m_gpu->pumpRelease(-1.0);
+            bo.adoptKept = 0; bo.initialSlots = 0;
+            av->gpuVol = m_gpu->createVolume(av->grid->spec(), err, transport == "flip", 0, bo);
+        }
         if (!av->gpuVol) return 0;   // the refusal carries the byte count
         const auto pg1 = PClock::now();
         // 39.7 (A2f step 1e): a wake seeds the grid next and the first step uploads it whole - an upload here sent an empty grid that
@@ -369,8 +379,44 @@ bool WaterCoreManager::step(int id, int ticks, float dt, AvRecord* out) {
     return false;
 }
 
+void WaterCoreManager::updateKeptMemory(double freeBudgetMs) {
+    if (!m_gpu) return;
+    const WaterLocality& L = s_locality;
+    // orphans: a kept set whose box no longer sleeps (re-slept, loaded over, forgotten) - nothing will ever adopt it
+    for (size_t i = m_kept.size(); i-- > 0;) {
+        bool slept = false;
+        for (const SleptVolume& s : m_slept) if (s.lo == m_kept[i].lo && s.hi == m_kept[i].hi) { slept = true; break; }
+        if (slept && !L.testKeepMemoryOff) continue;
+        m_gpu->releaseKept(m_kept[i].handle); m_kept.erase(m_kept.begin() + static_cast<long>(i)); ++m_keptMem.releasedOrphan;
+    }
+    if (!m_kept.empty()) {
+        std::vector<WaterLocality::KeptBox> boxes;
+        for (const KeptEntry& k : m_kept) boxes.push_back({k.lo, k.hi, m_gpu->keptHeldBytes(k.handle)});
+        const std::vector<size_t> out = WaterLocality::keptToRelease(boxes, m_view, L.memoryM, L.memoryCapMb);
+        for (size_t j = out.size(); j-- > 0;) {
+            const size_t i = out[j];
+            const bool far = L.memoryM <= 0.0f || WaterLocality::horizontalDistanceToBox(m_view, glm::vec2(m_kept[i].lo.x, m_kept[i].lo.z),
+                                                                                         glm::vec2(m_kept[i].hi.x + 1, m_kept[i].hi.z + 1)) > L.memoryM;
+            ++(far ? m_keptMem.releasedFar : m_keptMem.releasedCap);
+            m_gpu->releaseKept(m_kept[i].handle); m_kept.erase(m_kept.begin() + static_cast<long>(i));
+        }
+    }
+    if (freeBudgetMs != 0.0) { m_gpu->pumpRelease(freeBudgetMs); m_keptMem.maxPumpMs = std::max(m_keptMem.maxPumpMs, m_gpu->keptStats().lastFreeMs); }
+}
+
+WaterCoreManager::KeptMemoryStats WaterCoreManager::keptMemoryStats() const {
+    KeptMemoryStats s = m_keptMem;
+    s.ponds = m_kept.size();
+    if (m_gpu) {
+        const auto g = m_gpu->keptStats();
+        s.heldBytes = g.heldBytes; s.releasingBytes = g.queuedBytes; s.buffersAdopted = g.buffersAdopted; s.buffersAllocated = g.buffersAllocated;
+    }
+    return s;
+}
+
 void WaterCoreManager::update(float dt) {
     checkRecordResidency();   // 32.4: before the realtime return - a harness that steps by hand still follows residency
+    updateKeptMemory();       // L3 (41): kept memory follows the viewer; the given-up part freed a little each frame
     if (!m_realtime) return;
     using UClock = std::chrono::steady_clock;
     auto ums = [](UClock::time_point a) { return std::chrono::duration<double, std::milli>(UClock::now() - a).count(); };
@@ -559,7 +605,25 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
         m_sleptWake.lastSleptDeviceBytes = vb.device; m_sleptWake.lastSleptHostBytes = vb.host; m_sleptWake.lastSleptBuffers = vb.buffers;
         m_sleptWake.lastSleptSlots = av->gpuVol->capacity;
     }
-    destroy(id);
+    {   // L3 (41): within memoryM of the viewer the buffers wait for this box's next wake, still allocated; cost only (WaterKeptMemory)
+        const WaterLocality& L = s_locality;
+        const bool near = WaterLocality::horizontalDistanceToBox(m_view, glm::vec2(lo.x, lo.z), glm::vec2(hi.x + 1, hi.z + 1)) <= L.memoryM;
+        const auto tf = std::chrono::steady_clock::now();
+        int handle = 0;
+        if (av->gpuVol && m_gpu && find(id) && !L.testKeepMemoryOff && L.memoryM > 0.0f && L.memoryCapMb > 0.0f && near) {
+            handle = m_gpu->keepVolume(av->gpuVol);   // 0 = not keepable (it was destroyed as before)
+            av->gpuVol = nullptr;
+        }
+        destroy(id);
+        m_keptMem.lastSleepFreeMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tf).count();   // 41.3: the sleep frame's free
+        if (handle) {
+            for (const KeptEntry& k : m_kept) if (k.lo == lo && k.hi == hi) m_gpu->releaseKept(k.handle);   // the box's older set
+            m_kept.erase(std::remove_if(m_kept.begin(), m_kept.end(), [&](const KeptEntry& k) { return k.lo == lo && k.hi == hi; }), m_kept.end());
+            m_kept.push_back({lo, hi, handle});
+            ++m_keptMem.kept;
+            updateKeptMemory(0.0);   // the cap, now (the free itself is paced)
+        }
+    }
     buildRecordTilesNow(lo, hi);   // §27 W1a: the record draws these columns in the frame the volume stops drawing them
     return rec;
 }
@@ -1058,7 +1122,15 @@ int WaterCoreManager::wakeSlept(size_t i) {
     m_slept.erase(m_slept.begin() + static_cast<long>(i));   // woken (or found empty): forgotten either way
     std::string err;
     m_createLeavesUploadToStep = true;   // 39.7: the seed below replaces the grid - one upload, at the first step
+    {   // L3 (41): this box's kept buffers, if it kept them - the volume is made at the slots it slept with and takes them
+        auto k = std::find_if(m_kept.begin(), m_kept.end(), [&](const KeptEntry& e) { return e.lo == sv.lo && e.hi == sv.hi; });
+        m_keptMem.lastWakeHit = k != m_kept.end() && m_gpu;
+        if (m_keptMem.lastWakeHit) { m_adoptForCreate = k->handle; m_slotsForCreate = m_gpu->keptSlots(k->handle); m_kept.erase(k); ++m_keptMem.hits; }
+        else ++m_keptMem.misses;
+    }
     const int id = create(sv.lo, sv.hi, sv.cellSize, sv.transport.empty() ? "eulerian" : sv.transport, &err, sv.backend.empty() ? "auto" : sv.backend, sv.sweeps);
+    if (m_adoptForCreate && m_gpu) m_gpu->releaseKept(m_adoptForCreate);   // not taken (a CPU backend, a refusal): given up (no-op if taken)
+    m_adoptForCreate = 0; m_slotsForCreate = 0;
     m_createLeavesUploadToStep = false;
     if (!id) { ++m_sleptWake.refused; m_sleptWake.lastError = err; return 0; }
     setPartialWake(id, sv.partialWake);

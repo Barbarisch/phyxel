@@ -14102,9 +14102,23 @@ void Application::registerWaterCommands() {
         if (cmd.params.value("clear_test_viewer", false)) loc.testViewerOn = false;
         if (cmd.params.contains("test_far_record_dry") && cmd.params["test_far_record_dry"].is_boolean())   // 40.1 item 7 TEST
             Core::Water::WaterCoreManager::s_testFarRecordDry = cmd.params["test_far_record_dry"].get<bool>();
+        // L3 (41): memory_m (m, 0..1024: the occupancy box's span; 0 = nothing kept) and memory_cap_mb (MB, 0..4096: a bound on what
+        // the water may hold back from the rest of the device). Cost only - a kept wake makes the same volume (WaterKeptMemory)
+        if (cmd.params.contains("memory_m") && cmd.params["memory_m"].is_number()) {
+            const float m = cmd.params["memory_m"].get<float>();
+            if (m >= 0.0f) loc.memoryM = std::min(m, L::kMemoryMMax);
+        }
+        if (cmd.params.contains("memory_cap_mb") && cmd.params["memory_cap_mb"].is_number()) {
+            const float m = cmd.params["memory_cap_mb"].get<float>();
+            if (m >= 0.0f) loc.memoryCapMb = std::min(m, L::kMemoryCapMbMax);
+        }
+        if (cmd.params.contains("test_keep_memory_off") && cmd.params["test_keep_memory_off"].is_boolean())   // 41 TEST: the control
+            loc.testKeepMemoryOff = cmd.params["test_keep_memory_off"].get<bool>();
         const glm::vec3 v = waterCore ? waterCore->viewPoint() : glm::vec3(0.0f);
         r = {{"draw_m", loc.drawM}, {"draw_m_default", L::kDrawMDefault},
              {"ripple_window_cells", loc.rippleWindowCells}, {"ripple_window_cells_default", L::kRippleWindowCellsDefault},
+             {"memory_m", loc.memoryM}, {"memory_m_default", L::kMemoryMDefault}, {"memory_cap_mb", loc.memoryCapMb},
+             {"memory_cap_mb_default", L::kMemoryCapMbDefault}, {"test_keep_memory_off", loc.testKeepMemoryOff},
              {"test_viewer_on", loc.testViewerOn}, {"test_viewer", {loc.testViewer.x, loc.testViewer.y, loc.testViewer.z}},
              {"viewer", {v.x, v.y, v.z}}, {"test_far_record_dry", Core::Water::WaterCoreManager::s_testFarRecordDry}};
         if (!waterCore) r["note"] = "no water core: the settings are held for when one exists";
@@ -14670,7 +14684,13 @@ void Application::registerWaterCommands() {
                      const auto gs = waterCore->gpuGrowSplit();   // L3 (41): the last pool grow's parts
                      s["last_grow_split_ms"] = {{"alloc", gs.allocMs}, {"copy", gs.copyMs}, {"free", gs.freeMs}, {"tables", gs.tablesMs}, {"rebind", gs.rebindMs},
                                                 {"bytes_after", gs.bytesAfter}, {"grows", gs.grows}};
-                     s["last_slept_bytes"] = {{"device", ws.lastSleptDeviceBytes}, {"host", ws.lastSleptHostBytes}, {"buffers", ws.lastSleptBuffers}, {"slots", ws.lastSleptSlots}}; }
+                     s["last_slept_bytes"] = {{"device", ws.lastSleptDeviceBytes}, {"host", ws.lastSleptHostBytes}, {"buffers", ws.lastSleptBuffers}, {"slots", ws.lastSleptSlots}};
+                     const auto km = waterCore->keptMemoryStats();   // L3 (41)
+                     s["kept"] = {{"ponds", km.ponds}, {"held_bytes", km.heldBytes}, {"releasing_bytes", km.releasingBytes}, {"kept", km.kept},
+                                  {"hits", km.hits}, {"misses", km.misses}, {"last_wake_hit", km.lastWakeHit}, {"released_far", km.releasedFar},
+                                  {"released_cap", km.releasedCap}, {"released_orphan", km.releasedOrphan}, {"released_oom", km.releasedOom},
+                                  {"buffers_adopted", km.buffersAdopted}, {"buffers_allocated", km.buffersAllocated},
+                                  {"last_sleep_free_ms", km.lastSleepFreeMs}, {"max_pump_ms", km.maxPumpMs}}; }
                  const auto& ls = waterCore->sleptLoadStats();           // 35 (A2c): what the last world load restored
                  s["restored"] = ls.restored; s["restore_skipped"] = ls.skipped; s["restore_error"] = ls.error;
                  const auto& rc = waterCore->recordCacheStats();   // 32.4 (A2b): the record cache following residency

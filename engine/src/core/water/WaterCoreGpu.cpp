@@ -59,6 +59,9 @@ void WaterCoreGpu::shutdown() {
     if (m_device == VK_NULL_HANDLE) return;
     vkDeviceWaitIdle(m_device);
     for (Volume* v : std::vector<Volume*>(m_volumes)) destroyVolume(v);
+    for (auto& [h, set] : m_kept) for (Buffer& b : set.bufs) destroyBuffer(b);   // L3 (41)
+    m_kept.clear();
+    pumpRelease(-1.0);
     for (auto& spare : m_pipeSpare) { for (auto& p : spare) p->cleanup(); spare.clear(); }   // 39
     for (Buffer& b : m_pwTest) destroyBuffer(b);   // 31 TEST
     if (m_fence) vkDestroyFence(m_device, m_fence, nullptr);
@@ -74,6 +77,22 @@ uint32_t WaterCoreGpu::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
 }
 
 bool WaterCoreGpu::createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible, std::string* err) {
+    if (m_adopting) {   // L3 (41): the smallest kept buffer of the same kind that holds the size asked
+        const VkDeviceSize want = std::max<VkDeviceSize>(bytes, 16);
+        auto& kb = m_adopting->bufs;
+        size_t best = kb.size();
+        for (size_t i = 0; i < kb.size(); ++i)
+            if ((kb[i].mapped != nullptr) == hostVisible && kb[i].made >= want && (best == kb.size() || kb[i].made < kb[best].made)) best = i;
+        if (best < kb.size()) {
+            b = kb[best]; kb.erase(kb.begin() + static_cast<long>(best));
+            b.bytes = want;   // every binding, fill and copy sees the size asked, as on a new buffer of that size
+            // cleared as a new one is: host memory zeroed here (as below), device memory by createVolume's zero fill
+            if (b.mapped) std::memset(b.mapped, 0, static_cast<size_t>(b.bytes)); else m_adoptedDevice.push_back(&b);
+            ++m_keptStats.buffersAdopted;
+            return true;
+        }
+    }
+    ++m_keptStats.buffersAllocated;
     b.bytes = std::max<VkDeviceSize>(bytes, 16);
     VkBufferCreateInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bi.size = b.bytes; bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;   // 29 S1: + indirect (the mesh's draw args)
@@ -93,6 +112,7 @@ bool WaterCoreGpu::createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible,
         vkDestroyBuffer(m_device, b.buf, nullptr); b.buf = VK_NULL_HANDLE; return false;
     }
     vkBindBufferMemory(m_device, b.buf, b.mem, 0);
+    b.made = b.bytes; b.held = mr.size;
     if (hostVisible) { vkMapMemory(m_device, b.mem, 0, b.bytes, 0, &b.mapped); std::memset(b.mapped, 0, static_cast<size_t>(b.bytes)); }
     return true;
 }
@@ -264,7 +284,9 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         // slot 0 = the absent brick, slot 1 = ground (26.18). 27.23 W1d.1: a sparse volume with no fixed capacity starts with kInitialSlots
         // and grows with its water (it reserved a slot for every brick of its box: ~123 B of GPU memory per cell of the box, measured)
         vol->growable = opts.sparse && opts.capacity == 0;
-        vol->capacity = kFirstSlot + (opts.capacity > 0 ? std::min(opts.capacity, vol->mapCount) : (vol->growable ? std::min(kInitialSlots, vol->mapCount) : vol->mapCount));
+        // L3 (41): initialSlots starts a growable volume larger (a kept set's size), the count it would have grown to
+        const size_t first = vol->growable && opts.initialSlots > kFirstSlot ? opts.initialSlots - kFirstSlot : kInitialSlots;
+        vol->capacity = kFirstSlot + (opts.capacity > 0 ? std::min(opts.capacity, vol->mapCount) : (vol->growable ? std::min(first, vol->mapCount) : vol->mapCount));
         vol->colCap = static_cast<size_t>(vol->bn.x) * vol->bn.z;
         vol->cells = vol->capacity * vol->bc; vol->nu = vol->nv = vol->nw = vol->cells;
         vol->columns = vol->colCap * 64;
@@ -284,6 +306,11 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     using CClock = std::chrono::steady_clock;   // 39: the parts' times (m_lastCreateSplit)
     auto cms = [](CClock::time_point a, CClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
     const auto ct0 = CClock::now();
+    m_adoptedDevice.clear();
+    if (opts.adoptKept) {   // L3 (41): the buffers below come from the kept set where one fits
+        auto it = m_kept.find(opts.adoptKept);
+        if (it != m_kept.end() && !particles) { m_adopting = &it->second; ++m_keptStats.adopted; }
+    }
     const VkDeviceSize F4 = sizeof(float);
     bool ok = createBuffer(vol->f, vol->cells * F4, false, err) && createBuffer(vol->fLo, vol->cells * F4, false, err) && createBuffer(vol->fOrig, vol->cells * F4, false, err) && createBuffer(vol->fPrev, vol->cells * F4, false, err)
            && createBuffer(vol->u, vol->nu * F4, false, err) && createBuffer(vol->v, vol->nv * F4, false, err) && createBuffer(vol->w, vol->nw * F4, false, err)
@@ -332,6 +359,11 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
                 && createBuffer(vol->pcount, vol->cells * 4, false, err) && createBuffer(vol->pstart, vol->cells * 4, false, err) && createBuffer(vol->pcursor, vol->cells * 4, false, err);
     }
     ok = ok && createBuffer(vol->staging, vol->offParticles + particleBytes, true, err);
+    if (m_adopting) {   // L3 (41): what the volume did not take is given up (freed by pumpRelease); the set is gone
+        for (Buffer& b : m_adopting->bufs) m_releaseQueue.push_back(b);
+        m_adopting = nullptr;
+        m_kept.erase(opts.adoptKept);
+    }
     const auto ct1 = CClock::now();
     const long reused0 = m_pipesReused;
     if (!ok || !createPipelines(*vol, err)) { Volume* raw = vol.release(); destroyVolume(raw); return nullptr; }
@@ -339,11 +371,16 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     {   // every buffer starts all zero: no body, every rule exactly as before; 26.6: the absent brick (slot 0) reads as dry
         // air in EVERY buffer, scratch included (the extrapolation reads its neighbours' known flags there)
         VkCommandBuffer cmd = beginCommands();
+        // L3 (41): + part, part2, out, sources, motionOut - a new buffer's contents are undefined in Vulkan and a kept one holds its last
+        // life's, so every device buffer starts zero (WaterKeptMemory pins a kept wake equal to a fresh one)
+        auto adopted = [&](const Buffer* b) { return std::find(m_adoptedDevice.begin(), m_adoptedDevice.end(), b) != m_adoptedDevice.end(); };
         for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
                           &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep,
                           &vol->dropped, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->unitMap,
-                          &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->colAgg})
-            if (b->buf) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
+                          &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->colAgg,
+                          &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->motionOut})
+            if (b->buf && !(s_keptSkipsClearForTest && adopted(b))) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
+        m_adoptedDevice.clear();
         {   // 29 S1: the extras draw - vertexCount 6, instanceCount (counted each call), firstVertex 0, firstInstance 1 (the vertex shader's
             // "this is the list" mark)
             const uint32_t args[4] = {6u, 0u, 0u, 1u};
@@ -388,6 +425,75 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     for (Buffer* b : allBuffers(*vol)) destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
+}
+
+int WaterCoreGpu::keepVolume(Volume* vol) {
+    if (!vol) return 0;
+    if (vol->particles || !vol->sparse || !vol->growable) { destroyVolume(vol); return 0; }
+    settle(*vol);   // as destroyVolume: the call in flight collected, then the device idle - no kept buffer is in use
+    vkDeviceWaitIdle(m_device);
+    for (size_t k = 0; k < vol->pipes.size(); ++k) {
+        auto& p = vol->pipes[k];
+        if (!p) continue;
+        if (m_pipeSpare[k].size() < kPipeSpareSets) m_pipeSpare[k].push_back(std::move(p));
+        else { p->cleanup(); p.reset(); }
+    }
+    if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
+    if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
+    if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
+    KeptSet set; set.slots = vol->capacity;
+    for (Buffer* b : allBuffers(*vol)) if (b->buf) { set.bufs.push_back(*b); *b = Buffer{}; }
+    m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
+    delete vol;
+    const int h = m_nextKept++;
+    m_kept.emplace(h, std::move(set));
+    ++m_keptStats.kept;
+    return h;
+}
+
+unsigned long long WaterCoreGpu::keptHeldBytes(int handle) const {
+    auto it = m_kept.find(handle);
+    if (it == m_kept.end()) return 0;
+    unsigned long long n = 0;
+    for (const Buffer& b : it->second.bufs) n += static_cast<unsigned long long>(b.held);
+    return n;
+}
+
+size_t WaterCoreGpu::keptSlots(int handle) const {
+    auto it = m_kept.find(handle);
+    return it == m_kept.end() ? 0 : it->second.slots;
+}
+
+void WaterCoreGpu::releaseKept(int handle) {
+    auto it = m_kept.find(handle);
+    if (it == m_kept.end()) return;
+    for (Buffer& b : it->second.bufs) m_releaseQueue.push_back(b);
+    m_kept.erase(it);
+    ++m_keptStats.released;
+}
+
+size_t WaterCoreGpu::pumpRelease(double budgetMs) {
+    if (m_releaseQueue.empty()) return 0;
+    using RClock = std::chrono::steady_clock;
+    const auto t0 = RClock::now();
+    size_t n = 0;
+    // 41.4 item 3: a few buffers a frame - the pit's whole set freed at once is 8-9 ms in a frame with no water event
+    while (!m_releaseQueue.empty()) {
+        destroyBuffer(m_releaseQueue.back()); m_releaseQueue.pop_back(); ++n;
+        if (budgetMs >= 0.0 && std::chrono::duration<double, std::milli>(RClock::now() - t0).count() >= budgetMs) break;
+    }
+    m_keptStats.freed += static_cast<long>(n);
+    m_keptStats.lastFreeMs = std::chrono::duration<double, std::milli>(RClock::now() - t0).count();
+    m_keptStats.maxFreeMs = std::max(m_keptStats.maxFreeMs, m_keptStats.lastFreeMs);
+    return n;
+}
+
+WaterCoreGpu::KeptStats WaterCoreGpu::keptStats() const {
+    KeptStats s = m_keptStats;
+    s.sets = m_kept.size(); s.queuedBuffers = m_releaseQueue.size(); s.heldBytes = 0; s.queuedBytes = 0;
+    for (const auto& [h, set] : m_kept) for (const Buffer& b : set.bufs) s.heldBytes += static_cast<unsigned long long>(b.held);
+    for (const Buffer& b : m_releaseQueue) s.queuedBytes += static_cast<unsigned long long>(b.held);
+    return s;
 }
 
 std::vector<WaterCoreGpu::Buffer*> WaterCoreGpu::allBuffers(Volume& vol) {

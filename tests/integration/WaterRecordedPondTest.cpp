@@ -208,6 +208,145 @@ TEST_F(WaterRecordedPondTest, AWakeWithOneUploadStepsTheSameAsWithTwo) {
     EXPECT_TRUE(moved) << "the kick did not move the water: the comparison would pass on a still pond";
 }
 
+namespace {
+using Cols = std::map<std::pair<int, int>, std::vector<ColumnRun>>;
+// the number of columns whose runs differ (bottom or top, bit for bit); -1 if the column sets differ
+long columnsDiffering(const Cols& a, const Cols& b) {
+    if (a.size() != b.size()) return -1;
+    long n = 0;
+    for (const auto& [k, v] : a) {
+        const auto it = b.find(k);
+        if (it == b.end()) return -1;
+        bool diff = it->second.size() != v.size();
+        for (size_t i = 0; !diff && i < v.size(); ++i) diff = it->second[i].bottomY != v[i].bottomY || it->second[i].topY != v[i].topY;
+        if (diff) ++n;
+    }
+    return n;
+}
+struct RestoreLocality { WaterLocality saved = WaterCoreManager::s_locality; ~RestoreLocality() { WaterCoreManager::s_locality = saved; WaterCoreGpu::s_keptSkipsClearForTest = false; } };
+}  // namespace
+
+// L3 (41): a pond that sleeps near the viewer keeps its GPU buffers and its next wake takes them - no allocation, no pool grow. The
+// same 12 x 12 m pond (more bricks than a new volume's 510 slots, so a fresh wake grows), slept and woken with the memory freed
+// (the control: today's path) and kept, kicked and stepped 40 ticks: the written record must match byte for byte. Then the kept
+// path with an adopted buffer's zero fill skipped (s_keptSkipsClearForTest): reported, to show whether the equality half sees it.
+TEST_F(WaterRecordedPondTest, AWakeOnKeptMemoryStepsTheSameAsAFreshOne) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    RestoreLocality restore;
+    Cols written[3];
+    long grows[3] = {0, 0, 0}, allocated[3] = {0, 0, 0};
+    bool hit[3] = {false, false, false};
+    for (int run = 0; run < 3; ++run) {
+        WaterCoreManager::s_locality.testKeepMemoryOff = run == 0;
+        WaterCoreGpu::s_keptSkipsClearForTest = run == 2;
+        WaterCoreManager mgr{[](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; }};
+        std::string err;
+        ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        mgr.setViewPoint(glm::vec3(6.0f, 2.0f, 6.0f));
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(11, 2, 11), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_NE(id, 0) << err;
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(11, 0, 11), 1.0f, nullptr);
+        mgr.addRadialImpulse(glm::vec3(3.0f, 1.0f, 3.0f), 1.5f, 2.0f, 0.5f);   // its first life moves, so a kept buffer holds stale water
+        AvRecord rec;
+        for (int k = 0; k < 20; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        WriteBackRecord wb = mgr.sleep(id, true);
+        ASSERT_TRUE(wb.ok) << wb.error;
+        const auto km0 = mgr.keptMemoryStats();
+        const long grows0 = mgr.gpuGrowSplit().grows;
+        MovingSolid stone; stone.centre = glm::vec3(6.0f, 1.6f, 6.0f); stone.halfExtents = glm::vec3(1.0f / 6.0f); stone.velocity = glm::vec3(0.0f, -3.0f, 0.0f);
+        const auto ids = mgr.wakeSleptTouching({stone});
+        ASSERT_EQ(ids.size(), 1u);
+        mgr.addRadialImpulse(glm::vec3(6.0f, 1.0f, 6.0f), 1.5f, 2.0f, 0.5f);
+        mgr.step(ids[0], 1, 1.0f / 60.0f, &rec);   // the first step uploads the seeded grid (39.7): the grow, if any, is here
+        const auto km1 = mgr.keptMemoryStats();
+        grows[run] = mgr.gpuGrowSplit().grows - grows0;
+        allocated[run] = km1.buffersAllocated - km0.buffersAllocated;
+        hit[run] = km1.lastWakeHit;
+        for (int k = 0; k < 39; ++k) mgr.step(ids[0], 1, 1.0f / 60.0f, &rec);
+        std::printf("  %s: kept %zu pond(s) %.1f MB at the sleep, wake hit %d, buffers allocated %ld, pool grows %ld, mass %.6f, KE %.6g\n",
+                    run == 0 ? "memory freed (control)" : (run == 1 ? "memory kept" : "kept, no clear (red)"), km0.ponds, km0.heldBytes / 1048576.0,
+                    hit[run] ? 1 : 0, allocated[run], grows[run], static_cast<double>(rec.mass), static_cast<double>(rec.kineticEnergy));
+        wb = mgr.sleep(ids[0], true);
+        ASSERT_TRUE(wb.ok) << wb.error;
+        written[run] = record.cols;
+    }
+    EXPECT_FALSE(hit[0]) << "the control kept its memory";
+    EXPECT_GE(grows[0], 1) << "the fresh wake did not grow: the pond is too small to show the grow the kept path saves";
+    EXPECT_TRUE(hit[1]) << "the kept wake did not take its kept set";
+    EXPECT_EQ(grows[1], 0) << "the kept wake grew its pool";
+    EXPECT_LT(allocated[1], allocated[0] / 4) << "the kept wake still allocated most of its buffers";
+    const long d = columnsDiffering(written[0], written[1]);
+    EXPECT_EQ(d, 0) << "a wake on kept memory wrote a different record than a fresh one (" << d << " columns; -1 = different columns)";
+    std::printf("  red (no clear of adopted buffers): %ld column(s) differ from the control (-1 = different columns)\n", columnsDiffering(written[0], written[2]));
+}
+
+// L3 (41.4 item 2): churn and the cap. One pond slept and woken 12 times on kept memory: after the first wake nothing is allocated
+// but the few buffers made later (lazily), the kept bytes stay the same. Then three ponds at 0, 40 and 80 m from the viewer with a cap
+// that holds two: the farthest gives its memory up; with memory_m 20 only the nearest keeps it.
+TEST_F(WaterRecordedPondTest, KeptMemoryChurnsWithoutGrowingAndTheCapDropsTheFarthest) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    RestoreLocality restore;
+    WaterCoreManager::s_locality.memoryM = 256.0f; WaterCoreManager::s_locality.memoryCapMb = 4096.0f;
+    WaterCoreManager mgr{[](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; }};
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    FakeRecord record; record.install(mgr);
+    mgr.setViewPoint(glm::vec3(4.0f, 2.0f, 4.0f));
+    auto pond = [&](int x0) {
+        const int id = mgr.create(glm::ivec3(x0, 0, 0), glm::ivec3(x0 + 7, 2, 7), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        EXPECT_NE(id, 0) << err;
+        mgr.placeBox(glm::ivec3(x0, 0, 0), glm::ivec3(x0 + 7, 0, 7), 1.0f, nullptr);
+        AvRecord rec; for (int k = 0; k < 5; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        EXPECT_TRUE(mgr.sleep(id, true).ok);
+    };
+    auto wake = [&](float x) {
+        MovingSolid s; s.centre = glm::vec3(x, 1.6f, 4.0f); s.halfExtents = glm::vec3(1.0f / 6.0f); s.velocity = glm::vec3(0.0f, -3.0f, 0.0f);
+        const auto ids = mgr.wakeSleptTouching({s});
+        return ids.empty() ? 0 : ids[0];
+    };
+    pond(0);
+    const unsigned long long held0 = mgr.keptMemoryStats().heldBytes;
+    ASSERT_GT(held0, 0ull) << "the pond beside the viewer did not keep its memory";
+    std::vector<long> alloc;
+    for (int c = 0; c < 12; ++c) {
+        const long a0 = mgr.keptMemoryStats().buffersAllocated;
+        const int id = wake(4.0f);
+        ASSERT_NE(id, 0);
+        EXPECT_TRUE(mgr.keptMemoryStats().lastWakeHit) << "cycle " << c;
+        AvRecord rec; for (int k = 0; k < 5; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        ASSERT_TRUE(mgr.sleep(id, true).ok);
+        alloc.push_back(mgr.keptMemoryStats().buffersAllocated - a0);
+        EXPECT_EQ(mgr.keptMemoryStats().heldBytes, held0) << "cycle " << c << ": the kept bytes changed";
+        mgr.updateKeptMemory(-1.0);   // what was not adopted, freed
+    }
+    std::printf("  churn: kept %.2f MB; buffers allocated per cycle:", held0 / 1048576.0);
+    for (long a : alloc) std::printf(" %ld", a);
+    std::printf("\n");
+    for (size_t c = 1; c < alloc.size(); ++c) EXPECT_EQ(alloc[c], alloc[0]) << "cycle " << c << ": the allocations grow with the churn";
+    EXPECT_LE(alloc[0], 3) << "a kept wake still allocates";
+    // the cap: two of three fit
+    pond(40); pond(80);
+    EXPECT_EQ(mgr.keptMemoryStats().ponds, 3u);
+    WaterCoreManager::s_locality.memoryCapMb = static_cast<float>(2.5 * held0 / 1048576.0);
+    mgr.updateKeptMemory(-1.0);
+    const auto km = mgr.keptMemoryStats();
+    std::printf("  cap %.1f MB: %zu ponds kept, %.1f MB, released by the cap %ld\n", WaterCoreManager::s_locality.memoryCapMb, km.ponds, km.heldBytes / 1048576.0, km.releasedCap);
+    EXPECT_EQ(km.ponds, 2u);
+    EXPECT_EQ(km.releasedCap, 1);
+    ASSERT_NE(wake(84.0f), 0); EXPECT_FALSE(mgr.keptMemoryStats().lastWakeHit) << "the farthest pond kept its memory over the cap";
+    // the reach: from 20 m only the nearest
+    WaterCoreManager::s_locality.memoryM = 20.0f;
+    mgr.updateKeptMemory(-1.0);
+    EXPECT_EQ(mgr.keptMemoryStats().ponds, 1u);
+    EXPECT_GE(mgr.keptMemoryStats().releasedFar, 1);
+    ASSERT_NE(wake(44.0f), 0); EXPECT_FALSE(mgr.keptMemoryStats().lastWakeHit) << "a pond 36 m away kept its memory with memory_m 20";
+    ASSERT_NE(wake(4.0f), 0); EXPECT_TRUE(mgr.keptMemoryStats().lastWakeHit) << "the pond at the viewer lost its memory";
+    EXPECT_EQ(mgr.keptMemoryStats().ponds, 0u);
+}
+
 // 39.10: the upload's host work (host copies, the all-ground marking, scatterSlots) and the CPU surface extraction split over
 // threads. The same dam break, uploaded and stepped by a manager on one thread and by one on eight, must write the same record
 // byte for byte; the second half sleeps and wakes it (the seeded upload) and steps again. 54 x 27 x 72 cells: over the threshold.

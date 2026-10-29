@@ -506,6 +506,15 @@ public:
                             /// L3 (41): what the last volume to sleep held when it slept, and gave back (device-local / host-visible bytes)
                             unsigned long long lastSleptDeviceBytes = 0, lastSleptHostBytes = 0; size_t lastSleptBuffers = 0; size_t lastSleptSlots = 0; };
     const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }
+    /// L3 (41): kept memory - ponds whose GPU buffers wait for their next wake (by box), and what happened to them
+    struct KeptMemoryStats { size_t ponds = 0; unsigned long long heldBytes = 0, releasingBytes = 0; long kept = 0, hits = 0, misses = 0,
+                             releasedFar = 0, releasedCap = 0, releasedOrphan = 0, releasedOom = 0, buffersAdopted = 0, buffersAllocated = 0;
+                             bool lastWakeHit = false; double lastSleepFreeMs = 0.0, maxPumpMs = 0.0; };
+    KeptMemoryStats keptMemoryStats() const;
+    /// L3 (41): how long a frame may spend freeing given-up kept buffers (ms); 41.4 item 3
+    static constexpr double kKeptFreeMsPerFrame = 1.0;
+    /// L3 (41): the release rule run now (also run by update) - orphans, beyond memoryM, over the cap; then the paced free
+    void updateKeptMemory(double freeBudgetMs = kKeptFreeMsPerFrame);
     /// 32 / 36 (A2d): the shipped default - a body moving into a slept pond wakes it (A1's push then works in a pond that slept).
     /// Pinned by WaterWakeDefault.TouchingASleptPondWakesItByDefault.
     static constexpr bool kWakeOnTouchByDefault = true;
@@ -765,6 +774,11 @@ private:
     MicroStateQuery m_state;
     int m_occThreads = 1;   ///< 39: setStateQueryThreadSafe
     bool m_createLeavesUploadToStep = false;   ///< 39.7: set by wakeSlept around its create (the seed follows)
+    struct KeptEntry { glm::ivec3 lo{0}, hi{0}; int handle = 0; };   ///< L3 (41): a slept box's kept GPU set (WaterCoreGpu handle)
+    std::vector<KeptEntry> m_kept;
+    int m_adoptForCreate = 0;   ///< L3 (41): set by wakeSlept around its create: the kept set the new volume takes its buffers from
+    size_t m_slotsForCreate = 0;   ///< L3 (41): ... and the slot count to start at (the set's)
+    KeptMemoryStats m_keptMem;
     SolidsRevisionQuery m_revision;
     SolidsChangesQuery m_changes;   // 26.19
     /// 26.19: re-sample only the cells of the changed boxes; patch what differs (grid, cache, GPU in place)

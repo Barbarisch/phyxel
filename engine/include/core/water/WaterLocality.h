@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 #include <glm/glm.hpp>
 
 namespace Phyxel {
@@ -21,8 +22,18 @@ struct WaterLocality {
     static constexpr float kDrawMMax = 256.0f;                 ///< water_av_record_draw's range: the record cache's reach
     static constexpr int kRippleWindowCellsMin = 9, kRippleWindowCellsMax = 512;   ///< one voxel; the renderer's atlas side
 
+    /// L3 (41): a GPU pond that sleeps within memoryM of the viewer (horizontal, to its box) keeps its device buffers for its next
+    /// wake, up to memoryCapMb in all. Cost only: a wake on kept memory makes the same volume, cell for cell (WaterKeptMemory).
+    static constexpr float kMemoryMDefault = 48.0f;            ///< = kDrawMDefault: a pond you can see keeps its memory; pinned
+    static constexpr float kMemoryCapMbDefault = 256.0f;       ///< ~3 of 41.1's 8 m pits or ~20 small ponds; pinned
+    static constexpr float kMemoryMMax = 1024.0f;              ///< the occupancy box's span (kDirChunksX x 32 m)
+    static constexpr float kMemoryCapMbMax = 4096.0f;          ///< a bound on what the water may hold back from the rest of the device
+
     float drawM = kDrawMDefault;
     int rippleWindowCells = kRippleWindowCellsDefault;
+    float memoryM = kMemoryMDefault;
+    float memoryCapMb = kMemoryCapMbDefault;
+    bool testKeepMemoryOff = false;   ///< 41 TEST: free at sleep as before L3 (the control); never saved, echoed
     /// 40.1 item 5 TEST: the water's viewer without moving the camera (the camera also moves the occupancy box, streaming and the
     /// capture). Never saved; echoed by water_locality.
     bool testViewerOn = false;
@@ -50,6 +61,36 @@ struct WaterLocality {
         if (d >= farM) return 0.0f;
         const float t = (d - nearM) / (farM - nearM);
         return 1.0f - t * t * (3.0f - 2.0f * t);
+    }
+
+    /// L3 (41): one kept set, as the release rule sees it
+    struct KeptBox { glm::ivec3 lo{0}, hi{0}; unsigned long long heldBytes = 0; };
+    /// L3 (41): which kept sets to release (indices into `kept`, ascending): every one whose box is beyond memoryM, then, while the
+    /// rest hold more than the cap, the farthest first. Equal distances are ordered by the box's own position (lo x, z, y), never by
+    /// the list's order, so which pond keeps its memory never depends on the order ponds slept in.
+    static std::vector<size_t> keptToRelease(const std::vector<KeptBox>& kept, const glm::vec3& viewer, float memoryM, float capMb) {
+        std::vector<size_t> out, keep;
+        std::vector<float> d(kept.size());
+        for (size_t i = 0; i < kept.size(); ++i) {
+            d[i] = horizontalDistanceToBox(viewer, glm::vec2(kept[i].lo.x, kept[i].lo.z), glm::vec2(kept[i].hi.x + 1, kept[i].hi.z + 1));
+            if (memoryM <= 0.0f || d[i] > memoryM) out.push_back(i); else keep.push_back(i);
+        }
+        // nearest first; ties by position
+        std::sort(keep.begin(), keep.end(), [&](size_t a, size_t b) {
+            if (d[a] != d[b]) return d[a] < d[b];
+            const glm::ivec3 &p = kept[a].lo, &q = kept[b].lo;
+            if (p.x != q.x) return p.x < q.x;
+            if (p.z != q.z) return p.z < q.z;
+            return p.y < q.y;
+        });
+        const double cap = static_cast<double>(std::max(0.0f, capMb)) * 1024.0 * 1024.0;
+        double held = 0.0;
+        for (size_t i : keep) {
+            if (held + static_cast<double>(kept[i].heldBytes) <= cap) held += static_cast<double>(kept[i].heldBytes);
+            else out.push_back(i);   // over the cap: this one and (by the order) every farther one that does not fit
+        }
+        std::sort(out.begin(), out.end());
+        return out;
     }
 };
 

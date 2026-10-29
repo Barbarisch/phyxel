@@ -24,6 +24,41 @@ TEST(WaterLocality, TheDefaultsAreTheTwoDistancesItTookOver) {
     EXPECT_FALSE(WaterCoreManager::s_locality.testViewerOn) << "a test left the test viewer on";
 }
 
+// L3 (41.4 item 8): the kept-memory reach and cap
+TEST(WaterLocality, TheMemoryDefaultsArePinned) {
+    EXPECT_FLOAT_EQ(WaterLocality::kMemoryMDefault, 48.0f);
+    EXPECT_FLOAT_EQ(WaterLocality::kMemoryMDefault, WaterLocality::kDrawMDefault) << "41.2: a pond you can see keeps its memory";
+    EXPECT_FLOAT_EQ(WaterLocality::kMemoryCapMbDefault, 256.0f);
+    const WaterLocality fresh;
+    EXPECT_FLOAT_EQ(fresh.memoryM, WaterLocality::kMemoryMDefault);
+    EXPECT_FLOAT_EQ(fresh.memoryCapMb, WaterLocality::kMemoryCapMbDefault);
+    EXPECT_FALSE(fresh.testKeepMemoryOff);
+    EXPECT_FLOAT_EQ(WaterCoreManager::s_locality.memoryM, WaterLocality::kMemoryMDefault) << "a test left the memory reach changed";
+    EXPECT_FLOAT_EQ(WaterCoreManager::s_locality.memoryCapMb, WaterLocality::kMemoryCapMbDefault) << "a test left the cap changed";
+    EXPECT_FALSE(WaterCoreManager::s_locality.testKeepMemoryOff) << "a test left kept memory off";
+}
+
+// L3 (41.3): the release rule - beyond the reach released; over the cap the nearest are kept first; ties by position, never by order
+TEST(WaterLocality, KeptMemoryIsReleasedByDistanceThenByTheCap) {
+    using KB = WaterLocality::KeptBox;
+    const unsigned long long MB = 1024ull * 1024ull;
+    const glm::vec3 viewer(0.0f, 10.0f, 0.0f);
+    // boxes at 0 (the viewer inside), ~10, ~30 and ~60 m east, negative z included
+    const std::vector<KB> kept = {{{-4, 0, -4}, {3, 2, 3}, 40 * MB}, {{10, 0, -8}, {17, 2, -1}, 40 * MB},
+                                  {{30, 0, 0}, {37, 2, 7}, 40 * MB}, {{60, 0, -20}, {67, 2, -13}, 40 * MB}};
+    EXPECT_TRUE(WaterLocality::keptToRelease(kept, viewer, 1024.0f, 4096.0f).empty()) << "all within the reach and the cap";
+    EXPECT_EQ(WaterLocality::keptToRelease(kept, viewer, 48.0f, 4096.0f), (std::vector<size_t>{3})) << "beyond 48 m";
+    EXPECT_EQ(WaterLocality::keptToRelease(kept, viewer, 1024.0f, 100.0f), (std::vector<size_t>{2, 3})) << "the cap holds two: the farthest go";
+    EXPECT_EQ(WaterLocality::keptToRelease(kept, viewer, 0.0f, 4096.0f).size(), 4u) << "a reach of 0 keeps nothing";
+    EXPECT_EQ(WaterLocality::keptToRelease(kept, viewer, 1024.0f, 0.0f).size(), 4u) << "a cap of 0 keeps nothing";
+    // two at the same distance, room for one: the same one wins in either list order (the lower x)
+    const std::vector<KB> tie = {{{20, 0, 0}, {27, 2, 7}, 40 * MB}, {{-28, 0, 0}, {-21, 2, 7}, 40 * MB}};
+    const std::vector<KB> tieSwapped = {tie[1], tie[0]};
+    const glm::vec3 mid(0.0f, 0.0f, 4.0f);
+    EXPECT_EQ(WaterLocality::keptToRelease(tie, mid, 1024.0f, 50.0f), (std::vector<size_t>{0})) << "the box at x 20 goes (x -28 wins the tie)";
+    EXPECT_EQ(WaterLocality::keptToRelease(tieSwapped, mid, 1024.0f, 50.0f), (std::vector<size_t>{1})) << "the list order picked the winner";
+}
+
 TEST(WaterLocality, TheDistanceToABoxIsZeroInsideAndExactOutside) {
     const glm::vec2 lo(-40.0f, -8.0f), hi(-32.0f, 0.0f);   // an 8 m tile at negative coordinates
     EXPECT_FLOAT_EQ(WaterLocality::horizontalDistanceToBox(glm::vec3(-36.0f, 99.0f, -4.0f), lo, hi), 0.0f) << "inside (height ignored)";
