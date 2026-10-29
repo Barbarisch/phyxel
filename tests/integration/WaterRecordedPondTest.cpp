@@ -543,6 +543,73 @@ TEST_F(WaterRecordedPondTest, TheFrameAfterAnUploadDrawsTheUploadedState) {
     EXPECT_FALSE(equal[1]) << "the control drew the uploaded state too: the kick did not move the water in the first call, so the test cannot tell the two apart";
 }
 
+// A10 (44.2 step 1(a), 44.5): the bodies' box uploaded with the next step (no fence wait in setSolidsBox), only its CHANGED cells
+// copied and the wake aged on the device, makes the same water as the whole box uploaded in a call of its own (the path before,
+// s_solidUploadSyncForTest): a 1/3 m stone driven down and across an 8 x 8 m pond, 24 frames of displacement then 24 without (the
+// wake still ageing), the drawn field byte-equal. Control: the same frames with no body - the field must differ
+// (the stone moved the water, else the test measures nothing).
+TEST_F(WaterRecordedPondTest, ABodysBoxUploadedWithTheStepMakesTheSameWaterAsAnUploadOfItsOwn) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct RestoreSync { ~RestoreSync() { WaterCoreGpu::s_solidUploadSyncForTest = false; WaterCoreGpu::s_skipWakeAgeForTest = false; } } restoreSync;
+    std::vector<SurfaceColumn> field[4];
+    double mass[4] = {};
+    long wakeDiff[4] = {}, wakeCells[4] = {};
+    // 0 folded, 1 sync (the control path), 2 no body (the metric's control), 3 folded with the device's aging skipped (the red)
+    for (int run = 0; run < 4; ++run) {
+        WaterCoreGpu::s_solidUploadSyncForTest = run == 1;
+        WaterCoreGpu::s_skipWakeAgeForTest = run == 3;
+        WaterCoreManager mgr{[](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; }};
+        std::string err;
+        ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        mgr.setDroplets(false);
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(7, 2, 7), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_NE(id, 0) << err;
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(7, 0, 7), 1.0f, nullptr);
+        mgr.setAutoSleep(id, false);
+        AvRecord rec;
+        for (int k = 0; k < 10; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);   // settle the fill first
+        for (int k = 0; k < 48; ++k) {
+            std::vector<MovingSolid> bodies;
+            if (run != 2 && k < 24) {
+                MovingSolid b; b.id = 7; b.halfExtents = glm::vec3(1.0f / 6.0f); b.velocity = glm::vec3(0.0f, -1.5f, 0.0f);
+                // from above the water (top 1.0) to the bed, and sideways 1.4 m: its wake trail leaves the copied box (44.5: the
+                // device ages those cells on its own - this is what the equality checks)
+                b.centre = glm::vec3(2.5f + 0.06f * k, 1.4f - 0.025f * k, 4.0f);
+                bodies.push_back(b);
+            }
+            mgr.setMovingSolids(bodies, 1.0f / 60.0f);
+            mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        }
+        mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        const WaterSurfaceField* f = nullptr;
+        for (const WaterSurfaceField* p : mgr.surfaceFields()) if (p && p->source == id) f = p;
+        ASSERT_NE(f, nullptr);
+        field[run] = f->cols; mass[run] = mgr.totalMass();   // (a still pond sleeps: its step fills no record)
+        // 44.5: the device's wake against the CPU's, cell for cell, bit for bit - the water above only feels the wake in rare
+        // trapped-air voids, so this is the check that the device ages it right
+        std::vector<float> dev, cpu;
+        ASSERT_TRUE(mgr.readSolidsForTest(id, dev, cpu));
+        for (size_t i = 0; i < cpu.size() && i * 4 + 2 < dev.size(); ++i) {
+            if (cpu[i] > 0.0f) ++wakeCells[run];
+            if (dev[i * 4 + 2] != cpu[i]) ++wakeDiff[run];
+        }
+    }
+    std::printf("  the wake, device vs CPU: folded %ld of %ld cells differ; sync %ld of %ld; the red (no device aging) %ld of %ld\n",
+                wakeDiff[0], wakeCells[0], wakeDiff[1], wakeCells[1], wakeDiff[3], wakeCells[3]);
+    EXPECT_GT(wakeCells[0], 100) << "the stone left a wake (else the check is empty)";
+    EXPECT_EQ(wakeDiff[0], 0) << "the device's wake is not the CPU's";
+    EXPECT_EQ(wakeDiff[1], 0);
+    EXPECT_GT(wakeDiff[3], 0) << "the red: without the device's aging the wake must differ";
+    ASSERT_EQ(field[0].size(), field[1].size());
+    const bool equal = std::memcmp(field[0].data(), field[1].data(), field[0].size() * sizeof(SurfaceColumn)) == 0;
+    const bool moved = field[2].size() != field[0].size() || std::memcmp(field[0].data(), field[2].data(), field[0].size() * sizeof(SurfaceColumn)) != 0;
+    std::printf("  folded vs its own call: field %s, mass %.6f vs %.6f; no body: %s (mass %.6f)\n", equal ? "byte-equal" : "DIFFERS",
+                mass[0], mass[1], moved ? "differs (the stone moved the water)" : "THE SAME", mass[2]);
+    EXPECT_TRUE(equal) << "the folded upload changed the water";
+    EXPECT_DOUBLE_EQ(mass[0], mass[1]);
+    EXPECT_TRUE(moved) << "the control: without the stone the water is the same - the test cannot see displacement";
+}
+
 // L2 (43.2, 43.3 items 5 and 8): a GPU pond's ripple layer, stepped on the ripple GPU (12 x 12 m: 11,664 lattice cells, over
 // kRippleGpuMinCells), is dropped when the viewer leaves the reach and its device state is freed; 20 fly-aways hold no more than
 // the one state. Made again when the viewer comes back.

@@ -130,20 +130,26 @@ def stress(api, seconds, n_per, spots):
     # 34: from the spawn pose, as the single drops - a slot the stone scene held opened the log at the stone's rest (15.166) and read
     # as a 1.83 m "rise" (17.0 - 15.166, exactly); a slot with no row at the spawn height is counted, not measured
     trimmed = {s: from_spawn(r, PIT_LEVEL + 1.0) for s, r in bodies.items()}
+    # 44.4: "unmatched" counts LOG TRACKS with no row at the spawn height - in a second run in one session ~1,000 of them are the
+    # last run's bodies, logged for the frames before clear_dynamics took effect; what the rise check covers is `matched` of `spawned`
     unmatched = sum(1 for r in trimmed.values() if not r)
+    spawned = n_per * len(spots)
+    # the check of that reading: where the unmatched tracks start (a resting pile in the pit sits ~12-16 m; a spawn at 17.0)
+    um_y = sorted(bodies[s][0][1] for s, r in trimmed.items() if not r and bodies[s])
+    um_start = {"n": len(um_y), "min_y": um_y[0], "median_y": um_y[len(um_y) // 2], "max_y": um_y[-1]} if um_y else None
     st = {s: body_stats(r, a, PIT_LEVEL) for s, r in trimmed.items() if r}
     rise = [b["peak_y_after_entry"] - b["spawn_y"] for b in st.values() if b["entered"]]
     over = [s for s in rows if s["asked"] > 1024]
     # every rasterized body holds a window, at every sample (the invariant); refused_no_window counts only DISPLACING bodies refused,
     # so it is <= asks - windows, not equal
     exact = all(s["rasterized"] <= s["windows"] and (s["refused_no_window"] or 0) <= s["asked"] - s["windows"] for s in rows)
-    out = {"bodies": len(st), "unmatched_slots": unmatched, "displace": w.DISPLACE, "entered": len(rise), "max_rise_above_spawn_m": max(rise) if rise else None,
+    out = {"bodies": len(st), "spawned": spawned, "matched": min(len(st), spawned), "unmatched_slots": unmatched, "unmatched_start": um_start, "displace": w.DISPLACE, "entered": len(rise), "max_rise_above_spawn_m": max(rise) if rise else None,
            "samples_over_cap": len(over), "refused_exact": exact,
            "asked_max": max(s["asked"] for s in rows), "windows_max": max(s["windows"] for s in rows),
            "refused_no_window_max": max((s["refused_no_window"] or 0) for s in rows),
            "fps_min": min(s["fps"] for s in rows), "fps_mean": sum(s["fps"] for s in rows) / len(rows),
            "cpu_ms_mean": sum(s["cpu_ms"] for s in rows) / len(rows), "samples": rows[::5]}
-    print(f"  stress (displace {'on' if w.DISPLACE else 'off'}): {out['bodies']} bodies ({out['entered']} entered, {unmatched} slots unmatched) max rise above spawn {out['max_rise_above_spawn_m']}"
+    print(f"  stress (displace {'on' if w.DISPLACE else 'off'}): {out['bodies']} of {spawned} spawned matched ({out['entered']} entered; {unmatched} other log tracks, starting {um_start}) max rise above spawn {out['max_rise_above_spawn_m']}"
           f" | asked max {out['asked_max']} windows max {out['windows_max']} refused max {out['refused_no_window_max']}"
           f" samples over the cap {out['samples_over_cap']} rasterized <= windows at every sample: {exact} | fps mean {out['fps_mean']:.0f} min {out['fps_min']:.0f}"
           f" CPU {out['cpu_ms_mean']:.2f} ms", flush=True)

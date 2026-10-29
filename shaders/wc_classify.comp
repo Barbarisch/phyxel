@@ -41,6 +41,15 @@ bool bodyWall(int x, int y, int z) {
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
+    if (pc.mode == 3) {
+        // 44.5 THE WAKE AGES ON THE DEVICE (WaterSolver::updateSolidFields' first loop, w = max(0, w - T), param0 = T): every stored
+        // cell (iparam = cells), once per bodies' upload, before the copy that overwrites the cells a body changed - so only those
+        // cross the bus, not the whole trail. The same single subtraction and max as the CPU (bit-equal: the equality test).
+        if (id >= uint(pc.iparam)) return;
+        const float z = solid[id].z;
+        if (z > 0.0) solid[id].z = max(0.0, z - pc.param0);
+        return;
+    }
     if (pc.mode == 2) {
         // 26.9 THE STILL-WATER FIRST GUESS (column threads, after mode 0 has classified every cell). Down each column, a
         // stack of liquid cells under air starts at g x theta x h (the same surface distance as the matrix row) and adds

@@ -680,6 +680,8 @@ public:
     /// L2: who holds which slot (volume id, its layer's origin and side in lattice cells)
     struct RippleSlotInfo { int slot = -1, volumeId = 0; glm::ivec2 origin{0}; int nx = 0, nz = 0; };
     std::vector<RippleSlotInfo> rippleSlots() const;
+    /// 44.5 TEST: volume `id`'s bodies' fields on the device (dense, 4 floats a cell: s, q, wake, ledger) and the CPU solver's wake
+    bool readSolidsForTest(int id, std::vector<float>& device, std::vector<float>& cpuWake);
     /// TEST: a droplet's impulse (RippleLayer::addImpulse, as a landing applies it) into every layer over world (x, z); the
     /// layers that took it. On a 1/9 m volume the grid holds a body itself, so the kinematic remainder is 0 - a test needs this.
     int kickRipplesForTest(float x, float z, float impulse) {

@@ -912,7 +912,7 @@ TEST_F(WaterCoreGpuParityTest, GpuBoxedSolidsEqualTheWhole) {
         aux.updateSolidFields(bodies, kDt);
         const WaterSolver::CellBox& box = aux.solidActiveBox();
         gpu.setSolids(*va, a.grid.sData(), aux.solidWake(), aux.solidFresh(), kDt);
-        gpu.setSolidsBox(*vb, a.grid.sData(), aux.solidWake(), aux.solidFresh(), kDt, box.lo, box.hi);
+        gpu.setSolidsBox(*vb, a.grid.sData(), aux.solidWake(), aux.solidFresh(), kDt, box.lo, box.hi, box.lo, box.hi);   // 44.5: the whole box as changed (correct, not minimal)
         gpu.step(*va, prm, kDt, 1, 27); gpu.step(*vb, prm, kDt, 1, 27);
         for (const char* what : {"solid_s", "solid_q", "solid_wake", "solid_ledger"}) {
             gpu.readCells(*va, what, sa); gpu.readCells(*vb, what, sb);

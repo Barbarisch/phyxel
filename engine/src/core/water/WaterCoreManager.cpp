@@ -1108,7 +1108,8 @@ WaterCoreManager::SolidsFeed WaterCoreManager::setMovingSolids(const std::vector
             WaterHostProfile::lap("solids.3 solid fields (raster, wake)", hs);
             static const std::vector<float> kNoWake;
             const WaterSolver::CellBox& box = av.solver->solidActiveBox();   // 26.12: only where a body is, was, or left its wake
-            m_gpu->setSolidsBox(*av.gpuVol, av.grid->sData(), m_solidWakeRule ? av.solver->solidWake() : kNoWake, av.solver->solidFresh(), frameSeconds, box.lo, box.hi);
+            const WaterSolver::CellBox& ch = av.solver->solidChangedBox();   // 44.5: only these cells are copied
+            m_gpu->setSolidsBox(*av.gpuVol, av.grid->sData(), m_solidWakeRule ? av.solver->solidWake() : kNoWake, av.solver->solidFresh(), frameSeconds, ch.lo, ch.hi, box.lo, box.hi);
             WaterHostProfile::lap("solids.4 upload the box", hs);
             if (rep.raster.cells > 0 || rep.wakeCells > 0 || rep.sChange > 0.0) av.gpuLast.asleep = false;   // setSolids woke the device volume
         } else {
@@ -2387,6 +2388,15 @@ std::vector<const RippleLayer*> WaterCoreManager::rippleLayers() const {
     for (const auto& av : m_avs)
         if (av->ripple && av->rippleSlot >= 0 && av->rippleSlot < kRippleMaxLayers) out[av->rippleSlot] = av->ripple.get();
     return out;
+}
+
+bool WaterCoreManager::readSolidsForTest(int id, std::vector<float>& device, std::vector<float>& cpuWake) {
+    for (auto& av : m_avs) {
+        if (av->id != id || !av->gpuVol || !m_gpu) continue;
+        cpuWake = av->solver->solidWake();
+        return m_gpu->readSolidForTest(*av->gpuVol, device);
+    }
+    return false;
 }
 
 std::vector<WaterCoreManager::RippleSlotInfo> WaterCoreManager::rippleSlots() const {

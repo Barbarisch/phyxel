@@ -14664,6 +14664,8 @@ void Application::registerWaterCommands() {
         const bool pressureRefused = cmd.params.contains("pressure_force") && !cmd.params.value("pressure_force", true);
         m_pressureForceOn = true;
         if (cmd.params.contains("displace")) m_displaceOn = cmd.params.value("displace", true);   // 31 TEST: bodies recorded but not rasterized
+        // 44.2 step 1(a) TEST: the bodies' box uploaded in a call of its own, waiting twice (the path before the fold) - the A/B control
+        if (cmd.params.contains("test_solid_upload_sync")) Core::Water::WaterCoreGpu::s_solidUploadSyncForTest = cmd.params.value("test_solid_upload_sync", false);
         if (cmd.params.contains("wake_on_touch")) Core::Water::WaterCoreManager::s_wakeOnTouch = cmd.params.value("wake_on_touch", true);   // 32: the A/B control
         // 33 (A2g) TEST: refuse every pressure window (as over budget) - forces the push's fallback; not saved, echoed
         if (cmd.params.contains("test_refuse_windows")) Core::Water::WaterCoreManager::s_refuseWindowsForTest = cmd.params.value("test_refuse_windows", false);
@@ -14701,7 +14703,7 @@ void Application::registerWaterCommands() {
         const auto& sf = m_solidsFeed;
         const auto* gp = debrisRuntime ? debrisRuntime->gpu() : nullptr;
         r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn}, {"solids", m_waterSolidsOn}, {"wake_rule", waterCore ? waterCore->solidWakeRule() : true},
-             {"displace", m_displaceOn},
+             {"displace", m_displaceOn}, {"test_solid_upload_sync", Core::Water::WaterCoreGpu::s_solidUploadSyncForTest},
              {"slept", [&] {   // 32: ponds that slept into the record and wake when touched
                  nlohmann::json s = {{"wake_on_touch", Core::Water::WaterCoreManager::s_wakeOnTouch},
                                      {"wake_on_touch_default", Core::Water::WaterCoreManager::kWakeOnTouchByDefault},   // 36: a session that differs shows

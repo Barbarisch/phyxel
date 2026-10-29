@@ -465,6 +465,9 @@ public:
     /// and were 0. Empty when hi < lo. A GPU volume uploads only the bricks it touches.
     struct CellBox { glm::ivec3 lo{0}, hi{-1}; bool empty() const { return hi.x < lo.x || hi.y < lo.y || hi.z < lo.z; } };
     const CellBox& solidActiveBox() const { return m_solidActive; }
+    /// 44.5: the cells the last updateSolidFields changed other than by the wake's aging (the bodies' cells now and before, grown by
+    /// kSolidWakeCells) - a GPU volume copies only these and ages the wake on the device
+    const CellBox& solidChangedBox() const { return m_solidChanged; }
     /// 26.12 test hook: updateSolidFields over the whole grid every call (the reference the box must equal bit for bit).
     static inline bool s_solidFieldsWhole = false;
 
@@ -513,6 +516,7 @@ private:
     std::vector<float> m_solidWake;      // 20: seconds left in which a body's dragged air may rise out of this cell
     std::vector<float> m_sNew;           // 26.12: the raster's scratch, kept (zero outside the box it last used)
     CellBox m_solidBox;                  // 26.12: every cell with s, wake or fresh non-zero lies inside it
+    CellBox m_solidChanged, m_rasterPrev;   // 44.5: see solidChangedBox; the bodies' raster cells last call
     CellBox m_solidActive;               // 26.12: the box the last call worked in
     std::vector<BoundarySpec> m_boundaries;   // Phase G
     std::vector<double> m_p, m_rhs, m_z, m_s, m_r, m_diag;   // projection scratch (double)

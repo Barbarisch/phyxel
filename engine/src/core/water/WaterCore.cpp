@@ -1556,6 +1556,7 @@ WaterSolver::SolidsReport WaterSolver::updateSolidFields(const std::vector<Movin
     const float T = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
     const int r = kSolidWakeCells;
     CellBox act;
+    CellBox rast;   // 44.5: the bodies' own cells this call (their raster ranges), before the trail is merged in
     if (s_solidFieldsWhole) { act.lo = glm::ivec3(0); act.hi = glm::ivec3(nx - 1, ny - 1, nz - 1); }
     else {
         CellBox u = m_solidBox;
@@ -1568,10 +1569,22 @@ WaterSolver::SolidsReport WaterSolver::updateSolidFields(const std::vector<Movin
             const glm::ivec3 c1(std::min(o.x + nx - 1, static_cast<int>(std::floor(hi.x / h))), std::min(o.y + ny - 1, static_cast<int>(std::floor(hi.y / h))), std::min(o.z + nz - 1, static_cast<int>(std::floor(hi.z / h))));
             if (c1.x < c0.x || c1.y < c0.y || c1.z < c0.z) continue;   // wholly outside the grid
             if (u.empty()) { u.lo = c0 - o; u.hi = c1 - o; } else { u.lo = glm::min(u.lo, c0 - o); u.hi = glm::max(u.hi, c1 - o); }
+            if (rast.empty()) { rast.lo = c0 - o; rast.hi = c1 - o; } else { rast.lo = glm::min(rast.lo, c0 - o); rast.hi = glm::max(rast.hi, c1 - o); }
         }
         if (!u.empty()) { act.lo = glm::max(u.lo - glm::ivec3(r), glm::ivec3(0)); act.hi = glm::min(u.hi + glm::ivec3(r), glm::ivec3(nx - 1, ny - 1, nz - 1)); }
     }
     m_solidActive = act;
+    // 44.5: what this call can change besides the wake's aging - s and fresh only in the bodies' cells now and last call, the
+    // wake's marks only within kSolidWakeCells of a cell whose s fell (a cell of last call's raster). The device ages the wake
+    // itself, so a GPU volume copies only this box (setSolidsBox), not the whole trail the wake keeps for its seconds.
+    if (s_solidFieldsWhole) m_solidChanged = act;
+    else {
+        CellBox ch = rast;
+        if (!m_rasterPrev.empty()) { if (ch.empty()) ch = m_rasterPrev; else { ch.lo = glm::min(ch.lo, m_rasterPrev.lo); ch.hi = glm::max(ch.hi, m_rasterPrev.hi); } }
+        m_solidChanged = CellBox{};
+        if (!ch.empty()) { m_solidChanged.lo = glm::max(ch.lo - glm::ivec3(r), glm::ivec3(0)); m_solidChanged.hi = glm::min(ch.hi + glm::ivec3(r), glm::ivec3(nx - 1, ny - 1, nz - 1)); }
+    }
+    m_rasterPrev = rast;
     rep.raster = rasterizeSolidsIn(m_grid, bodies, m_sNew, m_solidFresh, act.lo, act.hi);
     const std::vector<float>& sNew = m_sNew;
     // the wake (see project: air a body drags under water rises back out): age it, then mark every cell

@@ -224,6 +224,15 @@ public:
         bool  solidRatesPending = false; ///< setSolids uploaded new fields: the next step computes q and the ledger marks first (wc_classify mode 1)
         float solidFrame = 0.0f;         ///< the frame (s) the uploaded bodies cover - q's T
         bool  hasSolids = false;         ///< the buffer holds anything nonzero
+        /// 44.2 step 1(a): the bodies' box waiting for the next step to upload it (hostSolid holds its values), the union of every
+        /// setSolidsBox since that step; the step uploads it after its settle (no fence wait of its own) and re-applies the wake
+        bool  solidUpPending = false;
+        glm::ivec3 solidUpLo{0}, solidUpHi{-1};
+        bool  solidWakePending = false;
+        /// 44.5: the T of every setSolidsBox since the last upload - the device ages the wake by each, in order (wc_classify mode 3),
+        /// so only the cells a body changed are copied; a full upload (uploadPrepare) carries the CPU's aged values and clears it
+        std::vector<float> pendingWakeAges;
+        glm::ivec3 solidWakeLo{0}, solidWakeHi{-1};   ///< the bodies' whole box (s, wake, fresh): the partial wake's columns
         int   solidLowY = 1 << 30;       ///< 27.22e: the lowest grid y a body (or its wake) holds (1 << 30 = none) - the tall floor stays under it
         Buffer stageCap;                 ///< 26.10 test hook: f after each stage of the last tick (host-visible, s_stageCapture)
         Buffer unitCap;                  ///< 26.31 measurement: the unit map (per 8 x 2 x 8 unit: KE, max |df|, mass) of the last call (s_unitCapture)
@@ -365,6 +374,11 @@ public:
     /// 26.32 measurement: count the over-full carry by kind (water_av_list carry_*_m3). Off by default - the step's atomics on
     /// four shared words cost it when a splash over-fills thousands of cells. water_transport {carry_measure}.
     static inline bool s_carryMeasure = false;
+    /// 44.2 step 1(a) TEST: setSolidsBox uploads at once in a call of its own, waiting twice (settle + submitAndWait) - the path before
+    /// the fold; the equality test's control
+    static inline bool s_solidUploadSyncForTest = false;
+    /// 44.5 TEST (the red): the folded upload copies only the changed cells but the device does NOT age the wake
+    static inline bool s_skipWakeAgeForTest = false;
     static inline bool s_stillWaterGuess = true;    // ON (26.10): the resting-body loss was float rounding in the fill store, fixed (fLo)
     /// 26.17: the brick height (cells) a volume gets when its BrickOptions name none - 2, 4 or 8 (bricks are 8 x h x 8). 2 since
     /// 26.17's bench run: the creek at q 0.2 stored 691,200 -> 457,984 cells, GPU 1.83 -> 1.57 ms a call, the water identical
@@ -574,7 +588,13 @@ public:
     /// 26.12: setSolids where only the inclusive grid-cell box [lo, hi] may have changed (WaterSolver::solidActiveBox): the host
     /// copy is updated there and only the stored bricks it touches are uploaded. The device's solid buffer ends identical to
     /// setSolids' (WaterCoreGpuParityTest.GpuBoxedSolidsEqualTheWhole).
+    /// 44.5 TEST: the device's bodies' fields (s, q, wake, ledger) per dense cell, after the call in flight and any pending upload
+    /// (absent bricks: 0) - what the step reads, to compare with the CPU's
+    bool readSolidForTest(Volume& vol, std::vector<float>& dense);
+    /// 44.5: `chLo`..`chHi` = the cells whose s, fresh or wake mark this call changed (WaterSolver::solidChangedBox) - with the fold
+    /// only they are copied (the device ages the wake itself); `lo`..`hi` = every nonzero cell (host copy, wake, the any test)
     void setSolidsBox(Volume& vol, const std::vector<float>& s, const std::vector<float>& wake, const std::vector<uint8_t>& fresh, float frameSeconds,
+                      const glm::ivec3& chLo, const glm::ivec3& chHi,
                       const glm::ivec3& lo, const glm::ivec3& hi);
     /// 26.19: the world changed under the water at `cells` (dense grid indices; `g` holds their new occupancy). Patched IN
     /// PLACE: the host copy, the all-ground flags of their bricks, the solid top of their columns, and the occupancy of the
@@ -715,6 +735,11 @@ private:
     long haloShortAfterCall(const Volume& vol) const;   ///< from the staging water record: bricks within 4 cells of water not stored
     void writeTablesToStaging(Volume& vol) const;
     void scatterSlots(Volume& vol, const std::vector<int>& slots, const WaterGrid* g) const;   ///< staging <- grid / host copies
+    /// 44.2 step 1(a): the pending bodies' box into staging and its copies into `cmd` (the call in flight settled); clears the pending
+    void recordSolidUpload(VkCommandBuffer cmd, Volume& vol);
+    /// the same in a call of its own (a step that returns without recording, or the sync control)
+    void flushSolidUpload(Volume& vol);
+    void applySolidWake(Volume& vol);   ///< the bodies' wake, after a settle's collect (as setSolidsBox did after its own settle)
     void recordSlotUploads(VkCommandBuffer cmd, Volume& vol, const std::vector<int>& slots, bool zero) const;
     /// Move the highest stored bricks into the lowest free slots when the addressed range has grown past the stored count
     /// (the dispatches walk every slot up to the highest used). Records the device copies; returns the bricks moved.

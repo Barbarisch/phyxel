@@ -11274,10 +11274,66 @@ Also corrected: 34.3 said the worst frame came "three times in 12 s" - not measu
 
 Verdict after folding: step 1 READY to build (cost only; item 2's measurement first); steps 2-3 READY except item 4, the owner's.
 
-### 44.4 Found: the pit stress's rise check loses its bodies after the first run (tool defect, 34.3)
+**The owner on item 4 (2026-10-29): "go with your recommendation"** - one gating setting at every tier (the floor, the budget's
+selection, the reach); tiers scale only the pure-cost parts; the distance fade ships only if L5 shows near and far end in the same
+places, else it is dropped.
 
-From the second run in one session, 1,000-1,061 of the 1,100 bodies have no logged row at their spawn height, so the "nothing
-rose" check covers only the rest. It must be fixed before any displacement run is judged on it.
+### 44.4 The pit stress's "unmatched slots" (34.3) - NOT a gap; the reading was wrong
+
+From the second run in one session the stress reported 1,000-1,061 "slots unmatched", and 34.3 read that as bodies the rise check
+missed. It was not: the check's count (`bodies`) was 1,087-1,100 every run. The unmatched entries are EXTRA log tracks: the
+previous run's blocks, logged in the frames before `clear_dynamics` took effect. Measured, not assumed: the tool now prints
+matched of spawned and where the extra tracks start - every one between 15.62 and 16.14 m, the pit's water level (16.0): the last
+run's blocks floating there. In every run since: 1,100 of 1,100 matched. 34.3's no-rise result stands for all its runs.
+
+### 44.5 Step 1 built (2026-10-29): the waits gone, the upload cut to what changed. Status: BUILT, cost only, ON
+
+**Built.**
+- `setSolidsBox` no longer settles or submits: it fills the host copy (`hostSolid`) and remembers the boxes; the step records the
+  upload at the head of its own call, after its settle (`recordSolidUpload`; a step that returns without recording flushes it
+  on its own, as before). The partial wake of the bodies' columns is applied at once and again after the step's settle, the order
+  it had (`applySolidWake`).
+- **Found by measuring the fold:** the upload's scatter alone cost ~0.8 ms a frame in the pond (it hid inside `gpu.04
+  residency` once folded - now its own lap, `gpu.03b`). Not the per-cell work: the NUMBER of cells. The bodies' box holds every
+  cell whose wake is still on, and the wake lasts `ny x h / 0.25 m/s` = 24 s in this 6 m tall box (1.5 m of water) - so with a
+  burst every 2.5 s the box is most of the pond, re-sent every frame; a 60 m lake would send all of its trails.
+- **So the device ages the wake itself** (`wc_classify` mode 3: `w = max(0, w - T)` per call, the CPU's one subtraction), and only
+  the cells a body CHANGED are copied: its raster now and last call, grown by the wake's 3-cell marks
+  (`WaterSolver::solidChangedBox`). A full upload carries the CPU's aged values and clears the pending ages (no double aging). The
+  scatter writes the bodies' fields only (it rewrote every cell's occupancy too).
+- Test knobs: `water_coupling {test_solid_upload_sync}` (the path before, the A/B control); `WaterCoreGpu::s_skipWakeAgeForTest`
+  (the red). `WaterCoreGpu::readSolidForTest` / `WaterCoreManager::readSolidsForTest`.
+
+**Tests.** `WaterRecordedPondTest.ABodysBoxUploadedWithTheStepMakesTheSameWaterAsAnUploadOfItsOwn` (GPU): a 1/3 m stone driven down
+and 1.4 m across an 8 x 8 m pond (its trail leaves the copied box), 24 frames, then 24 without: the drawn field **byte-equal** to
+the old path (63.999944 m^3 both); the device's wake against the CPU's **bit for bit: 0 of 2,760 cells differ** (the old path 0);
+**the red (no device aging): 2,760 of 2,760 differ**; the no-body control differs (the stone moved the water). Gates: unit water +
+debris 380/380; integration water 73/75 (the known two).
+
+**Measured** (Release, Small bench, `displace_fold_ab.json` - the fold vs the old path alternated in one session; `displace_cost_s1.json`
+- displacement on vs off alternated, as 34.3):
+
+| | 34.3 (before) | after step 1 | displacement off |
+|---|---|---|---|
+| pond: fps | ~225 | **~310** | ~489 |
+| pond: CPU frame median | 4.6 ms | **3.3 ms** | 2.06 ms |
+| pond: the bodies' upload (`solids.4` + `gpu.03b`) | 1.31-1.41 ms | **0.39 ms** | 0 |
+| pond: GPU frame median | 1.45 ms | 1.54 ms | 1.22 ms |
+| pit (1,100 blocks): fps | ~88 | **~154** | ~215 |
+| pit: CPU frame | 12.2 ms | **7.2 ms** | 6.1 ms |
+| pit: GPU frame median | 4.4 ms | **1.2 ms** | 1.17 ms |
+
+No block rose in any pit run (highest after entry 0.78-0.84 m below its spawn, 1,100 of 1,100 matched, rasterized <= windows at
+every sample).
+
+**Step 1(b), measured first** (`tools/water_pool_grow_count.py`, new; `pool_grow.json`): 24 bursts in 60 s, displacement on - the
+pool grew ONCE (at the first burst, 3.8-4.1 s) with auto-sleep off and once with it on (the later wakes reuse kept memory, L3). So
+the 12-16 ms frame is once per pond when it is first disturbed, not per drop. Not fixed: a headroom at create costs memory on every
+pond for one frame each; a grow spread over frames is L4's kind of work - logged for when a scene shows it matters.
+
+**Left in displacement's cost:** `solids.3` (0.53 ms, the CPU's solid fields): its loops run over the same whole trail (the aging
+of every wake cell). Cutting it exactly needs the CPU to stop aging every trail cell too; logged, not done. The wake's 24 s comes
+from the box height, not the water depth (1.5 m here: 6 s would let a bubble rise out) - a look/behaviour question, not cost; logged.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

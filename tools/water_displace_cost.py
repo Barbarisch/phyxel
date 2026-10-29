@@ -92,7 +92,7 @@ def main():
                     r = {"fps_mean": round(s["fps_mean"], 1), "fps_min": s["fps_min"], "cpu_frame_ms_mean": round(s["cpu_ms_mean"], 3),
                          "gpu_frame_ms_median": round(gt.get("median_ms", 0.0), 3), "gpu_frame_ms_max": round(gt.get("max_ms", 0.0), 3),
                          "max_rise_above_spawn_m": s["max_rise_above_spawn_m"], "rasterized_le_windows": s["refused_exact"],
-                         "bodies": s["bodies"]}
+                         "bodies": s["bodies"], "spawned": s["spawned"], "unmatched_start": s["unmatched_start"]}
                     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
                 row = {"scene": scene, "displace": c, **r}
                 print(row, flush=True); out["rows"].append(row)

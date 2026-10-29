@@ -1467,6 +1467,7 @@ void WaterCoreGpu::uploadPrepare(Volume& vol, const WaterGrid& g) {
             if (g.f(x, y, z) != 0.0f && storageIndex(vol, x, y, z) < 0) vol.unstoredM3 += static_cast<double>(g.f(x, y, z)) * g.cellVolume();
         std::memset(st, 0, static_cast<size_t>(vol.offOcc + vol.cells * 4));   // f, u, v, w, occ regions
         std::memset(st + vol.offSolid, 0, vol.cells * 16);
+        vol.pendingWakeAges.clear();   // 44.5: this upload carries the CPU's aged wake whole - aging it again would age it twice
         if (!vol.groundAsAir) { auto* so = reinterpret_cast<uint32_t*>(st + vol.offOcc); std::fill(so + kGround * vol.bc, so + (kGround + 1) * vol.bc, 1u); }   // 26.18: the ground sentinel
         std::vector<int> all;
         for (size_t s = kFirstSlot; s < vol.capacity; ++s) if (vol.slotBrick[s] >= 0) all.push_back(static_cast<int>(s));
@@ -1629,8 +1630,11 @@ void WaterCoreGpu::setSolids(Volume& vol, const std::vector<float>& s, const std
 }
 
 void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const std::vector<float>& wake, const std::vector<uint8_t>& fresh, float frameSeconds,
-                                const glm::ivec3& lo, const glm::ivec3& hi) {
-    settle(vol);   // 26.16
+                                const glm::ivec3& chLo, const glm::ivec3& chHi, const glm::ivec3& lo, const glm::ivec3& hi) {
+    // 44.2 step 1(a): no settle here - the host copies below are host memory; staging (which the call in flight may still read) is
+    // written by the next step, after ITS settle (recordSolidUpload). The sync control and the dense layout keep the old path.
+    const bool sync = s_solidUploadSyncForTest || !vol.bricked;
+    if (sync) settle(vol);   // 26.16
     const glm::ivec3 n = vol.spec.dims;
     const bool emptyBox = hi.x < lo.x || hi.y < lo.y || hi.z < lo.z;
     bool any = false;   // outside the box everything is 0 (the caller's contract), so the box decides
@@ -1653,36 +1657,119 @@ void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const 
         vol.hostSolid[i * 4 + 2] = i < wake.size() ? wake[i] : 0.0f;
         vol.hostSolid[i * 4 + 3] = (i < fresh.size() && fresh[i]) ? 1.0f : 0.0f;
     }
-    std::vector<int> slots;   // the stored bricks the box touches (an absent brick takes its bodies from hostSolid when it is stored)
-    if (!emptyBox) {
-        const glm::ivec3 b0 = (lo + vol.o) / vol.bs(), b1 = (hi + vol.o) / vol.bs();
-        for (int bz = b0.z; bz <= b1.z; ++bz) for (int by = b0.y; by <= b1.y; ++by) for (int bx = b0.x; bx <= b1.x; ++bx) {
-            if (bx < 0 || by < 0 || bz < 0 || bx >= vol.bn.x || by >= vol.bn.y || bz >= vol.bn.z) continue;
-            const int slot = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)];
-            if (slot >= kFirstSlot) slots.push_back(slot);   // 26.18: never the sentinels
-        }
-    }
-    std::sort(slots.begin(), slots.end());
-    if (!slots.empty()) {
-        scatterSlots(vol, slots, nullptr);
-        VkCommandBuffer cmd = beginCommands();
-        for (size_t a = 0; a < slots.size();) {   // contiguous slots in one copy
-            size_t e = a + 1;
-            while (e < slots.size() && slots[e] == slots[e - 1] + 1) ++e;
-            const VkDeviceSize first = static_cast<VkDeviceSize>(slots[a]) * vol.bc * 16, bytes = static_cast<VkDeviceSize>(e - a) * vol.bc * 16;
-            copy(cmd, vol.staging, vol.solid, bytes, vol.offSolid + first, first);
-            a = e;
-        }
-        submitAndWait(cmd);
-    }
+    // the stored bricks the box touches go up with the next step (an absent brick takes its bodies from hostSolid when it is stored);
+    // several calls before one step: the union of their boxes (hostSolid holds the newest values of every cell in it - each box
+    // covers every cell that was nonzero, the caller's contract). 44.5: folded, only the CHANGED box is copied and the device ages
+    // the wake by this call's T (the CPU aged every nonzero cell of lo..hi by it, outside lo..hi all is 0 on both); the sync control
+    // copies the whole box, CPU-aged, as before
+    auto unite = [](glm::ivec3& a, glm::ivec3& b, const glm::ivec3& l, const glm::ivec3& h) {
+        if (h.x < l.x || h.y < l.y || h.z < l.z) return;
+        if (b.x < a.x || b.y < a.y || b.z < a.z) { a = l; b = h; } else { a = glm::min(a, l); b = glm::max(b, h); }
+    };
+    if (!vol.solidUpPending) { vol.solidUpLo = glm::ivec3(0); vol.solidUpHi = glm::ivec3(-1); vol.solidWakeLo = glm::ivec3(0); vol.solidWakeHi = glm::ivec3(-1); }
+    if (sync) unite(vol.solidUpLo, vol.solidUpHi, lo, hi);
+    else { unite(vol.solidUpLo, vol.solidUpHi, chLo, chHi); vol.pendingWakeAges.push_back(std::max(frameSeconds, 1e-4f)); }   // the CPU's T
+    unite(vol.solidWakeLo, vol.solidWakeHi, lo, hi);
+    vol.solidUpPending = true;
     vol.hasSolids = any;
     vol.solidRatesPending = any;
     vol.solidFrame = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
     // a body is there (or just left): the water must move. 26.31: with the partial wake, the box's columns (it holds the bodies and
     // the cells they left - the caller's contract); a stone in the pond woke all of it every frame it moved (measured: 1,664 of
-    // 1,664 columns awake for the whole 15 s of the owner's video take)
+    // 1,664 columns awake for the whole 15 s of the owner's video take). Applied now (so the volume is stepped) AND again after the
+    // step's settle (44.2: the collect of the call in flight came first when this function settled; it may freeze them again)
+    vol.solidWakePending = true;
+    applySolidWake(vol);
+    if (sync) flushSolidUpload(vol);
+}
+
+void WaterCoreGpu::applySolidWake(Volume& vol) {
+    // the bodies' whole box (every nonzero cell - as before the fold), not the copied one
+    const glm::ivec3 lo = vol.solidWakeLo, hi = vol.solidWakeHi;
+    const bool emptyBox = hi.x < lo.x || hi.y < lo.y || hi.z < lo.z;
     if (vol.partialWake) { if (!emptyBox) wakeBox(vol, lo, hi); else { vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0; } }
-    else wakeAll(vol);
+    else if (!vol.wakeAllPending) wakeAll(vol);
+    else { vol.asleep = false; vol.quietTicks = 0; vol.quietRef = 0.0; }   // pending already: not counted twice (wakeAllCount)
+}
+
+void WaterCoreGpu::recordSolidUpload(VkCommandBuffer cmd, Volume& vol) {
+    if (!vol.solidUpPending) return;
+    const glm::ivec3 lo = vol.solidUpLo, hi = vol.solidUpHi;
+    vol.solidUpPending = false; vol.solidUpLo = glm::ivec3(0); vol.solidUpHi = glm::ivec3(-1);
+    // 44.5: the wake ages on the device first, by each pending call's T in order (wc_classify mode 3), then the changed cells are
+    // overwritten with the CPU's values - every stored cell, the slots' order irrelevant (a pure per-cell map)
+    if (!vol.pendingWakeAges.empty() && s_skipWakeAgeForTest) vol.pendingWakeAges.clear();   // the red
+    if (!vol.pendingWakeAges.empty()) {
+        WcPush ap; ap.mode = 3; ap.iparam = static_cast<int32_t>(vol.capacity * vol.bc);
+        for (float T : vol.pendingWakeAges) { ap.param0 = T; dispatch(cmd, *vol.pipes[Classify], ap, vol.capacity * vol.bc); }
+        vol.pendingWakeAges.clear();
+    }
+    if (hi.x < lo.x || hi.y < lo.y || hi.z < lo.z) return;
+    std::vector<int> slots;
+    const glm::ivec3 b0 = (lo + vol.o) / vol.bs(), b1 = (hi + vol.o) / vol.bs();
+    for (int bz = b0.z; bz <= b1.z; ++bz) for (int by = b0.y; by <= b1.y; ++by) for (int bx = b0.x; bx <= b1.x; ++bx) {
+        if (bx < 0 || by < 0 || bz < 0 || bx >= vol.bn.x || by >= vol.bn.y || bz >= vol.bn.z) continue;
+        const int slot = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)];
+        if (slot >= kFirstSlot) slots.push_back(slot);   // 26.18: never the sentinels
+    }
+    std::sort(slots.begin(), slots.end());
+    if (slots.empty()) return;
+    // 44.5: the bodies' fields only - scatterSlots also rewrote every cell's occupancy, which this copy does not send (0.8 ms a frame
+    // in the pond scene, measured as the fold's "residency" cost); 16 bytes a cell straight from hostSolid
+    {
+        char* st = static_cast<char*>(vol.staging.mapped);
+        auto* ss = reinterpret_cast<float*>(st + vol.offSolid);
+        const glm::ivec3 n = vol.spec.dims;
+        const bool full = vol.hostSolid.size() == vol.dCells * 4;
+        forRanges(static_cast<int>(slots.size()), slots.size() >= 64 ? m_hostThreads : 1, [&](int s0, int s1) {
+            for (int si = s0; si < s1; ++si) {
+                const int slot = slots[static_cast<size_t>(si)];
+                const int packed = vol.slotBrick[static_cast<size_t>(slot)];
+                const glm::ivec3 base = glm::ivec3(packed & 1023, (packed >> 10) & 1023, (packed >> 20) & 1023) * vol.bs() - vol.o;
+                float* dst = ss + static_cast<size_t>(slot) * vol.bc * 4;
+                for (int l = 0; l < static_cast<int>(vol.bc); ++l) {
+                    const glm::ivec3 c = base + glm::ivec3(l & 7, l >> 6, (l >> 3) & 7);   // local = x + 8 z + 64 y (26.17)
+                    const bool in = full && c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < n.x && c.y < n.y && c.z < n.z;
+                    if (in) std::memcpy(dst + l * 4, &vol.hostSolid[(static_cast<size_t>(c.x) + static_cast<size_t>(n.x) * (c.y + static_cast<size_t>(n.y) * c.z)) * 4], 16);
+                    else std::memset(dst + l * 4, 0, 16);
+                }
+            }
+        });
+    }
+    for (size_t a = 0; a < slots.size();) {   // contiguous slots in one copy
+        size_t e = a + 1;
+        while (e < slots.size() && slots[e] == slots[e - 1] + 1) ++e;
+        const VkDeviceSize first = static_cast<VkDeviceSize>(slots[a]) * vol.bc * 16, bytes = static_cast<VkDeviceSize>(e - a) * vol.bc * 16;
+        copy(cmd, vol.staging, vol.solid, bytes, vol.offSolid + first, first);
+        a = e;
+    }
+}
+
+bool WaterCoreGpu::readSolidForTest(Volume& vol, std::vector<float>& dense) {
+    if (!vol.bricked || !vol.staging.mapped) return false;
+    flushSolidUpload(vol);   // anything pending first: the state the next step would read
+    settle(vol);
+    VkCommandBuffer cmd = beginCommands();
+    copy(cmd, vol.solid, vol.staging, vol.cells * 16, 0, vol.offSolid);
+    submitAndWait(cmd);
+    const auto* ss = reinterpret_cast<const float*>(static_cast<const char*>(vol.staging.mapped) + vol.offSolid);
+    const glm::ivec3 n = vol.spec.dims;
+    dense.assign(static_cast<size_t>(n.x) * n.y * n.z * 4, 0.0f);
+    for (int z = 0; z < n.z; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
+        const long i = storageIndex(vol, x, y, z);
+        if (i < 0) continue;
+        std::memcpy(&dense[(static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z)) * 4], ss + static_cast<size_t>(i) * 4, 16);
+    }
+    return true;
+}
+
+void WaterCoreGpu::flushSolidUpload(Volume& vol) {
+    if (!vol.solidUpPending) return;
+    settle(vol);
+    VkCommandBuffer cmd = beginCommands();
+    recordSolidUpload(cmd, vol);
+    submitAndWait(cmd);
+    vol.solidWakePending = false;
 }
 
 void WaterCoreGpu::setDeposits(Volume& vol, const std::vector<float>& cellFractions) {
@@ -2309,6 +2396,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     auto hp = WaterHostProfile::Clock::now();   // 27.28
     settle(vol);   // 26.16: the call in flight is collected first (its record decides this call's residency, its speed the substeps)
     WaterHostProfile::lap("gpu.01 settle (collect the call before)", hp);
+    if (vol.solidWakePending) { applySolidWake(vol); vol.solidWakePending = false; }   // 44.2: after the collect, as before the fold
     if (vol.growWant > 0) { const size_t want = vol.growWant; vol.growWant = 0; growPool(vol, want); }   // 27.23 W1d.1: before any recording
     GpuStepStats st; st.ticks = ticks; st.sweeps = sweeps;
     m_dispatchCount = 0; m_barrierCount = 0;   // 28: this call's launches
@@ -2319,6 +2407,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     WaterHostProfile::lap("gpu.03 partial wake (freeze test)", hp);
     st.awakeColumns = vol.awakeCols; st.frozenColumns = vol.frozenCols; st.movingColumns = vol.movingCols;
     if (vol.asleep || ticks <= 0) {
+        flushSolidUpload(vol);   // 44.2: nothing recorded this call - the bodies' box goes up on its own, as before the fold
         st.asleep = vol.asleep; st.quietTicks = vol.quietTicks;
         if (vol.bricked) { st.bricks = vol.storedCount; st.groundBricks = vol.groundCount; }
         return st;
@@ -2345,6 +2434,8 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
     }
+    if (vol.solidUpPending) { recordSolidUpload(cmd, vol); barrier(cmd); }   // 44.2 step 1(a): the bodies' box, first in the call
+    WaterHostProfile::lap("gpu.03b the bodies' box (44.2)", hp);   // its own lap: it read as residency before (44.5)
     vol.tsCount = -1;   // 26.11 test hook: armed only for single-tick, single-substep calls
     if (!vol.callTs) { VkQueryPoolCreateInfo qi{}; qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO; qi.queryType = VK_QUERY_TYPE_TIMESTAMP; qi.queryCount = 2;
                        if (vkCreateQueryPool(m_device, &qi, nullptr, &vol.callTs) != VK_SUCCESS) vol.callTs = VK_NULL_HANDLE; }

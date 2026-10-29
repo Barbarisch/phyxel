@@ -1,0 +1,170 @@
+[
+ {
+  "sync": false,
+  "fps": 316.9,
+  "phases": {
+   "collect.1 fence wait": 0.005,
+   "collect.2 lists + copies": 0.014,
+   "collect.3 stats + record + sleep": 0.002,
+   "gpu.01 settle (collect the call before)": 0.021,
+   "gpu.02 grow pool": 0.005,
+   "gpu.03 partial wake (freeze test)": 0.007,
+   "gpu.03b the bodies' box (44.2)": 0.249,
+   "gpu.04 residency: which bricks": 0.109,
+   "gpu.05 residency: apply": 0.016,
+   "gpu.06 compact": 0.001,
+   "gpu.07 partition + tables": 0.001,
+   "gpu.08 record the commands": 0.263,
+   "gpu.09 submit": 0.037,
+   "mgr.4 the GPU step (= gpu.* + collect.*)": 0.709,
+   "solids.1 wake the record near": 0.0,
+   "solids.2 occupancy refresh": 0.002,
+   "solids.3 solid fields (raster, wake)": 0.531,
+   "solids.4 upload the box": 0.146
+  },
+  "bricks_speed_median": [
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "sync": true,
+  "fps": 240.9,
+  "phases": {
+   "collect.1 fence wait": 0.002,
+   "collect.2 lists + copies": 0.013,
+   "collect.3 stats + record + sleep": 0.002,
+   "gpu.01 settle (collect the call before)": 0.0,
+   "gpu.02 grow pool": 0.006,
+   "gpu.03 partial wake (freeze test)": 0.008,
+   "gpu.03b the bodies' box (44.2)": 0.006,
+   "gpu.04 residency: which bricks": 0.104,
+   "gpu.05 residency: apply": 0.015,
+   "gpu.06 compact": 0.002,
+   "gpu.07 partition + tables": 0.001,
+   "gpu.08 record the commands": 0.261,
+   "gpu.09 submit": 0.031,
+   "mgr.4 the GPU step (= gpu.* + collect.*)": 0.435,
+   "solids.1 wake the record near": 0.0,
+   "solids.2 occupancy refresh": 0.001,
+   "solids.3 solid fields (raster, wake)": 0.534,
+   "solids.4 upload the box": 1.308
+  },
+  "bricks_speed_median": [
+   0,
+   0
+  ]
+ },
+ {
+  "sync": true,
+  "fps": 243.7,
+  "phases": {
+   "collect.1 fence wait": 0.003,
+   "collect.2 lists + copies": 0.014,
+   "collect.3 stats + record + sleep": 0.002,
+   "gpu.01 settle (collect the call before)": 0.0,
+   "gpu.02 grow pool": 0.006,
+   "gpu.03 partial wake (freeze test)": 0.007,
+   "gpu.03b the bodies' box (44.2)": 0.006,
+   "gpu.04 residency: which bricks": 0.095,
+   "gpu.05 residency: apply": 0.015,
+   "gpu.06 compact": 0.002,
+   "gpu.07 partition + tables": 0.001,
+   "gpu.08 record the commands": 0.256,
+   "gpu.09 submit": 0.035,
+   "mgr.4 the GPU step (= gpu.* + collect.*)": 0.425,
+   "solids.1 wake the record near": 0.0,
+   "solids.2 occupancy refresh": 0.002,
+   "solids.3 solid fields (raster, wake)": 0.522,
+   "solids.4 upload the box": 1.304
+  },
+  "bricks_speed_median": [
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "sync": false,
+  "fps": 315.7,
+  "phases": {
+   "collect.1 fence wait": 0.005,
+   "collect.2 lists + copies": 0.015,
+   "collect.3 stats + record + sleep": 0.002,
+   "gpu.01 settle (collect the call before)": 0.022,
+   "gpu.02 grow pool": 0.004,
+   "gpu.03 partial wake (freeze test)": 0.007,
+   "gpu.03b the bodies' box (44.2)": 0.242,
+   "gpu.04 residency: which bricks": 0.105,
+   "gpu.05 residency: apply": 0.015,
+   "gpu.06 compact": 0.001,
+   "gpu.07 partition + tables": 0.001,
+   "gpu.08 record the commands": 0.261,
+   "gpu.09 submit": 0.041,
+   "mgr.4 the GPU step (= gpu.* + collect.*)": 0.702,
+   "solids.1 wake the record near": 0.0,
+   "solids.2 occupancy refresh": 0.002,
+   "solids.3 solid fields (raster, wake)": 0.537,
+   "solids.4 upload the box": 0.148
+  },
+  "bricks_speed_median": [
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "sync": false,
+  "fps": 310.6,
+  "phases": {
+   "collect.1 fence wait": 0.004,
+   "collect.2 lists + copies": 0.015,
+   "collect.3 stats + record + sleep": 0.002,
+   "gpu.01 settle (collect the call before)": 0.021,
+   "gpu.02 grow pool": 0.004,
+   "gpu.03 partial wake (freeze test)": 0.007,
+   "gpu.03b the bodies' box (44.2)": 0.257,
+   "gpu.04 residency: which bricks": 0.107,
+   "gpu.05 residency: apply": 0.015,
+   "gpu.06 compact": 0.001,
+   "gpu.07 partition + tables": 0.001,
+   "gpu.08 record the commands": 0.261,
+   "gpu.09 submit": 0.04,
+   "mgr.4 the GPU step (= gpu.* + collect.*)": 0.716,
+   "solids.1 wake the record near": 0.0,
+   "solids.2 occupancy refresh": 0.002,
+   "solids.3 solid fields (raster, wake)": 0.531,
+   "solids.4 upload the box": 0.146
+  },
+  "bricks_speed_median": [
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "sync": true,
+  "fps": 245.4,
+  "phases": {
+   "collect.1 fence wait": 0.002,
+   "collect.2 lists + copies": 0.014,
+   "collect.3 stats + record + sleep": 0.002,
+   "gpu.01 settle (collect the call before)": 0.0,
+   "gpu.02 grow pool": 0.006,
+   "gpu.03 partial wake (freeze test)": 0.007,
+   "gpu.03b the bodies' box (44.2)": 0.006,
+   "gpu.04 residency: which bricks": 0.094,
+   "gpu.05 residency: apply": 0.015,
+   "gpu.06 compact": 0.002,
+   "gpu.07 partition + tables": 0.001,
+   "gpu.08 record the commands": 0.25,
+   "gpu.09 submit": 0.032,
+   "mgr.4 the GPU step (= gpu.* + collect.*)": 0.416,
+   "solids.1 wake the record near": 0.0,
+   "solids.2 occupancy refresh": 0.002,
+   "solids.3 solid fields (raster, wake)": 0.538,
+   "solids.4 upload the box": 1.305
+  },
+  "bricks_speed_median": [
+   0,
+   0
+  ]
+ }
+]
