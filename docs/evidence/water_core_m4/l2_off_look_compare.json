@@ -1,0 +1,156 @@
+{
+ "whole_crop": [
+  {
+   "a": "l2off_before_a",
+   "b": "l2off_before_b",
+   "mean": 0.8845,
+   "max": 212,
+   "share_over_8": 0.017732
+  },
+  {
+   "a": "l2off_before_a",
+   "b": "l2off_after_a",
+   "mean": 1.1889,
+   "max": 203,
+   "share_over_8": 0.027661
+  },
+  {
+   "a": "l2off_before_a",
+   "b": "l2off_after_b",
+   "mean": 1.059,
+   "max": 200,
+   "share_over_8": 0.023629
+  },
+  {
+   "a": "l2off_before_a",
+   "b": "l2on_after",
+   "mean": 4.0882,
+   "max": 212,
+   "share_over_8": 0.147685
+  },
+  {
+   "a": "l2off_before_b",
+   "b": "l2off_after_a",
+   "mean": 1.149,
+   "max": 203,
+   "share_over_8": 0.030428
+  },
+  {
+   "a": "l2off_before_b",
+   "b": "l2off_after_b",
+   "mean": 1.0537,
+   "max": 207,
+   "share_over_8": 0.02394
+  },
+  {
+   "a": "l2off_before_b",
+   "b": "l2on_after",
+   "mean": 4.1923,
+   "max": 207,
+   "share_over_8": 0.151261
+  },
+  {
+   "a": "l2off_after_a",
+   "b": "l2off_after_b",
+   "mean": 1.1224,
+   "max": 203,
+   "share_over_8": 0.02644
+  },
+  {
+   "a": "l2off_after_a",
+   "b": "l2on_after",
+   "mean": 3.9192,
+   "max": 204,
+   "share_over_8": 0.142683
+  },
+  {
+   "a": "l2off_after_b",
+   "b": "l2on_after",
+   "mean": 4.1302,
+   "max": 201,
+   "share_over_8": 0.149317
+  }
+ ],
+ "water_only": [
+  {
+   "a": "l2off_before_a",
+   "b": "l2off_before_b",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 0.3261,
+   "max": 27,
+   "share_over_8": 0.001546
+  },
+  {
+   "a": "l2off_before_a",
+   "b": "l2off_after_a",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 0.2987,
+   "max": 21,
+   "share_over_8": 0.000721
+  },
+  {
+   "a": "l2off_before_a",
+   "b": "l2off_after_b",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 0.3484,
+   "max": 22,
+   "share_over_8": 0.002807
+  },
+  {
+   "a": "l2off_before_a",
+   "b": "l2on_after",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 1.2288,
+   "max": 72,
+   "share_over_8": 0.063522
+  },
+  {
+   "a": "l2off_before_b",
+   "b": "l2off_after_a",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 0.2225,
+   "max": 19,
+   "share_over_8": 0.001317
+  },
+  {
+   "a": "l2off_before_b",
+   "b": "l2off_after_b",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 0.3114,
+   "max": 22,
+   "share_over_8": 0.001657
+  },
+  {
+   "a": "l2off_before_b",
+   "b": "l2on_after",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 1.2657,
+   "max": 72,
+   "share_over_8": 0.065356
+  },
+  {
+   "a": "l2off_after_a",
+   "b": "l2off_after_b",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 0.3244,
+   "max": 21,
+   "share_over_8": 0.002077
+  },
+  {
+   "a": "l2off_after_a",
+   "b": "l2on_after",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 1.2549,
+   "max": 71,
+   "share_over_8": 0.064554
+  },
+  {
+   "a": "l2off_after_b",
+   "b": "l2on_after",
+   "region": "rows 150-469 (the water, below the far bank; the HUD excluded)",
+   "mean": 1.2365,
+   "max": 71,
+   "share_over_8": 0.063594
+  }
+ ]
+}

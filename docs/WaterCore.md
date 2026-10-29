@@ -11109,6 +11109,20 @@ r 0, r 24, and two with the reach off), nothing rose (`l5_pooled_..._l2_off_time
   on this 4 x 4 m pond (its rings die well before its water rests).
 - With the reach off a far pond still holds a slot (first come, at any distance - exactly as before).
 
+**The OFF look is unchanged** (43.3 item 4; `water_l2_fade_profile.py --look-capture`: the 28 x 28 m pond on a sand bed, the
+pattern tilt, normal shading, one oblique pose; the BEFORE engine built from `f20a5ab4` in a scratch worktree, run on the same
+project; `l2_off_look_compare.json`). Over the water (the bank's grass sways in the wind, so the whole crop is noisier - also in the
+file):
+
+| pair | mean abs difference (0-255) | pixels over 8 |
+|---|---|---|
+| before vs before (the spread) | 0.33 | 0.15 % |
+| after (off) vs after (off) | 0.32 | 0.21 % |
+| **before vs after (off)**, four pairs | **0.22-0.35** | **0.07-0.28 %** |
+| after with the reach ON (the control: the metric sees L2) | 1.23-1.27 | 6.4 % |
+
+Off draws what the build before L2 drew, within the run-to-run spread.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
