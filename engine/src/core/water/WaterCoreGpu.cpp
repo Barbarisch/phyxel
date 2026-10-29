@@ -385,13 +385,27 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
-    for (Buffer* b : {&vol->f, &vol->fOrig, &vol->fPrev, &vol->u, &vol->v, &vol->w, &vol->uOld, &vol->vOld, &vol->wOld, &vol->occ, &vol->src, &vol->liq,
-                      &vol->diag, &vol->rhs, &vol->p, &vol->res, &vol->valA, &vol->valB, &vol->knownA, &vol->knownB, &vol->first, &vol->keep, &vol->dropped, &vol->part, &vol->part2, &vol->out, &vol->sources, &vol->surf, &vol->solid, &vol->births, &vol->deposit, &vol->bricks, &vol->posA, &vol->velA, &vol->posB, &vol->velB, &vol->pcount, &vol->pstart, &vol->pcursor, &vol->stageCap, &vol->unitCap, &vol->scratch, &vol->fLo, &vol->birthsPacked, &vol->lists, &vol->staging, &vol->momentum, &vol->unitMap,
-                      &vol->surfDense, &vol->solidTopD, &vol->meshCorners, &vol->meshMeta, &vol->meshList, &vol->meshArgs, &vol->meshArgsHost, &vol->surfUp, &vol->colAgg,
-                      &vol->motionRef, &vol->motionOut, &vol->motionOutHost, &vol->winReq})
-        destroyBuffer(*b);
+    for (Buffer* b : allBuffers(*vol)) destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
+}
+
+std::vector<WaterCoreGpu::Buffer*> WaterCoreGpu::allBuffers(Volume& vol) {
+    Volume* v = &vol;
+    return {&v->f, &v->fOrig, &v->fPrev, &v->u, &v->v, &v->w, &v->uOld, &v->vOld, &v->wOld, &v->occ, &v->src, &v->liq,
+            &v->diag, &v->rhs, &v->p, &v->res, &v->valA, &v->valB, &v->knownA, &v->knownB, &v->first, &v->keep, &v->dropped, &v->part, &v->part2, &v->out, &v->sources, &v->surf, &v->solid, &v->births, &v->deposit, &v->bricks, &v->posA, &v->velA, &v->posB, &v->velB, &v->pcount, &v->pstart, &v->pcursor, &v->stageCap, &v->unitCap, &v->scratch, &v->fLo, &v->birthsPacked, &v->lists, &v->staging, &v->momentum, &v->unitMap,
+            &v->surfDense, &v->solidTopD, &v->meshCorners, &v->meshMeta, &v->meshList, &v->meshArgs, &v->meshArgsHost, &v->surfUp, &v->colAgg,
+            &v->motionRef, &v->motionOut, &v->motionOutHost, &v->winReq};
+}
+
+WaterCoreGpu::VolumeBytes WaterCoreGpu::volumeBytes(Volume& vol) const {
+    VolumeBytes out;
+    for (Buffer* b : allBuffers(vol)) {
+        if (!b->buf) continue;
+        ++out.buffers;
+        (b->mapped ? out.host : out.device) += static_cast<unsigned long long>(b->bytes);
+    }
+    return out;
 }
 
 VkCommandBuffer WaterCoreGpu::beginCommands() const {
@@ -665,6 +679,9 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
     newCap = std::min(newCap, vol.mapCount + kFirstSlot);
     if (newCap <= vol.capacity) return false;
     settle(vol);
+    using GClock = std::chrono::steady_clock;   // L3 (41): the grow's parts (m_lastGrowSplit)
+    auto gms = [](GClock::time_point a, GClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    const auto g0 = GClock::now();
     const size_t oldCap = vol.capacity, oldInfoOff = vol.infoOff, oldTallOff = vol.tallOff;
     // the capacity-dependent buffers: the new ones replace them, the old kept until their contents are copied
     Buffer* const keep[] = {&vol.f, &vol.fOrig, &vol.fPrev, &vol.u, &vol.v, &vol.w, &vol.uOld, &vol.vOld, &vol.wOld, &vol.occ, &vol.src, &vol.fLo,
@@ -725,6 +742,7 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
         vol.offParticles = vol.offBricks + vol.brickInts * 4;
         return false;
     }
+    const auto g1 = GClock::now();
     VkCommandBuffer cmd = beginCommands();
     for (Buffer* b : keep) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
     for (Buffer* b : scratchB) if (b->buf && b != &vol.staging) vkCmdFillBuffer(cmd, b->buf, 0, b->bytes, 0);
@@ -737,17 +755,22 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
     copy(cmd, ob, vol.bricks, 2 * oldCap * 4, oldInfoOff * 4, vol.infoOff * 4);
     copy(cmd, ob, vol.bricks, vol.dColumns * 4, oldTallOff * 4, vol.tallOff * 4);
     submitAndWait(cmd);
+    const auto g2 = GClock::now();
     for (Buffer& b : oldKeep) destroyBuffer(b);
     for (Buffer& b : oldScratch) destroyBuffer(b);
+    const auto g3 = GClock::now();
     vol.slotBrick.resize(vol.capacity, -1);
     vol.hostInfo.resize(2 * vol.capacity, 0);
     writeTablesToStaging(vol);   // the column table and the counters move with the capacity
     cmd = beginCommands();
     copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks);
     submitAndWait(cmd);
+    const auto g4 = GClock::now();
     bindPipelines(vol);
     vol.listsSized = false;
     ++vol.poolGrows;
+    {   const VolumeBytes vb = volumeBytes(vol);
+        m_lastGrowSplit = {gms(g0, g1), gms(g1, g2), gms(g2, g3), gms(g3, g4), gms(g4, GClock::now()), vb.device + vb.host, m_lastGrowSplit.grows + 1}; }
     return true;
 }
 

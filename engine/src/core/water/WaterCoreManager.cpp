@@ -554,6 +554,11 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
         m_slept.erase(std::remove_if(m_slept.begin(), m_slept.end(), [&](const SleptVolume& s) { return s.lo == lo && s.hi == hi; }), m_slept.end());
         m_slept.push_back(std::move(sv));
     }
+    if (av->gpuVol && m_gpu) {   // L3 (41): what sleeping gives back - the measure the kept-memory design is sized on
+        const auto vb = m_gpu->volumeBytes(*av->gpuVol);
+        m_sleptWake.lastSleptDeviceBytes = vb.device; m_sleptWake.lastSleptHostBytes = vb.host; m_sleptWake.lastSleptBuffers = vb.buffers;
+        m_sleptWake.lastSleptSlots = av->gpuVol->capacity;
+    }
     destroy(id);
     buildRecordTilesNow(lo, hi);   // §27 W1a: the record draws these columns in the frame the volume stops drawing them
     return rec;

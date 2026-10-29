@@ -519,6 +519,14 @@ public:
     /// 39.8: the residency's parts, ms - need (the bricks the water needs), ground (all-ground bricks), grow (ensureCapacity), apply
     struct ResidencySplit { double needMs = 0.0, groundMs = 0.0, growMs = 0.0, applyMs = 0.0; };
     const ResidencySplit& lastResidencySplit() const { return m_lastResidencySplit; }
+    /// L3 (41): the last pool grow's parts, ms - alloc (the new buffers created, allocated, bound; staging mapped and zeroed), copy
+    /// (the zero fill and the old contents copied, one submit, waited), free (the old buffers destroyed), tables (the moved tables
+    /// re-sent, waited), rebind (every pipeline's descriptors); bytes = the volume's device + host bytes after it
+    struct GrowSplit { double allocMs = 0.0, copyMs = 0.0, freeMs = 0.0, tablesMs = 0.0, rebindMs = 0.0; unsigned long long bytesAfter = 0; long grows = 0; };
+    const GrowSplit& lastGrowSplit() const { return m_lastGrowSplit; }
+    /// L3 (41): the bytes a volume holds, device-local and host-visible (requested sizes; the driver rounds each up a little)
+    struct VolumeBytes { unsigned long long device = 0, host = 0; size_t buffers = 0; };
+    VolumeBytes volumeBytes(Volume& vol) const;
     /// Allocation only (no upload): refuses with the byte count when the device cannot hold it. A particle volume is
     /// dense-laid (the FLIP kernels index the grid directly); every other volume is bricked (26.6).
     Volume* createVolume(const GridSpec& spec, std::string* err, bool particles = false, size_t particleCapacity = 0,
@@ -695,6 +703,8 @@ private:
     int m_hostThreads = 1;           // 39.10
     UploadSplit m_lastUploadSplit;   // 39.8
     ResidencySplit m_lastResidencySplit;   // 39.8
+    GrowSplit m_lastGrowSplit;             // L3 (41)
+    static std::vector<Buffer*> allBuffers(Volume& vol);   ///< every buffer a volume can own (destroyVolume frees these)
     /// 39 (A2f step 1d): a destroyed volume's compute pipelines, kept per kernel for the next volume (a wake built the same 22 from
     /// disk, ~8 ms). bindPipelines rewrites every binding of every kernel at each create, so a kept pipeline is the fresh one with
     /// its new volume's buffers. At most kPipeSpareSets per kernel (one set ~ 22 small pipeline objects); freed at shutdown.

@@ -138,7 +138,10 @@ def wake(api, seconds):
             else:
                 make_pit(api); drop = (153.5, 18.5, 13.5)
             print(f"  {name}: slept after {wait_slept(api, 90.0):.1f} s"); time.sleep(2.0)
-            before = api.debug("water_coupling", {}).get("slept", {}).get("woken", 0)
+            slept0 = api.debug("water_coupling", {}).get("slept", {})
+            before = slept0.get("woken", 0)
+            slept_bytes = slept0.get("last_slept_bytes")   # L3 (41): what the pond gave back when it slept
+            print(f"    slept bytes {slept_bytes}", flush=True)
             api.debug("water_av_kernel_timing", {"on": True, "reset": True})
             api.debug("spawn_gpu_particle", {"x": drop[0], "y": drop[1], "z": drop[2], "material": "Stone", "scale": 1 / 3, "lifetime": 120, "spin": 0})
             r = window(api, seconds, f"wake {name} #{rep + 1}")
@@ -151,8 +154,11 @@ def wake(api, seconds):
             r["step_uploads"] = [{"uploads": v.get("gpu_uploads"), "last_upload_ms": v.get("gpu_upload_ms")} for v in vols]
             print(f"    first-step upload {r['step_uploads']}", flush=True)
             print(f"    worst water block {r['water_worst_frame_ms']}\n    phases by longest call {r['phase_max_ms']}", flush=True)
-            r["upload_split_ms"] = (api.debug("water_coupling", {}).get("slept") or {}).get("last_upload_split_ms")   # 39.8
+            s2 = api.debug("water_coupling", {}).get("slept") or {}
+            r["upload_split_ms"] = s2.get("last_upload_split_ms")   # 39.8
+            r["slept_bytes"] = slept_bytes; r["grow_split_ms"] = s2.get("last_grow_split_ms")   # L3 (41)
             print(f"    upload split {r['upload_split_ms']}", flush=True)
+            print(f"    grow split {r['grow_split_ms']}", flush=True)
             r["scene"] = name; rows.append(r)
             api.debug("clear_dynamics")
     return rows

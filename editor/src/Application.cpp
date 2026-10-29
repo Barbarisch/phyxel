@@ -14666,7 +14666,11 @@ void Application::registerWaterCommands() {
                      s["last_upload_split_ms"] = {{"settle", us.settleMs}, {"host", us.hostMs}, {"residency", us.residencyMs}, {"clear", us.clearMs},
                                                   {"scatter", us.scatterMs}, {"tables", us.tablesMs}, {"submit", us.submitMs}, {"bricks", us.bricks}};
                      const auto rs = waterCore->gpuResidencySplit();
-                     s["last_upload_split_ms"]["residency_split"] = {{"need", rs.needMs}, {"ground", rs.groundMs}, {"grow", rs.growMs}, {"apply", rs.applyMs}}; }   // A2f (39.3 item 5: createVolume split)
+                     s["last_upload_split_ms"]["residency_split"] = {{"need", rs.needMs}, {"ground", rs.groundMs}, {"grow", rs.growMs}, {"apply", rs.applyMs}};   // A2f (39.3 item 5: createVolume split)
+                     const auto gs = waterCore->gpuGrowSplit();   // L3 (41): the last pool grow's parts
+                     s["last_grow_split_ms"] = {{"alloc", gs.allocMs}, {"copy", gs.copyMs}, {"free", gs.freeMs}, {"tables", gs.tablesMs}, {"rebind", gs.rebindMs},
+                                                {"bytes_after", gs.bytesAfter}, {"grows", gs.grows}};
+                     s["last_slept_bytes"] = {{"device", ws.lastSleptDeviceBytes}, {"host", ws.lastSleptHostBytes}, {"buffers", ws.lastSleptBuffers}, {"slots", ws.lastSleptSlots}}; }
                  const auto& ls = waterCore->sleptLoadStats();           // 35 (A2c): what the last world load restored
                  s["restored"] = ls.restored; s["restore_skipped"] = ls.skipped; s["restore_error"] = ls.error;
                  const auto& rc = waterCore->recordCacheStats();   // 32.4 (A2b): the record cache following residency

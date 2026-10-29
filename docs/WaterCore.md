@@ -9072,7 +9072,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | L1 | **The viewer-distance function (§30.0b):** one answer to "how far is this world position from the viewer", in bands with smooth fades, read by every water system; the band distances are tier knobs, echoed by the API. A pure function of world position and the camera, never per chunk | BUILT, not signed off (§40.2): the record's draw radius and the ripple window moved into it unchanged (pixels equal to the run-to-run spread), `water_locality` with the test viewer, design-check folded in (40.1) | every L item and track C's knobs read it. Built once, so no two systems disagree on what "near" means |
 | L5 | **The outcome check (§30.0b rule 2, 39.3 item 1):** one rig and test runs the same interaction near the camera and far (and at each tier). The body's rest pose (1 mm), its time to rest, the pond's mass and its rest level must match | BUILT, not signed off (§40.3): `tools/water_l5_outcome.py`; 14 near / 7 far / 2 red runs. Far matches near within the near runs' own spread; the red sinks the wood 1.27 m and is caught. Two of 40's tolerances could not hold (the wood's drift and the stone's time to rest vary run to run), so the tolerance is the measured spread. Its statistic was fixed in §40.4 (a spread fence plus a leave-one-out self-check; 9 of 10 far runs pass, 16 of 17 near runs pass) | the guard for L2-L4 and every tier knob: before any distance or tier saving is built |
 | L6 | **One reader for a slept pond** (found in L5, §40.3): near the viewer debris reads a slept pond through the record's draw tile, far through the span cache. They agree today (0 of 16 columns differ). Pin it with an equality test (runs and bottoms, column for column), or make debris read the span cache only | BUILT, not signed off (§40.4): worse than found - the draw tile's ±64 m height band made a deep pool read dry near the viewer. Bodies now read the span cache only; red/green unit test, L5 rerun green | the viewer must never pick which water a body reads |
-| L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | not designed | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
+| L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | MEASURED + DESIGNED (41; check NEEDS WORK, folded in 41.4) | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
 | L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | designed (39.2), not built | the stall's last part, without changing any outcome |
 | L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | not designed | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
@@ -10515,6 +10515,106 @@ let the red's stone through, but the red's wood fails anyway.
 
 **Not measured:** a live deep pool (no terrain for one); the reader switch under a body already resting on a slept pond while
 the viewer leaves (now the same reader either way, by construction).
+
+## 41. L3 - a sleeping pond near the camera keeps its GPU memory (§30.4 L3). Status: MEASURED, DESIGN (not built)
+
+### 41.1 What a sleeping pond gives back, measured (2026-10-28, Release, Small bench, `water_a3_cost.py --only wake --tag l3_measure`, `a3_cost_l3_measure.json`)
+
+New echoes: `slept.last_slept_bytes` (what the last volume to sleep held: device-local and host-visible bytes, buffers, slots)
+and `slept.last_grow_split_ms` (the last pool grow, by part). Two wakes each:
+
+| | small pond (4 x 5 x 4 m box) | S9 pit (10 x 9 x 10 m box) |
+|---|---|---|
+| bytes held when it slept: device-local / host-visible | 8.6 MB / 4.0 MB (12.6 MB, 52 buffers) | 61.9-62.4 MB / 27.2 MB (89 MB) |
+| slots when it slept | 512 | 4,096 |
+| the wake's pool grow (in the first step's upload) | none (0.005 ms) | 16.3-24.7 ms: allocate 6.1-14.4, free the old 8.2-8.8, copy 1.1-1.8, tables 0.25, rebind 0.05 |
+| the wake's create (buffers at the first size, 39.7) | ~3.6 ms (39.7) | ~4.5 ms (39.7) |
+
+**What it says:** on the pit, a third of the wake frame (39.10's ~57 ms) is device memory being allocated and freed: the
+volume is made at 512 slots, then grows twice to 4,096 within its first upload (alloc, copy, free the old). Freeing is as dear as
+allocating (8-9 ms) and is also paid when the pond falls asleep (`destroyVolume`, not timed). The small pond never grows, so it
+gains only its create's buffers (~4 ms of its ~19 ms frame).
+
+### 41.2 The design
+
+**Kept memory, by locality.** When a GPU pond sleeps within `memory_m` of the viewer, its buffers are not freed. They are
+handed, still allocated, to the slept box (`SleptVolume::kept`). When that box wakes, `createVolume` makes the volume at the
+slot count it slept with and takes its buffers from the kept set instead of allocating (`createBuffer` takes a kept buffer of
+the same role if it is at least the size asked; `bytes` is the size asked, so every binding, fill and copy sees what a fresh
+buffer of that size would). No grow follows: the seeded water fits the slots it had.
+
+**Same result, by construction.** A kept buffer holds the last life's data, so every adopted buffer is cleared exactly as a new
+one is: host-visible ones memset to zero (what `createBuffer` does for a new one), device-local ones by `createVolume`'s zero
+fill, which gains the five device buffers it does not clear today (`part`, `part2`, `out`, `sources`, `motionOut`; a new
+buffer's contents are undefined in Vulkan, so clearing them also makes today's path deterministic). A larger capacity does not
+change what is computed: W1d.1 pinned a growing volume bit-identical to one holding every brick (`SparseEqualsDenseAcrossSeams`
+runs through grows).
+
+**Locality decides cost only (§30.0b).** Near or far, the woken volume is the same, cell for cell. What differs is ~20 ms on the
+pit's wake frame and ~4 ms on the small pond's, and the memory held. On/off is allowed here because nothing visible changes
+(§30.0b rule 4 covers detail; this is cost).
+
+**The reach and the cap.**
+- `memory_m`: horizontal distance from the viewer to the box's nearest point, the same measure as `draw_m`. Default 48 m (=
+  `draw_m`: a pond you can see keeps its memory). Clamped 0..1024 m; 0 = nothing kept (today's behaviour).
+- `memory_cap_mb`: the total kept, all ponds. Default 256 MB (about three pits or twenty small ponds). Clamped 0..4096.
+- Released (freed, as today): a kept set whose box is beyond `memory_m` when the viewer moves (checked once a frame, over the slept
+  list, which is short); and, when a sleep would go over the cap, the farthest kept sets first, the new one included if it is
+  the farthest. A load, a world switch, `water_av_destroy` of the box's volume and shutdown free everything kept.
+- Never kept: CPU volumes and particle (FLIP) volumes (the GPU sparse path only; others free as today).
+
+**API.** `water_locality {memory_m, memory_cap_mb}` (omitted or negative = unchanged; the echo returns the values in force).
+`water_coupling.slept` gains `kept`: ponds and bytes held (device, host), wakes on kept memory (hits), wakes without (misses),
+released by distance, released by the cap. A test-only switch, `water_locality {test_keep_memory_off: true}`, frees at sleep as
+today (the control). Nothing is saved.
+
+**Tiers.** The two knobs are the tier's: a 30 fps tier keeps less (or none: the hitch is half a frame there anyway); 120 fps and
+above keep more, since the stall is two frames there. Every tier wakes the same water.
+
+| tier | `memory_m` / cap | what the player gives up | cost (pit's wake frame) |
+|---|---|---|---|
+| moonshot / above 120 | 96 m / 512 MB | nothing | ~57 -> ~35 ms (predicted) |
+| 120 | 48 m / 256 MB | nothing | as above |
+| 60 | 48 m / 128 MB | a longer stall on a far pond's wake | as above, fewer ponds |
+| 30 | 0 / 0 | the stall on every wake | ~57 ms (today) |
+
+These are proposals; no engine tier setting exists yet (`feedback_graphics_tiers`).
+
+**What it does not fix.** The rest of the wake frame (the create's host work, the seed, the upload's scatter and residency, the
+CPU surface on the upload frame): ~35 ms on the pit, ~15 ms on the small pond. That is L4's (a paced wake) and W1's patch wake.
+
+### 41.3 Tests and the prediction
+
+- **Equality (integration, GPU):** `WaterKeptMemory.AWakeOnKeptMemoryStepsTheSameAsAFreshOne`. A pond that needs more than 510
+  slots (so the fresh wake grows), slept and woken twice in one manager: kept off, then kept on. Each wake is kicked (a radial
+  impulse) and stepped 40 ticks. The written record must match byte for byte, the kept wake must report a hit, 0 grows and no
+  buffer allocated, and the fresh one must report a grow. A control that shows the test is not vacuous: the kept-on run with
+  the zero fill of adopted buffers skipped (`s_keptSkipsClearForTest`) must differ, or the equality half is stated as not
+  shown red.
+- **Locality (unit, no GPU):** the release rule as a pure function: kept within `memory_m`, released beyond; over the cap, the
+  farthest first; a cap of 0 keeps nothing; ties broken by box position, never by list order.
+- **L5 (live):** near (kept) and far (released) are now different code paths, which is what L5 is for. Rerun near x 3, far x 3;
+  every far run within the near fence; the red still caught.
+- **Cost (live):** `water_a3_cost.py --only wake` again; the worst wake frame. Predicted: pit ~57 -> ~35 ms, small pond ~19 ->
+  ~15 ms; kept bytes = 41.1's numbers. The whole frame reported; the sleep frame's free (not timed today) timed too.
+
+### 41.4 The design check (2026-10-28): NEEDS WORK, seven items, folded in here (these override 41.2-41.3 where they differ)
+
+1. **(a) L5 must see two paths.** Each L5 run records the wake's kept hit / miss; near runs must be hits and far runs misses, or
+   the comparison proves nothing.
+2. **(b) Churn.** A test that sleeps and wakes one pond many times on kept memory: kept bytes constant, no buffer allocated after
+   the first wake; and over the cap with three ponds, the farthest released first.
+3. **(c) The release is paced.** Freeing the pit's kept set when the viewer leaves would put 8-9 ms (41.1's free) into a frame
+   with no water event. Released sets are freed a few buffers a frame, under ~1 ms (`kKeptFreeMsPerFrame`). The sleep frame's
+   own free (today's path) is timed for the comparison.
+4. **(d) Ownership.** `SleptVolume` is copied by value (`wakeSlept`, the deferred-retry path, `serializeSlept`), so the kept
+   buffers do not live in it: they live in a manager table keyed by the box (`m_kept`), moved into the wake. A sweep each frame
+   releases any kept set whose box is no longer slept (re-slept, loaded over, woken empty, destroyed).
+5. **(e) The slot hint keeps the volume growable.** `BrickOptions::capacity > 0` makes a volume fixed-size; the wake gets a new
+   `initialSlots` instead.
+6. **(f) Held bytes.** `Buffer` records the bytes it holds (`held`) as well as the bytes asked; the cap and the echo count held.
+7. **(g) Out of device memory.** A failed create releases kept sets, farthest first, and tries once more.
+8. Also: `memory_m` 48 and `memory_cap_mb` 256 are pinned in `WaterLocalityTest` in the same commit.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

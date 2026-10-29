@@ -284,6 +284,7 @@ public:
     /// 39.8: the last GPU upload's parts (any volume's; after a wake, the first step's is the seeded grid's)
     WaterCoreGpu::UploadSplit gpuUploadSplit() const { return m_gpu ? m_gpu->lastUploadSplit() : WaterCoreGpu::UploadSplit{}; }
     WaterCoreGpu::ResidencySplit gpuResidencySplit() const { return m_gpu ? m_gpu->lastResidencySplit() : WaterCoreGpu::ResidencySplit{}; }
+    WaterCoreGpu::GrowSplit gpuGrowSplit() const { return m_gpu ? m_gpu->lastGrowSplit() : WaterCoreGpu::GrowSplit{}; }   // L3 (41)
     const WaterGrid* gridForTest(int id) const { for (const auto& av : m_avs) if (av->id == id) return av->grid.get(); return nullptr; }
     const AvRecord* find(int id) const;
 
@@ -501,7 +502,9 @@ public:
                             double allocMs = 0.0, occMs = 0.0, solidsMs = 0.0, gpuMs = 0.0, spanReadMs = 0.0, seedOccMs = 0.0, seedMs = 0.0; long cells = 0;
                             double gpuOccCopyMs = 0.0, gpuCreateVolumeMs = 0.0, gpuUploadMs = 0.0;
                             /// 39.3 item 5: createVolume's own parts (WaterCoreGpu::CreateSplit)
-                            double gpuBuffersMs = 0.0, gpuPipelinesMs = 0.0, gpuFillMs = 0.0; int gpuPipelines = 0, gpuPipelinesReused = 0; };
+                            double gpuBuffersMs = 0.0, gpuPipelinesMs = 0.0, gpuFillMs = 0.0; int gpuPipelines = 0, gpuPipelinesReused = 0;
+                            /// L3 (41): what the last volume to sleep held when it slept, and gave back (device-local / host-visible bytes)
+                            unsigned long long lastSleptDeviceBytes = 0, lastSleptHostBytes = 0; size_t lastSleptBuffers = 0; size_t lastSleptSlots = 0; };
     const SleptWakeStats& sleptWakeStats() const { return m_sleptWake; }
     /// 32 / 36 (A2d): the shipped default - a body moving into a slept pond wakes it (A1's push then works in a pond that slept).
     /// Pinned by WaterWakeDefault.TouchingASleptPondWakesItByDefault.
