@@ -8,6 +8,7 @@
 // per world micro cell, 9 per voxel per axis); Unknown is a hold wall (§5.1).
 #include "core/water/WaterCore.h"
 #include "core/water/WaterLocality.h"   // 40 (L1): the viewer distances
+#include "core/water/WaterDisplaceGate.h"   // 44 (A10): who shoves the water
 #include "core/water/WaterCoreGpu.h"   // Phase C backend (optional; CPU reference without it)
 #include "core/water/WaterBodyTable.h"   // Phase D Tier A records
 #include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
@@ -507,6 +508,8 @@ public:
     /// L4 (42.3): pace wakes over frames, due before the first body can reach the water. ON by default since 2026-10-29 (the owner:
     /// "go with your recommendations"; L5 6 of 6, record byte-equal, 42.5) - every wake, near or far (D7).
     static constexpr bool kWakePaceByDefault = true;
+    /// A10 (44.2 step 2): who shoves the water - the size floor and the budget (WaterDisplaceGate.h); one setting at every tier
+    static inline WaterDisplaceGate s_displaceGate{};
     static inline bool s_wakePace = kWakePaceByDefault;
     static constexpr double kWakeBudgetMsDefault = 2.0, kWakeBudgetMsMin = 0.5, kWakeBudgetMsMax = 33.0;   ///< the frame's wake budget, ms
     static inline double s_wakeBudgetMs = kWakeBudgetMsDefault;
@@ -562,8 +565,9 @@ public:
     /// 34 (A2h, owner 2026-10-25: "keep the more chaotic feature as a turn on, but not by default"): the shipped default of debris
     /// DISPLACEMENT (20 - a moving body rasterized into the volume, shoving its water: heaving waves, thrown water, rocking). Off, the
     /// ripple layer (22) still draws the small splashes and rings; the slept-pond wake does not depend on it. The editor's
-    /// water_coupling {displace} starts from this; pinned by WaterDisplaceDefault.ItIsOffByDefault.
-    static constexpr bool kDisplaceByDefault = false;
+    /// water_coupling {displace} starts from this; pinned by WaterDisplaceDefault.ItIsOnByDefault. ON since 2026-10-29 (44.6: the
+    /// owner preferred it in a2h's video, "On, but measure first" - measured, and gated by size and budget, WaterDisplaceGate).
+    static constexpr bool kDisplaceByDefault = true;
     static constexpr double kWokenNoSleepS = 2.0;   ///< 32: a woken volume does not sleep again for this long (it woke still: the body
                                                     ///< that woke it is still falling in, and re-sleeping first would wake it again)
     /// 27.21 TEST ONLY (the red control): the signature leaves out the fields' versions - moving water keeps stale debris tiles.

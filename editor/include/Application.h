@@ -322,7 +322,10 @@ private:
     // cure is the two-way pressure force (20.6 v2, M4); until then a resting / bobbing body is carried by the
     // table law only, and a resting body does not raise the level (~2 mm per 1/3 m stone in a 4 x 4 m pond).
     static constexpr float kDisplaceOnSpeed = 0.6f, kDisplaceOffSpeed = 0.3f;   // m/s
-    std::unordered_map<uint64_t, bool> m_displacing;   // body id -> displacing now
+    // A10 (44.2 step 2): body id -> its stroke's decision (WaterDisplaceGate: idle, shoving, ripple only), and the last frame's counts
+    std::unordered_map<uint64_t, Core::Water::WaterDisplaceGate::State> m_displaceState;
+    struct DisplaceGateCounts { int kept = 0, admitted = 0, refusedSize = 0, refusedBudget = 0, rippleOnly = 0; } m_displaceGateLast;
+    struct DisplaceGateTotals { long admitted = 0, refusedSize = 0, refusedBudget = 0, maxShoving = 0; } m_displaceGateTotal;   // the session
     bool m_waterSolidsOn = true;     // 20 (M2): debris inside a volume's box displaces water (moving solids)
     // 31 (M4, docs/WaterCore.md 31.2): debris inside a GPU volume is pushed by the water's PRESSURE over its faces (pressure windows);
     // OFF = the table law everywhere (the A/B control)

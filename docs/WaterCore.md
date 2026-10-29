@@ -11335,6 +11335,38 @@ pond for one frame each; a grow spread over frames is L4's kind of work - logged
 of every wake cell). Cutting it exactly needs the CPU to stop aging every trail cell too; logged, not done. The wake's 24 s comes
 from the box height, not the water depth (1.5 m here: 6 s would let a bubble rise out) - a look/behaviour question, not cost; logged.
 
+### 44.6 Step 2 built (2026-10-29): who shoves; displacement ON by default. Status: BUILT, not signed off
+
+**Built.** `WaterDisplaceGate` (new, `engine/include/core/water/WaterDisplaceGate.h`, pure): a body's STROKE starts above
+`kDisplaceOnSpeed` and ends at `kDisplaceOffSpeed` (the hysteresis the editor had); at its start it is decided once - shove or ripple
+only - and kept to its end. It may shove only from `minHalfM` (1/6 m: a 1/3 m subcube and larger) and while the budget (32) has
+room; strokes starting together are admitted by score (volume x speed relative to the water), ties by id. **Found writing it:** the
+first draft kept only "shoving or not", so a body the budget refused would start shoving MID-STROKE as soon as a slot freed - three
+states now (idle, shoving, ripple only); the test pins it. Every moving body still wakes a slept pond (34). The editor's loop calls
+it (`m_displaceState`). API `water_coupling {displace_min_half_m (m, 0..1), displace_budget (0..1,024)}`, echoed as `displace_gate`
+with the last frame's and the session's counts (kept, admitted, refused by size / budget, ripple only, the most shoving at once).
+**`kDisplaceByDefault = true`** (pinned, `WaterDisplaceDefault.ItIsOnByDefault`): the owner's choice on a2h, measured first.
+`water_l5_outcome.py` no longer forces displacement off: `--displace default|on|off` (default = the engine's).
+
+**Tests** (`WaterDisplaceGateTest`, unit): the defaults pinned; a 1/9 m block ripples, a 1/3 m one shoves, floor 0 = every size,
+budget 0 = none; never started or stopped mid-stroke (the budget's refused body stays ripple-only when a slot frees; hysteresis both
+ways; a new stroke after it slows decides afresh); the budget by score, the same five in 20 shuffled list orders, a held slot never
+taken by a stronger newcomer.
+
+**Measured** (`displace_cost_s2.json`, displacement on vs off alternated): **the pit now costs what it costs off** - on 206-217 fps
+(CPU 6.0-6.7 ms, GPU 1.16-1.18) against off 201-212 (6.1-6.5 ms, 1.15-1.17): its 1,100 1/9 m blocks only ripple (7,210 strokes
+refused by size, 0 by the budget); the pond unchanged (~310 fps, its 1/3 m blocks shove; at most 5 at once). No block rose (the
+highest any pit block got after entry: 0.78-0.84 m below its spawn; 1,100 of 1,100 matched, every run).
+
+**The no-float-up gates with displacement on** (`a2g_s2_gate*.json`, three runs): the stone gate PASS; every peak after entry
+equals the control's (16.450); the 1/3 m refused block at rest. **FAIL, found, not caused here:** with every window refused (the
+TEST knob - the push's fallback forced), the 1 m Wood block still bobs 6.9-8.0 cm in the last 2 s of its 15 s, where 33.1 (2026-10-25)
+had it still by then. Its bob per 2 s now: 2.20, 0.42, 0.29, 0.21, 0.17, 0.15, 0.11 m - it settles, slowly; it never rises above its
+entry. Not today's changes: the same with the old upload path (`test_solid_upload_sync`, 6.9 cm) and with the ripple reach off (7.1
+cm); that body is rasterized by neither (no window). The tools' clock also changed since (A2j: 33.1's "2 s" windows were log time,
+~4 s of wall each), so part of the difference may be the axis. Logged for the A2g path - the forced fallback is not the shipped path
+(it runs only over the window cap, outside a GPU volume or for a body wider than a window).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

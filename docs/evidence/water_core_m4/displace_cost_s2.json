@@ -1,0 +1,1781 @@
+{
+ "build": "Release",
+ "order": [
+  "on",
+  "off",
+  "off",
+  "on",
+  "on",
+  "off"
+ ],
+ "rows": [
+  {
+   "scene": "pond",
+   "displace": "on",
+   "fps_mean": 315.0,
+   "cpu_frame_ms_median": 3.305,
+   "frame_ms_max": 17.24,
+   "gpu_frame_ms_median": 1.672,
+   "gpu_frame_ms_max": 2.962,
+   "water_gpu_device_ms_end": 0.607,
+   "phases_top": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     0.695,
+     14.31
+    ],
+    [
+     "solids.3 solid fields (raster, wake)",
+     0.553,
+     1.0
+    ],
+    [
+     "gpu.03b the bodies' box (44.2)",
+     0.246,
+     1.18
+    ],
+    [
+     "gpu.08 record the commands",
+     0.241,
+     0.51
+    ],
+    [
+     "solids.4 upload the box",
+     0.144,
+     0.32
+    ],
+    [
+     "gpu.04 residency: which bricks",
+     0.111,
+     0.4
+    ],
+    [
+     "ripples.2 masks + layers",
+     0.044,
+     0.59
+    ],
+    [
+     "gpu.09 submit",
+     0.038,
+     1.05
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     0.028,
+     1.47
+    ],
+    [
+     "surf.6 record tiles' surfaces",
+     0.022,
+     0.07
+    ],
+    [
+     "surf.1 read the GPU surface",
+     0.019,
+     0.12
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.016,
+     0.61
+    ],
+    [
+     "collect.2 lists + copies",
+     0.015,
+     0.5
+    ],
+    [
+     "mgr.3 tall cells",
+     0.013,
+     0.06
+    ]
+   ],
+   "phases_worst_call": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     14.31
+    ],
+    [
+     "gpu.02 grow pool",
+     12.98
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     1.47
+    ],
+    [
+     "collect.1 fence wait",
+     1.44
+    ],
+    [
+     "gpu.03b the bodies' box (44.2)",
+     1.18
+    ],
+    [
+     "gpu.09 submit",
+     1.05
+    ],
+    [
+     "solids.3 solid fields (raster, wake)",
+     1.0
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.61
+    ]
+   ],
+   "app_water_worst_frame": {
+    "bodies": 0.0137,
+    "exchange": 0.0001,
+    "feed": 0.008,
+    "motion": 0.0019,
+    "pressure": 0.0048,
+    "solids": 0.7826,
+    "total": 15.2971,
+    "update": 14.4823
+   }
+  },
+  {
+   "scene": "pond",
+   "displace": "off",
+   "fps_mean": 486.1,
+   "cpu_frame_ms_median": 2.106,
+   "frame_ms_max": 3.85,
+   "gpu_frame_ms_median": 1.228,
+   "gpu_frame_ms_max": 2.286,
+   "water_gpu_device_ms_end": 0.741,
+   "phases_top": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     0.538,
+     2.0
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     0.218,
+     1.67
+    ],
+    [
+     "gpu.08 record the commands",
+     0.202,
+     0.45
+    ],
+    [
+     "collect.1 fence wait",
+     0.201,
+     1.65
+    ],
+    [
+     "gpu.09 submit",
+     0.05,
+     0.17
+    ],
+    [
+     "gpu.04 residency: which bricks",
+     0.038,
+     0.25
+    ],
+    [
+     "mgr.3 tall cells",
+     0.026,
+     0.58
+    ],
+    [
+     "ripples.2 masks + layers",
+     0.024,
+     0.13
+    ],
+    [
+     "ripples.1 surfaceFields (= surf.*)",
+     0.017,
+     0.15
+    ],
+    [
+     "surf.6 record tiles' surfaces",
+     0.017,
+     0.08
+    ],
+    [
+     "collect.2 lists + copies",
+     0.015,
+     0.07
+    ],
+    [
+     "surf.1 read the GPU surface",
+     0.012,
+     0.09
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.011,
+     0.75
+    ],
+    [
+     "gpu.03b the bodies' box (44.2)",
+     0.008,
+     0.03
+    ]
+   ],
+   "phases_worst_call": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     2.0
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     1.67
+    ],
+    [
+     "collect.1 fence wait",
+     1.65
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.75
+    ],
+    [
+     "mgr.3 tall cells",
+     0.58
+    ],
+    [
+     "gpu.08 record the commands",
+     0.45
+    ],
+    [
+     "gpu.07 partition + tables",
+     0.37
+    ],
+    [
+     "gpu.04 residency: which bricks",
+     0.25
+    ]
+   ],
+   "app_water_worst_frame": {
+    "bodies": 0.0098,
+    "exchange": 0.0,
+    "feed": 0.0063,
+    "motion": 0.0017,
+    "pressure": 0.0124,
+    "solids": 0.0008,
+    "total": 2.198,
+    "update": 2.1647
+   }
+  },
+  {
+   "scene": "pond",
+   "displace": "off",
+   "fps_mean": 479.5,
+   "cpu_frame_ms_median": 2.115,
+   "frame_ms_max": 4.12,
+   "gpu_frame_ms_median": 1.23,
+   "gpu_frame_ms_max": 2.609,
+   "water_gpu_device_ms_end": 0.544,
+   "phases_top": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     0.557,
+     2.04
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     0.251,
+     1.73
+    ],
+    [
+     "collect.1 fence wait",
+     0.234,
+     1.72
+    ],
+    [
+     "gpu.08 record the commands",
+     0.194,
+     0.44
+    ],
+    [
+     "gpu.09 submit",
+     0.045,
+     0.26
+    ],
+    [
+     "gpu.04 residency: which bricks",
+     0.037,
+     0.26
+    ],
+    [
+     "mgr.3 tall cells",
+     0.026,
+     0.44
+    ],
+    [
+     "ripples.2 masks + layers",
+     0.024,
+     0.15
+    ],
+    [
+     "ripples.1 surfaceFields (= surf.*)",
+     0.017,
+     0.14
+    ],
+    [
+     "surf.6 record tiles' surfaces",
+     0.016,
+     0.06
+    ],
+    [
+     "collect.2 lists + copies",
+     0.015,
+     0.07
+    ],
+    [
+     "surf.1 read the GPU surface",
+     0.013,
+     0.12
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.011,
+     0.76
+    ],
+    [
+     "gpu.03b the bodies' box (44.2)",
+     0.008,
+     0.06
+    ]
+   ],
+   "phases_worst_call": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     2.04
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     1.73
+    ],
+    [
+     "collect.1 fence wait",
+     1.72
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.76
+    ],
+    [
+     "gpu.08 record the commands",
+     0.44
+    ],
+    [
+     "mgr.3 tall cells",
+     0.44
+    ],
+    [
+     "gpu.04 residency: which bricks",
+     0.26
+    ],
+    [
+     "gpu.09 submit",
+     0.26
+    ]
+   ],
+   "app_water_worst_frame": {
+    "bodies": 0.0117,
+    "exchange": 0.0,
+    "feed": 0.0064,
+    "motion": 0.0021,
+    "pressure": 0.0046,
+    "solids": 0.0003,
+    "total": 2.1539,
+    "update": 2.1258
+   }
+  },
+  {
+   "scene": "pond",
+   "displace": "on",
+   "fps_mean": 313.8,
+   "cpu_frame_ms_median": 3.297,
+   "frame_ms_max": 15.66,
+   "gpu_frame_ms_median": 1.724,
+   "gpu_frame_ms_max": 3.181,
+   "water_gpu_device_ms_end": 0.669,
+   "phases_top": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     0.681,
+     12.39
+    ],
+    [
+     "solids.3 solid fields (raster, wake)",
+     0.555,
+     1.07
+    ],
+    [
+     "gpu.03b the bodies' box (44.2)",
+     0.24,
+     1.17
+    ],
+    [
+     "gpu.08 record the commands",
+     0.239,
+     0.45
+    ],
+    [
+     "solids.4 upload the box",
+     0.14,
+     0.32
+    ],
+    [
+     "gpu.04 residency: which bricks",
+     0.109,
+     0.44
+    ],
+    [
+     "ripples.2 masks + layers",
+     0.044,
+     0.42
+    ],
+    [
+     "gpu.09 submit",
+     0.039,
+     0.19
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     0.024,
+     1.23
+    ],
+    [
+     "surf.6 record tiles' surfaces",
+     0.022,
+     0.07
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.017,
+     0.66
+    ],
+    [
+     "surf.1 read the GPU surface",
+     0.017,
+     0.07
+    ],
+    [
+     "collect.2 lists + copies",
+     0.014,
+     0.23
+    ],
+    [
+     "mgr.3 tall cells",
+     0.013,
+     0.06
+    ]
+   ],
+   "phases_worst_call": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     12.39
+    ],
+    [
+     "gpu.02 grow pool",
+     11.72
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     1.23
+    ],
+    [
+     "collect.1 fence wait",
+     1.22
+    ],
+    [
+     "gpu.03b the bodies' box (44.2)",
+     1.17
+    ],
+    [
+     "solids.3 solid fields (raster, wake)",
+     1.07
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.66
+    ],
+    [
+     "gpu.08 record the commands",
+     0.45
+    ]
+   ],
+   "app_water_worst_frame": {
+    "bodies": 0.0139,
+    "exchange": 0.0001,
+    "feed": 0.0067,
+    "motion": 0.0017,
+    "pressure": 0.0039,
+    "solids": 0.7607,
+    "total": 13.2929,
+    "update": 12.5023
+   }
+  },
+  {
+   "scene": "pond",
+   "displace": "on",
+   "fps_mean": 306.3,
+   "cpu_frame_ms_median": 3.331,
+   "frame_ms_max": 16.53,
+   "gpu_frame_ms_median": 1.663,
+   "gpu_frame_ms_max": 3.568,
+   "water_gpu_device_ms_end": 0.696,
+   "phases_top": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     0.715,
+     13.67
+    ],
+    [
+     "solids.3 solid fields (raster, wake)",
+     0.551,
+     1.05
+    ],
+    [
+     "gpu.03b the bodies' box (44.2)",
+     0.252,
+     1.17
+    ],
+    [
+     "gpu.08 record the commands",
+     0.249,
+     0.6
+    ],
+    [
+     "solids.4 upload the box",
+     0.143,
+     0.38
+    ],
+    [
+     "gpu.04 residency: which bricks",
+     0.118,
+     0.47
+    ],
+    [
+     "ripples.2 masks + layers",
+     0.044,
+     0.2
+    ],
+    [
+     "gpu.09 submit",
+     0.039,
+     0.17
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     0.024,
+     0.99
+    ],
+    [
+     "surf.6 record tiles' surfaces",
+     0.022,
+     0.06
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.018,
+     0.68
+    ],
+    [
+     "surf.1 read the GPU surface",
+     0.017,
+     0.16
+    ],
+    [
+     "collect.2 lists + copies",
+     0.014,
+     0.19
+    ],
+    [
+     "mgr.3 tall cells",
+     0.013,
+     0.09
+    ]
+   ],
+   "phases_worst_call": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     13.67
+    ],
+    [
+     "gpu.02 grow pool",
+     12.37
+    ],
+    [
+     "gpu.03b the bodies' box (44.2)",
+     1.17
+    ],
+    [
+     "solids.3 solid fields (raster, wake)",
+     1.05
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     0.99
+    ],
+    [
+     "collect.1 fence wait",
+     0.97
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.68
+    ],
+    [
+     "gpu.08 record the commands",
+     0.6
+    ]
+   ],
+   "app_water_worst_frame": {
+    "bodies": 0.0132,
+    "exchange": 0.0,
+    "feed": 0.0082,
+    "motion": 0.0021,
+    "pressure": 0.0045,
+    "solids": 0.7813,
+    "total": 14.6897,
+    "update": 13.8764
+   }
+  },
+  {
+   "scene": "pond",
+   "displace": "off",
+   "fps_mean": 488.6,
+   "cpu_frame_ms_median": 2.119,
+   "frame_ms_max": 3.87,
+   "gpu_frame_ms_median": 1.221,
+   "gpu_frame_ms_max": 2.94,
+   "water_gpu_device_ms_end": 0.553,
+   "phases_top": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     0.547,
+     2.06
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     0.222,
+     1.7
+    ],
+    [
+     "gpu.08 record the commands",
+     0.206,
+     0.45
+    ],
+    [
+     "collect.1 fence wait",
+     0.205,
+     1.68
+    ],
+    [
+     "gpu.09 submit",
+     0.049,
+     0.19
+    ],
+    [
+     "gpu.04 residency: which bricks",
+     0.04,
+     0.25
+    ],
+    [
+     "mgr.3 tall cells",
+     0.026,
+     0.63
+    ],
+    [
+     "ripples.2 masks + layers",
+     0.024,
+     0.16
+    ],
+    [
+     "ripples.1 surfaceFields (= surf.*)",
+     0.017,
+     0.11
+    ],
+    [
+     "surf.6 record tiles' surfaces",
+     0.016,
+     0.05
+    ],
+    [
+     "collect.2 lists + copies",
+     0.015,
+     0.06
+    ],
+    [
+     "surf.1 read the GPU surface",
+     0.012,
+     0.09
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.011,
+     0.76
+    ],
+    [
+     "gpu.03b the bodies' box (44.2)",
+     0.009,
+     0.09
+    ]
+   ],
+   "phases_worst_call": [
+    [
+     "mgr.4 the GPU step (= gpu.* + collect.*)",
+     2.06
+    ],
+    [
+     "gpu.01 settle (collect the call before)",
+     1.7
+    ],
+    [
+     "collect.1 fence wait",
+     1.68
+    ],
+    [
+     "gpu.05 residency: apply",
+     0.76
+    ],
+    [
+     "mgr.3 tall cells",
+     0.63
+    ],
+    [
+     "gpu.08 record the commands",
+     0.45
+    ],
+    [
+     "gpu.07 partition + tables",
+     0.34
+    ],
+    [
+     "gpu.04 residency: which bricks",
+     0.25
+    ]
+   ],
+   "app_water_worst_frame": {
+    "bodies": 0.0053,
+    "exchange": 0.0001,
+    "feed": 0.0088,
+    "motion": 0.0026,
+    "pressure": 0.0023,
+    "solids": 0.0009,
+    "total": 2.1733,
+    "update": 2.151
+   }
+  },
+  {
+   "scene": "pit",
+   "displace": "on",
+   "fps_mean": 206.0,
+   "fps_min": 71.4709457660023,
+   "cpu_frame_ms_mean": 6.695,
+   "gpu_frame_ms_median": 1.162,
+   "gpu_frame_ms_max": 5.759,
+   "max_rise_above_spawn_m": -0.8252999999999986,
+   "rasterized_le_windows": true,
+   "bodies": 1100,
+   "spawned": 1100,
+   "unmatched_start": null
+  },
+  {
+   "scene": "pit",
+   "displace": "off",
+   "fps_mean": 201.3,
+   "fps_min": 73.89399030654867,
+   "cpu_frame_ms_mean": 6.483,
+   "gpu_frame_ms_median": 1.167,
+   "gpu_frame_ms_max": 6.063,
+   "max_rise_above_spawn_m": -0.8201999999999998,
+   "rasterized_le_windows": true,
+   "bodies": 1100,
+   "spawned": 1100,
+   "unmatched_start": {
+    "n": 1000,
+    "min_y": 15.7105,
+    "median_y": 15.9795,
+    "max_y": 16.1401
+   }
+  },
+  {
+   "scene": "pit",
+   "displace": "off",
+   "fps_mean": 208.1,
+   "fps_min": 73.71315242815204,
+   "cpu_frame_ms_mean": 6.326,
+   "gpu_frame_ms_median": 1.153,
+   "gpu_frame_ms_max": 5.623,
+   "max_rise_above_spawn_m": -0.8138000000000005,
+   "rasterized_le_windows": true,
+   "bodies": 1100,
+   "spawned": 1100,
+   "unmatched_start": {
+    "n": 1062,
+    "min_y": 15.7139,
+    "median_y": 15.9787,
+    "max_y": 16.1498
+   }
+  },
+  {
+   "scene": "pit",
+   "displace": "on",
+   "fps_mean": 217.2,
+   "fps_min": 75.64639670660381,
+   "cpu_frame_ms_mean": 6.004,
+   "gpu_frame_ms_median": 1.181,
+   "gpu_frame_ms_max": 5.622,
+   "max_rise_above_spawn_m": -0.8229000000000006,
+   "rasterized_le_windows": true,
+   "bodies": 1100,
+   "spawned": 1100,
+   "unmatched_start": {
+    "n": 1100,
+    "min_y": 15.6864,
+    "median_y": 15.9795,
+    "max_y": 16.1432
+   }
+  },
+  {
+   "scene": "pit",
+   "displace": "on",
+   "fps_mean": 215.8,
+   "fps_min": 74.92713077809461,
+   "cpu_frame_ms_mean": 6.085,
+   "gpu_frame_ms_median": 1.162,
+   "gpu_frame_ms_max": 5.346,
+   "max_rise_above_spawn_m": -0.8139000000000003,
+   "rasterized_le_windows": true,
+   "bodies": 1100,
+   "spawned": 1100,
+   "unmatched_start": {
+    "n": 1000,
+    "min_y": 15.7106,
+    "median_y": 15.9794,
+    "max_y": 16.1074
+   }
+  },
+  {
+   "scene": "pit",
+   "displace": "off",
+   "fps_mean": 212.1,
+   "fps_min": 78.06157645817954,
+   "cpu_frame_ms_mean": 6.14,
+   "gpu_frame_ms_median": 1.149,
+   "gpu_frame_ms_max": 5.751,
+   "max_rise_above_spawn_m": -0.8446999999999996,
+   "rasterized_le_windows": true,
+   "bodies": 1100,
+   "spawned": 1100,
+   "unmatched_start": {
+    "n": 1062,
+    "min_y": 15.662,
+    "median_y": 15.9792,
+    "max_y": 16.1283
+   }
+  }
+ ],
+ "summary": {
+  "pond_on": {
+   "fps_mean": [
+    315.0,
+    313.8,
+    306.3
+   ],
+   "cpu_frame_ms_median": [
+    3.305,
+    3.297,
+    3.331
+   ],
+   "frame_ms_max": [
+    17.24,
+    15.66,
+    16.53
+   ],
+   "gpu_frame_ms_median": [
+    1.672,
+    1.724,
+    1.663
+   ],
+   "gpu_frame_ms_max": [
+    2.962,
+    3.181,
+    3.568
+   ],
+   "water_gpu_device_ms_end": [
+    0.607,
+    0.669,
+    0.696
+   ],
+   "phases_top": [
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      0.695,
+      14.31
+     ],
+     [
+      "solids.3 solid fields (raster, wake)",
+      0.553,
+      1.0
+     ],
+     [
+      "gpu.03b the bodies' box (44.2)",
+      0.246,
+      1.18
+     ],
+     [
+      "gpu.08 record the commands",
+      0.241,
+      0.51
+     ],
+     [
+      "solids.4 upload the box",
+      0.144,
+      0.32
+     ],
+     [
+      "gpu.04 residency: which bricks",
+      0.111,
+      0.4
+     ],
+     [
+      "ripples.2 masks + layers",
+      0.044,
+      0.59
+     ],
+     [
+      "gpu.09 submit",
+      0.038,
+      1.05
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      0.028,
+      1.47
+     ],
+     [
+      "surf.6 record tiles' surfaces",
+      0.022,
+      0.07
+     ],
+     [
+      "surf.1 read the GPU surface",
+      0.019,
+      0.12
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.016,
+      0.61
+     ],
+     [
+      "collect.2 lists + copies",
+      0.015,
+      0.5
+     ],
+     [
+      "mgr.3 tall cells",
+      0.013,
+      0.06
+     ]
+    ],
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      0.681,
+      12.39
+     ],
+     [
+      "solids.3 solid fields (raster, wake)",
+      0.555,
+      1.07
+     ],
+     [
+      "gpu.03b the bodies' box (44.2)",
+      0.24,
+      1.17
+     ],
+     [
+      "gpu.08 record the commands",
+      0.239,
+      0.45
+     ],
+     [
+      "solids.4 upload the box",
+      0.14,
+      0.32
+     ],
+     [
+      "gpu.04 residency: which bricks",
+      0.109,
+      0.44
+     ],
+     [
+      "ripples.2 masks + layers",
+      0.044,
+      0.42
+     ],
+     [
+      "gpu.09 submit",
+      0.039,
+      0.19
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      0.024,
+      1.23
+     ],
+     [
+      "surf.6 record tiles' surfaces",
+      0.022,
+      0.07
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.017,
+      0.66
+     ],
+     [
+      "surf.1 read the GPU surface",
+      0.017,
+      0.07
+     ],
+     [
+      "collect.2 lists + copies",
+      0.014,
+      0.23
+     ],
+     [
+      "mgr.3 tall cells",
+      0.013,
+      0.06
+     ]
+    ],
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      0.715,
+      13.67
+     ],
+     [
+      "solids.3 solid fields (raster, wake)",
+      0.551,
+      1.05
+     ],
+     [
+      "gpu.03b the bodies' box (44.2)",
+      0.252,
+      1.17
+     ],
+     [
+      "gpu.08 record the commands",
+      0.249,
+      0.6
+     ],
+     [
+      "solids.4 upload the box",
+      0.143,
+      0.38
+     ],
+     [
+      "gpu.04 residency: which bricks",
+      0.118,
+      0.47
+     ],
+     [
+      "ripples.2 masks + layers",
+      0.044,
+      0.2
+     ],
+     [
+      "gpu.09 submit",
+      0.039,
+      0.17
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      0.024,
+      0.99
+     ],
+     [
+      "surf.6 record tiles' surfaces",
+      0.022,
+      0.06
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.018,
+      0.68
+     ],
+     [
+      "surf.1 read the GPU surface",
+      0.017,
+      0.16
+     ],
+     [
+      "collect.2 lists + copies",
+      0.014,
+      0.19
+     ],
+     [
+      "mgr.3 tall cells",
+      0.013,
+      0.09
+     ]
+    ]
+   ],
+   "phases_worst_call": [
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      14.31
+     ],
+     [
+      "gpu.02 grow pool",
+      12.98
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      1.47
+     ],
+     [
+      "collect.1 fence wait",
+      1.44
+     ],
+     [
+      "gpu.03b the bodies' box (44.2)",
+      1.18
+     ],
+     [
+      "gpu.09 submit",
+      1.05
+     ],
+     [
+      "solids.3 solid fields (raster, wake)",
+      1.0
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.61
+     ]
+    ],
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      12.39
+     ],
+     [
+      "gpu.02 grow pool",
+      11.72
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      1.23
+     ],
+     [
+      "collect.1 fence wait",
+      1.22
+     ],
+     [
+      "gpu.03b the bodies' box (44.2)",
+      1.17
+     ],
+     [
+      "solids.3 solid fields (raster, wake)",
+      1.07
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.66
+     ],
+     [
+      "gpu.08 record the commands",
+      0.45
+     ]
+    ],
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      13.67
+     ],
+     [
+      "gpu.02 grow pool",
+      12.37
+     ],
+     [
+      "gpu.03b the bodies' box (44.2)",
+      1.17
+     ],
+     [
+      "solids.3 solid fields (raster, wake)",
+      1.05
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      0.99
+     ],
+     [
+      "collect.1 fence wait",
+      0.97
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.68
+     ],
+     [
+      "gpu.08 record the commands",
+      0.6
+     ]
+    ]
+   ],
+   "app_water_worst_frame": [
+    {
+     "bodies": 0.0137,
+     "exchange": 0.0001,
+     "feed": 0.008,
+     "motion": 0.0019,
+     "pressure": 0.0048,
+     "solids": 0.7826,
+     "total": 15.2971,
+     "update": 14.4823
+    },
+    {
+     "bodies": 0.0139,
+     "exchange": 0.0001,
+     "feed": 0.0067,
+     "motion": 0.0017,
+     "pressure": 0.0039,
+     "solids": 0.7607,
+     "total": 13.2929,
+     "update": 12.5023
+    },
+    {
+     "bodies": 0.0132,
+     "exchange": 0.0,
+     "feed": 0.0082,
+     "motion": 0.0021,
+     "pressure": 0.0045,
+     "solids": 0.7813,
+     "total": 14.6897,
+     "update": 13.8764
+    }
+   ]
+  },
+  "pond_off": {
+   "fps_mean": [
+    486.1,
+    479.5,
+    488.6
+   ],
+   "cpu_frame_ms_median": [
+    2.106,
+    2.115,
+    2.119
+   ],
+   "frame_ms_max": [
+    3.85,
+    4.12,
+    3.87
+   ],
+   "gpu_frame_ms_median": [
+    1.228,
+    1.23,
+    1.221
+   ],
+   "gpu_frame_ms_max": [
+    2.286,
+    2.609,
+    2.94
+   ],
+   "water_gpu_device_ms_end": [
+    0.741,
+    0.544,
+    0.553
+   ],
+   "phases_top": [
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      0.538,
+      2.0
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      0.218,
+      1.67
+     ],
+     [
+      "gpu.08 record the commands",
+      0.202,
+      0.45
+     ],
+     [
+      "collect.1 fence wait",
+      0.201,
+      1.65
+     ],
+     [
+      "gpu.09 submit",
+      0.05,
+      0.17
+     ],
+     [
+      "gpu.04 residency: which bricks",
+      0.038,
+      0.25
+     ],
+     [
+      "mgr.3 tall cells",
+      0.026,
+      0.58
+     ],
+     [
+      "ripples.2 masks + layers",
+      0.024,
+      0.13
+     ],
+     [
+      "ripples.1 surfaceFields (= surf.*)",
+      0.017,
+      0.15
+     ],
+     [
+      "surf.6 record tiles' surfaces",
+      0.017,
+      0.08
+     ],
+     [
+      "collect.2 lists + copies",
+      0.015,
+      0.07
+     ],
+     [
+      "surf.1 read the GPU surface",
+      0.012,
+      0.09
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.011,
+      0.75
+     ],
+     [
+      "gpu.03b the bodies' box (44.2)",
+      0.008,
+      0.03
+     ]
+    ],
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      0.557,
+      2.04
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      0.251,
+      1.73
+     ],
+     [
+      "collect.1 fence wait",
+      0.234,
+      1.72
+     ],
+     [
+      "gpu.08 record the commands",
+      0.194,
+      0.44
+     ],
+     [
+      "gpu.09 submit",
+      0.045,
+      0.26
+     ],
+     [
+      "gpu.04 residency: which bricks",
+      0.037,
+      0.26
+     ],
+     [
+      "mgr.3 tall cells",
+      0.026,
+      0.44
+     ],
+     [
+      "ripples.2 masks + layers",
+      0.024,
+      0.15
+     ],
+     [
+      "ripples.1 surfaceFields (= surf.*)",
+      0.017,
+      0.14
+     ],
+     [
+      "surf.6 record tiles' surfaces",
+      0.016,
+      0.06
+     ],
+     [
+      "collect.2 lists + copies",
+      0.015,
+      0.07
+     ],
+     [
+      "surf.1 read the GPU surface",
+      0.013,
+      0.12
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.011,
+      0.76
+     ],
+     [
+      "gpu.03b the bodies' box (44.2)",
+      0.008,
+      0.06
+     ]
+    ],
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      0.547,
+      2.06
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      0.222,
+      1.7
+     ],
+     [
+      "gpu.08 record the commands",
+      0.206,
+      0.45
+     ],
+     [
+      "collect.1 fence wait",
+      0.205,
+      1.68
+     ],
+     [
+      "gpu.09 submit",
+      0.049,
+      0.19
+     ],
+     [
+      "gpu.04 residency: which bricks",
+      0.04,
+      0.25
+     ],
+     [
+      "mgr.3 tall cells",
+      0.026,
+      0.63
+     ],
+     [
+      "ripples.2 masks + layers",
+      0.024,
+      0.16
+     ],
+     [
+      "ripples.1 surfaceFields (= surf.*)",
+      0.017,
+      0.11
+     ],
+     [
+      "surf.6 record tiles' surfaces",
+      0.016,
+      0.05
+     ],
+     [
+      "collect.2 lists + copies",
+      0.015,
+      0.06
+     ],
+     [
+      "surf.1 read the GPU surface",
+      0.012,
+      0.09
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.011,
+      0.76
+     ],
+     [
+      "gpu.03b the bodies' box (44.2)",
+      0.009,
+      0.09
+     ]
+    ]
+   ],
+   "phases_worst_call": [
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      2.0
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      1.67
+     ],
+     [
+      "collect.1 fence wait",
+      1.65
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.75
+     ],
+     [
+      "mgr.3 tall cells",
+      0.58
+     ],
+     [
+      "gpu.08 record the commands",
+      0.45
+     ],
+     [
+      "gpu.07 partition + tables",
+      0.37
+     ],
+     [
+      "gpu.04 residency: which bricks",
+      0.25
+     ]
+    ],
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      2.04
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      1.73
+     ],
+     [
+      "collect.1 fence wait",
+      1.72
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.76
+     ],
+     [
+      "gpu.08 record the commands",
+      0.44
+     ],
+     [
+      "mgr.3 tall cells",
+      0.44
+     ],
+     [
+      "gpu.04 residency: which bricks",
+      0.26
+     ],
+     [
+      "gpu.09 submit",
+      0.26
+     ]
+    ],
+    [
+     [
+      "mgr.4 the GPU step (= gpu.* + collect.*)",
+      2.06
+     ],
+     [
+      "gpu.01 settle (collect the call before)",
+      1.7
+     ],
+     [
+      "collect.1 fence wait",
+      1.68
+     ],
+     [
+      "gpu.05 residency: apply",
+      0.76
+     ],
+     [
+      "mgr.3 tall cells",
+      0.63
+     ],
+     [
+      "gpu.08 record the commands",
+      0.45
+     ],
+     [
+      "gpu.07 partition + tables",
+      0.34
+     ],
+     [
+      "gpu.04 residency: which bricks",
+      0.25
+     ]
+    ]
+   ],
+   "app_water_worst_frame": [
+    {
+     "bodies": 0.0098,
+     "exchange": 0.0,
+     "feed": 0.0063,
+     "motion": 0.0017,
+     "pressure": 0.0124,
+     "solids": 0.0008,
+     "total": 2.198,
+     "update": 2.1647
+    },
+    {
+     "bodies": 0.0117,
+     "exchange": 0.0,
+     "feed": 0.0064,
+     "motion": 0.0021,
+     "pressure": 0.0046,
+     "solids": 0.0003,
+     "total": 2.1539,
+     "update": 2.1258
+    },
+    {
+     "bodies": 0.0053,
+     "exchange": 0.0001,
+     "feed": 0.0088,
+     "motion": 0.0026,
+     "pressure": 0.0023,
+     "solids": 0.0009,
+     "total": 2.1733,
+     "update": 2.151
+    }
+   ]
+  },
+  "pit_on": {
+   "fps_mean": [
+    206.0,
+    217.2,
+    215.8
+   ],
+   "fps_min": [
+    71.4709457660023,
+    75.64639670660381,
+    74.92713077809461
+   ],
+   "cpu_frame_ms_mean": [
+    6.695,
+    6.004,
+    6.085
+   ],
+   "gpu_frame_ms_median": [
+    1.162,
+    1.181,
+    1.162
+   ],
+   "gpu_frame_ms_max": [
+    5.759,
+    5.622,
+    5.346
+   ],
+   "max_rise_above_spawn_m": [
+    -0.8252999999999986,
+    -0.8229000000000006,
+    -0.8139000000000003
+   ],
+   "rasterized_le_windows": [
+    true,
+    true,
+    true
+   ],
+   "bodies": [
+    1100,
+    1100,
+    1100
+   ],
+   "spawned": [
+    1100,
+    1100,
+    1100
+   ],
+   "unmatched_start": [
+    null,
+    {
+     "n": 1100,
+     "min_y": 15.6864,
+     "median_y": 15.9795,
+     "max_y": 16.1432
+    },
+    {
+     "n": 1000,
+     "min_y": 15.7106,
+     "median_y": 15.9794,
+     "max_y": 16.1074
+    }
+   ]
+  },
+  "pit_off": {
+   "fps_mean": [
+    201.3,
+    208.1,
+    212.1
+   ],
+   "fps_min": [
+    73.89399030654867,
+    73.71315242815204,
+    78.06157645817954
+   ],
+   "cpu_frame_ms_mean": [
+    6.483,
+    6.326,
+    6.14
+   ],
+   "gpu_frame_ms_median": [
+    1.167,
+    1.153,
+    1.149
+   ],
+   "gpu_frame_ms_max": [
+    6.063,
+    5.623,
+    5.751
+   ],
+   "max_rise_above_spawn_m": [
+    -0.8201999999999998,
+    -0.8138000000000005,
+    -0.8446999999999996
+   ],
+   "rasterized_le_windows": [
+    true,
+    true,
+    true
+   ],
+   "bodies": [
+    1100,
+    1100,
+    1100
+   ],
+   "spawned": [
+    1100,
+    1100,
+    1100
+   ],
+   "unmatched_start": [
+    {
+     "n": 1000,
+     "min_y": 15.7105,
+     "median_y": 15.9795,
+     "max_y": 16.1401
+    },
+    {
+     "n": 1062,
+     "min_y": 15.7139,
+     "median_y": 15.9787,
+     "max_y": 16.1498
+    },
+    {
+     "n": 1062,
+     "min_y": 15.662,
+     "median_y": 15.9792,
+     "max_y": 16.1283
+    }
+   ]
+  }
+ }
+}

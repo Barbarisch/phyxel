@@ -3788,12 +3788,13 @@ void Application::update(float deltaTime) {
                         rippleBodies.push_back(m);
                     }
                 waterCore->setRippleBodies(std::move(rippleBodies));
-                std::unordered_map<uint64_t, bool> displacing;
                 std::vector<Core::Water::MovingSolid> waking;   // 34 (A2h): the moving bodies, whatever the displace switch - the wake's list
                 std::vector<Core::Water::MovingSolid> inBoxes;  // L4 (42.4 item 5): every body in the boxes - a paced wake's deadline
+                std::vector<Core::Water::MovingSolid> moving;   // A10 (44.2 step 2): the bodies the gate decides about, in its order
+                std::vector<Core::Water::WaterDisplaceGate::Body> gateIn;
                 if (!boxes.empty())
                     for (const auto& w : debrisRuntime->gpu()->wetBodies()) {
-                        const uint64_t id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);
+                        const uint64_t id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);   // never 0
                         {   Core::Water::MovingSolid a; a.centre = w.centre + w.velocity * w.ageSeconds; a.halfExtents = w.halfExtents; a.velocity = w.velocity; a.id = id;
                             inBoxes.push_back(a); }
                         // 26.25: the speed RELATIVE TO THE WATER - a float riding a creek at 0.6-0.9 m/s moves WITH the water and
@@ -3805,18 +3806,24 @@ void Application::update(float deltaTime) {
                             float s = 0.0f; glm::vec2 fl(0.0f);
                             if (waterCore->columnWater(static_cast<int>(std::floor(c.x)), static_cast<int>(std::floor(c.z)), s, fl)) rel -= glm::vec3(fl.x, 0.0f, fl.y);
                         }
-                        const float speed = glm::length(rel);
-                        const auto prev = m_displacing.find(id);
-                        const bool on = speed > kDisplaceOnSpeed || (prev != m_displacing.end() && prev->second && speed > kDisplaceOffSpeed);
-                        displacing[id] = on;
-                        if (!on) continue;   // at rest / bobbing: the table law carries it (see kDisplaceOnSpeed)
                         Core::Water::MovingSolid m;
-                        m.centre = w.centre + w.velocity * w.ageSeconds; m.halfExtents = w.halfExtents; m.velocity = w.velocity; m.fresh = w.fresh;
-                        m.id = (static_cast<uint64_t>(w.slot) << 32) | w.serial | (1ull << 63);   // never 0
-                        waking.push_back(m);
-                        if (m_displaceOn) solids.push_back(m);   // 34: displacement is opt-in - off, the body is never rasterized
+                        m.centre = w.centre + w.velocity * w.ageSeconds; m.halfExtents = w.halfExtents; m.velocity = w.velocity; m.fresh = w.fresh; m.id = id;
+                        moving.push_back(m);
+                        gateIn.push_back({id, w.halfExtents, glm::length(rel)});
                     }
-                m_displacing.swap(displacing);
+                // A10 (44.2 step 2): one decision per stroke - a stroke starts above kDisplaceOnSpeed and ends at kDisplaceOffSpeed (the
+                // hysteresis this loop had); the gate adds the size floor and the budget (WaterDisplaceGate.h)
+                const auto gate = Core::Water::WaterCoreManager::s_displaceGate.select(gateIn, m_displaceState, kDisplaceOnSpeed, kDisplaceOffSpeed);
+                for (const Core::Water::MovingSolid& m : moving) {
+                    const auto it = gate.state.find(m.id);
+                    if (it == gate.state.end() || it->second == Core::Water::WaterDisplaceGate::Idle) continue;   // at rest / bobbing: the table law carries it
+                    waking.push_back(m);   // every moving body wakes a slept pond, shoving or not (34)
+                    if (m_displaceOn && it->second == Core::Water::WaterDisplaceGate::Shoving) solids.push_back(m);   // 34: displacement is opt-in
+                }
+                m_displaceGateLast = {gate.kept, gate.admitted, gate.refusedSize, gate.refusedBudget, gate.rippleOnly};
+                m_displaceGateTotal.admitted += gate.admitted; m_displaceGateTotal.refusedSize += gate.refusedSize; m_displaceGateTotal.refusedBudget += gate.refusedBudget;
+                m_displaceGateTotal.maxShoving = std::max<long>(m_displaceGateTotal.maxShoving, gate.kept + gate.admitted);
+                m_displaceState = gate.state;
                 // 32: a moving body in a slept pond's box wakes it from the record. The UNFILTERED list (33: a slept box has no
                 // volume, so no window - filtered first, a slept pond could never wake), and built before the displace switch (34: with
                 // the switch off the floater sank to the pond floor - 31.9 b)
@@ -14666,6 +14673,20 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("displace")) m_displaceOn = cmd.params.value("displace", true);   // 31 TEST: bodies recorded but not rasterized
         // 44.2 step 1(a) TEST: the bodies' box uploaded in a call of its own, waiting twice (the path before the fold) - the A/B control
         if (cmd.params.contains("test_solid_upload_sync")) Core::Water::WaterCoreGpu::s_solidUploadSyncForTest = cmd.params.value("test_solid_upload_sync", false);
+        // A10 (44.2 step 2): displace_min_half_m (m, the body's largest half-extent; 0 = every size; up to 1 m) and displace_budget
+        // (bodies shoving at once; 0 = none shove; up to 1,024 - a shoving body must hold a push window, A2g's cap). Omitted or
+        // negative = unchanged. One setting at every tier (44.3 item 4)
+        {   using G = Core::Water::WaterDisplaceGate;
+            auto& g = Core::Water::WaterCoreManager::s_displaceGate;
+            if (cmd.params.contains("displace_min_half_m") && cmd.params["displace_min_half_m"].is_number()) {
+                const float v = cmd.params["displace_min_half_m"].get<float>();
+                if (v >= 0.0f) g.minHalfM = std::min(v, G::kMinHalfMMax);
+            }
+            if (cmd.params.contains("displace_budget") && cmd.params["displace_budget"].is_number()) {
+                const int v = cmd.params["displace_budget"].get<int>();
+                if (v >= 0) g.budget = std::min(v, G::kBudgetMax);
+            }
+        }
         if (cmd.params.contains("wake_on_touch")) Core::Water::WaterCoreManager::s_wakeOnTouch = cmd.params.value("wake_on_touch", true);   // 32: the A/B control
         // 33 (A2g) TEST: refuse every pressure window (as over budget) - forces the push's fallback; not saved, echoed
         if (cmd.params.contains("test_refuse_windows")) Core::Water::WaterCoreManager::s_refuseWindowsForTest = cmd.params.value("test_refuse_windows", false);
@@ -14704,6 +14725,12 @@ void Application::registerWaterCommands() {
         const auto* gp = debrisRuntime ? debrisRuntime->gpu() : nullptr;
         r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn}, {"solids", m_waterSolidsOn}, {"wake_rule", waterCore ? waterCore->solidWakeRule() : true},
              {"displace", m_displaceOn}, {"test_solid_upload_sync", Core::Water::WaterCoreGpu::s_solidUploadSyncForTest},
+             {"displace_gate", {{"min_half_m", Core::Water::WaterCoreManager::s_displaceGate.minHalfM}, {"min_half_m_default", Core::Water::WaterDisplaceGate::kMinHalfMDefault},
+                                {"budget", Core::Water::WaterCoreManager::s_displaceGate.budget}, {"budget_default", Core::Water::WaterDisplaceGate::kBudgetDefault},
+                                {"last", {{"kept", m_displaceGateLast.kept}, {"admitted", m_displaceGateLast.admitted}, {"refused_size", m_displaceGateLast.refusedSize},
+                                          {"refused_budget", m_displaceGateLast.refusedBudget}, {"ripple_only", m_displaceGateLast.rippleOnly}}},
+                                {"total", {{"admitted", m_displaceGateTotal.admitted}, {"refused_size", m_displaceGateTotal.refusedSize},
+                                           {"refused_budget", m_displaceGateTotal.refusedBudget}, {"max_shoving", m_displaceGateTotal.maxShoving}}}}},
              {"slept", [&] {   // 32: ponds that slept into the record and wake when touched
                  nlohmann::json s = {{"wake_on_touch", Core::Water::WaterCoreManager::s_wakeOnTouch},
                                      {"wake_on_touch_default", Core::Water::WaterCoreManager::kWakeOnTouchByDefault},   // 36: a session that differs shows

@@ -39,6 +39,7 @@ WAKE_DELAY_S = 0.0               # L4 (42): --wake-delay; the bodies' bottoms re
 WAKE_PACE = PACE_LATE = False    # L4 (42.3): wake_pace (the engine's default unless --wake-pace on|off), --pace-late (the red)
 SHIPPED_PACE = False             # the engine's wake_pace when the tool started (restored at the end; on since 42.6)
 RIPPLE = None                    # L2 (43): {"ripple_reach": bool, "ripple_m": m} for every run, or None = the engine's settings
+DISPLACE = False                 # 44.6: debris displacement for every run - the engine's setting when the tool started (--displace)
 
 
 def tracks_xyz(path):
@@ -90,7 +91,7 @@ def run(api, name, seconds):
     # 42.1: the run's viewer from BEFORE the pond's first sleep - L3 decides at the sleep whether the memory is kept, so a viewer set
     # after it left the path to wherever the camera happened to be (all 42.1 runs went fresh with the camera 85 m away)
     api.debug("water_locality", {"test_viewer": viewer, "test_far_record_dry": False, **(RIPPLE or {})})
-    w.AUTO_SLEEP = True; w.PRESSURE = True; w.DISPLACE = False
+    w.AUTO_SLEEP = True; w.PRESSURE = True; w.DISPLACE = DISPLACE   # 44.6: the engine's shipped setting unless --displace says
     w.pond(api)
     if not wait_slept(api, 60.0): raise SystemExit(f"{name}: the pond did not sleep into the record within 60 s")
     loc = api.debug("water_locality", {"test_viewer": viewer, "test_far_record_dry": dry})
@@ -159,7 +160,7 @@ def run(api, name, seconds):
     out = {"run": name, "viewer": viewer, "far_record_dry": dry, "locality": loc, "pond_woke": woke, "pond_slept_again": slept_again,
            "recorded_m3_before": m_before, "recorded_m3_after": m_after, "level": lvl, "bodies": bodies, "pond": trace,
            "wake_path": wake_path, "kept_before_drop": kept0, "wake_delay_s": WAKE_DELAY_S, "wake_pace": WAKE_PACE,
-           "pace_late": PACE_LATE, "paced": paced, "ripple": RIPPLE, "ripple_slots_max": rip_max, "pond_asleep_s": asleep_by}
+           "pace_late": PACE_LATE, "paced": paced, "ripple": RIPPLE, "ripple_slots_max": rip_max, "pond_asleep_s": asleep_by, "displace": DISPLACE}
     print(f"{name:7s} woke {woke} ({wake_path} memory; paced {paced}) ripple slots {rip_max}, asleep by {asleep_by} s; slept again {slept_again} m3 {m_before}->{m_after} level {lvl} | " +
           " | ".join(f"{k} rest {[round(c, 4) for c in v['rest_pose']]} at {v['rest_t']} s, y max {v['y_max']:.4f}" for k, v in bodies.items()),
           flush=True)
@@ -244,8 +245,9 @@ def main():
     ap.add_argument("--pace-late", action="store_true", help="L4 (42.4 item 2) TEST, the red: paced wakes go live 0.3 s after contact")
     ap.add_argument("--ripple-reach", choices=["default", "on", "off"], default="default", help="L2 (43): ripple detail by distance")
     ap.add_argument("--ripple-m", type=float, default=None, help="L2: ripple_m for every run (with --ripple-reach on)")
+    ap.add_argument("--displace", choices=["default", "on", "off"], default="default", help="44.6: debris displacement (default = the engine's)")
     a = ap.parse_args()
-    global WAKE_DELAY_S, WAKE_PACE, PACE_LATE, SHIPPED_PACE, RIPPLE
+    global WAKE_DELAY_S, WAKE_PACE, PACE_LATE, SHIPPED_PACE, RIPPLE, DISPLACE
     WAKE_DELAY_S = a.wake_delay
     PACE_LATE = a.pace_late
     if a.rejudge:   # one tag re-scores that file; several pool their runs (three near runs a session is a thin spread)
@@ -260,14 +262,16 @@ def main():
     api = Api(a.url); st = api.wait_status(300)
     try: api.debug("editor_panels", {"item_equipper": False, "tool_panels": False})
     except Exception as e: print("editor_panels:", e)
-    SHIPPED_PACE = bool((api.debug("water_coupling", {}).get("slept") or {}).get("wake_pace", False))
+    c0 = api.debug("water_coupling", {})
+    SHIPPED_PACE = bool((c0.get("slept") or {}).get("wake_pace", False))
+    DISPLACE = bool(c0.get("displace", False)) if a.displace == "default" else a.displace == "on"
     WAKE_PACE = SHIPPED_PACE if a.wake_pace == "default" else a.wake_pace == "on"
     loc0 = api.debug("water_locality", {})
     if a.ripple_reach != "default" or a.ripple_m is not None:
         RIPPLE = {"ripple_reach": loc0.get("ripple_reach") if a.ripple_reach == "default" else a.ripple_reach == "on"}
         if a.ripple_m is not None: RIPPLE["ripple_m"] = a.ripple_m
     res = {"status": {k: st.get(k) for k in ("build_config", "version", "git") if k in st}, "y0": Y0, "runs": [], "compare": [],
-           "wake_pace": WAKE_PACE, "ripple": RIPPLE}
+           "wake_pace": WAKE_PACE, "ripple": RIPPLE, "displace": DISPLACE}
     try:
         for name in a.runs.split(","):
             res["runs"].append(run(api, name, a.seconds))
@@ -278,6 +282,7 @@ def main():
         api.debug("clear_dynamics"); time.sleep(0.3)   # the bodies first (see run)
         api.debug("water_locality", {"clear_test_viewer": True, "test_far_record_dry": False})
         api.debug("water_coupling", {"test_wake_delay_s": 0.0, "wake_pace": SHIPPED_PACE, "test_pace_late": False})   # never leave a test knob on
+        api.debug("water_coupling", {"displace": bool(c0.get("displace", False))})   # 44.6: as found
         if RIPPLE is not None:   # the L2 settings back as found
             api.debug("water_locality", {"ripple_reach": loc0.get("ripple_reach"), "ripple_m": loc0.get("ripple_m")})
         (w.EV / f"l5_{a.tag}.json").write_text(json.dumps(res, indent=1), encoding="utf-8")
