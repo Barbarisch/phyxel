@@ -362,6 +362,9 @@ namespace Phyxel::Core::Water {
 // long) gets a 384-cell window that follows the view point in 4 m steps (RED before: refused - over 512 cells, no ripples);
 // a 4 x 4 m pond's layer is its whole box at its corner, as before.
 TEST(WaterRippleTest, EveryVolumeGetsTheRippleWindow) {
+    // the reach OFF (L2's off rule = the window as it was): a fixed 384-cell side, a pond 180 m away still has its layer
+    struct Restore { bool r = WaterCoreManager::s_locality.rippleReach; ~Restore() { WaterCoreManager::s_locality.rippleReach = r; } } restore;
+    WaterCoreManager::s_locality.rippleReach = false;
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr{state};
     std::string err;

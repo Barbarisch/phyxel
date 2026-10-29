@@ -93,7 +93,8 @@ def main():
     try:
         for c in order:
             api.debug("water_ripples", {"enabled": c != "off"})
-            api.debug("water_locality", {"ripple_window_cells": loc0.get("ripple_window_cells", 384) if c == "off" else int(c)})
+            # the window by its cell count is the reach-OFF rule (43.5: the reach is on by default and derives the side)
+            api.debug("water_locality", {"ripple_reach": False, "ripple_window_cells": loc0.get("ripple_window_cells", 384) if c == "off" else int(c)})
             make_lake(api, a.settle)
             r = {"cond": c, **window(api, a.seconds)}
             print(r, flush=True)
@@ -102,7 +103,7 @@ def main():
         api.debug("clear_dynamics")
         destroy_all(api)
         api.debug("water_ripples", {"enabled": rip0})
-        api.debug("water_locality", {"ripple_window_cells": loc0.get("ripple_window_cells", 384)})
+        api.debug("water_locality", {"ripple_window_cells": loc0.get("ripple_window_cells", 384), "ripple_reach": loc0.get("ripple_reach", True)})
     summary = {}
     for c in conds:
         rs = [r for r in rows if r["cond"] == c]

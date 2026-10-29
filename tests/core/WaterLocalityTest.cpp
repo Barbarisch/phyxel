@@ -91,7 +91,7 @@ TEST(WaterLocality, TheDetailFadeNeverRisesAndNeverJumps) {
 // ---- L2 (43): ripple detail by distance -------------------------------------------------------------------------------------
 
 TEST(WaterLocality, TheRippleReachDefaultsArePinned) {
-    EXPECT_FALSE(WaterLocality::kRippleReachByDefault) << "43.2: off until the owner's sign-off";
+    EXPECT_TRUE(WaterLocality::kRippleReachByDefault) << "43.5: on by default (the owner, 2026-10-29)";
     EXPECT_FLOAT_EQ(WaterLocality::kRippleMDefault, 21.0f);
     EXPECT_FLOAT_EQ(WaterLocality::kRippleFadeMDefault, 8.0f);
     EXPECT_FLOAT_EQ(WaterLocality::kRippleMMax, 24.0f);

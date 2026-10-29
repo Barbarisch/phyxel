@@ -32,9 +32,10 @@ struct WaterLocality {
 
     /// L2 (43): ripple detail by distance. ON: the ripples' tilt is scaled by detail(d, rippleM - rippleFadeM, rippleM), d the
     /// horizontal distance from the viewer (a pure function of world position and the viewer); a pond beyond rippleM has no layer;
-    /// a layer's window side is derived from rippleM (rippleWindowSide); slots go to the nearest waiting pond. OFF (the default
-    /// until the owner's sign-off): exactly as before L2 - rippleWindowCells, no fade, first-come slots.
-    static constexpr bool kRippleReachByDefault = false;
+    /// a layer's window side is derived from rippleM (rippleWindowSide); slots go to the nearest waiting pond. OFF: exactly as
+    /// before L2 - rippleWindowCells, no fade, first-come slots. ON by default since 2026-10-29 (the owner, on the fly-away clip:
+    /// no visible difference; "Turn it on").
+    static constexpr bool kRippleReachByDefault = true;
     static constexpr float kRippleMDefault = 21.0f;            ///< the default window's half: today's reach in a big pond; pinned
     static constexpr float kRippleFadeMDefault = 8.0f;         ///< full detail to 13 m; pinned
     /// rippleWindowSide(24) = 2 (216 + 40) = 512, the renderer's atlas side: beyond 24 m a point the fade shows could lie outside

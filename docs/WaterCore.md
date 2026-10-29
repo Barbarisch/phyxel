@@ -9074,7 +9074,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | L6 | **One reader for a slept pond** (found in L5, §40.3): near the viewer debris reads a slept pond through the record's draw tile, far through the span cache. They agree today (0 of 16 columns differ). Pin it with an equality test (runs and bottoms, column for column), or make debris read the span cache only | BUILT, not signed off (§40.4): worse than found - the draw tile's ±64 m height band made a deep pool read dry near the viewer. Bodies now read the span cache only; red/green unit test, L5 rerun green | the viewer must never pick which water a body reads |
 | L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | BUILT, not signed off (41.5: the pit's wake frame 90-127 -> 56-76 ms; L5 8 of 9 kept runs pass, one watched) | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
 | L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | BUILT, **ON by default since 2026-10-29** (the owner: "go with your recommendations", 42.6), not signed off in motion (42.5: due before contact, all wakes - D7 closed; pit wake frame 34 -> 12 ms; L5 6 of 6, red caught) | the stall's last part, without changing any outcome |
-| L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | BUILT, off by default, not signed off (43.4: the fade on screen within one grey level of the prediction, no step; ~0.1 + 0.1 ms CPU + GPU per far disturbed pond; the ninth-volume draw defect fixed; clip `l2_flyaway_side_by_side.mp4` for the owner) | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
+| L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | BUILT, **ON by default since 2026-10-29** (43.5: the owner saw no difference in the clip, "Turn it on"; 43.4: the fade on screen within one grey level of the prediction, no step; ~0.1 + 0.1 ms CPU + GPU per far disturbed pond; the ninth-volume draw defect fixed; clip `l2_flyaway_side_by_side.mp4` for the owner) | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
@@ -10890,7 +10890,7 @@ The recommendation the owner took: pace every wake (D7, closed) and turn pacing 
 still immediate. `tools/water_l5_outcome.py` no longer forces pacing off: `--wake-pace default|on|off` (default = the engine's), and
 it puts back what it found. The L5 runs of 43.4 ran with it on (the shipped default). Still not signed off in motion.
 
-## 43. L2 - ripple detail by distance (§30.4 L2). Status: BUILT, OFF by default, not signed off (43.4)
+## 43. L2 - ripple detail by distance (§30.4 L2). Status: BUILT, ON by default since 2026-10-29 (43.5), the owner saw no difference
 
 ### 43.1 Measured first (2026-10-29, Release, WaterBench_Creek): the ripples cost per layer, not per cell, and little
 
@@ -11132,6 +11132,15 @@ file):
 | after with the reach ON (the control: the metric sees L2) | 1.23-1.27 | 6.4 % |
 
 Off draws what the build before L2 drew, within the run-to-run spread.
+
+### 43.5 On by default (2026-10-29, the owner: "Turn it on")
+
+After the fly-away clip ("i cant tell the difference"), asked whether the reach should be on by default: "Turn it on". So
+`kRippleReachByDefault = true`, pinned. What changes for the player: nothing seen in the clip; a pond more than 24 m away (box
+distance) shows no ripples (its facets ~4 px there, 43.3 item 1); the four ripple slots go to the nearest ponds; ~0.2 ms saved per
+far disturbed pond. Off stays available (`water_locality {ripple_reach: false}`) and is exactly the old look (43.4). Tests that
+study the old window by its cell count now set the reach off themselves (`WaterRippleTest.EveryVolumeGetsTheRippleWindow`,
+`tools/water_l2_ripple_cost.py`). Still not signed off in motion as a default - the owner saw no difference, which is the claim.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
