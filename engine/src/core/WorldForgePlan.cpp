@@ -1077,7 +1077,59 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 for (int dx = -1; dx <= 1; ++dx)
                     if (g.contains(cx + dx, cz + dz)) g.blocked[g.idx(cx + dx, cz + dz)] = 1;
         };
-        int fords = 0, bridgesMade = 0, reroutes = 0;
+        // M4b-4 (D33 b): the realized line's own grade envelope (the class cap, the cut floor,
+        // the 0.5 walkability envelope - the same three steps the final pass runs per road, before
+        // junction blending) must not cut deeper than the bank limit + the wall tier + the rock-cut
+        // precedent anywhere; where it would, the crossing machinery takes over: the cell closes,
+        // the demand is routed again, else refused with the reason.
+        auto judgeCuts = [&](const WorldForgeRoad& road, std::string& reason, glm::vec2& where) -> bool {
+            const auto& cl = road.centerline;
+            const size_t n = cl.size();
+            if (n < 2) return true;
+            const float bound = bankLimit() + P.wallTierU + P.rockCutMaxU;
+            std::vector<float> nat(n), h(n);
+            std::vector<bool> wet(n, false);
+            for (size_t i = 0; i < n; ++i) {
+                nat[i] = static_cast<float>(surfaceYAt(static_cast<int>(std::lround(cl[i].x)), static_cast<int>(std::lround(cl[i].y))));
+                const FlowField::ChannelHit ch = channelAt(cl[i].x, cl[i].y);
+                wet[i] = ch.hit && ch.depth >= 0.15f;
+                h[i] = nat[i];
+            }
+            auto envelope = [&](float cap) {
+                for (size_t i = 1; i < n; ++i) h[i] = std::min(h[i], h[i - 1] + cap * glm::length(cl[i] - cl[i - 1]));
+                for (size_t i = n - 1; i-- > 0;) h[i] = std::min(h[i], h[i + 1] + cap * glm::length(cl[i + 1] - cl[i]));
+            };
+            envelope(P.gradeCap[glm::clamp(road.cls, 1, 3)]);
+            const float floorU = cutLimit(road.cls);
+            for (size_t i = 0; i < n; ++i) h[i] = std::max(h[i], nat[i] - floorU);
+            envelope(kMaxRoadGrade);
+            float deepest = 0.0f; size_t at = 0;
+            const float D = earthworkReachU(road.cls);
+            for (size_t i = 0; i < n; ++i) {
+                if (wet[i]) continue;
+                // the face the section must hold: the higher of the centreline natural and the
+                // natural at the reach on either side (a bank from the rock top meets THAT)
+                const glm::vec2 d = cl[std::min(i + 1, n - 1)] - cl[i > 0 ? i - 1 : 0];
+                const float len = glm::length(d);
+                const glm::vec2 nrm = len > 1e-4f ? glm::vec2(-d.y, d.x) / len : glm::vec2(0.0f, 1.0f);
+                float top = nat[i];
+                for (const float sgn : {1.0f, -1.0f}) {
+                    const glm::vec2 q = cl[i] + nrm * (sgn * D);
+                    top = std::max(top, static_cast<float>(surfaceYAt(static_cast<int>(std::lround(q.x)), static_cast<int>(std::lround(q.y)))));
+                }
+                const float cut = top - h[i];
+                if (cut > deepest) { deepest = cut; at = i; }
+            }
+            if (deepest <= bound + 1e-3f) return true;
+            where = cl[at];
+            refusedBanks = {-1e30f, -1e30f, -1e30f, -1e30f, -1e30f, -1e30f};
+            refusedTan = glm::vec2(0.0f);
+            reason = "a walkable line needs a cut face of " + std::to_string(deepest) + " u at (" + std::to_string(where.x) + "," + std::to_string(where.y)
+                   + "): beyond the bank limit " + std::to_string(bankLimit()) + " + the wall tier " + std::to_string(P.wallTierU)
+                   + " + the rock-cut precedent " + std::to_string(P.rockCutMaxU) + " u (D33)";
+            return false;
+        };
+        int fords = 0, bridgesMade = 0, reroutes = 0, cutRefusals = 0;
         for (const Pair* pr : chosen) {
             if (!demand) { plan->m_roads.push_back(realizeFrom(*pr)); continue; }
             Pair cur = *pr;
@@ -1087,7 +1139,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             for (int attempt = 0; attempt < kCrossingRetries; ++attempt) {
                 WorldForgeRoad road = realizeFrom(cur);
                 std::vector<WorldForgeBridgeSpan> spans;
-                if (decideCrossings(road, spans, reason, where)) {
+                if (decideCrossings(road, spans, reason, where) && judgeCuts(road, reason, where)) {
                     for (const auto& c : road.crossings) {
                         if (c.kind == WorldForgeRoad::Crossing::Kind::Ford) ++fords;
                         else if (c.kind == WorldForgeRoad::Crossing::Kind::Bridge) ++bridgesMade;
@@ -1098,6 +1150,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                     break;
                 }
                 ++reroutes;
+                if (reason.rfind("a walkable line needs a cut", 0) == 0) ++cutRefusals;
                 LOG_INFO_FMT("WorldForge", "[CROSSINGS] demand " << cur.a << " -> " << cur.b << " refused at (" << where.x << "," << where.y << "): " << reason << " - routing again");
                 blockAround(where);
                 const int ca = cur.a >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(cur.a)]) : pointCell(cur.pa);
@@ -1118,7 +1171,8 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         }
         if (demand)
             LOG_INFO_FMT("WorldForge", "[CROSSINGS] fords " << fords << ", bridges " << bridgesMade << ", crossings refused and re-routed " << reroutes
-                         << ", demands refused " << plan->m_refused.size() << " (span <= " << P.bridgeMaxSpanU << " u, ford depth < " << P.fordMaxDepthU << " u)");
+                         << ", demands refused " << plan->m_refused.size() << " (span <= " << P.bridgeMaxSpanU << " u, ford depth < " << P.fordMaxDepthU << " u); "
+                         << "[EARTHWORK] lines refused for a cut beyond " << (bankLimit() + P.wallTierU + P.rockCutMaxU) << " u: " << cutRefusals);
     }
 
     if (demand)
@@ -1221,6 +1275,21 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 wet[i] = ch.hit && ch.depth >= 0.15f;
             }
             road.naturalY = h;   // M4b: the pre-grading surface (earthwork = profile - this)
+            if (demand) {        // M4b-4: the natural at the earthwork reach, left and right
+                road.naturalSideY.assign(n, glm::vec2(0.0f));
+                const float D = earthworkReachU(road.cls);
+                for (size_t i = 0; i < n; ++i) {
+                    const glm::vec2 d = cl[std::min(i + 1, n - 1)] - cl[i > 0 ? i - 1 : 0];
+                    const float len = glm::length(d);
+                    const glm::vec2 nrm = len > 1e-4f ? glm::vec2(-d.y, d.x) / len : glm::vec2(0.0f, 1.0f);
+                    const glm::vec2 L = cl[i] + nrm * D, R = cl[i] - nrm * D;
+                    road.naturalSideY[i] = glm::vec2(static_cast<float>(surfaceYAt(static_cast<int>(std::lround(L.x)), static_cast<int>(std::lround(L.y)))),
+                                                     static_cast<float>(surfaceYAt(static_cast<int>(std::lround(R.x)), static_cast<int>(std::lround(R.y)))));
+                }
+                // (a 3-vertex running mean was tried here 2026-10-28 and reverted: a smoothed
+                // anchor no longer meets THIS vertex's ground at the reach - 63 of 118 banks
+                // ended 3-4 cubes short. The bend flip is handled in gradeBlendAt instead.)
+            }
             // A carved-bed vertex must not pull the envelope down: borrow the nearest dry
             // height.
             for (size_t i = 0; i < n; ++i) {
@@ -1441,7 +1510,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             const auto& s = plan->m_segments[si];
             const float reach = roadHalfWidth(s.cls) + 2.0f * rcell;
             // the blend's reach: half-width + the widest repose shoulder + a cell of slack
-            const float blendReach = roadHalfWidth(s.cls) + kShoulderMaxU + rcell;
+            const float blendReach = roadHalfWidth(s.cls) + kShoulderMaxU + kEarthworkExtraU + rcell;   // M4b-4: + the wall's thickness
             {
                 const glm::vec2 blo = glm::min(s.a, s.b) - glm::vec2(blendReach);
                 const glm::vec2 bhi = glm::max(s.a, s.b) + glm::vec2(blendReach);
@@ -1503,6 +1572,60 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::steady_clock::now() - t0)
                         .count();
+    // M4b-4: the earthwork census per road on the FINAL profile and the built raster - the
+    // generator's own section rule (gradeBlendAt) sampled at every vertex on both sides, at the
+    // wall band (half + 1 u) and at the rock column (half + thickness + 0.5 u), so walled_u /
+    // rock_u / section_u count what is EMITTED (audit 2 2026-10-28: a census from the centreline
+    // alone matched the terrain at x0.82 for walls and x1.78 for rock); deepest_cut_u is the
+    // deepest FACE (the D33 bound applies to it). Reported in the plan JSON.
+    if (demand)
+    for (auto& road : plan->m_roads) {
+        const auto& cl = road.centerline;
+        const size_t n = cl.size();
+        if (n < 2 || road.gradeProfile.size() != n || road.naturalY.size() != n) continue;
+        road.walledLengthU = road.rockLengthU = road.sectionLengthU = road.deepestCutU = 0.0f;
+        const bool sides = road.naturalSideY.size() == n;
+        const float half = roadHalfWidth(road.cls);
+        std::vector<uint8_t> wallAt(n, 0), rockAt(n, 0), sectionAt(n, 0);
+        std::vector<float> faceAt(n, 0.0f);
+        for (size_t i = 0; i < n; ++i) {
+            const float g = road.gradeProfile[i];
+            const float cut0 = road.naturalY[i] - g;
+            const float wallH = glm::clamp(cut0 - bankLimit(), 0.0f, P.wallTierU);
+            const float thick = wallH > 0.0f ? std::max(1.0f, std::ceil(0.67f * wallH)) : 0.0f;
+            const glm::vec2 d = cl[std::min(i + 1, n - 1)] - cl[i > 0 ? i - 1 : 0];
+            const float len = glm::length(d);
+            const glm::vec2 nrm = len > 1e-4f ? glm::vec2(-d.y, d.x) / len : glm::vec2(0.0f, 1.0f);
+            faceAt[i] = cut0;
+            for (int sd = 0; sd < 2; ++sd) {
+                const float sgn = sd == 0 ? 1.0f : -1.0f;
+                const float far = sides ? (sd == 0 ? road.naturalSideY[i].x : road.naturalSideY[i].y) : road.naturalY[i];
+                faceAt[i] = std::max(faceAt[i], far - g);
+                // every column of the band on this side (the wall is 1-3 columns, the rock face 1-2,
+                // and a 1 u walk sees them wherever they stand - one sample per feature under-counted
+                // rock by a third, measured 2026-10-29)
+                for (float off = half + 0.5f; off <= half + 5.5f; off += 1.0f) {
+                    (void)thick;
+                    const glm::vec2 q = cl[i] + nrm * (sgn * off);
+                    const float natural = static_cast<float>(surfaceYAt(static_cast<int>(std::lround(q.x)), static_cast<int>(std::lround(q.y))));
+                    const GradeBlend gb = plan->gradeBlendAt(q.x, q.y, natural);
+                    if (gb.surfaceY > -1e29f) sectionAt[i] = 1;
+                    if (gb.wallTopY > -1e29f) wallAt[i] = 1;
+                    if (gb.rockTopY > -1e29f) rockAt[i] = 1;
+                }
+            }
+        }
+        for (size_t i = 0; i + 1 < n; ++i) {
+            const float seg = glm::length(cl[i + 1] - cl[i]);
+            const float face = std::max(faceAt[i], faceAt[i + 1]);
+            if (face > road.deepestCutU) { road.deepestCutU = face; road.deepestCutAt = cl[i]; }
+            // half a segment per end that carries the feature (an end-OR rule over-counted by a
+            // quarter against the emitted terrain, measured 2026-10-28: x0.80)
+            road.walledLengthU += seg * 0.5f * (wallAt[i] + wallAt[i + 1]);
+            road.rockLengthU += seg * 0.5f * (rockAt[i] + rockAt[i + 1]);
+            road.sectionLengthU += seg * 0.5f * (sectionAt[i] + sectionAt[i + 1]);
+        }
+    }
     LOG_INFO_FMT("WorldForge", "[WORLDFORGE] plan baked: " << plan->m_sites.size() << " sites, "
                  << plan->m_roads.size() << " roads, " << plan->m_bridges.size() << " bridges, "
                  << plan->m_segments.size() << " segments in " << ms << " ms (hash "
@@ -1589,8 +1712,18 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
     // carried by a shoulder widened to cut / repose so the bank stands at the repose slope.
     float coreGrade = -1e30f; int coreCls = 0, coreRoad = INT_MAX;
     float wSum = 0.0f, gSum = 0.0f, wMax = 0.0f;
+    // M4b-4: the road whose shoulder governs this column (the largest weight) - its grade,
+    // distance, class and the direction back to it decide the earthwork section
+    float bandBest = 1e30f, bandGrade = -1e30f; int bandCls = 0; glm::vec2 bandToward(0.0f);
+    float bandNat0 = -1e30f, bandNatFar = -1e30f;   // the centreline natural and the far natural on this side
     for (int k = 0; k < nRoads; ++k) {
-        float best = 1e30f, gradeY = -1e30f; int cls = 0;
+        float best = 1e30f, gradeY = -1e30f; int cls = 0; glm::vec2 toward(0.0f);
+        float nat0 = -1e30f, natFar = -1e30f;
+        // the second-nearest segment of the same road (the other side of a bend's bisector): a
+        // column nearly equidistant from two segments takes a blend of their anchors, so the
+        // earthwork section is continuous where the nearest segment flips (audit 2026-10-28:
+        // a 3-4 cube step along the bank at the inside of bends on rough ground)
+        float best2 = 1e30f, gradeY2 = -1e30f, nat02 = -1e30f, natFar2 = -1e30f;
         // the road's nearest segment: the hint and its neighbours along the polyline (the hint
         // is the road's nearest segment to the CELL centre; the point is within a cell of it)
         for (int di = -3; di <= 3; ++di) {
@@ -1603,24 +1736,99 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
             const float t = len2 > 0.0f ? glm::clamp(glm::dot(p - s.a, ab) / len2, 0.0f, 1.0f) : 0.0f;
             const float d = glm::length(p - (s.a + ab * t));
             if (d < best) {
+                best2 = best; gradeY2 = gradeY; nat02 = nat0; natFar2 = natFar;   // the previous best steps down
                 best = d; cls = s.cls;
                 const auto& prof = m_roads[static_cast<size_t>(roads[k])].gradeProfile;
                 gradeY = (s.vert + 1 < prof.size()) ? prof[s.vert] * (1.0f - t) + prof[s.vert + 1] * t : -1e30f;
+                toward = d > 1e-4f ? ((s.a + ab * t) - p) / d : glm::vec2(0.0f);
+                const auto& rd = m_roads[static_cast<size_t>(roads[k])];
+                if (s.vert + 1 < rd.naturalY.size()) nat0 = rd.naturalY[s.vert] * (1.0f - t) + rd.naturalY[s.vert + 1] * t;
+                if (s.vert + 1 < rd.naturalSideY.size()) {
+                    const bool left = (ab.x * (p - s.a).y - ab.y * (p - s.a).x) >= 0.0f;   // the +normal (-ab.y, ab.x) side
+                    const glm::vec2 f0 = rd.naturalSideY[s.vert], f1 = rd.naturalSideY[s.vert + 1];
+                    natFar = left ? f0.x * (1.0f - t) + f1.x * t : f0.y * (1.0f - t) + f1.y * t;
+                }
+            } else if (d < best2) {
+                best2 = d;
+                const auto& rd = m_roads[static_cast<size_t>(roads[k])];
+                const auto& prof = rd.gradeProfile;
+                gradeY2 = (s.vert + 1 < prof.size()) ? prof[s.vert] * (1.0f - t) + prof[s.vert + 1] * t : -1e30f;
+                nat02 = (s.vert + 1 < rd.naturalY.size()) ? rd.naturalY[s.vert] * (1.0f - t) + rd.naturalY[s.vert + 1] * t : -1e30f;
+                if (s.vert + 1 < rd.naturalSideY.size()) {
+                    const bool left = (ab.x * (p - s.a).y - ab.y * (p - s.a).x) >= 0.0f;
+                    const glm::vec2 f0 = rd.naturalSideY[s.vert], f1 = rd.naturalSideY[s.vert + 1];
+                    natFar2 = left ? f0.x * (1.0f - t) + f1.x * t : f0.y * (1.0f - t) + f1.y * t;
+                }
             }
+        }
+        // the blend steers the EARTHWORK anchors only (gradeS, nat0, natFar); the plain blend's
+        // gradeY stays the nearest segment's (2026-10-28: blending it moved the gather's shoulder
+        // and one baseline bank at a bend - RouteFieldTest)
+        float gradeS = gradeY;
+        if (best2 < 1e29f && best2 - best < 1.0f && gradeY2 > -1e29f && nat02 > -1e29f && natFar2 > -1e29f && nat0 > -1e29f && natFar > -1e29f) {
+            const float f = 0.5f + 0.5f * (best2 - best);   // 0.5 on the bisector -> 1 a column away from it
+            gradeS = gradeY * f + gradeY2 * (1.0f - f);
+            nat0 = nat0 * f + nat02 * (1.0f - f);
+            natFar = natFar * f + natFar2 * (1.0f - f);
         }
         if (cls <= 0 || gradeY <= -1e29f) continue;
         const float half = roadHalfWidth(cls);
-        const float shoulder = kAuditFixes ? std::min(kShoulderMaxU, std::max(kShoulderU, std::fabs(gradeY - naturalY) / kReposeSlope)) : kShoulderU;
+        // M4b-4: a cut beyond the bank limit is an earthwork section whose reach is the wall's
+        // thickness (<= 2 u) + the 12 u repose bank, so its weight stays positive that far
+        const float faceK = std::max(nat0 > -1e29f ? nat0 - gradeY : naturalY - gradeY, natFar > -1e29f ? natFar - gradeY : -1e30f);
+        const float shoulderCap = (faceK > bankLimit() && m_params.wallTierU > 0.0f) ? kShoulderMaxU + kEarthworkExtraU : kShoulderMaxU;
+        const float shoulder = kAuditFixes ? std::min(shoulderCap, std::max(kShoulderU, std::fabs(gradeY - naturalY) / kReposeSlope)) : kShoulderU;
         const float w = best <= half ? 1.0f : std::max(0.0f, 1.0f - (best - half) / shoulder);
         if (w <= 0.0f) continue;
         if (roadsOut) roadsOut->push_back(roads[k]);
         if (best <= half && (cls > coreCls || (cls == coreCls && roads[k] < coreRoad))) { coreCls = cls; coreRoad = roads[k]; coreGrade = gradeY; }
+        if (w > wMax || (w == wMax && cls > bandCls)) { bandBest = best; bandGrade = gradeS; bandCls = cls; bandToward = toward; bandNat0 = nat0; bandNatFar = natFar; }
         wSum += w; gSum += w * gradeY; wMax = std::max(wMax, w);
     }
     if (wSum <= 0.0f) return out;
     out.gradeY = (kAuditFixes && coreCls > 0) ? coreGrade : gSum / wSum;
     out.weight = wMax;
     out.coreRoad = (kAuditFixes && coreCls > 0) ? coreRoad : -1;
+    // M4b-4 (D34/D35): outside the governing road's edge, a cut deeper than the bank limit is an
+    // EARTHWORK SECTION rather than a steepened blend: a dry-stone tier of height
+    // min(cut - bankLimit, wallTierU) and thickness ceil(0.67 x height) at the road edge, the
+    // column past it carrying the rock face up to natural - bankLimit (the exposed cut), and the
+    // bank above standing at repose over the widest shoulder. All from this column's own natural
+    // height and the governing road's grade - a pure function of world position.
+    if (coreCls == 0 && bandCls > 0 && bandGrade > -1e29f && bandNat0 > -1e29f && m_params.wallTierU > 0.0f) {
+        const float half = roadHalfWidth(bandCls);
+        const float cut0 = bandNat0 - bandGrade;          // the cut at the centreline (the road's own census figure)
+        const float farNat = bandNatFar > -1e29f ? bandNatFar : bandNat0;
+        const float face = std::max(cut0, farNat - bandGrade);   // the face the section must hold on this side
+        const float limit = bankLimit();
+        // audit 2026-10-28: the section is gated on the FACE, not the centreline cut - a steep
+        // hillside beside a shallow cut needs the repose bank anchored at the reach just the same
+        if (face > limit && bandBest > half) {
+            const float wallH = glm::clamp(cut0 - limit, 0.0f, m_params.wallTierU);   // a wall only where the centreline cut needs one
+            const float thick = wallH > 0.0f ? std::max(1.0f, std::ceil(0.67f * wallH)) : 0.0f;
+            const float wallTop = bandGrade + wallH;
+            // the bank rises at repose from the face top to the natural at the reach on this side
+            // (so it meets the ground exactly there); the face is rock from the wall top up to it
+            const float faceTop = std::max(wallTop, farNat - limit);
+            out.towardRoad = bandToward;
+            if (thick > 0.0f && bandBest <= half + thick) {   // the wall tier - where the ground still stands above it
+                if (naturalY > wallTop) {
+                    out.surfaceY = wallTop;
+                    out.wallBaseY = bandGrade;
+                    out.wallTopY = wallTop;
+                } else out.surfaceY = naturalY;
+            } else {                                  // the rock face, then the repose bank
+                const float x = bandBest - half - thick;
+                out.surfaceY = std::min(naturalY, faceTop + kReposeSlope * x);
+                // the first column past the wall carries the face - only where the ground stands
+                // at the face top (a hillside still below it is natural, not rock)
+                if (faceTop > wallTop + 0.5f && x <= 1.5f && naturalY >= faceTop) {
+                    out.rockBaseY = wallTop;
+                    out.rockTopY = faceTop;
+                }
+            }
+        }
+    }
     return out;
 }
 
@@ -1722,9 +1930,18 @@ nlohmann::json WorldForgePlan::toJson() const {
             grade = {std::round(lo * 10.0f) / 10.0, std::round(hi * 10.0f) / 10.0,
                      std::round(sum * 10.0) / 10.0};
         }
-        roads.push_back({{"a", r.a}, {"b", r.b}, {"class", r.cls}, {"switchbacks", r.switchbacks}, {"switchback_length_u", r.switchbackLengthU},
-                         {"points", static_cast<int>(r.centerline.size())},
-                         {"centerline", line}, {"crossings", crossings}, {"grade", grade}});
+        nlohmann::json rj = {{"a", r.a}, {"b", r.b}, {"class", r.cls}, {"switchbacks", r.switchbacks}, {"switchback_length_u", r.switchbackLengthU},
+                             {"points", static_cast<int>(r.centerline.size())},
+                             {"centerline", line}, {"crossings", crossings}, {"grade", grade}};
+        if (m_blendGrades) {   // M4b-4: the earthwork census (part of the identity: walls change what is emitted)
+            rj["walled_u"] = std::round(r.walledLengthU);
+            rj["rock_u"] = std::round(r.rockLengthU);
+            rj["section_u"] = std::round(r.sectionLengthU);
+            rj["deepest_cut_u"] = std::round(r.deepestCutU * 10.0f) / 10.0f;
+            rj["deepest_cut_x"] = std::round(r.deepestCutAt.x);
+            rj["deepest_cut_z"] = std::round(r.deepestCutAt.y);
+        }
+        roads.push_back(rj);
     }
     j["roads"] = roads;
     nlohmann::json bridges = nlohmann::json::array();

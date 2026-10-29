@@ -190,6 +190,14 @@ public:
                                       // clear — traversability is the invariant)
         int   bridgePierTopY = INT_MIN; // pier column: solid Stone fills (surfaceY, pierTopY]
                                       // from the carved bed up to under the deck (INT_MIN = none)
+        // M4b-4 earthwork: a dry-stone retaining tier occupies (wallBaseY, wallTopY] of the column
+        // (Cobblestone; the top course a 2/3 subcube coping set back one subcube on the road
+        // side - wallFace: 0 -x, 1 +x, 2 -z, 3 +z, the side the road lies on); a rock face
+        // occupies (rockBaseY, rockTopY] (Stone - the exposed cut). INT_MIN = none. Pure per
+        // column from the plan's grade blend, like roadClass.
+        int   wallBaseY = INT_MIN, wallTopY = INT_MIN;
+        int   rockBaseY = INT_MIN, rockTopY = INT_MIN;
+        int   wallFace  = -1;
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps

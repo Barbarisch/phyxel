@@ -91,6 +91,22 @@ struct WorldForgeRoad {
     /// across the slope at the class cap, folded inside the corridor band with hairpins).
     int switchbacks = 0;
     float switchbackLengthU = 0.0f;   // the legs' total length
+    /// M4b-4: the earthwork census along the road (per vertex: cut = naturalY - gradeProfile):
+    /// the length walled (cut > the bank limit), rock-faced (cut > bank limit + wallTierU) and
+    /// the deepest cut; reported in the plan JSON on corridor-driven plans.
+    /// walled: the centreline cut exceeds the bank limit (a wall tier stands at the edge);
+    /// rock: walled AND the face top stands above the wall (the rock face is emitted);
+    /// section: the face (centreline or far natural) exceeds the bank limit (an earthwork
+    /// section exists, with or without a wall - a steep hillside beside a shallow cut).
+    /// deepestCutU is the deepest FACE on the final profile (the D33 bound applies to it).
+    float walledLengthU = 0.0f, rockLengthU = 0.0f, sectionLengthU = 0.0f, deepestCutU = 0.0f;
+    glm::vec2 deepestCutAt{0.0f};
+    /// M4b-4: the natural surface kEarthworkReachU past each vertex on the LEFT (x) and RIGHT (y)
+    /// of the road (the vertex normal (-dir.y, dir.x) is left) - the bank above a walled cut rises
+    /// at repose from the rock top to THIS height, so it meets the ground exactly at the reach
+    /// whether the ground rises or falls away (a bank anchored to each column's own height fell
+    /// at 1.8 per u on ground falling away and never met a rising slope - measured 2026-10-28).
+    std::vector<glm::vec2> naturalSideY;
 };
 
 /// One bridge deck spanning an order>=3 channel (placer #44, V2 of the road field). The
@@ -202,6 +218,11 @@ public:
     /// embankment approach stands at repose like a cutting). A bridge abutment may cut the higher
     /// bank or fill the lower one this much; cutLimit (3.15-4.2 u) stays the PITCH trigger.
     static float bankLimit() { return kShoulderMaxU * kReposeSlope; }
+    /// M4b-4: the lateral room an earthwork section needs beyond the plain shoulder - the wall's
+    /// thickness (ceil(0.67 x a tier <= 3 u) <= 2 u) plus a column of slack (DERIVED).
+    static constexpr float kEarthworkExtraU = 3.0f;
+    /// M4b-4: where the far natural is sampled - the widest shoulder past the wall band
+    static float earthworkReachU(int cls) { return roadHalfWidth(cls) + kEarthworkExtraU + kShoulderMaxU; }
     /// M4c: a centreline as an arc - cumulative length per vertex, a point's arc (its projection
     /// onto the NEAREST segment; legs of a hairpin closer than twice the point's offset would
     /// misproject - the bank offset is 3 u, DESIGN) and the point at an arc (clamped to the ends).
@@ -231,6 +252,14 @@ public:
         float gradeY = -1e30f;
         float weight = 0.0f;
         int coreRoad = -1;   // the road whose profile the surface follows here (inside its corridor), -1 = a shoulder blend
+        // M4b-4: where the core road's cut exceeds the bank limit the column is part of an
+        // EARTHWORK section - the surface is given outright (surfaceY), with a wall tier
+        // (wallBaseY, wallTopY], a rock face (rockBaseY, rockTopY] and the side the road lies on
+        // (towardRoad, a unit vector); surfaceY = -1e30 means the plain blend applies.
+        float surfaceY = -1e30f;
+        float wallBaseY = -1e30f, wallTopY = -1e30f;
+        float rockBaseY = -1e30f, rockTopY = -1e30f;
+        glm::vec2 towardRoad{0.0f};
     };
     /// naturalY = the column's pre-grading surface (the bank below a cut runs from the road edge
     /// down to it at the repose slope, so a deep cut widens its own shoulder); roadsOut (tests)

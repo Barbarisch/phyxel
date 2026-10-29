@@ -860,6 +860,19 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                     continue;   // layers == 0: the voxel is air, the bed is the voxel below
                     }
                 }
+                // M4b-4: the wall's top course is a 2/3-height coping set back one subcube on the
+                // road side (the batter, D35: one subcube over a tier <= 3 u ~ 1:9, inside the
+                // 1:6-1:10 rule) - sub-voxel per the detail rule, like the parapet.
+                if (col.wallTopY != INT_MIN && wy == col.wallTopY && wy == col.surfaceY) {
+                    for (int sy = 0; sy < 2; ++sy)
+                        for (int sx = 0; sx < 3; ++sx)
+                            for (int sz = 0; sz < 3; ++sz) {
+                                if ((col.wallFace == 0 && sx == 0) || (col.wallFace == 1 && sx == 2) ||
+                                    (col.wallFace == 2 && sz == 0) || (col.wallFace == 3 && sz == 2)) continue;
+                                chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz), "Cobblestone");
+                            }
+                    continue;
+                }
                 if (col.creekBed && wy == col.surfaceY) {
                     const std::string& shelfMat = materialForColumn(wy, col);
                     for (int sy = 0; sy < 2; ++sy)
@@ -1577,8 +1590,24 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 const WorldForgePlan::GradeBlend gb = m_worldForge->gradeBlendAt(static_cast<float>(wx), static_cast<float>(wz), static_cast<float>(col.surfaceY));
                 if (gb.weight > 0.0f && col.riverOrder == 0 &&
                     col.surfaceY >= static_cast<int>(terrainParams.seaLevelY) &&
-                    !(m_hydro && waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > static_cast<float>(col.surfaceY)))
-                    col.surfaceY = static_cast<int>(std::lround(gb.gradeY * gb.weight + static_cast<float>(col.surfaceY) * (1.0f - gb.weight)));
+                    !(m_hydro && waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > static_cast<float>(col.surfaceY))) {
+                    if (gb.surfaceY > -1e29f) {   // M4b-4: an earthwork section (wall tier / rock face / repose bank)
+                        col.surfaceY = static_cast<int>(std::lround(gb.surfaceY));
+                        if (gb.wallTopY > -1e29f) {
+                            col.wallBaseY = static_cast<int>(std::lround(gb.wallBaseY));
+                            col.wallTopY = std::max(col.wallBaseY + 1, static_cast<int>(std::lround(gb.wallTopY)));
+                            col.surfaceY = col.wallTopY;
+                            col.surfaceMat = "Cobblestone";
+                            col.wallFace = std::fabs(gb.towardRoad.x) >= std::fabs(gb.towardRoad.y) ? (gb.towardRoad.x < 0.0f ? 0 : 1) : (gb.towardRoad.y < 0.0f ? 2 : 3);
+                        }
+                        if (gb.rockTopY > -1e29f) {
+                            col.rockBaseY = static_cast<int>(std::lround(gb.rockBaseY));
+                            col.rockTopY = static_cast<int>(std::lround(gb.rockTopY));
+                            if (col.rockTopY > col.rockBaseY && col.rockTopY >= col.surfaceY) col.surfaceMat = "Stone";
+                        }
+                    } else
+                        col.surfaceY = static_cast<int>(std::lround(gb.gradeY * gb.weight + static_cast<float>(col.surfaceY) * (1.0f - gb.weight)));
+                }
             } else
             if (rh.cls > 0 && rh.gradeY > -1e29f && rh.dist <= half + kGradeBlend &&
                 col.riverOrder == 0 &&
@@ -1827,6 +1856,9 @@ glm::vec2 WorldGenerator::channelFlowDirAt(float worldX, float worldZ) const {
 std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& col) const {
     if (m_biomes.empty()) return "Stone";
     const Biome& b = m_biomes[col.biomeIndex];
+    // M4b-4: the retaining tier and the rock face own their vertical bands of the column
+    if (col.wallTopY != INT_MIN && worldY > col.wallBaseY && worldY <= col.wallTopY) return "Cobblestone";
+    if (col.rockTopY != INT_MIN && worldY > col.rockBaseY && worldY <= col.rockTopY) return "Stone";
     const int depth = col.surfaceY - worldY;  // 0 at the surface
     if (depth <= 0) return col.surfaceMat;  // per-column (may be a scatter patch)
     if (depth < 4)  return b.subsurfaceMaterial;

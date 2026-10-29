@@ -76,6 +76,15 @@ struct WorldForgeParams {
     float bridgeSingleSpanU = 6.0f;
     float pierSpacingU = 10.0f;
     float fordMaxDepthU = 0.5f;
+    // ── M4b-4 (D33/D34/D35): retaining walls on corridor-driven plans. A cut deeper than the bank
+    // limit (kShoulderMaxU x kReposeSlope = 8.4 u, the widest repose bank) is held by ONE dry-stone
+    // tier of at most wallTierU at the road edge (REASONED: a tier tested to 2.5 m, Colas/Morel/
+    // Garnier; the UK handbook's 1.8 m; no sourced maximum - section 10), the rest of the face is
+    // rock up to rockCutMaxU (GROUNDED, one data point: the Via Appia's 36 m vertical cut at Pisco
+    // Montano, Terracina); a cut beyond bank + tier + precedent is a refused EDGE (D33 b): the
+    // demand is re-routed, else refused with the reason. 0 = no walls / every deep cut refuses.
+    float wallTierU = 3.0f;
+    float rockCutMaxU = 36.0f;
 
     bool operator==(const WorldForgeParams& o) const {
         if (civ != o.civ || civDensityScale != o.civDensityScale || pinTiers != o.pinTiers || pinRefine != o.pinRefine) return false;
@@ -83,6 +92,7 @@ struct WorldForgeParams {
         if (routeReuseFraction != o.routeReuseFraction) return false;
         for (int c = 1; c < 4; ++c) if (gradeCap[c] != o.gradeCap[c]) return false;
         if (bridgeMaxSpanU != o.bridgeMaxSpanU || bridgeSingleSpanU != o.bridgeSingleSpanU || pierSpacingU != o.pierSpacingU || fordMaxDepthU != o.fordMaxDepthU) return false;
+        if (wallTierU != o.wallTierU || rockCutMaxU != o.rockCutMaxU) return false;
         for (int t = 0; t < 5; ++t) if (civSpacingKm[t] != o.civSpacingKm[t] || civSlopeCap[t] != o.civSlopeCap[t]) return false;
         return enabled == o.enabled && version == o.version && siteCount == o.siteCount &&
                regionRadius == o.regionRadius && minSpacing == o.minSpacing &&
@@ -111,6 +121,8 @@ struct WorldForgeParams {
         p.bridgeSingleSpanU = glm::clamp(p.bridgeSingleSpanU, 1.0f, p.bridgeMaxSpanU);
         p.pierSpacingU = glm::clamp(p.pierSpacingU, 2.0f, p.bridgeMaxSpanU);  // a pier at least every span
         p.fordMaxDepthU = glm::clamp(p.fordMaxDepthU, 0.1f, 1.0f);            // deeper than 1 u is never a ford (NWS)
+        p.wallTierU = glm::clamp(p.wallTierU, 0.0f, 6.0f);                    // 6 = twice the tested tier; nothing is sourced beyond
+        p.rockCutMaxU = glm::clamp(p.rockCutMaxU, 0.0f, 96.0f);               // 96 = the version-1 bridge march, a world-size bound
         p.regionRadius = glm::clamp(p.regionRadius, 512.0f, 8192.0f);
         p.minSpacing = glm::clamp(p.minSpacing, 64.0f, 2.0f * p.regionRadius);
         p.maxSpacing = glm::clamp(p.maxSpacing, p.minSpacing, 4.0f * p.regionRadius);
@@ -140,6 +152,8 @@ struct WorldForgeParams {
             j["bridgeSingleSpanU"] = bridgeSingleSpanU;
             j["pierSpacingU"] = pierSpacingU;
             j["fordMaxDepthU"] = fordMaxDepthU;
+            j["wallTierU"] = wallTierU;
+            j["rockCutMaxU"] = rockCutMaxU;
         }
         if (!pinTiers.empty()) j["pinTiers"] = pinTiers;
         if (!sitePins.empty()) {
@@ -179,6 +193,8 @@ struct WorldForgeParams {
         p.bridgeSingleSpanU = j.value("bridgeSingleSpanU", 6.0f);
         p.pierSpacingU = j.value("pierSpacingU", 10.0f);
         p.fordMaxDepthU = j.value("fordMaxDepthU", 0.5f);
+        p.wallTierU = j.value("wallTierU", 3.0f);
+        p.rockCutMaxU = j.value("rockCutMaxU", 36.0f);
         if (j.contains("pinTiers") && j["pinTiers"].is_array())
             for (const auto& t : j["pinTiers"]) p.pinTiers.push_back(t.get<std::string>());
         return p;

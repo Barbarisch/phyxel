@@ -385,7 +385,7 @@ TEST(RouteFieldTest, CutBanksStandAtTheReposeSlope) {
     std::sort(deepest.begin(), deepest.end(), [](const Deep& a, const Deep& b) { return a.cut > b.cut; });
     // the deepest cuts sit on shared trunks (all 40 of the first census were bundled): walk the
     // list from the deepest down and measure the 40 deepest SINGLE-road cuts
-    int banks = 0, steep = 0, bundled = 0, measuredCuts = 0; float worstSlope = 0.0f, deepestMeasured = 0.0f;
+    int banks = 0, steep = 0, bundled = 0, sectioned = 0, measuredCuts = 0; float worstSlope = 0.0f, deepestMeasured = 0.0f;
     for (const Deep& d : deepest) {
         if (measuredCuts >= 40) break;
         std::vector<int> rhere;
@@ -401,14 +401,53 @@ TEST(RouteFieldTest, CutBanksStandAtTheReposeSlope) {
             const auto b = g.sampleSurface(static_cast<int>(std::lround(outer.x)), static_cast<int>(std::lround(outer.y)));
             if (a.riverOrder > 0 || b.riverOrder > 0) continue;
             if (d.cut > WorldForgePlan::kShoulderMaxU * WorldForgePlan::kReposeSlope) continue;   // beyond the widest shoulder: M4b-3 walls
+            // the TRUE natural surface (a generator of the same recipe with WorldForge off), not
+            // baseHeightFn's coarse height (M4b-4, 2026-10-28: that reference misread banks)
+            static WorldGenerator* natural = [] {
+                WorldRecipe r = civRecipe(20260816u);
+                r.worldforge.enabled = false;
+                auto* w = new WorldGenerator(WorldGenerator::GenerationType::Perlin, 20260816u);
+                w->applyRecipe(r);
+                return w;
+            }();
             std::vector<int> rin, rout;
-            box->gradeBlendAt(inner.x, inner.y, g.baseHeightFn()(inner.x, inner.y), &rin);
-            box->gradeBlendAt(outer.x, outer.y, g.baseHeightFn()(outer.x, outer.y), &rout);
+            const auto gbIn = box->gradeBlendAt(inner.x, inner.y, g.baseHeightFn()(inner.x, inner.y), &rin);
+            const auto gbOut = box->gradeBlendAt(outer.x, outer.y, g.baseHeightFn()(outer.x, outer.y), &rout);
             if (rin.size() != 1 || rout.size() > 1) { ++bundled; continue; }   // a bundle's composite bank is not this claim
+            // M4b-4: an earthwork SECTION (the face beyond the bank limit - a steep hillside beside
+            // this shallow cut, the bank anchored at the reach) is EarthworkTest's claim, measured
+            // there with the absolute slope and the step bound; this test judges the PLAIN shoulder
+            if (gbIn.surfaceY > -1e29f || gbOut.surfaceY > -1e29f) {
+                // audit 2026-10-28: measured here too, not skipped - the absolute slope along the bank
+                // past any wall/rock column and a step bound (3+ cubes = a cliff), EarthworkTest's rule
+                ++sectioned;
+                int prev = INT_MIN, first = INT_MIN, last = INT_MIN, cols = 0, maxStep = 0; bool pastBand = false;
+                for (float dd = half + 0.5f; dd <= half + shoulder + 6.0f; dd += 1.0f) {
+                    const glm::vec2 q = d.p + d.n * (side * dd);
+                    const auto col = g.sampleSurface(static_cast<int>(std::lround(q.x)), static_cast<int>(std::lround(q.y)));
+                    if (col.riverOrder > 0) break;
+                    if (col.wallTopY != INT_MIN || col.rockTopY != INT_MIN) { pastBand = true; continue; }
+                    if (!pastBand && col.roadClass > 0) continue;
+                    pastBand = true;
+                    if (first == INT_MIN) first = col.surfaceY;
+                    else if (prev != INT_MIN) maxStep = std::max(maxStep, std::abs(col.surfaceY - prev));
+                    prev = col.surfaceY; last = col.surfaceY; ++cols;
+                    const float natHere = static_cast<float>(natural->sampleSurface(static_cast<int>(std::lround(q.x)), static_cast<int>(std::lround(q.y))).surfaceY);
+                    if (std::fabs(static_cast<float>(col.surfaceY) - natHere) < 1.0f && cols > 1) break;
+                }
+                if (cols >= 6) {
+                    const float absSlope = (std::fabs(static_cast<float>(last - first)) - 1.0f) / static_cast<float>(cols - 1);
+                    worstSlope = std::max(worstSlope, absSlope);
+                    if (absSlope > WorldForgePlan::kReposeSlope + 0.05f + 1e-3f) ++steep;
+                }
+                if (maxStep > 2) ++steep;
+                continue;
+            }
             ++banks;
             // the bank is the realized drop across the shoulder BEYOND what the natural surface
             // does there (the ground itself may fall away from the road)
-            const float natIn = g.baseHeightFn()(inner.x, inner.y), natOut = g.baseHeightFn()(outer.x, outer.y);
+            const float natIn = static_cast<float>(natural->sampleSurface(static_cast<int>(std::lround(inner.x)), static_cast<int>(std::lround(inner.y))).surfaceY);
+            const float natOut = static_cast<float>(natural->sampleSurface(static_cast<int>(std::lround(outer.x)), static_cast<int>(std::lround(outer.y))).surfaceY);
             const float realizedRise = static_cast<float>(b.surfaceY - a.surfaceY);
             const float naturalRise = natOut - natIn;
             const float slope = (std::fabs(realizedRise - naturalRise) - 1.0f) / shoulder;   // - 1 cube of rounding
@@ -416,8 +455,8 @@ TEST(RouteFieldTest, CutBanksStandAtTheReposeSlope) {
             if (slope > WorldForgePlan::kReposeSlope + 1e-3f) ++steep;
         }
     }
-    std::printf("[ M4b ] cut banks: %zu cut vertices scanned, the deepest single-road cut %.1f u: %d single-road banks measured (%d bundled cuts skipped), %d steeper than repose (worst %.2f vs %.2f)\n",
-                deepest.size(), deepestMeasured, banks, bundled, steep, worstSlope, WorldForgePlan::kReposeSlope);
+    std::printf("[ M4b ] cut banks: %zu cut vertices scanned, the deepest single-road cut %.1f u: %d single-road banks measured (%d bundled cuts skipped, %d earthwork sections measured by EarthworkTest's rule), %d steeper than repose (worst %.2f vs %.2f)\n",
+                deepest.size(), deepestMeasured, banks, bundled, sectioned, steep, worstSlope, WorldForgePlan::kReposeSlope);
     EXPECT_GT(banks, 4);
     EXPECT_EQ(steep, 0) << "a cut bank stands steeper than the repose slope";
 }
