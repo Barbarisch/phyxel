@@ -9739,7 +9739,8 @@ is 34.2's worst case: 1,100 1/9 m Wood blocks into the 8 x 8 m S9 pit.
 | pit | off (shipped) | 196-199 (min 68-76) | 6.4-6.6 ms | - | 1.16-1.19 ms |
 
 **What it costs:** in the play-like pond, ~2.5 ms of CPU a frame and ~0.2 ms of GPU, and a worst frame of ~17 ms (3-4x off's) - a
-hitch below 60 fps, three times in 12 s; where it comes from is not measured (the bodies' rasterizing and the volume's wake into
+hitch below 60 fps (one worst frame per window was read - how often it comes was not measured; 44.1 found it is the brick pool
+growing); where it comes from is not measured here (the bodies' rasterizing and the volume's wake into
 motion are the suspects). The pond still runs ~225 fps on average, above every tier. The pit, on: ~88 fps, CPU ~12 ms, GPU ~4.4 ms -
 under the 120 tier; off: ~197 fps.
 
@@ -11241,7 +11242,39 @@ frame); the selection (unit: size floor, budget, ties by slot, the same choice i
 far; the 34.3 cost rig again, with step 1, then with step 2; the pit stress with the no-rise check fixed (44.3, below, first); the
 owner's look: the a2h scene, displacement on before and after the gating, and a near/far fly-by.
 
-### 44.3 Found: the pit stress's rise check loses its bodies after the first run (tool defect, 34.3)
+### 44.3 The design check (2026-10-29): NEEDS WORK, eight items (these override 44.2 where they differ)
+
+1. **Step 1(a)'s wait may move, not vanish.** `step()` settles the call in flight before it records (`gpu.01`, 0.19 ms a frame
+   with displacement off). With the solid copy folded into the step (the deposits' pattern: host data held, written into staging
+   after that settle, copied at the head of the call), `setSolidsBox`'s two waits go, but `gpu.01` may grow. Prediction: the solid
+   fields' ~0.5 ms plus whatever `gpu.01` gains; both measured, whole frame. The equality test (sync vs folded, the record
+   byte-equal after 40 steps) stands; several `setSolidsBox` calls before one step must union their brick lists.
+2. **Step 1(b) does not remove the stall by growing earlier.** `growPool` doubles the capacity and re-creates and copies every
+   capacity buffer (11-12 ms); growing at the first displacing body moves the same frame. The options are headroom at create
+   (memory) or a grow spread over frames (as L4 paced the wake). First measured: how often a pond grows in play (likely once per
+   wake, not per drop - unknown).
+3. **The distance weight is latched per body.** Scaling s by detail(d) every frame would make the CAMERA pump water: s changes
+   as the viewer moves, and a change of s drives the fill rate q and the wake marks. A body's weight is taken when it starts to
+   shove and kept until it stops, like its mode.
+4. **Tiers may not vary what changes outcomes.** Displacement makes waves and waves move other floaters, so a floor, budget or
+   reach that differs by tier would change where things end up (PerformanceTiers' rule). The 44.2 tier table is withdrawn: the
+   floor, the budget's selection and the reach are ONE setting at every tier unless L5 passes at each tier's values (44.2's tier row); tiers vary
+   only step 1's pure-cost parts. Whether a tier may trade displacement at all is the owner's call.
+5. **A partial shove is a partial pump.** A2g's rule (a pump holds a push window, or the table law reads the cap it pumps) was
+   proved for s = 0 or the body's full raster. The stone gate and the Wood control run at weight 0.5 before any look capture.
+6. **The equality test:** the same bodies inside one volume vs two volumes abutting across x = 0 - the selection (floor, budget,
+   score, ties by slot) picks the same bodies; the budget is global, never per volume or by volume order.
+7. **API:** `displace_min_half_m` = the body's largest half-extent component, m, 0..1; `displace_budget` = bodies, 0 = none shove
+   (the same as `displace` off), clamped to the window cap (1,024: a shoving body must hold a window, A2g); near <= far, 0..256 m;
+   omitted or negative = unchanged; every default pinned, `WaterDisplaceDefault` flipped in the commit that turns it on.
+8. **The floor's "invisible" is a claim to show:** the pit with the floor and without (no floor = the moonshot), side by side for
+   the owner, before the floor ships.
+
+Also corrected: 34.3 said the worst frame came "three times in 12 s" - not measured (one worst frame per window was).
+
+Verdict after folding: step 1 READY to build (cost only; item 2's measurement first); steps 2-3 READY except item 4, the owner's.
+
+### 44.4 Found: the pit stress's rise check loses its bodies after the first run (tool defect, 34.3)
 
 From the second run in one session, 1,000-1,061 of the 1,100 bodies have no logged row at their spawn height, so the "nothing
 rose" check covers only the rest. It must be fixed before any displacement run is judged on it.
