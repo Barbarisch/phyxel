@@ -10693,6 +10693,50 @@ the pooled FRESH near runs (`l5_l3_vs_pooled.json`: 17 from 40.3-40.4 plus 3 run
 **Not measured:** a quiet machine's numbers (rerun when the GPU is idle); the memory the rest of the engine had while 256 MB were
 held (no device budget query in the engine).
 
+## 42. L4 - pace a far wake (§30.4 L4). Status: MEASURING (39.3 item 1 first)
+
+L4 would spread a far pond's wake over several frames. Before it is designed, 39.3 item 1 and 41.5's watched run ask the same
+question: **does a late wake change where things end up?** If it does, a paced wake changes outcomes by distance, which §30.0b
+forbids, and L4 must keep the wake's timing whole (or make the late part exact).
+
+### 42.1 The measurement and the prediction (written before the runs)
+
+The L5 rig, near viewer, kept memory as shipped, with 39.4's test knob: the touched pond wakes `d` seconds after the touch
+(`water_l5_outcome.py --wake-delay d`, recorded per run; the knob reset to 0 after every run). The bodies are released inside the
+pond's box, so `d = 0` wakes at the release; their bottoms reach the water 1.01 m below, ~0.45 s later. Three near runs at each of
+d = 0.05, 0.15, 0.4, 0.8 s, judged against the 20 pooled fresh near runs (41.5's reference).
+
+**Prediction:** 0.05 and 0.15 s pass (the volume is awake before the bodies arrive). 0.4 s borderline (awake ~3 ticks before the
+stone touches). 0.8 s fails: the bodies enter water that is still only the record (the table law, no push), so the stone slides
+like the red's (+20..35 mm on x and z) and the wood's rest time moves. Nothing rises at any delay.
+
+### 42.2 The result (2026-10-28, Release, Small bench; `l5_l4_delay*.json`, judged in `l5_l4_late_vs_pooled.json`)
+
+| wake delay | runs passing the 20-run fresh fence | what moved |
+|---|---|---|
+| 0.05 s | 3 of 3 | - |
+| 0.15 s | 3 of 3 | - |
+| 0.4 s | 3 of 3 | - |
+| 0.5 s | 0 of 3 | the wood rests at 4.35 s (fresh 5.45-5.52), the stone at 1.42 s (fresh 2.5-3.8); poses unchanged |
+| 0.6 s | 0 of 3 | as 0.5 s, and the stone slides +17 / +17 mm in 2 of 3 |
+| 0.8 s | 0 of 3 | the stone slides +17 / +17 mm and rests at 1.57 s; the wood rests 7.6 mm higher, at 3.7 s (identical in all three: the record's law is deterministic) |
+
+Nothing rose in any run (the self-check: 0 of 20 reference runs outside the others' fence).
+
+**What it says.** The line is the moment the bodies reach the water (~0.45 s after release here), not a number of frames: a
+wake complete before contact changes nothing measured; a wake after contact changes rest times, then rest poses. The prediction
+held except that 0.4 s was not borderline (it passed cleanly). 41.5's watched run (+15 / +14 mm, rest 3.33 s) has the late-wake
+SLIDE but not its rest time, so it is not explained by this either; it stays watched.
+
+**Also found:** the L5 tool set the run's viewer only after the pond's first sleep, so with L3 the wake path followed the camera
+(the 0.05-0.8 s runs all went fresh, the camera 85 m away). Fixed: the viewer is set before the pond is made (the 0.5 and 0.6 s runs
+are kept). The measurement did not depend on it (the reference is fresh; L3's kept wake is byte-equal).
+
+**What it means for L4.** A paced wake may spread the wake's work over frames only while no body has reached the water yet. The
+deadline belongs to the body (its time to the surface), never to the viewer or a frame budget: when the deadline arrives, the rest of
+the wake runs at once. Then the outcome is the same near and far, and the pacing changes only which frames pay. A body that touches
+the water as it enters the box (no time to the surface) gets today's immediate wake. L4 is designed on that rule (42.3, next).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

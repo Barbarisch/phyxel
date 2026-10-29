@@ -35,6 +35,7 @@ NEAR = [102.0, 18.0, 20.0]       # 4 m south of the pond's edge
 FAR = [302.0, 18.0, 14.0]        # 200 m east: beyond draw_m (48), the ripple window (42.7) and everything L3/L4 will add
 RUNS = {"near_a": (NEAR, False), "near_b": (NEAR, False), "far": (FAR, False), "far_dry": (FAR, True)}
 POND_BOX = {"x1": 99, "y1": 14, "z1": 11, "x2": 104, "y2": 19, "z2": 16}
+WAKE_DELAY_S = 0.0               # L4 (42): --wake-delay; the bodies' bottoms reach the water 1.01 m below, ~0.45 s after release
 
 
 def tracks_xyz(path):
@@ -83,7 +84,9 @@ def kind(name):
 
 def run(api, name, seconds):
     viewer, dry = kind(name)
-    api.debug("water_locality", {"clear_test_viewer": True, "test_far_record_dry": False})
+    # 42.1: the run's viewer from BEFORE the pond's first sleep - L3 decides at the sleep whether the memory is kept, so a viewer set
+    # after it left the path to wherever the camera happened to be (all 42.1 runs went fresh with the camera 85 m away)
+    api.debug("water_locality", {"test_viewer": viewer, "test_far_record_dry": False})
     w.AUTO_SLEEP = True; w.PRESSURE = True; w.DISPLACE = False
     w.pond(api)
     if not wait_slept(api, 60.0): raise SystemExit(f"{name}: the pond did not sleep into the record within 60 s")
@@ -91,6 +94,9 @@ def run(api, name, seconds):
     time.sleep(0.5)   # a frame or two: the viewer is set once a frame
     loc = api.debug("water_locality", {})
     if loc.get("test_far_record_dry") != dry or not loc.get("test_viewer_on"): raise SystemExit(f"{name}: water_locality not taken: {loc}")
+    # L4 (42): a late wake - the touched pond wakes WAKE_DELAY_S after the touch (39.4's test knob; 0 = shipped)
+    got = (api.debug("water_coupling", {"test_wake_delay_s": WAKE_DELAY_S}).get("slept") or {}).get("test_wake_delay_s")
+    if abs((got or 0.0) - WAKE_DELAY_S) > 1e-6: raise SystemExit(f"{name}: test_wake_delay_s not taken: {got}")
     m_before = recorded_m3(api)
     kept0 = (api.debug("water_coupling", {}).get("slept") or {}).get("kept") or {}   # L3 (41.4 item 1): which wake path ran
     log = (w.EV / f"l5_{name}.csv").resolve()
@@ -117,6 +123,7 @@ def run(api, name, seconds):
     # the bodies go BEFORE the switch: a wood block sunk on the bed of a pond that reads dry would read wet again and rise
     api.debug("clear_dynamics"); time.sleep(0.3)
     api.debug("water_locality", {"clear_test_viewer": True, "test_far_record_dry": False})
+    api.debug("water_coupling", {"test_wake_delay_s": 0.0})
     tr = tracks_xyz(log)
     log.unlink(missing_ok=True)
     bodies = {}
@@ -131,7 +138,7 @@ def run(api, name, seconds):
                        "y_max": max(r[2] for r in rows), "y_min": min(r[2] for r in rows), "rows": len(rows)}
     out = {"run": name, "viewer": viewer, "far_record_dry": dry, "locality": loc, "pond_woke": woke, "pond_slept_again": slept_again,
            "recorded_m3_before": m_before, "recorded_m3_after": m_after, "level": lvl, "bodies": bodies, "pond": trace,
-           "wake_path": wake_path, "kept_before_drop": kept0}
+           "wake_path": wake_path, "kept_before_drop": kept0, "wake_delay_s": WAKE_DELAY_S}
     print(f"{name:7s} woke {woke} ({wake_path} memory) slept again {slept_again} m3 {m_before}->{m_after} level {lvl} | " +
           " | ".join(f"{k} rest {[round(c, 4) for c in v['rest_pose']]} at {v['rest_t']} s, y max {v['y_max']:.4f}" for k, v in bodies.items()),
           flush=True)
@@ -211,7 +218,10 @@ def main():
     ap.add_argument("--rejudge", default="", help="a saved l5_<tag>.json: print its verdict again, run nothing")
     ap.add_argument("--seconds", type=float, default=30.0)
     ap.add_argument("--tag", default="l5")
+    ap.add_argument("--wake-delay", type=float, default=0.0, help="L4 (42): the touched pond wakes this many seconds late (test knob)")
     a = ap.parse_args()
+    global WAKE_DELAY_S
+    WAKE_DELAY_S = a.wake_delay
     if a.rejudge:   # one tag re-scores that file; several pool their runs (three near runs a session is a thin spread)
         tags = a.rejudge.split(",")
         runs = []
@@ -234,6 +244,7 @@ def main():
     finally:
         api.debug("clear_dynamics"); time.sleep(0.3)   # the bodies first (see run)
         api.debug("water_locality", {"clear_test_viewer": True, "test_far_record_dry": False})
+        api.debug("water_coupling", {"test_wake_delay_s": 0.0})   # never leave a delay on
         (w.EV / f"l5_{a.tag}.json").write_text(json.dumps(res, indent=1), encoding="utf-8")
 
 

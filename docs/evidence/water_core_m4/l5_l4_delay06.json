@@ -1,0 +1,1249 @@
+{
+ "status": {
+  "build_config": "Release"
+ },
+ "y0": 17.67666666666667,
+ "runs": [
+  {
+   "run": "near_a",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 23.9999942779541,
+   "level": 16.499998092651367,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.017,
+      15.1663,
+      14.0172
+     ],
+     "rest_t": 1.5667,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1820
+    },
+    "wood": {
+     "rest_pose": [
+      103.022,
+      16.4327,
+      13.9752
+     ],
+     "rest_t": 4.4167,
+     "y_max": 17.6767,
+     "y_min": 16.0713,
+     "rows": 1820
+    }
+   },
+   "pond": [
+    {
+     "t": 0.01,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 0.53,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 1.05,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 1.58,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.08,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.61,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.11,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.62,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.13,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.64,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.16,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.69,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.19,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.69,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.22,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.73,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.25,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.75,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.28,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.78,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 10.31,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 10.82,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 11.34,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 11.84,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 12.37,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.87,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.39,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.89,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.42,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.92,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.44,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.96,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.48,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.98,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.5,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.0,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.52,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.04,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.56,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.07,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.58,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.09,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.6,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.12,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.64,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.16,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.66,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.16,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.68,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.19,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.71,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.21,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.71,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.23,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.74,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.26,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.76,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.29,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.8,
+     "volumes": 0,
+     "mass": null
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 153,
+    "buffers_allocated": 2362,
+    "held_bytes": 12574480,
+    "hits": 3,
+    "kept": 19,
+    "last_sleep_free_ms": 0.3032,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.7406,
+    "misses": 12,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 15,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.6
+  },
+  {
+   "run": "near_b",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000003814697266,
+   "level": 16.49997901916504,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.017,
+      15.1663,
+      14.0172
+     ],
+     "rest_t": 1.5667,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1814
+    },
+    "wood": {
+     "rest_pose": [
+      102.976,
+      16.4326,
+      14.0231
+     ],
+     "rest_t": 4.4167,
+     "y_max": 17.6767,
+     "y_min": 16.0761,
+     "rows": 1813
+    }
+   },
+   "pond": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 0.51,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 1.03,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 1.56,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.06,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.57,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.07,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.59,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.1,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.61,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.13,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.64,
+     "volumes": 1,
+     "mass": 24.000003215625682
+    },
+    {
+     "t": 6.17,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.67,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.18,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.68,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.2,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.71,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.21,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.71,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.22,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.72,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.22,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.74,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.27,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.77,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.27,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.77,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.3,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.8,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.32,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.84,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.35,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.86,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.37,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.87,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.39,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.89,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.41,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.93,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.45,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.95,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.45,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.98,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.48,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.98,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.5,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.0,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.51,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.02,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.54,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.05,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.56,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.09,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.59,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.11,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.61,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.13,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.64,
+     "volumes": 0,
+     "mass": null
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 204,
+    "buffers_allocated": 2470,
+    "held_bytes": 12574480,
+    "hits": 4,
+    "kept": 21,
+    "last_sleep_free_ms": 0.2967,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.7406,
+    "misses": 12,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 16,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.6
+  },
+  {
+   "run": "near_c",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 23.999998092651367,
+   "level": 16.5000057220459,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.002,
+      15.1663,
+      14.0012
+     ],
+     "rest_t": 1.4167,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1817
+    },
+    "wood": {
+     "rest_pose": [
+      102.977,
+      16.4326,
+      13.9773
+     ],
+     "rest_t": 4.4167,
+     "y_max": 17.6767,
+     "y_min": 16.0761,
+     "rows": 1816
+    }
+   },
+   "pond": [
+    {
+     "t": 0.02,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 0.54,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 1.05,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 1.57,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.09,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.62,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.12,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.64,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.14,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.65,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.15,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.66,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.16,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.69,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.19,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.71,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.24,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.74,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.25,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.78,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 10.28,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.78,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.29,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.81,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.34,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.84,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.36,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.86,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.36,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.87,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.38,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.91,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.41,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.91,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.44,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.94,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.46,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.96,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.47,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.98,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.5,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.01,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.53,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.04,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.57,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.07,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.57,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.1,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.61,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.12,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.64,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.16,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.67,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.19,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.72,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.22,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.72,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.24,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.74,
+     "volumes": 0,
+     "mass": null
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 255,
+    "buffers_allocated": 2578,
+    "held_bytes": 12574480,
+    "hits": 5,
+    "kept": 23,
+    "last_sleep_free_ms": 0.3498,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.7406,
+    "misses": 12,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 17,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.6
+  }
+ ],
+ "compare": [
+  {
+   "run": "near_b",
+   "vs": "near_a",
+   "stone": {
+    "pose_mm": 0.0,
+    "horiz_mm": 0.0,
+    "dy_mm": 0.0,
+    "rest_ticks": 0,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 47.9,
+    "horiz_mm": 66.41,
+    "dy_mm": -0.1,
+    "rest_ticks": 0,
+    "rose_above_release": false
+   },
+   "m3": 1e-05,
+   "level_mm": -0.02
+  },
+  {
+   "run": "near_c",
+   "vs": "near_a",
+   "stone": {
+    "pose_mm": 16.0,
+    "horiz_mm": 21.93,
+    "dy_mm": 0.0,
+    "rest_ticks": -9,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 45.0,
+    "horiz_mm": 45.05,
+    "dy_mm": -0.1,
+    "rest_ticks": 0,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": 0.01
+  }
+ ],
+ "verdict": {
+  "near_runs": [
+   "near_a",
+   "near_b",
+   "near_c"
+  ],
+  "spread": {
+   "m3": {
+    "min": 23.9999942779541,
+    "max": 24.000003814697266,
+    "tol": 1.95367431640625e-05
+   },
+   "level": {
+    "min": 16.49997901916504,
+    "max": 16.5000057220459,
+    "tol": 0.000126702880859375
+   },
+   "stone_x": {
+    "min": 101.002,
+    "max": 101.017,
+    "tol": 0.01600000000000057
+   },
+   "stone_y": {
+    "min": 15.1663,
+    "max": 15.1663,
+    "tol": 0.0001
+   },
+   "stone_z": {
+    "min": 14.0012,
+    "max": 14.0172,
+    "tol": 0.017000000000000015
+   },
+   "stone_rest_t": {
+    "min": 1.4167,
+    "max": 1.5667,
+    "tol": 0.16683333333333325
+   },
+   "wood_x": {
+    "min": 102.976,
+    "max": 103.022,
+    "tol": 0.04700000000000648
+   },
+   "wood_y": {
+    "min": 16.4326,
+    "max": 16.4327,
+    "tol": 0.00019999999999976693
+   },
+   "wood_z": {
+    "min": 13.9752,
+    "max": 14.0231,
+    "tol": 0.04890000000000028
+   },
+   "wood_rest_t": {
+    "min": 4.4167,
+    "max": 4.4167,
+    "tol": 0.016833333333333332
+   }
+  },
+  "runs": {},
+  "wake_paths": {
+   "near_a": "kept",
+   "near_b": "kept",
+   "near_c": "kept"
+  },
+  "self_check": {
+   "note": "fewer than four near runs: no leave-one-out check (pool sessions with --rejudge a,b,...)"
+  }
+ }
+}

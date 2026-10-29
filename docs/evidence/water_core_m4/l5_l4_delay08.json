@@ -1,0 +1,1249 @@
+{
+ "status": {
+  "build_config": "Release"
+ },
+ "y0": 17.67666666666667,
+ "runs": [
+  {
+   "run": "near_a",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000001907348633,
+   "level": 16.49998664855957,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.017,
+      15.1663,
+      14.0168
+     ],
+     "rest_t": 1.5667,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1824
+    },
+    "wood": {
+     "rest_pose": [
+      103.027,
+      16.4393,
+      14.0337
+     ],
+     "rest_t": 3.7,
+     "y_max": 17.6767,
+     "y_min": 16.0512,
+     "rows": 1823
+    }
+   },
+   "pond": [
+    {
+     "t": 0.02,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 0.53,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 1.05,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 1.55,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.08,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.61,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.12,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.65,
+     "volumes": 1,
+     "mass": 23.999997857257934
+    },
+    {
+     "t": 4.16,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.67,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.19,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.71,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.22,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.74,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.26,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.79,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.3,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.83,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.36,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.86,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.36,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.88,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.39,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.91,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.42,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.92,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.45,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.96,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.47,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.99,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.5,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.01,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.52,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.05,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.56,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.06,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.57,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.09,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.61,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.12,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.63,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.15,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.66,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.16,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.69,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.19,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.69,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.21,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.71,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.24,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.75,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.27,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.78,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.3,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.81,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.33,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.83,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.33,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.83,
+     "volumes": 0,
+     "mass": null
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 0,
+    "buffers_allocated": 1553,
+    "held_bytes": 0,
+    "hits": 0,
+    "kept": 9,
+    "last_sleep_free_ms": 12.1267,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.7406,
+    "misses": 9,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 9,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.8
+  },
+  {
+   "run": "near_b",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 23.999998092651367,
+   "level": 16.499996185302734,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.017,
+      15.1663,
+      14.0167
+     ],
+     "rest_t": 1.5667,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1822
+    },
+    "wood": {
+     "rest_pose": [
+      103.026,
+      16.4396,
+      14.0326
+     ],
+     "rest_t": 3.7,
+     "y_max": 17.6767,
+     "y_min": 16.0512,
+     "rows": 1822
+    }
+   },
+   "pond": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 0.5,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 1.03,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 1.53,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.06,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.56,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.07,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.59,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.11,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.63,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.15,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.68,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.21,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.71,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.23,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.74,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.24,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.77,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.29,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.79,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.32,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.82,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.33,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.84,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.36,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.88,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.4,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.9,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.43,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.93,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.45,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.97,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.48,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.98,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.49,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.99,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.51,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.03,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.54,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.05,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.56,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.06,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.59,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.1,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.6,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.1,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.62,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.13,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.65,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.16,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.66,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.17,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.69,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.2,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.73,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.24,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.77,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.3,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.8,
+     "volumes": 0,
+     "mass": null
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 0,
+    "buffers_allocated": 1713,
+    "held_bytes": 0,
+    "hits": 0,
+    "kept": 10,
+    "last_sleep_free_ms": 12.425,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.7406,
+    "misses": 10,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 10,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.8
+  },
+  {
+   "run": "near_c",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.0,
+   "level": 16.5000057220459,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.017,
+      15.1663,
+      14.0168
+     ],
+     "rest_t": 1.5667,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1824
+    },
+    "wood": {
+     "rest_pose": [
+      103.025,
+      16.4388,
+      14.0287
+     ],
+     "rest_t": 3.6833,
+     "y_max": 17.6767,
+     "y_min": 16.0512,
+     "rows": 1823
+    }
+   },
+   "pond": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 0.53,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 1.05,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 1.57,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.1,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.63,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.15,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.65,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.18,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.69,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.2,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.7,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.2,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.73,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.25,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.77,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.29,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.81,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.34,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.84,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 10.35,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 10.87,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 11.39,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.9,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.42,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.93,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.43,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.94,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.46,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.96,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.47,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.99,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.49,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.99,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.52,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.04,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.57,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.08,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.59,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.11,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.63,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.15,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.65,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.17,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.69,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.2,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.71,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.21,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.71,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.21,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.71,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.22,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.74,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.25,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.78,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.31,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.82,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.32,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.82,
+     "volumes": 0,
+     "mass": null
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 0,
+    "buffers_allocated": 1873,
+    "held_bytes": 0,
+    "hits": 0,
+    "kept": 11,
+    "last_sleep_free_ms": 12.9069,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.7406,
+    "misses": 11,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 11,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.8
+  }
+ ],
+ "compare": [
+  {
+   "run": "near_b",
+   "vs": "near_a",
+   "stone": {
+    "pose_mm": 0.1,
+    "horiz_mm": 0.1,
+    "dy_mm": 0.0,
+    "rest_ticks": 0,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 1.1,
+    "horiz_mm": 1.49,
+    "dy_mm": 0.3,
+    "rest_ticks": 0,
+    "rose_above_release": false
+   },
+   "m3": -0.0,
+   "level_mm": 0.01
+  },
+  {
+   "run": "near_c",
+   "vs": "near_a",
+   "stone": {
+    "pose_mm": 0.0,
+    "horiz_mm": 0.0,
+    "dy_mm": 0.0,
+    "rest_ticks": 0,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 5.0,
+    "horiz_mm": 5.39,
+    "dy_mm": -0.5,
+    "rest_ticks": -1,
+    "rose_above_release": false
+   },
+   "m3": -0.0,
+   "level_mm": 0.02
+  }
+ ],
+ "verdict": {
+  "near_runs": [
+   "near_a",
+   "near_b",
+   "near_c"
+  ],
+  "spread": {
+   "m3": {
+    "min": 23.999998092651367,
+    "max": 24.000001907348633,
+    "tol": 1.3814697265625e-05
+   },
+   "level": {
+    "min": 16.49998664855957,
+    "max": 16.5000057220459,
+    "tol": 0.000119073486328125
+   },
+   "stone_x": {
+    "min": 101.017,
+    "max": 101.017,
+    "tol": 0.001
+   },
+   "stone_y": {
+    "min": 15.1663,
+    "max": 15.1663,
+    "tol": 0.0001
+   },
+   "stone_z": {
+    "min": 14.0167,
+    "max": 14.0168,
+    "tol": 0.001099999999999767
+   },
+   "stone_rest_t": {
+    "min": 1.5667,
+    "max": 1.5667,
+    "tol": 0.016833333333333332
+   },
+   "wood_x": {
+    "min": 103.025,
+    "max": 103.027,
+    "tol": 0.002999999999995339
+   },
+   "wood_y": {
+    "min": 16.4388,
+    "max": 16.4396,
+    "tol": 0.0008999999999981356
+   },
+   "wood_z": {
+    "min": 14.0287,
+    "max": 14.0337,
+    "tol": 0.005999999999999005
+   },
+   "wood_rest_t": {
+    "min": 3.6833,
+    "max": 3.7,
+    "tol": 0.03353333333333349
+   }
+  },
+  "runs": {},
+  "wake_paths": {
+   "near_a": "fresh",
+   "near_b": "fresh",
+   "near_c": "fresh"
+  },
+  "self_check": {
+   "note": "fewer than four near runs: no leave-one-out check (pool sessions with --rejudge a,b,...)"
+  }
+ }
+}

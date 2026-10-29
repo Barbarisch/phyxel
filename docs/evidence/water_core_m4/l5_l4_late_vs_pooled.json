@@ -1,0 +1,984 @@
+{
+ "near_runs": [
+  "near@l5:near_a",
+  "near@l5:near_b",
+  "near@l5_spread:near_a",
+  "near@l5_spread:near_b",
+  "near@l5_spread:near_c",
+  "near@l5_gate:near_a",
+  "near@l5_gate:near_b",
+  "near@l5_gate:near_c",
+  "near@l5_near6:near_a",
+  "near@l5_near6:near_b",
+  "near@l5_near6:near_c",
+  "near@l5_near6:near_d",
+  "near@l5_near6:near_e",
+  "near@l5_near6:near_f",
+  "near@l6:near_a",
+  "near@l6:near_b",
+  "near@l6:near_c",
+  "near@l3_off:near_a",
+  "near@l3_off:near_b",
+  "near@l3_off:near_c"
+ ],
+ "spread": {
+  "m3": {
+   "min": 23.99999237060547,
+   "max": 24.0000057220459,
+   "tol": 2.33514404296875e-05
+  },
+  "level": {
+   "min": 16.5,
+   "max": 16.500009536743164,
+   "tol": 0.0001095367431640625
+  },
+  "stone_x": {
+   "min": 100.998,
+   "max": 101.001,
+   "tol": 0.004000000000000114
+  },
+  "stone_y": {
+   "min": 15.1663,
+   "max": 15.1667,
+   "tol": 0.0005000000000008442
+  },
+  "stone_z": {
+   "min": 13.9999,
+   "max": 14.0023,
+   "tol": 0.0033999999999997357
+  },
+  "stone_rest_t": {
+   "min": 2.5167,
+   "max": 3.7833,
+   "tol": 1.2834333333333332
+  },
+  "wood_x": {
+   "min": 102.965,
+   "max": 103.053,
+   "tol": 0.08899999999999386
+  },
+  "wood_y": {
+   "min": 16.4312,
+   "max": 16.4321,
+   "tol": 0.0009999999999979025
+  },
+  "wood_z": {
+   "min": 13.9149,
+   "max": 14.0866,
+   "tol": 0.1727000000000013
+  },
+  "wood_rest_t": {
+   "min": 5.45,
+   "max": 5.5,
+   "tol": 0.06683333333333316
+  }
+ },
+ "runs": {
+  "late0.05_near_a@l4_delay005": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.50000762939453,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1663,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 3.2167,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.039,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4317,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0725,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.4667,
+     "inside": true
+    }
+   }
+  },
+  "late0.05_near_b@l4_delay005": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.000003814697266,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500009536743164,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1665,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9999,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 2.85,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.967,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4319,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.9142,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.4667,
+     "inside": true
+    }
+   }
+  },
+  "late0.05_near_c@l4_delay005": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500009536743164,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1663,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 3.2167,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.054,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4317,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.9251,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.4833,
+     "inside": true
+    }
+   }
+  },
+  "late0.15_near_a@l4_delay015": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.000009536743164,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500009536743164,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1667,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9999,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 3.1667,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.972,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4324,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0776,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.5167,
+     "inside": true
+    }
+   }
+  },
+  "late0.15_near_b@l4_delay015": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 23.9999942779541,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500009536743164,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1664,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 2.8833,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.962,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4316,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.916,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.45,
+     "inside": true
+    }
+   }
+  },
+  "late0.15_near_c@l4_delay015": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.0000057220459,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500009536743164,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1663,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 3.1667,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.968,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4316,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0786,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.45,
+     "inside": true
+    }
+   }
+  },
+  "late0.4_near_a@l4_delay04": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500003814697266,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1665,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 2.85,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.966,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4313,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0838,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.4667,
+     "inside": true
+    }
+   }
+  },
+  "late0.4_near_b@l4_delay04": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 23.99999237060547,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500001907348633,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.001,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1664,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9995,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 2.8333,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.964,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4321,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.083,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.4833,
+     "inside": true
+    }
+   }
+  },
+  "late0.4_near_c@l4_delay04": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 23.9999942779541,
+     "inside": true
+    },
+    "level": {
+     "value": 16.5,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1665,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0003,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 3.3333,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.974,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4319,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0856,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.5,
+     "inside": true
+    }
+   }
+  },
+  "late0.5_near_a@l4_delay05": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 24.000001907348633,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500003814697266,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1665,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0001,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 1.4167,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.966,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4316,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.963,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 4.3333,
+     "inside": false
+    }
+   }
+  },
+  "late0.5_near_b@l4_delay05": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_y",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 23.999998092651367,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500009536743164,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1657,
+     "inside": false
+    },
+    "stone_z": {
+     "value": 13.9999,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 1.4167,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.03,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4318,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0355,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 4.3667,
+     "inside": false
+    }
+   }
+  },
+  "late0.5_near_c@l4_delay05": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 23.999998092651367,
+     "inside": true
+    },
+    "level": {
+     "value": 16.50000762939453,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1665,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0001,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 1.4167,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.03,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4319,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0339,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 4.35,
+     "inside": false
+    }
+   }
+  },
+  "late0.6_near_a@l4_delay06": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_x",
+    "stone_z",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 23.9999942779541,
+     "inside": true
+    },
+    "level": {
+     "value": 16.499998092651367,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.017,
+     "inside": false
+    },
+    "stone_y": {
+     "value": 15.1663,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0172,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 1.5667,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.022,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4327,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.9752,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 4.4167,
+     "inside": false
+    }
+   }
+  },
+  "late0.6_near_b@l4_delay06": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_x",
+    "stone_z",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 24.000003814697266,
+     "inside": true
+    },
+    "level": {
+     "value": 16.49997901916504,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.017,
+     "inside": false
+    },
+    "stone_y": {
+     "value": 15.1663,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0172,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 1.5667,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.976,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4326,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.0231,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 4.4167,
+     "inside": false
+    }
+   }
+  },
+  "late0.6_near_c@l4_delay06": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 23.999998092651367,
+     "inside": true
+    },
+    "level": {
+     "value": 16.5000057220459,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.002,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1663,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0012,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 1.4167,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.977,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4326,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.9773,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 4.4167,
+     "inside": false
+    }
+   }
+  },
+  "late0.8_near_a@l4_delay08": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_x",
+    "stone_z",
+    "wood_y",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 24.000001907348633,
+     "inside": true
+    },
+    "level": {
+     "value": 16.49998664855957,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.017,
+     "inside": false
+    },
+    "stone_y": {
+     "value": 15.1663,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0168,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 1.5667,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.027,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4393,
+     "inside": false
+    },
+    "wood_z": {
+     "value": 14.0337,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 3.7,
+     "inside": false
+    }
+   }
+  },
+  "late0.8_near_b@l4_delay08": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_x",
+    "stone_z",
+    "wood_y",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 23.999998092651367,
+     "inside": true
+    },
+    "level": {
+     "value": 16.499996185302734,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.017,
+     "inside": false
+    },
+    "stone_y": {
+     "value": 15.1663,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0167,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 1.5667,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.026,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4396,
+     "inside": false
+    },
+    "wood_z": {
+     "value": 14.0326,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 3.7,
+     "inside": false
+    }
+   }
+  },
+  "late0.8_near_c@l4_delay08": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_x",
+    "stone_z",
+    "wood_y",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.5000057220459,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.017,
+     "inside": false
+    },
+    "stone_y": {
+     "value": 15.1663,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0168,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 1.5667,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.025,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4388,
+     "inside": false
+    },
+    "wood_z": {
+     "value": 14.0287,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 3.6833,
+     "inside": false
+    }
+   }
+  }
+ },
+ "wake_paths": {
+  "near@l3_off:near_a": "fresh",
+  "near@l3_off:near_b": "fresh",
+  "near@l3_off:near_c": "fresh",
+  "late0.05_near_a@l4_delay005": "fresh",
+  "late0.05_near_b@l4_delay005": "fresh",
+  "late0.05_near_c@l4_delay005": "fresh",
+  "late0.15_near_a@l4_delay015": "fresh",
+  "late0.15_near_b@l4_delay015": "fresh",
+  "late0.15_near_c@l4_delay015": "fresh",
+  "late0.4_near_a@l4_delay04": "fresh",
+  "late0.4_near_b@l4_delay04": "fresh",
+  "late0.4_near_c@l4_delay04": "fresh",
+  "late0.5_near_a@l4_delay05": "kept",
+  "late0.5_near_b@l4_delay05": "kept",
+  "late0.5_near_c@l4_delay05": "kept",
+  "late0.6_near_a@l4_delay06": "kept",
+  "late0.6_near_b@l4_delay06": "kept",
+  "late0.6_near_c@l4_delay06": "kept",
+  "late0.8_near_a@l4_delay08": "fresh",
+  "late0.8_near_b@l4_delay08": "fresh",
+  "late0.8_near_c@l4_delay08": "fresh"
+ },
+ "self_check": {
+  "near_runs": 20,
+  "failed": []
+ },
+ "note": "L4 (42.1): late wakes (test_wake_delay_s) against the pooled fresh near runs"
+}
