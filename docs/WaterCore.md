@@ -9081,6 +9081,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A7 | **The wake hitch** (~33 ms once, §32.1) | merged into A2f, L3 and L4 | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
 | A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
 | A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
+| A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | MEASURED, DESIGNED (§44), not built | the livelier water the owner chose, at a cost every tier can carry |
 
 ### 30.5 The drift log (work outside the plan: what, why, who approved)
 
@@ -11165,6 +11166,85 @@ distance) shows no ripples (its facets ~4 px there, 43.3 item 1); the four rippl
 far disturbed pond. Off stays available (`water_locality {ripple_reach: false}`) and is exactly the old look (43.4). Tests that
 study the old window by its cell count now set the reach off themselves (`WaterRippleTest.EveryVolumeGetsTheRippleWindow`,
 `tools/water_l2_ripple_cost.py`). Still not signed off in motion as a default - the owner saw no difference, which is the claim.
+
+## 44. A10 - displacement, gated (the owner, 2026-10-29). Status: MEASURED (44.1), DESIGNED (44.2), not built
+
+**The ask:** after preferring displacement ON in `a2h_look_side_by_side.mp4` and seeing its cost (34.3): "it seems like maybe
+displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used".
+
+### 44.1 Measured first: where displacement's cost goes (Release, Small bench, the 34.3 pond scene)
+
+`tools/water_displace_cost.py` now records the host profile per window (`displace_split.json`); `setMovingSolids` got four laps
+(`solids.1-4`, this commit). Displacement ON, three 1/3 m Wood blocks and a Stone every 2.5 s, 2 bodies rasterized at the median
+(5 at most):
+
+| part | ms a frame | longest call |
+|---|---|---|
+| the editor's `solids` block (all of `setMovingSolids`) | **2.06** (median; off: 0.00) | 2.8 |
+| of it: `solids.4` upload the box (`WaterCoreGpu::setSolidsBox`) | **1.41** | 2.28 |
+| of it: `solids.3` the solid fields (raster, the wake marking) | 0.52 | 1.10 |
+| of it: `solids.1` record wake, `solids.2` occupancy refresh | 0.00 | 0.02 |
+| the worst frame: `gpu.02 grow pool` (once a window) | - | **10.9-12.0** |
+
+**What it says.**
+- **Most of the steady cost is waiting, not work.** `setSolidsBox` calls `settle(vol)` (waits for the volume's call in flight) and
+  then `submitAndWait` for its own copy: two fence waits on the main thread every frame a body moves in the water. The data it
+  sends is a few bricks.
+- **The 17 ms worst frame is the pool growing:** the shoved water reaches cells whose bricks the volume has not stored, and the
+  brick pool grows (an allocation and copy) inside the frame. Off, no water is shoved there, so the pool never grows.
+- The solid fields (0.5 ms) are CPU work bounded by the bodies' box plus the wake's 3-cell reach (26.12).
+
+### 44.2 The design
+
+Three steps, in this order: the first only removes waiting (no look, no outcome changes); the second and third decide who shoves
+and how much.
+
+**Step 1 - make it cheap (cost only, outcome-neutral).**
+- (a) **No fence waits.** The solid box goes up with the volume's next step: copied into that call's upload staging and recorded at
+  the head of its command buffer (as deposits and the occupancy already are), never in a call of its own. The step that reads it is
+  the same step in both forms, so the water is byte-equal. Test (GPU): one body path, sync vs async - the written record byte-equal
+  after 40 steps.
+- (b) **Grow the pool before it is needed.** Grow it when a displacing body is first seen (by the bricks its box and the wake reach
+  can touch, ahead of the shove) and in larger steps, or at the wake. Prediction: the 11-12 ms frame goes. Measured, not assumed.
+- Prediction for both: the pond's displacement cost 2.06 -> ~0.6 ms a frame, its worst frame 17 -> ~5 ms.
+
+**Step 2 - control how it is used (who shoves).** Today every wet body moving faster than `kDisplaceOnSpeed` relative to the water
+shoves it (and holds a push window, max 1,024). Proposed:
+- **Size.** A body shoves only from `displace_min_half_m` up. Proposed 1/6 m (a 1/3 m subcube and larger). Below that, a body is
+  one or two cells: its shove is invisible and the ripple layer already draws its rings. This is the 1,100-block pit's cost: its
+  1/9 m blocks would ripple, not shove (the pit back to the off cost, ~197 fps).
+- **A frame budget, by how much it shows.** At most `displace_budget` bodies shove at once, chosen by a score: the water it moves
+  per second (volume x speed relative to the water) times its distance weight (step 3). Ties go by slot, never by list order.
+- **Decided at entry, kept while it moves.** A body's mode is chosen when it starts shoving and kept until it slows below
+  `kDisplaceOffSpeed` (as today). It never switches mid-stroke, so no water jumps back where a body was.
+
+**Step 3 - LOD (worked into L1, continuous).** A shoving body's solid fraction s is scaled by `detail(d, near, far)` (L1's
+smoothstep, d its horizontal distance to the viewer). Near, it displaces its whole volume; between the two it moves part of it (s is
+already a fraction per cell - a partly covered cell); beyond `far` it shoves nothing and only ripples. No step anywhere: the waves
+it makes fade with distance. Proposed near 13 m, far 21 m (the ripples' reach, 43).
+
+**The outcome question (§30.0b: distance may drive cost and detail, never outcomes).** Where a body comes to rest is the same with
+and without displacement in still water (33.1, 34.2's drafts). But displacement makes waves, and waves move other floaters (the
+wood's bimodal rest, 43.4, shows how sensitive a rest spot can be). So a far body's smaller shove is a smaller wave, and L5 must show
+that near and far still end in the same places within the pooled spread. If it cannot, step 3 is limited to cost-only parts (the
+budget) and the fade is dropped.
+
+**Switch and API.** `water_coupling {displace, displace_min_half_m, displace_budget, displace_near_m, displace_far_m}`, echoed with
+the counts (shoving, refused by size, by budget, faded). Displacement turns ON by default after step 1 and step 2 are measured
+(the owner, 2026-10-29: "On, but measure first").
+
+**Tiers (cost and look only):** moonshot: no size floor, no budget; 120: 1/6 m floor, budget 16, 13 / 21 m; 60 and 30: the same
+floor, the budget larger or the reach shorter (to be measured).
+
+**Tests (planned).** The sync/async equality (GPU); the pool pre-grow (no grow inside a frame in the pond scene, whole-frame worst
+frame); the selection (unit: size floor, budget, ties by slot, the same choice in any list order); L5 with displacement ON, near and
+far; the 34.3 cost rig again, with step 1, then with step 2; the pit stress with the no-rise check fixed (44.3, below, first); the
+owner's look: the a2h scene, displacement on before and after the gating, and a near/far fly-by.
+
+### 44.3 Found: the pit stress's rise check loses its bodies after the first run (tool defect, 34.3)
+
+From the second run in one session, 1,000-1,061 of the 1,100 bodies have no logged row at their spawn height, so the "nothing
+rose" check covers only the rest. It must be fixed before any displacement run is judged on it.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

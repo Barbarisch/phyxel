@@ -51,7 +51,14 @@ def pond_window(api, displace, seconds):
         for mat in ("Wood", "Wood", "Wood", "Stone"):
             api.debug("spawn_gpu_particle", {"x": 100.4 + rng.random() * 3.2, "y": w.LEVEL + 1.0 + 1 / 6, "z": 12.4 + rng.random() * 3.2,
                                              "material": mat, "scale": 1 / 3, "lifetime": 8.0, "spin": 0})
+    api.debug("water_av_host_phases", {"reset": True})
     r = frame_window(api, seconds, drops)
+    hp = api.debug("water_av_host_phases", {})
+    ph = hp.get("phases", {})
+    # 44.1: where the cost is - the manager's phases (ms a frame, the longest call) and the editor's water block at its worst frame
+    r["phases_top"] = sorted(([k, round(v["ms_per_frame"], 3), round(v["max_ms_per_call"], 2)] for k, v in ph.items()), key=lambda e: -e[1])[:14]
+    r["phases_worst_call"] = sorted(([k, round(v["max_ms_per_call"], 2)] for k, v in ph.items()), key=lambda e: -e[1])[:8]
+    r["app_water_worst_frame"] = hp.get("app_water_cpu_ms_worst_frame")
     api.debug("clear_dynamics")
     return r
 

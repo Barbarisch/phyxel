@@ -1096,15 +1096,20 @@ WaterCoreManager::SolidsFeed WaterCoreManager::setMovingSolids(const std::vector
             if (glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi))) mine.push_back(b);
         if (mine.empty() && !av.hadSolids) continue;
         if (av.solver->transport().ownsMass()) { out.flipRefused += static_cast<long>(mine.size()); continue; }
+        auto hs = WaterHostProfile::Clock::now();   // 44.1: displacement's CPU by part
         for (const MovingSolid& b : mine) wakeRecordedNear(av, b.centre, glm::length(b.halfExtents));   // §27 W1b: it displaces cells, not the record
+        WaterHostProfile::lap("solids.1 wake the record near", hs);
         refreshOccupancy(av);
+        WaterHostProfile::lap("solids.2 occupancy refresh", hs);
         ++out.volumes;
         WaterSolver::SolidsReport rep;
         if (av.backend == "gpu" && av.gpuVol && m_gpu) {
             rep = av.solver->updateSolidFields(mine, frameSeconds);
+            WaterHostProfile::lap("solids.3 solid fields (raster, wake)", hs);
             static const std::vector<float> kNoWake;
             const WaterSolver::CellBox& box = av.solver->solidActiveBox();   // 26.12: only where a body is, was, or left its wake
             m_gpu->setSolidsBox(*av.gpuVol, av.grid->sData(), m_solidWakeRule ? av.solver->solidWake() : kNoWake, av.solver->solidFresh(), frameSeconds, box.lo, box.hi);
+            WaterHostProfile::lap("solids.4 upload the box", hs);
             if (rep.raster.cells > 0 || rep.wakeCells > 0 || rep.sChange > 0.0) av.gpuLast.asleep = false;   // setSolids woke the device volume
         } else {
             rep = av.solver->setMovingSolids(mine, frameSeconds);
