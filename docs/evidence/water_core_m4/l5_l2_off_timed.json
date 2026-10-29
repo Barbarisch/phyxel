@@ -1,0 +1,1889 @@
+{
+ "status": {
+  "build_config": "Release"
+ },
+ "y0": 17.67666666666667,
+ "runs": [
+  {
+   "run": "near_a",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 0.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": false,
+    "ripple_reach_default": false,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": true,
+    "ripple_window_side": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000001907348633,
+   "level": 16.500003814697266,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.0,
+      15.1667,
+      13.9997
+     ],
+     "rest_t": 3.3,
+     "y_max": 17.6767,
+     "y_min": 15.1666,
+     "rows": 2458
+    },
+    "wood": {
+     "rest_pose": [
+      103.053,
+      16.4317,
+      14.0735
+     ],
+     "rest_t": 5.4833,
+     "y_max": 17.6767,
+     "y_min": 16.1105,
+     "rows": 2458
+    }
+   },
+   "pond": [
+    {
+     "t": 0.03,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.57,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.1,
+     "volumes": 1,
+     "mass": 23.999775484996444,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.63,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.66,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.19,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.7,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.22,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.81,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.84,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.39,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.92,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.96,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.46,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.98,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.52,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.07,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.61,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.19,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.25,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.77,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.31,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.85,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.37,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.89,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.42,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.96,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.53,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.06,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.73,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.25,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.78,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.84,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.42,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.92,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.46,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.5,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.05,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.59,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 357,
+    "buffers_allocated": 2002,
+    "held_bytes": 12574480,
+    "hits": 7,
+    "kept": 15,
+    "last_sleep_free_ms": 0.344,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.5219,
+    "misses": 7,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 7,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.1602,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": {
+    "ripple_reach": false
+   },
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 40.9
+  },
+  {
+   "run": "far_a",
+   "viewer": [
+    302.0,
+    18.0,
+    14.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 0.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": false,
+    "ripple_reach_default": false,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": true,
+    "ripple_window_side": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     302.0,
+     18.0,
+     14.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     302.0,
+     18.0,
+     14.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 23.999996185302734,
+   "level": 16.500001907348633,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.0,
+      15.1666,
+      14.0
+     ],
+     "rest_t": 3.1667,
+     "y_max": 17.674,
+     "y_min": 15.1663,
+     "rows": 2425
+    },
+    "wood": {
+     "rest_pose": [
+      102.968,
+      16.4318,
+      14.0791
+     ],
+     "rest_t": 5.4667,
+     "y_max": 17.674,
+     "y_min": 16.1106,
+     "rows": 2424
+    }
+   },
+   "pond": [
+    {
+     "t": 0.03,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.57,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.09,
+     "volumes": 1,
+     "mass": 23.99974333478997,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.16,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.2,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.74,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.77,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.31,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.85,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.37,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.89,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.43,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.95,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.03,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.55,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.14,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.2,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.72,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.25,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.78,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.32,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.86,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.37,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.94,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.45,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.48,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.08,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.61,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.14,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.19,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.72,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.78,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.31,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.85,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.39,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.43,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.95,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.47,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.51,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.04,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.56,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 408,
+    "buffers_allocated": 2113,
+    "held_bytes": 0,
+    "hits": 8,
+    "kept": 16,
+    "last_sleep_free_ms": 12.0735,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.5792,
+    "misses": 7,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 8,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 9.1145,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": {
+    "ripple_reach": false
+   },
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 40.4
+  },
+  {
+   "run": "near_b",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 0.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": false,
+    "ripple_reach_default": false,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": true,
+    "ripple_window_side": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000003814697266,
+   "level": 16.500009536743164,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.0,
+      15.1666,
+      13.9999
+     ],
+     "rest_t": 3.1333,
+     "y_max": 17.6767,
+     "y_min": 15.1664,
+     "rows": 2355
+    },
+    "wood": {
+     "rest_pose": [
+      102.975,
+      16.4318,
+      14.0808
+     ],
+     "rest_t": 5.5,
+     "y_max": 17.6767,
+     "y_min": 16.1105,
+     "rows": 2355
+    }
+   },
+   "pond": [
+    {
+     "t": 0.01,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.05,
+     "volumes": 1,
+     "mass": 23.99972725968673,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.58,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.12,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.65,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.18,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.8,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.85,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.37,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.99,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.5,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.02,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.05,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.55,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.06,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.57,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.75,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.9,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.92,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.42,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.95,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.48,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.04,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.56,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.08,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.18,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.25,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.78,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.29,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.84,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.37,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.9,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 408,
+    "buffers_allocated": 2274,
+    "held_bytes": 12574480,
+    "hits": 8,
+    "kept": 17,
+    "last_sleep_free_ms": 0.284,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.5792,
+    "misses": 8,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 8,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 9.1145,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": {
+    "ripple_reach": false
+   },
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 39.2
+  },
+  {
+   "run": "far_b",
+   "viewer": [
+    302.0,
+    18.0,
+    14.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 0.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": false,
+    "ripple_reach_default": false,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": true,
+    "ripple_window_side": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     302.0,
+     18.0,
+     14.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     302.0,
+     18.0,
+     14.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 23.999998092651367,
+   "level": 16.5000057220459,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.0,
+      15.1665,
+      13.9998
+     ],
+     "rest_t": 3.3,
+     "y_max": 17.6767,
+     "y_min": 15.166,
+     "rows": 2081
+    },
+    "wood": {
+     "rest_pose": [
+      102.968,
+      16.4317,
+      13.9179
+     ],
+     "rest_t": 5.45,
+     "y_max": 17.6767,
+     "y_min": 16.1106,
+     "rows": 2080
+    }
+   },
+   "pond": [
+    {
+     "t": 0.01,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.08,
+     "volumes": 1,
+     "mass": 23.999775484996444,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.64,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.14,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.29,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.81,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.31,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.85,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.9,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.92,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.42,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.93,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.46,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.99,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.52,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.02,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.55,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.61,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.14,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.2,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.74,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.27,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.39,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.42,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.96,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.5,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.03,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.56,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.07,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.59,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.1,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.22,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.72,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.8,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.32,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.87,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.38,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.96,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 459,
+    "buffers_allocated": 2385,
+    "held_bytes": 0,
+    "hits": 9,
+    "kept": 18,
+    "last_sleep_free_ms": 12.6325,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.5792,
+    "misses": 8,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 9,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 9.1145,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": {
+    "ripple_reach": false
+   },
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 34.6
+  }
+ ],
+ "compare": [
+  {
+   "run": "far_a",
+   "vs": "near_a",
+   "stone": {
+    "pose_mm": 0.3,
+    "horiz_mm": 0.3,
+    "dy_mm": -0.1,
+    "rest_ticks": -8,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 85.0,
+    "horiz_mm": 85.18,
+    "dy_mm": 0.1,
+    "rest_ticks": -1,
+    "rose_above_release": false
+   },
+   "m3": -1e-05,
+   "level_mm": -0.0
+  },
+  {
+   "run": "near_b",
+   "vs": "near_a",
+   "stone": {
+    "pose_mm": 0.2,
+    "horiz_mm": 0.2,
+    "dy_mm": -0.1,
+    "rest_ticks": -10,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 78.0,
+    "horiz_mm": 78.34,
+    "dy_mm": 0.1,
+    "rest_ticks": 1,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": 0.01
+  },
+  {
+   "run": "far_b",
+   "vs": "near_a",
+   "stone": {
+    "pose_mm": 0.2,
+    "horiz_mm": 0.1,
+    "dy_mm": -0.2,
+    "rest_ticks": 0,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 155.6,
+    "horiz_mm": 177.3,
+    "dy_mm": 0.0,
+    "rest_ticks": -2,
+    "rose_above_release": false
+   },
+   "m3": -0.0,
+   "level_mm": 0.0
+  }
+ ],
+ "wake_pace": true,
+ "ripple": {
+  "ripple_reach": false
+ },
+ "verdict": {
+  "note": "fewer than three near runs: no spread, no verdict"
+ }
+}

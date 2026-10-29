@@ -56,6 +56,8 @@ public:
     void markDirty(RippleLayer& L);
     void waitIdle();
     const Stats& stats() const { return m_stats; }
+    /// L2 (43.3 item 5): device states held (a dropped layer's is freed by the collect after nothing in flight uses it)
+    int statesHeld() const { return static_cast<int>(m_states.size()); }
     /// TEST ONLY (25.34 red): the limiter's gather drops the backward edges - a porting fault the parity test must catch.
     void setLimiterFaultForTest(bool on) { m_limiterFault = on; }
 

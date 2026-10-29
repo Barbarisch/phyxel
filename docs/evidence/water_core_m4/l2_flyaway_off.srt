@@ -1,0 +1,644 @@
+1
+00:00:00,000 --> 00:00:00,270
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -2.0 | 320 fps
+
+2
+00:00:00,270 --> 00:00:00,570
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -2.0 | 312 fps
+
+3
+00:00:00,570 --> 00:00:00,860
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.9 | 218 fps
+
+4
+00:00:00,860 --> 00:00:01,120
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.7 | 183 fps
+
+5
+00:00:01,120 --> 00:00:01,390
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.6 | 162 fps
+
+6
+00:00:01,390 --> 00:00:01,650
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.3 | 70 fps
+
+7
+00:00:01,650 --> 00:00:01,930
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.0 | 129 fps
+
+8
+00:00:01,930 --> 00:00:02,270
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -0.7 | 130 fps
+
+9
+00:00:02,270 --> 00:00:02,530
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -0.2 | 54 fps
+
+10
+00:00:02,530 --> 00:00:02,860
+RIPPLE REACH OFF (today: the window's edge)
+camera x   0.2 | 92 fps
+
+11
+00:00:02,860 --> 00:00:03,150
+RIPPLE REACH OFF (today: the window's edge)
+camera x   0.8 | 49 fps
+
+12
+00:00:03,150 --> 00:00:03,420
+RIPPLE REACH OFF (today: the window's edge)
+camera x   1.4 | 77 fps
+
+13
+00:00:03,420 --> 00:00:03,690
+RIPPLE REACH OFF (today: the window's edge)
+camera x   2.0 | 67 fps
+
+14
+00:00:03,690 --> 00:00:03,980
+RIPPLE REACH OFF (today: the window's edge)
+camera x   2.6 | 41 fps
+
+15
+00:00:03,980 --> 00:00:04,260
+RIPPLE REACH OFF (today: the window's edge)
+camera x   3.3 | 69 fps
+
+16
+00:00:04,260 --> 00:00:04,520
+RIPPLE REACH OFF (today: the window's edge)
+camera x   4.1 | 93 fps
+
+17
+00:00:04,520 --> 00:00:04,770
+RIPPLE REACH OFF (today: the window's edge)
+camera x   4.8 | 60 fps
+
+18
+00:00:04,770 --> 00:00:05,050
+RIPPLE REACH OFF (today: the window's edge)
+camera x   5.5 | 69 fps
+
+19
+00:00:05,050 --> 00:00:05,310
+RIPPLE REACH OFF (today: the window's edge)
+camera x   6.4 | 42 fps
+
+20
+00:00:05,310 --> 00:00:05,580
+RIPPLE REACH OFF (today: the window's edge)
+camera x   7.2 | 41 fps
+
+21
+00:00:05,580 --> 00:00:05,870
+RIPPLE REACH OFF (today: the window's edge)
+camera x   8.1 | 65 fps
+
+22
+00:00:05,870 --> 00:00:06,150
+RIPPLE REACH OFF (today: the window's edge)
+camera x   9.0 | 43 fps
+
+23
+00:00:06,150 --> 00:00:06,460
+RIPPLE REACH OFF (today: the window's edge)
+camera x  10.0 | 58 fps
+
+24
+00:00:06,460 --> 00:00:06,740
+RIPPLE REACH OFF (today: the window's edge)
+camera x  11.1 | 44 fps
+
+25
+00:00:06,740 --> 00:00:07,020
+RIPPLE REACH OFF (today: the window's edge)
+camera x  12.2 | 45 fps
+
+26
+00:00:07,020 --> 00:00:07,290
+RIPPLE REACH OFF (today: the window's edge)
+camera x  13.2 | 70 fps
+
+27
+00:00:07,290 --> 00:00:07,590
+RIPPLE REACH OFF (today: the window's edge)
+camera x  14.2 | 65 fps
+
+28
+00:00:07,590 --> 00:00:07,940
+RIPPLE REACH OFF (today: the window's edge)
+camera x  15.4 | 37 fps
+
+29
+00:00:07,940 --> 00:00:08,280
+RIPPLE REACH OFF (today: the window's edge)
+camera x  16.8 | 59 fps
+
+30
+00:00:08,280 --> 00:00:08,550
+RIPPLE REACH OFF (today: the window's edge)
+camera x  18.1 | 58 fps
+
+31
+00:00:08,550 --> 00:00:08,830
+RIPPLE REACH OFF (today: the window's edge)
+camera x  19.2 | 67 fps
+
+32
+00:00:08,830 --> 00:00:09,090
+RIPPLE REACH OFF (today: the window's edge)
+camera x  20.3 | 62 fps
+
+33
+00:00:09,090 --> 00:00:09,370
+RIPPLE REACH OFF (today: the window's edge)
+camera x  21.4 | 56 fps
+
+34
+00:00:09,370 --> 00:00:09,660
+RIPPLE REACH OFF (today: the window's edge)
+camera x  22.5 | 53 fps
+
+35
+00:00:09,660 --> 00:00:09,920
+RIPPLE REACH OFF (today: the window's edge)
+camera x  23.6 | 68 fps
+
+36
+00:00:09,920 --> 00:00:10,210
+RIPPLE REACH OFF (today: the window's edge)
+camera x  24.7 | 75 fps
+
+37
+00:00:10,210 --> 00:00:10,480
+RIPPLE REACH OFF (today: the window's edge)
+camera x  25.8 | 69 fps
+
+38
+00:00:10,480 --> 00:00:10,760
+RIPPLE REACH OFF (today: the window's edge)
+camera x  26.9 | 46 fps
+
+39
+00:00:10,760 --> 00:00:11,010
+RIPPLE REACH OFF (today: the window's edge)
+camera x  28.0 | 68 fps
+
+40
+00:00:11,010 --> 00:00:11,300
+RIPPLE REACH OFF (today: the window's edge)
+camera x  28.9 | 43 fps
+
+41
+00:00:11,300 --> 00:00:11,570
+RIPPLE REACH OFF (today: the window's edge)
+camera x  30.0 | 67 fps
+
+42
+00:00:11,570 --> 00:00:11,880
+RIPPLE REACH OFF (today: the window's edge)
+camera x  31.0 | 65 fps
+
+43
+00:00:11,880 --> 00:00:12,150
+RIPPLE REACH OFF (today: the window's edge)
+camera x  32.1 | 55 fps
+
+44
+00:00:12,150 --> 00:00:12,410
+RIPPLE REACH OFF (today: the window's edge)
+camera x  33.0 | 66 fps
+
+45
+00:00:12,410 --> 00:00:12,700
+RIPPLE REACH OFF (today: the window's edge)
+camera x  33.9 | 48 fps
+
+46
+00:00:12,700 --> 00:00:13,000
+RIPPLE REACH OFF (today: the window's edge)
+camera x  34.8 | 48 fps
+
+47
+00:00:13,000 --> 00:00:13,270
+RIPPLE REACH OFF (today: the window's edge)
+camera x  35.8 | 65 fps
+
+48
+00:00:13,270 --> 00:00:13,580
+RIPPLE REACH OFF (today: the window's edge)
+camera x  36.6 | 57 fps
+
+49
+00:00:13,580 --> 00:00:13,870
+RIPPLE REACH OFF (today: the window's edge)
+camera x  37.5 | 63 fps
+
+50
+00:00:13,870 --> 00:00:14,130
+RIPPLE REACH OFF (today: the window's edge)
+camera x  38.3 | 58 fps
+
+51
+00:00:14,130 --> 00:00:14,390
+RIPPLE REACH OFF (today: the window's edge)
+camera x  39.0 | 56 fps
+
+52
+00:00:14,390 --> 00:00:14,670
+RIPPLE REACH OFF (today: the window's edge)
+camera x  39.6 | 41 fps
+
+53
+00:00:14,670 --> 00:00:14,950
+RIPPLE REACH OFF (today: the window's edge)
+camera x  40.2 | 45 fps
+
+54
+00:00:14,950 --> 00:00:15,200
+RIPPLE REACH OFF (today: the window's edge)
+camera x  40.8 | 45 fps
+
+55
+00:00:15,200 --> 00:00:15,450
+RIPPLE REACH OFF (today: the window's edge)
+camera x  41.3 | 68 fps
+
+56
+00:00:15,450 --> 00:00:15,710
+RIPPLE REACH OFF (today: the window's edge)
+camera x  41.8 | 65 fps
+
+57
+00:00:15,710 --> 00:00:15,960
+RIPPLE REACH OFF (today: the window's edge)
+camera x  42.2 | 46 fps
+
+58
+00:00:15,960 --> 00:00:16,290
+RIPPLE REACH OFF (today: the window's edge)
+camera x  42.6 | 48 fps
+
+59
+00:00:16,290 --> 00:00:16,540
+RIPPLE REACH OFF (today: the window's edge)
+camera x  43.0 | 52 fps
+
+60
+00:00:16,540 --> 00:00:16,830
+RIPPLE REACH OFF (today: the window's edge)
+camera x  43.3 | 64 fps
+
+61
+00:00:16,830 --> 00:00:17,110
+RIPPLE REACH OFF (today: the window's edge)
+camera x  43.5 | 56 fps
+
+62
+00:00:17,110 --> 00:00:17,410
+RIPPLE REACH OFF (today: the window's edge)
+camera x  43.7 | 42 fps
+
+63
+00:00:17,410 --> 00:00:17,740
+RIPPLE REACH OFF (today: the window's edge)
+camera x  43.9 | 62 fps
+
+64
+00:00:17,740 --> 00:00:18,020
+RIPPLE REACH OFF (today: the window's edge)
+camera x  44.0 | 47 fps
+
+65
+00:00:18,020 --> 00:00:18,270
+RIPPLE REACH OFF (today: the window's edge)
+camera x  44.0 | 61 fps
+
+66
+00:00:18,270 --> 00:00:18,570
+RIPPLE REACH OFF (today: the window's edge)
+camera x  44.0 | 69 fps
+
+67
+00:00:18,570 --> 00:00:18,860
+RIPPLE REACH OFF (today: the window's edge)
+camera x  43.9 | 62 fps
+
+68
+00:00:18,860 --> 00:00:19,160
+RIPPLE REACH OFF (today: the window's edge)
+camera x  43.7 | 42 fps
+
+69
+00:00:19,160 --> 00:00:19,490
+RIPPLE REACH OFF (today: the window's edge)
+camera x  43.5 | 64 fps
+
+70
+00:00:19,490 --> 00:00:19,750
+RIPPLE REACH OFF (today: the window's edge)
+camera x  43.2 | 70 fps
+
+71
+00:00:19,750 --> 00:00:20,070
+RIPPLE REACH OFF (today: the window's edge)
+camera x  42.9 | 36 fps
+
+72
+00:00:20,070 --> 00:00:20,320
+RIPPLE REACH OFF (today: the window's edge)
+camera x  42.5 | 61 fps
+
+73
+00:00:20,320 --> 00:00:20,600
+RIPPLE REACH OFF (today: the window's edge)
+camera x  42.1 | 69 fps
+
+74
+00:00:20,600 --> 00:00:20,880
+RIPPLE REACH OFF (today: the window's edge)
+camera x  41.7 | 44 fps
+
+75
+00:00:20,880 --> 00:00:21,170
+RIPPLE REACH OFF (today: the window's edge)
+camera x  41.2 | 66 fps
+
+76
+00:00:21,170 --> 00:00:21,430
+RIPPLE REACH OFF (today: the window's edge)
+camera x  40.6 | 39 fps
+
+77
+00:00:21,430 --> 00:00:21,720
+RIPPLE REACH OFF (today: the window's edge)
+camera x  40.0 | 38 fps
+
+78
+00:00:21,720 --> 00:00:21,980
+RIPPLE REACH OFF (today: the window's edge)
+camera x  39.3 | 53 fps
+
+79
+00:00:21,980 --> 00:00:22,290
+RIPPLE REACH OFF (today: the window's edge)
+camera x  38.7 | 48 fps
+
+80
+00:00:22,290 --> 00:00:22,570
+RIPPLE REACH OFF (today: the window's edge)
+camera x  37.9 | 56 fps
+
+81
+00:00:22,570 --> 00:00:22,870
+RIPPLE REACH OFF (today: the window's edge)
+camera x  37.1 | 39 fps
+
+82
+00:00:22,870 --> 00:00:23,170
+RIPPLE REACH OFF (today: the window's edge)
+camera x  36.2 | 43 fps
+
+83
+00:00:23,170 --> 00:00:23,490
+RIPPLE REACH OFF (today: the window's edge)
+camera x  35.3 | 46 fps
+
+84
+00:00:23,490 --> 00:00:23,790
+RIPPLE REACH OFF (today: the window's edge)
+camera x  34.2 | 60 fps
+
+85
+00:00:23,790 --> 00:00:24,070
+RIPPLE REACH OFF (today: the window's edge)
+camera x  33.2 | 65 fps
+
+86
+00:00:24,070 --> 00:00:24,320
+RIPPLE REACH OFF (today: the window's edge)
+camera x  32.3 | 47 fps
+
+87
+00:00:24,320 --> 00:00:24,590
+RIPPLE REACH OFF (today: the window's edge)
+camera x  31.4 | 56 fps
+
+88
+00:00:24,590 --> 00:00:24,880
+RIPPLE REACH OFF (today: the window's edge)
+camera x  30.4 | 61 fps
+
+89
+00:00:24,880 --> 00:00:25,150
+RIPPLE REACH OFF (today: the window's edge)
+camera x  29.3 | 80 fps
+
+90
+00:00:25,150 --> 00:00:25,420
+RIPPLE REACH OFF (today: the window's edge)
+camera x  28.3 | 33 fps
+
+91
+00:00:25,420 --> 00:00:25,690
+RIPPLE REACH OFF (today: the window's edge)
+camera x  27.3 | 38 fps
+
+92
+00:00:25,690 --> 00:00:26,000
+RIPPLE REACH OFF (today: the window's edge)
+camera x  26.2 | 57 fps
+
+93
+00:00:26,000 --> 00:00:26,300
+RIPPLE REACH OFF (today: the window's edge)
+camera x  25.0 | 52 fps
+
+94
+00:00:26,300 --> 00:00:26,550
+RIPPLE REACH OFF (today: the window's edge)
+camera x  23.8 | 55 fps
+
+95
+00:00:26,550 --> 00:00:26,860
+RIPPLE REACH OFF (today: the window's edge)
+camera x  22.8 | 46 fps
+
+96
+00:00:26,860 --> 00:00:27,120
+RIPPLE REACH OFF (today: the window's edge)
+camera x  21.6 | 60 fps
+
+97
+00:00:27,120 --> 00:00:27,380
+RIPPLE REACH OFF (today: the window's edge)
+camera x  20.5 | 36 fps
+
+98
+00:00:27,380 --> 00:00:27,680
+RIPPLE REACH OFF (today: the window's edge)
+camera x  19.5 | 57 fps
+
+99
+00:00:27,680 --> 00:00:27,930
+RIPPLE REACH OFF (today: the window's edge)
+camera x  18.3 | 62 fps
+
+100
+00:00:27,930 --> 00:00:28,220
+RIPPLE REACH OFF (today: the window's edge)
+camera x  17.3 | 48 fps
+
+101
+00:00:28,220 --> 00:00:28,490
+RIPPLE REACH OFF (today: the window's edge)
+camera x  16.1 | 61 fps
+
+102
+00:00:28,490 --> 00:00:28,780
+RIPPLE REACH OFF (today: the window's edge)
+camera x  15.1 | 66 fps
+
+103
+00:00:28,780 --> 00:00:29,080
+RIPPLE REACH OFF (today: the window's edge)
+camera x  14.0 | 37 fps
+
+104
+00:00:29,080 --> 00:00:29,380
+RIPPLE REACH OFF (today: the window's edge)
+camera x  12.8 | 60 fps
+
+105
+00:00:29,380 --> 00:00:29,690
+RIPPLE REACH OFF (today: the window's edge)
+camera x  11.7 | 61 fps
+
+106
+00:00:29,690 --> 00:00:29,960
+RIPPLE REACH OFF (today: the window's edge)
+camera x  10.6 | 58 fps
+
+107
+00:00:29,960 --> 00:00:30,210
+RIPPLE REACH OFF (today: the window's edge)
+camera x   9.6 | 62 fps
+
+108
+00:00:30,210 --> 00:00:30,490
+RIPPLE REACH OFF (today: the window's edge)
+camera x   8.8 | 49 fps
+
+109
+00:00:30,490 --> 00:00:30,750
+RIPPLE REACH OFF (today: the window's edge)
+camera x   7.9 | 44 fps
+
+110
+00:00:30,750 --> 00:00:31,050
+RIPPLE REACH OFF (today: the window's edge)
+camera x   7.0 | 52 fps
+
+111
+00:00:31,050 --> 00:00:31,340
+RIPPLE REACH OFF (today: the window's edge)
+camera x   6.1 | 58 fps
+
+112
+00:00:31,340 --> 00:00:31,670
+RIPPLE REACH OFF (today: the window's edge)
+camera x   5.2 | 32 fps
+
+113
+00:00:31,670 --> 00:00:31,950
+RIPPLE REACH OFF (today: the window's edge)
+camera x   4.3 | 63 fps
+
+114
+00:00:31,950 --> 00:00:32,230
+RIPPLE REACH OFF (today: the window's edge)
+camera x   3.5 | 37 fps
+
+115
+00:00:32,230 --> 00:00:32,520
+RIPPLE REACH OFF (today: the window's edge)
+camera x   2.8 | 63 fps
+
+116
+00:00:32,520 --> 00:00:32,790
+RIPPLE REACH OFF (today: the window's edge)
+camera x   2.1 | 58 fps
+
+117
+00:00:32,790 --> 00:00:33,090
+RIPPLE REACH OFF (today: the window's edge)
+camera x   1.5 | 48 fps
+
+118
+00:00:33,090 --> 00:00:33,350
+RIPPLE REACH OFF (today: the window's edge)
+camera x   0.9 | 59 fps
+
+119
+00:00:33,350 --> 00:00:33,670
+RIPPLE REACH OFF (today: the window's edge)
+camera x   0.4 | 53 fps
+
+120
+00:00:33,670 --> 00:00:33,930
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -0.1 | 44 fps
+
+121
+00:00:33,930 --> 00:00:34,210
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -0.5 | 62 fps
+
+122
+00:00:34,210 --> 00:00:34,500
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -0.9 | 66 fps
+
+123
+00:00:34,500 --> 00:00:34,760
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.2 | 60 fps
+
+124
+00:00:34,760 --> 00:00:35,020
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.5 | 43 fps
+
+125
+00:00:35,020 --> 00:00:35,280
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.7 | 64 fps
+
+126
+00:00:35,280 --> 00:00:35,540
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.8 | 47 fps
+
+127
+00:00:35,540 --> 00:00:35,800
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -1.9 | 50 fps
+
+128
+00:00:35,800 --> 00:00:36,120
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -2.0 | 56 fps
+
+129
+00:00:36,120 --> 00:00:36,370
+RIPPLE REACH OFF (today: the window's edge)
+camera x  -2.0 | 33 fps

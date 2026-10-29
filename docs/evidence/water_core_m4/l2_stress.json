@@ -1,0 +1,122 @@
+{
+ "build": "Release",
+ "ponds": [
+  [
+   6,
+   10,
+   9,
+   13
+  ],
+  [
+   13,
+   10,
+   16,
+   13
+  ],
+  [
+   20,
+   10,
+   23,
+   13
+  ],
+  [
+   27,
+   10,
+   30,
+   13
+  ],
+  [
+   34,
+   10,
+   37,
+   13
+  ],
+  [
+   41,
+   10,
+   44,
+   13
+  ],
+  [
+   48,
+   10,
+   51,
+   13
+  ],
+  [
+   55,
+   10,
+   58,
+   13
+  ]
+ ],
+ "plan": [
+  [
+   21.0,
+   8.0,
+   20
+  ],
+  [
+   0.0,
+   0.0,
+   10
+  ],
+  [
+   24.0,
+   8.0,
+   10
+  ],
+  [
+   21.0,
+   21.0,
+   10
+  ]
+ ],
+ "phases": [
+  {
+   "ripple_m": 21.0,
+   "fade_m": 8.0,
+   "passes": 20,
+   "steps": 820,
+   "max_slots": 4,
+   "max_waiting": 4,
+   "max_states": 0
+  },
+  {
+   "ripple_m": 0.0,
+   "fade_m": 0.0,
+   "passes": 10,
+   "steps": 410,
+   "max_slots": 0,
+   "max_waiting": 0,
+   "max_states": 0
+  },
+  {
+   "ripple_m": 24.0,
+   "fade_m": 8.0,
+   "passes": 10,
+   "steps": 410,
+   "max_slots": 4,
+   "max_waiting": 4,
+   "max_states": 0
+  },
+  {
+   "ripple_m": 21.0,
+   "fade_m": 21.0,
+   "passes": 10,
+   "steps": 410,
+   "max_slots": 4,
+   "max_waiting": 4,
+   "max_states": 0
+  }
+ ],
+ "violations": [],
+ "end": {
+  "slots_held": 0,
+  "gpu_states": 0,
+  "made": 364,
+  "dropped": 340,
+  "waiting": 0
+ },
+ "steps": 2050
+}

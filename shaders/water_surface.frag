@@ -66,8 +66,19 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
 layout(set = 1, binding = 1) uniform sampler2D sceneDepthTex;
 // 22 (WaterCore.md 22.4): the ripple layers - per layer geo = (world origin x, z, 1/pitch, -), meta = (offset, nx, nz,
-// smooth); heights in metres, row-major per layer.
-layout(std430, set = 1, binding = 2) readonly buffer Ripples { vec4 geo[8]; ivec4 meta[8]; float rh[]; } rip;
+// smooth); heights in metres, row-major per layer. L2 (43.2): fade = (viewer x, viewer z, near, far) - the ripples' weight by the
+// HORIZONTAL distance to the viewer, a pure function of world position (far < 0 = none, weight 1).
+layout(std430, set = 1, binding = 2) readonly buffer Ripples { vec4 fade; vec4 geo[8]; ivec4 meta[8]; float rh[]; } rip;
+// WaterLocality::detail: 1 at or under near, 0 at or over far, a smoothstep between (far <= near: a hard reach at near)
+float rippleWeight(vec2 xz) {
+    const vec4 f = rip.fade;
+    if (f.w < 0.0) return 1.0;
+    const float d = length(xz - f.xy);
+    if (d <= f.z) return 1.0;
+    if (d >= f.w) return 0.0;
+    const float t = (d - f.z) / (f.w - f.z);
+    return 1.0 - t * t * (3.0 - 2.0 * t);
+}
 float rippleAt(int L, int x, int z) {
     const ivec4 m = rip.meta[L];
     x = clamp(x, 0, m.y - 1); z = clamp(z, 0, m.z - 1);
@@ -129,10 +140,13 @@ void main() {
     const int rl = int(fragRipple + 0.5) - 1;
     vec3 rs = vec3(0.0);
     if (rl >= 0 && rl < 8 && fragSide < 0.5) {
-        rs = rippleSample(rl, fragWorldPos.xz);
+        rs = rippleSample(rl, fragWorldPos.xz) * rippleWeight(fragWorldPos.xz);   // L2: tilt and height faded alike
         if (n.y > 0.0) n = normalize(n + vec3(-rs.x, 0.0, -rs.y));
     }
-    if (dbg == 7) { outColor = vec4(vec3(clamp(0.5 + rs.z * 25.0, 0.0, 1.0)), 1.0); return; }   // 22 tap: ripple height, +-2 cm = black / white
+    if (dbg == 7) { outColor = vec4(vec3(clamp(0.5 + rs.z * 25.0, 0.0, 1.0)), 1.0); return; }   // 22 tap: ripple height, +-2 cm = black / white (after L2's fade)
+    // L2 (43.3 item 6): the faded slope's magnitude, 0..1 = slope 0..0.5 (the pattern's uniform tilt reads as one grey per distance;
+    // 8 is water_common.glsl's reflected-ray tap)
+    if (dbg == 9) { outColor = vec4(vec3(clamp(length(rs.xy) * 2.0, 0.0, 1.0)), 1.0); return; }
     if (dbg == 1) { outColor = vec4(n * 0.5 + 0.5, 1.0); return; }   // the mesh normal as colour: shape only
     if (dbg == 6) { outColor = vec4(inp.foam, inp.flowStrength, 0.0, 1.0); return; }   // G2 tap: foam (red) and flow strength (green) as fed by the solver
     inp.baseNormal   = n;

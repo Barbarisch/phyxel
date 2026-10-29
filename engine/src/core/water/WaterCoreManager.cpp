@@ -2007,7 +2007,7 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
             av->field.look = packLook(lookAt((av->minVoxel.x + av->maxVoxel.x) / 2, (av->minVoxel.z + av->maxVoxel.z) / 2));   // G3
             av->fieldStepSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         }
-        av->field.rippleLayer = (av->ripple && m_rstats.on) ? static_cast<int>(i) : -1;   // 22: parallel to rippleLayers()
+        av->field.rippleLayer = (av->ripple && m_rstats.on && av->rippleSlot >= 0) ? av->rippleSlot : -1;   // 22; L2: the slot (rippleLayers())
         av->field.gpuDrawn = av->gpuVol && m_gpu && m_gpu->surfaceView(*av->gpuVol).ok;   // 29 S1
         m_fields[i] = &av->field;
     }
@@ -2377,23 +2377,95 @@ void WaterCoreManager::stepDroplets(float dt) {
 }
 
 std::vector<const RippleLayer*> WaterCoreManager::rippleLayers() const {
-    std::vector<const RippleLayer*> out;
-    for (const auto& av : m_avs) out.push_back(m_rstats.on ? av->ripple.get() : nullptr);
+    std::vector<const RippleLayer*> out(kRippleMaxLayers, nullptr);
+    if (!m_rstats.on) return out;
+    for (const auto& av : m_avs)
+        if (av->ripple && av->rippleSlot >= 0 && av->rippleSlot < kRippleMaxLayers) out[av->rippleSlot] = av->ripple.get();
     return out;
 }
 
-RippleLayer& WaterCoreManager::rippleWindow(std::unique_ptr<RippleLayer>& layer, const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, bool gpu) {
+std::vector<WaterCoreManager::RippleSlotInfo> WaterCoreManager::rippleSlots() const {
+    std::vector<RippleSlotInfo> out;
+    for (const auto& av : m_avs) {
+        if (av->rippleSlot < 0) continue;
+        RippleSlotInfo i; i.slot = av->rippleSlot; i.volumeId = av->id;
+        if (av->ripple) { i.origin = av->ripple->origin(); i.nx = av->ripple->nx(); i.nz = av->ripple->nz(); }
+        out.push_back(i);
+    }
+    std::sort(out.begin(), out.end(), [](const RippleSlotInfo& a, const RippleSlotInfo& b) { return a.slot < b.slot; });
+    return out;
+}
+
+glm::vec4 WaterCoreManager::rippleFade() const {
+    if (!m_rstats.on || !s_locality.rippleReach) return glm::vec4(0.0f, 0.0f, 0.0f, -1.0f);   // far < 0: weight 1 everywhere
+    const float far = std::clamp(s_locality.rippleM, 0.0f, WaterLocality::kRippleMMax);
+    return glm::vec4(m_view.x, m_view.z, std::max(0.0f, far - std::clamp(s_locality.rippleFadeM, 0.0f, far)), far);
+}
+
+void WaterCoreManager::assignRippleSlots() {
+    const WaterLocality& loc = s_locality;
+    const bool reach = loc.rippleReach;
+    const float r = std::clamp(loc.rippleM, 0.0f, WaterLocality::kRippleMMax);
+    const int side = WaterLocality::rippleWindowSide(r);
+    if (reach != m_rippleReachLast) {   // a switch of rule: refusals start again (off: first come again, from the ponds now live)
+        for (auto& av : m_avs) av->rippleRefused = false;
+        m_rippleReachLast = reach;
+    }
+    auto boxD = [&](const Av& av) {
+        return WaterLocality::horizontalDistanceToBox(m_view, glm::vec2(av.minVoxel.x, av.minVoxel.z), glm::vec2(av.maxVoxel.x + 1, av.maxVoxel.z + 1));
+    };
+    auto eligible = [](const Av& av) { return av.transport == "eulerian" && !av.solver->transport().ownsMass(); };
+    // drop: a layer made under the other rule; with the reach on, a pond beyond r + kRippleDropM, or a window whose side r changed
+    for (auto& up : m_avs) {
+        Av& av = *up;
+        if (!av.ripple && av.rippleSlot < 0) continue;
+        bool drop = av.rippleReachMade != reach;
+        if (!drop && reach) {
+            const int boxX = (av.maxVoxel.x - av.minVoxel.x + 1) * 9, boxZ = (av.maxVoxel.z - av.minVoxel.z + 1) * 9;
+            drop = r <= 0.0f || boxD(av) > r + WaterLocality::kRippleDropM ||
+                   (av.ripple && (av.ripple->nx() != std::min(side, boxX) || av.ripple->nz() != std::min(side, boxZ)));
+        }
+        if (!drop) continue;
+        av.ripple.reset(); av.rippleSlot = -1; av.rippleMaskVersion = 0; av.rippleMaskKey = glm::ivec4(0);
+        ++m_rstats.dropped;
+    }
+    bool used[kRippleMaxLayers] = {};
+    for (const auto& av : m_avs) if (av->rippleSlot >= 0 && av->rippleSlot < kRippleMaxLayers) used[av->rippleSlot] = true;
+    auto take = [&](Av& av) {
+        for (int s = 0; s < kRippleMaxLayers; ++s)
+            if (!used[s]) { used[s] = true; av.rippleSlot = s; av.rippleReachMade = reach; ++m_rstats.made; return true; }
+        return false;
+    };
+    m_rstats.waiting = 0;
+    if (!reach) {   // exactly as before L2: first come (the volumes' order), a refusal sticky (22.5)
+        for (auto& up : m_avs) {
+            Av& av = *up;
+            if (!eligible(av) || av.rippleSlot >= 0 || av.rippleRefused) continue;
+            if (!take(av)) { av.rippleRefused = true; ++m_rstats.refused; }
+        }
+    } else if (r > 0.0f) {   // the nearest waiting pond within r first, ties by position; a held slot is never taken away
+        std::vector<Av*> want;
+        std::vector<std::pair<glm::ivec3, glm::ivec3>> boxes;
+        for (auto& up : m_avs)
+            if (eligible(*up) && up->rippleSlot < 0 && boxD(*up) <= r) { want.push_back(up.get()); boxes.emplace_back(up->minVoxel, up->maxVoxel); }
+        for (size_t i : WaterLocality::nearestFirst(boxes, m_view))
+            if (!take(*want[i])) ++m_rstats.waiting;
+    }
+    m_rstats.slotsHeld = 0;
+    for (bool u : used) m_rstats.slotsHeld += u ? 1 : 0;
+    m_rstats.windowSide = reach ? side : loc.rippleWindowCells;
+}
+
+RippleLayer& WaterCoreManager::rippleWindow(std::unique_ptr<RippleLayer>& layer, const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, bool gpu, bool reach) {
     const int boxX = (maxVoxel.x - minVoxel.x + 1) * 9, boxZ = (maxVoxel.z - minVoxel.z + 1) * 9;
-    const int win = s_locality.rippleWindowCells;   // 40 (L1): the window's side (default kColumnRippleWindow)
+    // 40 (L1): the window's side (default kColumnRippleWindow); L2 (43.2): with the reach on, derived from ripple_m
+    const int win = reach ? WaterLocality::rippleWindowSide(s_locality.rippleM) : s_locality.rippleWindowCells;
     const int lnx = std::min(win, boxX), lnz = std::min(win, boxZ);
-    const glm::ivec2 lo(minVoxel.x * 9, minVoxel.z * 9);
-    const glm::ivec2 hi((maxVoxel.x + 1) * 9 - lnx, (maxVoxel.z + 1) * 9 - lnz);
-    glm::ivec2 want(static_cast<int>(std::floor(m_view.x * 9.0f)) - lnx / 2, static_cast<int>(std::floor(m_view.z * 9.0f)) - lnz / 2);
-    want = glm::clamp(want, lo, glm::max(lo, hi));
+    // the window moves in 4 m steps (36 cells) - not every frame; the field keeps its world position across a move
+    const glm::ivec2 want = WaterLocality::rippleWindowOrigin(layer != nullptr, layer ? layer->origin() : glm::ivec2(0), m_view, minVoxel, maxVoxel, lnx, lnz, reach);
     if (!layer) layer = std::make_unique<RippleLayer>(want, lnx, lnz, 9.81f);   // the border absorbs (RippleLayer's default - the pond's layer always had it)
     RippleLayer& L = *layer;
-    // the window moves in 4 m steps (36 cells) - not every frame; the field keeps its world position across a move
-    if (std::abs(want.x - L.origin().x) > 36 || std::abs(want.y - L.origin().y) > 36) {
+    if (want != L.origin()) {
         if (gpu) m_rgpu->syncPrev(L, liveRippleLayers());   // 25.34: the shift moves BOTH levels - the ring drained, the previous one back
         L.shiftOrigin(want);
         if (gpu) m_rgpu->markDirty(L);
@@ -2412,18 +2484,16 @@ void WaterCoreManager::stepRipples(float dt) {
     using RClock = std::chrono::steady_clock;
     auto rms = [](RClock::time_point a) { return std::chrono::duration<double, std::milli>(RClock::now() - a).count(); };
     { const auto tc = RClock::now(); if (gpu) m_rgpu->collect(liveRippleLayers()); m_updateCpu.rCollect = rms(tc); }   // 25.34: last frame's GPU step into the layers (heights, sleep)
+    m_rstats.gpuStates = m_rgpu ? m_rgpu->statesHeld() : 0;
+    assignRippleSlots();   // L2 (43.2): the renderer's atlas holds kRippleMaxLayers - off: first come, refused (22.5); on: by the reach
     const float d = RippleLayer::kPitch;
     for (auto& up : m_avs) {
         Av& av = *up;
         if (av.transport != "eulerian" || av.solver->transport().ownsMass()) continue;
-        if (!av.ripple && !av.rippleRefused) {
-            int live = 0; for (const auto& a : m_avs) live += a->ripple ? 1 : 0;
-            if (live >= kRippleMaxLayers) { av.rippleRefused = true; ++m_rstats.refused; continue; }   // the renderer's atlas: refused, never coarsened (22.5)
-        }
-        if (av.rippleRefused) continue;
+        if (av.rippleSlot < 0) continue;
         // 26.13: a WINDOW over the volume (the regions' rule - one code path); a pond that fits is the whole box,
         // exactly the layer it had (the 512-cell refusal is gone: a 100 m creek volume gets a window instead of nothing)
-        RippleLayer& L = rippleWindow(av.ripple, av.minVoxel, av.maxVoxel, gpu);
+        RippleLayer& L = rippleWindow(av.ripple, av.minVoxel, av.maxVoxel, gpu, av.rippleReachMade);
         const WaterSurfaceField& f = av.field;
         if (f.nx <= 0 || f.cols.empty()) continue;
         auto column = [&](float wx, float wz) -> const SurfaceColumn* {

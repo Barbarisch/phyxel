@@ -123,10 +123,10 @@ void WaterSurfaceRenderPipeline::createBuffers() {
         make(m_vertexBuffer[i], m_vertexMemory[i], m_vertexMapped[i], sizeof(Core::Water::WaterSurfaceVertex) * kMaxVertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
         make(m_indexBuffer[i], m_indexMemory[i], m_indexMapped[i], sizeof(uint32_t) * kMaxIndices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
     }
-    {   // 22: the ripple buffer - kFrames slots of [vec4 geo[8], ivec4 meta[8], float heights[]], each slot aligned for a dynamic offset
+    {   // 22: the ripple buffer - kFrames slots of [vec4 fade (L2), vec4 geo[8], ivec4 meta[8], float heights[]], each slot aligned for a dynamic offset
         VkPhysicalDeviceProperties props; vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
         const VkDeviceSize align = std::max<VkDeviceSize>(props.limits.minStorageBufferOffsetAlignment, 16);
-        const VkDeviceSize raw = static_cast<VkDeviceSize>(kRippleIndices) * 32 + kRippleFloats * sizeof(float);
+        const VkDeviceSize raw = static_cast<VkDeviceSize>(kRippleHeaderBytes) + kRippleFloats * sizeof(float);
         m_rippleSlotBytes = (raw + align - 1) / align * align;
         VkBufferCreateInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO; bi.size = m_rippleSlotBytes * kFrames; bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         if (vkCreateBuffer(m_device, &bi, nullptr, &m_rippleBuffer) != VK_SUCCESS) throw std::runtime_error("failed to create water-surface ripple buffer");
@@ -136,7 +136,11 @@ void WaterSurfaceRenderPipeline::createBuffers() {
         if (vkAllocateMemory(m_device, &ai, nullptr, &m_rippleMemory) != VK_SUCCESS) throw std::runtime_error("failed to allocate water-surface ripple memory");
         vkBindBufferMemory(m_device, m_rippleBuffer, m_rippleMemory, 0);
         vkMapMemory(m_device, m_rippleMemory, 0, bi.size, 0, &m_rippleMapped);
-        for (uint32_t i = 0; i < kFrames; ++i) std::memset(static_cast<char*>(m_rippleMapped) + i * m_rippleSlotBytes, 0, static_cast<size_t>(kRippleIndices) * 32);   // no layers
+        for (uint32_t i = 0; i < kFrames; ++i) {   // no layers, no fade
+            char* base = static_cast<char*>(m_rippleMapped) + i * m_rippleSlotBytes;
+            std::memset(base, 0, kRippleHeaderBytes);
+            reinterpret_cast<float*>(base)[3] = -1.0f;
+        }
     }
 }
 
@@ -215,11 +219,13 @@ void WaterSurfaceRenderPipeline::createPipeline(VkRenderPass renderPass, VkExten
 }
 
 void WaterSurfaceRenderPipeline::writeRipples(uint32_t slot) {
-    // 22: this frame's ripple heights into the slot (header: geo = world origin xz + 1/pitch; meta = offset, nx, nz, smooth)
+    // 22: this frame's ripple heights into the slot (header: fade = L2's (viewer xz, near, far); geo = world origin xz + 1/pitch;
+    // meta = offset, nx, nz, smooth)
     char* base = static_cast<char*>(m_rippleMapped) + slot * m_rippleSlotBytes;
-    auto* geo = reinterpret_cast<float*>(base); auto* meta = reinterpret_cast<int32_t*>(base + kRippleIndices * 16);
-    auto* heights = reinterpret_cast<float*>(base + kRippleIndices * 32);
-    std::memset(base, 0, static_cast<size_t>(kRippleIndices) * 32);
+    std::memset(base, 0, kRippleHeaderBytes);
+    std::memcpy(base, &m_rippleFade[0], 16);
+    auto* geo = reinterpret_cast<float*>(base + 16); auto* meta = reinterpret_cast<int32_t*>(base + 16 + kRippleIndices * 16);
+    auto* heights = reinterpret_cast<float*>(base + kRippleHeaderBytes);
     size_t used = 0;
     if (m_ripples)
         for (size_t li = 0; li < m_ripples->size() && li < static_cast<size_t>(kRippleIndices); ++li) {

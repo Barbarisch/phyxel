@@ -16,7 +16,7 @@ MovingSolid body(float y, float vy, float half = 1.0f / 6.0f) {
 }  // namespace
 
 TEST(WaterWakePace, TheDefaultsArePinned) {
-    EXPECT_FALSE(WaterCoreManager::kWakePaceByDefault) << "42.3: off until the owner's sign-off";
+    EXPECT_TRUE(WaterCoreManager::kWakePaceByDefault) << "42.6: on by default (the owner, 2026-10-29)";
     EXPECT_DOUBLE_EQ(WaterCoreManager::kWakeBudgetMsDefault, 2.0) << "the 120 fps share";
     EXPECT_EQ(WaterCoreManager::s_wakePace, WaterCoreManager::kWakePaceByDefault) << "a test left pacing changed";
     EXPECT_DOUBLE_EQ(WaterCoreManager::s_wakeBudgetMs, WaterCoreManager::kWakeBudgetMsDefault) << "a test left the budget changed";

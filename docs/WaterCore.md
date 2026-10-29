@@ -9073,8 +9073,8 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | L5 | **The outcome check (§30.0b rule 2, 39.3 item 1):** one rig and test runs the same interaction near the camera and far (and at each tier). The body's rest pose (1 mm), its time to rest, the pond's mass and its rest level must match | BUILT, not signed off (§40.3): `tools/water_l5_outcome.py`; 14 near / 7 far / 2 red runs. Far matches near within the near runs' own spread; the red sinks the wood 1.27 m and is caught. Two of 40's tolerances could not hold (the wood's drift and the stone's time to rest vary run to run), so the tolerance is the measured spread. Its statistic was fixed in §40.4 (a spread fence plus a leave-one-out self-check; 9 of 10 far runs pass, 16 of 17 near runs pass) | the guard for L2-L4 and every tier knob: before any distance or tier saving is built |
 | L6 | **One reader for a slept pond** (found in L5, §40.3): near the viewer debris reads a slept pond through the record's draw tile, far through the span cache. They agree today (0 of 16 columns differ). Pin it with an equality test (runs and bottoms, column for column), or make debris read the span cache only | BUILT, not signed off (§40.4): worse than found - the draw tile's ±64 m height band made a deep pool read dry near the viewer. Bodies now read the span cache only; red/green unit test, L5 rerun green | the viewer must never pick which water a body reads |
 | L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | BUILT, not signed off (41.5: the pit's wake frame 90-127 -> 56-76 ms; L5 8 of 9 kept runs pass, one watched) | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
-| L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | BUILT, off by default, not signed off (42.5: due before contact, all wakes - D7; pit wake frame 34 -> 12 ms; L5 6 of 6, red caught) | the stall's last part, without changing any outcome |
-| L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | not designed | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
+| L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | BUILT, **ON by default since 2026-10-29** (the owner: "go with your recommendations", 42.6), not signed off in motion (42.5: due before contact, all wakes - D7 closed; pit wake frame 34 -> 12 ms; L5 6 of 6, red caught) | the stall's last part, without changing any outcome |
+| L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | BUILT, off by default, not signed off (43.4: the fade on screen within one grey level of the prediction, no step; ~0.1 + 0.1 ms CPU + GPU per far disturbed pond; the ninth-volume draw defect fixed; clip `l2_flyaway_side_by_side.mp4` for the owner) | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
@@ -9092,7 +9092,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | D4 | 2026-10-24 | M4 and §32 were reported with fps only. The push windows' own cost was not separated, and the wake hitch was measured in a test, not live | `PerformanceTiers.md` rule 4: the CPU frame, the GPU frame, fps and the feature's own share, plus what was not measured | none beyond speed | nobody | **no good reason.** Remedy: A3 measured them, 2026-10-25 (32.3). CLOSED |
 | D6 | 2026-10-25 | During A3's cost runs the agent alternated the push with the OLD floating rule (`pressure_force:false`) as a control, on the owner's visible bench, without warning. Blocks were launched | rule 4 of `PerformanceTiers.md` asked for the push's own cost, and an on/off comparison was the agent's choice of method | none good: a control must itself be physically sane | nobody | **no good reason.** Owner: "in no circumstance should we be running code that results in voxels floating up as if gravity turned off". Remedy: the off rule is refused by the API, the tools compare against fewer or no bodies, the push's own share comes from timers, and A2g makes the fallback safe (built 2026-10-25, §33). CLOSED |
 | D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
-| D7 | 2026-10-28 | L4 is designed to pace EVERY wake (near and far), not only a far one (42.3) | L4: "pace a far wake" | 42.2 measured that the wake's timing changes nothing until a body reaches the water, and nothing shows on the water before that either, so a paced wake within the body's deadline needs no distance to be safe; pacing only far wakes would leave the near hitch, the one the player sees, in place | the agent; **the owner's call** (scope): pacing applies to all wakes unless the owner says far only (`wake_pace_near` would then be a knob) | OPEN: awaiting the owner |
+| D7 | 2026-10-28 | L4 is designed to pace EVERY wake (near and far), not only a far one (42.3) | L4: "pace a far wake" | 42.2 measured that the wake's timing changes nothing until a body reaches the water, and nothing shows on the water before that either, so a paced wake within the body's deadline needs no distance to be safe; pacing only far wakes would leave the near hitch, the one the player sees, in place | the agent; **the owner's call** (scope): pacing applies to all wakes unless the owner says far only (`wake_pace_near` would then be a knob) | CLOSED 2026-10-29: the owner took the recommendation ("go with your recommendations") - all wakes, and on by default (42.6) |
 
 ### 30.6 The plan-check log (newest last)
 
@@ -10877,7 +10877,14 @@ frame; splitting the upload's host work (as the occupancy read was, 39.5) is the
 
 **Not measured:** a wake with many bodies arriving at once (the stress row); ten ponds in one frame; the far scope alone (D7).
 
-## 43. L2 - ripple detail by distance (§30.4 L2). Status: MEASURED, DESIGNED (43.2), not built
+### 42.6 On by default (2026-10-29, the owner: "go with your recommendations")
+
+The recommendation the owner took: pace every wake (D7, closed) and turn pacing on. `kWakePaceByDefault = true`, pinned
+(`WaterWakePace.TheDefaultsArePinned`). Nothing else changed: the wake without a physics clock (the unit tests, a CPU volume) is
+still immediate. `tools/water_l5_outcome.py` no longer forces pacing off: `--wake-pace default|on|off` (default = the engine's), and
+it puts back what it found. The L5 runs of 43.4 ran with it on (the shipped default). Still not signed off in motion.
+
+## 43. L2 - ripple detail by distance (§30.4 L2). Status: BUILT, OFF by default, not signed off (43.4)
 
 ### 43.1 Measured first (2026-10-29, Release, WaterBench_Creek): the ripples cost per layer, not per cell, and little
 
@@ -10992,6 +10999,115 @@ faded the same way), the old water paths (`water_cell`, `water.frag`).
 8. **Stress** adds eight ponds (the old index limit) and the device states freed after 50 fly-bys (from the echo).
 
 Verdict after folding: READY to build, OFF by default; the reach defaults and item 1 are the owner's.
+
+**The owner (2026-10-29): "go with your recommendations"** - build L2, off by default until seen in motion; ripple_m 21 / fade 8
+(full detail to 13 m); the 24 m cap accepted (item 1).
+
+### 43.4 L2 built (2026-10-29). Status: BUILT, OFF by default, not signed off
+
+**Built.**
+- `WaterLocality`: `rippleReach` (off, pinned), `rippleM` 21, `rippleFadeM` 8, `kRippleMMax` 24, `kRippleDropM` 4; the pure helpers
+  `rippleWindowSide(r)` = min(2 (ceil(9 r) + 40), 512), `rippleWindowOrigin` (the one placement rule, the manager's and the test's)
+  and `nearestFirst` (the slot order).
+- **Found by the walk (the unit invariant), fixed:** the window's move rule compared the CLAMPED wanted origin. Near a box edge
+  that origin stops at the edge while the viewer walks on, so the window can sit up to 36 cells (4 m) toward the far side and leave
+  part of the reach unsimulated: 12,889 uncovered steps in 120,000. With the reach on, the move compares the UNCLAMPED origin (and
+  then clamps); off keeps the old rule exactly. Without the 36-cell hysteresis term in the side, 4,813 uncovered steps (the second
+  red). With both: 0.
+- The manager: `assignRippleSlots` each frame before the layers step - with the reach off, exactly first come and a sticky refusal
+  (22.5); on, a layer is dropped beyond r + 4 m (and remade when r changes its side), made within r, the nearest waiting pond
+  first (ties by the box's position). A switch of rule remakes every layer. `Av::rippleSlot` is the renderer's index (0..3):
+  `rippleLayers()` is by slot, and a field's `rippleLayer` is its slot - **the defect of 43.3 item 2 (a ninth volume never drew its
+  ripples) is fixed in both modes**.
+- The draw: the ripple buffer's header gained `vec4 fade` (viewer x, z, near, far; far < 0 = none) before geo / meta;
+  `water_surface.frag` scales the sampled slope and height by `rippleWeight` (L1's smoothstep, written out: GLSL's smoothstep is
+  undefined for equal edges). Debug 7 (the height) now reads after the fade; debug 9 (new) is the faded slope (0..1 = 0..0.5).
+  `.spv` rebuilt and committed (`shader_manifest`).
+- API: `water_locality {ripple_reach, ripple_m (0..24), ripple_fade_m (0..ripple_m)}`, echoed with defaults, `ripple_window_side`
+  and `ripple_window_cells_used` (false with the reach on: the side is derived). `water_ripples` echoes `slots_held`, `waiting`,
+  `made`, `dropped`, `gpu_states` (RippleGpu's device states), `window_side`, `fade`, `slot_list`; `{shape: false}` skips the
+  ~0.1 s shape stats (a poll loop). `dropped` counts the rule's drops; a layer that goes with its volume is not counted.
+
+**Tests** (gates: unit water + debris 380 / 380; integration water 72 / 74 - the known two, `GpuFlipBulkParityAndRunup` and
+`ShortWaveMatchesAllFineAndTheBooksAreExact`).
+- `WaterLocality.TheRippleReachDefaultsArePinned`.
+- `WaterLocality.EveryPointTheRippleFadeCanShowIsInsideTheWindow` - random viewer walks (0.1-6 m steps, a 40 m jump every 97th;
+  four boxes: 100 x 80 m at negative coordinates, 16 x 16, a 100 x 6 m creek, the lake's 60 x 28; ripple_m 0 / 5 / 13 / 21 / 24):
+  every in-box cell of the reach's bounding square lies inside the window, outside its 2-cell rim (the box's own edge excepted),
+  after every move. **120,000 steps, 28,980 window moves, 0 uncovered; the reds: 4,813 without the hysteresis term, 12,889 with
+  the pre-L2 move rule** (the found defect above).
+- `WaterLocality.RippleSlotsGoNearestFirstNeverByListOrder`.
+- `WaterLocality.TheRippleWeightIsTheSameForOnePondAndTwo` (40.1 item 8, 43.3 item 3): one 60 x 20 m pond (larger than the
+  window) against the same water as two 30 m volumes abutting at x = 0, a 400-step viewer walk, the manager's make / drop rule:
+  **4,320,000 columns compared (828,636 with weight), 0 unequal**. The rings' STATE across two volumes is still not shared
+  (each border absorbs; existing, logged in 43.3 item 3).
+- `WaterRippleTest.L2SlotsGoToTheNearestPondsInEitherCreationOrder` - five ponds 0.5-20.5 m away, four slots: the four nearest
+  hold them made near-first AND far-first; the fifth waits and takes the freed slot. Control: reach off, far-first - the first
+  four made hold them, the nearest refused (first come, as before).
+- `WaterRippleTest.L2APondBeyondTheReachHasNoLayer` - none at 23 m, made at 20, kept at 24, dropped at 26, not remade at 23;
+  ripple_m 0 none over the pond; 24 m = the 512 side; off again: remade and kept at 200 m.
+- `WaterRippleTest.L2TheNinthVolumeDrawsItsRipples` - eight far ponds, the ninth by the viewer: its field names slot 0, not index
+  8. (Red not run: the old value is the volume's index by construction - 43.3 item 2.)
+- `WaterRecordedPondTest.ARippleLayerBeyondTheReachHoldsNoDeviceState` (GPU): a 12 x 12 m pond's layer on the ripple GPU,
+  20 fly-aways: made 21, dropped 20, at most one device state, 0 after every drop. **Found writing it:** a body crossing a 1/9 m
+  volume leaves no kinematic remainder (`stepRipples` writes velocity x (fine - coarse) per grid column; at 1/9 m one column is
+  one lattice cell, so it is 0) - on today's 1/9 m ponds a stone's rings come from its droplets, not the body. Not a defect of
+  L2; noted for the ripple layer (22).
+
+**The fade on screen** (`tools/water_l2_fade_profile.py`, new; debug 9, tone map curve 0 and exposure 1, gdigrab; the transfer
+calibrated per run: 203 / 149 grey for slope 0.3 / 0.15 = sRGB-encoded; `l2_fade_pond.json`, `_pond_east.json`, `_lake.json`):
+
+| rig | reach | weight by the viewer's distance (0.5 m steps) | largest step between samples |
+|---|---|---|---|
+| 28 x 28 m pond, one chunk | ON | 1.00 to 14.5 m, 0.86 at 16, 0.52 at 18, 0.17 at 20, 0 from 22 | 0.094 |
+| the same | OFF (control) | 1.00 to 30 m | 0 |
+| 60 x 28 m lake, two chunks | ON | the same numbers as the pond, sample for sample | 0.093 |
+| the same | OFF (control) | 1.00 to 25.0 m, then **0 at 25.5 m: one step** (the window's edge) | 1.000 |
+
+The ON profile runs ~1 m later than detail(d, 13, 21) from the west and ~1 m sooner from the east: the patch is not exactly at P
+(a camera-pose offset, the same in every run - `--settle 1.0` changed nothing, so not lag). One offset fitted to both sweeps
+(1.11 m) leaves **max |weight - prediction| 0.006** (about one grey level): the prediction held. The look does not depend on the
+body's size or chunk count (pond = lake).
+
+**Cost** (`tools/water_l2_cost_reach.py`, new; four 15 x 28 m ponds, stones into all four in turn, the camera by the first: the
+boxes 3 / 8 / 23 / 38 m away, so ON drops the two far layers; alternated on / off three times, 10 s windows,
+`l2_cost_reach.json`):
+
+| | fps | CPU frame median | worst frame | GPU frame median | ripple CPU / frame | ripple GPU (one frame) | layers |
+|---|---|---|---|---|---|---|---|
+| ON | 80.9, 83.8, 83.2 | 14.78, 15.45, 15.37 ms | 21.7, 23.0, 21.1 | 4.40, 4.68, 4.57 | **0.26-0.29 ms** | 0.36-0.48 | 2 |
+| OFF | 81.2, 82.0, 82.3 | 15.31, 15.43, 15.55 ms | 34.4, 23.3, 23.3 | 4.43, 4.53, 4.44 | **0.49-0.55 ms** | 0.55-0.68 | 4 |
+
+The reach saves ~0.25 ms of ripple CPU and ~0.2 ms of ripple GPU for the two far disturbed ponds (~0.12 + 0.1 ms each - below
+43.1's 0.2-0.7 estimate). The whole frame (~82 fps, ~15.4 ms CPU here: four awake GPU ponds) moves within its run-to-run spread.
+As 43.1 said: L2 is a look change, its saving small. Not measured: the draw's own cost of the fade (a few ALU ops in the water's
+fragment shader), the creek's moving window.
+
+**Stress** (`tools/water_l2_stress.py`, new; eight ponds, four slots, the water's viewer flown 50 times past them, a stone into
+the nearest every 0.3 s; 20 passes at ripple_m 21, 10 at 0, 10 at 24, 10 at 21 with fade 21; every step asserted):
+- 4 x 4 m ponds (`l2_stress.json`): 2,050 steps, **0 violations**; slots at most 4, waiting at most 4, none at ripple_m 0; at the
+  end (300 m away) 0 held. These layers (1,296 cells) step on the CPU (under kRippleGpuMinCells), so device states stayed 0.
+- 12 x 12 m ponds, two rows (`l2_stress_big.json`, GPU-stepped layers): 2,050 steps, **0 violations**; device states at most 1
+  (only the stoned layer awake), **0 at the end**; made 695, dropped 667 (the rest went with their volumes).
+
+**The owner's look:** `l2_flyaway_side_by_side.mp4` (`tools/water_l2_flyaway_video.py`, new): the lake, stones everywhere, the
+camera gliding 3 m over the water along it and back, OFF | ON. Not signed off.
+
+**L5 with the reach on** (Small bench, Release, pacing on - the new default; `--ripple-reach on --ripple-m 21 / 0 / 24`,
+`l5_l2_r21.json`, `_r0`, `_r24`): every near run held one ripple slot (r 21, 24), every far run none, ripple_m 0 none anywhere;
+every wake paced (started 1, live 1, forced 0); near woke on kept memory, far fresh. **Judged against the pooled near runs** (32,
+from 41-42's sessions and these; the self-check: 1 of 36 outside - `near_a@l3`'s stone, as before): **far 9 of 9 PASS** (r 21 x 5,
+r 0, r 24, and two with the reach off), nothing rose (`l5_pooled_..._l2_off_timed.json`).
+- Judged by the first session alone the far runs FAILED on the wood's z: its rest is BIMODAL (~13.92 or ~14.08, 16 cm apart: the
+  block drifts to one of two spots, in every past session, near and far alike - `l5_l3_near6` alternates on near runs only), and
+  that session's five near runs all landed on 13.92, its five far runs on 14.08. Suspicious at 10 of 10, so two more pairs ran with
+  the reach on and two with it off (`l5_l2_r21_timed.json`, `l5_l2_off_timed.json`): near 14.07, 14.08, 14.07, 14.08; far 13.93,
+  14.08, 14.08, 13.92 - the split did not hold. A three-run fence cannot hold a bimodal measure (the tool says so); the pool does.
+- **Time to sleep** (43.3 item 7; release to the pond back in the record, wall clock, 0.5 s resolution): reach on - near 37.3,
+  47.9 (r 24: 36.4), far 40.8, 42.3 (r 24: 39.7; r 0: near 37.1, far 42.4); reach off - near 40.9, 39.2, far 40.4, 34.6 s. 35-48 s
+  run to run, no order by distance or by the reach: the predicted "far sleeps sooner" (no rings to wait for) is below the spread
+  on this 4 x 4 m pond (its rings die well before its water rests).
+- With the reach off a far pond still holds a slot (first come, at any distance - exactly as before).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

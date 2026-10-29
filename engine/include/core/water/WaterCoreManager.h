@@ -504,8 +504,9 @@ public:
     /// L4 (42.3): seconds until a body's lowest point can fall to `top` (free fall, g = 9.81; 0 if it is there already). Its lowest
     /// point is centre.y - |halfExtents| (any orientation); velocity.y > 0 is up.
     static double secondsToWater(const MovingSolid& b, float top);
-    /// L4 (42.3): pace wakes over frames, due before the first body can reach the water. Off by default (the owner's sign-off).
-    static constexpr bool kWakePaceByDefault = false;
+    /// L4 (42.3): pace wakes over frames, due before the first body can reach the water. ON by default since 2026-10-29 (the owner:
+    /// "go with your recommendations"; L5 6 of 6, record byte-equal, 42.5) - every wake, near or far (D7).
+    static constexpr bool kWakePaceByDefault = true;
     static inline bool s_wakePace = kWakePaceByDefault;
     static constexpr double kWakeBudgetMsDefault = 2.0, kWakeBudgetMsMin = 0.5, kWakeBudgetMsMax = 33.0;   ///< the frame's wake budget, ms
     static inline double s_wakeBudgetMs = kWakeBudgetMsDefault;
@@ -630,7 +631,11 @@ public:
     /// bin i counts slopes in [edge[i-1], edge[i]), the last bin everything from the top edge up (22.11).
     static constexpr int kSlopeBins = 12;
     static constexpr float kSlopeEdges[kSlopeBins - 1] = {0.05f, 0.1f, 0.2f, 0.3f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 5.0f};
+    /// L2 (43.3 item 5): slotsHeld / waiting (ponds within reach without a free slot, this frame), made / dropped (layers, the
+    /// session; dropped counts the rule's drops - a layer that goes with its volume is not counted), gpuStates (RippleGpu's device
+    /// states held), windowSide (the derived side with the reach on; else rippleWindowCells)
     struct RippleStats { bool on = true, smooth = false; int layers = 0, awake = 0, refused = 0; long cells = 0, kinematicCells = 0, impulses = 0; double ms = 0.0; float maxAbs = 0.0f;
+                         int slotsHeld = 0, waiting = 0, gpuStates = 0, windowSide = 0; long made = 0, dropped = 0;
                          float maxSlope = 0.0f; long slopeHist[kSlopeBins] = {};
                          float breakSlope = RippleLayer::kBreakSlope;   ///< 22.12 B1 (0 = off, the A/B control)
                          double brokenM3 = 0.0;                         ///< height the limit removed, summed over the run (m^3)
@@ -667,8 +672,21 @@ public:
     void refreshRippleShapeStats();
     static constexpr int kRippleMaxCells = 512;   ///< per axis (a 57 m pond); a larger volume gets no layer - refused, counted (22.5)
     static constexpr int kRippleMaxLayers = 4;    ///< the renderer's atlas holds four 512 x 512 layers
-    /// The layers, parallel to the fields surfaceFields() returns (null = none).
+    /// The layers by SLOT (kRippleMaxLayers entries, null = none); a field's rippleLayer is its volume's slot (L2, 43.3 item 2: was
+    /// the volume's index, so a ninth volume never drew its ripples).
     std::vector<const RippleLayer*> rippleLayers() const;
+    /// L2 (43.2): the draw's fade - (viewer x, viewer z, near, far); far < 0 = no fade (the reach off, or ripples off)
+    glm::vec4 rippleFade() const;
+    /// L2: who holds which slot (volume id, its layer's origin and side in lattice cells)
+    struct RippleSlotInfo { int slot = -1, volumeId = 0; glm::ivec2 origin{0}; int nx = 0, nz = 0; };
+    std::vector<RippleSlotInfo> rippleSlots() const;
+    /// TEST: a droplet's impulse (RippleLayer::addImpulse, as a landing applies it) into every layer over world (x, z); the
+    /// layers that took it. On a 1/9 m volume the grid holds a body itself, so the kinematic remainder is 0 - a test needs this.
+    int kickRipplesForTest(float x, float z, float impulse) {
+        int n = 0;
+        for (auto& av : m_avs) if (av->ripple) { av->ripple->addImpulse(x, z, impulse); ++n; }
+        return n;
+    }
     /// E2 (docs/WaterCore.md 19.6): where the water is still MOVING since the last call - per volume, a
     /// sphere (world centre, radius) around the columns whose surface has moved more than `moveM` from
     /// where it last counted as moved (a held reference: sub-mm jitter never adds up, a real slosh does,
@@ -766,6 +784,8 @@ private:
         std::vector<uint8_t> rippleWet;       //   and which of the field's columns held water
         uint32_t rippleFrame = 0;             // 26.13: the forcing's hash frame (as a region's)
         bool rippleRefused = false;
+        int rippleSlot = -1;                  // L2 (43.3 item 2): the renderer's slot this layer draws in (0..kRippleMaxLayers-1)
+        bool rippleReachMade = false;         // L2: the layer was made under the reach rule (a switch either way remakes it)
         bool hasPendingDeposit = false;
     };
     // 21: droplets
@@ -777,6 +797,7 @@ private:
     std::vector<MovingSolid> m_rippleBodies;
     RippleStats m_rstats;
     RipplePattern m_rpattern;
+    bool m_rippleReachLast = WaterLocality::kRippleReachByDefault;   // L2: the rule the slots were last given under
     float m_pondFriction = SolverParams{}.pondFriction;   // 24.7
     float m_vcTime = SolverParams{}.volumeCorrectionTime, m_vcBand = SolverParams{}.volumeCorrectionBand;   // 26.21
     void stepRipples(float dt);
@@ -856,7 +877,8 @@ private:
     /// 26.13: THE ripple window of every volume (25.26 RC): min(kColumnRippleWindow, the box) lattice
     /// cells per axis, centred on the camera and clamped to the box, moved in 4 m steps; created on first use; its border absorbs
     /// (RippleLayer's default, as every layer always had).
-    RippleLayer& rippleWindow(std::unique_ptr<RippleLayer>& layer, const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, bool gpu);
+    RippleLayer& rippleWindow(std::unique_ptr<RippleLayer>& layer, const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, bool gpu, bool reach);
+    void assignRippleSlots();   // L2 (43.2): make / drop layers by the reach, slots nearest first
     void stepGpu(Av& av, int ticks, float dt);
     bool pushSourcesToGpu(Av& av, std::string* err);
     void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)

@@ -104,7 +104,10 @@ public:
     bool horizonGuard() const { return m_horizonGuard; }
     /// 22: the ripple layers, indexed as the fields' `rippleLayer` (null entries = none); `smooth` = the bilinear A/B.
     void setRipples(const std::vector<const Core::Water::RippleLayer*>* layers, bool smooth) { m_ripples = layers; m_rippleSmooth = smooth; }
+    /// L2 (43.2): the ripples' fade by distance - (viewer x, viewer z, near, far); far < 0 = none (weight 1)
+    void setRippleFade(const glm::vec4& f) { m_rippleFade = f; }
     static constexpr int    kRippleIndices = 8;                      ///< header entries (field rippleLayer 0..7)
+    static constexpr size_t kRippleHeaderBytes = 16 + kRippleIndices * 32;   ///< vec4 fade, vec4 geo[8], ivec4 meta[8]
     static constexpr size_t kRippleFloats = 4u * 512u * 512u;        ///< heights per frame slot (4 layers of 512 x 512, the manager's budget)
     bool scatterLegacy() const { return m_scatterLegacy; }
     uint32_t lastVertices() const { return m_lastVertices; }
@@ -144,6 +147,7 @@ private:
     VkDeviceSize m_rippleSlotBytes = 0;
     const std::vector<const Core::Water::RippleLayer*>* m_ripples = nullptr;
     bool m_rippleSmooth = false;
+    glm::vec4 m_rippleFade{0.0f, 0.0f, 0.0f, -1.0f};
     uint32_t m_lastVertices = 0;
     std::chrono::high_resolution_clock::time_point m_startTime;
     void pushLook(VkCommandBuffer commandBuffer, const Camera& camera, const glm::mat4& projectionMatrix, VkExtent2D screenExtent, const Core::Water::WaterLookPacked* look);

@@ -1,0 +1,392 @@
+{
+ "rig": "pond",
+ "box": [
+  4,
+  2,
+  31,
+  29
+ ],
+ "p": [
+  18.0,
+  16.0
+ ],
+ "pose": {
+  "x": 18.0,
+  "y": 27.0,
+  "z": 16.0,
+  "yaw": 0.0,
+  "pitch": -89.0
+ },
+ "build": "Release",
+ "conds": {
+  "on": {
+   "full_grey": 203.0,
+   "half_grey": 149.0,
+   "ratio_half": 0.7339901477832512,
+   "transfer": "srgb",
+   "max_abs_err_vs_prediction": 0.211,
+   "largest_step": 0.0936,
+   "largest_step_at_m": 16.0,
+   "window_side": 458,
+   "slots": [
+    {
+     "nx": 252,
+     "nz": 252,
+     "origin": [
+      36,
+      18
+     ],
+     "slot": 0,
+     "volume": 3
+    }
+   ],
+   "rows": [
+    {
+     "d": 0.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 0.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 1.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 1.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 2.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 2.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 3.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 3.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 4.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 4.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 5.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 5.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 6.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 6.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 7.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 7.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 8.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 8.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 9.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 9.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 10.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 10.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 11.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 11.5,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 12.0,
+     "grey": 203.0,
+     "weight": 1.0,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 12.5,
+     "grey": 201.73,
+     "weight": 0.986,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 13.0,
+     "grey": 198.15,
+     "weight": 0.9472,
+     "chroma": 0.0,
+     "predicted": 1.0
+    },
+    {
+     "d": 13.5,
+     "grey": 193.05,
+     "weight": 0.8935,
+     "chroma": 0.0,
+     "predicted": 0.9888
+    },
+    {
+     "d": 14.0,
+     "grey": 186.41,
+     "weight": 0.8262,
+     "chroma": 0.0,
+     "predicted": 0.957
+    },
+    {
+     "d": 14.5,
+     "grey": 178.19,
+     "weight": 0.7472,
+     "chroma": 0.0,
+     "predicted": 0.9077
+    },
+    {
+     "d": 15.0,
+     "grey": 168.57,
+     "weight": 0.6606,
+     "chroma": 0.0,
+     "predicted": 0.8438
+    },
+    {
+     "d": 15.5,
+     "grey": 157.46,
+     "weight": 0.5682,
+     "chroma": 0.0,
+     "predicted": 0.7681
+    },
+    {
+     "d": 16.0,
+     "grey": 145.06,
+     "weight": 0.4746,
+     "chroma": 0.0,
+     "predicted": 0.6836
+    },
+    {
+     "d": 16.5,
+     "grey": 131.36,
+     "weight": 0.3823,
+     "chroma": 0.0,
+     "predicted": 0.5933
+    },
+    {
+     "d": 17.0,
+     "grey": 116.09,
+     "weight": 0.2929,
+     "chroma": 0.0,
+     "predicted": 0.5
+    },
+    {
+     "d": 17.5,
+     "grey": 99.3,
+     "weight": 0.2102,
+     "chroma": 0.0,
+     "predicted": 0.4067
+    },
+    {
+     "d": 18.0,
+     "grey": 80.94,
+     "weight": 0.1376,
+     "chroma": 0.0,
+     "predicted": 0.3164
+    },
+    {
+     "d": 18.5,
+     "grey": 60.74,
+     "weight": 0.0775,
+     "chroma": 0.0,
+     "predicted": 0.2319
+    },
+    {
+     "d": 19.0,
+     "grey": 37.95,
+     "weight": 0.0324,
+     "chroma": 0.0,
+     "predicted": 0.1562
+    },
+    {
+     "d": 19.5,
+     "grey": 11.62,
+     "weight": 0.0059,
+     "chroma": 0.0,
+     "predicted": 0.0923
+    },
+    {
+     "d": 20.0,
+     "grey": 0.0,
+     "weight": 0.0,
+     "chroma": 0.0,
+     "predicted": 0.043
+    },
+    {
+     "d": 20.5,
+     "grey": 0.0,
+     "weight": 0.0,
+     "chroma": 0.0,
+     "predicted": 0.0112
+    },
+    {
+     "d": 21.0,
+     "grey": 0.0,
+     "weight": 0.0,
+     "chroma": 0.0,
+     "predicted": 0.0
+    },
+    {
+     "d": 21.5,
+     "grey": 0.0,
+     "weight": 0.0,
+     "chroma": 0.0,
+     "predicted": 0.0
+    },
+    {
+     "d": 22.0,
+     "grey": 0.0,
+     "weight": 0.0,
+     "chroma": 0.0,
+     "predicted": 0.0
+    },
+    {
+     "d": 22.5,
+     "grey": 0.0,
+     "weight": 0.0,
+     "chroma": 0.0,
+     "predicted": 0.0
+    },
+    {
+     "d": 23.0,
+     "grey": 0.0,
+     "weight": 0.0,
+     "chroma": 0.0,
+     "predicted": 0.0
+    },
+    {
+     "d": 23.5,
+     "grey": 0.0,
+     "weight": 0.0,
+     "chroma": 0.0,
+     "predicted": 0.0
+    },
+    {
+     "d": 24.0,
+     "grey": 0.0,
+     "weight": 0.0,
+     "chroma": 0.0,
+     "predicted": 0.0
+    }
+   ]
+  }
+ },
+ "side": "east",
+ "settle_s": 0.25
+}

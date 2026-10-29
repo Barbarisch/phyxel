@@ -1,0 +1,128 @@
+{
+ "tag": "l2off_after_b",
+ "pose": {
+  "x": 18.0,
+  "y": 22.0,
+  "z": -2.0,
+  "yaw": 90.0,
+  "pitch": -24.0
+ },
+ "build": "Release",
+ "locality": {
+  "draw_m": 48.0,
+  "draw_m_default": 48.0,
+  "memory_cap_mb": 256.0,
+  "memory_cap_mb_default": 256.0,
+  "memory_m": 48.0,
+  "memory_m_default": 48.0,
+  "ripple_fade_m": 8.0,
+  "ripple_fade_m_default": 8.0,
+  "ripple_m": 21.0,
+  "ripple_m_default": 21.0,
+  "ripple_m_max": 24.0,
+  "ripple_reach": false,
+  "ripple_reach_default": false,
+  "ripple_window_cells": 384,
+  "ripple_window_cells_default": 384,
+  "ripple_window_cells_used": true,
+  "ripple_window_side": 384,
+  "test_far_record_dry": false,
+  "test_keep_memory_off": false,
+  "test_viewer": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "test_viewer_on": false,
+  "viewer": [
+   18.0,
+   22.0,
+   -2.0
+  ]
+ },
+ "ripples": {
+  "awake": 1,
+  "backend": "gpu",
+  "break_slope": 0.4399999976158142,
+  "broken_m3": 1332.7370323935013,
+  "cells": 63504,
+  "dropped": 0,
+  "enabled": true,
+  "fade": {
+   "far_m": -1.0,
+   "near_m": 0.0,
+   "viewer_xz": [
+    0.0,
+    0.0
+   ]
+  },
+  "flow_forcing": 200.0,
+  "gpu_available": true,
+  "gpu_collect_ms": 0.0001,
+  "gpu_dispatches": 8,
+  "gpu_error": "",
+  "gpu_layers": 1,
+  "gpu_min_cells": 8192,
+  "gpu_ms": 0.30630399999999997,
+  "gpu_record_ms": 0.0986,
+  "gpu_states": 0,
+  "gpu_wait_ms": 0.0,
+  "impulses": 0,
+  "kinematic_cells": 0,
+  "layers": 1,
+  "made": 5,
+  "max_abs_m": 5.737306594848633,
+  "max_slope": 0.3000026047229767,
+  "ms": 0.1385,
+  "pattern": {
+   "azimuth_deg": 30.0,
+   "slope": 0.30000001192092896
+  },
+  "pitch_m": 0.1111111119389534,
+  "refused": 0,
+  "slope_edges": [
+   0.05000000074505806,
+   0.10000000149011612,
+   0.20000000298023224,
+   0.30000001192092896,
+   0.5,
+   0.75,
+   1.0,
+   1.5,
+   2.0,
+   3.0,
+   5.0
+  ],
+  "slope_hist": [
+   0,
+   0,
+   504,
+   39052,
+   23948,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "slot_list": [
+   {
+    "nx": 252,
+    "nz": 252,
+    "origin": [
+     36,
+     18
+    ],
+    "slot": 0,
+    "volume": 5
+   }
+  ],
+  "slots": 4,
+  "slots_held": 1,
+  "smooth": false,
+  "waiting": 0,
+  "window_side": 384
+ }
+}

@@ -3878,6 +3878,7 @@ void Application::update(float deltaTime) {
                 renderCoordinator->setWaterCoreDroplets(&waterCore->dropletDrawList());   // 21: the droplet crown
                 m_rippleLayers = waterCore->rippleLayers();   // 22
                 renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
+                renderCoordinator->setWaterCoreRippleFade(waterCore->rippleFade());   // L2 (43.2): the ripples' fade by distance
                 if (!m_watchPoints.empty() && m_watchRows.size() < 20000) {   // water_av_watch: every frame
                     std::vector<float> row;
                     row.push_back(static_cast<float>(std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_watchT0));
@@ -14119,9 +14120,27 @@ void Application::registerWaterCommands() {
         }
         if (cmd.params.contains("test_keep_memory_off") && cmd.params["test_keep_memory_off"].is_boolean())   // 41 TEST: the control
             loc.testKeepMemoryOff = cmd.params["test_keep_memory_off"].get<bool>();
+        // L2 (43): ripple_reach (on / off; off = exactly before L2), ripple_m (m, 0..24: beyond 24 the derived window would pass the
+        // renderer's 512-cell atlas, so a point the fade shows could go unsimulated - WaterLocality::kRippleMMax) and ripple_fade_m
+        // (m, 0..ripple_m: full detail to ripple_m - fade). With the reach on the window side is derived (ripple_window_cells unused)
+        if (cmd.params.contains("ripple_reach") && cmd.params["ripple_reach"].is_boolean()) loc.rippleReach = cmd.params["ripple_reach"].get<bool>();
+        if (cmd.params.contains("ripple_m") && cmd.params["ripple_m"].is_number()) {
+            const float m = cmd.params["ripple_m"].get<float>();
+            if (m >= 0.0f) loc.rippleM = std::min(m, L::kRippleMMax);
+        }
+        if (cmd.params.contains("ripple_fade_m") && cmd.params["ripple_fade_m"].is_number()) {
+            const float m = cmd.params["ripple_fade_m"].get<float>();
+            if (m >= 0.0f) loc.rippleFadeM = m;
+        }
+        loc.rippleFadeM = std::min(loc.rippleFadeM, loc.rippleM);
         const glm::vec3 v = waterCore ? waterCore->viewPoint() : glm::vec3(0.0f);
         r = {{"draw_m", loc.drawM}, {"draw_m_default", L::kDrawMDefault},
              {"ripple_window_cells", loc.rippleWindowCells}, {"ripple_window_cells_default", L::kRippleWindowCellsDefault},
+             {"ripple_reach", loc.rippleReach}, {"ripple_reach_default", L::kRippleReachByDefault},
+             {"ripple_m", loc.rippleM}, {"ripple_m_default", L::kRippleMDefault}, {"ripple_m_max", L::kRippleMMax},
+             {"ripple_fade_m", loc.rippleFadeM}, {"ripple_fade_m_default", L::kRippleFadeMDefault},
+             {"ripple_window_side", loc.rippleReach ? L::rippleWindowSide(loc.rippleM) : loc.rippleWindowCells},
+             {"ripple_window_cells_used", !loc.rippleReach},
              {"memory_m", loc.memoryM}, {"memory_m_default", L::kMemoryMDefault}, {"memory_cap_mb", loc.memoryCapMb},
              {"memory_cap_mb_default", L::kMemoryCapMbDefault}, {"test_keep_memory_off", loc.testKeepMemoryOff},
              {"test_viewer_on", loc.testViewerOn}, {"test_viewer", {loc.testViewer.x, loc.testViewer.y, loc.testViewer.z}},
@@ -14551,13 +14570,23 @@ void Application::registerWaterCommands() {
             if (p.is_object()) { rp.slope = std::clamp(p.value("slope", 0.0f), 0.0f, 20.0f); rp.azimuthDeg = p.value("azimuth_deg", 0.0f); }
             waterCore->setRipplePattern(rp);
         }
-        waterCore->refreshRippleShapeStats();   // 25.34: the shape stats are computed when asked
+        // 25.34: the shape stats are computed when asked (~0.1 s on a big window, 43.1); {shape: false} skips them (a poll loop)
+        if (cmd.params.value("shape", true)) waterCore->refreshRippleShapeStats();
         const auto& s = waterCore->rippleStats();
         const auto& rp = waterCore->ripplePattern();
         nlohmann::json edges = nlohmann::json::array(), hist = nlohmann::json::array();
         for (float e : Core::Water::WaterCoreManager::kSlopeEdges) edges.push_back(e);
         for (long b : s.slopeHist) hist.push_back(b);
+        const glm::vec4 fade = waterCore->rippleFade();
         r = {{"enabled", s.on}, {"smooth", s.smooth}, {"layers", s.layers}, {"awake", s.awake}, {"cells", s.cells}, {"refused", s.refused},
+             // L2 (43.3 item 5): slots held of kRippleMaxLayers, ponds within reach waiting for one, layers made / dropped (session),
+             // the ripple GPU's device states held, the window side in force, the draw's fade (near, far; far < 0 = none)
+             {"slots_held", s.slotsHeld}, {"slots", Core::Water::WaterCoreManager::kRippleMaxLayers}, {"waiting", s.waiting},
+             {"made", s.made}, {"dropped", s.dropped}, {"gpu_states", s.gpuStates}, {"window_side", s.windowSide},
+             {"fade", {{"near_m", fade.z}, {"far_m", fade.w}, {"viewer_xz", {fade.x, fade.y}}}},
+             {"slot_list", [&] { nlohmann::json a = nlohmann::json::array();
+                 for (const auto& i : waterCore->rippleSlots()) a.push_back({{"slot", i.slot}, {"volume", i.volumeId}, {"origin", {i.origin.x, i.origin.y}}, {"nx", i.nx}, {"nz", i.nz}});
+                 return a; }()},
              {"kinematic_cells", s.kinematicCells}, {"impulses", s.impulses}, {"ms", s.ms}, {"max_abs_m", s.maxAbs},
              {"max_slope", s.maxSlope}, {"slope_edges", edges}, {"slope_hist", hist},
              {"break_slope", s.breakSlope}, {"broken_m3", s.brokenM3}, {"flow_forcing", waterCore->rippleFlowForcing()}, {"backend", waterCore->rippleGpuOn() ? "gpu" : "cpu"}, {"gpu_available", waterCore->rippleGpuAvailable()}, {"gpu_error", waterCore->rippleGpuError()}, {"gpu_ms", s.gpuMs}, {"gpu_wait_ms", s.gpuWaitMs}, {"gpu_record_ms", s.gpuRecordMs}, {"gpu_collect_ms", s.gpuCollectMs}, {"gpu_dispatches", s.gpuDispatches}, {"gpu_layers", s.gpuLayers}, {"gpu_min_cells", Core::Water::WaterCoreManager::kRippleGpuMinCells},
@@ -14772,7 +14801,7 @@ void Application::registerWaterCommands() {
         }
         if (cmd.params.contains("debug")) {   // 0 off, 1 normals, 2 body, 3 reflection, 4 thickness, 5 fresnel (water_common.glsl taps), 6 foam/flow (G2)
             const auto& d = cmd.params["debug"];
-            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 8));   // 7: the ripple height (22); 8: reflected ray vs sun / horizon (22.11)
+            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 9));   // 7: the ripple height (22); 8: reflected ray vs sun / horizon (22.11); 9: the ripple slope after L2's fade (43)
         }
         if (cmd.params.contains("scatter")) {   // WaterCore 21.3 A/B: "lit" (default) or "legacy" (the pre-21.3 constant glow)
             const std::string sc = cmd.params.value("scatter", std::string("lit"));

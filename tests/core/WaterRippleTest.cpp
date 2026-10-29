@@ -376,7 +376,8 @@ TEST(WaterRippleTest, EveryVolumeGetsTheRippleWindow) {
     mgr.setViewPoint(glm::vec3(20.0f, 1.0f, 1.0f));
     mgr.update(1.0f / 60.0f);
     auto layers = mgr.rippleLayers();
-    ASSERT_EQ(layers.size(), 2u) << "both volumes get a layer";
+    ASSERT_EQ(layers.size(), static_cast<size_t>(WaterCoreManager::kRippleMaxLayers)) << "L2: by slot";
+    ASSERT_TRUE(layers[0] && layers[1] && !layers[2] && !layers[3]) << "both volumes get a layer, slots 0 and 1";
     const RippleLayer* c = layers[0]; const RippleLayer* p = layers[1];
     std::printf("  creek window %d x %d at (%d, %d); pond layer %d x %d at (%d, %d)\n", c->nx(), c->nz(), c->origin().x, c->origin().y, p->nx(), p->nz(), p->origin().x, p->origin().y);
     EXPECT_EQ(c->nx(), WaterCoreManager::kColumnRippleWindow);
@@ -390,5 +391,125 @@ TEST(WaterRippleTest, EveryVolumeGetsTheRippleWindow) {
     std::printf("  after the view moves to x 80: creek window at (%d, %d)\n", layers[0]->origin().x, layers[0]->origin().y);
     EXPECT_EQ(layers[0]->origin().x, std::min(80 * 9 - WaterCoreManager::kColumnRippleWindow / 2, 100 * 9 - WaterCoreManager::kColumnRippleWindow));
     EXPECT_EQ(layers[1]->origin(), glm::ivec2(200 * 9, 0)) << "the pond's layer never moves (it is its whole box)";
+}
+
+// ---- L2 (43): ripple layers by the reach, slots nearest first -----------------------------------------------------------------
+namespace {
+struct RestoreLocality { WaterLocality saved = WaterCoreManager::s_locality; ~RestoreLocality() { WaterCoreManager::s_locality = saved; } };
+// five 4 x 4 m ponds along +x, 1 m apart (x 5k .. 5k+3); with the viewer at x -0.5 they lie 0.5 .. 20.5 m away
+std::vector<int> fivePonds(WaterCoreManager& mgr, bool farFirst) {
+    std::vector<int> ids(5, 0);
+    for (int i = 0; i < 5; ++i) {
+        const int k = farFirst ? 4 - i : i;
+        std::string err;
+        ids[k] = mgr.create(glm::ivec3(5 * k, 0, 0), glm::ivec3(5 * k + 3, 0, 3), 1.0f / 9.0f, "eulerian", &err, "cpu");
+        EXPECT_NE(ids[k], 0) << err;
+        mgr.placeBox(glm::ivec3(5 * k, 0, 0), glm::ivec3(5 * k + 3, 0, 3), 0.3f, nullptr);
+        mgr.setAutoSleep(ids[k], false);
+    }
+    return ids;
+}
+std::vector<int> holders(const WaterCoreManager& mgr) {
+    std::vector<int> out;
+    for (const auto& s : mgr.rippleSlots()) out.push_back(s.volumeId);
+    std::sort(out.begin(), out.end());
+    return out;
+}
+}  // namespace
+
+// 43.3 item 2: five ponds within reach, four slots - the same four (the nearest) hold them whatever order the ponds were made in;
+// the fifth waits and takes the slot a pond frees. Control: with the reach off the first four MADE hold them (first come, 22.5).
+TEST(WaterRippleTest, L2SlotsGoToTheNearestPondsInEitherCreationOrder) {
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    RestoreLocality restore;
+    std::vector<int> nearFour[2];
+    for (int order = 0; order < 2; ++order) {
+        WaterCoreManager::s_locality.rippleReach = true;
+        WaterCoreManager mgr{state};
+        mgr.setRipples(true); mgr.setRealtime(true);
+        const auto ids = fivePonds(mgr, order == 1);
+        mgr.setViewPoint(glm::vec3(-0.5f, 1.0f, 1.5f));
+        mgr.update(1.0f / 60.0f);
+        const auto& s = mgr.rippleStats();
+        EXPECT_EQ(s.slotsHeld, 4); EXPECT_EQ(s.waiting, 1) << "the fifth pond is within reach and waits";
+        nearFour[order] = holders(mgr);
+        std::vector<int> want = {ids[0], ids[1], ids[2], ids[3]}; std::sort(want.begin(), want.end());
+        EXPECT_EQ(nearFour[order], want) << (order ? "made far first" : "made near first") << ": the four nearest hold the slots";
+        // the nearest pond goes: the waiting one takes its slot
+        mgr.destroy(ids[0]);
+        mgr.update(1.0f / 60.0f);
+        EXPECT_EQ(mgr.rippleStats().waiting, 0);
+        std::vector<int> want2 = {ids[1], ids[2], ids[3], ids[4]}; std::sort(want2.begin(), want2.end());
+        EXPECT_EQ(holders(mgr), want2) << "the freed slot went to the waiting pond";
+        for (const auto* L : mgr.rippleLayers()) EXPECT_NE(L, nullptr) << "four layers by slot";
+    }
+    // the control: reach off, made far first - the first four made (the far ones) hold the slots, the nearest pond is refused
+    WaterCoreManager::s_locality.rippleReach = false;
+    WaterCoreManager mgr{state};
+    mgr.setRipples(true); mgr.setRealtime(true);
+    const auto ids = fivePonds(mgr, true);
+    mgr.setViewPoint(glm::vec3(-0.5f, 1.0f, 1.5f));
+    mgr.update(1.0f / 60.0f);
+    std::vector<int> want = {ids[1], ids[2], ids[3], ids[4]}; std::sort(want.begin(), want.end());
+    EXPECT_EQ(holders(mgr), want) << "off is first come (exactly before L2)";
+    EXPECT_EQ(mgr.rippleStats().refused, 1);
+}
+
+// 43.2: a pond beyond ripple_m has no layer; it gets one within ripple_m, keeps it to ripple_m + 4 m (cost hysteresis), loses it
+// beyond; ripple_m 0 = no layers anywhere.
+TEST(WaterRippleTest, L2APondBeyondTheReachHasNoLayer) {
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    RestoreLocality restore;
+    WaterCoreManager::s_locality.rippleReach = true;
+    WaterCoreManager mgr{state};
+    mgr.setRipples(true); mgr.setRealtime(true);
+    std::string err;
+    const int id = mgr.create(glm::ivec3(-4, 0, -4), glm::ivec3(-1, 0, -1), 1.0f / 9.0f, "eulerian", &err, "cpu");   // x, z in [-4, 0)
+    ASSERT_NE(id, 0) << err;
+    mgr.placeBox(glm::ivec3(-4, 0, -4), glm::ivec3(-1, 0, -1), 0.3f, nullptr);
+    mgr.setAutoSleep(id, false);
+    auto at = [&](float x) { mgr.setViewPoint(glm::vec3(x, 1.0f, -2.0f)); mgr.update(1.0f / 60.0f); return mgr.rippleStats().slotsHeld; };
+    EXPECT_EQ(at(23.0f), 0) << "23 m away: none";
+    EXPECT_EQ(at(20.0f), 1) << "20 m: made";
+    EXPECT_EQ(at(24.0f), 1) << "24 m: kept (to 25)";
+    EXPECT_EQ(at(26.0f), 0) << "26 m: dropped";
+    EXPECT_EQ(at(23.0f), 0) << "23 m: not made again until within 21";
+    WaterCoreManager::s_locality.rippleM = 0.0f;
+    EXPECT_EQ(at(-2.0f), 0) << "ripple_m 0: none, even with the viewer over the pond";
+    WaterCoreManager::s_locality.rippleM = 24.0f;
+    EXPECT_EQ(at(-2.0f), 1);
+    EXPECT_EQ(mgr.rippleStats().windowSide, 512);
+    WaterCoreManager::s_locality.rippleReach = false;
+    EXPECT_EQ(at(200.0f), 1) << "off: the layer is remade under the old rule and kept at any distance";
+    EXPECT_EQ(mgr.rippleStats().windowSide, WaterCoreManager::s_locality.rippleWindowCells);
+}
+
+// 43.3 item 2 (found): a field's rippleLayer was its volume's INDEX, and the draw reads 8 entries - a ninth volume never drew its
+// ripples. Now it is the slot.
+TEST(WaterRippleTest, L2TheNinthVolumeDrawsItsRipples) {
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    RestoreLocality restore;
+    WaterCoreManager::s_locality.rippleReach = true;
+    WaterCoreManager mgr{state};
+    mgr.setRipples(true); mgr.setRealtime(true);
+    std::string err;
+    int last = 0;
+    for (int k = 0; k < 9; ++k) {   // eight far ponds (beyond the reach), the ninth by the viewer
+        const int x0 = k < 8 ? 100 + 6 * k : 0;
+        last = mgr.create(glm::ivec3(x0, 0, 0), glm::ivec3(x0 + 3, 0, 3), 1.0f / 9.0f, "eulerian", &err, "cpu");
+        ASSERT_NE(last, 0) << err;
+        mgr.placeBox(glm::ivec3(x0, 0, 0), glm::ivec3(x0 + 3, 0, 3), 0.3f, nullptr);
+        mgr.setAutoSleep(last, false);
+    }
+    mgr.setViewPoint(glm::vec3(2.0f, 1.0f, 2.0f));
+    mgr.update(1.0f / 60.0f);
+    mgr.update(1.0f / 60.0f);   // the field takes its slot on the next surface read
+    const WaterSurfaceField* f = nullptr;
+    for (const auto* p : mgr.surfaceFields()) if (p->source == last) f = p;
+    ASSERT_NE(f, nullptr);
+    ASSERT_GE(f->rippleLayer, 0) << "the ninth volume's field names a layer";
+    EXPECT_LT(f->rippleLayer, WaterCoreManager::kRippleMaxLayers) << "a slot, not the volume's index (8)";
+    ASSERT_NE(mgr.rippleLayers()[f->rippleLayer], nullptr);
+    EXPECT_EQ(mgr.rippleSlots().size(), 1u);
 }
 }  // namespace Phyxel::Core::Water

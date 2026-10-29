@@ -542,3 +542,49 @@ TEST_F(WaterRecordedPondTest, TheFrameAfterAnUploadDrawsTheUploadedState) {
     EXPECT_TRUE(equal[0]) << "the frame after the upload did not draw the uploaded state";
     EXPECT_FALSE(equal[1]) << "the control drew the uploaded state too: the kick did not move the water in the first call, so the test cannot tell the two apart";
 }
+
+// L2 (43.2, 43.3 items 5 and 8): a GPU pond's ripple layer, stepped on the ripple GPU (12 x 12 m: 11,664 lattice cells, over
+// kRippleGpuMinCells), is dropped when the viewer leaves the reach and its device state is freed; 20 fly-aways hold no more than
+// the one state. Made again when the viewer comes back.
+TEST_F(WaterRecordedPondTest, ARippleLayerBeyondTheReachHoldsNoDeviceState) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    RestoreLocality restore;
+    WaterCoreManager::s_locality.rippleReach = true;
+    WaterCoreManager mgr{[](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; }};
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    ASSERT_TRUE(mgr.rippleGpuAvailable()) << mgr.rippleGpuError();
+    mgr.setDroplets(false);
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(11, 2, 11), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    ASSERT_NE(id, 0) << err;
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(11, 0, 11), 1.0f, nullptr);
+    mgr.setAutoSleep(id, false);
+    auto frames = [&](const glm::vec3& view, int n) {
+        // step() as the other GPU tests drive a volume (it steps the ripples too); update() leaves a still test pond unstepped.
+        // A droplet's kick each frame keeps the layer awake: a body crossing a 1/9 m grid leaves no kinematic remainder (the grid
+        // holds it whole - found writing this test), so a stone's rings on such a pond come from its droplets
+        for (int k = 0; k < n; ++k) {
+            mgr.setViewPoint(view); mgr.kickRipplesForTest(6.0f, 6.0f, 50.0f);
+            AvRecord rec; mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        }
+        return mgr.rippleStats();
+    };
+    const glm::vec3 nearV(6.0f, 3.0f, -2.0f), farV(80.0f, 3.0f, 6.0f);
+    int maxStates = 0;
+    for (int c = 0; c < 20; ++c) {
+        const auto a = frames(nearV, 6);
+        if (c == 0) std::printf("  near: layers %d, awake %d, cells %ld, gpu layers %d, device states %d\n",
+                                a.layers, a.awake, a.cells, a.gpuLayers, a.gpuStates);
+        EXPECT_EQ(a.slotsHeld, 1) << "cycle " << c;
+        EXPECT_TRUE(a.gpu) << "cycle " << c << ": the layers stepped on the CPU";
+        const auto b = frames(farV, 6);   // the ring is 3 deep: freed within a few frames of the drop
+        EXPECT_EQ(b.slotsHeld, 0) << "cycle " << c;
+        EXPECT_EQ(b.gpuStates, 0) << "cycle " << c << ": a dropped layer still holds its device state";
+        maxStates = std::max({maxStates, a.gpuStates, b.gpuStates});
+    }
+    const auto f = frames(nearV, 6);
+    std::printf("  20 fly-aways: made %ld, dropped %ld, the most device states held %d\n", f.made, f.dropped, maxStates);
+    EXPECT_EQ(f.made, 21); EXPECT_EQ(f.dropped, 20);
+    EXPECT_LE(maxStates, 1);
+    EXPECT_EQ(f.gpuStates, 1) << "near again: the layer steps on the device (else the test measured nothing)";
+}

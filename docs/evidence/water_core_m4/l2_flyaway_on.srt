@@ -1,0 +1,629 @@
+1
+00:00:00,000 --> 00:00:00,260
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -2.0 | 311 fps
+
+2
+00:00:00,260 --> 00:00:00,570
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -2.0 | 301 fps
+
+3
+00:00:00,570 --> 00:00:00,830
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -1.9 | 205 fps
+
+4
+00:00:00,830 --> 00:00:01,080
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -1.8 | 140 fps
+
+5
+00:00:01,080 --> 00:00:01,350
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -1.6 | 158 fps
+
+6
+00:00:01,350 --> 00:00:01,620
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -1.4 | 53 fps
+
+7
+00:00:01,620 --> 00:00:01,900
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -1.1 | 120 fps
+
+8
+00:00:01,900 --> 00:00:02,160
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -0.7 | 111 fps
+
+9
+00:00:02,160 --> 00:00:02,490
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -0.4 | 114 fps
+
+10
+00:00:02,490 --> 00:00:02,780
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   0.1 | 124 fps
+
+11
+00:00:02,780 --> 00:00:03,080
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   0.7 | 72 fps
+
+12
+00:00:03,080 --> 00:00:03,370
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   1.2 | 105 fps
+
+13
+00:00:03,370 --> 00:00:03,650
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   1.9 | 73 fps
+
+14
+00:00:03,650 --> 00:00:03,950
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   2.5 | 67 fps
+
+15
+00:00:03,950 --> 00:00:04,280
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   3.2 | 50 fps
+
+16
+00:00:04,280 --> 00:00:04,550
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   4.1 | 43 fps
+
+17
+00:00:04,550 --> 00:00:04,880
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   4.9 | 54 fps
+
+18
+00:00:04,880 --> 00:00:05,170
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   5.9 | 65 fps
+
+19
+00:00:05,170 --> 00:00:05,480
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   6.8 | 62 fps
+
+20
+00:00:05,480 --> 00:00:05,790
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   7.7 | 65 fps
+
+21
+00:00:05,790 --> 00:00:06,060
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   8.8 | 89 fps
+
+22
+00:00:06,060 --> 00:00:06,340
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   9.7 | 71 fps
+
+23
+00:00:06,340 --> 00:00:06,600
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  10.7 | 60 fps
+
+24
+00:00:06,600 --> 00:00:06,860
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  11.6 | 66 fps
+
+25
+00:00:06,860 --> 00:00:07,140
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  12.6 | 66 fps
+
+26
+00:00:07,140 --> 00:00:07,420
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  13.7 | 52 fps
+
+27
+00:00:07,420 --> 00:00:07,670
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  14.7 | 62 fps
+
+28
+00:00:07,670 --> 00:00:07,960
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  15.7 | 42 fps
+
+29
+00:00:07,960 --> 00:00:08,210
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  16.8 | 48 fps
+
+30
+00:00:08,210 --> 00:00:08,460
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  17.8 | 66 fps
+
+31
+00:00:08,460 --> 00:00:08,770
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  18.8 | 59 fps
+
+32
+00:00:08,770 --> 00:00:09,070
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  20.1 | 56 fps
+
+33
+00:00:09,070 --> 00:00:09,380
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  21.3 | 68 fps
+
+34
+00:00:09,380 --> 00:00:09,630
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  22.5 | 66 fps
+
+35
+00:00:09,630 --> 00:00:09,920
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  23.5 | 58 fps
+
+36
+00:00:09,920 --> 00:00:10,180
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  24.7 | 46 fps
+
+37
+00:00:10,180 --> 00:00:10,500
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  25.7 | 68 fps
+
+38
+00:00:10,500 --> 00:00:10,800
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  26.9 | 72 fps
+
+39
+00:00:10,800 --> 00:00:11,070
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  28.1 | 51 fps
+
+40
+00:00:11,070 --> 00:00:11,350
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  29.1 | 52 fps
+
+41
+00:00:11,350 --> 00:00:11,660
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  30.2 | 54 fps
+
+42
+00:00:11,660 --> 00:00:11,940
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  31.3 | 70 fps
+
+43
+00:00:11,940 --> 00:00:12,250
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  32.3 | 38 fps
+
+44
+00:00:12,250 --> 00:00:12,510
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  33.4 | 43 fps
+
+45
+00:00:12,510 --> 00:00:12,790
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  34.2 | 67 fps
+
+46
+00:00:12,790 --> 00:00:13,100
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  35.1 | 49 fps
+
+47
+00:00:13,100 --> 00:00:13,360
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  36.1 | 48 fps
+
+48
+00:00:13,360 --> 00:00:13,690
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  36.9 | 42 fps
+
+49
+00:00:13,690 --> 00:00:13,960
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  37.8 | 44 fps
+
+50
+00:00:13,960 --> 00:00:14,220
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  38.5 | 67 fps
+
+51
+00:00:14,220 --> 00:00:14,490
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  39.2 | 56 fps
+
+52
+00:00:14,490 --> 00:00:14,760
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  39.8 | 68 fps
+
+53
+00:00:14,760 --> 00:00:15,110
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  40.4 | 48 fps
+
+54
+00:00:15,110 --> 00:00:15,360
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  41.1 | 63 fps
+
+55
+00:00:15,360 --> 00:00:15,700
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  41.6 | 64 fps
+
+56
+00:00:15,700 --> 00:00:15,980
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  42.2 | 68 fps
+
+57
+00:00:15,980 --> 00:00:16,300
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  42.6 | 42 fps
+
+58
+00:00:16,300 --> 00:00:16,570
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.0 | 65 fps
+
+59
+00:00:16,570 --> 00:00:16,880
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.3 | 39 fps
+
+60
+00:00:16,880 --> 00:00:17,160
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.6 | 36 fps
+
+61
+00:00:17,160 --> 00:00:17,420
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.8 | 60 fps
+
+62
+00:00:17,420 --> 00:00:17,700
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.9 | 42 fps
+
+63
+00:00:17,700 --> 00:00:17,950
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  44.0 | 49 fps
+
+64
+00:00:17,950 --> 00:00:18,270
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  44.0 | 70 fps
+
+65
+00:00:18,270 --> 00:00:18,520
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  44.0 | 41 fps
+
+66
+00:00:18,520 --> 00:00:18,830
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.9 | 51 fps
+
+67
+00:00:18,830 --> 00:00:19,110
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.8 | 50 fps
+
+68
+00:00:19,110 --> 00:00:19,410
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.6 | 34 fps
+
+69
+00:00:19,410 --> 00:00:19,680
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.3 | 65 fps
+
+70
+00:00:19,680 --> 00:00:19,980
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  43.0 | 67 fps
+
+71
+00:00:19,980 --> 00:00:20,310
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  42.6 | 68 fps
+
+72
+00:00:20,310 --> 00:00:20,590
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  42.2 | 55 fps
+
+73
+00:00:20,590 --> 00:00:20,900
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  41.7 | 63 fps
+
+74
+00:00:20,900 --> 00:00:21,160
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  41.1 | 65 fps
+
+75
+00:00:21,160 --> 00:00:21,490
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  40.6 | 60 fps
+
+76
+00:00:21,490 --> 00:00:21,750
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  39.9 | 57 fps
+
+77
+00:00:21,750 --> 00:00:22,000
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  39.2 | 43 fps
+
+78
+00:00:22,000 --> 00:00:22,300
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  38.6 | 37 fps
+
+79
+00:00:22,300 --> 00:00:22,580
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  37.8 | 59 fps
+
+80
+00:00:22,580 --> 00:00:22,860
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  37.0 | 71 fps
+
+81
+00:00:22,860 --> 00:00:23,120
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  36.2 | 42 fps
+
+82
+00:00:23,120 --> 00:00:23,460
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  35.4 | 64 fps
+
+83
+00:00:23,460 --> 00:00:23,760
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  34.3 | 40 fps
+
+84
+00:00:23,760 --> 00:00:24,060
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  33.3 | 65 fps
+
+85
+00:00:24,060 --> 00:00:24,370
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  32.3 | 60 fps
+
+86
+00:00:24,370 --> 00:00:24,680
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  31.2 | 38 fps
+
+87
+00:00:24,680 --> 00:00:24,990
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  30.1 | 54 fps
+
+88
+00:00:24,990 --> 00:00:25,290
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  28.9 | 68 fps
+
+89
+00:00:25,290 --> 00:00:25,580
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  27.7 | 43 fps
+
+90
+00:00:25,580 --> 00:00:25,910
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  26.7 | 52 fps
+
+91
+00:00:25,910 --> 00:00:26,210
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  25.4 | 60 fps
+
+92
+00:00:26,210 --> 00:00:26,510
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  24.2 | 59 fps
+
+93
+00:00:26,510 --> 00:00:26,790
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  23.0 | 60 fps
+
+94
+00:00:26,790 --> 00:00:27,140
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  21.8 | 62 fps
+
+95
+00:00:27,140 --> 00:00:27,390
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  20.5 | 58 fps
+
+96
+00:00:27,390 --> 00:00:27,680
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  19.4 | 44 fps
+
+97
+00:00:27,680 --> 00:00:27,940
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  18.3 | 50 fps
+
+98
+00:00:27,940 --> 00:00:28,200
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  17.2 | 44 fps
+
+99
+00:00:28,200 --> 00:00:28,470
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  16.2 | 33 fps
+
+100
+00:00:28,470 --> 00:00:28,750
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  15.2 | 66 fps
+
+101
+00:00:28,750 --> 00:00:29,030
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  14.1 | 53 fps
+
+102
+00:00:29,030 --> 00:00:29,310
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  13.0 | 37 fps
+
+103
+00:00:29,310 --> 00:00:29,610
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  12.0 | 51 fps
+
+104
+00:00:29,610 --> 00:00:29,890
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  10.9 | 61 fps
+
+105
+00:00:29,890 --> 00:00:30,150
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   9.9 | 62 fps
+
+106
+00:00:30,150 --> 00:00:30,420
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   9.0 | 49 fps
+
+107
+00:00:30,420 --> 00:00:30,710
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   8.1 | 58 fps
+
+108
+00:00:30,710 --> 00:00:30,990
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   7.1 | 35 fps
+
+109
+00:00:30,990 --> 00:00:31,290
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   6.3 | 60 fps
+
+110
+00:00:31,290 --> 00:00:31,570
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   5.3 | 57 fps
+
+111
+00:00:31,570 --> 00:00:31,880
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   4.5 | 34 fps
+
+112
+00:00:31,880 --> 00:00:32,150
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   3.7 | 42 fps
+
+113
+00:00:32,150 --> 00:00:32,430
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   3.0 | 65 fps
+
+114
+00:00:32,430 --> 00:00:32,720
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   2.3 | 41 fps
+
+115
+00:00:32,720 --> 00:00:33,020
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   1.7 | 42 fps
+
+116
+00:00:33,020 --> 00:00:33,320
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   1.0 | 48 fps
+
+117
+00:00:33,320 --> 00:00:33,600
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x   0.5 | 61 fps
+
+118
+00:00:33,600 --> 00:00:33,910
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -0.0 | 34 fps
+
+119
+00:00:33,910 --> 00:00:34,200
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -0.5 | 33 fps
+
+120
+00:00:34,200 --> 00:00:34,490
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -0.9 | 40 fps
+
+121
+00:00:34,490 --> 00:00:34,760
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -1.2 | 66 fps
+
+122
+00:00:34,760 --> 00:00:35,070
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -1.5 | 60 fps
+
+123
+00:00:35,070 --> 00:00:35,360
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -1.7 | 40 fps
+
+124
+00:00:35,360 --> 00:00:35,690
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -1.9 | 48 fps
+
+125
+00:00:35,690 --> 00:00:35,960
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -2.0 | 48 fps
+
+126
+00:00:35,960 --> 00:00:36,210
+RIPPLE REACH ON (full to 13 m, gone by 21 m)
+camera x  -2.0 | 52 fps

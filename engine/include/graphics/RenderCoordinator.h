@@ -596,6 +596,7 @@ public:
     void setWaterCoreDroplets(const std::vector<glm::vec4>* d) { m_waterCoreDroplets = d; }
     /// 22: the ripple layers, parallel to the surface fields (null entries = none); smooth = the bilinear A/B.
     void setWaterCoreRipples(const std::vector<const Core::Water::RippleLayer*>* r, bool smooth) { if (waterSurfacePipeline) waterSurfacePipeline->setRipples(r, smooth); }
+    void setWaterCoreRippleFade(const glm::vec4& f) { if (waterSurfacePipeline) waterSurfacePipeline->setRippleFade(f); }   // L2 (43.2)
     void setWaterCoreScatterLegacy(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setScatterLegacy(on); }
     bool waterCoreScatterLegacy() const { return waterSurfacePipeline && waterSurfacePipeline->scatterLegacy(); }
     void setWaterCoreHorizonGuard(bool on) { if (waterSurfacePipeline) waterSurfacePipeline->setHorizonGuard(on); }

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 #include <vector>
 #include <glm/glm.hpp>
 
@@ -29,8 +30,27 @@ struct WaterLocality {
     static constexpr float kMemoryMMax = 1024.0f;              ///< the occupancy box's span (kDirChunksX x 32 m)
     static constexpr float kMemoryCapMbMax = 4096.0f;          ///< a bound on what the water may hold back from the rest of the device
 
+    /// L2 (43): ripple detail by distance. ON: the ripples' tilt is scaled by detail(d, rippleM - rippleFadeM, rippleM), d the
+    /// horizontal distance from the viewer (a pure function of world position and the viewer); a pond beyond rippleM has no layer;
+    /// a layer's window side is derived from rippleM (rippleWindowSide); slots go to the nearest waiting pond. OFF (the default
+    /// until the owner's sign-off): exactly as before L2 - rippleWindowCells, no fade, first-come slots.
+    static constexpr bool kRippleReachByDefault = false;
+    static constexpr float kRippleMDefault = 21.0f;            ///< the default window's half: today's reach in a big pond; pinned
+    static constexpr float kRippleFadeMDefault = 8.0f;         ///< full detail to 13 m; pinned
+    /// rippleWindowSide(24) = 2 (216 + 40) = 512, the renderer's atlas side: beyond 24 m a point the fade shows could lie outside
+    /// the simulated window (the invariant WaterLocalityTest walks), so rippleM is clamped here
+    static constexpr float kRippleMMax = 24.0f;
+    static constexpr float kRippleDropM = 4.0f;                ///< a layer is dropped beyond rippleM + this (made within rippleM); cost only
+    static constexpr int kRippleMoveCells = 36;                ///< a window moves when its wanted origin is more than this off (4 m)
+    /// the window's margin past the reach: kRippleMoveCells of hysteresis, 1 for the viewer's floor, 2 of absorbing rim
+    /// (RippleLayer) and the facets' neighbour read (water_surface.frag) - the derivation is in 43.2, the walk in the unit test
+    static constexpr int kRippleWindowMarginCells = 40;
+
     float drawM = kDrawMDefault;
     int rippleWindowCells = kRippleWindowCellsDefault;
+    bool rippleReach = kRippleReachByDefault;
+    float rippleM = kRippleMDefault;
+    float rippleFadeM = kRippleFadeMDefault;
     float memoryM = kMemoryMDefault;
     float memoryCapMb = kMemoryCapMbDefault;
     bool testKeepMemoryOff = false;   ///< 41 TEST: free at sleep as before L3 (the control); never saved, echoed
@@ -61,6 +81,47 @@ struct WaterLocality {
         if (d >= farM) return 0.0f;
         const float t = (d - nearM) / (farM - nearM);
         return 1.0f - t * t * (3.0f - 2.0f * t);
+    }
+
+    /// L2 (43.2): a ripple window's side (1/9 m lattice cells) with the reach on - every point within rippleM of the viewer is
+    /// inside it after any move. `margin` is the test's handle (the red: without the hysteresis term).
+    static int rippleWindowSide(float rippleM, int margin = kRippleWindowMarginCells) {
+        const int reach = static_cast<int>(std::ceil(9.0f * std::clamp(rippleM, 0.0f, kRippleMMax)));
+        return std::min(2 * (reach + margin), kRippleWindowCellsMax);
+    }
+    /// The window placement (one rule for the manager and the test): the origin a window of lnx x lnz cells over the box [minVoxel,
+    /// maxVoxel] takes, given where it is (`cur`, `has` = it exists) and the viewer. Off (`reachRule` false, exactly as before L2):
+    /// the wanted origin is centred on the viewer and clamped to the box, and the window moves when that is more than
+    /// kRippleMoveCells off. With the reach on, the move compares the UNCLAMPED wanted origin: near a box edge the clamped one can
+    /// sit kRippleMoveCells off the viewer's side, which uncovers the reach (found by the walk, 43.4).
+    static glm::ivec2 rippleWindowOrigin(bool has, const glm::ivec2& cur, const glm::vec3& viewer, const glm::ivec3& minVoxel,
+                                         const glm::ivec3& maxVoxel, int lnx, int lnz, bool reachRule) {
+        const glm::ivec2 lo(minVoxel.x * 9, minVoxel.z * 9);
+        const glm::ivec2 hi((maxVoxel.x + 1) * 9 - lnx, (maxVoxel.z + 1) * 9 - lnz);
+        const glm::ivec2 raw(static_cast<int>(std::floor(viewer.x * 9.0f)) - lnx / 2, static_cast<int>(std::floor(viewer.z * 9.0f)) - lnz / 2);
+        const glm::ivec2 want = glm::clamp(raw, lo, glm::max(lo, hi));
+        if (!has) return want;
+        const glm::ivec2 off = reachRule ? raw - cur : want - cur;
+        if (std::abs(off.x) > kRippleMoveCells || std::abs(off.y) > kRippleMoveCells) return want;
+        return cur;
+    }
+    /// L2 (43.2): which waiting ponds take the free ripple slots first - nearest (horizontal, to the box) first, ties by the box's
+    /// position (lo x, z, y), never the list's order. Returns indices into `boxes` in that order.
+    static std::vector<size_t> nearestFirst(const std::vector<std::pair<glm::ivec3, glm::ivec3>>& boxes, const glm::vec3& viewer) {
+        std::vector<size_t> o(boxes.size());
+        std::vector<float> d(boxes.size());
+        for (size_t i = 0; i < boxes.size(); ++i) {
+            o[i] = i;
+            d[i] = horizontalDistanceToBox(viewer, glm::vec2(boxes[i].first.x, boxes[i].first.z), glm::vec2(boxes[i].second.x + 1, boxes[i].second.z + 1));
+        }
+        std::sort(o.begin(), o.end(), [&](size_t a, size_t b) {
+            if (d[a] != d[b]) return d[a] < d[b];
+            const glm::ivec3 &p = boxes[a].first, &q = boxes[b].first;
+            if (p.x != q.x) return p.x < q.x;
+            if (p.z != q.z) return p.z < q.z;
+            return p.y < q.y;
+        });
+        return o;
     }
 
     /// L3 (41): one kept set, as the release rule sees it
