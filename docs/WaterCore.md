@@ -9073,7 +9073,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | L5 | **The outcome check (§30.0b rule 2, 39.3 item 1):** one rig and test runs the same interaction near the camera and far (and at each tier). The body's rest pose (1 mm), its time to rest, the pond's mass and its rest level must match | BUILT, not signed off (§40.3): `tools/water_l5_outcome.py`; 14 near / 7 far / 2 red runs. Far matches near within the near runs' own spread; the red sinks the wood 1.27 m and is caught. Two of 40's tolerances could not hold (the wood's drift and the stone's time to rest vary run to run), so the tolerance is the measured spread. Its statistic was fixed in §40.4 (a spread fence plus a leave-one-out self-check; 9 of 10 far runs pass, 16 of 17 near runs pass) | the guard for L2-L4 and every tier knob: before any distance or tier saving is built |
 | L6 | **One reader for a slept pond** (found in L5, §40.3): near the viewer debris reads a slept pond through the record's draw tile, far through the span cache. They agree today (0 of 16 columns differ). Pin it with an equality test (runs and bottoms, column for column), or make debris read the span cache only | BUILT, not signed off (§40.4): worse than found - the draw tile's ±64 m height band made a deep pool read dry near the viewer. Bodies now read the span cache only; red/green unit test, L5 rerun green | the viewer must never pick which water a body reads |
 | L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | BUILT, not signed off (41.5: the pit's wake frame 90-127 -> 56-76 ms; L5 8 of 9 kept runs pass, one watched) | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
-| L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | designed (39.2), not built | the stall's last part, without changing any outcome |
+| L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | BUILT, off by default, not signed off (42.5: due before contact, all wakes - D7; pit wake frame 34 -> 12 ms; L5 6 of 6, red caught) | the stall's last part, without changing any outcome |
 | L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | not designed | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
@@ -10694,7 +10694,7 @@ the pooled FRESH near runs (`l5_l3_vs_pooled.json`: 17 from 40.3-40.4 plus 3 run
 **Not measured:** a quiet machine's numbers (rerun when the GPU is idle); the memory the rest of the engine had while 256 MB were
 held (no device budget query in the engine).
 
-## 42. L4 - pace a far wake (§30.4 L4). Status: MEASURING (39.3 item 1 first)
+## 42. L4 - pace a far wake (§30.4 L4). Status: BUILT, OFF by default, not signed off (42.5; scope D7 awaits the owner)
 
 L4 would spread a far pond's wake over several frames. Before it is designed, 39.3 item 1 and 41.5's watched run ask the same
 question: **does a late wake change where things end up?** If it does, a paced wake changes outcomes by distance, which §30.0b
@@ -10817,6 +10817,65 @@ Checked first: the touch list is the bodies INSIDE the water's boxes, slept boxe
    empty-and-not-resident case returns the box to `m_slept` with its retry, as today.
 8. **(h) One tail, not two.** `create` is split so the immediate path and the job run the same code (partial wake, tall band,
    record tiles, `noSleepBefore`, `refreshBoxes`, L3's adoption); the equality test guards it.
+
+### 42.5 L4 built (2026-10-28). Status: BUILT, OFF by default, not signed off (D7's scope is the owner's)
+
+**Built.**
+- `create` = `buildCpu` + `buildGpu` + `adopt` (the immediate path runs them in a row; a paced wake in frames). `seedAv` seeds a volume
+  not yet in `m_avs`; `applySleptSettings` is what `wakeSlept` set by id. `WaterCoreGpu::upload` = `uploadPrepare` (the host work into
+  staging) + `uploadSubmit` (the copies and fills).
+- A touch with `wake_pace` on starts a `WakeJob` (`startWakeJob`): six stages (CPU volume, GPU volume, settings + seed, upload
+  prepare, upload submit, live), pumped by `wakeSleptTouching` / `wakeSleptNear` under `wake_budget_ms`, at least one stage a frame.
+  The box stays in `m_slept` marked `waking` (saved, drawn, read as slept; L3's kept set moves into the job).
+- The deadline: `secondsToWater` (free fall from centre.y − |halfExtents| to the box's highest recorded top), due at half of it, in
+  the debris solver's ticks (`setPhysicsClock(totalTicks, SOLVER_TICK_DT)`, set by the editor each frame), the minimum over the
+  moving bodies AND every body in the boxes (the editor passes both). A due job runs the rest at once; a blast makes it due now; a
+  body at the water, no record, a CPU or FLIP volume, no clock: today's immediate wake.
+- At live: the occupancy changes since the build's read (`m_changes`, inside the box) and the record (re-read, compared run for run);
+  if either changed, the built volume's memory is kept (L3) and the wake runs immediately (`rebuilt`). A job whose box is gone
+  (load, world switch, a new volume over it) is dropped (`updateKeptMemory`).
+- API: `water_coupling {wake_pace, wake_budget_ms, test_pace_late}`; `slept.paced` (started, live, forced by the deadline, immediate,
+  rebuilt, cancelled, stages, the longest stage, the last job's total, building, the last deadline). `water_l5_outcome.py --wake-pace
+  [--pace-late]` records each run's paced counts.
+
+**Tests** (gates: unit water + debris 384/384; integration water 71/73, the known two).
+- `WaterRecordedPondTest.APacedWakeMakesTheSamePondAsAnImmediateOne` (GPU): the 8 x 8 m pond, a stone 1.4 m above it; immediate and
+  paced at the smallest budget: live after 6 frames, 6 stages, the longest 6.1 ms, due in 0.267 s, not forced; then one step, a
+  kick, 39 steps: **the written record equal byte for byte** (63.999975 m^3 both), and the kick moved the water.
+- `...APacedWakeRebuildsWhenTheRecordChangesAndABodyAtTheWaterIsImmediate` (GPU): two columns drained after the seed (64 -> 62 m^3):
+  rebuilt 1, the woken pond holds 62.0000 m^3; drained before the seed, nothing is stale (the seed read it) - found while writing the
+  test. A stone at the water wakes at once (`immediate` 1, no job).
+- `...TheFrameAfterAPacedWakeDrawsTheUploadedState` (GPU, 42.4 item 3): equal.
+- `WaterWakePace.TheDefaultsArePinned`, `...TheTimeToTheWaterIsAFreeFallFromTheLowestPoint` (unit).
+- Not tested: a voxel edited inside the box during the build (the test rig's occupancy has no revision query; the code path is the
+  record's, with `m_changes` in place of the re-read).
+
+**L5 live** (Release, Small bench, `l5_l4_paced.json`, `l5_l4_red.json`, judged in `l5_l4_paced_vs_pooled.json` against the 20 fresh
+near runs): **paced 6 of 6 pass** (near x 3 on kept memory, far x 3 fresh; each started 1, live 1, forced 0, due 0.167 s - sooner
+than half of 0.45 s: the rotated bound puts the lowest point lower, and the touch list is ~2 frames old). **The red 3 of 3 fail**
+(`--pace-late`: live 0.3 s after contact; the stone +17 / +17 mm, the wood 5-6 mm high, rest times as 42.2's late runs). Nothing
+rose.
+
+**Measured** (`water_a3_cost.py --only wake`, `wake_pace` alternated on / off / on / off in ONE session, `a3_cost_l4_cost_*.json`;
+the machine was quiet this time: ~300 fps, GPU 1.2 ms a frame):
+
+| the worst frame over the wake window | immediate (off) | paced (on) |
+|---|---|---|
+| small pond | 10.6-11.4 ms (4 wakes) | **5.5-7.1 ms** (4) |
+| 8 m pit | 34.2-34.5 ms (4) | **12.1-12.3 ms** (4) |
+
+All 17 paced wakes of the session went live in time (0 forced, 0 immediate, 0 rebuilt); the longest stage 10.7 ms (the pit's upload
+host work, as 42.3 predicted it would be the largest), a pit job ~28 ms in total over its frames. Also: on this quiet machine the
+immediate pit wake frame is 34 ms against 39.10's 57-60 ms before L3 - L3's saving, seen without 41.5's noise (not alternated with
+L3 off, so an estimate).
+
+**What it says.** Pacing takes the pit's wake frame from 34 to 12 ms and the small pond's from 11 to 6 ms, and changes no outcome L5
+measures. What is left in the worst frame is the largest single stage. At 120 fps (8.3 ms) the pit's 10.7 ms stage is still one long
+frame; splitting the upload's host work (as the occupancy read was, 39.5) is the next lever if wanted.
+
+**`stages` counts loop passes**, including the red's hold frames (1,612 in this session), not distinct stages; a later fix.
+
+**Not measured:** a wake with many bodies arriving at once (the stress row); ten ponds in one frame; the far scope alone (D7).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

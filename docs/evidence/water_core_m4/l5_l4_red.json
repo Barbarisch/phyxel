@@ -1,0 +1,1285 @@
+{
+ "status": {
+  "build_config": "Release"
+ },
+ "y0": 17.67666666666667,
+ "runs": [
+  {
+   "run": "near_a",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 23.999998092651367,
+   "level": 16.5,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.018,
+      15.1663,
+      14.018
+     ],
+     "rest_t": 1.5667,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1817
+    },
+    "wood": {
+     "rest_pose": [
+      103.021,
+      16.4368,
+      14.0224
+     ],
+     "rest_t": 3.5833,
+     "y_max": 17.6767,
+     "y_min": 16.0636,
+     "rows": 1816
+    }
+   },
+   "pond": [
+    {
+     "t": 0.02,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 0.53,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 1.05,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 1.55,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.07,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.59,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.11,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.61,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.11,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.64,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.16,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.68,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.19,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.69,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.2,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.7,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.21,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.73,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.25,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 9.75,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.28,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.79,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.3,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.82,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.32,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.85,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.35,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.86,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.36,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.87,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.37,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.89,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.39,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.9,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.41,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.91,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.41,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.93,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.45,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.96,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.49,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.02,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.53,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.04,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.56,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.07,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.59,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.09,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.59,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.1,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.6,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.12,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.62,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.15,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.65,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.15,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.67,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.19,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.7,
+     "volumes": 0,
+     "mass": null
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 153,
+    "buffers_allocated": 923,
+    "held_bytes": 12574480,
+    "hits": 3,
+    "kept": 7,
+    "last_sleep_free_ms": 0.2959,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.2496,
+    "misses": 3,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 3,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": true,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 6.7798,
+    "due_s": 0.1666666753590107
+   }
+  },
+  {
+   "run": "near_b",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000003814697266,
+   "level": 16.500001907348633,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.017,
+      15.1663,
+      14.0169
+     ],
+     "rest_t": 1.5667,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1811
+    },
+    "wood": {
+     "rest_pose": [
+      103.021,
+      16.4379,
+      14.0221
+     ],
+     "rest_t": 3.6,
+     "y_max": 17.674,
+     "y_min": 16.0605,
+     "rows": 1810
+    }
+   },
+   "pond": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 0.53,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 1.04,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 1.57,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.08,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.58,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.11,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.61,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.13,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.65,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.15,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.65,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.17,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.68,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.18,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.7,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.21,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.74,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 9.24,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 9.74,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.24,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.75,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.26,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.77,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.28,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.79,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.31,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.81,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.34,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.85,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.35,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.87,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.38,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.89,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.41,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.91,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.42,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.92,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.44,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.94,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.45,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.96,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.47,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.97,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.47,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.97,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.48,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.99,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.5,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.02,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.54,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.05,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.57,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.07,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.6,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.1,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.62,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.13,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.65,
+     "volumes": 0,
+     "mass": null
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 204,
+    "buffers_allocated": 1034,
+    "held_bytes": 12574480,
+    "hits": 4,
+    "kept": 9,
+    "last_sleep_free_ms": 0.2855,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.2496,
+    "misses": 3,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 4,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": true,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 6.7798,
+    "due_s": 0.1666666753590107
+   }
+  },
+  {
+   "run": "near_c",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000001907348633,
+   "level": 16.500001907348633,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.017,
+      15.1663,
+      14.0169
+     ],
+     "rest_t": 1.5667,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1817
+    },
+    "wood": {
+     "rest_pose": [
+      103.021,
+      16.4371,
+      14.0224
+     ],
+     "rest_t": 3.6,
+     "y_max": 17.6767,
+     "y_min": 16.0605,
+     "rows": 1817
+    }
+   },
+   "pond": [
+    {
+     "t": 0.01,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 0.52,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 1.02,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 1.54,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.05,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 2.57,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.1,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 3.6,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.12,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 4.63,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.15,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 5.65,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.18,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 6.68,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.19,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 7.7,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.22,
+     "volumes": 1,
+     "mass": 24.000000536441807
+    },
+    {
+     "t": 8.73,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 9.25,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 9.76,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.27,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 10.79,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.3,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 11.82,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.33,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 12.83,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.35,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 13.85,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.37,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 14.88,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.38,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 15.9,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.4,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 16.91,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.42,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 17.93,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.43,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 18.95,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.46,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 19.97,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 20.48,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.0,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 21.52,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.04,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 22.54,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.04,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 23.56,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.08,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 24.59,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.11,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 25.63,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.15,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 26.66,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.16,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 27.68,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.18,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 28.7,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.22,
+     "volumes": 0,
+     "mass": null
+    },
+    {
+     "t": 29.72,
+     "volumes": 0,
+     "mass": null
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 255,
+    "buffers_allocated": 1141,
+    "held_bytes": 12574480,
+    "hits": 5,
+    "kept": 11,
+    "last_sleep_free_ms": 0.3128,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.2777,
+    "misses": 3,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 5,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": true,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 6.7798,
+    "due_s": 0.1666666753590107
+   }
+  }
+ ],
+ "compare": [
+  {
+   "run": "near_b",
+   "vs": "near_a",
+   "stone": {
+    "pose_mm": 1.1,
+    "horiz_mm": 1.49,
+    "dy_mm": 0.0,
+    "rest_ticks": 0,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 1.1,
+    "horiz_mm": 0.3,
+    "dy_mm": 1.1,
+    "rest_ticks": 1,
+    "rose_above_release": false
+   },
+   "m3": 1e-05,
+   "level_mm": 0.0
+  },
+  {
+   "run": "near_c",
+   "vs": "near_a",
+   "stone": {
+    "pose_mm": 1.1,
+    "horiz_mm": 1.49,
+    "dy_mm": 0.0,
+    "rest_ticks": 0,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 0.3,
+    "horiz_mm": 0.0,
+    "dy_mm": 0.3,
+    "rest_ticks": 1,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": 0.0
+  }
+ ],
+ "verdict": {
+  "near_runs": [
+   "near_a",
+   "near_b",
+   "near_c"
+  ],
+  "spread": {
+   "m3": {
+    "min": 23.999998092651367,
+    "max": 24.000003814697266,
+    "tol": 1.57220458984375e-05
+   },
+   "level": {
+    "min": 16.5,
+    "max": 16.500001907348633,
+    "tol": 0.0001019073486328125
+   },
+   "stone_x": {
+    "min": 101.017,
+    "max": 101.018,
+    "tol": 0.002000000000004775
+   },
+   "stone_y": {
+    "min": 15.1663,
+    "max": 15.1663,
+    "tol": 0.0001
+   },
+   "stone_z": {
+    "min": 14.0169,
+    "max": 14.018,
+    "tol": 0.002100000000000989
+   },
+   "stone_rest_t": {
+    "min": 1.5667,
+    "max": 1.5667,
+    "tol": 0.016833333333333332
+   },
+   "wood_x": {
+    "min": 103.021,
+    "max": 103.021,
+    "tol": 0.001
+   },
+   "wood_y": {
+    "min": 16.4368,
+    "max": 16.4379,
+    "tol": 0.0011999999999974364
+   },
+   "wood_z": {
+    "min": 14.0221,
+    "max": 14.0224,
+    "tol": 0.0012999999999993008
+   },
+   "wood_rest_t": {
+    "min": 3.5833,
+    "max": 3.6,
+    "tol": 0.03353333333333349
+   }
+  },
+  "runs": {},
+  "wake_paths": {
+   "near_a": "kept",
+   "near_b": "kept",
+   "near_c": "kept"
+  },
+  "self_check": {
+   "note": "fewer than four near runs: no leave-one-out check (pool sessions with --rejudge a,b,...)"
+  }
+ }
+}
