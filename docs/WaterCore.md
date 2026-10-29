@@ -10877,6 +10877,122 @@ frame; splitting the upload's host work (as the occupancy read was, 39.5) is the
 
 **Not measured:** a wake with many bodies arriving at once (the stress row); ten ponds in one frame; the far scope alone (D7).
 
+## 43. L2 - ripple detail by distance (§30.4 L2). Status: MEASURED, DESIGNED (43.2), not built
+
+### 43.1 Measured first (2026-10-29, Release, WaterBench_Creek): the ripples cost per layer, not per cell, and little
+
+The plan's premise: "a big awake pond pays for ripples nobody sees". `tools/water_l2_ripple_cost.py` (new): the 60 x 28 m lake of
+27.24, awake (auto-sleep off), a 1/3 m Stone dropped 1 m every 0.25 s within 10 m of the camera (the rings stay awake), each
+condition a fresh lake, the order interleaved, twice, 10 s windows (`l2_cost_baseline.json`):
+
+| ripple window | cells | the layer's CPU / frame (`ripples.2`) | fps | CPU frame median |
+|---|---|---|---|---|
+| ripples off (the control) | 0 | 0 | 124.1, 123.3 | 8.48, 8.69 ms |
+| 128 x 128 | 16,384 | 0.34 ms | 123.9, 117.0 | 8.63, 9.18 |
+| 256 x 252 | 64,512 | 0.37-0.38 | 118.1, 119.7 | 9.02, 9.06 |
+| 384 x 252 (the default) | 96,768 | 0.40 | 118.3, 118.2 | 8.73, 8.96 |
+| 512 x 252 | 129,024 | 0.43 | 119.6, 121.4 | 9.00, 8.95 |
+
+An 8x larger window adds 0.09 ms; the GPU step reads 0.08-0.3 ms a frame (one frame's `gpu_ms`, noisy), and the GPU frame median
+does not move (4.9 ms in every condition). Split (`water_render_core` in_update, `l2_cost_four_ponds.json`, alternated twice):
+
+| rig | ripple CPU / frame | of it: the mask | collect | the layer's record | submit | fps |
+|---|---|---|---|---|---|---|
+| the one 60 x 28 m pond, stones in it | 0.51 ms | **0.33** | 0.08 | 0.05 | 0.04 | 131 (off: 141-147) |
+| four 15 x 28 m ponds, stones in one (three layers asleep) | 0.13 ms all four | 0.03 | 0.03 | 0.04 | 0.03 | 185 (off: 187-190) |
+
+**What it says.** A sleeping layer costs almost nothing, so a quiet pond far away has nothing to save. A disturbed pond's layer costs
+~0.1-0.5 ms CPU + ~0.1-0.3 ms GPU, most of it the mask rebuild in a big pond (the whole window re-masked whenever one column's wet
+flag flips - `stepRipples`; a cost of its own, not distance: found, not L2). So L2's saving is per DISTURBED pond beyond the reach,
+~0.2-0.7 ms of the whole frame each - small. Its other reasons are the look: (1) a pond larger than the window has a hard edge where
+the facets stop (17-25 m from the viewer, by where the window last moved) - a band, against §30.0b rule 4; (2) only four layers
+exist (`kRippleMaxLayers`, the renderer's atlas) and they go first come, refusal sticky - a fifth pond near the player gets no
+ripples while a far one holds a slot.
+
+**Found while measuring (tools, fixed):** (a) `water_bench.Api` on `http://localhost` cost **2.05 s a call** (IPv6 first, the engine
+listens on IPv4): every polling tool sampled once per 2 s. It now uses 127.0.0.1. Past results that rest on the engine's own
+counters (the particle log's ticks, `frame_ms_max_since_last_read`, the host profile) are unaffected; a tool's own sample count
+was 2 s coarse. (b) `water_ripples` computes its shape stats when asked: ~0.1 s on the main thread, a ~115 ms frame each call -
+never poll it inside a cost window.
+
+### 43.2 The design
+
+**One rule for the look, a pure function of world position and the viewer.** With L2 on, the ripple layer's tilt and height at a
+point are scaled by `detail(d, ripple_m - ripple_fade_m, ripple_m)` (L1's smoothstep), d = the HORIZONTAL distance from the water's
+viewer (L1: the camera, or the test viewer) to the point. In `water_surface.frag`, from one header vec4 `fade = (viewer x, viewer z,
+near, far)` beside the layers' geo / meta (far <= 0 = off, weight 1). No chunk, tile, window or volume enters it.
+
+**Every point the fade can show is simulated** (the invariant that makes the cost rule invisible):
+- *The window.* With L2 on, a layer's side is derived: n = 2 (ceil(9 ripple_m) + 40) cells (36 cells of move hysteresis, 1 of
+  floor, 3 of absorbing rim and the facets' neighbour read), clamped to the box (a pond that fits stays whole) and to 512 (the
+  atlas). So ripple_m is clamped to 0..24 m (512 = 2 (216 + 40)). The reason is written at the clamp.
+- *The pond.* A pond whose box lies farther than ripple_m from the viewer (horizontal, its nearest point - L1's box distance) has no
+  layer: made when it comes within ripple_m, dropped beyond ripple_m + 4 m (hysteresis, cost only). Every point of such a pond is
+  beyond ripple_m, so its weight is 0 either way.
+- *The slots.* A layer is no longer refused for good: a pond within reach waits while four are held and takes a freed slot, the
+  nearest waiting first (ties by the box's position, never the list's order - L3's rule). A held slot is never taken away (that
+  would pop a visible pond's rings).
+
+**Outcomes.** Ripples move no mass (22) and nothing reads them but the draw and one rule: a pond does not sleep while its rings run
+(`update`, 21/22 F5). A far pond has no rings, so it may sleep sooner than the same pond near the viewer. The water is at rest
+either way (the sleep test), so the rest level and mass should not move; L5 (near against far, L2 on) is the gate.
+
+**Switch and API.** Off by default, so nothing changes until the owner sees it (`kRippleReachByDefault = false`, pinned). Off is
+exactly today: a 384-cell window (`ripple_window_cells`), no fade, first-come slots. `water_locality {ripple_reach, ripple_m,
+ripple_fade_m}`; omitted = unchanged; ripple_m clamped 0..24 (the atlas, above), fade 0..ripple_m; echoed with the derived window
+side. Defaults, the owner's to change: ripple_m 21 m (the default window's half, today's reach in a big pond), fade 8 m (full to
+13 m). At 1080p and a 60° vertical view a 1/9 m facet seen face-on is ~9 px at 13 m and ~5 px at 21 m (fewer at a grazing angle):
+visible, which is why the reach is a look call.
+
+**Tiers (cost and look only):** moonshot 24 m (the atlas limit), 120: 21, 60: 16, 30: 10 m (not measured per tier).
+
+**Tests (planned).**
+- Unit (`WaterLocalityTest`, pure helpers `rippleWindowSide`, `rippleWindowOrigin`): (1) the defaults and clamps pinned; (2) **the
+  invariant**: along random viewer walks (steps 0.1-6 m, negative coordinates, boxes smaller and larger than the window, the viewer
+  inside and outside), every lattice cell inside the box within ripple_m of the viewer lies inside the window, after every move;
+  red: the window side without the hysteresis term fails it; (3) **40.1 item 8's equality test**: one pond against the same water
+  as two abutting volumes across x = 0 (a chunk seam at negative coordinates): every column's drawn weight (fade x simulated) is
+  equal, and 0 wherever a pond has no layer.
+- GPU integration: a pond beyond the reach has no layer and no device state; it comes within reach and gets one; five ponds within
+  reach, four slots: the nearest waiting takes the freed slot.
+- Live: L5 with L2 on, near and far (outcome, against the pooled near runs); the cost rig of 43.1 with stones in all four ponds and
+  the viewer by one (on / off alternated, whole frame); the look: a debug capture of the ripple height (`water_render_core {debug:
+  7}`, tonemap off, gdigrab - `/api/screenshot` omits pond water) on the lake, the mean |ripple| in 1 m rings of distance - on: falls
+  to 0 between 13 and 21 m without a step; off (the control): a step at the window edge; then a fly-away clip in motion for the
+  owner (on / off side by side).
+- Stress: eight ponds within reach (four slots), the viewer flown past them 50 times (layers made and dropped, device states freed:
+  `RippleGpu` holds none for a dropped layer), ripple_m 0 (no ripples anywhere), ripple_m 24 (the 512 window), fade = ripple_m.
+
+**Not in L2:** the mask rebuild (43.1, a cost of its own), creeks' moving window beyond the fade (the creek keeps its window; it is
+faded the same way), the old water paths (`water_cell`, `water.frag`).
+
+### 43.3 The design check (2026-10-29): NEEDS WORK, eight items, folded in here (these override 43.2 where they differ)
+
+1. **The moonshot is capped by the atlas, not by sight.** With L2 on, no ripples beyond 24 m anywhere - a small pond that fits its
+   window shows rings at any distance today (~4 px facets at 30 m). That is the price of a look that is a pure function of the viewer
+   (a per-pond reach would differ between one volume and two over the same water). The owner's call; going farther needs a coarser
+   far layer (a 1/3 m lattice beyond the fine one), not in L2.
+2. **Found: a layer's draw index is the volume's index in `m_avs`** (`field.rippleLayer = i`; the shader and `writeRipples` stop at
+   8), so a volume at index >= 8 never draws its ripples even with a layer. L2 maps the header index to the SLOT (0..3). Slot
+   contention (more than four ponds within reach) is the one place appearance still depends on history: declared here, counted and
+   echoed (`waiting`), tested (five ponds, created in both orders: the same ponds hold slots).
+3. **The equality test compares the drawn WEIGHT** (fade x simulated), which is what L2 adds. Ring STATE does not cross two abutting
+   volumes today (each layer's border absorbs) - an existing defect, logged here, not claimed covered.
+4. **The header changes for everyone** (a vec4 before the heights): `.spv` rebuilt and committed (`shader_manifest --check`), and the
+   OFF look checked unchanged - a before/after capture at the bench pose against the run-to-run spread (L1's check).
+5. **The echo** carries the derived window side, slots held / waiting, `RippleGpu` device states held; with reach on it says
+   `ripple_window_cells` is derived (not silently ignored).
+6. **The profile rig:** the 22.11 `pattern` (a uniform tilt - slope everywhere, no stones) on a 30 x 30 m pond inside ONE chunk (it
+   fits the window: no window edge), the test viewer 5 m off its bank (distances 5-47 m), the camera fixed; the ripple tap read
+   AFTER the fade (debug 7 extended to the slope), tonemap curve 0, gdigrab. Prediction ON: the tap's mean per 1 m distance ring
+   follows the smoothstep 13 -> 21 m within one grey level, 0 beyond; control OFF: flat to the far bank. The window-edge claim on
+   the creek-bench lake (two chunks wide: stated): OFF a step at the window edge, ON none.
+7. **L5 records the pond's time to sleep** (the quantity L2 can change; predicted sooner far, nothing else moving) and runs at
+   ripple_m 0, 21 and 24 (the tier values change which ponds have layers, so each must keep the outcome).
+8. **Stress** adds eight ponds (the old index limit) and the device states freed after 50 fly-bys (from the echo).
+
+Verdict after folding: READY to build, OFF by default; the reach defaults and item 1 are the owner's.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

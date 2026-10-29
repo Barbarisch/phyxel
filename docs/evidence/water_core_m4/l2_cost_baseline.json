@@ -1,0 +1,348 @@
+{
+ "build": "Release",
+ "seconds": 10.0,
+ "rows": [
+  {
+   "cond": "384",
+   "fps_mean": 118.3,
+   "cpu_frame_ms_median": 8.728,
+   "frame_ms_max": 19.11,
+   "gpu_frame_ms_median": 4.913,
+   "gpu_frame_ms_max": 6.014,
+   "ripple_surface_read_ms": 0.037,
+   "ripple_layers_ms": 0.4,
+   "ripple_gpu_ms_end": 0.15,
+   "ripple_cells": 96768,
+   "ripple_awake_end": 1,
+   "layers": 1,
+   "drops": 40
+  },
+  {
+   "cond": "off",
+   "fps_mean": 124.1,
+   "cpu_frame_ms_median": 8.476,
+   "frame_ms_max": 19.3,
+   "gpu_frame_ms_median": 4.905,
+   "gpu_frame_ms_max": 6.223,
+   "ripple_surface_read_ms": 0.0,
+   "ripple_layers_ms": 0.0,
+   "ripple_gpu_ms_end": 0.231,
+   "ripple_cells": 0,
+   "ripple_awake_end": 0,
+   "layers": 0,
+   "drops": 40
+  },
+  {
+   "cond": "128",
+   "fps_mean": 123.9,
+   "cpu_frame_ms_median": 8.632,
+   "frame_ms_max": 18.45,
+   "gpu_frame_ms_median": 4.945,
+   "gpu_frame_ms_max": 5.648,
+   "ripple_surface_read_ms": 0.122,
+   "ripple_layers_ms": 0.337,
+   "ripple_gpu_ms_end": 0.082,
+   "ripple_cells": 16384,
+   "ripple_awake_end": 1,
+   "layers": 1,
+   "drops": 40
+  },
+  {
+   "cond": "512",
+   "fps_mean": 119.6,
+   "cpu_frame_ms_median": 8.998,
+   "frame_ms_max": 21.48,
+   "gpu_frame_ms_median": 4.949,
+   "gpu_frame_ms_max": 5.708,
+   "ripple_surface_read_ms": 0.035,
+   "ripple_layers_ms": 0.432,
+   "ripple_gpu_ms_end": 0.191,
+   "ripple_cells": 129024,
+   "ripple_awake_end": 1,
+   "layers": 1,
+   "drops": 40
+  },
+  {
+   "cond": "256",
+   "fps_mean": 118.1,
+   "cpu_frame_ms_median": 9.019,
+   "frame_ms_max": 19.74,
+   "gpu_frame_ms_median": 4.907,
+   "gpu_frame_ms_max": 6.273,
+   "ripple_surface_read_ms": 0.025,
+   "ripple_layers_ms": 0.374,
+   "ripple_gpu_ms_end": 0.272,
+   "ripple_cells": 64512,
+   "ripple_awake_end": 1,
+   "layers": 1,
+   "drops": 40
+  },
+  {
+   "cond": "256",
+   "fps_mean": 119.7,
+   "cpu_frame_ms_median": 9.059,
+   "frame_ms_max": 18.31,
+   "gpu_frame_ms_median": 4.921,
+   "gpu_frame_ms_max": 5.809,
+   "ripple_surface_read_ms": 0.04,
+   "ripple_layers_ms": 0.38,
+   "ripple_gpu_ms_end": 0.122,
+   "ripple_cells": 64512,
+   "ripple_awake_end": 1,
+   "layers": 1,
+   "drops": 40
+  },
+  {
+   "cond": "512",
+   "fps_mean": 121.4,
+   "cpu_frame_ms_median": 8.946,
+   "frame_ms_max": 21.6,
+   "gpu_frame_ms_median": 4.956,
+   "gpu_frame_ms_max": 5.848,
+   "ripple_surface_read_ms": 0.041,
+   "ripple_layers_ms": 0.431,
+   "ripple_gpu_ms_end": 0.195,
+   "ripple_cells": 129024,
+   "ripple_awake_end": 1,
+   "layers": 1,
+   "drops": 40
+  },
+  {
+   "cond": "128",
+   "fps_mean": 117.0,
+   "cpu_frame_ms_median": 9.182,
+   "frame_ms_max": 19.48,
+   "gpu_frame_ms_median": 5.075,
+   "gpu_frame_ms_max": 5.587,
+   "ripple_surface_read_ms": 0.065,
+   "ripple_layers_ms": 0.339,
+   "ripple_gpu_ms_end": 0.144,
+   "ripple_cells": 16384,
+   "ripple_awake_end": 1,
+   "layers": 1,
+   "drops": 40
+  },
+  {
+   "cond": "off",
+   "fps_mean": 123.3,
+   "cpu_frame_ms_median": 8.685,
+   "frame_ms_max": 20.65,
+   "gpu_frame_ms_median": 4.905,
+   "gpu_frame_ms_max": 6.495,
+   "ripple_surface_read_ms": 0.0,
+   "ripple_layers_ms": 0.0,
+   "ripple_gpu_ms_end": 0.142,
+   "ripple_cells": 0,
+   "ripple_awake_end": 0,
+   "layers": 0,
+   "drops": 40
+  },
+  {
+   "cond": "384",
+   "fps_mean": 118.2,
+   "cpu_frame_ms_median": 8.96,
+   "frame_ms_max": 19.59,
+   "gpu_frame_ms_median": 4.957,
+   "gpu_frame_ms_max": 5.689,
+   "ripple_surface_read_ms": 0.018,
+   "ripple_layers_ms": 0.401,
+   "ripple_gpu_ms_end": 0.23,
+   "ripple_cells": 96768,
+   "ripple_awake_end": 1,
+   "layers": 1,
+   "drops": 40
+  }
+ ],
+ "summary": {
+  "384": {
+   "fps_mean": [
+    118.3,
+    118.2
+   ],
+   "cpu_frame_ms_median": [
+    8.728,
+    8.96
+   ],
+   "frame_ms_max": [
+    19.11,
+    19.59
+   ],
+   "gpu_frame_ms_median": [
+    4.913,
+    4.957
+   ],
+   "ripple_layers_ms": [
+    0.4,
+    0.401
+   ],
+   "ripple_surface_read_ms": [
+    0.037,
+    0.018
+   ],
+   "ripple_gpu_ms_end": [
+    0.15,
+    0.23
+   ],
+   "ripple_awake_end": [
+    1,
+    1
+   ],
+   "ripple_cells": [
+    96768,
+    96768
+   ]
+  },
+  "off": {
+   "fps_mean": [
+    124.1,
+    123.3
+   ],
+   "cpu_frame_ms_median": [
+    8.476,
+    8.685
+   ],
+   "frame_ms_max": [
+    19.3,
+    20.65
+   ],
+   "gpu_frame_ms_median": [
+    4.905,
+    4.905
+   ],
+   "ripple_layers_ms": [
+    0.0,
+    0.0
+   ],
+   "ripple_surface_read_ms": [
+    0.0,
+    0.0
+   ],
+   "ripple_gpu_ms_end": [
+    0.231,
+    0.142
+   ],
+   "ripple_awake_end": [
+    0,
+    0
+   ],
+   "ripple_cells": [
+    0,
+    0
+   ]
+  },
+  "128": {
+   "fps_mean": [
+    123.9,
+    117.0
+   ],
+   "cpu_frame_ms_median": [
+    8.632,
+    9.182
+   ],
+   "frame_ms_max": [
+    18.45,
+    19.48
+   ],
+   "gpu_frame_ms_median": [
+    4.945,
+    5.075
+   ],
+   "ripple_layers_ms": [
+    0.337,
+    0.339
+   ],
+   "ripple_surface_read_ms": [
+    0.122,
+    0.065
+   ],
+   "ripple_gpu_ms_end": [
+    0.082,
+    0.144
+   ],
+   "ripple_awake_end": [
+    1,
+    1
+   ],
+   "ripple_cells": [
+    16384,
+    16384
+   ]
+  },
+  "512": {
+   "fps_mean": [
+    119.6,
+    121.4
+   ],
+   "cpu_frame_ms_median": [
+    8.998,
+    8.946
+   ],
+   "frame_ms_max": [
+    21.48,
+    21.6
+   ],
+   "gpu_frame_ms_median": [
+    4.949,
+    4.956
+   ],
+   "ripple_layers_ms": [
+    0.432,
+    0.431
+   ],
+   "ripple_surface_read_ms": [
+    0.035,
+    0.041
+   ],
+   "ripple_gpu_ms_end": [
+    0.191,
+    0.195
+   ],
+   "ripple_awake_end": [
+    1,
+    1
+   ],
+   "ripple_cells": [
+    129024,
+    129024
+   ]
+  },
+  "256": {
+   "fps_mean": [
+    118.1,
+    119.7
+   ],
+   "cpu_frame_ms_median": [
+    9.019,
+    9.059
+   ],
+   "frame_ms_max": [
+    19.74,
+    18.31
+   ],
+   "gpu_frame_ms_median": [
+    4.907,
+    4.921
+   ],
+   "ripple_layers_ms": [
+    0.374,
+    0.38
+   ],
+   "ripple_surface_read_ms": [
+    0.025,
+    0.04
+   ],
+   "ripple_gpu_ms_end": [
+    0.272,
+    0.122
+   ],
+   "ripple_awake_end": [
+    1,
+    1
+   ],
+   "ripple_cells": [
+    64512,
+    64512
+   ]
+  }
+ }
+}

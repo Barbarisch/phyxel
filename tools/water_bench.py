@@ -35,7 +35,9 @@ EVIDENCE = ROOT / "docs" / "evidence" / "water_v4_benches.json"
 # ---------------------------------------------------------------- HTTP ------------------------
 class Api:
     def __init__(self, url):
-        self.url = url.rstrip("/")
+        # WaterCore 43.1: "localhost" resolves to IPv6 first and the engine listens on IPv4 only - 2.05 s a call on this machine,
+        # which made every polling tool sample once per 2 s (and its "per frame" windows coarse). The loopback address directly.
+        self.url = url.rstrip("/").replace("://localhost", "://127.0.0.1")
 
     def _req(self, method, path, body=None, timeout=60):
         data = None if body is None else json.dumps(body).encode()
