@@ -298,6 +298,9 @@ public:
     static void setRasterSegmentCapForTesting(size_t cap);
     /// FNV-1a over toJson().dump() — the realization ledger stores this to detect plan drift.
     uint64_t planHash() const;
+    /// The identity hash of a plan record (toJson() shape) with the diagnostics stripped —
+    /// planHash() is identityHash(toJson()); exposed so a test can hash an edited record.
+    static uint64_t identityHash(nlohmann::json record);
 
 private:
     WorldForgePlan() = default;

@@ -949,3 +949,106 @@ Stated limit of the three census bounds: a drift smaller than the bound (10 % wa
 [==========] 53 tests from 6 test suites ran. (1517259 ms total)
 [  PASSED  ] 53 tests.
 EXIT 0 2026-10-29 12:48:40
+
+=== RELEASE L4 #2 on MountainLab - PREDICTION (written 2026-10-29 before the run; owner "keep going"; the Release engine rebuilt from the committed source 95acdb91 first - the 2026-10-28 13:15 exe predates the census and section changes) ===
+Script m4b4_l4.sh Release m4b4b (fresh DB; one heavy process; if the harness kills it again it is NOT restarted).
+P1 plan hash 5206963220949148767 again, 13 roads, 17 demands refused of which 5 for a cut with the same five faces (52-78 u): the identity hash strips the census and nothing in the routing changed since the first L4's engine.
+P2 the census totals CHANGE (the first L4's 30 827 / 99 587 were the fabricated centreline census): walled_u total 20 000-30 000 u (the test fixture's walled length moved 33 447 -> 27 068 under the final rule), rock_u total below 99 587, section_u reported, rock_u <= section_u on every road (0 roads with rock > section).
+P3 deepest cut face 47.1 u (unchanged: the judge did not change).
+P4 screenshots at the deepest walled cut of a realized road (the pick): a Cobblestone wall band no taller than 3 u at the road edge on the uphill side with its set-back coping, a grey Stone face above it, a bank meeting the natural ground within ~15 u of the road - no sheer earth cliff; the downhill side plain.
+
+=== RELEASE L4 #2 RESULT (2026-10-29 13:21-13:25, Release phyxel.exe built 13:20:47 from 95acdb91, fresh DB; raw m4b4_l4_m4b4b_{status,plan}.json, m4b4_l4_m4b4b_pick.txt, minimap, 3 screenshots; run log m4b4_l4b_run.txt) ===
+P1 MISSED: plan hash 11627274365696686169, not 5206963220949148767 - with 13 roads whose a/b/class/centerline/grade summary are IDENTICAL to L4 #1's JSON, identical sites, refusals (17, 5 for a cut, the same five faces) and params; the only road fields that differ are walled_u / rock_u / section_u (diffed road by road, scratch script). Cause (code read, planHash): the M4b-4 census fields are hashed - I had put them in the identity on purpose ("walls change what is emitted") - so the census RULE change moved an unchanged plan's hash, the M0 / M2b-2 / M4b-3 precedent exactly. Every version-2 ledger baked before 2026-10-29 is marked stale by it. Fix = the census stripped from the identity (follow-up 3 below); the hash moves ONCE more to its census-free value.
+P2 HELD: walled_u total 24 799 u (predicted 20 000-30 000), rock_u 54 825 u (< 99 587), section_u 92 165 u, 0 of 13 roads with rock_u > section_u.
+P3 HELD: deepest cut face 47.1 u at (-5078,7104) on road -1 -> 0 class 1 (the same pick as L4 #1).
+P4 NOT SETTLED by the three captures: at 40 u off the road the side views show stepped snow terraces, a line of grey coursed blocks stepping along the road edge (cut_side1) and a brown face beside a thin dark band (cut_sidem1); the top-down view (cut_along) shows the road with grey bands either side. Nothing in them is identified as THE wall or THE rock face by measurement - a close, measured cross-section (every column's resident surface and top material along the road normal) is the next run (L4 #3), on the hash-fixed engine.
+Engine log: [EARTHWORK] lines refused for a cut beyond 47.4 u: 23; plan baked twice in the boot (12.1 s, 6.0 s), same hash both times.
+
+=== FOLLOW-UP 3: the plan hash ignores the earthwork census (2026-10-29; chain m4b4_hash_chain.sh, patch S; logs m4b4_build_34/35.txt, m4b4_hash_red.txt, m4b4_hash_green.txt) ===
+RED (patch S red = WorldForgePlan::identityHash(json) factored out of planHash, behaviour unchanged, + the test WorldForgeStressTest.PlanHashIgnoresTheEarthworkCensus): a version-1 Perlin record with the six census fields added, and again with them changed, must hash the same as without them; control: an edited grade summary must move the hash.
+START 2026-10-29 13:29:43
+patched engine/include/core/WorldForgePlan.h
+patched engine/src/core/WorldForgePlan.cpp
+patched tests/core/WorldForgeStressTest.cpp
+PATCH S red OK
+red exit 1 2026-10-29 13:34:25
+patched engine/src/core/WorldForgePlan.cpp
+PATCH S green OK
+green exit 0 2026-10-29 13:34:39
+sha WorldForgePlan.cpp 451256b90add1a5f
+CHAIN DONE 2026-10-29 13:34:39
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgeStressTest.cpp(224): error: Expected equality of these values:
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\WorldForgeStressTest.cpp(226): error: Expected equality of these values:
+[  FAILED  ] WorldForgeStressTest.PlanHashIgnoresTheEarthworkCensus (1244 ms)
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] WorldForgeStressTest.PlanHashIgnoresTheEarthworkCensus
+EXIT 1 2026-10-29 13:34:25
+GREEN (patch S green = the six census fields erased in identityHash, next to the M4b-3 switchback erasures): the test passes and the pinned version-1 hashes are unchanged (9693137997320541182 / 18197215997962677593).
+[       OK ] WorldForgeStressTest.PlanHashIgnoresTheEarthworkCensus (1214 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[       OK ] WorldForgeStressTest.VersionOnePlanHashesArePinned (1641 ms)
+[  PASSED  ] 2 tests.
+EXIT 0 2026-10-29 13:34:39
+Consequence, stated: version-2 plan hashes move ONCE more (MountainLab 11627274365696686169 -> the census-free value, measured in L4 #3); ledgers baked before this build are stale by hash and must re-bake - the version-1 pinned hashes do not move because version-1 records never carried the census.
+
+=== RELEASE L4 #3 on MountainLab (2026-10-29 13:38-13:45, Release phyxel.exe rebuilt 13:38:13 with follow-up 3 on the 95acdb91 tree; the DB from L4 #2 kept; raw m4b4_l4_m4b4c_{status,plan}.json, m4b4_l4_m4b4c_section.txt, 2 screenshots; run log m4b4_l4c_run.txt) ===
+Plan hash 5761560679695978727 = the census-free identity (from 11627274365696686169), the same on both in-boot bakes (12.0 s / 6.1 s) and in worldforge_status on the kept DB; census totals unchanged (walled 24 799 / rock 54 825 / section 92 165 u, deepest 47.1 u, 17 refused).
+THE GENERATOR PROFILE across the deepest walled cut (-5078,7104), road -1 -> 0 class 1, along the road normal (0.042,0.999), terrain_height source=generator: road 296 at -1..+1 u; 299 at +-2..4 u (= grade + wallTierU 3, three columns = ceil(0.67 x 3) thick) on BOTH sides - a cutting through a ridge; +5 u: 324 (a 25 u face above the wall top = the rock band; the Debug fixture's tallest was 29 u); +6..+24 u: 325 -> 342 at ~0.72 per column (repose 0.70 + rounding); -5..-24 u: 301 -> 308 -> 303 (the lower side's bank, meeting its natural).
+MISS, instrument: the RESIDENT scan (terrain_height source=chunks) returned null on every column - the API's default max_y is 255 and the surface is at 296; the single voxel GET at (-5078,296,7104) answered exists:true material Dirt, so the chunks were resident. Repeated as L4 #4 with max_y=420 and the voxel materials per column.
+Screenshots: wall_across (camera at (-5078,299,7100), on the lower wall's top course looking at the uphill side) shows coursed Cobblestone wall faces with the coping step and dressed grey Stone beyond; wall_along (camera inside the rock band at (-5068,300,7107)) is unusable - the pose formula put the camera 3 u off the road edge at +4 u, inside the face. Road-level poses in L4 #4.
+
+=== RELEASE L4 #4 on MountainLab (2026-10-29 13:50-13:56, the same Release exe 13:38:13, the kept DB; raw m4b4_l4_m4b4d_voxels.txt, 2 screenshots; run log m4b4_l4d_run.txt) ===
+THE RESIDENT VOXELS across the deepest walled cut (-5078,7104) along the road normal, terrain_height source=chunks max_y=420 + GET /api/world/voxel per column - the resident surface equals the generator's on all 23 columns:
+  road (-1..+1 u): Dirt at 294-296, air above (the road surface 296);
+  wall band both sides (+-2..4 u, 3 columns): Cobblestone courses at 297 and 298, the 299 layer reported as a non-cube (the subcube coping), air above - a 3 u tier (wallTierU) ceil(0.67 x 3) = 3 columns thick;
+  the rock column (+5 u, (-5078,7109)): Stone from 297 to 320 (24 voxels, the rock band from the wall top to the face top), then Dirt 321-323 and Snow 324 (the soil cap above rockTopY, the column's natural surface layers), air at 325;
+  the bank beyond (+6..+12 u): surface 325 -> 330 rising ~0.7-1 per column (repose 0.70 + rounding), natural Dirt/Snow (one Stone-topped column at +6 where the face top meets the bank);
+  the lower side (-5..-10 u): 301 -> 304, natural Dirt/Snow with Stone at -5/-6 (the lower side's short rock lip, 2 u), meeting its natural at 304.
+  6 columns with Cobblestone at the surface (3 per side). Plan hash 5761560679695978727 on the kept DB (stable across boots).
+-10 |  -5078   7094 | 304 (304) | 302:Dirt 303:Dirt 304:Snow 305:.
+  -9 |  -5078   7095 | 304 (304) | 302:Dirt 303:Dirt 304:Snow 305:.
+  -8 |  -5078   7096 | 303 (303) | 301:Dirt 302:Dirt 303:Snow 304:.
+  -7 |  -5078   7097 | 302 (302) | 300:Dirt 301:Dirt 302:Snow 303:.
+  -6 |  -5078   7098 | 302 (302) | 300:Stone 301:Stone 302:Snow 303:.
+  -5 |  -5078   7099 | 301 (301) | 299:Dirt 300:Stone 301:Stone 302:.
+  -4 |  -5078   7100 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+  -3 |  -5078   7101 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+  -2 |  -5078   7102 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+  -1 |  -5078   7103 | 296 (296) | 294:Dirt 295:Dirt 296:Dirt 297:.
+   0 |  -5078   7104 | 296 (296) | 294:Dirt 295:Dirt 296:Dirt 297:.
+   1 |  -5078   7105 | 296 (296) | 294:Dirt 295:Dirt 296:Dirt 297:.
+   2 |  -5078   7106 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+   3 |  -5078   7107 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+   4 |  -5078   7108 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+   5 |  -5078   7109 | 324 (324) | 322:Dirt 323:Dirt 324:Snow 325:.
+   6 |  -5078   7110 | 325 (325) | 323:Stone 324:Stone 325:Stone 326:.
+   7 |  -5078   7111 | 325 (325) | 323:Dirt 324:Dirt 325:Snow 326:.
+   8 |  -5078   7112 | 326 (326) | 324:Dirt 325:Dirt 326:Snow 327:.
+   9 |  -5078   7113 | 327 (327) | 325:Dirt 326:Dirt 327:Snow 328:.
+  10 |  -5078   7114 | 328 (328) | 326:Dirt 327:Dirt 328:Snow 329:.
+  11 |  -5078   7115 | 328 (328) | 326:Dirt 327:Dirt 328:Snow 329:.
+  12 |  -5077   7116 | 330 (330) | 328:Dirt 329:Dirt 330:Snow 331:.
+columns with a Cobblestone voxel at the surface: 6
+rock column -5078 7109 297:Stone 298:Stone 299:Stone 300:Stone 301:Stone 302:Stone 303:Stone 304:Stone 305:Stone 306:Stone 307:Stone 308:Stone 309:Stone 310:Stone 311:Stone 312:Stone 313:Stone 314:Stone 315:Stone 316:Stone 317:Stone 318:Stone 319:Stone 320:Stone 321:Dirt 322:Dirt 323:Dirt 324:Snow 325:. 326:.
+Screenshots road_along / road_uphill (camera on the road centre at 298): taken at in-game NIGHT (the day cycle had advanced during the four boots) - the cutting's walls and rock faces are visible but dark; the Properties panel confirms Cobblestone under the cursor at (-5082,296,7102) and (-5079,297,7106). A daylight capture at the same poses follows (L4 #5) after the GREEN 16 run (one heavy process at a time).
+
+=== GREEN 16 (2026-10-29 13:57-14:22, the full WorldForge set on the hash-fixed source, shas logged before the run; m4b4_green16.txt) ===
+GREEN 16 source: sha WorldForgePlan.cpp 451256b90add1a5f EarthworkTest.cpp d3f2aef20f27d380 WorldForgeStressTest.cpp 010a4b1807c68e4b exe 2026-10-29_13:34:32 2026-10-29 13:57:02
+full set exit 0 2026-10-29 14:22:12
+[ M4b-4 ] Mountains 424242: 17875 vertices, deepest centreline cut 46.1 u, deepest FACE 47.1 u, 0 beyond the bound 47.4 u (bank 8.4 + tier 3 + precedent 36); walled 27068 u, rock-faced 59815 u of road; 7 demands refused for a cut, 19 refused in all
+[ M4b-4 ] Mountains road -1 -> 0: 28998 steps; emitted walls on 3062 steps vs walled_u 3102 (x0.99), emitted rock on 6376 steps vs rock_u 6444 (x0.99), a wall or a rock face on 6867 steps; earthwork sections (gradeBlendAt at the band, banks included) on 10466 steps vs section_u 10442 (x1.00)
+[ RUN      ] WorldForgeStressTest.PlanHashIgnoresTheEarthworkCensus
+[       OK ] WorldForgeStressTest.PlanHashIgnoresTheEarthworkCensus (578 ms)
+[D10 plan] Perlin 20260816: 8 sites, 18 roads, 0 bridges, hash 9693137997320541182
+[D10 plan] Mountains 424242: 8 sites, 10 roads, 3 bridges, hash 18197215997962677593
+[==========] 54 tests from 6 test suites ran. (1509811 ms total)
+[  PASSED  ] 54 tests.
+EXIT 0 2026-10-29 14:22:12
+54 of 54 (the new PlanHashIgnoresTheEarthworkCensus included); every M4b-4 figure identical to GREEN 15.
+
+=== RELEASE L4 #5 on MountainLab (2026-10-29 14:23-14:26, the same Release exe 13:38:13, the kept DB, day cycle pinned at 12:00 paused via /api/daynight/set; m4b4_l4_m4b4e_{road_along,road_uphill,ridge_across}.png; run log m4b4_l4e_run.txt) ===
+Plan hash 5761560679695978727 again on the kept DB. Daylight captures at the deepest walled cut (-5078,7104): road_along from the road centre 2 u up along the road; road_uphill from the road centre facing the uphill tier and rock face; ridge_across from 14 u off the road on the lower side, 12 u up, looking across the cutting. What they show is written in the plan's L4 paragraph after viewing; the measurement is L4 #4's voxel census, not the pictures.
+
+=== AUDIT 5 (2026-10-29, solution-auditor on the follow-up 3 working tree + L4 #2-#5: PASS, no blocking items) ===
+Checked by reading: the three MountainLab plan JSONs equal once the six census keys are removed; the red's two failing EXPECT_EQ (census edits) with the refactor's own equality passing; the grade-summary control; GREEN 16's shas against the current files; the voxel file against every plan figure; the predictions and the recorded miss; no census-as-identity wording left; no MUTATION marker in engine/. Stated limit: PlanHashIgnoresTheEarthworkCensus injects the census fields into a version-1 record (version-1 plans never carry them) - the real version-2 case is the L4 hash chain 5206963220949148767 -> 11627274365696686169 -> 5761560679695978727 (stable across boots after the fix). Optional wording cleanups (GREEN 1-14 heading, "four runs") applied.

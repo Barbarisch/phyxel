@@ -1933,7 +1933,7 @@ nlohmann::json WorldForgePlan::toJson() const {
         nlohmann::json rj = {{"a", r.a}, {"b", r.b}, {"class", r.cls}, {"switchbacks", r.switchbacks}, {"switchback_length_u", r.switchbackLengthU},
                              {"points", static_cast<int>(r.centerline.size())},
                              {"centerline", line}, {"crossings", crossings}, {"grade", grade}};
-        if (m_blendGrades) {   // M4b-4: the earthwork census (part of the identity: walls change what is emitted)
+        if (m_blendGrades) {   // M4b-4: the earthwork census (reported, never hashed - see identityHash)
             rj["walled_u"] = std::round(r.walledLengthU);
             rj["rock_u"] = std::round(r.rockLengthU);
             rj["section_u"] = std::round(r.sectionLengthU);
@@ -1965,12 +1965,13 @@ nlohmann::json WorldForgePlan::toJson() const {
     return j;
 }
 
-uint64_t WorldForgePlan::planHash() const {
+uint64_t WorldForgePlan::planHash() const { return identityHash(toJson()); }
+
+uint64_t WorldForgePlan::identityHash(nlohmann::json j) {
     // Plan IDENTITY only: diagnostics (raster_truncated_segments) are reported, never hashed.
     // Hashing the whole record moved every plan's hash when that field was added (M0 L4,
     // 2026-10-14: the lab's F7 hash 9693137997320541182 -> 10638243061351388589 on an
     // unchanged recipe), which marks every earlier ledger stale.
-    nlohmann::json j = toJson();
     j.erase("raster_truncated_segments");
     // M2b-2 added `carved` to every crossing record (2026-10-20) and silently moved every
     // version-1 plan's hash the same way (Mountains 424242: 18197215997962677593 ->
@@ -1981,6 +1982,11 @@ uint64_t WorldForgePlan::planHash() const {
         for (auto& road : j["roads"]) {
             road.erase("switchbacks");           // M4b-3 diagnostics: reported, never hashed (the pinned
             road.erase("switchback_length_u");   // version-1 hashes moved when they were added, 2026-10-26)
+            // M4b-4 earthwork census: a measurement of what the section rule emits, not an input to
+            // it (the grade summary above carries the identity) - the census rule's change moved an
+            // unchanged MountainLab plan 5206963220949148767 -> 11627274365696686169 (L4, 2026-10-29).
+            for (const char* k : {"walled_u", "rock_u", "section_u", "deepest_cut_u", "deepest_cut_x", "deepest_cut_z"})
+                road.erase(k);
             if (road.contains("crossings"))
                 for (auto& c : road["crossings"]) c.erase("carved");
         }

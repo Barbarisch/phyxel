@@ -200,6 +200,37 @@ TEST(WorldForgeStressTest, RoadStepProfileMeasuredOnMountains) {
 // version-1 bakes (Mountains 424242: 10 roads -> 13). A legitimate change to version-1 plans is
 // an owner decision (D10) and re-pins these numbers in the same commit.
 // ============================================================================
+// The plan hash is IDENTITY, never a measurement of the plan: the M4b-4 earthwork census
+// (walled_u / rock_u / section_u / deepest_cut_*) is a census of what the section rule emits,
+// not an input to it - when the census rule changed (2026-10-29, the MountainLab L4), the hash
+// of an unchanged plan moved 5206963220949148767 -> 11627274365696686169 with identical sites,
+// roads, centrelines, grades, crossings, refusals and params, marking every earlier version-2
+// ledger stale (the M0 raster_truncated_segments / M2b-2 carved / M4b-3 switchbacks precedent).
+// Red: an edited census moves the hash. Control: an edited grade summary (identity) must move it.
+TEST(WorldForgeStressTest, PlanHashIgnoresTheEarthworkCensus) {
+    WorldGenerator gen = makeForgeWorld(WorldGenerator::GenerationType::Perlin, 20260816,
+                                        8, 2048.0f, 400.0f);
+    ASSERT_NE(gen.worldForge(), nullptr);
+    const nlohmann::json j = gen.worldForge()->toJson();
+    ASSERT_FALSE(j["roads"].empty());
+    EXPECT_EQ(WorldForgePlan::identityHash(j), gen.worldForge()->planHash());
+    nlohmann::json census = j;   // the census fields as a version-2 record carries them
+    for (auto& road : census["roads"]) {
+        road["walled_u"] = 1234.0; road["rock_u"] = 2345.0; road["section_u"] = 3456.0;
+        road["deepest_cut_u"] = 45.6; road["deepest_cut_x"] = -5078.0; road["deepest_cut_z"] = 7104.0;
+    }
+    nlohmann::json census2 = census;
+    for (auto& road : census2["roads"]) { road["walled_u"] = 999.0; road["rock_u"] = 1.0; road["section_u"] = 2.0; }
+    EXPECT_EQ(WorldForgePlan::identityHash(census), WorldForgePlan::identityHash(j))
+        << "adding the earthwork census moved the plan's identity";
+    EXPECT_EQ(WorldForgePlan::identityHash(census2), WorldForgePlan::identityHash(j))
+        << "a changed earthwork census moved the plan's identity";
+    nlohmann::json graded = j;   // control: the grade summary IS identity (grading changes what is emitted)
+    graded["roads"][0]["grade"] = nlohmann::json::array({-1.0, 1.0, 0.5});
+    EXPECT_NE(WorldForgePlan::identityHash(graded), WorldForgePlan::identityHash(j))
+        << "the control: an edited grade summary must move the identity";
+}
+
 TEST(WorldForgeStressTest, VersionOnePlanHashesArePinned) {
     {
         WorldGenerator gen = makeForgeWorld(WorldGenerator::GenerationType::Perlin, 20260816,

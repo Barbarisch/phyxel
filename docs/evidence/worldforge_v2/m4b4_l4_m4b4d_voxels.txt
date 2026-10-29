@@ -1,0 +1,25 @@
+ -10 |  -5078   7094 | 304 (304) | 302:Dirt 303:Dirt 304:Snow 305:.
+  -9 |  -5078   7095 | 304 (304) | 302:Dirt 303:Dirt 304:Snow 305:.
+  -8 |  -5078   7096 | 303 (303) | 301:Dirt 302:Dirt 303:Snow 304:.
+  -7 |  -5078   7097 | 302 (302) | 300:Dirt 301:Dirt 302:Snow 303:.
+  -6 |  -5078   7098 | 302 (302) | 300:Stone 301:Stone 302:Snow 303:.
+  -5 |  -5078   7099 | 301 (301) | 299:Dirt 300:Stone 301:Stone 302:.
+  -4 |  -5078   7100 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+  -3 |  -5078   7101 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+  -2 |  -5078   7102 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+  -1 |  -5078   7103 | 296 (296) | 294:Dirt 295:Dirt 296:Dirt 297:.
+   0 |  -5078   7104 | 296 (296) | 294:Dirt 295:Dirt 296:Dirt 297:.
+   1 |  -5078   7105 | 296 (296) | 294:Dirt 295:Dirt 296:Dirt 297:.
+   2 |  -5078   7106 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+   3 |  -5078   7107 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+   4 |  -5078   7108 | 299 (299) | 297:Cobblestone 298:Cobblestone 299:None 300:.
+   5 |  -5078   7109 | 324 (324) | 322:Dirt 323:Dirt 324:Snow 325:.
+   6 |  -5078   7110 | 325 (325) | 323:Stone 324:Stone 325:Stone 326:.
+   7 |  -5078   7111 | 325 (325) | 323:Dirt 324:Dirt 325:Snow 326:.
+   8 |  -5078   7112 | 326 (326) | 324:Dirt 325:Dirt 326:Snow 327:.
+   9 |  -5078   7113 | 327 (327) | 325:Dirt 326:Dirt 327:Snow 328:.
+  10 |  -5078   7114 | 328 (328) | 326:Dirt 327:Dirt 328:Snow 329:.
+  11 |  -5078   7115 | 328 (328) | 326:Dirt 327:Dirt 328:Snow 329:.
+  12 |  -5077   7116 | 330 (330) | 328:Dirt 329:Dirt 330:Snow 331:.
+columns with a Cobblestone voxel at the surface: 6
+rock column -5078 7109 297:Stone 298:Stone 299:Stone 300:Stone 301:Stone 302:Stone 303:Stone 304:Stone 305:Stone 306:Stone 307:Stone 308:Stone 309:Stone 310:Stone 311:Stone 312:Stone 313:Stone 314:Stone 315:Stone 316:Stone 317:Stone 318:Stone 319:Stone 320:Stone 321:Dirt 322:Dirt 323:Dirt 324:Snow 325:. 326:.

@@ -1,0 +1,10 @@
+keys: ['applied', 'civ', 'corridors', 'plan', 'plan_hash', 'success'] hash 11627274365696686169
+params wallTierU 3.0 rockCutMaxU 36.0 bridgeMaxSpanU 25.0
+roads 13 walled_u total 24799 rock_u total 54825 section_u total 92165 deepest cut 47.099998474121094 roads with rock_u > section_u 0
+refused_demands 17 for a cut 5
+   -1 -> -1 class 2 at 7881 10793 : a walkable line needs a cut face of 63.748749 u at (7881.384277,10793.383789): beyond the bank limit 8.400000 + the wall
+   4 -> 0 class 1 at -5170 4786 : a walkable line needs a cut face of 58.149902 u at (-5169.627930,4785.627930): beyond the bank limit 8.400000 + the wall
+   -1 -> 0 class 1 at 8368 -8488 : a walkable line needs a cut face of 59.648071 u at (8368.153320,-8488.077148): beyond the bank limit 8.400000 + the wall
+   -1 -> 0 class 1 at 10328 -4772 : a walkable line needs a cut face of 52.150696 u at (10328.148438,-4772.222656): beyond the bank limit 8.400000 + the wal
+   -1 -> 0 class 1 at 10275 -10455 : a walkable line needs a cut face of 78.164093 u at (10274.525391,-10455.299805): beyond the bank limit 8.400000 + the wa
+PICK -5078 7104 47.1 -1 0 1 0.042 0.999
