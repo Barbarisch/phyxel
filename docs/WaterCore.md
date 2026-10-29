@@ -9092,6 +9092,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | D4 | 2026-10-24 | M4 and §32 were reported with fps only. The push windows' own cost was not separated, and the wake hitch was measured in a test, not live | `PerformanceTiers.md` rule 4: the CPU frame, the GPU frame, fps and the feature's own share, plus what was not measured | none beyond speed | nobody | **no good reason.** Remedy: A3 measured them, 2026-10-25 (32.3). CLOSED |
 | D6 | 2026-10-25 | During A3's cost runs the agent alternated the push with the OLD floating rule (`pressure_force:false`) as a control, on the owner's visible bench, without warning. Blocks were launched | rule 4 of `PerformanceTiers.md` asked for the push's own cost, and an on/off comparison was the agent's choice of method | none good: a control must itself be physically sane | nobody | **no good reason.** Owner: "in no circumstance should we be running code that results in voxels floating up as if gravity turned off". Remedy: the off rule is refused by the API, the tools compare against fewer or no bodies, the push's own share comes from timers, and A2g makes the fallback safe (built 2026-10-25, §33). CLOSED |
 | D5 | 2026-10-24 | The agent recommended wading as the next step without it being in the plan | the old §30 had no physics order | the plan had no physics order to recommend from | not needed: it was a recommendation | now A4 of the plan. CLOSED |
+| D7 | 2026-10-28 | L4 is designed to pace EVERY wake (near and far), not only a far one (42.3) | L4: "pace a far wake" | 42.2 measured that the wake's timing changes nothing until a body reaches the water, and nothing shows on the water before that either, so a paced wake within the body's deadline needs no distance to be safe; pacing only far wakes would leave the near hitch, the one the player sees, in place | the agent; **the owner's call** (scope): pacing applies to all wakes unless the owner says far only (`wake_pace_near` would then be a knob) | OPEN: awaiting the owner |
 
 ### 30.6 The plan-check log (newest last)
 
@@ -10736,6 +10737,86 @@ are kept). The measurement did not depend on it (the reference is fresh; L3's ke
 deadline belongs to the body (its time to the surface), never to the viewer or a frame budget: when the deadline arrives, the rest of
 the wake runs at once. Then the outcome is the same near and far, and the pacing changes only which frames pay. A body that touches
 the water as it enters the box (no time to the surface) gets today's immediate wake. L4 is designed on that rule (42.3, next).
+
+### 42.3 The design: a wake in stages, due before the first body reaches the water
+
+**Scope (drift D7, the owner's call):** every wake, near or far. Nothing about it reads the viewer.
+
+**The job.** A touch no longer runs `wakeSlept` whole in one frame. It starts a wake job (`m_waking`) holding the slept box, its
+deadline and the volume being made. The job runs the wake's existing stages in order, one or more a frame, under a per-frame budget:
+1. the CPU side: grid + solver + the occupancy read (`create` without its GPU part);
+2. the GPU volume (`createVolume`, on kept memory where L3 kept it);
+3. the seed (`seedFromSpans`);
+4. the upload's host work into staging (max speed, host occupancy, residency, clear, scatter: `upload` split at its submit, the
+   pit's ~15 ms);
+5. the submit (the copies and fills);
+6. the surface for the first draw (the CPU extraction the upload frame paid, 39.9);
+7. live: the volume joins `m_avs`, exactly as a wake today (its first step finds nothing to upload).
+
+Until 7 the volume is not in `m_avs`: bodies read the record, the record draws the pond, nothing steps, nothing changes. The pond
+is just still asleep. At 7, the occupancy is refreshed by revision (`refreshOccupancy`: a world edit during the build is caught,
+and if anything changed the volume uploads again at its first step, as any edit does), and the span revision is compared with the
+seed's (a record write during the build re-seeds).
+
+**The deadline** (pure, unit-tested): for each body touching the box, the time until its lowest point can reach the highest
+recorded water top in the box: bottom b = centre.y − |halfExtents| (any orientation), vertical speed v, free fall
+t = (v + √(v² + 2g(b − top))) / g; 0 if b ≤ top. The job is due at `now + 0.5 t` (42.2: a 0.4 s late wake passed with contact at
+0.45 s), the minimum over every body, re-taken each frame (a body that arrives later, or is pushed faster, can only bring it
+forward). When the job is due, its remaining stages run at once, in that frame. A blast (`wakeSleptNear`), a body already at the
+water (t = 0), pacing off, and any wake the job cannot pace (a CPU volume) take today's path.
+
+**Why the outcome cannot move.** The stages are the same calls in the same order on the same data; the volume goes live before any
+body reaches the water (the deadline), which 42.2 measured to be outcome-neutral; and a change to the world or the record during the
+build is caught at stage 7.
+
+**Knobs (tiers) and API.** `water_coupling {wake_pace, wake_budget_ms}`: on / off (default **off** until the owner's sign-off),
+and the frame's budget for wake stages (default 2 ms, the 120 fps share; clamped 0.5..33 ms; at least one stage runs a frame, so a
+stage larger than the budget still finishes). Echo `slept.paced`: jobs started, finished in time, finished by the deadline (the
+remaining stages forced), started immediate (no time), stages run, the longest stage, the worst wake frame. A job is saved with the
+slept boxes (a save mid-build keeps the pond), dropped by a load or a world switch.
+
+| tier | `wake_budget_ms` | the player gives up | cost (predicted) |
+|---|---|---|---|
+| above 120 / 120 | 2 | nothing | the pit's wake frame ~56-76 -> the largest stage, ~15 ms (the upload's host work) until that is split too |
+| 60 | 4 | nothing | as above |
+| 30 | 8 | nothing | as above |
+
+Every tier wakes the same water at a moment before contact; the budget decides only which frames pay.
+
+**Tests.**
+- Equality (GPU): the same slept pond and body, woken immediately and paced (one stage a frame), stepped 40 ticks after live: the
+  written record byte-equal. With a voxel edited during the build: equal to an immediate wake with the same edit before it.
+- The deadline (unit): free fall, a rising body, a body at the water, the minimum over bodies, a body arriving later.
+- Red: `s_paceIgnoresDeadlineForTest` (the job paced past contact): L5 must fail it as 42.2's 0.5 s runs failed.
+- Live: L5 (near x 3, far x 3, the red) with pacing on; the cost tool's worst wake frame, pacing on vs off alternated in one session.
+- Stress: ten ponds touched in one frame (one budget shared, in deadline order); a body dropped at the surface (immediate); a body
+  entering a pond being built from the side.
+
+**Not covered:** splitting a stage itself (the pit's upload host work stays one ~15 ms stage; split later, like the occupancy read,
+if the measurement says so); CPU-backend volumes.
+
+### 42.4 The design check (2026-10-28): NEEDS WORK, eight items, folded in here (these override 42.3 where they differ)
+
+Checked first: the touch list is the bodies INSIDE the water's boxes, slept boxes included (`GpuParticlePhysics::wetBodies`,
+`setWaterVolumeBoxes`), not only bodies already in water, so the wake does fire as a body enters the box (42.2's premise).
+
+1. **(a)** `wake_pace` (off) and `wake_budget_ms` (2) are pinned by a unit test in the same commit.
+2. **(b) The red must go live after contact.** One stage a frame finishes in ~0.12 s at 60 fps, before contact at 0.45 s, so
+   "ignore the deadline" would pass. `s_paceLateForTest` holds the job until the deadline + 0.3 s (42.2's failing case); L5 must
+   fail it.
+3. **(c) The first drawn frame.** A test that the first drawn field after going live equals the immediate path's (the
+   `TheFrameAfterAnUploadDrawsTheUploadedState` shape): stage 6 changes how that frame's surface is made.
+4. **(d) The deadline is in physics time.** The bodies move on the debris solver's ticks; after a long frame several ticks can
+   run at once, so a wall-clock deadline could fall after contact in simulated time. The job counts the debris solver's elapsed
+   simulated seconds (handed in each frame) and subtracts the touch list's age (`WetBody::ageSeconds`, ~2 frames).
+5. **(e) Every body in the box counts toward the deadline**, not only those moving fast enough to be in the touch list
+   (`kDisplaceOnSpeed`): a slow body already at the water makes the job due at once. Starting a job is unchanged (a moving body).
+6. **(f) L3's orphan sweep counts a job's box as slept**, or the kept set is freed before stage 2 can adopt it.
+7. **(g) A job's box is still a slept box** to `sleptVolumes`, `serializeSlept` and `sleptBoxesWorld` (which feeds
+   `setWaterVolumeBoxes`: without it the bodies leave the touch list mid-build). `loadSlept` / a world switch cancel jobs; stage 3's
+   empty-and-not-resident case returns the box to `m_slept` with its retry, as today.
+8. **(h) One tail, not two.** `create` is split so the immediate path and the job run the same code (partial wake, tall band,
+   record tiles, `noSleepBefore`, `refreshBoxes`, L3's adoption); the equality test guards it.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
