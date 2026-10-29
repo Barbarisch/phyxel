@@ -9722,7 +9722,31 @@ counter, noisy): left ~170-250, right ~190-570.
 more liquid like water. the right side of the video looks 'thicker' and definetly less dynamic and interesting." The LEFT half is
 displacement ON - the opposite of the 2026-10-25 call that made it off by default (33.1 / 34: "less chaotic and messy"). Recorded as
 said; the default is the owner's to change (asked, 2026-10-29). Its known price: the 1,100-block pit 75 vs 176 fps (34.2); the small
-pond's whole-frame cost with it on is not measured.
+pond's whole-frame cost with it on is not measured. The owner's answer: "On, but measure first" - 34.3.
+
+### 34.3 Displacement on vs off, whole frame (2026-10-29, Release, Small bench, `tools/water_displace_cost.py`, new)
+
+Each scene alternated on / off / off / on / on / off, a fresh scene each time (`displace_cost.json`). The pond is a play-like scene:
+the 4 x 4 m pond, three 1/3 m Wood blocks and a Stone dropped 1 m every 2.5 s (8 s lifetime), 12 s windows, the a2h camera. The pit
+is 34.2's worst case: 1,100 1/9 m Wood blocks into the 8 x 8 m S9 pit.
+
+| scene | displacement | fps mean | CPU frame (median; pit: mean) | worst frame | GPU frame median |
+|---|---|---|---|---|---|
+| pond | **on** | 222-227 | **4.52-4.65 ms** | **16.8-17.0 ms** | 1.40-1.47 ms |
+| pond | off (shipped) | 486-491 | 2.04-2.11 ms | 4.3-5.1 ms | 1.22-1.24 ms |
+| pit | **on** | 83-93 (min 59-61) | **11.9-12.7 ms** | - | **4.39-4.48 ms** |
+| pit | off (shipped) | 196-199 (min 68-76) | 6.4-6.6 ms | - | 1.16-1.19 ms |
+
+**What it costs:** in the play-like pond, ~2.5 ms of CPU a frame and ~0.2 ms of GPU, and a worst frame of ~17 ms (3-4x off's) - a
+hitch below 60 fps, three times in 12 s; where it comes from is not measured (the bodies' rasterizing and the volume's wake into
+motion are the suspects). The pond still runs ~225 fps on average, above every tier. The pit, on: ~88 fps, CPU ~12 ms, GPU ~4.4 ms -
+under the 120 tier; off: ~197 fps.
+
+**No block rose** where it was measured: the highest any matched body got after entry is 0.79-0.84 m BELOW its spawn, every run;
+rasterized <= windows at every sample, every run. **Gap:** after the first pit run the stress matched only 39-100 of the 1,100
+bodies to their spawn rows (1,000-1,061 "slots unmatched": the log has no row at the spawn height for them), so in runs 2-6 the
+rise check covered those few; run 1 (displacement on) matched all 1,100. The stress's slot matching across repeated runs in one
+session is a tool defect to fix before it is trusted for the rise again.
 
 **Gates:** unit water + debris 353/353; integration water 62/64 (the two known, `GpuFlipBulkParityAndRunup`,
 `ShortWaveMatchesAllFineAndTheBooksAreExact`). The whole integration exe also fails `SceneIntegrationTest` cases (at least three) ("Game definition

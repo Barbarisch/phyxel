@@ -1,0 +1,295 @@
+{
+ "build": "Release",
+ "order": [
+  "on",
+  "off",
+  "off",
+  "on",
+  "on",
+  "off"
+ ],
+ "rows": [
+  {
+   "scene": "pond",
+   "displace": "on",
+   "fps_mean": 226.5,
+   "cpu_frame_ms_median": 4.523,
+   "frame_ms_max": 17.04,
+   "gpu_frame_ms_median": 1.404,
+   "gpu_frame_ms_max": 2.761,
+   "water_gpu_device_ms_end": 0.703
+  },
+  {
+   "scene": "pond",
+   "displace": "off",
+   "fps_mean": 487.3,
+   "cpu_frame_ms_median": 2.106,
+   "frame_ms_max": 5.06,
+   "gpu_frame_ms_median": 1.229,
+   "gpu_frame_ms_max": 2.558,
+   "water_gpu_device_ms_end": 0.541
+  },
+  {
+   "scene": "pond",
+   "displace": "off",
+   "fps_mean": 490.6,
+   "cpu_frame_ms_median": 2.042,
+   "frame_ms_max": 4.32,
+   "gpu_frame_ms_median": 1.243,
+   "gpu_frame_ms_max": 2.469,
+   "water_gpu_device_ms_end": 0.736
+  },
+  {
+   "scene": "pond",
+   "displace": "on",
+   "fps_mean": 224.8,
+   "cpu_frame_ms_median": 4.559,
+   "frame_ms_max": 16.87,
+   "gpu_frame_ms_median": 1.469,
+   "gpu_frame_ms_max": 2.899,
+   "water_gpu_device_ms_end": 0.953
+  },
+  {
+   "scene": "pond",
+   "displace": "on",
+   "fps_mean": 222.4,
+   "cpu_frame_ms_median": 4.652,
+   "frame_ms_max": 16.82,
+   "gpu_frame_ms_median": 1.458,
+   "gpu_frame_ms_max": 2.801,
+   "water_gpu_device_ms_end": 0.667
+  },
+  {
+   "scene": "pond",
+   "displace": "off",
+   "fps_mean": 486.4,
+   "cpu_frame_ms_median": 2.079,
+   "frame_ms_max": 4.54,
+   "gpu_frame_ms_median": 1.22,
+   "gpu_frame_ms_max": 2.662,
+   "water_gpu_device_ms_end": 0.547
+  },
+  {
+   "scene": "pit",
+   "displace": "on",
+   "fps_mean": 88.9,
+   "fps_min": 60.758141992533666,
+   "cpu_frame_ms_mean": 11.891,
+   "gpu_frame_ms_median": 4.395,
+   "gpu_frame_ms_max": 5.226,
+   "max_rise_above_spawn_m": -0.8199000000000005,
+   "rasterized_le_windows": true,
+   "bodies": 1100
+  },
+  {
+   "scene": "pit",
+   "displace": "off",
+   "fps_mean": 199.4,
+   "fps_min": 70.16263571223344,
+   "cpu_frame_ms_mean": 6.56,
+   "gpu_frame_ms_median": 1.155,
+   "gpu_frame_ms_max": 5.992,
+   "max_rise_above_spawn_m": -0.8152000000000008,
+   "rasterized_le_windows": true,
+   "bodies": 1100
+  },
+  {
+   "scene": "pit",
+   "displace": "off",
+   "fps_mean": 197.4,
+   "fps_min": 76.38719121287706,
+   "cpu_frame_ms_mean": 6.389,
+   "gpu_frame_ms_median": 1.191,
+   "gpu_frame_ms_max": 6.024,
+   "max_rise_above_spawn_m": -0.7862000000000009,
+   "rasterized_le_windows": true,
+   "bodies": 1100
+  },
+  {
+   "scene": "pit",
+   "displace": "on",
+   "fps_mean": 83.1,
+   "fps_min": 59.28912496370843,
+   "cpu_frame_ms_mean": 12.664,
+   "gpu_frame_ms_median": 4.482,
+   "gpu_frame_ms_max": 5.409,
+   "max_rise_above_spawn_m": -0.8064,
+   "rasterized_le_windows": true,
+   "bodies": 1087
+  },
+  {
+   "scene": "pit",
+   "displace": "on",
+   "fps_mean": 92.8,
+   "fps_min": 60.62149283291827,
+   "cpu_frame_ms_mean": 11.956,
+   "gpu_frame_ms_median": 4.392,
+   "gpu_frame_ms_max": 5.297,
+   "max_rise_above_spawn_m": -0.8405999999999985,
+   "rasterized_le_windows": true,
+   "bodies": 1097
+  },
+  {
+   "scene": "pit",
+   "displace": "off",
+   "fps_mean": 195.6,
+   "fps_min": 68.35083280752922,
+   "cpu_frame_ms_mean": 6.581,
+   "gpu_frame_ms_median": 1.159,
+   "gpu_frame_ms_max": 5.827,
+   "max_rise_above_spawn_m": -0.8089999999999975,
+   "rasterized_le_windows": true,
+   "bodies": 1100
+  }
+ ],
+ "summary": {
+  "pond_on": {
+   "fps_mean": [
+    226.5,
+    224.8,
+    222.4
+   ],
+   "cpu_frame_ms_median": [
+    4.523,
+    4.559,
+    4.652
+   ],
+   "frame_ms_max": [
+    17.04,
+    16.87,
+    16.82
+   ],
+   "gpu_frame_ms_median": [
+    1.404,
+    1.469,
+    1.458
+   ],
+   "gpu_frame_ms_max": [
+    2.761,
+    2.899,
+    2.801
+   ],
+   "water_gpu_device_ms_end": [
+    0.703,
+    0.953,
+    0.667
+   ]
+  },
+  "pond_off": {
+   "fps_mean": [
+    487.3,
+    490.6,
+    486.4
+   ],
+   "cpu_frame_ms_median": [
+    2.106,
+    2.042,
+    2.079
+   ],
+   "frame_ms_max": [
+    5.06,
+    4.32,
+    4.54
+   ],
+   "gpu_frame_ms_median": [
+    1.229,
+    1.243,
+    1.22
+   ],
+   "gpu_frame_ms_max": [
+    2.558,
+    2.469,
+    2.662
+   ],
+   "water_gpu_device_ms_end": [
+    0.541,
+    0.736,
+    0.547
+   ]
+  },
+  "pit_on": {
+   "fps_mean": [
+    88.9,
+    83.1,
+    92.8
+   ],
+   "fps_min": [
+    60.758141992533666,
+    59.28912496370843,
+    60.62149283291827
+   ],
+   "cpu_frame_ms_mean": [
+    11.891,
+    12.664,
+    11.956
+   ],
+   "gpu_frame_ms_median": [
+    4.395,
+    4.482,
+    4.392
+   ],
+   "gpu_frame_ms_max": [
+    5.226,
+    5.409,
+    5.297
+   ],
+   "max_rise_above_spawn_m": [
+    -0.8199000000000005,
+    -0.8064,
+    -0.8405999999999985
+   ],
+   "rasterized_le_windows": [
+    true,
+    true,
+    true
+   ],
+   "bodies": [
+    1100,
+    1087,
+    1097
+   ]
+  },
+  "pit_off": {
+   "fps_mean": [
+    199.4,
+    197.4,
+    195.6
+   ],
+   "fps_min": [
+    70.16263571223344,
+    76.38719121287706,
+    68.35083280752922
+   ],
+   "cpu_frame_ms_mean": [
+    6.56,
+    6.389,
+    6.581
+   ],
+   "gpu_frame_ms_median": [
+    1.155,
+    1.191,
+    1.159
+   ],
+   "gpu_frame_ms_max": [
+    5.992,
+    6.024,
+    5.827
+   ],
+   "max_rise_above_spawn_m": [
+    -0.8152000000000008,
+    -0.7862000000000009,
+    -0.8089999999999975
+   ],
+   "rasterized_le_windows": [
+    true,
+    true,
+    true
+   ],
+   "bodies": [
+    1100,
+    1100,
+    1100
+   ]
+  }
+ }
+}
