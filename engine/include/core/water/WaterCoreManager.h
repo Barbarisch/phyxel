@@ -660,7 +660,7 @@ public:
     /// largest height is under `heightM`, they fade as e^(-a t) with a = ln(heightM / kSleepHeight) / seconds, so they reach
     /// the 0.2 mm sleep height in `seconds` and the pond sleeps. heightM 0 = off (today: the pond waits for the rings).
     struct RippleHandover {
-        static constexpr float kHeightMmDefault = 0.0f;   ///< off in the first build (45.1: waits for L5 and the owner); proposed 1.5
+        static constexpr float kHeightMmDefault = 1.5f;   ///< ON since 2026-10-29 (the owner: "sure", 45.5; L5 passed with it, 45.2)
         static constexpr float kHeightMmMin = 0.3f, kHeightMmMax = 5.0f;   ///< at or under the 0.2 mm sleep height the fade could never start
         static constexpr float kSecondsDefault = 1.5f, kSecondsMin = 0.25f, kSecondsMax = 10.0f;
         float heightM = kHeightMmDefault * 1e-3f, seconds = kSecondsDefault;

@@ -158,10 +158,10 @@ TEST(WaterRippleTest, ItSleeps) {
     EXPECT_EQ(layer.maxAbs(), 0.0f);
 }
 
-// A12 (45.1 item 4): the hand-over ships OFF until the owner has seen it (a pinned contract - flipping it updates this in the same commit)
-TEST(WaterRippleTest, TheHandOverIsOffByDefault) {
-    EXPECT_EQ(WaterCoreManager::RippleHandover::kHeightMmDefault, 0.0f);
-    EXPECT_EQ(WaterCoreManager::RippleHandover{}.rate(), 0.0f);
+// A12 (45.5): the hand-over is ON by default (the owner, 2026-10-29) - a pinned contract: flipping it updates this in the same commit
+TEST(WaterRippleTest, TheHandOverIsOnByDefault) {
+    EXPECT_EQ(WaterCoreManager::RippleHandover::kHeightMmDefault, 1.5f);
+    EXPECT_NEAR(WaterCoreManager::RippleHandover{}.rate(), std::log(1.5e-3f / RippleLayer::kSleepHeight) / 1.5f, 1e-5f);
 }
 
 // A12 (45.1) - the hand-over: once the rings are faint (under 1.5 mm), an extra damping a = ln(1.5 / 0.2) / 1.5 s fades them to the
