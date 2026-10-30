@@ -9081,9 +9081,10 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A7 | **The wake hitch** (~33 ms once, §32.1) | merged into A2f, L3 and L4 | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
 | A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
 | A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
-| A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | steps 1-2 BUILT, displacement ON by default (44.5-44.7: pond 225 -> 310 fps, the pit back to its off cost, L5 far 10 of 10); step 3 (the distance fade) not built; not signed off | the livelier water the owner chose, at a cost every tier can carry |
+| A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | steps 1-2 BUILT, displacement ON by default (44.5-44.7: pond 225 -> 310 fps, the pit back to its off cost, L5 far 10 of 10); step 3 (the distance fade) built, measured and DROPPED (44.9: a far body that does not shove settles ~2 s sooner and exactly where dropped - an outcome by distance); not signed off | the livelier water the owner chose, at a cost every tier can carry |
+| A13 | **L5 judges distributions, not only the band** (found in 44.9): the pooled min-max fence passed a far group that differed systematically (rest time 2.8-3.3 s vs 4.0-5.8 s) | found, not designed | an outcome check that cannot see a 2 s difference cannot guard "locality never changes outcomes" |
 | A11 | **A sleep conserves mass exactly** (found in 44.7): the write-back drops the water of a column holding only sub-millimetre film (`thinDropped`, counted) - 0.3-0.5 L a splash with displacement on | owner: fix (44.8); designed + built - the film joins the nearest column with a run |
-| A12 | **Water at rest looks alive** (45): faceted rest motion on every pond surface (awake and recorded) + the rings hand over before a pond sleeps | DRIFT: W2's cosmetic motion pulled ahead of track A on the owner's ask (44.8 item 3); design-check READY (45.1); the rest motion REJECTED by the owner and removed (45.3: a pattern ignores the shores); the hand-over BUILT, OFF (near sleeps 33-35 s vs 60-76 s; L5 13 of 13 far pass, nothing rose); a wind-forced ripple PROTOTYPE (test only) measured not convincing and parked (45.4: speckled chop; small tilts barely show in the pond's shading; lapping needs the shore band, W6) | ponds must sleep for the frame (owner); still water must not look lifeless | water is physical: a pond must not drain by being splashed (owner's standing rule) |
+| A12 | **Water at rest looks alive** (45): faceted rest motion on every pond surface (awake and recorded) + the rings hand over before a pond sleeps | DRIFT: W2's cosmetic motion pulled ahead of track A on the owner's ask (44.8 item 3); design-check READY (45.1); the rest motion REJECTED by the owner and removed (45.3: a pattern ignores the shores); the hand-over BUILT and ON by default (45.5, the owner: "sure"; near sleeps 33-35 s vs 60-76 s; L5 13 of 13 far pass, nothing rose); a wind-forced ripple PROTOTYPE (test only) measured not convincing and parked (45.4: speckled chop; small tilts barely show in the pond's shading; lapping needs the shore band, W6) | ponds must sleep for the frame (owner); still water must not look lifeless | water is physical: a pond must not drain by being splashed (owner's standing rule) |
 
 ### 30.5 The drift log (work outside the plan: what, why, who approved)
 
@@ -11170,7 +11171,7 @@ far disturbed pond. Off stays available (`water_locality {ripple_reach: false}`)
 study the old window by its cell count now set the reach off themselves (`WaterRippleTest.EveryVolumeGetsTheRippleWindow`,
 `tools/water_l2_ripple_cost.py`). Still not signed off in motion as a default - the owner saw no difference, which is the claim.
 
-## 44. A10 - displacement, gated (the owner, 2026-10-29). Status: steps 1-2 BUILT, ON by default (44.5-44.7); step 3 (the fade) not built
+## 44. A10 - displacement, gated (the owner, 2026-10-29). Status: steps 1-2 BUILT, ON by default (44.5-44.7); step 3 (the fade) DROPPED - it changes outcomes (44.9)
 
 **The ask:** after preferring displacement ON in `a2h_look_side_by_side.mp4` and seeing its cost (34.3): "it seems like maybe
 displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used".
@@ -11405,6 +11406,42 @@ ripple, up to 4 shoving (the 1/3 m blocks), ~294 fps. **Disclosed:** the floor s
 **Not done yet: step 3** (the distance fade of a shove, latched per body - 44.3 items 3 and 5). Its outcome gate is this L5 with the
 fade on, against the pool above.
 
+### 44.9 Step 3 - the shove's distance fade: built, measured, DROPPED (it changes outcomes) (2026-10-29)
+
+The owner: "sure" (45.5) - back to step 3. **Built** to 44.2-44.3: `WaterDisplaceGate::Body.weight` = detail(d, near, far), d the
+body's horizontal distance to the water's viewer, read ONLY when a stroke starts; `Result::weight` latches it for the stroke (fed back
+like the state); weight 0 = ripple only (`refused_far`); the budget's score x weight; `MovingSolid.weight` scales the raster (x 1 is
+the unweighted raster bit for bit; 0 rasterizes nothing). API `water_coupling {displace_fade, displace_near_m, displace_far_m,
+test_displace_weight}` (TEST: every new stroke at that weight), echoed in `displace_gate` with the latched weights. `kFadeByDefault`
+false, pinned. Tools: `water_a2g_safe.py --weight` (44.3 item 5), `water_l5_outcome.py --displace-fade`.
+
+**Gates, predictions written first:** (1) the stone gate and the wood control at weight 0.5 (item 5: a partial shove is a partial
+pump) - nothing lifts, the A2g gate passes; (2) L5 with the fade ON against the displacement-on pool: the far runs (200 m: weight 0,
+no shove - displacement off for them) must land inside the near spread. **My expectation, said before the run:** this may FAIL -
+44.7 measured that displacement widens where the wood rests (x 102.8-103.3); far bodies that do not shove rest like displacement-off
+ones, and whether that sits inside the shoving spread is exactly the question. If it fails, the fade is dropped (the owner's rule).
+
+**Measured (Release, Small bench).** Unit: the gate's latch and far refusal, the weighted raster (weight 1 bit-identical), 357 water
+unit tests pass. (1) **The rise gate at weight 0.5** (`a2g_weight05.json`; the latched 0.5 confirmed live in the echo): the stone gate
+PASSES; the Wood control rests cleanly; refused-windows 1/3 m PASS, 1 m "FAIL" on the slow settle only (8 cm in the last 2 s; its peak
+equals the control - the logged 44.7 regression, not a rise). (2) **L5 with the fade on** (`l5_fade_on.json`,
+`l5_fade_on_interleaved.json`; checked live that far bodies shove nothing - 0 admitted - and near ones at weight 1): pooled with the
+displacement-on sessions, every far run "passes" (7 of 7; 0 of 26 near runs outside the fence). **But the numbers show a systematic
+difference the fence did not catch:**
+
+| | stone x | stone z | stone rest time | wood x |
+|---|---|---|---|---|
+| far, fade ON (7) | 101.0000 every run | 13.9999-14.0000 | **2.8-3.3 s** | 102.97-103.05 |
+| far, no fade (13, earlier sessions) | 101.004-101.028 | 13.97-14.02 | 4.0-5.2 s | 102.80-103.25 |
+| near (26) | 100.975-101.024 | 13.97-14.01 | 4.0-5.8 s | 102.75-103.26 |
+
+A body that does not shove lands exactly where it was dropped and settles ~2 s sooner; a shoving one is nudged 1-2 cm by its own
+waves. Without the fade the far runs look like the near ones - so the difference IS the fade. **Verdict: the fade changes outcomes
+by distance - DROPPED** (the owner's rule, 44.3; the code reverted before commit, never on main; displacement stays as 44.6 - the
+same everywhere). **Found: L5's pooled fence is too weak** - it checks each far value against the near runs' min-max band (widened
+by every pooled session), so a far group sitting at one edge of the band, or with a different rest TIME distribution, passes. Logged
+as A13: L5 should compare the distributions (the far group's median against the near spread, rest times included), not only the band.
+
 ### 44.8 The owner on 44.7, and A11 (a sleep conserves mass exactly) (2026-10-29)
 
 **The owner (verbatim):** "1. for displace_floor_side_by_side i honestly cant see a difference between the two. 2. prbably need to
@@ -11441,7 +11478,7 @@ span tops (`mass_stored` vs `mass_written`, 16.2's ~2e-6 m^3 a column) - the -0.
 that rounding, not the film (the volume wrote 24.0000005). Not measured: L5 with the fix (the change is in the write-back alone,
 the same near and far; no solver code changed, so the stone gate was not re-run).
 
-## 45. A12 - water at rest looks alive (the owner, 2026-10-29). Status: the rest motion REJECTED and removed (45.3); the wind-forced ripple prototype not convincing, PARKED (45.4); the hand-over BUILT, OFF - the owner's call
+## 45. A12 - water at rest looks alive (the owner, 2026-10-29). Status: the rest motion REJECTED and removed (45.3); the wind-forced ripple prototype not convincing, PARKED (45.4); the hand-over BUILT, ON by default since 45.5
 
 **The ask (44.8, item 3):** ponds must sleep for the frame's sake; if still water then looks too still, a fallback that makes it
 look alive when nothing touches it.
@@ -11645,6 +11682,12 @@ banks" needs the waterline itself to move on the bank (a run-up), which is the s
 sloped bank) and the far-water look (W2), where the shading question is answered at the same time. The prototype stays as a TEST knob
 (`water_ripples {wind}`, off) for that day. **The hand-over (45.1 item 2) is separate and measured** - the owner decides whether it
 goes ON (near ponds sleep at ~34 s instead of 60-76 s; faint rings fade in ~1.5 s once the water is still).
+
+### 45.5 The hand-over ON by default (2026-10-29)
+
+The owner, to "turn it on" and back to A10 step 3: **"sure"**. `RippleHandover::kHeightMmDefault` 0 -> 1.5 mm (1.5 s); the pin is
+now `WaterRippleTest.TheHandOverIsOnByDefault`. Its evidence is 45.2 (near ponds sleep 33-35 s vs 60-76 s; L5 pooled 13 of 13 far
+pass, nothing rose). Not re-measured live after the flip: the default only sets the value those runs set by hand.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
