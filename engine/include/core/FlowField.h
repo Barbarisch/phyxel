@@ -129,6 +129,40 @@ public:
     // column keeps its natural, a wall the mountain has. DESIGN. The valley side ends at the crest:
     // an envelope never cuts into the next valley.
     static constexpr float kEnvNaturalMargin = 24.0f;
+    // D38 (RULED 2026-10-30, option b): a CLIFF ALLOWANCE at the lip of a cascade. A reach is a
+    // CASCADE where its natural step is steeper than the valley side (the D37 footprint minimum
+    // dropping more than kValleySideSlope x the reach's world length). The valley of every reach
+    // BELOW a cascade must not cut under the banks of the reaches ABOVE it: a lower source's
+    // envelope, read at a column that lies nearer to an upstream reach separated from it by a
+    // cascade (or behind the lower source's own upstream end), is raised by kLipPenaltySlope x that
+    // excess distance - the gorge wall beside the plateau river is a rock face, not a repose side.
+    // Without it the ruled rules entrenched the whole channel above every cascade (Mountains
+    // 424242: a chain lowered 133 u, 1 317 of 1 984 reaches by more than 8 u; m2d4_red_green.txt).
+    // kRockFaceSlope is the bound the face is cut to: 4.0 per u (76 deg, 0.25H:1V) - GROUNDED: the
+    // steepest standard rock-cut inclination short of vertical (Iowa DOT Design Manual 200F-8 Rock
+    // Cut Slopes, 2026 update, read: "nearly vertical" in good-quality limestone / dolomite /
+    // cemented sandstone, 0.5H:1V for normal rock excavation, 0.25:1 with pre-splitting, no steeper
+    // than 2H:1V in shale); a natural waterfall face is VERTICAL (Haviv et al. 2010, JGR 115 F03028,
+    // "Evolution of vertical knickpoints (waterfalls) with resistant caprock" - the abstract read),
+    // so the bound is conservative. kLipPenaltySlope is DERIVED: the penalty's argument changes by
+    // at most 2 per world u (the difference of two clamped distances), the lateral side by
+    // kValleySideSlope and the along-slope behind a source's head (below) by kValleySideSlope, so a
+    // face is at most 2 x kValleySideSlope + 2 x kLipPenaltySlope = kRockFaceSlope per u. A cascade
+    // whose bed drops faster than kValleySideSlope + kLipPenaltySlope per u still entrenches by the
+    // remainder (the perch rule, reported).
+    // THE FINDING BEHIND D38 (patch 24's run): the entrenchment was NOT the natural cascades (20 of
+    // 1 984 reaches on Mountains 424242; 0 on the baseline, which was still lowered 70 u). A source's
+    // FLOOR - flat at its head's rim across kValleyWidthMul half-widths - extended BEHIND its head
+    // over the banks of the reach above it, whose rim rises at its bed slope; the exact lever closed
+    // that deficit by flattening the upper reach to the lower reach's level, and the next reach up
+    // then saw the same floor: the rims were flattened chain by chain along every channel, on every
+    // world. The rule now: behind a source's head the distance is DECOMPOSED - the floor spans the
+    // lateral offset only and the along-distance behind the head rises at kValleySideSlope (the
+    // hillslope bound applied along the channel as well as across it, REASONED; the reach above has
+    // its own floor at its own rim). Patch 6 tried an "overshoot" by the nearest SEGMENT and withdrew
+    // it (a jump at interior vertices, GREEN 11); this follows the head vertex alone and is continuous.
+    static constexpr float kRockFaceSlope   = 4.0f;
+    static constexpr float kLipPenaltySlope = (kRockFaceSlope - 2.0f * kValleySideSlope) * 0.5f;
     // The envelope at a WORLD column (unwarped: the envelope is baked in world space — every
     // source's channel polyline is inverse-warped once at bake time, so distances, the floor and the
     // side are world units and the side is <= kValleySideSlope per world u by construction; GREEN 4
@@ -144,14 +178,24 @@ public:
     bool  hasValleySourcesAt(float worldX, float worldZ) const;   // the column's cell lists a source
     // Diagnostics: the listed source cells at a column and one source's own envelope there.
     std::vector<int> valleySourcesAt(float worldX, float worldZ) const;
-    struct EnvSample { float env = 1e30f, perp = 1e30f, rim = 0.0f, valleyHalf = 0.0f; };
+    struct EnvSample {
+        float env = 1e30f, perp = 1e30f, rim = 0.0f, valleyHalf = 0.0f;
+        float behind = 0.0f;    // the along-distance the column lies BEHIND the source's upstream end (world u)
+        float penalty = 0.0f;   // D38: the lip penalty folded into env (0 where no cliff allowance applies)
+        int   src = -1;         // the source cell
+    };
     EnvSample envelopeSample(int sourceCell, float worldX, float worldZ, float warpedX, float warpedZ) const;
+    // The source whose envelope WINS at a column with the D38 lip penalty applied (its env is what
+    // valleyEnvelopeAt returns), its rim, its penalty and its cell; env 1e30 where none reaches.
+    EnvSample valleyEnvelopeSampleAt(float worldX, float worldZ, float warpedX, float warpedZ) const;
+    bool isCascadeReach(int cell) const;   // D38: the natural step over this reach exceeds the side slope (diagnostics)
     bool  isFoldedSource(int sourceCell) const;   // the meander warp folds the channel of this cell (diagnostics)
     // The source's channel polyline in WORLD space (the branch the envelope was baked around); null
     // off the network. Diagnostics: where the warp folds, the carve shows the channel on more than
     // one branch and only this one carries the valley.
     const std::vector<glm::vec2>* sourceWorldPolyline(int sourceCell) const;
     float floorHalfOf(int sourceCell) const;      // the floor half-width the envelope uses for this source (diagnostics)
+    float bandHalfOf(int sourceCell) const;       // the band's measured world half-width + 1 for this source (the floor's minimum; diagnostics)
     // The flat floor's half-width shrinks as the bed steepens: a floodplain is a feature of a gentle
     // reach; at a bed slope of kValleySideSlope or more the valley is a V (the side rises from the
     // channel edge). Without it a reach's floor reached under the banks of the reach upstream of it
@@ -172,16 +216,28 @@ public:
     struct PerchStats {
         int rounds = 0;
         std::vector<int> changed;        // per round: reaches whose base moved
-        float maxLowering = 0.0f;        // the deepest cumulative lowering of one reach (u)
+        float maxLowering = 0.0f;        // the deepest cumulative lowering of one reach's BASE (station 0) against the natural profile (u)
+        float maxEndLowering = 0.0f;     // the deepest lowering of a reach's END station (a knee: the bed bent down into a neighbour's floor)
+        int knees = 0;                   // reaches whose end was lowered more than 1 u beyond their base
         float sumLowering = 0.0f;        // over all reaches (u)
         int loweredOver8 = 0;            // reaches lowered by more than 8 u in total
         int reaches = 0;                 // carved reaches outside basins the rule looked at
         long long columns = 0;           // world columns the band floods visited (all rounds)
         long long banks = 0;             // bank columns the envelope was read at (all rounds)
         int overflow = 0;                // reaches whose band flood hit its column cap (a fold)
+        int cascades = 0;                // D38: carved reaches whose natural step exceeds the side slope
+        long long lipPairs = 0;          // D38: (source, upstream reach) pairs across a cascade in the cell lists (last build)
+        int longLists = 0;               // cells whose source list exceeds kEnvListCap (entries beyond it carry no penalty)
         float worstDeficitLeft = 0.0f;   // the last round's largest bank deficit (rim above the land beside it), u
-        struct Deep { int cell = -1; float lowering = 0.0f; int lastSrc = -1; float lastDeficit = 0.0f; int rounds = 0; };
+        struct Deep {
+            int cell = -1; float lowering = 0.0f; float endLowering = 0.0f; int lastSrc = -1; float lastDeficit = 0.0f; int rounds = 0;
+            int bankX = 0, bankZ = 0; float bankRim = 0.0f, bankT = 0.0f;                        // the bank column that last drove it: the local rim and its projection
+            float srcRim = 0.0f, srcPerp = 0.0f, srcBehind = 0.0f, srcPenalty = 0.0f, srcFloor = 0.0f, srcEnv = 0.0f;   // the winning source's sample there
+            std::vector<float> baseByRound;          // the reach's base after each comparison round (the instrument: a chain or a settling)
+            std::vector<float> natStations, stations;   // the natural propagated profile and the final one
+        };
         std::vector<Deep> deepest;       // the five reaches lowered most, with the source that last drove each
+        std::vector<float> maxLowByRound;   // per comparison round: the deepest BASE lowering so far over all reaches
     };
     const PerchStats& perchStats() const { return m_perch; }
 
@@ -241,7 +297,8 @@ public:
         float bedProfile = 0.0f;
         bool  hasProfile = false;
         bool  inBasin = false;
-        float bedSlope = 0.0f;    // M2d-3: the profile's fall per unit length along the hit segment (>= 0)
+        float bedSlope = 0.0f;    // M2d-3: the profile's fall per unit length over the whole reach (base to end, >= 0)
+        float localSlope = 0.0f;  // M2d-4 residual: the fall per unit length of the profile's STATION segment at the hit (a knee or a step is local)
         int   cell = -1;          // M2d-3: the row-major bake cell whose channel was hit (tests, diagnostics)
         float t = 0.0f;           // M2d-4: the hit's projection parameter along the cell polyline (0 = the cell's vertex, 1 = downstream)
     };
@@ -311,13 +368,30 @@ private:
     // hands downstream; m_basin marks the coarse basin cells.
     std::vector<float>   m_bedY, m_carryY;
     std::vector<uint8_t> m_basin;
+    // M2d-4 residual (the per-STATION profile, 2026-10-30): per river cell the bed at kProfileStations
+    // arclength stations of its polyline (station 0 = m_bedY, the base at the cell's vertex; the last =
+    // what it hands the next cell), non-increasing along the reach and continuous across the shared
+    // vertex. The perch rule lowers STATIONS, not the base: where a reach's bank is perched above a
+    // neighbour's floor the bed bends down to it there (a knee) and keeps its own grade elsewhere -
+    // the "exact lever" that lowered the whole base to close a deficit near the reach's end flattened
+    // the rims chain by chain (m2d4_red_green.txt, the finding; 133 u on Mountains, 70 u on the
+    // baseline). channelAt, the envelope rims and the carve all read this one profile.
+    static constexpr int kProfileStations = 9;
+    std::vector<float>   m_stY;
+    float profileAt(int rc, float t) const {
+        const float* st = &m_stY[static_cast<size_t>(rc) * kProfileStations];
+        const float f = std::clamp(t, 0.0f, 1.0f) * (kProfileStations - 1);
+        const int i = std::min(kProfileStations - 2, static_cast<int>(f));
+        return st[i] + (st[i + 1] - st[i]) * (f - static_cast<float>(i));
+    }
     // M2d-2: per cell the index of its fillet polyline (−1 = straight segment).
     std::vector<int> m_filletOf;
     std::vector<std::vector<glm::vec2>> m_fillets;
     std::vector<float> m_localHalfW;   // M2d-3: blurred local half-width per cell
     // M2d-4: per cell, the singly-linked list (pool indices) of carved channel cells whose valley
     // envelope can win somewhere inside the cell (−1 = none).
-    struct EnvEntry { int src; int next; };
+    struct EnvEntry { int src; int next; uint32_t lipMask; };   // lipMask bit j: the cell's j-th listed source is an upstream reach across a cascade (D38)
+    static constexpr int kEnvListCap = 32;
     std::vector<int>      m_envHead;
     std::vector<EnvEntry> m_envPool;
     // per source cell: its channel polyline in WORLD space (up to 9 stations) and the rim at each
@@ -325,9 +399,14 @@ private:
     std::vector<std::vector<glm::vec2>> m_envPolys;
     std::vector<std::vector<float>>     m_envRims;
     std::vector<float>                  m_envFloorHalf;   // per source: the floor's half-width (shrinks with the bed slope)
+    std::vector<float>                  m_envBandHalf;    // per source: the measured band half-width + 1 (the floor's minimum; the lip penalty's along-allowance)
+    std::vector<float>                  m_envHeadAllow;   // per source: the along-distance behind its head the floor still spans - the band half-width for a HEAD of the carved network (nothing upstream carries a floor into its corner), 0 otherwise
     std::vector<uint8_t>                m_envFolded;      // per source: its world polyline reverses or collapses (the warp folds)
     PerchStats                          m_perch;
+    std::vector<uint8_t>                m_cascade;        // D38: per cell, the reach's natural step exceeds the side slope
     EnvSample envelopeOf(int rc, float worldX, float worldZ, float warpedX, float warpedZ) const;
+    // the winning sample over a cell's list with the D38 lip penalty; skipSrc (a reach's own cell) is left out
+    EnvSample envelopeAtCell(int ci, int cj, float worldX, float worldZ, float warpedX, float warpedZ, int skipSrc) const;
     std::vector<Spring> m_springs;     // M2e: spring sites
     // The polyline a cell's channel follows (straight or fillet), used by every query.
     const std::vector<glm::vec2>& cellPolyline(int rc, std::vector<glm::vec2>& scratch) const;

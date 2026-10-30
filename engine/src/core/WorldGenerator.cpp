@@ -588,7 +588,24 @@ void WorldGenerator::rebuildCoarseModel() {
                  << " carved reaches, reaches moved per round [" << per << "], cumulative lowering max " << ps.maxLowering
                  << " u, sum " << ps.sumLowering << " u, " << ps.loweredOver8 << " reaches lowered by more than 8 u; band columns "
                  << ps.columns << ", bank reads " << ps.banks << ", band overflows " << ps.overflow << ", last round's worst deficit "
-                 << ps.worstDeficitLeft << " u");
+                 << ps.worstDeficitLeft << " u; knees (end lowered more than 1 u beyond the base) " << ps.knees << ", deepest END lowering " << ps.maxEndLowering
+                 << " u; D38 cascades " << ps.cascades << ", lip pairs in the cell lists " << ps.lipPairs
+                 << ", source lists beyond the cap " << ps.longLists);
+        {
+            std::string byRound;
+            for (size_t i = 0; i < ps.maxLowByRound.size(); ++i) byRound += (i ? "," : "") + std::to_string(ps.maxLowByRound[i]).substr(0, 5);
+            LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [" << byRound << "]");
+        }
+        for (const FlowField::PerchStats::Deep& dp : ps.deepest) {
+            std::string hist, nat, fin;
+            for (size_t i = 0; i < dp.baseByRound.size(); ++i) hist += (i ? "," : "") + std::to_string(dp.baseByRound[i]).substr(0, 6);
+            for (size_t i = 0; i < dp.natStations.size(); ++i) { nat += (i ? "," : "") + std::to_string(dp.natStations[i]).substr(0, 6); fin += (i ? "," : "") + std::to_string(dp.stations[i]).substr(0, 6); }
+            LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] M2d-4 perch deepest detail: cell " << dp.cell << " base by round [" << hist << "] natural stations [" << nat << "] final [" << fin << "]");
+            if (dp.rounds > 0)
+                LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] M2d-4 perch deepest drive: cell " << dp.cell << " bank (" << dp.bankX << "," << dp.bankZ << ") local rim " << dp.bankRim
+                         << " at t " << dp.bankT << " | winner " << dp.lastSrc << " env " << dp.srcEnv << " rim " << dp.srcRim << " perp " << dp.srcPerp << " behind " << dp.srcBehind
+                         << " floor " << dp.srcFloor << " penalty " << dp.srcPenalty << " | deficit " << dp.lastDeficit);
+        }
         for (const FlowField::PerchStats::Deep& dp : ps.deepest)
             LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] M2d-4 perch deepest: cell " << dp.cell << " (" << dp.cell % m_flow->cellsX() << "," << dp.cell / m_flow->cellsX()
                      << ") lowered " << dp.lowering << " u over " << dp.rounds << " rounds, last driven by source " << dp.lastSrc

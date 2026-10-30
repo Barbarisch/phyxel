@@ -863,3 +863,341 @@ D38 RED RUN (patch 23; build 10:20:05-10:20:16, exe 10:20:12, run to 10:20:38; m
   P23.1 MET: RED on the ruled rules, the same five cells as GREEN 22. Left red in the tree until D38 is ruled (the M2d-4 precedent).
 Committed in this state: the section test green on both worlds outside the fold class; three red tests recorded by design
 (the D38 entrenchment guard, EarthworkTest.DeepCutsAreWalledNotCliffed); the Release L4 and timings OPEN.
+
+==== D38 RULED (2026-10-30; owner: "go with your recommendations. keep going" -> (b) a cliff allowance at the lip, (a) until a number) ====
+GROUNDING (read 2026-10-30; the search for a natural gorge-wall angle found statements, not numbers):
+  - Haviv, Enzel, Whipple, Zilberman, Matmon, Stone, Fifield 2010, "Evolution of vertical knickpoints (waterfalls) with resistant
+    caprock: Insights from numerical modeling", JGR Earth Surface 115 F03028 (doi 10.1029/2008JF001187) - the abstract read on the
+    HUJI CRIS page (the Wiley and ResearchGate pages refuse the fetch): the knickpoint is VERTICAL by the paper's framing ("Vertical
+    knickpoints (waterfalls) mark a prominent process transition zone"; "the subcaprock is weak or vertically jointed"; "The height of the
+    subcaprock face can influence its gravitational stability"). No angle below vertical is given; a search-tool summary citing a face
+    "exceeding 90 deg", a 30-35 deg talus and a 45 + phi/2 failure plane was NOT verified against the text and is not used.
+  - Iowa DOT Design Manual 200F-8 Rock Cut Slopes (2026 update; the page read): good-quality limestone, dolomite and cemented
+    sandstone "may be cut nearly vertical or with a slight inclination"; "An inclination of 0.5H:1V is used for normal rock excavation";
+    "0.25V:1H [sic - 0.25:1] is used when pre-splitting is performed"; shale, siltstone and other soft rock "no steeper than 2H:1V".
+  - Selby's strength-equilibrium envelope (1980/1982) was found by title only (no numbers in reach): not used.
+  THE NUMBER: kRockFaceSlope = 4.0 per u (76 deg, 0.25H:1V) - GROUNDED as the steepest standard rock-cut inclination short of vertical;
+  the natural waterfall face is vertical (Haviv 2010), so the bound is conservative. kLipPenaltySlope = (4.0 - 0.70) / 2 = 1.65 - DERIVED
+  (the penalty's argument has gradient <= 2, the side 0.70, so the realized face is <= 4.0 per u).
+
+THE RULE (FlowField, version 2 only): a reach is a CASCADE where its NATURAL step (the D37 footprint minimum at the first envelope build)
+  exceeds kValleySideSlope x its world length. The drainage tree is built once per bake (depth, cascades counted from each cell to its
+  root, binary-lifting LCA). In every cell's source list each source s carries a mask of the listed sources r that lie UPSTREAM of s with a
+  cascade on r's path to their junction (lca). The envelope of such an s at a column is raised by
+      kLipPenaltySlope x max(0, perp_s - min perp_r over the masked r, the along-distance BEHIND s's own upstream end)
+  so the land beside the reach above a lip stays with that reach's own envelope and the lower reach's valley meets it in a rock face
+  (the gorge wall beside the plateau river; a hanging tributary's mouth). The perch rule reads the same penalised minimum with the
+  reach's own cell left out of the minimum but kept among the distances it is measured against. Lists beyond 32 entries carry no
+  penalty past the cap (counted). Gentle chains are untouched: a pair qualifies only across a cascade.
+  Cost: one LCA table (17 x n ints, freed after the bake), O(L^2) pair checks per cell per build, the per-column query unchanged in
+  order (every listed source was already sampled).
+
+DESIGN CHECK (the gate, compact - the M2d-4 check of 2026-10-29 covers the section itself):
+  1 aesthetic: a column-field shape, whole-cube, the P1 material rule paints the face Stone past 0.70; unconditional.
+  2 chunk independence: pure per column (world position -> bake cell -> listed sources -> envelopes); the masks are bake data.
+    No chunk quantity enters. The section test samples the generator's per-column surface, the same function chunks call.
+  3 pipeline: the hydrology bake (FlowField::bake) -> the sampler's valley cut; roads sample the surface after it. No recipe key
+    (the bound is a grounded constant like kValleySideSlope); version 1 does not build the envelope (pinned hashes).
+  4 API: none new outside the engine; the bake log gains the cascade count, the lip-pair count and the long-list count;
+    FlowField::valleyEnvelopeSampleAt (the winner with its penalty) and isCascadeReach for the tests.
+  5 visual test: L2 here - the section test gains a FACE class (a step where the winning envelope carries a penalty at either
+    column) asserted <= kRockFaceSlope x the column distance (+ the natural, + the rim's own step) and reported; the D38 guard
+    (max lowering <= 22.4 u) is the red that turns; L4 in the Release run the owner has now allowed (a capture at the deepest cascade).
+
+PATCH 24 = the rule + the log + the test's face class. PREDICTIONS (written before the build; the same recipes as GREEN 22):
+  P24.1 the D38 guard GREEN: Mountains 424242 max lowering 133.1 -> <= 22.4 u.
+  P24.2 Mountains reaches lowered > 8 u 1317 -> fewer than 200; the sum 47 579 -> under 8 000 u; round 1 moves fewer than 800 reaches.
+  P24.3 the section test GREEN on both worlds with the face class asserted: faceWalls 0 on both; Mountains face steps > 0
+        (hundreds to thousands of 73 395); the baseline's face steps fewer than Mountains'.
+  P24.4 the section assertions hold as at GREEN 22 (emb <= 3, corners <= 3, lips 0, walls 0) on both worlds; the Perlin max lowering
+        70.3 -> <= 22.4 u as well (read from the bake log).
+  P24.5 the monotone test and the pinned version-1 hashes GREEN (the rule is inside the version-2 envelope block).
+  P24.6 band columns / bank reads within 20 % of GREEN 22 (1.39 M / 329 k on Mountains).
+
+GREEN 24 (patch 24; build 12:36:33-12:41:26, exe 12:41:18, run 12:41:26-12:42:37; m2d4r_r7_focus.txt): 3 of 4 GREEN, the section test RED.
+  Mountains: perch rounds 7, moved per round [1570,424,107,85,75,76,58], max lowering 133.1 u (UNCHANGED), sum 44 454 u, 1271 > 8 u;
+             D38 natural cascades 20, lip pairs 8883, lists beyond the cap 0; the same five deepest cells, the same deficits.
+             sections: EMBANKMENTS 4 (worst 1.5), LIPS 9 (worst 4.6 u at (14412,-10827)) -> RED (lips == 0), WALLS 0, FACES 0 of 73 395,
+             CASCADES (bed slope > 0.70) 3 cells, corner cuts 2.
+  Perlin:    perch rounds 7, moved per round [965,150,43,46,13,21,23], max lowering 70.3 u (UNCHANGED), 636 > 8 u; natural cascades 0,
+             lip pairs 0; sections as GREEN 22 (emb 2 / 1.2 u, lips 0, walls 0), FACES 0.
+  P24.1 MISSED (133.1 vs <= 22.4). P24.2 MISSED (1271, 44 454 u, round 1 1570). P24.3 MISSED (RED; faces 0 on both). P24.4 MISSED (9 lips;
+  Perlin 70.3 unchanged). P24.5 MET (monotone, hashes green). P24.6 MET (1.47 M / 346 k).
+  THE FINDING (read from the instrument + the lip diagnostics): the entrenchment is NOT the natural cascades. Only 20 of the 1 984 Mountains
+  reaches have a natural step steeper than 0.70 x their world length, and the baseline has NONE yet was lowered 70 u. The lip at
+  (14412,-10827): the column's own source 178114 lists env 86.6 = its rim, yet the winning (penalised) envelope is 91.2 - the OWN source
+  was penalised at its own head corner (behind its first station by ~2.8 u -> + 1.65 x 2.8), because some listed reach upstream of it
+  crosses one of the 20 cascades. The D38 description given to the owner ("a natural step steeper than the side") was WRONG about the cause:
+  what flattens the rims is the FLOOR. A source's envelope is flat at its head's rim across the floor half-width (up to 43 u for a trunk)
+  and that floor extended BEHIND the head - radially around its first station - over the banks of the reach above, whose rim rises at its
+  bed slope S: a deficit S x l at every bank column within the floor's reach, which the exact lever (deficit x L / l) closes by lowering
+  the upper reach's base by its WHOLE drop (S x L): the reach is flattened to the lower reach's level, its own floor then widens
+  (floorHalfFor at slope 0), and the next reach up sees the same floor. The rims flatten chain by chain along every channel, on every
+  world (Perlin 70 u = the natural profile drop over the chain). GREEN 22's "2 banks / 0 lips" was measured on those flattened,
+  wide-floored profiles. The 9 new lips are patch 24's own-corner penalty, withdrawn below.
+
+PATCH 25 (the rule corrected):
+  (a) behind a source's HEAD (the nearest point of its world polyline is its first station) the distance is decomposed: the floor spans the
+      LATERAL offset from the first segment's line only, and the ALONG-distance behind the head rises at kValleySideSlope (REASONED: the
+      hillslope bound along the channel as well as across it; the reach above has its own floor at its own rim). Continuous (the along
+      part is 0 on the region's boundary; patch 6's overshoot jumped because it followed the nearest SEGMENT at interior vertices).
+      Never lower than before (lateral <= perp): no new cut anywhere; the land can only rise where the floor used to wrap a head.
+  (b) the D38 cliff allowance stays for the true cascades (the lip-pair penalty), its along-component applied only BEYOND the source's own
+      band corner (behind - bandHalf); kLipPenaltySlope = (4.0 - 2 x 0.70) / 2 = 1.3 (DERIVED: lateral 0.70 + along 0.70 + 2 x 1.3 = 4.0).
+  (c) the section test: a JUNCTION-CORNER class - bank columns within hw + 2 u of either end of the reach's world polyline, where the band's
+      rounded end meets the next reach's floor; a LIP there is bounded by 0.70 x (hw + 2) + 1 u (DERIVED: the lower reach's floor stops at
+      its head plane, so outside a steep reach's shrunken floor the corner land is the side at 0.70 from the vertex) and ASSERTED; an
+      embankment there keeps the 3 u levee bound, asserted. The corner-cut class now requires the other source's floor to be AT its rim at
+      the column (env <= rim), not merely within its floor radius (the floor behind a head is no longer flat).
+  Expected consequence to state plainly: with the floors no longer wrapping heads the profiles KEEP their natural slopes, so the floors
+  are narrower than at GREEN 22 and classes that the flattening hid may appear (steep reaches' corners, folds). Measured, not assumed.
+PREDICTIONS (before the build):
+  P25.1 the D38 guard GREEN: Mountains max lowering 133.1 -> <= 22.4 u; the baseline's max lowering 70.3 -> under 10 u (the bake log).
+  P25.2 reaches lowered > 8 u: Mountains 1271 -> under 100; Perlin 636 -> under 20; sums under 3 000 u / 500 u; round 1 moves under 500 / 200.
+  P25.3 the section test: LIPS outside the junction class 0 on both worlds (patch 24's own-corner lips gone); EMBANKMENTS <= 3 u; WALLS 0;
+        junction-corner lips present on Mountains (tens to a few hundred bank columns), 0 beyond the derived bound; the baseline fewer.
+  P25.4 FACES: still 0 or a handful on Mountains (20 cascades; the natural wins where it is steeper), 0 beyond the 4.0 bound; 0 on Perlin.
+  P25.5 the monotone test and the pinned hashes GREEN; band columns / bank reads within 20 % of GREEN 24.
+
+GREEN 25 (patch 25; build 12:52:51-12:57:51, exe 12:57:46, run 12:57:51-12:59:04; m2d4r_r8_focus.txt): 3 of 4 GREEN, the section test RED.
+  Mountains: perch rounds 7, moved per round [641,214,181,165,187,173,160] (NOT converged), max lowering 133.1 -> 59.2 u, sum 7 977 u,
+             357 > 8 u; last round's worst deficit 3.4 u; cascades 20, lip pairs 7396. Deepest: (285,556) 59.2 u over 2 rounds with a
+             last deficit of 0.8 u; (735,362)/(735,363) 51/50 u over 7 rounds, deficits 1.5-2.1 u; (682,692) 46.9 u in ONE round, deficit 17.1.
+             sections: EMB 4 (1.4), LIPS 28 (worst 5.6 u at (-7627,-11508)) -> RED, WALLS 0, FACES 0; JUNCTION CORNERS 369 lips (worst 4.3, 0 beyond
+             the bound), 15 embankments (1.5); cascade/fold class 7 lips (5.4); corner cuts 0.
+  Perlin:    moved per round [220,38,46,34,33,26,30], max lowering 70.3 -> 16.7 u, sum 655 u, 9 > 8 u; sections: EMB 0, LIPS 1 (1.5 u) -> RED,
+             WALLS 0; junction corners 20 lips (1.9), 8 embankments (1.3).
+  P25.1 MISSED (59.2 > 22.4; Perlin 16.7 > 10). P25.2 MISSED (357 / 9; sums 7 977 / 655; round 1 641 / 220). P25.3 MISSED (28 / 1 lips).
+  P25.4 MET (faces 0). P25.5 MET.
+  READ FROM THE DIAGNOSTICS: (1) the 5.6 u lip at (-7627,-11508): the bank column's OWN source lists env 107.5 = rim 102.0 + 0.70 x 7.9 -
+  the column lies BEHIND the reach's head (the band's rounded end around its first station) and this reach is the HEAD of the carved
+  network (the stations' naturals descend 111 -> 106 from it; nothing upstream carries a floor), so the along-slope the rule now applies
+  behind every head raises the land at its own head corner - a head-corner lip bounded by 0.70 x the band's radius. The junction-corner
+  class caught 369 of these within hw + 2 u; this one lies 7.9 u behind (the band is wider than hw where the warp expands). (2) the
+  59 u lowering with a 0.8 u deficit: the exact LEVER - a deficit d at parameter t lowers the base by d / (1 - t); 0.8 u one voxel from
+  the end is a 27 u base drop, twice. (3) the 47 u single-round lowering with a 17 u deficit: a reach whose whole length lies inside the
+  next reach's lateral floor at a bend (a tributary across a floodplain) - flattened to the floor, which is right where it crosses the
+  floor, but the lever flattens the WHOLE reach and hands its drop to the reach above, which then stands steeper above the flattened
+  reach's widened floor: the chain.
+  THE RULE'S REAL LIMIT: a per-reach LINEAR profile cannot bend. Where a reach crosses a lower neighbour's floor its bed must follow the
+  floor THERE and keep its grade elsewhere - a knee. The lever has no knee, so it flattens.
+
+PATCH 26 (the per-station profile; the lever withdrawn):
+  - FlowField::m_stY: per river cell the bed at 9 arclength stations (station 0 = the base m_bedY, station 8 = what it hands downstream),
+    non-increasing along the reach, continuous across the shared vertex; channelAt's bedProfile, the envelope rims (one station each)
+    and the carve read this one profile. propagateProfile fills it linear; the perch rounds lower STATIONS: a deficit d at a bank column
+    projecting at t lowers the two bracketing stations by d (the profile there drops by exactly d), the stations downstream follow by the
+    non-increasing rule, the stations upstream keep their grade; a lowered end is the next cell's base, whose stations follow (the carry,
+    marked moved). No lever, no amplification: a 0.8 u deficit is a 0.8 u bend. The cascade flag is recomputed every build from the
+    current base-to-end slope, so a reach bent steeper by its knee is shielded by the cliff allowance. groundK is no longer lowered
+    (the stats measure the stations against the natural propagated profile): BASE lowering (station 0) is the D38 guard's quantity,
+    END lowering and the knee count are new (a knee = the end lowered more than 1 u beyond the base).
+  - The head-corner lips beyond hw + 2 (the band's measured radius) are NOT patched here: measured first.
+PREDICTIONS (before the build):
+  P26.1 the D38 guard GREEN: Mountains max BASE lowering 59.2 -> <= 22.4 u; Perlin 16.7 -> <= 5 u.
+  P26.2 knees: Mountains hundreds (the floodplain crossings at bends), deepest END lowering 10-30 u; Perlin tens.
+  P26.3 reaches with base lowering > 8 u: Mountains 357 -> under 60; Perlin 9 -> under 3; the rounds CONVERGE (the last round moves under 20).
+  P26.4 sections: lips outside the junction class 28 -> under 10 on Mountains (the head corners beyond hw + 2 stay), 1 -> 0 or 1 on Perlin;
+        embankments <= 3 u; walls 0; faces 0 beyond the bound; junction-corner lips 0 beyond the bound; the test still RED on the remaining lips.
+  P26.5 the monotone test (the piecewise profile is monotone) and the pinned hashes GREEN; band columns within 20 % of GREEN 25.
+
+GREEN 26 (patch 26; build 13:09:34-13:14:39, exe 13:14:34, run 13:14:39-13:15:52; m2d4r_r9_focus.txt): 3 of 4 GREEN, the section test RED.
+  Mountains: moved per round [495,259,197,165,165,164,163] (NOT converged: 163 still moving in round 7), max BASE lowering 59.2 -> 22.38 u
+             (the D38 guard's bound is 22.4: AT the bound, not under it with margin), sum 2 208 u, 55 > 8 u, last round's worst deficit 2.3 u;
+             cascades 11 (recomputed from the current slope), lip pairs 3129. The five deepest ALL moved in all 7 rounds with last
+             deficits of 0.4-2.0 u: (688,129) <- (688,128) 22.4 u; (89,1001) <- (89,1003) 22.2; (570,393) 20.0; (285,556) 19.6; (448,391) 19.5.
+             sections: EMB 16 (1.8), LIPS 33 (worst 5.6 u at (-7627,-11508), the head corner) -> RED, WALLS 0, FACES 0;
+             JUNCTION CORNERS 334 lips (4.3, 0 beyond the bound), 76 embankments worst 4.6 u -> RED on the 3 u levee bound (the cascade
+             class shows the same 4.6 u: a cascade's junction corner); cascade/fold class 4 embankments (4.6), 8 lips (5.4).
+  Perlin:    moved per round [151,20,11,9,8,8,5], max base lowering 16.7 -> 2.45 u, sum 80 u, 0 > 8 u; sections: EMB 0, LIPS 1 (1.0 u at
+             (347,-7468) - at the 1 u tolerance) -> RED, WALLS 0; junction corners 13 lips (1.9), 10 embankments (1.3).
+  P26.1 Mountains 22.38 <= 22.4 - MET by 0.02 u, which is no margin: NOT claimed settled; Perlin 2.45 <= 5 MET. P26.2 knees: not printed by
+  this build's test line (the log line was) - see the bake log; P26.3 MISSED on convergence (163 moving in round 7; 55 > 8 u MET under 60;
+  Perlin 0 MET). P26.4 MISSED (33 lips; the junction embankment bound red at a cascade corner; Perlin 1 lip at 1.0 u). P26.5 MET.
+  READ: the base lowering now accrues ~3 u per round on the deepest chains with deficits of 1-2 u each round - a coupling the rounds do
+  not settle in 7; whether more rounds would deepen it is the question the instrument below answers (the bases after every round).
+
+PATCH 27 (the head corner, the test's corner radius, the instrument):
+  (a) a HEAD of the carved network (no carved inflow) keeps its floor around its own head corner within the band's radius (the valley head
+      is a bowl; nothing upstream carries a floor into it) - the 5.6 u lip at (-7627,-11508) was such a head; other sources unchanged.
+  (b) the test's junction-corner radius is the band's MEASURED half-width + 2 (bandHalfOf, new accessor; the warp widens the band up to
+      three half-widths), and a cascade's or fold's corner is counted with that reported class, not asserted with the junction class.
+  (c) the instrument: the deepest BASE lowering after every round, and for the five deepest reaches their base after each round plus the
+      natural and final station profiles (a knee or a flattening is visible in the nine numbers).
+PREDICTIONS (before the build):
+  P27.1 lips outside the classes: Mountains 33 -> under 10 (the heads were most of them), Perlin 1 -> 0 or 1 (the 1.0 u case is a tolerance edge).
+  P27.2 the junction embankments' worst <= 3 u on both worlds once the cascade corners are classed away; junction lips 0 beyond the bound.
+  P27.3 the base lowering unchanged within 1 u (22.4 / 2.45) - no rule change touches it; maxLowByRound rising every round on Mountains
+        (the chain still accruing), flat after round 2 on Perlin.
+  P27.4 the deepest cells' station profiles show the base lowered with the END barely moved (a steepened reach), not a flattening.
+
+GREEN 27 (patch 27; build 13:18:32-13:23:31, exe 13:23:27, run 13:23:31-13:24:44; m2d4r_r10_focus.txt): 3 of 4 GREEN; the section test
+  GREEN on the BASELINE for the first time with every class asserted (emb 0, lips 0, walls 0, junction 5 lips / 1.4 u, 10 emb / 1.3 u,
+  faces 0), RED on Mountains on 6 lips.
+  Mountains: base lowering 22.38 u (unchanged, as predicted), moved per round [495,264,197,165,165,164,163]; sections: EMB 6 (1.6), LIPS 6
+             (worst 1.9 u at (12818,-5083)) -> RED, WALLS 0, FACES 0; JUNCTION 95 lips (3.6; 0 beyond), 83 emb (2.3); cascade/fold class
+             19 emb (4.6), 11 lips (5.4). P27.1 MET (33 -> 6; Perlin 1 -> 0). P27.2 MET (2.3 <= 3; 0 beyond). P27.3 MET (22.38; by-round
+             [19.18,19.56,19.56,19.56,19.56,20.77,22.38] rising late = a chain arriving). P27.4 MISSED: the deepest cells' ENDS moved too -
+             (688,129): natural 188.0 -> 181.2, final 165.6 -> 162.3: base -22.4, end -18.9; base by round -5.1,-2.7,-2.6,-2.7,-2.4,-1.6 u.
+  READ FROM THE INSTRUMENT: (1) the pair sinks ~2.5 u per round because a reach's head lowered by its own bank deficits did NOT move the END
+  station of the reach above it (the same vertex) until that reach read the lower floor a round later - a one-cell-per-round translation
+  again, bounded this time by the deficits (no lever) but unsettled in eight rounds. (2) the remaining lips (1.5-1.9 u) sit where a KNEE
+  drops 5-6 u between two stations 4 u apart: adjacent columns project 1 u apart along the reach and read rims 1.5-1.9 u apart - a step
+  in the bed, which the lateral land cannot follow.
+
+PATCH 28 (settling): after a reach's stations drop, (1) non-increasing downstream; (2) the knee grades UPSTREAM at no more than
+  kValleySideSlope per u beyond the natural step between the stations (a ramp, not a step; a natural cascade keeps its own step);
+  (3) every carved inflow's END station follows the lowered head at once (the shared vertex), in the direct apply and in the carry.
+PREDICTIONS (before the build):
+  P28.1 the rounds CONVERGE on Mountains: reaches moving in round 7 under 30 (was 163); the deepest base lowering by round flat after round 3.
+  P28.2 Mountains max BASE lowering 22.38 -> between 15 and 24 u (the ramps add a little where a knee is deep, the settled chain subtracts);
+        the D38 guard stays within 2 u of the bound either way - stated as such, not as settled.
+  P28.3 Mountains lips outside the classes 6 -> under 3; emb <= 3; walls 0; junction 0 beyond; faces 0 beyond; the baseline stays GREEN.
+  P28.4 the monotone test and the pinned hashes GREEN.
+
+GREEN 28 (patch 28; build 13:27:20-13:27:31, exe 13:27:27, run 13:27:31-13:28:46; m2d4r_r11_focus.txt): WORSE on both worlds; the baseline's
+  section test still GREEN, Mountains RED on four assertions.
+  Perlin:    max BASE lowering 2.45 -> 10.5 u, 2 > 8 u; moved per round [151,23,13,11,10,9,8]; by round [2.96,4.31,5.62,6.89,8.12,9.33,10.49] -
+             a GROUP of five reaches (400,363),(400,362),(399,362),(398,360),(398,361) all flat at one level sinking 1.3 u EVERY round.
+  Mountains: max base lowering 22.4 -> 48.4 u, 195 > 8 u, sum 4 701; moved [499,287,222,199,204,202,203]; by round [23.9,26.6,28.5,29.5,46.1,
+             47.4,48.4]: in round 5 three flat reaches (732,361),(733,361),(733,362) beside the gorge reach (731,360) dropped 44 u at once
+             with deficits of 24-26 u, below a natural cascade (731,361) whose stations fall 165 -> 129 over one cell.
+             sections: EMB 5 (5.1 u) RED, corner 3.4 RED, LIPS 4 (1.5) RED, junction emb 5.4 RED; walls 0, faces 0; baseline all green.
+  P28.1 MISSED (203 moving). P28.2 MISSED (48.4). P28.3 MISSED. P28.4 MET.
+  READ: (1) the 1.3 u per round sinking of a flat group is the two DEPTHS: the profile was matched bed to bed at every confluence, so a
+  shallow tributary's rim at its mouth sits below the main river's rim by the depths' difference, the main river's bank beside the
+  tributary's floor is "perched" by exactly that, the main is lowered by it, the inflow's end follows (patch 28) and the pair sinks again -
+  a loop with no floor. (2) the 44 u drop is the D38 case itself: a plateau river beside a gorge reach below a natural cascade; the cliff
+  allowance's budget (a 76 deg face from the bisector) holds 28 u over the 17 u between the bands, the step is 48 u, the remainder
+  entrenches by the ruled rule, and the flat plateau group then follows its lowered member through its wide floor (a knickpoint eating
+  back into the plateau, bounded by the ramp). The D38 guard's bound (22.4 u) assumes no step beyond the allowance: it will stay RED for
+  this world under a finite face slope. NOT retuned (lesson 21): recorded for the owner as D39.
+
+PATCH 29 (the rim-monotone profile): the profile is monotone in the RIM (bed + the law depth, the bankfull surface) - m_carryY carries the
+  rim (a basin's filled level is one already); a reach's end is the bed under the rim it hands on; an inflow's end meets the lowered head's
+  RIM; the carry lowers the next base so its rim meets the end rim. A shallow tributary now meets a deep river at the river's surface,
+  its bed its own depth below.
+PREDICTIONS (before the build):
+  P29.1 the baseline's sinking group stops: max base lowering 10.5 -> under 3 u, 0 > 8 u; the rounds settle (under 5 moving in round 7).
+  P29.2 Mountains: the confluence-driven part of the lowering gone - reaches > 8 u 195 -> under 120, round-7 movers 203 -> under 120; the max
+        base lowering stays 30-50 u (the plateau beside the gorge: the D38 remainder) -> the guard stays RED, as recorded.
+  P29.3 sections: the baseline GREEN; Mountains embankments (5.1) and junction embankments (5.4) fall under 3 u if they were the depth
+        mismatch at tributary mouths; the corner cut (3.4) and the 4 lips may stay; walls 0, faces 0 beyond.
+  P29.4 the monotone test (the bed still never rises along the main stem: rims fall, depths grow) and the pinned hashes GREEN.
+
+GREEN 29 (patch 29; build 13:32:46-13:32:56, exe 13:32:52, run 13:32:56-13:34:11; m2d4r_r12_focus.txt): NO MATERIAL CHANGE.
+  Perlin:    max base lowering 10.50 u (was 10.49), the same five-reach group sinking 1.3 u per round, 2 > 8 u; the section test GREEN.
+  Mountains: max base lowering 48.2 u (was 48.4), 192 > 8 u, movers [500,285,220,198,199,200,200]; sections: EMB 5 (3.3, was 5.1) RED,
+             corner 3.06 (was 3.4) RED, LIPS 4 (1.5) RED, junction emb 3.6 (was 5.4) RED; walls 0, faces 0.
+  P29.1 MISSED (the group still sinks: the depth mismatch was NOT its cause). P29.2 MISSED on the counts (192, 200). P29.3 partly: the
+  embankments fell (5.1 -> 3.3, 5.4 -> 3.6) but stay over 3 u. P29.4 MET.
+PATCH 30 (an instrument, no rule change): for the five deepest reaches the bank column that last drove each, its local rim and
+  projection, and the winning source's sample there (env, rim, perp, behind, floor, penalty). No prediction: a measurement of the cause.
+INSTRUMENT RUN 30 (patch 30; build 13:36:04-13:41:13, exe 13:41:08, run 13:41:13-13:42:26; m2d4r_r13_focus.txt; the numbers as GREEN 29):
+  Perlin (400,363): the driving bank at t 0.137 (near the HEAD), local rim 47.18; the winner is its downstream reach (400,362) read at ITS
+    head (rim 45.80 = env, perp 12.5 inside its 13.4 u floor, behind 0): the next reach bends back beside this reach's head (a hairpin) and
+    its floor lies 1.38 u under this reach's head rim. The two stations bracketing t 0.137 were lowered BY 1.38: the downstream one went
+    below the reach's END, the non-increasing rule dragged the end with it, the carry lowered the next reach's base, its floor - the very
+    reference - sank by the overshoot, and the same deficit was read again next round: the 1.3 u per round.
+  Mountains (732,361) the plateau cell: bank at t 0.246, local rim 163.9; winner (731,360) the gorge reach: env 138.6 = rim 125.1 + 0.70 x
+    (23.0 lateral - 20.2 floor) + 0.70 x 16.4 behind, PENALTY 0 - the pair was not shielded although (731,361) between them has a 36.7 u
+    natural step: the cascade flag was recomputed from the CURRENT slope (patch 26), the gorge reach had already lowered the cascade's
+    head 5-9 u in rounds 1-4, its slope fell under 0.70 x its world length, the flag dropped and with it the shield; then the cascade was
+    undercut in full (15.9 u deficit at its head) and the plateau followed. (263,166): a 5.4 u deficit at t 0.018 under the next reach's
+    21.7 u floor (perp 15.9) - a floodplain crossing, correct in kind.
+PATCH 31: (1) the stations are lowered TO the level the bank demands (bed = local rim - deficit - depth; both bracketing stations at or
+  below it), never BY the deficit - no overshoot below the end, so the next reach's floor is not dragged under its own reference;
+  (2) the cascade flag is the NATURAL step (the propagated natural profile) OR the current one over the world length.
+PREDICTIONS (before the build):
+  P31.1 the baseline's group stops: max base lowering 10.5 -> under 3 u, 0 > 8 u, under 5 moving in round 7.
+  P31.2 Mountains: the plateau holds (the pair shielded: the deficit of 25 u needs a face of (163.9 - 125.1) / 23 = 1.7 per u, inside the
+        4.0 budget): max base lowering 48 -> under 25 u; reaches > 8 u 192 -> under 100; movers in round 7 200 -> under 100.
+  P31.3 sections: the baseline GREEN; Mountains emb (3.3), corner (3.06) and junction emb (3.6) all under 3 u, lips 4 -> under 4; walls 0.
+  P31.4 the monotone test and the pinned hashes GREEN.
+
+GREEN 31 (patch 31; build 13:44:49-13:44:59, exe 13:44:56, run 13:44:59-13:46:07; m2d4r_r14_focus.txt): the rounds CONVERGE on both worlds.
+  Perlin:    3 rounds, moved [152,7,0], max base lowering 2.31 u, sum 25 u, 0 > 8 u, last deficit 0; the section test GREEN (every class).
+  Mountains: moved [499,92,20,9,4,2,1], last deficit 0.31 u, max BASE lowering 20.84 u (the D38 guard: under 22.4 with 1.6 u of margin),
+             sum 837 u, 19 > 8 u; cascades 12, lip pairs 3503; band columns 1.19 M, bank reads 274 k. The deepest: (740,392) base 197.5
+             -> 176.7 (end 152.5 kept: a steepened reach below a shielded pair, penalty 22.5 in the winner), (285,556) 253 -> 234 (end
+             232 kept), two flat reaches (286,557)/(286,558) 237.4 -> 224.2 under a 12-13 u deficit from the next reach's floor.
+             sections: EMB 2 (1.5), corner 0, junction 87 lips (4.6, 0 beyond) / 46 emb (1.6), WALLS 0, FACES 0 - all GREEN except LIPS 6
+             (worst 1.8 u at (12818,-5083)): the bank column's own envelope equals its own rim at its own projection (196.1 = rim, perp 2.7
+             inside its floor) while the adjacent band column's rim is 1.8 u lower: the profile is steep between the two projections
+             (a knee or a step inside the reach), which the lateral land cannot follow.
+  P31.1 MET (2.31 u, 0 > 8 u, 0 moving). P31.2 MET (20.84 < 25; 19 < 100; 1 < 100). P31.3 MET except the 6 lips (under 4 MISSED: 6).
+  P31.4 MET.
+PATCH 32: ChannelHit::localSlope - the fall per unit length of the profile's STATION segment at the hit; the section test's cascade class
+  (reported, not asserted) is the reach's overall slope OR the local one beyond 0.70 - a knee the rounds bent or a natural step inside
+  the reach, where the bed drops faster than the side can meet. The class is read at the cell's CENTRE hit.
+PREDICTIONS (before the build):
+  P32.1 Mountains lips outside the classes 6 -> 0 to 2 (a lip whose steep segment is not the centre's station stays); the rest as GREEN 31.
+  P32.2 the baseline unchanged (GREEN). P32.3 the monotone test, the hashes GREEN.
+  CHAIN 15 (the same exe): the terrain set 105/105; the WorldForge set 89/90 (EarthworkTest.DeepCutsAreWalledNotCliffed red at the same
+  section as at the commit, or moved - the terrain beside channels changed); BridgeSpanTest Mountains 35 bridges / 8 refusals within +-3.
+
+GREEN 32 + CHAIN 15 (patch 32; build 13:47:35-13:52:39, exe 13:52:36; focus 13:52:39-13:53:46 m2d4r_r15_focus.txt; terrain 13:53:46-14:01:26
+  m2d4r_r15_terrain.txt; forge 14:01:26-14:29:35 m2d4r_r15_forge.txt):
+  focus 3 of 4: Mountains lips outside the classes 6 -> 4 (worst 1.5 u at (-7945,-11219); the others 1.1-1.5 u), everything else as GREEN 31
+    (emb 2 / 1.5, corner 0, walls 0, faces 0, junction within bounds); the cascade class now 17 cells (local slope included) holding 27
+    embankments to 4.3 u and 28 lips to 5.2 u - reported; the baseline GREEN on every class. P32.1 MISSED (4, predicted 0-2). P32.2-3 MET.
+  terrain: 105 ok, 1 failed - the section test (the 4 lips); the D38 guard ChannelsAreNotEntrenchedBeyondOneCellsSideDrop GREEN
+    (20.8 u vs 22.4 u) - RED -> GREEN since its red run of 10:20 on the ruled rules; the monotone test, the hashes, the golden GREEN.
+  forge: 89 ok, 1 failed - EarthworkTest.DeepCutsAreWalledNotCliffed (jumps 1 vs 0; the M4b-4 open item, red before this leg too);
+    BridgeSpanTest Mountains 424242 35 bridges / 8 refusals / 63 re-routed, unchanged.
+STATE AT THE COMMIT: two red tests by design - the section test on Mountains on four lips of at most 1.5 u (each at a bank whose own
+  envelope equals its own rim at its own projection, the adjacent band column's rim lower: the bed is steep between the two projections
+  and the lateral land cannot follow; NOT re-bounded - the 1 u levee tolerance stands; stated), and the M4b-4 earthwork section. The
+  D38 guard is GREEN with 1.6 u of margin on this world; its bound (one cell's side drop) was not touched.
+
+AUDIT 3 (2026-10-30, solution-auditor on the tree after chain 15 + the docs; raw): "VERDICT: FAIL (narrow)". Accepted by it: the run
+  records, shas and timestamps; the guard's red at 10:20 and its green at 13:52 with the bound untouched; the 4 lips stated red; the
+  miss ledger; "not only the cascades". Rejected or qualified, and what is done about each:
+  1 "the cause was NOT the natural cascades" overstated - the plateau drop (GREEN 28-30) WAS an unshielded cascade: the wording becomes
+    "not only the cascades: the floor wrap + the lever was the dominant mechanism (the baseline, with no cascade, was lowered 70 u);
+    the cascade shield was also needed". No per-mechanism ablation on the final tree: stated.
+  2 the rock-face class is vacuous (0 steps on both worlds): the 4.0 / 1.3 constants are not exercised by the test - an ABLATION run
+    (kLipPenaltySlope = 0 on the final tree) is run below and recorded; the class stays with its bound, stated as unexercised.
+  3 the local-slope widening of the cascade class moved 17 lips from the asserted junction class into the reported class and only 2
+    out of the failing set: REVERTED (patch 33); ChannelHit::localSlope stays as an instrument.
+  4 the corner-cut tightening is non-loosening and untriggered (0 corner cuts): stated. The junction bound is derived by the author.
+  5 "converged" unsupported on Mountains (1 reach still moved in round 7 under the 8-round cap): the cap is raised to 12 with the
+    early stop (patch 33) and the fixed point measured below.
+  6 maxEndLowering / knees computed but never logged: patch 26's log and test edits had NOT applied (its script asserted after saving
+    the engine files; the chain command ran on past a ';') - patch 33 logs and prints them; P26.2 is evaluated below.
+  7 the plan paragraph quoted GREEN 31's class counts as the final exe's: corrected to chain 15's (27 / 28; 70 / 45).
+  8 "GROUNDED" for 4.0 is a borrowed engineering standard (a road-cut inclination), not a measured gorge wall; Haviv gives no angle below
+    vertical: relabelled "GROUNDED to an engineering standard (borrowed)"; the 1.65 -> 1.3 re-derivation (patch 25) is stated as such.
+  9 the prediction order cannot be verified from an uncommitted, in-place edited file: stated as asserted; the lesson taken is to
+    commit the evidence file at each prediction in future legs.
+  10 everything is L2 Debug; the Release L4 open: stated.
+PATCH 33: (1) the knee statistics logged and printed; (2) the cascade class back to the overall slope; (3) kPerchRounds 8 -> 12 (early stop).
+PREDICTIONS (before the build):
+  P33.1 Mountains: the rounds reach a fixed point under the cap - 0 reaches moved in round 9 or 10 (moved per round continuing [...,2,1,1,0]);
+        max base lowering 20.84 -> at most 21.5 u (sub-u moves remain), the guard GREEN; the baseline unchanged (3 rounds).
+  P33.2 knees on Mountains in the hundreds (100-600), deepest END lowering between 10 and 40 u; the baseline knees 10-60, end lowering < 5 u.
+  P33.3 the section test back to GREEN 31's classes: Mountains lips outside the classes 6 (worst 1.8 u) RED; cascade class 4 cells;
+        junction corners 87 lips; the baseline GREEN.
+  ABLATION (after P33 is measured; kLipPenaltySlope = 0 on the same tree, then reverted): P33.A the D38 guard RED - the plateau beside the
+        gorge drops (max base lowering over 40 u, the (732,361) group); P33.B the rock-face class still 0 (no penalty, no face).
+
+GREEN 33 (patch 33; build 14:35:53-14:36:10, exe 14:36:06, run 14:36:10-14:37:16; m2d4r_r16_focus.txt):
+  Mountains: a FIXED POINT under the cap - 10 rounds, moved per round [499,92,20,9,4,2,1,1,1,0], last round's worst deficit 0; max BASE
+             lowering 20.84 u (unchanged), sum 837 u, 19 > 8 u; knees 87, deepest END lowering 13.2 u; cascades 12, lip pairs 3503.
+             sections as GREEN 31: EMB 2 (1.5), LIPS 6 (1.8 u at (12818,-5083)) RED, walls 0, faces 0, junction 87 lips (4.6; 0 beyond) /
+             46 emb (1.6); cascade class 4 cells, 26 emb (4.3), 9 lips (5.2).
+  Perlin:    3 rounds [152,7,0], 2.31 u, knees 5, deepest end lowering 2.3 u; the section test GREEN.
+  P33.1 MET (0 moved in round 10; 20.84 u; the guard GREEN). P33.2 MISSED on the knee counts (87 vs 100-600; 5 vs 10-60), MET on the end
+  lowering (13.2 in 10-40; 2.3 < 5). P33.3 MET. P26.2, deferred since its build: "knees hundreds, end lowering 10-30 u; Perlin tens" ->
+  87 / 13.2 u / 5: the counts over-predicted, the depth in range.
+ABLATION (kLipPenaltySlope = 0 on the GREEN 33 tree, then restored; the predictions P33.A / P33.B above):
+  ABLATION RUN (kLipPenaltySlope = 0; build 14:38:34-14:43:26, exe 14:43:22, run 14:43:26-14:44:31; m2d4r_r17_focus.txt; the header then
+  restored, sha b93b3985 = GREEN 33's): Mountains max BASE lowering 20.84 -> 43.3 u (the guard's bound 22.4: RED by the number), 32 > 8 u,
+  deepest END lowering 33.4 u, moved per round [509,102,22,9,6,3,0]; ROCK FACES 0 of 73 394 (no penalty, no face); sections: emb 4 (2.0 u
+  at (7031,-4816) - the plateau beside the gorge), lips 5 (1.8). The baseline unchanged (no cascade, no pair).
+  P33.A MET (RED, 43.3 u > 40, the plateau group). P33.B MET (0 faces). READ: the shield is NECESSARY (without it the plateau beside the
+  gorge reach drops 43 u); its SLOPE (4.0 / 1.3) is exercised by no measurement - the face class is vacuous because where the allowance
+  acts the penalised source loses outright to the plateau's own envelope or the natural; stated in the plan, not claimed tested.
+COMMITTED IN THIS STATE (the focused set on the final exe 14:36:06; the terrain and WorldForge sets last ran on the exe of 13:52:36, before
+  patch 33 - the round cap 8 -> 12, the log, the test's class - and are re-run on the final exe next): two red tests by design - the
+  section test on Mountains on six lips of at most 1.8 u, and the M4b-4 earthwork section.

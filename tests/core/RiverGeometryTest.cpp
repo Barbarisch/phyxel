@@ -267,11 +267,13 @@ struct SectionStats {
     int cornerCuts = 0; float worstCorner = 0.0f;                              // banks on a LOWER reach's floodplain (a bend's inner corner)
     int branches = 0;                                                          // the sectioned column lies on ANOTHER branch of a folded warp
     int alongChannel = 0;                                                      // the section stayed in the band too long: it runs along the channel
+    int faceSteps = 0, faceWalls = 0, cellsWithFace = 0; float worstFace = 0.0f; glm::ivec2 faceAt{0, 0};   // D38: steps inside a cliff allowance (the winning envelope carries the lip penalty)
+    int junctionLips = 0, junctionEmb = 0, junctionLipsBeyond = 0; float worstJunctionLip = 0.0f, worstJunctionEmb = 0.0f; glm::ivec2 junctionLipAt{0, 0};   // bank columns at a reach's end corners
     float localEmb = 0.0f, localLip = 0.0f; glm::ivec2 localEmbAt{0, 0}, localLipAt{0, 0};   // the cell's local (direction-free) worst
     float worstEmb = 0.0f, worstLip = 0.0f, worstWall = 0.0f, worstNat = 0.0f;
     glm::ivec2 embAt{0, 0}, lipAt{0, 0}, wallAt{0, 0};
     struct Diag { float value; std::string text; };
-    std::vector<Diag> embDiag, wallDiag, lipDiag;   // the three worst of each, with the facts at the column
+    std::vector<Diag> embDiag, wallDiag, lipDiag, faceDiag;   // the three worst of each, with the facts at the column
 };
 
 void keepWorst(std::vector<SectionStats::Diag>& v, float value, std::string text) {
@@ -359,7 +361,7 @@ SectionStats measureChannelSections(WorldGenerator& g, const char* name) {
         const glm::vec2 nrm(-d.y, d.x);
         const float reach = hit.halfWidth * 5.0f + 8.0f;
         ++s.cells;
-        bool wallHere = false;
+        bool wallHere = false, faceHere = false;
         {
             std::vector<glm::ivec2> band{col};
             std::vector<glm::ivec2> seen{col};
@@ -382,6 +384,35 @@ SectionStats measureChannelSections(WorldGenerator& g, const char* name) {
                     if (ns.riverOrder >= 1) continue;   // a creek beside the river: not a bank
                     const float emb = rimB - ns.bedHeight;
                     constexpr float kBankTol = 1.0f + 1e-3f;   // natural levees (<= 1 u, GROUNDED) - the red's bound + 1 mm of float (audit: a 1/3 u shelf allowance added after GREEN 18 is withdrawn)
+                    // D38: a JUNCTION CORNER - the bank column lies within the half-width + 2 u of either end of the reach's world
+                    // polyline, where the band's rounded end meets the next reach's floor. The lower reach's floor stops at its own
+                    // head plane (the finding), so outside a steep reach's shrunken floor the land at the corner is the side at 0.70
+                    // from the vertex: a lip there is bounded by kValleySideSlope x (half-width + 2) + the levee tolerance (DERIVED,
+                    // asserted); an embankment there keeps the levee bound (asserted below with the rest). Counted per bank column.
+                    // the corner's radius is the band's MEASURED half-width (the warp widens the band up to three half-widths)
+                    const float cornerR = std::max(hit.halfWidth, n.f->bandHalfOf(c)) + 2.0f;
+                    bool junction = false;
+                    if (const auto* wpl = n.f->sourceWorldPolyline(c); wpl && wpl->size() >= 2) {
+                        const glm::vec2 pc = glm::vec2(nb) + glm::vec2(0.5f);
+                        junction = glm::length(pc - wpl->front()) <= cornerR || glm::length(pc - wpl->back()) <= cornerR;
+                    }
+                    // a cascade's or a fold's corner belongs to that reported class (its bed drops faster than the side can meet)
+                    const bool steepOrFolded = hit.bedSlope > FlowField::kValleySideSlope || n.f->isFoldedSource(c);
+                    if (junction && steepOrFolded && std::fabs(emb) > kBankTol) {
+                        if (emb > 0.0f) { ++s.cascadeEmbank; s.worstExcludedEmb = std::max(s.worstExcludedEmb, emb); }
+                        else { ++s.cascadeLips; s.worstExcludedLip = std::max(s.worstExcludedLip, -emb); }
+                        continue;
+                    }
+                    if (junction && std::fabs(emb) > kBankTol) {
+                        const float lipBound = FlowField::kValleySideSlope * cornerR + kBankTol;
+                        if (emb > 0.0f) { ++s.junctionEmb; s.worstJunctionEmb = std::max(s.worstJunctionEmb, emb); }
+                        else {
+                            ++s.junctionLips;
+                            if (-emb > s.worstJunctionLip) { s.worstJunctionLip = -emb; s.junctionLipAt = nb; }
+                            if (-emb > lipBound) ++s.junctionLipsBeyond;
+                        }
+                        continue;
+                    }
                     if (emb > kBankTol) {
                         // a corner cut: the neighbour lies on a LOWER reach's floodplain (its envelope's winner is another reach, its floor covers the column, its rim is lower)
                         bool corner = false;
@@ -390,7 +421,7 @@ SectionStats measureChannelSections(WorldGenerator& g, const char* name) {
                         for (int src : n.f->valleySourcesAt(qx, qz)) {
                             if (src == c) continue;
                             const auto es = n.f->envelopeSample(src, qx, qz, mq.x, mq.y);
-                            if (es.perp <= es.valleyHalf + 1.0f && es.rim < rimB - 1.0f) { corner = true; break; }
+                            if (es.env <= es.rim + 1e-3f && es.rim < rimB - 1.0f) { corner = true; break; }   // its floor IS at its rim here (not raised behind its head)
                         }
                         if (corner) { cornerHere = true; embCornerHere = std::max(embCornerHere, emb); }
                         else if (emb > worstEmbHere) { worstEmbHere = emb; embAtHere = nb; }
@@ -423,7 +454,7 @@ SectionStats measureChannelSections(WorldGenerator& g, const char* name) {
         }
         for (const float side : {-1.0f, 1.0f}) {
             bool pastChannel = false;
-            float prevEmit = 0.0f, prevNat = 0.0f, prevRim = 0.0f;
+            float prevEmit = 0.0f, prevNat = 0.0f, prevRim = 0.0f, prevPen = 0.0f;
             int prevX = 0, prevZ = 0;
             float edgeRim = hit.bedProfile + hit.fullDepth;   // updated as the walk crosses the band
             for (float off = 0.0f; off <= reach; off += 1.0f) {
@@ -434,13 +465,10 @@ SectionStats measureChannelSections(WorldGenerator& g, const char* name) {
                 // the floor's own level here (the rim the envelope reads for this reach): a sloping reach's floor
                 // descends along the river, compressed by the warp in world space - its gradient is not a wall
                 const glm::vec2 mqc = g.meanderedChannelPos(static_cast<float>(x), static_cast<float>(z));
-                float rimHere = 0.0f;
-                {   // the rim of the source whose envelope wins at this column
-                    float bestEnv = 1e30f;
-                    for (int src : n.f->valleySourcesAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f)) {
-                        const auto es = n.f->envelopeSample(src, static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f, mqc.x, mqc.y);
-                        if (es.env < bestEnv) { bestEnv = es.env; rimHere = es.rim; }
-                    }
+                float rimHere = 0.0f, penHere = 0.0f;
+                {   // the source whose envelope wins at this column (the D38 lip penalty applied): its rim, its penalty
+                    const auto ws = n.f->valleyEnvelopeSampleAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f, mqc.x, mqc.y);
+                    if (ws.env < 1e29f) { rimHere = ws.rim; penHere = ws.penalty; }
                 }
                 if (!pastChannel) {
                     if (cs.riverOrder >= 1 && cs.carvedRiver) {   // the channel band: remember the rim at its edge
@@ -470,7 +498,7 @@ SectionStats measureChannelSections(WorldGenerator& g, const char* name) {
                             keepWorst(s.lipDiag, lip, std::string(hb) + columnFacts(g, n, s.localLipAt.x, s.localLipAt.y) + " | centre col " + columnFacts(g, n, col.x, col.y) + " | " + footprintFacts(g, n, c, hit.halfWidth));
                         }
                     }
-                    prevEmit = cs.bedHeight; prevNat = nat; prevRim = rimHere; prevX = x; prevZ = z;
+                    prevEmit = cs.bedHeight; prevNat = nat; prevRim = rimHere; prevPen = penHere; prevX = x; prevZ = z;
                     continue;
                 }
                 if (cs.riverOrder >= 1) break;   // another channel: this side's section ends
@@ -481,7 +509,25 @@ SectionStats measureChannelSections(WorldGenerator& g, const char* name) {
                 const float wallBound = std::max({kRepose * colDist, kScaleMax * natStep, rimStep}) + kTol + 1e-3f;
                 const glm::vec2 mSw = g.meanderedChannelPos(static_cast<float>(x), static_cast<float>(z));
                 const bool inCreekSwale = n.f->nearestChannel(mSw.x, mSw.y, 2.0f * n.f->maxCreekHalfWidth() + 2.0f, 1).order >= 1;   // the creek swale's own dip
-                if (inCreekSwale) { prevEmit = cs.bedHeight; prevNat = nat; prevRim = rimHere; prevX = x; prevZ = z; continue; }
+                if (inCreekSwale) { prevEmit = cs.bedHeight; prevNat = nat; prevRim = rimHere; prevPen = penHere; prevX = x; prevZ = z; continue; }
+                // D38: a step inside a CLIFF ALLOWANCE - the winning envelope carries the lip penalty at either column -
+                // is a rock face the rule made: bounded by kRockFaceSlope per u (the natural and the rim's own step still
+                // allowed), asserted, and never counted as a wall or a cascade wall
+                if (penHere > 0.0f || prevPen > 0.0f) {
+                    ++s.faceSteps; faceHere = true;
+                    const float faceBound = std::max({FlowField::kRockFaceSlope * colDist, kScaleMax * natStep, rimStep}) + kTol + 1e-3f;
+                    if (step > s.worstFace) { s.worstFace = step; s.faceAt = {x, z}; }
+                    if (step > faceBound) {
+                        ++s.faceWalls;
+                        const glm::vec2 pp = glm::vec2(col) + glm::vec2(0.5f) + nrm * (side * (off - 1.0f));
+                        const int px = static_cast<int>(std::floor(pp.x)), pz = static_cast<int>(std::floor(pp.y));
+                        char hb[140];
+                        std::snprintf(hb, sizeof hb, "FACE BEYOND THE BOUND %.1f u (natural step %.1f, penalty %.1f/%.1f) at off %.0f side %+.0f of cell %d: ", step, natStep, prevPen, penHere, off, side, c);
+                        keepWorst(s.faceDiag, step, std::string(hb) + "this " + columnFacts(g, n, x, z) + " | prev " + columnFacts(g, n, px, pz));
+                    }
+                    prevEmit = cs.bedHeight; prevNat = nat; prevRim = rimHere; prevPen = penHere; prevX = x; prevZ = z;
+                    continue;
+                }
                 if (step > wallBound && cascade) ++s.cascadeWalls;
                 else if (step > wallBound) {
                     ++s.walls; wallHere = true;
@@ -492,10 +538,11 @@ SectionStats measureChannelSections(WorldGenerator& g, const char* name) {
                     std::snprintf(hb, sizeof hb, "WALL %.1f u (natural step %.1f) at off %.0f side %+.0f of cell %d: ", step, natStep, off, side, c);
                     keepWorst(s.wallDiag, step, std::string(hb) + "this " + columnFacts(g, n, x, z) + " | prev " + columnFacts(g, n, px, pz));
                 }
-                prevEmit = cs.bedHeight; prevNat = nat; prevRim = rimHere; prevX = x; prevZ = z;
+                prevEmit = cs.bedHeight; prevNat = nat; prevRim = rimHere; prevPen = penHere; prevX = x; prevZ = z;
             }
         }
         if (wallHere) ++s.cellsWithWall;
+        if (faceHere) ++s.cellsWithFace;
     }
     std::printf("[ M2d-4 ] %s: %d warp inversions beyond 1 u at the bake\n", name, g.warpInverseFailures());
     std::printf("[ M2d-4 ] %s: %d carved cells outside basins sectioned; EMBANKMENTS (rim above the bank by > 1 u) %d (%.1f %%), worst %.1f u at (%d,%d); LIPS (bank above the rim by > 1 u) %d (%.1f %%), worst %.1f u at (%d,%d); WALLS the shaping made %d of %d lateral steps (%.1f %%) on %d cells (%.1f %%), worst %.1f u per column at (%d,%d); natural steps beyond 0.70: %d (%.1f %%), worst %.1f\n",
@@ -511,6 +558,11 @@ SectionStats measureChannelSections(WorldGenerator& g, const char* name) {
                 name, s.cornerCuts, s.worstCorner);
     std::printf("[ M2d-4 ] %s: SECOND BRANCHES (the sectioned column lies off the envelope's world polyline by more than the band: the warp has two preimages here) %d cells - counted with the cascades, reported; sections that ran ALONG the channel (skipped) %d sides\n",
                 name, s.branches, s.alongChannel);
+    std::printf("[ M2d-4 ] %s: JUNCTION CORNERS (bank columns within the band's measured half-width + 2 u of a reach's end vertex; cascade and fold cells' corners counted with that class): %d lips, worst %.1f u at (%d,%d), %d beyond the derived bound 0.70 x radius + 1 - asserted; %d embankments, worst %.1f u (the levee bound, asserted)\n",
+                name, s.junctionLips, s.worstJunctionLip, s.junctionLipAt.x, s.junctionLipAt.y, s.junctionLipsBeyond, s.junctionEmb, s.worstJunctionEmb);
+    std::printf("[ M2d-4 ] %s: ROCK FACES (D38 cliff allowance: the winning envelope carries the lip penalty at either column) %d of %d lateral steps on %d cells, worst %.2f u per column at (%d,%d); bound %.2f per u (+ the natural, + the rim's step): %d steps beyond it - asserted\n",
+                name, s.faceSteps, s.stepsChecked, s.cellsWithFace, s.worstFace, s.faceAt.x, s.faceAt.y, FlowField::kRockFaceSlope, s.faceWalls);
+    for (const auto& d : s.faceDiag) std::printf("[ M2d-4-diag ] %s: %s\n", name, d.text.c_str());
     for (const auto& d : s.embDiag) std::printf("[ M2d-4-diag ] %s: %s\n", name, d.text.c_str());
     for (const auto& d : s.wallDiag) std::printf("[ M2d-4-diag ] %s: %s\n", name, d.text.c_str());
     for (const auto& d : s.lipDiag) std::printf("[ M2d-4-diag ] %s: %s\n", name, d.text.c_str());
@@ -546,8 +598,8 @@ void pinNaturalGround(WorldGenerator& g, const char* name) {
 }
 
 // ============================================================================
-// D38 (OPEN, 2026-10-30) - THE RED TEST FOR THE NEXT INCREMENT, left red in the tree like the M2d-4 red
-// was before its ruling: a channel is never ENTRENCHED beyond one cell's side-slope drop. The perch rule
+// D38 (RULED 2026-10-30, option b - a cliff allowance at the lip; RED on the ruled rules before it, the
+// M2d-4 precedent): a channel is never ENTRENCHED beyond one cell's side-slope drop. The perch rule
 // (D37: a reach is never perched above its own valley side) lowers a reach's base to the envelope beside
 // it; at a natural step steeper than the side slope the reach above the step must drop by the step's
 // excess, and - downstream first - so must every reach above THAT one: the whole channel upstream of a
@@ -567,11 +619,11 @@ TEST(RiverGeometryTest, ChannelsAreNotEntrenchedBeyondOneCellsSideDrop) {
     const FlowField* f = g.riverNetwork();
     const FlowField::PerchStats& ps = f->perchStats();
     const float oneCellDrop = FlowField::kValleySideSlope * f->cellSize();
-    std::printf("[ D38 ] Mountains 424242: perch rounds %d over %d carved reaches, cumulative lowering max %.1f u (one cell's side drop %.1f u), sum %.0f u, %d reaches lowered by more than 8 u\n",
-                ps.rounds, ps.reaches, ps.maxLowering, oneCellDrop, ps.sumLowering, ps.loweredOver8);
+    std::printf("[ D38 ] Mountains 424242: perch rounds %d over %d carved reaches, cumulative BASE lowering max %.1f u (one cell's side drop %.1f u), sum %.0f u, %d reaches lowered by more than 8 u; knees (the end lowered more than 1 u beyond the base) %d, deepest END lowering %.1f u (reported); cascades %d, lip pairs %lld, source lists beyond the cap %d\n",
+                ps.rounds, ps.reaches, ps.maxLowering, oneCellDrop, ps.sumLowering, ps.loweredOver8, ps.knees, ps.maxEndLowering, ps.cascades, ps.lipPairs, ps.longLists);
     for (const FlowField::PerchStats::Deep& d : ps.deepest)
-        std::printf("[ D38 ]   cell %d (%d,%d) lowered %.1f u over %d rounds, last driven by source %d (%d,%d) folded %d, deficit %.1f u\n",
-                    d.cell, d.cell % f->cellsX(), d.cell / f->cellsX(), d.lowering, d.rounds, d.lastSrc,
+        std::printf("[ D38 ]   cell %d (%d,%d) base lowered %.1f u (end %.1f u) over %d rounds, last driven by source %d (%d,%d) folded %d, deficit %.1f u\n",
+                    d.cell, d.cell % f->cellsX(), d.cell / f->cellsX(), d.lowering, d.endLowering, d.rounds, d.lastSrc,
                     d.lastSrc >= 0 ? d.lastSrc % f->cellsX() : -1, d.lastSrc >= 0 ? d.lastSrc / f->cellsX() : -1,
                     d.lastSrc >= 0 && f->isFoldedSource(d.lastSrc) ? 1 : 0, d.lastDeficit);
     ASSERT_GT(ps.reaches, 0);
@@ -611,6 +663,9 @@ TEST(RiverGeometryTest, ChannelSectionsMeetTheLandAtABoundedSlope) {
         EXPECT_LE(s.worstCorner, 3.0f) << "a bend's inner corner cut more than 3 u under the reach's rim";
         EXPECT_EQ(s.lips, 0) << "a lip at the channel edge: the land at the bank stands above the rim";
         EXPECT_EQ(s.walls, 0) << "a wall the valley shaping made: a lateral step steeper than repose and than the natural ground";
+        EXPECT_EQ(s.faceWalls, 0) << "a rock face steeper than the D38 bound (kRockFaceSlope per u)";
+        EXPECT_EQ(s.junctionLipsBeyond, 0) << "a junction-corner lip beyond 0.70 x (hw + 2) + 1 u";
+        EXPECT_LE(s.worstJunctionEmb, 3.0f) << "a junction-corner bank more than 3 u under its rim";
     }
     {
         WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
@@ -623,6 +678,9 @@ TEST(RiverGeometryTest, ChannelSectionsMeetTheLandAtABoundedSlope) {
         EXPECT_LE(s.worstCorner, 3.0f) << "a corner cut more than 3 u on the baseline";
         EXPECT_EQ(s.lips, 0) << "a lip at the channel edge on the baseline";
         EXPECT_EQ(s.walls, 0) << "a wall the valley shaping made on the baseline";
+        EXPECT_EQ(s.faceWalls, 0) << "a rock face steeper than the D38 bound on the baseline";
+        EXPECT_EQ(s.junctionLipsBeyond, 0) << "a junction-corner lip beyond 0.70 x (hw + 2) + 1 u on the baseline";
+        EXPECT_LE(s.worstJunctionEmb, 3.0f) << "a junction-corner bank more than 3 u under its rim on the baseline";
     }
 }
 

@@ -154,6 +154,7 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
 
         m_bedY.assign(n, 0.0f);
         m_carryY.assign(n, 0.0f);
+        m_stY.assign(n * static_cast<size_t>(kProfileStations), 0.0f);
         m_basin.assign(n, 0);
         std::vector<float> groundK(n, 0.0f);   // per river cell: the ground the bed is cut from (lowered by the valley rounds below)
         auto centreOfCell = [&](int c) {
@@ -197,16 +198,31 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
         idx.reserve(n);
         for (size_t c = 0; c < n; ++c) if (m_order[c] >= 1) idx.push_back(static_cast<int>(c));
         std::stable_sort(idx.begin(), idx.end(), [&](int a, int b) { return m_accum[a] < m_accum[b]; });
+        // M2d-4 residual (2026-10-30): the profile is monotone in the RIM - the bankfull water surface,
+        // bed + the law depth - not in the bed. m_carryY is the rim a cell hands downstream (a basin
+        // hands its filled level, a water surface too). A shallow tributary meets a deep river at the
+        // river's SURFACE and its bed hangs its own depth below that, not at the river's thalweg; with the
+        // beds matched instead, every confluence left the main river's rim above the tributary's floor by
+        // the two depths' difference, a deficit the perch rounds closed by sinking the pair a little every
+        // round, without end (GREEN 28: a flat group of five reaches sinking 1.3 u per round on the baseline).
         auto propagateProfile = [&]() {
             for (size_t c = 0; c < n; ++c) {
                 if (m_order[c] < 1) continue;
                 m_bedY[c] = groundK[c] - m_fullD[c];
-                m_carryY[c] = m_basin[c] ? fr.filled[c] : m_bedY[c];
+                m_carryY[c] = m_basin[c] ? fr.filled[c] : m_bedY[c] + m_fullD[c];
             }
             for (int c : idx) {
                 const int d = m_downstream[c];
                 if (d == c || d < 0 || static_cast<size_t>(d) >= n || m_order[d] < 1 || m_basin[d]) continue;
-                if (m_carryY[c] < m_bedY[d]) { m_bedY[d] = m_carryY[c]; m_carryY[d] = m_bedY[d]; }
+                if (m_carryY[c] < m_bedY[d] + m_fullD[d]) { m_bedY[d] = m_carryY[c] - m_fullD[d]; m_carryY[d] = m_bedY[d] + m_fullD[d]; }
+            }
+            // the stations: linear from the base to the bed under the rim the cell hands downstream (the next
+            // cell's rim at its base, or a basin's level - never rising: the river enters a basin at its depth)
+            for (int c : idx) {
+                const int d = m_downstream[c];
+                const float endY = (d != c && d >= 0 && static_cast<size_t>(d) < n) ? std::min(m_carryY[d], m_bedY[c] + m_fullD[c]) - m_fullD[c] : m_bedY[c];
+                float* st = &m_stY[static_cast<size_t>(c) * kProfileStations];
+                for (int i = 0; i < kProfileStations; ++i) st[i] = m_bedY[c] + (endY - m_bedY[c]) * (static_cast<float>(i) / (kProfileStations - 1));
             }
         };
         propagateProfile();
@@ -336,29 +352,61 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
             // warp expands, the band is wider than the half-width and a slope-shrunk floor ended INSIDE it,
             // the side rising at the bank - GREEN 21's lips at 1.3 u); the floor is never narrower than it
             std::vector<float> bandHalfWorld(n, 0.0f);
+            // D38: the drainage tree once (it does not move in the rounds) - the cascade flag per reach
+            // from the NATURAL step (groundK at the first build is the D37 footprint minimum, before any
+            // lowering), the cascades counted from each cell down to its root, depth + binary lifting for
+            // the lowest common ancestor of two listed sources
+            std::vector<float> worldLenK(n, 0.0f);
+            const std::vector<float> stRef0 = m_stY;   // the natural propagated profile (the cascade flag's reference)
+            std::vector<int> cascCount(n, 0), depth(n, 0);
+            std::vector<int> up;   // LOG x n, flat
+            int LOG = 1;
+            bool treeReady = false;
+            auto lca = [&](int a, int b) {
+                if (depth[static_cast<size_t>(a)] < depth[static_cast<size_t>(b)]) std::swap(a, b);
+                int diff = depth[static_cast<size_t>(a)] - depth[static_cast<size_t>(b)];
+                for (int j = 0; diff > 0; ++j, diff >>= 1) if (diff & 1) a = up[static_cast<size_t>(j) * n + a];
+                if (a == b) return a;
+                for (int j = LOG - 1; j >= 0; --j) {
+                    const int ua = up[static_cast<size_t>(j) * n + a], ub = up[static_cast<size_t>(j) * n + b];
+                    if (ua != ub) { a = ua; b = ub; }
+                }
+                const int ja = up[a], jb = up[b];
+                return ja == jb ? ja : -1;   // -1: different trees
+            };
+            // (source s, listed r): r lies upstream of s with a cascade on r's path to their junction
+            auto lipPair = [&](int sSrc, int r) {
+                if (sSrc == r) return false;
+                const int j = lca(r, sSrc);
+                if (j < 0 || j == r) return false;
+                return cascCount[static_cast<size_t>(r)] - cascCount[static_cast<size_t>(j)] > 0;
+            };
             auto buildEnvelope = [&]() {
             m_envPolyIdx.assign(n, -1);
             m_envPolys.clear();
             m_envRims.clear();
             m_envFloorHalf.clear();
+            m_envBandHalf.clear();
+            m_envHeadAllow.clear();
             m_envFolded.clear();
             std::vector<glm::vec2> plScratch;
             for (int k = 0; k < static_cast<int>(n); ++k) {
                 if (m_order[k] < 1 || !m_carved[k] || m_basin[k]) continue;
                 const std::vector<glm::vec2>& pl = cellPolyline(k, plScratch);
                 if (pl.size() < 2) continue;
-                const int d = m_downstream[k];
-                const float endY = (d != k && d >= 0 && static_cast<size_t>(d) < n) ? std::min(m_carryY[d], m_bedY[k]) : m_bedY[k];
+                const float* stK = &m_stY[static_cast<size_t>(k) * kProfileStations];
+                const float endY = stK[kProfileStations - 1];
                 std::vector<glm::vec2> wp;
                 std::vector<float> wr;
                 glm::vec2 hint = pl.front(), prevQ = pl.front();
+                static_assert(kProfileStations == 9, "the envelope's nine stations are the profile's nine stations");
                 for (int st = 0; st <= 8; ++st) {
                     const float t = static_cast<float>(st) / 8.0f;
                     const glm::vec2 q = pointAt(pl, t);
                     const glm::vec2 w = fns.toWorld(q.x, q.y, *this, hint + (q - prevQ));   // continue along one branch
                     hint = w; prevQ = q;
                     wp.push_back(w);
-                    wr.push_back(m_bedY[k] + (endY - m_bedY[k]) * t + m_fullD[k]);
+                    wr.push_back(stK[st] + m_fullD[k]);
                 }
                 // the bed slope along the reach (bake units, as channelAt's bedSlope) sets the floor
                 float bakeLen = 0.0f;
@@ -374,11 +422,56 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
                     if (q > 0 && glm::dot(a, wp[q] - wp[q - 1]) < 0.0f) folded = true;
                 }
                 if (bakeLen > 0.0f && worldLen < bakeLen / 3.0f) folded = true;
+                worldLenK[static_cast<size_t>(k)] = worldLen;
                 m_envPolyIdx[static_cast<size_t>(k)] = static_cast<int>(m_envPolys.size());
                 m_envPolys.push_back(std::move(wp));
                 m_envRims.push_back(std::move(wr));
                 m_envFloorHalf.push_back(std::max(floorHalfFor(m_halfW[k], bedSlope), bandHalfWorld[static_cast<size_t>(k)] + 1.0f));
+                m_envBandHalf.push_back(bandHalfWorld[static_cast<size_t>(k)] + 1.0f);
+                // a HEAD of the carved network (no carved inflow): its floor wraps its own head corner within the
+                // band's radius (the valley head is a bowl); elsewhere the reach above carries the floor
+                bool isHead = true;
+                for (int u : inflows[static_cast<size_t>(k)]) if (m_order[u] >= 1 && m_carved[u] && !m_basin[u]) { isHead = false; break; }
+                m_envHeadAllow.push_back(isHead ? bandHalfWorld[static_cast<size_t>(k)] + 1.0f : 0.0f);
                 m_envFolded.push_back(folded ? 1 : 0);
+            }
+            // the cascade flag EVERY build from the reach's current overall slope (base to end over its world
+            // length): a reach bent steeper by a knee at its end counts, so the cliff allowance shields it
+            {
+                m_cascade.assign(n, 0);
+                int cascN = 0;
+                for (int k = 0; k < static_cast<int>(n); ++k) {
+                    if (m_envPolyIdx[static_cast<size_t>(k)] < 0) continue;
+                    const int d = m_downstream[k];
+                    if (d == k || d < 0 || static_cast<size_t>(d) >= n || m_envPolyIdx[static_cast<size_t>(d)] < 0) continue;
+                    const float* stK = &m_stY[static_cast<size_t>(k) * kProfileStations];
+                    const float* rfK = &stRef0[static_cast<size_t>(k) * kProfileStations];
+                    const float drop = std::max(stK[0] - stK[kProfileStations - 1], rfK[0] - rfK[kProfileStations - 1]);   // the natural step, or the current one
+                    if (drop > kValleySideSlope * std::max(worldLenK[static_cast<size_t>(k)], 1.0f)) { m_cascade[static_cast<size_t>(k)] = 1; ++cascN; }
+                }
+                m_perch.cascades = cascN;
+            }
+            if (!treeReady) {
+                treeReady = true;
+                while ((1 << LOG) < static_cast<int>(n)) ++LOG;
+                up.assign(static_cast<size_t>(LOG) * n, 0);
+                for (int c = 0; c < static_cast<int>(n); ++c) {
+                    const int d = m_downstream[c];
+                    up[static_cast<size_t>(c)] = (d == c || d < 0 || static_cast<size_t>(d) >= n) ? c : d;
+                }
+                for (size_t ii = idx.size(); ii-- > 0;) {   // downstream first: the root's depth comes first
+                    const int c = idx[ii];
+                    const int d = up[static_cast<size_t>(c)];
+                    depth[static_cast<size_t>(c)] = d == c ? 0 : depth[static_cast<size_t>(d)] + 1;
+                }
+                for (int j = 1; j < LOG; ++j)
+                    for (size_t c = 0; c < n; ++c)
+                        up[static_cast<size_t>(j) * n + c] = up[static_cast<size_t>(j - 1) * n + up[static_cast<size_t>(j - 1) * n + c]];
+            }
+            for (size_t ii = idx.size(); ii-- > 0;) {   // the cascades from each cell down to its root, every build
+                const int c = idx[ii];
+                const int d = up[static_cast<size_t>(c)];
+                cascCount[static_cast<size_t>(c)] = (m_cascade[static_cast<size_t>(c)] ? 1 : 0) + (d == c ? 0 : cascCount[static_cast<size_t>(d)]);
             }
             struct Cand { int cell, src; float lower, upper; };
             std::vector<Cand> cands;
@@ -421,20 +514,36 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
             std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) { return a.cell != b.cell ? a.cell < b.cell : a.lower < b.lower; });
             m_envHead.assign(n, -1);
             m_envPool.clear();
+            long long pairs = 0; int longs = 0;
+            std::vector<int> chosen;
             for (size_t i = 0; i < cands.size();) {
                 size_t j = i;
                 float minUpper = 1e30f;
                 while (j < cands.size() && cands[j].cell == cands[i].cell) { minUpper = std::min(minUpper, cands[j].upper); ++j; }
                 int prev = -1;
+                chosen.clear();
+                const int first = static_cast<int>(m_envPool.size());
                 for (size_t q = i; q < j; ++q) {
                     if (cands[q].lower > minUpper) break;   // sorted by lower: none past this can win
-                    m_envPool.push_back({cands[q].src, -1});
+                    m_envPool.push_back({cands[q].src, -1, 0u});
+                    chosen.push_back(cands[q].src);
                     const int idx = static_cast<int>(m_envPool.size()) - 1;
                     if (prev < 0) m_envHead[static_cast<size_t>(cands[i].cell)] = idx; else m_envPool[static_cast<size_t>(prev)].next = idx;
                     prev = idx;
                 }
+                // D38: per listed source, the listed sources that are upstream reaches across a cascade
+                const int L = static_cast<int>(chosen.size());
+                if (L > kEnvListCap) ++longs;
+                for (int a = 0; a < L && a < kEnvListCap; ++a) {
+                    uint32_t mask = 0u;
+                    for (int b = 0; b < L && b < kEnvListCap; ++b)
+                        if (lipPair(chosen[static_cast<size_t>(a)], chosen[static_cast<size_t>(b)])) { mask |= 1u << b; ++pairs; }
+                    m_envPool[static_cast<size_t>(first + a)].lipMask = mask;
+                }
                 i = j;
             }
+            m_perch.lipPairs = pairs;
+            m_perch.longLists = longs;
             };
             // A channel is never PERCHED above its own valley side: where another reach's envelope
             // (its floor or its side) lies below this reach's rim at the reach's own stations, the
@@ -446,8 +555,9 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
             // The rule is checked at the reach's BANK stations (the world polyline offset by the
             // half-width along its normal), where a side from a lower reach is lowest - the centreline
             // alone left 13-16 u of perch at the banks (GREEN 14). Up to 8 rounds, until nothing moves.
-            constexpr int kPerchRounds = 8;
-            const std::vector<float> groundK0 = groundK;   // the D37 footprint minimum the rounds start from
+            constexpr int kPerchRounds = 12;   // stops early once nothing moves (the baseline: 3 rounds)
+            const std::vector<float> stRef = m_stY;        // the natural propagated profile the rounds start from
+            (void)groundK;
             m_perch = PerchStats{};
             for (size_t c = 0; c < n; ++c) if (m_order[c] >= 1 && m_carved[c] && !m_basin[c]) ++m_perch.reaches;
             // M2d-4 residual (the rule as it stands after the audit): the reach's band is FLOODED in world
@@ -467,11 +577,27 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
             std::vector<uint8_t> moved(n, 1), movedPrev(n, 1);
             std::vector<int> lastSrc(n, -1), roundsMoved(n, 0);
             std::vector<float> lastDeficit(n, 0.0f);
+            struct Drive { int x = 0, z = 0; float rimB = 0.0f, tB = 0.0f; EnvSample win; };
+            std::vector<Drive> lastDrive(n);
             std::vector<uint8_t> visited;
             struct BandCol { int x, z; float rimB, tB; bool fromBand; };
             std::vector<BandCol> queue;
+            std::vector<int> slotOf(n, -1);
+            int slots = 0;
+            for (size_t c = 0; c < n; ++c) if (m_order[c] >= 1 && m_carved[c] && !m_basin[c]) slotOf[c] = slots++;
+            std::vector<float> baseHist;   // [round][slot]
             for (int round = 0; round < kPerchRounds; ++round) {
                 buildEnvelope();
+                if (round > 0) {   // the bases after the previous comparison round
+                    baseHist.resize(static_cast<size_t>(round) * slots);
+                    float worstSoFar = 0.0f;
+                    for (size_t c = 0; c < n; ++c) {
+                        if (slotOf[c] < 0) continue;
+                        baseHist[static_cast<size_t>(round - 1) * slots + slotOf[c]] = m_stY[c * kProfileStations];
+                        worstSoFar = std::max(worstSoFar, stRef[c * kProfileStations] - m_stY[c * kProfileStations]);
+                    }
+                    m_perch.maxLowByRound.push_back(worstSoFar);
+                }
                 if (round == kPerchRounds - 1) break;
                 bool changed = false;
                 int changedCount = 0;
@@ -516,11 +642,11 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
                         if (sx < x0 || sx > x1 || sz < z0 || sz > z1) continue;
                         queue.push_back({sx, sz, 0.0f, 0.0f, false});
                     }
-                    const int dk = m_downstream[k];
-                    const float endYk = (dk != k && dk >= 0 && static_cast<size_t>(dk) < n) ? std::min(m_carryY[dk], m_bedY[k]) : m_bedY[k];
-                    const float dropK = std::max(0.0f, m_bedY[k] - endYk);
-                    float lowerBy = 0.0f;   // the largest lever this reach's banks demand this round
+                    float target[kProfileStations];       // per station: the lowest level a bank column projecting into its bracket demands
+                    for (int i = 0; i < kProfileStations; ++i) target[i] = 1e30f;
+                    float lowerBy = 0.0f;                 // the largest deficit this round (for the record)
                     int lowerSrc = -1; float lowerDeficit = 0.0f;
+                    Drive drive;
                     int popped = 0;
                     for (size_t head = 0; head < queue.size(); ++head) {
                         const BandCol bc = queue[head];
@@ -552,36 +678,68 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
                         const int ci = static_cast<int>(std::floor((w.x - m_originX) / m_cellSize));
                         const int cj = static_cast<int>(std::floor((w.y - m_originZ) / m_cellSize));
                         if (ci < 0 || cj < 0 || ci >= m_cellsX || cj >= m_cellsZ) continue;
-                        float envMin = 1e30f; int envSrc = -1;
-                        for (int e = m_envHead[static_cast<size_t>(cj) * m_cellsX + ci]; e >= 0; e = m_envPool[static_cast<size_t>(e)].next) {
-                            const int src = m_envPool[static_cast<size_t>(e)].src;
-                            if (src == k) continue;              // its own envelope moves with its rim: no lever closes that
-                            const float ev = envelopeOf(src, w.x, w.y, mq.x, mq.y).env;
-                            if (ev < envMin) { envMin = ev; envSrc = src; }
-                        }
+                        // its own envelope moves with its rim (no lever closes that): left out; the others carry
+                        // the D38 lip penalty, with this reach's own distance among the candidates it is measured against
+                        const EnvSample win = envelopeAtCell(ci, cj, w.x, w.y, mq.x, mq.y, k);
+                        const float envMin = win.env; const int envSrc = win.src;
                         const float deficit = bc.rimB - envMin;
                         if (deficit <= kPerchTol) continue;
                         worstLeft = std::max(worstLeft, deficit);
-                        const float oneMinusT = std::max(0.0f, 1.0f - bc.tB);
-                        const float lever = (deficit < oneMinusT * dropK) ? deficit / std::max(oneMinusT, 1e-3f) : deficit + bc.tB * dropK;
-                        if (lever > lowerBy) { lowerBy = lever; lowerSrc = envSrc; lowerDeficit = deficit; }
+                        // the deficit is closed at the STATIONS bracketing the bank's projection: lowering both by
+                        // the deficit lowers the profile there by exactly the deficit; the stations downstream
+                        // follow by the non-increasing rule, the stations upstream keep their grade (a knee)
+                        const float f = std::clamp(bc.tB, 0.0f, 1.0f) * (kProfileStations - 1);
+                        const int i0 = std::min(kProfileStations - 2, static_cast<int>(f));
+                        // the bed level the bank demands there: both bracketing stations at or below it puts the
+                        // profile at tB at or below it (a convex combination) - TO the level, never BY the deficit
+                        const float bedReq = (bc.rimB - deficit) - m_fullD[k];
+                        target[i0] = std::min(target[i0], bedReq);
+                        target[i0 + 1] = std::min(target[i0 + 1], bedReq);
+                        if (deficit > lowerBy) { lowerBy = deficit; lowerSrc = envSrc; lowerDeficit = deficit; drive = {bc.x, bc.z, bc.rimB, bc.tB, win}; }
                     }
                     if (lowerBy > 0.0f) {
-                        // the base the rim actually stands on (an upstream carry may already hold the bed
-                        // below groundK - fullD), lowered by the lever
-                        groundK[static_cast<size_t>(k)] = std::min(groundK[static_cast<size_t>(k)], m_bedY[k] + m_fullD[k]) - lowerBy;
-                        moved[static_cast<size_t>(k)] = 1;
+                        // a lowered profile: the stations drop by what the banks demanded, then (1) non-increasing
+                        // downstream, (2) a knee grades UPSTREAM at no more than the side slope beyond the natural
+                        // step between the stations (the bed bends down to a lower floor along a ramp, not a
+                        // step - GREEN 27's lips were steps of 1.5-1.9 u between adjacent columns at knees),
+                        // (3) the inflows' END stations follow this reach's head at once (the shared vertex;
+                        // without it a head lowered here reached the reach above one round later, a translation
+                        // the eight rounds never settled - GREEN 27: 163 reaches still moving in round 7)
+                        auto settle = [&](int cell) {
+                            float* st = &m_stY[static_cast<size_t>(cell) * kProfileStations];
+                            const float* ref = &stRef[static_cast<size_t>(cell) * kProfileStations];
+                            const float stepLen = std::max(worldLenK[static_cast<size_t>(cell)], 1.0f) / (kProfileStations - 1);
+                            for (int i = 1; i < kProfileStations; ++i) st[i] = std::min(st[i], st[i - 1]);
+                            for (int i = kProfileStations - 1; i >= 1; --i)
+                                st[i - 1] = std::min(st[i - 1], st[i] + std::max(kValleySideSlope * stepLen, ref[i - 1] - ref[i]));
+                            m_bedY[cell] = st[0];
+                            m_carryY[cell] = m_basin[cell] ? fr.filled[cell] : m_bedY[cell] + m_fullD[cell];
+                            moved[static_cast<size_t>(cell)] = 1;
+                            const float headRim = st[0] + m_fullD[cell];
+                            for (int u : inflows[static_cast<size_t>(cell)]) {   // the ends above this head meet its RIM
+                                if (m_order[u] < 1 || m_basin[u] || !m_carved[u]) continue;
+                                float* stU = &m_stY[static_cast<size_t>(u) * kProfileStations];
+                                if (stU[kProfileStations - 1] + m_fullD[u] > headRim) { stU[kProfileStations - 1] = headRim - m_fullD[u]; moved[static_cast<size_t>(u)] = 1; }
+                            }
+                        };
+                        float* stK = &m_stY[static_cast<size_t>(k) * kProfileStations];
+                        for (int i = 0; i < kProfileStations; ++i) stK[i] = std::min(stK[i], target[i]);
+                        settle(k);
                         changed = true;
                         ++changedCount;
                         lastSrc[static_cast<size_t>(k)] = lowerSrc; lastDeficit[static_cast<size_t>(k)] = lowerDeficit; ++roundsMoved[static_cast<size_t>(k)];
-                        // the profile follows at once (propagateProfile's rule, locally): this reach's bed,
-                        // then the carry down the chain while it undercuts the next bed
-                        m_bedY[k] = groundK[static_cast<size_t>(k)] - m_fullD[k];
-                        m_carryY[k] = m_basin[k] ? fr.filled[k] : m_bedY[k];
+                        lastDrive[static_cast<size_t>(k)] = drive;
+                        // the carry down the chain: a lowered end is the next cell's base, whose stations follow
+                        // by the same rules, while it undercuts the next base
                         for (int c = k;;) {
                             const int d = m_downstream[c];
                             if (d == c || d < 0 || static_cast<size_t>(d) >= n || m_order[d] < 1 || m_basin[d]) break;
-                            if (m_carryY[c] < m_bedY[d]) { m_bedY[d] = m_carryY[c]; m_carryY[d] = m_bedY[d]; c = d; continue; }
+                            const float endRimC = m_stY[static_cast<size_t>(c) * kProfileStations + (kProfileStations - 1)] + m_fullD[c];
+                            if (endRimC < m_bedY[d] + m_fullD[d]) {
+                                m_stY[static_cast<size_t>(d) * kProfileStations] = endRimC - m_fullD[d];
+                                settle(d);
+                                c = d; continue;
+                            }
                             break;
                         }
                     }
@@ -590,15 +748,26 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
                 m_perch.changed.push_back(changedCount);
                 m_perch.worstDeficitLeft = worstLeft;
                 if (!changed) break;
-                propagateProfile();
             }
             for (size_t c = 0; c < n; ++c) {
-                const float low = groundK0[c] - groundK[c];
+                if (m_order[c] < 1 || !m_carved[c] || m_basin[c]) continue;
+                const float low = stRef[c * kProfileStations] - m_stY[c * kProfileStations];
+                const float lowEnd = stRef[c * kProfileStations + (kProfileStations - 1)] - m_stY[c * kProfileStations + (kProfileStations - 1)];
+                m_perch.maxEndLowering = std::max(m_perch.maxEndLowering, lowEnd);
+                if (lowEnd > low + 1.0f) ++m_perch.knees;
                 if (low <= 0.0f) continue;
                 m_perch.sumLowering += low;
                 m_perch.maxLowering = std::max(m_perch.maxLowering, low);
                 if (low > 8.0f) ++m_perch.loweredOver8;
-                PerchStats::Deep dp; dp.cell = static_cast<int>(c); dp.lowering = low; dp.lastSrc = lastSrc[c]; dp.lastDeficit = lastDeficit[c]; dp.rounds = roundsMoved[c];
+                PerchStats::Deep dp; dp.cell = static_cast<int>(c); dp.lowering = low; dp.endLowering = lowEnd; dp.lastSrc = lastSrc[c]; dp.lastDeficit = lastDeficit[c]; dp.rounds = roundsMoved[c];
+                {
+                    const Drive& dr = lastDrive[c];
+                    dp.bankX = dr.x; dp.bankZ = dr.z; dp.bankRim = dr.rimB; dp.bankT = dr.tB;
+                    dp.srcRim = dr.win.rim; dp.srcPerp = dr.win.perp; dp.srcBehind = dr.win.behind; dp.srcPenalty = dr.win.penalty; dp.srcFloor = dr.win.valleyHalf; dp.srcEnv = dr.win.env;
+                }
+                const int roundsDone = static_cast<int>(baseHist.size() / std::max(1, slots));
+                for (int r = 0; r < roundsDone; ++r) dp.baseByRound.push_back(baseHist[static_cast<size_t>(r) * slots + slotOf[c]]);
+                for (int i = 0; i < kProfileStations; ++i) { dp.natStations.push_back(stRef[c * kProfileStations + i]); dp.stations.push_back(m_stY[c * kProfileStations + i]); }
                 m_perch.deepest.push_back(dp);
                 std::sort(m_perch.deepest.begin(), m_perch.deepest.end(), [](const PerchStats::Deep& a, const PerchStats::Deep& b) { return a.lowering > b.lowering; });
                 if (m_perch.deepest.size() > 5) m_perch.deepest.pop_back();
@@ -642,15 +811,83 @@ FlowField::EnvSample FlowField::envelopeOf(int rc, float worldX, float worldZ, f
             }
             lenSum += segLen;
         }
-        const int d = m_downstream[rc];
-        const float endY = (d != rc && d >= 0 && static_cast<size_t>(d) < m_carryY.size()) ? std::min(m_carryY[d], m_bedY[rc]) : m_bedY[rc];
-        out.rim = m_bedY[rc] + (endY - m_bedY[rc]) * bT + m_fullD[rc];
+        out.rim = profileAt(rc, bT) + m_fullD[rc];   // the station profile (knees included), as the carve reads it
     }
-    (void)bestU; (void)over;
+    (void)over;
     out.perp = perp;
     out.valleyHalf = m_envFloorHalf[static_cast<size_t>(pi)];
-    out.env = out.rim + kValleySideSlope * (std::max(0.0f, perp - out.valleyHalf) + over);
+    out.src = rc;
+    // D38 (the finding): BEHIND the source's head - the nearest point of the polyline is its first
+    // station - the distance is decomposed into the lateral offset from the first segment's line and
+    // the along-distance behind the head; the floor spans the lateral part only and the along part
+    // rises at the side slope, so a reach's floor never extends upstream past its own head (the reach
+    // above has its own floor at its own rim). Continuous: the along part is 0 on the region's
+    // boundary. Never lower than the undecomposed rule (lateral <= perp), so no new cut anywhere.
+    float lateral = perp, behind = 0.0f;
+    if (bestSeg == 0 && bestU <= 0.0f && wp.size() >= 2) {
+        const glm::vec2 d0 = wp[1] - wp[0];
+        const float L0 = glm::length(d0);
+        if (L0 > 0.0f) {
+            behind = std::max(0.0f, glm::dot(wp[0] - p, d0 / L0));
+            lateral = std::sqrt(std::max(0.0f, perp * perp - behind * behind));
+        }
+    }
+    out.behind = behind;
+    out.env = out.rim + kValleySideSlope * (std::max(0.0f, lateral - out.valleyHalf) + std::max(0.0f, behind - m_envHeadAllow[static_cast<size_t>(pi)]));
     return out;
+}
+
+FlowField::EnvSample FlowField::envelopeAtCell(int ci, int cj, float worldX, float worldZ, float warpedX, float warpedZ, int skipSrc) const {
+    // The minimum over the cell's listed sources with the D38 lip penalty: a source listed with upstream
+    // reaches across a cascade (its lipMask) is raised by kLipPenaltySlope x max(0, its distance less the
+    // nearest such reach's distance, the along-distance behind its own head beyond its band corner) - the land beside
+    // the reach above a lip stays with that reach's own envelope; the lower reach's valley meets it in a
+    // rock face. The skipped source (a reach's own cell in the perch rule) still counts as a candidate
+    // the others are measured against. Entries beyond kEnvListCap carry no penalty (counted per bake).
+    EnvSample best;
+    const int head = m_envHead[static_cast<size_t>(cj) * m_cellsX + ci];
+    EnvSample samples[kEnvListCap];
+    uint32_t masks[kEnvListCap];
+    int cnt = 0;
+    int e = head;
+    for (; e >= 0 && cnt < kEnvListCap; e = m_envPool[static_cast<size_t>(e)].next) {
+        samples[cnt] = envelopeOf(m_envPool[static_cast<size_t>(e)].src, worldX, worldZ, warpedX, warpedZ);
+        masks[cnt] = m_envPool[static_cast<size_t>(e)].lipMask;
+        ++cnt;
+    }
+    for (int i = 0; i < cnt; ++i) {
+        if (samples[i].src == skipSrc) continue;
+        float pen = 0.0f;
+        if (masks[i]) {
+            float nearR = 1e30f;
+            for (int j = 0; j < cnt; ++j) if (masks[i] & (1u << j)) nearR = std::min(nearR, samples[j].perp);
+            if (nearR < 1e30f) {
+                // beyond the source's own band corner only: its own head's banks keep its own floor
+                const int pis = m_envPolyIdx[static_cast<size_t>(samples[i].src)];
+                const float bh = pis >= 0 ? m_envBandHalf[static_cast<size_t>(pis)] : 0.0f;
+                pen = kLipPenaltySlope * std::max({0.0f, samples[i].perp - nearR, samples[i].behind - bh});
+            }
+        }
+        const float env = samples[i].env + pen;
+        if (env < best.env) { best = samples[i]; best.env = env; best.penalty = pen; }
+    }
+    for (; e >= 0; e = m_envPool[static_cast<size_t>(e)].next) {   // beyond the cap: no penalty
+        const EnvSample sm = envelopeOf(m_envPool[static_cast<size_t>(e)].src, worldX, worldZ, warpedX, warpedZ);
+        if (sm.src != skipSrc && sm.env < best.env) best = sm;
+    }
+    return best;
+}
+
+FlowField::EnvSample FlowField::valleyEnvelopeSampleAt(float worldX, float worldZ, float warpedX, float warpedZ) const {
+    if (m_envHead.empty() || m_cellsX <= 0 || m_cellsZ <= 0) return EnvSample{};
+    const int ci = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    const int cj = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    if (ci < 0 || cj < 0 || ci >= m_cellsX || cj >= m_cellsZ) return EnvSample{};
+    return envelopeAtCell(ci, cj, worldX, worldZ, warpedX, warpedZ, -1);
+}
+
+bool FlowField::isCascadeReach(int cell) const {
+    return cell >= 0 && static_cast<size_t>(cell) < m_cascade.size() && m_cascade[static_cast<size_t>(cell)] != 0;
 }
 
 float FlowField::valleyEnvelopeAt(float worldX, float worldZ, float warpedX, float warpedZ) const {
@@ -658,10 +895,7 @@ float FlowField::valleyEnvelopeAt(float worldX, float worldZ, float warpedX, flo
     const int ci = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
     const int cj = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
     if (ci < 0 || cj < 0 || ci >= m_cellsX || cj >= m_cellsZ) return 1e30f;
-    float env = 1e30f;
-    for (int e = m_envHead[static_cast<size_t>(cj) * m_cellsX + ci]; e >= 0; e = m_envPool[static_cast<size_t>(e)].next)
-        env = std::min(env, envelopeOf(m_envPool[static_cast<size_t>(e)].src, worldX, worldZ, warpedX, warpedZ).env);
-    return env;
+    return envelopeAtCell(ci, cj, worldX, worldZ, warpedX, warpedZ, -1).env;   // the D38 lip penalty applied
 }
 
 FlowField::EnvSample FlowField::envelopeSample(int sourceCell, float worldX, float worldZ, float warpedX, float warpedZ) const {
@@ -676,6 +910,11 @@ bool FlowField::isFoldedSource(int sourceCell) const {
 const std::vector<glm::vec2>* FlowField::sourceWorldPolyline(int sourceCell) const {
     const int pi = (sourceCell >= 0 && static_cast<size_t>(sourceCell) < m_envPolyIdx.size()) ? m_envPolyIdx[static_cast<size_t>(sourceCell)] : -1;
     return pi >= 0 ? &m_envPolys[static_cast<size_t>(pi)] : nullptr;
+}
+
+float FlowField::bandHalfOf(int sourceCell) const {
+    const int pi = (sourceCell >= 0 && static_cast<size_t>(sourceCell) < m_envPolyIdx.size()) ? m_envPolyIdx[static_cast<size_t>(sourceCell)] : -1;
+    return pi >= 0 ? m_envBandHalf[static_cast<size_t>(pi)] : 0.0f;
 }
 
 float FlowField::floorHalfOf(int sourceCell) const {
@@ -863,15 +1102,20 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
                 // M2d-1: the profile at the hit — from this cell's bed to what it hands downstream
                 // (its own downstream cell's bed, or a basin's spill), linear along the polyline.
                 const float t = bestT;
-                // A basin's spill can sit above the incoming bed (the river's own depth): never let a
-                // segment rise — the river enters the basin at its bed, not at the rim.
-                const float endY = (d != rc && d >= 0 && static_cast<size_t>(d) < m_carryY.size())
-                                       ? std::min(m_carryY[d], m_bedY[rc]) : m_bedY[rc];
-                h.bedProfile = m_bedY[rc] + (endY - m_bedY[rc]) * t;
+                // the station profile: from this cell's base to what it hands downstream (its downstream
+                // cell's base, or a basin's spill - never rising: the river enters the basin at its bed),
+                // bent where the perch rounds lowered a station into a neighbour's floor
+                const float* stR = &m_stY[static_cast<size_t>(rc) * kProfileStations];
+                h.bedProfile = profileAt(rc, t);
                 h.t = t;
                 h.hasProfile = true;
                 h.inBasin = m_basin[rc] != 0;
-                h.bedSlope = total > 0.0f ? std::max(0.0f, (m_bedY[rc] - endY) / total) : 0.0f;
+                h.bedSlope = total > 0.0f ? std::max(0.0f, (stR[0] - stR[kProfileStations - 1]) / total) : 0.0f;
+                {
+                    const int i0 = std::min(kProfileStations - 2, static_cast<int>(std::clamp(t, 0.0f, 1.0f) * (kProfileStations - 1)));
+                    h.localSlope = total > 0.0f ? std::max(0.0f, (stR[i0] - stR[i0 + 1]) * (kProfileStations - 1) / total) : 0.0f;
+                }
+                (void)d;
             }
             if (h.hit) best = h;
         }
