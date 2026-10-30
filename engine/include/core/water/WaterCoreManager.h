@@ -436,6 +436,13 @@ public:
     /// {flow_forcing}` tunes C_f live (0 = off, the A/B control).
     void setRippleFlowForcing(float c) { m_flowForcing = c < 0.0f ? 0.0f : c; }
     float rippleFlowForcing() const { return m_flowForcing; }
+    /// A12 v2 (WaterCore.md 45.3) PROTOTYPE, TEST ONLY: the wind's gusts pushing on a POND's ripple layer - a pressure pattern
+    /// (value noise, `lengthM` across, changing over `evolveS`) carried downwind at `mps`, `pa` its amplitude (Pa; 0 = off). The rings
+    /// make the waves from it, so they travel downwind, pile at the lee bank and reflect off every shore (the owner: water "laps" up
+    /// against the banks - a pattern over the whole pond is "off", 45.2). Keeps the layer awake: only for an awake pond (auto_sleep off).
+    struct RippleWind { float pa = 0.0f, deg = 30.0f, mps = 0.5f, lengthM = 0.4f, evolveS = 1.5f; };
+    void setRippleWind(const RippleWind& w) { m_rwind = w; }
+    const RippleWind& rippleWind() const { return m_rwind; }
     /// E2: one world voxel column's water from the last surface fields - the highest top over the
     /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
     bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
@@ -819,6 +826,8 @@ private:
     std::vector<glm::vec4> m_dropletDraw;
     // 22: ripples
     RippleHandover m_handover;   // A12 (45.1)
+    RippleWind m_rwind;          // A12 v2 (45.3) prototype
+    double m_rwindT = 0.0;       //   its clock (s)
     std::vector<MovingSolid> m_rippleBodies;
     RippleStats m_rstats;
     RipplePattern m_rpattern;

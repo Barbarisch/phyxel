@@ -101,7 +101,6 @@
 #include "core/DebrisRuntime.h"
 #include "core/WaterManager.h"
 #include "core/water/WaterCoreManager.h"
-#include "core/water/WaterRestMotion.h"
 #include "core/water/ShoreBand.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
@@ -328,8 +327,6 @@ private:
     struct DisplaceGateCounts { int kept = 0, admitted = 0, refusedSize = 0, refusedBudget = 0, rippleOnly = 0; } m_displaceGateLast;
     struct DisplaceGateTotals { long admitted = 0, refusedSize = 0, refusedBudget = 0, maxShoving = 0; } m_displaceGateTotal;   // the session
     Core::Water::WriteBackRecord m_lastAutoSleep;   // A11 (44.8): the last volume that slept by itself, echoed by water_av_list
-    Core::Water::WaterRestMotion::Params m_restMotion;   // A12 (45): the rest motion (water_render_core rest_*), pushed to the renderer
-    float m_restFarM = -1.0f, m_restFadeM = 8.0f;        //   its reach (far < 0 = none) and the reach's fade, m
     bool m_waterSolidsOn = true;     // 20 (M2): debris inside a volume's box displaces water (moving solids)
     // 31 (M4, docs/WaterCore.md 31.2): debris inside a GPU volume is pushed by the water's PRESSURE over its faces (pressure windows);
     // OFF = the table law everywhere (the A/B control)

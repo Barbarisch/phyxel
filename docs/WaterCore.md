@@ -9083,7 +9083,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
 | A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | steps 1-2 BUILT, displacement ON by default (44.5-44.7: pond 225 -> 310 fps, the pit back to its off cost, L5 far 10 of 10); step 3 (the distance fade) not built; not signed off | the livelier water the owner chose, at a cost every tier can carry |
 | A11 | **A sleep conserves mass exactly** (found in 44.7): the write-back drops the water of a column holding only sub-millimetre film (`thinDropped`, counted) - 0.3-0.5 L a splash with displacement on | owner: fix (44.8); designed + built - the film joins the nearest column with a run |
-| A12 | **Water at rest looks alive** (45): faceted rest motion on every pond surface (awake and recorded) + the rings hand over before a pond sleeps | DRIFT: W2's cosmetic motion pulled ahead of track A on the owner's ask (44.8 item 3); design-check READY (45.1); BUILT, both halves OFF by default (45.2) - the rest motion's look and the hand-over wait for the owner (clips at 1 mm and 3 mm); the hand-over measured (near sleeps 33-35 s vs 60-76 s) and L5-gated (13 of 13 far pass, nothing rose); not signed off | ponds must sleep for the frame (owner); still water must not look lifeless | water is physical: a pond must not drain by being splashed (owner's standing rule) |
+| A12 | **Water at rest looks alive** (45): faceted rest motion on every pond surface (awake and recorded) + the rings hand over before a pond sleeps | DRIFT: W2's cosmetic motion pulled ahead of track A on the owner's ask (44.8 item 3); design-check READY (45.1); the rest motion REJECTED by the owner and removed (45.3: a pattern ignores the shores); the hand-over BUILT, OFF (near sleeps 33-35 s vs 60-76 s; L5 13 of 13 far pass, nothing rose); a wind-forced ripple PROTOTYPE (test only) measured not convincing and parked (45.4: speckled chop; small tilts barely show in the pond's shading; lapping needs the shore band, W6) | ponds must sleep for the frame (owner); still water must not look lifeless | water is physical: a pond must not drain by being splashed (owner's standing rule) |
 
 ### 30.5 The drift log (work outside the plan: what, why, who approved)
 
@@ -11441,7 +11441,7 @@ span tops (`mass_stored` vs `mass_written`, 16.2's ~2e-6 m^3 a column) - the -0.
 that rounding, not the film (the volume wrote 24.0000005). Not measured: L5 with the fix (the change is in the write-back alone,
 the same near and far; no solver code changed, so the stone gate was not re-run).
 
-## 45. A12 - water at rest looks alive (the owner, 2026-10-29). Status: BUILT, OFF by default (45.2); the look is the owner's
+## 45. A12 - water at rest looks alive (the owner, 2026-10-29). Status: the rest motion REJECTED and removed (45.3); the wind-forced ripple prototype not convincing, PARKED (45.4); the hand-over BUILT, OFF - the owner's call
 
 **The ask (44.8, item 3):** ponds must sleep for the frame's sake; if still water then looks too still, a fallback that makes it
 look alive when nothing touches it.
@@ -11598,6 +11598,53 @@ the water at its west end looking along it, 3 mm, ABAB 8 s each): GPU frame medi
 facet is under ~1.5 px and the footprint rule drops it (the smooth sheen stays), and those fragments skip the work. So the moonshot
 costs nothing a tier would need to cut, and the far water does not show the facets - **a look point for the owner**: the rest
 motion is a near-field detail at low angles.
+
+### 45.3 The owner on 45.2: the rest motion is REJECTED and removed; a wind-driven ripple prototype instead (2026-10-29)
+
+**The owner (verbatim):** "honestly in both those videos i really cant see anything. either motion is too little, or the body of water
+is too small, or camera angle is off. either way the problem with "fake" water movement is it usually results in patterns that dont
+look natural, and it doesnt align with the shore lines of the body of water. usually even on small bodies of water the water "laps"
+up against the banks/shores. a set pattern across an entire body of water is "off". Either we need to find a more convincing look,
+or we need to not have it."
+
+**Done:** the rest motion is deleted (shader, header mirror, its test, the API, the two tools; `water_surface.frag` and its `.spv`
+are byte-identical to before A12 again - recoverable from 51f3a24c). The hand-over (45.1 item 2) stays: it is not a pattern, it only
+ends faint rings sooner; still OFF by default, its pin moved to `WaterRippleTest.TheHandOverIsOffByDefault`. A standing rule from
+this: no decorative overlay patterns on water - motion comes from the simulation and meets the shores.
+
+**Also mine to fix:** the clips were not checked for visibility at their camera (4 m away, a 4 x 4 m pond, a refraction-dominated
+angle). From now on a look clip is taken close, with a known reference in the same shot (a small stone's ring).
+
+**Prototype (TEST ONLY, not designed for shipping yet):** the ripple layer is already the water's own surface physics - its rings
+reflect off every masked (dry or solid) cell, so anything it carries meets the banks. The wind is given to it as FORCING, not drawn:
+a gust pressure pattern (value noise 0.4 m across, longer across the wind, changing over 1.5 s) carried downwind at 0.5 m/s - near
+the slowest capillary-gravity speed (0.23 m/s) and the 0.3-0.5 m ripples' (Phillips: forcing that moves with a wave grows it). The
+waves then travel downwind, pile up at the lee walls and reflect - lapping comes from the physics. `water_ripples {wind: {pa, deg,
+mps, length_m, evolve_s}}`, off by default, ponds only (creeks keep their bed forcing). **Not solved by the prototype** (named
+before anyone likes it): it keeps the ripple layer awake, so a pond would never sleep (22 F5) - shipping it needs rings on RECORDED
+water that do not hold a pond awake (a ripple layer over slept water, inside L2's reach - a design of its own); and the bank itself
+does not move (the rings tilt the surface, the mesh edge stays) - real lapping on a sloped bank may need the shore band's run-up.
+`tools/water_wind_ripple_look.py` (new): `--calibrate` (pa 0-30: the rings' height and slopes) and the owner's clip (calm vs wind,
+the same 1/9 m stone at 6 s as the scale reference, camera 1.5 m off the pond, 1.1 m over the water).
+
+### 45.4 The prototype, measured: not convincing - PARKED, not shown to the owner as a candidate (2026-10-29)
+
+**Measured** (`wind_look_calibrate.json`, sweeps in the session): at the first setting (0.4 m gusts carried at 0.5 m/s) the rings
+grew a slow swell (3.4 mm at 30 Pa, slope 0.014 - ~1.5 m waves, nothing to see). Carried at the ripples' own speed (0.2 m at 0.8 m/s:
+a 0.3-0.4 m wave runs ~0.7-0.8 m/s) they grow and saturate: 3 Pa ~2.4 mm / slope 0.018, 8 Pa ~6 mm / 0.05 after 12-16 s; 20 Pa
+12-16 mm. **Looked at before showing** (`wind_look_20` / `_10` clips, stills, debug 9 and 1): (1) the waves are a speckled chop cell
+by cell - debug 9 shows the 1/9 m facets tilting at random, not wind wavelets running downwind; (2) in normal shading even 12-16 mm
+waves barely change the picture from 2 m at a low angle - the pond mostly shows its bed through the water, and a tilted facet moves
+that little (the same reason the owner saw nothing in 45.2); (3) the reference failed: a 1/9 m stone makes NO ring (its footprint
+falls exactly on the lattice - no kinematic remainder, a known fact I did not apply); a 1/3 m stone is the reference.
+
+**So neither A12 route is convincing today, for reasons that are not the forcing:** what makes the owner's stone rings read is a
+large ring with splash geometry; small tilts of the surface hardly show in the pond's shading at play angles. "Lapping at the
+banks" needs the waterline itself to move on the bank (a run-up), which is the shore band's job (W6), not the rings'.
+**Recommendation (to the owner):** do not have rest motion now; revisit "water at rest" with the shore band (a moving waterline on a
+sloped bank) and the far-water look (W2), where the shading question is answered at the same time. The prototype stays as a TEST knob
+(`water_ripples {wind}`, off) for that day. **The hand-over (45.1 item 2) is separate and measured** - the owner decides whether it
+goes ON (near ponds sleep at ~34 s instead of 60-76 s; faint rings fade in ~1.5 s once the water is still).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

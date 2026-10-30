@@ -2501,6 +2501,7 @@ void WaterCoreManager::stepRipples(float dt) {
     { const auto tc = RClock::now(); if (gpu) m_rgpu->collect(liveRippleLayers()); m_updateCpu.rCollect = rms(tc); }   // 25.34: last frame's GPU step into the layers (heights, sleep)
     m_rstats.gpuStates = m_rgpu ? m_rgpu->statesHeld() : 0;
     assignRippleSlots();   // L2 (43.2): the renderer's atlas holds kRippleMaxLayers - off: first come, refused (22.5); on: by the reach
+    m_rwindT += std::max(dt, 0.0f);   // A12 v2 (45.3) prototype: the gusts' clock
     const float d = RippleLayer::kPitch;
     for (auto& up : m_avs) {
         Av& av = *up;
@@ -2608,6 +2609,37 @@ void WaterCoreManager::stepRipples(float dt) {
                 raw[i] = a * xi * fade;
             }
             if (!raw.empty()) L.addImpulseField(raw);
+        }
+        // A12 v2 (45.3) PROTOTYPE: the wind's gusts on a pond - a pressure pattern carried downwind; the rings make the waves
+        if (m_rwind.pa > 0.0f && nBed <= 0.0f && m_rpattern.slope < 0.0f) {
+            const int nx = L.nx(), nz = L.nz();
+            const float a = glm::radians(m_rwind.deg), ca = std::cos(a), sa = std::sin(a);
+            const float t = static_cast<float>(m_rwindT), tw = t / std::max(m_rwind.evolveS, 0.05f);
+            auto hash = [](int x, int y, int z) {
+                uint32_t h = static_cast<uint32_t>(x) * 73856093u ^ static_cast<uint32_t>(y) * 19349663u ^ static_cast<uint32_t>(z) * 83492791u;
+                h ^= h >> 16; h *= 0x7feb352du; h ^= h >> 15; h *= 0x846ca68bu; h ^= h >> 16;
+                return static_cast<float>(h & 0xFFFFFFu) / 16777216.0f;
+            };
+            auto noise3 = [&](float x, float y, float z) {   // value noise, 0..1
+                const float fx = std::floor(x), fy = std::floor(y), fz = std::floor(z);
+                const int ix = static_cast<int>(fx), iy = static_cast<int>(fy), iz = static_cast<int>(fz);
+                auto s = [](float v) { return v * v * (3.0f - 2.0f * v); };
+                const float tx = s(x - fx), ty = s(y - fy), tz = s(z - fz);
+                auto lerp = [](float p, float q, float w) { return p + (q - p) * w; };
+                const float c00 = lerp(hash(ix, iy, iz), hash(ix + 1, iy, iz), tx), c10 = lerp(hash(ix, iy + 1, iz), hash(ix + 1, iy + 1, iz), tx);
+                const float c01 = lerp(hash(ix, iy, iz + 1), hash(ix + 1, iy, iz + 1), tx), c11 = lerp(hash(ix, iy + 1, iz + 1), hash(ix + 1, iy + 1, iz + 1), tx);
+                return lerp(lerp(c00, c10, ty), lerp(c01, c11, ty), tz);
+            };
+            std::vector<float> raw(static_cast<size_t>(nx) * nz, 0.0f);
+            for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
+                const size_t i = L.idx(x, z);
+                if (!mask[i]) continue;
+                const float wx = (L.origin().x + x + 0.5f) * d, wz = (L.origin().y + z + 0.5f) * d;
+                const float along = (wx * ca + wz * sa - m_rwind.mps * t) / m_rwind.lengthM;   // carried downwind
+                const float across = (-wx * sa + wz * ca) / (2.0f * m_rwind.lengthM);          // gust fronts longer across the wind
+                raw[i] = m_rwind.pa * dt * (2.0f * noise3(along, across, tw) - 1.0f);
+            }
+            L.addImpulseField(raw);
         }
         L.setBreakSlope(m_rstats.breakSlope);
         {   // A12 (45.1): the hand-over - the water itself at rest (its own test, no droplets in flight) and only faint rings left: fade

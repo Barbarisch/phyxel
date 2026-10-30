@@ -106,13 +106,8 @@ public:
     void setRipples(const std::vector<const Core::Water::RippleLayer*>* layers, bool smooth) { m_ripples = layers; m_rippleSmooth = smooth; }
     /// L2 (43.2): the ripples' fade by distance - (viewer x, viewer z, near, far); far < 0 = none (weight 1)
     void setRippleFade(const glm::vec4& f) { m_rippleFade = f; }
-    /// A12 (45): the rest motion - rest0 = (amplitude m (0 = off), wind direction rad (toward), wind m/s, patch m), rest1 = (reach far
-    /// m (< 0 = none), its fade m, -, -). Written into the ripple header each frame (water_surface.frag's restSlope).
-    void setRestMotion(const glm::vec4& r0, const glm::vec4& r1) { m_rest0 = r0; m_rest1 = r1; }
-    const glm::vec4& rest0() const { return m_rest0; }
-    const glm::vec4& rest1() const { return m_rest1; }
     static constexpr int    kRippleIndices = 8;                      ///< header entries (field rippleLayer 0..7)
-    static constexpr size_t kRippleHeaderBytes = 48 + kRippleIndices * 32;   ///< vec4 fade, vec4 rest0, vec4 rest1, vec4 geo[8], ivec4 meta[8]
+    static constexpr size_t kRippleHeaderBytes = 16 + kRippleIndices * 32;   ///< vec4 fade, vec4 geo[8], ivec4 meta[8]
     static constexpr size_t kRippleFloats = 4u * 512u * 512u;        ///< heights per frame slot (4 layers of 512 x 512, the manager's budget)
     bool scatterLegacy() const { return m_scatterLegacy; }
     uint32_t lastVertices() const { return m_lastVertices; }
@@ -153,7 +148,6 @@ private:
     const std::vector<const Core::Water::RippleLayer*>* m_ripples = nullptr;
     bool m_rippleSmooth = false;
     glm::vec4 m_rippleFade{0.0f, 0.0f, 0.0f, -1.0f};
-    glm::vec4 m_rest0{0.0f, 0.0f, 0.0f, 6.0f}, m_rest1{-1.0f, 8.0f, 0.0f, 0.0f};   // A12: off
     uint32_t m_lastVertices = 0;
     std::chrono::high_resolution_clock::time_point m_startTime;
     void pushLook(VkCommandBuffer commandBuffer, const Camera& camera, const glm::mat4& projectionMatrix, VkExtent2D screenExtent, const Core::Water::WaterLookPacked* look);

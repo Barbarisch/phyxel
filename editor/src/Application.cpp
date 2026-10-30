@@ -14594,6 +14594,18 @@ void Application::registerWaterCommands() {
             if (cmd.params.contains("handover_s")) h.seconds = std::clamp(cmd.params.value("handover_s", H::kSecondsDefault), H::kSecondsMin, H::kSecondsMax);
             waterCore->setRippleHandover(h);
         }
+        // A12 v2 (45.3) PROTOTYPE, TEST ONLY: {wind: {pa, deg, mps, length_m, evolve_s}} the wind's gusts on a pond's rings; false = off.
+        // pa clamped to 0..50 (the rings break at the Stokes slope anyway); length 0.1..5 m; mps 0..10; evolve 0.1..20 s.
+        if (cmd.params.contains("wind")) {
+            const auto& wj = cmd.params["wind"];
+            Core::Water::WaterCoreManager::RippleWind rw = waterCore->rippleWind();
+            if (wj.is_object()) {
+                rw.pa = std::clamp(wj.value("pa", rw.pa), 0.0f, 50.0f); rw.deg = wj.value("deg", rw.deg);
+                rw.mps = std::clamp(wj.value("mps", rw.mps), 0.0f, 10.0f); rw.lengthM = std::clamp(wj.value("length_m", rw.lengthM), 0.1f, 5.0f);
+                rw.evolveS = std::clamp(wj.value("evolve_s", rw.evolveS), 0.1f, 20.0f);
+            } else rw.pa = 0.0f;
+            waterCore->setRippleWind(rw);
+        }
         // 25.34: the shape stats are computed when asked (~0.1 s on a big window, 43.1); {shape: false} skips them (a poll loop)
         if (cmd.params.value("shape", true)) waterCore->refreshRippleShapeStats();
         const auto& s = waterCore->rippleStats();
@@ -14619,6 +14631,8 @@ void Application::registerWaterCommands() {
                            {"mm_default", Core::Water::WaterCoreManager::RippleHandover::kHeightMmDefault},
                            {"rate_per_s", waterCore->rippleHandover().rate()}, {"handing_over", s.handingOver},
                            {"count", s.handovers}, {"last_s", s.lastHandoverS}}},
+             {"wind", {{"pa", waterCore->rippleWind().pa}, {"deg", waterCore->rippleWind().deg}, {"mps", waterCore->rippleWind().mps},
+                       {"length_m", waterCore->rippleWind().lengthM}, {"evolve_s", waterCore->rippleWind().evolveS}}},
              {"pitch_m", Core::Water::RippleLayer::kPitch}};
     });
     reg.on("water_transport", [this](const Core::APICommand& cmd, nlohmann::json& r) {   // WaterCore 26.5 - the owner's A/B
@@ -14851,19 +14865,7 @@ void Application::registerWaterCommands() {
         }
         if (cmd.params.contains("debug")) {   // 0 off, 1 normals, 2 body, 3 reflection, 4 thickness, 5 fresnel (water_common.glsl taps), 6 foam/flow (G2)
             const auto& d = cmd.params["debug"];
-            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 11));   // 7: the ripple height (22); 8: reflected ray vs sun / horizon (22.11); 9: the ripple slope after L2's fade (43); 10 / 11: the rest motion's height / facet slope (45)
-        }
-        {   // A12 (45): the rest motion. Omitted = unchanged; echoed with the defaults below.
-            using RM = Core::Water::WaterRestMotion;
-            auto& p = m_restMotion;
-            // above ~5 mm a 1/9 m facet tilts past ~0.1 and reads as chop, not a breeze; 0 = off
-            if (cmd.params.contains("rest_amp_mm")) p.ampM = std::clamp(cmd.params.value("rest_amp_mm", 0.0f), 0.0f, RM::kAmpMmMax) * 1e-3f;
-            if (cmd.params.contains("rest_wind_deg")) p.windDeg = std::fmod(cmd.params.value("rest_wind_deg", RM::kWindDegDefault), 360.0f);
-            if (cmd.params.contains("rest_wind_mps")) p.windMps = std::clamp(cmd.params.value("rest_wind_mps", RM::kWindMpsDefault), 0.0f, RM::kWindMpsMax);
-            // a patch under 1 m is a speckle at the 1/9 m facet; over 30 m one patch covers a pond (no come-and-go to see)
-            if (cmd.params.contains("rest_patch_m")) p.patchM = std::clamp(cmd.params.value("rest_patch_m", RM::kPatchMDefault), RM::kPatchMMin, RM::kPatchMMax);
-            if (cmd.params.contains("rest_far_m")) { const float f = cmd.params.value("rest_far_m", -1.0f); m_restFarM = f <= 0.0f ? -1.0f : std::max(f, m_restFadeM); }
-            renderCoordinator->setWaterCoreRestMotion(glm::vec4(p.ampM, p.windDeg * 0.017453293f, p.windMps, p.patchM), glm::vec4(m_restFarM, m_restFadeM, 0.0f, 0.0f));
+            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 9));   // 7: the ripple height (22); 8: reflected ray vs sun / horizon (22.11); 9: the ripple slope after L2's fade (43)
         }
         if (cmd.params.contains("scatter")) {   // WaterCore 21.3 A/B: "lit" (default) or "legacy" (the pre-21.3 constant glow)
             const std::string sc = cmd.params.value("scatter", std::string("lit"));
@@ -14911,10 +14913,6 @@ void Application::registerWaterCommands() {
              {"truncated", renderCoordinator->waterCoreMeshTruncated()}, {"debug", renderCoordinator->waterCoreDebugMode()},
              {"scatter", renderCoordinator->waterCoreScatterLegacy() ? "legacy" : "lit"},
              {"horizon_guard", renderCoordinator->waterCoreHorizonGuard()}, {"default_clarity", renderCoordinator->waterCoreDefaultClarity()}};
-        using RM = Core::Water::WaterRestMotion;
-        r["rest"] = {{"amp_mm", m_restMotion.ampM * 1000.0f}, {"wind_deg", m_restMotion.windDeg}, {"wind_mps", m_restMotion.windMps},
-                     {"patch_m", m_restMotion.patchM}, {"far_m", m_restFarM}, {"fade_m", m_restFadeM},
-                     {"defaults", {{"amp_mm", RM::kAmpMmDefault}, {"wind_deg", RM::kWindDegDefault}, {"wind_mps", RM::kWindMpsDefault}, {"patch_m", RM::kPatchMDefault}}}};
     });
     reg.on("water_av_realtime", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

@@ -68,9 +68,7 @@ layout(set = 1, binding = 1) uniform sampler2D sceneDepthTex;
 // 22 (WaterCore.md 22.4): the ripple layers - per layer geo = (world origin x, z, 1/pitch, -), meta = (offset, nx, nz,
 // smooth); heights in metres, row-major per layer. L2 (43.2): fade = (viewer x, viewer z, near, far) - the ripples' weight by the
 // HORIZONTAL distance to the viewer, a pure function of world position (far < 0 = none, weight 1).
-// A12 (45): rest0 = the rest motion's (amplitude m (0 = off), wind direction rad (toward), wind m/s, patch m); rest1 = (reach far m
-// (< 0 = none), its fade m, -, -).
-layout(std430, set = 1, binding = 2) readonly buffer Ripples { vec4 fade; vec4 rest0; vec4 rest1; vec4 geo[8]; ivec4 meta[8]; float rh[]; } rip;
+layout(std430, set = 1, binding = 2) readonly buffer Ripples { vec4 fade; vec4 geo[8]; ivec4 meta[8]; float rh[]; } rip;
 // WaterLocality::detail: 1 at or under near, 0 at or over far, a smoothstep between (far <= near: a hard reach at near)
 float rippleWeight(vec2 xz) {
     const vec4 f = rip.fade;
@@ -103,54 +101,6 @@ vec3 rippleSample(int L, vec2 xz) {
     const float h00 = rippleAt(L, i.x, i.y), h10 = rippleAt(L, i.x + 1, i.y), h01 = rippleAt(L, i.x, i.y + 1), h11 = rippleAt(L, i.x + 1, i.y + 1);
     const float dx = mix(h10 - h00, h11 - h01, t.y) * g.z, dz = mix(h01 - h00, h11 - h10, t.x) * g.z;
     return vec3(dx, dz, mix(mix(h00, h10, t.x), mix(h01, h11, t.x), t.y));
-}
-
-// A12 (WaterCore.md 45) - the REST MOTION: a breeze's cat's-paws on water at rest, FACETED on the world's 1/9 m lattice (the slope
-// of the square the point lies in, as the ripples' facets). A pure function of the world square and time. MIRRORED line for line by
-// engine/include/core/water/WaterRestMotion.h (the tests hold the screen to it) - change both together.
-const float kRestPitch = 1.0 / 9.0;
-const float kRestAngle[3] = float[3](0.0, 0.5, -0.4);
-const float kRestLambda[3] = float[3](0.85, 0.5, 0.3);
-const float kRestShare[3] = float[3](0.55, 0.3, 0.15);
-const float kRestOffset[3] = float[3](0.0, 1.7, 4.1);
-uint restHash(int x, int y, int z) {
-    uint h = uint(x) * 73856093u ^ uint(y) * 19349663u ^ uint(z) * 83492791u;
-    h ^= h >> 16; h *= 0x7feb352du; h ^= h >> 15; h *= 0x846ca68bu; h ^= h >> 16;
-    return h;
-}
-float restRnd(int x, int y, int z) { return float(restHash(x, y, z) & 0xFFFFFFu) / 16777216.0; }
-float restNoise(vec3 p) {
-    const vec3 f = floor(p); const ivec3 i = ivec3(f);
-    vec3 t = p - f; t = t * t * (3.0 - 2.0 * t);
-    const float c00 = mix(restRnd(i.x, i.y, i.z), restRnd(i.x + 1, i.y, i.z), t.x), c10 = mix(restRnd(i.x, i.y + 1, i.z), restRnd(i.x + 1, i.y + 1, i.z), t.x);
-    const float c01 = mix(restRnd(i.x, i.y, i.z + 1), restRnd(i.x + 1, i.y, i.z + 1), t.x), c11 = mix(restRnd(i.x, i.y + 1, i.z + 1), restRnd(i.x + 1, i.y + 1, i.z + 1), t.x);
-    return mix(mix(c00, c10, t.y), mix(c01, c11, t.y), t.z);
-}
-float restPhaseSpeed(float l) { return sqrt(9.81 * l / 6.2831853 + 6.2831853 * 0.0728 / (1000.0 * l)); }
-float restEnvelope(vec2 xz, float t) {
-    const float a = rip.rest0.y, drift = 0.3 * rip.rest0.z * t;
-    const vec2 uv = (xz - vec2(cos(a), sin(a)) * drift) / rip.rest0.w;
-    return 0.3 + 0.7 * smoothstep(0.35, 0.75, restNoise(vec3(uv, t / 8.0)));   // kEnvelopeFloor 0.3: between patches, a little motion
-}
-float restHeight(vec2 xz, float t) {
-    const float calm = min(rip.rest0.z / 2.0, 1.0);
-    if (calm <= 0.0) return 0.0;
-    const float a = rip.rest0.y;
-    float h = 0.0;
-    for (int k = 0; k < 3; ++k) {
-        const vec2 d = vec2(cos(a + kRestAngle[k]), sin(a + kRestAngle[k]));
-        const float kw = 6.2831853 / kRestLambda[k];
-        h += kRestShare[k] * sin(kw * (xz.x * d.x + xz.y * d.y - restPhaseSpeed(kRestLambda[k]) * t) + kRestOffset[k]);
-    }
-    return rip.rest0.x * calm * restEnvelope(xz, t) * h;
-}
-// the facet slope (dh/dx, dh/dz) of the 1/9 m square the point lies in
-vec2 restSlope(vec2 xz, float t) {
-    const ivec2 i = ivec2(floor(xz * 9.0));
-    const vec2 c = (vec2(i) + 0.5) * kRestPitch;
-    const float sx = (restHeight(c + vec2(kRestPitch, 0.0), t) - restHeight(c - vec2(kRestPitch, 0.0), t)) * (0.5 / kRestPitch);
-    const float sz = (restHeight(c + vec2(0.0, kRestPitch), t) - restHeight(c - vec2(0.0, kRestPitch), t)) * (0.5 / kRestPitch);
-    return vec2(sx, sz);
 }
 
 // Must match water_surface.vert's block exactly. 128 bytes.
@@ -193,24 +143,7 @@ void main() {
         rs = rippleSample(rl, fragWorldPos.xz) * rippleWeight(fragWorldPos.xz);   // L2: tilt and height faded alike
         if (n.y > 0.0) n = normalize(n + vec3(-rs.x, 0.0, -rs.y));
     }
-    // A12 (45): the rest motion on every top face (awake and recorded water alike; not side faces, not droplets). Its weight: the
-    // facet's size on screen (gone under ~1.5 px, as waterRippleNormal's octaves - a facet smaller than a pixel only sparkles) and
-    // the reach (rest1.x > 0: an L1 detail fade over rest1.y m). Off (rest0.x = 0) the normal is untouched, bit for bit.
-    const float restPx = max(length(dFdx(fragWorldPos)), length(dFdy(fragWorldPos)));   // derivatives in uniform control flow
-    vec2 rsl = vec2(0.0); float restH = 0.0;
-    if (rip.rest0.x > 0.0 && fragSide < 0.5) {
-        float w = smoothstep(1.5, 4.0, kRestPitch / max(restPx, 1e-5));
-        if (rip.rest1.x > 0.0) w *= 1.0 - smoothstep(rip.rest1.x - rip.rest1.y, rip.rest1.x, length(fragWorldPos.xz - pc.camPosTime.xz));
-        if (w > 0.0) {
-            rsl = restSlope(fragWorldPos.xz, pc.camPosTime.w) * w;
-            if (dbg == 10) restH = restHeight((vec2(ivec2(floor(fragWorldPos.xz * 9.0))) + 0.5) * kRestPitch, pc.camPosTime.w) * w;
-        }
-    }
-    if (n.y > 0.0 && (rsl.x != 0.0 || rsl.y != 0.0)) n = normalize(n + vec3(-rsl.x, 0.0, -rsl.y));
     if (dbg == 7) { outColor = vec4(vec3(clamp(0.5 + rs.z * 25.0, 0.0, 1.0)), 1.0); return; }   // 22 tap: ripple height, +-2 cm = black / white (after L2's fade)
-    // A12 taps: 10 = the rest height at the facet's centre, +-2 mm = black / white; 11 = the rest facet's slope, 0..0.1 = black..white
-    if (dbg == 10) { outColor = vec4(vec3(clamp(0.5 + restH * 250.0, 0.0, 1.0)), 1.0); return; }
-    if (dbg == 11) { outColor = vec4(vec3(clamp(length(rsl) * 10.0, 0.0, 1.0)), 1.0); return; }
     // L2 (43.3 item 6): the faded slope's magnitude, 0..1 = slope 0..0.5 (the pattern's uniform tilt reads as one grey per distance;
     // 8 is water_common.glsl's reflected-ray tap)
     if (dbg == 9) { outColor = vec4(vec3(clamp(length(rs.xy) * 2.0, 0.0, 1.0)), 1.0); return; }
