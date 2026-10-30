@@ -9082,7 +9082,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
 | A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
 | A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | steps 1-2 BUILT, displacement ON by default (44.5-44.7: pond 225 -> 310 fps, the pit back to its off cost, L5 far 10 of 10); step 3 (the distance fade) not built; not signed off | the livelier water the owner chose, at a cost every tier can carry |
-| A11 | **A sleep conserves mass exactly** (found in 44.7): the write-back drops the water of a column holding only sub-millimetre film (`thinDropped`, counted) - 0.3-0.5 L a splash with displacement on | found, fix proposed (the film joins the nearest column with a run), not designed | water is physical: a pond must not drain by being splashed (owner's standing rule) |
+| A11 | **A sleep conserves mass exactly** (found in 44.7): the write-back drops the water of a column holding only sub-millimetre film (`thinDropped`, counted) - 0.3-0.5 L a splash with displacement on | owner: fix (44.8); designed + built - the film joins the nearest column with a run | water is physical: a pond must not drain by being splashed (owner's standing rule) |
 
 ### 30.5 The drift log (work outside the plan: what, why, who approved)
 
@@ -11169,7 +11169,7 @@ far disturbed pond. Off stays available (`water_locality {ripple_reach: false}`)
 study the old window by its cell count now set the reach off themselves (`WaterRippleTest.EveryVolumeGetsTheRippleWindow`,
 `tools/water_l2_ripple_cost.py`). Still not signed off in motion as a default - the owner saw no difference, which is the claim.
 
-## 44. A10 - displacement, gated (the owner, 2026-10-29). Status: MEASURED (44.1), DESIGNED (44.2), not built
+## 44. A10 - displacement, gated (the owner, 2026-10-29). Status: steps 1-2 BUILT, ON by default (44.5-44.7); step 3 (the fade) not built
 
 **The ask:** after preferring displacement ON in `a2h_look_side_by_side.mp4` and seeing its cost (34.3): "it seems like maybe
 displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used".
@@ -11403,6 +11403,68 @@ ripple, up to 4 shoving (the 1/3 m blocks), ~294 fps. **Disclosed:** the floor s
 
 **Not done yet: step 3** (the distance fade of a shove, latched per body - 44.3 items 3 and 5). Its outcome gate is this L5 with the
 fade on, against the pool above.
+
+### 44.8 The owner on 44.7, and A11 (a sleep conserves mass exactly) (2026-10-29)
+
+**The owner (verbatim):** "1. for displace_floor_side_by_side i honestly cant see a difference between the two. 2. prbably need to
+fix the "leak". 3. i assume at some point ponds need to go to sleep from a engine performance perspective. i think if we are worried
+about bodies of water looking too still, then maybe we need a fall back plan for making water look alive when it doesnt need to be
+interacted with and is not being subjected to physics objects".
+
+So: (1) the 1/6 m floor costs no look the owner can see at ~2x the fps - it stays (owner-seen, the clip of 44.7). (2) A11 is built
+below. (3) Sleep is not traded away for rings: the near-ring option of 44.7 and a look for water at rest are one design, A12 (45).
+
+**A11, designed (the gate, short).** *Aesthetic:* none - the record's tops move by the film's depth (under a millimetre). *Chunks:*
+the choice reads only the volume's own columns (world voxel columns, not chunks); the write-back clips to chunks after, unchanged.
+*Generation:* none. *Order:* nearest by squared distance, ties by the lower z then x - a function of the columns alone, not of the
+visit order. *API:* `water_av_sleep` and the new `last_auto_sleep` in `water_av_list` echo `film_columns`, `film_joined_m3`,
+`film_join_max_m` and `thin_dropped_m3` (now only when the box holds no run at all). No default changes. *Tiers:* none (an outcome -
+the same everywhere). *What stays:* a recorded TILE (27, W1b) still refuses while it holds film (a tile is not at rest until its film
+drains); only the whole-volume sleep folds it. *Red:* 44.7's probe, 0.3-0.5 L lost a splash; the unit test
+`AFilmOnlyColumnJoinsTheNearestRunSoASleepLosesNothing` (two film columns beside two pond columns, the tie, a held column refused as
+a destination). *Prediction:* the probe's record delta with displacement on falls inside the off control's (+-0.005 L).
+
+**A11, built and measured (Release, Small bench, `displace_mass_a11.json`).** Unit: the new test and the 19 other write-back /
+record tests pass; water unit suite 352/352; GPU suite 73/75 (the same two known). (The unit test was not run red against the old
+code - it needs the new fields; the red is 44.7's live loss.) Live, 2 runs each:
+
+| run | film columns | film kept (was dropped) | volume wrote | the record's change |
+|---|---|---|---|---|
+| displacement on 1 | 6 | 0.27 L (max 1 m away) | 24.0000004 m^3 | +0.0019 L |
+| displacement on 2 | 11 | 0.48 L (max 1.4 m) | 24.0000005 m^3 | -0.0076 L |
+| off 1 (control) | 0 | 0 | 24.0000005 m^3 | +0.0019 L |
+| off 2 (control) | 0 | 0 | 24.0000005 m^3 | +0.0038 L |
+
+The film is exactly the 44.7 loss, now kept: the volume writes 24 m^3 to 0.0005 L every run. What remains is the chunks' float32
+span tops (`mass_stored` vs `mass_written`, 16.2's ~2e-6 m^3 a column) - the -0.0076 L is outside my +-0.005 L prediction, and it is
+that rounding, not the film (the volume wrote 24.0000005). Not measured: L5 with the fix (the change is in the write-back alone,
+the same near and far; no solver code changed, so the stone gate was not re-run).
+
+## 45. A12 - water at rest looks alive (the owner, 2026-10-29). Status: DESIGNED, not built; the look is the owner's
+
+**The ask (44.8, item 3):** ponds must sleep for the frame's sake; if still water then looks too still, a fallback that makes it
+look alive when nothing touches it.
+
+**What is there today (read, not assumed).** Every pond surface - awake or recorded - already carries the shared fine detail of
+`water_common.glsl` (`waterRippleNormal`: four sine octaves, 4.5 m to 0.8 m, time-animated, slope ~0.048 x roughness, the pond's
+roughness 0.35 - 17.3). It is smooth (not faceted), the same pattern on every pond, and at 0.35 it reads nearly glassy. The rings of
+the ripple layer (22) are FACETED (the 1/9 m square's slope - the owner's microcube look) and stop when the layer sleeps under 0.2 mm;
+a pond waits for them (22 F5), which is why a near pond stays awake ~40 s longer (44.7).
+
+**Proposed - one appearance layer, no mass, the same for awake and recorded water:**
+1. **Rest motion:** a faceted procedural height field on the 1/9 m grid, the ripple layer's own look - a few wind-driven travelling
+   components (a breeze's cat's-paws: patches that come and go), mm high, evaluated per fragment as a pure function of world
+   position and time (chunks never visible; the same pond near and far). Knobs: `rest_amp_mm` (0 = today), `rest_wind` (direction,
+   speed), the reach (an L1 `detail(d)` fade - continuous). It adds to the rings, never replaces them.
+2. **Rings hand over at sleep:** rings under a visible height (~1.5 mm, a knob) stop holding the pond awake; when the pond sleeps
+   the ring heights fade to zero over ~1.5 s instead of stopping, so the hand-over to the rest motion shows no snap. A near pond
+   then sleeps when a far one does (44.7's ~30 s, cost only).
+3. Not in v1: fish rises, falling leaves, rain - each a timed ring stamped into the same appearance layer, later, if the owner wants.
+
+**Gate (to run before building - design-check):** outcomes - none for 1 (look only); 2 changes when a pond sleeps, so L5 near/far
+again with it on, and the stone gate. Test world: the Small bench pond, slept; the clip on/off side by side for the owner with the
+fps; debug 9 shows the faceted slope; whole-frame cost of the fragment work (aesthetic first: the moonshot amplitude, then the tiers
+reach by distance, never by outcome).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

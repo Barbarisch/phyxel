@@ -3981,7 +3981,8 @@ void Application::update(float deltaTime) {
             m_waterCpu.total = wms(wt0);
             if (m_waterCpu.total > m_waterCpuAtMax.total) m_waterCpuAtMax = m_waterCpu;   // 39.3 item 6
             for (const auto& rec : waterCore->drainAutoSleepRecords()) {
-                if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId);
+                if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}; film {} columns, {} m^3 joined (max {} m), {} m^3 dropped", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId, rec.filmColumns, rec.filmJoined, rec.filmJoinMaxM, rec.thinDropped);
+                if (rec.ok) m_lastAutoSleep = rec;
                 else LOG_WARN("WaterCore", "volume {} could not write back: {} (held {}, unwritten {}); auto_sleep is off for it", rec.id, rec.error, rec.heldColumns, rec.unwrittenColumns);
             }
         }
@@ -14160,7 +14161,8 @@ void Application::registerWaterCommands() {
         const auto rec = waterCore->sleep(cmd.params.value("id", 0), cmd.params.value("force", false));
         r = {{"success", rec.ok}, {"id", rec.id}, {"columns", rec.columns}, {"runs", rec.runs}, {"held_columns", rec.heldColumns},
              {"unwritten_columns", rec.unwrittenColumns}, {"chunks_touched", rec.chunksTouched}, {"mass_written", rec.massWritten},
-             {"mass_seeded", rec.massSeeded}, {"mass_stored", rec.massStored}, {"thin_dropped_m3", rec.thinDropped}, {"held_mass", rec.heldMass}, {"surface_vs_mass_mm", rec.surfaceVsMassMm},
+             {"mass_seeded", rec.massSeeded}, {"mass_stored", rec.massStored}, {"thin_dropped_m3", rec.thinDropped}, {"film_joined_m3", rec.filmJoined}, {"film_columns", rec.filmColumns},
+             {"film_join_max_m", rec.filmJoinMaxM}, {"held_mass", rec.heldMass}, {"surface_vs_mass_mm", rec.surfaceVsMassMm},
              {"spread_mm", rec.spreadMm}, {"forced", rec.forced}, {"body_id", rec.bodyId}};
         if (!rec.ok) r["error"] = rec.error;
     });
@@ -14249,6 +14251,9 @@ void Application::registerWaterCommands() {
         nlohmann::json list = nlohmann::json::array();
         for (const auto& a : waterCore->list()) list.push_back(avJson(a));
         r = {{"volumes", list}, {"total_mass", waterCore->totalMass()}, {"total_cells", waterCore->totalCells()}, {"realtime", waterCore->realtime()}};
+        const auto& s = m_lastAutoSleep;
+        r["last_auto_sleep"] = {{"id", s.id}, {"mass_written", s.massWritten}, {"mass_stored", s.massStored}, {"thin_dropped_m3", s.thinDropped},
+                                {"film_joined_m3", s.filmJoined}, {"film_columns", s.filmColumns}, {"film_join_max_m", s.filmJoinMaxM}};
     });
     // 26.31 measurement: {capture: bool} copies every GPU call's unit map to the host; {id} returns it per unit COLUMN (8 x 8 cells,
     // all heights): mass (cells), ke (sum f |v|^2 / 2, cells m^2/s^2), max_df (largest |f - fPrev| in the column, last tick)

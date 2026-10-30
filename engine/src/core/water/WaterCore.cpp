@@ -39,6 +39,8 @@ WriteBackStats columnRunsFromGrid(const WaterGrid& grid, const std::function<boo
     const int vz0 = static_cast<int>(std::floor(static_cast<float>(sp.origin.z) / per));
     const int vz1 = static_cast<int>(std::floor(static_cast<float>(sp.origin.z + sp.dims.z - 1) / per));
     std::vector<float> layer(static_cast<size_t>(grid.ny()));
+    std::vector<std::pair<size_t, double>> films;   // A11: (column in `out`, m^3) of the film-only columns
+    std::vector<double> area;                        // m^2 each column of `out` covers (1 when aligned)
     for (int vz = vz0; vz <= vz1; ++vz)
         for (int vx = vx0; vx <= vx1; ++vx) {
             ColumnRuns col; col.x = vx; col.z = vz;
@@ -92,15 +94,35 @@ WriteBackStats columnRunsFromGrid(const WaterGrid& grid, const std::function<boo
                 const double leftover = colMass - inRuns;
                 if (leftover > 0.0) {
                     if (!col.runs.empty()) { col.runs.back().topY += static_cast<float>(leftover / (static_cast<double>(nsub) * h * h)); col.runs.back().mass += leftover; }
-                    else st.thinDropped += leftover;
+                    else films.push_back({out.size(), leftover});
                 }
             }
             st.columns += 1; st.runs += static_cast<long>(col.runs.size());
             for (const auto& r : col.runs) st.mass += r.mass;
             st.surfaceVsMassMmMax = std::max(st.surfaceVsMassMmMax, col.surfaceVsMassMm);
             st.spreadMmMax = std::max(st.spreadMmMax, col.spreadMm);
+            area.resize(out.size() + 1, 0.0); area[out.size()] = static_cast<double>(nsub) * h * h;
             out.push_back(std::move(col));
         }
+    // A11 (44.8): a film-only column's water joins the nearest column with a run - nearest by squared
+    // distance, ties by the lower z then x, so the choice is a function of the columns alone (not of
+    // the order they were visited in). A box with no run anywhere keeps it as residue.
+    st.filmColumns = static_cast<long>(films.size());
+    for (const auto& [fi, m] : films) {
+        const ColumnRuns& f = out[fi];
+        size_t best = out.size(); long bestD2 = 0;
+        for (size_t c = 0; c < out.size(); ++c) {
+            const ColumnRuns& d = out[c];
+            if (d.held || d.runs.empty()) continue;
+            const long dx = d.x - f.x, dz = d.z - f.z, d2 = dx * dx + dz * dz;
+            if (best == out.size() || d2 < bestD2 || (d2 == bestD2 && (d.z < out[best].z || (d.z == out[best].z && d.x < out[best].x)))) { best = c; bestD2 = d2; }
+        }
+        if (best == out.size()) { st.thinDropped += m; continue; }
+        ColumnRun& top = out[best].runs.back();
+        top.topY += static_cast<float>(m / area[best]); top.mass += m;
+        st.mass += m; st.filmJoined += m;
+        st.filmJoinMaxM = std::max(st.filmJoinMaxM, std::sqrt(static_cast<float>(bestD2)));
+    }
     return st;
 }
 

@@ -115,6 +115,35 @@ TEST(WaterCoreWriteBackTest, SubMillimetreLayersFoldIntoTheTopRun) {
     EXPECT_NEAR(st.thinDropped, u.grid.totalMass(), 1e-9) << "residue is counted, never silently lost";
 }
 
+TEST(WaterCoreWriteBackTest, AFilmOnlyColumnJoinsTheNearestRunSoASleepLosesNothing) {
+    // A11 (44.8): a splash leaves film on dry columns beside the pond; the write-back dropped it (0.3-0.5 L a splash, 44.7).
+    // Four voxel columns in a row at h = 1/3: x = 0 and x = 2 hold a pond (one full layer), x = 1 and x = 3 only a 0.5 mm film.
+    // Predicted: no residue; x = 1's film joins x = 0 (equidistant from 0 and 2: the tie goes to the lower x), x = 3's joins x = 2;
+    // the written mass is the grid's mass. RED before A11: thinDropped = both films, st.mass short by them.
+    Tank t(12, 6, 3, 1.0f / 3.0f);
+    for (int gz = 0; gz < 3; ++gz) for (int gx = 0; gx < 12; ++gx) {
+        const int vx = gx / 3;
+        if (vx == 0 || vx == 2) t.grid.f(gx, 0, gz) = 1.0f;
+        else t.grid.f(gx, 2, gz) = 0.0015f;
+    }
+    const double film = 9.0 * 0.0015 / 27.0;   // one column's film: 9 sub-columns x f x h^3
+    std::vector<ColumnRuns> runs;
+    WriteBackStats st = columnRunsFromGrid(t.grid, nullptr, runs);
+    EXPECT_EQ(st.thinDropped, 0.0) << "nothing left as residue while a column has a run";
+    EXPECT_EQ(st.filmColumns, 2);
+    EXPECT_NEAR(st.filmJoined, 2.0 * film, 1e-9);
+    EXPECT_NEAR(st.mass, t.grid.totalMass(), 1e-7 * t.grid.totalMass()) << "the sleep is mass-exact";
+    EXPECT_NEAR(column(runs, 0, 0)->runs[0].topY, (1.0f + 0.0015f) / 3.0f, 1e-6f) << "x = 1's film joined x = 0 (the tie: lower x)";
+    EXPECT_NEAR(column(runs, 2, 0)->runs[0].topY, (1.0f + 0.0015f) / 3.0f, 1e-6f) << "x = 3's film joined x = 2 (nearest)";
+    EXPECT_TRUE(column(runs, 1, 0)->runs.empty()) << "a film column gets no run of its own";
+    EXPECT_NEAR(st.filmJoinMaxM, 1.0f, 1e-6f);
+    // a held column is never a destination: hold x = 0 and x = 1's film goes to x = 2 (one column farther)
+    st = columnRunsFromGrid(t.grid, [](int x, int) { return x == 0; }, runs);
+    EXPECT_EQ(st.thinDropped, 0.0);
+    EXPECT_NEAR(column(runs, 2, 0)->runs[0].topY, (1.0f + 2.0f * 0.0015f) / 3.0f, 1e-6f) << "both films at x = 2";
+    EXPECT_NEAR(st.mass + st.heldMass, t.grid.totalMass(), 1e-7 * t.grid.totalMass());
+}
+
 TEST(WaterCoreWriteBackTest, HeldColumnsAreReportedNotWritten) {
     Tank t = shelfTank();
     std::vector<ColumnRuns> runs;

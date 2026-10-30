@@ -326,6 +326,7 @@ private:
     std::unordered_map<uint64_t, Core::Water::WaterDisplaceGate::State> m_displaceState;
     struct DisplaceGateCounts { int kept = 0, admitted = 0, refusedSize = 0, refusedBudget = 0, rippleOnly = 0; } m_displaceGateLast;
     struct DisplaceGateTotals { long admitted = 0, refusedSize = 0, refusedBudget = 0, maxShoving = 0; } m_displaceGateTotal;   // the session
+    Core::Water::WriteBackRecord m_lastAutoSleep;   // A11 (44.8): the last volume that slept by itself, echoed by water_av_list
     bool m_waterSolidsOn = true;     // 20 (M2): debris inside a volume's box displaces water (moving solids)
     // 31 (M4, docs/WaterCore.md 31.2): debris inside a GPU volume is pushed by the water's PRESSURE over its faces (pressure windows);
     // OFF = the table law everywhere (the A/B control)

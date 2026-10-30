@@ -1,0 +1,2573 @@
+{
+ "build": "Release",
+ "runs": [
+  {
+   "displace": true,
+   "record_before_m3": 24.0,
+   "record_after_m3": 24.000001907348633,
+   "delta_l": 0.0019,
+   "volume_mass_first": 23.99975137234159,
+   "volume_mass_last": 24.000000536441807,
+   "residue_dropped_last": 1.286719480964038e-10,
+   "relocated_m3": 0.0,
+   "born_m3": 0.0035920461964822348,
+   "last_auto_sleep": {
+    "film_columns": 6,
+    "film_join_max_m": 1.0,
+    "film_joined_m3": 0.0002742793170664859,
+    "id": 3,
+    "mass_stored": 24.000001907348633,
+    "mass_written": 24.000000441263907,
+    "thin_dropped_m3": 0.0
+   },
+   "rows": [
+    {
+     "t": 0.0,
+     "volume_mass": null,
+     "residue_dropped_m3": null,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 0.0,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 24.020002365112305
+     }
+    },
+    {
+     "t": 1.1,
+     "volume_mass": 23.99975137234159,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.00024187737191994074,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0007493764263469815,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999752676811084,
+      "displaced": 0.0,
+      "droplets": 0.0006322095224069457,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0203872514458
+     }
+    },
+    {
+     "t": 2.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999980280802,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002167920325
+     }
+    },
+    {
+     "t": 3.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999784897547,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215000985
+     }
+    },
+    {
+     "t": 4.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999979281886,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215793116
+     }
+    },
+    {
+     "t": 5.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999791329497,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002156441805
+     }
+    },
+    {
+     "t": 6.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999769172764,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002134285065
+     }
+    },
+    {
+     "t": 7.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999766995185,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000213210749
+     }
+    },
+    {
+     "t": 8.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999745418766,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000211053107
+     }
+    },
+    {
+     "t": 9.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999658217423,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002023329724
+     }
+    },
+    {
+     "t": 10.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999967502135,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002040133654
+     }
+    },
+    {
+     "t": 11.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999961406214,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020001979174445
+     }
+    },
+    {
+     "t": 12.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999961063779,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000197575009
+     }
+    },
+    {
+     "t": 13.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999677427844,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000204254015
+     }
+    },
+    {
+     "t": 14.7,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.9999996401739,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200020052862
+     }
+    },
+    {
+     "t": 15.7,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999965910185,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000202421415
+     }
+    },
+    {
+     "t": 16.8,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999604659486,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000196977179
+     }
+    },
+    {
+     "t": 17.8,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.9999996461129,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200020112252
+     }
+    },
+    {
+     "t": 18.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999666594412,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000203170672
+     }
+    },
+    {
+     "t": 19.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999664386834,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000202949914
+     }
+    },
+    {
+     "t": 20.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999626922957,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000199203526
+     }
+    },
+    {
+     "t": 22.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999962963756,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000199474986
+     }
+    },
+    {
+     "t": 23.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999969541561,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002060527915
+     }
+    },
+    {
+     "t": 24.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999693465135,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000205857744
+     }
+    },
+    {
+     "t": 25.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999966487743,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000202998973
+     }
+    },
+    {
+     "t": 26.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999786580464,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002151692765
+     }
+    },
+    {
+     "t": 27.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 1.286719480964038e-10,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999981875389,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200021838662
+     }
+    },
+    {
+     "t": 28.2,
+     "volume_mass": null,
+     "residue_dropped_m3": null,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0035920461964822348,
+     "ledger": {
+      "bodies": 24.020004272460938,
+      "cells": 0.0,
+      "core_cells": 0.0,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020004272460938,
+      "total": 24.020004272460938
+     }
+    }
+   ]
+  },
+  {
+   "displace": false,
+   "record_before_m3": 24.0,
+   "record_after_m3": 24.000001907348633,
+   "delta_l": 0.0019,
+   "volume_mass_first": 23.99969510948025,
+   "volume_mass_last": 24.000000536441807,
+   "residue_dropped_last": 0.0,
+   "relocated_m3": 0.0,
+   "born_m3": 0.0003053396960987359,
+   "last_auto_sleep": {
+    "film_columns": 0,
+    "film_join_max_m": 0.0,
+    "film_joined_m3": 0.0,
+    "id": 6,
+    "mass_stored": 24.000001907348633,
+    "mass_written": 24.000000456396286,
+    "thin_dropped_m3": 0.0
+   },
+   "rows": [
+    {
+     "t": 0.0,
+     "volume_mass": null,
+     "residue_dropped_m3": null,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 0.0,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 24.020002365112305
+     }
+    },
+    {
+     "t": 1.1,
+     "volume_mass": 23.99969510948025,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0002983527810877379,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999694683024746,
+      "displaced": 0.0,
+      "droplets": 0.0002983527810877379,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.019995400918134
+     }
+    },
+    {
+     "t": 2.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999785459057,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215057136
+     }
+    },
+    {
+     "t": 3.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999791396977,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215650928
+     }
+    },
+    {
+     "t": 4.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999978592996,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215104226
+     }
+    },
+    {
+     "t": 5.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999771923996,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200021370363
+     }
+    },
+    {
+     "t": 6.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999766959807,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000213207211
+     }
+    },
+    {
+     "t": 7.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999729631803,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000209474411
+     }
+    },
+    {
+     "t": 8.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999699398348,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000206451065
+     }
+    },
+    {
+     "t": 9.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999964736554,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002012477846
+     }
+    },
+    {
+     "t": 10.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999653204622,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201831693
+     }
+    },
+    {
+     "t": 11.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999650177692,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201529
+     }
+    },
+    {
+     "t": 12.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999964172395,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000200683625
+     }
+    },
+    {
+     "t": 13.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999664045028,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000202915733
+     }
+    },
+    {
+     "t": 14.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999962319914,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000198831145
+     }
+    },
+    {
+     "t": 15.7,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999631955106,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000199706741
+     }
+    },
+    {
+     "t": 16.7,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999640615698,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002005728
+     }
+    },
+    {
+     "t": 17.8,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999965460527,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201971757
+     }
+    },
+    {
+     "t": 18.8,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999642509472,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000200762178
+     }
+    },
+    {
+     "t": 19.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999963261952,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020001997731825
+     }
+    },
+    {
+     "t": 20.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999960935991,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020001974472216
+     }
+    },
+    {
+     "t": 21.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999648461024,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201357333
+     }
+    },
+    {
+     "t": 23.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999962642212,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000199153443
+     }
+    },
+    {
+     "t": 24.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999627474278,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020001992586586
+     }
+    },
+    {
+     "t": 25.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999961147872,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020001976591026
+     }
+    },
+    {
+     "t": 26.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999670291693,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002035404
+     }
+    },
+    {
+     "t": 27.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999634548235,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020001999660536
+     }
+    },
+    {
+     "t": 28.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999966314823,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002028260535
+     }
+    },
+    {
+     "t": 29.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999972953655,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000209464886
+     }
+    },
+    {
+     "t": 30.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999972426289,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200020893752
+     }
+    },
+    {
+     "t": 31.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999773810785,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000213892309
+     }
+    },
+    {
+     "t": 32.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999822091365,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000218720367
+     }
+    },
+    {
+     "t": 33.4,
+     "volume_mass": null,
+     "residue_dropped_m3": null,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0003053396960987359,
+     "ledger": {
+      "bodies": 24.020004272460938,
+      "cells": 0.0,
+      "core_cells": 0.0,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020004272460938,
+      "total": 24.020004272460938
+     }
+    }
+   ]
+  },
+  {
+   "displace": true,
+   "record_before_m3": 24.0,
+   "record_after_m3": 23.99999237060547,
+   "delta_l": -0.0076,
+   "volume_mass_first": 23.999944273580468,
+   "volume_mass_last": 24.000000536441807,
+   "residue_dropped_last": 0.0,
+   "relocated_m3": 0.0001229403897013981,
+   "born_m3": 0.005353890756361779,
+   "last_auto_sleep": {
+    "film_columns": 11,
+    "film_join_max_m": 1.4142135381698608,
+    "film_joined_m3": 0.0004812263328411955,
+    "id": 9,
+    "mass_stored": 23.99999237060547,
+    "mass_written": 24.000000482279273,
+    "thin_dropped_m3": 0.0
+   },
+   "rows": [
+    {
+     "t": 0.0,
+     "volume_mass": null,
+     "residue_dropped_m3": null,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 0.0,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 24.020002365112305
+     }
+    },
+    {
+     "t": 1.1,
+     "volume_mass": 23.999944273580468,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 5.687004960464037e-05,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00031421639667750245,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999942839271036,
+      "displaced": 0.0,
+      "droplets": 5.687004960464037e-05,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002074432945
+     }
+    },
+    {
+     "t": 2.1,
+     "volume_mass": 23.999826389490043,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.00016963039507800204,
+     "relocated_m3": 7.943331002024934e-05,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999826582595087,
+      "displaced": 0.0,
+      "droplets": 0.0001687467882902638,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.019997694495686
+     }
+    },
+    {
+     "t": 3.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999788290218,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215340252
+     }
+    },
+    {
+     "t": 4.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999790544294,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200021556566
+     }
+    },
+    {
+     "t": 5.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999784742393,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200021498547
+     }
+    },
+    {
+     "t": 6.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999977167056,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002136782864
+     }
+    },
+    {
+     "t": 7.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999975225872,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000211737102
+     }
+    },
+    {
+     "t": 8.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999973817624,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000210328855
+     }
+    },
+    {
+     "t": 9.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999969727278,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000206238509
+     }
+    },
+    {
+     "t": 10.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999967061472,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002035727025
+     }
+    },
+    {
+     "t": 11.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999654149846,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201926215
+     }
+    },
+    {
+     "t": 12.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.9999996756988,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000204081111
+     }
+    },
+    {
+     "t": 13.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999661734886,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002026847195
+     }
+    },
+    {
+     "t": 14.7,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999965288836,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201800067
+     }
+    },
+    {
+     "t": 15.7,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999647078333,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201219064
+     }
+    },
+    {
+     "t": 16.7,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999631108587,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000199622089
+     }
+    },
+    {
+     "t": 17.8,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999963535037,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002000462675
+     }
+    },
+    {
+     "t": 18.8,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999634042172,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000199915447
+     }
+    },
+    {
+     "t": 19.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999967888874,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002044001046
+     }
+    },
+    {
+     "t": 20.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999739842462,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000210495477
+     }
+    },
+    {
+     "t": 22.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999977132091,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000213643321
+     }
+    },
+    {
+     "t": 23.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999799774155,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000216488646
+     }
+    },
+    {
+     "t": 24.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999815268094,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200021803804
+     }
+    },
+    {
+     "t": 25.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999838692965,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000220380527
+     }
+    },
+    {
+     "t": 26.1,
+     "volume_mass": null,
+     "residue_dropped_m3": null,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0001229403897013981,
+     "born_m3": 0.005353890756361779,
+     "ledger": {
+      "bodies": 24.019994735717773,
+      "cells": 0.0,
+      "core_cells": 0.0,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.019994735717773,
+      "total": 24.019994735717773
+     }
+    }
+   ]
+  },
+  {
+   "displace": false,
+   "record_before_m3": 24.0,
+   "record_after_m3": 24.000003814697266,
+   "delta_l": 0.0038,
+   "volume_mass_first": 23.99977816418032,
+   "volume_mass_last": 24.000000536441807,
+   "residue_dropped_last": 0.0,
+   "relocated_m3": 0.0,
+   "born_m3": 0.00022196946137076345,
+   "last_auto_sleep": {
+    "film_columns": 0,
+    "film_join_max_m": 0.0,
+    "film_joined_m3": 0.0,
+    "id": 12,
+    "mass_stored": 24.000003814697266,
+    "mass_written": 24.000000460238986,
+    "thin_dropped_m3": 0.0
+   },
+   "rows": [
+    {
+     "t": 0.0,
+     "volume_mass": null,
+     "residue_dropped_m3": null,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.0,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 0.0,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 24.020002365112305
+     }
+    },
+    {
+     "t": 1.1,
+     "volume_mass": 23.99977816418032,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.00022196946137076345,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99977782445791,
+      "displaced": 0.0,
+      "droplets": 0.00022196946137076345,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002159031584
+     }
+    },
+    {
+     "t": 2.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999789119922,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215423223
+     }
+    },
+    {
+     "t": 3.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999792125397,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200021572377
+     }
+    },
+    {
+     "t": 4.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999794833247,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215994555
+     }
+    },
+    {
+     "t": 5.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999784954753,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215006706
+     }
+    },
+    {
+     "t": 6.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999974908528,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000211419758
+     }
+    },
+    {
+     "t": 7.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999708667076,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000207377938
+     }
+    },
+    {
+     "t": 8.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999656838224,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000202195053
+     }
+    },
+    {
+     "t": 9.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999962485383,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000198996613
+     }
+    },
+    {
+     "t": 10.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999967710439,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002042216696
+     }
+    },
+    {
+     "t": 11.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999674893058,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002040005366
+     }
+    },
+    {
+     "t": 12.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999648443666,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201355597
+     }
+    },
+    {
+     "t": 13.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999965179276,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201690507
+     }
+    },
+    {
+     "t": 14.6,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999644924255,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201003656
+     }
+    },
+    {
+     "t": 15.7,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999631940874,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000199705318
+     }
+    },
+    {
+     "t": 16.7,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999963379294,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020001998905244
+     }
+    },
+    {
+     "t": 17.8,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999644486323,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000200959863
+     }
+    },
+    {
+     "t": 18.8,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999963595964,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002001071944
+     }
+    },
+    {
+     "t": 19.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999650086643,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201519895
+     }
+    },
+    {
+     "t": 20.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999650346393,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200020154587
+     }
+    },
+    {
+     "t": 21.9,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999963070538,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000199581768
+     }
+    },
+    {
+     "t": 23.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999648300133,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201341244
+     }
+    },
+    {
+     "t": 24.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999623157557,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000198826986
+     }
+    },
+    {
+     "t": 25.0,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999667683372,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002032795674
+     }
+    },
+    {
+     "t": 26.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999668092183,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000203320449
+     }
+    },
+    {
+     "t": 27.1,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999625562744,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000199067505
+     }
+    },
+    {
+     "t": 28.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999963718691,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002002299215
+     }
+    },
+    {
+     "t": 29.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999645811982,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201092429
+     }
+    },
+    {
+     "t": 30.2,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999648156937,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201326924
+     }
+    },
+    {
+     "t": 31.3,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999658590003,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.020002023702304
+     }
+    },
+    {
+     "t": 32.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999717599195,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200020827115
+     }
+    },
+    {
+     "t": 33.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999648007666,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000201311997
+     }
+    },
+    {
+     "t": 34.4,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.999999704680768,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000206979307
+     }
+    },
+    {
+     "t": 35.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999976260929,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.0200021277216
+     }
+    },
+    {
+     "t": 36.5,
+     "volume_mass": 24.000000536441807,
+     "residue_dropped_m3": 0.0,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.020002365112305,
+      "cells": 0.0,
+      "core_cells": 23.99999979355628,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.020002365112305,
+      "total": 48.02000215866859
+     }
+    },
+    {
+     "t": 37.5,
+     "volume_mass": null,
+     "residue_dropped_m3": null,
+     "in_flight_m3": 0.0,
+     "relocated_m3": 0.0,
+     "born_m3": 0.00022196946137076345,
+     "ledger": {
+      "bodies": 24.02000617980957,
+      "cells": 0.0,
+      "core_cells": 0.0,
+      "displaced": 0.0,
+      "droplets": 0.0,
+      "held_edits": 0,
+      "reserves": 0.0,
+      "span_count": 21,
+      "spans": 24.02000617980957,
+      "total": 24.02000617980957
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -47,15 +47,16 @@ def main():
                     if not v and time.time() - t0 > 3: break
                     time.sleep(1.0)
                 m1 = l5.recorded_m3(api)
+                last_sleep = api.debug("water_av_list").get("last_auto_sleep")   # A11 (44.8): what the sleep did with the film
                 api.debug("clear_dynamics")
                 peak = next((r for r in rows if r["volume_mass"] is not None), {})
                 last = next((r for r in reversed(rows) if r["volume_mass"] is not None), {})
                 run = {"displace": disp, "record_before_m3": m0, "record_after_m3": m1, "delta_l": None if m0 is None or m1 is None else round(1000 * (m1 - m0), 4),
                        "volume_mass_first": peak.get("volume_mass"), "volume_mass_last": last.get("volume_mass"),
                        "residue_dropped_last": last.get("residue_dropped_m3"), "relocated_m3": rows[-1]["relocated_m3"] if rows else None,
-                       "born_m3": rows[-1]["born_m3"] if rows else None, "rows": rows}
+                       "born_m3": rows[-1]["born_m3"] if rows else None, "last_auto_sleep": last_sleep, "rows": rows}
                 print(f"displace {disp}: record {m0} -> {m1} ({run['delta_l']} L); volume mass first {run['volume_mass_first']} last {run['volume_mass_last']}; "
-                      f"residue dropped {run['residue_dropped_last']}; droplets born {run['born_m3']:.4f} relocated {run['relocated_m3']:.6f} m^3", flush=True)
+                      f"residue dropped {run['residue_dropped_last']}; sleep {last_sleep}; droplets born {run['born_m3']:.4f} relocated {run['relocated_m3']:.6f} m^3", flush=True)
                 out["runs"].append(run)
     finally:
         api.debug("clear_dynamics")

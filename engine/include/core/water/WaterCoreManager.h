@@ -123,7 +123,10 @@ struct WriteBackRecord {
     int  id = 0;
     long columns = 0, runs = 0, heldColumns = 0, unwrittenColumns = 0, chunksTouched = 0;
     double massWritten = 0.0, massSeeded = 0.0, heldMass = 0.0;
-    double thinDropped = 0.0;   ///< m^3 of sub-millimetre-only columns not stored (residue, counted)
+    double thinDropped = 0.0;   ///< m^3 of sub-millimetre-only columns not stored (residue, counted: only when the box holds no run at all)
+    double filmJoined = 0.0;    ///< m^3 of sub-millimetre-only columns folded into the nearest column with a run (A11, 44.8)
+    long   filmColumns = 0;     ///< columns that held only film
+    float  filmJoinMaxM = 0.0f; ///< the farthest a film travelled to its column, m
     double massStored = 0.0;   ///< sum of the written runs' depths as the chunks STORE them (float32 tops) - the body record's unit, so A.mass = sum of B exactly; differs from massWritten by float rounding (~2e-6 per column at Y 17)
     float surfaceVsMassMm = 0.0f, spreadMm = 0.0f;
     bool forced = false;

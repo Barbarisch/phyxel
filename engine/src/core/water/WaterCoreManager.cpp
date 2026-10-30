@@ -608,7 +608,7 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     // columns over them would erase that water
     runs.erase(std::remove_if(runs.begin(), runs.end(), [&](const ColumnRuns& c) { return columnRecorded(*av, c.x, c.z); }), runs.end());
     rec.columns = st.columns; rec.runs = st.runs; rec.heldColumns = st.heldColumns; rec.heldMass = st.heldMass;
-    rec.massWritten = st.mass; rec.thinDropped = st.thinDropped; rec.surfaceVsMassMm = st.surfaceVsMassMmMax; rec.spreadMm = st.spreadMmMax; rec.massSeeded = av->seededMass;
+    rec.massWritten = st.mass; rec.thinDropped = st.thinDropped; rec.filmJoined = st.filmJoined; rec.filmColumns = st.filmColumns; rec.filmJoinMaxM = st.filmJoinMaxM; rec.surfaceVsMassMm = st.surfaceVsMassMmMax; rec.spreadMm = st.spreadMmMax; rec.massSeeded = av->seededMass;
     long unwritten = 0, chunks = 0;
     const float yLo = static_cast<float>(av->minVoxel.y), yHi = static_cast<float>(av->maxVoxel.y + 1);
     if (st.heldColumns > 0 && !force) {
@@ -1626,7 +1626,7 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
         if (g.occ(x, y, z) == Occ::Unknown && g.f(x, y, z) > 0.0f) return false;   // the 5.1 hold rule: not over unknown ground
     std::vector<ColumnRuns> runs;
     const WriteBackStats st = columnRunsFromGrid(g, nullptr, runs);
-    if (st.thinDropped > 1e-6) return false;   // a film too thin to be a run: not at rest - recorded, it would be lost
+    if (st.thinDropped + st.filmJoined > 1e-6) return false;   // a film too thin to be a run: not at rest (A11 keeps it now, but a tile still waits for it to drain)
     av.lastRecordSpreadMm = st.spreadMmMax;   // §27 W1b measurement: how far from flat the tile was inside a 1 m column when it recorded
     av.recordSpreadMmMax = std::max(av.recordSpreadMmMax, st.spreadMmMax);
     if (s_measureRecordJump) {   // the jump a wake will make: the record woken as a wake would, against the surface the tile had

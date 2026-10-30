@@ -339,7 +339,9 @@ private:
 //     top = bottom + Σ f̄·h over the run; sub-millimetre layers (films in transit above a surface, a
 //     forced snapshot of moving water) are folded into the column's top run, so the column is
 //     MASS-EXACT by definition (Σ run depth × 1 m² = Σ f over the column, to float rounding); a
-//     column with nothing but sub-millimetre water is residue, counted in `thinDropped`;
+//     column with nothing but sub-millimetre water (a splash's film on a dry bank) JOINS THE NEAREST
+//     column with a run (A11, 44.8: the film would drain there; dropping it leaked 0.3-0.5 L a
+//     splash), counted in `filmJoined`; only a box with no run at all leaves residue, `thinDropped`;
 //   * the run's GEOMETRIC surface (highest wet layer's y + f̄·h) is reported against the mass top
 //     as `surfaceVsMassMm`, and the sub-columns' surface spread as `spreadMm` — S11's "spans equal
 //     the surface ± 1 mm" is this number, measured; an interior layer short of full shows here.
@@ -363,7 +365,10 @@ struct WriteBackStats {
     long   columns = 0, runs = 0, heldColumns = 0;
     double mass = 0.0;               ///< m^3 written (Σ run masses)
     double heldMass = 0.0;           ///< m^3 in held columns (stays in the volume)
-    double thinDropped = 0.0;        ///< m^3 of columns holding only sub-millimetre water (no run to fold into): residue, counted, not stored
+    double thinDropped = 0.0;        ///< m^3 of sub-millimetre-only columns with no run anywhere in the box to join: residue, counted, not stored
+    double filmJoined = 0.0;         ///< m^3 of sub-millimetre-only columns folded into the nearest column with a run (A11)
+    long   filmColumns = 0;          ///< columns that held only film (joined or dropped)
+    float  filmJoinMaxM = 0.0f;      ///< the farthest a film travelled to its column, m (voxel columns)
     float  surfaceVsMassMmMax = 0.0f, spreadMmMax = 0.0f;
 };
 /// Pure. `held(x, z)` (world voxel column) may be null = nothing held. The grid's box must be
