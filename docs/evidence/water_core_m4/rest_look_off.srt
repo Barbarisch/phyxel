@@ -1,0 +1,124 @@
+1
+00:00:00,020 --> 00:00:00,520
+TODAY: a slept pond (no rest motion)
+488 fps
+
+2
+00:00:00,520 --> 00:00:01,020
+TODAY: a slept pond (no rest motion)
+663 fps
+
+3
+00:00:01,020 --> 00:00:01,530
+TODAY: a slept pond (no rest motion)
+609 fps
+
+4
+00:00:01,530 --> 00:00:02,050
+TODAY: a slept pond (no rest motion)
+715 fps
+
+5
+00:00:02,050 --> 00:00:02,550
+TODAY: a slept pond (no rest motion)
+697 fps
+
+6
+00:00:02,550 --> 00:00:03,050
+TODAY: a slept pond (no rest motion)
+685 fps
+
+7
+00:00:03,050 --> 00:00:03,570
+TODAY: a slept pond (no rest motion)
+673 fps
+
+8
+00:00:03,570 --> 00:00:04,070
+TODAY: a slept pond (no rest motion)
+585 fps
+
+9
+00:00:04,070 --> 00:00:04,570
+TODAY: a slept pond (no rest motion)
+775 fps
+
+10
+00:00:04,570 --> 00:00:05,090
+TODAY: a slept pond (no rest motion)
+600 fps
+
+11
+00:00:05,090 --> 00:00:05,600
+TODAY: a slept pond (no rest motion)
+785 fps
+
+12
+00:00:05,600 --> 00:00:06,100
+TODAY: a slept pond (no rest motion)
+654 fps
+
+13
+00:00:06,100 --> 00:00:06,610
+TODAY: a slept pond (no rest motion)
+683 fps
+
+14
+00:00:06,610 --> 00:00:07,130
+TODAY: a slept pond (no rest motion)
+169 fps
+
+15
+00:00:07,130 --> 00:00:07,640
+TODAY: a slept pond (no rest motion)
+718 fps
+
+16
+00:00:07,640 --> 00:00:08,140
+TODAY: a slept pond (no rest motion)
+371 fps
+
+17
+00:00:08,140 --> 00:00:08,660
+TODAY: a slept pond (no rest motion)
+157 fps
+
+18
+00:00:08,660 --> 00:00:09,160
+TODAY: a slept pond (no rest motion)
+578 fps
+
+19
+00:00:09,160 --> 00:00:09,670
+TODAY: a slept pond (no rest motion)
+677 fps
+
+20
+00:00:09,670 --> 00:00:10,190
+TODAY: a slept pond (no rest motion)
+394 fps
+
+21
+00:00:10,190 --> 00:00:10,690
+TODAY: a slept pond (no rest motion)
+726 fps
+
+22
+00:00:10,690 --> 00:00:11,190
+TODAY: a slept pond (no rest motion)
+706 fps
+
+23
+00:00:11,190 --> 00:00:11,710
+TODAY: a slept pond (no rest motion)
+570 fps
+
+24
+00:00:11,710 --> 00:00:12,210
+TODAY: a slept pond (no rest motion)
+648 fps
+
+25
+00:00:12,210 --> 00:00:12,710
+TODAY: a slept pond (no rest motion)
+508 fps

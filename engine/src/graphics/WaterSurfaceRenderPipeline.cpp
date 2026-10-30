@@ -224,7 +224,8 @@ void WaterSurfaceRenderPipeline::writeRipples(uint32_t slot) {
     char* base = static_cast<char*>(m_rippleMapped) + slot * m_rippleSlotBytes;
     std::memset(base, 0, kRippleHeaderBytes);
     std::memcpy(base, &m_rippleFade[0], 16);
-    auto* geo = reinterpret_cast<float*>(base + 16); auto* meta = reinterpret_cast<int32_t*>(base + 16 + kRippleIndices * 16);
+    std::memcpy(base + 16, &m_rest0[0], 16); std::memcpy(base + 32, &m_rest1[0], 16);   // A12 (45): the rest motion
+    auto* geo = reinterpret_cast<float*>(base + 48); auto* meta = reinterpret_cast<int32_t*>(base + 48 + kRippleIndices * 16);
     auto* heights = reinterpret_cast<float*>(base + kRippleHeaderBytes);
     size_t used = 0;
     if (m_ripples)

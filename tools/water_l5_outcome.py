@@ -250,6 +250,7 @@ def main():
     ap.add_argument("--displace", choices=["default", "on", "off"], default="default", help="44.6: debris displacement (default = the engine's)")
     ap.add_argument("--sleep-wait", type=float, default=30.0, help="44.6: seconds after the window for the pond to sleep again")
     ap.add_argument("--no-kept-memory", action="store_true", help="44.6 TEST: every wake fresh (water_locality test_keep_memory_off)")
+    ap.add_argument("--handover-mm", type=float, default=None, help="A12 (45.1): the rings' hand-over height for every run (0 = off; default = the engine's)")
     a = ap.parse_args()
     global WAKE_DELAY_S, WAKE_PACE, PACE_LATE, SHIPPED_PACE, RIPPLE, DISPLACE, SLEEP_WAIT_S, NO_KEEP
     SLEEP_WAIT_S = a.sleep_wait; NO_KEEP = a.no_kept_memory
@@ -275,8 +276,14 @@ def main():
     if a.ripple_reach != "default" or a.ripple_m is not None:
         RIPPLE = {"ripple_reach": loc0.get("ripple_reach") if a.ripple_reach == "default" else a.ripple_reach == "on"}
         if a.ripple_m is not None: RIPPLE["ripple_m"] = a.ripple_m
+    rp0 = api.debug("water_ripples", {"shape": False})
+    ho0 = (rp0.get("handover") or {}).get("mm")
+    if a.handover_mm is not None:
+        if ho0 is None: raise SystemExit("--handover-mm: this build has no hand-over (water_ripples echoes no 'handover')")
+        api.debug("water_ripples", {"handover_mm": a.handover_mm, "shape": False})
     res = {"status": {k: st.get(k) for k in ("build_config", "version", "git") if k in st}, "y0": Y0, "runs": [], "compare": [],
-           "wake_pace": WAKE_PACE, "ripple": RIPPLE, "displace": DISPLACE}
+           "wake_pace": WAKE_PACE, "ripple": RIPPLE, "displace": DISPLACE,
+           "handover": (api.debug("water_ripples", {"shape": False}).get("handover") or None)}
     try:
         for name in a.runs.split(","):
             res["runs"].append(run(api, name, a.seconds))
@@ -291,6 +298,7 @@ def main():
         api.debug("water_locality", {"test_keep_memory_off": False})
         if RIPPLE is not None:   # the L2 settings back as found
             api.debug("water_locality", {"ripple_reach": loc0.get("ripple_reach"), "ripple_m": loc0.get("ripple_m")})
+        if a.handover_mm is not None: api.debug("water_ripples", {"handover_mm": ho0, "shape": False})   # A12: as found
         (w.EV / f"l5_{a.tag}.json").write_text(json.dumps(res, indent=1), encoding="utf-8")
 
 

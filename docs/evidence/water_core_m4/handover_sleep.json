@@ -1,0 +1,2574 @@
+{
+ "build": "Release",
+ "mm": 1.5,
+ "runs": [
+  {
+   "slept_s": 59.8,
+   "volume_quiet_s": 33.1,
+   "handovers": 0,
+   "last_handover_s": 0.0,
+   "rows": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 1.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.832,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 2.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 8.009,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 3.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 6.775,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 4.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 4.535,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 5.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.906,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 6.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.704,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 7.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.221,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 8.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.109,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 9.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.78,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 10.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.897,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 11.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.205,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 12.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.494,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 13.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.409,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 14.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.628,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 15.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.046,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 16.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.101,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 17.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.546,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 18.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.477,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 19.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.185,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 20.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.174,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 21.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.161,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 22.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.05,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 23.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.128,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 24.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.925,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 25.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.948,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 26.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.8,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 27.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.793,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 28.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.7,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 29.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.684,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 31.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.791,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 32.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.664,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 33.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.612,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 34.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.646,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 35.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.601,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 36.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.574,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 37.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.51,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 38.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.502,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 39.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.582,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 40.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.465,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 41.3,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.49,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 42.3,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.39,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 43.4,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.354,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 44.4,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.405,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 45.4,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.363,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 46.5,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.33,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 47.5,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.349,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 48.5,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.396,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 49.5,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.344,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 50.6,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.283,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 51.6,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.249,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 52.6,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.282,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 53.6,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.266,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 54.7,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.202,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 55.7,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.235,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 56.7,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.199,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 57.8,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.189,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 58.8,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.184,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 59.8,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    }
+   ],
+   "where": "near",
+   "mm": 0.0,
+   "k": 0
+  },
+  {
+   "slept_s": 33.2,
+   "volume_quiet_s": 28.1,
+   "handovers": 5,
+   "last_handover_s": 0.0,
+   "rows": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 1.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.603,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 2.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 21.225,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 3.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 11.739,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 4.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 7.061,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 5.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 6.119,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 6.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 6.865,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 7.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 5.687,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 8.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 4.549,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 9.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 4.304,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 10.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 4.606,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 11.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 4.554,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 12.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.235,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 13.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 4.68,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 14.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.516,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 15.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.642,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 16.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.532,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 17.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.349,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 18.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.746,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 19.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.928,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 20.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.669,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 21.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.442,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 22.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.508,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 23.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.365,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 25.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.075,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 26.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.19,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 27.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.016,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 28.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.766,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 29.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 2.074,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 30.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.948,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 31.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.113,
+     "rings_awake": 1,
+     "handing_over": 1
+    },
+    {
+     "t": 32.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.239,
+     "rings_awake": 1,
+     "handing_over": 1
+    },
+    {
+     "t": 33.2,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    }
+   ],
+   "where": "near",
+   "mm": 1.5,
+   "k": 0
+  },
+  {
+   "slept_s": 26.9,
+   "volume_quiet_s": null,
+   "handovers": 0,
+   "last_handover_s": 0.0,
+   "rows": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 1.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 2.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 3.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 4.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 5.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 6.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 7.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 8.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 9.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 10.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 11.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 12.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 13.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 14.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 15.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 16.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 17.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 18.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 19.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 20.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 21.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 22.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 23.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 24.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 25.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 26.9,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    }
+   ],
+   "where": "far",
+   "mm": 0.0,
+   "k": 0
+  },
+  {
+   "slept_s": 28.0,
+   "volume_quiet_s": null,
+   "handovers": 0,
+   "last_handover_s": 0.0,
+   "rows": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 1.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 2.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 3.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 4.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 5.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 6.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 7.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 8.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 9.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 10.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 11.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 12.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 13.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 14.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 15.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 16.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 17.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 18.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 19.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 20.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 21.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 22.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 23.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 24.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 26.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 27.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 28.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    }
+   ],
+   "where": "far",
+   "mm": 1.5,
+   "k": 0
+  },
+  {
+   "slept_s": 73.3,
+   "volume_quiet_s": 26.9,
+   "handovers": 0,
+   "last_handover_s": 0.0,
+   "rows": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 1.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.589,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 2.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 19.287,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 3.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 10.521,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 4.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 5.711,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 5.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 4.783,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 6.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 5.109,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 7.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 4.218,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 8.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 4.972,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 9.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.529,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 10.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.186,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 11.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.893,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 12.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.93,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 13.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.109,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 14.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.695,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 15.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.506,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 16.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.548,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 17.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.283,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 18.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.312,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 19.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.522,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 20.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.163,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 21.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.888,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 22.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.051,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 23.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.592,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 24.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.792,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 25.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.895,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 26.9,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.829,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 28.0,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.412,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 29.0,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.541,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 30.0,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.517,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 31.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.364,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 32.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.099,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 33.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.115,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 34.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.262,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 35.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 1.212,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 36.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.891,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 37.3,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.903,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 38.3,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.882,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 39.3,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.946,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 40.4,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.839,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 41.4,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.913,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 42.4,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.776,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 43.4,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.751,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 44.5,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.837,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 45.5,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.611,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 46.5,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.582,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 47.6,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.568,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 48.6,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.558,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 49.6,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.661,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 50.7,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.483,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 51.7,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.527,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 52.7,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.414,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 53.8,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.452,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 54.8,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.38,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 55.8,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.404,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 56.8,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.383,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 57.9,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.351,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 58.9,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.389,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 59.9,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.332,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 60.9,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.291,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 62.0,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.288,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 63.0,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.322,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 64.0,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.396,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 65.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.287,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 66.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.273,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 67.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.243,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 68.1,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.236,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 69.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.225,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 70.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.271,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 71.3,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.247,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 72.3,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.249,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 73.3,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    }
+   ],
+   "where": "near",
+   "mm": 0.0,
+   "k": 1
+  },
+  {
+   "slept_s": 35.3,
+   "volume_quiet_s": 33.2,
+   "handovers": 1,
+   "last_handover_s": 0.0,
+   "rows": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 1.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.242,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 2.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 11.517,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 3.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 5.991,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 4.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 6.311,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 5.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.724,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 6.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.38,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 7.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.245,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 8.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.045,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 9.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 3.086,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 10.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.233,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 11.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.404,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 12.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.359,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 13.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.07,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 14.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.585,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 15.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.81,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 16.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.161,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 17.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.459,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 18.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 2.031,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 19.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.648,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 20.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.505,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 21.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.526,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 22.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.496,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 23.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.299,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 24.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.489,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 25.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.123,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 27.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.158,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 28.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.3,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 29.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.019,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 30.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 1.049,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 31.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.862,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 32.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.969,
+     "rings_awake": 1,
+     "handing_over": 0
+    },
+    {
+     "t": 33.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.729,
+     "rings_awake": 1,
+     "handing_over": 1
+    },
+    {
+     "t": 34.2,
+     "volumes": 1,
+     "asleep": true,
+     "rings_max_mm": 0.185,
+     "rings_awake": 1,
+     "handing_over": 1
+    },
+    {
+     "t": 35.3,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    }
+   ],
+   "where": "near",
+   "mm": 1.5,
+   "k": 1
+  },
+  {
+   "slept_s": 29.0,
+   "volume_quiet_s": null,
+   "handovers": 0,
+   "last_handover_s": 0.0,
+   "rows": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 1.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 2.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 3.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 4.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 5.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 6.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 7.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 8.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 9.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 10.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 11.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 12.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 13.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 14.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 15.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 16.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 17.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 18.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 19.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 20.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 21.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 22.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 23.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 24.8,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 25.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 26.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 27.9,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 29.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    }
+   ],
+   "where": "far",
+   "mm": 0.0,
+   "k": 1
+  },
+  {
+   "slept_s": 26.7,
+   "volume_quiet_s": null,
+   "handovers": 0,
+   "last_handover_s": 0.0,
+   "rows": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 1.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 2.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 3.0,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 4.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 5.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 6.1,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 7.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 8.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 9.2,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 10.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 11.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 12.3,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 13.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 14.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 15.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 16.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 17.4,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 18.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 19.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 20.5,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 21.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 22.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 23.6,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 24.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 25.7,
+     "volumes": 1,
+     "asleep": false,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    },
+    {
+     "t": 26.7,
+     "volumes": 0,
+     "asleep": null,
+     "rings_max_mm": 0.0,
+     "rings_awake": 0,
+     "handing_over": 0
+    }
+   ],
+   "where": "far",
+   "mm": 1.5,
+   "k": 1
+  }
+ ]
+}

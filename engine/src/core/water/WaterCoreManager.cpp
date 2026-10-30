@@ -2490,7 +2490,7 @@ RippleLayer& WaterCoreManager::rippleWindow(std::unique_ptr<RippleLayer>& layer,
 
 void WaterCoreManager::stepRipples(float dt) {
     const auto t0 = std::chrono::steady_clock::now();
-    m_rstats.layers = 0; m_rstats.awake = 0; m_rstats.cells = 0; m_rstats.kinematicCells = 0;
+    m_rstats.layers = 0; m_rstats.awake = 0; m_rstats.cells = 0; m_rstats.kinematicCells = 0; m_rstats.handingOver = 0;
     if (!m_rstats.on) { m_rstats.ms = 0.0; return; }
     auto hpr = WaterHostProfile::Clock::now();   // 27.28
     surfaceFields();   // masks and body waterlines read each volume's field (cached per step)
@@ -2610,7 +2610,27 @@ void WaterCoreManager::stepRipples(float dt) {
             if (!raw.empty()) L.addImpulseField(raw);
         }
         L.setBreakSlope(m_rstats.breakSlope);
+        {   // A12 (45.1): the hand-over - the water itself at rest (its own test, no droplets in flight) and only faint rings left: fade
+            // them to sleep in m_handover.seconds instead of waiting for the film damping (59-76 s near, 44.7). A new source ends it
+            // (lastMax is "unknown" after one until the next step).
+            // once begun it holds while no new source arrives (lastMax "unknown") - a ring swinging back over the height must not
+            // stop and restart the fade (the first live run began 5 hand-overs in one drop, 45.2)
+            const bool faint = av.rippleHandingOver ? L.lastMax() < 1e29f : L.lastMax() < m_handover.heightM;
+            const bool ho = m_handover.rate() > 0.0f && m_rpattern.slope < 0.0f && !L.asleep() && isAsleep(av) && !m_pool.anyFor(av.id) && faint;
+            L.setExtraDamping(ho ? m_handover.rate() : 0.0f);
+            const double now = std::chrono::duration<double>(RClock::now().time_since_epoch()).count();
+            if (ho && !av.rippleHandingOver) { av.rippleHandingOver = true; av.rippleHandoverStart = now; ++m_rstats.handovers; }
+            else if (!ho && av.rippleHandingOver) {
+                av.rippleHandingOver = false;
+                if (L.asleep()) m_rstats.lastHandoverS = static_cast<float>(now - av.rippleHandoverStart);
+            }
+            if (ho) ++m_rstats.handingOver;
+        }
         { const auto tl = RClock::now(); if (m_rpattern.slope < 0.0f) stepLayer(L, dt, vel.empty() ? nullptr : &vel); m_updateCpu.rLayer += rms(tl); }
+        if (av.rippleHandingOver && L.asleep()) {   // A12: a CPU step sleeps the rings inside it - the pond may record before the next frame looks
+            av.rippleHandingOver = false;
+            m_rstats.lastHandoverS = static_cast<float>(std::chrono::duration<double>(RClock::now().time_since_epoch()).count() - av.rippleHandoverStart);
+        }
         m_rstats.brokenM3 += L.takeBroken();
         ++m_rstats.layers; m_rstats.cells += static_cast<long>(L.nx()) * L.nz();
         if (!L.asleep()) ++m_rstats.awake;   // the shape stats: refreshRippleShapeStats (on demand)

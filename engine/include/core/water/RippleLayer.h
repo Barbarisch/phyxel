@@ -35,6 +35,9 @@ public:
     /// 22.12 B1: the breaking slope. Water holds no wave steeper than the Stokes limit H/L = 0.142 (Michell 1893); as the
     /// sinusoid's steepest slope that is pi x 0.142 = 0.446. Steeper, the crest breaks and the excess leaves the wave.
     static constexpr float kBreakSlope = 0.44f;
+    /// m: the field sleeps (exact zero) once below this everywhere for kSleepSteps steps (22 F5)
+    static constexpr float kSleepHeight = 2.0e-4f;
+    static constexpr int kSleepSteps = 30;
 
     /// `origin` = the lattice cell (world / kPitch, integer) of cell (0, 0); nx x nz cells.
     RippleLayer(const glm::ivec2& origin, int nx, int nz, float gravity = 9.81f);
@@ -94,8 +97,15 @@ public:
     const std::vector<float>& heights() const { return m_r; }
     /// Measurement only (water_ripples {pattern}): hold the field at `h` (both leapfrog levels), awake. The caller
     /// skips step() while pinned, so the field does not move.
-    void pin(const std::vector<float>& h) { if (h.size() != m_r.size()) return; m_r = h; m_prev = h; m_asleep = false; m_quietSteps = 0; }
+    void pin(const std::vector<float>& h) { if (h.size() != m_r.size()) return; m_r = h; m_prev = h; m_asleep = false; m_quietSteps = 0; m_lastMax = 1e30f; }
     float height(int x, int z) const { return inBounds(x, z) ? m_r[idx(x, z)] : 0.0f; }
+    /// A12 (WaterCore.md 45.1): an extra damping rate (1/s) on top of the film's - the hand-over before a pond sleeps fades the
+    /// rings as e^(-a t) (the same r' term, so the CPU and GPU steps share it). 0 = none.
+    void setExtraDamping(float a) { m_extraA = std::max(0.0f, a); }
+    float extraDamping() const { return m_extraA; }
+    float damping() const { return m_a + m_extraA; }
+    /// The largest |r| at the last sleep test (m); "unknown" (huge) after a new source, until the next step.
+    float lastMax() const { return m_lastMax; }
     float maxAbs() const;
     double energyProxy() const;   ///< sum r^2 + (dr)^2 (for sleep and the tests)
 
@@ -122,6 +132,8 @@ private:
     int m_nx, m_nz;
     glm::ivec2 m_origin;
     float m_g, m_a;
+    float m_extraA = 0.0f;
+    float m_lastMax = 1e30f;
     std::vector<float> m_kernel;
     float m_advT = 0.0f;   // RC: advection time accumulated since the last resample
     std::vector<float> m_r, m_prev, m_next, m_tmp, m_impulse, m_kin;

@@ -10,9 +10,7 @@ constexpr float kRho = 1000.0f;       // kg/m^3
 constexpr float kSigma = 0.0728f;     // N/m, water-air surface tension (20 C)
 constexpr float kNu = 1.0e-6f;        // m^2/s, kinematic viscosity of water (20 C)
 constexpr float kPi = 3.14159265358979f;
-constexpr float kSleepHeight = 2.0e-4f;   // m: below 0.2 mm everywhere ...
-constexpr int kSleepSteps = 30;           // ... for 30 consecutive steps -> exact zero, asleep
-}
+}   // kSleepHeight / kSleepSteps: RippleLayer.h (A12 reads the sleep height for the hand-over's clamp)
 
 float RippleLayer::targetResponse(float k, float gravity) {
     return k * (1.0f + kSigma * k * k / (kRho * gravity));
@@ -145,7 +143,7 @@ void RippleLayer::addImpulse(float wx, float wz, float impulsePerArea) {
         if (inBounds(c.x + dx, c.y + dz)) m_impulse[idx(c.x + dx, c.y + dz)] += share; else lost += share;
     }
     m_impulse[idx(c.x, c.y)] += lost;
-    m_anyImpulse = true; m_asleep = false; m_quietSteps = 0;
+    m_anyImpulse = true; m_asleep = false; m_quietSteps = 0; m_lastMax = 1e30f;
 }
 
 void RippleLayer::addImpulseField(const std::vector<float>& raw) {
@@ -168,13 +166,13 @@ void RippleLayer::addImpulseField(const std::vector<float>& raw) {
         m_impulse[idx(x, z > 0 ? z - 1 : z)] += 0.25f * v;
         m_impulse[idx(x, z + 1 < m_nz ? z + 1 : z)] += 0.25f * v;
     }
-    m_anyImpulse = true; m_asleep = false; m_quietSteps = 0;
+    m_anyImpulse = true; m_asleep = false; m_quietSteps = 0; m_lastMax = 1e30f;
 }
 
 void RippleLayer::setKinematic(int x, int z, float velocity) {
     if (!inBounds(x, z)) return;
     m_kin[idx(x, z)] = velocity; m_kinSet[idx(x, z)] = 1;
-    m_anyKin = true; m_asleep = false; m_quietSteps = 0;
+    m_anyKin = true; m_asleep = false; m_quietSteps = 0; m_lastMax = 1e30f;
 }
 
 void RippleLayer::convolve(const std::vector<float>& in, std::vector<float>& out) const {
@@ -242,6 +240,7 @@ void RippleLayer::sleepRule() {
     // sleep: exact zero once the field has stayed below 0.2 mm for 30 steps
     float mx = 0.0f;
     for (float v : m_r) mx = std::max(mx, std::abs(v));
+    m_lastMax = mx;   // A12: the hand-over's test (45.1)
     m_quietSteps = mx < kSleepHeight ? m_quietSteps + 1 : 0;
     if (m_quietSteps >= kSleepSteps) {
         std::fill(m_r.begin(), m_r.end(), 0.0f); std::fill(m_prev.begin(), m_prev.end(), 0.0f);
@@ -253,7 +252,7 @@ void RippleLayer::step(float dt) {
     const int n = planStep(dt);
     if (n <= 0) return;
     const float ds = kStep;
-    const float a = m_a;
+    const float a = damping();   // the film's, + A12's hand-over (45.1)
     for (int s = 0; s < n; ++s) {
         // r'' + 2 a r' + g (K * r) = 0, centred: the amplitude decays at a and the frequency is untouched. (The
         // first cut used (2 - a dt)/(1 + a dt) and 1/(1 + a dt), written from memory of iWave's form: its

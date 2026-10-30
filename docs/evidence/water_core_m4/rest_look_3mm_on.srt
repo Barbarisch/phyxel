@@ -1,0 +1,119 @@
+1
+00:00:00,000 --> 00:00:00,520
+REST MOTION 3 mm (a breeze, faceted)
+545 fps
+
+2
+00:00:00,520 --> 00:00:01,020
+REST MOTION 3 mm (a breeze, faceted)
+793 fps
+
+3
+00:00:01,020 --> 00:00:01,540
+REST MOTION 3 mm (a breeze, faceted)
+835 fps
+
+4
+00:00:01,540 --> 00:00:02,060
+REST MOTION 3 mm (a breeze, faceted)
+633 fps
+
+5
+00:00:02,060 --> 00:00:02,570
+REST MOTION 3 mm (a breeze, faceted)
+726 fps
+
+6
+00:00:02,570 --> 00:00:03,090
+REST MOTION 3 mm (a breeze, faceted)
+547 fps
+
+7
+00:00:03,090 --> 00:00:03,600
+REST MOTION 3 mm (a breeze, faceted)
+640 fps
+
+8
+00:00:03,600 --> 00:00:04,100
+REST MOTION 3 mm (a breeze, faceted)
+708 fps
+
+9
+00:00:04,100 --> 00:00:04,630
+REST MOTION 3 mm (a breeze, faceted)
+489 fps
+
+10
+00:00:04,630 --> 00:00:05,130
+REST MOTION 3 mm (a breeze, faceted)
+718 fps
+
+11
+00:00:05,130 --> 00:00:05,630
+REST MOTION 3 mm (a breeze, faceted)
+714 fps
+
+12
+00:00:05,630 --> 00:00:06,150
+REST MOTION 3 mm (a breeze, faceted)
+754 fps
+
+13
+00:00:06,150 --> 00:00:06,670
+REST MOTION 3 mm (a breeze, faceted)
+719 fps
+
+14
+00:00:06,670 --> 00:00:07,180
+REST MOTION 3 mm (a breeze, faceted)
+557 fps
+
+15
+00:00:07,180 --> 00:00:07,680
+REST MOTION 3 mm (a breeze, faceted)
+591 fps
+
+16
+00:00:07,680 --> 00:00:08,190
+REST MOTION 3 mm (a breeze, faceted)
+700 fps
+
+17
+00:00:08,190 --> 00:00:08,690
+REST MOTION 3 mm (a breeze, faceted)
+787 fps
+
+18
+00:00:08,690 --> 00:00:09,210
+REST MOTION 3 mm (a breeze, faceted)
+682 fps
+
+19
+00:00:09,210 --> 00:00:09,710
+REST MOTION 3 mm (a breeze, faceted)
+768 fps
+
+20
+00:00:09,710 --> 00:00:10,230
+REST MOTION 3 mm (a breeze, faceted)
+799 fps
+
+21
+00:00:10,230 --> 00:00:10,750
+REST MOTION 3 mm (a breeze, faceted)
+774 fps
+
+22
+00:00:10,750 --> 00:00:11,250
+REST MOTION 3 mm (a breeze, faceted)
+536 fps
+
+23
+00:00:11,250 --> 00:00:11,780
+REST MOTION 3 mm (a breeze, faceted)
+572 fps
+
+24
+00:00:11,780 --> 00:00:12,280
+REST MOTION 3 mm (a breeze, faceted)
+509 fps

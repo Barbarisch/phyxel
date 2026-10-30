@@ -1,0 +1,55 @@
+{
+ "build": "Release",
+ "amp_mm": 3.0,
+ "rows": [
+  {
+   "fps_mean": 276.4,
+   "cpu_frame_ms_median": 3.611,
+   "gpu_frame_ms_median": 3.621,
+   "gpu_frame_ms_max": 4.318,
+   "cond": "off"
+  },
+  {
+   "fps_mean": 273.4,
+   "cpu_frame_ms_median": 3.661,
+   "gpu_frame_ms_median": 3.545,
+   "gpu_frame_ms_max": 4.601,
+   "cond": "on"
+  },
+  {
+   "fps_mean": 268.2,
+   "cpu_frame_ms_median": 3.748,
+   "gpu_frame_ms_median": 3.642,
+   "gpu_frame_ms_max": 4.827,
+   "cond": "off"
+  },
+  {
+   "fps_mean": 263.4,
+   "cpu_frame_ms_median": 3.745,
+   "gpu_frame_ms_median": 3.699,
+   "gpu_frame_ms_max": 4.69,
+   "cond": "on"
+  },
+  {
+   "fps_mean": 265.6,
+   "cpu_frame_ms_median": 3.764,
+   "gpu_frame_ms_median": 3.715,
+   "gpu_frame_ms_max": 4.722,
+   "cond": "off"
+  },
+  {
+   "fps_mean": 262.8,
+   "cpu_frame_ms_median": 3.888,
+   "gpu_frame_ms_median": 3.715,
+   "gpu_frame_ms_max": 5.008,
+   "cond": "on"
+  }
+ ],
+ "pose": {
+  "x": 2.0,
+  "y": 21.0,
+  "z": 15.5,
+  "yaw": 0.0,
+  "pitch": -12.0
+ }
+}

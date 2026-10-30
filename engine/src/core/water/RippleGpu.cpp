@@ -263,7 +263,7 @@ bool RippleGpu::record(RippleLayer& L, float dt, const std::vector<glm::vec2>* v
     p.openBorder = L.m_openBorder ? 1 : 0; p.nComp = s.nComp; p.groups = static_cast<int32_t>(groups);
     LimitPush lp{};
     lp.nx = s.nx; lp.nz = s.nz; lp.tilesX = s.tilesX; lp.fault = m_limiterFault ? 1 : 0; lp.lim0 = p.lim0; lp.lim1 = p.lim1; lp.tol = p.tol;
-    const float ds = RippleLayer::kStep, damp = L.m_a * ds;
+    const float ds = RippleLayer::kStep, damp = L.damping() * ds;   // the film's + A12's hand-over (45.1)
     p.ds = ds; p.c0 = 2.0f / (1.0f + damp); p.c1 = (1.0f - damp) / (1.0f + damp); p.c2 = L.m_g * ds * ds / (1.0f + damp); p.ci = p.c1 * ds / kRhoWater;
     const VkDeviceSize F = static_cast<VkDeviceSize>(N);
     auto off = [&](int slotIndex) { return static_cast<int32_t>(F * static_cast<VkDeviceSize>(s.slot[slotIndex])); };

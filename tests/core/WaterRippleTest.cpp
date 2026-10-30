@@ -158,6 +158,41 @@ TEST(WaterRippleTest, ItSleeps) {
     EXPECT_EQ(layer.maxAbs(), 0.0f);
 }
 
+// A12 (45.1) - the hand-over: once the rings are faint (under 1.5 mm), an extra damping a = ln(1.5 / 0.2) / 1.5 s fades them to the
+// sleep height in ~1.5 s - continuously (no frame loses more than e^(-a dt)) - instead of the film's slow fade. Control: the same
+// layer left alone is still awake 2 s later (the 59-76 s near pond of 44.7). The same rate on the GPU step is the same m_a term.
+TEST(WaterRippleTest, FaintRingsHandOverToSleepInTheirTime) {
+    RippleLayer layer({0, 0}, 36, 36);
+    layer.setOpenBorder(false);   // the walled 4 x 4 m pond of ItSleeps
+    layer.addImpulse(18.5f * kD, 18.5f * kD, 1000.0f * 0.3f * 3.0f / (kD * kD) * 0.01f);   // a shove's kick: rings of several mm
+    const float dt = 1.0f / 60.0f, H = 1.5e-3f, T = 1.5f;
+    float peak = 0.0f; int s = 0;
+    for (; s < 60 * 120 && !(s > 30 && layer.lastMax() < H); ++s) { layer.step(dt); peak = std::max(peak, layer.maxAbs()); }
+    ASSERT_GT(peak, H) << "the kick must ring above the hand-over height first";
+    ASSERT_FALSE(layer.asleep());
+    const float faintAt = s * dt;
+    RippleLayer control = layer;
+    for (int k = 0; k < 120; ++k) control.step(dt);
+    const float a = std::log(H / RippleLayer::kSleepHeight) / T;
+    layer.setExtraDamping(a);
+    float prev = layer.maxAbs(), worstDrop = 1.0f; int sleptAfter = -1;
+    for (int k = 0; k < 240 && sleptAfter < 0; ++k) {
+        layer.step(dt);
+        if (layer.asleep()) { sleptAfter = k + 1; break; }
+        const float m = layer.maxAbs();
+        if (prev > 0.0f) worstDrop = std::min(worstDrop, m / prev);
+        prev = m;
+    }
+    std::printf("  peak %.2f mm, faint (< 1.5 mm) at %.1f s; hand-over asleep after %.2f s (worst frame-to-frame %.3f, e^(-a dt) %.3f); control after 2 s: %s, max %.3f mm\n",
+                peak * 1000.0f, faintAt, sleptAfter * dt, worstDrop, std::exp(-a * dt), control.asleep() ? "asleep" : "awake", control.maxAbs() * 1000.0f);
+    EXPECT_FALSE(control.asleep()) << "the red: left alone, faint rings keep the pond awake";
+    ASSERT_GE(sleptAfter, 0);
+    // + the 30-step sleep test (0.25 s) and the ring's own swing back above H after the start (1.69 mm, measured): 2.10 s the
+    // first run, against a 2.1 s guess - the bound was widened to 0.75 s over T, said in 45.2
+    EXPECT_LE(sleptAfter * dt, T + 0.75f) << "asleep in the hand-over's time";
+    EXPECT_GT(worstDrop, 0.6f) << "a fade, not a snap";
+}
+
 // R-T6 - chunk-blind: two layers whose origins differ by one chunk (32 m = 288 lattice cells), the same kick at the
 // corresponding world points (one straddling the seam x = 96 m) -> bit-equal fields.
 TEST(WaterRippleTest, ChunkSeamIsInvisible) {

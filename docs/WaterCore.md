@@ -9082,7 +9082,8 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
 | A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
 | A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | steps 1-2 BUILT, displacement ON by default (44.5-44.7: pond 225 -> 310 fps, the pit back to its off cost, L5 far 10 of 10); step 3 (the distance fade) not built; not signed off | the livelier water the owner chose, at a cost every tier can carry |
-| A11 | **A sleep conserves mass exactly** (found in 44.7): the write-back drops the water of a column holding only sub-millimetre film (`thinDropped`, counted) - 0.3-0.5 L a splash with displacement on | owner: fix (44.8); designed + built - the film joins the nearest column with a run | water is physical: a pond must not drain by being splashed (owner's standing rule) |
+| A11 | **A sleep conserves mass exactly** (found in 44.7): the write-back drops the water of a column holding only sub-millimetre film (`thinDropped`, counted) - 0.3-0.5 L a splash with displacement on | owner: fix (44.8); designed + built - the film joins the nearest column with a run |
+| A12 | **Water at rest looks alive** (45): faceted rest motion on every pond surface (awake and recorded) + the rings hand over before a pond sleeps | DRIFT: W2's cosmetic motion pulled ahead of track A on the owner's ask (44.8 item 3); design-check READY (45.1); BUILT, both halves OFF by default (45.2) - the rest motion's look and the hand-over wait for the owner (clips at 1 mm and 3 mm); the hand-over measured (near sleeps 33-35 s vs 60-76 s) and L5-gated (13 of 13 far pass, nothing rose); not signed off | ponds must sleep for the frame (owner); still water must not look lifeless | water is physical: a pond must not drain by being splashed (owner's standing rule) |
 
 ### 30.5 The drift log (work outside the plan: what, why, who approved)
 
@@ -11440,7 +11441,7 @@ span tops (`mass_stored` vs `mass_written`, 16.2's ~2e-6 m^3 a column) - the -0.
 that rounding, not the film (the volume wrote 24.0000005). Not measured: L5 with the fix (the change is in the write-back alone,
 the same near and far; no solver code changed, so the stone gate was not re-run).
 
-## 45. A12 - water at rest looks alive (the owner, 2026-10-29). Status: DESIGNED, not built; the look is the owner's
+## 45. A12 - water at rest looks alive (the owner, 2026-10-29). Status: BUILT, OFF by default (45.2); the look is the owner's
 
 **The ask (44.8, item 3):** ponds must sleep for the frame's sake; if still water then looks too still, a fallback that makes it
 look alive when nothing touches it.
@@ -11461,10 +11462,142 @@ a pond waits for them (22 F5), which is why a near pond stays awake ~40 s longer
    then sleeps when a far one does (44.7's ~30 s, cost only).
 3. Not in v1: fish rises, falling leaves, rain - each a timed ring stamped into the same appearance layer, later, if the owner wants.
 
-**Gate (to run before building - design-check):** outcomes - none for 1 (look only); 2 changes when a pond sleeps, so L5 near/far
-again with it on, and the stone gate. Test world: the Small bench pond, slept; the clip on/off side by side for the owner with the
-fps; debug 9 shows the faceted slope; whole-frame cost of the fragment work (aesthetic first: the moonshot amplitude, then the tiers
-reach by distance, never by outcome).
+### 45.1 Design check (2026-10-29): READY, with one change to item 2
+
+The owner: "do what you think is best next" - A12 is next (it answers the look the owner raised and removes a cost by distance).
+**Plan map:** A12 is W2's cosmetic motion (§0a item 2 - "resting and far water drawn from the record with cosmetic motion"), pulled
+ahead of track A on the owner's ask - a drift row (A12 in the plan table).
+
+**Read first.** Recorded water is drawn by the pond surface itself (W1a, 27.11), so one shader - `water_surface.frag` - draws awake
+and slept water alike: one change covers both. The rings carry no force: nothing outside the renderer reads a ripple layer's
+heights (`rippleLayers()` is read only by `Application` for the draw), so rings change no outcome; only their sleep gate (22 F5,
+`WaterCoreManager.cpp:504`) does - it decides WHEN a pond records. The GPU rings read their levels back and sleep by the CPU's rule
+(`RippleLayer::sleepRule`, `RippleGpu.cpp:361` re-uploads after a sleep).
+
+**Changed from 45, item 2.** Fading the rings AFTER the pond sleeps would need the layer kept alive past its volume and the recorded
+surface pointing at an orphan layer. Instead the hand-over runs BEFORE: when the volume's own test says asleep (no droplets, no body
+holding it) and the rings' largest height is under `handover_mm` (1.5 mm), the layer damps both its levels by exp(-k dt) a step,
+k = ln(handover_mm / 0.2 mm) / `handover_s` (1.5 s) - the rings fade out continuously in ~1.5 s, then sleep under 0.2 mm as today, then
+the pond sleeps. A new impulse in that time ends the hand-over (the damping applies only while both conditions hold). On the GPU path
+the scaled levels are re-uploaded (the existing dirty flag) - ~1.5 s of uploads once a sleep.
+
+**1. Voxel aesthetic.** The rest motion is FACETED on the world's 1/9 m lattice - the slope is constant over each 1/9 m square (the
+height at the square centres, central differences - exactly `rippleSample`'s facet mode), so it reads as microcube facets like the
+rings the owner chose (22), not as the smooth sheen `waterRippleNormal` already adds. No assets. The detail is a look knob the owner
+sets, the same at every tier (see 6).
+
+**2. Chunks.** Quantities used: world xz (the 1/9 m square index = floor(9x), floor(9z) in WORLD coordinates), time, the wind (one
+global value), the fragment's distance to the camera (the per-pixel footprint fade, the shipped `waterRippleNormal` rule). No chunk
+quantity, no layer origin, no volume box. No cross-chunk lookup. **Equality test:** a C++ mirror `WaterRestMotion::slope(square,
+t)` (the shader's formula, line for line) - `WaterRestMotionTest.SameSquareSameSlopeWhicheverPondDrawsIt`: one pond's squares and the
+same squares evaluated as two ponds split at a chunk seam (x = 32) agree exactly; and the on-screen tap (debug 10) is held to the C++
+mirror at sampled pixels (the L2 fade tool's method, 43.3).
+
+**3. Generation.** None: an appearance layer (the plan's W2). Nothing is consumed or changed downstream. Order-independent by
+construction (a pure function of the square index and t). The wind is a session look setting like the rest of `water_render_core`;
+persisting a world's wind in the recipe is a later item (logged, not needed for the owner's look).
+
+**4. API.** `water_render_core {rest_amp_mm (0 = off; 0..5 - above ~5 mm the facets out-tilt a 1/9 m step and read as chop),
+rest_wind_deg (direction the wind blows TOWARD, degrees from +x), rest_wind_mps (0..10), rest_patch_m (cat's-paw size, 1..30)}`,
+omitted = unchanged, echoed with their defaults. `water_ripples {handover_mm (0 = off; else clamped to 0.3..5 - at or under the
+0.2 mm sleep height the gate could never start), handover_s (0.25..10)}`, echoed with the last hand-over's count and duration.
+**Defaults:** both OFF in the first build (the look is the owner's: rest motion waits for the clip; the hand-over waits for L5 and
+the owner). Pinned: `WaterRestMotionTest.DefaultsAreOff`; flipping either later updates that pin in the same commit.
+
+**5. Test plan.** *Works* = (a) a slept pond's surface moves with amp > 0 and is still with 0 (debug 10 tap: rest height; off every
+pixel within 1 grey level over 4 s, on > 10 levels); (b) faceted: within a 1/9 m square the debug 9 slope grey varies <= 1 level, across
+squares it varies (red: the smooth `waterRippleNormal` normal, debug 1, varies inside a square); (c) the hand-over: a near pond sleeps
+when a far one does. Depth L4 (live engine) + L2 (the tap against the C++ mirror). *Red for (c):* 44.7's measured near sleep 59-76 s.
+*Prediction:* hand-over on, near 28-38 s after the drop (far 26-34 s unchanged); rest motion costs < 0.1 ms GPU on the Small pond.
+*World:* the Small bench 4 x 4 m pond inside one chunk (L5's), slept; the one variable each run - `rest_amp_mm` or `handover_mm`;
+*control:* the same pose, the same t, the knob 0 (the tap must read flat - proves the tap shows the rest motion, not the rings or the
+mesh). *Rig vs shipped:* the bench pond is small and seen near - a far lake shows the pixel fade more; the hand-over runs at the
+shipped ripple reach (on). *For the owner:* a side-by-side clip of the slept pond, rest motion off / on, with the fps; and a near
+drop with the hand-over off / on (does the ring fade read as natural?). *Outcome gate:* L5 near/far with the hand-over on, against
+the displacement-on pool (16 near runs) - nothing rises, far passes.
+
+**6. Tiers.** Moonshot: the amplitude the owner picks, 3 wind components + the patch envelope, across the whole view (only the
+per-pixel footprint fade). Knobs: `rest_amp_mm` (look), a reach `rest_far_m` (an L1 `detail` fade, continuous - kept from the start,
+default none), the component count (3 -> 1).
+
+| tier | knobs | given up | cost |
+|---|---|---|---|
+| moonshot / above | 3 components, no reach | nothing | measured 45.2: within the drift (pond and the 60 x 28 m lake) |
+| 120 | 3, no reach unless measured over 0.2 ms | - | as above - nothing to cut |
+| 60 / 30 | 3 (or a reach if the frame needs it) | far facets (the sheen stays) | as above - nothing to cut |
+
+No tier changes an outcome: the rest motion has
+none, and the hand-over is the same at every tier (it decides when a pond records - an outcome-adjacent cost, never tiered). Cost
+measured in the realistic scene (the Small pond, the L5 pose) and the worst case: a large slept pond filling the screen at a low
+angle (fragment-bound) - the 46 x 28 m Creek-bench pond.
+
+**Verdict: READY.** Build order: the C++ mirror + its tests, the shader (debug 10), the API; then the hand-over; then the clip and L5.
+
+### 45.2 A12 built (2026-10-29, Release, Small bench) - both halves OFF by default, the look waits for the owner
+
+**Built.** `WaterRestMotion.h` (the C++ mirror) + `restSlope` in `water_surface.frag` (debug 10 = the rest height, 11 = its facet
+slope), the settings in the ripple buffer's header (`rest0`, `rest1` after `fade`); `water_render_core {rest_amp_mm, rest_wind_deg,
+rest_wind_mps, rest_patch_m, rest_far_m}` echoed as `rest`. The hand-over: `RippleLayer::setExtraDamping` (the same `a` the CPU and GPU
+steps use - no shader change), `WaterCoreManager::RippleHandover`, `water_ripples {handover_mm, handover_s}` echoed as `handover`
+(with the count and the last one's length). Off = the pre-A12 normal bit for bit (the rest branch is skipped at amplitude 0; the
+ripple tilt is applied exactly as before).
+
+**Unit (6 new, all pass; water unit suite 358/358 before the floor change below):** `WaterRestMotionTest` - defaults off (pinned),
+one slope per 1/9 m square, off and calm exactly still, chunk-blind (a pond split at x = 32 m equals one pass; the facet step at the
+seam 0.0060 vs 0.0052 inside), patches come and go (64-73 % rippled, 53 % changed within 24 s; the steepest facet 0.0077 against the
+bound 0.0110). `WaterRippleTest.FaintRingsHandOverToSleepInTheirTime` - a walled 4 x 4 m pond kicked to 87 mm, faint at 38.8 s: the
+hand-over sleeps it **2.10 s** later (worst frame-to-frame 0.83 - a fade); the control is still awake 2 s later at 1.69 mm. **Two
+first-run misses, said:** the facet test counted glassy squares (zero by design - fixed to count rippled ones); the hand-over took
+2.10 s against my 2.1 s guess (the rings swing back above 1.5 mm after the start, then the 0.25 s sleep test) - the bound widened to
+T + 0.75 s.
+
+**Found live and changed: the envelope's floor.** The first live tap read FLAT at 1 mm: the 4 x 4 m pond sat inside one glassy 6 m
+patch (at 5 mm and 30 m patches the faceted bands showed - `tap_*` in the scratch run). A small pond would go dead still for seconds -
+the owner's complaint back. The envelope now has a floor, 0.3 (`kEnvelopeFloor`): between patches the water keeps 30 % of the motion.
+
+**Live (`tools/water_rest_look.py`, new; `rest_look.json`, `rest_look_3mm.json`).** The slept pond (drawn from the record), the
+camera 4 m south. The tap (debug 10, tone map passthrough), water = the off frame's flat grey (49,482 px):
+
+| amplitude | grey range (p5-p95) | pixels changed in 2 s | whole frame, ABAB 6 s each: fps / CPU ms / GPU ms (median) |
+|---|---|---|---|
+| 0 (today) | 187-189 (188-188) | 0 | 704-745 / 1.28-1.41 / 1.262-1.278 |
+| 1 mm | 174-200 (178-196) | 43,937 (mean 2.2 levels) | 711-726 / 1.33-1.39 / 1.266-1.277 |
+| 3 mm | 97-244 (144-222) | 47,808 (mean 16.9 levels) | 692-708 / 1.40-1.42 / 1.274-1.298 |
+
+Cost: within the run-to-run spread on this scene (GPU +0.00-0.02 ms). **Not measured yet:** the worst case (a large slept pond filling
+the screen at a low angle) - next. The facet look is seen in `rest_look_tap_slope.png` (debug 11), not measured by pixels; the screen
+was not held to the C++ mirror pixel by pixel (the shader's clock is not exposed) - the tap shows it moves and is still at 0.
+
+**For the owner:** `rest_look_side_by_side.mp4` (1 mm) and `rest_look_3mm_side_by_side.mp4` (3 mm) - LEFT today's slept pond, RIGHT
+the rest motion. In a still frame both read close to today (from this angle the water mostly shows the bed through it); the motion
+is the point.
+
+**The hand-over, live (`tools/water_handover_sleep.py`, new; `handover_sleep.json`, `handover_sleep2.json`).** L5's drop, shipped
+settings otherwise, the water's viewer near (a ripple layer) or far (none); seconds from the drop until the pond is back in the record:
+
+| viewer | hand-over off | hand-over 1.5 mm |
+|---|---|---|
+| near | 59.8, 73.3, 76.0 (the red: 44.7's 59-76) | **33.2, 35.3, 34.0** |
+| far | 26.9, 29.0, 36.0 | 28.0, 26.7, 31.0 |
+
+The prediction (near 28-38 s, far unchanged) held. **Two defects found and fixed between the runs:** the first run began 5 hand-overs
+in one drop (a ring swinging back over 1.5 mm stopped the fade and it restarted - now, once begun, it holds until a new source); and
+`last_s` read 0 (on the CPU path the rings sleep inside the step, and the pond recorded before the next frame looked - now read right
+after the step). After: one hand-over a drop, 1.14 s long.
+
+**L5 with the hand-over on** (`l5_handover_on.json`, `--handover-mm 1.5 --sleep-wait 120`, displacement on as shipped). Its own three
+near runs fence too thinly (44.7's lesson: the far runs "fail" on stone x / z by run order); pooled with the three displacement-on
+sessions (19 near runs, self-check 1 of 19 outside - the wood's x, as before): **every far run passes, 13 of 13 - the 3 new ones
+included**; both far-dry reds fail as they must; nothing rose in any run. The near ponds slept at 33-38 s (the hand-over), the far at
+26-35 s. The pond's mass after each sleep: 23.999992-24.000006 m^3 (A11's write-back; the float32 tops).
+
+**The worst case** (`tools/water_rest_cost_big.py`, new; `rest_cost_big.json`; Creek bench, the 60 x 28 m lake, the camera 3 m over
+the water at its west end looking along it, 3 mm, ABAB 8 s each): GPU frame median off 3.621 / 3.642 / 3.715 ms, on 3.545 / 3.699 /
+3.715 ms; fps off 266-276, on 263-273; CPU 3.61-3.89 ms both. **No cost above the drift** - under my +0.1-0.3 ms prediction. Why
+(`rest_cost_big_tap_slope.png`, debug 11): at this grazing angle the facets are drawn only over the nearest ~10 m - past it a 1/9 m
+facet is under ~1.5 px and the footprint rule drops it (the smooth sheen stays), and those fragments skip the work. So the moonshot
+costs nothing a tier would need to cut, and the far water does not show the facets - **a look point for the owner**: the rest
+motion is a near-field detail at low angles.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

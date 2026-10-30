@@ -647,7 +647,20 @@ public:
                          float breakSlope = RippleLayer::kBreakSlope;   ///< 22.12 B1 (0 = off, the A/B control)
                          double brokenM3 = 0.0;                         ///< height the limit removed, summed over the run (m^3)
                          bool gpu = false;                              ///< 25.34: the layers stepped on the GPU this frame
-                         double gpuMs = 0.0, gpuWaitMs = 0.0, gpuRecordMs = 0.0, gpuCollectMs = 0.0; int gpuDispatches = 0, gpuLayers = 0; };
+                         double gpuMs = 0.0, gpuWaitMs = 0.0, gpuRecordMs = 0.0, gpuCollectMs = 0.0; int gpuDispatches = 0, gpuLayers = 0;
+                         int handingOver = 0; long handovers = 0; float lastHandoverS = 0.0f; };   ///< A12 (45.1): layers fading now; hand-overs begun (session); the last one's start to the rings' sleep (s)
+    /// A12 (WaterCore.md 45.1) - the rings hand over before a pond sleeps: once the volume's own test says asleep and the rings'
+    /// largest height is under `heightM`, they fade as e^(-a t) with a = ln(heightM / kSleepHeight) / seconds, so they reach
+    /// the 0.2 mm sleep height in `seconds` and the pond sleeps. heightM 0 = off (today: the pond waits for the rings).
+    struct RippleHandover {
+        static constexpr float kHeightMmDefault = 0.0f;   ///< off in the first build (45.1: waits for L5 and the owner); proposed 1.5
+        static constexpr float kHeightMmMin = 0.3f, kHeightMmMax = 5.0f;   ///< at or under the 0.2 mm sleep height the fade could never start
+        static constexpr float kSecondsDefault = 1.5f, kSecondsMin = 0.25f, kSecondsMax = 10.0f;
+        float heightM = kHeightMmDefault * 1e-3f, seconds = kSecondsDefault;
+        float rate() const { return heightM > RippleLayer::kSleepHeight ? std::log(heightM / RippleLayer::kSleepHeight) / seconds : 0.0f; }
+    };
+    void setRippleHandover(const RippleHandover& h) { m_handover = h; }
+    const RippleHandover& rippleHandover() const { return m_handover; }
     /// Measurement only (22.11): pin every layer to a uniform tilt - slope (rise per run) toward azimuth (degrees,
     /// 0 = +x, 90 = +z) - instead of stepping it, so one frame shows exactly one facet tilt. slope < 0 = off.
     struct RipplePattern { float slope = -1.0f, azimuthDeg = 0.0f; };
@@ -795,6 +808,8 @@ private:
         bool rippleRefused = false;
         int rippleSlot = -1;                  // L2 (43.3 item 2): the renderer's slot this layer draws in (0..kRippleMaxLayers-1)
         bool rippleReachMade = false;         // L2: the layer was made under the reach rule (a switch either way remakes it)
+        bool rippleHandingOver = false;       // A12 (45.1): the rings are fading before the pond sleeps
+        double rippleHandoverStart = 0.0;     //   since (steady clock, s)
         bool hasPendingDeposit = false;
     };
     // 21: droplets
@@ -803,6 +818,7 @@ private:
     uint32_t m_dropletTick = 0;
     std::vector<glm::vec4> m_dropletDraw;
     // 22: ripples
+    RippleHandover m_handover;   // A12 (45.1)
     std::vector<MovingSolid> m_rippleBodies;
     RippleStats m_rstats;
     RipplePattern m_rpattern;

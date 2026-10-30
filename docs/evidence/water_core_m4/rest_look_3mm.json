@@ -1,0 +1,74 @@
+{
+ "build": "Release",
+ "amp_mm": 3.0,
+ "pose": {
+  "x": 102.0,
+  "y": 19.0,
+  "z": 20.0,
+  "yaw": -90.0,
+  "pitch": -32.0
+ },
+ "tap": {
+  "flat_grey": 188,
+  "off": {
+   "water_px": 49482,
+   "grey_min": 187,
+   "grey_max": 189,
+   "grey_p5_p95": [
+    188,
+    188
+   ],
+   "frames_differ_px": 0,
+   "frames_differ_mean": 0.0
+  },
+  "on": {
+   "water_px": 49482,
+   "grey_min": 97,
+   "grey_max": 244,
+   "grey_p5_p95": [
+    144,
+    222
+   ],
+   "frames_differ_px": 47808,
+   "frames_differ_mean": 16.886
+  }
+ },
+ "cost": [
+  {
+   "fps_mean": 702.1,
+   "cpu_frame_ms_median": 1.348,
+   "gpu_frame_ms_median": 1.272,
+   "gpu_frame_ms_max": 2.504,
+   "cond": "off"
+  },
+  {
+   "fps_mean": 708.3,
+   "cpu_frame_ms_median": 1.419,
+   "gpu_frame_ms_median": 1.274,
+   "gpu_frame_ms_max": 2.484,
+   "cond": "on"
+  },
+  {
+   "fps_mean": 713.3,
+   "cpu_frame_ms_median": 1.379,
+   "gpu_frame_ms_median": 1.274,
+   "gpu_frame_ms_max": 2.236,
+   "cond": "off"
+  },
+  {
+   "fps_mean": 692.3,
+   "cpu_frame_ms_median": 1.397,
+   "gpu_frame_ms_median": 1.298,
+   "gpu_frame_ms_max": 2.324,
+   "cond": "on"
+  }
+ ],
+ "clip": {
+  "off": {
+   "fps_mean": 689.1
+  },
+  "on": {
+   "fps_mean": 670.7
+  }
+ }
+}
