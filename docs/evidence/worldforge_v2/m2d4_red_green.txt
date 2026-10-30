@@ -1208,3 +1208,30 @@ CHAIN 18 (the committed tree aad90503, rebuilt: build 14:46:25-14:51:23, exe 14:
   the WorldForge set 89 ok / 1 failed (EarthworkTest.DeepCutsAreWalledNotCliffed, the M4b-4 open item); BridgeSpanTest Mountains 424242
   35 bridges / 8 refusals / 63 re-routed, unchanged; the version-1 hashes green. The chain-15 figures quoted in the commit hold on the
   final exe.
+
+D38 RELEASE L4 (MountainLab, the owner's go-ahead; Release exe 15:32:41 from the committed tree 28851d1d, engine tree diff 0; one engine
+  launch per capture, six launches 15:32:52-16:20:01, no engine death; d38_l4_run.txt, the engine logs mountainlab_d38a..f_engine.log,
+  the captures and cross-sections docs/evidence/worldforge_v2/m2d4_l4_d38{a..f}_*; the first launch on a fresh DB - the plan re-baked):
+  plan hash 580917561137603326 (the M2d-4 residual engine of 01:12: 17486187508443840908; before M2d-4: 5761560679695978727), 23 roads,
+  32 bridges, 198 fords, 7 refusals - the SAME seven cut faces as at 01:12 (sites and faces identical to the metre); the hash moved with
+  the terrain beside the channels (the census fields), the plan's routing did not.
+  TIMINGS (Release): the meso hydrology bake (1024 x 1024 cells at 32 u, 34 inflows) including the ten perch rounds 4.7-5.9 s across the
+  six boots (macro bake done -> meso bake done: 15:33:00.9 -> 15:33:05.6; 15:40:53.2 -> 15:40:59.0; 15:48:43.9 -> 15:48:49.2); the plan
+  bake 12.5-15.6 s on the first pass and 6.2-7.1 s on the second. COLUMN TIMING NOT MEASURED: ColumnCostBench is skipped by default in
+  the Debug test run and no Release test build exists - stated, not estimated.
+  SITES (the before-run poses: the same camera position as 2026-10-29 21:11 on the eb91c676 engine):
+  - embank (-2250,-3835), camera (-2222,276,-3807): the generator's z-line descends 212 -> 192 over 28 u (0.71 per u) onto a flat floor
+    of 192 u some 56 u wide, then rises at the same slope; the resident surface 211 (01:12 run: 211; eb91c676: 235). The capture shows
+    forest canopy over a dark flat valley floor; the close capture (camera 14 u up) shows only canopy - uninformative for the section.
+  - slot (-2523,6026), camera (-2495,68,6054): the FRAME IS BLACK - the camera sits inside Stone: the land here is now 105-114 u (resident
+    108) where the eb91c676 engine's resident surface was 28 u, an 80 u slot; the generator's lines through the site are a gentle slope
+    (114 -> 105 over 80 u on the x-line, 105 -> 112 on the z-line) with no trench at 1 u resolution. The close capture from (-2511,122,6038)
+    shows a grassy terraced slope with trees and 1 u steps - no slot.
+  - worst (7173,-11200), camera (7201,125,-11172): the FRAME IS BLACK for the same reason - the land is 258 u (resident 258) where the
+    eb91c676 engine's resident was 85 u (the river bed in a 173 u slot: the embankment / slot defect the section test first measured);
+    the generator's x-line descends 267 -> 258 over 15 u then runs flat at 258 / 257. The close capture from (7185,272,-11188) shows a
+    stream flush with a snow plateau in a trench of 2-3 u with sandy banks, the water line visible along it.
+  READ: the two black frames are the measurement's failure (a pose chosen on the old terrain lies inside the new) and at the same time
+  the plainest evidence that the 80 u and 173 u slots at those sites are gone; the same-pose before/after comparison the L4 was designed
+  for is therefore NOT available at two of three sites - the close captures and the cross-sections carry the visual claim. The
+  earlier after-run (01:12, the residual engine) was killed after the first site; this run completed all six launches at one site each.
