@@ -1201,3 +1201,10 @@ ABLATION (kLipPenaltySlope = 0 on the GREEN 33 tree, then restored; the predicti
 COMMITTED IN THIS STATE (the focused set on the final exe 14:36:06; the terrain and WorldForge sets last ran on the exe of 13:52:36, before
   patch 33 - the round cap 8 -> 12, the log, the test's class - and are re-run on the final exe next): two red tests by design - the
   section test on Mountains on six lips of at most 1.8 u, and the M4b-4 earthwork section.
+
+CHAIN 18 (the committed tree aad90503, rebuilt: build 14:46:25-14:51:23, exe 14:51:20; focus 14:51:23-14:52:29 m2d4r_r18_focus.txt;
+  terrain 14:52:30-15:00:04 m2d4r_r18_terrain.txt; forge 15:00:04-15:28:11 m2d4r_r18_forge.txt): the consumers on the FINAL exe -
+  the terrain set 105 ok / 1 failed (the section test, the six Mountains lips); the D38 guard GREEN (10 rounds, 20.8 u vs 22.4 u);
+  the WorldForge set 89 ok / 1 failed (EarthworkTest.DeepCutsAreWalledNotCliffed, the M4b-4 open item); BridgeSpanTest Mountains 424242
+  35 bridges / 8 refusals / 63 re-routed, unchanged; the version-1 hashes green. The chain-15 figures quoted in the commit hold on the
+  final exe.
