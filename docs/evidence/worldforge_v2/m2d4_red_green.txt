@@ -1,0 +1,112 @@
+M2d-4 lateral channel blend - red before green (docs/WorldForgeV2Plan.md M2d; the M4c finding
+"the generator's bed profile stands above the land beside it ... a carved mountain river is a slot
+whose dry shelf lies 10-22 u below the land", recorded 2026-10-27 and queued).
+
+=== ROOT CAUSE, READ FROM THE CODE (2026-10-29 20:14, commit eb91c676, before any measurement) ===
+1. FlowField::bake (FlowField.cpp:126): m_bedY[c] = base[c] - m_fullD[c], where base[] is the
+   hydrology bake's height = WorldGenerator::baseHeightFn() at the cell centre = the meso sheet +
+   the fine band, the FULL relief, "before valley shaping and the carve" (WorldGenerator.h:249).
+   The profile is then the min over the upstream chain (line 136): it only ever LOWERS.
+2. WorldGenerator::sampleColumn (WorldGenerator.cpp:1386-1390): within kValleyWidthMul (5) x the
+   channel half-width of a carved channel the Layer-1 relief is multiplied by
+   smoothstep(0, valleyHalf, dist) - a FRACTION of the relief, 0 at the centreline - so the land
+   beside the channel is coarse.baseHeight (+ the biome offset) while the profile was sampled with
+   the full relief on. On the Mountains world the relief is 100-300 u, so:
+   (a) EMBANKMENT: where the profile (full relief - depth) stands above the attenuated land the
+       M2d-1 rule fills the channel columns up to the profile (line 1468-1471: "filled where it
+       dips below") and the channel runs on a wall - the M4c dumps: a channel at 236 u between
+       banks at 72/98, at 170 between 74/85, at 45 between 12/14 (m4c_red_green.txt lines 806+).
+   (b) SLOT CANYON: the fractional attenuation drives 70-100 u of relief to 0 over the 5 half-
+       widths (8-30 u): a wall at 10-15 u per column (the dump at (-2523,6026): 111 .106 .103 .92
+       .87 .72 .72 .57 .53 42 then the channel at 24-30). The creek-swale comment at line 1397
+       already records this failure mode for creeks ("a fraction is only safe over a wide valley")
+       and moved creeks to an ABSOLUTE depth; rivers kept the fraction.
+   The two are one defect: the channel section is not referenced to the land beside it and the
+   valley side has no bounded slope.
+
+=== THE MEASUREMENT (the red test, written before the design): RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope ===
+For every carved channel cell outside a basin on the Mountains 424242 and the Perlin 20260816
+version-2 worlds: the column under the warped cell centre, a lateral section +-1 u along the
+cell's flow normal out to 5 x half-width + 8 u on each side, the emitted continuous ground
+(sampleSurface().bedHeight) per column. Per side:
+  - bank natural = the emitted height of the first column past the channel hit;
+    EMBANKMENT = (channel rim = bedProfile + fullDepth at the centre) - bank natural, counted > 1 u;
+  - every adjacent-column step outside the channel: a WALL where the step exceeds
+    max(kReposeSlope 0.70, the natural step from baseHeightFn at the same columns) + 1/3 u
+    (the shelf grid) - i.e. a wall the valley shaping made, not one the mountain has.
+Assertions: 0 embankments > 1 u; 0 shaping-made walls. Printed: counts, shares, the worst of each
+with its position, the natural-step distribution for the record.
+
+PREDICTIONS (written 2026-10-29 20:16, before the build):
+  P1 Mountains: embankments on a LARGE share of carved cells (> 25 %), worst > 100 u
+     (the M4c dumps: 165 u of fill at (-2250,-3835)).
+  P2 Mountains: shaping-made walls on most sections (> 50 % of cells), worst step > 10 u per
+     column (the dump: 111 -> 103 -> 92 -> 87 -> 72, 11-15 u steps).
+  P3 Perlin baseline: both present but small - embankments worst 3-8 u (the M4c baseline channel
+     at 55 u between banks at 51 u), walls worst < 5 u per column, shares under 25 %.
+  P4 The natural (baseHeightFn) steps beyond 0.70 exist on Mountains (real cliffs, kRockSlope)
+     but on far fewer columns than the emitted walls - if the natural were as steep, there would
+     be no defect to fix and the design changes.
+  The test FAILS on both worlds today (red); the control world is the Perlin baseline where the
+  relief is small: if it passed there and failed on Mountains the metric tracks relief as claimed.
+
+=== RED (Debug, run started 2026-10-29 20:18:58, phyxel_tests.exe built 20:17:01 from eb91c676 + the test; RiverGeometryTest.cpp sha 5e10f4a5be0159c2; the two version-2 bakes 12.3 s / 12.7 s, the sections 3.6 s / 2.0 s) ===
+[ M2d-4 ] Mountains 424242: 1981 carved cells outside basins sectioned; EMBANKMENTS (rim above the bank by > 1 u) 3843 (97.0 %), worst 249.6 u at (7173,-11200); LIPS (bank above the rim by > 1 u) 11 (0.3 %), worst 1.7 u at (-7635,-9433); WALLS the shaping made 33845 of 72693 lateral steps (46.6 %) on 1966 cells (99.2 %), worst 63.9 u per column at (7426,-11169); natural steps beyond 0.70: 493 (0.7 %), worst 3.1
+line 335: Expected equality of these values:
+    Which is: 3843
+line 336: Expected equality of these values:
+    Which is: 11
+line 337: Expected equality of these values:
+    Which is: 33845
+[ M2d-4 ] Perlin 20260816 (control: small relief): 1111 carved cells outside basins sectioned; EMBANKMENTS (rim above the bank by > 1 u) 860 (38.7 %), worst 34.5 u at (5050,-13515); LIPS (bank above the rim by > 1 u) 413 (18.6 %), worst 4.7 u at (-8784,4335); WALLS the shaping made 1139 of 35358 lateral steps (3.2 %) on 195 cells (17.6 %), worst 8.3 u per column at (5120,-13230); natural steps beyond 0.70: 0 (0.0 %), worst 0.0
+line 345: Expected equality of these values:
+    Which is: 860
+line 346: Expected equality of these values:
+    Which is: 413
+line 347: Expected equality of these values:
+    Which is: 1139
+[  FAILED  ] RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope (31801 ms)
+[  FAILED  ] RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope
+EXIT 1 2026-10-29 20:19:30
+
+PREDICTIONS vs RESULT:
+  P1 MET: Mountains embankments on 97.0 % of bank sides (3 843 of 3 962), worst 249.6 u at
+     (7173,-11200) - predicted "> 25 %, worst > 100 u"; the defect is near-universal, not partial.
+  P2 MET: shaping-made walls on 99.2 % of carved cells (46.6 % of all lateral steps), worst 63.9 u
+     per column at (7426,-11169) - predicted "> 50 % of cells, worst > 10 u".
+  P3 MISSED on the baseline's size: embankments on 38.7 % of bank sides, worst 34.5 u at
+     (5050,-13515) (predicted worst 3-8 u, share under 25 %); walls 17.6 % of cells, worst 8.3 u
+     per column at (5120,-13230) (predicted < 5 u); lips 18.6 %, worst 4.7 u. The baseline is NOT
+     a small-relief control everywhere: its ridged band reaches 30 u of relief beside a channel,
+     so the same defect shows at a third of the size. The control still discriminates: walls
+     3.2 % of steps vs 46.6 %, worst 8.3 vs 63.9 u.
+  P4 MET: natural (baseHeightFn) steps beyond 0.70 on 0.7 % of Mountains steps (worst 3.1 u) and
+     none on the baseline - the walls are the shaping's, not the mountain's. (The comparison uses
+     1.3 x the natural step, the largest biome heightScale, so a natural cliff the biome blend
+     steepens is never counted.)
+  LIPS (the bank above the rim by > 1 u): 0.3 % on Mountains (worst 1.7 u), 18.6 % on the
+     baseline (worst 4.7 u) - the slot's edge where the min-envelope profile dropped the rim
+     below the attenuated base; small, but a drop into the channel at its edge.
+
+=== GROUNDING PASS (grounding-auditor, 2026-10-29 20:21, the numbers the design carries; rows added to plan section 10) ===
+  Valley-side slope bound 0.70 (35 deg): REASONED - the top of the 30 +/- 5 deg threshold-hillslope
+    band (Frontiers Earth Sci. 2021, 10.3389/feart.2021.684365, read: 82 % of slopes inside it,
+    basin modes 26-33 deg) and equal to the GROUNDED scree repose the roads use; Burbank 1996's
+    abstract gives NO angle (the "32 deg" is unverified - the Nature paper unread); 0.58 (30 deg)
+    would be the modal value.
+  Residual embankment <= 1 u: GROUNDED-conservative - natural levees "a few centimeters up to 3 m",
+    modelled 0.4-2.1 m, ~20 % of bankfull depth (PMC7780550, read); tens of metres only on the
+    Amazon / Yellow / Mekong. 100-250 u embankments are outside every source.
+  Flat floor at the bankfull rim across 5 x width: REASONED (a floodplain is a flat landform;
+    NetMap: ~2 x bankfull depth above the channel); the transition and the 5 x multiple stay
+    NEEDS-RESEARCH as the plan already records.
+  Gorge side slope: NEEDS-RESEARCH - cohesive bedrock "should support steeper slopes" (Larsen &
+    Montgomery 2012, snippet, unread), no number; the rule lets a natural cliff stand (the
+    natural wins), no steeper allowance without a number.
+  Auditor's verdict: the rule is acceptable to ship with S flagged REASONED; the mismatch it fixes
+  (10-64 u per column walls, 100-250 u embankments) is far outside every source read.
+
+DESIGN CHECK written to docs/WorldForgeV2Plan.md (M2d-4 design check paragraph, D36 / D37 in the
+decisions table): NEEDS WORK - owner decisions D36 (the section shape and the 0.70 bound) and D37
+(the profile from the warped footprint minimum), then the build from this red test.
+The red test stays in the working tree (uncommitted, as the M2d / M4c reds were) until the green.
