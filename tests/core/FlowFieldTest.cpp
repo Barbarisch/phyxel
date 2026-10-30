@@ -12,6 +12,35 @@
 namespace Phyxel {
 namespace {
 
+// M2d-4 (D36): the valley section rule on a synthetic rig inside one chunk — a 1 u-stepped section
+// across a channel of half-width 2 u (floor to 10 u from the centreline) with the rim at 100 u. One
+// variable: the natural height. Prediction written first: a natural at 140 u everywhere is cut to a
+// flat floor at 100 u out to 10 u, then rises at 0.70 per u (107 at 20 u, 114 at 30 u) until it
+// meets the natural at 10 + 40 / 0.70 = 67.1 u; the control: a natural below the envelope (a dip to
+// 95 u, a gentle rise of 0.5 per u) is returned unchanged — the rule only cuts.
+TEST(FlowFieldTest, ValleySectionEnvelope) {
+    const float rim = 100.0f, valleyHalf = 2.0f * FlowField::kValleyWidthMul;
+    EXPECT_FLOAT_EQ(FlowField::valleySectionY(140.0f, rim, 2.0f, valleyHalf), 100.0f);
+    EXPECT_FLOAT_EQ(FlowField::valleySectionY(140.0f, rim, 10.0f, valleyHalf), 100.0f);
+    EXPECT_FLOAT_EQ(FlowField::valleySectionY(140.0f, rim, 20.0f, valleyHalf), 107.0f);
+    EXPECT_FLOAT_EQ(FlowField::valleySectionY(140.0f, rim, 30.0f, valleyHalf), 114.0f);
+    EXPECT_NEAR(FlowField::valleySectionY(140.0f, rim, 67.1f, valleyHalf), 140.0f, 0.1f);
+    EXPECT_FLOAT_EQ(FlowField::valleySectionY(140.0f, rim, 80.0f, valleyHalf), 140.0f);
+    // the control: never a fill, never steeper than the natural
+    EXPECT_FLOAT_EQ(FlowField::valleySectionY(95.0f, rim, 5.0f, valleyHalf), 95.0f);
+    for (float d = 10.0f; d <= 60.0f; d += 1.0f) {
+        const float natural = rim + 0.5f * (d - 10.0f);
+        EXPECT_FLOAT_EQ(FlowField::valleySectionY(natural, rim, d, valleyHalf), natural) << "at " << d;
+    }
+    // the section is continuous and its lateral step never exceeds the bound
+    float prev = FlowField::valleySectionY(140.0f, rim, 0.0f, valleyHalf);
+    for (float d = 1.0f; d <= 80.0f; d += 1.0f) {
+        const float y = FlowField::valleySectionY(140.0f, rim, d, valleyHalf);
+        EXPECT_LE(y - prev, FlowField::kValleySideSlope + 1e-4f) << "at " << d;
+        prev = y;
+    }
+}
+
 TEST(FlowFieldTest, ValleyFunnelsAccumulationToItsMouth) {
     // A strong V-valley along z=100 (2.0/cell toward the axis) with a gentle downhill toward x=0
     // (0.1/cell). Steepest-descent flow drops every column into the valley, then runs down it to the

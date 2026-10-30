@@ -250,6 +250,15 @@ public:
     /// hydrology bake floods and the worldforge preview reads: v1 = coarse + reliefAt, v2 = meso
     /// sheet + the fine band. Captures shared immutable state only (the worker-copy contract).
     std::function<float(float, float)> baseHeightFn() const;
+    /// M2d-4 (D37): the NATURAL EMITTED ground of a column on a version-2 sheet — base + relief ×
+    /// the biome height blend + offset, exactly sampleColumn's phases 0–2 before the valley, the
+    /// coast and the carve — what the bed profile must be sampled from (baseHeightFn() is the
+    /// UNSCALED meso + fine band; the biome blend scales relief by 0.5–1.3, so a profile sampled
+    /// from it stood up to 116 u above the land on Mountains: m2d4_red_green.txt GREEN 2). Pinned
+    /// equal to sampleSurface().bedHeight off every channel, coast and road by
+    /// RiverGeometryTest.NaturalGroundMatchesTheSamplerOffChannel. Version 1: baseHeightFn().
+    float naturalGroundAt(int worldX, int worldZ);
+    int warpInverseFailures() const { return m_warpInverseFailures; }   // M2d-4: stations the inversion could not place within 1 u
     /// M1 (plan 13.1 "far mesher"): bumped by every Layer-0 rebuild (applyRecipe, setGenerationType,
     /// setHeightmapSource, setWorldForgeParams...). A consumer holding a private generator COPY
     /// (the far-terrain mesher) compares it to the live generator's and reconfigures on a change,
@@ -439,6 +448,7 @@ public:
                                           int edgeInset = 0);
 
 private:
+    int m_warpInverseFailures = 0;   // M2d-4 (bake diagnostics)
     /// WaterCore.md 25.22: is world column (wx, wz) inside an order 1-2 channel band (the carve's band)? Pure - the warp and
     /// the channel query only, never another column's sample.
     bool inCreekBand(int wx, int wz) const;

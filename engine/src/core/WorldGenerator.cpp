@@ -161,7 +161,7 @@ constexpr float kHydroOrigin = -0.5f * kHydroCells * kHydroCell;  // -16384 → 
 // stations) predicts ≈5.2× for an order-3 channel rising to ≈6.2× for order-6. 5.0× sits at the
 // conservative-central end of that empirical range (a flat multiplier; the per-order ratio drift is
 // minor and channelHalfWidth already scales the absolute width). (docs/TerrainGenerationV2.md §P2)
-constexpr float kValleyWidthMul = 5.0f;
+constexpr float kValleyWidthMul = FlowField::kValleyWidthMul;   // M2d-4: shared with the bake (the envelope's floor)
 
 // River meander: the drainage runs on a 32 m D8 cell grid, so raw channels are straight, axis-aligned
 // segments. To make rivers SINUOUS we domain-warp the query coordinate before every channel lookup —
@@ -360,9 +360,13 @@ struct HydroBakeKey {
     std::vector<Spline::Point> spline;
     bool sheet = false;          // M1: a v2 world floods the SHEET surface, never the v1 memo
     SheetParams sheetParams;
+    // M2d-4 (D37): the bed profile samples the EMITTED natural (the biome height blend), so a
+    // recipe's per-biome heightScale / heightOffset are part of the bake's identity on a sheet.
+    std::vector<std::pair<float, float>> biomeHeights;
     bool operator==(const HydroBakeKey& o) const {
         if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq ||
             seaLevel != o.seaLevel || sheet != o.sheet || !(sheetParams == o.sheetParams)) return false;
+        if (biomeHeights != o.biomeHeights) return false;
         if (spline.size() != o.spline.size()) return false;
         for (size_t i = 0; i < spline.size(); ++i)
             if (spline[i].x != o.spline[i].x || spline[i].y != o.spline[i].y) return false;
@@ -452,8 +456,10 @@ void WorldGenerator::rebuildCoarseModel() {
     }
     // Cache lookup: the bake is fully determined by these inputs (region constants are compile-time).
     const float seaLvl = terrainParams.seaLevelY;
+    std::vector<std::pair<float, float>> biomeHeights;
+    if (m_sheetMode) for (const Biome& b : m_biomes) biomeHeights.emplace_back(b.heightScale, b.heightOffset);
     const HydroBakeKey key{static_cast<int>(generationType), seed, terrainParams.climateFrequency,
-                           seaLvl, m_continentalHeightSpline.points(), m_sheetMode, m_sheetParams};
+                           seaLvl, m_continentalHeightSpline.points(), m_sheetMode, m_sheetParams, biomeHeights};
     bool cacheHit = false;
     {
         std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
@@ -505,12 +511,63 @@ void WorldGenerator::rebuildCoarseModel() {
     if (mesoBake) inflows = macroInflowsForBox(*m_macroSheet, kHydroOrigin, hydroCells, hydroCell);
     m_hydro = std::make_shared<HydrologyMap>(bakeHeight, kHydroOrigin, kHydroOrigin,
                                              hydroCells, hydroCells, hydroCell, seaLvl);
-    m_flow  = std::make_shared<FlowField>(bakeHeight, kHydroOrigin, kHydroOrigin,
-                                          hydroCells, hydroCells, hydroCell, seaLvl, riverThresh, inflows,
-                                          /*areaLaw=*/mesoBake);   // M2b-2: v2 serves width/depth from the law
+    // M2d-4 (D37): the natural ground at the WORLD column where a bake-space channel point lands —
+    // the meander warp inverted (x = q − d(x), a damped fixed point; the warp reads the bake's own
+    // local width field, so the bake hands itself back as `self`). Synchronous inside the bake only.
+    // The ground is the EMITTED natural (naturalGroundAt: the biome height blend applied), not the
+    // unscaled bake height - GREEN 2 of m2d4_red_green.txt measured rims 116 u above the land with
+    // the unscaled sample. The column under the warped point, as the generator floors it.
+    FlowField::WorldFns footprint;
+    m_warpInverseFailures = 0;
+    if (mesoBake) {
+        // Newton on m(x) = q with a 2x2 numerical Jacobian (the warp's gradient reaches ~3 at its
+        // steep phases, where the damped fixed point x += 0.5 (q - m(x)) oscillates and threw
+        // stations 15 u off the line - GREEN 6), started from the previous station's world point so
+        // the inversion follows ONE branch where the warp folds; a residual above 1 u after the
+        // fallback damping is counted and logged, not hidden.
+        footprint.toWorld = [this](float qx, float qz, const FlowField& self, glm::vec2 hint) {
+            auto warp = [&](glm::vec2 x) { return x + meanderDisplacementForHalfWidth(x.x, x.y, self.localHalfWidthAt(x.x, x.y)); };
+            const glm::vec2 q(qx, qz);
+            glm::vec2 x = hint;
+            glm::vec2 r = warp(x) - q;
+            for (int it = 0; it < 12 && glm::dot(r, r) > 0.05f * 0.05f; ++it) {
+                constexpr float eps = 0.5f;
+                const glm::vec2 jx = (warp(x + glm::vec2(eps, 0.0f)) - (r + q)) / eps;
+                const glm::vec2 jz = (warp(x + glm::vec2(0.0f, eps)) - (r + q)) / eps;
+                const float det = jx.x * jz.y - jz.x * jx.y;
+                glm::vec2 step = std::fabs(det) > 1e-3f ? glm::vec2(-(r.x * jz.y - jz.x * r.y) / det, -(jx.x * r.y - r.x * jx.y) / det)
+                                                        : -0.3f * r;
+                const float len = glm::length(step);
+                if (len > 16.0f) step *= 16.0f / len;
+                x += step;
+                r = warp(x) - q;
+            }
+            if (glm::dot(r, r) > 1.0f) {   // the fallback: damped, slow, from the raw point
+                x = q;
+                for (int it = 0; it < 32; ++it) x += 0.3f * (q - warp(x));
+                r = warp(x) - q;
+                if (glm::dot(r, r) > 1.0f) ++m_warpInverseFailures;
+            }
+            return x;
+        };
+        footprint.naturalAt = [this](float wx, float wz) {
+            return naturalGroundAt(static_cast<int>(std::floor(wx)), static_cast<int>(std::floor(wz)));
+        };
+        footprint.warp = [this](float wx, float wz, const FlowField& self) {   // meanderedChannelPos through the bake's own width field
+            return glm::vec2(wx, wz) + meanderDisplacementForHalfWidth(wx, wz, self.localHalfWidthAt(wx, wz));
+        };
+    }
     // Body identity rides the bake (tangible-water Phase A). Built HERE because volumeEst needs
     // the flood's height function, which is not retained anywhere after this scope.
     m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, bakeHeight);
+    // M2e-2: the coast field (v2 bakes only; a box without ocean bodies has no coast to shape).
+    // M2d-4: built BEFORE the flow field - the bed profile's footprint reads naturalGroundAt, which
+    // applies the coast shaping through m_coast (GREEN 3: with the previous field in place the
+    // profile stood 64 u above a ramp-cut coastal mountain).
+    m_coast = mesoBake ? std::make_shared<const CoastField>(*m_hydro, *m_waterBodies) : nullptr;
+    m_flow  = std::make_shared<FlowField>(bakeHeight, kHydroOrigin, kHydroOrigin,
+                                          hydroCells, hydroCells, hydroCell, seaLvl, riverThresh, inflows,
+                                          /*areaLaw=*/mesoBake, footprint);   // M2b-2: v2 serves width/depth from the law
     // M2c: the rim guarantee rides the bake (lazy per basin, shared by every copy + the cache).
     // Version-2 bakes only (D10/D12): on a version-1 recipe the corrected level moved the
     // WorldForge plan of an existing world (Mountains 424242: 10 roads -> 13, plan hash
@@ -518,10 +575,11 @@ void WorldGenerator::rebuildCoarseModel() {
     // had retired came back — RoadFieldSeamTest.GradedRoadsAreStepWalkableOnMountains, 2026-10-22).
     // A version-1 world keeps the raw coarse spill everywhere, as before M2c.
     m_rimCorrector = mesoBake ? std::make_shared<BasinRimCorrector>(m_hydro, m_waterBodies, seaLvl) : nullptr;
-    // M2e-2: the coast field (v2 bakes only; a box without ocean bodies has no coast to shape).
-    m_coast = mesoBake ? std::make_shared<const CoastField>(*m_hydro, *m_waterBodies) : nullptr;
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Water bodies labeled: "
              << m_waterBodies->bodies().size() << " bodies");
+    if (mesoBake)
+        LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] M2d-4 valley envelope: " << m_flow->valleySourceCount()
+                 << " source entries, warp inversions beyond 1 u: " << m_warpInverseFailures);
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << hydroCells << "x" << hydroCells
              << " cells at " << hydroCell << " u" << (mesoBake ? " (meso, centre-sampled, " : " (")
              << inflows.size() << " macro inflows), seaLevel=" << seaLvl << ", maxAccum=" << m_flow->maxAccum()
@@ -1373,21 +1431,34 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             mwz = m.y;
         }
         // M2d perf: the local-width field is zero farther than ~2 cells (64 u) from every channel,
-        // beyond every query's reach (valley search 5 half-widths <= 17 u, hit test <= 3.4 u, the
-        // warp <= 14 u), so such a column skips the channel queries entirely. v1 has no field: always.
+        // beyond every query's reach (hit test <= 3.4 u, the warp <= 14 u, the creek swale), so such
+        // a column skips the channel queries entirely. v1 has no field: always. (The M2d-4 valley
+        // envelope reaches farther and is read for every v2 column below — a baked per-cell list.)
         const bool nearChannel = m_flow && (!m_flow->areaLaw() || m_flow->localHalfWidthAt(mwx, mwz) > 0.0f ||
                                             m_flow->localHalfWidthAt(static_cast<float>(wx), static_cast<float>(wz)) > 0.0f);
+
+        // M2d-4 (D36, version 2): the valley SECTION beside carved channels is an ENVELOPE the ground
+        // may not exceed — a flat alluvial floor at the bankfull rim across kValleyWidthMul half-widths,
+        // then a side at FlowField::kValleySideSlope — the natural wins where lower or steeper
+        // (applied below, after the coast).
+        // read at the column's WORLD centre: the envelope is baked in world space (its polylines are
+        // the channels' inverse-warped lines), so no warp and no stretch estimate here
+        const float valleyEnv = (m_flow && m_flow->areaLaw())
+            ? m_flow->valleyEnvelopeAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f, mwx, mwz) : 1e30f;
 
         // P2 valley shaping (docs/TerrainGenerationV2.md §P2): attenuate Layer-1 relief toward the
         // (meandered) channel centreline so the river seats in a SMOOTH valley floor, not a thin slot.
         if (nearChannel) {
-            // M2b-2: the corridor scales with the channel's own width (law or table); v1 keeps the
-            // table's widest order as its search bound, byte for byte.
-            const float maxValleyHalf = (m_flow->areaLaw() ? m_flow->maxHalfWidth() : FlowField::channelHalfWidth(6)) * kValleyWidthMul;
-            const FlowField::NearestChannel nc = m_flow->nearestChannel(mwx, mwz, maxValleyHalf);
-            if (nc.carved) {
-                const float valleyHalf = nc.halfWidth * kValleyWidthMul;
-                relief *= smoothstep01(0.0f, valleyHalf, nc.dist);  // 0 at centreline → full at edge
+            // Version 1 ONLY (the per-order table, byte for byte — the pinned hashes): a FRACTION of
+            // the relief, 0 at the centreline. Version 2 uses the envelope instead: on 100–300 u of
+            // mountain relief the fraction made walls of 10–64 u per column (m2d4_red_green.txt).
+            if (!m_flow->areaLaw()) {
+                const float maxValleyHalf = FlowField::channelHalfWidth(6) * kValleyWidthMul;
+                const FlowField::NearestChannel nc = m_flow->nearestChannel(mwx, mwz, maxValleyHalf);
+                if (nc.carved) {
+                    const float valleyHalf = nc.halfWidth * kValleyWidthMul;
+                    relief *= smoothstep01(0.0f, valleyHalf, nc.dist);  // 0 at centreline → full at edge
+                }
             }
 
             // Creek SWALE (water-as-terrain-stage P2): orders 1-2 get a NARROW, BOUNDED parabolic
@@ -1441,6 +1512,12 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 }
             }
         }
+        // M2d-4 (D36): cut to the valley envelope, never filled - AFTER the coast (the beach face and the
+        // backshore ramp are part of the natural the bed profile is sampled from: naturalGroundAt) and
+        // BEFORE the carve (the bed overrides the envelope inside the channel). GREEN 3's diagnostics
+        // found the two in the wrong order: the backshore ramp had cut a coastal mountain 64 u below the
+        // river's rim (an "embankment"), and the beach-face fill stood 7 u over an envelope-cut column.
+        if (col.bedHeight > valleyEnv) col.bedHeight = valleyEnv;
         col.surfaceY = static_cast<int>(std::floor(col.bedHeight));
 
         markPhase(3);
@@ -2310,6 +2387,69 @@ std::function<float(float, float)> WorldGenerator::baseHeightFn() const {
         return cs.baseHeight + reliefAt(gt, s, static_cast<int>(std::floor(x)),
                                         static_cast<int>(std::floor(z)), cs.continentalness);
     };
+}
+
+float WorldGenerator::naturalGroundAt(int wx, int wz) {
+    // sampleColumn's phases 0-2 for a version-2 sheet, arithmetic for arithmetic (the pin test holds
+    // them equal): the warped climate sample, the Gaussian biome height blend, the meso relief
+    // clamped >= 0 plus the fine band, scaled and offset. No valley, coast, swale or carve.
+    const bool sheet = m_sheetMode && m_macroSheet && m_mesoPager;
+    if (!sheet) return baseHeightFn()(static_cast<float>(wx), static_cast<float>(wz));
+    auto to01 = [](float n) { float v = (n + 1.0f) * 0.5f; return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
+    const float cf = terrainParams.climateFrequency;
+    const float warpAmp = 16.0f;
+    const float warpF = cf * 2.0f;
+    const float swx = wx + perlinNoise3D(wx * warpF, 500.0f, wz * warpF, 2, 0.5f, 2.0f) * warpAmp;
+    const float swz = wz + perlinNoise3D(wx * warpF, 600.0f, wz * warpF, 2, 0.5f, 2.0f) * warpAmp;
+    float tRaw = 0.0f, mRaw = 0.0f;
+    m_mesoPager->climateAt(swx, swz, tRaw, mRaw);
+    const float temperature = expandContrast(to01(tRaw));
+    const float moisture    = expandContrast(to01(mRaw));
+    const MacroCell mc = m_macroSheet->sampleAt(static_cast<float>(wx), static_cast<float>(wz));
+    const float baseHeight = mc.baseHeight, continentalness = mc.continentalness;
+    float totalW = 0.0f, blendScale = 0.0f, blendOffset = 0.0f;
+    constexpr float kSigma2 = 2.0f * 0.15f * 0.15f;
+    for (size_t i = 0; i < m_biomes.size(); ++i) {
+        const Biome& b = m_biomes[i];
+        float ct = (b.tempMin + b.tempMax) * 0.5f;
+        float cm = (b.moistMin + b.moistMax) * 0.5f;
+        float cc = (b.contMin + b.contMax) * 0.5f;
+        float dt = temperature - ct, dm = moisture - cm, dc = continentalness - cc;
+        float w = std::exp(-(dt * dt + dm * dm + dc * dc) / kSigma2);
+        totalW += w;
+        blendScale  += w * b.heightScale;
+        blendOffset += w * b.heightOffset;
+    }
+    if (totalW > 0.0f) { blendScale /= totalW; blendOffset /= totalW; }
+    else { blendScale = 1.0f; blendOffset = 0.0f; }
+    const float relief = std::max(0.0f, m_mesoPager->heightAt(static_cast<float>(wx), static_cast<float>(wz)) - baseHeight)
+                       + fineReliefAt(generationType, seed, wx, wz, continentalness);
+    float ground = baseHeight + relief * blendScale + blendOffset;
+    // M2e-2 coast shaping, the sampler's rule (sampleColumn): the beach face cut AND filled to the
+    // profile, the backshore ramp and the seabed cut only, a column past the repose slope keeps its
+    // cliff. The ramp cuts a coastal mountain down to sea + berm + 0.1 x the shore distance.
+    if (kCoastShapingEnabled && m_coast && m_coast->hasOcean()) {
+        const float sd = m_coast->signedDistAt(static_cast<float>(wx), static_cast<float>(wz));
+        const float sea = terrainParams.seaLevelY;
+        if (sd > -kNearshoreWidth && sd < 1e29f) {
+            float profile;
+            if (sd >= 0.0f) {
+                profile = (sd <= kBeachFaceWidth) ? sea + sd * kBeachFaceSlope
+                                                  : sea + kBermHeight + (sd - kBeachFaceWidth) * kBackshoreRise;
+            } else {
+                profile = sea - kDeanA * std::pow(-sd, 2.0f / 3.0f);
+            }
+            const bool onFace = sd >= 0.0f && sd <= kBeachFaceWidth;
+            if (ground > profile) {
+                const auto gr = m_mesoPager->gradientAt(static_cast<float>(wx), static_cast<float>(wz));
+                const float localSlope = std::sqrt(gr.first * gr.first + gr.second * gr.second);
+                if (!(localSlope > kRockSlope && sd >= 0.0f)) ground = profile;
+            } else if (onFace) {
+                ground = profile;
+            }
+        }
+    }
+    return ground;
 }
 
 void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {

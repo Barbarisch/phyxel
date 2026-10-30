@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <vector>
@@ -18,6 +19,20 @@ namespace Phyxel {
 class FlowField {
 public:
     using HeightFunc = std::function<float(float worldX, float worldZ)>;
+    // M2d-4 (D36 / D37): the generator's two world-space callbacks for a version-2 bake —
+    // `toWorld`: the WORLD position a BAKE-space channel point lands on (the meander warp inverted;
+    // it reads this bake's own local width field, hence `self`); `naturalAt`: the natural EMITTED
+    // ground at a world column (the biome height blend and the coast applied). Empty on a
+    // version-1 bake: the profile keeps the cell-centre point sample and no envelope is baked.
+    // `hint` is the previous station's world point along the same line (or the point itself): the
+    // warp can fold where its gradient exceeds 1, so the inversion continues along ONE branch.
+    struct WorldFns {
+        std::function<glm::vec2(float bakeX, float bakeZ, const FlowField& self, glm::vec2 hint)> toWorld;
+        std::function<float(float worldX, float worldZ)> naturalAt;
+        // the forward warp (world -> bake) the sampler applies before every channel query, so the
+        // perch rule reads each envelope exactly as the sampler will at that world column
+        std::function<glm::vec2(float worldX, float worldZ, const FlowField& self)> warp;
+    };
 
     // Channel-initiation threshold: a cell is a river once its upstream drainage exceeds this many
     // cells. Grounded default ≈ 0.1 km² (98 cells at 32 m/cell) — the lower-mid of Montgomery &
@@ -41,7 +56,8 @@ public:
               int cellsX, int cellsZ, float cellSize, float seaLevel,
               int riverThreshold = kDefaultRiverThresholdCells,
               const std::vector<Inflow>& inflows = {},
-              bool areaLaw = false);
+              bool areaLaw = false,
+              const WorldFns& fns = {});
     const std::vector<Inflow>& inflows() const { return m_inflows; }
 
     // ── M2b-2: channel geometry from DRAINAGE AREA (docs/WorldForgeV2Plan.md §10 F4f) ──────────
@@ -90,6 +106,66 @@ public:
     // meander warp's wavelength follows it), ~0 away from every channel. In world units.
     static constexpr int kLocalWidthRadius = 2;
     float localHalfWidthAt(float worldX, float worldZ) const;
+
+    // ── M2d-4: the valley SECTION beside carved channels (areaLaw bakes only; D36 / D37) ────────
+    // The land beside a carved channel may not stand above the ENVELOPE
+    //     rim(projection) + max(0, dist − halfWidth × kValleyWidthMul) × kValleySideSlope
+    // — a flat alluvial floor at the bankfull rim (the longitudinal profile + the law depth, at the
+    // column's projection on the channel) across kValleyWidthMul channel half-widths, then a
+    // valley side rising at the hillslope bound; the natural ground wins wherever it is lower
+    // (floodplain dips stay) or itself steeper (a cliff the mountain has stays). This replaces the
+    // version-1 FRACTIONAL relief attenuation (relief × smoothstep(dist / valleyHalf)), which on
+    // 100–300 u of mountain relief made walls of 10–64 u per column and, with the profile sampled
+    // from the full relief at the cell centre, rivers on 100–250 u embankments (m2d4_red_green.txt).
+    // kValleyWidthMul: GROUNDED range (Rosgen 1994 entrenchment 2.2×, Williams 1986 belt ≈ 5.2–6.2×)
+    // — a labelled tunable, the floor's extent. kValleySideSlope 0.70 (35°): REASONED — the top of
+    // the 30 ± 5° threshold-hillslope band (Frontiers Earth Sci. 2021, 10.3389/feart.2021.684365)
+    // and equal to the scree repose the road earthworks use (WorldForgePlan::kReposeSlope).
+    static constexpr float kValleyWidthMul   = 5.0f;
+    static constexpr float kValleySideSlope  = 0.70f;
+    // A source is not entered into a cell (nor expanded past it) once its lower bound stands this far
+    // above the cell's sampled natural: the natural inside a 32 u cell is taken to lie within 24 u
+    // below its centre sample (≈ a 1:1 slope over the half-diagonal); where the ground is steeper the
+    // column keeps its natural, a wall the mountain has. DESIGN. The valley side ends at the crest:
+    // an envelope never cuts into the next valley.
+    static constexpr float kEnvNaturalMargin = 24.0f;
+    // The envelope at a WORLD column (unwarped: the envelope is baked in world space — every
+    // source's channel polyline is inverse-warped once at bake time, so distances, the floor and the
+    // side are world units and the side is <= kValleySideSlope per world u by construction; GREEN 4
+    // measured 2.2 u per column with the envelope in bake space, and a stretch estimate (GREEN 5)
+    // widened downstream floors over upstream reaches). The lowest over the sources listed for the
+    // column's cell, or 1e30 where no carved, profiled channel reaches. Pure per column.
+    // (warpedX, warpedZ) is the column's meander-warped position (the carve's query point): the RIM
+    // at a column is read as the carve reads it — the profile at the bake-space projection of the
+    // warped point — so the floor beside a channel is exactly its bed's rim there (a station-nearest
+    // rim on the world polyline differed from the carve by several u where the warp shears angles,
+    // GREEN 9's lips); the floor's extent and the side use the world polyline's distance.
+    float valleyEnvelopeAt(float worldX, float worldZ, float warpedX, float warpedZ) const;
+    bool  hasValleySourcesAt(float worldX, float worldZ) const;   // the column's cell lists a source
+    // Diagnostics: the listed source cells at a column and one source's own envelope there.
+    std::vector<int> valleySourcesAt(float worldX, float worldZ) const;
+    struct EnvSample { float env = 1e30f, perp = 1e30f, rim = 0.0f, valleyHalf = 0.0f; };
+    EnvSample envelopeSample(int sourceCell, float worldX, float worldZ, float warpedX, float warpedZ) const;
+    bool  isFoldedSource(int sourceCell) const;   // the meander warp folds the channel of this cell (diagnostics)
+    // The source's channel polyline in WORLD space (the branch the envelope was baked around); null
+    // off the network. Diagnostics: where the warp folds, the carve shows the channel on more than
+    // one branch and only this one carries the valley.
+    const std::vector<glm::vec2>* sourceWorldPolyline(int sourceCell) const;
+    float floorHalfOf(int sourceCell) const;      // the floor half-width the envelope uses for this source (diagnostics)
+    // The flat floor's half-width shrinks as the bed steepens: a floodplain is a feature of a gentle
+    // reach; at a bed slope of kValleySideSlope or more the valley is a V (the side rises from the
+    // channel edge). Without it a reach's floor reached under the banks of the reach upstream of it
+    // across a D8 bend wherever the bed dropped more than the side could climb (GREEN 7/8).
+    // REASONED (floodplain width falls with valley slope — confinement); kValleyWidthMul stays the
+    // maximum, the labelled tunable.
+    static float floorHalfFor(float halfWidth, float bedSlope) {
+        return halfWidth * kValleyWidthMul * std::clamp(1.0f - bedSlope / kValleySideSlope, 0.0f, 1.0f);
+    }
+    // The section rule itself, exposed for the unit test: the ground beside a channel.
+    static float valleySectionY(float natural, float rim, float dist, float valleyHalf) {
+        return std::min(natural, rim + std::max(0.0f, dist - valleyHalf) * kValleySideSlope);
+    }
+    int valleySourceCount() const { return static_cast<int>(m_envPool.size()); }   // tests / diagnostics
 
     // ── M2e: spring SITES (areaLaw bakes only; D17: data, no water) ─────────────────────────
     // Where the network gathers water: a creek HEAD (a channel cell with no channel inflow,
@@ -220,6 +296,18 @@ private:
     std::vector<int> m_filletOf;
     std::vector<std::vector<glm::vec2>> m_fillets;
     std::vector<float> m_localHalfW;   // M2d-3: blurred local half-width per cell
+    // M2d-4: per cell, the singly-linked list (pool indices) of carved channel cells whose valley
+    // envelope can win somewhere inside the cell (−1 = none).
+    struct EnvEntry { int src; int next; };
+    std::vector<int>      m_envHead;
+    std::vector<EnvEntry> m_envPool;
+    // per source cell: its channel polyline in WORLD space (up to 9 stations) and the rim at each
+    std::vector<int>                    m_envPolyIdx;   // per cell, −1 = not a source
+    std::vector<std::vector<glm::vec2>> m_envPolys;
+    std::vector<std::vector<float>>     m_envRims;
+    std::vector<float>                  m_envFloorHalf;   // per source: the floor's half-width (shrinks with the bed slope)
+    std::vector<uint8_t>                m_envFolded;      // per source: its world polyline reverses or collapses (the warp folds)
+    EnvSample envelopeOf(int rc, float worldX, float worldZ, float warpedX, float warpedZ) const;
     std::vector<Spring> m_springs;     // M2e: spring sites
     // The polyline a cell's channel follows (straight or fillet), used by every query.
     const std::vector<glm::vec2>& cellPolyline(int rc, std::vector<glm::vec2>& scratch) const;
