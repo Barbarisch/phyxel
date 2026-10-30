@@ -166,6 +166,24 @@ public:
         return std::min(natural, rim + std::max(0.0f, dist - valleyHalf) * kValleySideSlope);
     }
     int valleySourceCount() const { return static_cast<int>(m_envPool.size()); }   // tests / diagnostics
+    // M2d-4 residual: what the perch rounds did to the profile (an instrument for the bake log and
+    // the tests): rounds run, reaches lowered per round, the cumulative lowering of a reach's base
+    // against the D37 footprint minimum it started from.
+    struct PerchStats {
+        int rounds = 0;
+        std::vector<int> changed;        // per round: reaches whose base moved
+        float maxLowering = 0.0f;        // the deepest cumulative lowering of one reach (u)
+        float sumLowering = 0.0f;        // over all reaches (u)
+        int loweredOver8 = 0;            // reaches lowered by more than 8 u in total
+        int reaches = 0;                 // carved reaches outside basins the rule looked at
+        long long columns = 0;           // world columns the band floods visited (all rounds)
+        long long banks = 0;             // bank columns the envelope was read at (all rounds)
+        int overflow = 0;                // reaches whose band flood hit its column cap (a fold)
+        float worstDeficitLeft = 0.0f;   // the last round's largest bank deficit (rim above the land beside it), u
+        struct Deep { int cell = -1; float lowering = 0.0f; int lastSrc = -1; float lastDeficit = 0.0f; int rounds = 0; };
+        std::vector<Deep> deepest;       // the five reaches lowered most, with the source that last drove each
+    };
+    const PerchStats& perchStats() const { return m_perch; }
 
     // ── M2e: spring SITES (areaLaw bakes only; D17: data, no water) ─────────────────────────
     // Where the network gathers water: a creek HEAD (a channel cell with no channel inflow,
@@ -225,6 +243,7 @@ public:
         bool  inBasin = false;
         float bedSlope = 0.0f;    // M2d-3: the profile's fall per unit length along the hit segment (>= 0)
         int   cell = -1;          // M2d-3: the row-major bake cell whose channel was hit (tests, diagnostics)
+        float t = 0.0f;           // M2d-4: the hit's projection parameter along the cell polyline (0 = the cell's vertex, 1 = downstream)
     };
     ChannelHit channelAt(float worldX, float worldZ) const;
 
@@ -307,6 +326,7 @@ private:
     std::vector<std::vector<float>>     m_envRims;
     std::vector<float>                  m_envFloorHalf;   // per source: the floor's half-width (shrinks with the bed slope)
     std::vector<uint8_t>                m_envFolded;      // per source: its world polyline reverses or collapses (the warp folds)
+    PerchStats                          m_perch;
     EnvSample envelopeOf(int rc, float worldX, float worldZ, float warpedX, float warpedZ) const;
     std::vector<Spring> m_springs;     // M2e: spring sites
     // The polyline a cell's channel follows (straight or fillet), used by every query.

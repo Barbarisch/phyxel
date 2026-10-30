@@ -332,6 +332,10 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
                 }
                 return pl.back();
             };
+            // the carved band's measured half-width in WORLD columns (the flood below measures it: where the
+            // warp expands, the band is wider than the half-width and a slope-shrunk floor ended INSIDE it,
+            // the side rising at the bank - GREEN 21's lips at 1.3 u); the floor is never narrower than it
+            std::vector<float> bandHalfWorld(n, 0.0f);
             auto buildEnvelope = [&]() {
             m_envPolyIdx.assign(n, -1);
             m_envPolys.clear();
@@ -373,7 +377,7 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
                 m_envPolyIdx[static_cast<size_t>(k)] = static_cast<int>(m_envPolys.size());
                 m_envPolys.push_back(std::move(wp));
                 m_envRims.push_back(std::move(wr));
-                m_envFloorHalf.push_back(floorHalfFor(m_halfW[k], bedSlope));
+                m_envFloorHalf.push_back(std::max(floorHalfFor(m_halfW[k], bedSlope), bandHalfWorld[static_cast<size_t>(k)] + 1.0f));
                 m_envFolded.push_back(folded ? 1 : 0);
             }
             struct Cand { int cell, src; float lower, upper; };
@@ -443,50 +447,161 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
             // half-width along its normal), where a side from a lower reach is lowest - the centreline
             // alone left 13-16 u of perch at the banks (GREEN 14). Up to 8 rounds, until nothing moves.
             constexpr int kPerchRounds = 8;
+            const std::vector<float> groundK0 = groundK;   // the D37 footprint minimum the rounds start from
+            m_perch = PerchStats{};
+            for (size_t c = 0; c < n; ++c) if (m_order[c] >= 1 && m_carved[c] && !m_basin[c]) ++m_perch.reaches;
+            // M2d-4 residual (the rule as it stands after the audit): the reach's band is FLOODED in world
+            // columns exactly as the sampler carves it (channelAt at the column's warped point: the hit's
+            // cell is this reach, carved, with a profile), and at every BANK column beside it (a 4-neighbour
+            // that is neither this band, another carved band nor a creek) the envelope the land will be cut
+            // to - the minimum over the other sources listed for that column's cell - is compared with the
+            // rim the sampler reads at the band column it touches (the profile at that column's projection +
+            // the depth). The earlier rule compared each sample with the reach's UPSTREAM base, so at the
+            // shared downstream vertex the next reach's rim - lower by this reach's own drop - "undercut" it
+            // every round: the rounds translated the profile one cell upstream per round and never converged
+            // (the instrumented run in m2d4_red_green.txt). A deficit is closed by an exact lever on the
+            // reach's base: the rim at parameter t moves by (1 - t) of the base while the reach stays above
+            // its downstream vertex, and by the whole base beyond that (the carry takes the vertex with it).
+            constexpr float kPerchTol = 0.25f;   // a quarter voxel: below the 1 u levee count, above float noise
+            constexpr int kBandCap = 20000;      // columns per reach: a folded band cannot run away
+            std::vector<uint8_t> moved(n, 1), movedPrev(n, 1);
+            std::vector<int> lastSrc(n, -1), roundsMoved(n, 0);
+            std::vector<float> lastDeficit(n, 0.0f);
+            std::vector<uint8_t> visited;
+            struct BandCol { int x, z; float rimB, tB; bool fromBand; };
+            std::vector<BandCol> queue;
             for (int round = 0; round < kPerchRounds; ++round) {
                 buildEnvelope();
                 if (round == kPerchRounds - 1) break;
                 bool changed = false;
-                std::vector<glm::vec2> plScratchR;
-                for (int k = 0; k < static_cast<int>(n); ++k) {
+                int changedCount = 0;
+                float worstLeft = 0.0f;
+                std::swap(moved, movedPrev);
+                std::fill(moved.begin(), moved.end(), 0);
+                // DOWNSTREAM FIRST (descending accumulation): the envelope's rim is read live from the profile
+                // (envelopeOf), so a reach sees the rims its downstream neighbours settled to in this same
+                // sweep and a steep chain settles in one round, not one cell per round (patch 20: 7 rounds
+                // still moving 595 reaches with 26 u of deficit left)
+                for (size_t ii = idx.size(); ii-- > 0;) {
+                    const int k = idx[ii];
                     const int pi = m_envPolyIdx[static_cast<size_t>(k)];
                     if (pi < 0) continue;
                     const std::vector<glm::vec2>& wp = m_envPolys[static_cast<size_t>(pi)];
-                    const std::vector<glm::vec2> pl = cellPolyline(k, plScratchR);
-                    // 17 stations (every 2 u of bake length - GREEN 16: a side 17 u out still under the rim
-                    // between two 4 u stations) at the centreline and 1.5 / 3 half-widths each side: the
-                    // carved band is |warp(p) − line| < halfWidth, so where the warp EXPANDS (gradient under 1)
-                    // the band is up to three half-widths wide in world space
-                    for (int st = 0; st <= 16; ++st) {
-                        const float t = static_cast<float>(st) / 16.0f;
-                        const glm::vec2 q = pointAt(pl, t);
-                        const size_t s0 = std::min(wp.size() - 2, static_cast<size_t>(st / 2));
-                        const glm::vec2 wpt = wp[s0] + (wp[s0 + 1] - wp[s0]) * (t * 8.0f - static_cast<float>(s0));
-                        glm::vec2 dirW = wp[s0 + 1] - wp[s0];
-                        const float dl = glm::length(dirW);
-                        dirW = dl > 1e-4f ? dirW / dl : glm::vec2(1.0f, 0.0f);
-                        const glm::vec2 nrmW(-dirW.y, dirW.x);
-                        for (int side = -2; side <= 2; ++side) {
-                            const glm::vec2 w = wpt + nrmW * (static_cast<float>(side) * 1.5f * m_halfW[k]);
-                            const int ci = static_cast<int>(std::floor((w.x - m_originX) / m_cellSize));
-                            const int cj = static_cast<int>(std::floor((w.y - m_originZ) / m_cellSize));
-                            if (ci < 0 || cj < 0 || ci >= m_cellsX || cj >= m_cellsZ) continue;
-                            // the rim is read at the bake projection of the column's WARPED point (the
-                            // sampler's rule), so the check warps the world sample forward (GREEN 17: a
-                            // bank beside a reach warps to a point beside its neighbour's segment, whose
-                            // rim there is lower than at the shared vertex the station itself projects to)
-                            const glm::vec2 mq = fns.warp ? fns.warp(w.x, w.y, *this) : q;
-                            for (int e = m_envHead[static_cast<size_t>(cj) * m_cellsX + ci]; e >= 0; e = m_envPool[static_cast<size_t>(e)].next) {
-                                const int src = m_envPool[static_cast<size_t>(e)].src;
-                                if (src == k) continue;
-                                const float env = envelopeOf(src, w.x, w.y, mq.x, mq.y).env;
-                                if (env < groundK[static_cast<size_t>(k)] - 1e-3f) { groundK[static_cast<size_t>(k)] = env; changed = true; }
+                    // the band's world box: the inverse-warped polyline dilated by three half-widths (the
+                    // band is up to that wide where the warp expands) and a margin for the bank columns
+                    const float dil = 3.0f * m_halfW[static_cast<size_t>(k)] + 4.0f;
+                    float bx0 = 1e30f, bx1 = -1e30f, bz0 = 1e30f, bz1 = -1e30f;
+                    for (const glm::vec2& w : wp) { bx0 = std::min(bx0, w.x); bx1 = std::max(bx1, w.x); bz0 = std::min(bz0, w.y); bz1 = std::max(bz1, w.y); }
+                    const int x0 = static_cast<int>(std::floor(bx0 - dil)), x1 = static_cast<int>(std::floor(bx1 + dil));
+                    const int z0 = static_cast<int>(std::floor(bz0 - dil)), z1 = static_cast<int>(std::floor(bz1 + dil));
+                    const int W = x1 - x0 + 1, H = z1 - z0 + 1;
+                    if (W <= 0 || H <= 0 || static_cast<long long>(W) * H > 4 * kBandCap) { ++m_perch.overflow; continue; }
+                    // only reaches whose sources moved last round (or that moved themselves) are re-read
+                    if (round > 0) {
+                        bool dirty = movedPrev[static_cast<size_t>(k)] != 0;
+                        const int ci0 = std::max(0, static_cast<int>(std::floor((bx0 - dil - m_originX) / m_cellSize)));
+                        const int ci1 = std::min(m_cellsX - 1, static_cast<int>(std::floor((bx1 + dil - m_originX) / m_cellSize)));
+                        const int cj0 = std::max(0, static_cast<int>(std::floor((bz0 - dil - m_originZ) / m_cellSize)));
+                        const int cj1 = std::min(m_cellsZ - 1, static_cast<int>(std::floor((bz1 + dil - m_originZ) / m_cellSize)));
+                        for (int cj = cj0; cj <= cj1 && !dirty; ++cj)
+                            for (int ci = ci0; ci <= ci1 && !dirty; ++ci)
+                                for (int e = m_envHead[static_cast<size_t>(cj) * m_cellsX + ci]; e >= 0; e = m_envPool[static_cast<size_t>(e)].next)
+                                    if (movedPrev[static_cast<size_t>(m_envPool[static_cast<size_t>(e)].src)]) { dirty = true; break; }
+                        if (!dirty) continue;
+                    }
+                    visited.assign(static_cast<size_t>(W) * H, 0);
+                    queue.clear();
+                    for (const glm::vec2& w : wp) {
+                        const int sx = static_cast<int>(std::floor(w.x)), sz = static_cast<int>(std::floor(w.y));
+                        if (sx < x0 || sx > x1 || sz < z0 || sz > z1) continue;
+                        queue.push_back({sx, sz, 0.0f, 0.0f, false});
+                    }
+                    const int dk = m_downstream[k];
+                    const float endYk = (dk != k && dk >= 0 && static_cast<size_t>(dk) < n) ? std::min(m_carryY[dk], m_bedY[k]) : m_bedY[k];
+                    const float dropK = std::max(0.0f, m_bedY[k] - endYk);
+                    float lowerBy = 0.0f;   // the largest lever this reach's banks demand this round
+                    int lowerSrc = -1; float lowerDeficit = 0.0f;
+                    int popped = 0;
+                    for (size_t head = 0; head < queue.size(); ++head) {
+                        const BandCol bc = queue[head];
+                        const size_t vi = static_cast<size_t>(bc.z - z0) * W + (bc.x - x0);
+                        if (visited[vi]) continue;
+                        visited[vi] = 1;
+                        if (++popped > kBandCap) { ++m_perch.overflow; break; }
+                        ++m_perch.columns;
+                        const glm::vec2 w(static_cast<float>(bc.x) + 0.5f, static_cast<float>(bc.z) + 0.5f);
+                        const glm::vec2 mq = fns.warp ? fns.warp(w.x, w.y, *this) : w;
+                        const ChannelHit h = channelAt(mq.x, mq.y);
+                        const bool inBand = h.hit && h.carved && h.hasProfile && h.cell == k;
+                        if (inBand) {
+                            const float rimB = h.bedProfile + h.fullDepth;
+                            float perpW = 1e30f;   // the column's clamped distance to the world polyline
+                            for (size_t q = 0; q + 1 < wp.size(); ++q) perpW = std::min(perpW, pointSegDist(w.x, w.y, wp[q].x, wp[q].y, wp[q + 1].x, wp[q + 1].y));
+                            bandHalfWorld[static_cast<size_t>(k)] = std::max(bandHalfWorld[static_cast<size_t>(k)], perpW);
+                            for (const glm::ivec2 dxy : {glm::ivec2(1, 0), glm::ivec2(-1, 0), glm::ivec2(0, 1), glm::ivec2(0, -1)}) {
+                                const int nx = bc.x + dxy.x, nz = bc.z + dxy.y;
+                                if (nx < x0 || nx > x1 || nz < z0 || nz > z1) continue;
+                                if (visited[static_cast<size_t>(nz - z0) * W + (nx - x0)]) continue;
+                                queue.push_back({nx, nz, rimB, h.t, true});
                             }
+                            continue;
+                        }
+                        if (!bc.fromBand) continue;              // a seed off the band (an inversion that missed): nothing to read
+                        if (h.hit) continue;                     // another carved band, or a creek: not this reach's bank
+                        ++m_perch.banks;
+                        const int ci = static_cast<int>(std::floor((w.x - m_originX) / m_cellSize));
+                        const int cj = static_cast<int>(std::floor((w.y - m_originZ) / m_cellSize));
+                        if (ci < 0 || cj < 0 || ci >= m_cellsX || cj >= m_cellsZ) continue;
+                        float envMin = 1e30f; int envSrc = -1;
+                        for (int e = m_envHead[static_cast<size_t>(cj) * m_cellsX + ci]; e >= 0; e = m_envPool[static_cast<size_t>(e)].next) {
+                            const int src = m_envPool[static_cast<size_t>(e)].src;
+                            if (src == k) continue;              // its own envelope moves with its rim: no lever closes that
+                            const float ev = envelopeOf(src, w.x, w.y, mq.x, mq.y).env;
+                            if (ev < envMin) { envMin = ev; envSrc = src; }
+                        }
+                        const float deficit = bc.rimB - envMin;
+                        if (deficit <= kPerchTol) continue;
+                        worstLeft = std::max(worstLeft, deficit);
+                        const float oneMinusT = std::max(0.0f, 1.0f - bc.tB);
+                        const float lever = (deficit < oneMinusT * dropK) ? deficit / std::max(oneMinusT, 1e-3f) : deficit + bc.tB * dropK;
+                        if (lever > lowerBy) { lowerBy = lever; lowerSrc = envSrc; lowerDeficit = deficit; }
+                    }
+                    if (lowerBy > 0.0f) {
+                        // the base the rim actually stands on (an upstream carry may already hold the bed
+                        // below groundK - fullD), lowered by the lever
+                        groundK[static_cast<size_t>(k)] = std::min(groundK[static_cast<size_t>(k)], m_bedY[k] + m_fullD[k]) - lowerBy;
+                        moved[static_cast<size_t>(k)] = 1;
+                        changed = true;
+                        ++changedCount;
+                        lastSrc[static_cast<size_t>(k)] = lowerSrc; lastDeficit[static_cast<size_t>(k)] = lowerDeficit; ++roundsMoved[static_cast<size_t>(k)];
+                        // the profile follows at once (propagateProfile's rule, locally): this reach's bed,
+                        // then the carry down the chain while it undercuts the next bed
+                        m_bedY[k] = groundK[static_cast<size_t>(k)] - m_fullD[k];
+                        m_carryY[k] = m_basin[k] ? fr.filled[k] : m_bedY[k];
+                        for (int c = k;;) {
+                            const int d = m_downstream[c];
+                            if (d == c || d < 0 || static_cast<size_t>(d) >= n || m_order[d] < 1 || m_basin[d]) break;
+                            if (m_carryY[c] < m_bedY[d]) { m_bedY[d] = m_carryY[c]; m_carryY[d] = m_bedY[d]; c = d; continue; }
+                            break;
                         }
                     }
                 }
+                ++m_perch.rounds;
+                m_perch.changed.push_back(changedCount);
+                m_perch.worstDeficitLeft = worstLeft;
                 if (!changed) break;
                 propagateProfile();
+            }
+            for (size_t c = 0; c < n; ++c) {
+                const float low = groundK0[c] - groundK[c];
+                if (low <= 0.0f) continue;
+                m_perch.sumLowering += low;
+                m_perch.maxLowering = std::max(m_perch.maxLowering, low);
+                if (low > 8.0f) ++m_perch.loweredOver8;
+                PerchStats::Deep dp; dp.cell = static_cast<int>(c); dp.lowering = low; dp.lastSrc = lastSrc[c]; dp.lastDeficit = lastDeficit[c]; dp.rounds = roundsMoved[c];
+                m_perch.deepest.push_back(dp);
+                std::sort(m_perch.deepest.begin(), m_perch.deepest.end(), [](const PerchStats::Deep& a, const PerchStats::Deep& b) { return a.lowering > b.lowering; });
+                if (m_perch.deepest.size() > 5) m_perch.deepest.pop_back();
             }
         }
     }
@@ -753,6 +868,7 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
                 const float endY = (d != rc && d >= 0 && static_cast<size_t>(d) < m_carryY.size())
                                        ? std::min(m_carryY[d], m_bedY[rc]) : m_bedY[rc];
                 h.bedProfile = m_bedY[rc] + (endY - m_bedY[rc]) * t;
+                h.t = t;
                 h.hasProfile = true;
                 h.inBasin = m_basin[rc] != 0;
                 h.bedSlope = total > 0.0f ? std::max(0.0f, (m_bedY[rc] - endY) / total) : 0.0f;

@@ -722,3 +722,144 @@ C:\Users\bpete\Documents\GitHub\phyxel\tests\core\RiverGeometryTest.cpp(573): er
 [  FAILED  ] RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope (68441 ms)
 EXIT 1 2026-10-30 01:35:58
   The section test is RED on Mountains only (worst bank 5.24 u, corner 9.13 u vs the 3 u levee bound - the open residual); the baseline holds the same bound. Committed in this state.
+
+==== M2d-4 RESIDUAL (2026-10-30, after the commit 273f5e15; owner: "keep going") ====
+Code read of the perch rule (FlowField.cpp, the rounds): every sample's envelope from another source is
+compared against groundK[k] - the reach's base at its UPSTREAM vertex - not against the rim the sampler
+reads at that sample (the profile at the sample's projection + the depth). At station 16 (the shared
+downstream vertex) the downstream reach d's envelope IS its rim there, bedY[d] + depth, which on a sloping
+reach lies below groundK[k] by the reach's own drop; the rule then lowers k's base to it. Read literally the
+rounds TRANSLATE the profile one cell upstream per round: after r rounds a reach sits at the level the
+reach r cells downstream had, i.e. every sloping channel is deepened by its drop over the next 7 cells
+(the rounds never converge on a sloping channel, so all 8 run). The 41 residual banks are the sampling
+gaps (a bank at perp 3.4 u between the 0 and 1.5 x hw offsets, diag line 21 of m2d4_final2_run.txt) on top
+of this over-lowering. Patch 19 = an INSTRUMENT only (FlowField::PerchStats + the bake log line):
+rounds run, reaches moved per round, cumulative lowering vs the D37 footprint minimum.
+PREDICTIONS for the instrumented run (the current rule, written before the run):
+  P19.1 Mountains 424242: 8 rounds run (no convergence); reaches moved in round 7 >= 30 % of the carved reaches.
+  P19.2 Mountains: cumulative max lowering > 30 u; reaches lowered by more than 8 u > 20 % of the carved reaches.
+  P19.3 Perlin 20260816: the same shape at a smaller scale: 8 rounds, max lowering < 15 u.
+  P19.4 the section test's numbers unchanged (an instrument moves nothing): Mountains worst bank 5.24 u / corner 9.13 u.
+INSTRUMENTED RUN (patch 19; build 09:14:08-09:19:10, exe 09:19:06, run 09:19:10-09:20:19; m2d4r_r1_focus.txt):
+  [WORLD_GENERATOR] M2d-4 perch rounds: 7 over 1984 carved reaches, reaches moved per round [1718,1365,1375,1391,1397,1405,1400], cumulative lowering max 92.8106 u, sum 28010.6 u, 1209 reaches lowered by more than 8 u   (Mountains 424242)
+  [WORLD_GENERATOR] M2d-4 perch rounds: 7 over 1112 carved reaches, reaches moved per round [1034,1001,1006,1006,1008,1004,1000], cumulative lowering max 18.6165 u, sum 4527.54 u, 85 reaches lowered by more than 8 u   (Perlin 20260816)
+  (7 comparison rounds + the final envelope build = the 8-round cap; the loop never converged on either world.)
+  P19.1 MET: no convergence, 70 % of the Mountains reaches moved in the last round (1400 of 1984; 90 % on the baseline).
+  P19.2 MET: max cumulative lowering 92.8 u; 61 % of the reaches (1209) lowered by more than 8 u.
+  P19.3 MISSED: the baseline's max lowering is 18.6 u, not under 15 u (the shape held: 7 rounds, 90 % moving).
+  P19.4 MET: Mountains worst bank 5.24 u / corner 9.13 u, unchanged.
+  THE FINDING: the perch rule as committed TRANSLATES the longitudinal profile upstream, one cell per round, on every
+  sloping channel - a reach's base is compared against the next reach's rim at the shared vertex. Mountains channels
+  sit up to 93 u (61 % of reaches > 8 u) below the D37 footprint minimum for a reason that is not the valley side.
+
+PATCH 20 (the rule): the reach's band is FLOODED in world columns exactly as the sampler carves it (channelAt at the
+column's warped point, hit.cell == this reach, carved, with a profile); at every bank column beside it (a
+4-neighbour that is neither this band, another carved band nor a creek) the envelope the land is cut to (the
+minimum over the OTHER sources listed for that column's cell; the reach's own envelope moves with its rim and is
+skipped) is compared with the rim the sampler reads at the band column it touches (bedProfile + fullDepth at that
+column's projection, ChannelHit.t new). A deficit above a quarter voxel is closed by an exact lever on the base:
+rim(t) moves by (1 - t) of the base while the reach stays above its downstream vertex, by the whole base beyond
+(the carry takes the vertex). Only reaches whose sources moved last round are re-read after round 1; the 17 x 5
+sampling pass is removed; the band flood is capped at 20 000 columns per reach (overflows counted).
+PREDICTIONS (written before the run, the same test file as FINAL RUN 2):
+  P20.1 Mountains 424242: banks under their rim by > 1 u: 41 -> <= 5 (the self-shear class: the reach's own rim read
+        1 u apart under a sheared warp, bounded by |J| x slope ~ 2 u), worst <= 3 u; corner cuts 51 / 9.1 u -> worst
+        <= 3 u; the section assertion GREEN on both worlds.
+  P20.2 the rounds CONVERGE: reaches moved per round fall monotonically on both worlds; Mountains round 1 >= 200 moved,
+        the last round < 20; fewer than 8 rounds run on the baseline.
+  P20.3 Mountains cumulative max lowering < one third of the instrumented (translating) rule's value.
+  P20.4 cost: the Mountains Debug bake 21.3 s -> <= 46 s (band columns ~1.4 M at ~15 us in Debug, round 1), the
+        section test 68 s -> <= 110 s.
+  P20.5 BridgeSpanTest on Mountains keeps >= 20 bridges (the perched rims stay gone); the count moves (recorded).
+  P20.6 the v1 pinned hashes, the golden, the monotone bed and the natural-ground pin unchanged.
+GREEN 20 (patch 20; build 09:20:49-09:25:31, exe 09:25:27, run 09:25:31-09:26:49; m2d4r_r2_focus.txt): WORSE on the banks, the rounds converging but far from converged.
+  Mountains: perch rounds 7, moved per round [1033,888,812,733,686,640,595], max lowering 84.3 u, sum 21 645 u, 988 > 8 u; band columns 3 278 975, bank reads 778 889, overflows 0, last round's worst deficit 26.35 u
+  Perlin:    perch rounds 7, moved per round [404,351,317,296,275,258,244], max lowering 17.1 u, sum 3 145 u, 39 > 8 u; band columns 1 533 698, bank reads 420 965, overflows 0, last round's worst deficit 3.57 u
+  Mountains sections: EMBANKMENTS 42 (worst 8.2 u), LIPS 2 (worst 2.3 u), walls 0; corner cuts 61 (worst 8.0 u); fold/cascade class 1 embankment (16.3 u) + 8 lips (9.9 u)
+  Perlin sections: EMBANKMENTS 4 (worst 2.0 u), lips 0, walls 0; corner cuts 11 (worst 3.1 u)  -> RED on both worlds (Mountains 8.2 / 8.0 u; Perlin corner 3.08 u vs 3)
+  P20.1 MISSED (42 / 8.2 u), P20.2 MISSED (monotone fall yes, but 595 still moving in round 7, 8 rounds on the baseline), P20.3 MISSED (84 vs 93 u), P20.4 MET (the test 54.5 s), P20.5 not run, P20.6 MET (focus set).
+  Diagnosis: the lever closes a bank's deficit exactly, but lowering a reach lowers ITS envelope at its upstream
+  neighbour's banks, so the deficit walks upstream one cell per round (the Jacobi sweep: every reach reads the
+  rims of the PREVIOUS round through the per-round envelope build, and the per-cell ordering of the sweep is the
+  row-major cell index, not the flow). Eight rounds carry a steep chain's settling seven cells.
+PATCH 21: the sweep runs DOWNSTREAM FIRST (descending accumulation) and the profile follows each lowering at once
+  (the reach's bed, then the carry down the chain while it undercuts the next bed) - envelopeOf reads the rim live
+  from the profile, so a reach reads the rims its downstream neighbours settled to in the same sweep (Gauss-Seidel).
+PREDICTIONS (before the run):
+  P21.1 the rounds converge: Mountains moved per round falls below 50 by the last round and the last round's worst
+        deficit is under 1 u on both worlds; the baseline stops before 8 rounds.
+  P21.2 Mountains EMBANKMENTS (> 1 u) <= 10 with worst <= 3 u, corner cuts worst <= 3 u; Perlin embankments <= 4,
+        worst <= 2 u, corners <= 3 u -> the section assertion GREEN on both worlds except lips (see P21.4).
+  P21.3 Mountains cumulative max lowering between 84 and 200 u (the full settling of the steep chains is deeper
+        than seven cells of it), reaches > 8 u >= 988.
+  P21.4 LIPS (a bank above the rim by > 1 u, the self-shear class: the reach's own rim read 1 u apart under a
+        sheared warp) stay at 1-3 on Mountains, worst <= 3 u: the lips == 0 assertion stays RED by that class.
+GREEN 21 (patch 21; build 09:29:17-09:29:27, exe 09:29:23, run 09:29:27-09:30:34; m2d4r_r3_focus.txt):
+  Mountains: perch rounds 7, moved per round [1605,343,99,74,69,92,42], max lowering 133.1 u, sum 45 644 u, 1307 > 8 u; band columns 1 434 078, bank reads 338 897, last round's worst deficit 4.19 u
+  Perlin:    perch rounds 7, moved per round [965,121,40,46,18,31,18], max lowering 70.3 u, sum 13 971 u, 606 > 8 u; band columns 609 135, bank reads 168 914, last round's worst deficit 2.44 u
+  Mountains sections: EMBANKMENTS 5 (worst 1.4 u), LIPS 2 (worst 1.3 u), walls 0; CORNER CUTS 0; fold class 0 embankments, 8 lips (11.3 u)
+  Perlin sections:    EMBANKMENTS 2 (worst 1.3 u), LIPS 1 (worst 1.3 u), walls 0; CORNER CUTS 0
+  The section test's bank and corner assertions hold on both worlds (3 u); RED only on lips == 0 (2 and 1 lips at 1.3 u).
+  BedIsMonotoneAlongTheLongestChannel RED: "rise 0.42 u at (339,-6330): bed 33.69 -> 34.10; depth 0.04" - the column under
+  this cell centre's warp lies near the band EDGE (depth 0.04 of ~0.7), the previous near the centreline: the parabolic
+  section at a different lateral offset, not the profile (hit profile 33.57 < 33.69). An instrument artefact exposed by the
+  changed profile; the test now measures the profile (own.bedProfile) along the chain and prints the raw bed steps.
+  P21.1 PARTLY: moved falls to 42 / 18 (met) but the last round's worst deficit is 4.19 / 2.44 u (missed) and the baseline ran all 7 rounds (missed) - the floor widens as a reach flattens (its slope falls) and undercuts the next reach: the rounds chase that.
+  P21.2 MET (5 / 1.4 u; corners 0; baseline 2 / 1.3 u). P21.3 MET (133 u; 1307 reaches). P21.4 MET (2 lips at 1.3 u, red on == 0).
+  The lips (diag line 43): bank emitted 27.3 = the reach's OWN envelope, rim 25.8 + 0.7 x (perp 7.4 - floor 5.2): the slope-shrunk
+  floor (5.2 u at hw 3.13) ends INSIDE the carved band where the warp expands it to 7.4 u, so the side rises at the bank.
+PATCH 22: (a) the floor is never narrower than the band's MEASURED world half-width + 1 u (the flood records each band column's
+  distance to the world polyline); (b) the five deepest lowerings logged with the source that last drove each and whether it is a
+  folded source; (c) the monotone test on the profile.
+PREDICTIONS (before the run):
+  P22.1 LIPS 0 on both worlds (both lips are the floor-inside-the-band class); embankments stay <= 5 / <= 1.5 u, corners 0.
+  P22.2 the profile monotone: 0 rises on the longest channel.
+  P22.3 the deepest lowerings: at least 3 of the 5 are driven by a FOLDED source or a second branch (the 133 u is not a bend's geometry).
+  P22.4 max lowering unchanged within 10 % (the floor change widens floors on expanded bands only).
+GREEN 22 (patch 22; build 09:33:16-09:38:08, exe 09:38:02, run 09:38:08-09:39:15; m2d4r_r4_focus.txt): the focused set 4/4 GREEN.
+  Mountains: perch rounds 7, moved per round [1606,441,75,48,44,40,24], max lowering 133.1 u, sum 47 579 u, 1317 > 8 u; band columns 1 393 326, bank reads 329 357, last round's worst deficit 1.04 u
+  Perlin:    perch rounds 7, moved per round [965,150,43,46,13,21,23], max lowering 70.3 u, sum 14 327 u, 636 > 8 u; band columns 618 715, bank reads 171 410, last round's worst deficit 1.67 u
+  Mountains sections: EMBANKMENTS 2 (worst 1.2 u), LIPS 0, walls 0, CORNER CUTS 0; fold class 1 embankment (2.5 u), 3 lips (7.7 u)
+  Perlin sections:    EMBANKMENTS 2 (worst 1.2 u), LIPS 0, walls 0, CORNER CUTS 0; fold class 0 embankments, 2 lips (1.1 u)
+  Monotone: 91 profile steps, 0 rises (raw bed steps up by more than 1/3 u: 1 - the section at the column's offset, as diagnosed)
+  P22.1 MET, P22.2 MET, P22.4 MET (133.06 u unchanged). P22.3 MISSED - and the miss is the finding:
+  the five deepest lowerings are a CHAIN of consecutive cells of one channel ((664,718) <- (665,718) <- (665,717) <- (666,717) <- (666,716)),
+  none folded, each lowered 122-133 u in ONE round with per-cell deficits of 23-61 u driven by its own downstream reach: a natural
+  STEP (the D37 footprint minimum drops 60 u over one 32 u cell: a cliff the natural ground itself has, cf. 1 479 natural steps
+  beyond 0.70) and, downstream first, every reach above it reads the lowered rim below and drops by the step's excess over the
+  side slope. The ruled rules (D36 floor + side, D37 never perched) applied exactly ENTRENCH the whole channel upstream of a
+  cascade into a gorge as deep as the step's excess. The test's cascade class (bed slope > 0.70) is now empty of walls by that
+  entrenchment, not by a gorge allowance (section 10: NEEDS-RESEARCH). Surfaced as owner decision D38 (entrench vs a
+  cliff/gorge allowance at steps steeper than the side slope); built as ruled until then.
+CHAIN 5 (the same exe 09:38:02, no code change): the terrain set and the WorldForge set.
+PREDICTIONS: C5.1 terrain set 105/105 (golden, v1 hashes, TerrainRiverTest unchanged - version 1 untouched; the natural-ground pin unchanged).
+  C5.2 WorldForge set 89 or 90 of 90: EarthworkTest.DeepCutsAreWalledNotCliffed may go either way (the roads re-route on the re-profiled
+  terrain; no control) - recorded, not predicted; everything else green. C5.3 BridgeSpanTest Mountains 424242: >= 20 bridges.
+CHAIN 5 (exe 09:38:02; terrain run ended 09:48:34 - m2d4r_r5_terrain.txt; forge run 09:48:39-10:15:27 - m2d4r_r5_forge.txt):
+  terrain set [  PASSED  ] 105 tests  (C5.1 MET)
+  WorldForge set 89 ok, 1 failed: EarthworkTest.DeepCutsAreWalledNotCliffed - "1 sections with a 3+ cube step along the bank" at (-9187,11306),
+    118 sections / 118 cut sides walled / 0 banks steeper than repose - the same single section as at the commit (C5.2: recorded, the M4b-4 open item unchanged)
+  BridgeSpanTest Mountains 424242: 258 crossings (35 carved, 223 creeks), 35 bridges, 8 refused demands (all D33 cut faces)  (C5.3 MET; unchanged from the commit)
+  Mountains plan hash in Debug 15032628875038664707 (the Release L4 hash on the committed engine was 17486187508443840908 - the plan hash moves with the profile; the version-1 hashes pinned and green).
+RELEASE L4 after the residual closure: NOT RUN (the after-L4 of the commit was harness-killed; a re-run waits for the owner's word, the standing rule).
+AUDIT 2 (2026-10-30, solution-auditor on the tree after chain 5; raw): "VERDICT: FAIL (narrow). Process and numbers are sound, but the
+  headline "CLOSED" overstates what the test measures." Items, all accepted: (1) the section test's bounds are unchanged from the commit
+  (confirmed); the monotone test's change (own.bedProfile, tolerance 1e-3, the raw bed step printed not asserted) was made after its own
+  red and the 0.42 u raw rise is NOT asserted - stated as such everywhere; (2) evidence postdates the code (shas and stamps confirmed);
+  (3) the claim's "lips 0, walls 0" must say "outside the fold / second-branch / cascade class, which holds 1 embankment of 2.5 u and
+  3 lips to 7.7 u on Mountains (2 lips to 1.1 u on the baseline)"; (4) misses recorded honestly; (5) the lever is exact only under the
+  linear rim and for the immediate downstream vertex - the measured test is the validation; (6) D38 is a finding from the log;
+  (7) "the test goes green largely because the channel is lowered up to 133 u until it sits under its banks ... calling the residual
+  CLOSED trades one defect for another; no test bounds how deep the channel gets." -> the wording is now "the section test GREEN on
+  both worlds outside the fold class; the entrenchment (D38) OPEN", and the auditor's depth guard is written as the D38 RED test:
+PATCH 23: RiverGeometryTest.ChannelsAreNotEntrenchedBeyondOneCellsSideDrop - on Mountains 424242 the cumulative lowering of any reach
+  (PerchStats) must not exceed one cell's side-slope drop, kValleySideSlope x cellSize = 22.4 u (DERIVED from the ruled rules: a
+  lowering beyond it came through a chain, i.e. entrenchment beyond the reach's own step); the five deepest printed.
+PREDICTION P23.1: RED - max lowering 133.1 u vs 22.4 u, the printed deepest the same five cells as GREEN 22 (the same exe + recipe).
+D38 RED RUN (patch 23; build 10:20:05-10:20:16, exe 10:20:12, run to 10:20:38; m2d4r_r6_d38.txt):
+  [ D38 ] Mountains 424242: perch rounds 7 over 1984 carved reaches, cumulative lowering max 133.1 u (one cell's side drop 22.4 u), sum 47579 u, 1317 reaches lowered by more than 8 u
+  the five deepest: (664,718) 133.1 u <- (665,718) 131.1 <- (665,717) 127.7 <- (666,717) 124.4 <- (666,716) 122.6, none folded, deficits 61.4 / 43.5 / 46.8 / 34.1 / 23.4 u
+  error: Expected: (ps.maxLowering) <= (oneCellDrop), actual: 133.062119 vs 22.4  -> [  FAILED  ] RiverGeometryTest.ChannelsAreNotEntrenchedBeyondOneCellsSideDrop
+  P23.1 MET: RED on the ruled rules, the same five cells as GREEN 22. Left red in the tree until D38 is ruled (the M2d-4 precedent).
+Committed in this state: the section test green on both worlds outside the fold class; three red tests recorded by design
+(the D38 entrenchment guard, EarthworkTest.DeepCutsAreWalledNotCliffed); the Release L4 and timings OPEN.

@@ -192,7 +192,7 @@ TEST(RiverGeometryTest, BedIsMonotoneAlongTheLongestChannel) {
     for (int c = head; ; c = n.down[c]) { chain.push_back(c); if (n.down[c] == c || chain.size() > 100000) break; }
     ASSERT_GT(chain.size(), 10u);
     int rises = 0, checked = 0, creekRises = 0, creekChecked = 0; float worstRise = 0.0f; int worstAt = -1;
-    float prev = 1e30f; bool prevWet = true;
+    float prev = 1e30f, prevProfile = 1e30f; bool prevWet = true; int bedRises = 0;
     for (int c : chain) {
         const glm::vec2 target = n.centre(c);
         const glm::ivec2 col = columnUnderWarp(g, target);
@@ -211,10 +211,15 @@ TEST(RiverGeometryTest, BedIsMonotoneAlongTheLongestChannel) {
         // counted and printed, not asserted.
         const bool carvedCell = n.f->carvedRiverAt(target.x, target.y);
         if (prev < 1e29f && !wet && !prevWet) {
-            const float rise = s.bedHeight - prev;
+            // the carved bed at a column is the profile + the parabolic section at the column's lateral offset;
+            // two columns under consecutive cell centres sit at different offsets, so the LONGITUDINAL measure is
+            // the profile the sampler carved from (own.bedProfile); the raw bed step is counted and printed
+            const float bedRise = s.bedHeight - prev;
+            const float rise = carvedCell ? own.bedProfile - prevProfile : bedRise;
+            if (carvedCell && bedRise > 1.0f / 3.0f + 1e-4f) ++bedRises;
             if (!carvedCell) { ++creekChecked; if (rise > 1.0f / 3.0f + 1e-4f) ++creekRises; }
             else ++checked;
-            if (carvedCell && rise > 1.0f / 3.0f + 1e-4f) {
+            if (carvedCell && rise > 1e-3f) {
                 ++rises;
                 if (rise > worstRise) { worstRise = rise; worstAt = c; }
                 const auto hit = g.channelHitAt(static_cast<float>(col.x) + 0.5f, static_cast<float>(col.y) + 0.5f);
@@ -225,12 +230,12 @@ TEST(RiverGeometryTest, BedIsMonotoneAlongTheLongestChannel) {
                             n.f->carvedRiverAt(target.x, target.y) ? 1 : 0);
             }
         }
-        prev = s.bedHeight; prevWet = wet;
+        prev = s.bedHeight; prevProfile = own.bedProfile; prevWet = wet;
     }
-    std::printf("[ M2d ] longest channel: %zu cells (accum %d at the mouth), carved reach: %d bed steps checked, %d rise downstream, worst rise %.2f u%s; creek reach: %d steps, %d rise (dips left as pond basins)\n",
+    std::printf("[ M2d ] longest channel: %zu cells (accum %d at the mouth), carved reach: %d profile steps checked, %d rise downstream, worst rise %.2f u%s (raw bed steps up by more than 1/3 u: %d, the section at the column's offset); creek reach: %d steps, %d rise (dips left as pond basins)\n",
                 chain.size(), n.accum[mouth], checked, rises, worstRise,
                 worstAt >= 0 ? (" at (" + std::to_string(static_cast<int>(n.centre(worstAt).x)) + "," + std::to_string(static_cast<int>(n.centre(worstAt).y)) + ")").c_str() : "",
-                creekChecked, creekRises);
+                bedRises, creekChecked, creekRises);
     ASSERT_GT(checked, 0) << "no carved reach on the longest channel";
     EXPECT_EQ(rises, 0) << "the carved bed rises downstream: a stream flowing uphill";
 }
@@ -538,6 +543,39 @@ void pinNaturalGround(WorldGenerator& g, const char* name) {
     std::printf("[ M2d-4 ] %s: naturalGroundAt vs sampleSurface().bedHeight: %d columns checked, %d differ (worst %.3f u)\n", name, checked, mismatches, worst);
     ASSERT_GT(checked, 500);
     EXPECT_EQ(mismatches, 0) << name << ": naturalGroundAt is not the ground the sampler emits";
+}
+
+// ============================================================================
+// D38 (OPEN, 2026-10-30) - THE RED TEST FOR THE NEXT INCREMENT, left red in the tree like the M2d-4 red
+// was before its ruling: a channel is never ENTRENCHED beyond one cell's side-slope drop. The perch rule
+// (D37: a reach is never perched above its own valley side) lowers a reach's base to the envelope beside
+// it; at a natural step steeper than the side slope the reach above the step must drop by the step's
+// excess, and - downstream first - so must every reach above THAT one: the whole channel upstream of a
+// cascade is cut into a gorge as deep as the excess (Mountains 424242 after the residual closure: a chain of
+// five consecutive cells lowered 122-133 u, 1 317 of 1 984 reaches lowered by more than 8 u; GREEN 22,
+// m2d4_red_green.txt). The bound asserted here is DERIVED from the ruled rules, not read from a source:
+// kValleySideSlope x the bake cell = the deepest drop ONE cell's side can carry (22.4 u at 32 u cells);
+// any reach lowered by more than that was lowered by a chain, i.e. entrenched beyond its own step. The
+// bound a real gorge may reach (section 10: NEEDS-RESEARCH) and the rule at the lip (D38 b/c) are the
+// owner's call; this test states the magnitude the ruled rules produce and fails on it.
+TEST(RiverGeometryTest, ChannelsAreNotEntrenchedBeyondOneCellsSideDrop) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 424242u);
+    WorldRecipe r = v2Recipe(424242u);
+    r.type = "Mountains";
+    g.applyRecipe(r);
+    ASSERT_TRUE(g.riverNetwork());
+    const FlowField* f = g.riverNetwork();
+    const FlowField::PerchStats& ps = f->perchStats();
+    const float oneCellDrop = FlowField::kValleySideSlope * f->cellSize();
+    std::printf("[ D38 ] Mountains 424242: perch rounds %d over %d carved reaches, cumulative lowering max %.1f u (one cell's side drop %.1f u), sum %.0f u, %d reaches lowered by more than 8 u\n",
+                ps.rounds, ps.reaches, ps.maxLowering, oneCellDrop, ps.sumLowering, ps.loweredOver8);
+    for (const FlowField::PerchStats::Deep& d : ps.deepest)
+        std::printf("[ D38 ]   cell %d (%d,%d) lowered %.1f u over %d rounds, last driven by source %d (%d,%d) folded %d, deficit %.1f u\n",
+                    d.cell, d.cell % f->cellsX(), d.cell / f->cellsX(), d.lowering, d.rounds, d.lastSrc,
+                    d.lastSrc >= 0 ? d.lastSrc % f->cellsX() : -1, d.lastSrc >= 0 ? d.lastSrc / f->cellsX() : -1,
+                    d.lastSrc >= 0 && f->isFoldedSource(d.lastSrc) ? 1 : 0, d.lastDeficit);
+    ASSERT_GT(ps.reaches, 0);
+    EXPECT_LE(ps.maxLowering, oneCellDrop) << "a channel entrenched beyond one cell's side-slope drop: the perch rule chained a cascade's excess upstream (D38)";
 }
 
 TEST(RiverGeometryTest, NaturalGroundMatchesTheSamplerOffChannel) {

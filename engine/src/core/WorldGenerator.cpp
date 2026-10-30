@@ -580,6 +580,21 @@ void WorldGenerator::rebuildCoarseModel() {
     if (mesoBake)
         LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] M2d-4 valley envelope: " << m_flow->valleySourceCount()
                  << " source entries, warp inversions beyond 1 u: " << m_warpInverseFailures);
+    if (mesoBake) {
+        const FlowField::PerchStats& ps = m_flow->perchStats();
+        std::string per;
+        for (size_t i = 0; i < ps.changed.size(); ++i) per += (i ? "," : "") + std::to_string(ps.changed[i]);
+        LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] M2d-4 perch rounds: " << ps.rounds << " over " << ps.reaches
+                 << " carved reaches, reaches moved per round [" << per << "], cumulative lowering max " << ps.maxLowering
+                 << " u, sum " << ps.sumLowering << " u, " << ps.loweredOver8 << " reaches lowered by more than 8 u; band columns "
+                 << ps.columns << ", bank reads " << ps.banks << ", band overflows " << ps.overflow << ", last round's worst deficit "
+                 << ps.worstDeficitLeft << " u");
+        for (const FlowField::PerchStats::Deep& dp : ps.deepest)
+            LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] M2d-4 perch deepest: cell " << dp.cell << " (" << dp.cell % m_flow->cellsX() << "," << dp.cell / m_flow->cellsX()
+                     << ") lowered " << dp.lowering << " u over " << dp.rounds << " rounds, last driven by source " << dp.lastSrc
+                     << (dp.lastSrc >= 0 ? " (" + std::to_string(dp.lastSrc % m_flow->cellsX()) + "," + std::to_string(dp.lastSrc / m_flow->cellsX()) + ")" : std::string())
+                     << " folded " << (dp.lastSrc >= 0 && m_flow->isFoldedSource(dp.lastSrc) ? 1 : 0) << " deficit " << dp.lastDeficit << " u");
+    }
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << hydroCells << "x" << hydroCells
              << " cells at " << hydroCell << " u" << (mesoBake ? " (meso, centre-sampled, " : " (")
              << inflows.size() << " macro inflows), seaLevel=" << seaLvl << ", maxAccum=" << m_flow->maxAccum()
