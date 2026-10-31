@@ -1,0 +1,12 @@
+{
+ "note": "fewer than three near runs: no spread, no verdict",
+ "pool": {
+  "keys": {
+   "l2_r24": null
+  },
+  "unrecorded": [
+   "l2_r24"
+  ],
+  "mixed_forced": false
+ }
+}

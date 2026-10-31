@@ -11748,6 +11748,14 @@ the ripple layer (far ponds hold none: L2) - the ripple layer is drawn only, no 
 A second session on the same binary, far first (order counterbalanced), is pooled with it below. The fence's self-check failed
 3 of 6 near runs again: at 6 near runs the fence is still not calibrated, so it is reported and not counted.
 
+**The second session** (`l5_a13_shipped2.json`, the same binary, far first): distribution PASS. **Pooled** (12 + 12, two strata,
+`l5_pooled_a13_shipped_a13_shipped2.json`): **PASS**, every test powered; the fence, now calibrated (its self-check passed all 12
+near runs), passes too. The wood's lean is gone (smallest p of the 20: pond m^3 location 0.13; wood rest time no longer among the
+lowest six). **So the shipped build - displacement, hand-over, L2, L3, L4 - changes no outcome by distance that 12 + 12 runs can
+see.** (The pool key first included the hand-over's running counters and refused the pair - fixed to its settings, mm and s.)
+What this does not cover: tiers (none exist yet), other bodies and ponds than L5's stone and wood in the 4 x 4 m pond, and shifts
+smaller than this design's power (at 12 + 12 a shift of about one run-to-run spread).
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

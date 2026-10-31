@@ -1,0 +1,6388 @@
+{
+ "status": {
+  "build_config": "Release"
+ },
+ "y0": 17.67666666666667,
+ "runs": [
+  {
+   "run": "far_a",
+   "viewer": [
+    302.0,
+    18.0,
+    14.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     302.0,
+     18.0,
+     14.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     302.0,
+     18.0,
+     14.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.0,
+   "level": 16.49997329711914,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.014,
+      15.1665,
+      13.991
+     ],
+     "rest_t": 4.7333,
+     "y_max": 17.6767,
+     "y_min": 15.1656,
+     "rows": 2646
+    },
+    "wood": {
+     "rest_pose": [
+      103.233,
+      16.4343,
+      14.3333
+     ],
+     "rest_t": 5.8167,
+     "y_max": 17.674,
+     "y_min": 16.1187,
+     "rows": 2645
+    }
+   },
+   "pond": [
+    {
+     "t": 0.02,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.53,
+     "volumes": 1,
+     "mass": 23.999716542951234,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.06,
+     "volumes": 1,
+     "mass": 23.999829068673915,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.57,
+     "volumes": 1,
+     "mass": 23.99773394688497,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.07,
+     "volumes": 1,
+     "mass": 23.999984461338567,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.12,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.75,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.25,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.78,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.29,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 8.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 8.89,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.43,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.0,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.53,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.06,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.58,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.22,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.74,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.25,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.81,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.89,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.43,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.96,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 19.5,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.03,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.55,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.1,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.64,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.17,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.7,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.24,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.78,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.31,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.85,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.39,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.92,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.45,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.97,
+     "volumes": 1,
+     "mass": 23.999997857257934,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.51,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.04,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.55,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.08,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.61,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 306,
+    "buffers_allocated": 1816,
+    "held_bytes": 0,
+    "hits": 6,
+    "kept": 12,
+    "last_sleep_free_ms": 12.4084,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.5406,
+    "misses": 6,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 6,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 0,
+   "pond_asleep_s": 44.1,
+   "displace": true
+  },
+  {
+   "run": "near_a",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000001907348633,
+   "level": 16.5000057220459,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.016,
+      15.1667,
+      13.9833
+     ],
+     "rest_t": 4.75,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1823
+    },
+    "wood": {
+     "rest_pose": [
+      103.172,
+      16.4414,
+      13.7512
+     ],
+     "rest_t": 5.1167,
+     "y_max": 17.6767,
+     "y_min": 16.1164,
+     "rows": 1822
+    }
+   },
+   "pond": [
+    {
+     "t": 0.03,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.56,
+     "volumes": 1,
+     "mass": 23.999989819706315,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.62,
+     "volumes": 1,
+     "mass": 23.997964356698077,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.16,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.72,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.24,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.77,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.83,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.43,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.95,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.46,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.99,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.52,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.07,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.12,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.66,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.2,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.27,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.81,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.87,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.4,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.94,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.46,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.08,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.22,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.75,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.29,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.83,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.9,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.95,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.02,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.1,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.67,
+     "volumes": 1,
+     "mass": 0.0,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.2,
+     "volumes": 1,
+     "mass": 0.0,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.74,
+     "volumes": 1,
+     "mass": 23.99999978755068,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.27,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.77,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.29,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.82,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 306,
+    "buffers_allocated": 1979,
+    "held_bytes": 12574480,
+    "hits": 6,
+    "kept": 13,
+    "last_sleep_free_ms": 0.3066,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.5406,
+    "misses": 7,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 6,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 27.74,
+   "displace": true
+  },
+  {
+   "run": "far_b",
+   "viewer": [
+    302.0,
+    18.0,
+    14.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     302.0,
+     18.0,
+     14.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     302.0,
+     18.0,
+     14.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 23.999998092651367,
+   "level": 16.499975204467773,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.018,
+      15.1667,
+      13.9817
+     ],
+     "rest_t": 5.15,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1960
+    },
+    "wood": {
+     "rest_pose": [
+      103.146,
+      16.4346,
+      14.1792
+     ],
+     "rest_t": 5.8,
+     "y_max": 17.6767,
+     "y_min": 16.1186,
+     "rows": 1959
+    }
+   },
+   "pond": [
+    {
+     "t": 0.02,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.53,
+     "volumes": 1,
+     "mass": 23.99992284010948,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.06,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.59,
+     "volumes": 1,
+     "mass": 23.99683909947128,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.12,
+     "volumes": 1,
+     "mass": 23.999866577248138,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.65,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.19,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.73,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.79,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.31,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.83,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.37,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.9,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.42,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 8.47,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 8.99,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.5,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.04,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.56,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.1,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.61,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.2,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.74,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.79,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.94,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.47,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.98,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 19.53,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.05,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.58,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.1,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.63,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.16,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.7,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.73,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.27,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.78,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.92,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.45,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.98,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.48,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 30.0,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 357,
+    "buffers_allocated": 2087,
+    "held_bytes": 0,
+    "hits": 7,
+    "kept": 14,
+    "last_sleep_free_ms": 13.7778,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.5406,
+    "misses": 7,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 7,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 0,
+   "pond_asleep_s": 32.6,
+   "displace": true
+  },
+  {
+   "run": "near_b",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000001907348633,
+   "level": 16.499980926513672,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.019,
+      15.1666,
+      13.977
+     ],
+     "rest_t": 5.1167,
+     "y_max": 17.6767,
+     "y_min": 15.166,
+     "rows": 2186
+    },
+    "wood": {
+     "rest_pose": [
+      103.145,
+      16.4345,
+      13.8067
+     ],
+     "rest_t": 5.6833,
+     "y_max": 17.6767,
+     "y_min": 16.1176,
+     "rows": 2185
+    }
+   },
+   "pond": [
+    {
+     "t": 0.03,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.54,
+     "volumes": 1,
+     "mass": 23.999802276835183,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.04,
+     "volumes": 1,
+     "mass": 23.999941594396592,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.6,
+     "volumes": 1,
+     "mass": 23.996860532942268,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.13,
+     "volumes": 1,
+     "mass": 23.999877293983634,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.66,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.19,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.7,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.22,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.27,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.8,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.33,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.86,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.38,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.02,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.55,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.18,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.7,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.72,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.24,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.75,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.81,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.42,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.95,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.48,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.03,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.23,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.75,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.87,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.94,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.47,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.0,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.53,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.61,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.14,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 357,
+    "buffers_allocated": 2246,
+    "held_bytes": 12574480,
+    "hits": 7,
+    "kept": 15,
+    "last_sleep_free_ms": 0.2898,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.5406,
+    "misses": 8,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 7,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 36.5,
+   "displace": true
+  },
+  {
+   "run": "far_c",
+   "viewer": [
+    302.0,
+    18.0,
+    14.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     302.0,
+     18.0,
+     14.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     302.0,
+     18.0,
+     14.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.0,
+   "level": 16.499980926513672,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.015,
+      15.1666,
+      13.9802
+     ],
+     "rest_t": 4.75,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1815
+    },
+    "wood": {
+     "rest_pose": [
+      103.167,
+      16.4343,
+      13.7374
+     ],
+     "rest_t": 5.85,
+     "y_max": 17.6767,
+     "y_min": 16.1151,
+     "rows": 1815
+    }
+   },
+   "pond": [
+    {
+     "t": 0.01,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.55,
+     "volumes": 1,
+     "mass": 23.999837106225534,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.08,
+     "volumes": 1,
+     "mass": 23.99991480255786,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.62,
+     "volumes": 1,
+     "mass": 23.996978417032693,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.16,
+     "volumes": 1,
+     "mass": 23.99971118458349,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.7,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.23,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.81,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.86,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.39,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.92,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.46,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 8.51,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.06,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.58,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.12,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.66,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.18,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.73,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.8,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.31,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.84,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.37,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.48,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.98,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.52,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.07,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.59,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 19.12,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 19.65,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.16,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.74,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.86,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.39,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.93,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.46,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.0,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.07,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.59,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.12,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.64,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.16,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.69,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 408,
+    "buffers_allocated": 2353,
+    "held_bytes": 0,
+    "hits": 8,
+    "kept": 16,
+    "last_sleep_free_ms": 15.0828,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.5406,
+    "misses": 8,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 8,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 0,
+   "pond_asleep_s": 27.07,
+   "displace": true
+  },
+  {
+   "run": "near_c",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.0000057220459,
+   "level": 16.49998664855957,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.014,
+      15.1666,
+      13.9843
+     ],
+     "rest_t": 5.1,
+     "y_max": 17.6767,
+     "y_min": 15.1659,
+     "rows": 2387
+    },
+    "wood": {
+     "rest_pose": [
+      103.187,
+      16.4345,
+      13.7291
+     ],
+     "rest_t": 5.7667,
+     "y_max": 17.6767,
+     "y_min": 16.1165,
+     "rows": 2387
+    }
+   },
+   "pond": [
+    {
+     "t": 0.0,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.54,
+     "volumes": 1,
+     "mass": 23.999796918467435,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.05,
+     "volumes": 1,
+     "mass": 23.999952311132088,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.59,
+     "volumes": 1,
+     "mass": 23.997594629323558,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.09,
+     "volumes": 1,
+     "mass": 23.999984461338567,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.61,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.2,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.24,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.29,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.33,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.93,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.96,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.56,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.63,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.14,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.2,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.72,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.79,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.83,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.86,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.38,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.9,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.93,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.45,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.98,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.02,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.56,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.16,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.22,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.73,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.27,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.8,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.89,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.43,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.96,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 408,
+    "buffers_allocated": 2512,
+    "held_bytes": 12574480,
+    "hits": 8,
+    "kept": 17,
+    "last_sleep_free_ms": 0.3301,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.5406,
+    "misses": 9,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 8,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 39.8,
+   "displace": true
+  },
+  {
+   "run": "far_d",
+   "viewer": [
+    302.0,
+    18.0,
+    14.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     302.0,
+     18.0,
+     14.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     302.0,
+     18.0,
+     14.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 23.999998092651367,
+   "level": 16.499998092651367,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.018,
+      15.1666,
+      13.9732
+     ],
+     "rest_t": 5.1833,
+     "y_max": 17.6767,
+     "y_min": 15.1656,
+     "rows": 1820
+    },
+    "wood": {
+     "rest_pose": [
+      103.103,
+      16.4361,
+      13.8207
+     ],
+     "rest_t": 5.7167,
+     "y_max": 17.674,
+     "y_min": 16.1144,
+     "rows": 1819
+    }
+   },
+   "pond": [
+    {
+     "t": 0.03,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.57,
+     "volumes": 1,
+     "mass": 23.999823710306167,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.09,
+     "volumes": 1,
+     "mass": 23.999365569863826,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.63,
+     "volumes": 1,
+     "mass": 23.99697573784882,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.14,
+     "volumes": 1,
+     "mass": 23.99991480255786,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.73,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.24,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.84,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.37,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.9,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 8.51,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.04,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.58,
+     "volumes": 1,
+     "mass": 23.999997857257934,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.11,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.65,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.18,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.72,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.81,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.93,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.02,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.55,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.08,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 19.22,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 19.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.29,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.94,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.47,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.0,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.52,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.05,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.57,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.1,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.22,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.75,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.26,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.76,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 459,
+    "buffers_allocated": 2623,
+    "held_bytes": 0,
+    "hits": 9,
+    "kept": 18,
+    "last_sleep_free_ms": 12.2867,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.5406,
+    "misses": 9,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 9,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 0,
+   "pond_asleep_s": 28.22,
+   "displace": true
+  },
+  {
+   "run": "near_d",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.0,
+   "level": 16.499977111816406,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.014,
+      15.1665,
+      13.981
+     ],
+     "rest_t": 4.8333,
+     "y_max": 17.6767,
+     "y_min": 15.1655,
+     "rows": 1798
+    },
+    "wood": {
+     "rest_pose": [
+      102.904,
+      16.4414,
+      13.8701
+     ],
+     "rest_t": 4.8833,
+     "y_max": 17.6767,
+     "y_min": 16.1176,
+     "rows": 1797
+    }
+   },
+   "pond": [
+    {
+     "t": 0.03,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.57,
+     "volumes": 1,
+     "mass": 23.999917481741733,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.08,
+     "volumes": 1,
+     "mass": 23.999145876786216,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.6,
+     "volumes": 1,
+     "mass": 23.99651491822261,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.12,
+     "volumes": 1,
+     "mass": 23.999470058034888,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.67,
+     "volumes": 1,
+     "mass": 23.999780843364192,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.74,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.79,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.32,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.86,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.43,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.96,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.5,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.02,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.56,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.08,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.14,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.19,
+     "volumes": 1,
+     "mass": 23.999997857257934,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.24,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.77,
+     "volumes": 1,
+     "mass": 23.999997857257934,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.95,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.48,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.52,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.05,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.59,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.61,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.98,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.51,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.04,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.59,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.11,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.63,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.18,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.24,
+     "volumes": 1,
+     "mass": 0.0,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.76,
+     "volumes": 1,
+     "mass": 23.99999986460881,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.28,
+     "volumes": 1,
+     "mass": 23.99999986460881,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.82,
+     "volumes": 1,
+     "mass": 23.99999986460881,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.35,
+     "volumes": 1,
+     "mass": 23.99999986460881,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.86,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 459,
+    "buffers_allocated": 2782,
+    "held_bytes": 12574480,
+    "hits": 9,
+    "kept": 19,
+    "last_sleep_free_ms": 0.3329,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.5406,
+    "misses": 10,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 9,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 29.35,
+   "displace": true
+  },
+  {
+   "run": "far_e",
+   "viewer": [
+    302.0,
+    18.0,
+    14.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     302.0,
+     18.0,
+     14.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     302.0,
+     18.0,
+     14.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000001907348633,
+   "level": 16.499969482421875,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.013,
+      15.1666,
+      13.9922
+     ],
+     "rest_t": 5.1,
+     "y_max": 17.6767,
+     "y_min": 15.1654,
+     "rows": 1809
+    },
+    "wood": {
+     "rest_pose": [
+      103.202,
+      16.4346,
+      14.2578
+     ],
+     "rest_t": 5.8333,
+     "y_max": 17.6767,
+     "y_min": 16.1179,
+     "rows": 1809
+    }
+   },
+   "pond": [
+    {
+     "t": 0.01,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.56,
+     "volumes": 1,
+     "mass": 23.999748693157713,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.08,
+     "volumes": 1,
+     "mass": 23.999933556844972,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.61,
+     "volumes": 1,
+     "mass": 23.997983110985192,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.12,
+     "volumes": 1,
+     "mass": 23.999775484996444,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.65,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.18,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.69,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.23,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.75,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.79,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.33,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.87,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.4,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.94,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 8.45,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 8.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.53,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.07,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.63,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.7,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.23,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.75,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.83,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.42,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.95,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.46,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.96,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 19.51,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.03,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.57,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.1,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.63,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.16,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.69,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.74,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.8,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.87,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.94,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.45,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.53,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.63,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 510,
+    "buffers_allocated": 2889,
+    "held_bytes": 0,
+    "hits": 10,
+    "kept": 20,
+    "last_sleep_free_ms": 12.4183,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.5406,
+    "misses": 10,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 10,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 0,
+   "pond_asleep_s": 30.1,
+   "displace": true
+  },
+  {
+   "run": "near_e",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000003814697266,
+   "level": 16.499971389770508,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.01,
+      15.1667,
+      13.9922
+     ],
+     "rest_t": 5.5,
+     "y_max": 17.6767,
+     "y_min": 15.1665,
+     "rows": 1790
+    },
+    "wood": {
+     "rest_pose": [
+      103.137,
+      16.4393,
+      13.6696
+     ],
+     "rest_t": 5.5,
+     "y_max": 17.6767,
+     "y_min": 16.1176,
+     "rows": 1790
+    }
+   },
+   "pond": [
+    {
+     "t": 0.02,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.56,
+     "volumes": 1,
+     "mass": 23.99970582621574,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.09,
+     "volumes": 1,
+     "mass": 23.999097651476493,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.62,
+     "volumes": 1,
+     "mass": 23.997337427671717,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.15,
+     "volumes": 1,
+     "mass": 23.999652242538275,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.21,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.74,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.27,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.81,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.86,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.38,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.94,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.02,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.55,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.08,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.14,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.19,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.73,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.79,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.32,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.96,
+     "volumes": 1,
+     "mass": 23.999997857257934,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.02,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.58,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.12,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.66,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.2,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.75,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.84,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.9,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.51,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.04,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.57,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.09,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.16,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.68,
+     "volumes": 1,
+     "mass": 0.0,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.22,
+     "volumes": 1,
+     "mass": 0.0,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.74,
+     "volumes": 1,
+     "mass": 23.999999855787483,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.28,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.8,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.33,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.86,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 510,
+    "buffers_allocated": 3051,
+    "held_bytes": 12574480,
+    "hits": 10,
+    "kept": 21,
+    "last_sleep_free_ms": 0.2928,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.5406,
+    "misses": 11,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 10,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 27.74,
+   "displace": true
+  },
+  {
+   "run": "far_f",
+   "viewer": [
+    302.0,
+    18.0,
+    14.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     302.0,
+     18.0,
+     14.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     302.0,
+     18.0,
+     14.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.00000762939453,
+   "level": 16.499984741210938,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.02,
+      15.1666,
+      13.9795
+     ],
+     "rest_t": 4.8,
+     "y_max": 17.6767,
+     "y_min": 15.1662,
+     "rows": 1819
+    },
+    "wood": {
+     "rest_pose": [
+      102.819,
+      16.4334,
+      14.2024
+     ],
+     "rest_t": 5.5833,
+     "y_max": 17.6767,
+     "y_min": 16.1166,
+     "rows": 1819
+    }
+   },
+   "pond": [
+    {
+     "t": 0.03,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.55,
+     "volumes": 1,
+     "mass": 23.99996302786758,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.07,
+     "volumes": 1,
+     "mass": 23.99997374460307,
+     "ripple_slots": 0
+    },
+    {
+     "t": 1.59,
+     "volumes": 1,
+     "mass": 23.997163280719953,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.11,
+     "volumes": 1,
+     "mass": 23.99988265235138,
+     "ripple_slots": 0
+    },
+    {
+     "t": 2.64,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.18,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 3.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.24,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 4.76,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 5.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 6.88,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.41,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 7.93,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 8.47,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.0,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 9.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.07,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 10.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 11.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.23,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 12.77,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 13.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.35,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 14.86,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.39,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 15.92,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.45,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 16.99,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 17.53,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.07,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 18.63,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 19.16,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 19.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.23,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 20.77,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 21.82,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.36,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 22.9,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.44,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 23.98,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 24.52,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.04,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 25.55,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.08,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 0
+    },
+    {
+     "t": 26.6,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.11,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 27.65,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.17,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 28.69,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.23,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 29.75,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "fresh",
+   "kept_before_drop": {
+    "buffers_adopted": 561,
+    "buffers_allocated": 3157,
+    "held_bytes": 0,
+    "hits": 11,
+    "kept": 22,
+    "last_sleep_free_ms": 12.0323,
+    "last_wake_hit": true,
+    "max_pump_ms": 1.5406,
+    "misses": 11,
+    "ponds": 0,
+    "released_cap": 0,
+    "released_far": 11,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 0,
+   "pond_asleep_s": 26.08,
+   "displace": true
+  },
+  {
+   "run": "near_f",
+   "viewer": [
+    102.0,
+    18.0,
+    20.0
+   ],
+   "far_record_dry": false,
+   "locality": {
+    "draw_m": 48.0,
+    "draw_m_default": 48.0,
+    "memory_cap_mb": 256.0,
+    "memory_cap_mb_default": 256.0,
+    "memory_m": 48.0,
+    "memory_m_default": 48.0,
+    "ripple_fade_m": 8.0,
+    "ripple_fade_m_default": 8.0,
+    "ripple_m": 21.0,
+    "ripple_m_default": 21.0,
+    "ripple_m_max": 24.0,
+    "ripple_reach": true,
+    "ripple_reach_default": true,
+    "ripple_window_cells": 384,
+    "ripple_window_cells_default": 384,
+    "ripple_window_cells_used": false,
+    "ripple_window_side": 458,
+    "test_far_record_dry": false,
+    "test_keep_memory_off": false,
+    "test_viewer": [
+     102.0,
+     18.0,
+     20.0
+    ],
+    "test_viewer_on": true,
+    "viewer": [
+     102.0,
+     18.0,
+     20.0
+    ]
+   },
+   "pond_woke": true,
+   "pond_slept_again": true,
+   "recorded_m3_before": 24.0,
+   "recorded_m3_after": 24.000003814697266,
+   "level": 16.499971389770508,
+   "bodies": {
+    "stone": {
+     "rest_pose": [
+      101.01,
+      15.1666,
+      13.9927
+     ],
+     "rest_t": 4.75,
+     "y_max": 17.6767,
+     "y_min": 15.166,
+     "rows": 1811
+    },
+    "wood": {
+     "rest_pose": [
+      103.209,
+      16.4402,
+      14.3149
+     ],
+     "rest_t": 5.1333,
+     "y_max": 17.6767,
+     "y_min": 16.1192,
+     "rows": 1810
+    }
+   },
+   "pond": [
+    {
+     "t": 0.03,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    },
+    {
+     "t": 0.57,
+     "volumes": 1,
+     "mass": 23.999491491505875,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.09,
+     "volumes": 1,
+     "mass": 23.99899852167318,
+     "ripple_slots": 1
+    },
+    {
+     "t": 1.64,
+     "volumes": 1,
+     "mass": 23.99759730850743,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.15,
+     "volumes": 1,
+     "mass": 23.999952311132088,
+     "ripple_slots": 1
+    },
+    {
+     "t": 2.71,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.23,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 3.77,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.3,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 4.81,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.34,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 5.86,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.4,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 6.91,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.43,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 7.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 8.51,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.05,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 9.6,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.13,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 10.65,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.19,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 11.72,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.26,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 12.8,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.32,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 13.87,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.4,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 14.93,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.46,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 15.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 16.51,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.05,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 17.58,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.1,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 18.63,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 19.68,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.19,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 20.74,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.28,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 21.83,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.37,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 22.89,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.43,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 23.97,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 24.49,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.01,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 25.54,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.08,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 26.62,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.15,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 27.67,
+     "volumes": 1,
+     "mass": 24.000000536441807,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.18,
+     "volumes": 1,
+     "mass": 0.0,
+     "ripple_slots": 1
+    },
+    {
+     "t": 28.71,
+     "volumes": 1,
+     "mass": 23.999999754333366,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.25,
+     "volumes": 1,
+     "mass": 23.999999754333366,
+     "ripple_slots": 1
+    },
+    {
+     "t": 29.77,
+     "volumes": 0,
+     "mass": null,
+     "ripple_slots": 0
+    }
+   ],
+   "wake_path": "kept",
+   "kept_before_drop": {
+    "buffers_adopted": 561,
+    "buffers_allocated": 3315,
+    "held_bytes": 12574480,
+    "hits": 11,
+    "kept": 23,
+    "last_sleep_free_ms": 0.3776,
+    "last_wake_hit": false,
+    "max_pump_ms": 1.5406,
+    "misses": 12,
+    "ponds": 1,
+    "released_cap": 0,
+    "released_far": 11,
+    "released_oom": 0,
+    "released_orphan": 0,
+    "releasing_bytes": 0
+   },
+   "wake_delay_s": 0.0,
+   "wake_pace": true,
+   "pace_late": false,
+   "paced": {
+    "started": 1,
+    "live": 1,
+    "forced_by_deadline": 0,
+    "immediate": 0,
+    "rebuilt": 0,
+    "cancelled": 0,
+    "max_stage_ms": 8.7104,
+    "due_s": 0.1666666753590107
+   },
+   "ripple": null,
+   "ripple_slots_max": 1,
+   "pond_asleep_s": 29.25,
+   "displace": true
+  }
+ ],
+ "compare": [
+  {
+   "run": "near_a",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 7.7,
+    "horiz_mm": 7.96,
+    "dy_mm": 0.2,
+    "rest_ticks": 1,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 582.1,
+    "horiz_mm": 585.29,
+    "dy_mm": 7.1,
+    "rest_ticks": -42,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": 0.03
+  },
+  {
+   "run": "far_b",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 9.3,
+    "horiz_mm": 10.12,
+    "dy_mm": 0.2,
+    "rest_ticks": 25,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 154.1,
+    "horiz_mm": 176.96,
+    "dy_mm": 0.3,
+    "rest_ticks": -1,
+    "rose_above_release": false
+   },
+   "m3": -0.0,
+   "level_mm": 0.0
+  },
+  {
+   "run": "near_b",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 14.0,
+    "horiz_mm": 14.87,
+    "dy_mm": 0.1,
+    "rest_ticks": 23,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 526.6,
+    "horiz_mm": 533.9,
+    "dy_mm": 0.2,
+    "rest_ticks": -8,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": 0.01
+  },
+  {
+   "run": "far_c",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 10.8,
+    "horiz_mm": 10.85,
+    "dy_mm": 0.1,
+    "rest_ticks": 1,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 595.9,
+    "horiz_mm": 599.54,
+    "dy_mm": 0.0,
+    "rest_ticks": 2,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": 0.01
+  },
+  {
+   "run": "near_c",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 6.7,
+    "horiz_mm": 6.7,
+    "dy_mm": 0.1,
+    "rest_ticks": 22,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 604.2,
+    "horiz_mm": 605.95,
+    "dy_mm": 0.2,
+    "rest_ticks": -3,
+    "rose_above_release": false
+   },
+   "m3": 1e-05,
+   "level_mm": 0.01
+  },
+  {
+   "run": "far_d",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 17.8,
+    "horiz_mm": 18.24,
+    "dy_mm": 0.1,
+    "rest_ticks": 27,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 512.6,
+    "horiz_mm": 528.83,
+    "dy_mm": 1.8,
+    "rest_ticks": -6,
+    "rose_above_release": false
+   },
+   "m3": -0.0,
+   "level_mm": 0.02
+  },
+  {
+   "run": "near_d",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 10.0,
+    "horiz_mm": 10.0,
+    "dy_mm": 0.0,
+    "rest_ticks": 6,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 463.2,
+    "horiz_mm": 568.15,
+    "dy_mm": 7.1,
+    "rest_ticks": -56,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": 0.0
+  },
+  {
+   "run": "far_e",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 1.2,
+    "horiz_mm": 1.56,
+    "dy_mm": 0.1,
+    "rest_ticks": 22,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 75.5,
+    "horiz_mm": 81.62,
+    "dy_mm": 0.3,
+    "rest_ticks": 1,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": -0.0
+  },
+  {
+   "run": "near_e",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 4.0,
+    "horiz_mm": 4.18,
+    "dy_mm": 0.2,
+    "rest_ticks": 46,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 663.7,
+    "horiz_mm": 670.61,
+    "dy_mm": 5.0,
+    "rest_ticks": -19,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": -0.0
+  },
+  {
+   "run": "far_f",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 11.5,
+    "horiz_mm": 12.97,
+    "dy_mm": 0.1,
+    "rest_ticks": 4,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 414.0,
+    "horiz_mm": 434.2,
+    "dy_mm": -0.9,
+    "rest_ticks": -14,
+    "rose_above_release": false
+   },
+   "m3": 1e-05,
+   "level_mm": 0.01
+  },
+  {
+   "run": "near_f",
+   "vs": "far_a",
+   "stone": {
+    "pose_mm": 4.0,
+    "horiz_mm": 4.35,
+    "dy_mm": 0.1,
+    "rest_ticks": 1,
+    "rose_above_release": false
+   },
+   "wood": {
+    "pose_mm": 24.0,
+    "horiz_mm": 30.24,
+    "dy_mm": 5.9,
+    "rest_ticks": -41,
+    "rose_above_release": false
+   },
+   "m3": 0.0,
+   "level_mm": -0.0
+  }
+ ],
+ "wake_pace": true,
+ "ripple": null,
+ "displace": true,
+ "handover": {
+  "count": 6,
+  "handing_over": 0,
+  "last_s": 1.0930120944976807,
+  "mm": 1.5,
+  "mm_default": 1.5,
+  "rate_per_s": 1.3432687520980835,
+  "s": 1.5
+ },
+ "wake_delay_s": 0.0,
+ "pace_late": false,
+ "no_kept_memory": false,
+ "identity": {
+  "exe": "G:\\Github\\phyxel\\phyxel.exe",
+  "exe_sha256": "44f73d2d28c334571b2db180798299cf4b8cf616722997206292cd296961a9b7",
+  "exe_mtime": "Thu Oct 29 22:43:34 2026",
+  "git_head": "b2dfcf7320aa2a0b0518580c4019614d21bccb58",
+  "git_dirty": true
+ },
+ "verdict": {
+  "near_runs": [
+   "near_a",
+   "near_b",
+   "near_c",
+   "near_d",
+   "near_e",
+   "near_f"
+  ],
+  "spread": {
+   "m3": {
+    "min": 24.0,
+    "max": 24.0000057220459,
+    "tol": 1.57220458984375e-05
+   },
+   "level": {
+    "min": 16.499971389770508,
+    "max": 16.5000057220459,
+    "tol": 0.000134332275390625
+   },
+   "stone_x": {
+    "min": 101.01,
+    "max": 101.019,
+    "tol": 0.010000000000000342
+   },
+   "stone_y": {
+    "min": 15.1665,
+    "max": 15.1667,
+    "tol": 0.00030000000000131023
+   },
+   "stone_z": {
+    "min": 13.977,
+    "max": 13.9927,
+    "tol": 0.016699999999998938
+   },
+   "stone_rest_t": {
+    "min": 4.75,
+    "max": 5.5,
+    "tol": 0.7668333333333334
+   },
+   "wood_x": {
+    "min": 102.904,
+    "max": 103.209,
+    "tol": 0.3060000000000068
+   },
+   "wood_y": {
+    "min": 16.4345,
+    "max": 16.4414,
+    "tol": 0.007000000000001683
+   },
+   "wood_z": {
+    "min": 13.6696,
+    "max": 14.3149,
+    "tol": 0.6462999999999989
+   },
+   "wood_rest_t": {
+    "min": 4.8833,
+    "max": 5.7667,
+    "tol": 0.9002333333333333
+   }
+  },
+  "runs": {
+   "far_a": {
+    "pass": true,
+    "rose": false,
+    "outside": [],
+    "measures": {
+     "m3": {
+      "value": 24.0,
+      "inside": true
+     },
+     "level": {
+      "value": 16.49997329711914,
+      "inside": true
+     },
+     "stone_x": {
+      "value": 101.014,
+      "inside": true
+     },
+     "stone_y": {
+      "value": 15.1665,
+      "inside": true
+     },
+     "stone_z": {
+      "value": 13.991,
+      "inside": true
+     },
+     "stone_rest_t": {
+      "value": 4.7333,
+      "inside": true
+     },
+     "wood_x": {
+      "value": 103.233,
+      "inside": true
+     },
+     "wood_y": {
+      "value": 16.4343,
+      "inside": true
+     },
+     "wood_z": {
+      "value": 14.3333,
+      "inside": true
+     },
+     "wood_rest_t": {
+      "value": 5.8167,
+      "inside": true
+     }
+    }
+   },
+   "far_b": {
+    "pass": true,
+    "rose": false,
+    "outside": [],
+    "measures": {
+     "m3": {
+      "value": 23.999998092651367,
+      "inside": true
+     },
+     "level": {
+      "value": 16.499975204467773,
+      "inside": true
+     },
+     "stone_x": {
+      "value": 101.018,
+      "inside": true
+     },
+     "stone_y": {
+      "value": 15.1667,
+      "inside": true
+     },
+     "stone_z": {
+      "value": 13.9817,
+      "inside": true
+     },
+     "stone_rest_t": {
+      "value": 5.15,
+      "inside": true
+     },
+     "wood_x": {
+      "value": 103.146,
+      "inside": true
+     },
+     "wood_y": {
+      "value": 16.4346,
+      "inside": true
+     },
+     "wood_z": {
+      "value": 14.1792,
+      "inside": true
+     },
+     "wood_rest_t": {
+      "value": 5.8,
+      "inside": true
+     }
+    }
+   },
+   "far_c": {
+    "pass": true,
+    "rose": false,
+    "outside": [],
+    "measures": {
+     "m3": {
+      "value": 24.0,
+      "inside": true
+     },
+     "level": {
+      "value": 16.499980926513672,
+      "inside": true
+     },
+     "stone_x": {
+      "value": 101.015,
+      "inside": true
+     },
+     "stone_y": {
+      "value": 15.1666,
+      "inside": true
+     },
+     "stone_z": {
+      "value": 13.9802,
+      "inside": true
+     },
+     "stone_rest_t": {
+      "value": 4.75,
+      "inside": true
+     },
+     "wood_x": {
+      "value": 103.167,
+      "inside": true
+     },
+     "wood_y": {
+      "value": 16.4343,
+      "inside": true
+     },
+     "wood_z": {
+      "value": 13.7374,
+      "inside": true
+     },
+     "wood_rest_t": {
+      "value": 5.85,
+      "inside": true
+     }
+    }
+   },
+   "far_d": {
+    "pass": true,
+    "rose": false,
+    "outside": [],
+    "measures": {
+     "m3": {
+      "value": 23.999998092651367,
+      "inside": true
+     },
+     "level": {
+      "value": 16.499998092651367,
+      "inside": true
+     },
+     "stone_x": {
+      "value": 101.018,
+      "inside": true
+     },
+     "stone_y": {
+      "value": 15.1666,
+      "inside": true
+     },
+     "stone_z": {
+      "value": 13.9732,
+      "inside": true
+     },
+     "stone_rest_t": {
+      "value": 5.1833,
+      "inside": true
+     },
+     "wood_x": {
+      "value": 103.103,
+      "inside": true
+     },
+     "wood_y": {
+      "value": 16.4361,
+      "inside": true
+     },
+     "wood_z": {
+      "value": 13.8207,
+      "inside": true
+     },
+     "wood_rest_t": {
+      "value": 5.7167,
+      "inside": true
+     }
+    }
+   },
+   "far_e": {
+    "pass": true,
+    "rose": false,
+    "outside": [],
+    "measures": {
+     "m3": {
+      "value": 24.000001907348633,
+      "inside": true
+     },
+     "level": {
+      "value": 16.499969482421875,
+      "inside": true
+     },
+     "stone_x": {
+      "value": 101.013,
+      "inside": true
+     },
+     "stone_y": {
+      "value": 15.1666,
+      "inside": true
+     },
+     "stone_z": {
+      "value": 13.9922,
+      "inside": true
+     },
+     "stone_rest_t": {
+      "value": 5.1,
+      "inside": true
+     },
+     "wood_x": {
+      "value": 103.202,
+      "inside": true
+     },
+     "wood_y": {
+      "value": 16.4346,
+      "inside": true
+     },
+     "wood_z": {
+      "value": 14.2578,
+      "inside": true
+     },
+     "wood_rest_t": {
+      "value": 5.8333,
+      "inside": true
+     }
+    }
+   },
+   "far_f": {
+    "pass": true,
+    "rose": false,
+    "outside": [],
+    "measures": {
+     "m3": {
+      "value": 24.00000762939453,
+      "inside": true
+     },
+     "level": {
+      "value": 16.499984741210938,
+      "inside": true
+     },
+     "stone_x": {
+      "value": 101.02,
+      "inside": true
+     },
+     "stone_y": {
+      "value": 15.1666,
+      "inside": true
+     },
+     "stone_z": {
+      "value": 13.9795,
+      "inside": true
+     },
+     "stone_rest_t": {
+      "value": 4.8,
+      "inside": true
+     },
+     "wood_x": {
+      "value": 102.819,
+      "inside": true
+     },
+     "wood_y": {
+      "value": 16.4334,
+      "inside": true
+     },
+     "wood_z": {
+      "value": 14.2024,
+      "inside": true
+     },
+     "wood_rest_t": {
+      "value": 5.5833,
+      "inside": true
+     }
+    }
+   }
+  },
+  "wake_paths": {
+   "far_a": "fresh",
+   "near_a": "kept",
+   "far_b": "fresh",
+   "near_b": "kept",
+   "far_c": "fresh",
+   "near_c": "kept",
+   "far_d": "fresh",
+   "near_d": "kept",
+   "far_e": "fresh",
+   "near_e": "kept",
+   "far_f": "fresh",
+   "near_f": "kept"
+  },
+  "self_check": {
+   "near_runs": 6,
+   "failed": [
+    [
+     "near_d",
+     [
+      "wood_x"
+     ]
+    ],
+    [
+     "near_f",
+     [
+      "wood_z"
+     ]
+    ]
+   ]
+  },
+  "distribution": {
+   "verdict": "PASS",
+   "rejected": [],
+   "underpowered": [],
+   "alpha": 0.05,
+   "tests_m": 20,
+   "strict_threshold": 0.0025,
+   "perms": 20000,
+   "seed": 46,
+   "sessions": {
+    "": {
+     "near": 6,
+     "far": 6
+    }
+   },
+   "tests": {
+    "m3:location": {
+     "p": 0.1645021645021645,
+     "stat": 2.307692,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -3e-06,
+     "rejected": false,
+     "holm_threshold": 0.0029411764705882353,
+     "powered": true
+    },
+    "m3:spread": {
+     "p": 0.37445887445887444,
+     "stat": 3.538462,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -3e-06,
+     "rejected": false,
+     "holm_threshold": 0.004166666666666667,
+     "powered": true
+    },
+    "level:location": {
+     "p": 0.8463203463203464,
+     "stat": 2.884615,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -1e-06,
+     "rejected": false,
+     "holm_threshold": 0.0071428571428571435,
+     "powered": true
+    },
+    "level:spread": {
+     "p": 0.8939393939393939,
+     "stat": 2.923077,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -1e-06,
+     "rejected": false,
+     "holm_threshold": 0.0125,
+     "powered": true
+    },
+    "stone_x:location": {
+     "p": 0.2943722943722944,
+     "stat": 3.538462,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": 0.0025,
+     "rejected": false,
+     "holm_threshold": 0.0035714285714285718,
+     "powered": true
+    },
+    "stone_x:spread": {
+     "p": 0.7662337662337663,
+     "stat": 2.846154,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": 0.0025,
+     "rejected": false,
+     "holm_threshold": 0.005555555555555556,
+     "powered": true
+    },
+    "stone_y:location": {
+     "p": 0.8636363636363636,
+     "stat": 2.807692,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": 0.0,
+     "rejected": false,
+     "holm_threshold": 0.01,
+     "powered": true
+    },
+    "stone_y:spread": {
+     "p": 0.9242424242424242,
+     "stat": 2.807692,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": 0.0,
+     "rejected": false,
+     "holm_threshold": 0.025,
+     "powered": true
+    },
+    "stone_z:location": {
+     "p": 0.4199134199134199,
+     "stat": 2.576923,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -0.00285,
+     "rejected": false,
+     "holm_threshold": 0.004545454545454546,
+     "powered": true
+    },
+    "stone_z:spread": {
+     "p": 0.9090909090909091,
+     "stat": 3.076923,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -0.00285,
+     "rejected": false,
+     "holm_threshold": 0.016666666666666666,
+     "powered": true
+    },
+    "stone_rest_t:location": {
+     "p": 0.8484848484848485,
+     "stat": 2.884615,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -0.01665,
+     "rejected": false,
+     "holm_threshold": 0.008333333333333333,
+     "powered": true
+    },
+    "stone_rest_t:spread": {
+     "p": 0.6190476190476191,
+     "stat": 3.269231,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -0.01665,
+     "rejected": false,
+     "holm_threshold": 0.005,
+     "powered": true
+    },
+    "wood_x:location": {
+     "p": 1.0,
+     "stat": 3.0,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -0.002,
+     "rejected": false,
+     "holm_threshold": 0.05,
+     "powered": true
+    },
+    "wood_x:spread": {
+     "p": 0.8181818181818182,
+     "stat": 3.153846,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -0.002,
+     "rejected": false,
+     "holm_threshold": 0.00625,
+     "powered": true
+    },
+    "wood_y:location": {
+     "p": 0.06277056277056277,
+     "stat": 2.076923,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -0.0053,
+     "rejected": false,
+     "holm_threshold": 0.002631578947368421,
+     "powered": true
+    },
+    "wood_y:spread": {
+     "p": 0.12987012987012986,
+     "stat": 2.230769,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": -0.0053,
+     "rejected": false,
+     "holm_threshold": 0.002777777777777778,
+     "powered": true
+    },
+    "wood_z:location": {
+     "p": 0.17965367965367965,
+     "stat": 3.692308,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": 0.41185,
+     "rejected": false,
+     "holm_threshold": 0.003125,
+     "powered": true
+    },
+    "wood_z:spread": {
+     "p": 0.30952380952380953,
+     "stat": 3.538462,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": 0.41185,
+     "rejected": false,
+     "holm_threshold": 0.0038461538461538464,
+     "powered": true
+    },
+    "wood_rest_t:location": {
+     "p": 0.015151515151515152,
+     "stat": 4.153846,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": 0.4917,
+     "rejected": false,
+     "holm_threshold": 0.0025,
+     "powered": true
+    },
+    "wood_rest_t:spread": {
+     "p": 0.25757575757575757,
+     "stat": 2.423077,
+     "expected": 3.0,
+     "method": "exact (924 assignments)",
+     "best_p": 0.0021645021645021645,
+     "strata": [
+      [
+       12,
+       6
+      ]
+     ],
+     "median_shift": 0.4917,
+     "rejected": false,
+     "holm_threshold": 0.0033333333333333335,
+     "powered": true
+    }
+   }
+  },
+  "overall": "PASS"
+ }
+}

@@ -1,0 +1,1168 @@
+{
+ "near_runs": [
+  "near_a@a13_shipped",
+  "near_b@a13_shipped",
+  "near_c@a13_shipped",
+  "near_d@a13_shipped",
+  "near_e@a13_shipped",
+  "near_f@a13_shipped",
+  "near_a@a13_shipped2",
+  "near_b@a13_shipped2",
+  "near_c@a13_shipped2",
+  "near_d@a13_shipped2",
+  "near_e@a13_shipped2",
+  "near_f@a13_shipped2"
+ ],
+ "spread": {
+  "m3": {
+   "min": 23.99999237060547,
+   "max": 24.00000762939453,
+   "tol": 2.52587890625e-05
+  },
+  "level": {
+   "min": 16.499971389770508,
+   "max": 16.5000057220459,
+   "tol": 0.000134332275390625
+  },
+  "stone_x": {
+   "min": 101.008,
+   "max": 101.021,
+   "tol": 0.01400000000000523
+  },
+  "stone_y": {
+   "min": 15.1665,
+   "max": 15.1667,
+   "tol": 0.00030000000000131023
+  },
+  "stone_z": {
+   "min": 13.977,
+   "max": 13.9927,
+   "tol": 0.016699999999998938
+  },
+  "stone_rest_t": {
+   "min": 4.55,
+   "max": 5.85,
+   "tol": 1.316833333333333
+  },
+  "wood_x": {
+   "min": 102.854,
+   "max": 103.209,
+   "tol": 0.356000000000004
+  },
+  "wood_y": {
+   "min": 16.4341,
+   "max": 16.4414,
+   "tol": 0.007400000000000751
+  },
+  "wood_z": {
+   "min": 13.6696,
+   "max": 14.3149,
+   "tol": 0.6462999999999989
+  },
+  "wood_rest_t": {
+   "min": 4.8833,
+   "max": 5.9,
+   "tol": 1.0335333333333334
+  }
+ },
+ "runs": {
+  "far_a@a13_shipped": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.000001907348633,
+     "inside": true
+    },
+    "level": {
+     "value": 16.49997901916504,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.009,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1667,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9888,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 5.2,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.178,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4411,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.7458,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.1333,
+     "inside": true
+    }
+   }
+  },
+  "far_b@a13_shipped": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 23.9999942779541,
+     "inside": true
+    },
+    "level": {
+     "value": 16.49998664855957,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.016,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1665,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9906,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 4.7667,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.09,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4337,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.8224,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.5333,
+     "inside": true
+    }
+   }
+  },
+  "far_c@a13_shipped": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 23.999998092651367,
+     "inside": true
+    },
+    "level": {
+     "value": 16.5,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.02,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1667,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9785,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 5.1667,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.046,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4368,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.9056,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.7333,
+     "inside": true
+    }
+   }
+  },
+  "far_d@a13_shipped": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500001907348633,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.015,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1666,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9843,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 5.1333,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.155,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.441,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.7504,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.1167,
+     "inside": true
+    }
+   }
+  },
+  "far_e@a13_shipped": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.50002670288086,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.019,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1666,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9771,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 4.65,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.156,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4394,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.7935,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.25,
+     "inside": true
+    }
+   }
+  },
+  "far_f@a13_shipped": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 23.999996185302734,
+     "inside": true
+    },
+    "level": {
+     "value": 16.499982833862305,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.01,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1666,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9919,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 4.7833,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.242,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4405,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.285,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.1667,
+     "inside": true
+    }
+   }
+  },
+  "far_dry@a13_shipped": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_z",
+    "stone_rest_t",
+    "wood_y",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.5,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.035,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1667,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0348,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 1.4333,
+     "inside": false
+    },
+    "wood_x": {
+     "value": 103.042,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 15.1667,
+     "inside": false
+    },
+    "wood_z": {
+     "value": 14.0422,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 1.4333,
+     "inside": false
+    }
+   }
+  },
+  "far_a@a13_shipped2": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.49997329711914,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.014,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1665,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.991,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 4.7333,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.233,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4343,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.3333,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.8167,
+     "inside": true
+    }
+   }
+  },
+  "far_b@a13_shipped2": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 23.999998092651367,
+     "inside": true
+    },
+    "level": {
+     "value": 16.499975204467773,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.018,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1667,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9817,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 5.15,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.146,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4346,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.1792,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.8,
+     "inside": true
+    }
+   }
+  },
+  "far_c@a13_shipped2": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.499980926513672,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.015,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1666,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9802,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 4.75,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.167,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4343,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.7374,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.85,
+     "inside": true
+    }
+   }
+  },
+  "far_d@a13_shipped2": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 23.999998092651367,
+     "inside": true
+    },
+    "level": {
+     "value": 16.499998092651367,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.018,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1666,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9732,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 5.1833,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.103,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4361,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 13.8207,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.7167,
+     "inside": true
+    }
+   }
+  },
+  "far_e@a13_shipped2": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.000001907348633,
+     "inside": true
+    },
+    "level": {
+     "value": 16.499969482421875,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.013,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1666,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9922,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 5.1,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 103.202,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4346,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.2578,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.8333,
+     "inside": true
+    }
+   }
+  },
+  "far_f@a13_shipped2": {
+   "pass": true,
+   "rose": false,
+   "outside": [],
+   "measures": {
+    "m3": {
+     "value": 24.00000762939453,
+     "inside": true
+    },
+    "level": {
+     "value": 16.499984741210938,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.02,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1666,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9795,
+     "inside": true
+    },
+    "stone_rest_t": {
+     "value": 4.8,
+     "inside": true
+    },
+    "wood_x": {
+     "value": 102.819,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4334,
+     "inside": true
+    },
+    "wood_z": {
+     "value": 14.2024,
+     "inside": true
+    },
+    "wood_rest_t": {
+     "value": 5.5833,
+     "inside": true
+    }
+   }
+  }
+ },
+ "wake_paths": {
+  "near_a@a13_shipped": "kept",
+  "far_a@a13_shipped": "fresh",
+  "near_b@a13_shipped": "kept",
+  "far_b@a13_shipped": "fresh",
+  "near_c@a13_shipped": "kept",
+  "far_c@a13_shipped": "fresh",
+  "near_d@a13_shipped": "kept",
+  "far_d@a13_shipped": "fresh",
+  "near_e@a13_shipped": "kept",
+  "far_e@a13_shipped": "fresh",
+  "near_f@a13_shipped": "kept",
+  "far_f@a13_shipped": "fresh",
+  "far_dry@a13_shipped": "no wake",
+  "far_a@a13_shipped2": "fresh",
+  "near_a@a13_shipped2": "kept",
+  "far_b@a13_shipped2": "fresh",
+  "near_b@a13_shipped2": "kept",
+  "far_c@a13_shipped2": "fresh",
+  "near_c@a13_shipped2": "kept",
+  "far_d@a13_shipped2": "fresh",
+  "near_d@a13_shipped2": "kept",
+  "far_e@a13_shipped2": "fresh",
+  "near_e@a13_shipped2": "kept",
+  "far_f@a13_shipped2": "fresh",
+  "near_f@a13_shipped2": "kept"
+ },
+ "self_check": {
+  "near_runs": 12,
+  "failed": []
+ },
+ "distribution": {
+  "verdict": "PASS",
+  "rejected": [],
+  "underpowered": [],
+  "alpha": 0.05,
+  "tests_m": 20,
+  "strict_threshold": 0.0025,
+  "perms": 20000,
+  "seed": 46,
+  "sessions": {
+   "a13_shipped": {
+    "near": 6,
+    "far": 6
+   },
+   "a13_shipped2": {
+    "near": 6,
+    "far": 6
+   }
+  },
+  "tests": {
+   "m3:location": {
+    "p": 0.12819359032048397,
+    "stat": 4.961538,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": -3e-06,
+    "rejected": false,
+    "holm_threshold": 0.0025,
+    "powered": true
+   },
+   "m3:spread": {
+    "p": 0.7910604469776511,
+    "stat": 5.807692,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": -3e-06,
+    "rejected": false,
+    "holm_threshold": 0.005555555555555556,
+    "powered": true
+   },
+   "level:location": {
+    "p": 1.0,
+    "stat": 6.0,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 1e-06,
+    "rejected": false,
+    "holm_threshold": 0.05,
+    "powered": true
+   },
+   "level:spread": {
+    "p": 0.8382080895955202,
+    "stat": 5.846154,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 1e-06,
+    "rejected": false,
+    "holm_threshold": 0.00625,
+    "powered": true
+   },
+   "stone_x:location": {
+    "p": 0.35313234338283084,
+    "stat": 6.653846,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.002,
+    "rejected": false,
+    "holm_threshold": 0.0029411764705882353,
+    "powered": true
+   },
+   "stone_x:spread": {
+    "p": 0.8412079396030199,
+    "stat": 5.846154,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.002,
+    "rejected": false,
+    "holm_threshold": 0.0071428571428571435,
+    "powered": true
+   },
+   "stone_y:location": {
+    "p": 0.7287135643217839,
+    "stat": 5.769231,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": -2.5e-05,
+    "rejected": false,
+    "holm_threshold": 0.004545454545454546,
+    "powered": true
+   },
+   "stone_y:spread": {
+    "p": 0.288035598220089,
+    "stat": 5.307692,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": -2.5e-05,
+    "rejected": false,
+    "holm_threshold": 0.002777777777777778,
+    "powered": true
+   },
+   "stone_z:location": {
+    "p": 0.8927553622318884,
+    "stat": 6.115385,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.001575,
+    "rejected": false,
+    "holm_threshold": 0.0125,
+    "powered": true
+   },
+   "stone_z:spread": {
+    "p": 0.2303384830758462,
+    "stat": 6.846154,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.001575,
+    "rejected": false,
+    "holm_threshold": 0.002631578947368421,
+    "powered": true
+   },
+   "stone_rest_t:location": {
+    "p": 0.6747662616869157,
+    "stat": 6.307692,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.11665,
+    "rejected": false,
+    "holm_threshold": 0.004166666666666667,
+    "powered": true
+   },
+   "stone_rest_t:spread": {
+    "p": 0.9301534923253837,
+    "stat": 6.076923,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.11665,
+    "rejected": false,
+    "holm_threshold": 0.016666666666666666,
+    "powered": true
+   },
+   "wood_x:location": {
+    "p": 0.5383230838458077,
+    "stat": 6.461538,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.0185,
+    "rejected": false,
+    "holm_threshold": 0.0035714285714285718,
+    "powered": true
+   },
+   "wood_x:spread": {
+    "p": 0.38248087595620217,
+    "stat": 6.615385,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.0185,
+    "rejected": false,
+    "holm_threshold": 0.003125,
+    "powered": true
+   },
+   "wood_y:location": {
+    "p": 0.8448077596120194,
+    "stat": 5.846154,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": -0.000175,
+    "rejected": false,
+    "holm_threshold": 0.01,
+    "powered": true
+   },
+   "wood_y:spread": {
+    "p": 0.9786510674466277,
+    "stat": 6.038462,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": -0.000175,
+    "rejected": false,
+    "holm_threshold": 0.025,
+    "powered": true
+   },
+   "wood_z:location": {
+    "p": 0.463876806159692,
+    "stat": 6.538462,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.186525,
+    "rejected": false,
+    "holm_threshold": 0.0033333333333333335,
+    "powered": true
+   },
+   "wood_z:spread": {
+    "p": 0.5611719414029298,
+    "stat": 6.423077,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": 0.186525,
+    "rejected": false,
+    "holm_threshold": 0.0038461538461538464,
+    "powered": true
+   },
+   "wood_rest_t:location": {
+    "p": 0.7569121543922804,
+    "stat": 6.230769,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": -0.0208,
+    "rejected": false,
+    "holm_threshold": 0.005,
+    "powered": true
+   },
+   "wood_rest_t:spread": {
+    "p": 0.8435578221088945,
+    "stat": 5.846154,
+    "expected": 6.0,
+    "method": "monte carlo (20000, seed 46)",
+    "best_p": 2.3425348100672776e-06,
+    "strata": [
+     [
+      12,
+      6
+     ],
+     [
+      12,
+      6
+     ]
+    ],
+    "median_shift": -0.0208,
+    "rejected": false,
+    "holm_threshold": 0.008333333333333333,
+    "powered": true
+   }
+  }
+ },
+ "overall": "PASS",
+ "pool": {
+  "keys": {
+   "a13_shipped": "[\"44f73d2d28c334571b2db180798299cf4b8cf616722997206292cd296961a9b7\", true, true, null, [1.5, 1.5], 0.0, false, false]",
+   "a13_shipped2": "[\"44f73d2d28c334571b2db180798299cf4b8cf616722997206292cd296961a9b7\", true, true, null, [1.5, 1.5], 0.0, false, false]"
+  },
+  "unrecorded": [],
+  "mixed_forced": false
+ }
+}

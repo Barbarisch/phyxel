@@ -74,7 +74,8 @@ def pool_key(res):
     """What must match for two sessions to be one treatment (A13): the binary and every outcome-relevant setting the tool sets."""
     i = res.get("identity") or {}
     if not i.get("exe_sha256"): return None   # a session from before A13: its build is unrecorded
-    return json.dumps([i["exe_sha256"], res.get("displace"), res.get("wake_pace"), res.get("ripple"), res.get("handover"),
+    ho = res.get("handover") or {}   # its settings only - the echo also carries running counters (count, last_s)
+    return json.dumps([i["exe_sha256"], res.get("displace"), res.get("wake_pace"), res.get("ripple"), [ho.get("mm"), ho.get("s")],
                        res.get("wake_delay_s"), res.get("pace_late"), res.get("no_kept_memory")], sort_keys=True)
 
 

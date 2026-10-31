@@ -1,0 +1,675 @@
+{
+ "near_runs": [
+  "near_a@fade_on",
+  "near_b@fade_on",
+  "near_c@fade_on"
+ ],
+ "spread": {
+  "m3": {
+   "min": 23.999990463256836,
+   "max": 24.000003814697266,
+   "tol": 2.33514404296875e-05
+  },
+  "level": {
+   "min": 16.49996566772461,
+   "max": 16.499990463256836,
+   "tol": 0.0001247955322265625
+  },
+  "stone_x": {
+   "min": 100.975,
+   "max": 101.012,
+   "tol": 0.03800000000000614
+  },
+  "stone_y": {
+   "min": 15.1666,
+   "max": 15.1667,
+   "tol": 0.00019999999999976693
+  },
+  "stone_z": {
+   "min": 13.9811,
+   "max": 13.988,
+   "tol": 0.007899999999999907
+  },
+  "stone_rest_t": {
+   "min": 4.75,
+   "max": 5.1833,
+   "tol": 0.45013333333333333
+  },
+  "wood_x": {
+   "min": 102.748,
+   "max": 103.205,
+   "tol": 0.45799999999999363
+  },
+  "wood_y": {
+   "min": 16.4333,
+   "max": 16.4343,
+   "tol": 0.0011000000000012222
+  },
+  "wood_z": {
+   "min": 13.706,
+   "max": 13.7482,
+   "tol": 0.043200000000001126
+  },
+  "wood_rest_t": {
+   "min": 5.75,
+   "max": 5.8167,
+   "tol": 0.08353333333333332
+  }
+ },
+ "runs": {
+  "far_a@fade_on": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_z",
+    "stone_rest_t",
+    "wood_y",
+    "wood_z",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 23.999998092651367,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500003814697266,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1665,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 13.9999,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 3.1667,
+     "inside": false
+    },
+    "wood_x": {
+     "value": 102.968,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4318,
+     "inside": false
+    },
+    "wood_z": {
+     "value": 14.0824,
+     "inside": false
+    },
+    "wood_rest_t": {
+     "value": 5.5,
+     "inside": false
+    }
+   }
+  },
+  "far_b@fade_on": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_z",
+    "stone_rest_t",
+    "wood_y",
+    "wood_z",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.500003814697266,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1665,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 2.8833,
+     "inside": false
+    },
+    "wood_x": {
+     "value": 102.973,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4273,
+     "inside": false
+    },
+    "wood_z": {
+     "value": 14.0837,
+     "inside": false
+    },
+    "wood_rest_t": {
+     "value": 4.3333,
+     "inside": false
+    }
+   }
+  },
+  "far_c@fade_on": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_y",
+    "stone_z",
+    "stone_rest_t",
+    "wood_y",
+    "wood_z",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.50000762939453,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.0,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1662,
+     "inside": false
+    },
+    "stone_z": {
+     "value": 14.0,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 2.7667,
+     "inside": false
+    },
+    "wood_x": {
+     "value": 103.047,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 16.4317,
+     "inside": false
+    },
+    "wood_z": {
+     "value": 13.9308,
+     "inside": false
+    },
+    "wood_rest_t": {
+     "value": 5.45,
+     "inside": false
+    }
+   }
+  },
+  "far_dry@fade_on": {
+   "pass": false,
+   "rose": false,
+   "outside": [
+    "stone_z",
+    "stone_rest_t",
+    "wood_y",
+    "wood_z",
+    "wood_rest_t"
+   ],
+   "measures": {
+    "m3": {
+     "value": 24.0,
+     "inside": true
+    },
+    "level": {
+     "value": 16.5,
+     "inside": true
+    },
+    "stone_x": {
+     "value": 101.035,
+     "inside": true
+    },
+    "stone_y": {
+     "value": 15.1667,
+     "inside": true
+    },
+    "stone_z": {
+     "value": 14.0348,
+     "inside": false
+    },
+    "stone_rest_t": {
+     "value": 1.4167,
+     "inside": false
+    },
+    "wood_x": {
+     "value": 103.042,
+     "inside": true
+    },
+    "wood_y": {
+     "value": 15.1667,
+     "inside": false
+    },
+    "wood_z": {
+     "value": 14.0422,
+     "inside": false
+    },
+    "wood_rest_t": {
+     "value": 1.4333,
+     "inside": false
+    }
+   }
+  }
+ },
+ "wake_paths": {
+  "near_a@fade_on": "kept",
+  "near_b@fade_on": "kept",
+  "near_c@fade_on": "kept",
+  "far_a@fade_on": "fresh",
+  "far_b@fade_on": "fresh",
+  "far_c@fade_on": "fresh",
+  "far_dry@fade_on": "no wake"
+ },
+ "self_check": {
+  "note": "fewer than four near runs: no leave-one-out check (pool sessions with --rejudge a,b,...)"
+ },
+ "distribution": {
+  "verdict": "UNDERPOWERED",
+  "rejected": [],
+  "underpowered": [
+   "m3:location",
+   "m3:spread",
+   "level:location",
+   "level:spread",
+   "stone_x:location",
+   "stone_x:spread",
+   "stone_y:location",
+   "stone_y:spread",
+   "stone_z:location",
+   "stone_z:spread",
+   "stone_rest_t:location",
+   "stone_rest_t:spread",
+   "wood_x:location",
+   "wood_x:spread",
+   "wood_y:location",
+   "wood_y:spread",
+   "wood_z:location",
+   "wood_z:spread",
+   "wood_rest_t:location",
+   "wood_rest_t:spread"
+  ],
+  "alpha": 0.05,
+  "tests_m": 20,
+  "strict_threshold": 0.0025,
+  "perms": 20000,
+  "seed": 46,
+  "sessions": {
+   "fade_on": {
+    "near": 3,
+    "far": 3
+   }
+  },
+  "tests": {
+   "m3:location": {
+    "p": 0.6,
+    "stat": 1.714286,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": 4e-06,
+    "rejected": false,
+    "holm_threshold": 0.0071428571428571435,
+    "powered": false
+   },
+   "m3:spread": {
+    "p": 0.1,
+    "stat": 0.857143,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": 4e-06,
+    "rejected": false,
+    "holm_threshold": 0.002631578947368421,
+    "powered": false
+   },
+   "level:location": {
+    "p": 0.1,
+    "stat": 2.142857,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": 2.7e-05,
+    "rejected": false,
+    "holm_threshold": 0.0025,
+    "powered": false
+   },
+   "level:spread": {
+    "p": 0.4,
+    "stat": 1.142857,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": 2.7e-05,
+    "rejected": false,
+    "holm_threshold": 0.005555555555555556,
+    "powered": false
+   },
+   "stone_x:location": {
+    "p": 0.7,
+    "stat": 1.285714,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.01,
+    "rejected": false,
+    "holm_threshold": 0.008333333333333333,
+    "powered": false
+   },
+   "stone_x:spread": {
+    "p": 0.1,
+    "stat": 0.857143,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.01,
+    "rejected": false,
+    "holm_threshold": 0.0029411764705882353,
+    "powered": false
+   },
+   "stone_y:location": {
+    "p": 0.1,
+    "stat": 0.857143,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.0001,
+    "rejected": false,
+    "holm_threshold": 0.003125,
+    "powered": false
+   },
+   "stone_y:spread": {
+    "p": 0.3,
+    "stat": 1.857143,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.0001,
+    "rejected": false,
+    "holm_threshold": 0.005,
+    "powered": false
+   },
+   "stone_z:location": {
+    "p": 0.1,
+    "stat": 2.142857,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": 0.0122,
+    "rejected": false,
+    "holm_threshold": 0.0033333333333333335,
+    "powered": false
+   },
+   "stone_z:spread": {
+    "p": 0.5,
+    "stat": 1.214286,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": 0.0122,
+    "rejected": false,
+    "holm_threshold": 0.00625,
+    "powered": false
+   },
+   "stone_rest_t:location": {
+    "p": 0.1,
+    "stat": 0.857143,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -2.2667,
+    "rejected": false,
+    "holm_threshold": 0.002777777777777778,
+    "powered": false
+   },
+   "stone_rest_t:spread": {
+    "p": 0.8,
+    "stat": 1.357143,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -2.2667,
+    "rejected": false,
+    "holm_threshold": 0.016666666666666666,
+    "powered": false
+   },
+   "wood_x:location": {
+    "p": 0.7,
+    "stat": 1.285714,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.151,
+    "rejected": false,
+    "holm_threshold": 0.01,
+    "powered": false
+   },
+   "wood_x:spread": {
+    "p": 0.1,
+    "stat": 0.857143,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.151,
+    "rejected": false,
+    "holm_threshold": 0.0038461538461538464,
+    "powered": false
+   },
+   "wood_y:location": {
+    "p": 0.1,
+    "stat": 0.857143,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.0026,
+    "rejected": false,
+    "holm_threshold": 0.004166666666666667,
+    "powered": false
+   },
+   "wood_y:spread": {
+    "p": 1.0,
+    "stat": 1.5,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.0026,
+    "rejected": false,
+    "holm_threshold": 0.05,
+    "powered": false
+   },
+   "wood_z:location": {
+    "p": 0.1,
+    "stat": 2.142857,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": 0.3692,
+    "rejected": false,
+    "holm_threshold": 0.004545454545454546,
+    "powered": false
+   },
+   "wood_z:spread": {
+    "p": 0.7,
+    "stat": 1.714286,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": 0.3692,
+    "rejected": false,
+    "holm_threshold": 0.0125,
+    "powered": false
+   },
+   "wood_rest_t:location": {
+    "p": 0.1,
+    "stat": 0.857143,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.3333,
+    "rejected": false,
+    "holm_threshold": 0.0035714285714285718,
+    "powered": false
+   },
+   "wood_rest_t:spread": {
+    "p": 0.8,
+    "stat": 1.642857,
+    "expected": 1.5,
+    "method": "exact (20 assignments)",
+    "best_p": 0.1,
+    "strata": [
+     [
+      6,
+      3
+     ]
+    ],
+    "median_shift": -0.3333,
+    "rejected": false,
+    "holm_threshold": 0.025,
+    "powered": false
+   }
+  }
+ },
+ "overall": "FAIL",
+ "pool": {
+  "keys": {
+   "fade_on": null
+  },
+  "unrecorded": [
+   "fade_on"
+  ],
+  "mixed_forced": false
+ }
+}
