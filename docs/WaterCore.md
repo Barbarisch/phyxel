@@ -9064,7 +9064,10 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A2a | Test: a recorded pond across a chunk-column seam (including negative coordinates) reads the same as each column's own spans (32.2 item 1) | DONE 2026-10-25: `WaterRecordSeam.ThePerChunkReadEqualsEachColumnsOwnSpansAcrossSeams` (unit). An 80 x 80 m recorded pond over the four chunk columns meeting at (0, 0), a level unique to every column, cave runs under some and dry holes in it, 8 dry columns round it: 9,216 columns, 0 mismatched, one reader call per chunk column (16). RED shown: a truncating chunk index (x / 32) fails it at once (column (-47, -48) read wet 1.105 where its own spans are dry); reverted, the floor division's reason written at the site | the chunk rule's pinned test |
 | A2b | The record cache re-reads when chunk residency changes, not only after the 2 s age (item 2) | DONE 2026-10-25 (32.4: design-check NEEDS WORK, seven items folded in - the debris tile cache was a second stale layer; unit test with its red control in the same run; live smoke; residency path unit-depth only, no unload route on the bench) | behaviour must not depend on when a chunk loaded |
 | A2c | Slept boxes survive a save and reload (item 3) - persisted as the boxes themselves (`world_meta.water_slept`), not derived from the pond rows (a row has no y range or settings, and av rows merge ponds; §35); written at every editor save point; a wake that cannot read its chunks keeps the box | **SIGNED OFF 2026-10-30 on the numbers** (46.1). BUILT, not signed off (35.2): red/green live on both shutdown paths, unit red/green | a slept pond must still wake after a reload (P7) |
-| A2i | The water core across world and scene changes (found in §35): it is never reset - live volumes and, when the new world has none, body rows carry over; scene loads restore no water meta and scene saves write none; a save with an AWAKE volume writes nothing of its water (not checked) | open | another world's water must never appear in this one; P7 |
+| A2i | The water core across world and scene changes (found in §35): it is never reset - live volumes and, when the new world has none, body rows carry over; scene loads restore no water meta and scene saves write none; a save with an AWAKE volume writes nothing of its water (not checked) | BUILT, not signed off (§47): design-check READY (six items folded in); the core resets on every world change (scene, project, editor scene, load) and restores the new world's records; a scene left awake writes its water back first. Unit red/green; live red 7/14, green 14/14 (24.000004 m^3 back bit-exact) | another world's water must never appear in this one; P7 |
+| A2k | The old CA `waterManager` carries over across worlds (found in §47) | open - retires in W4 | not the water core; logged, not fixed |
+| A2l | In-place terrain regeneration under live water (`generate_world`, a WorldForge restream, a reload that regenerates) - the core is not reset there (found in §47) | open | the same world's storage stays attached: not a world change, but its chunks are replaced under the volumes |
+| A2m | `save_world` (and the other editor save points) with a volume AWAKE saves the record as it was when the pond woke, not as it is (found in §35, §47) | open | the scene path writes back first (§47); the explicit saves do not |
 | A2d | Pin the `wake_on_touch` default (item 4) | DONE 2026-10-25 (§36: design-check READY, two findings folded in; red with the constant flipped; the API echoes the default) | defaults are a pinned contract |
 | A2e | The record read picks the run the body is in, not the column's top, and states its limits at the code site (item 5) | **SIGNED OFF 2026-10-30 on the numbers** (46.1). BUILT, not signed off (§37). Sharper than item 5 said: a dry cave or room under a pond read as UNDER WATER (a wood block there would rise; a stone fell 64 % slower). The owner chose two runs per column. Red/green live with a stone; a body in a pond reads exactly as before | stacked water: a cave pool, a floor of water - and the owner's rule: nothing floats up |
 | A2j | The measuring tools' clock (found in §37): `water_float_rest.read_log` and the tools on it sum the particle log's frame `dt`, which is not the solver's clock, so their reported TIMES and speeds are wrong (their heights are right). Use each particle's step count (`flags >> 16`) / 60, as `water_a2e_dryroom.py` does, and say which past times it changes | DONE 2026-10-25 (§38): the log's `snap_ticks` column + one shared reader, checked live against the spawn age (0.0 s apart). Times from these tools were ~3x too short; heights and drafts stand | measure, don't argue: a number from a wrong clock is not a measurement |
@@ -11779,6 +11782,77 @@ numbers, close A2h as superseded): **"ok sounds good. lets keep going"** - all s
 
 Not on the sheet (open, not built): A2i (water across scene changes), A4 wading, A5 the tall-cell floor, A6 the spiky stone, A8,
 A9.
+
+## 47. A2i - the water core across world and scene changes (2026-10-31). Status: BUILT, not signed off
+
+**Why.** Found in §35: the water core is never reset. A scene transition, a project switch or the editor's own scenes attach
+another world's storage, and the last world's live volumes, slept boxes, body rows, droplets, kept GPU sets, paced wakes and
+record caches stay - another world's water shows up in this one. Scene transitions also saved chunks without the water's records,
+and restored none.
+
+**Design-check: READY** (the `/design-check` run, 2026-10-31). Six items were folded in before building:
+1. A forced write-back cannot write held columns (Unknown occupancy). Their water is lost with the volume - reported as
+   `held_lost_m3` and logged, never silent.
+2. Droplets in flight land in the grid during the write-back (`sleep()` already does it).
+3. A half-built paced wake is cancelled; its box is still a slept box, so the saved record keeps it.
+4. GPU memory: `destroyVolume` waits for the device - one stall per volume, at the change only (timed in `reset_ms`).
+5. The editor's lists that point into the volumes (ripple layers, device surface draws, the surface field list, the debris
+   water tiles) are emptied in the same call, before the next frame.
+6. Both SceneManager load paths (world and menu world) get both hooks; the hooks are optional, so a standalone game without a
+   water core is unchanged.
+
+**Built.**
+- `WaterCoreManager::resetWorld()` drops every per-world member: volumes (GPU memory freed), droplets, slept boxes, body rows,
+  kept GPU sets, paced wakes, the record cache and tiles, solid holds, motion caches, the tick backlog. Wiring (span IO, GPU,
+  queries) and settings stay; ids keep counting.
+- `WaterCoreManager::writeBackAll()`: every live volume is slept (forced) into the record.
+- `Application::waterWorldLeaving()` (write back, then `saveWaterMeta`) and `Application::waterWorldChanged(reason, restore)`
+  (reset, editor-side water state, then the new world's `water_bodies` and `water_slept`; an absent key is an empty record).
+- New `SceneCallbacks.beforeWorldSave` (before the chunks are saved) and `SceneCallbacks.onWorldStorageChanged` (after the new
+  storage attaches, also when it fails to attach).
+- Called from: scene transitions (both paths), `applyProjectSelection` (project open: no save - its dirty chunks are dropped
+  too), `resetEditorScene` (no restore), and `autoLoadGameDefinition` (replaces its own restore).
+- Echo: `water_coupling.world` = `resets` + `last` {reason, volumes/slept/bodies dropped, kept released, wakes cancelled, record
+  and debris tiles dropped, droplets m^3, `reset_ms`, `written_back` {volumes, stored_m3, held_lost_m3, unwritten_columns},
+  slept/bodies restored}. TEST ONLY `test_world_reset_off` makes both hooks no-ops (the red).
+
+**Unit (`WaterWorldResetTest`, CPU volumes, one span store per world).** Nothing of the last world stays; a scene left awake
+keeps its water and comes back (A -> B -> A: B holds no box, row or water; A's box, rows and 8 m^3 return and wake); held
+columns are reported. The red is a standing control in the suite: `s_resetWorldOffForTest` (TEST ONLY) makes `resetWorld()` do
+nothing, and `TheRedWithoutTheResetTheLastWorldLeaks` sees A's live volume, slept box and rows in B. (The held-column test was
+wrong first: a column Unknown from the start is never filled, so it held nothing to lose; it now goes Unknown after the fill, as a
+chunk unloading would.)
+
+**Gates:** unit water 352 / 352; integration water 73 / 75 (the known two, `GpuFlipBulkParityAndRunup` and
+`ShortWaveMatchesAllFineAndTheBooksAreExact`); scene unit 25 / 25; scene integration 13 / 16 - the three known
+`SceneIntegrationTest` failures (re-entry positions, "Game definition must be a JSON object"); those tests run with no chunk
+manager, so they never reach the new hooks.
+
+**Live (`tools/water_world_switch.py`, Release, GPU, shipped settings).** Rig: a new project `WaterBench_Scenes` - scene `pond`
+is a copy of WaterBench_Small's world (its 4 x 4 m pond slept into the record), scene `dry` a flat floor in the SAME chunk with
+no water; the pond is woken (a volume seeded from the record) 0.5 s before each transition. Project switch target:
+`WaterBench_Dry` (a flat floor, no water). No body is dropped, so nothing can rise.
+
+| check | red (hooks off = before 47) | green |
+|---|---|---|
+| control: the record holds the pond / a wake holds it | 24.000004 / 24.000004 m^3 | the same |
+| pond -> dry: live volumes in `dry` | **1** (the pond followed) | 0 |
+| pond -> dry: body rows in `dry` | **2** | 0 |
+| pond -> dry: the write-back | nothing | 1 volume, 24.000004 m^3, 0 held lost |
+| dry -> pond: slept boxes restored | **0** | 1 |
+| dry -> pond: live volumes carried | **1** | 0 |
+| dry -> pond: the record | 24.000004 (diff 0) | 24.000004 (diff 0) |
+| dry -> pond: a wake holds | **48.000007 m^3** (the carried volume + the wake: the water doubled) | 24.000004 |
+| project switch: live volumes left | **2** | 0 |
+| total | 7 / 14 | **14 / 14** |
+
+Cost: `reset_ms` 2.8 ms leaving `pond` (141 record tiles, 1,024 debris tiles dropped), 10.8 ms entering it. **Not measured:**
+the forced write-back's own time, and the whole transition frame (a scene load stalls for chunk I/O far longer than either).
+Evidence: `docs/evidence/water_core_m4/a2i_world_switch{,_red}.json`.
+
+**Not covered.** The old CA `waterManager` (A2k), in-place regeneration under live water (A2l), explicit saves with a volume
+awake (A2m), and a menu-world scene (both hooks are wired there, not run). Nothing here is visible on a single scene; the clip for
+the owner is a transition there and back with the pond awake.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

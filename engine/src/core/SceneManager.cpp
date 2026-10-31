@@ -298,10 +298,13 @@ void SceneManager::executeLoad() {
         if (subsystems_->chunkManager && scene->definition.contains("world") &&
             !scene->resolvedWorldPath.empty()) {
             auto* cm = subsystems_->chunkManager;
+            if (callbacks_.beforeWorldSave) callbacks_.beforeWorldSave();
             cm->saveDirtyChunks();
             cm->cleanup();
             cm->disconnectWorldStorage();
-            if (cm->initializeWorldStorage(scene->resolvedWorldPath)) {
+            const bool opened = cm->initializeWorldStorage(scene->resolvedWorldPath);
+            if (callbacks_.onWorldStorageChanged) callbacks_.onWorldStorageChanged();
+            if (opened) {
                 subsystems_->activeSceneIdForLoad = scene->id;   // G-171: for the slain ledger
                 auto result = GameDefinitionLoader::load(scene->definition, *subsystems_);
                 if (result.success) {
@@ -342,6 +345,7 @@ void SceneManager::executeLoad() {
     // scene's terrain.
     if (subsystems_->chunkManager) {
         auto* cm = subsystems_->chunkManager;
+        if (callbacks_.beforeWorldSave) callbacks_.beforeWorldSave();   // WaterCore 47: live water into the chunks first
         if (subsystems_->placedObjectManager) {
             auto* ws = cm->m_streamingManager.getWorldStorage();
             if (ws) subsystems_->placedObjectManager->saveToDb(ws->getDb());
@@ -355,6 +359,7 @@ void SceneManager::executeLoad() {
         // Initialize storage with the new scene's DB
         if (!scene->resolvedWorldPath.empty()) {
             if (!cm->initializeWorldStorage(scene->resolvedWorldPath)) {
+                if (callbacks_.onWorldStorageChanged) callbacks_.onWorldStorageChanged();   // none attached: the last world's state still goes
                 lastResult_.success = false;
                 lastResult_.error = "Failed to open world database: " + scene->resolvedWorldPath;
                 return;
@@ -376,6 +381,7 @@ void SceneManager::executeLoad() {
                 if (ws) subsystems_->placedObjectManager->loadFromDb(ws->getDb());
             }
         }
+        if (callbacks_.onWorldStorageChanged) callbacks_.onWorldStorageChanged();   // WaterCore 47: the new world's records
     }
 
     // 2. Build the definition to load. Merge playerDefaults if scene doesn't specify player.

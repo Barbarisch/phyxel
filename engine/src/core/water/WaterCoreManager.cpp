@@ -1505,6 +1505,60 @@ bool WaterCoreManager::loadSlept(const std::string& text) {
     return true;
 }
 
+WaterCoreManager::WorldWriteBack WaterCoreManager::writeBackAll() {
+    WorldWriteBack out;
+    std::vector<int> ids;
+    for (const auto& a : m_avs) ids.push_back(a->id);
+    for (int id : ids) {
+        const Av* av = volumeById(id);
+        if (!av) continue;
+        const double recorded = av->recordedM3;   // its recorded tiles are in the record already
+        const WriteBackRecord rec = sleep(id, true);
+        if (!rec.ok) { ++out.failed; out.error = rec.error; continue; }
+        ++out.volumes;
+        out.storedM3 += rec.massStored + recorded;
+        out.heldLostM3 += rec.heldMass;   // forced: held columns are not written and the volume goes - that water is gone
+        out.unwrittenColumns += rec.unwrittenColumns;
+    }
+    return out;   // the caller logs a loss (heldLostM3, unwrittenColumns) - this file does not log
+}
+
+WaterCoreManager::WorldReset WaterCoreManager::resetWorld() {
+    const auto t0 = std::chrono::steady_clock::now();
+    WorldReset out;
+    if (s_resetWorldOffForTest) return out;
+    for (WakeJob& j : m_jobs) { endWakeJob(j); ++out.jobs; }   // half-built volumes and the kept sets they took
+    m_jobs.clear();
+    std::vector<int> ids;
+    for (const auto& a : m_avs) ids.push_back(a->id);
+    for (int id : ids) {
+        for (const Droplet& d : m_pool.take(id)) out.dropletsM3 += d.volume;   // destroy() would count them as destroyed water
+        if (destroy(id)) ++out.volumes;
+    }
+    out.dropletsM3 += m_pool.clear();
+    m_dropletDraw.clear(); m_particleDraw.clear();
+    if (m_gpu) for (const KeptEntry& k : m_kept) m_gpu->releaseKept(k.handle);
+    out.kept = static_cast<int>(m_kept.size());
+    m_kept.clear();
+    out.slept = static_cast<int>(m_slept.size());
+    m_slept.clear(); m_sleptLoad = SleptLoadStats{}; m_autoSlept.clear();
+    out.bodies = static_cast<int>(m_bodies.size());
+    m_bodies.clear();
+    m_rippleBodies.clear();
+    m_solidHold.clear();
+    // the record's caches: another world's columns must never answer for this one (the residency hash is not trusted with a full swap)
+    m_recordCols.clear(); ++m_recordGen;
+    m_recordChanged.clear(); m_resGlobalSeen = 0;
+    out.recordTiles = static_cast<int>(m_recordTiles.size());
+    m_recordTiles.clear(); m_recordBoxes.clear(); ++m_recordRevision;
+    m_fields.clear(); m_surface.clear();   // no pointer into a destroyed volume or tile survives
+    m_motionSeen.clear(); m_motionPrevTops.clear(); ++m_fieldBumps;
+    m_tickAccum = 0.0;
+    ++m_worldResets;
+    out.ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    return out;
+}
+
 void WaterCoreManager::markWritten(Av& av, const glm::vec3* wakeCentre, float wakeRadius) {
     av.solver->wake();
     av.gpuDirty = true; av.gpuLast.asleep = false;

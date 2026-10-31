@@ -68,6 +68,8 @@ public:
 
     std::string serialize() const;    ///< JSON
     bool load(const std::string& json);
+    /// A2i (47): an empty table - a world with no water_bodies key holds no rows (not the last world's)
+    void clear() { m_records.clear(); m_nextAvId = -1; m_orphanDisplaced = 0.0; }
     size_t size() const { return m_records.size(); }
 
 private:

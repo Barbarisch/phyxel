@@ -65,6 +65,14 @@ struct SceneCallbacks {
     /// Called when a Menu-type scene has been activated.
     /// The host uses this to build and show the menu UI from the scene's menuLayout.
     std::function<void(const SceneDefinition& scene)> onMenuSceneLoaded;
+
+    /// Called just before the leaving world's chunks are saved (both load paths): world state kept outside the chunks (the
+    /// editor's water core, WaterCore 47) writes itself into them and its records first. Optional.
+    std::function<void()> beforeWorldSave;
+
+    /// Called once the new scene's world storage is attached (or failed to attach - then none is): state that belongs to one world
+    /// resets and restores the new world's (WaterCore 47). Optional.
+    std::function<void()> onWorldStorageChanged;
 };
 
 /// Result of a scene transition attempt.

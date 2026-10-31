@@ -75,6 +75,8 @@ public:
     template <class LandFn> void step(float dt, float gravity, LandFn land, std::vector<Droplet>& landed);
     /// Remove every droplet of a volume (it is flushed into its grid by the caller).
     std::vector<Droplet> take(int volumeId);
+    /// A2i (47): drop every droplet (the world changed); returns the volume dropped
+    double clear() { const double v = volumeInFlight(); m_d.clear(); return v; }
     const std::vector<Droplet>& droplets() const { return m_d; }
     double volumeInFlight() const { double v = 0.0; for (const Droplet& d : m_d) v += d.volume; return v; }
     double volumeInFlight(int volumeId) const { double v = 0.0; for (const Droplet& d : m_d) if (d.volumeId == volumeId) v += d.volume; return v; }

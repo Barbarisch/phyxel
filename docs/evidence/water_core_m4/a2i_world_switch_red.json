@@ -1,0 +1,353 @@
+{
+ "checks": [
+  {
+   "check": "0 control: the record holds the pond",
+   "ok": true,
+   "got": 24.000003814697266
+  },
+  {
+   "check": "0 control: a wake holds the record",
+   "ok": true,
+   "got": 24.00000359500861
+  },
+  {
+   "check": "1 no live volume of 'pond' in 'dry'",
+   "ok": false,
+   "got": 1
+  },
+  {
+   "check": "1 no slept box of 'pond' in 'dry'",
+   "ok": true,
+   "got": []
+  },
+  {
+   "check": "1 no body row of 'pond' in 'dry'",
+   "ok": false,
+   "got": 2
+  },
+  {
+   "check": "1 'dry''s record over the pond box is empty",
+   "ok": true,
+   "got": 0.0
+  },
+  {
+   "check": "1 the write-back reported one volume of the pond",
+   "ok": false,
+   "got": {
+    "error": "",
+    "failed": 0,
+    "held_lost_m3": 0.0,
+    "stored_m3": 0.0,
+    "unwritten_columns": 0,
+    "volumes": 0
+   }
+  },
+  {
+   "check": "2 one slept box restored",
+   "ok": false,
+   "got": []
+  },
+  {
+   "check": "2 no live volume carried",
+   "ok": false,
+   "got": 1
+  },
+  {
+   "check": "2 body rows restored",
+   "ok": true,
+   "got": {
+    "before": 2,
+    "after": 2
+   }
+  },
+  {
+   "check": "2 the record holds what 'pond' held",
+   "ok": true,
+   "got": {
+    "before": 24.000003814697266,
+    "after": 24.000003814697266,
+    "diff": 0.0
+   }
+  },
+  {
+   "check": "2 a wake holds it",
+   "ok": false,
+   "got": 48.00000719001722
+  },
+  {
+   "check": "3 no live volume after the project switch",
+   "ok": false,
+   "got": 2
+  },
+  {
+   "check": "3 no slept box of the last project",
+   "ok": true,
+   "got": []
+  }
+ ],
+ "log": {
+  "reset_off": true,
+  "start_scene": {
+   "description": "",
+   "id": "pond",
+   "name": "Pond",
+   "on_enter_script": "",
+   "on_exit_script": "",
+   "scene_type": "world",
+   "transition_style": "cut",
+   "transitioning": false,
+   "world_database": "worlds/pond.db"
+  },
+  "pond_before": {
+   "volumes": 0,
+   "total_mass": 0.0,
+   "slept_boxes": [
+    [
+     99,
+     14,
+     11,
+     104,
+     19,
+     16
+    ]
+   ],
+   "bodies": 2,
+   "av_mass": 24.02000617980957,
+   "world": {
+    "last": {
+     "bodies_dropped": 0,
+     "bodies_restored": 2,
+     "debris_tiles_dropped": 25,
+     "droplets_m3": 0.0,
+     "error": "",
+     "kept_released": 0,
+     "reason": "scene",
+     "record_tiles_dropped": 141,
+     "reset_ms": 0.0231,
+     "restored": true,
+     "slept_dropped": 0,
+     "slept_restored": 1,
+     "slept_skipped": 0,
+     "volumes_dropped": 0,
+     "wakes_cancelled": 0,
+     "written_back": {
+      "error": "",
+      "failed": 0,
+      "held_lost_m3": 0.0,
+      "stored_m3": 0.0,
+      "unwritten_columns": 0,
+      "volumes": 0
+     }
+    },
+    "resets": 1,
+    "test_reset_off": true
+   }
+  },
+  "pond_awake": {
+   "volumes": 1,
+   "total_mass": 24.00000359500861,
+   "slept_boxes": [],
+   "bodies": 2,
+   "av_mass": 24.02000617980957,
+   "world": {
+    "last": {
+     "bodies_dropped": 0,
+     "bodies_restored": 2,
+     "debris_tiles_dropped": 25,
+     "droplets_m3": 0.0,
+     "error": "",
+     "kept_released": 0,
+     "reason": "scene",
+     "record_tiles_dropped": 141,
+     "reset_ms": 0.0231,
+     "restored": true,
+     "slept_dropped": 0,
+     "slept_restored": 1,
+     "slept_skipped": 0,
+     "volumes_dropped": 0,
+     "wakes_cancelled": 0,
+     "written_back": {
+      "error": "",
+      "failed": 0,
+      "held_lost_m3": 0.0,
+      "stored_m3": 0.0,
+      "unwritten_columns": 0,
+      "volumes": 0
+     }
+    },
+    "resets": 1,
+    "test_reset_off": true
+   }
+  },
+  "to_dry": {
+   "description": "",
+   "id": "dry",
+   "name": "Dry",
+   "on_enter_script": "",
+   "on_exit_script": "",
+   "scene_type": "world",
+   "transition_style": "cut",
+   "transitioning": false,
+   "world_database": "worlds/dry.db"
+  },
+  "dry": {
+   "volumes": 1,
+   "total_mass": 24.00000359500861,
+   "slept_boxes": [],
+   "bodies": 2,
+   "av_mass": 24.02000617980957,
+   "world": {
+    "last": {
+     "bodies_dropped": 0,
+     "bodies_restored": 2,
+     "debris_tiles_dropped": 25,
+     "droplets_m3": 0.0,
+     "error": "",
+     "kept_released": 0,
+     "reason": "scene",
+     "record_tiles_dropped": 141,
+     "reset_ms": 0.0231,
+     "restored": true,
+     "slept_dropped": 0,
+     "slept_restored": 1,
+     "slept_skipped": 0,
+     "volumes_dropped": 0,
+     "wakes_cancelled": 0,
+     "written_back": {
+      "error": "",
+      "failed": 0,
+      "held_lost_m3": 0.0,
+      "stored_m3": 0.0,
+      "unwritten_columns": 0,
+      "volumes": 0
+     }
+    },
+    "resets": 1,
+    "test_reset_off": true
+   }
+  },
+  "to_pond": {
+   "description": "",
+   "id": "pond",
+   "name": "Pond",
+   "on_enter_script": "",
+   "on_exit_script": "",
+   "scene_type": "world",
+   "transition_style": "cut",
+   "transitioning": false,
+   "world_database": "worlds/pond.db"
+  },
+  "pond_after": {
+   "volumes": 1,
+   "total_mass": 24.00000359500861,
+   "slept_boxes": [],
+   "bodies": 2,
+   "av_mass": 24.02000617980957,
+   "world": {
+    "last": {
+     "bodies_dropped": 0,
+     "bodies_restored": 2,
+     "debris_tiles_dropped": 25,
+     "droplets_m3": 0.0,
+     "error": "",
+     "kept_released": 0,
+     "reason": "scene",
+     "record_tiles_dropped": 141,
+     "reset_ms": 0.0231,
+     "restored": true,
+     "slept_dropped": 0,
+     "slept_restored": 1,
+     "slept_skipped": 0,
+     "volumes_dropped": 0,
+     "wakes_cancelled": 0,
+     "written_back": {
+      "error": "",
+      "failed": 0,
+      "held_lost_m3": 0.0,
+      "stored_m3": 0.0,
+      "unwritten_columns": 0,
+      "volumes": 0
+     }
+    },
+    "resets": 1,
+    "test_reset_off": true
+   }
+  },
+  "project_switch_before": {
+   "volumes": 2,
+   "total_mass": 48.00000719001722,
+   "slept_boxes": [],
+   "bodies": 2,
+   "av_mass": 24.02000617980957,
+   "world": {
+    "last": {
+     "bodies_dropped": 0,
+     "bodies_restored": 2,
+     "debris_tiles_dropped": 25,
+     "droplets_m3": 0.0,
+     "error": "",
+     "kept_released": 0,
+     "reason": "scene",
+     "record_tiles_dropped": 141,
+     "reset_ms": 0.0231,
+     "restored": true,
+     "slept_dropped": 0,
+     "slept_restored": 1,
+     "slept_skipped": 0,
+     "volumes_dropped": 0,
+     "wakes_cancelled": 0,
+     "written_back": {
+      "error": "",
+      "failed": 0,
+      "held_lost_m3": 0.0,
+      "stored_m3": 0.0,
+      "unwritten_columns": 0,
+      "volumes": 0
+     }
+    },
+    "resets": 1,
+    "test_reset_off": true
+   }
+  },
+  "projects_open": {
+   "project_dir": "C:/Users/jack/Documents/PhyxelProjects/WaterBench_Dry",
+   "success": true
+  },
+  "project_switch_after": {
+   "volumes": 2,
+   "total_mass": 48.00000719001722,
+   "slept_boxes": [],
+   "bodies": 2,
+   "av_mass": 24.02000617980957,
+   "world": {
+    "last": {
+     "bodies_dropped": 0,
+     "bodies_restored": 2,
+     "debris_tiles_dropped": 25,
+     "droplets_m3": 0.0,
+     "error": "",
+     "kept_released": 0,
+     "reason": "scene",
+     "record_tiles_dropped": 141,
+     "reset_ms": 0.0231,
+     "restored": true,
+     "slept_dropped": 0,
+     "slept_restored": 1,
+     "slept_skipped": 0,
+     "volumes_dropped": 0,
+     "wakes_cancelled": 0,
+     "written_back": {
+      "error": "",
+      "failed": 0,
+      "held_lost_m3": 0.0,
+      "stored_m3": 0.0,
+      "unwritten_columns": 0,
+      "volumes": 0
+     }
+    },
+    "resets": 1,
+    "test_reset_off": true
+   }
+  }
+ }
+}

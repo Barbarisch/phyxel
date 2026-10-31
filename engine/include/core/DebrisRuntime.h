@@ -196,6 +196,8 @@ public:
         return n;
     }
     uint64_t waterTilesDropped() const { return m_waterTilesDropped; }
+    /// WaterCore 47 (A2i): the world changed - every cached water tile is another world's
+    size_t invalidateAllWaterTiles() { const size_t n = m_waterCache.size(); m_waterCache.clear(); m_waterTilesDropped += n; return n; }
     /// The column source debris reads: the volume where it answers, else the fallback. Pure.
     static WaterColumnFn composeColumn(WaterColumnFn volume, WaterColumnFn fallback);
     static WaterRunsFn composeRuns(WaterRunsFn volume, WaterRunsFn fallback);   ///< 37: the same, as runs

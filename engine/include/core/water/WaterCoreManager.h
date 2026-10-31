@@ -502,6 +502,20 @@ public:
     bool loadSlept(const std::string& json);
     struct SleptLoadStats { long restored = 0, skipped = 0; std::string error; };
     const SleptLoadStats& sleptLoadStats() const { return m_sleptLoad; }
+    /// A2i (47): the world is leaving (a scene transition saves it next) - every live volume is written back (sleep, forced) so the
+    /// record holds the water as it is now, not as it was when it woke. Held columns (Unknown occupancy) cannot be written: their
+    /// water is reported as lost (heldLostM3), never silently. A volume the writer refused is counted (failed) and dropped by the
+    /// reset that follows.
+    struct WorldWriteBack { int volumes = 0, failed = 0; double storedM3 = 0.0, heldLostM3 = 0.0; long unwrittenColumns = 0; std::string error; };
+    WorldWriteBack writeBackAll();
+    /// A2i (47): the world changed (another scene's, project's or editor scene's storage is attached) - drop every per-world thing:
+    /// the volumes (GPU memory freed), droplets, slept boxes, body rows, kept GPU sets, paced wakes, the record cache and tiles, the
+    /// solid holds and the motion caches. Engine wiring (span IO, GPU, queries) and the settings stay; ids keep counting. The caller
+    /// restores the new world's records after (loadSlept, bodies().load).
+    struct WorldReset { int volumes = 0, slept = 0, bodies = 0, kept = 0, jobs = 0, recordTiles = 0; double dropletsM3 = 0.0, ms = 0.0; };
+    WorldReset resetWorld();
+    long worldResets() const { return m_worldResets; }
+    static inline bool s_resetWorldOffForTest = false;   ///< TEST ONLY: resetWorld() does nothing (before 47 - the unit red)
     static constexpr double kSleptRetryS = 1.0;   ///< 35: a wake that found the box's chunks not resident waits this long to retry
     /// the slept boxes as (lo, hi + 1) world corners - handed to the debris solver with the live ones, so a body inside one reports
     std::vector<std::pair<glm::vec3, glm::vec3>> sleptBoxesWorld() const;
@@ -923,6 +937,7 @@ private:
     SpanWriter m_spanWriter; SpanReader m_spanReader; BakeBodyQuery m_bakeBodyAt;
     WaterBodyTable m_bodies;
     std::vector<WriteBackRecord> m_autoSlept;
+    long m_worldResets = 0;   // A2i (47)
     int m_nextId = 1;
     uint64_t m_avRevision = 0;
     std::vector<std::pair<glm::ivec3, glm::ivec3>> m_boxes;   // mirrors m_avs (16.4)

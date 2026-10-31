@@ -2651,6 +2651,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                     UI::unloadMenuFrom(*ui);
             };
 
+            // A2i (WaterCore 47): the water core across scenes - the leaving scene's live water into its chunks and records before they
+            // are saved, then the next scene's records restored (nothing of the last scene's water stays)
+            cb.beforeWorldSave = [this]() { waterWorldLeaving(); };
+            cb.onWorldStorageChanged = [this]() { waterWorldChanged("scene", true); };
+
             // Unload cleanup. The SceneManager only INVOKES these callbacks — if the
             // host doesn't provide them, nothing clears on transition and player
             // characters/NPCs accumulate across scenes (observed 2→6→7 animated
@@ -3024,6 +3029,9 @@ void Application::applyProjectSelection(const std::string& projectPath) {
         std::string newDbPath = engineConfig.worldsDir + "/default.db";
         fs::create_directories(engineConfig.worldsDir);
         chunkManager->initializeWorldStorage(newDbPath);
+        // A2i (WaterCore 47): the last project's water goes with its chunks (not saved - its dirty chunks were just dropped too);
+        // this project's records are restored. autoLoadGameDefinition does it again after a successful load (harmless)
+        waterWorldChanged("project", true);
 
         // Load whatever the project's DB already has near the camera now (may be
         // empty for new projects); distant chunks stream in over the next frames
@@ -3569,6 +3577,58 @@ void Application::saveWaterMeta() {
     if (!ws || !ws->getDb()) return;
     ws->setMeta("water_bodies", waterCore->bodies().serialize());
     ws->setMeta("water_slept", waterCore->serializeSlept());
+}
+
+// A2i (WaterCore 47): the world is leaving and is saved next (a scene transition) - its live water goes into its record first, or
+// the save keeps the water as it was when it woke (and the next world would never see it again)
+void Application::waterWorldLeaving() {
+    if (!waterCore || m_waterWorldResetOffForTest) return;
+    const auto wb = waterCore->writeBackAll();
+    if (wb.heldLostM3 > 0.0 || wb.unwrittenColumns > 0 || wb.failed > 0)
+        LOG_WARN("WaterCore", "world write-back: {} volume(s), {:.4f} m^3 in held columns lost, {} column(s) unwritten, {} refused ({})",
+                 wb.volumes, wb.heldLostM3, wb.unwrittenColumns, wb.failed, wb.error);
+    m_waterWorldLeft = {{"volumes", wb.volumes}, {"stored_m3", wb.storedM3}, {"held_lost_m3", wb.heldLostM3},
+                        {"unwritten_columns", wb.unwrittenColumns}, {"failed", wb.failed}, {"error", wb.error}};
+    saveWaterMeta();
+}
+
+// A2i (WaterCore 47): another world's storage is attached (a scene, a project, the editor scene, a game definition load). Nothing of
+// the last world's water may stay: the core is reset, the editor's lists that point into its volumes are emptied in the same call
+// (the renderer is fed them before its next draw), and the new world's records are restored - an absent key is an empty record.
+void Application::waterWorldChanged(const char* reason, bool restore) {
+    if (!waterCore || m_waterWorldResetOffForTest) return;
+    const auto r = waterCore->resetWorld();
+    m_rippleLayers.clear(); m_gpuSurfaceDraws.clear();
+    if (renderCoordinator) {
+        renderCoordinator->setWaterCoreGpuSurfaces(nullptr);
+        renderCoordinator->setWaterCoreSurfaceFields(nullptr);
+        renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
+    }
+    m_waterMaskBoxes.clear(); m_displaceState.clear(); m_lastAutoSleep = {}; m_waterHeldEdits = 0;
+    if (shoreBand) shoreBand->clear();
+    if (fineBand) fineBand->clear();
+    m_shoreLastTry = m_fineLastTry = glm::vec2(1e9f);   // re-site at the next frame, from this world's spans
+    m_fineOuterRev = 0;
+    const size_t tiles = debrisRuntime ? debrisRuntime->invalidateAllWaterTiles() : 0;
+    long slept = 0, skipped = 0; size_t bodies = 0; std::string err;
+    if (restore && chunkManager) {
+        if (auto* ws = chunkManager->m_streamingManager.getWorldStorage(); ws && ws->getDb()) {
+            const std::string wb = ws->getMeta("water_bodies");
+            if (!wb.empty() && !waterCore->bodies().load(wb)) { err = "water_bodies failed to parse"; LOG_WARN("Application", "world_meta water_bodies failed to parse - body records not restored"); }
+            if (!waterCore->loadSlept(ws->getMeta("water_slept"))) { err = waterCore->sleptLoadStats().error; LOG_WARN("Application", "world_meta water_slept not restored: {}", err); }
+            slept = waterCore->sleptLoadStats().restored; skipped = waterCore->sleptLoadStats().skipped;
+            bodies = waterCore->bodies().size();
+        }
+    }
+    m_waterWorldLast = {{"reason", reason}, {"volumes_dropped", r.volumes}, {"slept_dropped", r.slept}, {"bodies_dropped", r.bodies},
+                        {"kept_released", r.kept}, {"wakes_cancelled", r.jobs}, {"record_tiles_dropped", r.recordTiles},
+                        {"droplets_m3", r.dropletsM3}, {"debris_tiles_dropped", tiles}, {"reset_ms", r.ms},
+                        {"written_back", m_waterWorldLeft.is_null() ? nlohmann::json() : m_waterWorldLeft},
+                        {"restored", restore}, {"slept_restored", slept}, {"slept_skipped", skipped}, {"bodies_restored", bodies}, {"error", err}};
+    m_waterWorldLeft = nullptr;
+    if (r.volumes || r.slept || r.bodies || slept || bodies)
+        LOG_INFO("WaterCore", "[WATER] world changed ({}): dropped {} volume(s), {} slept box(es), {} body row(s); restored {} slept, {} bodies ({:.1f} ms)",
+                 reason, r.volumes, r.slept, r.bodies, slept, bodies, r.ms);
 }
 
 void Application::cleanup() {
@@ -7115,19 +7175,11 @@ void Application::autoLoadGameDefinition() {
                             const std::string ov = ws->getMeta("water_overrides");
                             if (!ov.empty() && !waterManager->loadOverrides(ov))
                                 LOG_WARN("Application", "world_meta water_overrides failed to parse — pours not restored");
-                            if (waterCore) {   // Phase D: Tier A records
-                                const std::string wb = ws->getMeta("water_bodies");
-                                if (!wb.empty() && !waterCore->bodies().load(wb))
-                                    LOG_WARN("Application", "world_meta water_bodies failed to parse - body records not restored");
-                                // 35 (A2c): the slept boxes - REPLACED, an absent key included (no boxes from the last world)
-                                if (!waterCore->loadSlept(ws->getMeta("water_slept")))
-                                    LOG_WARN("Application", "world_meta water_slept not restored: {}", waterCore->sleptLoadStats().error);
-                                else if (waterCore->sleptLoadStats().restored || waterCore->sleptLoadStats().skipped)
-                                    LOG_INFO("Application", "[WATER] {} slept pond box(es) restored, {} skipped", waterCore->sleptLoadStats().restored,
-                                             waterCore->sleptLoadStats().skipped);
-                            }
                         }
                     }
+                    // Phase D / 35 (A2c) / A2i (47): the water core's records - the last world's volumes, boxes and rows dropped, this
+                    // world's restored (an absent key = none, never the last world's)
+                    waterWorldChanged("load", true);
                 }
             }
 
@@ -14705,6 +14757,7 @@ void Application::registerWaterCommands() {
         // displacing pump, which launches floaters (31.1).
         const bool pressureRefused = cmd.params.contains("pressure_force") && !cmd.params.value("pressure_force", true);
         m_pressureForceOn = true;
+        if (cmd.params.contains("test_world_reset_off")) m_waterWorldResetOffForTest = cmd.params.value("test_world_reset_off", false);   // 47 TEST: the red
         if (cmd.params.contains("displace")) m_displaceOn = cmd.params.value("displace", true);   // 31 TEST: bodies recorded but not rasterized
         // 44.2 step 1(a) TEST: the bodies' box uploaded in a call of its own, waiting twice (the path before the fold) - the A/B control
         if (cmd.params.contains("test_solid_upload_sync")) Core::Water::WaterCoreGpu::s_solidUploadSyncForTest = cmd.params.value("test_solid_upload_sync", false);
@@ -14760,6 +14813,7 @@ void Application::registerWaterCommands() {
         const auto* gp = debrisRuntime ? debrisRuntime->gpu() : nullptr;
         r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn}, {"solids", m_waterSolidsOn}, {"wake_rule", waterCore ? waterCore->solidWakeRule() : true},
              {"displace", m_displaceOn}, {"test_solid_upload_sync", Core::Water::WaterCoreGpu::s_solidUploadSyncForTest},
+             {"world", {{"resets", waterCore ? waterCore->worldResets() : 0L}, {"last", m_waterWorldLast}, {"test_reset_off", m_waterWorldResetOffForTest}}},   // A2i (47)
              {"displace_gate", {{"min_half_m", Core::Water::WaterCoreManager::s_displaceGate.minHalfM}, {"min_half_m_default", Core::Water::WaterDisplaceGate::kMinHalfMDefault},
                                 {"budget", Core::Water::WaterCoreManager::s_displaceGate.budget}, {"budget_default", Core::Water::WaterDisplaceGate::kBudgetDefault},
                                 {"last", {{"kept", m_displaceGateLast.kept}, {"admitted", m_displaceGateLast.admitted}, {"refused_size", m_displaceGateLast.refusedSize},
@@ -21595,6 +21649,8 @@ void Application::resetEditorScene() {
 
     // Clean up chunk data (destroys ChunkPhysicsManager → unregisters grids)
     if (chunkManager) chunkManager->cleanup();
+    // A2i (WaterCore 47): the project's water goes with its chunks; an editor scene has no water records to restore
+    waterWorldChanged("editor_scene", false);
 
     // ---- Clear project directory so stale saves don't hit the old project DB ----
     projectDir_.clear();

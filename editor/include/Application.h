@@ -338,6 +338,13 @@ private:
     /// miss one slow frame between its reads. Written by the main thread, read and reset by the API thread.
     std::atomic<double> m_frameMsMax{0.0};
     void saveWaterMeta();            // 35 (A2c): world_meta water_bodies + water_slept, at every chunk save point
+    // A2i (WaterCore 47): the water core across world changes. Leaving: every live volume written back, then the records saved
+    // (before the chunks are). Changed: the water core and the editor's water state reset, then (restore) the new world's records.
+    void waterWorldLeaving();
+    void waterWorldChanged(const char* reason, bool restore);
+    nlohmann::json m_waterWorldLast;   // the last change, echoed by water_coupling.world
+    nlohmann::json m_waterWorldLeft;   // the write-back of the world left, taken by the next change (null = none)
+    bool m_waterWorldResetOffForTest = false;   // TEST ONLY (water_coupling test_world_reset_off): both no-ops - before 47 (the red)
     uint32_t m_pressureTag = 0;      // the frame's window tag (written by the water calls, checked by the debris ticks)
     Core::Water::WaterCoreManager::SolidsFeed m_solidsFeed;   // the last frame's feed (water_coupling echo)
     bool m_waterExchangeOn = true;   // E2: debris -> water momentum only (the tiles stay) - a diagnostic split
