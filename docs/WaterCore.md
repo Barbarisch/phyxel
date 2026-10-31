@@ -11756,6 +11756,26 @@ see.** (The pool key first included the hand-over's running counters and refused
 What this does not cover: tiers (none exist yet), other bodies and ponds than L5's stone and wood in the 4 x 4 m pond, and shifts
 smaller than this design's power (at 12 + 12 a shift of about one run-to-run spread).
 
+### 46.1 The sign-off sheet (2026-10-30): track A's built items, for the owner in one sitting
+
+The owner, after asking how much of the plan is done: "lets do it" (A13, then a sign-off pass). Thirteen track-A items were
+built and not signed off. Each below with what there is to see and the agent's recommendation; the owner's word decides.
+
+| item | what to judge | how | recommendation |
+|---|---|---|---|
+| **A12 hand-over** (45.5, ON) | when a pond's last faint rings fade and it goes still | NEW clip `handover_look_side_by_side.mp4` (shipped everything; left no hand-over, right shipped): the right pond goes still and is recorded at 38.6 s; the left still shows faint rings and never sleeps within the 50 s | sign off if the moment it stills looks natural |
+| **A10 displacement, gated** (44.5-44.7, ON) | livelier water from shoving bodies | `displace_floor_side_by_side.mp4` (the owner: "cant see a difference" - the floor kept); both halves of the new clip run it | sign off |
+| **A2h** (displacement off by default) | - | superseded by A10 (displacement ON since 44.6) | close as superseded |
+| **L2 ripple detail by distance** (43.5, ON) | no band or pop where ripples fade | `l2_flyaway_side_by_side.mp4` - already seen ("Turn it on") | sign off |
+| **A2f + L3 + L4, the wake hitch** | a dropped frame when a sleeping pond wakes | numbers: the pit's wake frame 98 -> 12 ms; small pond 36 -> ~5 ms; `a2f_delay*_side_by_side.mp4` (the owner could not tell a 0.4 s late wake). In the new clip the left half woke FRESH (31 fps at worst, one frame), the right from kept memory (121 fps at worst) | sign off on the numbers |
+| **A2e** a dry cave under a pond is dry | nothing visible (underground) | numbers: a stone in a sealed room under the pond falls like the control (37) | sign off on the numbers |
+| **A2c** a slept pond survives save and reload | - | red/green live on both shutdown paths (35.2) | sign off on the numbers; a reload clip on request |
+| **A11** a sleep loses no water | - | 24 m^3 written back to 0.0005 L (44.8) | sign off on the numbers |
+| **L1 / L5 / L6 / A13** the distance function and the outcome check | - | infrastructure: §40, §46 (the shipped build passes a powered near/far check, 12 + 12) | sign off on the numbers |
+
+Not on the sheet (open, not built): A2i (water across scene changes), A4 wading, A5 the tall-cell floor, A6 the spiky stone, A8,
+A9.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
