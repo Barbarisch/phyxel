@@ -9082,7 +9082,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
 | A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
 | A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | steps 1-2 BUILT, displacement ON by default (44.5-44.7: pond 225 -> 310 fps, the pit back to its off cost, L5 far 10 of 10); step 3 (the distance fade) built, measured and DROPPED (44.9: a far body that does not shove settles ~2 s sooner and exactly where dropped - an outcome by distance); not signed off | the livelier water the owner chose, at a cost every tier can carry |
-| A13 | **L5 judges distributions, not only the band** (found in 44.9): the pooled min-max fence passed a far group that differed systematically (rest time 2.8-3.3 s vs 4.0-5.8 s) | found, not designed | an outcome check that cannot see a 2 s difference cannot guard "locality never changes outcomes" |
+| A13 | **L5 judges distributions, not only the band** (found in 44.9): the pooled min-max fence passed a far group that differed systematically (rest time 2.8-3.3 s vs 4.0-5.8 s) | BUILT, not signed off (§46): a stratified permutation judge (location + spread, Holm, UNDERPOWERED is never a pass) beside the fence; pools refused across builds; the fade sessions FAIL it, near-vs-near passes, every earlier session alone is UNDERPOWERED; the shipped build PASSES a powered 6 + 6 session | an outcome check that cannot see a 2 s difference cannot guard "locality never changes outcomes" |
 | A11 | **A sleep conserves mass exactly** (found in 44.7): the write-back drops the water of a column holding only sub-millimetre film (`thinDropped`, counted) - 0.3-0.5 L a splash with displacement on | owner: fix (44.8); designed + built - the film joins the nearest column with a run |
 | A12 | **Water at rest looks alive** (45): faceted rest motion on every pond surface (awake and recorded) + the rings hand over before a pond sleeps | DRIFT: W2's cosmetic motion pulled ahead of track A on the owner's ask (44.8 item 3); design-check READY (45.1); the rest motion REJECTED by the owner and removed (45.3: a pattern ignores the shores); the hand-over BUILT and ON by default (45.5, the owner: "sure"; near sleeps 33-35 s vs 60-76 s; L5 13 of 13 far pass, nothing rose); a wind-forced ripple PROTOTYPE (test only) measured not convincing and parked (45.4: speckled chop; small tilts barely show in the pond's shading; lapping needs the shore band, W6) | ponds must sleep for the frame (owner); still water must not look lifeless | water is physical: a pond must not drain by being splashed (owner's standing rule) |
 
@@ -11688,6 +11688,65 @@ goes ON (near ponds sleep at ~34 s instead of 60-76 s; faint rings fade in ~1.5 
 The owner, to "turn it on" and back to A10 step 3: **"sure"**. `RippleHandover::kHeightMmDefault` 0 -> 1.5 mm (1.5 s); the pin is
 now `WaterRippleTest.TheHandOverIsOnByDefault`. Its evidence is 45.2 (near ponds sleep 33-35 s vs 60-76 s; L5 pooled 13 of 13 far
 pass, nothing rose). Not re-measured live after the flip: the default only sets the value those runs set by hand.
+
+## 46. A13 - L5 judges distributions, not only the band (2026-10-30). Status: BUILT, not signed off
+
+**Why (44.9).** L5's fence checks each far value against the near runs' min-max band, widened by their spread. Pooled with other
+sessions it passed the distance fade 7 of 7 while every far stone settled ~2 s sooner. Two faults, found while building this:
+(1) **the pool mixed treatments** - the displacement and hand-over sessions' far runs were fade-free builds; their far runs were not
+the fade's far runs, and nothing recorded which build a session ran (the fade build was uncommitted, so a git HEAD would not have
+told them apart either); (2) **the fence cannot see a group**: a far group sitting in one part of the band, or with a narrower
+scatter, passes it run by run.
+
+**Design-check (`/design-check`, 2026-10-30): READY**, one item folded in - a spread test beside the location test (44.9's wood x
+had the same centre and a fifth of the scatter; a rank-location test would miss it), which makes 20 tests and sets the power floor.
+
+**Built** (`tools/water_l5_judge.py`, new; `water_l5_outcome.py`):
+- For every measure (pond m^3, level, stone and wood x y z, both rest times) two **stratified permutation tests**, far against near:
+  *location* (each run's midrank inside its own session, / (n + 1), summed over the far runs) and *spread* (the same on each run's
+  distance from its session's median). Labels are shuffled only inside a session, so sessions on different builds or days are pooled
+  but never compared with each other. Two-sided; exact when the shufflings number <= `--perms` (20,000), else Monte Carlo with a
+  fixed seed from a canonical order (the same evidence in any run or session order gives the same p - pinned). Holm over the 20
+  tests at the family rate `--alpha` 0.05. A rest time of None (never rested) ranks above every time.
+- **Verdict:** FAIL when any test is rejected; PASS only when none is AND every test could have been (its best p with no ties beats
+  alpha / 20 = 0.0025); else **UNDERPOWERED - never a pass**. One session needs **6 near + 6 far** (complete separation: 2 / C(12, 6)
+  = 0.0022).
+- **The fence stays** for a single wild run (far_dry), but it decides only when calibrated - its leave-one-out self-check ran (>= 4
+  near runs) and passed every near run. A 3-run fence fails runs drawn from the same distribution (40.4); it is printed, not counted.
+- **One pool = one treatment.** Each session now records the engine that answered (`identity`: the listening process's exe, its
+  sha256 and mtime, git HEAD, dirty) and the settings the tool sets; `--rejudge` refuses sessions whose binary or settings differ
+  (`--pool-mixed` forces, diagnosis only). Sessions from before A13 have no binary recorded: pooling them is the caller's claim, and
+  the verdict says so.
+
+**Unit tests** (`tools/test_water_l5_judge.py`, no engine, ~4 s, all pass): calibration - 300 exchangeable families, false alarms
+3.3 % (bound 8.8 %); power - a 3-sigma shift at 6 + 6 caught 48 of 50; 3 + 3 is UNDERPOWERED, never PASS; a narrow far scatter at
+8 + 8 caught 27 of 30; order independence (run and session order shuffled: the same p for every test - it FAILED first, the Monte
+Carlo drew in input order; fixed by the canonical order); perms < 1,000 refused; pool keys split binaries and settings.
+
+**Red (predicted: FAIL on the stone's rest time and the stone's x scatter).** The fade sessions judged as one build
+(`l5_fade_on` + `l5_fade_on_interleaved`, 7 near + 7 far): **FAIL** - rejected stone rest time (location, p 0.0014; far - near
+median -2.01 s), stone x (spread), stone z (location), wood x (spread), wood y (location). The same files pooled with the fade-free
+sessions (44.9's pool) PASS the new judge too - the dilution of fault (1), which is why mixed pools are now refused.
+
+**Null control on real runs (predicted: no FAIL).** The six six-near sessions, near against near: alternating labels (a c e vs b d
+f, 6 strata) PASS (smallest p 0.0036 against Holm 0.0025); 200 random 3 + 3 splits, family false alarms 12 of 200 = 6.0 % (bound at
+N = 200: 9.6 %).
+
+**Re-judging the saved sessions alone (each is one build):** every L2-L6, displacement and hand-over session with far runs is
+**UNDERPOWERED** (3 or 4 far runs) - no FAIL, and no PASS either. So the earlier "far passes" (L3 41.5, L4 42.5, L6 40.4, L2 43,
+displacement 44.6, hand-over 45.2) were fence checks only; none of them could have seen a 44.9-sized shift. L2's and L5's first
+sessions have fewer than three near runs and get no verdict. The blocked sessions (all near, then all far) also confound order
+with distance; the new session below is interleaved.
+
+**A powered session on today's shipped build** (`l5_a13_shipped.json`; the binary of b2dfcf73, sha256 44f73d2d..., all shipped
+settings: displacement on, hand-over 1.5 mm, L2 / L3 / L4 on; near and far interleaved, 6 + 6, then far_dry). Predicted: PASS on
+all 20, far_dry fails the fence, nothing rises. **Measured: distribution PASS** (exact, 924 assignments per test; no test rejected,
+every test powered), far_dry fails the fence (stone z, both rest times, wood y), nothing rose (every body's highest point is its
+release, 17.6767). Not significant but leaning the same way: far wood rests sooner (median -0.53 s, p 0.063) and ~5 mm higher
+(p 0.13 location, 0.097 spread). The two paths that differ near and far are the wake (near from kept memory, far fresh: L3) and
+the ripple layer (far ponds hold none: L2) - the ripple layer is drawn only, no body reads it (it delays the pond's sleep, a cost).
+A second session on the same binary, far first (order counterbalanced), is pooled with it below. The fence's self-check failed
+3 of 6 near runs again: at 6 near runs the fence is still not calibrated, so it is reported and not counted.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

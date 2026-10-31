@@ -27,6 +27,7 @@ import argparse, json, pathlib, sys, time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from water_bench import Api, SOLVER_TICK
 import water_float_rest as w
+import water_l5_judge as judge
 
 LEVEL, A = 16.5, 1.0 / 6.0
 BODIES = {"stone": {"x": 101.0, "z": 14.0, "material": "Stone"}, "wood": {"x": 103.0, "z": 14.0, "material": "Wood"}}
@@ -42,6 +43,39 @@ RIPPLE = None                    # L2 (43): {"ripple_reach": bool, "ripple_m": m
 DISPLACE = False                 # 44.6: debris displacement for every run - the engine's setting when the tool started (--displace)
 SLEEP_WAIT_S = 30.0              # 44.6: how long after the window the pond may take to sleep again (--sleep-wait); its mass is read then
 NO_KEEP = False                  # 44.6 TEST: --no-kept-memory - every wake fresh (L3's control), to tell the wake path from distance
+JUDGE_ALPHA, JUDGE_PERMS = 0.05, 20000   # A13 (§46): the distribution judge's family rate and Monte Carlo shufflings (--alpha, --perms)
+
+
+def engine_identity(url):
+    """A13 (§46): which engine binary answered - the listening process's exe, its sha256 and mtime, plus the repo's HEAD and whether
+    the tree was dirty. Sessions are pooled only when this and the settings match: 44.9's fade ran an UNCOMMITTED build, and pooling
+    it with other builds' far runs diluted a 2 s difference into a pass (a HEAD alone would not have told them apart)."""
+    import hashlib, subprocess, urllib.parse
+    port = urllib.parse.urlparse(url).port or 80
+    ident = {}
+    try:
+        exe = subprocess.run(["powershell", "-NoProfile", "-Command",
+                              f"(Get-Process -Id (Get-NetTCPConnection -LocalPort {port} -State Listen)[0].OwningProcess).Path"],
+                             capture_output=True, text=True, timeout=20).stdout.strip()
+        if exe:
+            p = pathlib.Path(exe)
+            ident.update(exe=str(p), exe_sha256=hashlib.sha256(p.read_bytes()).hexdigest(), exe_mtime=time.ctime(p.stat().st_mtime))
+    except Exception as e: ident["exe_error"] = str(e)
+    root = pathlib.Path(__file__).resolve().parent.parent
+    try:
+        ident["git_head"] = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        ident["git_dirty"] = bool(subprocess.run(["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+                                                 capture_output=True, text=True).stdout.strip())
+    except Exception as e: ident["git_error"] = str(e)
+    return ident
+
+
+def pool_key(res):
+    """What must match for two sessions to be one treatment (A13): the binary and every outcome-relevant setting the tool sets."""
+    i = res.get("identity") or {}
+    if not i.get("exe_sha256"): return None   # a session from before A13: its build is unrecorded
+    return json.dumps([i["exe_sha256"], res.get("displace"), res.get("wake_pace"), res.get("ripple"), res.get("handover"),
+                       res.get("wake_delay_s"), res.get("pace_late"), res.get("no_kept_memory")], sort_keys=True)
 
 
 def tracks_xyz(path):
@@ -232,6 +266,29 @@ def verdict(runs, self_check=True):
                                  "outside": [k for k, o in out.items() if not o["inside"]], "measures": out}
         if self_check: print(f"  verdict {r['run']}: {'PASS' if res['runs'][r['run']]['pass'] else 'FAIL'}; outside the near spread: "
               f"{res['runs'][r['run']]['outside']}; rose: {rose}", flush=True)
+    if self_check:   # A13 (§46): the groups, not only the band - far against near inside each session (a run's @tag; live = one)
+        sessions = {}
+        for r in runs:
+            if r["run"].startswith("far_dry"): continue   # the fence's red, not an outcome sample
+            grp = "near" if r["run"].startswith("near") else "far" if r["run"].startswith("far") else None
+            if grp: sessions.setdefault(r["run"].partition("@")[2], {"near": [], "far": []})[grp].append(measures(r))
+        d = judge.judge(sessions, JUDGE_ALPHA, JUDGE_PERMS)
+        res["distribution"] = d
+        print(f"  distribution ({d['tests_m']} tests, Holm at {d['alpha']}, sessions {d['sessions']}): {d['verdict']}", flush=True)
+        for k, t in d["tests"].items():
+            if t["rejected"] or (t["p"] is not None and t["p"] < 0.05):
+                print(f"    {k}: p {t['p']:.5f} (Holm {t['holm_threshold']:.5f}){' REJECTED' if t['rejected'] else ''}, "
+                      f"far - near median shift {t['median_shift']}", flush=True)
+        if d["underpowered"]: print(f"    underpowered (best p > {d['strict_threshold']:.5f}): {len(d['underpowered'])} of {d['tests_m']} tests "
+                                    f"- a session needs 6 near + 6 far", flush=True)
+        # the fence counts only when it is calibrated - its leave-one-out self-check ran (>= 4 near) and passed every near run;
+        # a 3-run fence fails runs from the same distribution (40.4), so it is reported but does not decide
+        fence_ok = all(v["pass"] for k, v in res["runs"].items() if not k.startswith("far_dry"))
+        sc = res.get("self_check") or {}
+        fence_valid = "failed" in sc and not sc["failed"]
+        res["overall"] = "FAIL" if d["verdict"] == "FAIL" or (fence_valid and not fence_ok) else d["verdict"]
+        print(f"  overall (fence {'pass' if fence_ok else 'FAIL'}{'' if fence_valid else ' - uncalibrated, not counted'}, "
+              f"distribution {d['verdict']}): {res['overall']}", flush=True)
     return res
 
 
@@ -251,18 +308,33 @@ def main():
     ap.add_argument("--sleep-wait", type=float, default=30.0, help="44.6: seconds after the window for the pond to sleep again")
     ap.add_argument("--no-kept-memory", action="store_true", help="44.6 TEST: every wake fresh (water_locality test_keep_memory_off)")
     ap.add_argument("--handover-mm", type=float, default=None, help="A12 (45.1): the rings' hand-over height for every run (0 = off; default = the engine's)")
+    ap.add_argument("--pool-mixed", action="store_true", help="A13: --rejudge sessions of different builds/settings anyway (diagnosis only)")
+    ap.add_argument("--alpha", type=float, default=0.05, help="A13: the distribution judge's family error rate (Holm), in (0, 0.5)")
+    ap.add_argument("--perms", type=int, default=20000, help="A13: Monte Carlo shufflings when the exact count is larger (>= 1000)")
     a = ap.parse_args()
-    global WAKE_DELAY_S, WAKE_PACE, PACE_LATE, SHIPPED_PACE, RIPPLE, DISPLACE, SLEEP_WAIT_S, NO_KEEP
+    global WAKE_DELAY_S, WAKE_PACE, PACE_LATE, SHIPPED_PACE, RIPPLE, DISPLACE, SLEEP_WAIT_S, NO_KEEP, JUDGE_ALPHA, JUDGE_PERMS
     SLEEP_WAIT_S = a.sleep_wait; NO_KEEP = a.no_kept_memory
+    JUDGE_ALPHA, JUDGE_PERMS = a.alpha, a.perms
     WAKE_DELAY_S = a.wake_delay
     PACE_LATE = a.pace_late
     if a.rejudge:   # one tag re-scores that file; several pool their runs (three near runs a session is a thin spread)
         tags = a.rejudge.split(",")
-        runs = []
+        runs, keys = [], {}
         for t in tags:
-            for r in json.loads((w.EV / f"l5_{t}.json").read_text(encoding="utf-8"))["runs"]:
+            d = json.loads((w.EV / f"l5_{t}.json").read_text(encoding="utf-8"))
+            keys[t] = pool_key(d)
+            for r in d["runs"]:
                 runs.append({**r, "run": f"{r['run']}@{t}"})
+        # A13 (§46): one pool = one treatment. Different builds or settings are refused (44.9: a fade build pooled with fade-free ones
+        # passed); sessions from before A13 have no recorded build, so pooling them is the caller's claim, said in the verdict
+        known = {k for k in keys.values() if k is not None}
+        if len(known) > 1 and not a.pool_mixed:
+            raise SystemExit(f"--rejudge: these sessions ran different builds or settings - not one treatment: {keys} (--pool-mixed to force)")
         v = verdict(runs)
+        v["pool"] = {"keys": keys, "unrecorded": [t for t, k in keys.items() if k is None], "mixed_forced": len(known) > 1}
+        if v["pool"]["unrecorded"] and len(tags) > 1:
+            print(f"  NOTE: {len(v['pool']['unrecorded'])} of {len(tags)} sessions predate A13 (no build recorded): that they are one "
+                  f"treatment is the caller's claim, not checked", flush=True)
         (w.EV / f"l5_pooled_{'_'.join(tags)}.json" if len(tags) > 1 else w.EV / f"l5_{tags[0]}_verdict.json").write_text(json.dumps(v, indent=1), encoding="utf-8")
         return
     api = Api(a.url); st = api.wait_status(300)
@@ -283,7 +355,9 @@ def main():
         api.debug("water_ripples", {"handover_mm": a.handover_mm, "shape": False})
     res = {"status": {k: st.get(k) for k in ("build_config", "version", "git") if k in st}, "y0": Y0, "runs": [], "compare": [],
            "wake_pace": WAKE_PACE, "ripple": RIPPLE, "displace": DISPLACE,
-           "handover": (api.debug("water_ripples", {"shape": False}).get("handover") or None)}
+           "handover": (api.debug("water_ripples", {"shape": False}).get("handover") or None),
+           "wake_delay_s": WAKE_DELAY_S, "pace_late": PACE_LATE, "no_kept_memory": NO_KEEP, "identity": engine_identity(a.url)}
+    print(f"engine: {res['identity']}", flush=True)
     try:
         for name in a.runs.split(","):
             res["runs"].append(run(api, name, a.seconds))
