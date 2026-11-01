@@ -833,6 +833,67 @@ TEST_F(WaterRecordTilesTest, TheResidencyRoundTheAwakeWaterIsTheWholeResidency) 
 // DiagLakeRecorded (27.23 W1e step 0): the 60 x 60 m lake (2 m deep, 3 m box) with the partial wake and RECORDING on - the lake at
 // rest records tile by tile (its bricks freed), a stone wakes the tiles round it, waves, freezes, records again. Per second: the
 // call's mean GPU ms, awake / frozen columns, recorded tiles, stored bricks, the books. LAKE_QS = the freeze test's scale.
+// DIAGNOSTIC (run by name), 50.6a: does still water gain energy? A walled square pond (E_W m, E_DEPTH voxels deep, a 1-voxel air
+// layer), synchronous 1/60 s steps (E_DT), recording off, droplets off, auto-sleep off; a push at the centre at 5 s (E_STRENGTH; 0 =
+// none); E_TALL the tall band (m, 0 = off; default off), E_PW partial wake (1 default / 0). Every 2 s: kinetic energy, awake / frozen
+// / moving columns, max |df|. Live (50.6a) the 60 x 60 m lake 2 m deep with tall cells off gained energy 5.6e-7 -> 2.9e-6 J (19-76 s).
+TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto env = [](const char* k, double d) { const char* v = std::getenv(k); return v ? std::atof(v) : d; };
+    const int W = static_cast<int>(env("E_W", 60)), depth = static_cast<int>(env("E_DEPTH", 2));
+    const float tall = static_cast<float>(env("E_TALL", 0.0)), strength = static_cast<float>(env("E_STRENGTH", 4.0)), dt = static_cast<float>(env("E_DT", 1.0 / 60.0));
+    const bool pw = env("E_PW", 1) != 0;
+    const int seconds = static_cast<int>(env("E_SECONDS", 90));
+    const bool zeroBefore = WaterCoreGpu::s_freezeZeroesVelocity;   // E_ZERO: 50.6b, a freezing column's velocities zeroed
+    struct RestoreZero { bool z; ~RestoreZero() { WaterCoreGpu::s_freezeZeroesVelocity = z; } } restoreZero{zeroBefore};
+    if (std::getenv("E_ZERO")) WaterCoreGpu::s_freezeZeroesVelocity = env("E_ZERO", 0) != 0;
+    std::printf("  freeze zeroes velocity %d\n", int(WaterCoreGpu::s_freezeZeroesVelocity));
+    const bool capBefore = WaterCoreManager::unitCapture();
+    struct RestoreCap { bool c; ~RestoreCap() { WaterCoreManager::setUnitCapture(c); } } restoreCap{capBefore};
+    if (std::getenv("E_UNITS")) WaterCoreManager::setUnitCapture(true);
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(W - 1, depth, W - 1), 1.0f / 9.0f, "eulerian", &err, "gpu", static_cast<int>(env("E_SWEEPS", 0)));   // E_SWEEPS: the pressure sweeps (0 = auto)
+    ASSERT_TRUE(id) << err;
+    mgr.setAutoSleep(id, false);
+    ASSERT_TRUE(mgr.setPartialWake(id, pw));
+    ASSERT_TRUE(mgr.setTallBand(id, tall));
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(W - 1, depth - 1, W - 1), 1.0f, nullptr);
+    std::printf("  %d x %d m, %d m deep, tall %.2f m, partial wake %d, push %.1f, dt %.4f s, placed %.4f m^3\n", W, W, depth, tall, int(pw), strength, dt, mgr.totalMass());
+    AvRecord rec;
+    const int per = static_cast<int>(std::lround(1.0 / dt));
+    for (int k = 1; k <= per * seconds; ++k) {
+        if (k == per * 5 && strength > 0.0f) mgr.addImpulse(glm::vec3(W * 0.5f, depth - 0.1f, W * 0.5f), 0.5f, strength, glm::vec3(0.0f, -1.0f, 0.0f));
+        mgr.step(id, 1, dt, &rec);
+        if (k % (2 * per)) continue;
+        (void)mgr.totalMass();   // reads the volume back: the record's kinetic energy is the host grid's (synchronous steps - no change to stepping)
+        const AvRecord* r = mgr.find(id);
+        if (!r) break;
+        std::printf("  t %5.1f s  ke %.3e  awake %5d frozen %5d moving %5d  asleep %d  tall %d  carry flow %.2e parked %.2e body %.2e  mass %.6f\n", k * dt, r->kineticEnergy,
+                    r->awakeColumns, r->frozenColumns, r->movingColumns, int(r->asleep), int(r->tallActive), r->carryFlowM3, r->carryParkedM3, r->carryBodyM3, mgr.totalMass());
+        if (std::getenv("E_UNITS")) {   // where the motion is: the units (brick column x a height band) with the largest |df| and energy
+            std::vector<glm::vec4> u; glm::ivec3 dims, off; float hh = 0.0f;
+            if (mgr.unitMap(id, u, dims, off, hh) && !u.empty()) {
+                auto show = [&](int lane, const char* name) {
+                    std::vector<size_t> idx(u.size()); for (size_t i = 0; i < idx.size(); ++i) idx[i] = i;
+                    std::partial_sort(idx.begin(), idx.begin() + std::min<size_t>(5, idx.size()), idx.end(), [&](size_t a, size_t b) { return u[a][lane] > u[b][lane]; });
+                    std::printf("      top %s:", name);
+                    for (size_t j = 0; j < std::min<size_t>(5, idx.size()); ++j) {
+                        const size_t i = idx[j]; const int bx = static_cast<int>(i % dims.x), uy = static_cast<int>((i / dims.x) % dims.y), bz = static_cast<int>(i / (static_cast<size_t>(dims.x) * dims.y));
+                        std::printf(" (%d,%d,%d) %.2e", bx, uy, bz, u[i][lane]);
+                    }
+                    double sum = 0.0; int over = 0; for (const auto& q : u) { sum += q[lane]; over += q[lane] > 0.5f * u[idx[0]][lane] ? 1 : 0; }
+                    std::printf("  | sum %.2e, units over half the max %d of %zu\n", sum, over, u.size());
+                };
+                show(1, "max|df|"); show(0, "ke");
+            }
+        }
+    }
+}
+
 TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeRecorded) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     if (const char* q = std::getenv("LAKE_QS")) WaterCoreGpu::s_columnQuietScale = static_cast<float>(std::atof(q));

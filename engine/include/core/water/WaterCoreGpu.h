@@ -252,6 +252,7 @@ public:
         float unitsDt = 1.0f / 60.0f;    ///< 27.26: the collected call's tick (s)
         double quietRef = 0.0;           ///< 27.26: the volume's quiet time in 1/60 s ticks (quietTicks = its integer part)
         std::vector<char> colFrozen, colWake;   ///< frozen now; a wake asked for since the last call
+        std::vector<int> newlyFrozen;            ///< §50.6b: columns that froze this call - their velocities zeroed in it (s_freezeZeroesVelocity)
         bool wakeAllPending = false, anyFrozen = false;
         // §27 W1b: RECORDED brick columns - the record (chunk spans + bodies) holds their water. Every brick of such a column reads the
         // GROUND sentinel (Solid: a wall to the awake water, as a frozen column is) and residency never stores it until it is woken;
@@ -449,6 +450,10 @@ public:
     /// 600 fps 30 quiet ticks were 50 ms. Now |df| is compared as a RATE (the threshold x dt / (1/60 s)) and the quiet run counts
     /// seconds (restTicks x 1/60 s) - at 60 fps exactly as before. TEST ONLY (the red control): the old per-tick tests.
     static inline bool s_freezePerTickForTest = false;
+    /// §50.6b: a column that freezes has its face velocities zeroed (it is declared at rest: its sub-threshold kinetic energy is dropped,
+    /// never stored). Kept, a column frozen at a standing wave's node (level still, flow fastest) held its velocity behind a wall and
+    /// released it out of phase when it woke - still water gained energy (50.6a). MEASUREMENT switch while the fix is judged.
+    static inline bool s_freezeZeroesVelocity = false;
     static constexpr int kQuietUnitsPerTick = 10;   ///< colQuiet counts 1/600 s
     /// TEST ONLY (the parity test's red control): the cache ignores unitsFullNext - a write to frozen cells is not seen
     static inline bool s_unitCacheStaleForTest = false;

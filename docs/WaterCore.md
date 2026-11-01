@@ -12399,6 +12399,27 @@ solver is not energy-stable at sub-millimetre motion in deep water.** Not measur
 the surface), the basin's size, or the partial wake (frozen columns as walls); a small deterministic rig. This now comes before
 W1g's remaining items: recording cannot be trusted on a solver that heats still water.
 
+**50.6b Still water, deterministic (2026-11-01, MEASURED).** `WaterRecordTilesTest.DISABLED_DiagStillWaterEnergy` (new, run by name;
+synchronous 1/60 s steps, recording and droplets off, every variable from the environment: E_W, E_DEPTH, E_TALL, E_PW, E_STRENGTH,
+E_SWEEPS, E_ZERO, E_UNITS) reproduces the live finding without the engine:
+| rig (60 x 60 m, 2 m deep unless said) | what the energy does after the stone (J) |
+|---|---|
+| tall off, partial wake ON | falls to 1.0e-6 at 24 s, then GROWS: 5.1e-6 at 54 s, 6.5e-6 at 90 s; the awake columns revive every ~38 s (61 -> 3,219) - a seiche the freeze keeps alive |
+| tall off, partial wake OFF | falls to a FLOOR, 2.6e-7, constant to 90 s; never sleeps |
+| the same, 60 pressure sweeps (not 20) | the same floor, 2.6-2.7e-7 - not the solve's convergence |
+| the same, NO stone (placed still) | 2.5e-7 from the first seconds, constant - **still water the solver never touched has energy** (19.6's "phantom current") |
+| tall cells ON (shipped), partial wake off | floor 1.8e-8 (15x lower: fewer fine cells), still never sleeps |
+| partial wake ON + velocities zeroed when a column freezes (`WaterCoreGpu::s_freezeZeroesVelocity`, a measurement switch, OFF) | no growth (0.6-1.4e-6) but no settling: ~1,250 columns stay awake - stopping a column dead jolts its awake neighbours |
+**Two defects, then.** (1) **The freeze stores motion:** a column freezes when its level is still and its energy under 10x the wake
+threshold - at a standing wave's node that is where the flow is fastest; it becomes a wall holding that velocity and releases it out
+of phase when it wakes. Zeroing it removes the growth (the mechanism), but is not the fix. (2) **Still water is never still:** where it
+is (the unit map, E_UNITS, a 24 m pond placed still): the ENERGY sits evenly in one band (3,640 of 10,206 units, the surface layer -
+the floor), and the largest fill change a tick - what blocks the volume's own sleep test - sits at the BED (the lowest units), in a few
+wandering columns, GROWING LINEARLY: 1.2e-4 (2 s) -> 2.3e-4 (8 s) -> 3.2e-4 (14 s) -> 4.3e-4 (20 s) -> 5.3e-4 (26 s); the carries 0,
+the mass exact. 27.14's "isolated columns spike 1e-4-3e-4 in one tick" is this. Not the volume correction (it acts below 98 % full)
+or the wake-air rule; the GPU solver does not read `debugDisableStages` (the CPU's stage bisection switch), so the next step is
+GPU stage switches to find the stage that rocks full bed cells.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

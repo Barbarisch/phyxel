@@ -1201,7 +1201,7 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
             continue;
         }
         const char fz = awake[c] ? 0 : 1;
-        if (fz != vol.colFrozen[c]) { vol.colFrozen[c] = fz; changed = true; }
+        if (fz != vol.colFrozen[c]) { vol.colFrozen[c] = fz; changed = true; if (fz && s_freezeZeroesVelocity) vol.newlyFrozen.push_back(static_cast<int>(c)); }
     }
     // counted over the STORED columns (the column table), not the box
     for (const int packed : vol.colEntries) {
@@ -2479,6 +2479,21 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
     }
     if (vol.solidUpPending) { recordSolidUpload(cmd, vol); barrier(cmd); }   // 44.2 step 1(a): the bodies' box, first in the call
+    if (!vol.newlyFrozen.empty()) {   // §50.6b: a column that froze is at rest - its stored velocities zeroed, before anything reads them
+        bool any = false;
+        for (const int c : vol.newlyFrozen) {
+            const int bx = c % vol.bn.x, bz = c / vol.bn.x;
+            for (int by = 0; by < vol.bn.y; ++by) {
+                const int slot = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)];
+                if (slot < kFirstSlot) continue;
+                const VkDeviceSize first = static_cast<VkDeviceSize>(slot) * vol.bc, count = vol.bc;
+                for (Buffer* b : {&vol.u, &vol.v, &vol.w, &vol.uOld, &vol.vOld, &vol.wOld}) vkCmdFillBuffer(cmd, b->buf, first * 4, count * 4, 0);
+                any = true;
+            }
+        }
+        vol.newlyFrozen.clear();
+        if (any) { barrier(cmd); vol.unitsFullNext = true; }   // the frozen cells' kinetic energy changed: the cached unit sums are stale
+    }
     WaterHostProfile::lap("gpu.03b the bodies' box (44.2)", hp);   // its own lap: it read as residency before (44.5)
     vol.tsCount = -1;   // 26.11 test hook: armed only for single-tick, single-substep calls
     if (!vol.callTs) { VkQueryPoolCreateInfo qi{}; qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO; qi.queryType = VK_QUERY_TYPE_TIMESTAMP; qi.queryCount = 2;
