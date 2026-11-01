@@ -89,7 +89,8 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
 6. **W6 - shores and open sea.** A simulated band at the shore near the player; the swell offshore as appearance (§18.4: the 3-D
    core cannot carry a swell).
 
-**The current track is §30.4 (track A, small-body physics), in its stated order.** The list below is the full backlog it draws on.
+**The current track is large water, W1 -> W4 (owner, 2026-11-01; §50 - step 0 measured, next W1f-W1h in §50.4).** Track A
+(§30.4) is closed for now, its last feel items parked. The list below is the small-body backlog.
 
 **Open small-body items** (polish and features; none blocks the path above):
 - *Found 2026-10-24 (31.9):* debris could not see RECORDED water beyond 48 m of the camera, nor wake it - FIXED in 32 (a slept pond
@@ -8906,8 +8907,9 @@ known levers for §30's fit step, with their measured sizes on the awake 60 x 60
 
 ### 30.0 How the plan is kept (owner, 2026-10-24: "make sure if we are drifting we have good reason and it is recorded. i need to be able to run design checks periodically so we stay on track")
 
-**The order of work.**
-1. **Track A - small-body water physics (NOW, §30.4).** The owner: *"the water physics are the primary concern right now...
+**The order of work - REVISED 2026-11-01 by the owner (§50): large water W1 -> W4 NOW (§50.4), then track B; track C
+alongside; track A's remaining items (A6, A8, A9) PARKED.** The order as it stood before:
+1. **Track A - small-body water physics (§30.4; closed for now 2026-11-01).** The owner: *"the water physics are the primary concern right now...
    floating debris, or being able to disturb the water on the surface with debris was the keys... we started on the small scale
    first to make sure it felt right before trying to scale up. i dont think we need to change that approach."*
 2. **Track B - the moonshot look (§30.1),** after track A, or when the owner moves it up.
@@ -9081,10 +9083,10 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | BUILT, not signed off (48.6): design-check NEEDS WORK, ten items folded in (48.5); characters read the core (the ring round the body), the drag law (0.90-0.95 m/s at 0.8 m, predicted 0.91), the legs displace (+2.0-2.7 / -1.1-3.9 cm at 1 m; red 0), mass unchanged, a walker wakes a slept channel 1.9 m early. S7's 2 cm behind met in 1 of 3 runs | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A4a | **A wading crowd's cost** (found in 48.6): 12 NPCs in a 12 x 2 m pond cost 7-21 ms of water CPU a frame; the shove budget cuts 15-20 % - the cost is the churning pond being stepped | open | the pond's own levers (the awake region, the step), not an A4 knob |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | BUILT, not signed off (49.4): measured worse than logged (a dam break went tall; the floor's expand ran out of slots in a wider box - 2.37 m^3 of 64 lost after a stone); rest is equilibrium, the expand stores only the water's columns and fits, a collapse never strands water: the 12 / 17 m boxes equal column for column with tall ON, mass kept; live 2 / 3 m ponds keep their mass and the tall saving | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
-| A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
+| A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | **PARKED 2026-11-01 (§50.1)** - the owner is not sure it still shows on today's code; re-measured only if seen again. Cause proved; the drop rig makes it repeatable | the owner's key: disturbing the surface |
 | A7 | **The wake hitch** (~33 ms once, §32.1) | merged into A2f, L3 and L4 | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
-| A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
-| A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open | as the owner prioritises |
+| A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built; **PARKED 2026-11-01 (§50.1)** | a look call for the owner |
+| A9 | The remaining feel items in §0a ("Open small-body items" - *Feel*) | open; **PARKED 2026-11-01 (§50.1)** | as the owner prioritises |
 | A10 | **Displacement, gated** (the owner, 2026-10-29, after preferring displacement ON in a2h: "it seems like maybe displacement needs to be carefully gated. worked into LOD, and maybe controlled in how it is used"): which bodies shove the water, by how much they would show and by a frame budget, faded by distance (L1), its cost cut first | **SIGNED OFF 2026-10-30** (46.1: seen in `displace_floor_side_by_side.mp4` and the hand-over clip). steps 1-2 BUILT, displacement ON by default (44.5-44.7: pond 225 -> 310 fps, the pit back to its off cost, L5 far 10 of 10); step 3 (the distance fade) built, measured and DROPPED (44.9: a far body that does not shove settles ~2 s sooner and exactly where dropped - an outcome by distance); not signed off | the livelier water the owner chose, at a cost every tier can carry |
 | A13 | **L5 judges distributions, not only the band** (found in 44.9): the pooled min-max fence passed a far group that differed systematically (rest time 2.8-3.3 s vs 4.0-5.8 s) | **SIGNED OFF 2026-10-30 on the numbers** (46.1). BUILT, not signed off (§46): a stratified permutation judge (location + spread, Holm, UNDERPOWERED is never a pass) beside the fence; pools refused across builds; the fade sessions FAIL it, near-vs-near passes, every earlier session alone is UNDERPOWERED; the shipped build PASSES a powered 6 + 6 session | an outcome check that cannot see a 2 s difference cannot guard "locality never changes outcomes" |
 | A11 | **A sleep conserves mass exactly** (found in 44.7): the write-back drops the water of a column holding only sub-millimetre film (`thinDropped`, counted) - 0.3-0.5 L a splash with displacement on | **SIGNED OFF 2026-10-30 on the numbers** (46.1). owner: fix (44.8); designed + built - the film joins the nearest column with a run |
@@ -9110,6 +9112,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | C2 | 2026-10-25 | after A3, commits 41b5ad14..this one | DRIFTING (logged) | A3's cost runs ran the old floating rule as a control on the owner's bench (D6). Everything else maps to A3 | D6, and new item A2g |
 | C3 | 2026-10-25 | A2g, commits a9a7f618..this one | ON PLAN | everything maps to A2g (§33); `/design-check` ran before building; the red run used only a sinking stone; the owner was warned before each bench run. One support change beside it: `particle_log {max}` (the stress needed every body logged) | - |
 | C4 | 2026-10-27 | A2f, commits 6a3707dd..f05cc1c1, and the owner's locality direction | ON PLAN, then REVISED | A2f's work all maps to A2f (39.4-39.8), including the test-only wake delay for the owner's look call. The owner's direction changed the plan: §30.0b written, items L1-L5 added, A2f's step 2 moved to L4, its kept memory to L3, and A7 merged. This revision is in the same commit as the direction, before any work under it (rule 3) | - |
+| C5 | 2026-11-01 | after A5, the owner's reorder | REVISED (rule 4, the owner's call) | none: A6 / A8 / A9 parked and W1-W4 moved ahead of track B by the owner; this rewrite is in the same commit as W's step 0 (rule 3, §50) | - |
 
 ## 31. M4 - the water pushes the body (owner, 2026-10-24: "the water physics are the primary concern... floating debris, or being able to disturb the water on the surface with debris was the keys"). Status: BUILT, SIGNED OFF by the owner and ON by default 2026-10-24 (31.8); two defects found (31.9)
 
@@ -12194,6 +12197,85 @@ and the order-dependent `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles
 
 **For the owner:** nothing to see - the look does not change; the water no longer vanishes when a stone stirs a deep pond whose box
 reaches past its banks. Sign-off is on the numbers.
+
+## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3)
+
+### 50.1 The owner's words, and what changes
+
+After A5 the owner: *"i am not sure the "spiky" issue is there anymore iwth all the recent changes. hoenstly would like to make
+progress on bigger plan issue instead of little things like that"*; offered the large-water path (W1-W4), the moonshot look
+(track B) or the tier fit (track C), the owner chose **large water** (the agent's recommendation: today the new water exists only
+in bench ponds; W1-W4 put it in the world).
+
+- **Track A is closed for now.** A6 (spiky water, 26.32), A8 (pressure torque) and A9 (the §0a feel items) are PARKED, not
+  dropped: A6 is re-measured only if it is seen again on today's code. The open rows A4a, A2k, A2l, A2m stay open (A2k retires in
+  W4; A2l and A2m are W1 / W4 business: live water under a regenerated chunk, a save with a pond awake). A4 and A5 still await the
+  owner's sign-off.
+- **The order (30.0) is now: W1 -> W2 -> W3 -> W4, then track B, with track C alongside.** The owner reordered B and W (rule 4);
+  this rewrite is in the same commit as the first work under it (rule 3), W's step 0 below.
+
+### 50.2 What W1 still owes (read from 27.10-27.28, §29, §39-42)
+
+W1 is "the record is the water: a pond sleeps into the record and only a patch wakes". Built: W1a (recorded water drawn by the
+pond surface, SIGNED OFF, ON), W1b (8 m tiles record and wake, the books exact), W1c (the life cycle's order), W1d.1 (the slot pool
+follows the water), W1d.2 (impulses in place), the rest sums by the awake water, the fixed tick (OFF), the surface on the device
+(§29 S1-S4, ON). Owed:
+1. **Tile recording is OFF by default** (`s_recordTilesDefault`): in play a pond still sleeps WHOLE and wakes WHOLE (§32, §39: the
+   wake is paced and its memory kept, L3 / L4, but it is the whole box). The patch wake exists and never runs. To turn it on:
+   the owner's look at a push in a recording pond, and 27.13's two open items (a collect between two calls breaks the freeze
+   test; woken tiles cycle in some runs) measured on today's code.
+2. **A tile's record and wake on the host** (record 4-9 ms, wake 8-19 ms a tile, main thread): 27.10's per-tile kernels.
+3. **Placed water and sources still round-trip the whole volume** (W1d.2's rest).
+4. **The CPU mirror** (`Av::grid`, ~125 B per cell of the BOX, 27.23): W1d.3. The GPU cap is 16 M cells until it goes.
+5. **W1e - the lake live**, and the owner's look in motion.
+6. The readout race (27.27: `mass` one call behind `recorded_m3`).
+Owner's calls carried over: the fixed tick as the default (27.26); 27.27's fix not yet seen.
+
+### 50.3 W step 0 - the 60 x 60 m lake on today's code (MEASURED)
+
+The 27.24 lake (WaterBench_Creek, Release, the walled 60 x 60 m box, 2 m deep, a strength-4 stone at the centre after 20 s at rest;
+shipped settings otherwise: partial wake, x10 freeze, tall cells, auto-sleep off as every bench). One variable per pair, interleaved
+OFF / ON / OFF / ON: tile recording (`water_av_record_tiles {default}` at create). Then the same four with the fixed 1/60 s tick.
+The whole frame by `water_a3_cost.window` (8 s windows: 0-8 s after the stone, 36-44 s); awake columns and tiles each second; the
+books from `water_av_census` (cells and record in one read). Tool: the session's `w_step0.py`; raw: `w_step0_lake.json`,
+`w_step0_lake_tick60.json`. (A first pass ran with the bench's water paused - `realtime` off at boot - and read nothing; discarded.)
+
+| | ticks | fps 0-8 s (min) | CPU / GPU frame 0-8 s | water host CPU 0-8 s | worst frame | at 36-44 s |
+|---|---|---|---|---|---|---|
+| recording OFF | one a frame (shipped) | 98 / 98 (38-39) | 10.5-10.7 / 4.4-4.5 ms | 12.1-12.3 ms | 34-37 ms | **never settles**: 1,250-2,000 awake columns, rising again after 15 s (406 -> 1,465); 88-96 fps |
+| recording ON | one a frame (shipped) | 85 / 80 (13-29) | 12.7-14.5 / 4.4 ms | 15.2-15.5 ms | 58-72 ms | never settles: 1,300-2,700 awake, 89-102 tile wakes in 44 s, 15-23 of 64 tiles recorded |
+| recording OFF | fixed 1/60 | 190 / 179 (38-40) | 6.4-6.5 / 4.3-4.4 ms | 4.0-4.4 ms | 32-36 ms | **asleep**; 218-221 fps, water 0.04-0.16 ms |
+| recording ON | fixed 1/60 | 152 / 159 (24) | 10.0-10.1 / 4.3-4.4 ms | 7.5 ms | 65-68 ms | run 1: all 64 tiles back in the record by 35 s, 213 fps; run 2: **tiles cycling**, 659 awake, 97 wakes, 39 of 64 recorded |
+
+Books (placed 7,200 m^3): OFF 7,199.997 (one-a-frame) and 7,199.9995 / 7,199.9986 (fixed); ON 7,199.990 / 7,199.989 (one-a-frame,
+mid-cycle), 7,199.9997 / 7,199.996 (fixed). In the rock: 0 in every run. Millilitres to 11 L, droplets and films in flight
+at the read are not separated - stated, not yet explained.
+
+**What it says:**
+1. **At shipped settings the big lake never goes still after one stone** (27.26's loop - a slow frame's longer ticks keep the waves
+   alive - measured again on today's code). With the fixed tick it sleeps; the fixed tick is still OFF by default (27.26: the
+   owner's call, its cost a 60 Hz surface above 60 fps until interpolated). **Every later W step stands on it.**
+2. **Recording does not yet pay.** While the stone's waves run, recording ON costs MORE than OFF (water CPU 7.5 vs 4.2 ms, fixed
+   tick): the stone wakes ~2,000 of 4,624 brick columns in 8 s (the wake runs ahead of waves too small to see, 27.24) and every
+   woken tile is a host-side seed. A tile's record or wake is 37-38 ms in its worst single call (`mgr.2`), the frames that carry
+   them 58-72 ms.
+3. **Woken tiles still cycle in some runs** (27.13 open item 2, reproduced: 1 of 2 fixed-tick runs, 97 wakes in 44 s).
+4. While awake, the water's host CPU is led by the GPU step's host side (`mgr.4` 17-29 ms worst call), the tall floor (9-13 ms),
+   residency (8-11 ms), ripples (9-22 ms): §29's paused levers, unchanged.
+
+### 50.4 W1's next steps (the agent's proposed order; the owner can change it)
+
+1. **W1f - the fixed tick ON by default** (27.26, the owner's call): today's measurement is the reason. Its cost, the surface at
+   60 Hz above 60 fps, is answered by drawing between two water states (interpolating the surface heights), measured for its
+   cost. Red: the lake at shipped settings, awake columns at 44 s (1,250-2,000 now; prediction 0).
+2. **W1g - tiles stop cycling, and a wake the frame can carry:** the cycling's cause measured (27.13 item 2); the tile record and
+   seed as GPU kernels (27.10, W1b's deferred cut) so a tile costs no host scan; the wake-ahead reach measured against the visible
+   ripple (27.24: the wake outruns waves no one can see). Gate: the lake with recording ON settles in every run (N >= 6), no frame
+   over the OFF run's worst, the books exact.
+3. **W1h - recording ON by default**, after the owner's look at a stone in a recording lake (a clip).
+4. **W1d.3 - the CPU mirror goes**, then **W1e**: a lake past today's 16 M-cell cap, live, cost by the awake water.
+Then W2 (the far drawing past the 48 m record radius - 27.27 saw the far half of the lake not drawn), W3, W4.
+Each passes `/design-check` before it is built.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
