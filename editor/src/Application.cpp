@@ -1927,15 +1927,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // later spawn path (game.json NPCs, fauna, MCP spawns).
     {
         Scene::AnimatedVoxelCharacter::WaterHooks npcHooks;
-        npcHooks.depthAt = [this](const glm::vec3& p) -> float {
-            return waterManager ? waterManager->sampleWater(p).depthBelow : 0.0f;
-        };
+        npcHooks.depthAt = [this](const glm::vec3& p) -> float { return wadeDepthAt(p); };   // 48: the core first
         npcHooks.addRipple = [this](const glm::vec3& p, float radius, float strength) {
             if (waterManager) waterManager->addRipple(p, radius, strength);
         };
-        npcHooks.flowAt = [this](const glm::vec3& p) -> glm::vec3 {
-            return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
-        };
+        npcHooks.flowAt = [this](const glm::vec3& p) -> glm::vec3 { return wadeFlowAt(p); };
         // No entry-splash burst for NPCs (VFX budget: 100 fauna hitting a river edge at once
         // must not monopolize the burst cap); rings + slowdown + current push only.
         npcManager->setCharacterWaterHooks(std::move(npcHooks));
@@ -3595,6 +3591,46 @@ void Application::waterWorldLeaving() {
 // A2i (WaterCore 47): another world's storage is attached (a scene, a project, the editor scene, a game definition load). Nothing of
 // the last world's water may stay: the core is reset, the editor's lists that point into its volumes are emptied in the same call
 // (the renderer is fed them before its next draw), and the new world's records are restored - an absent key is an empty record.
+// A4 (WaterCore 48.1 item 1): the depth a character's feet stand in. The water core first - the run the feet are in (the highest
+// run whose bottom is at or below the feet: a pond above a cave reads the cave's water for a body in the cave, A2e), its column
+// by floor (48.5 item 2: truncation reads the wrong column west / north of 0) - then the old CA water where the core has none.
+// `probe` is the feet + 0.05 m (the character's convention).
+float Application::wadeDepthAt(const glm::vec3& probe) const {
+    if (waterCore) {
+        Core::Water::WaterCoreManager::ColumnLevels L;
+        const int wx = Core::Water::wadeColumn(probe.x), wz = Core::Water::wadeColumn(probe.z);
+        if (waterCore->columnRuns(wx, wz, L)) {
+            // 48.6: the column's TOP run reads as a depth gauge does - the mean of its wet sub-columns' tops (columnSurfaceStats), not
+            // the merged run's highest top, which a wading limb's cap lifts (the water carried on top of a moving solid, 31.7 item 3)
+            if (L.n > 0 && L.bottom[0] <= probe.y) {
+                Core::Water::WaterCoreManager::ColumnSurfaceStats st;
+                if (waterCore->columnSurfaceStats(wx, wz, st) && st.wet > 0) L.top[0] = std::min(L.top[0], st.mean);
+            }
+            return Core::Water::wadeDepthFromRuns(L.n, L.top, L.bottom, probe.y);   // 0 in a dry room under a pond
+        }
+    }
+    return waterManager ? waterManager->sampleWater(probe).depthBelow : 0.0f;
+}
+
+glm::vec3 Application::wadeFlowAt(const glm::vec3& probe) const {
+    if (waterCore) {
+        Core::Water::WaterCoreManager::ColumnLevels L;
+        if (waterCore->columnRuns(Core::Water::wadeColumn(probe.x), Core::Water::wadeColumn(probe.z), L))
+            return glm::vec3(L.flow.x, 0.0f, L.flow.y);
+    }
+    return waterManager ? waterManager->flowAtWorld(probe) : glm::vec3(0.0f);
+}
+
+std::vector<Scene::AnimatedVoxelCharacter*> Application::waterCharacters() const {
+    std::vector<Scene::AnimatedVoxelCharacter*> out;
+    std::unordered_set<Scene::AnimatedVoxelCharacter*> seen;
+    auto add = [&](Scene::AnimatedVoxelCharacter* c) { if (c && seen.insert(c).second) out.push_back(c); };
+    add(animatedCharacter);
+    for (const auto& e : entities) add(dynamic_cast<Scene::AnimatedVoxelCharacter*>(e.get()));
+    if (npcManager) npcManager->forEachNPC([&](Scene::NPCEntity& npc) { add(npc.getAnimatedCharacter()); });
+    return out;
+}
+
 void Application::waterWorldChanged(const char* reason, bool restore) {
     if (!waterCore || m_waterWorldResetOffForTest) return;
     const auto r = waterCore->resetWorld();
@@ -3847,6 +3883,54 @@ void Application::update(float deltaTime) {
                         m.centre = w.centre + w.velocity * w.ageSeconds; m.halfExtents = w.halfExtents; m.velocity = w.velocity;
                         rippleBodies.push_back(m);
                     }
+                // A4 (WaterCore 48.5 item 1): every character's limbs that meet water - each a moving solid (its oriented box as the
+                // equal-volume AABB, WadeDrag.h) through the same gate as debris, and a ripple body (a foot plunging in rings). The
+                // poses are last frame's (the characters update after this block) predicted by velocity x dt (48.5 item 7). Plus one
+                // wake box per moving character, led 0.5 s along its velocity (48.1 item 5). Id: bit 62 + a per-character id that is
+                // never reused + the limb's index (the solid hold).
+                std::vector<Core::Water::MovingSolid> charLimbs, charWake;
+                m_waterCharLast = {};
+                if (!boxes.empty() && m_waterCharactersOn) {
+                    const float pdt = std::min(deltaTime, 0.05f);
+                    auto inAnyBox = [&](const glm::vec3& c, const glm::vec3& he) {
+                        for (const auto& [lo, hi] : boxes)
+                            if (c.x + he.x > lo.x && c.x - he.x < hi.x && c.y + he.y > lo.y && c.y - he.y < hi.y && c.z + he.z > lo.z && c.z - he.z < hi.z) return true;
+                        return false;
+                    };
+                    std::vector<Scene::AnimatedVoxelCharacter::MoverBox> limbs;
+                    for (auto* ch : waterCharacters()) {
+                        const glm::vec3 feet = ch->getPosition(), vel = ch->getControllerVelocity();
+                        const float hw = ch->controllerHalfWidth(), hh = ch->getControllerHalfHeight();
+                        const Core::Water::MovingSolid wake = Core::Water::wadeWakeBox(feet + vel * pdt, hw, hh, vel);
+                        if (!inAnyBox(wake.centre, wake.halfExtents)) continue;
+                        ++m_waterCharLast.fed;
+                        auto idIt = m_waterCharIds.find(ch);
+                        if (idIt == m_waterCharIds.end()) idIt = m_waterCharIds.emplace(ch, m_waterCharNextId++).first;
+                        const uint64_t base = (1ull << 62) | (static_cast<uint64_t>(idIt->second) << 8);
+                        if (glm::length(glm::vec2(vel.x, vel.z)) > 0.05f || std::abs(vel.y) > 0.05f) {   // a still wader wakes nothing
+                            Core::Water::MovingSolid w = wake; w.id = base | 0xFF;
+                            charWake.push_back(w);
+                        }
+                        limbs.clear();
+                        if (!ch->peekMoverBoxes(limbs)) continue;
+                        for (size_t li = 0; li < limbs.size() && li < 0xFF; ++li) {
+                            const auto& lb = limbs[li];
+                            Core::Water::MovingSolid m;
+                            m.centre = lb.center + lb.velocity * pdt;
+                            m.halfExtents = Core::Water::limbSolidHalfExtents(lb.halfExtents, lb.rotation);
+                            m.velocity = lb.velocity;
+                            m.id = base | li;
+                            if (!inAnyBox(m.centre, m.halfExtents)) continue;
+                            // only the limbs that meet the water: their bottom below the water's top there + 1/3 m (arms and heads skip)
+                            float top = 0.0f; glm::vec2 fl(0.0f);
+                            if (!waterCore->columnWater(static_cast<int>(std::floor(m.centre.x)), static_cast<int>(std::floor(m.centre.z)), top, fl)) continue;
+                            if (m.centre.y - m.halfExtents.y > top + 1.0f / 3.0f) continue;
+                            charLimbs.push_back(m);
+                            rippleBodies.push_back(m);
+                            ++m_waterCharLast.limbs;
+                        }
+                    }
+                }
                 waterCore->setRippleBodies(std::move(rippleBodies));
                 std::vector<Core::Water::MovingSolid> waking;   // 34 (A2h): the moving bodies, whatever the displace switch - the wake's list
                 std::vector<Core::Water::MovingSolid> inBoxes;  // L4 (42.4 item 5): every body in the boxes - a paced wake's deadline
@@ -3871,15 +3955,29 @@ void Application::update(float deltaTime) {
                         moving.push_back(m);
                         gateIn.push_back({id, w.halfExtents, glm::length(rel)});
                     }
+                for (const Core::Water::MovingSolid& m : charLimbs) {   // A4: the limbs, relative to the water as debris are
+                    glm::vec3 rel = m.velocity;
+                    float sy = 0.0f; glm::vec2 fl(0.0f);
+                    if (waterCore->columnWater(static_cast<int>(std::floor(m.centre.x)), static_cast<int>(std::floor(m.centre.z)), sy, fl)) rel -= glm::vec3(fl.x, 0.0f, fl.y);
+                    moving.push_back(m);
+                    gateIn.push_back({m.id, m.halfExtents, glm::length(rel)});
+                }
                 // A10 (44.2 step 2): one decision per stroke - a stroke starts above kDisplaceOnSpeed and ends at kDisplaceOffSpeed (the
                 // hysteresis this loop had); the gate adds the size floor and the budget (WaterDisplaceGate.h)
                 const auto gate = Core::Water::WaterCoreManager::s_displaceGate.select(gateIn, m_displaceState, kDisplaceOnSpeed, kDisplaceOffSpeed);
                 for (const Core::Water::MovingSolid& m : moving) {
                     const auto it = gate.state.find(m.id);
                     if (it == gate.state.end() || it->second == Core::Water::WaterDisplaceGate::Idle) continue;   // at rest / bobbing: the table law carries it
-                    waking.push_back(m);   // every moving body wakes a slept pond, shoving or not (34)
+                    if (!(m.id & (1ull << 62))) waking.push_back(m);   // every moving body wakes a slept pond, shoving or not (34); a character wakes with its led box (below)
                     if (m_displaceOn && it->second == Core::Water::WaterDisplaceGate::Shoving) solids.push_back(m);   // 34: displacement is opt-in
+                    if ((m.id & (1ull << 62)) && it->second == Core::Water::WaterDisplaceGate::Shoving) ++m_waterCharLast.displacing;
                 }
+                for (const auto& w : charWake) { waking.push_back(w); inBoxes.push_back(w); }   // A4 (48.1 item 5): led 0.5 s
+                m_waterCharLast.waking = static_cast<long>(charWake.size());
+                m_waterCharLast.rippling = static_cast<long>(charLimbs.size());
+                m_waterCharTotal.fed += m_waterCharLast.fed; m_waterCharTotal.limbs += m_waterCharLast.limbs;
+                m_waterCharTotal.displacing += m_waterCharLast.displacing; m_waterCharTotal.waking += m_waterCharLast.waking;
+                m_waterCharTotal.rippling += m_waterCharLast.rippling;
                 m_displaceGateLast = {gate.kept, gate.admitted, gate.refusedSize, gate.refusedBudget, gate.rippleOnly};
                 m_displaceGateTotal.admitted += gate.admitted; m_displaceGateTotal.refusedSize += gate.refusedSize; m_displaceGateTotal.refusedBudget += gate.refusedBudget;
                 m_displaceGateTotal.maxShoving = std::max<long>(m_displaceGateTotal.maxShoving, gate.kept + gate.admitted);
@@ -3914,7 +4012,10 @@ void Application::update(float deltaTime) {
                     // law without the pump - it floats, and makes no splash (its ripples are separate, setRippleBodies)
                     const std::unordered_set<uint32_t> has(granted.begin(), granted.end());
                     const size_t before = solids.size();
+                    // A4 (48.1 item 3): a character's limb asks no window - the water pushes a character through the wading law, never
+                    // through a window, and a kinematic limb is not lifted by the pump's cap (31.1)
                     solids.erase(std::remove_if(solids.begin(), solids.end(), [&](const Core::Water::MovingSolid& m) {
+                        if (m.id & (1ull << 62)) return false;
                         return !has.count(static_cast<uint32_t>((m.id >> 32) & 0x7FFFFFFFull)); }), solids.end());
                     m_refusedNoWindow = static_cast<uint32_t>(before - solids.size());
                 }
@@ -6226,16 +6327,12 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
     // tuned: faster, heavier, shorter — a crown, not fog). All null-safe against a dry world.
     {
         Scene::AnimatedVoxelCharacter::WaterHooks hooks;
-        hooks.depthAt = [this](const glm::vec3& p) -> float {
-            return waterManager ? waterManager->sampleWater(p).depthBelow : 0.0f;
-        };
+        hooks.depthAt = [this](const glm::vec3& p) -> float { return wadeDepthAt(p); };   // 48: the core first
         hooks.addRipple = [this](const glm::vec3& p, float radius, float strength) {
             if (waterManager) waterManager->addRipple(p, radius, strength);
         };
         // Current push (tangible-water Phase E): flowing water shoves a wader downstream.
-        hooks.flowAt = [this](const glm::vec3& p) -> glm::vec3 {
-            return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
-        };
+        hooks.flowAt = [this](const glm::vec3& p) -> glm::vec3 { return wadeFlowAt(p); };
         hooks.splash = [this](const glm::vec3& p, float intensity) {
             auto* vfx = renderCoordinator ? renderCoordinator->getVfxSystem() : nullptr;
             if (!vfx) return;
@@ -12950,7 +13047,10 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             {"position", {{"x", p.x}, {"y", p.y}, {"z", p.z}}},
             {"velocity", {{"x", v.x}, {"y", v.y}, {"z", v.z}}},
             {"grounded", ch->isGrounded()},
-            {"state", ch->stateToString(ch->getAnimationState())}
+            {"state", ch->stateToString(ch->getAnimationState())},
+            // A4 (WaterCore 48.2): what the character's wading read at its last kinematic sub-step
+            {"water", {{"wading", ch->isWading()}, {"depth_m", ch->wadeDepth()},
+                       {"wade_velocity", {ch->wadeVelocity().x, ch->wadeVelocity().y}}, {"drag_acc", ch->wadeDragAcc()}}}
         };
         return true;
     }
@@ -14675,7 +14775,7 @@ void Application::registerWaterCommands() {
              {"slot_list", [&] { nlohmann::json a = nlohmann::json::array();
                  for (const auto& i : waterCore->rippleSlots()) a.push_back({{"slot", i.slot}, {"volume", i.volumeId}, {"origin", {i.origin.x, i.origin.y}}, {"nx", i.nx}, {"nz", i.nz}});
                  return a; }()},
-             {"kinematic_cells", s.kinematicCells}, {"impulses", s.impulses}, {"ms", s.ms}, {"max_abs_m", s.maxAbs},
+             {"kinematic_cells", s.kinematicCells}, {"kinematic_cells_total", s.kinematicCellsTotal}, {"impulses", s.impulses}, {"ms", s.ms}, {"max_abs_m", s.maxAbs},
              {"max_slope", s.maxSlope}, {"slope_edges", edges}, {"slope_hist", hist},
              {"break_slope", s.breakSlope}, {"broken_m3", s.brokenM3}, {"flow_forcing", waterCore->rippleFlowForcing()}, {"backend", waterCore->rippleGpuOn() ? "gpu" : "cpu"}, {"gpu_available", waterCore->rippleGpuAvailable()}, {"gpu_error", waterCore->rippleGpuError()}, {"gpu_ms", s.gpuMs}, {"gpu_wait_ms", s.gpuWaitMs}, {"gpu_record_ms", s.gpuRecordMs}, {"gpu_collect_ms", s.gpuCollectMs}, {"gpu_dispatches", s.gpuDispatches}, {"gpu_layers", s.gpuLayers}, {"gpu_min_cells", Core::Water::WaterCoreManager::kRippleGpuMinCells},
              {"pattern", rp.slope >= 0.0f ? nlohmann::json{{"slope", rp.slope}, {"azimuth_deg", rp.azimuthDeg}} : nlohmann::json(false)},
@@ -14758,6 +14858,7 @@ void Application::registerWaterCommands() {
         const bool pressureRefused = cmd.params.contains("pressure_force") && !cmd.params.value("pressure_force", true);
         m_pressureForceOn = true;
         if (cmd.params.contains("test_world_reset_off")) m_waterWorldResetOffForTest = cmd.params.value("test_world_reset_off", false);   // 47 TEST: the red
+        if (cmd.params.contains("characters")) m_waterCharactersOn = cmd.params.value("characters", Core::Water::kWadeCharactersByDefault);   // A4 (48.2)
         if (cmd.params.contains("displace")) m_displaceOn = cmd.params.value("displace", true);   // 31 TEST: bodies recorded but not rasterized
         // 44.2 step 1(a) TEST: the bodies' box uploaded in a call of its own, waiting twice (the path before the fold) - the A/B control
         if (cmd.params.contains("test_solid_upload_sync")) Core::Water::WaterCoreGpu::s_solidUploadSyncForTest = cmd.params.value("test_solid_upload_sync", false);
@@ -14814,6 +14915,21 @@ void Application::registerWaterCommands() {
         r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn}, {"solids", m_waterSolidsOn}, {"wake_rule", waterCore ? waterCore->solidWakeRule() : true},
              {"displace", m_displaceOn}, {"test_solid_upload_sync", Core::Water::WaterCoreGpu::s_solidUploadSyncForTest},
              {"world", {{"resets", waterCore ? waterCore->worldResets() : 0L}, {"last", m_waterWorldLast}, {"test_reset_off", m_waterWorldResetOffForTest}}},   // A2i (47)
+             {"characters", [&] {   // A4 (WaterCore 48.2): characters in the water core, and what each wader read
+                 nlohmann::json wading = nlohmann::json::array();
+                 for (auto* ch : waterCharacters()) {
+                     if (!ch->isWading() || wading.size() >= 16) continue;
+                     const glm::vec3 p = ch->getPosition();
+                     const auto it = m_waterCharIds.find(ch);
+                     wading.push_back({{"id", it == m_waterCharIds.end() ? 0u : it->second}, {"position", {p.x, p.y, p.z}},
+                                       {"depth_m", ch->wadeDepth()}, {"speed_mps", glm::length(ch->wadeVelocity())},
+                                       {"drag_acc", ch->wadeDragAcc()}});
+                 }
+                 auto st = [](const WaterCharStats& c) { return nlohmann::json{{"fed", c.fed}, {"limbs", c.limbs}, {"displacing", c.displacing},
+                                                                                {"rippling", c.rippling}, {"waking", c.waking}}; };
+                 return nlohmann::json{{"on", m_waterCharactersOn}, {"on_default", Core::Water::kWadeCharactersByDefault},
+                                       {"last", st(m_waterCharLast)}, {"total", st(m_waterCharTotal)}, {"wading", wading}};
+             }()},
              {"displace_gate", {{"min_half_m", Core::Water::WaterCoreManager::s_displaceGate.minHalfM}, {"min_half_m_default", Core::Water::WaterDisplaceGate::kMinHalfMDefault},
                                 {"budget", Core::Water::WaterCoreManager::s_displaceGate.budget}, {"budget_default", Core::Water::WaterDisplaceGate::kBudgetDefault},
                                 {"last", {{"kept", m_displaceGateLast.kept}, {"admitted", m_displaceGateLast.admitted}, {"refused_size", m_displaceGateLast.refusedSize},

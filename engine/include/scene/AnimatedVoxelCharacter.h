@@ -583,6 +583,15 @@ namespace Scene {
             std::function<glm::vec3(const glm::vec3&)> flowAt;
         };
         void setWaterHooks(WaterHooks hooks) { m_water = std::move(hooks); }
+        /// WaterCore 48 (A4): the wading state the last kinematic sub-step left - in water, the depth at the feet (m), the body's
+        /// horizontal velocity (m/s) and the water's drag on it (m/s^2). Echoed by water_coupling / get_player_state.
+        bool isWading() const { return m_wadeWet; }
+        float wadeDepth() const { return m_wadeDepth; }
+        glm::vec2 wadeVelocity() const { return m_wadeVel; }
+        float wadeDragAcc() const { return m_wadeDragAcc; }
+        float controllerHalfWidth() const { return m_originalHalfWidth; }
+        /// 48.5 item 1: this character's limb boxes as collectMoverBoxes appends them, without consuming the mover feed's state
+        bool peekMoverBoxes(std::vector<MoverBox>& out) const;
 
         // Control inputs
         void setControlInput(float forward, float turn, float strafe = 0.0f);
@@ -1058,6 +1067,12 @@ namespace Scene {
         float m_wadeAccum      = 0.0f;   // stride distance accumulator for footstep rings
         bool  m_wasInWater     = false;  // previous-frame wetness (entry-splash edge detect)
         float m_splashCooldown = 0.0f;   // per-entity splash rate limit (seconds)
+        // WaterCore 48 (A4): the wading law's state (core/water/WadeDrag.h)
+        glm::vec2 m_wadeWant{0.0f};      // this frame's input velocity (xz), before any push
+        glm::vec2 m_wadeVel{0.0f};       // the body's horizontal velocity while in water (persists across sub-steps and frames)
+        bool  m_wadeWet = false;         // in water (depth >= WadeParams::minDepth) at the last sub-step
+        float m_wadeDepth = 0.0f;        // m, the last depth read at the feet
+        float m_wadeDragAcc = 0.0f;      // m/s^2, the water's drag at m_wadeVel
         float currentForwardInput = 0.0f;
         float currentTurnInput = 0.0f;
         float currentStrafeInput = 0.0f;

@@ -662,7 +662,7 @@ public:
     /// L2 (43.3 item 5): slotsHeld / waiting (ponds within reach without a free slot, this frame), made / dropped (layers, the
     /// session; dropped counts the rule's drops - a layer that goes with its volume is not counted), gpuStates (RippleGpu's device
     /// states held), windowSide (the derived side with the reach on; else rippleWindowCells)
-    struct RippleStats { bool on = true, smooth = false; int layers = 0, awake = 0, refused = 0; long cells = 0, kinematicCells = 0, impulses = 0; double ms = 0.0; float maxAbs = 0.0f;
+    struct RippleStats { bool on = true, smooth = false; int layers = 0, awake = 0, refused = 0; long cells = 0, kinematicCells = 0, impulses = 0, kinematicCellsTotal = 0;   /* 48: the session total (kinematicCells is per step) */ double ms = 0.0; float maxAbs = 0.0f;
                          int slotsHeld = 0, waiting = 0, gpuStates = 0, windowSide = 0; long made = 0, dropped = 0;
                          float maxSlope = 0.0f; long slopeHist[kSlopeBins] = {};
                          float breakSlope = RippleLayer::kBreakSlope;   ///< 22.12 B1 (0 = off, the A/B control)

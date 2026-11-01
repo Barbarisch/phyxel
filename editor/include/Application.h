@@ -101,6 +101,7 @@
 #include "core/DebrisRuntime.h"
 #include "core/WaterManager.h"
 #include "core/water/WaterCoreManager.h"
+#include "core/water/WadeDrag.h"
 #include "core/water/ShoreBand.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
@@ -345,6 +346,15 @@ private:
     nlohmann::json m_waterWorldLast;   // the last change, echoed by water_coupling.world
     nlohmann::json m_waterWorldLeft;   // the write-back of the world left, taken by the next change (null = none)
     bool m_waterWorldResetOffForTest = false;   // TEST ONLY (water_coupling test_world_reset_off): both no-ops - before 47 (the red)
+    // A4 (WaterCore 48): wading. The characters' water hooks read the core first (the run the feet are in), then the old CA water.
+    float wadeDepthAt(const glm::vec3& probe) const;        // m of water above probe.y - 0.05 (the feet)
+    glm::vec3 wadeFlowAt(const glm::vec3& probe) const;     // m/s, the water's horizontal velocity there
+    std::vector<Scene::AnimatedVoxelCharacter*> waterCharacters() const;   // the player, entities, NPCs (deduplicated)
+    bool m_waterCharactersOn = Core::Water::kWadeCharactersByDefault;   // water_coupling {characters}
+    std::unordered_map<const Scene::AnimatedVoxelCharacter*, uint32_t> m_waterCharIds;   // never reused (the solid hold's id)
+    uint32_t m_waterCharNextId = 1;
+    struct WaterCharStats { long fed = 0, limbs = 0, displacing = 0, rippling = 0, waking = 0; };
+    WaterCharStats m_waterCharLast, m_waterCharTotal;
     uint32_t m_pressureTag = 0;      // the frame's window tag (written by the water calls, checked by the debris ticks)
     Core::Water::WaterCoreManager::SolidsFeed m_solidsFeed;   // the last frame's feed (water_coupling echo)
     bool m_waterExchangeOn = true;   // E2: debris -> water momentum only (the tiles stay) - a diagnostic split

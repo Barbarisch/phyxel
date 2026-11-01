@@ -8,6 +8,7 @@
 #include "core/ChunkManager.h"
 #include "core/DamageSystem.h"
 #include "core/GpuParticlePhysics.h"
+#include "core/water/WadeDrag.h"
 #include "graphics/RaycastVisualizer.h"
 #include "utils/Logger.h"
 #include <iostream>
@@ -98,6 +99,9 @@ static constexpr float kControllerHeadClearance = 0.05f;
     // (so terrain and bodies still block it), then is taken back out - except on an axis the
     // resolve changed (a wall zeroed it), which keeps the resolved value. The push then decays.
     void AnimatedVoxelCharacter::resolveKinematicMovement(float dt) {
+        // WaterCore 48 (A4): what the input asks for this frame, before any push - the wading law drives toward it in every
+        // sub-step (the sub-steps overwrite m_kinVelocity with the water's answer)
+        m_wadeWant = glm::vec2(m_kinVelocity.x, m_kinVelocity.z);
         const bool pushing = (m_pushVel.x != 0.0f || m_pushVel.y != 0.0f) && !m_kinFrozen;
         if (!pushing) { resolveKinematicMovementImpl(dt); return; }
         m_kinVelocity.x += m_pushVel.x;
@@ -106,6 +110,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         resolveKinematicMovementImpl(dt);
         if (m_kinVelocity.x == vx) m_kinVelocity.x -= m_pushVel.x;
         if (m_kinVelocity.z == vz) m_kinVelocity.z -= m_pushVel.y;
+        if (m_wadeWet) { m_kinVelocity.x = m_wadeVel.x; m_kinVelocity.z = m_wadeVel.y; }   // 48: the body's own velocity, push excluded
         m_pushVel *= std::exp(-DEBRIS_PUSH_DECAY * std::max(dt, 0.0f));
         if (glm::length(m_pushVel) < 1e-3f) m_pushVel = glm::vec2(0.0f);
     }
@@ -224,34 +229,47 @@ static constexpr float kControllerHeadClearance = 0.05f;
             }
         }
 
-        // --- Wading (small-scale water plan Phase 4.3) ---
-        // worldPosition.y is the FEET level here (the ground snap below treats it so), which is
-        // exactly where water depth matters. All through injected hooks (null = dry world).
-        // m_kinVelocity.xz is re-derived from input/external velocity every update, so the
-        // per-frame slowdown scaling cannot compound across frames.
+        // --- Wading (WaterCore 48, plan A4; was small-scale water plan Phase 4.3) ---
+        // worldPosition.y is the FEET level here (the ground snap below treats it so), which is where water depth matters. All
+        // through injected hooks (null = dry world); the editor's depthAt reads the water core first (the run the feet are in),
+        // then the old CA water. The pace comes from the water's drag, not a table (core/water/WadeDrag.h): the legs drive toward
+        // the input's velocity (m_wadeWant) with bounded grip and the water drags the body toward its own velocity - one ODE
+        // across the sub-steps (m_wadeVel), so a long frame wades exactly as fast as a short one. A current is that same drag.
         if (m_water.depthAt) {
             m_splashCooldown = std::max(0.0f, m_splashCooldown - dt);
-            const float depth = m_water.depthAt(worldPosition + glm::vec3(0.0f, 0.05f, 0.0f));
-            if (depth > 0.05f) {
-                // Hip-deep water roughly halves the pace; scale by capsule size so a wolf and an
-                // ogre wade believably in the same creek.
-                const float hip  = std::max(0.6f, m_originalHalfHeight);
-                const float slow = glm::mix(1.0f, 0.55f, glm::clamp(depth / hip, 0.0f, 1.0f));
-                m_kinVelocity.x *= slow;
-                m_kinVelocity.z *= slow;
-                // Current push (tangible-water Phase E): flowing water shoves a wader
-                // downstream — an additive velocity you can walk against, scaled by how deep
-                // you stand, NEVER a controller override. Applied after the slowdown so deep
-                // fast water both slows you and carries you, which is what a real river does.
-                if (m_water.flowAt && depth > 0.4f) {
-                    const glm::vec3 flow = m_water.flowAt(worldPosition + glm::vec3(0.0f, 0.05f, 0.0f));
-                    constexpr float kCharPush = 0.6f;
-                    const float engage = glm::clamp(depth / 1.2f, 0.0f, 1.0f) * kCharPush;
-                    m_kinVelocity.x += flow.x * engage;
-                    m_kinVelocity.z += flow.z * engage;
+            const glm::vec3 probe = worldPosition + glm::vec3(0.0f, 0.05f, 0.0f);
+            const float centreDepth = m_water.depthAt(probe);
+            const Phyxel::Core::Water::WadeParams wp;
+            if (centreDepth >= wp.minDepth) {
+                if (!m_wadeWet) m_wadeVel = m_wadeWant;   // walking in: the land pace, then the water takes it down
+                // 48.6: depth and flow from the water ROUND the body (a ring just outside the controller box), never its own column
+                // alone - that column holds the crest its legs pile up (a self-read: 0.93-1.30 m in a 0.8 m channel, measured)
+                const float ro = halfW + Phyxel::Core::Water::kWadeRingOutM;
+                const glm::vec3 ringAt[4] = {probe + glm::vec3(ro, 0.0f, 0.0f), probe - glm::vec3(ro, 0.0f, 0.0f),
+                                             probe + glm::vec3(0.0f, 0.0f, ro), probe - glm::vec3(0.0f, 0.0f, ro)};
+                float ring[4];
+                for (int i = 0; i < 4; ++i) ring[i] = m_water.depthAt(ringAt[i]);
+                const float depth = Phyxel::Core::Water::wadeRingDepth(centreDepth, ring, wp.minDepth);
+                glm::vec2 flow(0.0f);
+                if (m_water.flowAt) {
+                    int n = 0;
+                    for (int i = 0; i < 4; ++i)
+                        if (ring[i] >= wp.minDepth) { const glm::vec3 f = m_water.flowAt(ringAt[i]); flow += glm::vec2(f.x, f.z); ++n; }
+                    if (n > 0) flow /= static_cast<float>(n);
+                    else { const glm::vec3 f = m_water.flowAt(probe); flow = glm::vec2(f.x, f.z); }
                 }
-                // Footstep rings while striding through shallow water (deep water = no stepping).
-                const float hspeed = glm::length(glm::vec2(m_kinVelocity.x, m_kinVelocity.z));
+                const auto r = Phyxel::Core::Water::wadeStep(m_wadeVel, m_wadeWant, flow, depth, halfW, halfH, m_kinGrounded, dt, wp);
+                m_wadeVel = r.velocity;
+                m_wadeDepth = depth;
+                m_wadeDragAcc = r.dragAcc;
+                m_wadeWet = true;
+                // the debris push (Phase 6a) rides on top, outside the law (resolveKinematicMovement takes it back out)
+                const bool pushing = (m_pushVel.x != 0.0f || m_pushVel.y != 0.0f);
+                m_kinVelocity.x = m_wadeVel.x + (pushing ? m_pushVel.x : 0.0f);
+                m_kinVelocity.z = m_wadeVel.y + (pushing ? m_pushVel.y : 0.0f);
+                // Footstep rings while striding through shallow water - the OLD CA water's rings (its addRipple); in a water-core
+                // pond the legs ring the water themselves (the editor feeds them as moving solids, 48.5 item 1)
+                const float hspeed = glm::length(m_wadeVel);
                 if (m_water.addRipple && m_kinGrounded && depth < 1.2f && hspeed > 0.3f) {
                     m_wadeAccum += hspeed * dt;
                     if (m_wadeAccum >= 0.9f) {   // ~one stride
@@ -260,7 +278,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
                                           0.10f + 0.04f * std::min(hspeed, 4.0f));
                     }
                 }
-                // Entry splash: the dry→wet crossing frame with real downward speed, rate-limited
+                // Entry splash: the dry->wet crossing frame with real downward speed, rate-limited
                 // per entity (the global budget is the VFX system's own burst cap).
                 if (m_water.splash && !m_wasInWater && m_kinVelocity.y < -3.0f &&
                     m_splashCooldown <= 0.0f) {
@@ -274,6 +292,9 @@ static constexpr float kControllerHeadClearance = 0.05f;
             } else {
                 m_wasInWater = false;
                 m_wadeAccum  = 0.0f;
+                m_wadeWet = false;
+                m_wadeDepth = 0.0f;
+                m_wadeDragAcc = 0.0f;
             }
         }
 
@@ -471,14 +492,18 @@ static constexpr float kControllerHeadClearance = 0.05f;
 
             worldPosition.x += m_kinVelocity.x * dt;
             if (hitsSomething()) {
-                if (!tryStepUp() && !funnel(worldPosition.x, worldPosition.z, m_kinVelocity.x * dt))
+                if (!tryStepUp() && !funnel(worldPosition.x, worldPosition.z, m_kinVelocity.x * dt)) {
                     worldPosition.x -= m_kinVelocity.x * dt;
+                    m_wadeVel.x = 0.0f;   // 48.5 item 6: a wall stops the wader - walking into it banks no speed
+                }
             }
 
             worldPosition.z += m_kinVelocity.z * dt;
             if (hitsSomething()) {
-                if (!tryStepUp() && !funnel(worldPosition.z, worldPosition.x, m_kinVelocity.z * dt))
+                if (!tryStepUp() && !funnel(worldPosition.z, worldPosition.x, m_kinVelocity.z * dt)) {
                     worldPosition.z -= m_kinVelocity.z * dt;
+                    m_wadeVel.y = 0.0f;
+                }
             }
         } else {
             // No voxel world — integrate freely (fallback, should not happen in normal use)
@@ -497,8 +522,8 @@ static constexpr float kControllerHeadClearance = 0.05f;
             const Phyxel::Core::PlayBounds pb = m_chunkManager->effectivePlayBounds();
             if (pb.valid) {
                 const glm::vec3 held = pb.clamp(worldPosition, halfW);
-                if (held.x != worldPosition.x) { worldPosition.x = held.x; m_kinVelocity.x = 0.0f; }
-                if (held.z != worldPosition.z) { worldPosition.z = held.z; m_kinVelocity.z = 0.0f; }
+                if (held.x != worldPosition.x) { worldPosition.x = held.x; m_kinVelocity.x = 0.0f; m_wadeVel.x = 0.0f; }
+                if (held.z != worldPosition.z) { worldPosition.z = held.z; m_kinVelocity.z = 0.0f; m_wadeVel.y = 0.0f; }
             }
         }
 
@@ -5842,6 +5867,19 @@ static constexpr float kControllerHeadClearance = 0.05f;
             }
             vw->setKinematicObstacles(this, std::move(obstacles));
         }
+    }
+
+    bool AnimatedVoxelCharacter::peekMoverBoxes(std::vector<MoverBox>& out) const {
+        // WaterCore 48.5 item 1: the same boxes collectMoverBoxes feeds the debris, read by the water feed without touching the
+        // mover feed's state (m_moverFresh)
+        if (!m_segCentersValid || isDerezzing() || m_segmentBoxes.empty()) return false;
+        bool any = false;
+        for (const auto& seg : m_segmentBoxes) {
+            if (seg.boneId < 0 || seg.halfExtents.x <= 0.0f) continue;
+            out.push_back({seg.center + seg.velocity * m_lodAccum, seg.halfExtents, seg.worldRotation, seg.velocity});
+            any = true;
+        }
+        return any;
     }
 
     bool AnimatedVoxelCharacter::collectMoverBoxes(std::vector<MoverBox>& out) {

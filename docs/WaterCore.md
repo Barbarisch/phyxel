@@ -9078,7 +9078,8 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | **SIGNED OFF 2026-10-30 on the numbers** (46.1). BUILT, not signed off (41.5: the pit's wake frame 90-127 -> 56-76 ms; L5 8 of 9 kept runs pass, one watched) | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
 | L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | **SIGNED OFF 2026-10-30 on the numbers** (46.1). BUILT, **ON by default since 2026-10-29** (the owner: "go with your recommendations", 42.6), not signed off in motion (42.5: due before contact, all wakes - D7 closed; pit wake frame 34 -> 12 ms; L5 6 of 6, red caught) | the stall's last part, without changing any outcome |
 | L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | **SIGNED OFF 2026-10-30** (46.1: seen in `l2_flyaway_side_by_side.mp4`). BUILT, **ON by default since 2026-10-29** (43.5: the owner saw no difference in the clip, "Turn it on"; 43.4: the fade on screen within one grey level of the prediction, no step; ~0.1 + 0.1 ms CPU + GPU per far disturbed pond; the ninth-volume draw defect fixed; clip `l2_flyaway_side_by_side.mp4` for the owner) | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
-| A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | DESIGNED (§48); design-check NEEDS WORK, ten items folded in (48.5); building. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
+| A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | BUILT, not signed off (48.6): design-check NEEDS WORK, ten items folded in (48.5); characters read the core (the ring round the body), the drag law (0.90-0.95 m/s at 0.8 m, predicted 0.91), the legs displace (+2.0-2.7 / -1.1-3.9 cm at 1 m; red 0), mass unchanged, a walker wakes a slept channel 1.9 m early. S7's 2 cm behind met in 1 of 3 runs | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
+| A4a | **A wading crowd's cost** (found in 48.6): 12 NPCs in a 12 x 2 m pond cost 7-21 ms of water CPU a frame; the shove budget cuts 15-20 % - the cost is the churning pond being stepped | open | the pond's own levers (the awake region, the step), not an A4 knob |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
 | A7 | **The wake hitch** (~33 ms once, §32.1) | merged into A2f, L3 and L4 | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
@@ -11854,7 +11855,7 @@ Evidence: `docs/evidence/water_core_m4/a2i_world_switch{,_red}.json`.
 awake (A2m), and a menu-world scene (both hooks are wired there, not run). Nothing here is visible on a single scene; the clip for
 the owner is a transition there and back with the pond awake.
 
-## 48. A4 - wading (E4, scenario S7) (2026-10-31). Status: DESIGN (not built)
+## 48. A4 - wading (E4, scenario S7) (2026-10-31). Status: BUILT, not signed off (48.6)
 
 **Why.** A character is the largest way the player touches small water, and today it does not touch the water core at all
 (survey 2026-10-31):
@@ -12021,6 +12022,87 @@ outcome-neutral for the body (the WATER's motion is the look the budget trades).
 The outcome (where a character goes and how fast, a pond's mass) is the same at every tier: the drag law reads depth and
 flow only. The worst case adds fauna in a creek: many waders can wake many far slept ponds; each wake is correct, its cost
 is bounded only by L4's pacing, and is measured.
+
+### 48.6 A4 built (2026-10-31). Status: BUILT, not signed off
+
+**What was built** (as 48.1 with 48.5's items, and three findings from the live runs that changed it - below):
+- `core/water/WadeDrag.h` (header-only, pure): `wadeStep` (the drag law, implicit, exact terminal speed at any step), `wadeTerminalSpeed`,
+  `wadeColumn` (floor), `wadeDepthFromRuns` (the run the feet are in), `wadeRingDepth` (below), `limbSolidHalfExtents` (a limb's
+  oriented box as an equal-volume AABB - shape follows the lean, volume exact, so 48.5 item 1's overstated-volume worry is gone by
+  construction), `wadeWakeBox` (the 0.5 s lead), `kWadeCharactersByDefault` (true).
+- `AnimatedVoxelCharacter`: the wading block runs the law per kinematic sub-step on a persistent `m_wadeVel` toward this frame's
+  input (`m_wadeWant`); a blocked axis and the play-bounds clamp zero it; the debris push rides on top; no drive in the air. The
+  0.55 table and the `0.6 x flow` add are gone (for the old CA water too - 48.5 item 3). `peekMoverBoxes` reads the limbs without
+  touching the debris feed's state. Getters for the echo.
+- `Application`: `wadeDepthAt` / `wadeFlowAt` (the core first, then the old CA water) on the player's and the NPCs' hooks;
+  `waterCharacters()`; in the water block every character near a volume or slept box feeds its wet limbs (each a moving solid
+  through the A10 gate, skipping the pressure-window filter, and a ripple body) and, when moving, one led wake box.
+  `water_coupling {characters}` + the `characters` echo; `get_player_state.water`; `water_ripples.kinematic_cells_total`.
+- Tests: `WadeDragTest` (12), `WaterCharacterWakeTest` (2). Tools: `tools/water_wade_s7.py` (S7 live), `tools/water_wade_cost.py`.
+
+**Three findings on the way (they override 48.1-48.5):**
+1. **The wader read its own crest.** First live run: the character's depth read 0.93-1.30 m in 0.8 m of water - its own feet column
+   holds the water its legs pile up (the cap on a moving solid; M4 met the same with debris, 31.7 item 3). Now (a) the depth comes
+   from a RING of four points `kWadeRingOutM` = 2/3 m outside the controller box (past a stride's reach: at 1/3 m the ring still met
+   the legs' crest, 0.88-1.09 m), the mean of its wet points, the centre deciding wet or dry (`wadeRingDepth`, unit-tested), and
+   (b) the column's top run reads as a depth gauge - the mean of its wet sub-columns' tops (`columnSurfaceStats`) - not the merged
+   run's highest top. Live after: 0.801-0.807 m.
+2. **The ripple layer's remainder rule is identically zero at 1/9 m cells - not a defect, and already known** (L2 found it writing
+   `WaterRecordedPondTest.ARippleLayerBeyondTheReachHoldsNoDeviceState`, whose comment says so; this build re-found it). The stride-ring check counted the
+   remainder (22.3.2: a body's fine footprint minus its coarse one) and read 0 for limbs AND for a dropped stone, with displacement
+   on or off. Cause: `RippleLayer::kPitch` is 1/9 m, the pond's own cell, so there is one lattice cell per grid column and fine
+   equals coarse. At 1/9 m the grid holds a body exactly and the rings come from the solver's displacement itself; the remainder
+   only adds detail to 1/3 m grids. A ring read built for character limbs was reverted (it could not change anything). The check
+   is now the surface beside the path moving. `kinematic_cells_total` stays as a counter.
+3. **The S7 window must keep the swinging foot out.** "1 m ahead" measured with the player's centre 0.25-1.25 m from the probe read
+   +23.6 cm - a foot swings ~0.4 m past the controller box into the probe column. The windows are now 0.75-1.5 m.
+
+**Unit (Release):** `WadeDragTest` 12/12 - terminal speeds 2.0 / 1.49 / 1.15 / 0.91 m/s at 0.1 / 0.3 / 0.5 / 0.8 m within 1 %;
+the same answer at sub-steps 1/30-1/240 s; the old table's red kept as a control (a 4-sub-step frame waded > 0.2 m/s slower than a
+1-sub-step frame); a 0.5 m/s current held, a 1.5 m/s current pushes 0.59 m/s downstream; floor across seams; the run the feet are
+in (a dry cave under a pond reads dry); the ring. `WaterCharacterWakeTest` 2/2 - a wader-sized box at 0.91 m/s in a 2 m x 0.8 m
+channel: +2.19 cm 1 m ahead, -1.47 cm 1 m behind (the prediction was 2 cm both ways: **behind missed**, kept as measured, the bound
+in the test is 1 cm against the red's 0); mass drift 3e-6 m^3; the red (no body) exactly 0. A slept pond woken by a walker at 2 m/s
+with its front >= 0.9 m short (the bare box, the control, wakes it only at the edge).
+
+**Live S7 (Release, WaterBench_Small, the channel rig, 0.8 m at 1/9 m cells, GPU, shipped settings; `a4_s7.json`, `a4_s7_rep2.json`,
+`a4_s7_rep3.json`; earlier tries `a4_s7_try1/try2/run1.json` before findings 1-3):**
+
+| | dry (control) | today's binary (red) | characters off | characters on (shipped) |
+|---|---|---|---|---|
+| speed over the middle 6 m | 3.5-3.9 m/s | the dry pace: its hook read the OLD water, which holds 0 here (`water_probe` mass 0) | 0.900-0.904 m/s | 0.910-0.947 m/s (prediction 0.91 +- 0.1) |
+| depth the character reads | - | 0 | 0.800 | 0.801-0.806 m |
+| level 1 m ahead / behind, on the path | - | (no feed) | 0.0 / 0.0 every run | +2.0 to +2.7 / -1.1 to -3.9 cm (three runs); run1 +5.2 / -5.2 |
+| water beside the path (0.7 m off) | - | - | 0.0 | 0.6-1.9 cm |
+| mass, before -> 5 s after | - | - | unchanged | unchanged (5e-8 m^3) |
+| slept channel | - | not woken (no character feed) | - | woken with the walker's front at x 64.1 (the water starts at 66) |
+
+S7's "surface deviation >= 2 cm measured at 1 m behind" is met in one of three runs (ahead in three of three at 2.0-2.7 cm): the
+bow wave and the wake are real (the red is exactly 0 in every run) and 1-5 cm, but not reliably S7's 2 cm behind. Recorded as
+measured, not tuned. "On" wades slightly faster than "off": the water pushed ahead moves with the wader, so its relative speed
+falls (the law reads the ring's flow).
+
+**Cost (Release, Small bench; `a4_cost.json`, `a4_cost_budgets.json`, `a4_cost_crowd.json`).** The machine's load drifted during
+the session (the same crowd-off window ran 80-147 fps), so only within-round comparisons hold:
+- one wader: the water block ~2.4 ms CPU a frame (the solver's update of a stirred pond) against 0.07 ms when characters are off
+  (the pond then stays still and its columns sleep); fps 210 vs 260; the raster ("solids") 0.27 ms.
+- the worst case, 12 NPCs patrolling the wet channel (12 fed, 131 limbs in water, 23 shoving): fps ~92-101 vs 80-147 off; the water
+  block 7-21 ms CPU; the worst frame 51-130 ms. The shove budget (the tier knob, 32 -> 8) cut the water's CPU only 15-20 % in each
+  round: the crowd's cost is mostly an awake, churning pond being stepped, not the displacement. A cheaper crowd tier needs the
+  pond's own levers (the awake region, the step's cost), not an A4 knob - logged as A4a.
+- Not measured: fauna in a creek; wakes of far slept ponds by many waders (each is the L4-paced wake, 42); the GPU frame's water
+  share (the kernel timer read 0 calls in several windows - not trusted).
+
+**Gates (Release, the engine stopped):** unit - every `*Water*`, `*Wade*`, `*Character*`, `*Npc*`/`*NPC*` test, 634 passed, 2 skipped
+(as before). Integration water 72/75: the two known (`GpuFlipBulkParityAndRunup`, `ShortWaveMatchesAllFineAndTheBooksAreExact`) and
+`WaterRecordedPondTest.ARippleLayerBeyondTheReachHoldsNoDeviceState`, which passed at A2i's gate: it now fails at varying late
+cycles (16, 18, 19 of 20 - a dropped layer's device state not yet freed after 6 frames; never more than one held). This session ran
+with a game using the GPU (the same load that made the cost windows drift), and A4 changes nothing in the ripple layer but a
+counter - the likely cause is the fence timing under that load, **not proven**: to re-run with the GPU free.
+
+**Not done / open (logged in 30.4):** A4a (a wading crowd's cost), the look (the owner's clip), distinct stride splashes (not
+measured - the legs ring the water through the solver), swimming (A4 clamps depth at the controller's height), CPU furniture
+still on the old water (E3).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

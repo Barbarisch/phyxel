@@ -2626,7 +2626,7 @@ void WaterCoreManager::stepRipples(float dt) {
                     const float vhp = b.velocity.y * (fine[j * n + i] - coarse);
                     if (std::abs(vhp) < 1e-5f) continue;
                     L.setKinematic(gx * per + i - L.origin().x, gz * per + j - L.origin().y, vhp);
-                    ++m_rstats.kinematicCells;
+                    ++m_rstats.kinematicCells; ++m_rstats.kinematicCellsTotal;
                 }
             }
         }
