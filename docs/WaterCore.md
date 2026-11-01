@@ -9078,7 +9078,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | L3 | **Keep a sleeping pond's GPU memory near the camera** (the owner, 2026-10-27). Within L1's memory reach, a slept pond keeps its device memory and the next wake only uploads (saves the pit's 13 ms grow and 4.5 ms of buffers). A total cap, with the farthest pond giving up its memory first; bytes held echoed. First measure the bytes per sleeping pond | **SIGNED OFF 2026-10-30 on the numbers** (46.1). BUILT, not signed off (41.5: the pit's wake frame 90-127 -> 56-76 ms; L5 8 of 9 kept runs pass, one watched) | continues A2f: the largest part of the wake left that threading cannot touch (39.8) |
 | L4 | **Pace a far wake** (was 39.2 step 2): near the camera the wake runs at once; farther away it is built across frames while the body reads the record. The owner could not tell a 0.4 s late wake in the near scene (39.4). Gated by L5 | **SIGNED OFF 2026-10-30 on the numbers** (46.1). BUILT, **ON by default since 2026-10-29** (the owner: "go with your recommendations", 42.6), not signed off in motion (42.5: due before contact, all wakes - D7 closed; pit wake frame 34 -> 12 ms; L5 6 of 6, red caught) | the stall's last part, without changing any outcome |
 | L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | **SIGNED OFF 2026-10-30** (46.1: seen in `l2_flyaway_side_by_side.mp4`). BUILT, **ON by default since 2026-10-29** (43.5: the owner saw no difference in the clip, "Turn it on"; 43.4: the fade on screen within one grey level of the prediction, no step; ~0.1 + 0.1 ms CPU + GPU per far disturbed pond; the ninth-volume draw defect fixed; clip `l2_flyaway_side_by_side.mp4` for the owner) | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
-| A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | not designed. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
+| A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | DESIGNED (§48); design-check NEEDS WORK, ten items folded in (48.5); building. Scenario S7 never run. Must also wake a slept pond (32.2 item 7) | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
 | A7 | **The wake hitch** (~33 ms once, §32.1) | merged into A2f, L3 and L4 | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
@@ -11853,6 +11853,174 @@ Evidence: `docs/evidence/water_core_m4/a2i_world_switch{,_red}.json`.
 **Not covered.** The old CA `waterManager` (A2k), in-place regeneration under live water (A2l), explicit saves with a volume
 awake (A2m), and a menu-world scene (both hooks are wired there, not run). Nothing here is visible on a single scene; the clip for
 the owner is a transition there and back with the pond awake.
+
+## 48. A4 - wading (E4, scenario S7) (2026-10-31). Status: DESIGN (not built)
+
+**Why.** A character is the largest way the player touches small water, and today it does not touch the water core at all
+(survey 2026-10-31):
+- Characters (player, NPCs, monsters, fauna) are kinematic. Their limb boxes reach the GPU debris as movers, but kinematic
+  bodies never make a wet-body record (`solver_integrate.comp:75`), so a character is never a `MovingSolid`. A character
+  wading through an awake pond pushes no water: no bow wave and no wake.
+- Nothing wakes a slept pond for a character: `wakeSleptTouching` is fed only from GPU debris (32.2 item 7).
+- The character's existing wading code (`AnimatedVoxelCharacter.cpp:226-278`, small-scale water plan Phase 4.3) reads only
+  the OLD CA water through `Application`'s `WaterHooks` (`waterManager->sampleWater(p).depthBelow`, `flowAtWorld`,
+  `addRipple`). In a water-core pond the character reads depth 0: it walks at full speed through 0.8 m of water.
+- That code is a table, not physics: hip-deep halves the pace (`mix(1, 0.55, depth / hip)`) and a current adds
+  `0.6 x flow` past 0.4 m. It is also applied once per kinematic sub-step, so on a frame longer than 1/30 s the slowdown
+  compounds within the frame (the slower the frame, the slower the wader - an outcome by frame rate).
+
+**What the player will see.** Walking into a pond slows you by how deep you stand, from the water's drag. The water piles
+up ahead of you (a bow wave), you leave a trough and a spreading wake behind, and the rings run to the banks. Each stride
+splashes where a leg goes in and comes out. A slept pond wakes before your feet reach it. A current pushes you, and a fast
+deep one can push you off your line.
+
+### 48.1 The design
+
+**1. One depth source: the water core first.** The character's `WaterHooks` read the core where it holds water:
+`WaterCoreManager::columnRuns(wx, wz)` at the feet column, taking the run the feet are in (the highest run whose bottom is
+below the character's top, as the body push does, A2e). Depth = that run's top - feet y, clamped to [0, the controller's
+height]. Flow = the run's flow. Where the core has no water at that column, the old CA hooks answer, as today (it retires
+in W4, A2k). One law for both sources (item 2).
+
+**2. Wading speed from drag, not a table.** A new pure function, `wadeStep` (`core/water/WadeDrag.h`, header-only so the
+unit test and the character share it), integrates the character's horizontal velocity v in water per kinematic sub-step:
+- Drive: the legs push toward the input's wanted velocity v_want with at most `kWadeDriveAcc` = 2.5 m/s^2 (a walker's
+  horizontal push through the feet, about 0.25 g of grip; a named constant, a look and feel knob for the owner).
+- Drag: the submerged front of the body is A = width x depth (width = 2 x controller half-width), and the water pulls the
+  body toward its own velocity u with a = 0.5 rho_w C_d A |v - u| (v - u) / m, C_d = 1.05 (the same form-drag
+  coefficient the CPU bodies use, `WATER_FORM_CD`). Mass m = `kWadeBodyKgPerM3` x the controller box volume, grounded on
+  the default controller (0.5 x 1.9 x 0.5 m) and a 70 kg adult (147 kg/m^3), so a wolf and an ogre wade by their own size.
+- The drag term is integrated implicitly (v_rel / (1 + k |v_rel| dt)), so it is stable at any step, and sub-steps
+  integrate one ODE: the outcome no longer depends on the frame rate.
+- Out of the water (depth <= 0.05 m) the law does nothing and v follows the input, as today.
+
+Predicted wading speeds for the default character walking (v_want 2.0 m/s) in still water, solved from drive = drag:
+ankle 0.1 m: 2.0 (no slowdown; terminal 2.58); knee 0.3 m: 1.49; thigh 0.5 m: 1.15; waist 0.8 m: 0.91 m/s. Running
+(5 m/s) at 0.8 m: the same 0.91 - deep water caps everyone. Measured human wading is about 0.5-1 m/s waist-deep (to be
+checked against the literature in the build, and a look call for the owner). In a current, standing still at 0.8 m depth,
+the drive holds the character against up to sqrt(2.5 / 3.0) = 0.91 m/s of flow; faster flow pushes them downstream
+slowly. The old `0.6 x flow` add and the 0.55 table are removed.
+
+**3. The character pushes the water (bow wave and wake).** Each frame the editor adds every character in or touching an
+awake volume to the moving-solid list:
+- One box per character: its controller box clipped to [feet, min(top, the water top + 1/3 m)] (the part that meets
+  water), the character's velocity, `fresh` on the frame it first touches, and its own id range (bit 62 set, the
+  character's mover-owner id - never a debris id).
+- It goes through the same displace gate as debris (A10: the 0.6 / 0.3 m/s stroke speeds relative to the water, the
+  1/6 m size floor, the 32-body budget ranked by volume x speed). A walking character is 0.5 m wide, so it ranks above
+  every debris piece; standing still it stops shoving (the gate's off speed), as a resting block does.
+- It skips the pressure-window filter (that window is how the water pushes a DEBRIS body; a kinematic character is
+  pushed by item 2's law, not by the window).
+- `setMovingSolids` then rasterizes it like a block: the projection pushes the water out ahead and fills behind. That is
+  the bow wave and the wake, from the solver; nothing is drawn on top.
+
+**4. Stride splashes from the legs.** The character's limb boxes (`collectMoverBoxes`, with per-limb velocity, already
+built for debris) that straddle the water top are added to the ripple-body list. The ripple layer is driven by a body's
+vertical speed across the surface, so a foot plunging in or lifting out makes a ring where it happens; a leg sliding
+sideways makes none (the trunk box's displacement carries that). This replaces the old every-0.9 m `addRipple` in a
+water-core pond (it stays for the old CA water). No count of strides is invented: the rings come from the legs' motion.
+
+**5. A character wakes a slept pond.** The character boxes go into `wakeSleptTouching`'s list with a lead: the box is
+grown along the horizontal velocity by 0.5 s (a walker is 1 m from the bank at 2 m/s when the wake is asked), so the
+volume exists before the feet reach water. The paced wake (L4) already sets its deadline from the bodies; a walker's
+deadline is the time to the box along its velocity, not a fall time (a new deadline rule for horizontal approach).
+
+**6. No buoyancy on characters, stated.** The character is never lifted by water in A4 (no swimming, no floating); its
+weight on the ground is unchanged. Nothing can float up (the owner's rule).
+
+**Not in A4, stated:** swimming and deep water (past the controller's height the depth clamps; the character walks the
+floor); CPU rigid bodies (furniture) still read the old water (E3 - its own row); per-limb displacement (one box per
+character; limbs only drive ripples); NPC behaviour changes (an NPC wades by the same law, but its path planning does
+not price water); entry splash VFX for a water-core pond (the old dome burst stays for the old water only; the ripple
+layer makes the core's entry ring).
+
+### 48.2 API
+
+`water_coupling` gains:
+- `characters` (bool, default true, unchanged when omitted): whether characters enter the core (displacement, stride
+  rings, the wake). Echoed with its default.
+- echo `characters {on, on_default, last {fed, displacing, rippling_limbs, woke}, total {...}, wading [ {id, depth_m,
+  speed_mps, drag_acc, flow} ... up to 16]}`.
+- `test_characters_off` is NOT added: `characters:false` is the red and the control.
+
+`/api/character/player_state` (or `get_player_state`) gains `water {depth_m, source: core|old|none, wade_speed_mps}` so a
+rig reads what the character read.
+
+Defaults: `characters` on. The wading speed in old CA water changes (the table becomes the drag law); no test pins the
+table (grep: none). The new constants are pinned by `WadeDragTest`.
+
+### 48.3 Tests (red first; predictions above)
+
+**Unit (`WadeDragTest`, pure):** the terminal speeds at 0.1 / 0.3 / 0.5 / 0.8 m within 1 %; the same answer at 1, 2, 4
+and 8 sub-steps of a frame (the red: today's table applied per sub-step compounds - shown with the old formula);
+standing in a 0.5 / 1.5 m/s current at 0.8 m (held / pushed); a 0 m depth leaves v alone.
+
+**Unit (`WaterCharacterWake`, CPU volume):** a character box moving at 2 m/s through a 0.8 m channel: the level 1 m ahead
+rises and 1 m behind falls (>= 2 cm, S7's threshold), mass unchanged to 1e-4; the red is the box not fed (deviation 0).
+A slept channel woken by a box approaching at 2 m/s before the box reaches the box's edge.
+
+**Live (S7, WaterBench_Small port 8111, the `channel` rig: 2 wide x 1 deep x 12 long, x 66-77, z 14-15, one chunk):**
+water 0.8 m placed by a volume; the player walked from x 66.5 to 76.5 along z 15 with `walk_to` (no key timing).
+Checks, each with its written prediction:
+- speed in the middle 6 m: 0.91 +- 0.1 m/s (red, today's binary: 2.0 - it reads no water);
+- surface at 1 m ahead and 1 m behind (`water_av_watch`): >= 2 cm rise ahead and fall behind while passing (red: < 2 mm,
+  the channel's own noise);
+- stride rings: the ripple layer's driven-cell count > 0 while walking, 0 standing (red: 0);
+- mass: the volume's total mass before and 5 s after equal within 1e-3 m^3;
+- the slept channel: walk in, the pond is awake (`slept.woken` + 1) before the feet's x reaches the water's first column;
+- control: the same walk in the dry channel (no water): speed 2.0, no surface events.
+The rig differs from shipped settings only by the walk command and the channel; `characters`, displacement, the gate and
+the wake are the shipped defaults.
+
+**Look:** a clip (player walking the channel, characters off vs on, side by side) for the owner's sign-off. A visible
+bench run: warned first.
+
+### 48.4 Tiers and cost
+
+Cost: one raster box and a few ripple bodies per wading character, through the existing gate budget (the knob: the
+budget; and the limbs' ripple feed can be turned off). The drag law is a few flops per sub-step. Measured as the
+whole-frame CPU and GPU with the player wading the channel vs standing beside it, and the worst case: 20 NPCs walking
+through one pond. The outcome (where the character goes, how fast, the pond's mass) is the same at every tier: the drag
+law never depends on a tier or on distance; the displacement is gated by the same rules as debris, which A10 measured as
+outcome-neutral for the body (the WATER's motion is the look the budget trades).
+
+### 48.5 The design check (2026-10-31): NEEDS WORK, ten items, folded in here (these override 48.1-48.4 where they differ)
+
+1. **Displace with the limbs, not one trunk box (the main change).** The legs sit inside the controller box, so stride rings
+   from leg ripple bodies would land in the box's solid cells, and the ripple layer takes only the fine-minus-coarse
+   remainder of a body (`WaterCoreManager.cpp` 22.3.2), which assumes the body is also in the raster. So each limb box under
+   or crossing the water top (`collectMoverBoxes`, its own velocity) is a `MovingSolid` (its AABB) AND a ripple body: a leg
+   plunging in is real displacement in the solver, the remainder rule fits, and the wake comes from the legs. A rotated
+   limb's AABB overstates its volume: the unit test measures the sum of AABB volumes against the limbs' oriented volume and
+   the ratio is stated.
+2. **The feet column is `floor(x)`, never truncation** (A2a's red). Test: the depth the hook reads at x = -0.01 / 0.0 and
+   31.99 / 32.0 (and z) equals that column's own `columnRuns` (the `WaterRecordSeam` shape).
+3. **Old-water wading changes too, stated.** The 0.55 table and the `0.6 x flow` add go for the old CA water as well (one
+   law). No test pins them. In a 1 m/s river 0.8 m deep a walker was 1.1 m/s upstream-capable plus 0.6 m/s carried; now the
+   drive holds them only against flow up to 0.91 m/s. A visible change in streaming rivers, for the owner.
+4. **The rig drives the player with `inject_input`** (MoveForward held, the yaw set first), not `walk_to` (that route lives
+   only in the standalone `GameApiService`). Positions are logged each 0.1 s.
+5. **Speed is measured from position**: the time to cross the middle 6 m, not the instantaneous velocity.
+6. **A persistent wade velocity** (`m_wadeVel`): the drag ODE needs state because `m_kinVelocity.xz` is re-derived from input
+   each frame. It resets when leaving water, is overwritten with the RESOLVED velocity after the collision/step pass (walking
+   into a wall never banks speed), the debris push `m_pushVel` stays outside the law, and there is no drive while airborne
+   (drag only).
+7. **The pose is a frame late**: the water block runs before the characters update (`Application.cpp` water block vs entity
+   update). The limb boxes are last frame's, predicted by velocity x dt, as debris are predicted by their age.
+8. **A stable id** per character for the solid hold: `DebrisRuntime`'s owner id (never reused), in its own range (bit 62).
+9. **The approach deadline** (a walker, not a faller) gets a unit test: a box approaching at 2 m/s is due before it reaches
+   the slept box's edge.
+10. **The tier table and the worst case:**
+
+| tier | knobs | given up | whole-frame CPU / GPU share |
+|---|---|---|---|
+| moonshot | every character in water feeds its limbs; gate budget 32 (shared with debris) | nothing | not measured yet |
+| 120 | the same; the budget is the knob | water motion behind the 32 largest movers | not measured yet |
+| 60 / 30 | budget lowered | more waders leave no wake (they still slow the same) | not measured yet |
+
+The outcome (where a character goes and how fast, a pond's mass) is the same at every tier: the drag law reads depth and
+flow only. The worst case adds fauna in a creek: many waders can wake many far slept ponds; each wake is correct, its cost
+is bounded only by L4's pacing, and is measured.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
