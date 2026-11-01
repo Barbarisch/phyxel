@@ -9,6 +9,8 @@
 #include "core/water/WaterSurfaceMesh.h"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <memory>
 #include <vector>
 
 using namespace Phyxel::Core::Water;
@@ -77,6 +79,111 @@ MapCheck runOnce(VkDevice d, VkPhysicalDevice pd, VkQueue q, uint32_t qf, int bo
     return out;
 }
 }  // namespace
+
+// A5 diagnosis (31.9a): the dam break in the 12 m and the 17 m box with tall cells ON, tick by tick - the tall layer's state in each
+// and the first tick their surfaces part (the 12 m box's columns compared)
+TEST_F(WaterBodyPressureTest, DISABLED_DiagTallFloorPerTick) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    struct Run { std::unique_ptr<WaterCoreManager> mgr; int id = 0; };
+    std::vector<Run> runs;
+    const char* wenv = std::getenv("A5_BOXES");
+    std::vector<int> boxes = {11, 16};
+    if (wenv) { boxes.clear(); int a = 0, b = 0; std::sscanf(wenv, "%d,%d", &a, &b); boxes = {a, b}; }
+    for (int hiX : boxes) {
+        Run r; r.mgr = std::make_unique<WaterCoreManager>(state);
+        std::string err;
+        ASSERT_TRUE(r.mgr->initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        r.mgr->setDroplets(false);
+        r.id = r.mgr->create(glm::ivec3(0, 0, 0), glm::ivec3(hiX, 2, 7), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_TRUE(r.id) << err;
+        r.mgr->setAutoSleep(r.id, false);
+        r.mgr->placeBox(glm::ivec3(0, 0, 0), glm::ivec3(2, 1, 7), 1.0f, nullptr);
+        runs.push_back(std::move(r));
+    }
+    for (int k = 0; k < 40; ++k) {
+        float worst = 0.0f; long diff = 0;
+        const WaterSurfaceField* f[2] = {nullptr, nullptr};
+        for (int i = 0; i < 2; ++i) {
+            AvRecord rec; runs[i].mgr->step(runs[i].id, 1, 1.0f / 60.0f, &rec);
+            for (const WaterSurfaceField* s : runs[i].mgr->surfaceFields()) if (s->source == runs[i].id) f[i] = s;
+            const AvRecord* r = runs[i].mgr->find(runs[i].id);
+            std::printf("  k %2d box %d: tall %d cols %d floor %.3f rest %.3f offs %d (%s) mass %.5f\n", k, i, int(r->tallActive), r->tallColumns,
+                        r->tallFloorY, r->tallRestY, r->tallOffs, r->tallReason.c_str(), rec.mass);
+        }
+        if (f[0] && f[1] && f[0]->nz == f[1]->nz)
+            for (int z = 0; z < f[0]->nz; ++z) for (int x = 0; x < f[0]->nx; ++x) {
+                const SurfaceColumn &a = f[0]->at(x, z), &b = f[1]->at(x, z);
+                const float ta = a.runs >= 1.0f ? a.top[0] : 0.0f, tb = b.runs >= 1.0f ? b.top[0] : 0.0f;
+                if (std::abs(ta - tb) > 1e-5f) { ++diff; worst = std::max(worst, std::abs(ta - tb)); }
+            }
+        std::printf("  k %2d: %ld columns differ (worst %.4f m)\n", k, diff, worst);
+    }
+}
+
+// A5 diagnosis 2: a walled pond at rest (x 0-4 m, a wall at voxel x 4 up to 3 m), a stone at tick 30; the same pond in a 12 m and a
+// 17 m box (dry land past the wall) - with tall cells, the first tick their surfaces part
+TEST_F(WaterBodyPressureTest, DISABLED_DiagTallFloorWalledPond) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto state = [](const glm::ivec3& m) -> int { return (m.y < 0 || (m.x >= 36 && m.x < 45 && m.y < 27)) ? 1 : 0; };
+    const bool tallOff = std::getenv("A5_TALL_OFF") != nullptr;
+    struct Run { std::unique_ptr<WaterCoreManager> mgr; int id = 0; };
+    std::vector<Run> runs;
+    for (int hiX : {11, 16}) {
+        Run r; r.mgr = std::make_unique<WaterCoreManager>(state);
+        std::string err;
+        ASSERT_TRUE(r.mgr->initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        r.mgr->setDroplets(false);
+        r.id = r.mgr->create(glm::ivec3(0, 0, 0), glm::ivec3(hiX, 3, 7), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        ASSERT_TRUE(r.id) << err;
+        r.mgr->setAutoSleep(r.id, false);
+        if (tallOff) r.mgr->setTallBand(r.id, 0.0f);
+        r.mgr->placeBox(glm::ivec3(0, 0, 0), glm::ivec3(3, 1, 7), 1.0f, nullptr);
+        runs.push_back(std::move(r));
+    }
+    for (int k = 0; k < 120; ++k) {
+        float worst = 0.0f; long diff = 0;
+        const WaterSurfaceField* f[2] = {nullptr, nullptr};
+        double mass[2] = {0, 0};
+        for (int i = 0; i < 2; ++i) {
+            if (k == 30) runs[i].mgr->addImpulse(glm::vec3(2.0f, 1.9f, 4.0f), 1.0f / 3.0f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+            AvRecord rec; runs[i].mgr->step(runs[i].id, 1, 1.0f / 60.0f, &rec);
+            mass[i] = rec.mass;
+            for (const WaterSurfaceField* s : runs[i].mgr->surfaceFields()) if (s->source == runs[i].id) f[i] = s;
+            const AvRecord* r = runs[i].mgr->find(runs[i].id);
+            if (k < 4 || (k >= 34 && k < 41) || k % 20 == 0)
+                std::printf("  k %3d box %d: tall %d cols %d floor %.3f rest %.3f offs %d (%s) mass %.5f\n", k, i, int(r->tallActive), r->tallColumns,
+                            r->tallFloorY, r->tallRestY, r->tallOffs, r->tallReason.c_str(), rec.mass);
+        }
+        if (f[0] && f[1] && f[0]->nz == f[1]->nz)
+            for (int z = 0; z < f[0]->nz; ++z) for (int x = 0; x < 36; ++x) {
+                const SurfaceColumn &a = f[0]->at(x, z), &b = f[1]->at(x, z);
+                const float ta = a.runs >= 1.0f ? a.top[0] : 0.0f, tb = b.runs >= 1.0f ? b.top[0] : 0.0f;
+                if (std::abs(ta - tb) > 1e-5f) { ++diff; worst = std::max(worst, std::abs(ta - tb)); }
+            }
+        if (diff && k < 41 && f[0] && f[1]) {
+            int xlo = 1 << 30, xhi = -1; int shown = 0;
+            for (int z = 0; z < f[0]->nz; ++z) for (int x = 0; x < 36; ++x) {
+                const SurfaceColumn &a = f[0]->at(x, z), &b = f[1]->at(x, z);
+                const float ta = a.runs >= 1.0f ? a.top[0] : 0.0f, tb = b.runs >= 1.0f ? b.top[0] : 0.0f;
+                if (std::abs(ta - tb) > 1e-5f) { xlo = std::min(xlo, x); xhi = std::max(xhi, x);
+                    if (shown++ < 6) std::printf("    col (%d,%d): runs %.0f/%.0f top %.4f/%.4f bottom %.4f/%.4f\n", x, z, a.runs, b.runs, a.top[0], b.top[0], a.bottom[0], b.bottom[0]); }
+            }
+            std::printf("    x range %d..%d\n", xlo, xhi);
+            auto colW = [](const SurfaceColumn& c) { double s = 0; const int n = std::min(static_cast<int>(c.runs + 0.5f), 4); for (int r = 0; r < n; ++r) s += std::max(0.0f, c.top[r] - c.bottom[r]); return s; };
+            int lost = 0, lx0 = 1 << 30, lx1 = -1, lz0 = 1 << 30, lz1 = -1; double lostM = 0, worstCol = 0; int wx = -1, wz = -1;
+            for (int z = 0; z < f[0]->nz; ++z) for (int x = 0; x < f[0]->nx; ++x) {
+                const double d = colW(f[0]->at(x, z)) - colW(f[1]->at(x, z));
+                if (d > 0.02) { ++lost; lostM += d; lx0 = std::min(lx0, x); lx1 = std::max(lx1, x); lz0 = std::min(lz0, z); lz1 = std::max(lz1, z); }
+                if (std::abs(d) > worstCol) { worstCol = std::abs(d); wx = x; wz = z; }
+            }
+            std::printf("    columns with > 2 cm less water in the wide box: %d (x %d..%d, z %d..%d), %.3f m3; worst column (%d,%d) %.3f m\n", lost, lx0, lx1, lz0, lz1, lostM / 81.0, wx, wz, worstCol);
+            if (wx >= 0) { const SurfaceColumn &a = f[0]->at(wx, wz), &b = f[1]->at(wx, wz);
+                std::printf("    worst: runs %.0f/%.0f  a top %.3f %.3f bot %.3f %.3f | b top %.3f %.3f bot %.3f %.3f\n", a.runs, b.runs, a.top[0], a.top[1], a.bottom[0], a.bottom[1], b.top[0], b.top[1], b.bottom[0], b.bottom[1]); }
+        }
+        if (k < 4 || (k >= 29 && k < 40) || k % 10 == 0) std::printf("  k %3d: %ld columns differ (worst %.5f m), mass %.5f / %.5f\n", k, diff, worst, mass[0], mass[1]);
+    }
+}
 
 TEST_F(WaterBodyPressureTest, TheLevelRoundABodyIsTheSurfaceItSitsIn) {
     if (!isVulkanAvailable()) GTEST_SKIP();

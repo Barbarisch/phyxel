@@ -9080,7 +9080,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | **SIGNED OFF 2026-10-30** (46.1: seen in `l2_flyaway_side_by_side.mp4`). BUILT, **ON by default since 2026-10-29** (43.5: the owner saw no difference in the clip, "Turn it on"; 43.4: the fade on screen within one grey level of the prediction, no step; ~0.1 + 0.1 ms CPU + GPU per far disturbed pond; the ninth-volume draw defect fixed; clip `l2_flyaway_side_by_side.mp4` for the owner) | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | BUILT, not signed off (48.6): design-check NEEDS WORK, ten items folded in (48.5); characters read the core (the ring round the body), the drag law (0.90-0.95 m/s at 0.8 m, predicted 0.91), the legs displace (+2.0-2.7 / -1.1-3.9 cm at 1 m; red 0), mass unchanged, a walker wakes a slept channel 1.9 m early. S7's 2 cm behind met in 1 of 3 runs | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A4a | **A wading crowd's cost** (found in 48.6): 12 NPCs in a 12 x 2 m pond cost 7-21 ms of water CPU a frame; the shove budget cuts 15-20 % - the cost is the churning pond being stepped | open | the pond's own levers (the awake region, the step), not an A4 knob |
-| A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | found, open | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
+| A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | MEASURED (49.1): worse than logged - a dam break goes tall, and the floor's expand runs out of slots in a wider box: 2.37 m^3 of 64 lost after a stone. DESIGNED (49.2), design-check NEEDS WORK, three items folded in (49.3); building | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
 | A7 | **The wake hitch** (~33 ms once, §32.1) | merged into A2f, L3 and L4 | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
 | A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
@@ -12103,6 +12103,59 @@ counter - the likely cause is the fence timing under that load, **not proven**: 
 **Not done / open (logged in 30.4):** A4a (a wading crowd's cost), the look (the owner's clip), distinct stride splashes (not
 measured - the legs ring the water through the solver), swimming (A4 clamps depth at the controller's height), CPU furniture
 still on the old water (E3).
+
+## 49. A5 - the tall-cell floor and the volume's box (31.9 a) (2026-11-01). Status: DESIGN, design-check NEEDS WORK, three items folded in (49.3)
+
+### 49.1 What was measured (before any change)
+
+31.9 a's suspect (the "water changed" tolerance from the box's area) is real but not the defect that moved the water. Two rigs
+(`WaterBodyPressureTest.DISABLED_DiagTallFloorPerTick` / `DISABLED_DiagTallFloorWalledPond`, Release, GPU, 1/9 m, tall band 0.5 m
+shipped, droplets and auto-sleep off; the one variable: the box's far edge, 12 m vs 17 m):
+
+| rig | tall OFF | tall ON (today) |
+|---|---|---|
+| dam break (2 m against dry ground) | the boxes equal (0 columns) | goes tall at TICK 1 (the rest rule reads the wet tops only - flat); the 17 m box loses 1.19 m^3 of 48 at the first re-collapse; 13 / 15 m boxes 0.00 / 1.78 m^3 - box-dependent |
+| a walled 4 x 8 m pond 2 m deep at rest, a stone at tick 30 | equal (0 columns over 120 ticks), mass exact | goes tall (correct); the stone's trough expands the floor at tick 38: the 17 m box loses **2.37 m^3 of 64 (3.7 %)** at the re-collapse (tick 39); the 12 m box 0 |
+
+**The cause, counted** (a collapse-time counter of brick columns with stored bricks under the tall layer and no stored tall-layer
+brick): the expand (`tallPending 2`, `applyResidency`) wants EVERY brick under the floor across the whole box - dry land past the
+wall included - and the slot pool only grows on the NEXT call (`growWant`): bricks are held; `wc_tall.comp` mode 1 skips absent
+cells, so those columns' water stays packed, overfull, in the tall cell (the field read a 2.0 m column as top 2.889 over 1.333 m);
+the next collapse (lower floor) leaves it in the band and those columns' lower bricks - stored, the tall-layer brick absent (20
+brick columns in the 17 m box, 0 in the 12 m) - become ground: the water is gone. The wider box asks for more bricks, so it runs
+short first. **Mass lost is an outcome**: a cost tier (the band) changed where water is.
+
+### 49.2 The design
+
+1. **Rest is equilibrium** (`captureTallRest`): the wet tops flat (5 mm, as now) AND no wet column beside an open dry column - a
+   4-neighbour with no water whose highest solid lies under the level (`solidTopY` < level - h/2; the box floor counts as none).
+   A dam break, a pond about to spill, is not at rest. Reason: "not at rest: water beside open ground".
+2. **The re-read tolerance from the water** (`updateTall`): half a cell over the WET area (columns with water at the rest read), not
+   the box's.
+3. **"Too shallow to pay" over the wet columns** only (dry columns' heights no longer vote).
+4. **The expand restores only the water's columns, and fits**: under the floor, a brick is wanted again only in a brick column whose
+   tall-layer brick is stored (the water's columns; dry land stays absent / ground). `clearTall` counts those bricks and grows the
+   pool BEFORE the call's command buffer; any expand brick still held is counted (`tall_expand_held`, invariant 0).
+5. **The collapse never strands water**: `updateTall` refuses the floor while a brick column has a stored brick under the tall layer
+   and no stored tall-layer brick ("water under the floor with no tall cell over it").
+
+### 49.3 Design check (2026-11-01): NEEDS WORK, three items, folded in
+
+1. *The overhang*: a dry column whose highest solid is over the level but open beneath (an overhang) reads closed to item 1; the
+   existing "a cave under the floor" refusal (every non-solid cell under T must be part of the open run from the bed) catches it.
+2. *A fixed-capacity pool* (`BrickOptions.capacity > 0`, tests only) cannot grow: `setTall` refuses when stored + the expand's
+   bricks would not fit, so an expand never runs short.
+3. *Live L4*: a bench pond deep enough to go tall (>= 6 cells under the floor + the 0.5 m band: ~1.2 m or deeper), a stone drop,
+   `tall_reason` / `tall_offs` / `tall_expand_held` / mass read; the whole frame's cost before and after. If no bench pond goes tall,
+   say so - not L4.
+
+Still volume-wide after the fix (stated, not zero): the trough, source, body and item-5 rules each turn the tall cells off for the
+whole volume - an outcome difference bounded by the tall-vs-fine gates (`WaterTallCellTest`), not exact.
+
+**Tests.** `WaterBodyPressureTest.TheTallFloorDoesNotDependOnTheBox` (the walled pond + stone, 12 vs 17 m, tall ON): mass within
+1e-4 m^3 in both, surfaces over the pond equal to 1e-5 m every tick (prediction: 0 columns; red, today's binary: 2.37 m^3 lost, 2592
+columns); the dam break never goes tall (the reason) and the existing box-equality returns to tall ON; `WaterTallCellTest`
+unchanged.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
