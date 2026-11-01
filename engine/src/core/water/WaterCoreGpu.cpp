@@ -712,10 +712,21 @@ std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<cha
     auto underTall = [&](size_t m) { return vol.tallActive && vol.tallPending != 2 && tallBrick > 0 && static_cast<int>((m / static_cast<size_t>(vol.bn.x)) % vol.bn.y) < tallBrick; };
     std::vector<char> needX;
     const std::vector<char>* needP = &need;
+    std::vector<char> expandWant;   // 49 item 4: the bricks the expand must store (counted if held)
     if (vol.tallPending == 2 && tallBrick > 0) {
         needX = need;
-        for (size_t m = 0; m < vol.mapCount; ++m)
-            if (static_cast<int>((m / static_cast<size_t>(vol.bn.x)) % vol.bn.y) < tallBrick) needX[m] = std::max<char>(needX[m], (ground && vol.allSolid[m]) ? 1 : 2);
+        expandWant.assign(vol.mapCount, 0);
+        // only under a STORED tall-layer brick - the water's columns; dry land under the floor stays absent / ground (the first build
+        // wanted every brick under the floor in the box, ran the pool short in a wider box and the held columns' water was lost, 49.1)
+        for (size_t m = 0; m < vol.mapCount; ++m) {
+            const int by = static_cast<int>((m / static_cast<size_t>(vol.bn.x)) % vol.bn.y);
+            if (by >= tallBrick) continue;
+            const size_t mt = m + static_cast<size_t>(tallBrick - by) * static_cast<size_t>(vol.bn.x);
+            if (vol.map[mt] < kFirstSlot) continue;
+            const bool g = ground && vol.allSolid[m];
+            needX[m] = std::max<char>(needX[m], g ? 1 : 2);
+            expandWant[m] = g ? 0 : 1;
+        }
         needP = &needX;
     }
     const std::vector<char>& needT = *needP;
@@ -744,7 +755,7 @@ std::vector<int> WaterCoreGpu::applyResidency(Volume& vol, const std::vector<cha
         for (size_t m = 0; m < vol.mapCount; ++m) {
             if (needT[m] != pass || vol.map[m] != 0 || recorded(m)) continue;
             while (next < vol.capacity && vol.slotBrick[next] >= 0) ++next;
-            if (next >= vol.capacity) { ++held; continue; }   // 26.6 capacity: the brick stays absent, its faces closed (counted)
+            if (next >= vol.capacity) { ++held; if (!expandWant.empty() && expandWant[m]) ++vol.tallExpandHeld; continue; }   // 26.6 capacity: the brick stays absent, its faces closed (counted)
             const int bx = static_cast<int>(m % vol.bn.x), by = static_cast<int>((m / vol.bn.x) % vol.bn.y), bz = static_cast<int>(m / (static_cast<size_t>(vol.bn.x) * vol.bn.y));
             vol.map[m] = static_cast<int>(next);
             vol.slotBrick[next] = bx | (by << 10) | (bz << 20);
@@ -1990,6 +2001,34 @@ double WaterCoreGpu::diagLaunchCost(Volume& vol, int n, int groups, bool barrier
     return ms;
 }
 
+// 49 item 4: the bricks an expand from tall layer y would store - under a stored tall-layer brick, not all-solid ground
+size_t WaterCoreGpu::tallExpandBricks(const Volume& vol, int tallY) const {
+    if (!vol.bricked || vol.map.size() != vol.mapCount) return 0;
+    const int tb = (tallY + vol.o.y) / vol.by;
+    const bool ground = vol.groundOn && vol.allSolid.size() == vol.mapCount;
+    size_t n = 0;
+    for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+        auto at = [&](int b) { return static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (static_cast<size_t>(b) + static_cast<size_t>(vol.bn.y) * bz); };
+        if (tb < 0 || tb >= vol.bn.y || vol.map[at(tb)] < kFirstSlot) continue;
+        for (int b = 0; b < tb; ++b) if (vol.map[at(b)] < kFirstSlot && !(ground && vol.allSolid[at(b)])) ++n;
+    }
+    return n;
+}
+
+// 49 item 5: a brick column with a stored brick under the tall layer's brick and no stored tall-layer brick - the collapse (wc_tall.comp
+// mode 0 runs only where cell T is stored) would leave that water under the floor, and the residency make its bricks ground
+bool WaterCoreGpu::tallStrandsWater(const Volume& vol, int tallY) const {
+    if (!vol.bricked || vol.map.size() != vol.mapCount) return false;
+    const int tb = (tallY + vol.o.y) / vol.by;
+    if (tb <= 0 || tb >= vol.bn.y) return false;
+    for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+        auto at = [&](int b) { return static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (static_cast<size_t>(b) + static_cast<size_t>(vol.bn.y) * bz); };
+        if (vol.map[at(tb)] >= kFirstSlot) continue;
+        for (int b = 0; b < tb; ++b) if (vol.map[at(b)] >= kFirstSlot) return true;
+    }
+    return false;
+}
+
 // 27.22 TALL CELLS (docs/WaterCore.md 27.22)
 bool WaterCoreGpu::setTall(Volume& vol, int tallY, const std::vector<int>& heights, std::string* err) {
     auto fail = [&](const std::string& m) { if (err) *err = m; return false; };
@@ -1998,6 +2037,8 @@ bool WaterCoreGpu::setTall(Volume& vol, int tallY, const std::vector<int>& heigh
     if (vol.tallActive || vol.tallPending) return fail("tall cells are active or pending - clear them first");
     if (tallY < 1 || tallY >= vol.spec.dims.y || ((tallY + vol.o.y) % vol.by) != 0) return fail("the tall layer must be the bottom cell of a brick inside the box");
     if (heights.size() != vol.dColumns) return fail("one height per column of the box");
+    // 49 design-check item 2: the expand must always fit (a held brick strands its column's water) - a fixed pool cannot grow for it
+    if (!vol.growable) return fail("tall cells need a growable slot pool (the expand must fit)");
     settle(vol);
     vol.tallY = tallY; vol.tallH = heights; vol.tallPending = 1;
     vol.tallColumns = 0;
@@ -2009,6 +2050,9 @@ void WaterCoreGpu::clearTall(Volume& vol) {
     if (!vol.tallActive && vol.tallPending != 1) return;
     settle(vol);
     if (vol.tallPending == 1) { vol.tallPending = 0; vol.tallY = -1; vol.tallH.clear(); vol.tallColumns = 0; return; }   // never collapsed
+    // 49 item 4: grow the pool for the expand NOW (before the call's command buffer) - the residency grows only on the next call
+    const size_t want = static_cast<size_t>(std::max(vol.storedCount, 0)) + tallExpandBricks(vol, vol.tallY);
+    if (want + want / 8 + kFirstSlot > vol.capacity) growPool(vol, want + want / 4);
     vol.tallPending = 2;
 }
 

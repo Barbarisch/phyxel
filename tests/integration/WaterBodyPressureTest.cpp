@@ -199,13 +199,9 @@ TEST_F(WaterBodyPressureTest, TheLevelRoundABodyIsTheSurfaceItSitsIn) {
     std::printf("  RED (one column off): %ld off (worst %.2e m), %ld wet/dry disagree\n", red.off, red.worst, red.nanMismatch);
     // the box reaches 5 m further. Both boxes are wider than the front travels in 40 ticks (~2 sqrt(g h) = 9 m/s: from 3 m to ~9 m) - a
     // first version's 8 m box was reached by the front, and its wall's reflection made different water (144 of 144 cells, 4 cm)
-    // TALL CELLS OFF in both (31.9, found by this test): the tall floor is chosen from volume-wide numbers (its "the water changed"
-    // tolerance scales with the BOX's area) - with tall cells the same dam break in a 12 m and a 17 m box differed by up to 17 cm by
-    // tick 40; with them off, 0 of 144 cells. The map's own rule is checked box-independent here; the floor's is logged, not fixed.
-    std::vector<float> a0;
-    runOnce(device, physicalDevice, queue, queueFamilyIndex, 11, 40, body, &a0, false);
-    a = a0;
-    const MapCheck wide = runOnce(device, physicalDevice, queue, queueFamilyIndex, 16, 40, body, &b, false);
+    // tall cells ON (shipped) since 49: the first version ran them off here - a dam break went tall at tick 1 and the floor's regrids
+    // lost water in the wider box (31.9 a: up to 17 cm by tick 40); a dam break is not at rest now (49.2 item 1)
+    const MapCheck wide = runOnce(device, physicalDevice, queue, queueFamilyIndex, 16, 40, body, &b);
     long diff = 0; float worst = 0.0f;
     if (a.size() == b.size())
         for (size_t i = 0; i < a.size(); ++i) {
@@ -220,4 +216,73 @@ TEST_F(WaterBodyPressureTest, TheLevelRoundABodyIsTheSurfaceItSitsIn) {
     EXPECT_GT(red.off + red.nanMismatch, 0) << "RED CONTROL: a window one column off went unseen";
     EXPECT_EQ(a.size(), b.size());
     EXPECT_EQ(diff, 0) << "the map depends on the volume's box";
+}
+
+namespace {
+// 49: one run of the walled pond (x 0-4 m, 2 m deep, a wall at micro x 36-44 up to 3 m) in a box reaching voxel hiX, a stone at tick 30;
+// its surface over the pond (x < 36 cells) per tick, its mass per tick, and the tall layer's books
+struct PondRun { std::vector<std::vector<float>> tops; std::vector<double> mass; bool everTall = false; long regrids = 0, expandHeld = 0; std::string lastReason; };
+PondRun walledPond(VkDevice d, VkPhysicalDevice pd, VkQueue q, uint32_t qf, int hiX, int ticks, bool damBreak = false) {
+    PondRun out;
+    auto state = [damBreak](const glm::ivec3& m) -> int { return (m.y < 0 || (!damBreak && m.x >= 36 && m.x < 45 && m.y < 27)) ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    if (!mgr.initGpu(d, pd, q, qf, "shaders", &err)) { ADD_FAILURE() << err; return out; }
+    mgr.setDroplets(false);
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(hiX, damBreak ? 2 : 3, 7), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    if (!id) { ADD_FAILURE() << err; return out; }
+    mgr.setAutoSleep(id, false);
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(damBreak ? 2 : 3, 1, 7), 1.0f, nullptr);
+    for (int k = 0; k < ticks; ++k) {
+        if (k == 30 && !damBreak) mgr.addImpulse(glm::vec3(2.0f, 1.9f, 4.0f), 1.0f / 3.0f, 4.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        AvRecord rec; mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        out.mass.push_back(rec.mass);
+        const AvRecord* r = mgr.find(id);
+        if (r) { out.everTall = out.everTall || r->tallActive; out.regrids = r->tallRegrids; out.expandHeld = r->tallExpandHeld; out.lastReason = r->tallReason; }
+        const WaterSurfaceField* f = nullptr;
+        for (const WaterSurfaceField* s : mgr.surfaceFields()) if (s->source == id) f = s;
+        std::vector<float> t;
+        if (f) for (int z = 0; z < f->nz; ++z) for (int x = 0; x < 36; ++x) { const SurfaceColumn& c = f->at(x, z); t.push_back(c.runs >= 1.0f ? c.top[0] : 0.0f); }
+        out.tops.push_back(std::move(t));
+    }
+    return out;
+}
+}  // namespace
+
+// 49 (A5): the tall floor does not depend on where the volume's box ends. The same walled pond, at rest, a stone dropped in it (the
+// trough expands the floor, the next call collapses it lower) in a 12 m and a 17 m box - tall cells ON (shipped): the water the same
+// column for column every tick, the mass kept. Red (before 49): the 17 m box lost 2.37 m^3 of 64 at the re-collapse, 2592 columns
+// differed. Control: tall cells off - equal (measured 49.1).
+TEST_F(WaterBodyPressureTest, TheTallFloorDoesNotDependOnTheBox) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const PondRun a = walledPond(device, physicalDevice, queue, queueFamilyIndex, 11, 90);
+    const PondRun b = walledPond(device, physicalDevice, queue, queueFamilyIndex, 16, 90);
+    ASSERT_EQ(a.tops.size(), b.tops.size());
+    long worstCols = 0; float worst = 0.0f; int firstTick = -1; double massErr = 0.0;
+    for (size_t k = 0; k < a.tops.size(); ++k) {
+        long cols = 0;
+        if (a.tops[k].size() == b.tops[k].size())
+            for (size_t i = 0; i < a.tops[k].size(); ++i) { const float e = std::abs(a.tops[k][i] - b.tops[k][i]); if (e > 1e-5f) { ++cols; worst = std::max(worst, e); } }
+        else cols = 1 << 30;
+        if (cols && firstTick < 0) firstTick = static_cast<int>(k);
+        worstCols = std::max(worstCols, cols);
+        massErr = std::max({massErr, std::abs(a.mass[k] - 64.0), std::abs(b.mass[k] - 64.0)});
+    }
+    std::printf("  tall: 12 m box regrids %ld held %ld (%s) | 17 m box regrids %ld held %ld (%s)\n", a.regrids, a.expandHeld, a.lastReason.c_str(), b.regrids, b.expandHeld, b.lastReason.c_str());
+    std::printf("  surfaces: worst tick %ld columns differ (worst %.2e m, first tick %d); mass error max %.2e m3\n", worstCols, worst, firstTick, massErr);
+    EXPECT_TRUE(a.everTall && b.everTall) << "the tall cells never ran - the test proves nothing";
+    EXPECT_GE(std::min(a.regrids, b.regrids), 3) << "the stone's trough did not expand and re-collapse the floor";
+    EXPECT_EQ(a.expandHeld + b.expandHeld, 0) << "an expand ran short of slots";
+    EXPECT_LT(massErr, 1e-4) << "the tall floor lost or made water";
+    EXPECT_EQ(worstCols, 0) << "the water depends on where the box ends";
+}
+
+// 49 item 1: a dam break is not at rest - its wet tops are flat at the first call, but it stands beside open ground
+TEST_F(WaterBodyPressureTest, ADamBreakIsNotAtRest) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const PondRun r = walledPond(device, physicalDevice, queue, queueFamilyIndex, 11, 20, true);
+    std::printf("  dam break: ever tall %d, reason '%s', mass error %.2e\n", int(r.everTall), r.lastReason.c_str(), r.mass.empty() ? -1.0 : std::abs(r.mass.back() - 48.0));
+    EXPECT_FALSE(r.everTall) << "a dam break went tall";
+    ASSERT_FALSE(r.mass.empty());
+    EXPECT_LT(std::abs(r.mass.back() - 48.0), 1e-4);
 }

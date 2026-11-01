@@ -93,8 +93,8 @@ a ~100 m creek) and 64 sources. **Tall cells ON (27.22f):** past ~1 m deep, dept
 
 **Open small-body items** (polish and features; none blocks the path above):
 - *Found 2026-10-24 (31.9):* debris could not see RECORDED water beyond 48 m of the camera, nor wake it - FIXED in 32 (a slept pond
-  is read from the record and wakes when a body moves through it; the wake is a ~33 ms one-off hitch); the tall-cell floor depends
-  on the volume's box (17 cm in a dam break) - open.
+  is read from the record and wakes when a body moves through it; the wake is a ~33 ms one-off hitch); the tall-cell floor depended
+  on the volume's box (17 cm in a dam break; water lost after a stone) - BUILT 49.4, not signed off.
 - *M4 (31): the water's push on floaters* - SIGNED OFF and ON by default 2026-10-24 (`water_coupling {pressure_force}`).
 - *Feel:* spiky water on a dropped stone - cause proved, waits for a repeatable rig (26.32) - and a 0.84 m late jet; wood
   floats high and a floating block's pond never sleeps (M4, §20.6); short waves on a half-full cell keep 0.53-0.82 per swing
@@ -9080,7 +9080,7 @@ A5, A6, A8, A9. Rows not yet done are listed in that order below A2f.
 | L2 | **Ripple detail by distance in an awake pond** (the owner, 2026-10-27: far water "dont really need to be displaying small ripples that cant even be seen"): full detail near, fading out, not simulated beyond its reach. Cosmetic only, so the push and the outcome do not change. A visual test in motion (near and far, no visible band or pop) and its whole-frame saving | **SIGNED OFF 2026-10-30** (46.1: seen in `l2_flyaway_side_by_side.mp4`). BUILT, **ON by default since 2026-10-29** (43.5: the owner saw no difference in the clip, "Turn it on"; 43.4: the fade on screen within one grey level of the prediction, no step; ~0.1 + 0.1 ms CPU + GPU per far disturbed pond; the ninth-volume draw defect fixed; clip `l2_flyaway_side_by_side.mp4` for the owner) | a big awake pond pays for ripples nobody sees; first of the look-and-cost items |
 | A4 | **Wading (E4):** a character disturbs the water (bow wave, wake) and the water pushes back (drag, current) | BUILT, not signed off (48.6): design-check NEEDS WORK, ten items folded in (48.5); characters read the core (the ring round the body), the drag law (0.90-0.95 m/s at 0.8 m, predicted 0.91), the legs displace (+2.0-2.7 / -1.1-3.9 cm at 1 m; red 0), mass unchanged, a walker wakes a slept channel 1.9 m early. S7's 2 cm behind met in 1 of 3 runs | P6 two-way coupling. The last large way the player touches small water. Builds on A1's push |
 | A4a | **A wading crowd's cost** (found in 48.6): 12 NPCs in a 12 x 2 m pond cost 7-21 ms of water CPU a frame; the shove budget cuts 15-20 % - the cost is the churning pond being stepped | open | the pond's own levers (the awake region, the step), not an A4 knob |
-| A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | MEASURED (49.1): worse than logged - a dam break goes tall, and the floor's expand runs out of slots in a wider box: 2.37 m^3 of 64 lost after a stone. DESIGNED (49.2), design-check NEEDS WORK, three items folded in (49.3); building | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
+| A5 | **The tall-cell floor depends on the volume's box** (31.9a, 17 cm in a dam break) | BUILT, not signed off (49.4): measured worse than logged (a dam break went tall; the floor's expand ran out of slots in a wider box - 2.37 m^3 of 64 lost after a stone); rest is equilibrium, the expand stores only the water's columns and fits, a collapse never strands water: the 12 / 17 m boxes equal column for column with tall ON, mass kept; live 2 / 3 m ponds keep their mass and the tall saving | an outcome that depends on where a box ends (like a chunk showing). Correctness before feel |
 | A6 | **Spiky water on a dropped stone** (26.32), and the 0.84 m late jet | cause proved. The drop rig now makes it repeatable | the owner's key: disturbing the surface |
 | A7 | **The wake hitch** (~33 ms once, §32.1) | merged into A2f, L3 and L4 | a dropped frame when the first stone lands. W1's patch wake removes it at the root, so it may be folded into W1 |
 | A8 | **Pressure torque** (M4 v1b): a tilted floater rights itself | not built | a look call for the owner |
@@ -12104,7 +12104,7 @@ counter - the likely cause is the fence timing under that load, **not proven**: 
 measured - the legs ring the water through the solver), swimming (A4 clamps depth at the controller's height), CPU furniture
 still on the old water (E3).
 
-## 49. A5 - the tall-cell floor and the volume's box (31.9 a) (2026-11-01). Status: DESIGN, design-check NEEDS WORK, three items folded in (49.3)
+## 49. A5 - the tall-cell floor and the volume's box (31.9 a) (2026-11-01). Status: BUILT, not signed off (49.4)
 
 ### 49.1 What was measured (before any change)
 
@@ -12156,6 +12156,44 @@ whole volume - an outcome difference bounded by the tall-vs-fine gates (`WaterTa
 1e-4 m^3 in both, surfaces over the pond equal to 1e-5 m every tick (prediction: 0 columns; red, today's binary: 2.37 m^3 lost, 2592
 columns); the dam break never goes tall (the reason) and the existing box-equality returns to tall ON; `WaterTallCellTest`
 unchanged.
+
+### 49.4 A5 built (2026-11-01). Status: BUILT, not signed off
+
+**What was built** (49.2 items 1-5 with 49.3's): `captureTallRest` - rest is equilibrium (no wet column beside open ground under the
+level; reason "not at rest: water beside open ground"); `tallRestArea` (the wet area) is the re-read tolerance's area; the "too
+shallow" median over wet columns; `WaterCoreGpu::tallExpandBricks` / `tallStrandsWater`; the expand wants bricks under the floor
+only under a stored tall-layer brick, `clearTall` grows the pool for them before the call, a held one is counted
+(`tall_expand_held` in `water_stats`, `AvRecord::tallExpandHeld`); `updateTall` refuses a floor that would strand water ("water
+under the floor with no tall cell over it"); `setTall` refuses a fixed-capacity pool.
+
+**Red -> green (integration, Release, GPU; the red is the code before 49 with only the echo field added so the test compiles):**
+
+| test | before 49 (red) | 49 (green) | prediction |
+|---|---|---|---|
+| `TheTallFloorDoesNotDependOnTheBox` (walled pond + stone, 12 vs 17 m, tall ON, 90 ticks) | 2592 columns differ (1.78 m, from tick 38), mass error 2.37 m^3 | 0 columns, mass error 1.5e-5 m^3; 3 regrids each, 0 held | 0 columns, < 1e-4 |
+| `ADamBreakIsNotAtRest` | went tall | never tall ("not at rest: water beside open ground"), mass error 1.1e-6 | never tall |
+| `TheLevelRoundABodyIsTheSurfaceItSitsIn`, the box equality now with tall ON | 144 of 144 differ (16.7 cm - 31.9 a's 17 cm) | 0 of 144 | 0 |
+
+**Live (WaterBench_Creek, Release, the walled 24 x 24 m pond of 27.22 TC5, shipped settings; `a5_tall_l4.json`, `a5_live_held.json`):**
+the solver's GPU ms, tall off -> on, interleaved: 2 m 2.35 / 2.34 -> 1.96 / 1.92 ms (27.22d: 2.37 -> 1.97), 3 m 3.09 / 3.10 -> 1.83 /
+1.83 ms; the controls (a band past the bed) cost what off costs. Tall cells go on at rest and the stone's trough expands and
+re-collapses the floor (2 m: "rest, lowered by troughs"). Six stones over 6 s in the 2 m pond (two interleaved rounds each): mass
+1152 -> 1151.9995-1151.9999 m^3 on and off alike, `tall_expand_held` 0, 3 regrids; the whole frame off 171.5 / 171.4 fps, CPU 5.85 /
+5.86 ms, GPU 3.27 / 3.26 ms, the water's host CPU 3.95 / 4.02 ms; on 180.5 / 188.3 fps, CPU 5.59 / 5.33 ms, GPU 3.26 / 3.27 ms, the
+water's host CPU 3.61 / 3.60 ms. The box here is the pond itself (no dry land in the box), so the live rig shows no loss either way -
+the loss needed a box wider than its water; the rigs above carry the red.
+
+**Not measured:** the old binary's frame live (the change's host work runs at a regrid or a rest read, not per frame - not timed
+alone); a big lake whose box holds dry shore; a recorded tile under a tall floor through an expand.
+
+**Gates:** integration water 75 / 77 (the known two: `GpuFlipBulkParityAndRunup`, `ShortWaveMatchesAllFineAndTheBooksAreExact`; the
+ripple device-state test that failed under load in 48.6 passed); `WaterTallCellTest` otherwise unchanged; unit 4490 passed, 20
+skipped, 3 failed - the known `AtlasManagerTest.BuildAtlasFromSourcePNGs`, `FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundary...`
+and the order-dependent `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles` (passes alone 4 / 4); in an earlier full run
+`DirtyChunkTrackerTest.BudgetedDrainServes...` failed once (passes alone 3 / 3, no water code).
+
+**For the owner:** nothing to see - the look does not change; the water no longer vanishes when a stone stirs a deep pond whose box
+reaches past its banks. Sign-off is on the numbers.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

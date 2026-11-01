@@ -1,0 +1,254 @@
+{
+ "0.0": [
+  {
+   "m0": 0.0,
+   "m1": 1151.9998542814387,
+   "regrids": 0,
+   "held": 0,
+   "offs": 0,
+   "reason": "off",
+   "fps": 171.5,
+   "cpu_frame_ms": 5.85,
+   "gpu_frame_ms": 3.274,
+   "app_water_cpu_ms": 3.949,
+   "rows": [
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    }
+   ]
+  },
+  {
+   "m0": 0.0,
+   "m1": 1151.9998542814387,
+   "regrids": 0,
+   "held": 0,
+   "offs": 0,
+   "reason": "off",
+   "fps": 171.4,
+   "cpu_frame_ms": 5.859,
+   "gpu_frame_ms": 3.26,
+   "app_water_cpu_ms": 4.021,
+   "rows": [
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": false,
+     "tall_regrids": 0,
+     "tall_expand_held": 0,
+     "tall_offs": 0,
+     "tall_reason": "off",
+     "mass": 1152.0000257492068
+    }
+   ]
+  }
+ ],
+ "0.5": [
+  {
+   "m0": 0.0,
+   "m1": 1151.9997685475548,
+   "regrids": 3,
+   "held": 0,
+   "offs": 1,
+   "reason": "rest, lowered by troughs",
+   "fps": 180.5,
+   "cpu_frame_ms": 5.588,
+   "gpu_frame_ms": 3.26,
+   "app_water_cpu_ms": 3.608,
+   "rows": [
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1151.9998542814387
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1151.9998542814387
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    }
+   ]
+  },
+  {
+   "m0": 0.0,
+   "m1": 1151.9995113459029,
+   "regrids": 3,
+   "held": 0,
+   "offs": 1,
+   "reason": "rest, lowered by troughs",
+   "fps": 188.3,
+   "cpu_frame_ms": 5.334,
+   "gpu_frame_ms": 3.266,
+   "app_water_cpu_ms": 3.596,
+   "rows": [
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1152.0000257492068
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1151.9999400153229
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1151.9999400153229
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1151.9998542814387
+    },
+    {
+     "tall_active": true,
+     "tall_regrids": 3,
+     "tall_expand_held": 0,
+     "tall_offs": 1,
+     "tall_reason": "rest, lowered by troughs",
+     "mass": 1151.9999400153229
+    }
+   ]
+  }
+ ]
+}

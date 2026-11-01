@@ -280,6 +280,7 @@ public:
         std::vector<int> tallH;        ///< host copy, dense columns (1 = an ordinary cell)
         int tallPending = 0;           ///< 1 = collapse at the next call (tallY / tallH set), 2 = expand at the next call
         long tallRegrids = 0;          ///< collapses + expands done
+        long tallExpandHeld = 0;       ///< 49 item 4: bricks under the floor an expand wanted and could not store (their water stays packed - invariant 0)
         int lastDispatches = 0, lastBarriers = 0;   ///< 28: the last submitted call's launches
         // 27.23 W1d.1: the slot pool sized by the WATER - a growable (sparse, no fixed capacity) volume starts small and doubles when the
         // residency needs more (growPool); an explicit BrickOptions capacity stays fixed (the capacity test's backstop)
@@ -478,6 +479,9 @@ public:
     /// tallY - H + 1 to tallY - the caller's rule (WaterCoreManager). Refused (false + err) on a dense or particle
     /// volume, without ground bricks, or while tall cells are active (clear first). 27.22 TC4: recorded tiles combine - readColumns
     /// spreads a tall cell back into the record's columns, seedColumns collapses a woken tile's columns into their tall cells.
+    /// 49: the bricks an expand from tall layer `tallY` would store (under a stored tall-layer brick); a collapse there would strand water
+    size_t tallExpandBricks(const Volume& vol, int tallY) const;
+    bool tallStrandsWater(const Volume& vol, int tallY) const;
     bool setTall(Volume& vol, int tallY, const std::vector<int>& heights, std::string* err);
     /// 27.22: every tall cell back to ordinary cells at the next call (exact; the bricks under the floor stored again).
     void clearTall(Volume& vol);

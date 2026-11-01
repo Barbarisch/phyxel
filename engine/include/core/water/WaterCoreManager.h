@@ -58,6 +58,7 @@ struct AvRecord {
     float tallRestY = 0.0f;                ///< 27.22: the rest level the floor was taken from (world Y, m)
     int tallColumns = 0;                   ///< 27.22: columns with a tall cell
     long tallRegrids = 0;                  ///< 27.22: collapses + expands
+    long tallExpandHeld = 0;               ///< 49 item 4: expand bricks the pool could not store (invariant 0)
     std::string tallReason;                ///< 27.22: why the floor is where it is, or why there are no tall cells
     long tallOffs = 0;                     ///< 27.22d: times the rules turned the tall cells off
     long writesInPlace = 0, writesRoundTrip = 0;   ///< 27.23 W1d.2: impulses / blasts applied on the device vs through the CPU mirror
@@ -784,6 +785,7 @@ private:
         std::string tallReason;          // 27.22
         long tallOffs = 0;               // 27.22d: times the rules turned the tall cells off (with the reason)
         long writesInPlace = 0, writesRoundTrip = 0;   // 27.23 W1d.2: impulses / blasts applied on the device vs through the CPU mirror
+        double tallRestArea = 0.0;       // 49 item 2: the WET area (m^2) at the rest read - the re-read tolerance is half a cell over it
         double tallRestMass = 0.0;       // 27.22d: the water (m^3) when the rest level was read - a change of more than half a cell over
                                          // the surface (water added or taken) means a new rest level
         float tallDrop = 0.0f;           // 27.22d: metres the floor sits below rest - B after troughs (back to 0 at the next rest)
