@@ -25,6 +25,9 @@ def main():
                     "every tile is recorded + 1.5 s), no push")
     a = ap.parse_args()
     api = Api(a.url); api.wait_status(300)
+    import atexit   # 50 W1g.1: this rig sets the record delay (a global); put back what it found (a global: a rig that leaves it changed changes every later run)
+    _after0 = api.debug("water_av_record_tiles", {}).get("after_s", 2.0)
+    atexit.register(lambda: api.debug("water_av_record_tiles", {"after_s": _after0}))
     api.debug("water_av_realtime", {"on": True})
     l, w, x0, z0 = 46, 28, 2, 0
     for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})

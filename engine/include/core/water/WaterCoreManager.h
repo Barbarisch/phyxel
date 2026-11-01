@@ -70,6 +70,7 @@ struct AvRecord {
     long gpuWakeAll = 0;                   ///< whole-volume wakes of the GPU volume since creation (diagnostic)
     float recordSpreadMmMax = 0.0f;        ///< §27 W1b: the largest sub-column surface spread inside a 1 m column a tile recorded with (mm)
     float recordJumpMmMax = 0.0f;          ///< §27 W1b: the largest jump a wake will make (woken surface vs the surface it had, mm)
+    int tilesHeldByNeighbours = 0;         ///< §50 W1g.1: tiles frozen long enough that wait for an awake neighbour (the last step)
     long tilesWokenByWrite = 0;            ///< §27 W1b: of the wakes, by a write (push, placed water, momentum, a body, a droplet) - the rest by moving water's margin
     double lastRecordMs = 0.0, lastWakeMs = 0.0, seedUnplacedM3 = 0.0;   ///< §27 W1b: the last tile record / wake (ms); seeded water the capacity refused
     int awakeColumns = 0, frozenColumns = 0, movingColumns = 0;   ///< 26.31: the last call's (WaterCoreGpu GpuStepStats)
@@ -245,7 +246,7 @@ public:
         return false;
     }
     static inline bool s_recordTilesDefault = false;
-    static inline float s_recordAfterS = 2.0f;        ///< s a tile stays frozen before it records
+    static inline float s_recordAfterS = 2.0f;        ///< s a tile stays frozen before it records (50.6: 10 s measured, no better - kept 2)
     static inline bool s_measureRecordJump = false;   ///< measurement: per record, the jump a wake will make (an extra seed + two extractions)
     /// m beyond a write's own radius within which recorded tiles wake BEFORE the write (a push, placed water, momentum, a body, a
     /// droplet). 8 and 16 m were tried against 27.12's agitation and did not change it - its cause was the life cycle's ORDER
@@ -267,6 +268,16 @@ public:
     /// patch, 3 the GPU seed upload, 4 the span clear + body debit, 5 the record tiles drawn.
     struct TilePhases { double rec[5]{}, recMax[5]{}, wake[6]{}, wakeMax[6]{}; long recN = 0, wakeN = 0; double build[3]{}; };   // build: the last record tile built - span read + owned, occupancy, surface
     static inline TilePhases s_tilePhases;
+    /// §50 W1g measurement: every tile record ('R') and wake - 'M' the awake water's margin reached it, 'L' a droplet landed on it,
+    /// 'W' a write (push, placed water, a body) - with the seconds since the tile last recorded (or woke, for 'R'; -1 = never) and
+    /// the 8 neighbouring tiles holding an awake (not frozen) stored column at that moment. Debug only; nothing reads it.
+    struct TileEvent { double t = 0.0; int vol = 0, tx = 0, tz = 0; char cause = '?'; float sinceS = -1.0f; int awakeNbrs = 0; double ms = 0.0; };
+    static inline std::vector<TileEvent> s_tileEvents;
+    static inline bool s_tileEventLog = false;
+    /// §50 W1g.1: TEST ONLY - the old rule (a tile records once its own columns froze, whatever its neighbours do): the red control
+    static inline bool s_recordIgnoresNeighboursForTest = false;
+    /// §50 W1g.1: TEST ONLY (a bisection) - the awake water's margin never wakes a recorded tile (it stays a wall); writes still do
+    static inline bool s_noMarginWakeForTest = false;
     static constexpr int kRecordTilesPerStep = 2;     ///< bounds a frame's cost when many tiles freeze at once
     /// ON by default since 2026-10-19 (the owner: "yeah. default"); a volume created with an explicit partial_wake keeps its own.
     static inline bool s_partialWakeDefault = true;
@@ -795,9 +806,11 @@ private:
         double recordedM3 = 0.0;
         std::vector<std::pair<int, int>> recordedTileList;   ///< tile (x, z) indices in the record now
         std::vector<std::pair<int, int>> pendingTileWakes;   ///< §27 W1c: tiles a droplet landed on - woken before the next call
+        std::map<std::pair<int, int>, double> tileChangedAt;   ///< §50 W1g measurement: when each tile last recorded or woke (steady s)
         std::map<std::pair<int, int>, float> tileFrozenSeconds;   ///< s each tile has had every stored column frozen (counted here: a
                                                              ///< body whose columns all froze is asleep and runs no call to count them)
         long tilesRecorded = 0, tilesWoken = 0, tilesWokenByWrite = 0;
+        int tilesHeldByNeighbours = 0;   ///< §50 W1g.1: tiles held back by an awake neighbour (the last record pass)
         double lastRecordMs = 0.0, lastWakeMs = 0.0;
         float lastRecordSpreadMm = 0.0f, recordSpreadMmMax = 0.0f;   ///< the recorded tile's surface spread inside a 1 m column (mm)
         float recordJumpMmMax = 0.0f;   ///< the largest |surface woken from the record - surface the tile had| (mm; s_measureRecordJump)
@@ -980,7 +993,8 @@ private:
     static inline bool s_markEveryRefreshForTest = false;
     /// 29 S2: the tall floor reads the field's lowest wet top and its water from the device. TEST ONLY: the host's scan (the control)
     static inline bool s_tallHostScanForTest = false;
-    bool wakeTile(Av& av, int tx, int tz);
+    bool wakeTile(Av& av, int tx, int tz, char cause = 'M');
+    void logTileEvent(Av& av, int tx, int tz, char cause, double ms);   ///< §50 W1g measurement (s_tileEventLog)
     /// wake the recorded tiles a write at `world` touches (+ s_writeWakeReachM); deferred = before the next call (a write that
     /// lands then too - a droplet's deposit), not now (a collect between two calls breaks the freeze test, 27.13)
     void wakeRecordedNear(Av& av, const glm::vec3& world, float radius, bool deferred = false);

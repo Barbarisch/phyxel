@@ -30,6 +30,9 @@ def main():
     ap.add_argument("--quiet-scale", type=float, default=None, help="the per-column freeze thresholds x this (26.34; default 10, 27.24)")
     args = ap.parse_args()
     api = Api(args.url); api.wait_status(300)
+    import atexit   # 50 W1g.1: this rig sets the record delay (a global); put back what it found (a global: a rig that leaves it changed changes every later run)
+    _after0 = api.debug("water_av_record_tiles", {}).get("after_s", 2.0)
+    atexit.register(lambda: api.debug("water_av_record_tiles", {"after_s": _after0}))
     api.debug("water_av_realtime", {"on": True})
     if args.quiet_scale is not None: print("freeze test:", api.debug("water_av_partial_wake", {"quiet_scale": args.quiet_scale, "rest_ticks": 0}))
     l, w, x0, z0 = 46, 28, 2, 0

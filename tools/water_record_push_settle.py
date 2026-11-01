@@ -6,6 +6,9 @@ import sys, time, json
 sys.path.insert(0, r"G:\Github\phyxel\tools")
 from water_bench import Api
 api = Api("http://127.0.0.1:8114"); api.wait_status(300)
+import atexit   # 50 W1g.1: this rig sets the record delay (a global); put back what it found (a global: a rig that leaves it changed changes every later run)
+_after0 = api.debug("water_av_record_tiles", {}).get("after_s", 2.0)
+atexit.register(lambda: api.debug("water_av_record_tiles", {"after_s": _after0}))
 api.debug("water_av_realtime", {"on": True})
 cfg = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
 label = sys.argv[2] if len(sys.argv) > 2 else json.dumps(cfg)

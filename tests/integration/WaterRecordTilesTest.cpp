@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <map>
+#include <set>
 #include <vector>
 
 using namespace Phyxel::Core::Water;
@@ -348,6 +349,81 @@ TEST_F(WaterRecordTilesTest, FrozenTilesRecordAndWakeWithTheBooksExact) {
     EXPECT_GT(o.neighbourCellsM3, 1e-3) << "the red control: with the wall open the woken water pours into the recorded tile";
 }
 
+// §50 W1g.1 - a recorded tile is not woken again by the water beside it. Live (50.6), a tile recorded once its own columns had
+// frozen for 2 s while 2-5 of its neighbours were still awake; their margin woke it 0-4 s later (a host seed, 13-25 ms), it froze,
+// recorded, again: one tile 6 records and 7 wakes in 60 s, 1 run in 3 never settled. Now a tile records only when none of its 8
+// neighbours holds an awake column. A 32 x 32 m pond (4 x 4 tiles), recording after 2 s, every tile recorded; a strength-4 push at
+// the centre; 20 s. Counted: margin wakes of a tile that had recorded AFTER the push (the cycling); the books every tick.
+// Prediction: 0 with the rule; the red control (the old rule, s_recordIgnoresNeighboursForTest) > 0 - or this rig cannot see the
+// cycling and the live run carries the red (said in the output).
+TEST_F(WaterRecordTilesTest, ARecordedTileIsNotWokenAgainByTheWaterBesideIt) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Out { int recordsAfter = 0, reWakes = 0, recordedAtEnd = 0, heldMax = 0; double booksWorst = 0.0; long woken = 0; bool ok = false; };
+    // the rig (overridable: W1G_W / W1G_D m, W1G_STRENGTH, W1G_AFTER s, W1G_SECONDS, W1G_CORNER). A 32 x 16 m pond, a strength-1 push
+    // in a corner, 0.5 s: no re-wake under either rule (it cannot see the cycling); 48 x 48 m, strength 4 at the centre, 2 s, 30 s: 19
+    // under the old rule (165 s a run); this default, 32 x 32 m, strength 4 at the centre, 2 s (the live default), 20 s: 4 (77 s a run)
+    const int W = std::getenv("W1G_W") ? std::atoi(std::getenv("W1G_W")) : 32, D = std::getenv("W1G_D") ? std::atoi(std::getenv("W1G_D")) : 32;
+    const float strength = std::getenv("W1G_STRENGTH") ? static_cast<float>(std::atof(std::getenv("W1G_STRENGTH"))) : 4.0f;
+    const float after = std::getenv("W1G_AFTER") ? static_cast<float>(std::atof(std::getenv("W1G_AFTER"))) : 2.0f;
+    const int ticks = std::getenv("W1G_SECONDS") ? static_cast<int>(60.0 * std::atof(std::getenv("W1G_SECONDS"))) : 1200;
+    const glm::vec3 at = std::getenv("W1G_CORNER") ? glm::vec3(4.0f, 0.9f, 4.0f) : glm::vec3(W * 0.5f, 0.9f, D * 0.5f);
+    auto runOnce = [&](bool oldRule) {
+        Out out;
+        WaterCoreManager::s_recordIgnoresNeighboursForTest = oldRule;
+        const float afterBefore = WaterCoreManager::s_recordAfterS;
+        struct Restore { float a; ~Restore() { WaterCoreManager::s_recordIgnoresNeighboursForTest = false; WaterCoreManager::s_tileEventLog = false;
+                                               WaterCoreManager::s_tileEvents.clear(); WaterCoreManager::s_recordAfterS = a; } } restore{afterBefore};
+        WaterCoreManager::s_recordAfterS = after;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { ADD_FAILURE() << err; return out; }
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(W - 1, 1, D - 1), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        if (!id) { ADD_FAILURE() << err; return out; }
+        mgr.setAutoSleep(id, false);
+        if (!mgr.setPartialWake(id, true) || !mgr.setRecordTiles(id, true)) { ADD_FAILURE() << "partial wake / recording refused"; return out; }
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(W - 1, 0, D - 1), 1.0f, nullptr);
+        const double placed = mgr.totalMass();
+        const int tiles = ((W + 7) / 8) * ((D + 7) / 8);
+        AvRecord rec;
+        const float dt = 1.0f / 60.0f;
+        auto books = [&]() {
+            const AvRecord* r = mgr.find(id);
+            out.booksWorst = std::max(out.booksWorst, std::abs(mgr.totalMass() + (r ? r->residueDropped : 0.0) + record.total() - placed));
+            if (r) out.heldMax = std::max(out.heldMax, r->tilesHeldByNeighbours);
+        };
+        for (int k = 0; k < 120 + static_cast<int>(60.0f * after); ++k) { mgr.step(id, 1, dt, &rec); books(); }
+        const AvRecord* r = mgr.find(id);
+        if (!r || r->recordedTiles != tiles) { ADD_FAILURE() << "the still pond did not record (" << (r ? r->recordedTiles : -1) << " of " << tiles << ")"; return out; }
+        WaterCoreManager::s_tileEvents.clear(); WaterCoreManager::s_tileEventLog = true;
+        mgr.addImpulse(at, 0.5f, strength, glm::vec3(0.0f, -1.0f, 0.0f));
+        for (int k = 0; k < ticks; ++k) { mgr.step(id, 1, dt, &rec); books(); }
+        std::set<std::pair<int, int>> recorded;
+        for (const auto& e : WaterCoreManager::s_tileEvents) {
+            if (e.cause == 'R') { ++out.recordsAfter; recorded.insert({e.tx, e.tz}); }
+            else if (e.cause == 'M' && recorded.count({e.tx, e.tz})) ++out.reWakes;
+        }
+        r = mgr.find(id);
+        out.recordedAtEnd = r ? r->recordedTiles : -1;
+        out.woken = r ? r->tilesWoken : -1;
+        out.ok = true;
+        return out;
+    };
+    const Out g = runOnce(false), red = runOnce(true);
+    ASSERT_TRUE(g.ok && red.ok);
+    std::printf("  RULE: records after the push %d, re-wakes %d, recorded at end %d, held by neighbours max %d, woken %ld, books worst %.2e m3\n",
+                g.recordsAfter, g.reWakes, g.recordedAtEnd, g.heldMax, g.woken, g.booksWorst);
+    std::printf("  OLD RULE (red control): records after the push %d, re-wakes %d, recorded at end %d, woken %ld, books worst %.2e m3%s\n",
+                red.recordsAfter, red.reWakes, red.recordedAtEnd, red.woken, red.booksWorst,
+                red.reWakes == 0 ? "  - THIS RIG DOES NOT SHOW THE CYCLING; the live run carries the red" : "");
+    EXPECT_EQ(g.reWakes, 0) << "a recorded tile was woken again by the water beside it";
+    EXPECT_GT(g.heldMax, 0) << "the rule never held a tile - it was not exercised";
+    EXPECT_LT(g.booksWorst, 5e-4) << "cells + record = placed, every tick";
+    EXPECT_LT(red.booksWorst, 5e-4);
+}
+
 // TallCellsRecordAndWakeWithTheBooksExact (27.22 TC4): a 32 x 16 m pond 2 m deep - tall cells ON (the default band, 0.5 m) - with
 // recording: every tile records (the record reads each tall cell back as its column), a touch seeds tile (0, 0) back (its columns
 // collapsed into their tall cells), a push wakes and the waves run; cells + record = placed every tick. RED CONTROL: the seed not
@@ -603,6 +679,11 @@ static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevic
     WaterCoreGpu::s_meshNoRingForTest = noRing;
     WaterCoreManager::s_recordAfterS = 0.5f;
     WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_locality.drawM = 48.0f;
+    // 50.6: the water under the slab never freezes (26.23, a lid) and the slab's tiles neighbour every tile of this 4 x 2 pond, so
+    // under the neighbour rule no tile would ever record - this rig checks the MESH across recorded and woken tiles, not the
+    // recording policy: the old rule here (restored with the rest)
+    WaterCoreManager::s_recordIgnoresNeighboursForTest = true;
+    struct RestoreRule { ~RestoreRule() { WaterCoreManager::s_recordIgnoresNeighboursForTest = false; } } restoreRule;
     // the ground, and the slab: micro cells y 9 (1.00-1.11 m) over x 36-71, z 36-71
     auto state = [](const glm::ivec3& m) -> int {
         if (m.y < 0) return 1;

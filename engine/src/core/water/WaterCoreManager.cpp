@@ -247,7 +247,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.partialWake = av.gpuVol && av.gpuVol->partialWake; r.tallBandM = av.tallBand; r.tallActive = av.gpuVol && av.gpuVol->tallActive; r.tallColumns = av.gpuVol ? av.gpuVol->tallColumns : 0; r.tallRegrids = av.gpuVol ? av.gpuVol->tallRegrids : 0; r.tallExpandHeld = av.gpuVol ? av.gpuVol->tallExpandHeld : 0; r.tallReason = av.tallReason; r.tallOffs = av.tallOffs; r.writesInPlace = av.writesInPlace; r.writesRoundTrip = av.writesRoundTrip; r.tallLastOff = av.tallLastOff; r.tallRestY = std::isnan(av.tallRestY) ? 0.0f : av.tallRestY; r.tallFloorY = (av.gpuVol && av.gpuVol->tallY >= 0) ? (static_cast<float>(av.grid->spec().origin.y + av.gpuVol->tallY) + 1.0f) * av.h : 0.0f; r.recordTiles = av.recordTiles; r.recordedM3 = av.recordedM3; r.recordedTiles = static_cast<int>(av.recordedTileList.size()); r.tilesRecorded = av.tilesRecorded; r.tilesWoken = av.tilesWoken; r.tilesWokenByWrite = av.tilesWokenByWrite; r.gpuWakeAll = av.gpuVol ? av.gpuVol->wakeAllCount : 0; r.recordSpreadMmMax = av.recordSpreadMmMax; r.recordJumpMmMax = av.recordJumpMmMax; r.lastRecordMs = av.lastRecordMs; r.lastWakeMs = av.lastWakeMs; r.seedUnplacedM3 = av.gpuVol ? av.gpuVol->seedUnplacedM3 : 0.0; r.awakeColumns = av.gpuLast.awakeColumns; r.frozenColumns = av.gpuLast.frozenColumns; r.movingColumns = av.gpuLast.movingColumns; r.stepSlots = av.gpuLast.stepSlots; r.partitionMoves = av.gpuLast.partitionMoves; r.carryBodyM3 = av.carryBodyM3; r.carryRateM3 = av.carryRateM3; r.carryFlowM3 = av.carryFlowM3; r.carryParkedM3 = av.carryParkedM3; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuDispatches = av.gpuVol ? av.gpuVol->lastDispatches : 0; r.gpuPoolGrows = av.gpuVol ? av.gpuVol->poolGrows : 0; r.gpuReduceSlots = av.gpuLast.reduceSlots; r.gpuReduceCached = av.gpuLast.reduceCached; r.gpuBarriers = av.gpuVol ? av.gpuVol->lastBarriers : 0; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.partialWake = av.gpuVol && av.gpuVol->partialWake; r.tallBandM = av.tallBand; r.tallActive = av.gpuVol && av.gpuVol->tallActive; r.tallColumns = av.gpuVol ? av.gpuVol->tallColumns : 0; r.tallRegrids = av.gpuVol ? av.gpuVol->tallRegrids : 0; r.tallExpandHeld = av.gpuVol ? av.gpuVol->tallExpandHeld : 0; r.tallReason = av.tallReason; r.tallOffs = av.tallOffs; r.writesInPlace = av.writesInPlace; r.writesRoundTrip = av.writesRoundTrip; r.tallLastOff = av.tallLastOff; r.tallRestY = std::isnan(av.tallRestY) ? 0.0f : av.tallRestY; r.tallFloorY = (av.gpuVol && av.gpuVol->tallY >= 0) ? (static_cast<float>(av.grid->spec().origin.y + av.gpuVol->tallY) + 1.0f) * av.h : 0.0f; r.recordTiles = av.recordTiles; r.recordedM3 = av.recordedM3; r.recordedTiles = static_cast<int>(av.recordedTileList.size()); r.tilesRecorded = av.tilesRecorded; r.tilesWoken = av.tilesWoken; r.tilesWokenByWrite = av.tilesWokenByWrite; r.tilesHeldByNeighbours = av.tilesHeldByNeighbours; r.gpuWakeAll = av.gpuVol ? av.gpuVol->wakeAllCount : 0; r.recordSpreadMmMax = av.recordSpreadMmMax; r.recordJumpMmMax = av.recordJumpMmMax; r.lastRecordMs = av.lastRecordMs; r.lastWakeMs = av.lastWakeMs; r.seedUnplacedM3 = av.gpuVol ? av.gpuVol->seedUnplacedM3 : 0.0; r.awakeColumns = av.gpuLast.awakeColumns; r.frozenColumns = av.gpuLast.frozenColumns; r.movingColumns = av.gpuLast.movingColumns; r.stepSlots = av.gpuLast.stepSlots; r.partitionMoves = av.gpuLast.partitionMoves; r.carryBodyM3 = av.carryBodyM3; r.carryRateM3 = av.carryRateM3; r.carryFlowM3 = av.carryFlowM3; r.carryParkedM3 = av.carryParkedM3; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuDispatches = av.gpuVol ? av.gpuVol->lastDispatches : 0; r.gpuPoolGrows = av.gpuVol ? av.gpuVol->poolGrows : 0; r.gpuReduceSlots = av.gpuLast.reduceSlots; r.gpuReduceCached = av.gpuLast.reduceCached; r.gpuBarriers = av.gpuVol ? av.gpuVol->lastBarriers : 0; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
     r.occFullRefreshes = av.occFullRefreshes; r.occLocalRefreshes = av.occLocalRefreshes; r.occCellsResampled = av.occCellsResampled;
     r.occCellsChanged = av.occCellsChanged; r.gpuPatchMs = av.gpuPatchMs; r.gpuPatches = av.gpuPatches;
     r.cells = av.grid->cellCount();
@@ -1643,9 +1643,13 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds) {
     const std::vector<int> wakes = m_gpu->takeRecordedWakes(vol);
     if (!wakes.empty() || !av.pendingTileWakes.empty()) {
         std::set<std::pair<int, int>> tiles(av.pendingTileWakes.begin(), av.pendingTileWakes.end());   // + the droplets' landings (deferred)
+        const std::set<std::pair<int, int>> deferredTiles = tiles;   // §50 W1g measurement: the cause ('L' deferred, 'M' the margin)
         for (int c : wakes) tiles.insert({floorDivI(c % vol.bn.x + offX, kTileBricks), floorDivI(c / vol.bn.x + offZ, kTileBricks)});
         for (const auto& [tx, tz] : tiles)
-            if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) != av.recordedTileList.end()) wakeTile(av, tx, tz);
+            if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) != av.recordedTileList.end()) {
+                if (s_noMarginWakeForTest && !deferredTiles.count({tx, tz})) continue;
+                wakeTile(av, tx, tz, deferredTiles.count({tx, tz}) ? 'L' : 'M');
+            }
         av.pendingTileWakes.clear();
     }
     if (!av.recordTiles || !vol.partialWake || !m_spanWriter || !m_spanReader) return;
@@ -1662,6 +1666,27 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds) {
     const int tx0 = floorDivI(offX, kTileBricks), tx1 = floorDivI(offX + vol.bn.x - 1, kTileBricks);
     const int tz0 = floorDivI(offZ, kTileBricks), tz1 = floorDivI(offZ + vol.bn.z - 1, kTileBricks);
     int done = 0;
+    // §50 W1g.1: a tile records only when none of its 8 neighbours holds an awake (stored, not frozen) column. Recorded beside awake
+    // water, the water's margin woke it again 0-4 s later - a host seed and a record each time (13-27 ms), one tile 6 records and 7
+    // wakes in 60 s, a lake that never settled (50.6). Held, it stays frozen bricks: the margin's wake is then the GPU's own, no host
+    // work. Cost only: frozen and recorded columns are both walls to the awake water (27.13). A body asleep as a whole is quiet
+    // everywhere (its per-column flags may be stale): no neighbour test.
+    std::map<std::pair<int, int>, bool> awakeTile;
+    auto tileAwake = [&](int tx, int tz) {
+        const auto it = awakeTile.find({tx, tz});
+        if (it != awakeTile.end()) return it->second;
+        bool awake = false;
+        glm::ivec2 bLo, bHi;
+        if (tileBricks(av, tx, tz, bLo, bHi))
+            for (int bz = bLo.y; bz <= bHi.y && !awake; ++bz) for (int bx = bLo.x; bx <= bHi.x && !awake; ++bx) {
+                const size_t c = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
+                if (vol.colFrozen[c] || (!vol.colRecorded.empty() && vol.colRecorded[c])) continue;
+                for (int by = 0; by < vol.bn.y && !awake; ++by) awake = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)] >= 2;
+            }
+        awakeTile[{tx, tz}] = awake;
+        return awake;
+    };
+    int held = 0;
     for (int tz = tz0; tz <= tz1 && done < kRecordTilesPerStep; ++tz) for (int tx = tx0; tx <= tx1 && done < kRecordTilesPerStep; ++tx) {
         if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) != av.recordedTileList.end()) continue;
         glm::ivec2 bLo, bHi;
@@ -1692,8 +1717,15 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds) {
                 centre.z >= tz * kTileVoxels - 2.0f && centre.z <= tz * kTileVoxels + kTileVoxels + 2.0f) { blocked = true; break; }
         }
         if (blocked) continue;
+        if (!wholeAsleep && !s_recordIgnoresNeighboursForTest) {
+            bool nbrAwake = false;
+            for (int dz = -1; dz <= 1 && !nbrAwake; ++dz) for (int dx = -1; dx <= 1 && !nbrAwake; ++dx)
+                if ((dx != 0 || dz != 0) && tileAwake(tx + dx, tz + dz)) nbrAwake = true;
+            if (nbrAwake) { ++held; continue; }   // waits, frozen; its frozen time keeps counting
+        }
         if (recordTile(av, tx, tz)) { ++done; frozenFor = 0.0f; }
     }
+    av.tilesHeldByNeighbours = held;
 }
 
 bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
@@ -1765,10 +1797,35 @@ bool WaterCoreManager::recordTile(Av& av, int tx, int tz) {
     av.field.version = (1ull << 62) + (++m_fieldBumps);
     lap(P.rec, P.recMax, 4); ++P.recN;
     av.lastRecordMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    logTileEvent(av, tx, tz, 'R', av.lastRecordMs);
     return true;
 }
 
-bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
+void WaterCoreManager::logTileEvent(Av& av, int tx, int tz, char cause, double ms) {
+    const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    double& at = av.tileChangedAt[{tx, tz}];
+    if (s_tileEventLog && av.gpuVol) {
+        const auto& vol = *av.gpuVol;
+        int nbrs = 0;   // neighbouring tiles holding a stored column that is not frozen
+        for (int dz = -1; dz <= 1; ++dz) for (int dx = -1; dx <= 1; ++dx) {
+            if (dx == 0 && dz == 0) continue;
+            glm::ivec2 bLo, bHi;
+            if (!tileBricks(av, tx + dx, tz + dz, bLo, bHi)) continue;
+            bool awake = false;
+            for (int bz = bLo.y; bz <= bHi.y && !awake; ++bz) for (int bx = bLo.x; bx <= bHi.x && !awake; ++bx) {
+                const size_t c = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
+                if (vol.colFrozen.size() <= c || vol.colFrozen[c] || (!vol.colRecorded.empty() && vol.colRecorded[c])) continue;
+                for (int by = 0; by < vol.bn.y && !awake; ++by) awake = vol.map[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * (by + static_cast<size_t>(vol.bn.y) * bz)] >= 2;
+            }
+            nbrs += awake ? 1 : 0;
+        }
+        TileEvent e; e.t = now; e.vol = av.id; e.tx = tx; e.tz = tz; e.cause = cause; e.sinceS = at > 0.0 ? static_cast<float>(now - at) : -1.0f; e.awakeNbrs = nbrs; e.ms = ms;
+        if (s_tileEvents.size() < 20000) s_tileEvents.push_back(e);
+    }
+    at = now;
+}
+
+bool WaterCoreManager::wakeTile(Av& av, int tx, int tz, char cause) {
     auto& vol = *av.gpuVol;
     const auto t0 = std::chrono::steady_clock::now();
     glm::ivec2 bLo, bHi;
@@ -1825,6 +1882,7 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz) {
     buildRecordTilesNow(vLo, vHi);
     lap(P.wake, P.wakeMax, 5); ++P.wakeN;
     av.lastWakeMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    logTileEvent(av, tx, tz, cause, av.lastWakeMs);
     return true;
 }
 
@@ -1839,7 +1897,7 @@ void WaterCoreManager::wakeRecordedNear(Av& av, const glm::vec3& world, float ra
     for (int tz = tz0; tz <= tz1; ++tz) for (int tx = tx0; tx <= tx1; ++tx) {
         if (std::find(av.recordedTileList.begin(), av.recordedTileList.end(), std::make_pair(tx, tz)) == av.recordedTileList.end()) continue;
         if (deferred) { av.pendingTileWakes.push_back({tx, tz}); ++av.tilesWokenByWrite; }
-        else if (wakeTile(av, tx, tz)) ++av.tilesWokenByWrite;
+        else if (wakeTile(av, tx, tz, 'W')) ++av.tilesWokenByWrite;
     }
 }
 

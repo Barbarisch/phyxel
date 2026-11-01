@@ -12198,7 +12198,7 @@ and the order-dependent `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles
 **For the owner:** nothing to see - the look does not change; the water no longer vanishes when a stone stirs a deep pond whose box
 reaches past its banks. Sign-off is on the numbers.
 
-## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3); W1f BUILT, ON (50.5)
+## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3); W1f BUILT, ON (50.5); W1g.1 the neighbour rule BUILT, the recording runaway OPEN (50.6)
 
 ### 50.1 The owner's words, and what changes
 
@@ -12319,6 +12319,67 @@ new tick (their tests pass; no live run).
 
 **For the owner:** nothing new to look at beyond the 27.26 clip (`ft_look_fixed_side_by_side.mp4`, the right half is this
 default). A big lake now goes still after a stone at shipped settings.
+
+### 50.6 W1g.1 - recorded tiles stop cycling (2026-11-01). Status: the neighbour rule BUILT (cost only); THE RUNAWAY FOUND, OPEN
+
+**Design-check (2026-11-01): READY, four items folded in** (the deterministic red first or the live run carries it; the echo
+`tiles_held_by_neighbours`; no neighbour test for a body asleep as a whole; GPU bricks measured).
+
+**Measured first - the tile event log** (new, debug only: `water_av_record_tiles {event_log, events_take}` - every record 'R' and
+wake 'M' margin / 'L' landing / 'W' write, with the seconds since the tile last changed and the awake neighbours then;
+`WaterCoreManager::s_tileEvents`). The 60 x 60 m lake, recording ON, the shipped tick, a stone, 60 s (`w1g_events.json`): margin
+re-wakes of a tile that had recorded after the stone 0 / 61 / 26; every record of a re-woken tile happened with 2-5 of its 8
+neighbours holding awake columns, the re-wake 0-4 s later; one tile 6 records and 7 wakes in 60 s; a wake 13-25 ms, a record
+19-27 ms of host time; 1 run in 3 never settled. (The tool's first count of "re-wakes" also counted a tile's first wake after the
+stone - its last change was the record before it; recounted from the events.)
+
+**The rule (built):** a tile records only when none of its 8 neighbouring tiles holds a stored, unfrozen column; held, it stays
+frozen bricks and its frozen time keeps counting (`recordTilesStep`; `s_recordIgnoresNeighboursForTest` the old rule;
+`tiles_held_by_neighbours` echo). Cost only: frozen and recorded columns are both walls. **The deterministic test**
+`WaterRecordTilesTest.ARecordedTileIsNotWokenAgainByTheWaterBesideIt`: a 32 x 16 m pond, a strength-1 push in a corner, 0.5 s delay
+- 0 re-wakes under EITHER rule (the rig could not see the cycling, as the design-check allowed); 48 x 48 m, strength 4 at the
+centre, 2 s, 30 s - 19 re-wakes under the old rule (165 s a run, too slow); **the test's rig: 32 x 32 m, strength 4 at the centre,
+2 s, 20 s - old rule 4 re-wakes (red), the rule 0 (green)**, held max 12, books 1.4e-5 m^3. Run to 45 s: both rules end with all 16
+tiles recorded - the rule with 16 records and 0 re-wakes, the old with 20 and 4.
+
+**Live, the rule does NOT make the lake settle.** Every run the same lake and stone (raw: `w1g1_green.json`, `w1g1_after10.json`,
+`w1g1_after10_oldrule.json`, `w1g1_green6.json`, `w1g1_jump.json`, `w1g1_norecord.json`):
+| recording | rule | record delay | runs that went still and recorded every tile |
+|---|---|---|---|
+| ON | old | 2 s | 3 of 5 (50.3 + `w1g_events`) |
+| ON | neighbours | 2 s | 5 of 9 |
+| ON | old | 10 s | 1 of 3 |
+| ON | neighbours | 10 s | 6 of 9 |
+| ON, nothing records after the stone (`after_s` 600) | - | - | 3 of 3 still |
+| OFF | - | - | 6 of 8 asleep by 44 s (W1f 4 of 4; the frame pair below 0 of 2, 133-139 columns left awake) |
+Those differences are within the noise of 3-9 runs; the 10 s delay was NOT made the default (kept 2 s).
+
+**THE RUNAWAY (open, the real W1g item).** In about 40 % of recording-ON runs, whatever the rule or delay, the lake does not just
+fail to settle - it wakes back up: the awake columns fall to a minimum of 290-860 at 21-28 s (right after a few tiles record,
+with no awake neighbour), then climb steadily, 324 -> 1,189 -> 1,628 -> 2,524 -> 3,540-3,848 by 90 s - more than the stone woke -
+with only margin wakes and no write. Recording OFF never ran away (at worst ~130 columns left awake). The run that settles records
+more tiles at that moment and goes to 0. Ruled out by measurement: the record-to-wake surface jump (0.02-0.05 mm, `measure_jump`;
+the freeze test passes ~2 mm/s); the woken water itself (woken from the record and never recorded again: 3 of 3 still). Not ruled
+out: 27.13's open item 1 (a collect between two calls breaks the freeze test) - a record reads its tile back and a wake uploads
+between calls; the late wall (a recorded tile wakes a call or two after the margin reaches it, a frozen one at once). Next: the
+kinetic energy per call through a runaway, to tell energy that grows from columns that will not freeze.
+
+**Cost (the frame pair, `w1g1_frame.json`, interleaved, 10 s delay):** OFF 188-191 fps 0-8 s, 208-221 fps at 36-44 s (the water
+still 2.2 ms - not asleep), bricks 39,466-39,479 throughout; ON 180-208 fps 0-8 s, 198-201 fps at 36-44 s with the water asleep
+(0.04 ms) and 60-62 of 64 tiles recorded, bricks 39,4xx -> 26,247-27,239 by 8 s -> 16,680-17,217 by 15 s. Worst frames ON 37-46 ms
+at the stone (the wakes), 38 ms once at 36-44 s (a record); OFF 33-37 ms. The GPU frame ~0.6 ms higher with recording at 36-44 s
+(5.0-5.1 vs 4.4 ms; the record tiles drawn - not separated).
+
+**Also fixed:** four tools set the record delay - a global - and never put it back (`water_create_over_record.py`,
+`water_record_push_settle.py`, `water_record_tiles_live.py`, `water_wake_holes.py`): they restore it now (`atexit`).
+
+**A cost of the rule, found by a gate:** `TheDeviceMeshIsTheHostMesh` rig B lost its recorded tiles (0, was up to 2): the water under
+its slab never freezes (26.23, a lid) and those tiles neighbour every tile of its 4 x 2 pond, so none may record. As the
+design-check said, a patch that never goes still keeps its 8 neighbours as frozen bricks (memory, no host time). Rig B checks the
+mesh across recorded tiles, not the policy: it runs the old rule (stated at the site); its numbers are 29's again (red 3 off, tall
+red 4 off).
+
+**Gates:** water unit 355 / 355; GPU water integration 76 / 78 (the known two; the new test green with its red).
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
