@@ -1466,6 +1466,7 @@ void WaterSolver::compactSubmergedPartials(float dt, bool settling) {
         const float fb = m_grid.f(x, y, z);
         const float sb = m_grid.s(x, y, z);   // 20.5: fill up to 1 - s, never into a body's space
         if (fb + sb < thr || fb + sb >= 1.0f || (sb > 0.0f && fb < WaterGrid::kSurfaceMinDepth / h) || blocked(m_grid, x, y, z) || blocked(m_grid, x, y + 1, z)) continue;
+        if (1.0f - sb - fb < m_params.compactionBand) continue;   // 50.6c: a deficit under the band is not a void
         const float fa = m_grid.f(x, y + 1, z);
         if (fa <= 0.0f) continue;
         if (!settling && fa + m_grid.s(x, y + 1, z) < thr) continue;   // 24.11: under a thin film only while settling

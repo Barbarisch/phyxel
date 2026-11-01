@@ -847,6 +847,12 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
     const bool zeroBefore = WaterCoreGpu::s_freezeZeroesVelocity;   // E_ZERO: 50.6b, a freezing column's velocities zeroed
     struct RestoreZero { bool z; ~RestoreZero() { WaterCoreGpu::s_freezeZeroesVelocity = z; } } restoreZero{zeroBefore};
     if (std::getenv("E_ZERO")) WaterCoreGpu::s_freezeZeroesVelocity = env("E_ZERO", 0) != 0;
+    struct RestoreMask { ~RestoreMask() { WaterCoreGpu::s_disableStagesForTest = 0; } } restoreMask;
+    WaterCoreGpu::s_disableStagesForTest = static_cast<uint32_t>(env("E_DISABLE", 0));   // 50.6b: skip fill stages (bits, WaterCoreGpu.h)
+    std::printf("  disabled stages %u\n", WaterCoreGpu::s_disableStagesForTest);
+    struct RestoreBand { ~RestoreBand() { WaterCoreGpu::s_compactionBandOverride = -1.0f; } } restoreBand;
+    if (std::getenv("E_BAND")) WaterCoreGpu::s_compactionBandOverride = static_cast<float>(env("E_BAND", 0.0));   // 50.6c
+    std::printf("  compaction band override %.1e\n", WaterCoreGpu::s_compactionBandOverride);
     std::printf("  freeze zeroes velocity %d\n", int(WaterCoreGpu::s_freezeZeroesVelocity));
     const bool capBefore = WaterCoreManager::unitCapture();
     struct RestoreCap { bool c; ~RestoreCap() { WaterCoreManager::setUnitCapture(c); } } restoreCap{capBefore};

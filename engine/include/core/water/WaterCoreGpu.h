@@ -454,6 +454,11 @@ public:
     /// never stored). Kept, a column frozen at a standing wave's node (level still, flow fastest) held its velocity behind a wall and
     /// released it out of phase when it woke - still water gained energy (50.6a). MEASUREMENT switch while the fix is judged.
     static inline bool s_freezeZeroesVelocity = false;
+    /// 50.6b TEST ONLY (bisecting): bits skip a fill stage of the GPU substep - 1 compaction, 2 settle (both), 4 the transport's carry-up
+    /// pass (FillAdvect mode 5), 8 the residue sweep, 16 the still-water first guess. Never shipped on.
+    static inline uint32_t s_disableStagesForTest = 0;
+    /// 50.6c TEST ONLY: >= 0 overrides SolverParams::compactionBand on the device (the measurement); < 0 = the params' own
+    static inline float s_compactionBandOverride = -1.0f;
     static constexpr int kQuietUnitsPerTick = 10;   ///< colQuiet counts 1/600 s
     /// TEST ONLY (the parity test's red control): the cache ignores unitsFullNext - a write to frozen cells is not seen
     static inline bool s_unitCacheStaleForTest = false;

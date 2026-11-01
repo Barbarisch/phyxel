@@ -83,6 +83,7 @@ void main() {
             const float Vb = cellVolume(x, y, z);   // 27.22: a tall cell's f is a volume, full at H
             const float sb = solid[cellIdx(x, y, z)].x;   // 20.5: fill up to 1 - s, never into a body's space
             if (fb / Vb + sb < pc.thr || fb / Vb + sb >= 1.0 || (sb > 0.0 && fb < 0.001 / pc.h) || blocked(x, y, z) || blocked(x, y + 1, z) || Vb > 1.0) continue;   // 27.22: a tall cell is kept full by the transport
+            if (Vb * (1.0 - sb) - fb < pc.vcBand) continue;   // 50.6c: the compaction band (pc.vcBand in this mode) - a deficit under it is not a void
             const float fa = f[cellIdx(x, y + 1, z)];
             if (fa <= 0.0) continue;
             if (pc.param0 == 0.0 && fa + solid[cellIdx(x, y + 1, z)].x < pc.thr) continue;   // 24.11: under a thin film only while settling (param0 = 1)

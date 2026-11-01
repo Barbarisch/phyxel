@@ -2235,7 +2235,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
         if (EulerianTransport::s_allFacesAtOnce) {   // 26.5: the CPU's rule - all faces at once, gathered, the excess carried up
             push.mode = 3; dispatch(cmd, *vol.pipes[FillAdvect], push, cells);
             push.mode = 4; dispatch(cmd, *vol.pipes[FillAdvect], push, cells); cap(2);
-            push.mode = 5; dispatch(cmd, *vol.pipes[FillAdvect], push, cols); cap(3);
+            if (!(s_disableStagesForTest & 4)) { push.mode = 5; dispatch(cmd, *vol.pipes[FillAdvect], push, cols); } cap(3);
         } else
         for (int dir = 0; dir < 3; ++dir) for (int parity = 0; parity < 2; ++parity) {
             push.mode = dir; push.iparam = parity;
@@ -2252,7 +2252,8 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
             // settling; under a thin film only while settling (param0 = 1)
             const float p0 = push.param0, p1 = push.param1;
             push.mode = 1; push.param0 = quietBefore ? 1.0f : 0.0f; push.param1 = params.compactionSpeed;
-            dispatch(cmd, *vol.pipes[ColumnOps], push, cols);
+            push.vcBand = s_compactionBandOverride >= 0.0f ? s_compactionBandOverride : params.compactionBand;   // 50.6c: the band rides vcBand (classify sets its own below)
+            if (!(s_disableStagesForTest & 1)) dispatch(cmd, *vol.pipes[ColumnOps], push, cols);
             push.param0 = p0; push.param1 = p1;
         }
         cap(5);
@@ -2262,13 +2263,13 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     push.mode = 1; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU], push, n[0]);                                // film slope x
     push.mode = 2; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsW], push, n[2]);                                // film slope z (disjoint lattices)
     barrier(cmd);
-    push.mode = 0; dispatch(cmd, *vol.pipes[ColumnOps], push, cols);                                        // settle
+    push.mode = 0; if (!(s_disableStagesForTest & 2)) dispatch(cmd, *vol.pipes[ColumnOps], push, cols); else barrier(cmd);   // settle
     enforceSolids();
     // projection
     stamp(cmd, vol, TsForces);
     push.mode = 0; push.param0 = vol.particles ? 1.0f : 0.0f; push.param1 = params.volumeCorrectionTime; push.vcBand = params.volumeCorrectionBand;   // 26.21: the volume correction
     dispatch(cmd, *vol.pipes[Classify], push, cells); push.param0 = 0.0f; push.param1 = 0.0f;
-    if (s_stillWaterGuess) { push.mode = 2; dispatch(cmd, *vol.pipes[Classify], push, cols); }   // 26.9: the still-water first guess
+    if (s_stillWaterGuess && !(s_disableStagesForTest & 16)) { push.mode = 2; dispatch(cmd, *vol.pipes[Classify], push, cols); }   // 26.9: the still-water first guess
     stamp(cmd, vol, TsClassify);
     if (s_lineSweeps > 0 && vol.bricked && vol.spec.dims.y <= kLineMaxNy) {   // 28: zebra line sweeps (one workgroup per brick column)
         for (int s = 0; s < s_lineSweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
@@ -2289,7 +2290,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     stamp(cmd, vol, TsVelUpdate);
     recordExtrapolate(cmd, vol, push, vol.particles);
     stamp(cmd, vol, TsExtrapolate);
-    push.mode = 0; dispatch(cmd, *vol.pipes[ColumnOps], push, cols);                                        // settle again
+    push.mode = 0; if (!(s_disableStagesForTest & 2)) dispatch(cmd, *vol.pipes[ColumnOps], push, cols); else barrier(cmd);   // settle again
     // friction and rest damping (FaceOps mode 9): dense - iparam = the lattice's length; bricked - iparam = the lattice (26.6)
     if (params.bedManning > 0.0f) {   // 26.13: Manning at the bed replaces pond friction (WaterSolver::applyBedManning), u and w faces
         push.mode = 10; push.param0 = params.bedManning * params.bedManning;
@@ -2693,7 +2694,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
         barrier(cmd);
         capAt(0);
         for (int s = 0; s < n; ++s) recordSubstep(cmd, vol, push, params, sweeps, vol.quietBefore);
-        if (!vol.particles) { push.mode = 2; push.param0 = 1e-6f; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.param0 = 0.0f; }   // sweep (fills only)
+        if (!vol.particles && !(s_disableStagesForTest & 8)) { push.mode = 2; push.param0 = 1e-6f; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.param0 = 0.0f; }   // sweep (fills only)
         capAt(7);
         if (vol.dropletsOn) { push.mode = 4; push.param0 = dt; dispatch(cmd, *vol.pipes[ColumnOps], push, cols); push.param0 = 0.0f; push.mode = 0; }   // 21: droplet births, once per tick
         capAt(8);

@@ -12198,7 +12198,7 @@ and the order-dependent `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles
 **For the owner:** nothing to see - the look does not change; the water no longer vanishes when a stone stirs a deep pond whose box
 reaches past its banks. Sign-off is on the numbers.
 
-## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3); W1f BUILT, ON (50.5); W1g.1 the neighbour rule BUILT; the runaway traced to the SOLVER heating still deep water (50.6a), OPEN
+## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3); W1f BUILT, ON (50.5); W1g.1 the neighbour rule BUILT; the runaway traced to the SOLVER (50.6a-c: the freeze stores motion, compaction rocks still water, a surface floor), OPEN
 
 ### 50.1 The owner's words, and what changes
 
@@ -12419,6 +12419,31 @@ wandering columns, GROWING LINEARLY: 1.2e-4 (2 s) -> 2.3e-4 (8 s) -> 3.2e-4 (14 
 the mass exact. 27.14's "isolated columns spike 1e-4-3e-4 in one tick" is this. Not the volume correction (it acts below 98 % full)
 or the wake-air rule; the GPU solver does not read `debugDisableStages` (the CPU's stage bisection switch), so the next step is
 GPU stage switches to find the stage that rocks full bed cells.
+
+**50.6c The bed churn is compaction (2026-11-01, MEASURED; no behaviour change).** The GPU solver never read `debugDisableStages`,
+so new TEST-ONLY bits skip each fill stage of the GPU substep (`WaterCoreGpu::s_disableStagesForTest`: 1 compaction, 2 settle,
+4 the transport's carry-up pass, 8 the residue sweep, 16 the still-water guess; the diagnostic's E_DISABLE). The 24 x 24 m pond 2 m
+deep, placed still, tall cells and partial wake off, 20 s (the largest per-tick fill change, its place; asleep?):
+| skipped | max fill change a tick | where | the volume sleeps |
+|---|---|---|---|
+| nothing (shipped) | 3.6e-4, growing | the bed | no |
+| **compaction** | **2.3e-6** | the surface band | **yes** |
+| settle / carry-up / residue sweep | 3.5-3.7e-4 | the bed | no |
+| the still-water guess | 1.0 (the water blows up - the guess is load-bearing) | - | - |
+**Compaction rocks still water:** it tops up every cell short of full - by float rounding too - from the cell above; the projection
+answers the fill change with a velocity and the transport turns it into a new deficit (WaterCore.cpp's note on defect #29, 2026-10-08:
+"the projection pushes back up what compaction pulls down"). **A band does not fix it.** `SolverParams::compactionBand` (new; CPU
+`compactSubmergedPartials` and GPU `wc_column_ops` mode 1, through `pc.vcBand` in that mode - the push block stays 124 bytes):
+a deficit under it is left alone. At 1e-4 or 1e-3 of a cell the still pond sleeps (2.3e-6, as with compaction off). But the 60 x 60 m
+lake with a stone gets WORSE: every column awake from ~40 s to 90 s, 3,000-3,500 moving (tall off), 1,400-2,200 (tall on) - the
+small top-ups damp moving water. **The band ships at 0 (no change);** `s_compactionBandOverride` is the test knob. What compaction
+should do at sub-millimetre deficits - and how it and the projection stop feeding each other - is a design question, not a threshold.
+Tests unchanged: water unit 355 / 355, GPU water integration 76 / 78 (the known two).
+
+**Where this leaves W1g (and the plan).** Three solver defects now stand under recording: the freeze stores a node's velocity (50.6b),
+compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the surface (the phantom current, 19.6). At shipped
+settings (tall cells on, recording off) the lake still sleeps (W1f, 4 of 4): the partial wake freezes columns before the bed churn
+or the stored velocities build. Recording keeps it awake long enough for them to show.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 

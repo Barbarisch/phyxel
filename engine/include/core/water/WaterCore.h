@@ -164,6 +164,10 @@ struct SolverParams {
     /// waves at their turning points (a 4 m wave kept 0.69 of itself per swing on a half-full cell); 0.01 kept 0.91. In the
     /// settle band compaction runs at free fall (slow closing at rest left the S3 / spawn / cavity rows unsettled).
     float  compactionSpeed = 0.01f;
+    /// cell fraction - 50.6c: a deficit under this is not a void and compaction leaves it alone. At 0 compaction topped up every cell
+    /// short of full by float rounding; the projection pushed back what it pulled down, and in still water the bed's fill change a tick
+    /// GREW, 1.2e-4 -> 5.3e-4 in 26 s, so a still pond never slept (50.6b).
+    float  compactionBand = 0.0f;
     /// s - the VOLUME CORRECTION (WaterCore.md 26.21): a buried part-full liquid cell (a liquid cell above, no side face to air)
     /// asks the projection for the net inflow that returns its missing volume over this time. Without it moving water kept
     /// 4-10 % air below its surface (26.20: the drawn creek 9-26 mm above its water) - the projection treats a liquid cell as
