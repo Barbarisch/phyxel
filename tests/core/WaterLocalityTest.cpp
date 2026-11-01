@@ -242,3 +242,10 @@ TEST(WaterLocality, TheRippleWeightIsTheSameForOnePondAndTwo) {
     EXPECT_GT(weighted, 10000) << "the walk saw ripples (else it tests nothing)";
     EXPECT_EQ(unequal, 0);
 }
+
+// §50 W1f: the fixed 1/60 s water tick is the default (owner 2026-11-01: "60hz water sounds fine"). One tick per frame let the
+// 60 x 60 m lake slosh for ever after one stone (50.3); the tick RATE is not a tier knob (1/30 s ticks change the outcome, 27.26).
+TEST(WaterFixedTick, TheDefaultIsOneSixtieth) {
+    EXPECT_FLOAT_EQ(WaterCoreManager::kFixedTickDefaultS, 1.0f / 60.0f);
+    EXPECT_FLOAT_EQ(WaterCoreManager::s_fixedTickS, WaterCoreManager::kFixedTickDefaultS) << "a test left the tick changed";
+}

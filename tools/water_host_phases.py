@@ -7,6 +7,7 @@ OUT = pathlib.Path(sys.argv[1])
 tick = float(sys.argv[2]) if len(sys.argv) > 2 else 0.0
 H, TOP, X0, Z0, L, W = 1 / 9, 16, 4, 2, 60, 60
 api = Api("http://127.0.0.1:8114"); api.wait_status(300)
+tick0 = api.debug("water_av_fixed_tick", {}).get("seconds", 1.0 / 60.0)   # 50 W1f: restored as found (the default is 1/60 now)
 api.debug("water_av_realtime", {"on": True}); api.debug("water_av_record_draw", {"radius": 120.0}); api.debug("water_av_fixed_tick", {"seconds": tick})
 for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
 box = {"x1": X0, "y1": TOP, "z1": Z0, "x2": X0 + L - 1, "y2": TOP + 2, "z2": Z0 + W - 1}
@@ -37,5 +38,5 @@ for w in range(4):
     for k, x in sorted(row["phases"].items()):
         if x >= 0.05: print(f"     {x:7.3f}  {k}", flush=True)
 for v in api.debug("water_av_list").get("volumes", []): api.debug("water_av_destroy", {"id": v["id"], "discard": True})
-api.debug("water_av_fixed_tick", {"seconds": 0.0}); api.debug("water_av_record_draw", {"radius": 48.0})
+api.debug("water_av_fixed_tick", {"seconds": tick0}); api.debug("water_av_record_draw", {"radius": 48.0})
 OUT.write_text(json.dumps(res, indent=1))

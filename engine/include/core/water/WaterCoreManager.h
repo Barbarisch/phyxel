@@ -300,8 +300,10 @@ public:
     /// 27.26 THE FIXED WATER TICK: > 0 = update(frame dt) steps the water in ticks of this many seconds from an accumulator (0, 1, 2 ...
     /// a frame, at most kMaxTicksPerFrame - a longer backlog is dropped and counted), so the water moves the same at any frame rate
     /// and the same live as in the tests. 0 = one tick of the frame's dt (until 2026-10-23: a 30 fps frame let the 60 x 60 m lake
-    /// slosh for ever - the solver's dissipation is per step). Not the default yet: at > 60 fps the surface then moves at 60 Hz.
-    static inline float s_fixedTickS = 0.0f;
+    /// slosh for ever - the solver's dissipation is per step). §50 W1f: THE DEFAULT since 2026-11-01 (the owner: "60hz water sounds
+    /// fine"); above 60 fps the surface moves at 60 Hz. The rate is never a tier knob - 1/30 s ticks change the outcome (27.26).
+    static constexpr float kFixedTickDefaultS = 1.0f / 60.0f;
+    static inline float s_fixedTickS = kFixedTickDefaultS;
     static constexpr int kMaxTicksPerFrame = 4;
     long ticksDropped() const { return m_ticksDropped; }
     void setRealtime(bool on) { m_realtime = on; }

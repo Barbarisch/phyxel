@@ -61,6 +61,7 @@ def main():
     api.debug("water_av_realtime", {"on": True})
     rec0 = api.debug("water_av_record_tiles", {}).get("default", False)
     draw0 = api.debug("water_av_record_draw", {}).get("radius_m", 48.0)
+    tick0 = api.debug("water_av_fixed_tick", {}).get("seconds", 1.0 / 60.0)   # 50 W1f: restored as found (the default is 1/60 now)
     api.debug("water_av_record_draw", {"radius": 120.0})   # the rig: the record is drawn 48 m round the view by default - the far lake vanished
     out = {"pose": pose, "box": [X0, Z0, L, W], "strength": a.strength, "takes": {}}
 
@@ -127,7 +128,7 @@ def main():
     finally:
         destroy_all(api)
         api.debug("water_av_record_draw", {"radius": draw0})
-        api.debug("water_av_fixed_tick", {"seconds": 0.0})
+        api.debug("water_av_fixed_tick", {"seconds": tick0})
         api.debug("water_av_record_tiles", {"default": rec0})
 
 

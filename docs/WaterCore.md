@@ -8726,7 +8726,7 @@ and 141 columns awake - keep: the record 511.9993 of 512 placed (the fill's floa
 seeded then discarded: dry, 511.9993 (the live double count, 1,024, gone); RED: the raw free leaves 255.9997. Live (bench): keep 512.0
 kept, re-seeded 512.0. GPU water 56/58 (the known two), unit 312/312.
 
-### 27.26 The water moves the same at any frame rate (2026-10-23). Status: BUILT; the fixed tick OFF by default - THE OWNER'S CALL
+### 27.26 The water moves the same at any frame rate (2026-10-23). Status: BUILT; the fixed tick ON by default since 2026-11-01 (the owner's call, 50.5)
 
 **Cause of 27.24's never-settling 60 x 60 m lake:** not the trench (a 60 x 28 m lake over it settles, 1.5 ms mean). Live, a water tick
 was a FRAME (`update(frame dt)`, one tick). The big lake's own cost slowed the frame, and (1) the freeze / sleep tests were per tick -
@@ -12198,7 +12198,7 @@ and the order-dependent `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles
 **For the owner:** nothing to see - the look does not change; the water no longer vanishes when a stone stirs a deep pond whose box
 reaches past its banks. Sign-off is on the numbers.
 
-## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3)
+## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3); W1f BUILT, ON (50.5)
 
 ### 50.1 The owner's words, and what changes
 
@@ -12265,7 +12265,7 @@ at the read are not separated - stated, not yet explained.
 
 ### 50.4 W1's next steps (the agent's proposed order; the owner can change it)
 
-1. **W1f - the fixed tick ON by default** (27.26, the owner's call): today's measurement is the reason. Its cost, the surface at
+1. **W1f - the fixed tick ON by default** - DONE 2026-11-01 (50.5; the owner: "60hz water sounds fine" - no interpolation for now). Today's measurement is the reason. Its cost, the surface at
    60 Hz above 60 fps, is answered by drawing between two water states (interpolating the surface heights), measured for its
    cost. Red: the lake at shipped settings, awake columns at 44 s (1,250-2,000 now; prediction 0).
 2. **W1g - tiles stop cycling, and a wake the frame can carry:** the cycling's cause measured (27.13 item 2); the tile record and
@@ -12276,6 +12276,49 @@ at the read are not separated - stated, not yet explained.
 4. **W1d.3 - the CPU mirror goes**, then **W1e**: a lake past today's 16 M-cell cap, live, cost by the awake water.
 Then W2 (the far drawing past the 48 m record radius - 27.27 saw the far half of the lake not drawn), W3, W4.
 Each passes `/design-check` before it is built.
+
+### 50.5 W1f - the fixed 1/60 s water tick ON by default (2026-11-01). Status: BUILT, ON (the owner: "60hz water sounds fine"), not signed off in motion
+
+**Design-check (2026-11-01): READY, three items folded in.** What existed: the tick (27.26) behind `s_fixedTickS = 0`. The live
+caller caps a frame at 0.05 s (`Application.cpp`, `update(min(dt, 0.05))`), so a live frame carries at most 3 ticks and the
+4-tick drop (`ticks_dropped`) never happens live - below 20 fps the water already ran slow in both modes. Droplets and ripples
+keep stepping on the frame. Items: (1) two tools reset the tick to 0 when done (`water_fixed_tick_video.py`,
+`water_host_phases.py`) - they now restore what they found; (2) the tests that drive `update()` were read one by one: those that
+model "the engine's shape" (the disabled diagnostic `DiagBenchPondThroughTheManager` at 1/60 and 1/165 s frames, the recording tests' live path at 1/240 s)
+follow the engine's default, the rest set their tick themselves or step by hand - none needed a change; (3) **the tick RATE is
+never a tier knob** (1/30 s ticks change the outcome, 27.26): every tier steps the same 1/60 s water, a tier changes only how
+many ticks fit in its frame.
+
+**What changed:** `WaterCoreManager::kFixedTickDefaultS = 1/60` (`s_fixedTickS` starts there; `water_av_fixed_tick` echoes it);
+the two tools. Pinned: `WaterFixedTick.TheDefaultIsOneSixtieth` (unit) - RED on the old default (0 vs 0.016666668), green now.
+
+**Live red -> green** (WaterBench_Creek, Release, the 60 x 60 m lake of 50.3, a stone, recording off, auto-sleep off; the
+tool makes NO tick call - the engine's own default; `w1f_lake.json`):
+| | runs | 44 s after the stone | fps 0-8 s / 36-44 s | CPU frame 0-8 s | water host CPU 0-8 s / 36-44 s |
+|---|---|---|---|---|---|
+| RED: the old default (50.3, the previous binary) | 2 | 1,250-2,000 awake, never still | 98 / 88-96 | 10.5-10.7 ms | 12.1-12.3 / 12.8-14.8 ms |
+| W1f default | 4 | **asleep, 4 of 4** | 162-178 / 212-220 | 7.3-8.5 ms | 4.6-5.3 / 0.044-0.048 ms |
+| control: the same binary, `water_av_fixed_tick {0}` | 2 | 2,547-2,819 awake | 91-92 / 81-84 | 11.3-12.1 ms | 12.7-12.8 / 15.7-16.6 ms |
+The GPU frame 4.4-4.7 ms in every row (the water's own call ~3.1-3.7 ms while awake). Books: 7,199.9994-7,199.9998 m^3 at shipped
+(placed 7,200), 7,199.998-7,199.9988 in the control; 0 in the rock. Worst frames while awake 34-45 ms in every row (the stone's
+first frames; unchanged by the tick).
+
+**L5 (the outcome check, WaterBench_Small, the new binary; `l5_w1f.json`, `l5_w1f_powered.json`):** a 3 + 3 session with
+far_dry: nothing rose, the mass within 1e-5 m^3, the level within 0.5 mm, the red caught (the wood on the bed, 1.26 m low);
+UNDERPOWERED (A13: never a pass). The powered session, 6 near + 6 far interleaved: **PASS** (the distribution judge, 20 tests,
+Holm 0.05; the closest wood_x location p 0.041 against 0.0025); the fence (uncalibrated, not counted) misses far_f's level by
+0.2 mm (0.45 mm vs the near spread's 0.25); nothing rose in any run.
+
+**Gates:** water unit 355 / 355; GPU water integration 75 / 77 (the known two: `GpuFlipBulkParityAndRunup`,
+`ShortWaveMatchesAllFineAndTheBooksAreExact`); full unit 4,490 passed, 20 skipped, 2 failed - the known `FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundary...` and
+the order-dependent `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles` (alone 3 / 3, as before the change).
+
+**Not measured:** a 30 fps frame (two ticks a frame; the bench has no frame cap - the cost at the 30 tier is not measured); the
+surface's 60 Hz motion on a fast monitor (no interpolation built; the owner accepted it); a creek or a wading character under the
+new tick (their tests pass; no live run).
+
+**For the owner:** nothing new to look at beyond the 27.26 clip (`ft_look_fixed_side_by_side.mp4`, the right half is this
+default). A big lake now goes still after a stone at shipped settings.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
