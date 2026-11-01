@@ -12198,7 +12198,7 @@ and the order-dependent `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles
 **For the owner:** nothing to see - the look does not change; the water no longer vanishes when a stone stirs a deep pond whose box
 reaches past its banks. Sign-off is on the numbers.
 
-## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3); W1f BUILT, ON (50.5); W1g.1 the neighbour rule BUILT, the recording runaway OPEN (50.6)
+## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3); W1f BUILT, ON (50.5); W1g.1 the neighbour rule BUILT; the runaway traced to the SOLVER heating still deep water (50.6a), OPEN
 
 ### 50.1 The owner's words, and what changes
 
@@ -12380,6 +12380,24 @@ mesh across recorded tiles, not the policy: it runs the old rule (stated at the 
 red 4 off).
 
 **Gates:** water unit 355 / 355; GPU water integration 76 / 78 (the known two; the new test green with its red).
+
+**50.6a The runaway is the solver, not recording (2026-11-01, MEASURED).** The kinetic energy logged 4x a second through 6 more
+recording-ON runs (`w1g_ke.json`): runs that settle fall 1.4e-7 -> 4e-8 -> 8e-10 -> 0 J by 25-31 s; runs that run away PLATEAU at
+4e-8 - 2e-7 J for 60 s+ while 200-2,300 columns read "moving" - 27.13 open item 1's signature. Then, one variable at a time (3 runs
+each, 90 s; `w1g_ke_*.json`):
+| recording | a collect after every call (`settle_after_test`) | tall cells | ran away | energy from 19 to 76 s |
+|---|---|---|---|---|
+| OFF | yes | on (shipped) | 2 of 3 | plateau 2-3e-7 J |
+| OFF | yes | off | 3 of 3 | grows 7e-7 -> 4e-6 J |
+| ON | no | off | 3 of 3 | (awake 3,400-3,700 at 90 s) |
+| **OFF** | **no** | **off** | **2 of 3** | **grows 5.6e-7 -> 2.9e-6, 6.7e-7 -> 4.5e-6 J** |
+**Still water gains energy in the 2 m lake with nothing touching it** - no record, no collect, no write - once tall cells are off.
+With tall cells on (most of the column one cell) it shows as a plateau, not growth; it is hidden whenever the lake sleeps before it
+builds (the shipped settings, 50.5: 4 of 4 asleep). Anything that delays sleep - recording's records and wakes, a collect between
+calls - gives it time. So W1g's runaway, 27.13 item 1 and 27.14's long-rest column spikes are very likely one defect: **the core
+solver is not energy-stable at sub-millimetre motion in deep water.** Not measured yet: whether it is the depth (fine cells under
+the surface), the basin's size, or the partial wake (frozen columns as walls); a small deterministic rig. This now comes before
+W1g's remaining items: recording cannot be trusted on a solver that heats still water.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
