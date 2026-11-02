@@ -857,11 +857,19 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
     std::printf("  freeze zeroes velocity %d\n", int(WaterCoreGpu::s_freezeZeroesVelocity));
     struct RestoreDev { ~RestoreDev() { WaterCoreGpu::s_pressureDeviation = true; } } restoreDev;
     if (std::getenv("E_ABSP")) WaterCoreGpu::s_pressureDeviation = false;   // 50.6d: the absolute-pressure solve (the control)
+    struct RestoreAir { ~RestoreAir() { WaterCoreGpu::s_airRisesEverywhereForTest = false; } } restoreAir;
+    if (std::getenv("E_AIR")) WaterCoreGpu::s_airRisesEverywhereForTest = true;   // 50.6e: the trapped-air rule everywhere
+    struct RestoreSettle { bool was = WaterCoreGpu::s_columnSettle; ~RestoreSettle() { WaterCoreGpu::s_columnSettle = was; } } restoreSettle;
+    if (std::getenv("E_SETTLE")) WaterCoreGpu::s_columnSettle = env("E_SETTLE", 1) != 0;   // 50.6f: the per-column settle damping (0 = the control)
+    struct RestoreCs { ~RestoreCs() { WaterCoreGpu::s_compactionSpeedOverrideForTest = -1.0f; } } restoreCs;
+    if (std::getenv("E_CSPEED")) WaterCoreGpu::s_compactionSpeedOverrideForTest = static_cast<float>(env("E_CSPEED", -1.0));   // 50.6e
+    std::printf("  compaction speed override %.3f m/s\n", WaterCoreGpu::s_compactionSpeedOverrideForTest);
+    std::printf("  air rises everywhere %d\n", int(WaterCoreGpu::s_airRisesEverywhereForTest));
     const float pushRadius = static_cast<float>(env("E_RADIUS", 0.5));
     std::printf("  pressure deviation %d, push radius %.1f m\n", int(WaterCoreGpu::s_pressureDeviation), pushRadius);
     const bool capBefore = WaterCoreManager::unitCapture();
     struct RestoreCap { bool c; ~RestoreCap() { WaterCoreManager::setUnitCapture(c); } } restoreCap{capBefore};
-    if (std::getenv("E_UNITS")) WaterCoreManager::setUnitCapture(true);
+    if (std::getenv("E_UNITS") || std::getenv("E_COLS")) WaterCoreManager::setUnitCapture(true);
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr(state);
     std::string err;
@@ -878,13 +886,54 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
     const int per = static_cast<int>(std::lround(1.0 / dt));
     for (int k = 1; k <= per * seconds; ++k) {
         if (k == per * 5 && strength > 0.0f) mgr.addImpulse(glm::vec3(W * 0.5f, depth - 0.1f, W * 0.5f), pushRadius, strength, glm::vec3(0.0f, -1.0f, 0.0f));
+        if (std::getenv("E_STAGES") && k == per * static_cast<int>(env("E_STAGES", 28))) {   // 50.6e: each fill stage's gross change, 4 s
+            WaterCoreGpu::s_stageCapture = true; WaterCoreGpu::s_stageCalls = 0;
+            for (int s = 0; s < WaterCoreGpu::kStages; ++s) { WaterCoreGpu::s_stageDm[s] = 0.0; WaterCoreGpu::s_stageAbsMax[s] = 0.0; WaterCoreGpu::s_stageAbsSum[s] = 0.0; }
+        }
         mgr.step(id, 1, dt, &rec);
+        if (std::getenv("E_STAGES") && k == per * (static_cast<int>(env("E_STAGES", 28)) + 4)) {
+            WaterCoreGpu::s_stageCapture = false;
+            const char* names[WaterCoreGpu::kStages] = {"between", "sources", "gather", "carry-up", "ledger", "compaction", "rest of substep", "residue", "births"};
+            std::printf("    stages over %ld captured calls (cell fractions): largest |df| / sum |df| a call / net a call\n", WaterCoreGpu::s_stageCalls);
+            for (int s = 1; s < WaterCoreGpu::kStages; ++s)
+                std::printf("      %-16s %.2e  %.3e  %+.2e\n", names[s], WaterCoreGpu::s_stageAbsMax[s], WaterCoreGpu::s_stageAbsSum[s] / std::max(1L, WaterCoreGpu::s_stageCalls), WaterCoreGpu::s_stageDm[s] / std::max(1L, WaterCoreGpu::s_stageCalls));
+        }
         if (k % (2 * per)) continue;
         (void)mgr.totalMass();   // reads the volume back: the record's kinetic energy is the host grid's (synchronous steps - no change to stepping)
         const AvRecord* r = mgr.find(id);
         if (!r) break;
-        std::printf("  t %5.1f s  ke %.3e  awake %5d frozen %5d moving %5d  asleep %d  tall %d  gpu %.2f ms  carry flow %.2e parked %.2e body %.2e  mass %.6f\n", k * dt, r->kineticEnergy,
-                    r->awakeColumns, r->frozenColumns, r->movingColumns, int(r->asleep), int(r->tallActive), r->gpuDeviceMs, r->carryFlowM3, r->carryParkedM3, r->carryBodyM3, mgr.totalMass());
+        std::printf("  t %5.1f s  ke %.3e  awake %5d frozen %5d moving %5d settling %5d  asleep %d  tall %d  gpu %.2f ms  carry flow %.2e parked %.2e body %.2e  mass %.6f\n", k * dt, r->kineticEnergy,
+                    r->awakeColumns, r->frozenColumns, r->movingColumns, r->settlingColumns, int(r->asleep), int(r->tallActive), r->gpuDeviceMs, r->carryFlowM3, r->carryParkedM3, r->carryBodyM3, mgr.totalMass());
+        if (std::getenv("E_VOIDS")) {   // 50.6e: air under water - a cell short of full with water above it (the splash's pockets)
+            if (const WaterGrid* g = mgr.gridForTest(id)) {
+                long n = 0, big = 0; double missing = 0.0; int yMin = 1 << 30, yMax = -1;
+                for (int z = 0; z < g->nz(); ++z) for (int y = 0; y + 1 < g->ny(); ++y) for (int x = 0; x < g->nx(); ++x) {
+                    const float fc = g->f(x, y, z), fa = g->f(x, y + 1, z);
+                    if (fa < 0.5f || fc >= 0.999f) continue;
+                    ++n; missing += 1.0 - fc; if (fc < 0.5f) ++big; yMin = std::min(yMin, y); yMax = std::max(yMax, y);
+                }
+                std::printf("      air under water: %ld cells short of full (%ld under half), %.3f m^3 missing, y %d..%d\n", n, big, missing * std::pow(g->h(), 3), yMin, yMax);
+            }
+        }
+        if (std::getenv("E_COLS")) {   // 50.6e: why each brick column fails the freeze test (keWake x10, maxDeltaFQuiet x10 a tick)
+            std::vector<glm::vec4> u; glm::ivec3 dims, off; float hh = 0.0f;
+            if (mgr.unitMap(id, u, dims, off, hh) && !u.empty()) {
+                const double keB = 1e-6 * 10.0, dB = 1e-5 * 10.0;
+                long keOnly = 0, dOnly = 0, both = 0, quiet = 0; std::vector<double> ds, ks;
+                for (int bz = 0; bz < dims.z; ++bz) for (int bx = 0; bx < dims.x; ++bx) {
+                    double k = 0.0, m = 0.0, d = 0.0;
+                    for (int uy = 0; uy < dims.y; ++uy) { const glm::vec4& q = u[size_t(bx) + size_t(dims.x) * (uy + size_t(dims.y) * bz)]; k += q.x; d = std::max(d, double(q.y)); m += q.z; }
+                    if (m < 1e-3) continue;
+                    const bool kf = k / m >= keB, df = d >= dB;
+                    keOnly += kf && !df; dOnly += df && !kf; both += kf && df; quiet += !kf && !df;
+                    ds.push_back(d / dB); ks.push_back(k / m / keB);
+                }
+                std::sort(ds.begin(), ds.end()); std::sort(ks.begin(), ks.end());
+                auto pc = [](const std::vector<double>& v, double p) { return v.empty() ? 0.0 : v[std::min(v.size() - 1, size_t(p * v.size()))]; };
+                std::printf("      columns: quiet %ld, fail KE only %ld, |df| only %ld, both %ld | |df|/bound p50 %.2f p90 %.2f max %.1f | KE/bound p50 %.2f p90 %.2f max %.1f\n",
+                            quiet, keOnly, dOnly, both, pc(ds, 0.5), pc(ds, 0.9), ds.empty() ? 0.0 : ds.back(), pc(ks, 0.5), pc(ks, 0.9), ks.empty() ? 0.0 : ks.back());
+            }
+        }
         if (std::getenv("E_UNITS")) {   // where the motion is: the units (brick column x a height band) with the largest |df| and energy
             std::vector<glm::vec4> u; glm::ivec3 dims, off; float hh = 0.0f;
             if (mgr.unitMap(id, u, dims, off, hh) && !u.empty()) {

@@ -100,6 +100,7 @@ struct GpuStepStats {
     int    awakeColumns = 0;         ///< 26.31: brick columns stepped by this call (the partial wake; all stored columns without it)
     int    frozenColumns = 0;        ///< 26.31: brick columns frozen this call (not stepped; a wall to the awake ones)
     int    movingColumns = 0;        ///< 26.31: of the awake, those failing the sleep test themselves (the rest is the margin)
+    int    settlingColumns = 0;      ///< 50.6f: of the awake, those quiet by energy and damped (only their level still moves)
     int    stepSlots = 0;            ///< 26.31 step 2: slots the step dispatched (the awake bricks + the two sentinels; 0 = all)
     int    dispatches = 0;           ///< 28: compute dispatches this call recorded (all substeps), and the barriers between them
     int    barriers = 0;
@@ -253,6 +254,11 @@ public:
         float unitsDt = 1.0f / 60.0f;    ///< 27.26: the collected call's tick (s)
         double quietRef = 0.0;           ///< 27.26: the volume's quiet time in 1/60 s ticks (quietTicks = its integer part)
         std::vector<char> colFrozen, colWake;   ///< frozen now; a wake asked for since the last call
+        /// 50.6f SETTLING: a stored, awake column whose energy passes the freeze test's KE bound (only its level still moves) - its
+        /// faces are damped at restDamping (FaceOps mode 11). Bricks[tallOff + dColumns + bx + bn.x bz] holds the flags on the device.
+        std::vector<char> colEnergyQuiet, colSettle;
+        bool settleDirty = false, anySettle = false;
+        int settleCols = 0;
         std::vector<int> newlyFrozen;            ///< §50.6b: columns that froze this call - their velocities zeroed in it (s_freezeZeroesVelocity)
         bool wakeAllPending = false, anyFrozen = false;
         // §27 W1b: RECORDED brick columns - the record (chunk spans + bodies) holds their water. Every brick of such a column reads the
@@ -387,6 +393,17 @@ public:
     /// at 2 m) left a biased residual: every still column drifted up, 0 at the bed to 1.1e-5 m/s at the surface of a 2 m pond
     /// (depth squared, sweep-independent; the CPU, in double, exactly still). ON; false only for the red run of the test.
     static inline bool s_pressureDeviation = true;
+    /// 50.6e TEST: the trapped-air rule (a buried void under a full cell rises out at 0.25 m/s) everywhere, not only in a body's wake
+    static inline bool s_airRisesEverywhereForTest = false;
+    /// 50.6f (owner 2026-11-02, "damp tiny sloshes"): under the partial wake, a column quiet by ENERGY (the freeze test's KE bound)
+    /// whose level still moves is damped at restDamping until it freezes. Measured (50.6e): after a visible push every column of the
+    /// 60 m lake failed the freeze test only on its level for ~40 s - a sub-mm wave field the transport turned into mist and
+    /// compaction cleaned up every tick (net 0) - the whole lake simulated at 20-32 ms a call. MEASURED, DID NOT HELP (50.6f): in that
+    /// phase the volume is already in its own settle band (rest damping on every face, compaction at free fall) - the motion is
+    /// re-driven by the fill churn, not left over. OFF (a measurement switch); kept for the loop's later bisection.
+    static inline bool s_columnSettle = false;
+    /// 50.6e TEST: compaction's speed in moving water (m/s; < 0 = SolverParams::compactionSpeed)
+    static inline float s_compactionSpeedOverrideForTest = -1.0f;
     static inline bool s_stillWaterGuess = true;    // ON (26.10): the resting-body loss was float rounding in the fill store, fixed (fLo)
     /// 26.17: the brick height (cells) a volume gets when its BrickOptions name none - 2, 4 or 8 (bricks are 8 x h x 8). 2 since
     /// 26.17's bench run: the creek at q 0.2 stored 691,200 -> 457,984 cells, GPU 1.83 -> 1.57 ms a call, the water identical
@@ -423,6 +440,8 @@ public:
     static constexpr int kStages = 9;
     static inline bool s_stageCapture = false;
     static inline double s_stageDm[kStages] = {};
+    /// 50.6e: the same stages' GROSS change - the largest |df| of a cell (max over the captured calls) and the sum of |df|
+    static inline double s_stageAbsMax[kStages] = {}, s_stageAbsSum[kStages] = {};
     static inline long s_stageCalls = 0;
     /// 26.11 test hook: GPU time per stage of single-tick, single-substep calls (timestamps; ms accumulated in s_tsMs[label]).
     enum TsLabel : int { TsStart = 0, TsResidency, TsSources, TsTransport, TsVelAdvect, TsCompaction, TsForces, TsClassify, TsSweeps,

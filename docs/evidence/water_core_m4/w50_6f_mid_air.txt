@@ -1,0 +1,100 @@
+Running main() from G:\Github\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = *DiagStillWaterEnergy*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from WaterRecordTilesTest
+[ RUN      ] WaterRecordTilesTest.DISABLED_DiagStillWaterEnergy
+  disabled stages 0
+  compaction band override -1.0e+00
+  freeze zeroes velocity 0
+  air rises everywhere 1
+  pressure deviation 1, push radius 2.0 m
+[32m[07:27:08.209] [INFO] [ComputePipeline] Created: shaders/wc_fill_advect.comp.spv (10 bindings)[0m
+[32m[07:27:08.209] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[07:27:08.210] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[07:27:08.210] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[07:27:08.211] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[07:27:08.211] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[07:27:08.211] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[07:27:08.212] [INFO] [ComputePipeline] Created: shaders/wc_column_ops.comp.spv (11 bindings)[0m
+[32m[07:27:08.669] [INFO] [ComputePipeline] Created: shaders/wc_classify.comp.spv (13 bindings)[0m
+[32m[07:27:08.670] [INFO] [ComputePipeline] Created: shaders/wc_rbgs.comp.spv (7 bindings)[0m
+[32m[07:27:08.671] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[07:27:08.671] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[07:27:08.671] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[07:27:08.671] [INFO] [ComputePipeline] Created: shaders/wc_reduce.comp.spv (12 bindings)[0m
+[32m[07:27:08.672] [INFO] [ComputePipeline] Created: shaders/wc_sources.comp.spv (5 bindings)[0m
+[32m[07:27:08.672] [INFO] [ComputePipeline] Created: shaders/wc_surface.comp.spv (12 bindings)[0m
+[32m[07:27:08.672] [INFO] [ComputePipeline] Created: shaders/wc_bricks.comp.spv (6 bindings)[0m
+[32m[07:27:08.673] [INFO] [ComputePipeline] Created: shaders/wc_momentum.comp.spv (7 bindings)[0m
+[32m[07:27:08.673] [INFO] [ComputePipeline] Created: shaders/wc_tall.comp.spv (7 bindings)[0m
+[32m[07:27:08.674] [INFO] [ComputePipeline] Created: shaders/wc_rbgs_line.comp.spv (6 bindings)[0m
+[32m[07:27:08.674] [INFO] [ComputePipeline] Created: shaders/wc_surface_mesh.comp.spv (12 bindings)[0m
+[32m[07:27:08.675] [INFO] [ComputePipeline] Created: shaders/wc_body_pressure.comp.spv (9 bindings)[0m
+  60 x 60 m, 2 m deep, tall 0.50 m, partial wake 1, push 8.0, dt 0.0167 s, placed 7200.0000 m^3
+  t   2.0 s  ke 4.967e-14  awake  4624 frozen     0 moving  4624  asleep 1  tall 1  gpu 0.00 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999944
+      air under water: 0 cells short of full (0 under half), 0.000 m^3 missing, y 1073741824..-1
+  t   4.0 s  ke 4.967e-14  awake  4624 frozen     0 moving  4624  asleep 1  tall 1  gpu 0.00 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999944
+      air under water: 0 cells short of full (0 under half), 0.000 m^3 missing, y 1073741824..-1
+  t   6.0 s  ke 1.506e+01  awake  1256 frozen  3368 moving   960  asleep 0  tall 0  gpu 7.45 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999937
+      air under water: 46306 cells short of full (1 under half), 1.808 m^3 missing, y 0..25
+  t   8.0 s  ke 5.233e+00  awake  2926 frozen  1698 moving  2459  asleep 0  tall 0  gpu 19.31 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999928
+      air under water: 66354 cells short of full (0 under half), 1.793 m^3 missing, y 0..17
+  t  10.0 s  ke 2.675e+00  awake  4414 frozen   210 moving  4168  asleep 0  tall 0  gpu 18.98 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999928
+      air under water: 108554 cells short of full (0 under half), 1.109 m^3 missing, y 0..17
+  t  12.0 s  ke 7.346e-01  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 17.84 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999928
+      air under water: 175798 cells short of full (0 under half), 0.491 m^3 missing, y 0..16
+  t  14.0 s  ke 1.206e-01  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 18.60 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999928
+      air under water: 713117 cells short of full (0 under half), 3.384 m^3 missing, y 0..16
+  t  16.0 s  ke 2.062e-02  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 19.28 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999928
+      air under water: 766147 cells short of full (0 under half), 3.207 m^3 missing, y 0..16
+  t  18.0 s  ke 3.884e-03  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 18.11 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999927
+      air under water: 372375 cells short of full (0 under half), 1.362 m^3 missing, y 1..16
+  t  20.0 s  ke 2.133e-03  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 18.56 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999925
+      air under water: 239673 cells short of full (0 under half), 0.992 m^3 missing, y 1..16
+  t  22.0 s  ke 1.505e-03  awake  4621 frozen     3 moving  4206  asleep 0  tall 0  gpu 19.04 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999924
+      air under water: 224298 cells short of full (0 under half), 0.904 m^3 missing, y 2..16
+  t  24.0 s  ke 8.009e-04  awake  4624 frozen     0 moving  4137  asleep 0  tall 0  gpu 18.88 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999923
+      air under water: 199366 cells short of full (0 under half), 0.800 m^3 missing, y 2..16
+  t  26.0 s  ke 4.557e-04  awake  4624 frozen     0 moving  4589  asleep 0  tall 0  gpu 18.99 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999920
+      air under water: 102286 cells short of full (0 under half), 0.417 m^3 missing, y 3..16
+  t  28.0 s  ke 3.079e-04  awake  4624 frozen     0 moving  3646  asleep 0  tall 0  gpu 17.68 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999912
+      air under water: 94588 cells short of full (0 under half), 0.384 m^3 missing, y 3..16
+  t  30.0 s  ke 1.290e-04  awake  4624 frozen     0 moving  4546  asleep 0  tall 0  gpu 18.71 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999906
+      air under water: 47046 cells short of full (0 under half), 0.189 m^3 missing, y 4..16
+  t  32.0 s  ke 3.496e-05  awake  4600 frozen    24 moving  4059  asleep 0  tall 0  gpu 18.85 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999887
+      air under water: 33717 cells short of full (0 under half), 0.143 m^3 missing, y 5..16
+  t  34.0 s  ke 1.960e-05  awake  4623 frozen     1 moving  4385  asleep 0  tall 0  gpu 19.36 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999851
+      air under water: 19380 cells short of full (0 under half), 0.081 m^3 missing, y 6..16
+  t  36.0 s  ke 1.025e-05  awake  4583 frozen    41 moving  4184  asleep 0  tall 0  gpu 19.54 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999789
+      air under water: 15677 cells short of full (0 under half), 0.064 m^3 missing, y 6..16
+  t  38.0 s  ke 8.810e-06  awake  4587 frozen    37 moving  4230  asleep 0  tall 0  gpu 18.65 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999697
+      air under water: 11615 cells short of full (0 under half), 0.045 m^3 missing, y 7..16
+  t  40.0 s  ke 5.103e-06  awake  4579 frozen    45 moving  3965  asleep 0  tall 0  gpu 18.93 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999621
+      air under water: 9197 cells short of full (0 under half), 0.034 m^3 missing, y 7..16
+  t  42.0 s  ke 3.246e-06  awake  4532 frozen    92 moving  3666  asleep 0  tall 0  gpu 18.31 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999517
+      air under water: 7337 cells short of full (0 under half), 0.027 m^3 missing, y 7..16
+  t  44.0 s  ke 2.354e-06  awake  4490 frozen   134 moving  3330  asleep 0  tall 0  gpu 19.54 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999316
+      air under water: 5758 cells short of full (0 under half), 0.020 m^3 missing, y 8..16
+  t  46.0 s  ke 1.640e-06  awake  4447 frozen   177 moving  2904  asleep 0  tall 0  gpu 18.93 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999167
+      air under water: 4321 cells short of full (0 under half), 0.015 m^3 missing, y 7..16
+  t  48.0 s  ke 1.538e-06  awake  4304 frozen   320 moving  2513  asleep 0  tall 0  gpu 18.44 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.998932
+      air under water: 3298 cells short of full (0 under half), 0.011 m^3 missing, y 8..16
+  t  50.0 s  ke 1.065e-06  awake  3865 frozen   759 moving  1841  asleep 0  tall 0  gpu 17.97 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.998745
+      air under water: 2323 cells short of full (0 under half), 0.008 m^3 missing, y 8..16
+  t  52.0 s  ke 6.121e-07  awake  3054 frozen  1570 moving  1273  asleep 0  tall 0  gpu 13.72 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.998579
+      air under water: 1570 cells short of full (0 under half), 0.005 m^3 missing, y 9..16
+  t  54.0 s  ke 4.464e-07  awake  2142 frozen  2482 moving   811  asleep 0  tall 0  gpu 12.90 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.998512
+      air under water: 963 cells short of full (0 under half), 0.003 m^3 missing, y 9..16
+  t  56.0 s  ke 3.275e-07  awake  1623 frozen  3001 moving   576  asleep 0  tall 0  gpu 15.42 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.998504
+      air under water: 588 cells short of full (0 under half), 0.002 m^3 missing, y 9..16
+  t  58.0 s  ke 3.076e-07  awake  1385 frozen  3239 moving   445  asleep 0  tall 0  gpu 12.72 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.998500
+      air under water: 369 cells short of full (0 under half), 0.001 m^3 missing, y 9..15
+  t  60.0 s  ke 2.160e-07  awake  1179 frozen  3445 moving   344  asleep 0  tall 0  gpu 12.68 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.998499
+      air under water: 219 cells short of full (0 under half), 0.001 m^3 missing, y 9..14
+[       OK ] WaterRecordTilesTest.DISABLED_DiagStillWaterEnergy (185488 ms)
+[----------] 1 test from WaterRecordTilesTest (185488 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (185489 ms total)
+[  PASSED  ] 1 test.

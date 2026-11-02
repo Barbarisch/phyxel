@@ -1,0 +1,101 @@
+Running main() from G:\Github\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = *DiagStillWaterEnergy*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from WaterRecordTilesTest
+[ RUN      ] WaterRecordTilesTest.DISABLED_DiagStillWaterEnergy
+  disabled stages 0
+  compaction band override -1.0e+00
+  freeze zeroes velocity 0
+  compaction speed override -1.000 m/s
+  air rises everywhere 0
+  pressure deviation 1, push radius 2.0 m
+[32m[07:37:09.708] [INFO] [ComputePipeline] Created: shaders/wc_fill_advect.comp.spv (10 bindings)[0m
+[32m[07:37:09.709] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[07:37:09.710] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[07:37:09.710] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[07:37:09.711] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[07:37:09.711] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[07:37:09.711] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[07:37:09.712] [INFO] [ComputePipeline] Created: shaders/wc_column_ops.comp.spv (11 bindings)[0m
+[32m[07:37:09.713] [INFO] [ComputePipeline] Created: shaders/wc_classify.comp.spv (13 bindings)[0m
+[32m[07:37:09.713] [INFO] [ComputePipeline] Created: shaders/wc_rbgs.comp.spv (7 bindings)[0m
+[32m[07:37:09.714] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[07:37:09.714] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[07:37:09.714] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[07:37:09.714] [INFO] [ComputePipeline] Created: shaders/wc_reduce.comp.spv (12 bindings)[0m
+[32m[07:37:09.715] [INFO] [ComputePipeline] Created: shaders/wc_sources.comp.spv (5 bindings)[0m
+[32m[07:37:09.715] [INFO] [ComputePipeline] Created: shaders/wc_surface.comp.spv (12 bindings)[0m
+[32m[07:37:09.716] [INFO] [ComputePipeline] Created: shaders/wc_bricks.comp.spv (6 bindings)[0m
+[32m[07:37:09.716] [INFO] [ComputePipeline] Created: shaders/wc_momentum.comp.spv (7 bindings)[0m
+[32m[07:37:09.716] [INFO] [ComputePipeline] Created: shaders/wc_tall.comp.spv (7 bindings)[0m
+[32m[07:37:09.717] [INFO] [ComputePipeline] Created: shaders/wc_rbgs_line.comp.spv (6 bindings)[0m
+[32m[07:37:09.717] [INFO] [ComputePipeline] Created: shaders/wc_surface_mesh.comp.spv (12 bindings)[0m
+[32m[07:37:09.718] [INFO] [ComputePipeline] Created: shaders/wc_body_pressure.comp.spv (9 bindings)[0m
+  60 x 60 m, 2 m deep, tall 0.50 m, partial wake 1, push 8.0, dt 0.0167 s, placed 7200.0000 m^3
+  t   2.0 s  ke 4.967e-14  awake  4624 frozen     0 moving  4624  asleep 1  tall 1  gpu 0.00 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999944
+      columns: quiet 4624, fail KE only 0, |df| only 0, both 0 | |df|/bound p50 0.00 p90 0.00 max 0.0 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t   4.0 s  ke 4.967e-14  awake  4624 frozen     0 moving  4624  asleep 1  tall 1  gpu 0.00 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999944
+      columns: quiet 4624, fail KE only 0, |df| only 0, both 0 | |df|/bound p50 0.00 p90 0.00 max 0.0 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t   6.0 s  ke 1.522e+01  awake  1273 frozen  3351 moving   977  asleep 0  tall 0  gpu 8.36 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999936
+      columns: quiet 3639, fail KE only 0, |df| only 383, both 602 | |df|/bound p50 0.00 p90 18.59 max 3460.8 | KE/bound p50 0.00 p90 6.32 max 85645.9
+  t   8.0 s  ke 5.127e+00  awake  2954 frozen  1670 moving  2490  asleep 0  tall 0  gpu 12.03 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999928
+      columns: quiet 2127, fail KE only 0, |df| only 830, both 1667 | |df|/bound p50 1.45 p90 122.49 max 756.3 | KE/bound p50 0.03 p90 66.38 max 1707.2
+  t  10.0 s  ke 2.616e+00  awake  4401 frozen   223 moving  4182  asleep 0  tall 0  gpu 19.23 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999930
+      columns: quiet 446, fail KE only 0, |df| only 1112, both 3066 | |df|/bound p50 4.98 p90 132.34 max 332.1 | KE/bound p50 3.61 p90 145.44 max 554.7
+  t  12.0 s  ke 6.782e-01  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 19.21 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999930
+      columns: quiet 0, fail KE only 0, |df| only 1601, both 3023 | |df|/bound p50 65.49 p90 445.74 max 1684.6 | KE/bound p50 3.26 p90 37.29 max 52.0
+  t  14.0 s  ke 8.741e-02  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 19.47 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999929
+      columns: quiet 17, fail KE only 0, |df| only 2912, both 1695 | |df|/bound p50 144.16 p90 540.64 max 1118.2 | KE/bound p50 0.52 p90 3.37 max 10.3
+  t  16.0 s  ke 1.725e-02  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 18.53 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999929
+      columns: quiet 0, fail KE only 0, |df| only 4550, both 74 | |df|/bound p50 105.56 p90 279.17 max 689.4 | KE/bound p50 0.18 p90 0.52 max 2.6
+  t  18.0 s  ke 3.870e-03  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 18.04 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999929
+      columns: quiet 0, fail KE only 0, |df| only 4623, both 1 | |df|/bound p50 38.29 p90 130.46 max 434.9 | KE/bound p50 0.02 p90 0.12 max 1.3
+  t  20.0 s  ke 2.345e-03  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 17.76 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999926
+      columns: quiet 34, fail KE only 0, |df| only 4590, both 0 | |df|/bound p50 8.67 p90 82.89 max 441.9 | KE/bound p50 0.01 p90 0.08 max 0.8
+  t  22.0 s  ke 1.522e-03  awake  4620 frozen     4 moving  3926  asleep 0  tall 0  gpu 20.51 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999923
+      columns: quiet 1283, fail KE only 0, |df| only 3341, both 0 | |df|/bound p50 2.73 p90 60.98 max 305.0 | KE/bound p50 0.00 p90 0.06 max 0.5
+  t  24.0 s  ke 1.091e-03  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 18.02 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999919
+      columns: quiet 47, fail KE only 0, |df| only 4577, both 0 | |df|/bound p50 6.81 p90 62.44 max 382.1 | KE/bound p50 0.00 p90 0.04 max 0.4
+  t  26.0 s  ke 7.264e-04  awake  4624 frozen     0 moving  4114  asleep 0  tall 0  gpu 18.62 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999915
+      columns: quiet 1287, fail KE only 0, |df| only 3337, both 0 | |df|/bound p50 3.57 p90 44.28 max 248.2 | KE/bound p50 0.00 p90 0.03 max 0.3
+  t  28.0 s  ke 4.473e-04  awake  4624 frozen     0 moving  4342  asleep 0  tall 0  gpu 18.97 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999910
+      columns: quiet 451, fail KE only 0, |df| only 4173, both 0 | |df|/bound p50 7.99 p90 50.22 max 290.1 | KE/bound p50 0.00 p90 0.02 max 0.3
+  t  30.0 s  ke 1.729e-04  awake  4624 frozen     0 moving  4259  asleep 0  tall 0  gpu 18.82 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999901
+      columns: quiet 949, fail KE only 0, |df| only 3675, both 0 | |df|/bound p50 4.36 p90 21.44 max 186.6 | KE/bound p50 0.00 p90 0.00 max 0.1
+  t  32.0 s  ke 6.171e-05  awake  4624 frozen     0 moving  4518  asleep 0  tall 0  gpu 18.63 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999891
+      columns: quiet 364, fail KE only 0, |df| only 4260, both 0 | |df|/bound p50 4.03 p90 13.61 max 170.5 | KE/bound p50 0.00 p90 0.00 max 0.1
+  t  34.0 s  ke 2.371e-05  awake  4624 frozen     0 moving  4476  asleep 0  tall 0  gpu 19.26 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999877
+      columns: quiet 904, fail KE only 0, |df| only 3720, both 0 | |df|/bound p50 2.45 p90 7.75 max 173.6 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  36.0 s  ke 1.331e-05  awake  4624 frozen     0 moving  4536  asleep 0  tall 0  gpu 18.04 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999853
+      columns: quiet 1206, fail KE only 0, |df| only 3418, both 0 | |df|/bound p50 1.92 p90 5.43 max 195.3 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  38.0 s  ke 8.778e-06  awake  4624 frozen     0 moving  4381  asleep 0  tall 0  gpu 18.69 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999823
+      columns: quiet 1455, fail KE only 0, |df| only 3169, both 0 | |df|/bound p50 1.58 p90 4.40 max 128.7 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  40.0 s  ke 7.234e-06  awake  4624 frozen     0 moving  4373  asleep 0  tall 0  gpu 19.86 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999771
+      columns: quiet 1679, fail KE only 0, |df| only 2945, both 0 | |df|/bound p50 1.34 p90 3.89 max 180.5 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  42.0 s  ke 5.370e-06  awake  4624 frozen     0 moving  4017  asleep 0  tall 0  gpu 18.41 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999721
+      columns: quiet 2198, fail KE only 0, |df| only 2426, both 0 | |df|/bound p50 1.06 p90 3.23 max 194.1 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  44.0 s  ke 3.625e-06  awake  4620 frozen     4 moving  3623  asleep 0  tall 0  gpu 19.08 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999635
+      columns: quiet 2677, fail KE only 0, |df| only 1947, both 0 | |df|/bound p50 0.85 p90 2.42 max 157.2 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  46.0 s  ke 2.664e-06  awake  4595 frozen    29 moving  3146  asleep 0  tall 0  gpu 18.58 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999522
+      columns: quiet 3151, fail KE only 0, |df| only 1473, both 0 | |df|/bound p50 0.63 p90 2.10 max 88.2 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  48.0 s  ke 1.834e-06  awake  4417 frozen   207 moving  2685  asleep 0  tall 0  gpu 19.41 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999377
+      columns: quiet 3565, fail KE only 0, |df| only 1059, both 0 | |df|/bound p50 0.50 p90 1.63 max 63.5 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  50.0 s  ke 1.271e-06  awake  3878 frozen   746 moving  2139  asleep 0  tall 0  gpu 17.95 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999273
+      columns: quiet 3846, fail KE only 0, |df| only 778, both 0 | |df|/bound p50 0.38 p90 1.39 max 57.7 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  52.0 s  ke 8.626e-07  awake  3351 frozen  1273 moving  1597  asleep 0  tall 0  gpu 14.68 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999197
+      columns: quiet 4063, fail KE only 0, |df| only 561, both 0 | |df|/bound p50 0.30 p90 1.11 max 98.6 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  54.0 s  ke 7.193e-07  awake  2844 frozen  1780 moving  1326  asleep 0  tall 0  gpu 17.52 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999145
+      columns: quiet 4216, fail KE only 0, |df| only 408, both 0 | |df|/bound p50 0.25 p90 0.93 max 72.2 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  56.0 s  ke 4.226e-07  awake  2472 frozen  2152 moving   930  asleep 0  tall 0  gpu 15.02 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999105
+      columns: quiet 4346, fail KE only 0, |df| only 278, both 0 | |df|/bound p50 0.20 p90 0.72 max 47.7 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  58.0 s  ke 3.962e-07  awake  1979 frozen  2645 moving   776  asleep 0  tall 0  gpu 12.97 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999074
+      columns: quiet 4437, fail KE only 0, |df| only 187, both 0 | |df|/bound p50 0.19 p90 0.60 max 97.9 | KE/bound p50 0.00 p90 0.00 max 0.0
+  t  60.0 s  ke 3.237e-07  awake  1648 frozen  2976 moving   514  asleep 0  tall 0  gpu 13.52 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999064
+      columns: quiet 4525, fail KE only 0, |df| only 99, both 0 | |df|/bound p50 0.18 p90 0.50 max 46.3 | KE/bound p50 0.00 p90 0.00 max 0.0
+[       OK ] WaterRecordTilesTest.DISABLED_DiagStillWaterEnergy (182886 ms)
+[----------] 1 test from WaterRecordTilesTest (182886 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (182886 ms total)
+[  PASSED  ] 1 test.

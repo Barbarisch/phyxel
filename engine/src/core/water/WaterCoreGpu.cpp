@@ -294,6 +294,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
         vol->counterOff = vol->colTableOff + vol->colCap; vol->infoOff = vol->counterOff + kCounters;
         vol->brickInts = vol->infoOff + 2 * vol->capacity;   // two water records per slot (any water, liquid)
         vol->tallOff = vol->brickInts; vol->brickInts += vol->dColumns;   // 27.22: one tall height per dense column (0 / 1 = an ordinary cell)
+        vol->brickInts += vol->colCap;   // 50.6f: the settle flags, one per brick column, right after the heights (water_core.glsl settleAt)
         vol->map.assign(vol->mapCount, 0); vol->slotBrick.assign(vol->capacity, -1); vol->colEntries.clear();
     } else {
         vol->cells = vol->dCells; vol->nu = vol->dNu; vol->nv = vol->dNv; vol->nw = vol->dNw; vol->columns = vol->dColumns;
@@ -813,7 +814,7 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
     vol.cells = vol.capacity * vol.bc; vol.nu = vol.nv = vol.nw = vol.cells;
     vol.colTableOff = vol.slotTableOff + vol.capacity; vol.counterOff = vol.colTableOff + vol.colCap; vol.infoOff = vol.counterOff + kCounters;
     vol.brickInts = vol.infoOff + 2 * vol.capacity;
-    vol.tallOff = vol.brickInts; vol.brickInts += vol.dColumns;
+    vol.tallOff = vol.brickInts; vol.brickInts += vol.dColumns; vol.brickInts += vol.colCap;   // 50.6f: + the settle flags
     vol.latticeMax = std::max({vol.nu, vol.nv, vol.nw});
     vol.groups = std::max(2 * ((std::max({vol.cells, vol.latticeMax, vol.columns}) + 255) / 256), static_cast<size_t>(vol.bn.x) * vol.nuy * static_cast<size_t>(vol.bn.z)) + 1;
     const VkDeviceSize F4 = sizeof(float);
@@ -847,7 +848,7 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
         for (size_t i = 0; i < std::size(scratchB); ++i) *scratchB[i] = oldScratch[i];
         vol.capacity = oldCap; vol.cells = oldCap * vol.bc; vol.nu = vol.nv = vol.nw = vol.cells;
         vol.colTableOff = vol.slotTableOff + vol.capacity; vol.counterOff = vol.colTableOff + vol.colCap; vol.infoOff = vol.counterOff + kCounters;
-        vol.brickInts = vol.infoOff + 2 * vol.capacity; vol.tallOff = vol.brickInts; vol.brickInts += vol.dColumns;
+        vol.brickInts = vol.infoOff + 2 * vol.capacity; vol.tallOff = vol.brickInts; vol.brickInts += vol.dColumns; vol.brickInts += vol.colCap;   // 50.6f
         vol.latticeMax = vol.cells;
         vol.groups = std::max(2 * ((std::max({vol.cells, vol.latticeMax, vol.columns}) + 255) / 256), static_cast<size_t>(vol.bn.x) * vol.nuy * static_cast<size_t>(vol.bn.z)) + 1;
         vol.offU = vol.cells * F4; vol.offV = vol.offU + vol.nu * F4; vol.offW = vol.offV + vol.nv * F4;
@@ -879,6 +880,7 @@ bool WaterCoreGpu::growPool(Volume& vol, size_t slots) {
     vol.slotBrick.resize(vol.capacity, -1);
     vol.hostInfo.resize(2 * vol.capacity, 0);
     writeTablesToStaging(vol);   // the column table and the counters move with the capacity
+    vol.settleDirty = true;      // 50.6f: the settle flags moved with the heights - uploaded again at the next call
     cmd = beginCommands();
     copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks);
     submitAndWait(cmd);
@@ -1149,6 +1151,7 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
     const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
     if (!vol.partialWake || !vol.bricked || !vol.sparse || nc == 0) {
         if (vol.anyFrozen) { std::fill(vol.colFrozen.begin(), vol.colFrozen.end(), 0); vol.anyFrozen = false; vol.tablesDirty = true; }
+        if (vol.anySettle) { std::fill(vol.colSettle.begin(), vol.colSettle.end(), 0); vol.anySettle = false; vol.settleCols = 0; vol.settleDirty = true; }   // 50.6f
         vol.awakeCols = vol.movingCols = vol.colCount; vol.frozenCols = 0;
         return;
     }
@@ -1164,7 +1167,10 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
             const double qs = static_cast<double>(s_columnQuietScale);   // 26.34: the freeze test's thresholds (1 = the volume's own)
             const size_t ci = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
             const double rate = s_freezePerTickForTest ? 1.0 : static_cast<double>(vol.unitsDt) * 60.0;   // 27.26: |df| a tick at this dt
-            const bool quiet = m < 1e-3 || (k / m < params.keWake * qs && d < params.maxDeltaFQuiet * qs * rate);
+            const bool energyQuiet = m < 1e-3 || k / m < params.keWake * qs;
+            const bool quiet = energyQuiet && (m < 1e-3 || d < params.maxDeltaFQuiet * qs * rate);
+            if (vol.colEnergyQuiet.size() != nc) vol.colEnergyQuiet.assign(nc, 0);
+            vol.colEnergyQuiet[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz] = energyQuiet ? 1 : 0;   // 50.6f
             int& qt = vol.colQuiet[ci];
             const int add = s_freezePerTickForTest ? vol.unitsTicks * kQuietUnitsPerTick
                                                    : std::max(1, static_cast<int>(std::lround(static_cast<double>(vol.unitsTicks) * vol.unitsDt * 600.0)));
@@ -1212,6 +1218,21 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
     vol.anyFrozen = nFrozen > 0;
     if (changed) vol.tablesDirty = true;
     vol.awakeCols = nAwake; vol.frozenCols = nFrozen; vol.movingCols = nMoving;
+    {   // 50.6f: SETTLING = stored, awake, quiet by energy (only its level still moves)
+        if (vol.colSettle.size() != nc) { vol.colSettle.assign(nc, 0); vol.settleDirty = true; }
+        std::vector<char> stored(nc, 0);
+        for (const int packed : vol.colEntries) {
+            const size_t c = static_cast<size_t>(packed & 1023) + static_cast<size_t>(vol.bn.x) * static_cast<size_t>((packed >> 10) & 1023);
+            if (c < nc) stored[c] = 1;
+        }
+        int nSettle = 0;
+        for (size_t c = 0; c < nc; ++c) {   // a column not stored is not settling
+            const char s = (s_columnSettle && stored[c] && !vol.colFrozen[c] && vol.colEnergyQuiet.size() == nc && vol.colEnergyQuiet[c]) ? 1 : 0;
+            if (s != vol.colSettle[c]) { vol.colSettle[c] = s; vol.settleDirty = true; }
+            nSettle += s;
+        }
+        vol.settleCols = nSettle; vol.anySettle = nSettle > 0;
+    }
     if (nAwake == 0 && !vol.colEntries.empty()) vol.asleep = true;   // every stored column frozen: nothing to step
 }
 
@@ -2251,7 +2272,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
         {   // compaction (fills only, 24.11): voids under liquid always - slowly (param1 m/s) in moving water, at free fall while
             // settling; under a thin film only while settling (param0 = 1)
             const float p0 = push.param0, p1 = push.param1;
-            push.mode = 1; push.param0 = quietBefore ? 1.0f : 0.0f; push.param1 = params.compactionSpeed;
+            push.mode = 1; push.param0 = quietBefore ? 1.0f : 0.0f; push.param1 = s_compactionSpeedOverrideForTest >= 0.0f ? s_compactionSpeedOverrideForTest : params.compactionSpeed;
             push.vcBand = s_compactionBandOverride >= 0.0f ? s_compactionBandOverride : params.compactionBand;   // 50.6c: the band rides vcBand (classify sets its own below)
             if (!(s_disableStagesForTest & 1)) dispatch(cmd, *vol.pipes[ColumnOps], push, cols);
             push.param0 = p0; push.param1 = p1;
@@ -2268,7 +2289,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     // projection
     stamp(cmd, vol, TsForces);
     push.mode = 0; push.param0 = vol.particles ? 1.0f : 0.0f; push.param1 = params.volumeCorrectionTime; push.vcBand = params.volumeCorrectionBand;   // 26.21: the volume correction
-    push.iparam = s_pressureDeviation ? 1 : 0;   // 50.6d: the sweeps solve the deviation from the guess (classify modes 0 / 2 / 4)
+    push.iparam = (s_pressureDeviation ? 1 : 0) | (s_airRisesEverywhereForTest ? 2 : 0);   // 50.6d: the sweeps solve the deviation from the guess (classify modes 0 / 2 / 4)
     dispatch(cmd, *vol.pipes[Classify], push, cells); push.param0 = 0.0f; push.param1 = 0.0f;
     if (s_stillWaterGuess && !(s_disableStagesForTest & 16)) { push.mode = 2; dispatch(cmd, *vol.pipes[Classify], push, cols); }   // 26.9: the still-water first guess
     if (s_pressureDeviation) { push.mode = 4; dispatch(cmd, *vol.pipes[Classify], push, cells); }   // 50.6d: rhs -= A pg (the surface ghost too, guess or not)
@@ -2303,6 +2324,11 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     } else if (params.pondFriction > 0.0f) {   // 24.7 pond friction: all motion, every substep (WaterSolver::applyPondFriction)
         push.mode = 9; push.param0 = std::max(0.0f, 1.0f - params.pondFriction * push.dt);
         for (int L = 0; L < 3; ++L) { push.iparam = vol.bricked ? L : static_cast<int32_t>(n[L]); dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }
+        barrier(cmd);
+    }
+    if (vol.anySettle && vol.bricked) {   // 50.6f: the settling columns' faces at the rest rate (FaceOps mode 11)
+        push.mode = 11; push.param0 = std::min(1.0f, params.restDamping * push.dt);
+        for (int L = 0; L < 3; ++L) { push.iparam = L; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }
         barrier(cmd);
     }
     if (quietBefore) {
@@ -2453,7 +2479,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     WaterHostProfile::lap("gpu.02 grow pool", hp);
     if (!vol.asleep) updatePartialWake(vol, params);   // 26.31: may freeze every column (asleep)
     WaterHostProfile::lap("gpu.03 partial wake (freeze test)", hp);
-    st.awakeColumns = vol.awakeCols; st.frozenColumns = vol.frozenCols; st.movingColumns = vol.movingCols;
+    st.awakeColumns = vol.awakeCols; st.frozenColumns = vol.frozenCols; st.movingColumns = vol.movingCols; st.settlingColumns = vol.settleCols;
     if (vol.asleep || ticks <= 0) {
         flushSolidUpload(vol);   // 44.2: nothing recorded this call - the bodies' box goes up on its own, as before the fold
         st.asleep = vol.asleep; st.quietTicks = vol.quietTicks;
@@ -2622,6 +2648,13 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
             writeTablesToStaging(vol);
             copy(cmd, vol.staging, vol.bricks, vol.counterOff * 4, vol.offBricks);
             vol.tablesDirty = false;
+        }
+        if (vol.settleDirty && vol.colSettle.size() == vol.colCap) {   // 50.6f: the settle flags (one int per brick column)
+            const size_t so = vol.tallOff + vol.dColumns;
+            auto* hs = reinterpret_cast<int32_t*>(static_cast<char*>(vol.staging.mapped) + vol.offBricks) + so;
+            for (size_t c = 0; c < vol.colCap; ++c) hs[c] = vol.colSettle[c];
+            copy(cmd, vol.staging, vol.bricks, vol.colCap * 4, vol.offBricks + so * 4, so * 4);
+            vol.settleDirty = false;
         }
         WaterHostProfile::lap("gpu.07 partition + tables", hp);
     } else if (vol.bricked) {
@@ -2890,6 +2923,11 @@ void WaterCoreGpu::finishCall(Volume& vol) {
         for (int k = 0; k < kStages; ++k) { double a = 0.0; for (size_t i = 0; i < lc; ++i) a += sc[k * lc + i]; sum[k] = a; }
         if (vol.stageLast >= 0.0) s_stageDm[0] += sum[0] - vol.stageLast;
         for (int k = 1; k < kStages; ++k) s_stageDm[k] += sum[k] - sum[k - 1];
+        for (int k = 1; k < kStages; ++k) {   // 50.6e: gross
+            double mx = 0.0, ab = 0.0;
+            for (size_t i = 0; i < lc; ++i) { const double d = std::abs(static_cast<double>(sc[k * lc + i]) - sc[(k - 1) * lc + i]); ab += d; mx = std::max(mx, d); }
+            s_stageAbsMax[k] = std::max(s_stageAbsMax[k], mx); s_stageAbsSum[k] += ab;
+        }
         vol.stageLast = sum[kStages - 1]; ++s_stageCalls;
     } else vol.stageLast = -1.0;
     // 26.16: SYNC - submit to fence (the GPU's time + the queue ahead of it); ASYNC - only the wait at collection

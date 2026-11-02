@@ -74,6 +74,7 @@ struct AvRecord {
     long tilesWokenByWrite = 0;            ///< §27 W1b: of the wakes, by a write (push, placed water, momentum, a body, a droplet) - the rest by moving water's margin
     double lastRecordMs = 0.0, lastWakeMs = 0.0, seedUnplacedM3 = 0.0;   ///< §27 W1b: the last tile record / wake (ms); seeded water the capacity refused
     int awakeColumns = 0, frozenColumns = 0, movingColumns = 0;   ///< 26.31: the last call's (WaterCoreGpu GpuStepStats)
+    int settlingColumns = 0;   ///< 50.6f: the last call's settling (damped) columns
     double carryBodyM3 = 0.0, carryRateM3 = 0.0, carryFlowM3 = 0.0, carryParkedM3 = 0.0;   ///< 26.32: the over-full carry since creation (m^3): made in a body's cells without / with a displacement rate, made elsewhere, parked at a ceiling
     int stepSlots = 0, partitionMoves = 0;                        ///< 26.31 step 2: slots the step dispatched (0 = all); bricks moved
     double gpuHostMs = 0.0;                ///< 26.15: of it, the host's residency work before recording

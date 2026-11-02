@@ -81,6 +81,14 @@ int tallH(int x, int z) {
     return max(1, bricks[pc.tallOff + x + pc.nx * z]);
 }
 float cellVolume(int x, int y, int z) { return (pc.tallY >= 0 && y == pc.tallY) ? float(tallH(x, z)) : 1.0; }
+// 50.6f: 1 when the brick column holding cell (x, z) is SETTLING (quiet by energy, its level still moving - WaterCoreGpu::
+// updatePartialWake); the flags sit right after the tall heights, one per brick column of the WORLD-ALIGNED brick grid
+float settleAt(int x, int z) {
+    if (pc.bricked == 0) return 0.0;
+    const int bx = (x + pc.ox) >> 3, bz = (z + pc.oz) >> 3;
+    if (bx < 0 || bz < 0 || bx >= pc.bnx || bz >= pc.bnz) return 0.0;
+    return bricks[pc.tallOff + pc.nx * pc.nz + bx + pc.bnx * bz] != 0 ? 1.0 : 0.0;
+}
 // 27.22: a TALL cell (H > 1) - not a pressure unknown: HYDROSTATIC under the band cell above it (WaterCore.md 27.22a TC3 finding)
 bool tallCell(int x, int y, int z) { return pc.tallY >= 0 && y == pc.tallY && tallH(x, z) > 1; }
 // 27.22: the open height of the side face between two cells of the tall layer - the overlap of the two columns' water below the
@@ -99,6 +107,7 @@ int tallH(int x, int z) { return 1; }
 float cellVolume(int x, int y, int z) { return 1.0; }
 bool absentCell(int x, int y, int z) { return false; }
 bool frozenCell(int x, int y, int z) { return false; }
+float settleAt(int x, int z) { return 0.0; }
 #define WC_DENSE true
 #endif
 

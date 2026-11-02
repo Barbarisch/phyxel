@@ -74,7 +74,7 @@ void main() {
                 open = !(blocked(x, y + 1, z) || bodyWall(x, y + 1, z));
                 acc = open ? pc.gravity * pc.h * wcThetaToAir(x, y, z, 3) + wcSurfaceGhost(x, y, z, 3) : 0.0;
             } else if (open) acc += pc.gravity * pc.h;
-            if (pc.iparam == 1) pg[i] = acc; else p[i] = acc;   // 50.6d: the guess is pg; the sweeps start the deviation at 0
+            if ((pc.iparam & 1) != 0) pg[i] = acc; else p[i] = acc;   // 50.6d: the guess is pg; the sweeps start the deviation at 0
             above = true;
         }
         return;
@@ -147,7 +147,7 @@ void main() {
     const float ax0 = sideOverlap(c.x, c.y, c.z, c.x - 1, c.z), ax1 = sideOverlap(c.x, c.y, c.z, c.x + 1, c.z);   // 27.22: 1 unless tall
     const float az0 = sideOverlap(c.x, c.y, c.z, c.x, c.z - 1), az1 = sideOverlap(c.x, c.y, c.z, c.x, c.z + 1);
     const float div = (ax1 * uHi - ax0 * u[uIdx(c.x, c.y, c.z)] + v[vIdx(c.x, c.y + 1, c.z)] - v[vIdx(c.x, c.y, c.z)] + az1 * wHi - az0 * w[wIdx(c.x, c.y, c.z)]) / pc.h;
-    float r = -div / pc.dt + (pc.iparam == 1 ? 0.0 : ghostRhs * invh2);   // 26.9: a Dirichlet ghost value moves to the right-hand side (50.6d: in mode 4's difference)
+    float r = -div / pc.dt + ((pc.iparam & 1) != 0 ? 0.0 : ghostRhs * invh2);   // 26.9: a Dirichlet ghost value moves to the right-hand side (50.6d: in mode 4's difference)
     const float q = src[id];
     if (q != 0.0) r += (q / (pc.h * pc.h * pc.h)) / pc.dt;
     const vec4 sd = solid[id];
@@ -163,7 +163,7 @@ void main() {
         // 20.5 / T10: air a body drags under water rises back out - in the body's WAKE (.z > 0) only, a void
         // under a FULL cell takes an inflow at the trapped-bubble rise speed (0.25 m/s), in quiet water.
         // Same rule as WaterSolver::project (why each limit: there).
-        if (sd.z > 0.0 && c.y + 1 < pc.ny && !blocked(c.x, c.y + 1, c.z) && fc < 1.0) {
+        if ((sd.z > 0.0 || (pc.iparam & 2) != 0) && c.y + 1 < pc.ny && !blocked(c.x, c.y + 1, c.z) && fc < 1.0) {   // 50.6e TEST (iparam bit 2): everywhere
             const float fa = f[cellIdx(c.x, c.y + 1, c.z)], sa = solid[cellIdx(c.x, c.y + 1, c.z)].x;
             if (fa + sa >= 0.999 && fa >= 0.001 / pc.h) {
                 const float vAbove = abs(v[vIdx(c.x, c.y + 1, c.z)]);

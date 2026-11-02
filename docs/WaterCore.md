@@ -12515,6 +12515,31 @@ each column's deficit and vertical velocity) found the cause under 50.6b and 50.
   freeze at a looser level bound (locality, 30.0b: cost only - but a frozen column is a wall, so it touches the outcome). Also: the
   tall band stays off while any column is rough (27.22) - the whole 2 m column at fine cells for that minute.
 
+**50.6f Why a disturbed lake stays awake - the owner's "damp tiny sloshes", built and measured: it does NOT help (2026-11-02,
+MEASURED; built OFF).** The owner chose (50.6e) to damp sloshes too small to see. Before building, the diagnosis was checked - and the
+"sub-3 mm slosh" it rested on was wrong. The 60 m lake, tall 0.5 m band, a visible push (2 m / strength 8), `DiagStillWaterEnergy`
+with three new read-outs (E_VOIDS air under water, E_COLS why each brick column fails the freeze test, E_STAGES each fill stage's GROSS
+change - `s_stageAbsMax` / `s_stageAbsSum`, new beside 26.10's net sums; on a partially frozen volume the capture slices do not line
+up, so it runs with the partial wake off):
+- **Energy is not what holds the lake awake.** From 16 s every column fails the freeze test ONLY on its level bound (max |df| a tick
+  over 1e-4 of a cell, p50 105x the bound at 16 s, 8x at 20-28 s, 2x at 36 s); its energy is 0.00-0.5 of the energy bound.
+- **The air.** The splash leaves a mist of air under the water - 687,000 cells short of full at 16 s (none under half), 2.7 m^3 -
+  that GROWS after the splash (1.1 -> 3.4 m^3 from 10 to 14 s: the fill transport makes it in moving water, 26.20) and falls with the
+  motion. The trapped-air rule everywhere (`s_airRisesEverywhereForTest`, it needs a full cell above: a mist has none) and compaction
+  at bubble speed (`s_compactionSpeedOverrideForTest` 0.25 m/s) changed neither the air nor the settling.
+- **The stages (28-32 s, a tick):** the transport moves 48 cells of fill, compaction 35 back (largest 3.4e-2 - only its free-fall
+  settle mode moves that much: the VOLUME is already in its settle band), carry-up 15; net ~0. Skipping compaction freezes the lake by
+  40 s, skipping carry-up by 24 s (shipped: 1,648 awake at 60 s); the residue sweep and settle do not matter.
+- **The damping (`s_columnSettle`, built: a column quiet by energy gets its faces damped at restDamping, per face as the mean of the
+  two sides' world-aligned brick-column flags, FaceOps mode 11; `settling_columns` in water_av_list):** every column settling from
+  18 s, energy 10-18x lower at 18-26 s than the control - and still 2,873 columns awake at 58 s, energy halving every ~4 s like the
+  control. In this phase the volume's own settle band already damps every face at the same rate: the motion is RE-DRIVEN, not left
+  over. **Shipped OFF** (a measurement switch).
+- **What it is, then:** a loop in still-ish water - compaction and carry-up move fill near the surface, the surface pressure follows
+  (the ghost-fluid distance reads the surface cell's fill), velocity, the transport makes mist, compaction cleans it - defect #29's
+  family ("the projection pushes back up what compaction pulls down"). Next: bisect that loop on a small rig (a pond with a mist laid
+  in, still), not on the 60 m lake.
+
 **Where this leaves W1g (and the plan).** (Updated by 50.6d: the floor and the bed churn were one defect, the GPU pressure in float,
 fixed; the freeze storing motion stands.) As written before 50.6d: three solver defects stand under recording: the freeze stores a node's velocity (50.6b),
 compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the surface (the phantom current, 19.6). At shipped
