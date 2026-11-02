@@ -19,6 +19,7 @@ layout(std430, set = 0, binding = 2)          buffer Vel { float vel[]; };   // 
 layout(std430, set = 0, binding = 3) readonly buffer P   { float p[]; };
 layout(std430, set = 0, binding = 4) readonly buffer Liq { uint liq[]; };
 layout(std430, set = 0, binding = 5) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
+layout(std430, set = 0, binding = 7) readonly buffer PG  { float pg[]; };   // 50.6d: the still-water guess (0 when the sweeps solve p itself)
 
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u || frozenCell(x, y, z); }   // 26.31: a face to a frozen column is held at 0
 float fAt(int x, int y, int z) { return inBounds(x, y, z) ? f[cellIdx(x, y, z)] : 0.0; }
@@ -95,11 +96,15 @@ void main() {
         if (!la && !lb) return;
         if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z) || bodyWall(a.x, a.y, a.z) || bodyWall(b.x, b.y, b.z)) { vel[id] = 0.0; return; }   // no update on solid faces (a body wall is one, 20.5)
         // 26.9: the air side holds the ghost pressure (0, or the hydrostatic ghost at a clamped surface)
-        const float pa = la ? p[cellIdx(a.x, a.y, a.z)] : (lb ? wcSurfaceGhost(b.x, b.y, b.z, dirAB ^ 1) : 0.0);
-        const float pb = lb ? p[cellIdx(b.x, b.y, b.z)] : (la ? wcSurfaceGhost(a.x, a.y, a.z, dirAB) : 0.0);
+        // 50.6d: p holds the deviation from the guess pg - the difference is the guess's (exact for nearby floats, the ghost on the
+        // air side) plus the deviation's; with no guess (pg = 0) it is the old pb - pa to the bit
+        const float ga = la ? pg[cellIdx(a.x, a.y, a.z)] : (lb ? wcSurfaceGhost(b.x, b.y, b.z, dirAB ^ 1) : 0.0);
+        const float gb = lb ? pg[cellIdx(b.x, b.y, b.z)] : (la ? wcSurfaceGhost(a.x, a.y, a.z, dirAB) : 0.0);
+        const float da = la ? p[cellIdx(a.x, a.y, a.z)] : 0.0;
+        const float db = lb ? p[cellIdx(b.x, b.y, b.z)] : 0.0;
         float dist = pc.h;
         if (la && !lb) dist = pc.h * wcThetaToAir(a.x, a.y, a.z, dirAB);
         else if (lb && !la) dist = pc.h * wcThetaToAir(b.x, b.y, b.z, dirAB ^ 1);
-        vel[id] -= pc.dt * (pb - pa) / dist;
+        vel[id] -= pc.dt * ((gb - ga) + (db - da)) / dist;
     }
 }

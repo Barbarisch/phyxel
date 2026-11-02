@@ -663,7 +663,8 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeHoles) {
 // the extras list), recording on (tiles record at rest and wake when the push reaches them: the record's marks, the seeds), the
 // partial wake (the surface pass covers the awake columns; the mesh pass them and a ring). Every 10 ticks: the device mesh, expanded
 // through the vertex shader's own function, against buildWaterSurfaceMesh of the host's field, as multisets of quads.
-// Prediction: 0 unmatched quads at every check, positions within 1e-4 m, the rest within 1e-3. RED CONTROL: the mesh pass without its
+// Prediction: 0 unmatched quads at every check, positions within 1e-5 m, the rest within 1e-4 (50.6d: tightened from 1e-4 / 1e-3 - with still
+// water still the red's stale corners are 3.3e-5 m / 2.9e-4 and passed the old bounds; shipped 2.4e-7 / 5.2e-7). RED CONTROL: the mesh pass without its
 // ring (s_meshNoRingForTest) - a frozen column beside the awake region keeps stale corners: unmatched quads after the push.
 static long tallBad = 0;   // 29 S2: checks where the device's tall-floor numbers differ from the host field's scan
 static long motionBad = 0, motionSteps = 0, motionRiseMax = 0;   // 29 S2: steps where the device's motion differs from takeMotion's scan
@@ -706,7 +707,7 @@ static WaterCoreManager::MeshParity runDeviceMesh(VulkanTestFixture& fx, VkDevic
         const WaterCoreManager::MeshParity p = mgr.surfaceMeshParityForTest(id);
         if (!p.ok) { ADD_FAILURE() << "parity read failed at tick " << k; return; }
         ++checks;
-        if (p.unmatched > 0 || p.worstPos > 1e-4f || p.worstOther > 1e-3f) {
+        if (p.unmatched > 0 || p.worstPos > 1e-5f || p.worstOther > 1e-4f) {
             ++checksBad;
             if (checksBad <= 3) std::printf("    tick %d: host %ld quads, device %ld, unmatched %ld, worst pos %.2e, other %.2e\n", k, p.hostQuads, p.deviceQuads, p.unmatched, p.worstPos, p.worstOther);
         }
@@ -756,7 +757,7 @@ TEST_F(WaterRecordTilesTest, TheDeviceMeshIsTheHostMesh) {
                 pChecks, pBad, pond.unmatched, pond.worstPos, pond.worstOther, recorded, wokenP, m1);
     long rChecks = 0, rBad = 0, s2 = 0, m2 = 0, r2 = 0, w2 = 0;
     const auto red = runDeviceMesh(*this, device, physicalDevice, queue, queueFamilyIndex, true, false, rChecks, rBad, s2, m2, r2, w2);
-    std::printf("  RED (B without the ring): %ld checks, %ld off; worst unmatched %ld\n", rChecks, rBad, red.unmatched);
+    std::printf("  RED (B without the ring): %ld checks, %ld off; worst unmatched %ld, positions %.2e m, other %.2e\n", rChecks, rBad, red.unmatched, red.worstPos, red.worstOther);
     ASSERT_TRUE(dam.ok && pond.ok && red.ok);
     EXPECT_GT(checks + pChecks, 160);
     EXPECT_GT(sideMax, 0) << "A has side faces";

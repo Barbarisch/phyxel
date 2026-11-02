@@ -200,6 +200,7 @@ public:
         int lastTravelForTest = 0;   ///< 26.23 diagnostic: the travel the residency allowed this call (cells)   ///< 26.23 diagnostic: packed bricks holding LIQUID at the call's start
         double unstoredM3 = 0.0;          ///< water the last upload could not store (counted, never silent)
         Buffer f, fOrig, fPrev, u, v, w, uOld, vOld, wOld, occ, src, liq, diag, rhs, p, res;
+        Buffer pg;                       ///< 50.6d: per cell, this substep's still-water guess (scratch); the sweeps solve p - pg
         Buffer fLo;                      ///< 26.10: per cell, the part of the transport's fill change the float store could not hold
         Buffer valA, valB, knownA, knownB, first, keep, dropped, part, part2, out;
         // Phase B2 on the GPU: the particle transport (FlipTransport mirrored on the device)
@@ -381,6 +382,11 @@ public:
     static inline bool s_solidUploadSyncForTest = false;
     /// 44.5 TEST (the red): the folded upload copies only the changed cells but the device does NOT age the wake
     static inline bool s_skipWakeAgeForTest = false;
+    /// 50.6d: the sweeps solve the DEVIATION from the still-water guess (p - pg), the right-hand side less A pg from exact neighbour
+    /// differences, and the velocity update adds the guess's differences back. In float the absolute pressure (g x depth, 20 m2/s2
+    /// at 2 m) left a biased residual: every still column drifted up, 0 at the bed to 1.1e-5 m/s at the surface of a 2 m pond
+    /// (depth squared, sweep-independent; the CPU, in double, exactly still). ON; false only for the red run of the test.
+    static inline bool s_pressureDeviation = true;
     static inline bool s_stillWaterGuess = true;    // ON (26.10): the resting-body loss was float rounding in the fill store, fixed (fLo)
     /// 26.17: the brick height (cells) a volume gets when its BrickOptions name none - 2, 4 or 8 (bricks are 8 x h x 8). 2 since
     /// 26.17's bench run: the creek at q 0.2 stored 691,200 -> 457,984 cells, GPU 1.83 -> 1.57 ms a call, the water identical

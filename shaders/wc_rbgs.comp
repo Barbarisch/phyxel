@@ -13,6 +13,7 @@ layout(std430, set = 0, binding = 1) readonly buffer Diag { float diag[]; };
 layout(std430, set = 0, binding = 2) readonly buffer Rhs  { float rhs[]; };
 layout(std430, set = 0, binding = 3)          buffer P    { float p[]; };
 layout(std430, set = 0, binding = 4)          buffer Res  { float res[]; };
+layout(std430, set = 0, binding = 6) readonly buffer PG   { float pg[]; };   // 50.6d: the still-water guess (mode 3: p = pg + d)
 
 // 26.31: no pressure from a frozen column (a wall) - its liq is 0: the step clears the frozen bricks' liq once a call (they sit above
 // the awake ones after the partition, one fill); a frozenCell test here, per neighbour per sweep, cost ~0.4 ms on a 32 x 28 m pond
@@ -48,6 +49,7 @@ void main() {
     }
     ivec3 c;
     if (!threadSite(id, 3, c)) return;
+    if (pc.mode == 3) { if (liq[id] != 0u) p[id] += pg[id]; return; }   // 50.6d: after the velocity update, the total for every later reader
     if (liq[id] == 0u) { if (pc.mode == 1) res[id] = 0.0; return; }
     const float invh2 = 1.0 / (pc.h * pc.h);
     float nbSum;

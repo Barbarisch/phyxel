@@ -1,0 +1,83 @@
+Running main() from G:\Github\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = *DiagStillWaterEnergy*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from WaterRecordTilesTest
+[ RUN      ] WaterRecordTilesTest.DISABLED_DiagStillWaterEnergy
+  disabled stages 0
+  compaction band override -1.0e+00
+  freeze zeroes velocity 0
+[32m[21:09:22.172] [INFO] [ComputePipeline] Created: shaders/wc_fill_advect.comp.spv (10 bindings)[0m
+[32m[21:09:22.173] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[21:09:22.174] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[21:09:22.174] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[21:09:22.175] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[21:09:22.175] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[21:09:22.175] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[21:09:22.176] [INFO] [ComputePipeline] Created: shaders/wc_column_ops.comp.spv (11 bindings)[0m
+[32m[21:09:22.177] [INFO] [ComputePipeline] Created: shaders/wc_classify.comp.spv (13 bindings)[0m
+[32m[21:09:22.178] [INFO] [ComputePipeline] Created: shaders/wc_rbgs.comp.spv (7 bindings)[0m
+[32m[21:09:22.178] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[21:09:22.178] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[21:09:22.178] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[21:09:22.179] [INFO] [ComputePipeline] Created: shaders/wc_reduce.comp.spv (12 bindings)[0m
+[32m[21:09:22.179] [INFO] [ComputePipeline] Created: shaders/wc_sources.comp.spv (5 bindings)[0m
+[32m[21:09:22.180] [INFO] [ComputePipeline] Created: shaders/wc_surface.comp.spv (12 bindings)[0m
+[32m[21:09:22.180] [INFO] [ComputePipeline] Created: shaders/wc_bricks.comp.spv (6 bindings)[0m
+[32m[21:09:22.181] [INFO] [ComputePipeline] Created: shaders/wc_momentum.comp.spv (7 bindings)[0m
+[32m[21:09:22.181] [INFO] [ComputePipeline] Created: shaders/wc_tall.comp.spv (7 bindings)[0m
+[32m[21:09:22.182] [INFO] [ComputePipeline] Created: shaders/wc_rbgs_line.comp.spv (6 bindings)[0m
+[32m[21:09:22.182] [INFO] [ComputePipeline] Created: shaders/wc_surface_mesh.comp.spv (12 bindings)[0m
+[32m[21:09:22.183] [INFO] [ComputePipeline] Created: shaders/wc_body_pressure.comp.spv (9 bindings)[0m
+  60 x 60 m, 2 m deep, tall 0.50 m, partial wake 1, push 4.0, dt 0.0167 s, placed 7200.0000 m^3
+  t   2.0 s  ke 4.967e-14  awake  4624 frozen     0 moving  4624  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999944
+  t   4.0 s  ke 4.967e-14  awake  4624 frozen     0 moving  4624  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999944
+  t   6.0 s  ke 2.781e-02  awake   503 frozen  4121 moving   242  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999936
+  t   8.0 s  ke 1.244e-03  awake  1117 frozen  3507 moving   551  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999915
+  t  10.0 s  ke 6.729e-05  awake  1606 frozen  3018 moving   672  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999879
+  t  12.0 s  ke 1.527e-06  awake  1165 frozen  3459 moving   416  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999845
+  t  14.0 s  ke 2.405e-06  awake   266 frozen  4358 moving   128  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  16.0 s  ke 7.417e-07  awake   117 frozen  4507 moving    39  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  18.0 s  ke 6.726e-07  awake   103 frozen  4521 moving    34  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  20.0 s  ke 6.428e-07  awake    97 frozen  4527 moving    31  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  22.0 s  ke 5.837e-07  awake    92 frozen  4532 moving    28  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  24.0 s  ke 5.115e-07  awake    84 frozen  4540 moving    24  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  26.0 s  ke 5.044e-07  awake    89 frozen  4535 moving    25  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  28.0 s  ke 4.920e-07  awake    56 frozen  4568 moving     8  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  30.0 s  ke 4.883e-07  awake    41 frozen  4583 moving     5  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  32.0 s  ke 4.869e-07  awake    52 frozen  4572 moving     7  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  34.0 s  ke 4.820e-07  awake    36 frozen  4588 moving     4  asleep 0  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  36.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  38.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  40.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  42.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  44.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  46.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  48.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  50.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  52.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  54.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  56.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  58.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  60.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  62.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  64.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  66.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  68.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  70.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  72.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  74.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  76.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  78.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  80.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  82.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  84.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  86.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  88.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+  t  90.0 s  ke 4.813e-07  awake     0 frozen  4624 moving     0  asleep 1  tall 1  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999837
+[       OK ] WaterRecordTilesTest.DISABLED_DiagStillWaterEnergy (164740 ms)
+[----------] 1 test from WaterRecordTilesTest (164741 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (164741 ms total)
+[  PASSED  ] 1 test.

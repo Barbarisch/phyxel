@@ -264,6 +264,92 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagStillPool) {
     WaterCoreGpu::s_stillWaterGuess = guessWas;
 }
 
+// 50.6d: still water placed still STAYS still on the GPU, dense and bricked. The sweeps solve the deviation from the still-water
+// guess (WaterCoreGpu::s_pressureDeviation); solving the absolute pressure in float (g x depth, 20 m2/s2 here) left a biased
+// residual and every column drifted up - 0 at the bed, 1.1e-5 m/s at the surface of this 2 m pond, the transport turning it
+// into bed deficits that compaction moved about (50.6c) and the energy floor of 50.6b. The CPU (double) is exactly still.
+// RED (s_pressureDeviation off, same binary): the drift is back.
+TEST_F(WaterCoreGpuParityTest, GpuStillWaterHasNoDrift) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Restore { ~Restore() { WaterCoreGpu::s_pressureDeviation = true; } } restore;
+    const float h = 1.0f / 9.0f;
+    auto run = [&](bool deviation, bool bricked, double& maxV, double& maxDf, double& ke) {
+        WaterCoreGpu::s_pressureDeviation = deviation;
+        Tank t(32, 24, 32, h);   // 3.6 x 3.6 m, the water 2 m deep (18 cells), 6 air cells
+        t.grid.fillBox({0, 0, 0}, {31, 17, 31}, 1.0f);
+        t.bakeOcc();
+        std::string err;
+        BrickOptions bo; bo.sparse = bricked;
+        auto* vol = gpu.createVolume(t.grid, &err, bo); ASSERT_NE(vol, nullptr) << err;
+        SolverParams prm; prm.restTicks = 1 << 30;   // never asleep: every tick steps
+        GpuStepStats st;
+        for (int tick = 0; tick < 239; ++tick) st = gpu.step(*vol, prm, kDt, 1, 20);
+        gpu.download(*vol, t.grid);
+        const std::vector<float> before = t.grid.fData();
+        st = gpu.step(*vol, prm, kDt, 1, 20);
+        gpu.download(*vol, t.grid);
+        maxV = maxSpeed(t.grid); maxDf = 0.0; ke = st.kineticEnergy;
+        for (size_t i = 0; i < before.size(); ++i) maxDf = std::max(maxDf, std::abs(double(t.grid.fData()[i]) - before[i]));
+        gpu.destroyVolume(vol);
+    };
+    for (bool bricked : {false, true}) {
+        double v = 0, df = 0, ke = 0, rv = 0, rdf = 0, rke = 0;
+        run(true, bricked, v, df, ke);
+        run(false, bricked, rv, rdf, rke);
+        std::printf("  %s, 4 s: max |v| %.2e m/s, max |df| a tick %.2e, KE %.2e | RED (absolute pressure): %.2e m/s, %.2e, KE %.2e\n",
+                    bricked ? "bricked" : "dense", v, df, ke, rv, rdf, rke);
+        EXPECT_LT(v, 1e-7) << "still water drifts";
+        EXPECT_LT(df, 1e-6) << "still water's fill changes";
+        EXPECT_GT(rv, 1e-6) << "RED CONTROL: the absolute-pressure solve no longer shows the drift - the metric is not measuring it";
+    }
+}
+
+// 50.6d diagnostic: where does still water's bed churn start? A pond placed still (BC_W x BC_W cells at 1/9 m, BC_D cells deep,
+// 6 air cells), the raw solver (no partial wake), GPU and CPU side by side, compaction on and off (BC_MASK = the stage bits of
+// both). Every 2 s: KE, the tick's max |df| and the cell it is in, and that cell's column - the deficit 1 - f per cell and the
+// vertical face velocity below it.
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagBedChurn) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto env = [](const char* k, double d) { const char* v = std::getenv(k); return v ? std::atof(v) : d; };
+    const int W = static_cast<int>(env("BC_W", 36)), D = static_cast<int>(env("BC_D", 18)), secs = static_cast<int>(env("BC_SECONDS", 20));
+    const bool cpuToo = env("BC_CPU", 1) != 0;
+    const float h = 1.0f / 9.0f;
+    struct Restore { ~Restore() { WaterCoreGpu::s_disableStagesForTest = 0; } } restore;
+    for (uint32_t mask : {0u, static_cast<uint32_t>(env("BC_MASK", 1))}) {
+        WaterCoreGpu::s_disableStagesForTest = mask;
+        Tank t(W, D + 6, W, h), c(W, D + 6, W, h);
+        for (Tank* x : {&t, &c}) x->grid.fillBox({0, 0, 0}, {W - 1, D - 1, W - 1}, 1.0f);
+        auto* vol = make(t); ASSERT_NE(vol, nullptr);
+        SolverParams prm; prm.restTicks = 1 << 30; prm.debugDisableStages = mask;
+        std::unique_ptr<WaterSolver> cpu;
+        if (cpuToo) cpu = std::make_unique<WaterSolver>(c.grid, c.query(), prm);
+        std::printf("  stage mask %u, %d x %d cells, %d deep\n", mask, W, W, D);
+        std::vector<float> prev;
+        auto report = [&](const char* who, WaterGrid& g, double ke) {
+            size_t worst = 0; double wd = 0.0;
+            for (size_t i = 0; i < prev.size(); ++i) { const double d = std::abs(double(g.fData()[i]) - prev[i]); if (d > wd) { wd = d; worst = i; } }
+            const int x = int(worst % g.nx()), y = int((worst / g.nx()) % g.ny()), z = int(worst / (size_t(g.nx()) * g.ny()));
+            std::printf("    %s KE %.2e  max|df| %.2e at (%d,%d,%d)\n      deficit 1-f by y:", who, ke, wd, x, y, z);
+            for (int yy = 0; yy <= D; ++yy) std::printf(" %.1e", 1.0 - g.f(x, yy, z));
+            std::printf("\n      v below by y:   ");
+            for (int yy = 0; yy <= D; ++yy) std::printf(" %+.1e", g.v(x, yy, z));
+            std::printf("\n");
+        };
+        for (int tick = 1; tick <= 60 * secs; ++tick) {
+            const bool sample = tick % 120 == 0;
+            if (sample) { gpu.download(*vol, t.grid); prev = t.grid.fData(); }
+            const auto st = gpu.step(*vol, prm, kDt, 1, static_cast<int>(env("BC_SWEEPS", 20)));   // 26.35: 20 sweeps shipped
+            if (sample) { gpu.download(*vol, t.grid); std::printf("   t %4.1f s  GPU residual max %.2e\n", tick * kDt, st.rbgsResidualMax); report("GPU", t.grid, st.kineticEnergy); }
+            if (cpu) {
+                if (sample) prev = c.grid.fData();
+                const StepReport cr = cpu->step(kDt);
+                if (sample) report("CPU", c.grid, cr.kineticEnergy);
+            }
+        }
+        gpu.destroyVolume(vol);
+    }
+}
+
 // 26.6 P2 cost model (DIAGNOSTIC): the GPU core's time per call (one tick, realtime's shape) against the cells it steps, on
 // dense boxes at 1/9 m - a resting pond half full (substeps 1) and the same box sloshing (a tilted start). The fixed cost
 // per call (dispatch count x barriers) and the per-cell slope decide the brick size and whether sparse stepping fits 2 ms.

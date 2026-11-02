@@ -4,6 +4,10 @@
 // diag = (sum over 6 neighbours: liquid 1, air 1/theta, solid 0) / h^2; rhs = -div(u)/dt plus the
 // pump source term (sources buffer, m^3/s per cell, 0 elsewhere) and the ceiling target for a partial
 // liquid cell under a solid; p = 0 (RBGS starts from zero, as the CPU's CG does).
+// 50.6d (iparam = 1, modes 0 / 2 / 4): the sweeps solve the DEVIATION d = p - pg from the still-water guess pg. Mode 0 zeroes pg
+// and leaves the surface ghost out of rhs; mode 2 writes the guess into pg (not p); mode 4 subtracts A pg from rhs, summed from
+// neighbour DIFFERENCES (exact for nearby floats) - so the sweeps iterate a small number. In float the absolute pressure (g x depth)
+// left a biased residual: still water drifted up, 0 at the bed to 1.1e-5 m/s at the surface of a 2 m pond (WaterCore.md 50.6d).
 // param0 = 1: a PARTICLE transport owns the mass (Phase B2 on the GPU): no ceiling target, but the
 // symmetric density control - an over-full cell pushes, a submerged under-full cell in a QUIET cell
 // pulls (WaterCore.cpp project(), the ownsMass() branch).
@@ -21,6 +25,7 @@ layout(std430, set = 0, binding = 7)          buffer Diag { float diag[]; };
 layout(std430, set = 0, binding = 8)          buffer Rhs  { float rhs[]; };
 layout(std430, set = 0, binding = 9)          buffer P    { float p[]; };
 layout(std430, set = 0, binding = 10)         buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger); mode 1 writes q and the ledger mark
+layout(std430, set = 0, binding = 12)         buffer PG    { float pg[]; };     // 50.6d: the still-water guess (iparam = 1: the sweeps solve p - pg)
 
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u || frozenCell(x, y, z); }   // 26.31: a frozen column is a wall
 bool isLiqCell(int x, int y, int z) {
@@ -69,13 +74,30 @@ void main() {
                 open = !(blocked(x, y + 1, z) || bodyWall(x, y + 1, z));
                 acc = open ? pc.gravity * pc.h * wcThetaToAir(x, y, z, 3) + wcSurfaceGhost(x, y, z, 3) : 0.0;
             } else if (open) acc += pc.gravity * pc.h;
-            p[i] = acc;
+            if (pc.iparam == 1) pg[i] = acc; else p[i] = acc;   // 50.6d: the guess is pg; the sweeps start the deviation at 0
             above = true;
         }
         return;
     }
     ivec3 c;
     if (!threadSite(id, 3, c)) return;
+    if (pc.mode == 4) {
+        // 50.6d: rhs -= A pg, row by row as mode 0 builds A (the same weights and surface distances): a liquid neighbour
+        // w (pg_c - pg_n), an air face w (pg_c - ghost) / theta - the ghost mode 0 left out of rhs comes back here
+        if (liq[id] == 0u) return;
+        const ivec3 d4[6] = ivec3[6](ivec3(-1,0,0), ivec3(1,0,0), ivec3(0,-1,0), ivec3(0,1,0), ivec3(0,0,-1), ivec3(0,0,1));
+        const float pc0 = pg[id];
+        float s = 0.0;
+        for (int k = 0; k < 6; ++k) {
+            const ivec3 n = c + d4[k];
+            if (blocked(n.x, n.y, n.z) || bodyWall(n.x, n.y, n.z)) continue;
+            const float wk = (k == 2 || k == 3) ? 1.0 : sideOverlap(c.x, c.y, c.z, n.x, n.z);
+            if (isLiqCell(n.x, n.y, n.z)) s += wk * (pc0 - pg[cellIdx(n.x, n.y, n.z)]);
+            else s += wk * (pc0 - wcSurfaceGhost(c.x, c.y, c.z, k)) / wcThetaToAir(c.x, c.y, c.z, k);
+        }
+        rhs[id] -= s / (pc.h * pc.h);
+        return;
+    }
     if (pc.mode == 1) {
         // 20 (M1) WaterSolver::computeSolidRates: q = max(0, f + s - 1) V / T (param0 = T), clamped to (open
         // faces) x h^2 x 20 m/s; fresh (uploaded .w), walled-in and body-filled cells to the column ledger. Reads
@@ -99,6 +121,7 @@ void main() {
     // (2.2e-5 m^3/s live, 2.8e-4 m^3 in 20 s at dt 1/165 - WaterBrickTest.DISABLED_DiagSettlingLoss); the pond the owner
     // signed off ran cold. Reverted. Since 26.9 mode 2 then writes the still-water guess for liquid cells (when enabled).
     p[id] = 0.0;
+    pg[id] = 0.0;   // 50.6d: no guess unless mode 2 writes one (the velocity update adds pg's differences: 0 = the old update)
     const bool liquid = isLiqCell(c.x, c.y, c.z);
     liq[id] = liquid ? 1u : 0u;
     if (!liquid) { diag[id] = 0.0; rhs[id] = 0.0; return; }
@@ -124,7 +147,7 @@ void main() {
     const float ax0 = sideOverlap(c.x, c.y, c.z, c.x - 1, c.z), ax1 = sideOverlap(c.x, c.y, c.z, c.x + 1, c.z);   // 27.22: 1 unless tall
     const float az0 = sideOverlap(c.x, c.y, c.z, c.x, c.z - 1), az1 = sideOverlap(c.x, c.y, c.z, c.x, c.z + 1);
     const float div = (ax1 * uHi - ax0 * u[uIdx(c.x, c.y, c.z)] + v[vIdx(c.x, c.y + 1, c.z)] - v[vIdx(c.x, c.y, c.z)] + az1 * wHi - az0 * w[wIdx(c.x, c.y, c.z)]) / pc.h;
-    float r = -div / pc.dt + ghostRhs * invh2;   // 26.9: a Dirichlet ghost value moves to the right-hand side
+    float r = -div / pc.dt + (pc.iparam == 1 ? 0.0 : ghostRhs * invh2);   // 26.9: a Dirichlet ghost value moves to the right-hand side (50.6d: in mode 4's difference)
     const float q = src[id];
     if (q != 0.0) r += (q / (pc.h * pc.h * pc.h)) / pc.dt;
     const vec4 sd = solid[id];

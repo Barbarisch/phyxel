@@ -12198,7 +12198,7 @@ and the order-dependent `WaterCouplingTest.BlastBesideThePondMovesItAndItSettles
 **For the owner:** nothing to see - the look does not change; the water no longer vanishes when a stone stirs a deep pond whose box
 reaches past its banks. Sign-off is on the numbers.
 
-## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3); W1f BUILT, ON (50.5); W1g.1 the neighbour rule BUILT; the runaway traced to the SOLVER (50.6a-c: the freeze stores motion, compaction rocks still water, a surface floor), OPEN
+## 50. The plan moves to large water (owner, 2026-11-01). Status: PLAN REVISED (30.0 order, 30.4 parked rows); W step 0 MEASURED (50.3); W1f BUILT, ON (50.5); W1g.1 the neighbour rule BUILT; the runaway traced to the SOLVER (50.6a-c); its root, the GPU pressure in float, FIXED (50.6d: still water still, the stoned lake asleep); the freeze still stores motion, OPEN
 
 ### 50.1 The owner's words, and what changes
 
@@ -12440,7 +12440,51 @@ small top-ups damp moving water. **The band ships at 0 (no change);** `s_compact
 should do at sub-millimetre deficits - and how it and the projection stop feeding each other - is a design question, not a threshold.
 Tests unchanged: water unit 355 / 355, GPU water integration 76 / 78 (the known two).
 
-**Where this leaves W1g (and the plan).** Three solver defects now stand under recording: the freeze stores a node's velocity (50.6b),
+**50.6d The root: the GPU pressure in float - the sweeps now solve the deviation from the still-water guess (2026-11-01, BUILT, ON).**
+A raw-solver rig (`WaterCoreGpuParityTest.DISABLED_DiagBedChurn`: a 4 x 4 m pond placed still at 1/9 m, GPU and CPU side by side,
+each column's deficit and vertical velocity) found the cause under 50.6b and 50.6c. **The CPU (double PCG) is exactly still** (KE
+1.4e-14, no fill changes); **the GPU leaves every still column drifting UP**, 0 at the bed and growing linearly with height:
+| water depth | surface drift | the sweeps' residual (max) |
+|---|---|---|
+| 1 m | 2.6e-6 m/s | 2.7e-3 |
+| 2 m | 1.1e-5 m/s | 6.4e-3 |
+| 4 m | 4.1e-5 m/s | 1.4e-2 |
+- **Depth squared, sweep-independent** (20 = 80 = 320 sweeps; 50.6b's "60 sweeps, the same floor" was this). The pressure is solved in
+  float at its full size, g x depth = 20 m2/s2 at 2 m: a Gauss-Seidel row sums ~1e4 with a float step of ~1e-3, and the converged
+  solve keeps that much residual, biased one way - a uniform outflow from every cell, about one float step of a full cell a tick.
+- **It is the bed churn and the floor.** The transport turns the outflow into deficits at the bed (every other cell, 1e-4 - 7e-4 by
+  20 s), compaction tops them up from above (50.6c's churn - compaction moves the deficit, it does not make it), and the drift is
+  50.6b's 2.5e-7 J "phantom current". Compaction OFF still showed the drift and the growing deficits.
+- **The fix** (`WaterCoreGpu::s_pressureDeviation`, ON; `false` only for the test's red run): the still-water guess (26.9, classify
+  mode 2) goes into a new scratch buffer `pg`; classify mode 4 subtracts A pg from the right-hand side from neighbour DIFFERENCES
+  (pg_c - pg_n, exact for nearby floats; an air face (pg_c - ghost) / theta, the ghost term moved there from mode 0); the sweeps solve
+  for the small deviation in `p` from 0 (wc_rbgs unchanged); the velocity update (face_ops 6-8) adds the guess's differences and the
+  deviation's; rbgs mode 3 then writes p = pg + d for every later reader (body pressure, the brick dirty test, readPressure). In exact
+  arithmetic the system and its solution are unchanged - only the rounding. With no guess (pg = 0) the update is the old one to the
+  bit. The CPU is untouched (double). Cost: +4 bytes a stored cell (scratch), two cell passes a substep.
+- **Result, the same rig:** 2 m deep KE 7.3e-7 -> 1.2e-12 J, the drift 1.1e-5 m/s -> +-7e-9 (float noise, no sign), the residual
+  6.4e-3 -> 2.3e-5; 1 m: 2.6e-6 -> 7e-9; 4 m: 4.1e-5 -> <= 9.5e-8.
+- **Pinned:** `WaterCoreGpuParityTest.GpuStillWaterHasNoDrift` (2 m pond, 4 s, dense and bricked): max |v| 9.5e-8 < 1e-7, max |df| a
+  tick 4.8e-7 < 1e-6; RED (the absolute-pressure solve, same binary) 1.24e-5 m/s, 6.0e-5, KE 6e-7.
+- **A red control lost its power, and was tightened:** `TheDeviceMeshIsTheHostMesh`'s ring-less run (stale corners beside frozen
+  columns) found 3 bad checks only because the drift kept the awake water beside frozen columns moving; with still water still its
+  stale corners are 3.3e-5 m / 2.9e-4, under the check's old bounds (1e-4 / 1e-3). The bounds are now 1e-5 / 1e-4 (shipped worst
+  2.4e-7 / 5.2e-7, 40x under): the red trips 12 of 90 checks, the shipped runs 0.
+- **What it does to 50.6b / 50.6c's rigs** (`DiagStillWaterEnergy`, the same binary as the table rows above, compaction ON, band 0):
+| rig | before | now |
+|---|---|---|
+| 24 x 24 m pond 2 m deep placed still, tall off | never asleep; 2.5e-7 J; bed fill change growing 1.2e-4 -> 5.3e-4 a tick | **asleep by 2 s**, 5e-14 J |
+| 60 x 60 m lake, a stone, tall off, partial wake on | energy grows 1e-6 -> 6.5e-6 J, columns revive every ~38 s, never asleep | awake 2,662 (18 s) -> 210 (48 s) -> **0 at 60 s, asleep**, no revival to 90 s |
+| the same, tall 0.5 m | (partial wake off: floor 1.8e-8, never asleep) | awake 1,165 (12 s) -> 41 (30 s) -> **0 at 36 s, asleep** |
+  The energy left once asleep (1.9e-7 J tall off, 4.8e-7 tall on) is velocity the FROZEN columns hold - 50.6b's defect 1 (the
+  freeze stores motion) stands, and is next. Compaction needed no change: it moved the drift's deficits; without them it is quiet.
+- **Tests:** water unit 368 / 368; integration - every water test passes but the known two (`GpuFlipBulkParityAndRunup`,
+  `ShortWaveMatchesAllFineAndTheBooksAreExact`); three `SceneIntegrationTest` rows fail (0 ms, no water in them, untouched since
+  2026-09-16 - outside this work, not investigated here). Not measured yet: the cost on the live lake (whole frame), the live
+  recording runaway (50.6a's 40 %).
+
+**Where this leaves W1g (and the plan).** (Updated by 50.6d: the floor and the bed churn were one defect, the GPU pressure in float,
+fixed; the freeze storing motion stands.) As written before 50.6d: three solver defects stand under recording: the freeze stores a node's velocity (50.6b),
 compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the surface (the phantom current, 19.6). At shipped
 settings (tall cells on, recording off) the lake still sleeps (W1f, 4 of 4): the partial wake freezes columns before the bed churn
 or the stored velocities build. Recording keeps it awake long enough for them to show.
