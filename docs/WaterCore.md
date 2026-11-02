@@ -12540,6 +12540,33 @@ up, so it runs with the partial wake off):
   family ("the projection pushes back up what compaction pulls down"). Next: bisect that loop on a small rig (a pond with a mist laid
   in, still), not on the 60 m lake.
 
+**50.6g The loop is the pressure solve's convergence on the GPU (2026-11-02, MEASURED; no change).** A small rig
+(`WaterCoreGpuParityTest.DISABLED_DiagChurnLoop`: a 4 x 4 m pond 2 m deep, its surface tilted 2 cells at the start, the raw solver,
+GPU and CPU side by side, each stage's gross change on both - the CPU through `stageProbeForTest`; CL_W / CL_D / CL_TILT / CL_MASK /
+CL_SWEEPS / CL_BRICKED / CL_LINES):
+- **CPU and GPU agree for 6 s, then part.** The CPU's energy collapses 250x from 10 to 12 s (its settle band) and it is QUIET from
+  22 s; the GPU, in its settle band from ~6 s, loses only 3-5x per 2 s and never counts a quiet tick in 40 s - its transport churning
+  ~5x the CPU's and its compaction ~10x at LESS energy.
+- **Skipping any one of compaction / carry-up / the settle pass** brings the GPU's energy down ~1000x by 24 s (carry-up off: quiet).
+- **More point sweeps fix it:** 80 or 320 (not 20) - the GPU quiet from ~22-24 s, as the CPU. In moving water 20 sweeps leave enough
+  divergence for the transport to make mist each tick; compaction, carry-up and the surface pressure keep it moving.
+- **The zebra line sweeps (28, OFF) are unstable here:** 4 / 8 / 20 line sweeps on the bricked rig - energy GROWS to 1e3 (4 lines).
+  They stay off; why is not found.
+- **The 60 m lake, the visible push** (`DiagStillWaterEnergy` E_SWEEPS; shipped automatic count 20):
+| sweeps | the whole lake awake until | awake at 38 s | all frozen | GPU a call while awake |
+|---|---|---|---|---|
+| 20 | ~46 s | 4,600 | 1,648 awake at 60 s | 19-21 ms |
+| 40 | ~26 s | 138 | 25 awake at 58 s | 22-26 ms |
+| 80 | ~26 s | 256 | 54 s | 28-32 ms |
+- **Live (Creek bench, `tools/water_sweeps_settle_live.py`, `w50_6g_live.json`, 3 runs each, interleaved, recording off):** sweeps 20 -
+  the whole lake awake to 56-58 s, never all frozen in 70 s; sweeps 40 - to 20 s, all frozen 54-57 s (2 of 3), 1,800-2,500 awake at
+  40 s. **Either way the game runs 18-30 fps for that minute:** the frame waits on the GPU (fence 35 ms, the call before 39 ms of a
+  56 ms frame), and as the frame slows the fixed tick runs up to 4 ticks a frame - a fully awake 60 m lake with its tall band off
+  (rough water turns it off, 27.22) costs ~15-20 ms of GPU a tick. Books exact (+-1e-3).
+- **Open, the owner's calls:** the sweep count (26.35's sign-off was 20; 40 settles a disturbed lake 2x sooner for +20 % a call), and
+  the larger one - a visible splash on a big lake costs the game ~a minute at 18-30 fps: keep the tall band on in rough water, step
+  only the disturbed part (it is - but the disturbance reaches the whole 60 m lake in seconds), or cap the fixed tick's catch-up.
+
 **Where this leaves W1g (and the plan).** (Updated by 50.6d: the floor and the bed churn were one defect, the GPU pressure in float,
 fixed; the freeze storing motion stands.) As written before 50.6d: three solver defects stand under recording: the freeze stores a node's velocity (50.6b),
 compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the surface (the phantom current, 19.6). At shipped

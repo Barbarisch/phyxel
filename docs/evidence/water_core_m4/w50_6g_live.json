@@ -1,0 +1,4010 @@
+[
+ {
+  "sweeps": 20,
+  "rows": [
+   {
+    "t": 8.8,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 46.744352
+   },
+   {
+    "t": 10.1,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 46.967392
+   },
+   {
+    "t": 11.5,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.155744
+   },
+   {
+    "t": 12.9,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.231007999999996
+   },
+   {
+    "t": 14.2,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.201088
+   },
+   {
+    "t": 15.5,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.212095999999995
+   },
+   {
+    "t": 16.9,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 46.977599999999995
+   },
+   {
+    "t": 18.2,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.0648
+   },
+   {
+    "t": 19.6,
+    "awake": 4624,
+    "moving": 4599,
+    "asleep": false,
+    "ms": 46.895008
+   },
+   {
+    "t": 29.5,
+    "awake": 4621,
+    "moving": 4110,
+    "asleep": false,
+    "ms": 47.597823999999996
+   },
+   {
+    "t": 30.9,
+    "awake": 4624,
+    "moving": 4133,
+    "asleep": false,
+    "ms": 47.043392
+   },
+   {
+    "t": 32.2,
+    "awake": 4624,
+    "moving": 4447,
+    "asleep": false,
+    "ms": 47.240736
+   },
+   {
+    "t": 33.6,
+    "awake": 4624,
+    "moving": 4461,
+    "asleep": false,
+    "ms": 47.054944
+   },
+   {
+    "t": 35.0,
+    "awake": 4624,
+    "moving": 4318,
+    "asleep": false,
+    "ms": 47.079488
+   },
+   {
+    "t": 36.4,
+    "awake": 4624,
+    "moving": 4544,
+    "asleep": false,
+    "ms": 47.114816
+   },
+   {
+    "t": 37.8,
+    "awake": 4624,
+    "moving": 4484,
+    "asleep": false,
+    "ms": 47.083456
+   },
+   {
+    "t": 39.2,
+    "awake": 4624,
+    "moving": 4261,
+    "asleep": false,
+    "ms": 47.207456
+   },
+   {
+    "t": 40.6,
+    "awake": 4623,
+    "moving": 4239,
+    "asleep": false,
+    "ms": 47.629728
+   },
+   {
+    "t": 42.0,
+    "awake": 4624,
+    "moving": 4100,
+    "asleep": false,
+    "ms": 47.195648
+   },
+   {
+    "t": 43.3,
+    "awake": 4624,
+    "moving": 4256,
+    "asleep": false,
+    "ms": 47.15584
+   },
+   {
+    "t": 44.7,
+    "awake": 4624,
+    "moving": 4190,
+    "asleep": false,
+    "ms": 47.151072
+   },
+   {
+    "t": 46.1,
+    "awake": 4624,
+    "moving": 3798,
+    "asleep": false,
+    "ms": 47.292896
+   },
+   {
+    "t": 47.4,
+    "awake": 4622,
+    "moving": 3550,
+    "asleep": false,
+    "ms": 47.703455999999996
+   },
+   {
+    "t": 48.8,
+    "awake": 4600,
+    "moving": 3402,
+    "asleep": false,
+    "ms": 47.536128
+   },
+   {
+    "t": 50.2,
+    "awake": 4592,
+    "moving": 3331,
+    "asleep": false,
+    "ms": 47.389568
+   },
+   {
+    "t": 51.5,
+    "awake": 4522,
+    "moving": 3154,
+    "asleep": false,
+    "ms": 46.261055999999996
+   },
+   {
+    "t": 52.9,
+    "awake": 4428,
+    "moving": 2747,
+    "asleep": false,
+    "ms": 45.131616
+   },
+   {
+    "t": 54.3,
+    "awake": 4266,
+    "moving": 2463,
+    "asleep": false,
+    "ms": 42.843168
+   },
+   {
+    "t": 55.6,
+    "awake": 4067,
+    "moving": 2231,
+    "asleep": false,
+    "ms": 40.160864
+   },
+   {
+    "t": 57.0,
+    "awake": 3873,
+    "moving": 2010,
+    "asleep": false,
+    "ms": 37.545567999999996
+   },
+   {
+    "t": 58.4,
+    "awake": 3591,
+    "moving": 1879,
+    "asleep": false,
+    "ms": 23.57856
+   },
+   {
+    "t": 59.7,
+    "awake": 3308,
+    "moving": 1615,
+    "asleep": false,
+    "ms": 21.550016
+   },
+   {
+    "t": 61.0,
+    "awake": 3079,
+    "moving": 1429,
+    "asleep": false,
+    "ms": 11.175296
+   },
+   {
+    "t": 62.3,
+    "awake": 2879,
+    "moving": 1263,
+    "asleep": false,
+    "ms": 10.094047999999999
+   },
+   {
+    "t": 63.7,
+    "awake": 2897,
+    "moving": 1248,
+    "asleep": false,
+    "ms": 18.483999999999998
+   },
+   {
+    "t": 65.0,
+    "awake": 2436,
+    "moving": 921,
+    "asleep": false,
+    "ms": 15.100128
+   },
+   {
+    "t": 66.3,
+    "awake": 2163,
+    "moving": 824,
+    "asleep": false,
+    "ms": 7.314655999999999
+   },
+   {
+    "t": 67.6,
+    "awake": 1863,
+    "moving": 699,
+    "asleep": false,
+    "ms": 6.208991999999999
+   },
+   {
+    "t": 69.0,
+    "awake": 1655,
+    "moving": 603,
+    "asleep": false,
+    "ms": 5.5184
+   },
+   {
+    "t": 70.3,
+    "awake": 1581,
+    "moving": 503,
+    "asleep": false,
+    "ms": 5.241664
+   }
+  ],
+  "awake_window": {
+   "label": "sweeps 20 awake 0-8s",
+   "fps_mean": 29.9,
+   "fps_min": 16.1,
+   "cpu_frame_ms_mean": 40.603,
+   "cpu_frame_ms_max_sampled": 62.245,
+   "frame_ms_max": 67.742,
+   "gpu_frame_ms_median": 4.045,
+   "gpu_frame_ms_max": 5.733,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 74.958,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.021,
+    "motion": 0.004,
+    "pressure": 0.002,
+    "solids": 0.001,
+    "total": 38.487,
+    "update": 38.45
+   },
+   "water_gpu_ms_per_call": 10.4109,
+   "water_gpu_calls_per_s": 2.3,
+   "push_windows_gpu_ms_per_call": 0.0018,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 305,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 89,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 115.2549,
+     "bytes_after": 1519448784,
+     "copy": 48.8995,
+     "free": 11.064,
+     "grows": 1,
+     "rebind": 0.039,
+     "tables": 1.5633
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 47.0231,
+     "host": 7.1539,
+     "residency": 71.4895,
+     "residency_split": {
+      "apply": 1.435,
+      "ground": 19.309,
+      "grow": 0.0817,
+      "need": 50.6638
+     },
+     "scatter": 30.6966,
+     "settle": 0.0001,
+     "submit": 55.744,
+     "tables": 0.0549
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0074,
+    "exchange": 0.0005,
+    "feed": 0.0201,
+    "motion": 0.0031,
+    "pressure": 0.0012,
+    "solids": 0.0008,
+    "total": 63.7746,
+    "update": 63.7388
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 52.49,
+    "gpu.01 settle (collect the call before)": 38.549,
+    "collect.1 fence wait": 34.51,
+    "ripples.2 masks + layers": 27.267,
+    "mgr.3 tall cells": 13.875,
+    "gpu.04 residency: which bricks": 12.434,
+    "gpu.05 residency: apply": 11.093,
+    "gpu.07 partition + tables": 9.981
+   }
+  },
+  "mid_window": {
+   "label": "sweeps 20 20-28s",
+   "fps_mean": 18.2,
+   "fps_min": 17.2,
+   "cpu_frame_ms_mean": 54.935,
+   "cpu_frame_ms_max_sampled": 58.212,
+   "frame_ms_max": 60.901,
+   "gpu_frame_ms_median": 4.11,
+   "gpu_frame_ms_max": 4.342,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 132.302,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.021,
+    "motion": 0.001,
+    "pressure": 0.002,
+    "solids": 0.001,
+    "total": 51.122,
+    "update": 51.087
+   },
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 633,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 89,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 115.2549,
+     "bytes_after": 1519448784,
+     "copy": 48.8995,
+     "free": 11.064,
+     "grows": 1,
+     "rebind": 0.039,
+     "tables": 1.5633
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 47.0231,
+     "host": 7.1539,
+     "residency": 71.4895,
+     "residency_split": {
+      "apply": 1.435,
+      "ground": 19.309,
+      "grow": 0.0817,
+      "need": 50.6638
+     },
+     "scatter": 30.6966,
+     "settle": 0.0001,
+     "submit": 55.744,
+     "tables": 0.0549
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0066,
+    "exchange": 0.0002,
+    "feed": 0.02,
+    "motion": 0.001,
+    "pressure": 0.0017,
+    "solids": 0.0006,
+    "total": 56.6677,
+    "update": 56.6349
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 47.528,
+    "gpu.01 settle (collect the call before)": 39.484,
+    "collect.1 fence wait": 35.223,
+    "gpu.04 residency: which bricks": 6.053,
+    "ripples.1 surfaceFields (= surf.*)": 6.038,
+    "surf.1 read the GPU surface": 6.012,
+    "collect.3 stats + record + sleep": 4.146,
+    "mgr.3 tall cells": 3.666
+   }
+  },
+  "census_before": {
+   "in_air_m3": 7200.000126431523,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7200.000126431523,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5250345
+  },
+  "census_after": {
+   "in_air_m3": 7199.999368571056,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7199.999368571056,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5725896
+  }
+ },
+ {
+  "sweeps": 40,
+  "rows": [
+   {
+    "t": 8.9,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 61.320736
+   },
+   {
+    "t": 10.2,
+    "awake": 4624,
+    "moving": 4610,
+    "asleep": false,
+    "ms": 61.411808
+   },
+   {
+    "t": 11.6,
+    "awake": 4624,
+    "moving": 4610,
+    "asleep": false,
+    "ms": 61.400287999999996
+   },
+   {
+    "t": 13.0,
+    "awake": 4624,
+    "moving": 4600,
+    "asleep": false,
+    "ms": 61.173888
+   },
+   {
+    "t": 14.4,
+    "awake": 4624,
+    "moving": 4448,
+    "asleep": false,
+    "ms": 61.18992
+   },
+   {
+    "t": 15.9,
+    "awake": 4624,
+    "moving": 4298,
+    "asleep": false,
+    "ms": 61.305184
+   },
+   {
+    "t": 17.3,
+    "awake": 4612,
+    "moving": 4083,
+    "asleep": false,
+    "ms": 60.952096
+   },
+   {
+    "t": 18.7,
+    "awake": 4548,
+    "moving": 3674,
+    "asleep": false,
+    "ms": 59.987392
+   },
+   {
+    "t": 20.1,
+    "awake": 4587,
+    "moving": 3207,
+    "asleep": false,
+    "ms": 60.756831999999996
+   },
+   {
+    "t": 29.9,
+    "awake": 2980,
+    "moving": 473,
+    "asleep": false,
+    "ms": 23.585504
+   },
+   {
+    "t": 31.3,
+    "awake": 3175,
+    "moving": 590,
+    "asleep": false,
+    "ms": 25.403935999999998
+   },
+   {
+    "t": 32.6,
+    "awake": 3028,
+    "moving": 521,
+    "asleep": false,
+    "ms": 13.195808
+   },
+   {
+    "t": 33.9,
+    "awake": 2710,
+    "moving": 399,
+    "asleep": false,
+    "ms": 22.786815999999998
+   },
+   {
+    "t": 35.3,
+    "awake": 2782,
+    "moving": 440,
+    "asleep": false,
+    "ms": 22.223423999999998
+   },
+   {
+    "t": 36.6,
+    "awake": 2847,
+    "moving": 437,
+    "asleep": false,
+    "ms": 22.977919999999997
+   },
+   {
+    "t": 38.0,
+    "awake": 2555,
+    "moving": 395,
+    "asleep": false,
+    "ms": 11.121056
+   },
+   {
+    "t": 39.3,
+    "awake": 2507,
+    "moving": 396,
+    "asleep": false,
+    "ms": 10.600959999999999
+   },
+   {
+    "t": 40.7,
+    "awake": 2289,
+    "moving": 437,
+    "asleep": false,
+    "ms": 9.594144
+   },
+   {
+    "t": 42.0,
+    "awake": 2027,
+    "moving": 388,
+    "asleep": false,
+    "ms": 8.432832
+   },
+   {
+    "t": 43.3,
+    "awake": 1915,
+    "moving": 360,
+    "asleep": false,
+    "ms": 8.05824
+   },
+   {
+    "t": 44.6,
+    "awake": 1680,
+    "moving": 288,
+    "asleep": false,
+    "ms": 7.152672
+   },
+   {
+    "t": 45.9,
+    "awake": 1459,
+    "moving": 204,
+    "asleep": false,
+    "ms": 6.13744
+   },
+   {
+    "t": 47.3,
+    "awake": 1208,
+    "moving": 157,
+    "asleep": false,
+    "ms": 5.451936
+   },
+   {
+    "t": 48.6,
+    "awake": 1059,
+    "moving": 122,
+    "asleep": false,
+    "ms": 4.777568
+   },
+   {
+    "t": 49.9,
+    "awake": 670,
+    "moving": 64,
+    "asleep": false,
+    "ms": 3.716032
+   },
+   {
+    "t": 51.3,
+    "awake": 522,
+    "moving": 41,
+    "asleep": false,
+    "ms": 2.936064
+   },
+   {
+    "t": 52.6,
+    "awake": 241,
+    "moving": 21,
+    "asleep": false,
+    "ms": 2.049184
+   },
+   {
+    "t": 53.9,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 55.0,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 56.0,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 57.0,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 58.1,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 59.1,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 60.2,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 61.2,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 62.2,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 63.3,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 64.3,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 65.3,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 66.4,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 67.4,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 68.4,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 69.5,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   }
+  ],
+  "awake_window": {
+   "label": "sweeps 40 awake 0-8s",
+   "fps_mean": 27.0,
+   "fps_min": 13.9,
+   "cpu_frame_ms_mean": 51.5,
+   "cpu_frame_ms_max_sampled": 71.948,
+   "frame_ms_max": 72.957,
+   "gpu_frame_ms_median": 4.127,
+   "gpu_frame_ms_max": 6.488,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 98.707,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.02,
+    "motion": 0.003,
+    "pressure": 0.002,
+    "solids": 0.001,
+    "total": 48.571,
+    "update": 48.535
+   },
+   "water_gpu_ms_per_call": 7.2627,
+   "water_gpu_calls_per_s": 1.2,
+   "push_windows_gpu_ms_per_call": 0.0019,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 2056,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 177,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 52.6569,
+     "bytes_after": 1519448784,
+     "copy": 9.3058,
+     "free": 7.402,
+     "grows": 2,
+     "rebind": 0.06,
+     "tables": 0.3862
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 47.9496,
+     "host": 6.9437,
+     "residency": 71.1882,
+     "residency_split": {
+      "apply": 1.3161,
+      "ground": 19.5763,
+      "grow": 0.0958,
+      "need": 50.2
+     },
+     "scatter": 35.1356,
+     "settle": 0.0001,
+     "submit": 56.1301,
+     "tables": 0.0557
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0053,
+    "exchange": 0.0001,
+    "feed": 0.0206,
+    "motion": 0.003,
+    "pressure": 0.001,
+    "solids": 0.0006,
+    "total": 68.9436,
+    "update": 68.9106
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 59.627,
+    "gpu.01 settle (collect the call before)": 51.933,
+    "collect.1 fence wait": 48.719,
+    "ripples.2 masks + layers": 15.186,
+    "gpu.08 record the commands": 14.243,
+    "mgr.3 tall cells": 13.868,
+    "gpu.04 residency: which bricks": 12.638,
+    "gpu.05 residency: apply": 10.988
+   }
+  },
+  "mid_window": {
+   "label": "sweeps 40 20-28s",
+   "fps_mean": 20.4,
+   "fps_min": 14.1,
+   "cpu_frame_ms_mean": 51.669,
+   "cpu_frame_ms_max_sampled": 71.093,
+   "frame_ms_max": 71.093,
+   "gpu_frame_ms_median": 4.146,
+   "gpu_frame_ms_max": 4.724,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 112.801,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.022,
+    "motion": 0.001,
+    "pressure": 0.002,
+    "solids": 0.001,
+    "total": 47.615,
+    "update": 47.58
+   },
+   "water_gpu_ms_per_call": 13.7948,
+   "water_gpu_calls_per_s": 0.7,
+   "push_windows_gpu_ms_per_call": 0.0018,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 2372,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 178,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 52.6569,
+     "bytes_after": 1519448784,
+     "copy": 9.3058,
+     "free": 7.402,
+     "grows": 2,
+     "rebind": 0.06,
+     "tables": 0.3862
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 47.9496,
+     "host": 6.9437,
+     "residency": 71.1882,
+     "residency_split": {
+      "apply": 1.3161,
+      "ground": 19.5763,
+      "grow": 0.0958,
+      "need": 50.2
+     },
+     "scatter": 35.1356,
+     "settle": 0.0001,
+     "submit": 56.1301,
+     "tables": 0.0557
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0074,
+    "exchange": 0.0001,
+    "feed": 0.0227,
+    "motion": 0.0013,
+    "pressure": 0.0013,
+    "solids": 0.0014,
+    "total": 66.9461,
+    "update": 66.9079
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 57.652,
+    "gpu.01 settle (collect the call before)": 48.855,
+    "collect.1 fence wait": 45.686,
+    "gpu.07 partition + tables": 9.738,
+    "gpu.04 residency: which bricks": 6.059,
+    "ripples.1 surfaceFields (= surf.*)": 5.328,
+    "surf.1 read the GPU surface": 5.302,
+    "collect.3 stats + record + sleep": 4.211
+   }
+  },
+  "census_before": {
+   "in_air_m3": 7200.000161341125,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7200.000161341125,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5248800
+  },
+  "census_after": {
+   "in_air_m3": 7199.99991214847,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7199.99991214847,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5508622
+  }
+ },
+ {
+  "sweeps": 20,
+  "rows": [
+   {
+    "t": 8.7,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 46.887456
+   },
+   {
+    "t": 10.1,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.115168
+   },
+   {
+    "t": 11.4,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.33952
+   },
+   {
+    "t": 12.8,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.358784
+   },
+   {
+    "t": 14.2,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.564223999999996
+   },
+   {
+    "t": 15.5,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.317631999999996
+   },
+   {
+    "t": 16.9,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.245855999999996
+   },
+   {
+    "t": 18.3,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.156672
+   },
+   {
+    "t": 19.7,
+    "awake": 4624,
+    "moving": 4501,
+    "asleep": false,
+    "ms": 47.149248
+   },
+   {
+    "t": 29.5,
+    "awake": 4624,
+    "moving": 4211,
+    "asleep": false,
+    "ms": 47.414688
+   },
+   {
+    "t": 30.9,
+    "awake": 4624,
+    "moving": 4169,
+    "asleep": false,
+    "ms": 47.494656
+   },
+   {
+    "t": 32.3,
+    "awake": 4624,
+    "moving": 4302,
+    "asleep": false,
+    "ms": 47.378144
+   },
+   {
+    "t": 33.6,
+    "awake": 4624,
+    "moving": 4384,
+    "asleep": false,
+    "ms": 47.352832
+   },
+   {
+    "t": 35.0,
+    "awake": 4624,
+    "moving": 4402,
+    "asleep": false,
+    "ms": 47.357279999999996
+   },
+   {
+    "t": 36.5,
+    "awake": 4624,
+    "moving": 4440,
+    "asleep": false,
+    "ms": 47.348639999999996
+   },
+   {
+    "t": 37.8,
+    "awake": 4624,
+    "moving": 4471,
+    "asleep": false,
+    "ms": 47.36224
+   },
+   {
+    "t": 39.1,
+    "awake": 4624,
+    "moving": 4113,
+    "asleep": false,
+    "ms": 47.327583999999995
+   },
+   {
+    "t": 40.5,
+    "awake": 4623,
+    "moving": 4122,
+    "asleep": false,
+    "ms": 47.960224
+   },
+   {
+    "t": 41.9,
+    "awake": 4623,
+    "moving": 4176,
+    "asleep": false,
+    "ms": 48.116288
+   },
+   {
+    "t": 43.2,
+    "awake": 4624,
+    "moving": 4251,
+    "asleep": false,
+    "ms": 47.328703999999995
+   },
+   {
+    "t": 44.6,
+    "awake": 4623,
+    "moving": 3834,
+    "asleep": false,
+    "ms": 47.846336
+   },
+   {
+    "t": 46.0,
+    "awake": 4623,
+    "moving": 3881,
+    "asleep": false,
+    "ms": 47.886496
+   },
+   {
+    "t": 47.4,
+    "awake": 4619,
+    "moving": 3859,
+    "asleep": false,
+    "ms": 47.901696
+   },
+   {
+    "t": 48.7,
+    "awake": 4563,
+    "moving": 3608,
+    "asleep": false,
+    "ms": 47.122656
+   },
+   {
+    "t": 50.1,
+    "awake": 4532,
+    "moving": 3376,
+    "asleep": false,
+    "ms": 46.655007999999995
+   },
+   {
+    "t": 51.4,
+    "awake": 4524,
+    "moving": 3038,
+    "asleep": false,
+    "ms": 46.566496
+   },
+   {
+    "t": 52.8,
+    "awake": 4443,
+    "moving": 2859,
+    "asleep": false,
+    "ms": 45.512927999999995
+   },
+   {
+    "t": 54.2,
+    "awake": 4293,
+    "moving": 2769,
+    "asleep": false,
+    "ms": 43.657824
+   },
+   {
+    "t": 55.5,
+    "awake": 4209,
+    "moving": 2505,
+    "asleep": false,
+    "ms": 42.170784
+   },
+   {
+    "t": 56.9,
+    "awake": 4099,
+    "moving": 2002,
+    "asleep": false,
+    "ms": 40.955808
+   },
+   {
+    "t": 58.2,
+    "awake": 3819,
+    "moving": 1810,
+    "asleep": false,
+    "ms": 25.638144
+   },
+   {
+    "t": 59.6,
+    "awake": 3553,
+    "moving": 1715,
+    "asleep": false,
+    "ms": 23.401376
+   },
+   {
+    "t": 60.9,
+    "awake": 3320,
+    "moving": 1579,
+    "asleep": false,
+    "ms": 21.660576
+   },
+   {
+    "t": 62.2,
+    "awake": 2975,
+    "moving": 1419,
+    "asleep": false,
+    "ms": 10.856224
+   },
+   {
+    "t": 63.6,
+    "awake": 2567,
+    "moving": 1152,
+    "asleep": false,
+    "ms": 8.9384
+   },
+   {
+    "t": 64.9,
+    "awake": 2287,
+    "moving": 978,
+    "asleep": false,
+    "ms": 7.7836799999999995
+   },
+   {
+    "t": 66.2,
+    "awake": 1899,
+    "moving": 797,
+    "asleep": false,
+    "ms": 6.371872
+   },
+   {
+    "t": 67.5,
+    "awake": 1602,
+    "moving": 623,
+    "asleep": false,
+    "ms": 5.33984
+   },
+   {
+    "t": 68.8,
+    "awake": 1449,
+    "moving": 534,
+    "asleep": false,
+    "ms": 4.825824
+   },
+   {
+    "t": 70.1,
+    "awake": 1490,
+    "moving": 503,
+    "asleep": false,
+    "ms": 5.029024
+   }
+  ],
+  "awake_window": {
+   "label": "sweeps 20 awake 0-8s",
+   "fps_mean": 67.8,
+   "fps_min": 17.6,
+   "cpu_frame_ms_mean": 38.162,
+   "cpu_frame_ms_max_sampled": 56.928,
+   "frame_ms_max": 58.136,
+   "gpu_frame_ms_median": 4.067,
+   "gpu_frame_ms_max": 4.663,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 59.349,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.021,
+    "motion": 0.003,
+    "pressure": 0.002,
+    "solids": 0.001,
+    "total": 36.064,
+    "update": 36.027
+   },
+   "water_gpu_ms_per_call": 7.7693,
+   "water_gpu_calls_per_s": 5.6,
+   "push_windows_gpu_ms_per_call": 0.0018,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 8048,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 267,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 50.8708,
+     "bytes_after": 1519448784,
+     "copy": 8.9301,
+     "free": 7.157,
+     "grows": 3,
+     "rebind": 0.043,
+     "tables": 0.3804
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 48.516,
+     "host": 6.861,
+     "residency": 70.6441,
+     "residency_split": {
+      "apply": 1.3155,
+      "ground": 19.426,
+      "grow": 0.0854,
+      "need": 49.8172
+     },
+     "scatter": 35.627,
+     "settle": 0.0,
+     "submit": 55.8673,
+     "tables": 0.0536
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0069,
+    "exchange": 0.0001,
+    "feed": 0.021,
+    "motion": 0.0027,
+    "pressure": 0.0019,
+    "solids": 0.0008,
+    "total": 54.1326,
+    "update": 54.0964
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 45.495,
+    "gpu.01 settle (collect the call before)": 39.201,
+    "collect.1 fence wait": 34.981,
+    "mgr.3 tall cells": 14.116,
+    "gpu.08 record the commands": 13.035,
+    "gpu.04 residency: which bricks": 11.424,
+    "gpu.05 residency: apply": 11.319,
+    "gpu.06 compact": 9.878
+   }
+  },
+  "mid_window": {
+   "label": "sweeps 20 20-28s",
+   "fps_mean": 18.1,
+   "fps_min": 17.0,
+   "cpu_frame_ms_mean": 55.336,
+   "cpu_frame_ms_max_sampled": 58.742,
+   "frame_ms_max": 59.869,
+   "gpu_frame_ms_median": 4.123,
+   "gpu_frame_ms_max": 4.539,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 133.206,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.021,
+    "motion": 0.001,
+    "pressure": 0.002,
+    "solids": 0.001,
+    "total": 51.19,
+    "update": 51.155
+   },
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 8378,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 267,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 50.8708,
+     "bytes_after": 1519448784,
+     "copy": 8.9301,
+     "free": 7.157,
+     "grows": 3,
+     "rebind": 0.043,
+     "tables": 0.3804
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 48.516,
+     "host": 6.861,
+     "residency": 70.6441,
+     "residency_split": {
+      "apply": 1.3155,
+      "ground": 19.426,
+      "grow": 0.0854,
+      "need": 49.8172
+     },
+     "scatter": 35.627,
+     "settle": 0.0,
+     "submit": 55.8673,
+     "tables": 0.0536
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0003,
+    "feed": 0.0204,
+    "motion": 0.001,
+    "pressure": 0.0015,
+    "solids": 0.0007,
+    "total": 55.8384,
+    "update": 55.8045
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 47.321,
+    "gpu.01 settle (collect the call before)": 40.32,
+    "collect.1 fence wait": 35.685,
+    "gpu.04 residency: which bricks": 7.207,
+    "ripples.1 surfaceFields (= surf.*)": 6.01,
+    "surf.1 read the GPU surface": 5.979,
+    "collect.3 stats + record + sleep": 4.303,
+    "mgr.3 tall cells": 3.937
+   }
+  },
+  "census_before": {
+   "in_air_m3": 7200.000139192085,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7200.000139192085,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5248805
+  },
+  "census_after": {
+   "in_air_m3": 7199.999544282835,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7199.999544282835,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5720557
+  }
+ },
+ {
+  "sweeps": 40,
+  "rows": [
+   {
+    "t": 9.0,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 61.582623999999996
+   },
+   {
+    "t": 10.4,
+    "awake": 4624,
+    "moving": 4611,
+    "asleep": false,
+    "ms": 61.632064
+   },
+   {
+    "t": 11.8,
+    "awake": 4624,
+    "moving": 4623,
+    "asleep": false,
+    "ms": 61.632064
+   },
+   {
+    "t": 13.2,
+    "awake": 4624,
+    "moving": 4601,
+    "asleep": false,
+    "ms": 61.849951999999995
+   },
+   {
+    "t": 14.5,
+    "awake": 4624,
+    "moving": 4430,
+    "asleep": false,
+    "ms": 61.696991999999995
+   },
+   {
+    "t": 15.9,
+    "awake": 4624,
+    "moving": 4287,
+    "asleep": false,
+    "ms": 61.733247999999996
+   },
+   {
+    "t": 17.3,
+    "awake": 4620,
+    "moving": 4079,
+    "asleep": false,
+    "ms": 61.684287999999995
+   },
+   {
+    "t": 18.7,
+    "awake": 4567,
+    "moving": 3734,
+    "asleep": false,
+    "ms": 60.96064
+   },
+   {
+    "t": 20.1,
+    "awake": 4548,
+    "moving": 3129,
+    "asleep": false,
+    "ms": 60.651776
+   },
+   {
+    "t": 29.9,
+    "awake": 2981,
+    "moving": 437,
+    "asleep": false,
+    "ms": 24.626464
+   },
+   {
+    "t": 31.3,
+    "awake": 3031,
+    "moving": 495,
+    "asleep": false,
+    "ms": 24.947456
+   },
+   {
+    "t": 32.7,
+    "awake": 2924,
+    "moving": 435,
+    "asleep": false,
+    "ms": 23.832096
+   },
+   {
+    "t": 34.0,
+    "awake": 2837,
+    "moving": 454,
+    "asleep": false,
+    "ms": 22.675008
+   },
+   {
+    "t": 35.3,
+    "awake": 2723,
+    "moving": 406,
+    "asleep": false,
+    "ms": 21.488768
+   },
+   {
+    "t": 36.7,
+    "awake": 2482,
+    "moving": 361,
+    "asleep": false,
+    "ms": 20.31664
+   },
+   {
+    "t": 38.0,
+    "awake": 2495,
+    "moving": 344,
+    "asleep": false,
+    "ms": 19.419936
+   },
+   {
+    "t": 39.3,
+    "awake": 2267,
+    "moving": 348,
+    "asleep": false,
+    "ms": 9.400576
+   },
+   {
+    "t": 40.7,
+    "awake": 1801,
+    "moving": 247,
+    "asleep": false,
+    "ms": 7.58304
+   },
+   {
+    "t": 42.0,
+    "awake": 1476,
+    "moving": 257,
+    "asleep": false,
+    "ms": 6.080576
+   },
+   {
+    "t": 43.3,
+    "awake": 1118,
+    "moving": 209,
+    "asleep": false,
+    "ms": 4.842112
+   },
+   {
+    "t": 44.6,
+    "awake": 894,
+    "moving": 195,
+    "asleep": false,
+    "ms": 4.113728
+   },
+   {
+    "t": 46.0,
+    "awake": 902,
+    "moving": 172,
+    "asleep": false,
+    "ms": 4.04784
+   },
+   {
+    "t": 47.3,
+    "awake": 856,
+    "moving": 126,
+    "asleep": false,
+    "ms": 4.104352
+   },
+   {
+    "t": 48.6,
+    "awake": 825,
+    "moving": 97,
+    "asleep": false,
+    "ms": 3.778848
+   },
+   {
+    "t": 49.9,
+    "awake": 698,
+    "moving": 99,
+    "asleep": false,
+    "ms": 3.571776
+   },
+   {
+    "t": 51.3,
+    "awake": 674,
+    "moving": 82,
+    "asleep": false,
+    "ms": 3.230496
+   },
+   {
+    "t": 52.6,
+    "awake": 506,
+    "moving": 66,
+    "asleep": false,
+    "ms": 2.851296
+   },
+   {
+    "t": 53.9,
+    "awake": 316,
+    "moving": 37,
+    "asleep": false,
+    "ms": 2.236736
+   },
+   {
+    "t": 55.2,
+    "awake": 153,
+    "moving": 20,
+    "asleep": false,
+    "ms": 1.771488
+   },
+   {
+    "t": 56.5,
+    "awake": 94,
+    "moving": 14,
+    "asleep": false,
+    "ms": 1.53808
+   },
+   {
+    "t": 57.8,
+    "awake": 94,
+    "moving": 13,
+    "asleep": false,
+    "ms": 1.5486719999999998
+   },
+   {
+    "t": 59.1,
+    "awake": 86,
+    "moving": 15,
+    "asleep": false,
+    "ms": 1.503232
+   },
+   {
+    "t": 60.4,
+    "awake": 84,
+    "moving": 12,
+    "asleep": false,
+    "ms": 1.514816
+   },
+   {
+    "t": 61.7,
+    "awake": 48,
+    "moving": 8,
+    "asleep": false,
+    "ms": 1.39472
+   },
+   {
+    "t": 63.1,
+    "awake": 47,
+    "moving": 7,
+    "asleep": false,
+    "ms": 1.3846079999999998
+   },
+   {
+    "t": 64.4,
+    "awake": 47,
+    "moving": 6,
+    "asleep": false,
+    "ms": 1.396064
+   },
+   {
+    "t": 65.7,
+    "awake": 56,
+    "moving": 8,
+    "asleep": false,
+    "ms": 1.418304
+   },
+   {
+    "t": 67.0,
+    "awake": 51,
+    "moving": 7,
+    "asleep": false,
+    "ms": 1.398528
+   },
+   {
+    "t": 68.3,
+    "awake": 41,
+    "moving": 5,
+    "asleep": false,
+    "ms": 1.379264
+   },
+   {
+    "t": 69.6,
+    "awake": 35,
+    "moving": 3,
+    "asleep": false,
+    "ms": 1.3626559999999999
+   }
+  ],
+  "awake_window": {
+   "label": "sweeps 40 awake 0-8s",
+   "fps_mean": 30.6,
+   "fps_min": 14.4,
+   "cpu_frame_ms_mean": 49.258,
+   "cpu_frame_ms_max_sampled": 69.41,
+   "frame_ms_max": 72.612,
+   "gpu_frame_ms_median": 4.134,
+   "gpu_frame_ms_max": 4.939,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 87.808,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.02,
+    "motion": 0.003,
+    "pressure": 0.002,
+    "solids": 0.001,
+    "total": 47.017,
+    "update": 46.981
+   },
+   "water_gpu_ms_per_call": 6.6952,
+   "water_gpu_calls_per_s": 1.8,
+   "push_windows_gpu_ms_per_call": 0.0019,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 9878,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 355,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 49.3365,
+     "bytes_after": 1519448784,
+     "copy": 9.0664,
+     "free": 7.1564,
+     "grows": 4,
+     "rebind": 0.0494,
+     "tables": 0.512
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 45.8155,
+     "host": 6.4288,
+     "residency": 69.5126,
+     "residency_split": {
+      "apply": 1.3394,
+      "ground": 18.7909,
+      "grow": 0.0969,
+      "need": 49.2854
+     },
+     "scatter": 31.7378,
+     "settle": 0.0,
+     "submit": 56.4054,
+     "tables": 0.0603
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.006,
+    "exchange": 0.0002,
+    "feed": 0.0215,
+    "motion": 0.0028,
+    "pressure": 0.0019,
+    "solids": 0.0009,
+    "total": 68.7345,
+    "update": 68.6984
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 60.819,
+    "gpu.01 settle (collect the call before)": 54.556,
+    "collect.1 fence wait": 50.016,
+    "mgr.3 tall cells": 14.785,
+    "gpu.04 residency: which bricks": 11.479,
+    "gpu.05 residency: apply": 11.377,
+    "ripples.2 masks + layers": 10.03,
+    "gpu.06 compact": 9.568
+   }
+  },
+  "mid_window": {
+   "label": "sweeps 40 20-28s",
+   "fps_mean": 19.8,
+   "fps_min": 14.4,
+   "cpu_frame_ms_mean": 53.066,
+   "cpu_frame_ms_max_sampled": 69.436,
+   "frame_ms_max": 71.451,
+   "gpu_frame_ms_median": 4.139,
+   "gpu_frame_ms_max": 4.512,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 118.439,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.021,
+    "motion": 0.001,
+    "pressure": 0.002,
+    "solids": 0.001,
+    "total": 48.882,
+    "update": 48.847
+   },
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 10188,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 355,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 49.3365,
+     "bytes_after": 1519448784,
+     "copy": 9.0664,
+     "free": 7.1564,
+     "grows": 4,
+     "rebind": 0.0494,
+     "tables": 0.512
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 45.8155,
+     "host": 6.4288,
+     "residency": 69.5126,
+     "residency_split": {
+      "apply": 1.3394,
+      "ground": 18.7909,
+      "grow": 0.0969,
+      "need": 49.2854
+     },
+     "scatter": 31.7378,
+     "settle": 0.0,
+     "submit": 56.4054,
+     "tables": 0.0603
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0068,
+    "exchange": 0.0002,
+    "feed": 0.0187,
+    "motion": 0.0015,
+    "pressure": 0.0015,
+    "solids": 0.001,
+    "total": 67.3148,
+    "update": 67.2821
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 58.968,
+    "gpu.01 settle (collect the call before)": 49.541,
+    "collect.1 fence wait": 46.727,
+    "gpu.07 partition + tables": 6.986,
+    "ripples.1 surfaceFields (= surf.*)": 6.225,
+    "gpu.04 residency: which bricks": 6.224,
+    "surf.1 read the GPU surface": 6.2,
+    "collect.3 stats + record + sleep": 4.25
+   }
+  },
+  "census_before": {
+   "in_air_m3": 7200.000161341125,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7200.000161341125,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5248800
+  },
+  "census_after": {
+   "in_air_m3": 7199.999942064767,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7199.999942064767,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5495588
+  }
+ },
+ {
+  "sweeps": 20,
+  "rows": [
+   {
+    "t": 8.7,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.059968
+   },
+   {
+    "t": 10.0,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.071072
+   },
+   {
+    "t": 11.4,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.282336
+   },
+   {
+    "t": 12.8,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.313952
+   },
+   {
+    "t": 14.2,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.337056
+   },
+   {
+    "t": 15.5,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.331711999999996
+   },
+   {
+    "t": 16.9,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.084191999999994
+   },
+   {
+    "t": 18.3,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 47.173663999999995
+   },
+   {
+    "t": 19.7,
+    "awake": 4624,
+    "moving": 4512,
+    "asleep": false,
+    "ms": 47.361408
+   },
+   {
+    "t": 29.5,
+    "awake": 4615,
+    "moving": 4332,
+    "asleep": false,
+    "ms": 47.88288
+   },
+   {
+    "t": 30.8,
+    "awake": 4624,
+    "moving": 4402,
+    "asleep": false,
+    "ms": 47.31536
+   },
+   {
+    "t": 32.2,
+    "awake": 4624,
+    "moving": 4448,
+    "asleep": false,
+    "ms": 47.347456
+   },
+   {
+    "t": 33.6,
+    "awake": 4624,
+    "moving": 4437,
+    "asleep": false,
+    "ms": 47.462464
+   },
+   {
+    "t": 34.9,
+    "awake": 4624,
+    "moving": 4262,
+    "asleep": false,
+    "ms": 47.365504
+   },
+   {
+    "t": 36.3,
+    "awake": 4621,
+    "moving": 4254,
+    "asleep": false,
+    "ms": 47.946079999999995
+   },
+   {
+    "t": 37.6,
+    "awake": 4622,
+    "moving": 4442,
+    "asleep": false,
+    "ms": 47.96048
+   },
+   {
+    "t": 39.0,
+    "awake": 4624,
+    "moving": 4456,
+    "asleep": false,
+    "ms": 47.388064
+   },
+   {
+    "t": 40.4,
+    "awake": 4624,
+    "moving": 4292,
+    "asleep": false,
+    "ms": 47.354943999999996
+   },
+   {
+    "t": 41.8,
+    "awake": 4624,
+    "moving": 4164,
+    "asleep": false,
+    "ms": 47.708352
+   },
+   {
+    "t": 43.1,
+    "awake": 4621,
+    "moving": 4222,
+    "asleep": false,
+    "ms": 47.964735999999995
+   },
+   {
+    "t": 44.5,
+    "awake": 4623,
+    "moving": 4218,
+    "asleep": false,
+    "ms": 47.896736
+   },
+   {
+    "t": 45.8,
+    "awake": 4624,
+    "moving": 4142,
+    "asleep": false,
+    "ms": 47.321376
+   },
+   {
+    "t": 47.2,
+    "awake": 4624,
+    "moving": 3915,
+    "asleep": false,
+    "ms": 47.309632
+   },
+   {
+    "t": 48.6,
+    "awake": 4616,
+    "moving": 3839,
+    "asleep": false,
+    "ms": 47.824639999999995
+   },
+   {
+    "t": 50.0,
+    "awake": 4620,
+    "moving": 3608,
+    "asleep": false,
+    "ms": 47.860928
+   },
+   {
+    "t": 51.4,
+    "awake": 4587,
+    "moving": 3474,
+    "asleep": false,
+    "ms": 47.496896
+   },
+   {
+    "t": 52.7,
+    "awake": 4525,
+    "moving": 3271,
+    "asleep": false,
+    "ms": 46.486495999999995
+   },
+   {
+    "t": 54.1,
+    "awake": 4467,
+    "moving": 2977,
+    "asleep": false,
+    "ms": 45.709472
+   },
+   {
+    "t": 55.5,
+    "awake": 4431,
+    "moving": 2770,
+    "asleep": false,
+    "ms": 45.298367999999996
+   },
+   {
+    "t": 56.9,
+    "awake": 4375,
+    "moving": 2521,
+    "asleep": false,
+    "ms": 44.4944
+   },
+   {
+    "t": 58.2,
+    "awake": 4195,
+    "moving": 2257,
+    "asleep": false,
+    "ms": 42.06032
+   },
+   {
+    "t": 59.6,
+    "awake": 3990,
+    "moving": 1967,
+    "asleep": false,
+    "ms": 27.099552
+   },
+   {
+    "t": 61.0,
+    "awake": 3796,
+    "moving": 1866,
+    "asleep": false,
+    "ms": 25.449216
+   },
+   {
+    "t": 62.3,
+    "awake": 3490,
+    "moving": 1616,
+    "asleep": false,
+    "ms": 22.905632
+   },
+   {
+    "t": 63.6,
+    "awake": 3079,
+    "moving": 1403,
+    "asleep": false,
+    "ms": 11.03984
+   },
+   {
+    "t": 65.0,
+    "awake": 2962,
+    "moving": 1255,
+    "asleep": false,
+    "ms": 18.926624
+   },
+   {
+    "t": 66.3,
+    "awake": 2732,
+    "moving": 1086,
+    "asleep": false,
+    "ms": 9.548032
+   },
+   {
+    "t": 67.6,
+    "awake": 2449,
+    "moving": 970,
+    "asleep": false,
+    "ms": 8.448608
+   },
+   {
+    "t": 68.9,
+    "awake": 2131,
+    "moving": 825,
+    "asleep": false,
+    "ms": 7.28608
+   },
+   {
+    "t": 70.2,
+    "awake": 1989,
+    "moving": 690,
+    "asleep": false,
+    "ms": 6.693728
+   }
+  ],
+  "awake_window": {
+   "label": "sweeps 20 awake 0-8s",
+   "fps_mean": 26.2,
+   "fps_min": 17.1,
+   "cpu_frame_ms_mean": 42.825,
+   "cpu_frame_ms_max_sampled": 58.56,
+   "frame_ms_max": 71.772,
+   "gpu_frame_ms_median": 4.109,
+   "gpu_frame_ms_max": 5.652,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 79.14,
+   "app_water_cpu_ms": {
+    "bodies": 0.006,
+    "exchange": 0.0,
+    "feed": 0.018,
+    "motion": 0.003,
+    "pressure": 0.001,
+    "solids": 0.001,
+    "total": 39.877,
+    "update": 39.846
+   },
+   "water_gpu_ms_per_call": 7.4722,
+   "water_gpu_calls_per_s": 1.5,
+   "push_windows_gpu_ms_per_call": 0.0018,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 14889,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 444,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 48.7747,
+     "bytes_after": 1519448784,
+     "copy": 8.9871,
+     "free": 7.2522,
+     "grows": 5,
+     "rebind": 0.0446,
+     "tables": 0.3739
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 45.7275,
+     "host": 6.5799,
+     "residency": 69.3741,
+     "residency_split": {
+      "apply": 1.2994,
+      "ground": 18.9857,
+      "grow": 0.117,
+      "need": 48.972
+     },
+     "scatter": 31.0334,
+     "settle": 0.0001,
+     "submit": 56.1287,
+     "tables": 0.0571
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0053,
+    "exchange": 0.0002,
+    "feed": 0.0166,
+    "motion": 0.0024,
+    "pressure": 0.0013,
+    "solids": 0.0007,
+    "total": 67.8638,
+    "update": 67.8348
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 57.34,
+    "gpu.01 settle (collect the call before)": 39.189,
+    "collect.1 fence wait": 34.84,
+    "ripples.2 masks + layers": 20.545,
+    "mgr.3 tall cells": 13.744,
+    "gpu.04 residency: which bricks": 12.695,
+    "gpu.05 residency: apply": 10.957,
+    "gpu.06 compact": 9.678
+   }
+  },
+  "mid_window": {
+   "label": "sweeps 20 20-28s",
+   "fps_mean": 18.0,
+   "fps_min": 16.6,
+   "cpu_frame_ms_mean": 55.641,
+   "cpu_frame_ms_max_sampled": 60.113,
+   "frame_ms_max": 61.019,
+   "gpu_frame_ms_median": 4.088,
+   "gpu_frame_ms_max": 4.4,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 133.886,
+   "app_water_cpu_ms": {
+    "bodies": 0.006,
+    "exchange": 0.0,
+    "feed": 0.018,
+    "motion": 0.001,
+    "pressure": 0.001,
+    "solids": 0.001,
+    "total": 51.307,
+    "update": 51.276
+   },
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 15218,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 444,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 48.7747,
+     "bytes_after": 1519448784,
+     "copy": 8.9871,
+     "free": 7.2522,
+     "grows": 5,
+     "rebind": 0.0446,
+     "tables": 0.3739
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 45.7275,
+     "host": 6.5799,
+     "residency": 69.3741,
+     "residency_split": {
+      "apply": 1.2994,
+      "ground": 18.9857,
+      "grow": 0.117,
+      "need": 48.972
+     },
+     "scatter": 31.0334,
+     "settle": 0.0001,
+     "submit": 56.1287,
+     "tables": 0.0571
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0059,
+    "exchange": 0.0008,
+    "feed": 0.0182,
+    "motion": 0.0017,
+    "pressure": 0.0013,
+    "solids": 0.0007,
+    "total": 56.5074,
+    "update": 56.4762
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 47.642,
+    "gpu.01 settle (collect the call before)": 39.735,
+    "collect.1 fence wait": 35.505,
+    "gpu.04 residency: which bricks": 6.702,
+    "ripples.1 surfaceFields (= surf.*)": 5.735,
+    "surf.1 read the GPU surface": 5.711,
+    "collect.3 stats + record + sleep": 4.191,
+    "mgr.3 tall cells": 3.414
+   }
+  },
+  "census_before": {
+   "in_air_m3": 7200.0001320312285,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7200.0001320312285,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5248808
+  },
+  "census_after": {
+   "in_air_m3": 7199.999382651041,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7199.999382651041,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5731995
+  }
+ },
+ {
+  "sweeps": 40,
+  "rows": [
+   {
+    "t": 9.0,
+    "awake": 4624,
+    "moving": 4624,
+    "asleep": false,
+    "ms": 63.672352
+   },
+   {
+    "t": 10.4,
+    "awake": 4624,
+    "moving": 4608,
+    "asleep": false,
+    "ms": 63.612448
+   },
+   {
+    "t": 11.8,
+    "awake": 4624,
+    "moving": 4614,
+    "asleep": false,
+    "ms": 63.884128
+   },
+   {
+    "t": 13.3,
+    "awake": 4624,
+    "moving": 4606,
+    "asleep": false,
+    "ms": 63.604127999999996
+   },
+   {
+    "t": 14.7,
+    "awake": 4624,
+    "moving": 4472,
+    "asleep": false,
+    "ms": 63.635296
+   },
+   {
+    "t": 16.0,
+    "awake": 4623,
+    "moving": 4295,
+    "asleep": false,
+    "ms": 63.273664
+   },
+   {
+    "t": 17.4,
+    "awake": 4624,
+    "moving": 4185,
+    "asleep": false,
+    "ms": 63.313247999999994
+   },
+   {
+    "t": 18.8,
+    "awake": 4551,
+    "moving": 3777,
+    "asleep": false,
+    "ms": 60.224799999999995
+   },
+   {
+    "t": 20.2,
+    "awake": 4581,
+    "moving": 3369,
+    "asleep": false,
+    "ms": 61.018048
+   },
+   {
+    "t": 30.0,
+    "awake": 2984,
+    "moving": 405,
+    "asleep": false,
+    "ms": 34.220991999999995
+   },
+   {
+    "t": 31.4,
+    "awake": 2998,
+    "moving": 443,
+    "asleep": false,
+    "ms": 34.568128
+   },
+   {
+    "t": 32.7,
+    "awake": 3296,
+    "moving": 583,
+    "asleep": false,
+    "ms": 26.655872
+   },
+   {
+    "t": 34.0,
+    "awake": 2993,
+    "moving": 496,
+    "asleep": false,
+    "ms": 24.285888
+   },
+   {
+    "t": 35.4,
+    "awake": 3011,
+    "moving": 516,
+    "asleep": false,
+    "ms": 23.772672
+   },
+   {
+    "t": 36.7,
+    "awake": 2842,
+    "moving": 496,
+    "asleep": false,
+    "ms": 22.466464
+   },
+   {
+    "t": 38.0,
+    "awake": 2626,
+    "moving": 393,
+    "asleep": false,
+    "ms": 20.632032
+   },
+   {
+    "t": 39.4,
+    "awake": 2725,
+    "moving": 425,
+    "asleep": false,
+    "ms": 21.355871999999998
+   },
+   {
+    "t": 40.7,
+    "awake": 2470,
+    "moving": 324,
+    "asleep": false,
+    "ms": 10.764351999999999
+   },
+   {
+    "t": 42.1,
+    "awake": 2208,
+    "moving": 251,
+    "asleep": false,
+    "ms": 9.789952
+   },
+   {
+    "t": 43.4,
+    "awake": 1837,
+    "moving": 204,
+    "asleep": false,
+    "ms": 7.855264
+   },
+   {
+    "t": 44.7,
+    "awake": 1258,
+    "moving": 135,
+    "asleep": false,
+    "ms": 5.387104
+   },
+   {
+    "t": 46.0,
+    "awake": 731,
+    "moving": 69,
+    "asleep": false,
+    "ms": 3.7647679999999997
+   },
+   {
+    "t": 47.3,
+    "awake": 299,
+    "moving": 24,
+    "asleep": false,
+    "ms": 2.288512
+   },
+   {
+    "t": 48.6,
+    "awake": 266,
+    "moving": 27,
+    "asleep": false,
+    "ms": 2.29536
+   },
+   {
+    "t": 49.9,
+    "awake": 119,
+    "moving": 15,
+    "asleep": false,
+    "ms": 1.632032
+   },
+   {
+    "t": 51.2,
+    "awake": 124,
+    "moving": 11,
+    "asleep": false,
+    "ms": 1.6310719999999999
+   },
+   {
+    "t": 52.5,
+    "awake": 83,
+    "moving": 6,
+    "asleep": false,
+    "ms": 1.502592
+   },
+   {
+    "t": 53.8,
+    "awake": 47,
+    "moving": 2,
+    "asleep": false,
+    "ms": 1.4001919999999999
+   },
+   {
+    "t": 55.1,
+    "awake": 25,
+    "moving": 1,
+    "asleep": false,
+    "ms": 1.331872
+   },
+   {
+    "t": 56.5,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 57.5,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 58.5,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 59.6,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 60.6,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 61.6,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 62.7,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 63.7,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 64.8,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 65.8,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 66.8,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 67.9,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 68.9,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   },
+   {
+    "t": 70.0,
+    "awake": 0,
+    "moving": 0,
+    "asleep": true,
+    "ms": 0.0
+   }
+  ],
+  "awake_window": {
+   "label": "sweeps 40 awake 0-8s",
+   "fps_mean": 25.3,
+   "fps_min": 12.8,
+   "cpu_frame_ms_mean": 53.649,
+   "cpu_frame_ms_max_sampled": 77.912,
+   "frame_ms_max": 77.912,
+   "gpu_frame_ms_median": 4.158,
+   "gpu_frame_ms_max": 14.472,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 102.893,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.02,
+    "motion": 0.003,
+    "pressure": 0.001,
+    "solids": 0.001,
+    "total": 50.841,
+    "update": 50.806
+   },
+   "water_gpu_ms_per_call": 4.7826,
+   "water_gpu_calls_per_s": 0.9,
+   "push_windows_gpu_ms_per_call": 0.0018,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 16432,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 532,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 50.9676,
+     "bytes_after": 1519448784,
+     "copy": 9.1898,
+     "free": 7.3276,
+     "grows": 6,
+     "rebind": 0.0446,
+     "tables": 0.505
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 45.8323,
+     "host": 6.6388,
+     "residency": 69.5452,
+     "residency_split": {
+      "apply": 1.3422,
+      "ground": 19.0636,
+      "grow": 0.0825,
+      "need": 49.0569
+     },
+     "scatter": 31.9655,
+     "settle": 0.0,
+     "submit": 55.8099,
+     "tables": 0.0515
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0083,
+    "exchange": 0.0001,
+    "feed": 0.0219,
+    "motion": 0.0029,
+    "pressure": 0.0026,
+    "solids": 0.0008,
+    "total": 73.6279,
+    "update": 73.5882
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 63.059,
+    "gpu.01 settle (collect the call before)": 55.648,
+    "collect.1 fence wait": 54.212,
+    "mgr.3 tall cells": 13.957,
+    "gpu.04 residency: which bricks": 12.268,
+    "gpu.08 record the commands": 11.747,
+    "ripples.2 masks + layers": 11.407,
+    "gpu.05 residency: apply": 11.237
+   }
+  },
+  "mid_window": {
+   "label": "sweeps 40 20-28s",
+   "fps_mean": 19.3,
+   "fps_min": 14.3,
+   "cpu_frame_ms_mean": 54.19,
+   "cpu_frame_ms_max_sampled": 70.068,
+   "frame_ms_max": 72.533,
+   "gpu_frame_ms_median": 4.149,
+   "gpu_frame_ms_max": 4.521,
+   "gpu_particles_ms_median": 0.0,
+   "water_host_cpu_ms_per_frame": 122.019,
+   "app_water_cpu_ms": {
+    "bodies": 0.007,
+    "exchange": 0.0,
+    "feed": 0.019,
+    "motion": 0.001,
+    "pressure": 0.001,
+    "solids": 0.001,
+    "total": 49.956,
+    "update": 49.923
+   },
+   "water_gpu_ms_per_call": 0.0,
+   "water_gpu_calls_per_s": 0.0,
+   "push_windows_gpu_ms_per_call": 0.0,
+   "volumes": 1,
+   "wet_bodies": 0,
+   "pressure": {
+    "asked": 0,
+    "fallback_outside": 0,
+    "fallback_over_budget": 0,
+    "fallback_too_big": 0,
+    "off_refused": false,
+    "on": true,
+    "tag": 16737,
+    "targets": true,
+    "test_refuse_windows": false,
+    "ticks_fell_back": 0,
+    "ticks_no_window": 0,
+    "ticks_pushed": 0,
+    "window_cells": 0,
+    "windows": 0
+   },
+   "slept": {
+    "boxes": [],
+    "deferred_not_resident": 0,
+    "kept": {
+     "buffers_adopted": 0,
+     "buffers_allocated": 532,
+     "held_bytes": 0,
+     "hits": 0,
+     "kept": 0,
+     "last_sleep_free_ms": 0.0,
+     "last_wake_hit": false,
+     "max_pump_ms": 0.0,
+     "misses": 0,
+     "ponds": 0,
+     "released_cap": 0,
+     "released_far": 0,
+     "released_oom": 0,
+     "released_orphan": 0,
+     "releasing_bytes": 0
+    },
+    "last_error": "",
+    "last_grow_split_ms": {
+     "alloc": 50.9676,
+     "bytes_after": 1519448784,
+     "copy": 9.1898,
+     "free": 7.3276,
+     "grows": 6,
+     "rebind": 0.0446,
+     "tables": 0.505
+    },
+    "last_slept_bytes": {
+     "buffers": 0,
+     "device": 0,
+     "host": 0,
+     "slots": 0
+    },
+    "last_upload_split_ms": {
+     "bricks": 60112,
+     "clear": 45.8323,
+     "host": 6.6388,
+     "residency": 69.5452,
+     "residency_split": {
+      "apply": 1.3422,
+      "ground": 19.0636,
+      "grow": 0.0825,
+      "need": 49.0569
+     },
+     "scatter": 31.9655,
+     "settle": 0.0,
+     "submit": 55.8099,
+     "tables": 0.0515
+    },
+    "last_wake_ms": 0.0,
+    "last_wake_split_ms": {
+     "alloc": 0.0,
+     "cells": 0,
+     "gpu_buffers": 0.0,
+     "gpu_create_upload": 0.0,
+     "gpu_create_volume": 0.0,
+     "gpu_fill": 0.0,
+     "gpu_occ_copy": 0.0,
+     "gpu_pipeline_count": 0,
+     "gpu_pipelines": 0.0,
+     "gpu_pipelines_reused": 0,
+     "gpu_upload": 0.0,
+     "occupancy": 0.0,
+     "occupancy_threads": 8,
+     "seed": 0.0,
+     "seed_occupancy": 0.0,
+     "solids": 0.0,
+     "span_read": 0.0
+    },
+    "max_wake_ms": 0.0,
+    "paced": {
+     "building": 0,
+     "cancelled": 0,
+     "forced_by_deadline": 0,
+     "immediate": 0,
+     "last_due_s": 0.0,
+     "last_job_ms": 0.0,
+     "live": 0,
+     "max_stage_ms": 0.0,
+     "rebuilt": 0,
+     "stages": 0,
+     "started": 0
+    },
+    "record_cache": {
+     "entries": 1024,
+     "evicted": 0,
+     "marked_stale": 0,
+     "residency_checks": 0,
+     "tiles_dropped": 0
+    },
+    "refused": 0,
+    "restore_error": "",
+    "restore_skipped": 0,
+    "restored": 0,
+    "test_pace_late": false,
+    "test_wake_delay_s": 0.0,
+    "wake_budget_ms": 2.0,
+    "wake_on_touch": true,
+    "wake_on_touch_default": true,
+    "wake_pace": true,
+    "wake_pace_default": true,
+    "woken": 0,
+    "woken_empty": 0
+   },
+   "water_worst_frame_ms": {
+    "bodies": 0.0065,
+    "exchange": 0.0002,
+    "feed": 0.0198,
+    "motion": 0.0013,
+    "pressure": 0.0012,
+    "solids": 0.0012,
+    "total": 68.602,
+    "update": 68.5684
+   },
+   "phase_max_ms": {
+    "mgr.4 the GPU step (= gpu.* + collect.*)": 60.208,
+    "gpu.01 settle (collect the call before)": 51.026,
+    "collect.1 fence wait": 47.91,
+    "gpu.07 partition + tables": 6.472,
+    "gpu.04 residency: which bricks": 6.283,
+    "ripples.1 surfaceFields (= surf.*)": 5.618,
+    "surf.1 read the GPU surface": 5.59,
+    "collect.3 stats + record + sleep": 4.322
+   }
+  },
+  "census_before": {
+   "in_air_m3": 7200.000161341125,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7200.000161341125,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5248800
+  },
+  "census_after": {
+   "in_air_m3": 7199.999919790013,
+   "in_solid_cells": 0,
+   "in_solid_m3": 0.0,
+   "in_unknown_cells": 0,
+   "in_unknown_m3": 0.0,
+   "mass_m3": 7199.999919790013,
+   "over_full_cells": 0,
+   "over_full_m3": 0.0,
+   "record_m3": 0.0,
+   "sentinel_max_fuvw": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wet_cells": 5488860
+  }
+ }
+]

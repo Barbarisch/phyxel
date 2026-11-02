@@ -12,6 +12,9 @@
 #include <algorithm>
 #include <cstdlib>
 #include <functional>
+#include <map>
+#include <memory>
+#include <string>
 
 using namespace Phyxel::Core::Water;
 using Phyxel::Testing::VulkanTestFixture;
@@ -302,6 +305,78 @@ TEST_F(WaterCoreGpuParityTest, GpuStillWaterHasNoDrift) {
         EXPECT_LT(df, 1e-6) << "still water's fill changes";
         EXPECT_GT(rv, 1e-6) << "RED CONTROL: the absolute-pressure solve no longer shows the drift - the metric is not measuring it";
     }
+}
+
+// 50.6f diagnostic: does a small pond, disturbed, settle - or keep re-driving itself (the 60 m lake's loop)? CL_W x CL_W cells at
+// 1/9 m, CL_D deep, 6 air cells, the surface tilted by CL_TILT cells across x at the start; the raw solver (no partial wake), GPU and
+// CPU side by side. Every 2 s: KE, the tick's max |df|, quiet ticks / asleep, and on the GPU each fill stage's gross change (single-
+// substep calls only).
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagChurnLoop) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto env = [](const char* k, double d) { const char* v = std::getenv(k); return v ? std::atof(v) : d; };
+    const int W = static_cast<int>(env("CL_W", 36)), D = static_cast<int>(env("CL_D", 18)), secs = static_cast<int>(env("CL_SECONDS", 40));
+    const float tilt = static_cast<float>(env("CL_TILT", 2.0));
+    const bool cpuToo = env("CL_CPU", 1) != 0;
+    struct Restore { ~Restore() { WaterCoreGpu::s_disableStagesForTest = 0; WaterCoreGpu::s_stageCapture = false; } } restore;
+    WaterCoreGpu::s_disableStagesForTest = static_cast<uint32_t>(env("CL_MASK", 0));
+    const float h = 1.0f / 9.0f;
+    Tank t(W, D + 6, W, h), c(W, D + 6, W, h);
+    for (Tank* k : {&t, &c})
+        for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) {
+            const float top = D + tilt * (x - W * 0.5f) / W;
+            for (int y = 0; y < D + 6; ++y) k->grid.f(x, y, z) = std::clamp(top - static_cast<float>(y), 0.0f, 1.0f);
+        }
+    struct RestoreLines { int l = WaterCoreGpu::s_lineSweeps; ~RestoreLines() { WaterCoreGpu::s_lineSweeps = l; } } restoreLines;
+    WaterCoreGpu::s_lineSweeps = static_cast<int>(env("CL_LINES", WaterCoreGpu::s_lineSweeps));   // 28: zebra line sweeps (bricked only)
+    t.bakeOcc();
+    std::string cerr;
+    BrickOptions bo; bo.sparse = env("CL_BRICKED", 0) != 0;
+    auto* vol = gpu.createVolume(t.grid, &cerr, bo); ASSERT_NE(vol, nullptr) << cerr;
+    SolverParams prm; prm.restTicks = 1 << 30; prm.debugDisableStages = WaterCoreGpu::s_disableStagesForTest;
+    std::unique_ptr<WaterSolver> cpu;
+    if (cpuToo) cpu = std::make_unique<WaterSolver>(c.grid, c.query(), prm);
+    std::printf("  %d x %d cells, %d deep, tilt %.1f cells, stage mask %u, bricked %d, line sweeps %d, point sweeps %d\n", W, W, D, tilt,
+                WaterCoreGpu::s_disableStagesForTest, int(bo.sparse), WaterCoreGpu::s_lineSweeps, static_cast<int>(env("CL_SWEEPS", 20)));
+    // the CPU's stages, gross: |df| summed between consecutive probes (WaterSolver::stageProbeForTest), over the same windows
+    std::map<std::string, double> cpuMax, cpuSum; long cpuCalls = 0; bool cpuCap = false;
+    std::vector<float> cpuPrev;
+    if (cpu) cpu->stageProbeForTest = [&](const char* stage) {
+        if (!cpuCap) return;
+        const std::vector<float>& f = c.grid.fData();
+        if (std::string(stage) != "start" && cpuPrev.size() == f.size()) {
+            double mx = 0.0, ab = 0.0;
+            for (size_t i = 0; i < f.size(); ++i) { const double d = std::abs(double(f[i]) - cpuPrev[i]); ab += d; mx = std::max(mx, d); }
+            cpuMax[stage] = std::max(cpuMax[stage], mx); cpuSum[stage] += ab;
+        }
+        cpuPrev.assign(f.begin(), f.end());
+    };
+    const char* names[WaterCoreGpu::kStages] = {"between", "sources", "gather", "carry-up", "ledger", "compaction", "rest", "residue", "births"};
+    for (int tick = 1; tick <= 60 * secs; ++tick) {
+        const bool window = tick % 120 >= 90;   // the last half second of every 2 s: the stages captured
+        if (tick % 120 == 90) {
+            WaterCoreGpu::s_stageCapture = true; WaterCoreGpu::s_stageCalls = 0;
+            for (int s = 0; s < WaterCoreGpu::kStages; ++s) { WaterCoreGpu::s_stageDm[s] = 0.0; WaterCoreGpu::s_stageAbsMax[s] = 0.0; WaterCoreGpu::s_stageAbsSum[s] = 0.0; }
+            cpuMax.clear(); cpuSum.clear(); cpuCalls = 0; cpuCap = true;
+        }
+        const auto st = gpu.step(*vol, prm, kDt, 1, static_cast<int>(env("CL_SWEEPS", 20)));
+        StepReport cr; if (cpu) { cr = cpu->step(kDt); if (cpuCap) ++cpuCalls; }
+        (void)window;
+        if (tick % 120 == 0) {
+            WaterCoreGpu::s_stageCapture = false;
+            std::printf("   t %4.1f s  GPU KE %.2e max|df| %.2e quiet %d asleep %d", tick * kDt, st.kineticEnergy, st.maxDeltaF, st.quietTicks, int(st.asleep));
+            if (cpu) std::printf(" | CPU KE %.2e max|df| %.2e quiet %d asleep %d", cr.kineticEnergy, cr.maxDeltaF, cr.quietTicks, int(cr.asleep));
+            std::printf("\n      GPU stages (%ld calls), max / sum a call:", WaterCoreGpu::s_stageCalls);
+            for (int s : {2, 3, 5, 6}) std::printf(" %s %.1e/%.1e", names[s], WaterCoreGpu::s_stageAbsMax[s], WaterCoreGpu::s_stageAbsSum[s] / std::max(1L, WaterCoreGpu::s_stageCalls));
+            std::printf("\n");
+            if (cpu) {
+                cpuCap = false;
+                std::printf("      CPU stages (%ld calls), max / sum a call:", cpuCalls);
+                for (const auto& [k, v] : cpuSum) if (v > 0.0) std::printf(" %s %.1e/%.1e", k.c_str(), cpuMax[k], v / std::max(1L, cpuCalls));
+                std::printf("\n");
+            }
+        }
+    }
+    gpu.destroyVolume(vol);
 }
 
 // 50.6d diagnostic: where does still water's bed churn start? A pond placed still (BC_W x BC_W cells at 1/9 m, BC_D cells deep,
