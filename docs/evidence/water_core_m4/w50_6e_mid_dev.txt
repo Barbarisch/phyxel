@@ -1,0 +1,69 @@
+Running main() from G:\Github\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = *DiagStillWaterEnergy*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from WaterRecordTilesTest
+[ RUN      ] WaterRecordTilesTest.DISABLED_DiagStillWaterEnergy
+  disabled stages 0
+  compaction band override -1.0e+00
+  freeze zeroes velocity 0
+  pressure deviation 1, push radius 2.0 m
+[32m[21:52:11.200] [INFO] [ComputePipeline] Created: shaders/wc_fill_advect.comp.spv (10 bindings)[0m
+[32m[21:52:11.201] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[21:52:11.201] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[21:52:11.202] [INFO] [ComputePipeline] Created: shaders/wc_vel_advect.comp.spv (5 bindings)[0m
+[32m[21:52:11.202] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[21:52:11.203] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[21:52:11.203] [INFO] [ComputePipeline] Created: shaders/wc_face_ops.comp.spv (8 bindings)[0m
+[32m[21:52:11.204] [INFO] [ComputePipeline] Created: shaders/wc_column_ops.comp.spv (11 bindings)[0m
+[32m[21:52:11.204] [INFO] [ComputePipeline] Created: shaders/wc_classify.comp.spv (13 bindings)[0m
+[32m[21:52:11.205] [INFO] [ComputePipeline] Created: shaders/wc_rbgs.comp.spv (7 bindings)[0m
+[32m[21:52:11.205] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[21:52:11.205] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[21:52:11.206] [INFO] [ComputePipeline] Created: shaders/wc_extrap.comp.spv (10 bindings)[0m
+[32m[21:52:11.206] [INFO] [ComputePipeline] Created: shaders/wc_reduce.comp.spv (12 bindings)[0m
+[32m[21:52:11.206] [INFO] [ComputePipeline] Created: shaders/wc_sources.comp.spv (5 bindings)[0m
+[32m[21:52:11.207] [INFO] [ComputePipeline] Created: shaders/wc_surface.comp.spv (12 bindings)[0m
+[32m[21:52:11.207] [INFO] [ComputePipeline] Created: shaders/wc_bricks.comp.spv (6 bindings)[0m
+[32m[21:52:11.207] [INFO] [ComputePipeline] Created: shaders/wc_momentum.comp.spv (7 bindings)[0m
+[32m[21:52:11.208] [INFO] [ComputePipeline] Created: shaders/wc_tall.comp.spv (7 bindings)[0m
+[32m[21:52:11.208] [INFO] [ComputePipeline] Created: shaders/wc_rbgs_line.comp.spv (6 bindings)[0m
+[32m[21:52:11.209] [INFO] [ComputePipeline] Created: shaders/wc_surface_mesh.comp.spv (12 bindings)[0m
+[32m[21:52:11.209] [INFO] [ComputePipeline] Created: shaders/wc_body_pressure.comp.spv (9 bindings)[0m
+  60 x 60 m, 2 m deep, tall 0.50 m, partial wake 1, push 8.0, dt 0.0167 s, placed 7200.0000 m^3
+  t   2.0 s  ke 4.967e-14  awake  4624 frozen     0 moving  4624  asleep 1  tall 1  gpu 0.00 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999944
+  t   4.0 s  ke 4.967e-14  awake  4624 frozen     0 moving  4624  asleep 1  tall 1  gpu 0.00 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999944
+  t   6.0 s  ke 1.522e+01  awake  1273 frozen  3351 moving   977  asleep 0  tall 0  gpu 7.58 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999936
+  t   8.0 s  ke 5.127e+00  awake  2954 frozen  1670 moving  2490  asleep 0  tall 0  gpu 20.04 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999928
+  t  10.0 s  ke 2.616e+00  awake  4401 frozen   223 moving  4182  asleep 0  tall 0  gpu 18.91 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999930
+  t  12.0 s  ke 6.782e-01  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 31.22 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999930
+  t  14.0 s  ke 8.741e-02  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 19.47 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999929
+  t  16.0 s  ke 1.725e-02  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 19.10 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999929
+  t  18.0 s  ke 3.870e-03  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 20.19 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999929
+  t  20.0 s  ke 2.345e-03  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 32.19 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999926
+  t  22.0 s  ke 1.522e-03  awake  4620 frozen     4 moving  3926  asleep 0  tall 0  gpu 19.90 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999923
+  t  24.0 s  ke 1.091e-03  awake  4624 frozen     0 moving  4624  asleep 0  tall 0  gpu 31.59 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999919
+  t  26.0 s  ke 7.264e-04  awake  4624 frozen     0 moving  4114  asleep 0  tall 0  gpu 19.40 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999915
+  t  28.0 s  ke 4.473e-04  awake  4624 frozen     0 moving  4342  asleep 0  tall 0  gpu 19.87 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999910
+  t  30.0 s  ke 1.729e-04  awake  4624 frozen     0 moving  4259  asleep 0  tall 0  gpu 19.76 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999901
+  t  32.0 s  ke 6.171e-05  awake  4624 frozen     0 moving  4518  asleep 0  tall 0  gpu 18.81 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999891
+  t  34.0 s  ke 2.371e-05  awake  4624 frozen     0 moving  4476  asleep 0  tall 0  gpu 31.66 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999877
+  t  36.0 s  ke 1.331e-05  awake  4624 frozen     0 moving  4536  asleep 0  tall 0  gpu 32.16 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999853
+  t  38.0 s  ke 8.778e-06  awake  4624 frozen     0 moving  4381  asleep 0  tall 0  gpu 19.77 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999823
+  t  40.0 s  ke 7.234e-06  awake  4624 frozen     0 moving  4373  asleep 0  tall 0  gpu 31.69 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999771
+  t  42.0 s  ke 5.370e-06  awake  4624 frozen     0 moving  4017  asleep 0  tall 0  gpu 20.09 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999721
+  t  44.0 s  ke 3.625e-06  awake  4620 frozen     4 moving  3623  asleep 0  tall 0  gpu 19.56 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999635
+  t  46.0 s  ke 2.664e-06  awake  4595 frozen    29 moving  3146  asleep 0  tall 0  gpu 20.42 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999522
+  t  48.0 s  ke 1.834e-06  awake  4417 frozen   207 moving  2685  asleep 0  tall 0  gpu 20.13 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999377
+  t  50.0 s  ke 1.271e-06  awake  3878 frozen   746 moving  2139  asleep 0  tall 0  gpu 25.74 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999273
+  t  52.0 s  ke 8.626e-07  awake  3351 frozen  1273 moving  1597  asleep 0  tall 0  gpu 25.53 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999197
+  t  54.0 s  ke 7.193e-07  awake  2844 frozen  1780 moving  1326  asleep 0  tall 0  gpu 25.11 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999145
+  t  56.0 s  ke 4.226e-07  awake  2472 frozen  2152 moving   930  asleep 0  tall 0  gpu 21.02 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999105
+  t  58.0 s  ke 3.962e-07  awake  1979 frozen  2645 moving   776  asleep 0  tall 0  gpu 17.92 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999074
+  t  60.0 s  ke 3.237e-07  awake  1648 frozen  2976 moving   514  asleep 0  tall 0  gpu 15.08 ms  carry flow 0.00e+00 parked 0.00e+00 body 0.00e+00  mass 7199.999064
+[       OK ] WaterRecordTilesTest.DISABLED_DiagStillWaterEnergy (239866 ms)
+[----------] 1 test from WaterRecordTilesTest (239866 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (239866 ms total)
+[  PASSED  ] 1 test.

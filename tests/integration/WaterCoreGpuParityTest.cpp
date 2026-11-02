@@ -356,6 +356,9 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagBedChurn) {
 TEST_F(WaterCoreGpuParityTest, DISABLED_DiagCostPerCell) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     const float h = 1.0f / 9.0f;
+    struct RestoreDev { ~RestoreDev() { WaterCoreGpu::s_pressureDeviation = true; } } restoreDev;
+    if (std::getenv("E_ABSP")) WaterCoreGpu::s_pressureDeviation = false;   // 50.6d: the absolute-pressure solve (the cost control)
+    std::printf("  pressure deviation %d\n", int(WaterCoreGpu::s_pressureDeviation));
     for (glm::ivec3 d : {glm::ivec3(16, 16, 16), glm::ivec3(32, 16, 32), glm::ivec3(64, 16, 64), glm::ivec3(128, 16, 64), glm::ivec3(128, 16, 128), glm::ivec3(256, 16, 128), glm::ivec3(256, 16, 256)}) {
         for (bool slosh : {false, true}) {
             Tank t(d.x, d.y, d.z, h);

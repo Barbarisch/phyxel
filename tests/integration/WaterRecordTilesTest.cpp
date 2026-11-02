@@ -855,6 +855,10 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
     if (std::getenv("E_BAND")) WaterCoreGpu::s_compactionBandOverride = static_cast<float>(env("E_BAND", 0.0));   // 50.6c
     std::printf("  compaction band override %.1e\n", WaterCoreGpu::s_compactionBandOverride);
     std::printf("  freeze zeroes velocity %d\n", int(WaterCoreGpu::s_freezeZeroesVelocity));
+    struct RestoreDev { ~RestoreDev() { WaterCoreGpu::s_pressureDeviation = true; } } restoreDev;
+    if (std::getenv("E_ABSP")) WaterCoreGpu::s_pressureDeviation = false;   // 50.6d: the absolute-pressure solve (the control)
+    const float pushRadius = static_cast<float>(env("E_RADIUS", 0.5));
+    std::printf("  pressure deviation %d, push radius %.1f m\n", int(WaterCoreGpu::s_pressureDeviation), pushRadius);
     const bool capBefore = WaterCoreManager::unitCapture();
     struct RestoreCap { bool c; ~RestoreCap() { WaterCoreManager::setUnitCapture(c); } } restoreCap{capBefore};
     if (std::getenv("E_UNITS")) WaterCoreManager::setUnitCapture(true);
@@ -873,14 +877,14 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
     AvRecord rec;
     const int per = static_cast<int>(std::lround(1.0 / dt));
     for (int k = 1; k <= per * seconds; ++k) {
-        if (k == per * 5 && strength > 0.0f) mgr.addImpulse(glm::vec3(W * 0.5f, depth - 0.1f, W * 0.5f), 0.5f, strength, glm::vec3(0.0f, -1.0f, 0.0f));
+        if (k == per * 5 && strength > 0.0f) mgr.addImpulse(glm::vec3(W * 0.5f, depth - 0.1f, W * 0.5f), pushRadius, strength, glm::vec3(0.0f, -1.0f, 0.0f));
         mgr.step(id, 1, dt, &rec);
         if (k % (2 * per)) continue;
         (void)mgr.totalMass();   // reads the volume back: the record's kinetic energy is the host grid's (synchronous steps - no change to stepping)
         const AvRecord* r = mgr.find(id);
         if (!r) break;
-        std::printf("  t %5.1f s  ke %.3e  awake %5d frozen %5d moving %5d  asleep %d  tall %d  carry flow %.2e parked %.2e body %.2e  mass %.6f\n", k * dt, r->kineticEnergy,
-                    r->awakeColumns, r->frozenColumns, r->movingColumns, int(r->asleep), int(r->tallActive), r->carryFlowM3, r->carryParkedM3, r->carryBodyM3, mgr.totalMass());
+        std::printf("  t %5.1f s  ke %.3e  awake %5d frozen %5d moving %5d  asleep %d  tall %d  gpu %.2f ms  carry flow %.2e parked %.2e body %.2e  mass %.6f\n", k * dt, r->kineticEnergy,
+                    r->awakeColumns, r->frozenColumns, r->movingColumns, int(r->asleep), int(r->tallActive), r->gpuDeviceMs, r->carryFlowM3, r->carryParkedM3, r->carryBodyM3, mgr.totalMass());
         if (std::getenv("E_UNITS")) {   // where the motion is: the units (brick column x a height band) with the largest |df| and energy
             std::vector<glm::vec4> u; glm::ivec3 dims, off; float hh = 0.0f;
             if (mgr.unitMap(id, u, dims, off, hh) && !u.empty()) {

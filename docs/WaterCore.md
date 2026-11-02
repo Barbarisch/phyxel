@@ -12494,6 +12494,27 @@ each column's deficit and vertical velocity) found the cause under 50.6b and 50.
   ms awake, 4.7-5.2 with recording, has no before-run on this binary to compare against); recording stays OFF by default until the
   owner sees the lake settle with it (W1h).
 
+**50.6e The owner's clip, and what a VISIBLE stone does (2026-11-01, MEASURED; no change).** `tools/water_record_settle_video.py`
+(new: the 27.26 clip with recording OFF vs ON as the variable; `--radius`, `--still-after` for framing). Findings:
+- **The 0.5 m / strength-4 stone of every measurement since 27.24 makes no visible wave** - from the clip camera (57 m up) or a low
+  one (8 m up, 18 m off): `rec_settle_side_by_side.mp4` shows only its captions settling (OFF all frozen 33.8 s, ON 20.9 s, 64/64
+  tiles back). Visible: radius 2 m / strength 8 (a ring) and 3 m / 15 (a ring and a rebound column) - `probe_r*_still.png`.
+- **A visible stone keeps the WHOLE 60 x 60 m lake awake for about a minute, recording or not, fix or not**
+  (`DiagStillWaterEnergy`, tall 0.5 m band, partial wake on; E_RADIUS new, E_ABSP the absolute-pressure control):
+| push | every column awake | freezing starts | awake at 60 s | GPU a call | the tall band |
+|---|---|---|---|---|---|
+| 2 m, strength 8 | 12-48 s | ~48 s | 1,648 | 20-32 ms | off throughout |
+| 3 m, strength 15 (deviation) | 10-58 s | ~58 s | 4,600 | 19-32 ms | off throughout |
+| 3 m, strength 15 (absolute, the control) | 10-46 s | ~46 s | 4,482 | 19-28 ms | off throughout |
+  Live (the clip, 3 m / 15): 4,624 awake to 50 s, solver 47 ms, 18-20 fps, both takes. The water LOOKS flat by ~20 s: the freeze
+  test's level bound (maxDeltaFQuiet 1e-5 x the quiet scale 10 = 1e-4 of a cell a tick, ~0.7 mm/s) holds a column awake until the
+  lake's slosh (period ~27 s for 60 m at 2 m deep) is under ~3 mm high, and pond friction takes a minute to get it there.
+- **The fix's own cost** (`DiagCostPerCell`, E_ABSP the control, 2 runs each): +0.02-0.04 ms a call at 0.13-1 M cells (1-3 %,
+  inside run-to-run noise). The 31 vs 19 ms samples above are the water's state (substeps), not the two passes.
+- **Open, the owner's call:** how fast a disturbed lake goes still (the slosh's damping is a look) and whether far columns may
+  freeze at a looser level bound (locality, 30.0b: cost only - but a frozen column is a wall, so it touches the outcome). Also: the
+  tall band stays off while any column is rough (27.22) - the whole 2 m column at fine cells for that minute.
+
 **Where this leaves W1g (and the plan).** (Updated by 50.6d: the floor and the bed churn were one defect, the GPU pressure in float,
 fixed; the freeze storing motion stands.) As written before 50.6d: three solver defects stand under recording: the freeze stores a node's velocity (50.6b),
 compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the surface (the phantom current, 19.6). At shipped
