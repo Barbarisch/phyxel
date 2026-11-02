@@ -12480,8 +12480,19 @@ each column's deficit and vertical velocity) found the cause under 50.6b and 50.
   freeze stores motion) stands, and is next. Compaction needed no change: it moved the drift's deficits; without them it is quiet.
 - **Tests:** water unit 368 / 368; integration - every water test passes but the known two (`GpuFlipBulkParityAndRunup`,
   `ShortWaveMatchesAllFineAndTheBooksAreExact`); three `SceneIntegrationTest` rows fail (0 ms, no water in them, untouched since
-  2026-09-16 - outside this work, not investigated here). Not measured yet: the cost on the live lake (whole frame), the live
-  recording runaway (50.6a's 40 %).
+  2026-09-16 - outside this work, not investigated here).
+- **LIVE (Creek bench, Release, shipped settings; `w50_6d_live.json`): recording ON no longer runs away.** The 60 x 60 m lake, a
+  stone once it has settled, 90 s, 6 runs recording ON and 2 OFF interleaved:
+| | after the stone: awake at 10 s | all frozen / asleep | tiles at the end | the books | fps awake 0-8 s (worst frame) | fps late 60-68 s | water host awake / late |
+|---|---|---|---|---|---|---|---|
+| recording ON, 6 runs | 1,267-1,478 | **20.8-22.0 s, 6 of 6** | 64 of 64, 35-43 wakes | 7200.0000 -> 7200.0001 | 128-158 (48-60 ms) | 198-210 | 7.9-9.5 / 0.04 ms a frame |
+| recording OFF, 2 runs | 122-128 | 26.8, 34.1 s | - | 7200.0001 -> 7200.0000 | 156-180 (33-36 ms) | 210-213 | 4.9-5.2 / 0.05 ms |
+  Before (50.6a, the same lake and stone): ~40 % of recording-ON runs ran away, 3,500-3,800 columns awake at 90 s. The frozen
+  columns' stored velocity (50.6b defect 1) showed nothing live here: no revival in 8 of 8. Still open, and now W1g's own work: the
+  awake seconds WITH recording cost more than without (host 8-9.5 vs 5 ms a frame, worst frames 48-60 ms - the host-side tile wakes
+  and records, 13-25 ms each, 50.6) - W1g's per-tile GPU kernels. Not measured: the two new passes' own GPU time (the live call's GPU
+  ms awake, 4.7-5.2 with recording, has no before-run on this binary to compare against); recording stays OFF by default until the
+  owner sees the lake settle with it (W1h).
 
 **Where this leaves W1g (and the plan).** (Updated by 50.6d: the floor and the bed churn were one defect, the GPU pressure in float,
 fixed; the freeze storing motion stands.) As written before 50.6d: three solver defects stand under recording: the freeze stores a node's velocity (50.6b),
