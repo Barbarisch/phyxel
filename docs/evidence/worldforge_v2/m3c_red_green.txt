@@ -1,0 +1,17 @@
+M3c (the D24 revisit) - the ladder met: red ledger (docs/WorldForgeV2Plan.md "M3c design check", 2026-11-02).
+THE RED (patch 1, tests only): CivPlanStressTest.LadderIsMetOnTheFertilePlain asserts every tier with a target of five or more seats at least
+  90 % of its hex ceiling on the M3a stress plain (200 x 200 macro cells, Y 50, a strait); LadderRatioOnTheRealWorldsReported prints the
+  two real worlds' count / target per tier (reported, not asserted).
+PREDICTIONS (before the build): PM3c.1 the plain RED at ~70 % per tier (the M3a stress figures: village 13/18, hamlet 38/56, outpost 112/162
+  were on a 64-cell sheet; on the 200-cell plain the x1 run of DensityTenFillsTheLadder printed its own figures - the same ~70 %).
+  PM3c.2 the real worlds under 70 % on every tier that has a target (unviable cells on top of the packing gap).
+THE RED RUN (build 12:3x, exe 12:36:5x, run 12:36:56-12:42:15; m4b4r_r23_civ.txt): LadderIsMetOnTheFertilePlain RED - the 200-cell plain (10 433 km2,
+  172 sites, bake 184 ms): city 3/3, town 6/6 (100 %), village 13/18 (72 %), hamlet 38/56 (68 %), outpost 112/162 (69 %) - the same figures
+  as the M3a stress of 2026-10-22 (the 64-cell note in the ledger's header was wrong: those figures were the 200-cell plain's). PM3c.1 MET.
+  LadderRatioOnTheRealWorldsReported (green, reported): baseline Perlin 7 750 km2, 154 sites: city 2/2, town 4/4, village 14/14 (100 %),
+  hamlet 37/42 (88 %), outpost 97/120 (81 %), 2 refusals; Mountains 424242 7 843 km2, 156 sites: city 2/2, town 4/4, village 14/14,
+  hamlet 40/42 (95 %), outpost 96/122 (79 %), 2 refusals. PM3c.2 MISSED - the real worlds sit NEARER the ceiling than the plain (79-95 %
+  vs 68-72 %): the plain's strait column and the packing against the score-sorted raster order cost more than real terrain's unviable
+  cells do; on real terrain the candidates come in a score order that scatters the first picks, so the greedy fill packs closer to
+  hexagonal than a raster fill does. Recorded; the gap on the real worlds is 5-21 % per tier at the outpost and hamlet tiers.
+  COMMITTED IN THIS STATE: the red test left in the tree awaiting the owner's D24 revisit (the M2d-4 / D38 precedent).

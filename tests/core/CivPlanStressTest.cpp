@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include "core/WorldGenerator.h"
+#include "core/WorldRecipe.h"
 
 #include "core/CivPlan.h"
 #include "core/WorldForgeParams.h"
@@ -244,4 +246,51 @@ TEST(CivPlanStressTest, ThreeHundredPinsEveryKindRefusedWithItsReason) {
     int sum = 0;
     for (int t = 0; t < CivPlan::kTiers; ++t) sum += civ->count(t);
     EXPECT_EQ(static_cast<int>(civ->sites().size()), sum) << "the per-tier counts must add up to the sites";
+}
+
+// ============================================================================
+// M3c (D24 revisit, 2026-11-02): THE LADDER MET. The civ plan's targets are the hexagonal
+// central-place ceiling per tier (density 1 / (0.866 s^2) over the land); the greedy pick by
+// score reaches ~70 % of them on a plain where every cell is viable (M3a stress, 2026-10-22:
+// village 13/18, hamlet 38/56, outpost 112/162). "Met" = at least 90 % of the ceiling per tier
+// on the fertile plain (DESIGN: a lattice on integer cells beside a strait cannot seat the last
+// few; 90 % leaves that slack and is well above the greedy 70 %). RED on the greedy pick; the
+// owner's D24 call decides whether a blue-noise / annealed pick is built to turn it green.
+// ============================================================================
+TEST(CivPlanStressTest, LadderIsMetOnTheFertilePlain) {
+    const int n = 200;   // the M3a stress plain: 200 x 200 macro cells, Y 50, a sea strait down column n/2
+    auto M = makeSheet(n, [n](int i, int j, MacroCell& c) { fertilePlain(i, j, c, n); });
+    WorldForgeParams P = civParams();
+    auto civ = CivPlan::bake(inputs(*M), P);
+    ASSERT_TRUE(civ);
+    printPlan("plain (D24 revisit)", *civ);
+    int tiersWithTarget = 0, tiersMet = 0;
+    for (int t = 0; t < CivPlan::kTiers; ++t) {
+        if (civ->target(t) < 5) continue;   // a tier with a handful of targets is all rounding
+        ++tiersWithTarget;
+        const float ratio = static_cast<float>(civ->count(t)) / static_cast<float>(civ->target(t));
+        std::printf("[ M3c ] plain %s: %d of %d = %.0f %% of the hex ceiling\n", CivPlan::tierName(t), civ->count(t), civ->target(t), 100.0f * ratio);
+        if (ratio >= 0.9f) ++tiersMet;
+        EXPECT_GE(ratio, 0.9f) << CivPlan::tierName(t) << ": the greedy pick leaves the ladder short on a plain where every cell is viable";
+    }
+    ASSERT_GT(tiersWithTarget, 0);
+}
+
+// The same ratio on the two real version-2 worlds (REPORTED, not asserted: real terrain has
+// unviable cells, so the ceiling is not reachable there; the figure says how far the pick is
+// from it where the land allows).
+TEST(CivPlanStressTest, LadderRatioOnTheRealWorldsReported) {
+    for (const bool mountains : {false, true}) {
+        WorldRecipe r;
+        r.version = 2; r.type = mountains ? "Mountains" : "Perlin"; r.seed = mountains ? 424242u : 20260816u;
+        r.worldforge.enabled = true; r.worldforge.civ = true; r.worldforge.siteCount = 8; r.worldforge.regionRadius = 2048; r.worldforge.minSpacing = 400;
+        WorldGenerator g(mountains ? WorldGenerator::GenerationType::Mountains : WorldGenerator::GenerationType::Perlin, r.seed);
+        g.applyRecipe(r);
+        const CivPlan* civ = g.civPlan();
+        ASSERT_TRUE(civ) << "no civ plan";
+        std::printf("[ M3c ] %s: land %.0f km2, %zu sites;", mountains ? "Mountains 424242" : "baseline Perlin", civ->landKm2(), civ->sites().size());
+        for (int t = 0; t < CivPlan::kTiers; ++t)
+            std::printf(" %s %d/%d (%.0f %%)", CivPlan::tierName(t), civ->count(t), civ->target(t), civ->target(t) > 0 ? 100.0f * civ->count(t) / civ->target(t) : 0.0f);
+        std::printf("; refusals %zu\n", civ->refusals().size());
+    }
 }
