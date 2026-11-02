@@ -302,9 +302,18 @@ public:
     /// cap exist in the plan but `roadAt` cannot see them - a loud WARN at bake and this count
     /// (also in toJson as "raster_truncated_segments") replace the silent `break` the code had.
     size_t rasterTruncatedSegments() const { return m_rasterTruncatedSegments; }
+    // M4 water-aware routing (2026-11-02): lines that crossed standing water (neither a carved channel
+    // nor a creek) and were routed again, and demands refused for it (reported, never hashed)
+    int waterRerouted() const { return m_waterRerouted; }
+    int waterRefused() const { return m_waterRefused; }
+    int waterFineDetours() const { return m_waterFineDetours; }   // of the re-routes, those solved by a 32 u detour inside a band around the hit
     /// TEST-ONLY: lower the road-raster segment cap so a small fixture can exercise the
     /// truncation path (the real cap is 0xFFFE). 0 resets to the real cap.
     static void setRasterSegmentCapForTesting(size_t cap);
+    /// M4 water-aware routing, TESTS ONLY: off = the routing as it was before 2026-11-02 (a fine cell
+    /// wet at its centre only, no water scan of the realized line), so a rig can show its red and its
+    /// green on the same pond in one run. Default on; never read outside the bake.
+    static void setWaterAwareRoutingForTesting(bool on);
     /// FNV-1a over toJson().dump() — the realization ledger stores this to detect plan drift.
     uint64_t planHash() const;
     /// The identity hash of a plan record (toJson() shape) with the diagnostics stripped —
@@ -343,6 +352,7 @@ private:
     std::vector<Segment> m_segments;
     bool m_blendGrades = false;   // M4b-2: set for corridor-driven plans
     size_t m_rasterTruncatedSegments = 0;   ///< M0: segments dropped at the raster's uint16 cap (0 = none)
+    int m_waterRerouted = 0, m_waterRefused = 0, m_waterFineDetours = 0;   ///< M4 water-aware routing: lines re-routed / demands refused for standing water / fine detours
 };
 
 }  // namespace Phyxel

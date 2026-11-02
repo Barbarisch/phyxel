@@ -126,6 +126,7 @@ constexpr float kDetourFactor = 1.4f;
 
 constexpr float kResampleU = 16.0f;          // centerline point spacing
 constexpr float kRasterCellU = 8.0f;
+static bool s_waterAwareRouting = true;   // M4 water-aware routing: the tests' switch (default on)   // declared here: read in the bake above its definition site
 constexpr int kRasterMaxCells = 2048;        // per axis; cellSize grows if the bbox needs more
 constexpr size_t kRasterSegmentCap = 0xFFFE;  // uint16 segment index in the raster
 static size_t g_rasterSegmentCap = kRasterSegmentCap;   // M0: test hook lowers it
@@ -746,6 +747,8 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                                 if (f.wet[fi] != 1 || f.height[fi] != 0.0f) continue;   // already sampled (height 0 with wet 1 = unsampled)
                                 const glm::vec2 p = f.cellCentre(tx, tz);
                                 f.height[fi] = heightAt(p.x, p.y);
+                                // (this full-length band is OFF - kFineBandRefine; the water-aware corner-sampled wet
+                                // test lives in fineDetour below, the only fine routing that runs, audit 2026-11-02)
                                 f.wet[fi] = levelAt(p.x, p.y) > f.height[fi] + 0.1f ? 1 : 0;
                                 f.order[fi] = flow.orderAt(p.x, p.y);
                                 f.carved[fi] = flow.carvedRiverAt(p.x, p.y) ? 1 : 0;
@@ -1082,6 +1085,39 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         // junction blending) must not cut deeper than the bank limit + the wall tier + the rock-cut
         // precedent anywhere; where it would, the crossing machinery takes over: the cell closes,
         // the demand is routed again, else refused with the reason.
+        // M4 water-aware routing (2026-11-02): the realized line, walked at 1 u, must not cross standing
+        // water that is neither a carved channel nor a creek (those are decideCrossings' decks and
+        // fords) - the realization never grades a column under the rim-corrected level, so such a road
+        // would vanish under the lake with no deck. The same test the realization applies: the level
+        // above the EMITTED surface (surfaceYAt). A hit closes the 3x3 cells around it and the demand is
+        // routed again (the M4c machinery), else it is refused with the reason.
+        auto judgeWater = [&](const WorldForgeRoad& road, std::string& reason, glm::vec2& where) -> bool {
+            const auto& cl = road.centerline;
+            if (cl.size() < 2 || !s_waterAwareRouting) return true;
+            int wetCols = 0; float wetLevel = 0.0f; glm::vec2 first(0.0f);
+            const float half = roadHalfWidth(road.cls);   // the band the realization stamps
+            for (size_t i = 0; i + 1 < cl.size(); ++i) {
+                const glm::vec2 a = cl[i], b = cl[i + 1];
+                const float L = glm::length(b - a);
+                if (L < 1e-3f) continue;
+                const glm::vec2 d = (b - a) / L, nrm(-d.y, d.x);
+                for (float t = 0.0f; t < L; t += 1.0f)
+                for (float o = -half; o <= half + 1e-3f; o += 1.0f) {
+                    const glm::vec2 q = a + d * t + nrm * o;
+                    const float wl = levelAt(q.x, q.y);
+                    if (wl <= HydrologyMap::NO_WATER + 1.0f) continue;
+                    const int surf = surfaceYAt(static_cast<int>(std::floor(q.x)), static_cast<int>(std::floor(q.y)));
+                    if (wl <= static_cast<float>(surf)) continue;
+                    if (channelAt(q.x, q.y).hit) continue;   // a channel: the crossing rule's deck or ford
+                    if (wetCols++ == 0) { first = q; wetLevel = wl; }
+                }
+            }
+            if (wetCols == 0) return true;
+            where = first;
+            reason = "a line crosses standing water at (" + std::to_string(first.x) + "," + std::to_string(first.y) + "): "
+                   + std::to_string(wetCols) + " columns under a level of " + std::to_string(wetLevel) + " u";
+            return false;
+        };
         auto judgeCuts = [&](const WorldForgeRoad& road, std::string& reason, glm::vec2& where) -> bool {
             const auto& cl = road.centerline;
             const size_t n = cl.size();
@@ -1129,17 +1165,103 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                    + " + the rock-cut precedent " + std::to_string(P.rockCutMaxU) + " u (D33)";
             return false;
         };
-        int fords = 0, bridgesMade = 0, reroutes = 0, cutRefusals = 0;
+        // M4 water-aware routing BELOW 128 u (2026-11-02): where the realized line crosses standing water
+        // the stretch of the coarse path around the hit (+-kDetourAlong coarse cells) is routed again on
+        // the 32 u hydrology grid inside a band one coarse cell wide, with the corner-sampled wet test, and
+        // the fine cells replace that stretch in the line. The full-length fine refinement is OFF for its
+        // cost (320-360 s Debug per baseline box); this band is a few hundred cells. Only if no fine line
+        // exists inside the band does the 3x3 coarse block route the whole demand again (the rig's first
+        // detour was 749 u for a 256 u demand that way).
+        auto fineDetour = [&](Pair& cur, const glm::vec2& hit) -> bool {
+            if (stride <= 1 || cur.path.size() < 2) return false;
+            size_t ih = 0; float bestD = 1e30f;
+            for (size_t i = 0; i < cur.path.size(); ++i) {
+                const glm::vec2 c = g.cellCentre(g.x0 + cur.path[i] % g.nx, g.z0 + cur.path[i] / g.nx);
+                const float dd = glm::length(c - hit);
+                if (dd < bestD) { bestD = dd; ih = i; }
+            }
+            constexpr size_t kDetourAlong = 2;   // coarse cells each side of the hit along the path (DESIGN: the pond + its shore)
+            const size_t i0 = ih >= kDetourAlong ? ih - kDetourAlong : 0, i1 = std::min(cur.path.size() - 1, ih + kDetourAlong);
+            const int bandFine = stride;   // one coarse cell each side of the stretch
+            int fx0 = INT_MAX, fz0 = INT_MAX, fx1 = INT_MIN, fz1 = INT_MIN;
+            for (size_t i = i0; i <= i1; ++i) {
+                const int ci = cur.path[i];
+                const int cx = (g.x0 + ci % g.nx) * stride + stride / 2, cz = (g.z0 + ci / g.nx) * stride + stride / 2;
+                fx0 = std::min(fx0, cx - bandFine); fz0 = std::min(fz0, cz - bandFine);
+                fx1 = std::max(fx1, cx + bandFine); fz1 = std::max(fz1, cz + bandFine);
+            }
+            RoutingGrid f;
+            f.x0 = std::max(0, fx0); f.z0 = std::max(0, fz0);
+            f.nx = std::min(nx - 1, fx1) - f.x0 + 1; f.nz = std::min(nz - 1, fz1) - f.z0 + 1;
+            if (f.nx <= 0 || f.nz <= 0) return false;
+            f.originX = ox; f.originZ = oz; f.cellSize = cell;
+            const int fn = f.nx * f.nz;
+            f.height.assign(fn, 0.0f); f.wet.assign(fn, 1); f.shore.assign(fn, 0); f.order.assign(fn, 0); f.carved.assign(fn, 0);
+            if (!g.corr.empty()) f.corr.assign(fn, 1.0f);
+            for (size_t i = i0; i <= i1; ++i) {
+                const int ci = cur.path[i];
+                const int cx = (g.x0 + ci % g.nx) * stride + stride / 2, cz = (g.z0 + ci / g.nx) * stride + stride / 2;
+                for (int dz = -bandFine; dz <= bandFine; ++dz)
+                    for (int dx = -bandFine; dx <= bandFine; ++dx) {
+                        const int tx = cx + dx, tz = cz + dz;
+                        if (!f.contains(tx, tz)) continue;
+                        const int fi = f.idx(tx, tz);
+                        if (f.wet[fi] != 1 || f.height[fi] != 0.0f) continue;   // sampled already
+                        const glm::vec2 pc = f.cellCentre(tx, tz);
+                        f.height[fi] = heightAt(pc.x, pc.y);
+                        bool wetAny = false;   // the corner-sampled test against the emitted surface
+                        const float hc = cell * 0.5f - 0.5f;
+                        const glm::vec2 qs[5] = {pc, pc + glm::vec2(-hc, -hc), pc + glm::vec2(hc, -hc), pc + glm::vec2(-hc, hc), pc + glm::vec2(hc, hc)};
+                        for (const glm::vec2& q : qs) {
+                            const float wl = levelAt(q.x, q.y);
+                            if (wl <= HydrologyMap::NO_WATER + 1.0f) continue;
+                            if (wl > static_cast<float>(surfaceYAt(static_cast<int>(std::floor(q.x)), static_cast<int>(std::floor(q.y)))) + 0.1f) { wetAny = true; break; }
+                        }
+                        f.wet[fi] = wetAny ? 1 : 0;
+                        f.order[fi] = flow.orderAt(pc.x, pc.y);
+                        f.carved[fi] = flow.carvedRiverAt(pc.x, pc.y) ? 1 : 0;
+                        if (!f.corr.empty()) f.corr[fi] = corridorMulAt ? corridorMulAt(pc.x, pc.y) : 1.0f;
+                        if (f.height[fi] == 0.0f) f.height[fi] = 1e-6f;
+                    }
+            }
+            for (int cz = f.z0; cz < f.z0 + f.nz; ++cz)
+                for (int cx = f.x0; cx < f.x0 + f.nx; ++cx) {
+                    const int i = f.idx(cx, cz);
+                    if (f.wet[i]) continue;
+                    if ((f.contains(cx + 1, cz) && f.wet[f.idx(cx + 1, cz)]) || (f.contains(cx - 1, cz) && f.wet[f.idx(cx - 1, cz)]) ||
+                        (f.contains(cx, cz + 1) && f.wet[f.idx(cx, cz + 1)]) || (f.contains(cx, cz - 1) && f.wet[f.idx(cx, cz - 1)]))
+                        f.shore[i] = 1;
+                }
+            auto fineCellOf = [&](const glm::vec2& pt) {
+                const int cx = glm::clamp(static_cast<int>(std::floor((pt.x - ox) / cell)), f.x0, f.x0 + f.nx - 1);
+                const int cz = glm::clamp(static_cast<int>(std::floor((pt.y - oz) / cell)), f.z0, f.z0 + f.nz - 1);
+                return f.idx(cx, cz);
+            };
+            const glm::vec2 pA = g.cellCentre(g.x0 + cur.path[i0] % g.nx, g.z0 + cur.path[i0] / g.nx);
+            const glm::vec2 pB = g.cellCentre(g.x0 + cur.path[i1] % g.nx, g.z0 + cur.path[i1] / g.nx);
+            const int fs = fineCellOf(pA), fg = fineCellOf(pB);
+            if (f.wet[fs] || f.wet[fg]) return false;   // the stretch's ends are in the water: the coarse block's case
+            float fineCost = 1e30f;
+            const std::vector<int> fine = astarRoute(f, fs, fg, fineCost, P.gradeCap[glm::clamp(cur.cls, 1, 3)]);
+            if (fine.empty()) return false;
+            std::vector<glm::vec2> pts;
+            for (size_t i = 0; i < i0; ++i) pts.push_back(g.cellCentre(g.x0 + cur.path[i] % g.nx, g.z0 + cur.path[i] / g.nx));
+            for (const int fi : fine) pts.push_back(f.cellCentre(f.x0 + fi % f.nx, f.z0 + fi / f.nx));
+            for (size_t i = i1 + 1; i < cur.path.size(); ++i) pts.push_back(g.cellCentre(g.x0 + cur.path[i] % g.nx, g.z0 + cur.path[i] / g.nx));
+            cur.pts = std::move(pts);
+            return true;
+        };
+        int fords = 0, bridgesMade = 0, reroutes = 0, cutRefusals = 0, waterReroutes = 0, waterFine = 0;
         for (const Pair* pr : chosen) {
             if (!demand) { plan->m_roads.push_back(realizeFrom(*pr)); continue; }
             Pair cur = *pr;
-            bool placed = false;
+            bool placed = false, fineTried = false;
             std::string reason;
             glm::vec2 where(0.0f);
             for (int attempt = 0; attempt < kCrossingRetries; ++attempt) {
                 WorldForgeRoad road = realizeFrom(cur);
                 std::vector<WorldForgeBridgeSpan> spans;
-                if (decideCrossings(road, spans, reason, where) && judgeCuts(road, reason, where)) {
+                if (decideCrossings(road, spans, reason, where) && judgeCuts(road, reason, where) && judgeWater(road, reason, where)) {
                     for (const auto& c : road.crossings) {
                         if (c.kind == WorldForgeRoad::Crossing::Kind::Ford) ++fords;
                         else if (c.kind == WorldForgeRoad::Crossing::Kind::Bridge) ++bridgesMade;
@@ -1151,10 +1273,24 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 }
                 ++reroutes;
                 if (reason.rfind("a walkable line needs a cut", 0) == 0) ++cutRefusals;
+                if (reason.rfind("a line crosses standing water", 0) == 0) {
+                    ++waterReroutes;
+                    if (!fineTried) {   // first the 32 u detour inside a band around the hit; the coarse block only if none exists
+                        fineTried = true;
+                        if (fineDetour(cur, where)) {
+                            ++waterFine;
+                            LOG_INFO_FMT("WorldForge", "[CROSSINGS] demand " << cur.a << " -> " << cur.b << " refused at (" << where.x << "," << where.y << "): " << reason << " - a fine detour inside the band");
+                            continue;
+                        }
+                    }
+                }
                 LOG_INFO_FMT("WorldForge", "[CROSSINGS] demand " << cur.a << " -> " << cur.b << " refused at (" << where.x << "," << where.y << "): " << reason << " - routing again");
                 blockAround(where);
                 const int ca = cur.a >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(cur.a)]) : pointCell(cur.pa);
                 const int cb = cur.b >= 0 ? siteCell(plan->m_sites[static_cast<size_t>(cur.b)]) : pointCell(cur.pb);
+                // the demand's own endpoints are never closed: a pond or a refused crossing within a coarse cell of a
+                // site closed the site's cell and the demand was refused with the plain open (the rig, 2026-11-02)
+                if (!g.blocked.empty()) { g.blocked[static_cast<size_t>(ca)] = 0; g.blocked[static_cast<size_t>(cb)] = 0; }
                 cur.pts.clear();
                 cur.path = astarRoute(g, ca, cb, cur.cost, P.gradeCap[glm::clamp(cur.cls, 1, 3)], P.bridgeMaxSpanU);
                 if (cur.path.empty()) { reason += "; no other dry route inside the box"; break; }
@@ -1166,13 +1302,17 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 rd.bankLowU = refusedBanks[0]; rd.bankHighU = refusedBanks[1]; rd.rimU = refusedBanks[2]; rd.deckU = refusedBanks[3];
                 rd.spanAU = refusedBanks[4]; rd.spanBU = refusedBanks[5];
                 rd.tangent = refusedTan;
+                if (reason.rfind("a line crosses standing water", 0) == 0) ++plan->m_waterRefused;   // M4 water-aware routing
                 plan->m_refused.push_back(rd);
             }
         }
         if (demand)
             LOG_INFO_FMT("WorldForge", "[CROSSINGS] fords " << fords << ", bridges " << bridgesMade << ", crossings refused and re-routed " << reroutes
                          << ", demands refused " << plan->m_refused.size() << " (span <= " << P.bridgeMaxSpanU << " u, ford depth < " << P.fordMaxDepthU << " u); "
-                         << "[EARTHWORK] lines refused for a cut beyond " << (bankLimit() + P.wallTierU + P.rockCutMaxU) << " u: " << cutRefusals);
+                         << "[EARTHWORK] lines refused for a cut beyond " << (bankLimit() + P.wallTierU + P.rockCutMaxU) << " u: " << cutRefusals
+                         << "; [WATER] lines re-routed for standing water " << waterReroutes << " (" << waterFine << " by a fine detour inside the band), demands refused for it " << plan->m_waterRefused);
+        plan->m_waterRerouted = waterReroutes;
+        plan->m_waterFineDetours = waterFine;
     }
 
     if (demand)
@@ -1879,6 +2019,8 @@ WorldForgePlan::RoadHit WorldForgePlan::roadAt(float worldX, float worldZ) const
     return hit;
 }
 
+void WorldForgePlan::setWaterAwareRoutingForTesting(bool on) { s_waterAwareRouting = on; }
+
 void WorldForgePlan::setRasterSegmentCapForTesting(size_t cap) {
     g_rasterSegmentCap = cap == 0 ? kRasterSegmentCap : cap;
 }
@@ -1973,6 +2115,7 @@ nlohmann::json WorldForgePlan::toJson() const {
         j["refused_demands"] = refused;
     }
     j["raster_truncated_segments"] = m_rasterTruncatedSegments;   // M0: 0 unless the uint16 cap bit
+    if (m_blendGrades) { j["water_rerouted"] = m_waterRerouted; j["water_refused"] = m_waterRefused; j["water_fine_detours"] = m_waterFineDetours; }   // M4 water-aware routing: reported, never hashed
     return j;
 }
 
@@ -1984,6 +2127,7 @@ uint64_t WorldForgePlan::identityHash(nlohmann::json j) {
     // 2026-10-14: the lab's F7 hash 9693137997320541182 -> 10638243061351388589 on an
     // unchanged recipe), which marks every earlier ledger stale.
     j.erase("raster_truncated_segments");
+    j.erase("water_rerouted"); j.erase("water_refused"); j.erase("water_fine_detours");   // M4 water-aware routing counts (2026-11-02): measurements, not identity
     // M2b-2 added `carved` to every crossing record (2026-10-20) and silently moved every
     // version-1 plan's hash the same way (Mountains 424242: 18197215997962677593 ->
     // 6997471292175526340 with identical sites/roads/bridges; caught 2026-10-22 by the pinned

@@ -1,0 +1,179 @@
+M4 water-aware box routing - red -> green ledger (docs/WorldForgeV2Plan.md "M4 water-aware routing design check", 2026-11-02: READY).
+Every prediction is written before its run; every miss is recorded. Raw logs: the scratchpad's m4b4r_r*_water.txt + m4b4r_chain_*.txt.
+
+=== THE RED (2026-11-02, patch W1: tests only - RouteFieldTest.RoadsStayOutOfStandingWater (L2 on the two real worlds: every road column,
+    centreline + half-width, decks and creek fords excluded, tested with the realization's own rule - the rim-corrected water level above
+    the emitted surface), RouteFieldTest.ShoreCellIsRoutedAround (the rig: a 30 u plain, one Gaussian pond bowl at (512,512) sigma 16 u
+    depth 5 u filling to the plain, a track demand between pinned sites (384,540)-(640,540) whose straight line passes 28 u from the pond
+    centre through the neighbouring cells' wet strips while their centres sit 0.09 u under the level - inside the router's 0.1 u margin),
+    RouteFieldTest.ShoreRigControlRunsStraight (the same rig with no pond)) ===
+PREDICTIONS (before the build):
+  PW.1 the real worlds: Mountains 424242 some road columns under standing water - a guess of 1 to 50 (the lakes' shores inside the box;
+       no earlier measurement exists); the baseline 0 to 10. If both are 0 the rig alone carries the red (stated here in advance).
+  PW.2 the rig (depth 5): both pins seat, 1 road, 0 refusals, the road ~256-270 u long (straight: the pond cell is not on the line), and
+       10 to 60 of its columns under water - RED on wet == 0.
+  PW.3 the control (depth 0): 1 road, 0 wet, length under 1.05 x 256 u - GREEN.
+  PW.4 the pinned version-1 hashes GREEN (tests only).
+THE RED RUN (patch W1; build 10:32:40-10:32:51, exe 10:32:47, run 10:32:51-10:39:17; m4b4r_r7_water.txt): 1 ok, 3 failed.
+  RoadsStayOutOfStandingWater: baseline Perlin 673 346 road columns walked, 440 UNDER STANDING WATER (worst 3.2 u at (-14894,-14288); the
+  first four 0.2 u under at (-14885..-14888, -14296..-14299)), 0 below sea level; Mountains 424242 717 484 walked, 10 under water (worst
+  1.0 u at (-8255,-9597)), 0 below sea. RED on both. PW.1 MISSED on the baseline's size (440, predicted 0-10) and MET on Mountains (10 in
+  1-50). The baseline has the lakes and the gentle shores; the mountain world's lakes sit in steep bowls whose shore strips are thin.
+  ShoreCellIsRoutedAround / ShoreRigControlRunsStraight: the plan seated 3 sites (the two pins + one the picker added up to the box's
+  floor of three), 1 road, 0 refused, road length 250.8 u, the pond level 30.00 u and the neighbour-centre ground 29.91 u as designed -
+  the test's own ASSERT on exactly 2 sites failed before the wet census ran: a RIG fault, the assertion relaxed to >= 2 (the demand is
+  0 -> 1 between the pins). Rerun below for the rig's red.
+RIG RED (the assertion relaxed; build 10:40:00-10:40:09, exe 10:40:05, run 10:40:09; m4b4r_r8_rig.txt): ShoreCellIsRoutedAround RED - 996 road
+  columns, 21 UNDER WATER (worst 1.00 u at (502,574)), 1 road, 0 refusals, 3 sites. PW.2 MET (21 in 10-60). The control: 0 wet (PW.3's
+  wetness MET) but the road is 282.7 u for a 256 u pin-to-pin line - the "straight within 5 %" expectation MISSED: on a flat plain the
+  32 u A* and the pins' refinement bend the line by 10 %. The control's length becomes the REFERENCE the pond rig's detour is measured
+  against (recorded), not a bound; the control's claim stays wet == 0.
+PATCH W2 (the rule): (a) the fine band's cell is wet where ANY of its centre and four corners stands under the water level, tested against
+  the EMITTED surface (surfaceYAt, the realization's reference) - dry land (no level) costs one lookup; (b) judgeWater after decideCrossings
+  and judgeCuts: the realized line's whole BAND (centreline + half-width at 1 u) must not cross standing water outside a channel hit
+  (decks and fords are the crossing rule's); a hit closes the 3x3 cells around it and the demand is routed again, else refused with the
+  reason "a line crosses standing water at (x,z): N columns under a level of L u"; (c) the plan JSON gains water_rerouted / water_refused
+  (erased from the identity hash like the census), the [CROSSINGS] log a [WATER] tail.
+PREDICTIONS (before the build):
+  PW2.1 the rig (depth 5): 21 -> 0 wet, 1 road, 0 refused, water_rerouted >= 1, the road longer than the control's 282.7 u.
+  PW2.2 the control: unchanged (0 wet, 282.7 u, water_rerouted 0).
+  PW2.3 the real worlds: baseline 440 -> under 40, Mountains 10 -> 0 to 5. Residuals the rule cannot see: a column dry on the natural and
+        graded BELOW the level by a cut (the realization tests wetness before grading) - counted by the test, not by the scan; stated.
+  PW2.4 the version-2 plan hashes MOVE on both real worlds (re-routes), the pinned version-1 hashes do not; 0 demands refused for water
+        on the real worlds (a detour exists), re-routes for water > 0 on the baseline.
+GREEN W2 (patch W2; build 10:42:xx-10:47:11, exe 10:47:11; rig 10:47:15 m4b4r_r9_rig.txt; water 10:47:20-10:53:45 m4b4r_r10_water.txt):
+  the real worlds: baseline Perlin 440 -> 2 road columns under standing water (0.9 u under at (-14421,-14624) and (-14419,-14624)), 19
+  lines re-routed for standing water, 0 demands refused for it, the plan hash 6271491827812442263 -> 1302191498353573904 (32 roads, 1 bridge
+  as before); Mountains 424242 10 -> 0, 1 line re-routed, 0 refused, hash 10875586515472990204 -> 12200053730077578201 (25 roads, 35
+  bridges, 8 refusals as before); the pinned version-1 hashes green. PW2.3 MET (2 < 40; 0). PW2.4 MET.
+  the rig (depth 5): the demand REFUSED - 0 roads, 1 refused, 1 re-route: the 3x3 COARSE cells (128 u each, 384 u across) closed around
+  the wet hit swallowed the start site's own cell, and the second route found nothing. PW2.1 MISSED (a rig-scale interaction with the
+  M4c blocking, not the wet test: the real worlds have room). The control unchanged (PW2.2 MET).
+  READ: (1) a demand's endpoint cells must never be closed; (2) the baseline's two residual columns are the case predicted in PW2.3 - the
+  grading is judged on the natural (dry) surface and the cut took the shore column 0.9 u under the lake's level; the realization must not
+  cut below a water line.
+PATCH W3: (a) after blockAround the demand's start and goal cells are re-opened; (b) the realization clamps a graded road column (and a wall
+  top) to at least ceil(the water level) where a level stands beside it - the road is cut down to the water line, not into the lake;
+  (c) the rig test prints any refusal's reason.
+PREDICTIONS (before the build):
+  PW3.1 the rig: 1 road, 0 refused, 0 wet, length > 282.7 u, water_rerouted >= 1. PW3.2 the control unchanged.
+  PW3.3 baseline 2 -> 0 wet, Mountains 0; the plan hashes as GREEN W2 (the clamp is realization-side, the plans do not change); re-routes
+        19 / 1 as GREEN W2. PW3.4 the version-1 hashes green.
+GREEN W3 (patch W3; the test file's format string took three attempts to repair - inline shell patches mangle backslash escapes, the
+  script-file patch did it; build 10:56:5x-10:57:1x, exe 10:57:11; rig 10:57:17 m4b4r_r11_rig.txt; water 10:57:22-11:03:55 m4b4r_r12_water.txt):
+  THE REAL WORLDS GREEN: RouteFieldTest.RoadsStayOutOfStandingWater - baseline Perlin 680 678 road columns walked, 0 under standing
+  water (was 440 at the red, 2 after W2); Mountains 424242 852 111 walked, 0 (was 10). Re-routes for water 19 / 1 as W2, 0 refused for
+  it. PW3.3 MET. The baseline plan unchanged from W2 (hash 1302191498353573904); the Mountains plan MOVED again - 26 roads / 36 bridges /
+  7 refusals (W2: 25 / 35 / 8), hash 12200053730077578201 -> 15959601999984780465: re-opening a demand's own endpoint cells let one
+  demand that a refused crossing's 3x3 block had closed route (a consequence of (a), not predicted: recorded). PW3.4 MET.
+  THE RIG still REFUSED: "a line crosses standing water at (502.6,574.4): 21 columns under a level of 30.000000 u; no other dry route
+  inside the box" - (502,574) is 63 u from the pond centre, far outside the Gaussian bowl's 31.6 u wet radius. READ: the realization's
+  wet test compares the level with the INTEGER surface; the Gaussian tail leaves the plain at 29.99999, floor 29, under the 30.0 level,
+  so every column of every cell that carries the level (every cell whose centre dips under the spill - the bowl's tail reaches the
+  diagonal neighbours at 29.9998) is "wet" to its last column: the rig's pond was four whole cells plus their neighbours, not a shore
+  strip, and the fine grid had no dry way through the band. PW3.1 MISSED - a rig fault (the bowl's tail), not the rule's.
+PATCH W4 (the rig only): the bowl has COMPACT support - h = 30 - 5 (1 - r^2 / 40^2)^2 inside r < 40 u, exactly 30.0 outside - so the wet
+  disc is r < 40, the four corner-sharing cells are filled (centres 22.6 u out), the next ring carries no level, and each filled cell is
+  wet only inside the disc: a shore strip, as the design check wanted. The demand line at z 540 crosses the disc over x 483..541.
+PREDICTIONS (before the build; the engine unchanged since W3, the real-world test not rerun):
+  PW4.1 the rig: 1 road, 0 refused, 0 wet, the road longer than the control's 282.7 u; water re-routes 0 or 1 (the fine grid's corner test
+        alone may already carry the line round the four wet cells). PW4.2 the control unchanged (0 wet, 282.7 u).
+RIG RUN W4 (patch W4; build 11:05:4x-11:05:5x, exe 11:05:5x; m4b4r_r13_rig.txt): both rig tests GREEN - but VACUOUSLY: the road is 250.8 u, the
+  same length as the Gaussian rig's straight line at the red, with 0 wet columns and 0 re-routes; the rule found nothing to do. The
+  compact pond's wet disc (r < 40 u at the corner (512,512)) and a line at z 540 (28 u off) SHOULD intersect over x 483..541 - unless the
+  realized line does not run where the pins say (the 32 u fine route follows cell centres, z 528 or 560). PW4.1 MISSED on the length
+  (not longer) and the green is not evidence until the rig is shown RED on the same pond with the rule off.
+PATCH W5: WorldForgePlan::setWaterAwareRoutingForTesting(bool) - a tests-only switch (default on; a static read only inside the bake) that
+  restores the centre-only fine wet test and skips the line scan; the rig bakes the same pond with the rule OFF first (the red, asserted:
+  wet > 0, else the rig measures nothing), then ON (wet == 0, the road longer than the rule-off line); the road's ends, z range and the
+  sites' seats are printed.
+PREDICTIONS (before the build): PW5.1 rule off: 1 road, wet > 0 (10-80 columns if the line runs at z 528 through the filled cells; 0 if the
+  fine route already sits at z 560 or beyond - which would mean the rig must move its pins, recorded either way). PW5.2 rule on: 1 road,
+  0 wet, longer than the rule-off line, 0-1 water re-routes. PW5.3 the control unchanged. PW5.4 the real-world water test (rerun on this
+  exe: the switch defaults on) unchanged from GREEN W3 - 0 / 0, the hashes 1302191498353573904 / 15959601999984780465.
+RUN W5 (patch W5 + the switch's definition moved above its uses; build 11:09:xx-11:12:4x, exe 11:12:4x; rig 11:12:49 m4b4r_r14_rig.txt; water
+  11:12:54-11:19:35 m4b4r_r15_water.txt): the rig's in-test red FAILED TO BE RED - with the rule off: 1 road, 996 columns, 0 under water;
+  the instrument shows why: the road runs from (441,568) to (677,561) at z 561..576 - it leaves each pinned site at its footprint's edge
+  (sites at (384,540) and (640,540), a third seated by the picker at (360,24)) - and the pond at (512,512) with radius 40 lies 50-64 u off
+  that line. The rig measured nothing (PW5.1's second branch; recorded). With the rule on the same line, 250.8 u, 0 re-routes (PW5.2
+  not testable). The control unchanged (PW5.3 MET). THE REAL WORLDS on this exe: baseline 0, Mountains 0 under standing water, hashes
+  1302191498353573904 / 15959601999984780465 as GREEN W3, the version-1 hashes pinned (PW5.4 MET).
+PATCH W6 (the rig only): the pond moves to the cell CENTRE (528,560) with radius 34 u, under the measured line: the pond cell is wet at its
+  centre, its four edge neighbours' centres sit 0.065 u under the level (dry to the centre-only test, inside the 0.1 u margin) while an 18 u
+  strip of each nearest the pond is under water, the diagonals' nearest corners (23 u out) wet too. The centre-only routing must detour
+  through the neighbours' strips (the red); the corner-sampling routing one ring further (the green).
+PREDICTIONS (before the build; the engine unchanged since W5 - the real-world test is not rerun): PW6.1 rule off: 1 road, 10 to 120 columns
+  under water (the strip crossings), the road longer than 250.8 u (it detours round the pond cell). PW6.2 rule on: 1 road, 0 wet, longer
+  than the rule-off line, 0 to 1 water re-routes. PW6.3 the control unchanged.
+RUN W6 (patch W6; build 11:20:4x-11:20:5x, exe 11:20:5x; m4b4r_r16_rig.txt): the rig is now REAL - rule OFF: 1 road from (441,568) to (677,561),
+  z 561..576, 250.8 u, 996 columns, 186 UNDER WATER (worst 4.0 u at (520,574)) - the red on the same pond, in the same run; rule ON: 1 road,
+  0 refused, 1 line re-routed for standing water, 2 759 columns, 0 under water - GREEN; the control unchanged. PW6.1 MET on the wetness
+  (186 > the 10-120 guess: MISSED on the count - the line runs straight THROUGH the pond cell, not round it), MISSED on the length (the
+  rule-off road did not detour at all: 250.8 u). PW6.2 MET (0 wet, 1 re-route) but the detour is 749.4 u for a 256 u demand - the road
+  leaves (387,515) and swings to z 352 before coming back: the 3x3 COARSE block (128 u cells, 384 u across) around the wet hit sends the
+  second route far round. PW6.3 MET.
+  READ: with the rule off the line runs straight through a fine cell that IS wet at its centre (the pond cell: h 25 under a level of 30), so
+  the fine A* is not what put it there - the fine path is refined into the realized line by a smoothing that cuts across cells without
+  reading their wetness; that is also how the baseline got its 440 wet road columns. The scan + coarse block corrects it after the fact
+  at the cost of a 3x detour.
+FINDING (2026-11-02, read from WorldForgePlan.cpp after run W6): the "fine band refinement" that would route at the 32 u hydrology cell is
+  OFF (line ~716: "Fine-band refinement: OFF. Measured 2026-10-26: 320-360 s Debug per baseline box"); pr.pts stays empty and the realized
+  line is the COARSE 128 u path, Chaikin-smoothed and resampled. The design check's premise that "the fine grid has brought it to 32 u"
+  was WRONG: the only water test the router applies is the coarse cell centre at 128 u, and patch W2's corner-sampled fine wet test runs
+  in code that is never reached. The water scan (judgeWater) + the 3x3 coarse block are the only active parts of the rule - correct
+  (0 wet columns on both real worlds, the rig red -> green) but blunt: the rig's detour is 749 u for a 256 u demand. The increment the
+  owner named is routing BELOW 128 u: the fine machinery exists and must be turned on locally, around a wet hit, where its cost is small.
+PATCH W7 (the rule below 128 u): where judgeWater refuses a line, the stretch of the coarse path +-2 coarse cells around the hit is routed
+  again on the 32 u hydrology grid inside a band one coarse cell wide, sampled with the corner wet test against the emitted surface, and
+  the fine cells replace that stretch in the line (tried once per demand, before the coarse block); only where no fine line exists inside
+  the band does the 3x3 coarse block route the whole demand again. Counted as water_fine_detours (reported, never hashed).
+PREDICTIONS (before the build):
+  PW7.1 the rig: rule on - 1 road, 0 wet, 1 water re-route solved by a fine detour, the road 300-380 u (one ring round the pond: was 749 u
+        by the coarse block); the rule-off red unchanged (186 wet). PW7.2 the control unchanged.
+  PW7.3 the real worlds: 0 / 0 wet columns still; the baseline's 19 re-routes mostly fine detours (12 or more of 19), Mountains' 1 a fine
+        detour; the plan hashes MOVE again (the lines differ), the version-1 hashes pinned; 0 refusals for water.
+GREEN W7 (patch W7; build 11:23:xx-11:28:3x, exe 11:28:3x; rig 11:28:38 m4b4r_r17_rig.txt; water 11:28:44-11:35:09 m4b4r_r18_water.txt): 4 of 4 GREEN.
+  the rig: rule off 186 wet (the red, unchanged); rule on 1 road from (424,566) to (678,565), z 565..648, 349.1 u (was 749 u by the coarse
+  block; the straight line 256 u), 1 261 columns, 0 under water, 1 re-route solved by a fine detour, 0 refused. PW7.1 MET (349 in 300-380).
+  the control unchanged (PW7.2 MET).
+  the real worlds: baseline Perlin 678 649 road columns, 0 under standing water; 23 lines re-routed for water, 16 of them by a fine detour
+  inside the band (the other 7 by the coarse block after no fine line existed inside their band), 0 refused; plan hash 16071743201142914691
+  (32 roads, 1 bridge). Mountains 424242 852 954 columns, 0 under water; 1 re-route, a fine detour; hash 10065730601625418702 (26 roads,
+  36 bridges, 7 refusals). The version-1 hashes pinned. PW7.3 MET (16 of 23 fine; the re-route count rose 19 -> 23 because a line that a fine
+  detour moved can be judged once more - recorded).
+  Open before the commit: the full WorldForge and terrain sets on this exe (chain 19/20), the auditor.
+CHAIN 19/20 (the same exe 11:28; forge 11:36:21-12:07:59 m4b4r_r19_forge.txt; terrain 12:08:06-12:15:29 m4b4r_r20_terrain.txt): the WorldForge
+  set 92 ok / 1 failed; the terrain set 105 ok / 1 failed (RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope, the six Mountains
+  lips, unchanged); BridgeSpanTest Mountains 36 bridges / 7 refusals / 65 re-routed (as GREEN W7's bake). The version-1 hashes pinned.
+  THE NEW RED: BridgeSpanTest.RoadIsHopWalkableAcrossTheVersionTwoCrossing on the BASELINE's only bridge - the hop walker crosses bank to
+  bank (asserted, green), the strict 4/9 u walker is NOT walkable between the parapets from 2 u inside each deck end (asserted, red).
+  The bridge is not the one chain 4 walked: the water re-routes moved the baseline network and its one bridge now spans 15.0 u at deck
+  53 (was 13.0 u at deck 54), on a diagonal line (dir ~(-0.93,0.37)). DiagVersionTwoBridgeColumns on this exe (m4w_bridge_diag.txt):
+  the deck runs s 1..14 at deckY 53 over a channel only at s 5..10; the land under the deck ends (s 2..4 and 11..14) is at surf 53 = deckY;
+  across the deck the lateral tops are [54.00 54.67 54.00 54.67 54.00] - a 1 u walkway at lateral 0 between parapets at +-1 - and at
+  s 3 and s 12 the walker's feet settle at 54.67 ON the centreline: on a diagonal deck the parapet voxels of the two sides meet corner to
+  corner across the one-voxel walkway and pinch it shut for a 4/9 u box. No water level stands at any of these columns (water = no
+  water), so the water-line clamp (4) did not touch them: this is an M4c deck-geometry defect (a class-1 deck's walkway is one voxel wide
+  and a diagonal line pinches it) that the relocated bridge exposes - recorded as an M4c open item; the test stays RED by design until
+  that follow-up (the precedent: the earthwork red of 2026-10-30).
+AUDIT 5 (2026-11-02, solution-auditor on the tree after chain 19/20 + the docs; raw): "VERDICT: FAIL (narrow). The routing rule and its red and
+  green (440 to 0 on the baseline, 10 to 0 on Mountains, rig 186 to 0) are genuine L2 measurements on real output, and the switch is
+  contained. What fails is the 'exposed, not caused' explanation of the new red bridge, which has no control and an evidence file outside
+  the repo. The dead fine-band code, the clamp's unmeasured walkability and the unfilled commit placeholder also remain."
+  Accepted by it: the evidence order, the GREEN W7 figures, the in-test rig red, the test's measurement, the switch's containment, the
+  control's reference length, the pond moves (made to make the rule-off state fail). Taken: (1) the corner-sampled test in the OFF
+  full-length band removed (dead code) - the detour's copy is the rule; (2) the census asserts a floor of 500 000 road columns walked per
+  world and 0 demands refused for water (it could pass by losing roads before); (3) the clamp's effect on steps stated as unmeasured
+  (true by construction for the last two columns); (4) the bridge: m4w_bridge_diag.txt copied into docs/evidence, "exposed, not caused"
+  reworded as a HYPOTHESIS with the rig that would settle it, the test left red by design as a recorded regression; (5) a column on a
+  carved channel under standing water with neither deck nor ford is invisible to rule and census alike - stated; (6) the commit text's
+  placeholder filled with this verdict; the attribution line is this session's (the auditor's note about a different model name refers
+  to its own session). The engine edit (1) is dead code - the water test and the rig are rerun on the new exe all the same.
+PATCH W8: (1) + (2). PREDICTIONS: PW8.1 the water test GREEN with the new floors (678 649 / 852 954 columns, 0 refused for water), the
+  rig GREEN (186 -> 0, 349 u), the baseline / Mountains plan hashes UNCHANGED from GREEN W7 (dead code removed, nothing routes differently).
+GREEN W8 (patch W8; build 12:2x, exe 12:26:5x; rig 12:26:57 m4b4r_r21_rig.txt; water 12:27:02-12:33:29 m4b4r_r22_water.txt): 6 of 6 GREEN with the
+  new floors asserted - baseline 678 649 road columns walked, 0 under standing water, 23 re-routes (16 fine detours), 0 refused for water,
+  32 roads; Mountains 852 954 walked, 0 under water, 1 re-route (fine), 0 refused, 26 roads; the rig 186 (rule off) -> 0 (rule on), 349.1 u,
+  1 fine detour; the control 0 wet, 282.7 u; the plan hashes UNCHANGED from GREEN W7 (16071743201142914691 / 10065730601625418702) - the
+  removed code was dead; the version-1 hashes pinned. PW8.1 MET. COMMITTED IN THIS STATE: two red tests by design - the six-lip river
+  section on Mountains and the strict deck walk on the baseline's relocated bridge (a recorded regression, an M4c open item).

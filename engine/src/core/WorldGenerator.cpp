@@ -1716,6 +1716,18 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                         }
                     } else
                         col.surfaceY = static_cast<int>(std::lround(gb.gradeY * gb.weight + static_cast<float>(col.surfaceY) * (1.0f - gb.weight)));
+                    // M4 water-aware routing (2026-11-02): a cut never goes BELOW a water level standing beside the column
+                    // - the grading was judged on the natural (dry) surface and could cut a shore column under the
+                    // lake's level (the baseline's two residual wet road columns, 0.9 u under): the road is cut down
+                    // to the water line, not into the lake
+                    if (m_hydro) {
+                        const float wl = waterLevelAt(static_cast<float>(wx), static_cast<float>(wz));
+                        if (wl > HydrologyMap::NO_WATER + 1.0f && static_cast<float>(col.surfaceY) < wl) {
+                            const int atLine = static_cast<int>(std::ceil(wl));
+                            if (col.wallTopY != INT_MIN && col.wallTopY < atLine) { col.wallTopY = atLine; }
+                            col.surfaceY = std::max(col.surfaceY, atLine);
+                        }
+                    }
                 }
             } else
             if (rh.cls > 0 && rh.gradeY > -1e29f && rh.dist <= half + kGradeBlend &&

@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "core/CorridorGraph.h"
+#include "core/FlowField.h"
+#include "core/HydrologyMap.h"
+#include "core/WaterBodyIndex.h"
 #include "core/WorldForgeParams.h"
 #include "core/WorldForgePlan.h"
 #include "core/WorldGenerator.h"
@@ -482,4 +485,232 @@ TEST(RouteFieldTest, MountainSwitchbacksRetireMostPitches) {
     // do what they claim on the stretches they find
     EXPECT_GE(switchbacks, 4) << "no switchback was inserted on the Mountains world";
     EXPECT_EQ(c.pitchUnexplained, 0);
+}
+
+// ============================================================================
+// M4 water-aware routing (docs/WorldForgeV2Plan.md "M4 water-aware routing design check", 2026-11-02).
+// The box routing marks a cell wet only where the water level stands above the cell CENTRE's coarse
+// routing height; a road routed across the shore of a lake or pond whose cell centre is dry runs over
+// columns the realization will not grade (a causeway must not dam a lake) but still stamps as road:
+// the road vanishes under the water with no deck (carved channels only) and no ford (creeks only).
+// "Works" = no road column under standing water outside decks and fords - measured on the real
+// output (L2) with the SAME test the realization applies: the rim-corrected water level above the
+// emitted surface. The second test is the rig: a flat plain with one pond whose wet strip reaches
+// into the neighbouring routing cells while their centres stay dry, and one demand whose straight
+// line crosses that strip. The control is the same rig without the pond.
+// ============================================================================
+namespace {
+
+struct WetCensus {
+    int roadCols = 0, wet = 0;   // road columns walked; those under standing water (no deck, no creek)
+    float worstDepth = 0.0f; glm::ivec2 worstAt{0, 0};
+    std::vector<std::string> first;   // the first four wet columns
+};
+
+// every column of every road: the centreline at 1 u and the half-width band across it
+template <typename ColumnFn>
+WetCensus censusRoads(const WorldForgePlan& box, ColumnFn&& wetAt) {
+    WetCensus c;
+    std::set<std::pair<int, int>> seen;
+    for (const auto& road : box.roads()) {
+        const auto& cl = road.centerline;
+        if (cl.size() < 2) continue;
+        const float half = WorldForgePlan::roadHalfWidth(road.cls);
+        for (size_t i = 0; i + 1 < cl.size(); ++i) {
+            const glm::vec2 a = cl[i], b = cl[i + 1];
+            const float L = glm::length(b - a);
+            if (L < 1e-3f) continue;
+            const glm::vec2 d = (b - a) / L, n(-d.y, d.x);
+            for (float t = 0.0f; t <= L; t += 1.0f)
+                for (float o = -half; o <= half + 1e-3f; o += 1.0f) {
+                    const glm::vec2 q = a + d * t + n * o;
+                    const int x = static_cast<int>(std::floor(q.x)), z = static_cast<int>(std::floor(q.y));
+                    if (!seen.insert({x, z}).second) continue;
+                    float depth = 0.0f;
+                    const int kind = wetAt(x, z, depth);   // -1 not a road column here, 0 dry, 1 wet
+                    if (kind < 0) continue;
+                    ++c.roadCols;
+                    if (kind == 1) {
+                        ++c.wet;
+                        if (depth > c.worstDepth) { c.worstDepth = depth; c.worstAt = {x, z}; }
+                        if (c.first.size() < 4) c.first.push_back("(" + std::to_string(x) + "," + std::to_string(z) + ") " + std::to_string(depth).substr(0, 5) + " u under");
+                    }
+                }
+        }
+    }
+    return c;
+}
+
+WorldGenerator& waterWorld(bool mountains) {
+    static WorldGenerator* perlin = nullptr;
+    static WorldGenerator* mtn = nullptr;
+    WorldGenerator*& slot = mountains ? mtn : perlin;
+    if (!slot) {
+        slot = new WorldGenerator(mountains ? WorldGenerator::GenerationType::Mountains : WorldGenerator::GenerationType::Perlin, mountains ? 424242u : 20260816u);
+        slot->applyRecipe(civRecipe(mountains ? 424242u : 20260816u, mountains ? "Mountains" : "Perlin"));
+    }
+    return *slot;
+}
+
+// the rig: a 30 u plain over a 32 x 32-cell box (32 u cells, sea 16) with one pond bowl of COMPACT
+// support at (528,560) - a cell CENTRE - radius 34 u, depth 5 u: h = 30 - 5 (1 - r^2/34^2)^2 inside,
+// exactly 30.0 outside. The bowl fills to its spill (the plain, 30 u). The realization's wet test is
+// the level above the INTEGER surface, so a plain at 29.999 under a 30.0 level is "wet" everywhere a
+// cell carries the level - a Gaussian bowl (tried first, 2026-11-02) made every filled cell wet to its
+// last column and the rig refused its demand with "no other dry route". With compact support the wet
+// disc is r < 34 u: the pond cell is wet at its centre; its four edge neighbours' centres (32 u out)
+// sit 0.065 u under the level - inside the router's 0.1 u margin, DRY to the centre-only test - while
+// the 18 u strip of each nearest the pond is under water; the diagonals' nearest corners (23 u out)
+// are wet too. The demand between pinned sites (384,540) and (640,540) is realized as a line from
+// (441,568) to (677,561) running at z 561..576 (measured 2026-11-02: the road leaves each site at
+// its footprint's edge; the first pond at (512,512) with radius 40 was 50-64 u off that line and the
+// rig measured nothing): it runs through the pond cell, so the centre-only routing detours through
+// the neighbours' wet strips (the red) and the corner-sampling routing goes one ring further (green).
+float pondPlain(float x, float z, float depth) {
+    const float dx = x - 528.0f, dz = z - 560.0f;
+    const float r2 = (dx * dx + dz * dz) / (34.0f * 34.0f);
+    if (r2 >= 1.0f) return 30.0f;
+    const float k = 1.0f - r2;
+    return 30.0f - depth * k * k;
+}
+
+struct PondRig {
+    float depth;
+    HydrologyMap hydro;
+    FlowField flow;
+    WaterBodyIndex bodies;
+    explicit PondRig(float d)
+        : depth(d),
+          hydro([d](float x, float z) { return pondPlain(x, z, d); }, 0.0f, 0.0f, 32, 32, 32.0f, 16.0f),
+          flow([d](float x, float z) { return pondPlain(x, z, d); }, 0.0f, 0.0f, 32, 32, 32.0f, 16.0f, 12),
+          bodies(hydro, [d](float x, float z) { return pondPlain(x, z, d); }) {}
+    std::shared_ptr<const WorldForgePlan> bake() const {
+        WorldForgeParams p;
+        p.enabled = true; p.siteCount = 2; p.regionRadius = 480.0f; p.minSpacing = 100.0f; p.maxSpacing = 800.0f;
+        p.sitePins = {glm::ivec2(384, 540), glm::ivec2(640, 540)};
+        std::vector<WorldForgePlan::DemandEdge> demand(1);
+        demand[0].a = 0; demand[0].b = 1; demand[0].cls = 1;
+        const float d = depth;
+        return WorldForgePlan::bake(p, 7, [d](float x, float z) { return pondPlain(x, z, d); }, hydro, flow, bodies,
+                                    [](int, int) { return std::string("Grass"); },
+                                    [d](int x, int z) { return static_cast<int>(std::floor(pondPlain(static_cast<float>(x), static_cast<float>(z), d))); },
+                                    [this](float x, float z) { return flow.channelAt(x, z); }, nullptr, nullptr, &demand);
+    }
+    // the realization's own test, with the raw hydrology level (no rim corrector in the rig)
+    int wetAt(int x, int z, float& depthOut) const {
+        const float wl = hydro.waterLevelAt(static_cast<float>(x), static_cast<float>(z));
+        const int surf = static_cast<int>(std::floor(pondPlain(static_cast<float>(x), static_cast<float>(z), depth)));
+        depthOut = wl - static_cast<float>(surf);
+        return wl > static_cast<float>(surf) ? 1 : 0;
+    }
+};
+
+float roadLength(const WorldForgePlan& box) {
+    float L = 0.0f;
+    for (const auto& r : box.roads()) for (size_t i = 0; i + 1 < r.centerline.size(); ++i) L += glm::length(r.centerline[i + 1] - r.centerline[i]);
+    return L;
+}
+
+}  // namespace
+
+// L2 on the real output: every road column (road class set, no deck, no creek) stands above the
+// rim-corrected water level - the same test the realization applies before it grades a column.
+TEST(RouteFieldTest, RoadsStayOutOfStandingWater) {
+    for (const bool mountains : {false, true}) {
+        WorldGenerator& g = waterWorld(mountains);
+        const WorldForgePlan* box = g.worldForge();
+        ASSERT_TRUE(box && g.corridors()) << "no corridor-driven box plan";
+        int belowSea = 0;
+        const WetCensus c = censusRoads(*box, [&](int x, int z, float& depth) {
+            const auto col = g.sampleSurface(x, z);
+            if (col.roadClass <= 0 || col.bridgeDeckY != INT_MIN || col.riverOrder > 0) return -1;
+            if (col.surfaceY < 16) ++belowSea;
+            const float wl = g.waterLevelAt(static_cast<float>(x), static_cast<float>(z));
+            depth = wl - static_cast<float>(col.surfaceY);
+            return wl > static_cast<float>(col.surfaceY) ? 1 : 0;
+        });
+        std::printf("[ M4w ] %s: %d road columns walked (centreline + half-width, decks and creek fords excluded), %d under standing water (worst %.1f u at (%d,%d)), %d below sea level; first: %s\n",
+                    mountains ? "Mountains 424242" : "baseline Perlin", c.roadCols, c.wet, c.worstDepth, c.worstAt.x, c.worstAt.y, belowSea,
+                    c.first.empty() ? "-" : (c.first[0] + (c.first.size() > 1 ? " " + c.first[1] : "") + (c.first.size() > 2 ? " " + c.first[2] : "") + (c.first.size() > 3 ? " " + c.first[3] : "")).c_str());
+        EXPECT_EQ(c.wet, 0) << (mountains ? "Mountains" : "baseline") << ": a road column under standing water - the road vanishes under the lake with no deck and no ford";
+        // audit 2026-11-02: the census must not pass by losing roads - a floor on the columns walked (the red walked
+        // 673 346 / 717 484; a plan that dropped a quarter of its roads would fail here) and no demand refused for water
+        EXPECT_GT(c.roadCols, 500000) << (mountains ? "Mountains" : "baseline") << ": too few road columns walked - roads were lost, not routed";
+        EXPECT_EQ(box->waterRefused(), 0) << (mountains ? "Mountains" : "baseline") << ": a demand refused for standing water";
+        int waterReasons = 0;
+        for (const auto& r : box->refusedDemands()) if (r.reason.rfind("a line crosses standing water", 0) == 0) ++waterReasons;
+        EXPECT_EQ(waterReasons, 0);
+        std::printf("[ M4w ] %s: plan re-routes for water %d (fine detours %d), refused for water %d, roads %zu\n", mountains ? "Mountains 424242" : "baseline Perlin",
+                    box->waterRerouted(), box->waterFineDetours(), box->waterRefused(), box->roads().size());
+    }
+}
+
+// The rig: the demand's straight line crosses the pond's shore strip in cells whose centres are dry.
+// RED on the routing as built: the road runs straight and its columns nearest the pond are under the
+// water; after the fix the road detours and no column is wet.
+namespace {
+void printLine(const char* tag, const WorldForgePlan& plan) {   // where the road runs: its z range and its ends
+    for (const auto& r : plan.roads()) {
+        float z0 = 1e30f, z1 = -1e30f;
+        for (const auto& q : r.centerline) { z0 = std::min(z0, q.y); z1 = std::max(z1, q.y); }
+        std::printf("[ M4w ] %s road %d -> %d: %zu vertices from (%.0f,%.0f) to (%.0f,%.0f), z %.0f..%.0f, length %.1f u\n", tag, r.a, r.b, r.centerline.size(),
+                    r.centerline.front().x, r.centerline.front().y, r.centerline.back().x, r.centerline.back().y, z0, z1, roadLength(plan));
+    }
+    for (size_t i = 0; i < plan.sites().size(); ++i) std::printf("[ M4w ] %s site %zu at (%d,%d)\n", tag, i, plan.sites()[i].pos.x, plan.sites()[i].pos.y);
+}
+}  // namespace
+
+TEST(RouteFieldTest, ShoreCellIsRoutedAround) {
+    PondRig rig(5.0f);
+    ASSERT_GT(rig.hydro.waterLevelAt(528.0f, 560.0f), 29.5f) << "the pond did not fill";
+    ASSERT_LT(rig.hydro.waterLevelAt(528.0f, 560.0f), 30.5f) << "the pond filled above the plain";
+    // THE RED, in this run: the routing as it was (the fine cell wet at its centre only, no scan of the line)
+    // must put road columns under the pond's shore strip - else the rig measures nothing
+    struct Restore { ~Restore() { WorldForgePlan::setWaterAwareRoutingForTesting(true); } } restore;
+    WorldForgePlan::setWaterAwareRoutingForTesting(false);
+    auto before = rig.bake();
+    ASSERT_TRUE(before);
+    printLine("before", *before);
+    const WetCensus cb = censusRoads(*before, [&](int x, int z, float& depth) { return rig.wetAt(x, z, depth); });
+    std::printf("[ M4w ] rig depth 5 BEFORE (water-aware routing off): %zu roads, %zu refused, %d road columns, %d under water (worst %.2f u at (%d,%d))\n",
+                before->roads().size(), before->refusedDemands().size(), cb.roadCols, cb.wet, cb.worstDepth, cb.worstAt.x, cb.worstAt.y);
+    ASSERT_EQ(before->roads().size(), 1u);
+    EXPECT_GT(cb.wet, 0) << "the rig's line misses the pond: the rig measures nothing";
+    WorldForgePlan::setWaterAwareRoutingForTesting(true);
+    auto plan = rig.bake();
+    ASSERT_TRUE(plan);
+    printLine("after", *plan);
+    std::printf("[ M4w ] rig depth 5: %zu sites, %zu roads, %zu refused; road length %.1f u (straight 256 u); pond level %.2f u, edge-neighbour-centre ground %.3f u, second-ring level %.1f (no water = -1e30)\n",
+                plan->sites().size(), plan->roads().size(), plan->refusedDemands().size(), roadLength(*plan), rig.hydro.waterLevelAt(528.0f, 560.0f), pondPlain(528.0f, 528.0f, 5.0f), rig.hydro.waterLevelAt(592.0f, 560.0f));
+    // the picker seats the two pins first (indices 0 and 1) and may add sites up to the box's floor of three
+    // (measured 2026-11-02: 3 sites); the demand is 0 -> 1 and the plan carries that one road
+    ASSERT_GE(plan->sites().size(), 2u) << "both pinned sites must seat";
+    for (const auto& r : plan->refusedDemands()) std::printf("[ M4w ] rig refusal: %d -> %d at (%.0f,%.0f): %s\n", r.a, r.b, r.pos.x, r.pos.y, r.reason.c_str());
+    ASSERT_EQ(plan->roads().size(), 1u) << "the demand must be realized (the plain is open: a detour exists)";
+    EXPECT_TRUE(plan->refusedDemands().empty());
+    const WetCensus c = censusRoads(*plan, [&](int x, int z, float& depth) { return rig.wetAt(x, z, depth); });
+    std::printf("[ M4w ] rig depth 5: %d road columns, %d under water (worst %.2f u at (%d,%d)); first: %s\n", c.roadCols, c.wet, c.worstDepth, c.worstAt.x, c.worstAt.y,
+                c.first.empty() ? "-" : c.first[0].c_str());
+    EXPECT_EQ(c.wet, 0) << "the road crosses the pond's shore strip";
+    // the detour: longer than the same demand's line with the rule off, reported with the JSON counts
+    std::printf("[ M4w ] rig depth 5: road length %.1f u (rule off: %.1f u); water_rerouted %d (fine detours %d), water_refused %d\n", roadLength(*plan), roadLength(*before), plan->waterRerouted(), plan->waterFineDetours(), plan->waterRefused());
+    EXPECT_GT(roadLength(*plan), roadLength(*before)) << "no detour: the road is not longer than the rule-off line";
+}
+
+// The control: the same rig with no pond - the road runs straight and dry before and after, so the
+// census reacts to the water, not to the detour code.
+TEST(RouteFieldTest, ShoreRigControlRunsStraight) {
+    PondRig rig(0.0f);
+    auto plan = rig.bake();
+    ASSERT_TRUE(plan);
+    ASSERT_GE(plan->sites().size(), 2u);
+    ASSERT_EQ(plan->roads().size(), 1u);
+    const WetCensus c = censusRoads(*plan, [&](int x, int z, float& depth) { return rig.wetAt(x, z, depth); });
+    const float L = roadLength(*plan);
+    std::printf("[ M4w ] control depth 0: %d road columns, %d under water; road length %.1f u (straight 256 u)\n", c.roadCols, c.wet, L);
+    EXPECT_EQ(c.wet, 0);
+    // (a "straight within 5 %" bound was the rig's first expectation and missed on the red run: the flat-plain road is 282.7 u for a
+    // 256 u pin-to-pin line - the 32 u A* and the pins' refinement bend it; the control's length is the REFERENCE the pond rig's
+    // detour is measured against, recorded here, not bounded)
+    std::printf("[ M4w ] control reference length %.1f u\n", L);
 }
