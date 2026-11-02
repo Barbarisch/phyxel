@@ -125,21 +125,25 @@ struct Section {
     std::string dump;        // d:surface/natural[W wallTop|R rockTop] per column, for the diagnostic
 };
 
-Section sectionAt(WorldGenerator& g, const WorldForgePlan& box, const CutVertex& v, float side) {
+// dropReason (audit 2026-11-02): why a walk was not measured - 1 a channel in the section, 2 a bridge deck,
+// 3 a bundle's composite bank (two roads in reach); 0 = measured. Every walk is one or the other, counted.
+Section sectionAt(WorldGenerator& g, const WorldForgePlan& box, const CutVertex& v, float side, int* dropReason = nullptr) {
     Section s;
+    if (dropReason) *dropReason = 0;
     const float half = WorldForgePlan::roadHalfWidth(v.cls);
-    const float reach = half + 1.0f + 2.0f + WorldForgePlan::kShoulderMaxU + 2.0f;
+    const float reach = half + 1.0f + 2.0f + WorldForgePlan::kShoulderMaxU + WorldForgePlan::kBankSlackU + 2.0f;   // through the bank's slack: a step must not hide just past the nominal arrival
     int firstBankCol = -1; float firstBankSurf = 0.0f, firstBankNat = 0.0f;
     int lastCol = -1; float lastSurf = 0.0f, lastNat = 0.0f;
     int prevSurf = INT_MIN; bool pastBand = false;
     for (float d = half + 0.5f; d <= reach; d += 1.0f) {
         const glm::vec2 q = v.p + v.n * (side * d);
         const auto col = g.sampleSurface(roundI(q.x), roundI(q.y));
-        if (col.riverOrder > 0 || col.bridgeDeckY != INT_MIN) return s;   // a channel or a deck in the section: not this claim
+        if (col.riverOrder > 0) { if (dropReason) *dropReason = 1; return s; }          // a channel in the section: not this claim
+        if (col.bridgeDeckY != INT_MIN) { if (dropReason) *dropReason = 2; return s; }   // a deck in the section: not this claim
         const float natural = naturalAt(g, q);
         std::vector<int> roads;
         box.gradeBlendAt(q.x, q.y, natural, &roads);
-        if (roads.size() > 1) return s;                                     // a bundle's composite bank
+        if (roads.size() > 1) { if (dropReason) *dropReason = 3; return s; }   // a bundle's composite bank
         const int idx = static_cast<int>(d - half);
         {
             char buf[64];
@@ -209,12 +213,25 @@ TEST(EarthworkTest, DeepCutsAreWalledNotCliffed) {
         const float limit = WorldForgePlan::bankLimit();
         const auto cuts = singleRoadCuts(g, *box, limit + 0.5f, 60);
         int sections = 0, cutSides = 0, unwalled = 0, steep = 0, shortBank = 0, shortWall = 0, jumps = 0, hairpinJumps = 0, tallRock = 0;
+        int dropped[4] = {0, 0, 0, 0};   // walks not measured: [1] a channel, [2] a deck, [3] a bundle (audit 2026-11-02: the denominator is accounted for)
         float worstSlope = 0.0f, deepest = 0.0f, tallestRock = 0.0f;
         for (const CutVertex& v : cuts) {
             deepest = std::max(deepest, v.cut);
             for (const float side : {-1.0f, 1.0f}) {
-                const Section s = sectionAt(g, *box, v, side);
-                if (!s.valid) continue;
+                int why = 0;
+                const Section s = sectionAt(g, *box, v, side, &why);
+                // the standing red of 2026-10-30 (the section at (-9187,11306), side -1): its walk printed whether it jumps or not,
+                // so the record shows it MEASURED and clean, or names the column that dropped it (a diagnostic, not an assertion)
+                const bool watched = std::fabs(v.p.x - (-9187.0f)) < 2.0f && std::fabs(v.p.y - 11306.0f) < 2.0f && side < 0.0f;
+                if (watched) std::printf("[ M4b-4-diag ] %s WATCHED section at (%.0f,%.0f) side %+.0f cut %.1f: %s (max step %d): %s\n", pair.first, v.p.x, v.p.y, side, v.cut,
+                                         s.valid ? "MEASURED" : (why == 1 ? "DROPPED: a channel in the walk" : why == 2 ? "DROPPED: a deck in the walk" : "DROPPED: a second road in reach"), s.maxStep, s.dump.c_str());
+                if (!s.valid) {
+                    ++dropped[why >= 1 && why <= 3 ? why : 0];
+                    if (dropped[1] + dropped[2] + dropped[3] <= 6)
+                        std::printf("[ M4b-4-diag ] %s walk dropped at (%.0f,%.0f) side %+.0f cut %.1f: %s after %zu columns\n", pair.first, v.p.x, v.p.y, side, v.cut,
+                                    why == 1 ? "a channel" : why == 2 ? "a deck" : "a second road in reach", s.dump.size() ? std::count(s.dump.begin(), s.dump.end(), ' ') : 0);
+                    continue;
+                }
                 ++sections;
                 if (s.expectWall) { ++cutSides; if (s.wallCols == 0) ++unwalled; }
                 const float expectWall = std::min(v.cut - limit, P.wallTierU);
@@ -242,6 +259,9 @@ TEST(EarthworkTest, DeepCutsAreWalledNotCliffed) {
         EXPECT_EQ(shortWall, 0) << pair.first << ": a wall tier not as tall as the cut needs (up to wallTierU)";
         EXPECT_EQ(steep, 0) << pair.first << ": a bank above the wall stands steeper than repose";
         EXPECT_EQ(jumps, 0) << pair.first << ": a step of 3+ cubes along the bank (a cliff where the bank should be)";
+        std::printf("[ M4b-4 ] %s: %d walks measured + %d dropped for a channel + %d for a deck + %d for a second road = %zu of %zu (two per cut)\n",
+                    pair.first, sections, dropped[1], dropped[2], dropped[3], static_cast<size_t>(sections + dropped[1] + dropped[2] + dropped[3]), 2 * cuts.size());
+        EXPECT_EQ(static_cast<size_t>(sections + dropped[1] + dropped[2] + dropped[3]), 2 * cuts.size()) << pair.first << ": every walk measured or dropped for a named reason";
         EXPECT_EQ(tallRock, 0) << pair.first << ": an emitted rock face taller than the precedent";
         EXPECT_GT(sections - shortBank, 20) << pair.first << ": too few banks long enough to judge";
     }

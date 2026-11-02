@@ -1052,3 +1052,103 @@ Plan hash 5761560679695978727 again on the kept DB. Daylight captures at the dee
 
 === AUDIT 5 (2026-10-29, solution-auditor on the follow-up 3 working tree + L4 #2-#5: PASS, no blocking items) ===
 Checked by reading: the three MountainLab plan JSONs equal once the six census keys are removed; the red's two failing EXPECT_EQ (census edits) with the refactor's own equality passing; the grade-summary control; GREEN 16's shas against the current files; the voxel file against every plan figure; the predictions and the recorded miss; no census-as-identity wording left; no MUTATION marker in engine/. Stated limit: PlanHashIgnoresTheEarthworkCensus injects the census fields into a version-1 record (version-1 plans never carry them) - the real version-2 case is the L4 hash chain 5206963220949148767 -> 11627274365696686169 -> 5761560679695978727 (stable across boots after the fix). Optional wording cleanups (GREEN 1-14 heading, "four runs") applied.
+
+=== M4b-4 ANCHOR FOLLOW-UP (2026-10-30, after D38; owner: "get on it") ===
+THE RED (standing since the M2d-4 chain of 2026-10-30 01:06 and on every chain since; last: m2d4r_r18_forge.txt, exe 14:51:20):
+  EarthworkTest.DeepCutsAreWalledNotCliffed - Mountains 424242: 1 of 118 sections with a 3+ cube step along the bank, at (-9187,11306)
+  side -1, cut 28.0, a track (half-width 1.5): dump 2.0:330/354W 3.0:330/356W 4.0:330/355W 5.0:349/355R 6.0:350/356 ... 14.0:355/357
+  15.0:356/358 16.0:356/358 17.0:359/359. The wall band is 3 columns (wallTierU 3 -> ceil(0.67 x 3) = 3, not the "<= 2 u" the
+  kEarthworkExtraU comment assumed), the rock top 349 = farNat - 8.4 -> farNat 357.4, the bank rises 0.7 per u from it and would reach
+  357.4 at d = 1.5 + 3 + 12 = 16.5, where the ground is 358-359: the anchor the bank was laid to is 1-2 u under the ground where the bank
+  arrives. READ FROM THE CODE: the anchor is sampled per VERTEX (naturalSideY, at half + 3 + 12 along the vertex's chord normal) and at a
+  column it is LERPED along the governing segment (and blended across a bend's bisector); the test's section runs along the vertex's own
+  normal, whose columns project onto a neighbouring segment at a bend, so the anchor read there is a mix of two vertices' side samples -
+  on a hillside rising 0.33 per u along the road that mix is under this vertex's own ground. A per-vertex anchor cannot meet the ground
+  at every column of a bend.
+THE RULE (patch L): the bank's arrival ground is sampled per COLUMN at realization: the point at half + thick + 12 u from the governing
+  segment along the column's own outward direction (the bank arrives there by construction), its PRE-ROAD surface (sampleColumn without
+  the WorldForge phase: the same natural the test and the bake-time anchors read; naturalGroundAt lacks the valley, coast and swale and
+  would stand above the emitted natural beside rivers); the vertex anchors stay as the fallback (the census at bake, callers without a
+  natural callback) and are now sampled at that vertex's own arrival distance (half + thick_i + 12, thick_i from its own cut) rather
+  than half + 3 + 12. Cost: one extra pre-road column sample per earthwork-section column (a few percent of mountain road columns).
+  Pure per column (world position -> segment point -> arrival point -> its natural). Version 1 does not enter the branch (pinned hashes).
+PREDICTIONS (before the build):
+  PL.1 DeepCutsAreWalledNotCliffed GREEN on both worlds: jumps 0 (was 1), unwalled 0, walls off height 0, steep banks 0, Mountains sections
+       ~118 (the plan is the same: the anchor does not route).
+  PL.2 the census consistency tests (RockCensusMatchesTheTerrain and the walled/section ratios) stay within their bounds: the vertex census
+       and the per-column terrain now read the same arrival distance; the rock ratio moves by less than 0.1.
+  PL.3 RouteFieldTest, RoadFieldSeamTest, BridgeSpanTest (35 / 8), the pinned version-1 hashes unchanged; the version-2 plan hash
+       unchanged (the anchor is not hashed and does not route).
+  PL.4 Mountains walled_u / rock_u / section_u move by under 5 % against chain 18's figures (the census anchors moved by the wall thickness).
+GREEN L (patch L; build 16:37:59-16:41:15, exe 16:41:10, run 16:41:15-16:51:20 on 2026-10-30; m4b4r_r2_earth.txt): WORSE - 6 ok, 3 failed.
+  DeepCutsAreWalledNotCliffed Mountains: 9 sections with a 3+ cube step (was 1), 4 banks steeper than repose (was 0; worst 0.82), the
+  original (-9187,11306) step UNCHANGED (its dump identical: the bank still ends at 356 at d 16, the ground 359 at d 17);
+  WallTierKnobWithItsControl: the control shows 3 cliffs (was 0); SteepHillsidesBesideShallowCutsAreBanked: 1 cliff (was 0) at
+  (-12486,-5019): "2.0:152/152R 3.0:150/152 4.0:153/153". The dumps zigzag along the bank (369,368,371,372,370,373,372,375 ...).
+  PL.1-PL.4 MISSED. READ: (1) the per-column arrival sample reads a different ground for each column of the test's line - at a bend the
+  columns of the section line project to different points of the governing segment, their arrival points lie 1-2 u apart, and on
+  rough mountain ground those differ by 1-3 u: the bank follows the arrival ground's roughness column by column. (2) the original step
+  is not the anchor's VALUE but the section's END: the bank is laid to reach the anchor at x = 12 (bandBest = half + thick + 12 = 16.5),
+  the shoulder cap ends the section at that very distance, the last column in reach (bandBest 16) stands 0.35 u under the anchor and
+  the next column is natural - 359 where the anchor read 357.4 because the test's line and the plan's perpendicular meet the ground at
+  different points. Any anchor read at a point is off the ground at the next column by the ground's roughness over 1-2 u.
+PATCH M: the per-column sampling withdrawn (the callback and the pre-road flag removed; the per-vertex anchors KEPT at each vertex's own
+  arrival distance half + thick_i + 12, consistent with the census); kBankSlackU = 6 u added to the earthwork shoulder cap and the raster's
+  index reach: the bank line runs on past its nominal arrival at 0.70 until the ground falls under it (min with the natural), so a 1-2 u
+  anchor shortfall closes within 2 / (0.70 - s) u on ground rising at s (6 u covers s <= 0.37; DERIVED); the test's walk extended by the
+  slack so a step cannot hide just past the old reach.
+PREDICTIONS (before the build):
+  PM.1 DeepCutsAreWalledNotCliffed: Mountains 3+ cube steps 9 -> 0 to 2 (a hillside rising faster than 0.37 beyond the arrival keeps its
+       step at the slack's end), steep banks 4 -> 0; the baseline green. PM.2 WallTierKnobWithItsControl control cliffs 3 -> 0;
+       SteepHillsidesBesideShallowCutsAreBanked 1 -> 0. PM.3 the census test (CensusMatchesTheEmittedTerrain) stays within its bounds -
+       section_u may rise by under 5 % (the slack lengthens sections). PM.4 the pinned version-1 hashes and the version-2 plan hash unchanged.
+GREEN M (patch M; build 2026-11-02 09:18:10-09:23:06, exe 09:23:01, run 09:23:06-09:32:56; m4b4r_r3_earth.txt): 9 of 9 GREEN.
+  DeepCutsAreWalledNotCliffed Mountains 424242: 60 cuts, 117 sections (was 118: one section's walk now ends in a channel or a second
+  road inside the longer reach - excluded by the test's own rule, reported), 117 cut sides, 0 unwalled, 0 walls off height, 0 banks
+  steeper than repose (worst 0.70 vs 0.75), 5 banks too short to judge, 0 sections with a 3+ cube step (was 1 at the red, 9 after
+  patch L), tallest rock band 36.0 u; the baseline unchanged (nothing to wall). WallTierKnobWithItsControl: control 77 walled / 0 cliffs
+  (was 3 after L), tier 0: 75 of 77 cliffed. SteepHillsidesBesideShallowCuts: 40 sections, 0 cliffs, worst bank 0.62. The voxel test
+  73 wall columns / 34 rock columns / 0 chunk-vs-sampler differences. CensusMatchesTheEmittedTerrain: walls x0.98 (6144 vs 6251),
+  rock x0.96 (12444 vs 12967; was x0.99 - the slack moves no rock, the vertex anchors moved by the wall thickness), sections x1.00
+  (18748 vs 18739). EarthworkFieldsIdenticalAcrossGenerators 0 of 1440 differ. The pinned version-1 hashes green; the version-2
+  Mountains plan hash 10875586515472990204 UNCHANGED (the anchor neither routes nor is hashed), walled_u 67007 -> 66991, rock_u
+  143415 -> 143641 (within 0.2 %).
+  PM.1 MET (0 steps, 0 steep). PM.2 MET (0, 0). PM.3 MET (section_u unchanged; rock 0.96 within the 0.25 bound, moved by 0.03). PM.4 MET.
+  Open on this leg: the full WorldForge and terrain sets on this exe (chain 4), the auditor.
+CHAIN 4/5 (the same exe 09:23:01; forge 09:34:08-10:02:20 m4b4r_r4_forge.txt; terrain 10:02:25-10:10:07 m4b4r_r5_terrain.txt):
+  the WorldForge set 90 ok / 0 failed (was 89 / 1 since 2026-10-30: this red was the one); BridgeSpanTest Mountains 424242 35 bridges /
+  8 refusals / 63 re-routed, unchanged; the terrain set 105 ok / 1 failed - RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope on
+  the six Mountains lips (unchanged: 6, worst 1.8 u; embankments 2 / 1.5 u); the D38 guard GREEN (10 rounds, 20.8 u); the version-1
+  hashes pinned. The slack changes no channel: the river section figures are identical to chain 18 of 2026-10-30.
+AUDIT 4 (2026-11-02, solution-auditor on the tree after chain 4/5; raw): "VERDICT: FAIL (narrow). Numbers, exe order, hash and the census are
+  accurate, and no assertion was weakened. But the one claim that matters (the specific red section is now measured and clean) is unproven.
+  The 117-vs-118 drop is explained by assertion, and the longer reach adds exactly the early-return exemption that could have removed it."
+  Accepted by it: the records vs the logs, the exe order, the unchanged assertions, the measured-not-asserted hash, GREEN L recorded
+  honestly, the anchor reordering's consumers. Rejected or qualified, and what is done:
+  1 "117 sections (was 118)" unevidenced - the standing red section may have left the sample through the longer walk's early returns:
+    PATCH N (test only) counts every dropped walk by reason (a channel / a deck / a second road) with its coordinates, asserts
+    measured + dropped == two walks per cut, and prints the walk at (-9187,11306) side -1 whether it jumps or not (MEASURED with its
+    dump, or the reason it dropped). Run below.
+  2 the reach extension and the slack are one combined change: the red run IS the slack-free case (slack 0, the step inside the old
+    reach); the extended reach only widens the measured region; stated, no further ablation.
+  3 for the red vertex thick = 3, so the anchor-distance change is not what fixed it - the slack is: stated in the plan.
+  4 the census tolerance (+-0.25) cannot catch a drift of this size; the 0.99 -> 0.96 move is reported as a number, not as a guard.
+  5 "section_u unchanged" (PM.3) was WRONG: the before figure was not in the record. From chain 18 (m2d4r_r18_forge.txt): walled_u 6267,
+    rock_u 13111, section_u 20338; GREEN M: 6251 / 12967 / 18739 - section_u FELL 7.9 % (the "under 5 %" of PM.4 MISSED too). Cause read
+    from the rule: vertices with thin walls now sample their far natural 1-2 u nearer (half + thick + 12 instead of half + 3 + 12), the
+    face max(cut0, farNat - grade) is smaller there, and fewer vertices qualify as sections - the face is judged where the bank ends.
+  6 the slack widens every section's reach by up to 6 u (min with the natural: it only lowers): stated; no test outside the sections.
+GREEN N (patch N, the test instrument; build 10:14:09-10:14:19, exe 10:14:16, run 10:14:19-10:24:06; m4b4r_r6_earth.txt): 9 of 9 GREEN.
+  THE WATCHED SECTION (-9187,11306) side -1, cut 28.0: MEASURED, max step 1 - its walk now runs
+  "... 14.0:355/357 15.0:356/358 16.0:356/358 17.0:357/359 18.0:358/358": the bank continues past its nominal arrival (356 at 16, 357 at
+  17) and meets the ground at 18 where the natural is 358 - the step that was 356 -> 359 is 1 cube per column. The same section, the
+  same exe family, the step closed by the slack (thick = 3 there, so the anchor distance did not move: audit 4 item 3 confirmed).
+  THE DENOMINATOR: 117 walks measured + 0 dropped for a channel + 0 for a deck + 3 for a second road in reach = 120 = two per cut (asserted,
+  EXPECT_EQ). The dropped walks: (2961,7274) side -1 after 14 columns, (-4177,-2897) side +1 after 3 columns, (2946,7267) side -1 after
+  10 columns - the 118 -> 117 change is one of the first and third (a second road enters the walk inside the 6 u the reach grew by),
+  not the red section. The other eight tests as GREEN M.
+RE-AUDIT (2026-11-02, the same auditor on GREEN N; raw): "VERDICT: PASS (narrow). The fix is measured on the exact section with the
+  denominator accounted for. The caveats above are documentation and unablated-cause issues, not unmeasured claims about the fix."
+  Corrections taken: (1) chain 18's rock census ratio was x0.95 (12518 vs 13111), not x0.99 - the x0.99 was patch L's run; the ratio
+  moved 0.95 -> 0.96. (2) Which two walks were dropped before the patch is not in any log; that the red section is not among the dropped
+  walks IS measured. (3) The section_u fall's cause is read from the rule, not isolated by an ablation; no test pins it beyond the census.

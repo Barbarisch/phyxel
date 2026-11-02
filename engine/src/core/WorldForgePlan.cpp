@@ -1275,21 +1275,6 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                 wet[i] = ch.hit && ch.depth >= 0.15f;
             }
             road.naturalY = h;   // M4b: the pre-grading surface (earthwork = profile - this)
-            if (demand) {        // M4b-4: the natural at the earthwork reach, left and right
-                road.naturalSideY.assign(n, glm::vec2(0.0f));
-                const float D = earthworkReachU(road.cls);
-                for (size_t i = 0; i < n; ++i) {
-                    const glm::vec2 d = cl[std::min(i + 1, n - 1)] - cl[i > 0 ? i - 1 : 0];
-                    const float len = glm::length(d);
-                    const glm::vec2 nrm = len > 1e-4f ? glm::vec2(-d.y, d.x) / len : glm::vec2(0.0f, 1.0f);
-                    const glm::vec2 L = cl[i] + nrm * D, R = cl[i] - nrm * D;
-                    road.naturalSideY[i] = glm::vec2(static_cast<float>(surfaceYAt(static_cast<int>(std::lround(L.x)), static_cast<int>(std::lround(L.y)))),
-                                                     static_cast<float>(surfaceYAt(static_cast<int>(std::lround(R.x)), static_cast<int>(std::lround(R.y)))));
-                }
-                // (a 3-vertex running mean was tried here 2026-10-28 and reverted: a smoothed
-                // anchor no longer meets THIS vertex's ground at the reach - 63 of 118 banks
-                // ended 3-4 cubes short. The bend flip is handled in gradeBlendAt instead.)
-            }
             // A carved-bed vertex must not pull the envelope down: borrow the nearest dry
             // height.
             for (size_t i = 0; i < n; ++i) {
@@ -1303,6 +1288,26 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             }
             lowerEnvelope(cl, h);
             road.gradeProfile = std::move(h);
+            if (demand) {        // M4b-4: the natural where each vertex's own bank ARRIVES, left and right
+                // (the arrival is half-width + this vertex's wall thickness + the 12 u bank; the per-column
+                // rule reads the same point from the pre-road surface - these anchors serve the bake-time
+                // census and callers without a natural callback. A 3-vertex running mean was tried here
+                // 2026-10-28 and reverted: a smoothed anchor no longer meets THIS vertex's ground at the
+                // reach - 63 of 118 banks ended 3-4 cubes short.)
+                road.naturalSideY.assign(n, glm::vec2(0.0f));
+                for (size_t i = 0; i < n; ++i) {
+                    const float cut0 = road.naturalY[i] - road.gradeProfile[i];
+                    const float wallH = glm::clamp(cut0 - bankLimit(), 0.0f, P.wallTierU);   // the bake's clamped params
+                    const float thick = wallH > 0.0f ? std::max(1.0f, std::ceil(0.67f * wallH)) : 0.0f;
+                    const float D = earthworkReachU(road.cls, thick);
+                    const glm::vec2 d = cl[std::min(i + 1, n - 1)] - cl[i > 0 ? i - 1 : 0];
+                    const float len = glm::length(d);
+                    const glm::vec2 nrm = len > 1e-4f ? glm::vec2(-d.y, d.x) / len : glm::vec2(0.0f, 1.0f);
+                    const glm::vec2 L = cl[i] + nrm * D, R = cl[i] - nrm * D;
+                    road.naturalSideY[i] = glm::vec2(static_cast<float>(surfaceYAt(static_cast<int>(std::lround(L.x)), static_cast<int>(std::lround(L.y)))),
+                                                     static_cast<float>(surfaceYAt(static_cast<int>(std::lround(R.x)), static_cast<int>(std::lround(R.y)))));
+                }
+            }
         }
         // M4b-2: corridor-driven plans blend the grade field at realization (gradeBlendAt), so the
         // O(roads^2 x verts^2) junction reconciliation below is the version-1 path's only (it was
@@ -1510,7 +1515,7 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             const auto& s = plan->m_segments[si];
             const float reach = roadHalfWidth(s.cls) + 2.0f * rcell;
             // the blend's reach: half-width + the widest repose shoulder + a cell of slack
-            const float blendReach = roadHalfWidth(s.cls) + kShoulderMaxU + kEarthworkExtraU + rcell;   // M4b-4: + the wall's thickness
+            const float blendReach = roadHalfWidth(s.cls) + kShoulderMaxU + kEarthworkExtraU + kBankSlackU + rcell;   // M4b-4: + the wall's thickness + the bank's slack
             {
                 const glm::vec2 blo = glm::min(s.a, s.b) - glm::vec2(blendReach);
                 const glm::vec2 bhi = glm::max(s.a, s.b) + glm::vec2(blendReach);
@@ -1776,7 +1781,7 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
         // M4b-4: a cut beyond the bank limit is an earthwork section whose reach is the wall's
         // thickness (<= 2 u) + the 12 u repose bank, so its weight stays positive that far
         const float faceK = std::max(nat0 > -1e29f ? nat0 - gradeY : naturalY - gradeY, natFar > -1e29f ? natFar - gradeY : -1e30f);
-        const float shoulderCap = (faceK > bankLimit() && m_params.wallTierU > 0.0f) ? kShoulderMaxU + kEarthworkExtraU : kShoulderMaxU;
+        const float shoulderCap = (faceK > bankLimit() && m_params.wallTierU > 0.0f) ? kShoulderMaxU + kEarthworkExtraU + kBankSlackU : kShoulderMaxU;
         const float shoulder = kAuditFixes ? std::min(shoulderCap, std::max(kShoulderU, std::fabs(gradeY - naturalY) / kReposeSlope)) : kShoulderU;
         const float w = best <= half ? 1.0f : std::max(0.0f, 1.0f - (best - half) / shoulder);
         if (w <= 0.0f) continue;
@@ -1798,14 +1803,20 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
     if (coreCls == 0 && bandCls > 0 && bandGrade > -1e29f && bandNat0 > -1e29f && m_params.wallTierU > 0.0f) {
         const float half = roadHalfWidth(bandCls);
         const float cut0 = bandNat0 - bandGrade;          // the cut at the centreline (the road's own census figure)
+        const float limit = bankLimit();
+        const float wallH = glm::clamp(cut0 - limit, 0.0f, m_params.wallTierU);   // a wall only where the centreline cut needs one
+        const float thick = wallH > 0.0f ? std::max(1.0f, std::ceil(0.67f * wallH)) : 0.0f;
+        // the anchor: the per-vertex far natural at this vertex's own arrival distance, lerped along the
+        // segment. (A per-column sample at each column's own arrival point was tried 2026-10-30 and
+        // withdrawn: on rough ground adjacent columns read arrival grounds 1-3 u apart and the bank
+        // zigzagged - 9 sections with a 3-cube step and 4 banks steeper than repose, from 1 and 0.)
+        // Where the lerped anchor is under the ground at the section's end the bank line runs on past
+        // its nominal arrival (kBankSlackU in the shoulder cap) until the ground falls under it.
         const float farNat = bandNatFar > -1e29f ? bandNatFar : bandNat0;
         const float face = std::max(cut0, farNat - bandGrade);   // the face the section must hold on this side
-        const float limit = bankLimit();
         // audit 2026-10-28: the section is gated on the FACE, not the centreline cut - a steep
         // hillside beside a shallow cut needs the repose bank anchored at the reach just the same
         if (face > limit && bandBest > half) {
-            const float wallH = glm::clamp(cut0 - limit, 0.0f, m_params.wallTierU);   // a wall only where the centreline cut needs one
-            const float thick = wallH > 0.0f ? std::max(1.0f, std::ceil(0.67f * wallH)) : 0.0f;
             const float wallTop = bandGrade + wallH;
             // the bank rises at repose from the face top to the natural at the reach on this side
             // (so it meets the ground exactly there); the face is rock from the wall top up to it

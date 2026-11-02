@@ -218,11 +218,20 @@ public:
     /// embankment approach stands at repose like a cutting). A bridge abutment may cut the higher
     /// bank or fill the lower one this much; cutLimit (3.15-4.2 u) stays the PITCH trigger.
     static float bankLimit() { return kShoulderMaxU * kReposeSlope; }
-    /// M4b-4: the lateral room an earthwork section needs beyond the plain shoulder - the wall's
-    /// thickness (ceil(0.67 x a tier <= 3 u) <= 2 u) plus a column of slack (DERIVED).
+    /// M4b-4: the most lateral room an earthwork section needs beyond the plain shoulder - the wall's
+    /// thickness (ceil(0.67 x a tier <= 3 u) = up to 3 columns; the comment once said "<= 2 u", the
+    /// arithmetic says 3) - the raster's index reach and the shoulder cap (DERIVED).
     static constexpr float kEarthworkExtraU = 3.0f;
-    /// M4b-4: where the far natural is sampled - the widest shoulder past the wall band
+    /// M4b-4: the farthest the far natural is sampled - the widest shoulder past the thickest wall band
     static float earthworkReachU(int cls) { return roadHalfWidth(cls) + kEarthworkExtraU + kShoulderMaxU; }
+    /// M4b-4 follow-up: where a bank of THIS wall thickness arrives - the ground the bank is laid to
+    static float earthworkReachU(int cls, float wallThick) { return roadHalfWidth(cls) + wallThick + kShoulderMaxU; }
+    /// M4b-4 follow-up (2026-11-02): the bank line runs on past its nominal arrival until the ground falls
+    /// under it. The anchor it is laid to is a per-vertex sample lerped along the segment, 1-2 u off the
+    /// ground at a bend on rough ground (EarthworkTest, (-9187,11306)); a bank rising at 0.70 against ground
+    /// rising at s meets a 2 u shortfall within 2 / (0.70 - s) u - 6 u covers hillsides up to 0.37 (DERIVED).
+    /// Steeper ground than that beyond the arrival is the hillside's own slope, not the bank's.
+    static constexpr float kBankSlackU = 6.0f;
     /// M4c: a centreline as an arc - cumulative length per vertex, a point's arc (its projection
     /// onto the NEAREST segment; legs of a hairpin closer than twice the point's offset would
     /// misproject - the bank offset is 3 u, DESIGN) and the point at an arc (clamped to the ends).
