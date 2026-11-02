@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstdio>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -254,7 +255,7 @@ TEST(RoadFieldSeamTest, BridgeRailsGuardDeckEdgesAndPiersReachTheBed) {
                 }
                 if (lat > 0.0f) l = true; else r = true;
                 railCell = {wx, wz};
-                if (std::abs(lat) <= half - 1.2f) ++walkwayViolations;  // rail INSIDE the walkway
+                if (std::abs(lat) <= half) ++walkwayViolations;  // rail INSIDE the road width (the walkway is the whole road width since the M4c deck follow-up; audit 6 found the old half - 1.2 bound vacuous under that rule)
             }
         if (l) ++leftRail;
         if (r) ++rightRail;
@@ -264,6 +265,7 @@ TEST(RoadFieldSeamTest, BridgeRailsGuardDeckEdgesAndPiersReachTheBed) {
     EXPECT_GE(rightRail, static_cast<int>(0.8f * steps)) << "right deck edge not railed";
     EXPECT_EQ(walkwayViolations, 0) << "rail marks intrude into the walkway";
     ASSERT_NE(railCell.x, INT_MIN) << "no rail-marked column anywhere on the span";
+    std::printf("[ seam-deck ] %d steps, rails L %d R %d, %d rail cells inside the road width (half %.1f)\n", steps, leftRail, rightRail, walkwayViolations, half);
 
     // Physical parapet: subcubes at deckY+1, 2/3 tall, and NOT a full cube.
     {
@@ -577,4 +579,49 @@ TEST(RoadFieldSeamTest, GradedRoadsAreStepWalkableOnMountains) {
     ASSERT_GT(steps, 1000);
     EXPECT_EQ(tall, 0) << tall << "/" << steps
                        << " centerline steps exceed 1 cube on the graded network";
+}
+
+// ============================================================================
+// M4c deck follow-up, audit 6 (2026-11-02): the CONTROL for the walkway-violation bound above.
+// Audit 6 found that once the parapet moved OUTSIDE the road width (deckBandAt), the old bound
+// |lat| <= half - 1.2 could never fire - the assertion had gone vacuous without being reported.
+// The bound is now |lat| <= half. This control shows the bound DISCRIMINATES: the same count on
+// the same rasterized span under the rule as it stood before the follow-up (the parapet on the
+// outer voxel inside the road width, lateral in (half - 1, half]) is > 0 for every class, and
+// under the shipped rule it is 0 while rail cells exist at every bearing (the count is not zero
+// for want of rails). Pure geometry, the same lateral the seam test measures.
+// ============================================================================
+TEST(RoadFieldSeamTest, RailInsideTheRoadWidthIsCaughtByTheBound) {
+    int oldViolTotal = 0, newViolTotal = 0, newRailTotal = 0, cases = 0, casesOldCaught = 0, casesNewRailed = 0;
+    for (int cls = 1; cls <= 3; ++cls)
+        for (int deg = 0; deg < 90; deg += 6) {
+            ++cases;
+            const float half = WorldForgePlan::roadHalfWidth(cls);
+            const float rad = static_cast<float>(deg) * 3.14159265f / 180.0f;
+            const glm::vec2 a(100.5f, 100.5f), dir(std::cos(rad), std::sin(rad)), perp(-dir.y, dir.x);
+            const float len = 24.0f;
+            const glm::vec2 b = a + dir * len;
+            int oldViol = 0, newViol = 0, newRailCells = 0;
+            const int x0 = static_cast<int>(std::floor(std::min(a.x, b.x))) - 6, x1 = static_cast<int>(std::ceil(std::max(a.x, b.x))) + 6;
+            const int z0 = static_cast<int>(std::floor(std::min(a.y, b.y))) - 6, z1 = static_cast<int>(std::ceil(std::max(a.y, b.y))) + 6;
+            for (int z = z0; z <= z1; ++z)
+                for (int x = x0; x <= x1; ++x) {
+                    const glm::vec2 p(static_cast<float>(x), static_cast<float>(z));
+                    const float t = glm::dot(p - a, dir) / len;
+                    if (t < 0.0f || t > 1.0f) continue;
+                    const float lat = std::abs(glm::dot(p - a, perp));
+                    const bool oldRail = lat <= half && lat > half - 1.0f;              // the rule before the follow-up
+                    const bool newRail = WorldForgePlan::deckBandAt(lat, cls) == 2;     // the shipped rule
+                    if (oldRail && lat <= half) ++oldViol;
+                    if (newRail) { ++newRailCells; if (lat <= half) ++newViol; }
+                }
+            oldViolTotal += oldViol; newViolTotal += newViol; newRailTotal += newRailCells;
+            if (oldViol > 0) ++casesOldCaught;
+            if (newRailCells > 0) ++casesNewRailed;
+        }
+    std::printf("[ seam-deck ] control: %d (class, bearing) cases; old rule %d rail cells inside the road width (caught in %d cases), shipped rule %d inside of %d rail cells (railed in %d cases)\n",
+                cases, oldViolTotal, casesOldCaught, newViolTotal, newRailTotal, casesNewRailed);
+    EXPECT_EQ(casesOldCaught, cases) << "the bound must catch the pre-follow-up rule in every case, or it measures nothing";
+    EXPECT_EQ(newViolTotal, 0) << "the shipped rule puts a rail inside the road width";
+    EXPECT_EQ(casesNewRailed, cases) << "the shipped rule rails every case (the zero above is not for want of rails)";
 }

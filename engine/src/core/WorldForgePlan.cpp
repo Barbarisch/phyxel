@@ -1778,6 +1778,18 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     return plan;
 }
 
+int WorldForgePlan::deckBandAt(float lateral, int cls) {
+    // M4c deck follow-up (2026-11-02): the walkway is the whole road width and the parapet stands
+    // OUTSIDE it, one voxel each side - the deck is the road width + 2 u. As built before, the
+    // parapet took the deck's outer voxel inside the road width, so a 3 u track deck had a
+    // one-voxel walkway that any diagonal line pinched shut (the parapets met corner to corner):
+    // 42 of 45 bearings pinched for class 1, the baseline's relocated bridge among them
+    // (m4c_deck_red_green.txt). A parapet flanks a roadway; it does not stand in it (DESIGN).
+    const float half = roadHalfWidth(cls);
+    if (lateral > half + kDeckParapetU) return 0;
+    return lateral > half ? 2 : 1;
+}
+
 WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) const {
     BridgeHit hit;
     const glm::vec2 p(worldX, worldZ);
@@ -1789,8 +1801,8 @@ WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) c
         const glm::vec2 dirn = ab / len;
         const float tRaw = glm::dot(p - b.a, ab) / len2;
         const float lateral = std::abs(glm::dot(p - b.a, glm::vec2(-dirn.y, dirn.x)));
-        const float half = roadHalfWidth(b.cls);
-        if (lateral > half) continue;
+        const int band = deckBandAt(lateral, b.cls);
+        if (band == 0) continue;
 
         // Beyond a span end: no deck (the old clamped-distance test grew a floating deck
         // DISC around each endpoint). Mounting a deck from a low bank is the GRADE
@@ -1802,8 +1814,11 @@ WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) c
         hit.cls = b.cls;
         // Deck-edge band -> parapet, from TRUE lateral distance on the span INTERIOR only
         // (an endpoint-arc band would be a parapet ACROSS the walkway entrance — the red
-        // test's walkway-violation assertion caught exactly this).
-        hit.rail = lateral > half - 1.0f;
+        // test's walkway-violation assertion caught exactly this). Since the M4c deck
+        // follow-up the parapet stands OUTSIDE the road width, and the seam test's bound is
+        // |lat| <= half with RailInsideTheRoadWidthIsCaughtByTheBound as its control
+        // (audit 6: the old half - 1.2 bound had gone vacuous).
+        hit.rail = band == 2;
         // Piers: interior stations every ~kPierSpacing along the span, DERIVED here per
         // query (nothing baked, planHash unchanged — pre-pier ledgers stay valid). A span
         // shorter than 2x the spacing carries no station.

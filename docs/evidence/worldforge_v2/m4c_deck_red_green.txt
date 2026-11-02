@@ -1,0 +1,66 @@
+M4c deck follow-up - the diagonal deck's walkway (2026-11-02). The regression the water-aware re-routing exposed (m4w_red_green.txt, chain
+19/20): the baseline's one bridge moved onto a line at ~22 deg and BridgeSpanTest.RoadIsHopWalkableAcrossTheVersionTwoCrossing's strict
+4/9 u walk between the parapets failed; the diag (m4w_bridge_diag.txt) showed the walker's feet on the 2/3 u parapet shelf at s 3 and 12
+ON the centreline. The audit called the parapet-pinch reading a hypothesis with no control. THE RULE AS BUILT (bridgeAt): a column is deck
+where its lateral distance to the span's line is within the road half-width (1.5 u for a track), and a parapet where it is within the
+outer 1 u of that - so a track deck is three voxels wide with a ONE-voxel walkway; along a diagonal line the walkway voxels touch only at
+corners and the two parapet voxels meet across the corner.
+THE RED (patch deck-1: deckBandAt exposes the band rule; BridgeSpanTest.DeckWalkwayIsConnectedOnADiagonal rasterizes a 24 u span at every
+bearing 0..88 deg for the three classes and walks the walkway cells 4-connected end to end - pure geometry, no bake; and the baseline's
+own case, class 1 at 21.7 deg over 15 u).
+PREDICTIONS (before the build): PD.1 the geometric test RED: class 1 pinched at most bearings off the axes (connected at 0 and maybe 90 and
+  a few near-axis bearings: 10-25 of 45 bearings connected), class 2 (5 u: a 3-voxel walkway) connected at every bearing, class 3 (6 u)
+  connected; the baseline case (class 1, 21.7 deg) pinched. PD.2 the real bridge test unchanged (red), the hashes pinned.
+THE RED RUN (patch deck-1, tests + the exposed helper; build 13:3x, exe 13:34:5x, run 13:34:54; m4b4r_r24_deckgeo.txt): RED - 93 of 135
+  (class, bearing) decks have a 4-connected walkway; class 1 pinched at 42 of 45 bearings (connected only at 0, 2 and 90 deg - the first
+  six printed: 4, 6, 8, 10, 12, 14 deg), classes 2 and 3 connected everywhere; the baseline's own case (class 1, 21.7 deg, 15 u) PINCHED.
+  PD.1 MET on the class-1 pinch (connected at 3 of 45 against the guess of 10-25: the pinch is worse than guessed) and on classes 2-3.
+  The hypothesis of audit 5 is now a measurement: a class-1 deck's one-voxel walkway closes on almost every bearing off the axes.
+PATCH DECK-2 (the rule): the walkway is the whole road width and the parapet stands outside it, kDeckParapetU = 1 u each side (DESIGN: a
+  parapet flanks a roadway, it does not stand in it; one voxel is the voxel minimum) - the deck is the road width + 2 u.
+PREDICTIONS (before the build): PD.3 the geometric test GREEN (135 of 135; the baseline case connected). PD.4 BridgeSpanTest.
+  RoadIsHopWalkableAcrossTheVersionTwoCrossing GREEN on the baseline's relocated bridge (the strict deck walk between the parapets);
+  the hop walk and the control wall as before. PD.5 the rest of BridgeSpanTest and RoadFieldSeamTest GREEN (the seam test compares
+  chunked vs whole under the same rule; the deck columns gain one voxel each side); the version-1 hashes pinned (bridgeAt is a query,
+  nothing baked); the Mountains plan's 36 bridges unchanged in count.
+GREEN (patch deck-2; build 13:35:xx-13:40:1x, exe 13:40:1x; geometric 13:40:16 m4b4r_r25_deckgeo.txt; the bridge + seam set 13:40:21-13:49:58
+  m4b4r_r26_bridge.txt): the geometric test 135 of 135 (class, bearing) decks 4-connected end to end, the baseline's case connected
+  (PD.3 MET); BridgeSpanTest 13 of 13 GREEN on the real worlds - RoadIsHopWalkableAcrossTheVersionTwoCrossing's strict deck walk between
+  the parapets PASSES on the baseline's relocated bridge (deck 53, span 15.0 u, class 1, the same bridge that failed in chain 19; the
+  bank-to-bank strict walk is still "NOT walkable" as before - the 1 u lip at the plank ends, reported, the M4c flush-plank open item);
+  the hop walk and the control wall as before (PD.4 MET); RoadFieldSeamTest GREEN, the pinned version-1 hashes GREEN, Mountains 36 bridges /
+  7 refusals unchanged (PD.5 MET). 22 of 22 in the set. The deck is one voxel wider each side on every bridge (the parapet outside the
+  carriageway); no L4 capture of a deck after the change - stated.
+AUDIT 6 (solution-auditor, 2026-11-02, after the green above; the raw VERDICT): "VERDICT: FAIL (narrow). The core claims 1-3 are
+  measured, but the seam test's walkway-violation assertion became vacuous without being reported (item 1). The claim also overreaches
+  slightly on deck width at the bank ends and on the n=1 real-world walk." Accepted: deckBandAt is the rule bridgeAt itself applies
+  (no divergence); the test's integer sample point matches the generator's bridgeAt(float(wx), float(wz)) call; its own re-derivation
+  with randomized phase and bearing (half-widths 1.5/2.5/3.0, lengths 9/15/24/40 u): 0 pinched of 1620 under the new rule; the raw logs
+  match the ledger (r24 93/135 FAILED, r25 135/135 OK); the real strict deck walk is the same unchanged assertion that failed in chain 19
+  and passes in chain 26 on the same bridge; kDeckParapetU's DESIGN label honest; no bound retuned after a run.
+  Items: (1) RoadFieldSeamTest.BridgeRailsGuardDeckEdgesAndPiersReachTheBed counted a walkway violation as a rail cell with
+  |lat| <= half - 1.2; rails now stand at lateral > half, so the check could never fail - VACUOUS, and the bridgeAt comment still cited
+  it as a guard. (2) the geometric test is a proxy: it does not check that planks are emitted; emission is gated by onRoad ||
+  riverOrder > 0, so parapet columns at lateral in (half, half + 1] over dry ground near the bank ends are skipped - "the deck is the
+  road width + 2 u" is NOT true at the ends; no test measures it (BridgeRails asserts >= 80 % of steps railed each side). (3) the real-
+  world strict walk is n = 1 (the baseline's one bridge; the 36 Mountains bridges get no strict walk; classes 2-3 only in geometry);
+  the strict probe is not laterally confined, the control wall defeats a through-the-bed route but the ledger does not show the walk
+  USED the deck. (4) bank-to-bank still NOT walkable (reported, honest). (5) the cause is inferred from geometry red + the real flip,
+  not a direct control on the real bridge.
+PATCH DECK-3 (item 1 applied): the seam test's bound is |lat| <= half (a rail anywhere inside the road width is a violation), the
+  seam test prints its counts, and a CONTROL test RoadFieldSeamTest.RailInsideTheRoadWidthIsCaughtByTheBound rasterizes 24 u spans
+  at 15 bearings x 3 classes and counts rails inside the road width under the rule as it stood before the follow-up (lateral in
+  (half - 1, half]) and under the shipped deckBandAt; the bridgeAt comment corrected. Items 2-5 recorded as qualifications in the plan
+  paragraph (not fixed: the end-gap plank emission is the M4c flush-plank open item's neighbour; the n = 1 stays n = 1).
+PREDICTIONS (before the build): PD.6 the control: the old rule caught in 45 of 45 cases (every class has a rail band inside the road
+  width, and the band is >= 1 u wide so integer cells land in it on every bearing); the shipped rule 0 inside of > 0 rail cells, railed
+  in 45 of 45. PD.7 BridgeRailsGuardDeckEdgesAndPiersReachTheBed GREEN with the tightened bound: 0 rail cells inside the road width on
+  the baseline's bridge (the seam test's lat is dot(cell - b.a, perp), the same lateral bridgeAt measures, and the rule is strict
+  lateral > half), the rails >= 80 % of steps each side as before. PD.8 the geometric test 135 of 135 unchanged (no rule change).
+GREEN (patch deck-3; chain 27 failed to compile - a bool shadowing the int counter in the control, renamed; chain 28 build 13:55:01-13:55:10,
+  exe 13:55:07, run 13:55:11-13:55:27, m4b4r_r28_seam.txt): the control RailInsideTheRoadWidthIsCaughtByTheBound - 45 (class, bearing)
+  cases, the old rule 2150 rail cells inside the road width, caught in 45 of 45; the shipped rule 0 inside of 2168 rail cells, railed in
+  45 of 45 (PD.6 MET). BridgeRailsGuardDeckEdgesAndPiersReachTheBed with the |lat| <= half bound on the seam test's own bridge (class 2,
+  half 2.5): 12 steps, rails L 11 R 12, 0 rail cells inside the road width (PD.7 MET). DeckWalkwayIsConnectedOnADiagonal 135 of 135
+  (PD.8 MET). 3 of 3. The bound is no longer vacuous: it discriminates the two rules on the same geometry. Items 2-5 of audit 6 stand as
+  qualifications in the plan paragraph, not fixed.

@@ -200,6 +200,11 @@ public:
         bool hit() const { return cls > 0; }
     };
     static constexpr float kPierSpacing = 12.0f;   // interior pier stations along a span
+    /// The deck band at a lateral distance from the span's line (the rule bridgeAt applies, exposed for
+    /// the geometric test): 0 = off the deck, 1 = the walkway (the road width), 2 = the parapet band
+    /// outside it (kDeckParapetU each side).
+    static int deckBandAt(float lateral, int cls);
+    static constexpr float kDeckParapetU = 1.0f;   // one voxel of parapet outside the carriageway (DESIGN: the voxel minimum)
     static constexpr float kMaxRoadGrade = 0.5f;   // grade profile: max |dY| per u of arclength
     /// M4b: the deepest cut a road of this class takes before the grade may exceed its cap (a
     /// "short pitch"): the lateral room of the corridor — half-width + the 3 u grading shoulder

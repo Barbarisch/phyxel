@@ -585,3 +585,64 @@ TEST(BridgeSpanTest, DiagVersionTwoBridgeColumns) {
                     f0.y == INT_MIN ? -1.0f : f0.y / 9.0f, leg ? "ok" : "FAIL");
     }
 }
+
+// ============================================================================
+// M4c deck follow-up (2026-11-02): the walkway between the parapets must be 4-connected from end
+// to end on a DIAGONAL deck. The baseline's one bridge moved with the water-aware re-routing
+// (m4w_red_green.txt) onto a line at ~22 deg and its strict deck walk failed: on a class-1 deck
+// (3 u wide) the parapet band is the outer voxel each side INSIDE the road width, so the walkway
+// is one voxel wide, and along a diagonal line its voxels touch only at corners - the two parapets
+// meet corner to corner and pinch it shut for a 4/9 u box (the diag: feet on 54.67 at s 3 and 12).
+// Pure geometry on the rule bridgeAt applies (deckBandAt): no world, no bake.
+// ============================================================================
+namespace {
+int walkwayConnected(float bearingDeg, int cls, float lenU) {   // 1 = connected end to end, 0 = pinched
+    const float rad = bearingDeg * 3.14159265f / 180.0f;
+    const glm::vec2 a(100.5f, 100.5f), dir(std::cos(rad), std::sin(rad)), nrm(-dir.y, dir.x);
+    const glm::vec2 b = a + dir * lenU;
+    const int x0 = static_cast<int>(std::floor(std::min(a.x, b.x))) - 6, x1 = static_cast<int>(std::ceil(std::max(a.x, b.x))) + 6;
+    const int z0 = static_cast<int>(std::floor(std::min(a.y, b.y))) - 6, z1 = static_cast<int>(std::ceil(std::max(a.y, b.y))) + 6;
+    const int W = x1 - x0 + 1, H = z1 - z0 + 1;
+    std::vector<int> band(static_cast<size_t>(W) * H, 0);
+    auto at = [&](int x, int z) -> int& { return band[static_cast<size_t>(z - z0) * W + (x - x0)]; };
+    for (int z = z0; z <= z1; ++z)
+        for (int x = x0; x <= x1; ++x) {
+            const glm::vec2 p(static_cast<float>(x), static_cast<float>(z));   // the column's sample point, as the generator queries it
+            const float t = glm::dot(p - a, dir) / lenU;
+            if (t < 0.0f || t > 1.0f) continue;
+            at(x, z) = WorldForgePlan::deckBandAt(std::abs(glm::dot(p - a, nrm)), cls);
+        }
+    // BFS over walkway cells (band 1), 4-connected, from the cells within 1.5 u of the start to the cells within 1.5 u of the end
+    std::vector<uint8_t> seen(band.size(), 0);
+    std::vector<std::pair<int, int>> q;
+    for (int z = z0; z <= z1; ++z)
+        for (int x = x0; x <= x1; ++x)
+            if (at(x, z) == 1 && glm::length(glm::vec2(static_cast<float>(x), static_cast<float>(z)) - a) <= 1.5f) { q.push_back({x, z}); seen[static_cast<size_t>(z - z0) * W + (x - x0)] = 1; }
+    for (size_t h = 0; h < q.size(); ++h) {
+        const auto [x, z] = q[h];
+        if (glm::length(glm::vec2(static_cast<float>(x), static_cast<float>(z)) - b) <= 1.5f) return 1;
+        for (const auto [dx, dz] : {std::pair<int, int>{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+            const int nx = x + dx, nz = z + dz;
+            if (nx < x0 || nx > x1 || nz < z0 || nz > z1) continue;
+            uint8_t& sv = seen[static_cast<size_t>(nz - z0) * W + (nx - x0)];
+            if (sv || at(nx, nz) != 1) continue;
+            sv = 1; q.push_back({nx, nz});
+        }
+    }
+    return 0;
+}
+}  // namespace
+
+TEST(BridgeSpanTest, DeckWalkwayIsConnectedOnADiagonal) {
+    int connected = 0, total = 0, pinched = 0;
+    for (int cls = 1; cls <= 3; ++cls)
+        for (int deg = 0; deg < 90; deg += 2) {
+            ++total;
+            const int ok = walkwayConnected(static_cast<float>(deg), cls, 24.0f);
+            connected += ok;
+            if (!ok && pinched++ < 6) std::printf("[ M4c-deck ] class %d bearing %d deg: the walkway between the parapets is pinched\n", cls, deg);
+        }
+    std::printf("[ M4c-deck ] %d of %d (class, bearing) decks have a 4-connected walkway end to end\n", connected, total);
+    EXPECT_EQ(connected, total) << "a deck whose parapets pinch the walkway shut";
+    EXPECT_EQ(walkwayConnected(21.7f, 1, 15.0f), 1) << "the baseline's relocated bridge: class 1 at ~22 deg, 15 u";
+}
