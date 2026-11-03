@@ -836,6 +836,48 @@ TEST_F(WaterRecordTilesTest, TheResidencyRoundTheAwakeWaterIsTheWholeResidency) 
     EXPECT_GT(rmm, 0) << "RED CONTROL: with nothing recomputed the residency changes went unseen";
 }
 
+// 51 THE ACCEPTANCE TEST FOR WATER AT SCALE (owner 2026-11-02: "the biggest deal when making water work at scale is an area threshold
+// for water disturbances"): the same VISIBLE splash (2 m, strength 8) in a 30 x 30 m and a 60 x 60 m lake, 2 m deep, shipped settings
+// (partial wake, tall band, fixed tick - synchronous 1/60 s steps), costs the same - a disturbance is simulated over a bounded area,
+// not over the whole body. Measured over 40 s after the splash: the peak awake brick columns and the summed GPU time. (Not 50 vs 100 m:
+// a 100 m box is ~22 M cells, over the 16 M cap the CPU mirror sets until W1d.3; four times the area makes the same point.)
+// Prediction before the bounded area exists: the 60 m lake ~4x the 30 m one in both (the waves reach every column of each).
+static void runSplashCost(VulkanTestFixture&, VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, int W, int& peakAwake, double& gpuMsSum, double& books) {
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return; }
+    mgr.setDroplets(false);
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(W - 1, 2, W - 1), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+    if (!id) { ADD_FAILURE() << err; return; }
+    mgr.setAutoSleep(id, false);
+    EXPECT_TRUE(mgr.setPartialWake(id, true));
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(W - 1, 1, W - 1), 1.0f, nullptr);
+    const double placed = mgr.totalMass();
+    AvRecord rec;
+    for (int k = 0; k < 60 * 3; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+    mgr.addImpulse(glm::vec3(W * 0.5f, 1.9f, W * 0.5f), 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    peakAwake = 0; gpuMsSum = 0.0;
+    for (int k = 0; k < 60 * 40; ++k) {
+        mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        if (const AvRecord* r = mgr.find(id)) { peakAwake = std::max(peakAwake, r->asleep ? 0 : r->awakeColumns); gpuMsSum += r->gpuDeviceMs; }
+    }
+    books = mgr.totalMass() - placed;
+}
+
+TEST_F(WaterRecordTilesTest, ASplashCostsTheSameInAnySizeOfLake) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    int pa = 0, pb = 0; double ga = 0.0, gb = 0.0, ba = 0.0, bb = 0.0;
+    runSplashCost(*this, device, physicalDevice, queue, queueFamilyIndex, 30, pa, ga, ba);
+    runSplashCost(*this, device, physicalDevice, queue, queueFamilyIndex, 60, pb, gb, bb);
+    std::printf("  30 m lake: peak awake %d columns, GPU %.0f ms over 40 s, books %+.4f m^3 | 60 m lake: %d columns, %.0f ms, %+.4f m^3 | ratio %.2f / %.2f\n",
+                pa, ga, ba, pb, gb, bb, pa ? double(pb) / pa : 0.0, ga > 0.0 ? gb / ga : 0.0);
+    EXPECT_GT(pa, 200) << "CONTROL: the splash woke the 30 m lake (else the comparison measures nothing)";
+    EXPECT_LE(pb, 1.3 * pa) << "the 60 m lake simulated more columns than the 30 m one for the same splash";
+    EXPECT_LE(gb, 1.3 * ga) << "the 60 m lake cost more GPU time than the 30 m one for the same splash";
+    EXPECT_LT(std::abs(ba), 1e-2); EXPECT_LT(std::abs(bb), 1e-2);
+}
+
 // DiagLakeRecorded (27.23 W1e step 0): the 60 x 60 m lake (2 m deep, 3 m box) with the partial wake and RECORDING on - the lake at
 // rest records tile by tile (its bricks freed), a stone wakes the tiles round it, waves, freezes, records again. Per second: the
 // call's mean GPU ms, awake / frozen columns, recorded tiles, stored bricks, the books. LAKE_QS = the freeze test's scale.

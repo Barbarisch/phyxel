@@ -12655,6 +12655,47 @@ compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the s
 settings (tall cells on, recording off) the lake still sleeps (W1f, 4 of 4): the partial wake freezes columns before the bed churn
 or the stored velocities build. Recording keeps it awake long enough for them to show.
 
+## 51. Water at scale has LEVELS - three forms by distance (owner, 2026-11-02). Status: PLAN OF RECORD; S1's acceptance test RED
+
+**The owner's words:** *"the biggest deal when making water work at scale is an area threshold for water disturbances"*; *"at some
+point we will need to make bodies of water that are bigger than 100 meters... that means levels. that means 'at this point water
+takes another form'. i picture some type of system that for large expanses of large bodies of water the water that is really far
+away from the camera isnt even rendered as water, but just a 'skin' that looks right from far way. in the case where the camera
+gets closer obviously it would be switched out to real water."*
+
+**Where the work went wrong (the record).** W1 assumed "simulate only the water that moves" bounds the cost. It never tested the
+goal - cost independent of the body's size - and tested only stones too small to make visible waves. A visible splash's waves
+reach every column (4.4 m/s in 2 m water), the freeze test calls sub-millimetre motion "awake", and a frozen column is
+a wall, so the whole lake simulates. 50.6d-50.7 then made cells cheaper instead of bounding the area. A lake was treated as ONE
+simulated box, so the 16 M-cell cap (the CPU mirror, W1d.3) caps a lake at ~80 m - the wrong shape. The acceptance test now comes
+first (feedback: test the stated goal).
+
+**The three forms** (one water: the record IS the water everywhere - forms 1-3 are how much of it is simulated and how it is drawn):
+| form | where | what | size limit |
+|---|---|---|---|
+| 1 SIMULATED | a bounded patch: within Rc of the camera, and within Rd of each live disturbance | the 1/9 m cells; waves fade to nothing in a band at the patch's edge (a sponge - never a reflecting wall) | the patch's own size (fixed), never the body's |
+| 2 RECORDED | the rest of the near / middle distance (to Rf) | the record (spans), drawn as the pond surface (W1a); ripples beyond the patch drawn as appearance (30.3 knob 2) | none (per chunk column) |
+| 3 SKIN | beyond Rf | a coarse surface at the water's level that looks right from far away: no cells, no span reads; shading for distance | none |
+Transitions by distance with hysteresis (no flicker at a threshold): skin -> recorded -> simulated as the camera approaches;
+simulated -> recorded when still (the tile record, W1b); a disturbance in recorded water wakes a patch (the tile wake, W1b) bounded by
+Rd. Rc, Rd, Rf are the tier knobs (30.3 knobs 1, 2, 4) - world distances, never chunk counts.
+
+**What changes in the outcome, the owner's trade (asked 2026-11-02, agreed in the owner's words above):** waves fade within Rd of
+their source - a floating body beyond Rd does not bob from that splash. Where water is and how much is unchanged at every form.
+
+**Build order, each with its acceptance test first:**
+- **S1 - the area threshold (the bounded disturbance).** Waves fade in a sponge band at Rd from the disturbance; columns beyond stay
+  frozen / recorded. Test `ASplashCostsTheSameInAnySizeOfLake` (30 vs 60 m lake, the same visible splash; at most 1.3x the columns
+  and GPU time). **RED today: 4.0x the columns, 6.2x the GPU (1,156 vs 4,624 peak awake; 7.5 vs 46.3 s of GPU in 40 s).**
+- **S2 - bodies bigger than a box.** A lake is the record (any size) plus simulated patch volumes made where the camera and
+  disturbances are, never one box over the body. Test: a 200 m lake (record only), a splash anywhere - the same cost as in the 30 m
+  lake; the books exact.
+- **S3 - the skin (form 3, was W2).** Beyond Rf the lake drawn from a coarse level map. Test: the frame cost of a 200 m and a 1 km
+  lake equal; the owner's look at the swap distance in motion.
+- **S4 - the swaps in motion:** the camera flying in from far to a splash and out again - no pops, no holes, the books exact; the
+  owner's clip.
+The W rows (W1-W6, §27 / §50) fold into S1-S4: W1's remaining items serve S1-S2, W2 is S3.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building
