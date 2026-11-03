@@ -10,6 +10,9 @@
 //   mode 9: vel *= param0 (rest damping, applyRestDamping) - the lattice length is iparam
 //   mode 11: 50.6f settle damping (bricked; iparam = the lattice): vel *= 1 - param0 (s_a + s_b) / 2, s = settleAt of the cells on
 //            the face's two sides (param0 = restDamping dt) - a settling column's faces at the full rate, its edge faces at half
+//   mode 13: 51 S1 the disturbance's area threshold (iparam = the lattice): vel *= 1 - param0 w, w = smoothstep(Rd - B, Rd, the
+//            face's horizontal distance to the nearest live disturbance centre) - from the face's WORLD position (never a brick's):
+//            a ring fades in the band and is gone beyond Rd. Velocities only (the books exact). param0 = sigma dt
 //   mode 10: 26.13 Manning at the bed on u (iparam 0) or w (iparam 2) faces (WaterSolver::applyBedManning): param0 = n^2;
 //            u /= 1 + dt g n^2 |u| / d^(4/3), d = the mean of the two sub-columns' water (m), summed bottom-up as the CPU does
 #define WC_BRICKS_BINDING 6
@@ -22,6 +25,8 @@ layout(std430, set = 0, binding = 3) readonly buffer P   { float p[]; };
 layout(std430, set = 0, binding = 4) readonly buffer Liq { uint liq[]; };
 layout(std430, set = 0, binding = 5) readonly buffer Solid { vec4 solid[]; };   // 20: (s, q, wake, ledger) per cell
 layout(std430, set = 0, binding = 7) readonly buffer PG  { float pg[]; };   // 50.6d: the still-water guess (0 when the sweeps solve p itself)
+// 51 S1: the live disturbance centres - [0] = (count, the radius Rd, the band B, 0) in cells; [1 + i] = (x, z, 0, 0), volume-local cells
+layout(std430, set = 0, binding = 8) readonly buffer Disc { vec4 disc[]; };
 
 bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u || frozenCell(x, y, z); }   // 26.31: a face to a frozen column is held at 0
 float fAt(int x, int y, int z) { return inBounds(x, y, z) ? f[cellIdx(x, y, z)] : 0.0; }
@@ -85,6 +90,17 @@ void main() {
         if (d < 1e-3) return;
         const float v0 = vel[id];
         vel[id] = v0 / (1.0 + pc.dt * pc.gravity * pc.param0 * abs(v0) / pow(d, 4.0 / 3.0));
+    } else if (pc.mode == 13) {
+        ivec3 c; if (!threadSite(id, pc.iparam, c)) return;
+        const int count = int(disc[0].x);
+        if (count <= 0) return;
+        const float rd = disc[0].y, band = disc[0].z;
+        // the face's centre (x, z) in cells: a u face sits at x = c.x, a w face at z = c.z, the rest mid-cell
+        const vec2 fpos = vec2(float(c.x) + (pc.iparam == 0 ? 0.0 : 0.5), float(c.z) + (pc.iparam == 2 ? 0.0 : 0.5));
+        float d2 = 1e30;
+        for (int i = 0; i < count; ++i) { const vec2 q = fpos - disc[1 + i].xy; d2 = min(d2, dot(q, q)); }
+        const float w = smoothstep(rd - band, rd, sqrt(d2));
+        if (w > 0.0) vel[id] *= 1.0 - pc.param0 * w;
     } else if (pc.mode == 11) {
         ivec3 c; if (!threadSite(id, pc.iparam, c)) return;
         const ivec3 a = pc.iparam == 0 ? ivec3(c.x - 1, c.y, c.z) : (pc.iparam == 1 ? ivec3(c.x, c.y - 1, c.z) : ivec3(c.x, c.y, c.z - 1));

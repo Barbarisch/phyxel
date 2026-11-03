@@ -12696,6 +12696,33 @@ their source - a floating body beyond Rd does not bob from that splash. Where wa
   owner's clip.
 The W rows (W1-W6, §27 / §50) fold into S1-S4: W1's remaining items serve S1-S2, W2 is S3.
 
+**51.1 S1 BUILT, ON (2026-11-03) - the simulated AREA no longer depends on the body's size; its cost still does.**
+- **What it is** (`WaterCoreGpu::s_disturbanceRadiusM` 12 m, `s_disturbanceBandM` 4 m, `s_spongeRate` 8 /s): every disturbance (an
+  impulse, a radial impulse, debris momentum, a moving body's box) records a centre (`noteDisturbance`; merged within 2 m, at most
+  64). Two rules: (1) FaceOps mode 13 damps each face by sigma dt x smoothstep(Rd - B, Rd, its world-position distance to the
+  nearest centre) - a band that absorbs the ring (per face from world position, never per brick: design-check amendment A);
+  (2) the partial wake never wakes a brick column beyond Rd of every live centre - it stays frozen. A centre expires when no awake
+  stored column lies within its radius. Standing water only (no pumps, no creek bed friction): a sponge would slow a current. Not a
+  tier knob (it decides how far waves reach - the owner's value, amendment B).
+- **Why both rules:** the band alone (damping beyond Rd too) killed the energy 350x faster but left the band and the water beyond
+  CREEPING back to level (over-damped), failing the freeze test's level bound for longer - the 30 m lake stayed awake longer than
+  with nothing (166 columns at 30 s vs 0 at 26 s). Never waking beyond Rd removes the creep beyond; at 8 /s the band settles faster
+  than at 4 /s (asleep 22 s vs ~38 s).
+- **The acceptance test** (`ASplashCostsTheSameInAnySizeOfLake`, 30 vs 60 m, the same visible splash):
+| | before S1 | S1 | S1 + the recorded form (rest 10 s, recording on) |
+|---|---|---|---|
+| peak awake columns, 60 / 30 m | 4,624 / 1,156 (4.0x) | **628 / 632 (0.99x)** | 628 / 632 (0.99x) |
+| GPU over 40 s, 60 / 30 m | 46.3 / 7.5 s (6.2x) | 12.3 / 5.0 s (2.45x) | 11.0 / 4.65 s (2.37x) |
+| both lakes asleep | never in 40 s | 22 s | - |
+  Books exact in every run. Still RED on the GPU time: with the same awake slots and the same STORED bricks (recording on: 0 before
+  the splash, 15.5 k / 16.8 k at the peak), the 60 m lake's call costs 8.7 ms against 3.6 (stage timing): box-sized passes - the
+  surface copy 1.08 vs 0.31 ms, the unit reduction 0.93 vs 0.10, the residency 0.37 - and ~2 ms more inside the step's own kernels
+  at equal slots (lookups into box-sized tables: the brick map, the per-column tables - not yet isolated). **The cure is S2, not
+  tuning the box:** the simulated patch its own volume, sized to the disc, over a lake that is only the record.
+- **Tests:** water unit 369 / 369; integration water all pass but the known two and the acceptance test (red by design until S2).
+  `FrozenTilesRecordAndWakeWithTheBooksExact`'s red control (a seed's fPrev cascade) runs with the radius off - S1 stops the cascade
+  it exists to show.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

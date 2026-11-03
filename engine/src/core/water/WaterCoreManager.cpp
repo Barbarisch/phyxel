@@ -1934,6 +1934,7 @@ bool WaterCoreManager::addImpulse(const glm::vec3& world, float radius, float de
             any = true;
             continue;
         }
+        if (av->gpuVol && m_gpu) m_gpu->noteDisturbance(*av->gpuVol, world);   // 51 S1
         syncFromGpu(*av);
         av->solver->addImpulse(world, radius, deltaSpeed, dir);
         markWritten(*av, &world, radius);   // 26.31: an impulse wakes its own columns

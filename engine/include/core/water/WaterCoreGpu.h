@@ -267,6 +267,12 @@ public:
         bool mgReady = false;
         size_t mgPartials = 0;           ///< Scal's partial slots (>= the stored cells / 256)
         std::string mgReason;            ///< why the volume solves with SOR when MGPCG is asked for (50.7 amendment C)
+        /// 51 S1: the live disturbance centres (volume-local cells, x / z) - waves fade within s_disturbanceRadiusM of them (FaceOps
+        /// mode 13); a centre expires when no stored column within the radius is awake. discBuf = (count, Rd, B, 0) + the centres.
+        std::vector<glm::vec2> discCentres;
+        Buffer discBuf;
+        bool discDirty = true;
+        int discExpired = 0;             ///< centres dropped since the volume was made (a read-out)
         std::vector<int> newlyFrozen;            ///< §50.6b: columns that froze this call - their velocities zeroed in it (s_freezeZeroesVelocity)
         bool wakeAllPending = false, anyFrozen = false;
         // §27 W1b: RECORDED brick columns - the record (chunk spans + bodies) holds their water. Every brick of such a column reads the
@@ -410,6 +416,15 @@ public:
     /// phase the volume is already in its own settle band (rest damping on every face, compaction at free fall) - the motion is
     /// re-driven by the fill churn, not left over. OFF (a measurement switch); kept for the loop's later bisection.
     static inline bool s_columnSettle = false;
+    /// 51 S1 THE AREA THRESHOLD (owner 2026-11-02): a disturbance's waves fade to nothing between (radius - band) and radius of where it
+    /// happened, so a splash simulates about pi radius^2 of water whatever the body's size. NOT a tier knob - it decides how far waves
+    /// reach (an outcome): the owner's value. Standing water only (no pumps, no creek bed friction): a sponge would also slow a current.
+    /// radius <= 0 = off (waves reach the whole body - the behaviour before 51).
+    static inline float s_disturbanceRadiusM = 12.0f;
+    static inline float s_disturbanceBandM = 4.0f;   ///< the fade's width (m); the radius is clamped to at least band + 2 m
+    static inline float s_spongeRate = 8.0f;         ///< 1/s at the band's outer edge and beyond
+    static constexpr int kMaxDisturbances = 64;      ///< centres a volume holds (a new one merges into the nearest past it)
+    void noteDisturbance(Volume& vol, const glm::vec3& worldPos);   ///< 51 S1: a centre at a world position (merged within 2 m)
     /// 50.7: the pressure solver - 0 the red-black SOR sweeps (the default until the owner looks), 1 MGPCG (CG preconditioned by an
     /// aggregation multigrid V-cycle; WaterCore.md 50.7). MGPCG runs on bricked fill volumes; a particle volume, a dense one or a box
     /// whose coarse levels would pass kMgMaxBytes keeps the sweeps (Volume::mgReason).

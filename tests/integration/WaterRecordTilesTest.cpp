@@ -316,7 +316,11 @@ TEST_F(WaterRecordTilesTest, FrozenTilesRecordAndWakeWithTheBooksExact) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     const TileRun w = run(false);
     const TileRun o = run(true);
+    // 51 S1: the area threshold also stops this control's cascade at the disturbance radius (woken 0.5 s after the push: 0) - the
+    // control measures the seed's fPrev defect, so it runs with the radius off
+    const float rdWas = WaterCoreGpu::s_disturbanceRadiusM; WaterCoreGpu::s_disturbanceRadiusM = 0.0f;
     const TileRun c = run(false, true, true);   // red control of the wake-speed bound: the seed leaves fPrev at 0 (the live cascade)
+    WaterCoreGpu::s_disturbanceRadiusM = rdWas;
     if (std::getenv("W1B_BASELINE")) {   // diagnostic: the same pushes with recording off - its kinetic energy beside the walled run's
         const TileRun b = run(false, false);
         std::printf("  KE after the push every 10 ticks, recording ON :"); for (double k : w.keAfterPush) std::printf(" %.2e", k); std::printf("\n");
@@ -852,17 +856,22 @@ static void runSplashCost(VulkanTestFixture&, VkDevice device, VkPhysicalDevice 
     if (!id) { ADD_FAILURE() << err; return; }
     mgr.setAutoSleep(id, false);
     EXPECT_TRUE(mgr.setPartialWake(id, true));
+    FakeRecord record; record.install(mgr);
+    if (std::getenv("SC_RECORD")) EXPECT_TRUE(mgr.setRecordTiles(id, true));   // rig switch: the recorded form (far still water into the record)
     mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(W - 1, 1, W - 1), 1.0f, nullptr);
     const double placed = mgr.totalMass();
     AvRecord rec;
-    for (int k = 0; k < 60 * 3; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+    const int restS = std::getenv("SC_REST") ? std::atoi(std::getenv("SC_REST")) : 3;   // rig switch: seconds at rest before the splash
+    for (int k = 0; k < 60 * restS; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+    if (const AvRecord* r = mgr.find(id)) std::printf("    %d m lake before the splash: recorded tiles %d, stored bricks %d\n", W, r->recordedTiles, r->gpuBricks);
     mgr.addImpulse(glm::vec3(W * 0.5f, 1.9f, W * 0.5f), 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
-    peakAwake = 0; gpuMsSum = 0.0;
+    peakAwake = 0; gpuMsSum = 0.0; int peakBricks = 0;
     for (int k = 0; k < 60 * 40; ++k) {
         mgr.step(id, 1, 1.0f / 60.0f, &rec);
-        if (const AvRecord* r = mgr.find(id)) { peakAwake = std::max(peakAwake, r->asleep ? 0 : r->awakeColumns); gpuMsSum += r->gpuDeviceMs; }
+        if (const AvRecord* r = mgr.find(id)) { peakAwake = std::max(peakAwake, r->asleep ? 0 : r->awakeColumns); gpuMsSum += r->gpuDeviceMs; peakBricks = std::max(peakBricks, r->gpuBricks); }
     }
-    books = mgr.totalMass() - placed;
+    std::printf("    %d m lake: peak stored bricks %d\n", W, peakBricks);
+    books = mgr.totalMass() + record.total() - placed;
 }
 
 TEST_F(WaterRecordTilesTest, ASplashCostsTheSameInAnySizeOfLake) {
@@ -906,6 +915,12 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
     if (std::getenv("E_ABSP")) WaterCoreGpu::s_pressureDeviation = false;   // 50.6d: the absolute-pressure solve (the control)
     struct RestoreAir { ~RestoreAir() { WaterCoreGpu::s_airRisesEverywhereForTest = false; } } restoreAir;
     if (std::getenv("E_AIR")) WaterCoreGpu::s_airRisesEverywhereForTest = true;   // 50.6e: the trapped-air rule everywhere
+    struct RestoreRd { float r = WaterCoreGpu::s_disturbanceRadiusM, b = WaterCoreGpu::s_disturbanceBandM, s = WaterCoreGpu::s_spongeRate;
+                       ~RestoreRd() { WaterCoreGpu::s_disturbanceRadiusM = r; WaterCoreGpu::s_disturbanceBandM = b; WaterCoreGpu::s_spongeRate = s; } } restoreRd;
+    if (std::getenv("E_RD")) WaterCoreGpu::s_disturbanceRadiusM = static_cast<float>(env("E_RD", 12.0));   // 51 S1: the area threshold (0 = off)
+    if (std::getenv("E_BANDM")) WaterCoreGpu::s_disturbanceBandM = static_cast<float>(env("E_BANDM", 4.0));
+    if (std::getenv("E_SIGMA")) WaterCoreGpu::s_spongeRate = static_cast<float>(env("E_SIGMA", 8.0));
+    std::printf("  disturbance radius %.1f m, band %.1f m, sponge %.1f /s\n", WaterCoreGpu::s_disturbanceRadiusM, WaterCoreGpu::s_disturbanceBandM, WaterCoreGpu::s_spongeRate);
     struct RestoreSolver { ~RestoreSolver() { WaterCoreGpu::s_pressureSolver = 0; WaterCoreGpu::s_mgIterations = 8; } } restoreSolver;
     if (std::getenv("E_MG")) { WaterCoreGpu::s_pressureSolver = 1; WaterCoreGpu::s_mgIterations = static_cast<int>(env("E_MG", 8)); }   // 50.7: MGPCG
     std::printf("  pressure solver %s (%d iterations)\n", WaterCoreGpu::s_pressureSolver == 1 ? "MGPCG" : "SOR", WaterCoreGpu::s_mgIterations);
@@ -930,12 +945,14 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
     mgr.setAutoSleep(id, false);
     ASSERT_TRUE(mgr.setPartialWake(id, pw));
     ASSERT_TRUE(mgr.setTallBand(id, tall));
+    FakeRecord eRecord; eRecord.install(mgr);
+    if (std::getenv("E_RECORD")) ASSERT_TRUE(mgr.setRecordTiles(id, true));   // 51: the recorded form (far still water into the record)
     mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(W - 1, depth - 1, W - 1), 1.0f, nullptr);
     std::printf("  %d x %d m, %d m deep, tall %.2f m, partial wake %d, push %.1f, dt %.4f s, placed %.4f m^3\n", W, W, depth, tall, int(pw), strength, dt, mgr.totalMass());
     AvRecord rec;
     const int per = static_cast<int>(std::lround(1.0 / dt));
     for (int k = 1; k <= per * seconds; ++k) {
-        if (k == per * 5 && strength > 0.0f) mgr.addImpulse(glm::vec3(W * 0.5f, depth - 0.1f, W * 0.5f), pushRadius, strength, glm::vec3(0.0f, -1.0f, 0.0f));
+        if (k == per * static_cast<int>(env("E_PUSHAT", 5)) && strength > 0.0f) mgr.addImpulse(glm::vec3(W * 0.5f, depth - 0.1f, W * 0.5f), pushRadius, strength, glm::vec3(0.0f, -1.0f, 0.0f));
         if (std::getenv("E_STAGES") && k == per * static_cast<int>(env("E_STAGES", 28))) {   // 50.6e: each fill stage's gross change, 4 s
             WaterCoreGpu::s_stageCapture = true; WaterCoreGpu::s_stageCalls = 0;
             for (int s = 0; s < WaterCoreGpu::kStages; ++s) { WaterCoreGpu::s_stageDm[s] = 0.0; WaterCoreGpu::s_stageAbsMax[s] = 0.0; WaterCoreGpu::s_stageAbsSum[s] = 0.0; }
@@ -962,8 +979,8 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
         (void)mgr.totalMass();   // reads the volume back: the record's kinetic energy is the host grid's (synchronous steps - no change to stepping)
         const AvRecord* r = mgr.find(id);
         if (!r) break;
-        std::printf("  t %5.1f s  ke %.3e  awake %5d frozen %5d moving %5d settling %5d  asleep %d  tall %d  gpu %.2f ms  carry flow %.2e parked %.2e body %.2e  mass %.6f\n", k * dt, r->kineticEnergy,
-                    r->awakeColumns, r->frozenColumns, r->movingColumns, r->settlingColumns, int(r->asleep), int(r->tallActive), r->gpuDeviceMs, r->carryFlowM3, r->carryParkedM3, r->carryBodyM3, mgr.totalMass());
+        std::printf("  t %5.1f s  ke %.3e  awake %5d frozen %5d moving %5d settling %5d  asleep %d  tall %d  gpu %.2f ms  step slots %d of bricks %d  carry flow %.2e parked %.2e body %.2e  mass %.6f\n", k * dt, r->kineticEnergy,
+                    r->awakeColumns, r->frozenColumns, r->movingColumns, r->settlingColumns, int(r->asleep), int(r->tallActive), r->gpuDeviceMs, r->stepSlots, r->gpuBricks, r->carryFlowM3, r->carryParkedM3, r->carryBodyM3, mgr.totalMass());
         if (std::getenv("E_VOIDS")) {   // 50.6e: air under water - a cell short of full with water above it (the splash's pockets)
             if (const WaterGrid* g = mgr.gridForTest(id)) {
                 long n = 0, big = 0; double missing = 0.0; int yMin = 1 << 30, yMax = -1;

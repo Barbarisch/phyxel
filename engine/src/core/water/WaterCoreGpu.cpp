@@ -23,7 +23,7 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 8, 8, 8, 11, 13, 7, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 12, 9, 14};   // 50.7: + Mg (liq, diag, rhs, p, r z s q, coef x b, info, scal, bricks)   // 31: + BodyPressure (p, bricks, surfDense, requests, windows, data, slot map, solid, occ)   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 9, 9, 9, 11, 13, 7, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 12, 9, 14};   // 50.7: + Mg (liq, diag, rhs, p, r z s q, coef x b, info, scal, bricks)   // 31: + BodyPressure (p, bricks, surfDense, requests, windows, data, slot map, solid, occ)   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -173,13 +173,14 @@ void WaterCoreGpu::bindPipelines(Volume& vol) {
         uint32_t i = 0; for (const Buffer* b : bufs) { p.bindBuffer(i++, b->buf, b->bytes); } p.updateDescriptors();
     };
     const Buffer* br = &vol.bricks;
+    if (!vol.discBuf.buf) { std::string e; if (createBuffer(vol.discBuf, (1 + kMaxDisturbances) * 16, true, &e)) std::memset(vol.discBuf.mapped, 0, vol.discBuf.bytes); }   // 51 S1
     bindAll(*vol.pipes[FillAdvect], {&vol.f, &vol.fOrig, &vol.u, &vol.v, &vol.w, &vol.occ, &vol.solid, &vol.res, br, &vol.fLo});   // res: 26.5's scratch (the projection rewrites it later in the substep)
     bindAll(*vol.pipes[VelAdvectU], {&vol.uOld, &vol.vOld, &vol.wOld, &vol.u, br});
     bindAll(*vol.pipes[VelAdvectV], {&vol.uOld, &vol.vOld, &vol.wOld, &vol.v, br});
     bindAll(*vol.pipes[VelAdvectW], {&vol.uOld, &vol.vOld, &vol.wOld, &vol.w, br});
-    bindAll(*vol.pipes[FaceOpsU],   {&vol.f, &vol.occ, &vol.u, &vol.p, &vol.liq, &vol.solid, br, &vol.pg});   // 50.6d: + pg
-    bindAll(*vol.pipes[FaceOpsV],   {&vol.f, &vol.occ, &vol.v, &vol.p, &vol.liq, &vol.solid, br, &vol.pg});   // 50.6d: + pg
-    bindAll(*vol.pipes[FaceOpsW],   {&vol.f, &vol.occ, &vol.w, &vol.p, &vol.liq, &vol.solid, br, &vol.pg});   // 50.6d: + pg
+    bindAll(*vol.pipes[FaceOpsU],   {&vol.f, &vol.occ, &vol.u, &vol.p, &vol.liq, &vol.solid, br, &vol.pg, &vol.discBuf});   // 50.6d: + pg; 51 S1: + the disturbance centres
+    bindAll(*vol.pipes[FaceOpsV],   {&vol.f, &vol.occ, &vol.v, &vol.p, &vol.liq, &vol.solid, br, &vol.pg, &vol.discBuf});   // 50.6d: + pg; 51 S1: + the disturbance centres
+    bindAll(*vol.pipes[FaceOpsW],   {&vol.f, &vol.occ, &vol.w, &vol.p, &vol.liq, &vol.solid, br, &vol.pg, &vol.discBuf});   // 50.6d: + pg; 51 S1: + the disturbance centres
     bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped, &vol.solid, &vol.births, &vol.deposit, br, &vol.fLo});   // 21: + births, deposit; 26.10: + fLo
     bindAll(*vol.pipes[Surface],    {&vol.f, &vol.occ, &vol.surf, &vol.u, &vol.w, &vol.solid, br, &vol.births, &vol.birthsPacked, &vol.lists, &vol.surfDense, &vol.solidTopD});   // Phase F (+ u, w: E2; + solid: 20; 26.11: packed lists; 29 S1: the dense field)
     // 29 S1: bindings 6 / 7 are the test expansion's (expandSurfaceForTest rebinds them); otherwise placeholders
@@ -429,7 +430,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
-    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal}) destroyBuffer(*b);   // 50.7 (not in allBuffers: never kept)
+    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal, &vol->discBuf}) destroyBuffer(*b);   // 50.7 / 51 (not in allBuffers: never kept)
     for (Buffer* b : allBuffers(*vol)) destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -449,7 +450,7 @@ int WaterCoreGpu::keepVolume(Volume* vol) {
     if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
-    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal}) destroyBuffer(*b);   // 50.7: rebuilt on demand, never kept
+    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal, &vol->discBuf}) destroyBuffer(*b);   // 50.7 / 51: rebuilt on demand, never kept
     KeptSet set; set.slots = vol->capacity;
     for (Buffer* b : allBuffers(*vol)) if (b->buf) { set.bufs.push_back(*b); *b = Buffer{}; }
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
@@ -1207,6 +1208,24 @@ void WaterCoreGpu::updatePartialWake(Volume& vol, const SolverParams& params) {
         if (!rowGrown[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz]) continue;
         for (int z = std::max(0, bz - M); z <= std::min(vol.bn.z - 1, bz + M); ++z) awake[static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * z] = 1;
     }
+    // 51 S1: beyond the disturbance radius of every live centre a column is never woken (moving or by the margin): it stays frozen, a
+    // wall the band's absorbed wave meets with nothing left to reflect - the simulated area is the disc, whatever the body's size.
+    // Standing water only (as the band); with no live centre, nothing is capped (the whole body as before).
+    if (s_disturbanceRadiusM > 0.0f && !vol.discCentres.empty() && vol.sourceCount == 0 && params.bedManning <= 0.0f) {
+        const float rCells = std::max(s_disturbanceRadiusM, s_disturbanceBandM + 2.0f) / vol.spec.h;
+        for (int bz = 0; bz < vol.bn.z; ++bz) for (int bx = 0; bx < vol.bn.x; ++bx) {
+            const size_t ci = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
+            if (!awake[ci]) continue;
+            // the brick column's nearest point to each centre (a column the disc reaches at all stays eligible)
+            const float x0 = bx * 8.0f - vol.o.x, z0 = bz * 8.0f - vol.o.z;
+            bool inside = false;
+            for (const glm::vec2& c : vol.discCentres) {
+                const float dx = std::max({x0 - c.x, 0.0f, c.x - (x0 + 8.0f)}), dz = std::max({z0 - c.y, 0.0f, c.y - (z0 + 8.0f)});
+                if (dx * dx + dz * dz <= rCells * rCells) { inside = true; break; }
+            }
+            if (!inside) awake[ci] = 0;
+        }
+    }
     bool changed = false; int nFrozen = 0, nAwake = 0;
     for (size_t c = 0; c < nc; ++c) {
         if (anyRec && vol.colRecorded[c] && !s_recordedOpenForTest) {   // stays frozen (no cells) until its seed lands; the margin reaching it asks for one
@@ -1569,6 +1588,7 @@ void WaterCoreGpu::uploadSubmit(Volume& vol) {
 
 void WaterCoreGpu::queueMomentum(Volume& vol, const glm::vec3& pos, float radius, const glm::vec3& momentum, float maxSpeed) {
     if (vol.pendingMomentum.size() / 8 >= static_cast<size_t>(kMaxMomentum)) { ++vol.momentumDropped; return; }
+    noteDisturbance(vol, pos);   // 51 S1: debris giving the water momentum disturbs it
     const glm::vec3 local = pos - glm::vec3(vol.spec.origin) * vol.spec.h;   // the kernel works in metres from the grid's origin
     const float r[8] = {local.x, local.y, local.z, radius, momentum.x, momentum.y, momentum.z, maxSpeed};
     vol.pendingMomentum.insert(vol.pendingMomentum.end(), r, r + 8);
@@ -1579,7 +1599,19 @@ void WaterCoreGpu::queueMomentum(Volume& vol, const glm::vec3& pos, float radius
     }
 }
 
+void WaterCoreGpu::noteDisturbance(Volume& vol, const glm::vec3& worldPos) {
+    if (s_disturbanceRadiusM <= 0.0f) return;
+    const glm::vec2 c((worldPos.x / vol.spec.h) - static_cast<float>(vol.spec.origin.x), (worldPos.z / vol.spec.h) - static_cast<float>(vol.spec.origin.z));
+    const float merge = 2.0f / vol.spec.h;   // within 2 m of a live centre: the same disturbance (a moving body leaves one every 2 m)
+    size_t nearest = 0; float best = 1e30f;
+    for (size_t i = 0; i < vol.discCentres.size(); ++i) { const float d = glm::length(vol.discCentres[i] - c); if (d < best) { best = d; nearest = i; } }
+    if (best <= merge) return;
+    if (static_cast<int>(vol.discCentres.size()) >= kMaxDisturbances) { vol.discCentres[nearest] = 0.5f * (vol.discCentres[nearest] + c); vol.discDirty = true; return; }
+    vol.discCentres.push_back(c); vol.discDirty = true;
+}
+
 void WaterCoreGpu::queueImpulse(Volume& vol, const glm::vec3& worldPos, float radius, const glm::vec3& deltaV) {
+    noteDisturbance(vol, worldPos);   // 51 S1
     if (vol.pendingMomentum.size() / 8 >= static_cast<size_t>(kMaxMomentum)) { ++vol.momentumDropped; return; }
     const glm::vec3 local = worldPos - glm::vec3(vol.spec.origin) * vol.spec.h;
     const float r[8] = {local.x, local.y, local.z, radius, deltaV.x, deltaV.y, deltaV.z, -1.0f};
@@ -1590,6 +1622,7 @@ void WaterCoreGpu::queueImpulse(Volume& vol, const glm::vec3& worldPos, float ra
 }
 
 void WaterCoreGpu::queueRadialImpulse(Volume& vol, const glm::vec3& worldCentre, float reach, float speedAtCentre, float upBias, float maxSpeed) {
+    noteDisturbance(vol, worldCentre);   // 51 S1
     if (vol.pendingMomentum.size() / 8 >= static_cast<size_t>(kMaxMomentum)) { ++vol.momentumDropped; return; }
     const glm::vec3 local = worldCentre - glm::vec3(vol.spec.origin) * vol.spec.h;
     const float r[8] = {local.x, local.y, local.z, reach, speedAtCentre, upBias, maxSpeed, -2.0f};
@@ -1711,6 +1744,10 @@ void WaterCoreGpu::setSolidsBox(Volume& vol, const std::vector<float>& s, const 
     else { unite(vol.solidUpLo, vol.solidUpHi, chLo, chHi); vol.pendingWakeAges.push_back(std::max(frameSeconds, 1e-4f)); }   // the CPU's T
     unite(vol.solidWakeLo, vol.solidWakeHi, lo, hi);
     vol.solidUpPending = true;
+    if (any && !emptyBox) {   // 51 S1: a body is a disturbance - its box's centre, in world metres
+        const glm::vec3 mid = (glm::vec3(lo + hi) * 0.5f + glm::vec3(0.5f) + glm::vec3(vol.spec.origin)) * vol.spec.h;
+        noteDisturbance(vol, mid);
+    }
     vol.hasSolids = any;
     vol.solidRatesPending = any;
     vol.solidFrame = std::max(frameSeconds, 1e-4f);   // T = 0 would ask for an infinite rate
@@ -2504,6 +2541,12 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
         for (int L = 0; L < 3; ++L) { push.iparam = vol.bricked ? L : static_cast<int32_t>(n[L]); dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }
         barrier(cmd);
     }
+    if (!vol.discCentres.empty() && s_disturbanceRadiusM > 0.0f && vol.sourceCount == 0 && params.bedManning <= 0.0f && !vol.particles) {
+        // 51 S1: the area threshold - waves fade within the radius of a disturbance (standing water only: a current is not a wave)
+        push.mode = 13; push.param0 = std::min(1.0f, s_spongeRate * push.dt);
+        for (int L = 0; L < 3; ++L) { push.iparam = L; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }
+        barrier(cmd);
+    }
     if (vol.anySettle && vol.bricked) {   // 50.6f: the settling columns' faces at the rest rate (FaceOps mode 11)
         push.mode = 11; push.param0 = std::min(1.0f, params.restDamping * push.dt);
         for (int L = 0; L < 3; ++L) { push.iparam = L; dispatchNoBarrier(cmd, *vol.pipes[FaceOpsU + L], push, n[L]); }
@@ -2659,6 +2702,32 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     if (!vol.asleep) updatePartialWake(vol, params);   // 26.31: may freeze every column (asleep)
     WaterHostProfile::lap("gpu.03 partial wake (freeze test)", hp);
     st.awakeColumns = vol.awakeCols; st.frozenColumns = vol.frozenCols; st.movingColumns = vol.movingCols; st.settlingColumns = vol.settleCols;
+    if (!vol.discCentres.empty()) {   // 51 S1: a centre expires when no stored, awake brick column lies within its radius
+        const float rCells = std::max(s_disturbanceRadiusM, s_disturbanceBandM + 2.0f) / vol.spec.h + 6.0f;   // + half a brick's diagonal
+        const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
+        auto awakeNear = [&](const glm::vec2& c) {
+            if (vol.asleep) return false;
+            if (!vol.partialWake || vol.colFrozen.size() != nc) return true;   // no freeze test: the radius holds while the volume is awake
+            for (const int packed : vol.colEntries) {
+                const int bx = packed & 1023, bz = (packed >> 10) & 1023;
+                const size_t ci = static_cast<size_t>(bx) + static_cast<size_t>(vol.bn.x) * bz;
+                if (ci >= nc || vol.colFrozen[ci]) continue;
+                const glm::vec2 mid(bx * 8.0f + 4.0f - vol.o.x, bz * 8.0f + 4.0f - vol.o.z);
+                if (glm::length(mid - c) <= rCells) return true;
+            }
+            return false;
+        };
+        const size_t before = vol.discCentres.size();
+        vol.discCentres.erase(std::remove_if(vol.discCentres.begin(), vol.discCentres.end(), [&](const glm::vec2& c) { return !awakeNear(c); }), vol.discCentres.end());
+        if (vol.discCentres.size() != before) { vol.discExpired += static_cast<int>(before - vol.discCentres.size()); vol.discDirty = true; }
+    }
+    if (vol.discDirty && vol.discBuf.mapped) {   // after this call's settle: no call in flight reads it
+        auto* d = static_cast<float*>(vol.discBuf.mapped);
+        const float rd = std::max(s_disturbanceRadiusM, s_disturbanceBandM + 2.0f), band = std::max(0.5f, s_disturbanceBandM);   // the clamp: the fade never starts at the centre
+        d[0] = s_disturbanceRadiusM > 0.0f ? static_cast<float>(vol.discCentres.size()) : 0.0f; d[1] = rd / vol.spec.h; d[2] = band / vol.spec.h; d[3] = 0.0f;
+        for (size_t i = 0; i < vol.discCentres.size(); ++i) { d[4 + 4 * i] = vol.discCentres[i].x; d[5 + 4 * i] = vol.discCentres[i].y; d[6 + 4 * i] = 0.0f; d[7 + 4 * i] = 0.0f; }
+        vol.discDirty = false;
+    }
     if (vol.asleep || ticks <= 0) {
         flushSolidUpload(vol);   // 44.2: nothing recorded this call - the bodies' box goes up on its own, as before the fold
         st.asleep = vol.asleep; st.quietTicks = vol.quietTicks;
