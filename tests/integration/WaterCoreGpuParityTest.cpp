@@ -307,6 +307,38 @@ TEST_F(WaterCoreGpuParityTest, GpuStillWaterHasNoDrift) {
     }
 }
 
+// 50.6g: a disturbed pond goes QUIET on the GPU at the automatic sweep count, as the CPU reference does. A 4 x 4 m pond 2 m deep
+// (36 x 36 cells at 1/9 m, 18 deep), its surface tilted 2 cells across x at the start, the raw solver: quiet = the volume's sleep
+// test passed for restTicks (30) in a row within 30 s. Prediction: CPU quiet by ~22 s (DiagChurnLoop), the GPU at the automatic count
+// by ~24 s. RED (20 sweeps, the count before 50.6g, same binary): never quiet in 30 s - 20 sweeps leave enough divergence in moving
+// water for the transport, compaction and carry-up to keep it moving.
+TEST_F(WaterCoreGpuParityTest, GpuDisturbedPondGoesQuiet) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 9.0f;
+    const int W = 36, D = 18;
+    auto firstQuiet = [&](int sweeps) -> double {
+        Tank t(W, D + 6, W, h);
+        for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) {
+            const float top = D + 2.0f * (x - W * 0.5f) / W;
+            for (int y = 0; y < D + 6; ++y) t.grid.f(x, y, z) = std::clamp(top - static_cast<float>(y), 0.0f, 1.0f);
+        }
+        auto* vol = make(t); if (!vol) return -1.0;
+        SolverParams prm; prm.restTicks = 1 << 30;   // never asleep: count the quiet ticks
+        double at = -1.0;
+        for (int tick = 1; tick <= 60 * 30 && at < 0.0; ++tick) {
+            const auto st = gpu.step(*vol, prm, kDt, 1, sweeps);
+            if (st.quietTicks >= 30) at = tick * kDt;
+        }
+        gpu.destroyVolume(vol);
+        return at;
+    };
+    const int autoSweeps = std::clamp(static_cast<int>(std::lround(1.5 * (D + 6 > W ? D + 6 : W))), WaterCoreManager::kGpuSweepsMin, WaterCoreManager::kGpuSweepsAutoMax);   // the manager's rule
+    const double q = firstQuiet(autoSweeps), qRed = firstQuiet(20);
+    std::printf("  automatic count %d sweeps: quiet at %.1f s | RED (20 sweeps): %s\n", autoSweeps, q, qRed < 0.0 ? "never in 30 s" : std::to_string(qRed).c_str());
+    EXPECT_GT(q, 0.0) << "the disturbed pond never went quiet at the automatic sweep count";
+    EXPECT_LT(qRed, 0.0) << "RED CONTROL: at 20 sweeps the pond went quiet - the test no longer measures the loop";
+}
+
 // 50.6f diagnostic: does a small pond, disturbed, settle - or keep re-driving itself (the 60 m lake's loop)? CL_W x CL_W cells at
 // 1/9 m, CL_D deep, 6 air cells, the surface tilted by CL_TILT cells across x at the start; the raw solver (no partial wake), GPU and
 // CPU side by side. Every 2 s: KE, the tick's max |df|, quiet ticks / asleep, and on the GPU each fill stage's gross change (single-

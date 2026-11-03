@@ -12567,6 +12567,24 @@ CL_SWEEPS / CL_BRICKED / CL_LINES):
   the larger one - a visible splash on a big lake costs the game ~a minute at 18-30 fps: keep the tall band on in rough water, step
   only the disturbed part (it is - but the disturbance reaches the whole 60 m lake in seconds), or cap the fixed tick's catch-up.
 
+**50.6h The automatic sweep count 20 -> 40 (owner 2026-11-02, "Yes, 40"; BUILT, ON).** `WaterCoreManager::kGpuSweepsAutoMax`
+(and the per-volume initial `kGpuSweeps`) 40. 26.35 measured waves and rest at 20; it did not measure settling (50.6g).
+- **Pinned:** `WaterPressureSweeps.TheAutomaticCountStopsAtForty` (red: 20). Behaviour: `WaterCoreGpuParityTest.GpuDisturbedPondGoesQuiet`
+  - the 4 m pond tilted 2 cells, quiet at the automatic count by **22.3 s** (prediction ~24 s; the CPU reference 22 s); RED (20
+  sweeps, same binary): never quiet in 30 s.
+- **Two tests had leaned on the old count:**
+  - `ABodysBoxUploadedWithTheStepMakesTheSameWaterAsAnUploadOfItsOwn`: 120 cells "differed" - all in a brick NOT STORED (at 40 the
+    pond sloshes less and an air brick the stone's wake crossed was never stored; such a brick takes the bodies' fields from
+    hostSolid when it is stored). `readSolidForTest` now marks unstored cells (-1 in the wake lane) and the test compares stored cells
+    only: 0 of 2,760 differ, both paths; its red still 2,640.
+  - `TheWaterMovesTheSameAtAnyFrameRate`: its red (no fixed tick at 1/30 s frames stays awake) **no longer holds** - with the pressure
+    converged the step-per-frame path settles in the same seconds (0 awake at 12 s; 1/20 and 1/24 s frames, pushes 1 m / 6 and
+    2 m / 8 alike). 27.26's frame-rate dependence was the 20-sweep solve's; the fixed tick stays (W1f), its old justification now
+    weaker. The control re-founded on what it must show: the stone wakes the pond (> 500 columns at 6 s) on both paths. Noted: at
+    the 1 m / 6 push the FIXED tick at 1/30 s frames (2 ticks a call) settles faster than at 1/60 (263 vs 866 awake at 18 s) - the
+    partial wake decides per call, not per tick; inside the test's bound at its own push.
+- Not measured yet: the whole frame live at 40 vs 20 for a SMALL stone (50.6g's live run was the visible push).
+
 **Where this leaves W1g (and the plan).** (Updated by 50.6d: the floor and the bed churn were one defect, the GPU pressure in float,
 fixed; the freeze storing motion stands.) As written before 50.6d: three solver defects stand under recording: the freeze stores a node's velocity (50.6b),
 compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the surface (the phantom current, 19.6). At shipped

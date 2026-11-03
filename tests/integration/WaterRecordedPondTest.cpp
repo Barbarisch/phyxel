@@ -589,10 +589,16 @@ TEST_F(WaterRecordedPondTest, ABodysBoxUploadedWithTheStepMakesTheSameWaterAsAnU
         // trapped-air voids, so this is the check that the device ages it right
         std::vector<float> dev, cpu;
         ASSERT_TRUE(mgr.readSolidsForTest(id, dev, cpu));
+        // 50.6g: only STORED cells have a device copy (readSolidForTest marks the rest -1); a brick not stored takes the bodies'
+        // fields from hostSolid when it is stored. At 40 sweeps the pond sloshes less and an air brick the stone's wake crossed was
+        // never stored: 120 cells read 0 against the CPU's 11.3 s - not a difference in the water
+        long absentWake = 0;
         for (size_t i = 0; i < cpu.size() && i * 4 + 2 < dev.size(); ++i) {
             if (cpu[i] > 0.0f) ++wakeCells[run];
+            if (dev[i * 4 + 2] < 0.0f) { if (cpu[i] > 0.0f) ++absentWake; continue; }
             if (dev[i * 4 + 2] != cpu[i]) ++wakeDiff[run];
         }
+        std::printf("  run %d: wake cells %ld, stored and differing %ld, in bricks not stored %ld\n", run, wakeCells[run], wakeDiff[run], absentWake);
     }
     std::printf("  the wake, device vs CPU: folded %ld of %ld cells differ; sync %ld of %ld; the red (no device aging) %ld of %ld\n",
                 wakeDiff[0], wakeCells[0], wakeDiff[1], wakeCells[1], wakeDiff[3], wakeCells[3]);

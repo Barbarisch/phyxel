@@ -543,7 +543,7 @@ TEST_F(WaterRecordTilesTest, RemovingAVolumeNeverLosesWater) {
 // 30 fps frame let a pushed pond slosh far longer in SECONDS than 60 fps did (the 60 x 60 m lake never settled live, 27.24). With
 // the fixed water tick (1/60 s from an accumulator) and the freeze / sleep tests in time, the same 40 x 24 m pond and stone driven
 // through update() (the live path: realtime, async) at frames of 1/30, 1/60 and 1/144 s have the same awake patch after the same
-// seconds. RED CONTROL: frames of 1/30 s without the fixed tick stay awake.
+// seconds. (The red control - frames of 1/30 s without the fixed tick stay awake - held at 20 sweeps only: 50.6g, below.)
 TEST_F(WaterRecordTilesTest, TheWaterMovesTheSameAtAnyFrameRate) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     struct Out { int peak = 0; std::vector<int> awakeAt; };   // awake columns at 6 / 12 / 18 / 24 s after the stone
@@ -587,7 +587,12 @@ TEST_F(WaterRecordTilesTest, TheWaterMovesTheSameAtAnyFrameRate) {
     const int settled = std::max(50, a.awakeAt[3] * 2);
     EXPECT_LE(b.awakeAt[3], settled) << "a slow frame settles as 60 fps does";
     EXPECT_LE(c.awakeAt[3], settled) << "a fast frame too";
-    EXPECT_GT(red.awakeAt[3], 3 * std::max(b.awakeAt[3], 20)) << "RED CONTROL: a tick per 1/30 s frame stays awake";
+    // 50.6g: the old red ("a tick per 1/30 s frame stays awake", 3x the fixed tick's columns at 24 s) no longer holds - with the
+    // pressure converged (40 sweeps) the step-per-frame path settles in the same seconds (0 awake at 12 s here; at 1/20 and 1/24 s
+    // frames too, and at pushes 1 m / 6 and 2 m / 8 it tracks 60 fps as closely as the fixed tick does). The 27.26 difference was the
+    // 20-sweep solve's. The control now proves only that the metric sees motion: the stone woke most of the pond.
+    EXPECT_GT(a.awakeAt[0], 500) << "CONTROL: the stone woke the pond (else 'settled' measures nothing)";
+    EXPECT_GT(red.awakeAt[0], 500) << "CONTROL: ... on the step-per-frame path too";
 }
 
 // DIAGNOSTIC (run by name): the dry squares of the owner's lake clip (27.26 ft_look) in a test. The bench lake - 60 x 60 m, 2 m deep,

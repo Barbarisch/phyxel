@@ -249,3 +249,10 @@ TEST(WaterFixedTick, TheDefaultIsOneSixtieth) {
     EXPECT_FLOAT_EQ(WaterCoreManager::kFixedTickDefaultS, 1.0f / 60.0f);
     EXPECT_FLOAT_EQ(WaterCoreManager::s_fixedTickS, WaterCoreManager::kFixedTickDefaultS) << "a test left the tick changed";
 }
+
+// §50.6g: the automatic pressure-sweep count stops at 40 (owner 2026-11-02, "Yes, 40"; was 20 since 26.35). At 20 the GPU's solve
+// left a disturbed pond enough divergence to keep itself moving (never quiet; the 60 m lake awake as a whole ~46 s after a visible
+// push), 40 settles it like the CPU reference (WaterCoreGpuParityTest.GpuDisturbedPondGoesQuiet).
+TEST(WaterPressureSweeps, TheAutomaticCountStopsAtForty) {
+    EXPECT_EQ(WaterCoreManager::kGpuSweepsAutoMax, 40);
+}

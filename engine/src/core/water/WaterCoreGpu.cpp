@@ -1789,8 +1789,10 @@ bool WaterCoreGpu::readSolidForTest(Volume& vol, std::vector<float>& dense) {
     dense.assign(static_cast<size_t>(n.x) * n.y * n.z * 4, 0.0f);
     for (int z = 0; z < n.z; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
         const long i = storageIndex(vol, x, y, z);
-        if (i < 0) continue;
-        std::memcpy(&dense[(static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z)) * 4], ss + static_cast<size_t>(i) * 4, 16);
+        const size_t d = (static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z)) * 4;
+        if (i < 0) { dense[d + 2] = -1.0f; continue; }   // 50.6g: a cell of a brick NOT stored reads -1 in the wake lane (it has no device copy:
+                                                         // it takes the bodies' fields from hostSolid when it is stored) - never a 0 to compare
+        std::memcpy(&dense[d], ss + static_cast<size_t>(i) * 4, 16);
     }
     return true;
 }
