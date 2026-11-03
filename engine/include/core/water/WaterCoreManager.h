@@ -520,6 +520,10 @@ public:
     /// and counted (sleptLoadStats).
     std::string serializeSlept() const;
     bool loadSlept(const std::string& json);
+    /// 51 S2: a lake STRAIGHT INTO THE RECORD - spans from `bottomY` to `topY` over the voxel columns lo.x..hi.x, lo.z..hi.z (the caller
+    /// says the ground is under bottomY: the seed fills air cells only, so water placed into rock is never simulated), and one slept box
+    /// over them with `sv`'s settings. No volume, no per-cell memory: any size. Returns the m^3 written (-1 = no span writer).
+    double recordLake(const glm::ivec3& lo, const glm::ivec3& hi, float bottomY, float topY, const SleptVolume& settings, long* unwritten = nullptr);
     struct SleptLoadStats { long restored = 0, skipped = 0; std::string error; };
     const SleptLoadStats& sleptLoadStats() const { return m_sleptLoad; }
     /// A2i (47): the world is leaving (a scene transition saves it next) - every live volume is written back (sleep, forced) so the

@@ -12743,7 +12743,21 @@ The W rows (W1-W6, §27 / §50) fold into S1-S4: W1's remaining items serve S1-S
 | 200 m, a second splash 60 m off | two patches | 1,249 | 8.3 s | 16.7 s | 1 | exact |
 | 200 m, 3 m from the shore | clipped at the shore (24 m) | 401 | 2.5 s | 16.1 s | 1 | exact |
   The one-volume rig (`ASplashCostsTheSameInAnySizeOfLake`, 51.1) is superseded and disabled - it measures the representation S2
-  replaces. **Not measured yet:** live (L4) - the bench lake made by `water_av_create`, slept, a splash; the whole frame; your clip.
+  replaces.
+- **LIVE (L4, Creek bench, `tools/water_record_lake_live.py`, `w51_record_lake_live.json`):** lakes written STRAIGHT INTO THE RECORD
+  (`water_av_record_lake`, new: spans + one slept box; `water_av_impulse` now wakes slept water at its point first, as a stone or a
+  blast does - `wake_slept:false` is the old behaviour), a 2 m / strength-8 splash at the centre; the record drawn to 200 m (rig):
+| | 60 m lake | **150 m lake** (a 49 M-cell box: over the cap - it exists only as the record) |
+|---|---|---|
+| at rest (the record only) | 341 fps | 298 fps |
+| the splash wakes | one 40 x 40 m patch, peak 628 columns | one 40 x 40 m patch, peak 627 columns |
+| fps 0-8 s after (mean; worst frame) | 246 (**179 ms**) | 143 (**517 ms**) |
+| after, back in the record | 343 fps | 201 fps (CPU 19.7 ms, worst 65 ms) |
+  **The simulated part is the same on both.** Three live problems the tests did not show: (1) **the patch's wake stalls the frame**
+  179-517 ms - creating a 40 x 40 m volume allocates its CPU mirror (~125 B a cell of the box, ~440 MB) and seeds it on the main
+  thread (A2f's stall, W1d.3's mirror); patches are not paced (L4 paces whole-pond wakes only); (2) the bigger lake costs more AT
+  REST through the record's drawing to 200 m - S3's skin replaces that; (3) after the patch sleeps the 150 m lake runs ~20 ms of CPU
+  a frame (not yet traced - likely the record tiles rebuilt over the lake). Next: (1) first.
 - Tests: water unit 369 / 369; integration water all pass but the known two.
 
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF

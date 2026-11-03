@@ -1582,6 +1582,27 @@ std::vector<int> WaterCoreManager::wakeSleptNear(const glm::vec3& c, float radiu
     return ids;
 }
 
+double WaterCoreManager::recordLake(const glm::ivec3& lo, const glm::ivec3& hi, float bottomY, float topY, const SleptVolume& settings, long* unwritten) {
+    if (!m_spanWriter || topY <= bottomY) return -1.0;
+    std::vector<ColumnRuns> runs;
+    for (int z = lo.z; z <= hi.z; ++z) for (int x = lo.x; x <= hi.x; ++x) {
+        ColumnRuns c; c.x = x; c.z = z;
+        ColumnRun r; r.bottomY = bottomY; r.topY = topY; r.mass = static_cast<double>(topY - bottomY);
+        c.runs.push_back(r);
+        runs.push_back(std::move(c));
+    }
+    long un = 0, chunks = 0;
+    writeSpans(runs, bottomY, topY, &un, &chunks);
+    if (unwritten) *unwritten = un;
+    SleptVolume sv = settings;
+    sv.lo = glm::ivec3(lo.x, static_cast<int>(std::floor(bottomY)), lo.z); sv.hi = glm::ivec3(hi.x, static_cast<int>(std::ceil(topY)), hi.z);
+    eraseSleptOverlapping(sv.lo, sv.hi);
+    m_slept.push_back(sv);
+    buildRecordTilesNow(sv.lo, sv.hi);
+    const double cols = static_cast<double>(hi.x - lo.x + 1) * static_cast<double>(hi.z - lo.z + 1);
+    return cols * static_cast<double>(topY - bottomY) - static_cast<double>(un) * static_cast<double>(topY - bottomY);
+}
+
 std::string WaterCoreManager::serializeSlept() const {
     nlohmann::json boxes = nlohmann::json::array();
     for (const SleptVolume& s : m_slept)
