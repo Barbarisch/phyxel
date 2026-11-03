@@ -168,6 +168,29 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **▶ MATSIM — Noita-style material simulation (branch `feat/matsim-lab`, pushed; worktree `../phyxel-matsim` on the
+  laptop).**
+  - **The owner's north star (2026-11-03):** bring Noita's "every pixel is a simulated material" feel and physics into this
+    3D "every voxel is a material" engine, with GPU physics wherever possible and highly destructible worlds.
+  - **Read first, in order:**
+    1. [`docs/NoitaGapAnalysis.md`](NoitaGapAnalysis.md) — the engine audited against principles N1–N9, with a Tier 0–6
+       roadmap.
+    2. [`docs/MaterialSimPlan.md`](MaterialSimPlan.md) — the plan. Owner decisions are in §9a; the P1 design (READY after the
+       design-check) is in §6a.
+    3. [`docs/CollisionProxyPlan.md`](CollisionProxyPlan.md) — capped collision proxies for complex shapes.
+  - **Standing rules:**
+    - MatSim is developed **alongside WaterCore and must never interfere with it.** It only reads shared data (§2's
+      separation contract); the two are married later, at four seams.
+    - Cell size is **switchable live between 1, 1/3 and 1/9 m**, through an exact integer remap.
+    - Scaling is **"deferred, never skipped"**; coarse cells only as an owner-approved exception.
+    - Waves must **make sense in the world's shape**: refracted to the coast, never inside a solid.
+    - Measure on the laptop now and the 4090 later.
+    - **One heavy job at a time on the laptop**, since another session may be building or running.
+  - **Status 2026-11-03:** plan only. Next is P1a, a CPU reference cellular automaton plus its unit tests. No MatSim code
+    exists yet.
+  - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then
+    `git submodule update --init external/glm external/imgui`.
+
 - **▶ WATER CORE — ACTIVE (branch `feat/water-rethink`, pushed after every commit).** The design of record AND
   build ledger is [`docs/WaterCore.md`](WaterCore.md); **read its §30 then §0a first** (where things stand, what is next).
   **§30 is the plan of record:** track A (small-body physics, §30.4) is the current track. Work outside it gets a row in the
