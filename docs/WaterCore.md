@@ -12723,6 +12723,29 @@ The W rows (W1-W6, §27 / §50) fold into S1-S4: W1's remaining items serve S1-S
   `FrozenTilesRecordAndWakeWithTheBooksExact`'s red control (a seed's fPrev cascade) runs with the radius off - S1 stops the cascade
   it exists to show.
 
+**51.2 S2 BUILT, ON (2026-11-03) - a lake of any size is the record; a splash wakes a PATCH.** (`WaterCoreManager::s_patchWake`,
+`wakePatch`, `patchBoxFor`; design-check READY with amendments A and B.)
+- **What it is:** a slept pond (the record + one `SleptVolume` box - no per-cell memory, any size) that a blast (`wakeSleptNear`) or a
+  touching body (`wakeSleptTouching`) reaches wakes a PATCH, not the pond: the disturbance's own 8 m record tile and k = ceil((radius +
+  kPatchMarginM 2 m) / 8) tiles each side (5 x 5 tiles, 40 x 40 m at the 12 m radius - the SAME size wherever in its tile the splash
+  falls: snapping c +- R outward first gave 4 or 5 tiles by its position, 1,024 vs 1,600 m2, measured), clipped to the pond, seeded
+  from the record; the S1 centre noted. The pond STAYS slept (`create` keeps the slept box: `m_createKeepsSlept`). A disturbance inside
+  a live patch is a centre on it; one whose patch would overlap a live patch of the same pond merges them (the live one written back,
+  the union woken, at most kPatchMaxM 64 m) or, past that, is clipped off it (amendment B: never two volumes over the same water). A
+  patch that sleeps writes its columns back and is destroyed with no slept box of its own; the record tiles under it rebuild at once.
+  Record tiles already skip the columns a live volume owns (no double draw). A pond no bigger than a patch wakes whole, as before.
+  Bodies wake patches at once (not paced: L4's paced wake stays for whole-pond wakes).
+- **The acceptance test** `ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch` (the live path - update, realtime; FakeRecord; 40 s):
+| lake | patch | peak awake | GPU while it lived | back in the record | slept boxes | books |
+|---|---|---|---|---|---|---|
+| 60 m | 40 x 40 m | 628 | 3.5 s | 15.8 s | 1 | exact |
+| **200 m** (a 66 M-cell box - could not exist before) | 40 x 40 m | 617 | 3.9 s (**1.12x**) | 16.3 s | 1 | exact |
+| 200 m, a second splash 60 m off | two patches | 1,249 | 8.3 s | 16.7 s | 1 | exact |
+| 200 m, 3 m from the shore | clipped at the shore (24 m) | 401 | 2.5 s | 16.1 s | 1 | exact |
+  The one-volume rig (`ASplashCostsTheSameInAnySizeOfLake`, 51.1) is superseded and disabled - it measures the representation S2
+  replaces. **Not measured yet:** live (L4) - the bench lake made by `water_av_create`, slept, a splash; the whole frame; your clip.
+- Tests: water unit 369 / 369; integration water all pass but the known two.
+
 ## 28. The launch count (2026-10-23): measured - it is not the cost. Status: MEASURED; line sweeps built, OFF
 
 **The ask (owner, 2026-10-23):** "yes" - after 27.22c concluded the dispatch count was the bottleneck. Measured before building

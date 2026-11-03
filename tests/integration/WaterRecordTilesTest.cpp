@@ -17,6 +17,7 @@
 #include "core/water/WaterCoreGpu.h"
 #include "core/water/WaterSurfaceMesh.h"
 #include "core/water/WaterCoreManager.h"
+#include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -874,7 +875,81 @@ static void runSplashCost(VulkanTestFixture&, VkDevice device, VkPhysicalDevice 
     books = mgr.totalMass() + record.total() - placed;
 }
 
-TEST_F(WaterRecordTilesTest, ASplashCostsTheSameInAnySizeOfLake) {
+// 51 S2 THE ACCEPTANCE TEST ON THE RECORD: a lake is the record (spans) and one slept box - never a volume over the whole body. A
+// 60 m and a 200 m lake (2 m deep; a 200 m volume box would be ~66 M cells, four times the cap), the same visible splash at the
+// centre: a blast wakes a PATCH (wakeSleptNear), the push lands in it, the live path (update, realtime) runs 40 s. Per lake: the
+// patch's box, its peak awake columns, the GPU time summed while it lives, whether it went back to the record, the books
+// (record - placed once it slept). Also: the slept box list is unchanged (one box, no box per patch); a second splash 60 m away
+// in the 200 m lake makes a second patch; a splash 3 m inside the shore clips its patch to the lake.
+struct LakeSplash { glm::ivec3 lo{0}, hi{0}; int peakAwake = 0, patches = 0, sleptBoxes = 0; double gpuMs = 0.0, books = 0.0; bool slept = false; float sleptAt = -1.0f; };
+static LakeSplash runRecordedLake(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, int W, glm::vec2 at, glm::vec2* second = nullptr) {
+    LakeSplash o;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    const double placed = record.total();
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", WaterCoreManager::s_tallBandDefault}};
+    EXPECT_TRUE(mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump()));
+    auto splash = [&](glm::vec2 c) {
+        const std::vector<int> ids = mgr.wakeSleptNear(glm::vec3(c.x, 1.9f, c.y), 2.0f);
+        mgr.addImpulse(glm::vec3(c.x, 1.9f, c.y), 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        return ids;
+    };
+    const std::vector<int> ids = splash(at);
+    if (ids.empty()) { ADD_FAILURE() << "the splash woke nothing"; return o; }
+    if (const AvRecord* r = mgr.find(ids[0])) { o.lo = r->minVoxel; o.hi = r->maxVoxel; }
+    if (second) splash(*second);
+    const float dt = 1.0f / 60.0f;
+    for (int k = 0; k < 60 * 40; ++k) {
+        mgr.update(dt);
+        int live = 0, awake = 0; double ms = 0.0;
+        for (const AvRecord& r : mgr.list()) { ++live; if (!r.asleep) awake += r.awakeColumns; ms += r.gpuDeviceMs; }
+        o.patches = std::max(o.patches, live);
+        o.peakAwake = std::max(o.peakAwake, awake);
+        o.gpuMs += ms;
+        if (live == 0 && !o.slept) { o.slept = true; o.sleptAt = (k + 1) * dt; }
+    }
+    o.sleptBoxes = static_cast<int>(mgr.sleptVolumes().size());
+    o.books = (o.slept ? record.total() : record.total() + mgr.totalMass()) - placed;
+    return o;
+}
+
+TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    // the baseline is a lake LARGER than a patch (60 m): past the patch's size the cost may not grow with the lake. (A 30 m lake is
+    // smaller than a patch - its whole 900 m2 woke against the 200 m lake's 1,600 m2 patch: 2.55 vs 3.59 s, measured.)
+    const LakeSplash a = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 60, glm::vec2(30.0f, 30.0f));
+    const LakeSplash b = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(100.0f, 100.0f));
+    glm::vec2 far(160.0f, 100.0f);
+    const LakeSplash c = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(100.0f, 100.0f), &far);
+    const LakeSplash e = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(3.0f, 100.0f));
+    auto line = [](const char* n, const LakeSplash& s) {
+        std::printf("  %-34s patch x %d..%d z %d..%d | peak awake %d, live volumes %d, GPU %.0f ms, back in the record %d (at %.1f s), slept boxes %d, books %+.4f m^3\n",
+                    n, s.lo.x, s.hi.x, s.lo.z, s.hi.z, s.peakAwake, s.patches, s.gpuMs, int(s.slept), s.sleptAt, s.sleptBoxes, s.books);
+    };
+    line("60 m lake", a); line("200 m lake", b); line("200 m lake, a second splash 60 m off", c); line("200 m lake, a splash 3 m from the shore", e);
+    EXPECT_GT(a.peakAwake, 200) << "CONTROL: the splash woke water";
+    EXPECT_LE(b.peakAwake, 1.3 * a.peakAwake) << "the 200 m lake simulated more than the 60 m one";
+    EXPECT_LE(b.gpuMs, 1.3 * a.gpuMs) << "the 200 m lake cost more GPU time than the 60 m one";
+    EXPECT_LE(a.gpuMs, 1.3 * b.gpuMs) << "(and the other way: the same splash, the same patch)";
+    EXPECT_LE(b.hi.x - b.lo.x + 1, 40) << "the patch is not bounded by the splash";
+    EXPECT_TRUE(b.slept) << "the patch did not go back to the record";
+    EXPECT_EQ(b.sleptBoxes, 1) << "a patch left a slept box of its own";
+    EXPECT_EQ(c.patches, 2) << "a splash 60 m away did not make its own patch";
+    EXPECT_EQ(e.lo.x, 0) << "the shore splash's patch is not clipped to the lake";
+    for (const LakeSplash* s : {&a, &b, &c, &e}) EXPECT_LT(std::abs(s->books), 1e-3);
+}
+
+// SUPERSEDED by ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch (51 S2): this rig holds a lake as ONE volume over its whole box - the
+// representation S2 replaces (a lake is the record; a splash wakes a patch). Its numbers (51.1: S1 0.99x the columns, 2.45x the GPU
+// from box-sized passes) are in WaterCore.md. Kept to measure that representation by name.
+TEST_F(WaterRecordTilesTest, DISABLED_ASplashCostsTheSameInAnySizeOfLake) {
     if (!isVulkanAvailable()) GTEST_SKIP();
     int pa = 0, pb = 0; double ga = 0.0, gb = 0.0, ba = 0.0, bb = 0.0;
     runSplashCost(*this, device, physicalDevice, queue, queueFamilyIndex, 30, pa, ga, ba);

@@ -74,6 +74,7 @@ struct AvRecord {
     long tilesWokenByWrite = 0;            ///< §27 W1b: of the wakes, by a write (push, placed water, momentum, a body, a droplet) - the rest by moving water's margin
     double lastRecordMs = 0.0, lastWakeMs = 0.0, seedUnplacedM3 = 0.0;   ///< §27 W1b: the last tile record / wake (ms); seeded water the capacity refused
     int awakeColumns = 0, frozenColumns = 0, movingColumns = 0;   ///< 26.31: the last call's (WaterCoreGpu GpuStepStats)
+    bool isPatch = false; glm::ivec3 patchParentLo{0}, patchParentHi{0};   ///< 51 S2: a patch of a slept pond (its parent box)
     int settlingColumns = 0;   ///< 50.6f: the last call's settling (damped) columns
     double carryBodyM3 = 0.0, carryRateM3 = 0.0, carryFlowM3 = 0.0, carryParkedM3 = 0.0;   ///< 26.32: the over-full carry since creation (m^3): made in a body's cells without / with a displacement rate, made elsewhere, parked at a ceiling
     int stepSlots = 0, partitionMoves = 0;                        ///< 26.31 step 2: slots the step dispatched (0 = all); bricks moved
@@ -534,6 +535,7 @@ public:
     struct WorldReset { int volumes = 0, slept = 0, bodies = 0, kept = 0, jobs = 0, recordTiles = 0; double dropletsM3 = 0.0, ms = 0.0; };
     WorldReset resetWorld();
     long worldResets() const { return m_worldResets; }
+    long patchesWoken() const { return m_patchesWoken; }   ///< 51 S2: patches woken in slept ponds since the manager was made
     static inline bool s_resetWorldOffForTest = false;   ///< TEST ONLY: resetWorld() does nothing (before 47 - the unit red)
     static constexpr double kSleptRetryS = 1.0;   ///< 35: a wake that found the box's chunks not resident waits this long to retry
     /// the slept boxes as (lo, hi + 1) world corners - handed to the debris solver with the live ones, so a body inside one reports
@@ -587,6 +589,11 @@ public:
     /// 32: OFF = a slept volume stays in the record whatever touches it (the A/B control). One flag for the process, never saved,
     /// and NOT reset by a world load (an engine control, not world state): water_coupling echoes it next to the default.
     static inline bool s_wakeOnTouch = kWakeOnTouchByDefault;
+    /// 51 S2 (owner 2026-11-02, water at scale): a slept pond larger than a patch wakes a PATCH round the disturbance, never whole -
+    /// the simulated box is the disturbance's, so a lake of any size costs a patch. false = the whole-pond wake (before 51 S2).
+    static inline bool s_patchWake = true;
+    static constexpr float kPatchMarginM = 2.0f;   ///< the patch's box reaches this far past the disturbance radius (the band ends inside it)
+    static constexpr int kPatchMaxM = 64;          ///< two overlapping patches merge into one no wider than this; past it they are clipped apart
     static inline bool s_refuseWindowsForTest = false;   ///< 33 (A2g) TEST: every pressure ask refused as over budget (forces the fallback)
     /// 39.4 (A2f look preview) TEST: a touched slept pond wakes this many seconds after the first touch, not at once - what step 2's
     /// wake built across frames would look like (the body reads the record meanwhile). The wake still runs whole when it fires (the
@@ -829,6 +836,8 @@ private:
         double gpuLastDownloadSec = -1.0;
         bool autoSleep = true;         // Phase D
         double noSleepBefore = 0.0;    // 32: a woken volume's grace (steady seconds) - auto-sleep waits for it
+        bool isPatch = false;          // 51 S2: a PATCH of a slept pond (its box a disturbance's disc, the pond stays slept around it)
+        glm::ivec3 patchParentLo{0}, patchParentHi{0};   // 51 S2: the slept box it belongs to
         double seededMass = 0.0;
         std::vector<WaterBodyTable::ColumnMass> seededColumns;   // per-column seed for the body credit
         WaterSurfaceField field;        // Phase F: the last surface field
@@ -917,6 +926,13 @@ private:
     mutable uint64_t m_recordGen = 0;
     const RecordCol& recordCol(int cx, int cz) const;
     int wakeSlept(size_t i);
+    /// 51 S2: a disturbance at world `c` in slept pond i wakes a PATCH - a box of half-width (the disturbance radius + kPatchMarginM),
+    /// snapped outward to the 8 m record tiles and clipped to the pond, seeded from the record; the pond stays slept. Inside a live
+    /// patch it is a disturbance centre on it; overlapping one, the two merge (written back, the union woken, at most kPatchMaxM).
+    /// Returns the patch's id, or -1 when the pond is no bigger than a patch (the caller wakes it whole, as before).
+    int wakePatch(size_t i, const glm::vec3& c);
+    bool patchBoxFor(const SleptVolume& sv, const glm::vec3& c, glm::ivec3& lo, glm::ivec3& hi) const;
+    bool m_createKeepsSlept = false;   ///< 51 S2: create() leaves the slept boxes it overlaps (a patch's parent pond stays slept)
     // L4 (42): create() in its parts - a paced wake runs them in later frames, the immediate path in a row
     std::unique_ptr<Av> buildCpu(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize, const std::string& transport, std::string* err,
                                  const std::string& backend, int gpuSweeps, int brickHeight, int groundBricks, bool eraseSlept);
@@ -960,6 +976,7 @@ private:
     WaterBodyTable m_bodies;
     std::vector<WriteBackRecord> m_autoSlept;
     long m_worldResets = 0;   // A2i (47)
+    long m_patchesWoken = 0;  // 51 S2
     int m_nextId = 1;
     uint64_t m_avRevision = 0;
     std::vector<std::pair<glm::ivec3, glm::ivec3>> m_boxes;   // mirrors m_avs (16.4)

@@ -59,7 +59,7 @@ std::unique_ptr<WaterCoreManager::Av> WaterCoreManager::buildCpu(const glm::ivec
     const glm::ivec3 lo = glm::min(minVoxel, maxVoxel), hi = glm::max(minVoxel, maxVoxel);
     // 32: a new volume over a remembered (slept) box replaces it - two volumes would wake over the same record. L4: a paced wake
     // erases when it goes live (adopt's caller), not here - its box stays a slept box while it is built
-    if (eraseSlept) eraseSleptOverlapping(lo, hi);
+    if (eraseSlept && !m_createKeepsSlept) eraseSleptOverlapping(lo, hi);   // 51 S2: a patch's parent pond stays slept
     const glm::ivec3 dims = (hi - lo + glm::ivec3(1)) * per;
     const size_t cells = static_cast<size_t>(dims.x) * dims.y * dims.z;
     if (transport != "eulerian" && transport != "flip") { if (err) *err = "transport must be 'eulerian' or 'flip'"; return nullptr; }
@@ -247,7 +247,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.partialWake = av.gpuVol && av.gpuVol->partialWake; r.tallBandM = av.tallBand; r.tallActive = av.gpuVol && av.gpuVol->tallActive; r.tallColumns = av.gpuVol ? av.gpuVol->tallColumns : 0; r.tallRegrids = av.gpuVol ? av.gpuVol->tallRegrids : 0; r.tallExpandHeld = av.gpuVol ? av.gpuVol->tallExpandHeld : 0; r.tallReason = av.tallReason; r.tallOffs = av.tallOffs; r.writesInPlace = av.writesInPlace; r.writesRoundTrip = av.writesRoundTrip; r.tallLastOff = av.tallLastOff; r.tallRestY = std::isnan(av.tallRestY) ? 0.0f : av.tallRestY; r.tallFloorY = (av.gpuVol && av.gpuVol->tallY >= 0) ? (static_cast<float>(av.grid->spec().origin.y + av.gpuVol->tallY) + 1.0f) * av.h : 0.0f; r.recordTiles = av.recordTiles; r.recordedM3 = av.recordedM3; r.recordedTiles = static_cast<int>(av.recordedTileList.size()); r.tilesRecorded = av.tilesRecorded; r.tilesWoken = av.tilesWoken; r.tilesWokenByWrite = av.tilesWokenByWrite; r.tilesHeldByNeighbours = av.tilesHeldByNeighbours; r.gpuWakeAll = av.gpuVol ? av.gpuVol->wakeAllCount : 0; r.recordSpreadMmMax = av.recordSpreadMmMax; r.recordJumpMmMax = av.recordJumpMmMax; r.lastRecordMs = av.lastRecordMs; r.lastWakeMs = av.lastWakeMs; r.seedUnplacedM3 = av.gpuVol ? av.gpuVol->seedUnplacedM3 : 0.0; r.awakeColumns = av.gpuLast.awakeColumns; r.frozenColumns = av.gpuLast.frozenColumns; r.movingColumns = av.gpuLast.movingColumns; r.settlingColumns = av.gpuLast.settlingColumns; r.stepSlots = av.gpuLast.stepSlots; r.partitionMoves = av.gpuLast.partitionMoves; r.carryBodyM3 = av.carryBodyM3; r.carryRateM3 = av.carryRateM3; r.carryFlowM3 = av.carryFlowM3; r.carryParkedM3 = av.carryParkedM3; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuDispatches = av.gpuVol ? av.gpuVol->lastDispatches : 0; r.gpuPoolGrows = av.gpuVol ? av.gpuVol->poolGrows : 0; r.gpuReduceSlots = av.gpuLast.reduceSlots; r.gpuReduceCached = av.gpuLast.reduceCached; r.gpuBarriers = av.gpuVol ? av.gpuVol->lastBarriers : 0; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs; r.gpuDeviceMs = av.gpuLast.deviceMs; r.partialWake = av.gpuVol && av.gpuVol->partialWake; r.tallBandM = av.tallBand; r.tallActive = av.gpuVol && av.gpuVol->tallActive; r.tallColumns = av.gpuVol ? av.gpuVol->tallColumns : 0; r.tallRegrids = av.gpuVol ? av.gpuVol->tallRegrids : 0; r.tallExpandHeld = av.gpuVol ? av.gpuVol->tallExpandHeld : 0; r.tallReason = av.tallReason; r.tallOffs = av.tallOffs; r.writesInPlace = av.writesInPlace; r.writesRoundTrip = av.writesRoundTrip; r.tallLastOff = av.tallLastOff; r.tallRestY = std::isnan(av.tallRestY) ? 0.0f : av.tallRestY; r.tallFloorY = (av.gpuVol && av.gpuVol->tallY >= 0) ? (static_cast<float>(av.grid->spec().origin.y + av.gpuVol->tallY) + 1.0f) * av.h : 0.0f; r.recordTiles = av.recordTiles; r.recordedM3 = av.recordedM3; r.recordedTiles = static_cast<int>(av.recordedTileList.size()); r.tilesRecorded = av.tilesRecorded; r.tilesWoken = av.tilesWoken; r.tilesWokenByWrite = av.tilesWokenByWrite; r.tilesHeldByNeighbours = av.tilesHeldByNeighbours; r.gpuWakeAll = av.gpuVol ? av.gpuVol->wakeAllCount : 0; r.recordSpreadMmMax = av.recordSpreadMmMax; r.recordJumpMmMax = av.recordJumpMmMax; r.lastRecordMs = av.lastRecordMs; r.lastWakeMs = av.lastWakeMs; r.seedUnplacedM3 = av.gpuVol ? av.gpuVol->seedUnplacedM3 : 0.0; r.awakeColumns = av.gpuLast.awakeColumns; r.frozenColumns = av.gpuLast.frozenColumns; r.movingColumns = av.gpuLast.movingColumns; r.settlingColumns = av.gpuLast.settlingColumns; r.isPatch = av.isPatch; r.patchParentLo = av.patchParentLo; r.patchParentHi = av.patchParentHi; r.stepSlots = av.gpuLast.stepSlots; r.partitionMoves = av.gpuLast.partitionMoves; r.carryBodyM3 = av.carryBodyM3; r.carryRateM3 = av.carryRateM3; r.carryFlowM3 = av.carryFlowM3; r.carryParkedM3 = av.carryParkedM3; r.gpuHostMs = av.gpuLast.hostResidencyMs; r.gpuWaitMs = av.gpuLast.submitWaitMs; r.gpuTicks = av.gpuLast.ticks; r.gpuAsync = av.gpuVol && av.gpuVol->async; r.gpuBricks = av.gpuLast.bricks; r.gpuDispatches = av.gpuVol ? av.gpuVol->lastDispatches : 0; r.gpuPoolGrows = av.gpuVol ? av.gpuVol->poolGrows : 0; r.gpuReduceSlots = av.gpuLast.reduceSlots; r.gpuReduceCached = av.gpuLast.reduceCached; r.gpuBarriers = av.gpuVol ? av.gpuVol->lastBarriers : 0; r.gpuBrickCapacity = av.gpuLast.capacity; r.gpuBrickHeight = av.gpuVol ? av.gpuVol->by : 0; r.gpuGroundBricks = av.gpuLast.groundBricks; r.gpuUploadMs = av.gpuUploadMs; r.gpuUploads = av.gpuUploads; r.occRefreshMs = av.occRefreshMs;
     r.occFullRefreshes = av.occFullRefreshes; r.occLocalRefreshes = av.occLocalRefreshes; r.occCellsResampled = av.occCellsResampled;
     r.occCellsChanged = av.occCellsChanged; r.gpuPatchMs = av.gpuPatchMs; r.gpuPatches = av.gpuPatches;
     r.cells = av.grid->cellCount();
@@ -641,6 +641,11 @@ WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
     rec.bodyId = m_bodies.credit(written, before, m_bakeBodyAt);
     rec.ok = true;
     const glm::ivec3 lo = av->minVoxel, hi = av->maxVoxel;
+    if (av->isPatch) {   // 51 S2: a patch's water is back in the record; its pond is still the slept box - no box for the patch
+        buildRecordTilesNow(lo, hi);
+        destroy(id);
+        return rec;
+    }
     if (const AvRecord* ar = find(id)) {   // 32: remembered - a disturbance inside the box wakes it from the record
         SleptVolume sv; sv.lo = lo; sv.hi = hi; sv.cellSize = ar->cellSize; sv.transport = av->transport; sv.backend = ar->backend;
         sv.sweeps = ar->gpuSweeps; sv.partialWake = ar->partialWake; sv.recordTiles = ar->recordTiles; sv.tallBandM = ar->tallBandM;
@@ -1253,6 +1258,81 @@ int WaterCoreManager::wakeSlept(size_t i) {
     return id;
 }
 
+// 51 S2: the patch box round world `c` in pond `sv` - half-width the disturbance radius + kPatchMarginM, snapped OUTWARD to the 8 m
+// record tiles (world-aligned: design-check amendment A), clipped to the pond, the pond's y range. False when the patch would hold
+// the whole pond (no bigger than a patch: the whole-pond wake, as before) or the radius is off.
+bool WaterCoreManager::patchBoxFor(const SleptVolume& sv, const glm::vec3& c, glm::ivec3& lo, glm::ivec3& hi) const {
+    if (!s_patchWake || WaterCoreGpu::s_disturbanceRadiusM <= 0.0f) return false;
+    const float R = std::max(WaterCoreGpu::s_disturbanceRadiusM, WaterCoreGpu::s_disturbanceBandM + 2.0f) + kPatchMarginM;
+    const int T = kRecordTile;
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    // the disturbance's own tile and k tiles each side, k = ceil(R / T): the same size wherever in its tile the disturbance falls
+    // (snapping c +- R outward gave 4 or 5 tiles by where c sat - 1,024 vs 1,600 m2, measured; the size must not depend on that)
+    const int k = static_cast<int>(std::ceil(R / static_cast<float>(T)));
+    const int ctx = floorDiv(static_cast<int>(std::floor(c.x)), T), ctz = floorDiv(static_cast<int>(std::floor(c.z)), T);
+    lo.x = (ctx - k) * T; hi.x = (ctx + k + 1) * T - 1;
+    lo.z = (ctz - k) * T; hi.z = (ctz + k + 1) * T - 1;
+    lo.x = std::max(lo.x, sv.lo.x); lo.z = std::max(lo.z, sv.lo.z); hi.x = std::min(hi.x, sv.hi.x); hi.z = std::min(hi.z, sv.hi.z);
+    lo.y = sv.lo.y; hi.y = sv.hi.y;
+    if (hi.x < lo.x || hi.z < lo.z) return false;
+    return !(lo.x == sv.lo.x && lo.z == sv.lo.z && hi.x == sv.hi.x && hi.z == sv.hi.z);   // the whole pond: wake it whole
+}
+
+int WaterCoreManager::wakePatch(size_t i, const glm::vec3& c) {
+    const SleptVolume sv = m_slept[i];
+    glm::ivec3 lo, hi;
+    if (!patchBoxFor(sv, c, lo, hi)) return -1;
+    auto overlaps = [](const glm::ivec3& a0, const glm::ivec3& a1, const glm::ivec3& b0, const glm::ivec3& b1) {
+        return a0.x <= b1.x && a1.x >= b0.x && a0.z <= b1.z && a1.z >= b0.z; };
+    // a live patch of this pond holding c: the disturbance is a centre on it (S1), nothing new
+    for (const auto& av : m_avs) {
+        if (!av->isPatch || av->patchParentLo != sv.lo || av->patchParentHi != sv.hi) continue;
+        if (c.x >= av->minVoxel.x && c.x < av->maxVoxel.x + 1 && c.z >= av->minVoxel.z && c.z < av->maxVoxel.z + 1) {
+            if (av->gpuVol && m_gpu) m_gpu->noteDisturbance(*av->gpuVol, c);
+            return av->id;
+        }
+    }
+    // amendment B: never two live patches over the same water - an overlapping one merges (written back, the union woken), or past
+    // kPatchMaxM the new box is clipped off it
+    for (bool again = true; again;) {
+        again = false;
+        for (const auto& av : m_avs) {
+            if (!av->isPatch || av->patchParentLo != sv.lo || av->patchParentHi != sv.hi || !overlaps(lo, hi, av->minVoxel, av->maxVoxel)) continue;
+            const glm::ivec3 ulo = glm::min(lo, av->minVoxel), uhi = glm::max(hi, av->maxVoxel);
+            if (uhi.x - ulo.x + 1 <= kPatchMaxM && uhi.z - ulo.z + 1 <= kPatchMaxM) {
+                const int other = av->id;
+                const WriteBackRecord wb = sleep(other, true);   // its water back to the record (force: it is awake), the volume gone
+                if (!wb.ok && find(other)) return 0;             // could not write it back: keep it, make nothing (never double the water)
+                lo = ulo; hi = uhi; again = true;
+            } else {   // clip the new box to the side of the live one c is on (along the axis it overlaps less)
+                const int ox = std::min(hi.x, av->maxVoxel.x) - std::max(lo.x, av->minVoxel.x) + 1, oz = std::min(hi.z, av->maxVoxel.z) - std::max(lo.z, av->minVoxel.z) + 1;
+                if (ox <= oz) { if (c.x < av->minVoxel.x) hi.x = av->minVoxel.x - 1; else lo.x = av->maxVoxel.x + 1; }
+                else          { if (c.z < av->minVoxel.z) hi.z = av->minVoxel.z - 1; else lo.z = av->maxVoxel.z + 1; }
+                if (hi.x < lo.x || hi.z < lo.z) return 0;
+                again = true;
+            }
+            break;   // the volume list changed (or the box did): look again
+        }
+    }
+    std::string err;
+    m_createKeepsSlept = true; m_createLeavesUploadToStep = true;
+    const int id = create(lo, hi, sv.cellSize, sv.transport.empty() ? "eulerian" : sv.transport, &err, sv.backend.empty() ? "auto" : sv.backend, sv.sweeps);
+    m_createKeepsSlept = false; m_createLeavesUploadToStep = false;
+    if (!id) { ++m_sleptWake.refused; m_sleptWake.lastError = err; return 0; }
+    setPartialWake(id, sv.partialWake);
+    setTallBand(id, sv.tallBandM);
+    if (sv.recordTiles) setRecordTiles(id, true);
+    const double seeded = seedFromSpans(id);
+    if (seeded <= 0.0) { destroy(id); ++m_sleptWake.wokenEmpty; return 0; }   // nothing recorded under the patch: dry ground at the pond's edge
+    for (auto& av : m_avs) if (av->id == id) {
+        av->isPatch = true; av->patchParentLo = sv.lo; av->patchParentHi = sv.hi;
+        av->noSleepBefore = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() + kWokenNoSleepS;
+        if (av->gpuVol && m_gpu) m_gpu->noteDisturbance(*av->gpuVol, c);
+    }
+    ++m_sleptWake.woken; ++m_patchesWoken;
+    return id;
+}
+
 double WaterCoreManager::secondsToWater(const MovingSolid& b, float top) {
     constexpr double g = 9.81;
     const double bottom = static_cast<double>(b.centre.y) - static_cast<double>(glm::length(b.halfExtents));   // any orientation
@@ -1451,8 +1531,21 @@ std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSol
         const glm::vec3 lo(m_slept[i].lo), hi = glm::vec3(m_slept[i].hi) + glm::vec3(1.0f);
         if (farRecordDryForTest(glm::vec2(lo.x, lo.z), glm::vec2(hi.x, hi.z))) continue;   // 40.1 item 7 TEST: L5's red
         bool touched = false;
+        glm::vec3 touchAt(0.0f);
         for (const MovingSolid& b : bodies)
-            if (glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi))) { touched = true; break; }
+            if (glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi))) { touched = true; touchAt = b.centre; break; }
+        if (touched && s_wakeDelaySForTest <= 0.0) {   // 51 S2: a patch round every body touching a pond bigger than a patch (not paced: at once)
+            bool patched = false;
+            for (const MovingSolid& b : bodies) {
+                if (!(glm::all(glm::greaterThanEqual(b.centre + b.halfExtents, lo)) && glm::all(glm::lessThanEqual(b.centre - b.halfExtents, hi)))) continue;
+                const int pid = wakePatch(i, b.centre);
+                if (pid < 0) break;
+                patched = true;
+                if (pid > 0 && std::find(ids.begin(), ids.end(), pid) == ids.end()) ids.push_back(pid);
+            }
+            if (patched) continue;
+        }
+        (void)touchAt;
         if (s_wakeDelaySForTest > 0.0) {
             if (touched && m_slept[i].touchedAt < 0.0) m_slept[i].touchedAt = nowS;
             touched = m_slept[i].touchedAt >= 0.0 && nowS - m_slept[i].touchedAt >= s_wakeDelaySForTest;
@@ -1482,6 +1575,7 @@ std::vector<int> WaterCoreManager::wakeSleptNear(const glm::vec3& c, float radiu
             for (WakeJob& j : m_jobs) if (j.lo == m_slept[i].lo && j.hi == m_slept[i].hi) j.dueTick = 0;
             continue;
         }
+        {   const int pid = wakePatch(i, c); if (pid >= 0) { if (pid) ids.push_back(pid); continue; } }   // 51 S2: a patch round the blast
         const int id = wakeSlept(i); if (id) ids.push_back(id);
     }
     pumpWakeJobs();
