@@ -300,6 +300,167 @@ and materials only), or neither. Numbers first, owner decides.
 | **P7** | **marriage design** with the water session: seams (a)–(d); M3's answer | joint design-check; owner approval (R7) |
 | later | gases, heat, fire, reactions (NoitaGapAnalysis Tier 3) on the same grid | their own plans |
 
+### 6a. P1 detailed design (2026-11-03) — the CA core
+
+**Split:**
+- **P1a** — a CPU reference core and its unit tests. Pure C++, headless, and the source of truth.
+- **P1b** — the GPU port, bit-exact against P1a, plus the lab API and the raw-cell view.
+
+**Grid:**
+- An axis-aligned **lab box** in world space, at `cells_per_m` ∈ {1, 3, 9}, i.e. a cell size h of
+  1, 1/3 or 1/9 m.
+- One `uint32` per cell: `material` (8 bits) | `fill` (24 bits).
+- Material 0 = empty with fill 0; material 255 = SOLID.
+- **Fill units nest exactly** (§3a): U = 256 per full 1/9 cell, so FULL(h) = 256·(9h)³. That is
+  256 / 6,912 / 186,624 for 1/9 / 1/3 / 1 m.
+- The solid mask comes from a world-position predicate. In P1a it's a test callback; in P1b it's
+  the shared occupancy pool (`phxOccupancyState` / CPU `packedPoolOccupancyState`).
+- A cell is SOLID if **any** micro inside it is solid, so liquid never enters matter. At 1 m cells
+  a thin sub-voxel slab blocks the whole cell. That's stated, and it's part of why behaviour
+  differs by cell size (§3a).
+- The box's outside is solid: a closed lab.
+
+**Update — a Margolus block cellular automaton (2×2×2 blocks):**
+- One thread updates one block. It **reads** the previous grid anywhere and **writes only its own
+  8 cells** of the next grid (ping-pong buffers).
+- **Why it is order-independent:** the 8 cells each block writes are disjoint from every other
+  block's, and every read comes from the previous, read-only grid. So the result can't depend on
+  thread or block evaluation order. No atomics touch cells.
+- **Mass is conserved by construction:** every rule moves fill between the block's own cells.
+- The block offset alternates (0,0,0) / (1,1,1) by tick, so material crosses block boundaries.
+- Block parity is taken from **world** cell coordinates.
+- Every rule reads at most one cell beyond its block.
+- Integer math only. Any choice (remainder order) uses a hash of (world cell, tick, seed).
+
+**Rules per block, in order:**
+1. **Gravity** (liquid and powder). In each of the 4 columns, move fill from top to bottom:
+   `min(top.fill, FULL − bottom.fill)`, if the bottom is empty or the same material.
+2. **Liquid level.**
+   - In each layer, take the cells that are this liquid or empty, not solid, and **supported**
+     (the cell below is full or solid; for the bottom layer that cell is read from the previous
+     grid, below the block).
+   - Equalise their fill only when max − min > 1 unit. That deadband gives an exact rest state.
+   - Remainders are handed out in hash order.
+3. **Powder slide (angle of repose).**
+   - Take a powder column in the block whose surface (fill heights in units of h) stands above a
+     neighbouring column's by more than tan(θ) × the horizontal distance (1 cell, or √2 for a
+     diagonal).
+   - Move just enough fill diagonally down to bring the drop to tan(θ). No randomness.
+   - **θ, grounded:** dry sand 34°, wet sand 45° (P4), snow 38°, ashes 40°, crushed gravel 45°.
+     Source: Wikipedia *Angle of repose*, table citing T. J. Glover, *Pocket Ref* (Sequoia, 1995).
+     The snow value cites Rikkers & Rodriguez, *Telluride Magazine* 2009. Fetched 2026-11-03.
+   - The value lives in the MatSim material table, not as a shader literal.
+
+**Sleep (cost only):**
+- Each block reports whether **any rule was eligible** to move anything.
+- Bricks are 8³ cells, **world-aligned**.
+- A brick whose own blocks and whose 26 neighbour bricks reported nothing eligible on both offsets
+  is skipped.
+- The one-brick halo covers the rules' one-cell reach.
+- Skipping is exact: a block with no eligible rule writes back its own input. So sleep changes
+  cost, never the result, and is pinned by a test.
+
+**Ledger:** total fill per material as `uint64` (per-workgroup partials, summed on the host).
+
+**Resolution remap (§3a):** on the host, from a readback. Split is bottom-up; merge is a sum.
+
+**Edits under the simulation (P1 scope):**
+- `resolidify` re-reads the solid mask on demand.
+- A cell that turns solid while holding fill keeps that fill as **trapped** and frozen. It stays in
+  the ledger and is reported as `trapped_units`, never deleted.
+- Real displacement into neighbouring cells is P4.
+
+**Unknown occupancy:**
+- If the pool can't answer for a cell (UNKNOWN), the cell is treated as SOLID, so nothing leaks
+  into unknown space.
+- `unknown_cells` is counted and reported every tick, loudly.
+- `create` **refuses** a box that isn't fully known at creation.
+- ⚠️ The pool's coverage follows the viewer (32×16×32 chunks), so at scale "unknown" would make
+  behaviour camera-dependent (R3). That's P5's problem to solve with MatSim's own solid copy of
+  its region. In P1 the lab box sits inside one resident chunk next to the camera.
+
+**Known limitation, stated up front:** rule 2 is diffusion, so a wide basin levels in a time that
+grows roughly with width² (the old CA's flaw, §8). P1 **measures** this, and the fixes are
+separate decisions (P3 particles; a later pressure or heightfield rule). A structural fact: under
+Margolus, matter moves at most one cell per tick, so no front can exceed h × 60 m/s at the 60 Hz
+tick. That's 6.7 m/s at 1/9 m — about the Ritter dam-break front speed 2√(g·h₀) = 6.3 m/s for
+h₀ = 1 m. So at 1/9 m, the grid itself caps how fast a flood can travel.
+
+**Lab API** (`POST /api/matsim/<action>`; distances in world m; omitted = unchanged; every mutating
+response echoes `ledger`, `cells_per_m` and `box`):
+
+| Action | Fields | Behaviour on bad input |
+|---|---|---|
+| `create` | `min{x,y,z}`, `size{x,y,z}` (m), `cells_per_m` | `cells_per_m` ∉ {1, 3, 9}, cells > 16.7 M, or the box not fully known: **rejected** with the reason (no clamping, no partial create) |
+| `fill_box` | `material` (name), `min`, `size`, `fraction` 0–1 | units written, and solid cells skipped, both echoed |
+| `step` | `n` 0–100,000 | ticks run and eligible blocks echoed |
+| `realtime` | bool | — |
+| `set_cell_size` | `cells_per_m` | ledger echoed before and after (must match) |
+| `resolidify` | — | — |
+| `ledger`, `stats` | — | eligible blocks, `unknown_cells`, `trapped_units`, ms per tick |
+| `view` | raw cells on/off | — |
+| `clear` | — | — |
+
+No existing default changes. MatSim does nothing until `create`, pinned by
+`MatSimDefaults.InertUntilCreated`.
+
+**Raw-cell view (P1b):**
+- An expand pass writes exposed cell faces in the existing `DynamicSubcubeInstanceData` format,
+  drawn by the dynamic-voxel pipeline with its own buffers.
+- A liquid or powder cell is drawn **at its fill height** (scaled in y), not as a full cube, so the
+  raw view is honest about where the matter is.
+- Colour comes from the material's texture (Water/Sand).
+- This is P2's deliberately ugly "blob" baseline.
+
+**P1 tests (written first; each prints its numbers when it fails):**
+
+| Test | Layer | Fails with |
+|---|---|---|
+| `MatSimLedger.ExactOver10kTicks` (dam break, both phases) | L2 | per-material Δ units at the first tick it is non-zero |
+| `MatSimRemap.RoundTripIsExact` (1 → 3 → 9 → 3 → 1) and `SplitIsBottomUp` | L2 | Δ units; the first cell out of place |
+| `MatSimSleep.StillBasinReachesZeroEligible` | L2 | eligible blocks at tick N |
+| `MatSimSleep.SkippingEqualsDense` (the same scene stepped with sleep on vs off) | L2 | the first differing world cell, and the tick |
+| `MatSimDeterminism.TwoRunsBitIdentical` | L2 | the first differing cell |
+| `MatSimWorldAlignment.ShiftedBoxesAgreeInWorldSpace` (the same scene in boxes offset by an even cell count — the `FloraMarginTest` shape) | L2 | the first differing world cell |
+| `MatSimPowder.PileStandsAtRepose` (sand poured onto a floor) | L2 | the measured pile slope vs tan 34° ± one cell over its run |
+| `MatSimDefaults.InertUntilCreated` | L1 | — |
+| P1b `MatSimGpuParity.GpuEqualsCpuAfterNTicks` (integration, Release) | L4 | the first differing cell |
+| P1b live rig: ledger, sleep and unknown cells over the API; dam-break and U-tube times recorded | L4 | — |
+
+**Controls:**
+- The ledger test runs once with a test-only leak switch (one rule drops one unit). It must report
+  exactly that Δ, which proves the ledger can see a loss.
+- The parity and alignment comparators run once against a deliberately one-tick-shifted run, which
+  must differ.
+- The sleep test runs once with a perturbation, which must show eligible > 0.
+
+**Lab rig:**
+- One flat-stone chunk at world chunk (0, 0, 0), built by direct voxel placement (a hand-placed
+  test rig, stated; not generator output).
+- A 16 × 8 × 16 m lab box inside that chunk: a stone floor, a dam wall, a U-tube with a 1 m
+  connector, and a ledge.
+- One variable per run: the cell size or the material.
+- **Predictions, written before the run:**
+  - the ledger is exact at every cell size;
+  - the still basin sleeps within 10 s of simulated time;
+  - the sand pile's slope is tan 34° within one cell;
+  - the dam-break front is **slower** than Ritter at every cell size (diffusion, plus the
+    one-cell-per-tick cap at 1/9);
+  - U-tube levelling takes longer than 10 s at 1/3 m.
+
+**Rig vs shipped:**
+- Nothing ships. MatSim is lab-only, and WaterCore and the old water are off in the rig.
+- The box edges are solid walls (the real world is open), so levelling near the edges is
+  optimistic.
+- The 60 Hz tick is the lab default. A different rate changes front speeds proportionally under the
+  one-cell cap.
+
+**Performance tiers (P1):**
+- Not fitted yet. The knobs exist from the start: box size, cells per m, tick rate, sleep, and the
+  later deferred stepping.
+- P1b reports GPU ms per tick for an awake and an asleep box at all three cell sizes, plus the
+  whole frame (`engine_timing`, `gpu_timing`) on the laptop.
+
 ## 7. Working alongside the other sessions
 
 - **Code lives in a separate git worktree and branch** (`feat/matsim-lab`, off `main`), with its
