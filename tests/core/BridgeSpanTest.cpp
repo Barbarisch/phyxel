@@ -289,10 +289,12 @@ TEST(BridgeSpanTest, EveryCarvedCrossingIsFordBridgeOrRefused) {
 // D31 as the routing EDGE, with its control: the span knob set ONE UNIT UNDER the overall length the
 // fixture's own bridge needed (13 u on the baseline: a 5.8 u channel + 3 u of bank each side + the
 // 2 u shoulders — the width formula, not the clamp floor; audit 2026-10-27) makes that channel
-// uncrossable, so the world bakes ZERO bridges and every demand that needed one is routed around
-// (no carved crossing survives on any road) or refused with its reason — each demand yields exactly
-// one road or one refusal, so roads + refusals match the default plan's. Control: the default knob
-// bakes the bridge on the same world. One variable moves: bridgeMaxSpanU.
+// uncrossable, so no deck longer than the knob stands and every demand that needed one is routed
+// around or refused with its reason — each demand yields exactly one road or one refusal, so roads +
+// refusals match the default plan's. (Until the D27 ripple of 2026-11-02 the baseline had ONE bridge,
+// so this read "zero bridges"; the 0.5-reuse network legitimately re-routes onto a 13 u crossing
+// elsewhere, so the contract is the knob's bound, not an empty list.) Control: the default knob bakes
+// the longer bridge on the same world. One variable moves: bridgeMaxSpanU.
 TEST(BridgeSpanTest, UncrossableChannelsAreRoutedAround) {
     const char* tag = nullptr;
     WorldGenerator* gp = worldWithBridge(tag);
@@ -313,8 +315,20 @@ TEST(BridgeSpanTest, UncrossableChannelsAreRoutedAround) {
     ASSERT_TRUE(tight && h.corridors());
     EXPECT_FLOAT_EQ(tight->params().bridgeMaxSpanU, knob) << "the knob did not reach the plan";
     const CrossingCensus c = crossingCensus((std::string(tag) + ", span knob " + std::to_string(static_cast<int>(knob)) + " u").c_str(), h, *tight);
-    EXPECT_TRUE(tight->bridges().empty()) << "a deck was built with no crossable span";
-    EXPECT_EQ(c.carved, 0) << "a carved crossing survived on a realized road with no crossable span";
+    // D27 ripple 2026-11-02: on the 0.5-reuse baseline the re-routed network built one bridge of exactly 13 u elsewhere
+    // under a 13 u knob, so "no bridge at all" was a premise of the single-bridge network, not the knob's contract. The
+    // contract: no deck longer than the knob, and the default plan's longest span (the one the knob excludes) is gone.
+    float longestTight = 0.0f;
+    for (const auto& b : tight->bridges()) longestTight = std::max(longestTight, glm::length(b.b - b.a));
+    EXPECT_LE(longestTight, knob + 1e-3f) << "a deck longer than the knob";
+    glm::vec2 longestMid(0.0f);
+    for (const auto& b : box->bridges()) if (glm::length(b.b - b.a) >= need - 1e-3f) longestMid = (b.a + b.b) * 0.5f;
+    bool longestGone = true;   // reported (audit 7: implied by the bound above; a legitimate re-route could land near the old midpoint)
+    for (const auto& b : tight->bridges()) if (glm::length((b.a + b.b) * 0.5f - longestMid) < 8.0f) longestGone = false;
+    EXPECT_LE(tight->bridges().size(), box->bridges().size()) << "the knob added a bridge";
+    std::printf("[ M4c ] span knob %.0f u: longest remaining deck %.1f u, %zu bridges (default %zu), the default's longest (at %.0f,%.0f) %s\n",
+                knob, longestTight, tight->bridges().size(), box->bridges().size(), longestMid.x, longestMid.y, longestGone ? "gone" : "STILL THERE");
+    EXPECT_EQ(c.undecked, 0) << "a carved crossing without a deck on a realized road (a half-road) under the knob";
     EXPECT_EQ(tight->roads().size() + tight->refusedDemands().size(), box->roads().size() + box->refusedDemands().size())
         << "a demand neither became a road nor a refusal";
     std::printf("[ M4c ] span knob %.0f u: %zu roads, %zu refused (default: %zu roads, %zu refused, %zu bridges)\n",

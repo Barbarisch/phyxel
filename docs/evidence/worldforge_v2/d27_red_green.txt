@@ -1,0 +1,132 @@
+D27 RULED 2026-11-02 (owner: "go with your recommendations and keep going"): routeReuseFraction 1/3 -> 0.5, REASONED as the midpoint of
+the grounded travel-time bracket 0.4-0.6 (Tobler 1993 off-path 0.6; US Army march rates 2.5 vs 1 mph = 0.4, the primary manual not opened;
+plan section 10 "Route reuse fraction"). No source prices a network cell as a fraction of a fresh cell; the mapping travel-time -> routing
+cost is the REASONED step. Existing world DBs keep whatever recipe they persisted (the DB owns the recipe); the version-1 recipes carry no
+civ and no corridor graph, so the pinned version-1 hashes (Perlin 20260816 = 9693137997320541182, Mountains 424242 = 18197215997962677593)
+must NOT move. Every version-2 road network moves: the census, the bridges, the baseline's one bridge, the earthwork's watched section and
+the water-aware figures are RE-MEASURED below, not carried forward.
+THE RED (patch d27-1, the test alone; the default still 1/3): RouteGraphTest.ReuseHalfIsTheDefaultAndSitsBetweenThirdAndNone -
+  PREDICTION PD27.0: FAILS on the default assertion (1/3 != 0.5) and PASSES the rest (the three bakes are explicit).
+PREDICTIONS (before any run): PD27.1 distinct network cells on the baseline seed strictly ordered 1/3 < 0.5 < none (a weaker discount
+  merges less); the route count identical (the demand set is upstream of the discount). PD27.2 after the default moves: the version-1
+  pins unchanged; the version-2 civ plans (sites, tiers, counts) unchanged (civ is baked before corridors); RoadsStayOutOfStandingWater
+  still 0 wet road columns on both worlds (the rule is per demand, not per network); the Mountains bridge count moves by a few (36 -> 30-42,
+  a guess); the baseline bridge count 1 -> 0-2; EarthworkTest's watched section may vanish (the bank it tests sits on a route that may
+  move) - the test's invariant (no cut face steeper than the wall tier's allowance) must hold wherever the cuts now are; RoadFieldSeamTest
+  green (chunked vs whole under the same network). PD27.3 the river set (RiverGeometryTest etc.) unchanged: 105/106 with the six lips.
+THE RED RUN (chain 29, build 14:52:28-14:52:37, exe 14:52:34, run 14:52:37-15:09:57, m4b4r_r29_reuse.txt): PD27.0 MET - the test FAILS on
+  the default assertion (0.33333334 vs 0.5); the other nine RouteGraphTest cases green on the 1/3 default. PD27.1 MISSED: distinct network
+  cells on the baseline seed 2941 at 1/3, 2897 at 0.5, 3046 at none - NOT monotone in the discount (a weaker discount also takes shorter
+  fresh paths: total length 7671 km at 1/3 vs 6714.8 km at none - the distinct-cell count mixes merging with length). The quantity that IS
+  monotone, measured in the same run: junction cells 295 / 343 / 636 (1/3 / 0.5 / none); shared cells 1682 / 1538 / 1604 (not monotone
+  either). The route count 152 in all three (the demand set is upstream - the second half of PD27.1 MET).
+  CHANGED AFTER THE RUN (stated, not a prediction): the test's ordering assertion moves from distinct cells to junction cells (the M4a
+  test already named merged junctions as "the effect that matters, not a shorter network" - measured 295 vs 636 in 2026-10-22); the
+  distinct-cell figures are printed, not asserted. This is a pin of a measured ordering, not red-before-green on that ordering.
+GREEN + THE RIPPLE (patch d27-2, the default 0.5; chain 30 build 15:10:51-15:15:50 (exe 15:15:46), RouteGraphTest 15:15:50-15:33:55
+  m4b4r_r30_reuse.txt: 10 of 10 - ReuseHalfIsTheDefaultAndSitsBetweenThirdAndNone GREEN (junctions 295 / 343 / 636; distinct cells
+  2941 / 2897 / 3046 printed). Chain 31 (same exe) 15:34:01-16:19:32: earth 7 ok 2 failed, forge 92 ok 3 failed, terrain 105 ok 1
+  failed - m4b4r_r31_{earth,forge,terrain}.txt.)
+  PD27.2 - the version-1 pins GREEN (VersionOnePlanHashesArePinned in the forge set); civ plans unchanged (baseline 154 sites /
+  7750.29 km2 / 2 refusals, Mountains 156 / 7843.09 / 2 - the same lines as every earlier chain); RoadsStayOutOfStandingWater GREEN:
+  baseline 703697 road columns walked, 0 under standing water; Mountains 607901, 0 (MET). The networks moved: baseline 31 roads /
+  2 bridges / 0 refused (was 30 / 1 / 0) - the bridge count 1 -> 2 inside the 0-2 guess; Mountains 25 roads / 26 bridges / 8 refused
+  (was 23 / 36 / 7) - 26 is BELOW the 30-42 guess (MISSED: fewer merged trunks cross fewer channels than guessed). Water: baseline 9
+  lines re-routed for standing water (8 fine detours), 0 refused; Mountains 1 (1 fine), 0 refused. Plan hashes: baseline
+  17349781681576635250, Mountains 12466415605158997878 (version 2; not pinned by any test). RoadIsHopWalkableAcrossTheVersionTwoCrossing
+  GREEN on the baseline's first bridge (deck 47, span 14.0 u, class 1, order 4; bank-to-bank still NOT walkable, reported).
+  RoadFieldSeamTest GREEN. PD27.3 MET: the terrain set 105/106, the six lips (ChannelSectionsMeetTheLandAtABoundedSlope) unchanged.
+  THREE RED on the moved networks (the ripple PD27.2 named as "may vanish / must hold wherever the cuts now are"):
+  (1) EarthworkTest.SteepHillsidesBesideShallowCutsAreBanked (Mountains): 40 single-road sections measured, 0 banks steeper than
+      repose, 1 CLIFF STEP of 3 cubes at (6302,15942) side -1 cut 7.9 u - dump 3.0:178/182R 4.0:178/182R 5.0:179/182 6.0:180/183
+      7.0:181/183 8.0:181/183 9.0:184/184: the bank rises at repose to lateral 8 then the next column is the natural, 3 cubes up.
+      A real generator defect of the M4b-4 class on the new network - DIAGNOSED BEFORE ANY RETUNE (patch d27-3: GradeBlend carries its
+      anchors; EarthworkTest.DiagHillsideStepAnchors prints them per column).
+  (2) EarthworkTest.DeepCutsAreWalledNotCliffed (baseline): every measured assertion GREEN (4 sections, 4 cut sides, 0 unwalled, 0
+      short walls, 0 steep, 0 jumps); the SAMPLE-SIZE guard "sections - shortBank > 20" fails at 4 - the baseline now has 2 deep cuts
+      (the Mountains world: 117 sections, 0 unwalled). A rig premise (the baseline carried > 20 sections on the 1/3 network).
+  (3) BridgeSpanTest.UncrossableChannelsAreRoutedAround (baseline): the knob at 13 u (the longest default bridge 14.0 u less one):
+      the re-routed network built ONE bridge of exactly 13.0 u elsewhere (longest deck 13.0 u, 0 beyond the knob; 30 roads + 1
+      refused for standing water "no other dry route inside the box"), so "bridges().empty()" fails. A rig premise: the knob excludes
+      the LONGEST span, not every span; the measured invariant (no deck beyond the knob; every demand a road or a refusal) held.
+DIAGNOSIS of (1) (chains 32-33, EarthworkTest.DiagHillsideStepAnchors, m4b4r_r32_diag.txt / m4b4r_r33_diag.txt): road 3 (class 2,
+  exit -> site 0) FOLDS BACK on itself at vertices 12-13: vertices 7-12 run NE ((6236,15935) -> (6304,15977)), vertices 13-17 run SW
+  ((6316,15971) -> (6284,15916)), the two legs ~20 u apart - a hairpin (the profile drops 7-8 u per 16 u vertex on the SW leg: slope
+  0.44-0.50 at vertices 15-17, and climbs 0.37-0.50 at vertices 24-27 - a second finding, the grade cap 0.08 is NOT held there; recorded
+  below). At the step: side -1, lateral 9 (the float probe) finds segment 3707 at 8.99 u (w 0.59) -> surfaceY 182.0, but the integer
+  column (6294,15947) and every column from lateral 10 on lie in a raster cell (16 u cells on the Mountains plan) whose road list is
+  "3@3702": the hint is the segment nearest the CELL CENTRE, which is on the OTHER leg; gradeBlendAt searches +-3 segments around the
+  hint (3699-3705), never reaches 3707, finds 3705 at 18.2 u -> weight 0 -> no band -> the natural (184): a 3-cube step after the bank's
+  last column (181). The same blind spot on side +1 at lateral 10 (hint 3706, the point's segment 3706 at 9.98 u, w 0 by the plain
+  shoulder - harmless there). THE CAUSE: one hint segment per (cell, road) + a +-3 window cannot see a road's second leg through a
+  hairpin. The earlier tests knew the symptom (DeepCuts counts "hairpinJumps", WallTierKnob excludes nearOtherLeg) and exempted it;
+  SteepHillsides does not exempt it and the 0.5 network put a shallow-cut case on a hairpin. FIX (patch d27-6): the raster keeps one
+  hint PER LEG per (cell, road) - every hit whose segment index is > 3 from each hint already kept (up to 4) - and gradeBlendAt searches
+  +-3 around each of a road's hints; the best over all legs wins. Pure realization: no plan hash moves.
+  SECOND FINDING (not fixed here, recorded): the Mountains road 3 profile shows 0.44-0.50 rise/run between consecutive vertices at 15-17
+  and 24-27 against a class-2 cap of 0.08 - either a switchback stair section or a cap breach; the walkability figures (0.46 % unclimbable
+  steps on Mountains, f7) do not contradict a graded 50 % slope (a slope is climbable in 1-cube steps). To be measured as its own item
+  (a grade-cap census over every version-2 road: fraction of vertex pairs beyond the class cap).
+PATCH D27-4 (the two rig premises): DeepCutsAreWalledNotCliffed's sample-size guard pooled over both worlds (> 20 banks in all);
+  UncrossableChannelsAreRoutedAround asserts the knob's contract - no deck longer than the knob, the default's longest bridge gone, no
+  bridge added, no undecked carved crossing - instead of "no bridge at all". Both stated as rig changes after the ripple, not red-first.
+PATCH D27-6 (the fix): the raster keeps up to 4 hints per (cell, road), one per leg (a hit more than 3 segments from every kept hint);
+  gradeBlendAt searches +-3 around each hint. kLegsPerCell 4 / kHintWindow 3 bound COST (DESIGN); a cell is 8-16 u and a road's legs
+  through one cell are at most a hairpin and its two approaches.
+PREDICTIONS (before the build): PD27.4 the diag at (6302,15942) side -1: lateral 10-12 now list segment 3707 (two hints "3@3702" and
+  "3@3707" in the cell), weight > 0, the bank continues at repose (surfaceY 182.7, 183.4, 184.0 = natural at ~12) - no step > 1 cube.
+  PD27.5 SteepHillsidesBesideShallowCutsAreBanked GREEN (0 cliffs, 0 steep; the 1 cliff was the only one printed). PD27.6 DeepCuts GREEN
+  with the pooled guard (121 banks); hairpinJumps on Mountains may fall (reported). PD27.7 UncrossableChannels GREEN under the new
+  contract (longest remaining 13.0 u <= knob 13, the 14.0 u bridge gone, 1 <= 2, undecked 0). PD27.8 the plan hashes unchanged
+  (baseline 17349781681576635250, Mountains 12466415605158997878 - the raster is realization, not identity).
+GREEN (patches d27-4 + d27-6; chain 34 build 13:16:43-13:17:06 (exe 13:17:03), run 13:17:06-13:25:43, m4b4r_r34_ripple.txt): 4 of 4.
+  PD27.4 MET exactly: side -1 lateral 10-13 list both legs ("3@3702 3@3707"), segment 3707 found at 9.99-12.98 u, weights 0.53-0.41,
+  surfaceY 182.7 / 183.4 / 184.0 / 184.7, emitted 183 / 184 / 184 / 185 - the bank meets the ground at lateral 12 with 1-cube steps.
+  PD27.5 MET: SteepHillsidesBesideShallowCutsAreBanked 40 sections, 0 cliffs, 0 steep. PD27.6 MET: DeepCuts baseline 4/4 walks
+  measured, Mountains 117 + 3 dropped for a second road = 120/120, 0 unwalled, pooled guard passes. PD27.7 MET: knob 13 u - longest
+  remaining deck 13.0 u, 1 bridge (default 2), the default's 14.0 u bridge at (12908,-4834) gone, 30 roads + 1 refused. PD27.8 MET:
+  hashes 17349781681576635250 / 12466415605158997878 unchanged. Next: the full earth + forge + terrain sets on the fixed tree (chain 35).
+CHAIN 35 (the same exe 13:17:03; 13:26:13-14:12:56; m4b4r_r35_{earth,forge,terrain}.txt): earth 10 of 10, forge 96 of 96 (every
+  EarthworkTest, RouteFieldTest, RoadFieldSeamTest, BridgeSpanTest, WorldForgeStressTest, TraversalProbeTest, WorldForgePlanTest,
+  WorldForgeBuildFlowTest, WorldForgeRecipeTest case), terrain 105 of 106 - the one red is RiverGeometryTest.
+  ChannelSectionsMeetTheLandAtABoundedSlope, the six Mountains lips, red by design and unchanged since M2d-4. The D27 leg is complete:
+  the default moved, the ripple re-measured, one generator defect (the hairpin blind spot) found and fixed on the way, the grade-cap
+  finding recorded as the next item.
+AUDIT 7 (solution-auditor, 2026-11-03, the raw VERDICT): "VERDICT: FAIL - the default change and the hairpin fix are real and measured.
+  Reject the 'hairpin exemptions now unneeded' and 'one hint per leg' claims as unmeasured or inexact, and qualify the pooled guard
+  and the knob test as weakened coverage." Accepted: the red/green on the default; the post-hoc junction pin honestly disclosed and not
+  vacuous (strict, 295 < 343 < 636; one seed); the hairpin diagnosis and fix exactly as the r34 diag shows; the ripple figures; the
+  second finding recorded open; the hashes unchanged. Items: (1) "exemptions now unneeded" UNMEASURED - hairpinJumps was 0 before and
+  after on this network, only reported, WallTierKnob still skips nearOtherLeg; the only assertion that catches a hairpin step is
+  SteepHillsides at n = 1; no hairpin rig. (2) "one hint per leg" INEXACT - a straight leg within the blend reach burns a hint every 4
+  segments (up to 3 at 16-32 u cells), so the cap of 4 leaves one slot for a second leg and loses a switchback stack silently; nothing
+  counts cap hits; the +-3 window tiles a leg (holds at 32 u cells by arithmetic, unmeasured). (3) the pooled DeepCuts guard passes a
+  world with 0 sections silently (the baseline is 4 of 118; PD27.6 said 121 - the figure was 118; "hairpinJumps may fall" had nothing
+  to fall). (4) the knob test: longestGone redundant under the bound (a false-fail risk), undecked == 0 a fair but less discriminating
+  restatement, the header comment stale ("ZERO bridges"). (5) a civ recipe persisted BEFORE M4a carries no key and now reads 0.5.
+  (6) 0.5 is REASONED, kept so. (7) the dbg fields and the 1792-int segList on the hot path, unmeasured. (8) DiagHillsideStepAnchors
+  asserts nothing - noise in the gate.
+  NOTE: the first application of patch d27-7 (14:17) died on the engine source (a rename ordered before its exact match) after saving
+  the header alone, and a heredoc broke the && chain so chain 36 ran the OLD tests against that tree (4 ok - the pre-audit state, not
+  this patch); the script was reordered and re-applied (chain 37). Lesson 33 (memory): a heredoc ends an && chain.
+PATCH D27-7 (applied): the hint cap 4 -> 8 (DESIGN: 3 for the longest straight run + 5 legs), (cell, road) entries hitting the cap
+  COUNTED (rasterHintCapHits) and asserted 0 on the Mountains plan; the wording corrected in the code, the ledger and the plan ("the
+  windows tile the road through the cell", not "one per leg"); segList sized per road (56 ints); setLegsPerCellForTesting(1) as the
+  CONTROL; DiagHillsideStepAnchors replaced by HairpinBankHasNoCliffStepWithItsControl (the largest adjacent step across the section
+  <= 2 on the shipped raster; the same world with 1 hint per (cell, road) must show >= 3 - red on the pre-fix mechanism, same seed);
+  DeepCuts asserts hairpinJumps == 0 and a non-empty cut set PER WORLD (the pooled guard no longer passes a world with none);
+  the knob test's longestGone reported not asserted, the header rewritten. Not done: a synthetic hairpin/switchback-stack rig; the
+  hot-path cost of the diagnostics (unmeasured, stated); the pre-M4a recipe edge noted in the plan.
+PREDICTIONS (before the build): PD27.9 shipped raster: largest step across the site <= 1 (r34 showed 1-cube steps), cap hits 0 on
+  Mountains; the control (1 hint): step >= 3 (the r33 state 181 -> 184). PD27.10 DeepCuts green: cuts non-empty on both worlds (2 and
+  60), hairpinJumps 0 / 0. PD27.11 SteepHillsides 0 cliffs. PD27.12 the knob test green under the bound alone. PD27.13 the control's
+  plan hash equals the shipped (the cap is realization).
+GREEN (patch d27-7 re-applied; chain 37 build 14:31:50-14:32:12 (exe 14:32:08), run 14:32:12-14:41:39, m4b4r_r37_ripple.txt): 4 of 4.
+  PD27.9 MET: HairpinBankHasNoCliffStepWithItsControl - shipped raster (8 hints max) largest adjacent step across the site 1 cube,
+  (cell, road) entries at the cap 0 on the Mountains plan; the CONTROL (1 hint per cell-road, the pre-fix mechanism, same world) largest
+  step 3 cubes, entries at the cap 1036 - the pin measures the defect and the fix on the same seed. PD27.13 MET (the control's plan hash
+  equals the shipped: asserted inside the test). PD27.10 MET: DeepCuts cuts 2 / 60, hairpinJumps 0 / 0 (asserted), 4/4 + 120/120.
+  PD27.11 MET: SteepHillsides 0 cliffs. PD27.12 MET: the knob test green under the bound alone (13.0 u <= 13; 1 <= 2; 30 + 1).
+  Next: chain 38 - the full earth + forge + terrain sets on the final tree.
+CHAIN 38 (the final D27 tree, exe 14:32:08; 14:42:34-15:31:41, m4b4r_r38_{earth,forge,terrain}.txt): earth 10 of 10, forge 96 of 96,
+  terrain 105 of 106 (the six lips). COMMITTED.

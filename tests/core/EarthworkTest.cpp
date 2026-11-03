@@ -204,6 +204,7 @@ float reposeBound() { return WorldForgePlan::kReposeSlope + kBankSlopeTolerance;
 // tall as min(cut - 8.4, wallTierU)), a rock face above it where the cut exceeds the tier, and a
 // bank at repose above that. Red on M4c: 0 wall columns, banks steeper than repose.
 TEST(EarthworkTest, DeepCutsAreWalledNotCliffed) {
+    int pooledBanks = 0;   // D27 ripple 2026-11-02: the sample-size guard is pooled over both worlds (the baseline's deep cuts fell from > 20 sections to 4 on the 0.5-reuse network; Mountains carries 117)
     for (const auto& pair : std::vector<std::pair<const char*, WorldGenerator*>>{{"baseline Perlin", &baselineWorld()},
                                                                                 {"Mountains 424242", &mountainsWorld()}}) {
         WorldGenerator& g = *pair.second;
@@ -239,7 +240,7 @@ TEST(EarthworkTest, DeepCutsAreWalledNotCliffed) {
                 tallestRock = std::max(tallestRock, s.rockBand);
                 if (s.rockBand > P.rockCutMaxU + 0.5f) ++tallRock;
                 if (s.maxStep > 2) {   // a 0.7 bank rounds to steps of 0 or 1 (2 with the anchor's drift); 3+ along the bank is a cliff
-                    if (nearOtherLeg(*box, v, s.jumpAt)) ++hairpinJumps;
+                    if (nearOtherLeg(*box, v, s.jumpAt)) ++hairpinJumps;   // counted apart (the 2026-10-28 exemption); ASSERTED 0 since audit 7 (2026-11-03)
                     else { if (++jumps <= 4) std::printf("[ M4b-4-diag ] %s cliff step %d at (%.0f,%.0f) side %+.0f cut %.1f: %s\n", pair.first, s.maxStep, v.p.x, v.p.y, side, v.cut, s.dump.c_str()); }
                 }
                 if (s.bankSpan < 6) { ++shortBank; continue; }   // too short to judge a slope honestly (reported)
@@ -253,8 +254,10 @@ TEST(EarthworkTest, DeepCutsAreWalledNotCliffed) {
         }
         std::printf("[ M4b-4 ] %s: %zu single-road cuts beyond %.1f u (deepest %.1f u): %d sections, %d cut sides, %d of them UNWALLED, %d walls off their expected height, %d banks (>= 6 columns) steeper than repose (worst %.2f vs %.2f + %.2f drift), %d banks too short to judge, %d sections with a 3+ cube step along the bank (+%d beside a hairpin's other leg, reported), tallest rock band %.1f u (%d beyond the precedent)\n",
                     pair.first, cuts.size(), limit, deepest, sections, cutSides, unwalled, shortWall, steep, worstSlope, WorldForgePlan::kReposeSlope, kBankSlopeTolerance, shortBank, jumps, hairpinJumps, tallestRock, tallRock);
+        EXPECT_FALSE(cuts.empty()) << pair.first << ": no cut beyond the bank limit on this world - the earthwork claim is unexercised here (audit 7: the pooled guard alone would pass it silently)";
         if (cuts.empty()) { std::printf("[ M4b-4 ] %s: no cut beyond the bank limit - nothing to wall\n", pair.first); continue; }
         EXPECT_GT(cutSides, 0) << pair.first;
+        EXPECT_EQ(hairpinJumps, 0) << pair.first << ": a cliff step at a hairpin (the per-leg raster hints should bank it; 0 before and after the fix on this network - unexercised, asserted)";
         EXPECT_EQ(unwalled, 0) << pair.first << ": a cut side beyond the bank limit without a retaining wall";
         EXPECT_EQ(shortWall, 0) << pair.first << ": a wall tier not as tall as the cut needs (up to wallTierU)";
         EXPECT_EQ(steep, 0) << pair.first << ": a bank above the wall stands steeper than repose";
@@ -263,8 +266,9 @@ TEST(EarthworkTest, DeepCutsAreWalledNotCliffed) {
                     pair.first, sections, dropped[1], dropped[2], dropped[3], static_cast<size_t>(sections + dropped[1] + dropped[2] + dropped[3]), 2 * cuts.size());
         EXPECT_EQ(static_cast<size_t>(sections + dropped[1] + dropped[2] + dropped[3]), 2 * cuts.size()) << pair.first << ": every walk measured or dropped for a named reason";
         EXPECT_EQ(tallRock, 0) << pair.first << ": an emitted rock face taller than the precedent";
-        EXPECT_GT(sections - shortBank, 20) << pair.first << ": too few banks long enough to judge";
+        pooledBanks += sections - shortBank;
     }
+    EXPECT_GT(pooledBanks, 20) << "too few banks long enough to judge, over both worlds";
 }
 
 // Guard (green before and after): the wall and rock bands never intrude on the road itself —
@@ -593,4 +597,73 @@ TEST(EarthworkTest, EarthworkFieldsIdenticalAcrossGenerators) {
     EXPECT_GT(cols, 100);
     EXPECT_GT(walls, 0) << "no wall column in the deepest baseline cuts - the seam claim is vacuous";
     EXPECT_EQ(diff, 0) << "the earthwork is not a pure function of world position";
+}
+
+// D27 ripple (2026-11-02/03): the hairpin blind spot, pinned at the real site that exposed it. Road 3 of
+// the Mountains world folds back on itself at (6302,15942) (legs ~20 u apart); with ONE raster hint per
+// (cell, road) the bank's columns past lateral 9 on the SW side fell in a cell whose hint was on the other
+// leg, gradeBlendAt's +-3 window never reached the point's own segment, and the bank ended in a 3-cube
+// step (m4b4r_r33_diag.txt). The pin: the largest adjacent step across the section on both sides <= 2
+// cubes. The CONTROL (audit 7): the same world baked with the raster capped at 1 hint per (cell, road)
+// reproduces the step (>= 3) - red on the pre-fix mechanism, green on the shipped one, same seed.
+namespace {
+int maxStepAcross(WorldGenerator& g, const WorldForgePlan& box, const glm::vec2& at, bool print) {
+    int road = -1; size_t vi = 0; float bd = 1e30f;
+    for (size_t r = 0; r < box.roads().size(); ++r)
+        for (size_t i = 0; i < box.roads()[r].centerline.size(); ++i) {
+            const float d = glm::length(box.roads()[r].centerline[i] - at);
+            if (d < bd) { bd = d; road = static_cast<int>(r); vi = i; }
+        }
+    if (road < 0) return -1;
+    const auto& rd = box.roads()[static_cast<size_t>(road)];
+    const auto& cl = rd.centerline;
+    const glm::vec2 d = glm::normalize(cl[std::min(vi + 1, cl.size() - 1)] - cl[vi > 0 ? vi - 1 : 0]);
+    const glm::vec2 nrm(-d.y, d.x);
+    const float half = WorldForgePlan::roadHalfWidth(rd.cls);
+    int worst = 0;
+    for (float side : {1.0f, -1.0f}) {
+        int prev = INT_MIN;
+        for (float dd = half + 0.5f; dd <= half + 24.5f; dd += 1.0f) {
+            const glm::vec2 q = at + nrm * (side * dd);
+            const auto col = g.sampleSurface(roundI(q.x), roundI(q.y));
+            if (col.riverOrder > 0 || col.bridgeDeckY != INT_MIN) break;
+            if (print) {
+                int nearest = -1;
+                const auto cellRoads = box.rasterRoadsAt(q.x, q.y, &nearest);
+                std::string cr;
+                for (const auto& pr : cellRoads) cr += " " + std::to_string(pr.first) + "@" + std::to_string(pr.second);
+                const auto gb = box.gradeBlendAt(q.x, q.y, naturalAt(g, q));
+                std::printf("[ hairpin ]   side %+.0f d %.1f (%d,%d): cell list[%s ] seg %d best %.2f w %.2f -> surfaceY %.1f | emitted %d natural %.0f\n",
+                            side, dd, roundI(q.x), roundI(q.y), cr.c_str(), gb.dbgSeg, gb.dbgBest, gb.dbgW, gb.surfaceY, col.surfaceY, naturalAt(g, q));
+            }
+            if (prev != INT_MIN) worst = std::max(worst, std::abs(col.surfaceY - prev));
+            prev = col.surfaceY;
+        }
+    }
+    return worst;
+}
+}  // namespace
+
+TEST(EarthworkTest, HairpinBankHasNoCliffStepWithItsControl) {
+    WorldGenerator& g = mountainsWorld();
+    const WorldForgePlan* box = g.worldForge();
+    ASSERT_TRUE(box && g.corridors());
+    const glm::vec2 at(6302.0f, 15942.0f);
+    const int shipped = maxStepAcross(g, *box, at, true);
+    std::printf("[ hairpin ] shipped raster (%d hints per cell-road max): largest adjacent step across the section %d cubes; (cell, road) entries at the hint cap: %d\n",
+                WorldForgePlan::kLegsPerCellMax, shipped, box->rasterHintCapHits());
+    // the control: ONE hint per (cell, road) - the pre-fix mechanism - on the same world
+    WorldForgePlan::setLegsPerCellForTesting(1);
+    WorldGenerator h(WorldGenerator::GenerationType::Mountains, 424242u);
+    WorldRecipe r = civRecipe(424242u, "Mountains");
+    h.applyRecipe(r);
+    WorldForgePlan::setLegsPerCellForTesting(WorldForgePlan::kLegsPerCellMax);
+    const WorldForgePlan* one = h.worldForge();
+    ASSERT_TRUE(one && h.corridors());
+    EXPECT_EQ(one->planHash(), box->planHash()) << "the hint cap is realization, not plan identity";
+    const int control = maxStepAcross(h, *one, at, false);
+    std::printf("[ hairpin ] control (1 hint per cell-road): largest adjacent step %d cubes; entries at the cap: %d\n", control, one->rasterHintCapHits());
+    EXPECT_GE(control, 3) << "the control did not reproduce the hairpin step - the pin measures nothing";
+    EXPECT_LE(shipped, 2) << "a cliff step across the hairpin's bank on the shipped raster";
+    EXPECT_EQ(box->rasterHintCapHits(), 0) << "a (cell, road) entry hit the hint cap on the Mountains plan: a leg may be lost there";
 }

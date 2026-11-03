@@ -53,9 +53,13 @@ struct WorldForgeParams {
     // ≈ 13 000 Domesday places (§10 F4g). It is an INPUT — no mechanism derives it (NEEDS-RESEARCH).
     float civAbandonShare = 0.20f;
     // ── M4a (D27): the corridor graph's reuse discount — a routing step onto a cell already on the
-    // network costs this fraction of its price (Veloren 1/3, REASONED: no historical source yet);
-    // also the box plan's cost multiplier inside the corridor band. 1 = no reuse (V1 behaviour).
-    float routeReuseFraction = 1.0f / 3.0f;
+    // network costs this fraction of its price; also the box plan's cost multiplier inside the
+    // corridor band. 1 = no reuse (V1 behaviour). 0.5 since the D27 ruling of 2026-11-02 — REASONED
+    // as the midpoint of the grounded travel-TIME bracket 0.4–0.6 (Tobler 1993 off-path factor 0.6;
+    // US Army march rates 2.5 vs 1 mph = 0.4; plan §10 "Route reuse fraction"): no source prices a
+    // network cell as a fraction of a fresh one, the bracket is the nearest grounded quantity.
+    // Was 1/3 (Veloren) from M4a 2026-10-22 to 2026-11-02; a persisted recipe keeps its own value.
+    float routeReuseFraction = 0.5f;
     // ── M4b (D26): the per-class grade caps, rise/run, index = road class (1 track, 2 road,
     // 3 highway). GROUNDED (section 10): track 0.15 (USFS pack-animal ruling grade), road 0.08
     // (Moreno 6-8 % cart roads), highway 0.05 (Lawton: wagons seldom above 5 %; Telford 1 in 30).
@@ -186,7 +190,7 @@ struct WorldForgeParams {
         p.civShockEpoch = j.value("civShockEpoch", 9);
         p.civShockFraction = j.value("civShockFraction", 0.45f);
         p.civAbandonShare = j.value("civAbandonShare", 0.20f);
-        p.routeReuseFraction = j.value("routeReuseFraction", 1.0f / 3.0f);
+        p.routeReuseFraction = j.value("routeReuseFraction", p.routeReuseFraction);   // absent = the shipped default (D27)
         if (j.contains("gradeCap") && j["gradeCap"].is_array() && j["gradeCap"].size() == 3)
             for (int c = 0; c < 3; ++c) p.gradeCap[c + 1] = j["gradeCap"][c].get<float>();
         p.bridgeMaxSpanU = j.value("bridgeMaxSpanU", 25.0f);

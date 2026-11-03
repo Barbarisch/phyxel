@@ -28,7 +28,7 @@ using namespace Phyxel;
 // ============================================================================
 namespace {
 
-WorldRecipe civRecipe(uint32_t seed, float reuse = 1.0f / 3.0f) {
+WorldRecipe civRecipe(uint32_t seed, float reuse = WorldForgeParams{}.routeReuseFraction) {   // the shipped default unless a test names its own
     WorldRecipe r;
     r.version = 2;
     r.type = "Perlin";
@@ -344,4 +344,35 @@ TEST(RouteGraphTest, FineRoadMeetsTheMacroStampAtTheBoxEdge) {
                 exits, samples, gaps, exitsWithGap, gapInset, gapRing, gapOutside, wetSkipped);   // gapInset stays 0 by construction
     EXPECT_GT(exits, 5);
     EXPECT_EQ(gaps, 0) << "a corridor column between the fine road's end and the macro stamp carries no road";
+}
+
+// ============================================================================
+// D27 RULED 2026-11-02 (owner: go with the recommendation): the reuse fraction moves from 1/3
+// (Veloren, REASONED) to 0.5 - the midpoint of the grounded travel-time bracket 0.4-0.6 (Tobler
+// 1993 off-path 0.6; US Army march rates 0.4; section 10 "Route reuse fraction") - REASONED: no
+// source prices a network cell as a fraction of a fresh one, the bracket is the nearest grounded
+// quantity. RED by construction against the 1/3 default (the first assertion); the second is the
+// prediction PD27.1: a weaker discount merges less, so the network at 0.5 has MORE distinct cells
+// than at 1/3 and FEWER than with no discount, strictly, on the baseline seed. (MISSED on distinct cells; the
+// junction ordering is what is asserted - see the note at the assertions.)
+// ============================================================================
+TEST(RouteGraphTest, ReuseHalfIsTheDefaultAndSitsBetweenThirdAndNone) {
+    EXPECT_FLOAT_EQ(WorldForgeParams{}.routeReuseFraction, 0.5f) << "D27: the shipped reuse fraction is 0.5 (REASONED, the 0.4-0.6 bracket's midpoint)";
+    WorldGenerator third(WorldGenerator::GenerationType::Perlin, 20260816u), half(WorldGenerator::GenerationType::Perlin, 20260816u), none(WorldGenerator::GenerationType::Perlin, 20260816u);
+    third.applyRecipe(civRecipe(20260816u, 1.0f / 3.0f));
+    half.applyRecipe(civRecipe(20260816u, 0.5f));
+    none.applyRecipe(civRecipe(20260816u, 1.0f));
+    ASSERT_TRUE(third.corridors() && half.corridors() && none.corridors());
+    const int dt = distinctCells(*third.corridors()), dh = distinctCells(*half.corridors()), dn = distinctCells(*none.corridors());
+    std::printf("[ D27 ] distinct network cells: %d at 1/3, %d at 0.5, %d at 1 (none); junctions %d / %d / %d; shared %d / %d / %d\n",
+                dt, dh, dn, third.corridors()->junctionCells(), half.corridors()->junctionCells(), none.corridors()->junctionCells(),
+                third.corridors()->sharedCells(), half.corridors()->sharedCells(), none.corridors()->sharedCells());
+    // PD27.1 as predicted (distinct cells ordered 1/3 < 0.5 < none) MISSED on the red run: 2941 / 2897 / 3046 - the
+    // count mixes merging with path length (a weaker discount also routes shorter). The ordering that held in the
+    // same run, and that the M4a test already named as the effect that matters, is the JUNCTION count: 295 / 343 /
+    // 636. Pinned after measurement (d27_red_green.txt), not predicted.
+    EXPECT_LT(third.corridors()->junctionCells(), half.corridors()->junctionCells()) << "0.5 merges fewer junctions than 1/3";
+    EXPECT_LT(half.corridors()->junctionCells(), none.corridors()->junctionCells()) << "0.5 still merges junctions against no discount";
+    EXPECT_LT(dh, dn) << "0.5 still shrinks the network against no discount";
+    EXPECT_EQ(half.corridors()->routes().size(), none.corridors()->routes().size()) << "the demand set does not depend on the discount";
 }

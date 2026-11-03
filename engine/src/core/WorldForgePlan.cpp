@@ -128,6 +128,15 @@ constexpr float kResampleU = 16.0f;          // centerline point spacing
 constexpr float kRasterCellU = 8.0f;
 static bool s_waterAwareRouting = true;   // M4 water-aware routing: the tests' switch (default on)   // declared here: read in the bake above its definition site
 constexpr int kRasterMaxCells = 2048;        // per axis; cellSize grows if the bbox needs more
+constexpr int kHintWindow = 3;               // gradeBlendAt searches +-this many segments around each hint
+// Hints kept per (cell, road): the nearest hit, then every hit more than kHintWindow segments from each
+// hint already kept, so the +-kHintWindow windows TILE the road through the cell. Audit 7 (2026-11-03):
+// this is not "one per leg" - a straight leg whose segments lie within the blend reach of the cell
+// centre burns a hint every kHintWindow + 1 segments (up to 3 at a 16-32 u cell), so the cap must
+// leave room for a hairpin's second leg and a switchback stack: 8 (DESIGN: 3 for the longest straight
+// run + 5 more legs). A (cell, road) that reaches the cap is COUNTED (rasterHintCapHits) - a leg can be
+// lost there, and the count says whether it ever happens.
+static int s_legsPerCell = WorldForgePlan::kLegsPerCellMax;   // tests: 1 reproduces the pre-fix blind spot
 constexpr size_t kRasterSegmentCap = 0xFFFE;  // uint16 segment index in the raster
 static size_t g_rasterSegmentCap = kRasterSegmentCap;   // M0: test hook lowers it
 
@@ -1702,11 +1711,24 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         R.cellRoadSeg.reserve(roadHits.size() / 4 + 1);
         {
             size_t k = 0;
+            // D27 ripple 2026-11-03 (d27_red_green.txt, the hairpin step at (6302,15942)): a (cell, road) entry
+            // keeps one hint per LEG - the nearest hit, then any further hit whose segment index lies more
+            // than kHintWindow from every hint kept (the road's second leg through a hairpin), up to
+            // kLegsPerCell. One hint and a +-kHintWindow search could not see the point's own leg where
+            // the cell centre was nearer the other one: weight 0, no bank, a 3-cube step.
             for (size_t cell = 0; cell < R.nearestSeg.size(); ++cell) {
                 R.cellRoadsStart[cell] = static_cast<uint32_t>(R.cellRoadSeg.size());
                 uint16_t lastRoad = 0xFFFF;
+                uint16_t kept[WorldForgePlan::kLegsPerCellMax]; int nKept = 0; bool capped = false;
                 while (k < roadHits.size() && roadHits[k].cell == cell) {
-                    if (roadHits[k].road != lastRoad) { R.cellRoadSeg.push_back(roadHits[k].seg); lastRoad = roadHits[k].road; }
+                    if (roadHits[k].road != lastRoad) { lastRoad = roadHits[k].road; nKept = 0; capped = false; }
+                    bool farFromKept = true;
+                    for (int h = 0; h < nKept && farFromKept; ++h)
+                        if (std::abs(static_cast<int>(roadHits[k].seg) - static_cast<int>(kept[h])) <= kHintWindow) farFromKept = false;
+                    if (farFromKept) {
+                        if (nKept < s_legsPerCell) { kept[nKept++] = roadHits[k].seg; R.cellRoadSeg.push_back(roadHits[k].seg); }
+                        else if (!capped) { capped = true; ++plan->m_rasterHintCapHits; }
+                    }
                     ++k;
                 }
             }
@@ -1842,6 +1864,21 @@ WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) c
     return hit;
 }
 
+std::vector<std::pair<int, int>> WorldForgePlan::rasterRoadsAt(float worldX, float worldZ, int* nearestSegOut) const {
+    std::vector<std::pair<int, int>> outv;
+    if (nearestSegOut) *nearestSegOut = -1;
+    if (m_raster.cellsX <= 0 || m_raster.cellsZ <= 0) return outv;
+    const int cx = static_cast<int>(std::floor((worldX - m_raster.originX) / m_raster.cellSize));
+    const int cz = static_cast<int>(std::floor((worldZ - m_raster.originZ) / m_raster.cellSize));
+    if (cx < 0 || cz < 0 || cx >= m_raster.cellsX || cz >= m_raster.cellsZ) return outv;
+    const size_t ci = static_cast<size_t>(cz) * m_raster.cellsX + cx;
+    if (nearestSegOut && m_raster.nearestSeg[ci] != 0xFFFF) *nearestSegOut = m_raster.nearestSeg[ci];
+    if (!m_raster.cellRoadsStart.empty())
+        for (uint32_t e = m_raster.cellRoadsStart[ci]; e < m_raster.cellRoadsStart[ci + 1]; ++e)
+            outv.push_back({m_segments[m_raster.cellRoadSeg[e]].roadIdx, static_cast<int>(m_raster.cellRoadSeg[e])});
+    return outv;
+}
+
 WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worldZ, float naturalY, std::vector<int>* roadsOut) const {
     GradeBlend out;
     constexpr bool kAuditFixes = true;   // audit 2026-10-26: both road slots, the repose shoulder, the core road (false = the audited behaviour, red)
@@ -1852,12 +1889,17 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
     const glm::vec2 p(worldX, worldZ);
     // candidate roads: every road the point's own raster cell indexes (the index reach covers
     // half-width + the widest shoulder + a cell), each with its nearest-segment hint
-    int roads[64], hints[64]; int nRoads = 0;
+    int roads[64], hints[64 * kLegsPerCellMax], nHints[64]; int nRoads = 0;   // per road: up to kLegsPerCellMax hints (the cell's tiling of the road)
     auto addRoad = [&](uint16_t segIdx) {
         if (segIdx == 0xFFFF) return;
         const int r = m_segments[segIdx].roadIdx;
-        for (int k = 0; k < nRoads; ++k) if (roads[k] == r) return;
-        if (nRoads < 64) { roads[nRoads] = r; hints[nRoads] = segIdx; ++nRoads; }
+        for (int k = 0; k < nRoads; ++k)
+            if (roads[k] == r) {
+                for (int h = 0; h < nHints[k]; ++h) if (hints[k * kLegsPerCellMax + h] == segIdx) return;
+                if (nHints[k] < kLegsPerCellMax) hints[k * kLegsPerCellMax + nHints[k]++] = segIdx;
+                return;
+            }
+        if (nRoads < 64) { roads[nRoads] = r; hints[nRoads * kLegsPerCellMax] = segIdx; nHints[nRoads] = 1; ++nRoads; }
     };
     if (cx < 0 || cz < 0 || cx >= m_raster.cellsX || cz >= m_raster.cellsZ) return out;
     {
@@ -1876,6 +1918,10 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
     // distance, class and the direction back to it decide the earthwork section
     float bandBest = 1e30f, bandGrade = -1e30f; int bandCls = 0; glm::vec2 bandToward(0.0f);
     float bandNat0 = -1e30f, bandNatFar = -1e30f;   // the centreline natural and the far natural on this side
+    out.dbgNRoads = nRoads;
+    if (nRoads > 0) out.dbgHint0 = hints[0];
+    // the segment search per road: +-kHintWindow around EACH of the road's hints (reused per road)
+    int segList[kLegsPerCellMax * (2 * kHintWindow + 1)];
     for (int k = 0; k < nRoads; ++k) {
         float best = 1e30f, gradeY = -1e30f; int cls = 0; glm::vec2 toward(0.0f);
         float nat0 = -1e30f, natFar = -1e30f;
@@ -1884,11 +1930,21 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
         // earthwork section is continuous where the nearest segment flips (audit 2026-10-28:
         // a 3-4 cube step along the bank at the inside of bends on rough ground)
         float best2 = 1e30f, gradeY2 = -1e30f, nat02 = -1e30f, natFar2 = -1e30f;
-        // the road's nearest segment: the hint and its neighbours along the polyline (the hint
-        // is the road's nearest segment to the CELL centre; the point is within a cell of it)
-        for (int di = -3; di <= 3; ++di) {
-            const int i = hints[k] + di;
-            if (i < 0 || i >= static_cast<int>(m_segments.size())) continue;
+        int bestSeg = -1;
+        // the road's nearest segment: each hint and its neighbours along the polyline (a hint is
+        // the road's nearest segment to the CELL centre on one of its legs through the cell; the
+        // point is within a cell of it). D27 ripple 2026-11-03: every leg's hint is searched.
+        int nSeg = 0;
+        for (int h = 0; h < nHints[k]; ++h)
+            for (int di = -kHintWindow; di <= kHintWindow; ++di) {
+                const int i = hints[k * kLegsPerCellMax + h] + di;
+                if (i < 0 || i >= static_cast<int>(m_segments.size())) continue;
+                bool dup = false;
+                for (int q = 0; q < nSeg && !dup; ++q) dup = segList[q] == i;
+                if (!dup) segList[nSeg++] = i;
+            }
+        for (int si = 0; si < nSeg; ++si) {
+            const int i = segList[si];
             const Segment& s = m_segments[static_cast<size_t>(i)];
             if (s.roadIdx != roads[k]) continue;
             const glm::vec2 ab = s.b - s.a;
@@ -1897,7 +1953,7 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
             const float d = glm::length(p - (s.a + ab * t));
             if (d < best) {
                 best2 = best; gradeY2 = gradeY; nat02 = nat0; natFar2 = natFar;   // the previous best steps down
-                best = d; cls = s.cls;
+                best = d; cls = s.cls; bestSeg = i;
                 const auto& prof = m_roads[static_cast<size_t>(roads[k])].gradeProfile;
                 gradeY = (s.vert + 1 < prof.size()) ? prof[s.vert] * (1.0f - t) + prof[s.vert + 1] * t : -1e30f;
                 toward = d > 1e-4f ? ((s.a + ab * t) - p) / d : glm::vec2(0.0f);
@@ -1939,10 +1995,11 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
         const float shoulderCap = (faceK > bankLimit() && m_params.wallTierU > 0.0f) ? kShoulderMaxU + kEarthworkExtraU + kBankSlackU : kShoulderMaxU;
         const float shoulder = kAuditFixes ? std::min(shoulderCap, std::max(kShoulderU, std::fabs(gradeY - naturalY) / kReposeSlope)) : kShoulderU;
         const float w = best <= half ? 1.0f : std::max(0.0f, 1.0f - (best - half) / shoulder);
+        if (k == 0) { out.dbgBest0 = best; out.dbgW0 = w; out.dbgShoulder0 = shoulder; out.dbgSeg0 = bestSeg; }
         if (w <= 0.0f) continue;
         if (roadsOut) roadsOut->push_back(roads[k]);
         if (best <= half && (cls > coreCls || (cls == coreCls && roads[k] < coreRoad))) { coreCls = cls; coreRoad = roads[k]; coreGrade = gradeY; }
-        if (w > wMax || (w == wMax && cls > bandCls)) { bandBest = best; bandGrade = gradeS; bandCls = cls; bandToward = toward; bandNat0 = nat0; bandNatFar = natFar; }
+        if (w > wMax || (w == wMax && cls > bandCls)) { bandBest = best; bandGrade = gradeS; bandCls = cls; bandToward = toward; bandNat0 = nat0; bandNatFar = natFar; out.dbgSeg = bestSeg; out.dbgBest2 = best2 < 1e29f ? best2 : -1.0f; out.dbgW = w; }
         wSum += w; gSum += w * gradeY; wMax = std::max(wMax, w);
     }
     if (wSum <= 0.0f) return out;
@@ -1969,6 +2026,7 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
         // its nominal arrival (kBankSlackU in the shoulder cap) until the ground falls under it.
         const float farNat = bandNatFar > -1e29f ? bandNatFar : bandNat0;
         const float face = std::max(cut0, farNat - bandGrade);   // the face the section must hold on this side
+        out.dbgBest = bandBest; out.dbgNat0 = bandNat0; out.dbgNatFar = farNat;
         // audit 2026-10-28: the section is gated on the FACE, not the centreline cut - a steep
         // hillside beside a shallow cut needs the repose bank anchored at the reach just the same
         if (face > limit && bandBest > half) {
@@ -1977,6 +2035,7 @@ WorldForgePlan::GradeBlend WorldForgePlan::gradeBlendAt(float worldX, float worl
             // (so it meets the ground exactly there); the face is rock from the wall top up to it
             const float faceTop = std::max(wallTop, farNat - limit);
             out.towardRoad = bandToward;
+            out.dbgFaceTop = faceTop;
             if (thick > 0.0f && bandBest <= half + thick) {   // the wall tier - where the ground still stands above it
                 if (naturalY > wallTop) {
                     out.surfaceY = wallTop;
@@ -2035,6 +2094,7 @@ WorldForgePlan::RoadHit WorldForgePlan::roadAt(float worldX, float worldZ) const
 }
 
 void WorldForgePlan::setWaterAwareRoutingForTesting(bool on) { s_waterAwareRouting = on; }
+void WorldForgePlan::setLegsPerCellForTesting(int legs) { s_legsPerCell = std::max(1, std::min(kLegsPerCellMax, legs)); }
 
 void WorldForgePlan::setRasterSegmentCapForTesting(size_t cap) {
     g_rasterSegmentCap = cap == 0 ? kRasterSegmentCap : cap;

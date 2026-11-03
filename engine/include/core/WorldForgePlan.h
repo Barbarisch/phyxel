@@ -274,7 +274,15 @@ public:
         float wallBaseY = -1e30f, wallTopY = -1e30f;
         float rockBaseY = -1e30f, rockTopY = -1e30f;
         glm::vec2 towardRoad{0.0f};
+        // diagnostics (tests): the governing band's anchors - nearest distance, the lerped centreline
+        // natural and far natural, the face top the bank rises from, the shoulder weight, the segment
+        float dbgBest = -1.0f, dbgNat0 = -1e30f, dbgNatFar = -1e30f, dbgFaceTop = -1e30f, dbgW = 0.0f, dbgBest2 = -1.0f;
+        int dbgSeg = -1;
+        int dbgNRoads = 0, dbgHint0 = -1, dbgSeg0 = -1; float dbgBest0 = -1.0f, dbgW0 = -9.0f, dbgShoulder0 = 0.0f;   // the first candidate road, even when its weight is <= 0
     };
+    /// Diagnostics: the raster cell size and, for a point, the cell's nearest segment and its road list (road, hint segment).
+    float rasterCellSize() const { return m_raster.cellSize; }
+    std::vector<std::pair<int, int>> rasterRoadsAt(float worldX, float worldZ, int* nearestSegOut = nullptr) const;
     /// naturalY = the column's pre-grading surface (the bank below a cut runs from the road edge
     /// down to it at the repose slope, so a deep cut widens its own shoulder); roadsOut (tests)
     /// receives every road index that contributed.
@@ -319,6 +327,10 @@ public:
     /// wet at its centre only, no water scan of the realized line), so a rig can show its red and its
     /// green on the same pond in one run. Default on; never read outside the bake.
     static void setWaterAwareRoutingForTesting(bool on);
+    /// Audit 7 (2026-11-03): the raster's hints per (cell, road) - 1 reproduces the pre-fix blind spot at a hairpin (the control).
+    static void setLegsPerCellForTesting(int legs);
+    static constexpr int kLegsPerCellMax = 8;
+    int rasterHintCapHits() const { return m_rasterHintCapHits; }
     /// FNV-1a over toJson().dump() — the realization ledger stores this to detect plan drift.
     uint64_t planHash() const;
     /// The identity hash of a plan record (toJson() shape) with the diagnostics stripped —
@@ -347,6 +359,7 @@ private:
         std::vector<uint32_t> cellRoadsStart;
         std::vector<uint16_t> cellRoadSeg;
     } m_raster;
+    int m_rasterHintCapHits = 0;   // audit 7 (2026-11-03): (cell, road) entries that hit the hint cap - a leg could be lost there; reported
     // Global segment table (all roads concatenated; raster values index this).
     struct Segment {
         glm::vec2 a{0.0f}, b{0.0f};
