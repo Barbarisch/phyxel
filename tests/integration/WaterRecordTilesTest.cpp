@@ -895,7 +895,17 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
             WaterCoreGpu::s_stageCapture = true; WaterCoreGpu::s_stageCalls = 0;
             for (int s = 0; s < WaterCoreGpu::kStages; ++s) { WaterCoreGpu::s_stageDm[s] = 0.0; WaterCoreGpu::s_stageAbsMax[s] = 0.0; WaterCoreGpu::s_stageAbsSum[s] = 0.0; }
         }
+        if (std::getenv("E_TIMING") && k == per * static_cast<int>(env("E_TIMING", 8))) WaterCoreManager::setKernelTiming(true, true);   // 50.6h: stage GPU ms
         mgr.step(id, 1, dt, &rec);
+        if (std::getenv("E_TIMING") && k == per * (static_cast<int>(env("E_TIMING", 8)) + 2)) {
+            long calls = 0; auto stt = WaterCoreManager::kernelTiming(calls);
+            std::sort(stt.begin(), stt.end(), [](const auto& x, const auto& y) { return x.second > y.second; });
+            double sum = 0.0; for (const auto& e : stt) sum += e.second;
+            std::printf("      stages over %ld calls (GPU ms a call; total %.2f):", calls, calls ? sum / calls : 0.0);
+            for (const auto& e : stt) if (calls && e.second / calls > 0.05) std::printf(" %s %.2f", e.first.c_str(), e.second / calls);
+            std::printf(" | dispatches %d\n", rec.gpuDispatches);
+            WaterCoreManager::setKernelTiming(false, true);
+        }
         if (std::getenv("E_STAGES") && k == per * (static_cast<int>(env("E_STAGES", 28)) + 4)) {
             WaterCoreGpu::s_stageCapture = false;
             const char* names[WaterCoreGpu::kStages] = {"between", "sources", "gather", "carry-up", "ledger", "compaction", "rest of substep", "residue", "births"};

@@ -12585,6 +12585,25 @@ CL_SWEEPS / CL_BRICKED / CL_LINES):
     partial wake decides per call, not per tick; inside the test's bound at its own push.
 - Not measured yet: the whole frame live at 40 vs 20 for a SMALL stone (50.6g's live run was the visible push).
 
+**50.6i Where a busy lake's GPU time goes, and the line sweeps (2026-11-02, MEASURED; no change).**
+- **The 60 m lake, every column stepped** (`DiagStillWaterEnergy` E_PW=0 E_TIMING, kernel timestamps, 121 calls, 40 sweeps):
+| stage (ms a call) | tall band off | tall band 0.5 m |
+|---|---|---|
+| pressure sweeps | **12.0** | **6.9** |
+| extrapolation | 2.9 | 1.9 |
+| transport | 2.0 | 1.5 |
+| surface copy | 1.9 | 1.9 |
+| the rest | 6.0 | 4.4 |
+| total | 24.8 | 16.6 |
+  The tall band saves a third (not "a lot" - the owner was told it should; measured, it is 33 %); the sweeps are half the call.
+- **The zebra line sweeps (28) are correct but not faster.** "Unstable" (50.6g) was convergence, not a defect: a residual dump
+  (`DiagChurnLoop` CL_RESDUMP; `readCells` res / liq / f) showed a colour checkerboard (one colour's columns 0.2, the other 1e-5);
+  at the same omega 1.0, 200 POINT sweeps leave 0.27, 200 LINE sweeps 0.13, 2,000 line sweeps 2.6e-5 - they converge, twice as fast
+  as plain point Gauss-Seidel per sweep. But the point sweeps run over-relaxed (omega 1.85: 200 sweeps 1e-4), and the line sweeps
+  over-relaxed do not keep up: omega 1.5 / 16 lines stalls the pond's energy at ~1 (point 20 sweeps: 2e-3 by 24 s), omega 1.8 grows
+  it. They stay off. **What would cut the 12 ms is a solver with far fewer iterations** - multigrid over the bricks, or the
+  conjugate gradients the CPU reference uses (its dot products cost launches) - a design of its own.
+
 **Where this leaves W1g (and the plan).** (Updated by 50.6d: the floor and the bed churn were one defect, the GPU pressure in float,
 fixed; the freeze storing motion stands.) As written before 50.6d: three solver defects stand under recording: the freeze stores a node's velocity (50.6b),
 compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the surface (the phantom current, 19.6). At shipped

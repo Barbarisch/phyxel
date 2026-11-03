@@ -360,6 +360,12 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagChurnLoop) {
         }
     struct RestoreLines { int l = WaterCoreGpu::s_lineSweeps; ~RestoreLines() { WaterCoreGpu::s_lineSweeps = l; } } restoreLines;
     WaterCoreGpu::s_lineSweeps = static_cast<int>(env("CL_LINES", WaterCoreGpu::s_lineSweeps));   // 28: zebra line sweeps (bricked only)
+    struct RestoreDev { ~RestoreDev() { WaterCoreGpu::s_pressureDeviation = true; } } restoreDev;
+    if (std::getenv("CL_ABSP")) WaterCoreGpu::s_pressureDeviation = false;   // 50.6d's control
+    struct RestoreOmega { float o = WaterCoreGpu::s_lineOmega; ~RestoreOmega() { WaterCoreGpu::s_lineOmega = o; } } restoreOmega;
+    WaterCoreGpu::s_lineOmega = static_cast<float>(env("CL_OMEGA", WaterCoreGpu::s_lineOmega));
+    if (std::getenv("CL_POMEGA")) gpu.setOmega(static_cast<float>(env("CL_POMEGA", 1.85)));   // the point sweeps' SOR factor
+    struct RestorePOmega { WaterCoreGpu& g; ~RestorePOmega() { g.setOmega(1.85f); } } restorePOmega{gpu};
     t.bakeOcc();
     std::string cerr;
     BrickOptions bo; bo.sparse = env("CL_BRICKED", 0) != 0;
@@ -391,11 +397,30 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagChurnLoop) {
             cpuMax.clear(); cpuSum.clear(); cpuCalls = 0; cpuCap = true;
         }
         const auto st = gpu.step(*vol, prm, kDt, 1, static_cast<int>(env("CL_SWEEPS", 20)));
+        if (std::getenv("CL_RESDUMP") && tick == static_cast<int>(env("CL_RESDUMP", 120))) {   // 50.6h: where the pressure residual sits
+            std::vector<float> res, liq, f; gpu.readCells(*vol, "res", res); gpu.readCells(*vol, "liq", liq); gpu.readCells(*vol, "f", f);
+            const int NY = D + 6;
+            auto at = [&](const std::vector<float>& v, int x, int y, int z) { return (x < 0 || y < 0 || z < 0 || x >= W || y >= NY || z >= W) ? -9.0f : v[size_t(x) + size_t(W) * (y + size_t(NY) * z)]; };
+            std::vector<size_t> idx(res.size()); for (size_t i = 0; i < idx.size(); ++i) idx[i] = i;
+            std::partial_sort(idx.begin(), idx.begin() + 10, idx.end(), [&](size_t a, size_t b) { return res[a] > res[b]; });
+            long over = 0; for (float r : res) over += r > 0.01f;
+            std::printf("   residual dump at tick %d: cells over 0.01: %ld\n", tick, over);
+            for (int zz : {16, 17}) {
+                std::printf("     y 4, z %d, residual by x:", zz);
+                for (int xx = 0; xx < W; ++xx) std::printf(" %.0e", at(res, xx, 4, zz));
+                std::printf("\n");
+            }
+            for (int j = 0; j < 10; ++j) {
+                const size_t i = idx[j]; const int x = int(i % W), y = int((i / W) % NY), z = int(i / (size_t(W) * NY));
+                std::printf("     (%2d,%2d,%2d) res %.3e f %.3f | liq below %g above %g | f above %.3f | side liq %g %g %g %g\n", x, y, z, res[i], f[i],
+                            at(liq, x, y - 1, z), at(liq, x, y + 1, z), at(f, x, y + 1, z), at(liq, x - 1, y, z), at(liq, x + 1, y, z), at(liq, x, y, z - 1), at(liq, x, y, z + 1));
+            }
+        }
         StepReport cr; if (cpu) { cr = cpu->step(kDt); if (cpuCap) ++cpuCalls; }
         (void)window;
         if (tick % 120 == 0) {
             WaterCoreGpu::s_stageCapture = false;
-            std::printf("   t %4.1f s  GPU KE %.2e max|df| %.2e quiet %d asleep %d", tick * kDt, st.kineticEnergy, st.maxDeltaF, st.quietTicks, int(st.asleep));
+            std::printf("   t %4.1f s  GPU KE %.2e max|df| %.2e quiet %d asleep %d residual %.2e", tick * kDt, st.kineticEnergy, st.maxDeltaF, st.quietTicks, int(st.asleep), st.rbgsResidualMax);
             if (cpu) std::printf(" | CPU KE %.2e max|df| %.2e quiet %d asleep %d", cr.kineticEnergy, cr.maxDeltaF, cr.quietTicks, int(cr.asleep));
             std::printf("\n      GPU stages (%ld calls), max / sum a call:", WaterCoreGpu::s_stageCalls);
             for (int s : {2, 3, 5, 6}) std::printf(" %s %.1e/%.1e", names[s], WaterCoreGpu::s_stageAbsMax[s], WaterCoreGpu::s_stageAbsSum[s] / std::max(1L, WaterCoreGpu::s_stageCalls));
