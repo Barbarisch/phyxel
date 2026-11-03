@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <functional>
 #include <map>
+#include <tuple>
 #include <memory>
 #include <string>
 
@@ -339,6 +340,389 @@ TEST_F(WaterCoreGpuParityTest, GpuDisturbedPondGoesQuiet) {
     EXPECT_LT(qRed, 0.0) << "RED CONTROL: at 20 sweeps the pond went quiet - the test no longer measures the loop";
 }
 
+// 50.7 G1-G3 (MGPCG on the GPU, its build gates): a moving 4 m pond (bricked, the surface tilted 2 cells, 1 s stepped), the GPU's
+// own pressure system read back; a host reference running the SAME algorithm (wc_mg.comp: the fine operator, world-aligned 2 x 2 x 2
+// Galerkin boxes, red-black Gauss-Seidel in the kernel's colour order, the coarsest level's symmetric sweep pairs) must match the
+// device: G1 the fine product A s, G2 level 1's coefficients, G3 one V-cycle z = M r. Each with a CONTROL: the host with one
+// neighbour term dropped must NOT match (else the comparison cannot fail).
+TEST_F(WaterCoreGpuParityTest, MgGatesMatchTheHostReference) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const int W = 36, D = 18, NY = D + 6;
+    const float h = 1.0f / 9.0f;
+    Tank t(W, NY, W, h);
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) {
+        const float top = D + 2.0f * (x - W * 0.5f) / W;
+        for (int y = 0; y < NY; ++y) t.grid.f(x, y, z) = std::clamp(top - static_cast<float>(y), 0.0f, 1.0f);
+    }
+    t.bakeOcc();
+    std::string err;
+    BrickOptions bo; bo.sparse = true;
+    auto* vol = gpu.createVolume(t.grid, &err, bo); ASSERT_NE(vol, nullptr) << err;
+    SolverParams prm; prm.restTicks = 1 << 30;
+    for (int k = 0; k < 60; ++k) gpu.step(*vol, prm, kDt, 1, 40);
+    std::vector<float> dg, lq; gpu.readCells(*vol, "diag", dg); gpu.readCells(*vol, "liq", lq);
+    const size_t n = dg.size();
+    const double ih2 = 1.0 / (double(h) * h);
+    auto I = [&](int x, int y, int z) { return size_t(x) + size_t(W) * (size_t(y) + size_t(NY) * z); };
+    auto L = [&](int x, int y, int z) { return x >= 0 && y >= 0 && z >= 0 && x < W && y < NY && z < W && lq[I(x, y, z)] != 0.0f; };
+    const int d6[6][3] = {{-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}};
+    // G1: q = A s
+    std::vector<float> s(n), q;
+    for (size_t i = 0; i < n; ++i) s[i] = std::sin(0.37 * double(i)) + 0.5;   // deterministic, no symmetry
+    ASSERT_TRUE(gpu.mgSpmvForTest(*vol, s, q));
+    auto hostAs = [&](int dropDir) {
+        std::vector<double> o(n, 0.0);
+        for (int z = 0; z < W; ++z) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) {
+            if (!L(x, y, z)) continue;
+            double v = dg[I(x, y, z)] * double(s[I(x, y, z)]);
+            for (int k = 0; k < 6; ++k) if (k != dropDir && L(x + d6[k][0], y + d6[k][1], z + d6[k][2])) v -= ih2 * s[I(x + d6[k][0], y + d6[k][1], z + d6[k][2])];
+            o[I(x, y, z)] = v;
+        }
+        return o;
+    };
+    auto worstRel = [&](const std::vector<double>& ref, const std::vector<float>& got) {
+        double w = 0.0, scale = 1e-30; for (size_t i = 0; i < n; ++i) scale = std::max(scale, std::abs(ref[i]));
+        for (size_t i = 0; i < n; ++i) if (lq[i] != 0.0f) w = std::max(w, std::abs(ref[i] - got[i]) / scale);
+        return w;
+    };
+    const double g1 = worstRel(hostAs(-1), q), g1red = worstRel(hostAs(3), q);
+    // G2: level 1's coefficients (world-aligned boxes; the tank's origin is 0, so the box is (x >> 1, y >> 1, z >> 1))
+    std::vector<float> coef; glm::ivec3 cd, co;
+    ASSERT_TRUE(gpu.mgCoefForTest(*vol, 1, coef, cd, co));
+    double g2 = 0.0, g2scale = 1e-30, g2red = 0.0;
+    {
+        std::vector<double> hd(size_t(cd.x) * cd.y * cd.z, 0.0), hx(hd.size(), 0.0), hy(hd.size(), 0.0), hz(hd.size(), 0.0), hdRed(hd.size(), 0.0);
+        auto C = [&](int x, int y, int z) { return size_t(x >> 1) - co.x + size_t(cd.x) * ((size_t(y >> 1) - co.y) + size_t(cd.y) * (size_t(z >> 1) - co.z)); };
+        for (int z = 0; z < W; ++z) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) {
+            if (!L(x, y, z)) continue;
+            const size_t c = C(x, y, z);
+            hd[c] += dg[I(x, y, z)]; hdRed[c] += dg[I(x, y, z)];
+            for (int k = 0; k < 6; ++k) {
+                const int a = x + d6[k][0], b = y + d6[k][1], e = z + d6[k][2];
+                if (!L(a, b, e)) continue;
+                if (C(a, b, e) == c) { hd[c] -= ih2; if (k != 3) hdRed[c] -= ih2; }
+                else if (k == 1) hx[c] += ih2; else if (k == 3) hy[c] += ih2; else if (k == 5) hz[c] += ih2;
+            }
+        }
+        for (size_t c = 0; c < hd.size(); ++c) g2scale = std::max(g2scale, std::abs(hd[c]));
+        for (size_t c = 0; c < hd.size(); ++c) {
+            g2 = std::max({g2, std::abs(hd[c] - coef[c * 4]) / g2scale, std::abs(hx[c] - coef[c * 4 + 1]) / g2scale, std::abs(hy[c] - coef[c * 4 + 2]) / g2scale, std::abs(hz[c] - coef[c * 4 + 3]) / g2scale});
+            g2red = std::max(g2red, std::abs(hdRed[c] - coef[c * 4]) / g2scale);
+        }
+    }
+    // G3: one V-cycle (the device's levels; the host builds the same hierarchy and runs the same orderings)
+    std::vector<float> r(n, 0.0f), z;
+    for (size_t i = 0; i < n; ++i) if (lq[i] != 0.0f) r[i] = std::cos(0.21 * double(i));
+    ASSERT_TRUE(gpu.mgVcycleForTest(*vol, r, z));
+    double g3 = 0.0;
+    {
+        struct Lv { glm::ivec3 d, o; std::vector<double> dg, cx, cy, cz, x, b; };
+        std::vector<Lv> lv;
+        glm::ivec3 o(0), dd(W, NY, W);
+        while (true) {
+            Lv l; const glm::ivec3 lo(o.x >> 1, o.y >> 1, o.z >> 1), hi((o.x + dd.x - 1) >> 1, (o.y + dd.y - 1) >> 1, (o.z + dd.z - 1) >> 1);
+            l.o = lo; l.d = hi - lo + glm::ivec3(1);
+            const size_t cnt = size_t(l.d.x) * l.d.y * l.d.z;
+            l.dg.assign(cnt, 0.0); l.cx = l.dg; l.cy = l.dg; l.cz = l.dg; l.x = l.dg; l.b = l.dg;
+            lv.push_back(l);
+            if (long(l.d.x) * l.d.y * l.d.z <= WaterCoreGpu::kMgCoarsest) break;
+            o = l.o; dd = l.d;
+        }
+        auto li = [&](const Lv& l, glm::ivec3 c) { return size_t(c.x) + size_t(l.d.x) * (size_t(c.y) + size_t(l.d.y) * c.z); };
+        auto in = [&](const Lv& l, glm::ivec3 c) { return c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < l.d.x && c.y < l.d.y && c.z < l.d.z; };
+        auto parentF = [&](int x, int y, int z) { return glm::ivec3(x >> 1, y >> 1, z >> 1) - lv[0].o; };
+        // level 1 from the fine system (as G2), then each from the one below
+        for (int zz = 0; zz < W; ++zz) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) {
+            if (!L(x, y, zz)) continue;
+            const size_t c = li(lv[0], parentF(x, y, zz));
+            lv[0].dg[c] += dg[I(x, y, zz)];
+            for (int k = 0; k < 6; ++k) {
+                const int a = x + d6[k][0], b = y + d6[k][1], e = zz + d6[k][2];
+                if (!L(a, b, e)) continue;
+                const glm::ivec3 pn = parentF(a, b, e);
+                if (li(lv[0], pn) == c && in(lv[0], pn)) lv[0].dg[c] -= ih2;
+                else if (k == 1) lv[0].cx[c] += ih2; else if (k == 3) lv[0].cy[c] += ih2; else if (k == 5) lv[0].cz[c] += ih2;
+            }
+        }
+        auto coup = [&](const Lv& l, glm::ivec3 c, int j) -> double {
+            const glm::ivec3 nn = c + glm::ivec3(d6[j][0], d6[j][1], d6[j][2]);
+            if (!in(l, nn)) return 0.0;
+            if (j == 1) return l.cx[li(l, c)]; if (j == 0) return l.cx[li(l, nn)];
+            if (j == 3) return l.cy[li(l, c)]; if (j == 2) return l.cy[li(l, nn)];
+            if (j == 5) return l.cz[li(l, c)]; return l.cz[li(l, nn)];
+        };
+        for (size_t k = 1; k < lv.size(); ++k) {
+            Lv& f = lv[k - 1]; Lv& cl = lv[k];
+            for (int zz = 0; zz < f.d.z; ++zz) for (int y = 0; y < f.d.y; ++y) for (int x = 0; x < f.d.x; ++x) {
+                const glm::ivec3 c(x, y, zz); const size_t fi = li(f, c);
+                if (f.dg[fi] == 0.0) continue;
+                const glm::ivec3 P = ((c + f.o) >> 1) - cl.o; const size_t pi = li(cl, P);
+                cl.dg[pi] += f.dg[fi];
+                for (int j = 0; j < 6; ++j) {
+                    const glm::ivec3 nn = c + glm::ivec3(d6[j][0], d6[j][1], d6[j][2]);
+                    if (!in(f, nn)) continue;
+                    const double a = coup(f, c, j);
+                    if (a == 0.0 || f.dg[li(f, nn)] == 0.0) continue;
+                    const glm::ivec3 pn = ((nn + f.o) >> 1) - cl.o;
+                    if (pn == P) cl.dg[pi] -= a;
+                    else if (j == 1) cl.cx[pi] += a; else if (j == 3) cl.cy[pi] += a; else if (j == 5) cl.cz[pi] += a;
+                }
+            }
+        }
+        auto cNb = [&](const Lv& l, glm::ivec3 c) { double s2 = 0.0; for (int j = 0; j < 6; ++j) { const glm::ivec3 nn = c + glm::ivec3(d6[j][0], d6[j][1], d6[j][2]); if (in(l, nn)) s2 += coup(l, c, j) * l.x[li(l, nn)]; } return s2; };
+        auto cGs = [&](Lv& l, int colour) {
+            for (int zz = 0; zz < l.d.z; ++zz) for (int y = 0; y < l.d.y; ++y) for (int x = 0; x < l.d.x; ++x) {
+                if (((x + y + zz) & 1) != colour) continue; const size_t i = li(l, {x, y, zz}); if (l.dg[i] == 0.0) continue;
+                l.x[i] = (l.b[i] + cNb(l, {x, y, zz})) / l.dg[i];
+            }
+        };
+        // the fine level
+        std::vector<double> zf(n, 0.0);
+        auto fNb = [&](int x, int y, int zz) { double s2 = 0.0; for (int k = 0; k < 6; ++k) if (L(x + d6[k][0], y + d6[k][1], zz + d6[k][2])) s2 += zf[I(x + d6[k][0], y + d6[k][1], zz + d6[k][2])]; return s2; };
+        auto fGs = [&](int colour) {
+            for (int zz = 0; zz < W; ++zz) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) {
+                if (((x + y + zz) & 1) != colour || !L(x, y, zz)) continue;
+                zf[I(x, y, zz)] = (r[I(x, y, zz)] + fNb(x, y, zz) * ih2) / dg[I(x, y, zz)];
+            }
+        };
+        auto cAx = [&](const Lv& l, glm::ivec3 c) { return l.dg[li(l, c)] * l.x[li(l, c)] - cNb(l, c); };
+        fGs(0); fGs(1);
+        for (Lv& l : lv) { std::fill(l.b.begin(), l.b.end(), 0.0); std::fill(l.x.begin(), l.x.end(), 0.0); }
+        for (int zz = 0; zz < W; ++zz) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x)
+            if (L(x, y, zz)) lv[0].b[li(lv[0], parentF(x, y, zz))] += r[I(x, y, zz)] - (dg[I(x, y, zz)] * zf[I(x, y, zz)] - fNb(x, y, zz) * ih2);
+        const int K = static_cast<int>(lv.size());
+        for (int k = 1; k < K; ++k) {   // level k = lv[k - 1]
+            Lv& l = lv[size_t(k - 1)]; cGs(l, 0); cGs(l, 1);
+            Lv& cl = lv[size_t(k)];
+            for (int zz = 0; zz < l.d.z; ++zz) for (int y = 0; y < l.d.y; ++y) for (int x = 0; x < l.d.x; ++x) {
+                const glm::ivec3 c(x, y, zz); if (l.dg[li(l, c)] == 0.0) continue;
+                cl.b[li(cl, ((c + l.o) >> 1) - cl.o)] += l.b[li(l, c)] - cAx(l, c);
+            }
+        }
+        { Lv& l = lv.back(); for (int it = 0; it < WaterCoreGpu::s_mgCoarsePairs; ++it) { cGs(l, 0); cGs(l, 1); } for (int it = 0; it < WaterCoreGpu::s_mgCoarsePairs; ++it) { cGs(l, 1); cGs(l, 0); } }
+        for (int k = K - 1; k >= 1; --k) {
+            Lv& l = lv[size_t(k - 1)]; const Lv& cl = lv[size_t(k)];
+            for (int zz = 0; zz < l.d.z; ++zz) for (int y = 0; y < l.d.y; ++y) for (int x = 0; x < l.d.x; ++x) {
+                const glm::ivec3 c(x, y, zz); if (l.dg[li(l, c)] == 0.0) continue;
+                const glm::ivec3 P = ((c + l.o) >> 1) - cl.o; if (in(cl, P)) l.x[li(l, c)] += cl.x[li(cl, P)];
+            }
+            cGs(l, 1); cGs(l, 0);
+        }
+        for (int zz = 0; zz < W; ++zz) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) if (L(x, y, zz)) zf[I(x, y, zz)] += lv[0].x[li(lv[0], parentF(x, y, zz))];
+        fGs(1); fGs(0);
+        g3 = worstRel(zf, z);
+        std::printf("  levels:"); for (const Lv& l : lv) std::printf(" %dx%dx%d", l.d.x, l.d.y, l.d.z); std::printf("\n");
+    }
+    gpu.destroyVolume(vol);
+    std::printf("  G1 fine product: worst relative %.2e (CONTROL, a neighbour dropped: %.2e) | G2 level 1: %.2e (CONTROL %.2e) | G3 one V-cycle: %.2e\n", g1, g1red, g2, g2red, g3);
+    EXPECT_LT(g1, 1e-5); EXPECT_GT(g1red, 1e-3);
+    EXPECT_LT(g2, 1e-5); EXPECT_GT(g2red, 1e-3);
+    EXPECT_LT(g3, 1e-4);
+}
+
+// 50.7 step 0 (MEASUREMENT, the faster pressure solver): the GPU's own pressure system (diag, rhs, liq read back after a call) of a
+// moving pond, solved on the host in double from p = 0 by: (a) red-black point SOR (omega PS_OMEGA, the GPU's 1.85), (b) a TWO-GRID
+// cycle - SOR sweeps, then a correction constant per water COLUMN (aggregation: every liquid cell of an (x, z) column one coarse
+// unknown, the Galerkin coarse system P^T A P, solved exactly), then SOR sweeps, (c) Jacobi-preconditioned CG, (d) CG preconditioned
+// by the two-grid cycle (symmetric smoothing). Work in fine sweeps (one sweep = both colours ~ one matrix-vector product); the
+// residual is the GPU's (max over cells of |A p - b|). PS_W cells wide (default 144 = 16 m), PS_D deep (18), PS_TILT, PS_SECONDS.
+TEST_F(WaterCoreGpuParityTest, DISABLED_DiagPressureSolvers) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    auto env = [](const char* k, double d) { const char* v = std::getenv(k); return v ? std::atof(v) : d; };
+    const int W = static_cast<int>(env("PS_W", 144)), D = static_cast<int>(env("PS_D", 18)), NY = D + 6;
+    const float h = 1.0f / 9.0f, tilt = static_cast<float>(env("PS_TILT", 2.0));
+    Tank t(W, NY, W, h);
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) {
+        const float top = D + tilt * (x - W * 0.5f) / W;
+        for (int y = 0; y < NY; ++y) t.grid.f(x, y, z) = std::clamp(top - static_cast<float>(y), 0.0f, 1.0f);
+    }
+    auto* vol = make(t); ASSERT_NE(vol, nullptr);
+    SolverParams prm; prm.restTicks = 1 << 30;
+    const int ticks = static_cast<int>(60 * env("PS_SECONDS", 2.0));
+    GpuStepStats st;
+    for (int k = 0; k < ticks; ++k) st = gpu.step(*vol, prm, kDt, 1, 40);
+    std::vector<float> dg, rh, lq; gpu.readCells(*vol, "diag", dg); gpu.readCells(*vol, "rhs", rh); gpu.readCells(*vol, "liq", lq);
+    gpu.destroyVolume(vol);
+    const size_t n = dg.size();
+    const double ih2 = 1.0 / (double(h) * h);
+    auto I = [&](int x, int y, int z) { return size_t(x) + size_t(W) * (size_t(y) + size_t(NY) * z); };
+    std::vector<int> nb(n * 6, -1);   // liquid neighbours
+    std::vector<char> L(n, 0); size_t m = 0;
+    for (size_t i = 0; i < n; ++i) { L[i] = lq[i] != 0.0f; m += L[i]; }
+    for (int z = 0; z < W; ++z) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) {
+        const size_t i = I(x, y, z); if (!L[i]) continue;
+        const int d[6][3] = {{-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}};
+        for (int k = 0; k < 6; ++k) {
+            const int a = x + d[k][0], b = y + d[k][1], c = z + d[k][2];
+            if (a < 0 || b < 0 || c < 0 || a >= W || b >= NY || c >= W) continue;
+            if (L[I(a, b, c)]) nb[i * 6 + k] = static_cast<int>(I(a, b, c));
+        }
+    }
+    auto Ap = [&](const std::vector<double>& p, std::vector<double>& out) {
+        for (size_t i = 0; i < n; ++i) { if (!L[i]) { out[i] = 0.0; continue; } double s = dg[i] * p[i]; for (int k = 0; k < 6; ++k) if (nb[i * 6 + k] >= 0) s -= ih2 * p[nb[i * 6 + k]]; out[i] = s; }
+    };
+    std::vector<double> b(n, 0.0); for (size_t i = 0; i < n; ++i) if (L[i]) b[i] = rh[i];
+    auto resMax = [&](const std::vector<double>& p) { std::vector<double> a(n); Ap(p, a); double r = 0.0; for (size_t i = 0; i < n; ++i) if (L[i]) r = std::max(r, std::abs(a[i] - b[i])); return r; };
+    const double r0 = resMax(std::vector<double>(n, 0.0));
+    std::printf("  %d x %d x %d cells, %zu liquid, after %.1f s (GPU residual at 40 sweeps %.2e); |b| max %.2e\n", W, NY, W, m, ticks / 60.0, st.rbgsResidualMax, r0);
+    // red-black SOR sweep (colour by x + y + z, as the GPU)
+    auto sor = [&](std::vector<double>& p, const std::vector<double>& rhs, double w, bool reverse) {
+        for (int pass = 0; pass < 2; ++pass) {
+            const int colour = reverse ? 1 - pass : pass;
+            for (int z = 0; z < W; ++z) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) {
+                if (((x + y + z) & 1) != colour) continue;
+                const size_t i = I(x, y, z); if (!L[i]) continue;
+                double s = rhs[i]; for (int k = 0; k < 6; ++k) if (nb[i * 6 + k] >= 0) s += ih2 * p[nb[i * 6 + k]];
+                p[i] += w * (s / dg[i] - p[i]);
+            }
+        }
+    };
+    // the column coarse space: aggregate = (x, z)
+    const size_t nc = size_t(W) * W;
+    std::vector<double> cd(nc, 0.0), cx0(nc, 0.0), cx1(nc, 0.0), cz0(nc, 0.0), cz1(nc, 0.0);   // Galerkin: diagonal and the 4 lateral couplings
+    std::vector<char> cw(nc, 0);
+    for (int z = 0; z < W; ++z) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) {
+        const size_t i = I(x, y, z); if (!L[i]) continue;
+        const size_t c = size_t(x) + size_t(W) * z; cw[c] = 1; cd[c] += dg[i];
+        if (nb[i * 6 + 2] >= 0) cd[c] -= ih2; if (nb[i * 6 + 3] >= 0) cd[c] -= ih2;   // inside the column: P^T A P keeps diag - the vertical couplings
+        if (nb[i * 6 + 0] >= 0) cx0[c] += ih2; if (nb[i * 6 + 1] >= 0) cx1[c] += ih2;
+        if (nb[i * 6 + 4] >= 0) cz0[c] += ih2; if (nb[i * 6 + 5] >= 0) cz1[c] += ih2;
+    }
+    auto coarseA = [&](const std::vector<double>& e, std::vector<double>& out) {
+        for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) {
+            const size_t c = size_t(x) + size_t(W) * z; if (!cw[c]) { out[c] = 0.0; continue; }
+            double s = cd[c] * e[c];
+            if (x > 0) s -= cx0[c] * e[c - 1]; if (x + 1 < W) s -= cx1[c] * e[c + 1];
+            if (z > 0) s -= cz0[c] * e[c - W]; if (z + 1 < W) s -= cz1[c] * e[c + W];
+            out[c] = s;
+        }
+    };
+    auto coarseSolve = [&](const std::vector<double>& rc, std::vector<double>& e) {   // CG, Jacobi, to 1e-10 relative
+        e.assign(nc, 0.0); std::vector<double> r = rc, z(nc), pp(nc), q(nc);
+        double rn0 = 0.0; for (size_t c = 0; c < nc; ++c) rn0 += r[c] * r[c];
+        if (rn0 == 0.0) return;
+        for (size_t c = 0; c < nc; ++c) z[c] = cw[c] ? r[c] / cd[c] : 0.0;
+        pp = z; double rz = 0.0; for (size_t c = 0; c < nc; ++c) rz += r[c] * z[c];
+        for (int it = 0; it < 5000; ++it) {
+            coarseA(pp, q); double pq = 0.0; for (size_t c = 0; c < nc; ++c) pq += pp[c] * q[c];
+            const double a = rz / pq; double rn = 0.0;
+            for (size_t c = 0; c < nc; ++c) { e[c] += a * pp[c]; r[c] -= a * q[c]; rn += r[c] * r[c]; }
+            if (rn < 1e-20 * rn0) break;
+            for (size_t c = 0; c < nc; ++c) z[c] = cw[c] ? r[c] / cd[c] : 0.0;
+            double rz2 = 0.0; for (size_t c = 0; c < nc; ++c) rz2 += r[c] * z[c];
+            for (size_t c = 0; c < nc; ++c) pp[c] = z[c] + (rz2 / rz) * pp[c];
+            rz = rz2;
+        }
+    };
+    auto coarseCorrect = [&](std::vector<double>& p, const std::vector<double>& rhs) {
+        std::vector<double> a(n); Ap(p, a);
+        std::vector<double> rc(nc, 0.0);
+        for (int z = 0; z < W; ++z) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) { const size_t i = I(x, y, z); if (L[i]) rc[size_t(x) + size_t(W) * z] += rhs[i] - a[i]; }
+        std::vector<double> e; coarseSolve(rc, e);
+        for (int z = 0; z < W; ++z) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) { const size_t i = I(x, y, z); if (L[i]) p[i] += e[size_t(x) + size_t(W) * z]; }
+    };
+    const double wS = env("PS_OMEGA", 1.85);
+    {   // (a) SOR
+        std::vector<double> p(n, 0.0); std::printf("    (a) point SOR %.2f:", wS);
+        int done = 0;
+        for (int target : {20, 40, 80, 160, 320}) { while (done < target) { sor(p, b, wS, false); ++done; } std::printf("  %d sweeps %.2e", target, resMax(p)); }
+        std::printf("\n");
+    }
+    for (int nu : {1, 2, 4}) {   // (b) two-grid: nu SOR, column correction, nu SOR
+        std::vector<double> p(n, 0.0); std::printf("    (b) two-grid, %d+%d SOR %.2f a cycle:", nu, nu, wS);
+        for (int cyc = 1; cyc <= 12; ++cyc) {
+            for (int k = 0; k < nu; ++k) sor(p, b, wS, false);
+            coarseCorrect(p, b);
+            for (int k = 0; k < nu; ++k) sor(p, b, wS, true);
+            if (cyc == 1 || cyc == 2 || cyc == 4 || cyc == 8 || cyc == 12) std::printf("  %d cyc (%d sweeps) %.2e", cyc, cyc * 2 * nu, resMax(p));
+        }
+        std::printf("\n");
+    }
+    auto cg = [&](const char* name, auto precond) {   // (c) / (d)
+        std::vector<double> p(n, 0.0), r = b, z(n, 0.0), pp(n), q(n);
+        precond(r, z); pp = z; double rz = 0.0; for (size_t i = 0; i < n; ++i) rz += r[i] * z[i];
+        std::printf("    %s:", name);
+        for (int it = 1; it <= 160; ++it) {
+            Ap(pp, q); double pq = 0.0; for (size_t i = 0; i < n; ++i) pq += pp[i] * q[i];
+            const double a = rz / pq;
+            for (size_t i = 0; i < n; ++i) { p[i] += a * pp[i]; r[i] -= a * q[i]; }
+            precond(r, z); double rz2 = 0.0; for (size_t i = 0; i < n; ++i) rz2 += r[i] * z[i];
+            for (size_t i = 0; i < n; ++i) pp[i] = z[i] + (rz2 / rz) * pp[i];
+            rz = rz2;
+            if (it == 5 || it == 10 || it == 20 || it == 40 || it == 80 || it == 160) std::printf("  %d it %.2e", it, resMax(p));
+        }
+        std::printf("\n");
+    };
+    cg("(c) Jacobi-PCG", [&](const std::vector<double>& r, std::vector<double>& z) { for (size_t i = 0; i < n; ++i) z[i] = L[i] ? r[i] / dg[i] : 0.0; });
+    cg("(d) PCG, the two-grid (1+1 SGS) as preconditioner", [&](const std::vector<double>& r, std::vector<double>& z) {
+        z.assign(n, 0.0); sor(z, r, 1.0, false); coarseCorrect(z, r); sor(z, r, 1.0, true); });
+    // (e) geometric MULTIGRID by aggregation: 2 x 2 x 2 boxes of liquid cells, level after level (Galerkin, piecewise-constant
+    // transfer), smoothed by symmetric Gauss-Seidel (PS_NU sweeps each way), the coarsest (< 2000 unknowns) solved by CG; as a
+    // stationary V-cycle and as CG's preconditioner. A level: rows (diag, neighbour list), its cells' (x, y, z) for the next boxes.
+    struct Lvl { std::vector<double> diag; std::vector<std::vector<std::pair<int, double>>> off; std::vector<glm::ivec3> pos; std::vector<int> parent; };
+    std::vector<Lvl> lv(1);
+    {
+        std::vector<int> row(n, -1); Lvl& l0 = lv[0];
+        for (int z = 0; z < W; ++z) for (int y = 0; y < NY; ++y) for (int x = 0; x < W; ++x) { const size_t i = I(x, y, z); if (L[i]) { row[i] = static_cast<int>(l0.pos.size()); l0.pos.push_back({x, y, z}); } }
+        l0.diag.resize(l0.pos.size()); l0.off.resize(l0.pos.size());
+        for (size_t r = 0; r < l0.pos.size(); ++r) {
+            const size_t i = I(l0.pos[r].x, l0.pos[r].y, l0.pos[r].z); l0.diag[r] = dg[i];
+            for (int k = 0; k < 6; ++k) if (nb[i * 6 + k] >= 0) l0.off[r].push_back({row[nb[i * 6 + k]], -ih2});
+        }
+    }
+    while (lv.back().diag.size() > 2000 && lv.size() < 12) {
+        Lvl& f = lv.back(); Lvl c;
+        std::map<std::tuple<int, int, int>, int> box;
+        f.parent.resize(f.diag.size());
+        for (size_t r = 0; r < f.diag.size(); ++r) {
+            const auto key = std::make_tuple(f.pos[r].x >> 1, f.pos[r].y >> 1, f.pos[r].z >> 1);
+            auto it = box.find(key);
+            if (it == box.end()) { it = box.emplace(key, static_cast<int>(c.pos.size())).first; c.pos.push_back({f.pos[r].x >> 1, f.pos[r].y >> 1, f.pos[r].z >> 1}); }
+            f.parent[r] = it->second;
+        }
+        c.diag.assign(c.pos.size(), 0.0); std::vector<std::map<int, double>> acc(c.pos.size());
+        for (size_t r = 0; r < f.diag.size(); ++r) {
+            const int pr = f.parent[r]; c.diag[pr] += f.diag[r];
+            for (const auto& [j, a] : f.off[r]) { const int pj = f.parent[j]; if (pj == pr) c.diag[pr] += a; else acc[pr][pj] += a; }
+        }
+        c.off.resize(c.pos.size());
+        for (size_t r = 0; r < c.pos.size(); ++r) for (const auto& [j, a] : acc[r]) c.off[r].push_back({j, a});
+        lv.push_back(std::move(c));
+    }
+    std::printf("    (e) levels:"); for (const Lvl& l : lv) std::printf(" %zu", l.diag.size()); std::printf("\n");
+    const int nu = static_cast<int>(env("PS_NU", 1));
+    auto gs = [&](const Lvl& l, std::vector<double>& x, const std::vector<double>& rhs, bool back) {
+        const int N = static_cast<int>(l.diag.size());
+        for (int s = 0; s < N; ++s) { const int r = back ? N - 1 - s : s; double v = rhs[r]; for (const auto& [j, a] : l.off[r]) v -= a * x[j]; x[r] = v / l.diag[r]; }
+    };
+    auto lAp = [&](const Lvl& l, const std::vector<double>& x, std::vector<double>& out) {
+        for (size_t r = 0; r < l.diag.size(); ++r) { double v = l.diag[r] * x[r]; for (const auto& [j, a] : l.off[r]) v += a * x[j]; out[r] = v; }
+    };
+    std::function<void(int, std::vector<double>&, const std::vector<double>&)> vcycle = [&](int k, std::vector<double>& x, const std::vector<double>& rhs) {
+        const Lvl& l = lv[k];
+        if (k + 1 == static_cast<int>(lv.size())) { for (int s = 0; s < 200; ++s) { gs(l, x, rhs, false); gs(l, x, rhs, true); } return; }   // the coarsest: SGS to convergence
+        for (int s = 0; s < nu; ++s) gs(l, x, rhs, false);
+        std::vector<double> a(l.diag.size()); lAp(l, x, a);
+        std::vector<double> rc(lv[k + 1].diag.size(), 0.0), ec(rc.size(), 0.0);
+        for (size_t r = 0; r < l.diag.size(); ++r) rc[l.parent[r]] += rhs[r] - a[r];
+        vcycle(k + 1, ec, rc);
+        for (size_t r = 0; r < l.diag.size(); ++r) x[r] += ec[l.parent[r]];
+        for (int s = 0; s < nu; ++s) gs(l, x, rhs, true);
+    };
+    auto toFine = [&](const std::vector<double>& x0, std::vector<double>& p) { p.assign(n, 0.0); for (size_t r = 0; r < lv[0].pos.size(); ++r) p[I(lv[0].pos[r].x, lv[0].pos[r].y, lv[0].pos[r].z)] = x0[r]; };
+    {
+        std::vector<double> x(lv[0].diag.size(), 0.0), b0(x.size()), p;
+        for (size_t r = 0; r < b0.size(); ++r) b0[r] = b[I(lv[0].pos[r].x, lv[0].pos[r].y, lv[0].pos[r].z)];
+        std::printf("    (e) V-cycle (%d+%d SGS a level), stationary:", nu, nu);
+        for (int c = 1; c <= 10; ++c) { vcycle(0, x, b0); if (c <= 4 || c == 6 || c == 10) { toFine(x, p); std::printf("  %d V %.2e", c, resMax(p)); } }
+        std::printf("\n");
+    }
+    cg("(f) PCG, the V-cycle as preconditioner", [&](const std::vector<double>& r, std::vector<double>& z) {
+        std::vector<double> rr(lv[0].diag.size()), x(rr.size(), 0.0);
+        for (size_t k = 0; k < rr.size(); ++k) rr[k] = r[I(lv[0].pos[k].x, lv[0].pos[k].y, lv[0].pos[k].z)];
+        vcycle(0, x, rr); toFine(x, z); });
+}
+
 // 50.6f diagnostic: does a small pond, disturbed, settle - or keep re-driving itself (the 60 m lake's loop)? CL_W x CL_W cells at
 // 1/9 m, CL_D deep, 6 air cells, the surface tilted by CL_TILT cells across x at the start; the raw solver (no partial wake), GPU and
 // CPU side by side. Every 2 s: KE, the tick's max |df|, quiet ticks / asleep, and on the GPU each fill stage's gross change (single-
@@ -365,6 +749,8 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagChurnLoop) {
     struct RestoreOmega { float o = WaterCoreGpu::s_lineOmega; ~RestoreOmega() { WaterCoreGpu::s_lineOmega = o; } } restoreOmega;
     WaterCoreGpu::s_lineOmega = static_cast<float>(env("CL_OMEGA", WaterCoreGpu::s_lineOmega));
     if (std::getenv("CL_POMEGA")) gpu.setOmega(static_cast<float>(env("CL_POMEGA", 1.85)));   // the point sweeps' SOR factor
+    struct RestoreSolver { ~RestoreSolver() { WaterCoreGpu::s_pressureSolver = 0; WaterCoreGpu::s_mgIterations = 8; } } restoreSolver;
+    if (std::getenv("CL_MG")) { WaterCoreGpu::s_pressureSolver = 1; WaterCoreGpu::s_mgIterations = static_cast<int>(env("CL_MG", 8)); }   // 50.7: MGPCG, CL_MG iterations
     struct RestorePOmega { WaterCoreGpu& g; ~RestorePOmega() { g.setOmega(1.85f); } } restorePOmega{gpu};
     t.bakeOcc();
     std::string cerr;
@@ -420,7 +806,7 @@ TEST_F(WaterCoreGpuParityTest, DISABLED_DiagChurnLoop) {
         (void)window;
         if (tick % 120 == 0) {
             WaterCoreGpu::s_stageCapture = false;
-            std::printf("   t %4.1f s  GPU KE %.2e max|df| %.2e quiet %d asleep %d residual %.2e", tick * kDt, st.kineticEnergy, st.maxDeltaF, st.quietTicks, int(st.asleep), st.rbgsResidualMax);
+            std::printf("   t %4.1f s  GPU KE %.2e max|df| %.2e quiet %d asleep %d residual %.2e  %.2f ms", tick * kDt, st.kineticEnergy, st.maxDeltaF, st.quietTicks, int(st.asleep), st.rbgsResidualMax, st.gpuMs);
             if (cpu) std::printf(" | CPU KE %.2e max|df| %.2e quiet %d asleep %d", cr.kineticEnergy, cr.maxDeltaF, cr.quietTicks, int(cr.asleep));
             std::printf("\n      GPU stages (%ld calls), max / sum a call:", WaterCoreGpu::s_stageCalls);
             for (int s : {2, 3, 5, 6}) std::printf(" %s %.1e/%.1e", names[s], WaterCoreGpu::s_stageAbsMax[s], WaterCoreGpu::s_stageAbsSum[s] / std::max(1L, WaterCoreGpu::s_stageCalls));

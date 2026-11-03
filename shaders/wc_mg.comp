@@ -1,0 +1,246 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel (docs/WaterCore.md 50.7): the pressure system solved by CG preconditioned with an AGGREGATION MULTIGRID V-cycle
+// (MGPCG). Level 0 is the system wc_classify builds and wc_rbgs relaxes (diag, rhs, liq; the same face weights - 1, or a tall row's
+// open overlap); levels 1..K are DENSE grids of WORLD-ALIGNED 2 x 2 x 2 boxes of the level below (Galerkin by gather: a coarse cell
+// reads its 8 children, never written by another thread). Coarse coefficients per cell: vec4(diag, cx, cy, cz), the matrix entry to
+// the +x / +y / +z neighbour being -c (symmetric). Level metadata in Info (ints): [0] K, [1..3] level 0's world origin (cells);
+// level k at 8k: nx, ny, nz, world origin x, y, z, offset into Coef / X / B.
+// Modes (pc.mode; pc.iparam = level k, or colour, or a slot):
+//   0  q = A s                               (fine, every stored cell)
+//   1  fine red-black Gauss-Seidel on z, rhs r (colour = iparam)
+//   2  z += X[parent] (fine, from level 1)
+//   3  level k's coefficients from level k-1 (k = iparam; k = 1 reads the fine system)
+//   4  red-black Gauss-Seidel on level k's X with rhs B (iparam = 2k + colour)
+//   5  restrict: B_k+1[C] = sum over C's children (b - A x), X_k+1[C] = 0 (iparam = k; k = 0: the fine r - A z)
+//   6  X_k += X_k+1[parent] (iparam = k >= 1)
+//   7  the coarsest level K solved in ONE workgroup: param0 forward red-black pairs then as many reversed (symmetric)
+//   8  dot partials: iparam 0 s.q, 1 r.z - per workgroup into Scal[16 + group]
+//   9  the dot's final sum (one workgroup): Scal[iparam] = sum of param0 partials
+//   10 x += alpha s, r -= alpha q; alpha = Scal[RZ(param1)] / Scal[SQ]
+//   11 s = z + beta s; beta = Scal[RZ(param1)] / Scal[RZ(1 - param1)], or s = z when param0 = 1 (the first iteration)
+//   12 q = r - A z (fine: the residual mode 5 restricts - q is free inside the V-cycle)
+#define WC_BRICKS_BINDING 13
+#include "water_core.glsl"
+layout(local_size_x = 256) in;
+layout(std430, set = 0, binding = 0) readonly buffer Liq  { uint liq[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Diag { float diag[]; };
+layout(std430, set = 0, binding = 2) readonly buffer Rhs  { float rhs[]; };
+layout(std430, set = 0, binding = 3)          buffer P    { float p[]; };
+layout(std430, set = 0, binding = 4)          buffer R    { float vr[]; };
+layout(std430, set = 0, binding = 5)          buffer Z    { float vz[]; };
+layout(std430, set = 0, binding = 6)          buffer S    { float vs[]; };
+layout(std430, set = 0, binding = 7)          buffer Q    { float vq[]; };
+layout(std430, set = 0, binding = 8)          buffer Coef { vec4 coef[]; };
+layout(std430, set = 0, binding = 9) coherent buffer X    { float cx[]; };   // coherent: mode 7 reads other invocations' writes within the dispatch
+layout(std430, set = 0, binding = 10)         buffer B    { float cb[]; };
+layout(std430, set = 0, binding = 11) readonly buffer Info { int info[]; };
+layout(std430, set = 0, binding = 12)         buffer Scal { float scal[]; };
+
+const int SQ = 0;   // Scal slots: 0 s.q, 1 / 2 r.z (ping-pong by iteration parity), 16.. the partials
+int RZ(float k) { return 1 + (int(k) & 1); }
+shared float red[256];
+
+const ivec3 D6[6] = ivec3[6](ivec3(-1,0,0), ivec3(1,0,0), ivec3(0,-1,0), ivec3(0,1,0), ivec3(0,0,-1), ivec3(0,0,1));
+bool lq(ivec3 n) { return inBounds(n.x, n.y, n.z) && !absentCell(n.x, n.y, n.z) && liq[cellIdx(n.x, n.y, n.z)] != 0u; }
+// the face weight wc_rbgs uses: 1, a lateral face of the tall row its open overlap (27.22; 1 for an ordinary cell)
+float wFace(ivec3 c, int k, ivec3 n) { return (k == 2 || k == 3) ? 1.0 : sideOverlap(c.x, c.y, c.z, n.x, n.z); }
+// the storage index of c's liquid neighbour in direction k, -1 when none. 26.35's shortcut (wc_rbgs pnNear): a neighbour inside the
+// thread's own brick sits at id + step, no brick-map read; across a brick the map (an absent brick is slot 0, all liq 0 - as wc_rbgs)
+int nbJ(ivec3 c, uint id, int k) {
+    const ivec3 n = c + D6[k];
+    if (!inBounds(n.x, n.y, n.z)) return -1;
+    const uint local = id & ((64u << uint(pc.bly)) - 1u);
+    const int lx = int(local & 7u), lz = int((local >> 3u) & 7u), ly = int(local >> 6u), top = (1 << pc.bly) - 1;
+    const bool same = k == 0 ? lx > 0 : k == 1 ? lx < 7 : k == 2 ? ly > 0 : k == 3 ? ly < top : k == 4 ? lz > 0 : lz < 7;
+    const int step = k == 0 ? -1 : k == 1 ? 1 : k == 2 ? -64 : k == 3 ? 64 : k == 4 ? -8 : 8;
+    const uint j = same ? uint(int(id) + step) : cellIdx(n.x, n.y, n.z);
+    return liq[j] != 0u ? int(j) : -1;
+}
+float wNb(ivec3 c, int k) { return (pc.tallY >= 0 && c.y == pc.tallY && k != 2 && k != 3) ? sideOverlap(c.x, c.y, c.z, c.x + D6[k].x, c.z + D6[k].z) : 1.0; }
+#define NB_SUM(VEC, c, id) nbSum_##VEC(c, id)
+#define DEF_NB(VEC) float nbSum_##VEC(ivec3 c, uint id) { float s = 0.0; for (int k = 0; k < 6; ++k) { const int j = nbJ(c, id, k); if (j >= 0) s += wNb(c, k) * VEC[j]; } return s; }
+DEF_NB(vs)
+DEF_NB(vz)
+
+// the coarse levels
+ivec3 lvDims(int k) { return ivec3(info[8 * k], info[8 * k + 1], info[8 * k + 2]); }
+ivec3 lvOrig(int k) { return k == 0 ? ivec3(info[1], info[2], info[3]) : ivec3(info[8 * k + 3], info[8 * k + 4], info[8 * k + 5]); }
+int lvOff(int k) { return info[8 * k + 6]; }
+bool lvIn(int k, ivec3 c) { const ivec3 d = lvDims(k); return c.x >= 0 && c.y >= 0 && c.z >= 0 && c.x < d.x && c.y < d.y && c.z < d.z; }
+int lvIdx(int k, ivec3 c) { const ivec3 d = lvDims(k); return lvOff(k) + c.x + d.x * (c.y + d.y * c.z); }
+// the parent (level k + 1) of a level-k cell, both in their own local coordinates
+ivec3 parentOf(int k, ivec3 c) { return ((c + lvOrig(k)) >> 1) - lvOrig(k + 1); }
+// the matrix entry magnitude between a level-k cell and its neighbour in direction j (0..5), 0 when none
+float cCoup(int k, ivec3 c, int j) {
+    const ivec3 n = c + D6[j];
+    if (!lvIn(k, n)) return 0.0;
+    if (j == 1) return coef[lvIdx(k, c)].y;  if (j == 0) return coef[lvIdx(k, n)].y;
+    if (j == 3) return coef[lvIdx(k, c)].z;  if (j == 2) return coef[lvIdx(k, n)].z;
+    if (j == 5) return coef[lvIdx(k, c)].w;  return coef[lvIdx(k, n)].w;
+}
+float cAx(int k, ivec3 c) {   // (A_k x_k) at c
+    float s = coef[lvIdx(k, c)].x * cx[lvIdx(k, c)];
+    for (int j = 0; j < 6; ++j) { const ivec3 n = c + D6[j]; if (lvIn(k, n)) s -= cCoup(k, c, j) * cx[lvIdx(k, n)]; }
+    return s;
+}
+float cNb(int k, ivec3 c) {   // sum of c * x over the neighbours
+    float s = 0.0;
+    for (int j = 0; j < 6; ++j) { const ivec3 n = c + D6[j]; if (lvIn(k, n)) s += cCoup(k, c, j) * cx[lvIdx(k, n)]; }
+    return s;
+}
+ivec3 lvCell(int k, uint id) { const ivec3 d = lvDims(k); return ivec3(int(id % uint(d.x)), int((id / uint(d.x)) % uint(d.y)), int(id / uint(d.x * d.y))); }
+int lvCount(int k) { const ivec3 d = lvDims(k); return d.x * d.y * d.z; }
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    const float invh2 = 1.0 / (pc.h * pc.h);
+    if (pc.mode <= 2 || pc.mode == 10 || pc.mode == 11 || pc.mode == 8 || pc.mode == 12) {
+        ivec3 c;
+        if (pc.mode == 8) {   // dot partials (a workgroup's stored cells)
+            float v = 0.0;
+            if (threadSite(id, 3, c) && liq[id] != 0u) v = pc.iparam == 0 ? vs[id] * vq[id] : vr[id] * vz[id];
+            red[gl_LocalInvocationID.x] = v;
+            barrier();
+            for (uint s = 128u; s > 0u; s >>= 1u) { if (gl_LocalInvocationID.x < s) red[gl_LocalInvocationID.x] += red[gl_LocalInvocationID.x + s]; barrier(); }
+            if (gl_LocalInvocationID.x == 0u) scal[16 + gl_WorkGroupID.x] = red[0];
+            return;
+        }
+        if (!threadSite(id, 3, c) || liq[id] == 0u) return;
+        if (pc.mode == 0) { vq[id] = diag[id] * vs[id] - NB_SUM(vs, c, id) * invh2; return; }
+        if (pc.mode == 12) { vq[id] = vr[id] - (diag[id] * vz[id] - NB_SUM(vz, c, id) * invh2); return; }
+        if (pc.mode == 1) {
+            if (((c.x + c.y + c.z) & 1) != pc.iparam) return;
+            vz[id] = (vr[id] + NB_SUM(vz, c, id) * invh2) / diag[id];
+            return;
+        }
+        if (pc.mode == 2) { const ivec3 P = ((c + lvOrig(0)) >> 1) - lvOrig(1); if (lvIn(1, P)) vz[id] += cx[lvIdx(1, P)]; return; }
+        if (pc.mode == 10) {
+            const float sq = scal[SQ];
+            const float a = sq != 0.0 ? scal[RZ(pc.param1)] / sq : 0.0;
+            p[id] += a * vs[id]; vr[id] -= a * vq[id];
+            return;
+        }
+        // mode 11
+        if (pc.param0 == 1.0) { vs[id] = vz[id]; return; }
+        const float old = scal[RZ(1.0 - pc.param1)];
+        const float beta = old != 0.0 ? scal[RZ(pc.param1)] / old : 0.0;
+        vs[id] = vz[id] + beta * vs[id];
+        return;
+    }
+    if (pc.mode == 9) {   // the final sum of param0 partials
+        float v = 0.0;
+        const int np = int(pc.param0);
+        for (int i = int(gl_LocalInvocationID.x); i < np; i += 256) v += scal[16 + i];
+        red[gl_LocalInvocationID.x] = v;
+        barrier();
+        for (uint s = 128u; s > 0u; s >>= 1u) { if (gl_LocalInvocationID.x < s) red[gl_LocalInvocationID.x] += red[gl_LocalInvocationID.x + s]; barrier(); }
+        if (gl_LocalInvocationID.x == 0u) scal[pc.iparam] = red[0];
+        return;
+    }
+    if (pc.mode == 3) {   // level k's Galerkin coefficients by gather over each cell's children
+        const int k = pc.iparam;
+        if (id >= uint(lvCount(k))) return;
+        const ivec3 C = lvCell(k, id);
+        float dg = 0.0, gx = 0.0, gy = 0.0, gz = 0.0;
+        for (int ch = 0; ch < 8; ++ch) {
+            const ivec3 Wc = (C + lvOrig(k)) * 2 + ivec3(ch & 1, (ch >> 1) & 1, ch >> 2);   // the child's world-aligned coordinate
+            const ivec3 f = Wc - lvOrig(k - 1);
+            if (k == 1) {
+                if (!lq(f)) continue;
+                const uint i = cellIdx(f.x, f.y, f.z);
+                dg += diag[i];
+                for (int j = 0; j < 6; ++j) {
+                    const ivec3 n = f + D6[j];
+                    if (!lq(n)) continue;
+                    const float a = wFace(f, j, n) * invh2;
+                    const ivec3 pn = ((n + lvOrig(0)) >> 1) - lvOrig(1);
+                    if (pn == C) dg -= a;
+                    else if (j == 1 && pn == C + ivec3(1, 0, 0)) gx += a;
+                    else if (j == 3 && pn == C + ivec3(0, 1, 0)) gy += a;
+                    else if (j == 5 && pn == C + ivec3(0, 0, 1)) gz += a;
+                }
+            } else {
+                if (!lvIn(k - 1, f)) continue;
+                const vec4 q = coef[lvIdx(k - 1, f)];
+                if (q.x == 0.0) continue;
+                dg += q.x;
+                for (int j = 0; j < 6; ++j) {
+                    const ivec3 n = f + D6[j];
+                    if (!lvIn(k - 1, n)) continue;
+                    const float a = cCoup(k - 1, f, j);
+                    if (a == 0.0 || coef[lvIdx(k - 1, n)].x == 0.0) continue;
+                    const ivec3 pn = parentOf(k - 1, n);
+                    if (pn == C) dg -= a;
+                    else if (j == 1 && pn == C + ivec3(1, 0, 0)) gx += a;
+                    else if (j == 3 && pn == C + ivec3(0, 1, 0)) gy += a;
+                    else if (j == 5 && pn == C + ivec3(0, 0, 1)) gz += a;
+                }
+            }
+        }
+        coef[lvIdx(k, C)] = vec4(dg, gx, gy, gz);
+        return;
+    }
+    if (pc.mode == 4) {   // red-black Gauss-Seidel on level k
+        const int k = pc.iparam >> 1, colour = pc.iparam & 1;
+        if (id >= uint(lvCount(k))) return;
+        const ivec3 C = lvCell(k, id);
+        if (((C.x + C.y + C.z) & 1) != colour) return;
+        const int i = lvIdx(k, C);
+        const float d = coef[i].x;
+        if (d == 0.0) return;
+        cx[i] = (cb[i] + cNb(k, C)) / d;
+        return;
+    }
+    if (pc.mode == 5) {   // restrict to level k + 1: the children's residual summed; the next level's X starts at 0
+        const int k = pc.iparam;
+        if (id >= uint(lvCount(k + 1))) return;
+        const ivec3 C = lvCell(k + 1, id);
+        float s = 0.0;
+        for (int ch = 0; ch < 8; ++ch) {
+            const ivec3 f = (C + lvOrig(k + 1)) * 2 + ivec3(ch & 1, (ch >> 1) & 1, ch >> 2) - lvOrig(k);
+            if (k == 0) {
+                if (!inBounds(f.x, f.y, f.z)) continue;
+                const uint i = cellIdx(f.x, f.y, f.z);
+                if (liq[i] != 0u) s += vq[i];   // mode 12's residual
+            } else {
+                if (!lvIn(k, f) || coef[lvIdx(k, f)].x == 0.0) continue;
+                s += cb[lvIdx(k, f)] - cAx(k, f);
+            }
+        }
+        cb[lvIdx(k + 1, C)] = s;
+        cx[lvIdx(k + 1, C)] = 0.0;
+        return;
+    }
+    if (pc.mode == 6) {   // prolong level k + 1 into level k
+        const int k = pc.iparam;
+        if (id >= uint(lvCount(k))) return;
+        const ivec3 C = lvCell(k, id);
+        const int i = lvIdx(k, C);
+        if (coef[i].x == 0.0) return;
+        const ivec3 P = parentOf(k, C);
+        if (lvIn(k + 1, P)) cx[i] += cx[lvIdx(k + 1, P)];
+        return;
+    }
+    if (pc.mode == 7) {   // the coarsest level: one workgroup, symmetric red-black sweeps (X starts at 0 - mode 5 zeroed it)
+        const int k = info[0];
+        const int N = lvCount(k);
+        const int pairs = int(pc.param0);
+        for (int it = 0; it < 2 * pairs; ++it) {
+            const bool back = it >= pairs;
+            for (int pass = 0; pass < 2; ++pass) {
+                const int colour = back ? 1 - pass : pass;
+                for (int t = int(gl_LocalInvocationID.x); t < N; t += 256) {
+                    const ivec3 C = lvCell(k, uint(t));
+                    if (((C.x + C.y + C.z) & 1) != colour) continue;
+                    const int i = lvIdx(k, C);
+                    const float d = coef[i].x;
+                    if (d != 0.0) cx[i] = (cb[i] + cNb(k, C)) / d;
+                }
+                memoryBarrierBuffer();
+                barrier();
+            }
+        }
+        return;
+    }
+}

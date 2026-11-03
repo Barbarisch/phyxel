@@ -864,6 +864,9 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagStillWaterEnergy) {
     if (std::getenv("E_ABSP")) WaterCoreGpu::s_pressureDeviation = false;   // 50.6d: the absolute-pressure solve (the control)
     struct RestoreAir { ~RestoreAir() { WaterCoreGpu::s_airRisesEverywhereForTest = false; } } restoreAir;
     if (std::getenv("E_AIR")) WaterCoreGpu::s_airRisesEverywhereForTest = true;   // 50.6e: the trapped-air rule everywhere
+    struct RestoreSolver { ~RestoreSolver() { WaterCoreGpu::s_pressureSolver = 0; WaterCoreGpu::s_mgIterations = 8; } } restoreSolver;
+    if (std::getenv("E_MG")) { WaterCoreGpu::s_pressureSolver = 1; WaterCoreGpu::s_mgIterations = static_cast<int>(env("E_MG", 8)); }   // 50.7: MGPCG
+    std::printf("  pressure solver %s (%d iterations)\n", WaterCoreGpu::s_pressureSolver == 1 ? "MGPCG" : "SOR", WaterCoreGpu::s_mgIterations);
     struct RestoreSettle { bool was = WaterCoreGpu::s_columnSettle; ~RestoreSettle() { WaterCoreGpu::s_columnSettle = was; } } restoreSettle;
     if (std::getenv("E_SETTLE")) WaterCoreGpu::s_columnSettle = env("E_SETTLE", 1) != 0;   // 50.6f: the per-column settle damping (0 = the control)
     struct RestoreCs { ~RestoreCs() { WaterCoreGpu::s_compactionSpeedOverrideForTest = -1.0f; } } restoreCs;

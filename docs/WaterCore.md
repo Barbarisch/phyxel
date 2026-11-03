@@ -12604,6 +12604,51 @@ CL_SWEEPS / CL_BRICKED / CL_LINES):
   it. They stay off. **What would cut the 12 ms is a solver with far fewer iterations** - multigrid over the bricks, or the
   conjugate gradients the CPU reference uses (its dot products cost launches) - a design of its own.
 
+**50.7 MGPCG - the faster pressure solver (owner 2026-11-02: "go with your recommendation"; BUILT, OFF).**
+- **Step 0, measured on the host** (`DISABLED_DiagPressureSolvers`: the GPU's own matrix and right-hand side read back from a
+  moving pond, solved in double from 0; host SOR reproduces the GPU's 4.34e-2 at 40 sweeps exactly):
+| solver | 16 m pond (373 k cells) | 32 m (1.49 M) |
+|---|---|---|
+| point SOR 1.85, 40 / 80 / 160 sweeps | 4.3e-2 / 4.3e-3 / 1.1e-4 | 1.1e-1 / 1.3e-2 / 6.7e-4 |
+| a column two-grid (stationary; CG-preconditioned) | worse than SOR; CG 20 it 2.6e-2 | - |
+| Jacobi-CG 40 / 80 it | 1.8e-1 / 1.4e-2 | - |
+| aggregation multigrid V-cycle, stationary 4 / 10 | 4.6e-2 / 1.1e-2 | - |
+| **MGPCG 5 / 10 / 20 iterations** | **2.8e-2 / 3.5e-4 / 2.9e-8** | 10 / 20: **4.5e-3 / 7.9e-6** |
+- **The build** (`shaders/wc_mg.comp`, one kernel, 13 modes; `WaterCoreGpu::ensureMg / recordMgBuild / recordMgPrecond / recordMgSolve`):
+  level 0 is the system wc_classify builds and wc_rbgs relaxes (the same face weights, tall rows' overlaps; bricked; frozen and
+  absent cells liq 0); levels 1..K are DENSE grids of WORLD-ALIGNED 2 x 2 x 2 boxes (amendment B: the aggregation is a function of
+  world position; origin = the level below's >> 1), Galerkin coefficients by gather (vec4 diag, +x, +y, +z couplings), rebuilt every
+  substep; red-black Gauss-Seidel forward down / backward up (symmetric); the coarsest (<= 1,024 cells) in one workgroup,
+  s_mgCoarsePairs (30) symmetric pairs; CG with s_mgIterations fixed, dots by workgroup partials into Scal, alpha / beta read from it
+  (no host sync). r z s q are scratch idle during the projection (valA, valB, uOld, vOld): no new per-cell memory; the coarse levels
+  ~28 MB for the 60 m lake's box; a box whose levels would pass 256 MB keeps the sweeps and says why (amendment C, Volume::mgReason).
+  Particle and dense volumes keep the sweeps. `WaterCoreGpu::s_pressureSolver` 0 SOR (default) / 1 MGPCG.
+- **Gates G1-G3** (`MgGatesMatchTheHostReference`, a moving 4 m pond, a host reference running the same algorithm): the fine product
+  7.2e-8, level 1's coefficients 6.1e-8, one V-cycle 4.0e-7 (relative); CONTROLS (a neighbour term dropped) 9.5e-3 / 9.9e-3.
+- **G4, in the step** (`DiagChurnLoop` CL_MG, the 4 m pond tilted): 8 iterations leave a residual ~100x under 40 sweeps (2.5e-3 vs
+  2.4e-1 at 6 s; 3e-8 vs 3e-6 at 30 s), the pond quiet on the same schedule (~22 s); cost there 4.3-5.0 ms vs 1.6 (31 k cells: the
+  ~300 dispatches a substep dominate).
+- **Cost on the 60 m lake, every column stepped** (E_PW=0, E_TIMING; the solve's stage, ms a call; after the same-brick neighbour
+  shortcut and a fine residual pass):
+| | SOR 40 | MGPCG 4 | MGPCG 8 |
+|---|---|---|---|
+| tall band off | 12.4 | 7.2 | 13.6 |
+| tall band 0.5 m | 6.7 | 5.4 | 7.9 |
+  An MGPCG iteration costs ~6 sweeps (about 12 passes over the fine cells: the smoother, the residual, the transfers, CG's product,
+  dots and updates) - the host estimate of 4.5 was optimistic. MGPCG 4 is ~SOR 40's accuracy for less; MGPCG 8 ~100x it for ~the same.
+- **The decision measurement - the 60 m lake after a visible push** (2 m / strength 8, partial wake on, tall band 0.5 m -
+  off in rough water, as shipped; `DiagStillWaterEnergy` E_MG):
+| solver | the whole lake awake | awake at 36 s | all frozen | GPU a call while awake |
+|---|---|---|---|---|
+| SOR 40 (shipped) | to ~30 s | 226 | 25 awake at 60 s | ~23.5 ms |
+| MGPCG 4 | to ~30 s | 1,218 | 158 awake at 60 s | ~20 ms (-15 %) |
+| MGPCG 8 | to ~30 s | 267 | asleep at 54 s | ~26 ms (+10 %) |
+  **MGPCG does not settle the lake sooner and saves at most ~15 %:** 40 sweeps already solve the pressure well enough for settling
+  (50.6h), and on the GPU an iteration costs ~6 sweeps. **It stays OFF** (built, gated, tested: `MgGatesMatchTheHostReference`).
+  What could still move it: fusing the ~12 fine passes an iteration (the dots into the product and the updates; the residual into the
+  smoother) - perhaps half - not measured. The 60 m lake's minute at 18-30 fps after a visible splash is unchanged by the solver:
+  every column awake at fine resolution, ~24 ms a tick.
+
 **Where this leaves W1g (and the plan).** (Updated by 50.6d: the floor and the bed churn were one defect, the GPU pressure in float,
 fixed; the freeze storing motion stands.) As written before 50.6d: three solver defects stand under recording: the freeze stores a node's velocity (50.6b),
 compaction rocks still water (here), and a constant 1e-8 - 3e-7 J floor at the surface (the phantom current, 19.6). At shipped

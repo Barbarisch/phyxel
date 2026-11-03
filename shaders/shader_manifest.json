@@ -451,6 +451,11 @@
       "sources": "7a2f8192f6ec9b5a193c2227fae296e4211ae8b5f6c30e74cb63ae2a0a036689",
       "spv_present": true
     },
+    "wc_mg.comp": {
+      "built": true,
+      "sources": "afdef63ef68b5aa749b8f5985f909046a521a20d402bbb46dc2691fe685ff44f",
+      "spv_present": true
+    },
     "wc_momentum.comp": {
       "built": true,
       "sources": "45c11165cfd7e702abdf8c6d93ff9f0ffc28733b67c01785d929162283817b32",

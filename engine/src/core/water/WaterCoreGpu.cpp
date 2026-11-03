@@ -19,11 +19,11 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_face_ops.comp.spv", "wc_face_ops.comp.spv", "wc_face_ops.comp.spv",
     "wc_column_ops.comp.spv", "wc_classify.comp.spv", "wc_rbgs.comp.spv",
     "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv", "wc_sources.comp.spv", "wc_surface.comp.spv",
-    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv", "wc_tall.comp.spv", "wc_rbgs_line.comp.spv", "wc_surface_mesh.comp.spv", "wc_body_pressure.comp.spv"};
+    "wc_bricks.comp.spv", "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv", "wc_momentum.comp.spv", "wc_tall.comp.spv", "wc_rbgs_line.comp.spv", "wc_surface_mesh.comp.spv", "wc_body_pressure.comp.spv", "wc_mg.comp.spv"};
 // every non-FLIP kernel ends with the Bricks buffer (26.6: water_core.glsl's WC_BRICKS_BINDING); FillAdvect 8 -> 9 with it
 // (26.5's outflow scratch at 7); Surface = f, occ, surf, u, w, solid (+ bricks); 20 (M1): + solid on FillAdvect, FaceOps,
 // ColumnOps, Classify, Surface
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 8, 8, 8, 11, 13, 7, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 12, 9};   // 31: + BodyPressure (p, bricks, surfDense, requests, windows, data, slot map, solid, occ)   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {10, 5, 5, 5, 8, 8, 8, 11, 13, 7, 10, 10, 10, 12, 5, 12, 6, 7, 6, 9, 7, 7, 6, 12, 9, 14};   // 50.7: + Mg (liq, diag, rhs, p, r z s q, coef x b, info, scal, bricks)   // 31: + BodyPressure (p, bricks, surfDense, requests, windows, data, slot map, solid, occ)   // 29 S1: Surface + surfDense, solidTopD; + SurfaceMesh   // 26.26: + Momentum (f, occ, u, v, w, bricks, records); 27.22: + Tall (f, fLo, u, v, w, bricks)
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 constexpr int kB = 8;          // 26.6: cells per brick edge along x and z (26.17: the height is the volume's, Volume::by)
 constexpr int kGround = 1;     // 26.18: the GROUND sentinel slot (slot 0 is the absent brick: dry air)
@@ -217,6 +217,12 @@ void WaterCoreGpu::bindPipelines(Volume& vol) {
     bindAll(*vol.pipes[Bricks],  {&vol.f, &vol.u, &vol.v, &vol.w, &vol.p, br});
     bindAll(*vol.pipes[Tall],    {&vol.f, &vol.fLo, &vol.u, &vol.v, &vol.w, br, &vol.fPrev});   // 27.22 (27.22f: + fPrev)
     bindAll(*vol.pipes[RbgsLine], {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res, br});   // 28
+    {   // 50.7: MGPCG - r z s q are scratch idle during the projection (valA / valB the extrapolation's, uOld / vOld the velocity
+        // advection's; a particle volume, whose uOld is the FLIP delta base, never runs it); the coarse buffers once ensureMg made them
+        const bool mg = vol.mgCoef.buf != VK_NULL_HANDLE;
+        bindAll(*vol.pipes[Mg], {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.valA, &vol.valB, &vol.uOld, &vol.vOld,
+                                 mg ? &vol.mgCoef : &vol.res, mg ? &vol.mgX : &vol.res, mg ? &vol.mgB : &vol.res, mg ? &vol.mgInfo : &vol.res, mg ? &vol.mgScal : &vol.res, br});
+    }
     if (vol.particles) {
         bindAll(*vol.pipes[FlipSort], {&vol.posA, &vol.velA, &vol.posB, &vol.velB, &vol.pcount, &vol.pstart, &vol.pcursor});
         // p2g gathers from the SORTED list (B); it writes f and ONE lattice per dispatch (rebound per lattice below)
@@ -423,6 +429,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol) {
     if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
+    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal}) destroyBuffer(*b);   // 50.7 (not in allBuffers: never kept)
     for (Buffer* b : allBuffers(*vol)) destroyBuffer(*b);
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
     delete vol;
@@ -442,6 +449,7 @@ int WaterCoreGpu::keepVolume(Volume* vol) {
     if (vol->tsPool) vkDestroyQueryPool(m_device, vol->tsPool, nullptr);
     if (vol->callTs) vkDestroyQueryPool(m_device, vol->callTs, nullptr);
     if (vol->callFence) vkDestroyFence(m_device, vol->callFence, nullptr);
+    for (Buffer* b : {&vol->mgCoef, &vol->mgX, &vol->mgB, &vol->mgInfo, &vol->mgScal}) destroyBuffer(*b);   // 50.7: rebuilt on demand, never kept
     KeptSet set; set.slots = vol->capacity;
     for (Buffer* b : allBuffers(*vol)) if (b->buf) { set.bufs.push_back(*b); *b = Buffer{}; }
     m_volumes.erase(std::remove(m_volumes.begin(), m_volumes.end(), vol), m_volumes.end());
@@ -2232,6 +2240,172 @@ void WaterCoreGpu::recordExtrapolate(VkCommandBuffer cmd, Volume& vol, WcPush pu
     barrier(cmd);
 }
 
+// 50.7 MGPCG (docs/WaterCore.md 50.7): the coarse levels - each axis halved over WORLD-ALIGNED pairs (a level's origin is the level
+// below's >> 1, floor) until a level holds no more than kMgCoarsest cells; dense over the box. Allocated once (the box never changes);
+// Scal's partials follow the capacity. Bricked fill volumes only. Returns false (and says why) when the volume keeps the sweeps.
+bool WaterCoreGpu::ensureMg(Volume& vol) {
+    if (!vol.bricked || vol.particles) { vol.mgReason = vol.particles ? "a particle volume (uOld is the FLIP delta base)" : "a dense volume"; return false; }
+    const size_t partialsNeed = (vol.cells + 255) / 256 + 1;
+    if (vol.mgReady && vol.mgPartials >= partialsNeed) return true;
+    if (vol.mgLevels.empty()) {
+        glm::ivec3 o = vol.spec.origin, d = vol.spec.dims;
+        size_t off = 0;
+        while (true) {
+            const glm::ivec3 lo(o.x >> 1, o.y >> 1, o.z >> 1), hi((o.x + d.x - 1) >> 1, (o.y + d.y - 1) >> 1, (o.z + d.z - 1) >> 1);
+            Volume::MgLevel l; l.origin = lo; l.dims = hi - lo + glm::ivec3(1); l.off = off;
+            off += static_cast<size_t>(l.dims.x) * l.dims.y * l.dims.z;
+            vol.mgLevels.push_back(l);
+            if (static_cast<long>(l.dims.x) * l.dims.y * l.dims.z <= kMgCoarsest || vol.mgLevels.size() >= 16) break;
+            o = l.origin; d = l.dims;
+        }
+        const size_t bytes = off * (16 + 4 + 4);
+        if (bytes > kMgMaxBytes) {   // 50.7 amendment C: dense coarse levels scale with the box - a huge box keeps the sweeps (said, not silent)
+            char why[160]; std::snprintf(why, sizeof why, "the coarse levels would take %.0f MB (cap %zu MB) - the box, not the water, sets it", bytes / 1048576.0, kMgMaxBytes >> 20);
+            vol.mgReason = why; vol.mgLevels.clear(); return false;
+        }
+        std::string err;
+        if (!createBuffer(vol.mgCoef, off * 16, false, &err) || !createBuffer(vol.mgX, off * 4, false, &err) || !createBuffer(vol.mgB, off * 4, false, &err)
+            || !createBuffer(vol.mgInfo, (8 * (vol.mgLevels.size() + 1)) * 4, true, &err)) {
+            for (Buffer* b : {&vol.mgCoef, &vol.mgX, &vol.mgB, &vol.mgInfo}) destroyBuffer(*b);
+            vol.mgReason = "allocation: " + err; vol.mgLevels.clear(); return false;
+        }
+        auto* info = static_cast<int32_t*>(vol.mgInfo.mapped);
+        std::memset(info, 0, vol.mgInfo.bytes);
+        info[0] = static_cast<int32_t>(vol.mgLevels.size());
+        info[1] = vol.spec.origin.x; info[2] = vol.spec.origin.y; info[3] = vol.spec.origin.z;
+        for (size_t k = 0; k < vol.mgLevels.size(); ++k) {
+            const Volume::MgLevel& l = vol.mgLevels[k];
+            int32_t* e = info + 8 * (k + 1);
+            e[0] = l.dims.x; e[1] = l.dims.y; e[2] = l.dims.z; e[3] = l.origin.x; e[4] = l.origin.y; e[5] = l.origin.z; e[6] = static_cast<int32_t>(l.off);
+        }
+    }
+    if (vol.mgPartials < partialsNeed) {
+        destroyBuffer(vol.mgScal);
+        std::string err;
+        if (!createBuffer(vol.mgScal, (16 + partialsNeed) * 4, false, &err)) { vol.mgReason = "allocation: " + err; return false; }
+        vol.mgPartials = partialsNeed;
+    }
+    settle(vol);
+    vkDeviceWaitIdle(m_device);   // the descriptors change: nothing in flight may use them
+    bindPipelines(vol);
+    vol.mgReady = true; vol.mgReason.clear();
+    return true;
+}
+
+void WaterCoreGpu::recordMgBuild(VkCommandBuffer cmd, Volume& vol, WcPush push) {
+    push.mode = 3;
+    for (size_t k = 1; k <= vol.mgLevels.size(); ++k) {
+        const Volume::MgLevel& l = vol.mgLevels[k - 1];
+        push.iparam = static_cast<int32_t>(k);
+        dispatch(cmd, *vol.pipes[Mg], push, static_cast<size_t>(l.dims.x) * l.dims.y * l.dims.z, 256);
+    }
+}
+
+void WaterCoreGpu::recordMgPrecond(VkCommandBuffer cmd, Volume& vol, WcPush push) {
+    const size_t cells = liveCells(vol);
+    const int K = static_cast<int>(vol.mgLevels.size());
+    auto lv = [&](int k) { const Volume::MgLevel& l = vol.mgLevels[static_cast<size_t>(k - 1)]; return static_cast<size_t>(l.dims.x) * l.dims.y * l.dims.z; };
+    vkCmdFillBuffer(cmd, vol.valB.buf, 0, cells * 4, 0); barrier(cmd);   // z = 0
+    push.mode = 1; push.iparam = 0; dispatch(cmd, *vol.pipes[Mg], push, cells, 256); push.iparam = 1; dispatch(cmd, *vol.pipes[Mg], push, cells, 256);
+    push.mode = 12; dispatch(cmd, *vol.pipes[Mg], push, cells, 256);   // the fine residual into q (restrict sums it)
+    push.mode = 5; push.iparam = 0; dispatch(cmd, *vol.pipes[Mg], push, lv(1), 256);
+    for (int k = 1; k < K; ++k) {
+        push.mode = 4; push.iparam = 2 * k; dispatch(cmd, *vol.pipes[Mg], push, lv(k), 256); push.iparam = 2 * k + 1; dispatch(cmd, *vol.pipes[Mg], push, lv(k), 256);
+        push.mode = 5; push.iparam = k; dispatch(cmd, *vol.pipes[Mg], push, lv(k + 1), 256);
+    }
+    push.mode = 7; push.param0 = static_cast<float>(s_mgCoarsePairs); dispatch(cmd, *vol.pipes[Mg], push, 256, 256); push.param0 = 0.0f;
+    for (int k = K - 1; k >= 1; --k) {
+        push.mode = 6; push.iparam = k; dispatch(cmd, *vol.pipes[Mg], push, lv(k), 256);
+        push.mode = 4; push.iparam = 2 * k + 1; dispatch(cmd, *vol.pipes[Mg], push, lv(k), 256); push.iparam = 2 * k; dispatch(cmd, *vol.pipes[Mg], push, lv(k), 256);
+    }
+    push.mode = 2; dispatch(cmd, *vol.pipes[Mg], push, cells, 256);
+    push.mode = 1; push.iparam = 1; dispatch(cmd, *vol.pipes[Mg], push, cells, 256); push.iparam = 0; dispatch(cmd, *vol.pipes[Mg], push, cells, 256);
+}
+
+void WaterCoreGpu::recordMgDot(VkCommandBuffer cmd, Volume& vol, WcPush push, int which, int slot) {
+    const size_t cells = liveCells(vol), groups = (cells + 255) / 256;
+    push.mode = 8; push.iparam = which; dispatch(cmd, *vol.pipes[Mg], push, cells, 256);
+    push.mode = 9; push.iparam = slot; push.param0 = static_cast<float>(groups); dispatch(cmd, *vol.pipes[Mg], push, 256, 256);
+}
+
+// CG on A p = rhs from p = 0 (classify zeroed p), z = M r by the V-cycle: s_mgIterations, fixed (no host sync). Scal: 0 s.q, 1 / 2 r.z.
+void WaterCoreGpu::recordMgSolve(VkCommandBuffer cmd, Volume& vol, WcPush push) {
+    const size_t cells = liveCells(vol);
+    recordMgBuild(cmd, vol, push);
+    copy(cmd, vol.rhs, vol.valA, cells * 4); barrier(cmd);   // r = rhs - A 0
+    recordMgPrecond(cmd, vol, push);
+    recordMgDot(cmd, vol, push, 1, 1);                          // r.z -> RZ(0)
+    push.mode = 11; push.param0 = 1.0f; dispatch(cmd, *vol.pipes[Mg], push, cells, 256); push.param0 = 0.0f;   // s = z
+    for (int it = 0; it < s_mgIterations; ++it) {
+        push.mode = 0; dispatch(cmd, *vol.pipes[Mg], push, cells, 256);                                         // q = A s
+        recordMgDot(cmd, vol, push, 0, 0);                                                                     // s.q
+        push.mode = 10; push.param1 = static_cast<float>(it); dispatch(cmd, *vol.pipes[Mg], push, cells, 256);   // x += a s, r -= a q
+        if (it + 1 == s_mgIterations) break;
+        recordMgPrecond(cmd, vol, push);
+        recordMgDot(cmd, vol, push, 1, 1 + ((it + 1) & 1));                                                    // r.z -> RZ(it + 1)
+        push.mode = 11; push.param1 = static_cast<float>(it + 1); dispatch(cmd, *vol.pipes[Mg], push, cells, 256);   // s = z + b s
+    }
+}
+
+// 50.7 test hooks: dense <-> the volume's storage (bricked), through staging
+void WaterCoreGpu::scatterDenseForTest(Volume& vol, const std::vector<float>& dense, Buffer& to) {
+    settle(vol);
+    std::vector<float> st(vol.cells, 0.0f);
+    const glm::ivec3 n = vol.spec.dims;
+    for (int z = 0; z < n.z; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
+        const long i = storageIndex(vol, x, y, z);
+        if (i >= 0) st[static_cast<size_t>(i)] = dense[static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z)];
+    }
+    std::memcpy(static_cast<char*>(vol.staging.mapped) + vol.offP, st.data(), vol.cells * 4);
+    VkCommandBuffer cmd = beginCommands(); copy(cmd, vol.staging, to, vol.cells * 4, vol.offP, 0); submitAndWait(cmd);
+}
+void WaterCoreGpu::gatherDenseForTest(Volume& vol, const Buffer& from, std::vector<float>& dense) {
+    settle(vol);
+    VkCommandBuffer cmd = beginCommands(); copy(cmd, from, vol.staging, vol.cells * 4, 0, vol.offP); submitAndWait(cmd);
+    const float* st = reinterpret_cast<const float*>(static_cast<const char*>(vol.staging.mapped) + vol.offP);
+    const glm::ivec3 n = vol.spec.dims;
+    dense.assign(static_cast<size_t>(n.x) * n.y * n.z, 0.0f);
+    for (int z = 0; z < n.z; ++z) for (int y = 0; y < n.y; ++y) for (int x = 0; x < n.x; ++x) {
+        const long i = storageIndex(vol, x, y, z);
+        if (i >= 0) dense[static_cast<size_t>(x) + static_cast<size_t>(n.x) * (y + static_cast<size_t>(n.y) * z)] = st[static_cast<size_t>(i)];
+    }
+}
+namespace {
+WcPush mgTestPush(const WaterCoreGpu::Volume& vol) {
+    WcPush p; p.nx = vol.spec.dims.x; p.ny = vol.spec.dims.y; p.nz = vol.spec.dims.z; p.h = vol.spec.h; return p;
+}
+}
+bool WaterCoreGpu::mgSpmvForTest(Volume& vol, const std::vector<float>& sDense, std::vector<float>& qDense) {
+    if (!ensureMg(vol)) return false;
+    scatterDenseForTest(vol, sDense, vol.uOld);
+    WcPush push = mgTestPush(vol); fillPushBricks(vol, push); push.setFrozenOn(0);
+    VkCommandBuffer cmd = beginCommands(); push.mode = 0; dispatch(cmd, *vol.pipes[Mg], push, liveCells(vol), 256); submitAndWait(cmd);
+    gatherDenseForTest(vol, vol.vOld, qDense);
+    return true;
+}
+bool WaterCoreGpu::mgVcycleForTest(Volume& vol, const std::vector<float>& rDense, std::vector<float>& zDense) {
+    if (!ensureMg(vol)) return false;
+    scatterDenseForTest(vol, rDense, vol.valA);
+    WcPush push = mgTestPush(vol); fillPushBricks(vol, push); push.setFrozenOn(0);
+    VkCommandBuffer cmd = beginCommands(); recordMgBuild(cmd, vol, push); recordMgPrecond(cmd, vol, push); submitAndWait(cmd);
+    gatherDenseForTest(vol, vol.valB, zDense);
+    return true;
+}
+bool WaterCoreGpu::mgCoefForTest(Volume& vol, int level, std::vector<float>& coefDense4, glm::ivec3& dims, glm::ivec3& origin) {
+    if (!ensureMg(vol) || level < 1 || level > static_cast<int>(vol.mgLevels.size())) return false;
+    WcPush push = mgTestPush(vol); fillPushBricks(vol, push); push.setFrozenOn(0);
+    VkCommandBuffer cmd = beginCommands(); recordMgBuild(cmd, vol, push); submitAndWait(cmd);
+    const Volume::MgLevel& l = vol.mgLevels[static_cast<size_t>(level - 1)];
+    dims = l.dims; origin = l.origin;
+    const size_t cnt = static_cast<size_t>(l.dims.x) * l.dims.y * l.dims.z;
+    Buffer tmp; std::string err;
+    if (!createBuffer(tmp, cnt * 16, true, &err)) return false;
+    cmd = beginCommands(); copy(cmd, vol.mgCoef, tmp, cnt * 16, l.off * 16, 0); submitAndWait(cmd);
+    coefDense4.assign(static_cast<const float*>(tmp.mapped), static_cast<const float*>(tmp.mapped) + cnt * 4);
+    destroyBuffer(tmp);
+    return true;
+}
+
 void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, const SolverParams& params, int sweeps, bool quietBefore) {
     const size_t n[3] = {liveLattice(vol, 0), liveLattice(vol, 1), liveLattice(vol, 2)};
     const size_t cells = liveCells(vol), cols = liveColumns(vol);
@@ -2296,7 +2470,9 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     if (s_stillWaterGuess && !(s_disableStagesForTest & 16)) { push.mode = 2; dispatch(cmd, *vol.pipes[Classify], push, cols); }   // 26.9: the still-water first guess
     if (s_pressureDeviation) { push.mode = 4; dispatch(cmd, *vol.pipes[Classify], push, cells); }   // 50.6d: rhs -= A pg (the surface ghost too, guess or not)
     stamp(cmd, vol, TsClassify);
-    if (s_lineSweeps > 0 && vol.bricked && vol.spec.dims.y <= kLineMaxNy) {   // 28: zebra line sweeps (one workgroup per brick column)
+    const bool mg = s_pressureSolver == 1 && vol.mgReady && vol.bricked && !vol.particles;   // 50.7: MGPCG (ensureMg ran before recording)
+    if (mg) recordMgSolve(cmd, vol, push);
+    else if (s_lineSweeps > 0 && vol.bricked && vol.spec.dims.y <= kLineMaxNy) {   // 28: zebra line sweeps (one workgroup per brick column)
         for (int s = 0; s < s_lineSweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
             push.mode = 0; push.iparam = colour; push.param1 = s_lineOmega; dispatch(cmd, *vol.pipes[RbgsLine], push, cols);
         }
@@ -2304,7 +2480,7 @@ void WaterCoreGpu::recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, 
     for (int s = 0; s < sweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
         push.mode = 0; push.iparam = colour; push.param1 = m_omega; dispatch(cmd, *vol.pipes[Rbgs], push, cells);
     }
-    if (push.tallY >= 0)   // 27.22: the tall layer converged on its own after the band's sweeps (cheap: one cell a column)
+    if (push.tallY >= 0 && !mg)   // 27.22: the tall layer converged on its own after the band's sweeps (cheap: one cell a column); MGPCG solves it with the rest
         for (int s = 0; s < s_tallSweeps; ++s) for (int colour = 0; colour < 2; ++colour) {
             push.mode = 2; push.iparam = colour; push.param1 = m_omega; dispatch(cmd, *vol.pipes[Rbgs], push, cols);
         }
@@ -2474,6 +2650,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     WaterHostProfile::lap("gpu.01 settle (collect the call before)", hp);
     if (vol.solidWakePending) { applySolidWake(vol); vol.solidWakePending = false; }   // 44.2: after the collect, as before the fold
     if (vol.growWant > 0) { const size_t want = vol.growWant; vol.growWant = 0; growPool(vol, want); }   // 27.23 W1d.1: before any recording
+    if (s_pressureSolver == 1 && !ensureMg(vol)) vol.mgReady = false;   // 50.7: allocated and bound before any recording (else the sweeps)
     GpuStepStats st; st.ticks = ticks; st.sweeps = sweeps;
     m_dispatchCount = 0; m_barrierCount = 0;   // 28: this call's launches
     st.capacity = vol.bricked ? static_cast<int>(vol.capacity) - 1 : 0;

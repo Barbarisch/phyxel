@@ -259,6 +259,14 @@ public:
         std::vector<char> colEnergyQuiet, colSettle;
         bool settleDirty = false, anySettle = false;
         int settleCols = 0;
+        /// 50.7 MGPCG: the coarse levels (dense, world-aligned 2 x 2 x 2 boxes of the level below; level 0 = the stored cells).
+        /// Coef vec4 per coarse cell, X / B one float; Info the level table (wc_mg.comp); Scal the CG scalars + dot partials.
+        struct MgLevel { glm::ivec3 dims{0}, origin{0}; size_t off = 0; };
+        std::vector<MgLevel> mgLevels;   ///< [0] = level 1
+        Buffer mgCoef, mgX, mgB, mgInfo, mgScal;
+        bool mgReady = false;
+        size_t mgPartials = 0;           ///< Scal's partial slots (>= the stored cells / 256)
+        std::string mgReason;            ///< why the volume solves with SOR when MGPCG is asked for (50.7 amendment C)
         std::vector<int> newlyFrozen;            ///< §50.6b: columns that froze this call - their velocities zeroed in it (s_freezeZeroesVelocity)
         bool wakeAllPending = false, anyFrozen = false;
         // §27 W1b: RECORDED brick columns - the record (chunk spans + bodies) holds their water. Every brick of such a column reads the
@@ -364,7 +372,7 @@ public:
         struct Motion { bool fresh = false; int riseCols = 0, flowCols = 0; float maxRise = 0.0f, maxFlow = 0.0f; int x0 = 0, x1 = -1, z0 = 0, z1 = -1; float y0 = 0.0f, y1 = 0.0f; } motion;
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
-                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, SurfaceMesh, BodyPressure, KernelCount };   // 31: + BodyPressure   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)   // 29 S1: + SurfaceMesh
+                        ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, Sources, Surface, Bricks, FlipSort, FlipP2g, FlipG2p, Momentum, Tall, RbgsLine, SurfaceMesh, BodyPressure, Mg, KernelCount };   // 50.7: + Mg (MGPCG)   // 31: + BodyPressure   // 28: + RbgsLine (zebra line sweeps)   // 27.22: + Tall (collapse / expand)   // 29 S1: + SurfaceMesh
     static constexpr size_t kMaxMapEntries = 4u << 20;   ///< 26.6: brick-map cap (16 MB) - a larger box is refused (world scale is P5)
     static constexpr int kMaxSources = 64;
     static constexpr int kMaxMomentum = 256;   ///< 26.26: momentum records a call can take (more are counted as dropped)
@@ -402,6 +410,18 @@ public:
     /// phase the volume is already in its own settle band (rest damping on every face, compaction at free fall) - the motion is
     /// re-driven by the fill churn, not left over. OFF (a measurement switch); kept for the loop's later bisection.
     static inline bool s_columnSettle = false;
+    /// 50.7: the pressure solver - 0 the red-black SOR sweeps (the default until the owner looks), 1 MGPCG (CG preconditioned by an
+    /// aggregation multigrid V-cycle; WaterCore.md 50.7). MGPCG runs on bricked fill volumes; a particle volume, a dense one or a box
+    /// whose coarse levels would pass kMgMaxBytes keeps the sweeps (Volume::mgReason).
+    static inline int s_pressureSolver = 0;
+    static inline int s_mgIterations = 8;        ///< CG iterations a substep (fixed: no host sync)
+    static inline int s_mgCoarsePairs = 30;      ///< the coarsest level's symmetric red-black sweep pairs (one workgroup)
+    static constexpr size_t kMgMaxBytes = 256u << 20;   ///< 50.7 amendment C: the dense coarse levels scale with the BOX, not the water
+    static constexpr int kMgCoarsest = 1024;     ///< a level this small (cells, dense) is the coarsest
+    /// 50.7 TEST hooks (the build gates): a dense vector in, the fine matrix-vector product / one V-cycle / the coarse coefficients out
+    bool mgSpmvForTest(Volume& vol, const std::vector<float>& sDense, std::vector<float>& qDense);
+    bool mgVcycleForTest(Volume& vol, const std::vector<float>& rDense, std::vector<float>& zDense);
+    bool mgCoefForTest(Volume& vol, int level, std::vector<float>& coefDense4, glm::ivec3& dims, glm::ivec3& origin);
     /// 50.6e TEST: compaction's speed in moving water (m/s; < 0 = SolverParams::compactionSpeed)
     static inline float s_compactionSpeedOverrideForTest = -1.0f;
     static inline bool s_stillWaterGuess = true;    // ON (26.10): the resting-body loss was float rounding in the fill store, fixed (fLo)
@@ -555,6 +575,13 @@ public:
     /// 28 TEST ONLY: the GPU time (ms) of `n` dispatches of the brick-record kernel over `groups` workgroups each, with a barrier after
     /// each (`barriers`) or none - what a launch and a barrier cost by themselves
     double diagLaunchCost(Volume& vol, int n, int groups, bool barriers);
+    bool ensureMg(Volume& vol);                                           ///< 50.7: the coarse levels allocated and bound (before recording)
+    void recordMgBuild(VkCommandBuffer cmd, Volume& vol, WcPush push);   ///< 50.7: every level's coefficients (after classify)
+    void recordMgPrecond(VkCommandBuffer cmd, Volume& vol, WcPush push); ///< 50.7: z = M r, one symmetric V-cycle
+    void recordMgSolve(VkCommandBuffer cmd, Volume& vol, WcPush push);   ///< 50.7: s_mgIterations of MGPCG on A p = rhs (p starts at 0)
+    void recordMgDot(VkCommandBuffer cmd, Volume& vol, WcPush push, int which, int slot);
+    void scatterDenseForTest(Volume& vol, const std::vector<float>& dense, Buffer& to);
+    void gatherDenseForTest(Volume& vol, const Buffer& from, std::vector<float>& dense);
     static inline float s_lineOmega = 1.0f;
     static constexpr int kLineMaxNy = 64;
     /// 27.23 W1d.1: the slots a growable volume starts with (~8 MB at 2-tall bricks)
