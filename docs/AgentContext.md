@@ -186,10 +186,18 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     - Waves must **make sense in the world's shape**: refracted to the coast, never inside a solid.
     - Measure on the laptop now and the 4090 later.
     - **One heavy job at a time on the laptop**, since another session may be building or running.
-  - **Status 2026-11-03:** **P1a built** — the CPU reference cellular automaton (`engine/*/core/matsim/MatSimCore.*`) plus
-    20 tests (`tests/core/MatSimCoreTest.cpp`), red before green, audited (one leak through diagonal walls found and fixed). Results and two design departures are in
-    `MaterialSimPlan.md` §6b. Next is P1b: the GPU port (bit-exact against P1a), the `/api/matsim` lab API and the raw-cell
-    view.
+  - **Status 2026-11-03:** **P1 built.**
+    - **P1a:** the CPU reference cellular automaton (`engine/*/core/matsim/MatSimCore.*`) and 20 unit tests. See
+      `MaterialSimPlan.md` §6b.
+    - **P1b:** the GPU port (`MatSimGpu`, `shaders/matsim_{block,dilate}.comp`), which is bit-exact with the CPU over 9
+      integration tests (`tests/integration/MatSimGpuParityTest.cpp`, red by mutation). Also the `/api/matsim/<action>`
+      lab (`MatSimLab`), the raw-cell view, and a live rig (`tools/matsim_lab.py` on the `MatSimLab` project, port 8120).
+      See §6c.
+    - **Measured live:** ledger exact and live parity identical at 1, 1/3 and 1/9 m.
+    - **Two predictions failed:** the U-tube never levels (no pressure in the CA), and the dam-break front depends on the
+      cell size (46.7 / 4.5 / 0.81 m/s).
+    - **Next:** owner decisions in §6c, then P2.
+    - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then
     `git submodule update --init external/glm external/imgui`.
 

@@ -150,6 +150,18 @@ public:
     Cell at(IVec3 w) const;
     const std::vector<Cell>& cells() const { return cur_; }
     Config& config() { return cfg_; }
+    const Config& config() const { return cfg_; }
+
+    // --- P1b: the GPU port (MatSimGpu) steps a device copy of this state and hands it back. ---
+    IVec3 brickLo() const { return brickLo_; }
+    IVec3 brickDim() const { return brickDim_; }
+    const std::vector<uint8_t>& marksTick1() const { return marks1_; }   ///< bricks moved on tick-1
+    const std::vector<uint8_t>& marksTick2() const { return marks2_; }   ///< bricks moved on tick-2
+    /// Take back a state stepped elsewhere: cells, tick and the two sleep mark sets. Sizes must
+    /// match this box (false and no change otherwise). Trapped contents and the expected ledger
+    /// are untouched: stepping never reads or writes a solid cell.
+    bool adoptStepped(std::vector<Cell> cells, uint64_t tick, std::vector<uint8_t> marks1,
+                      std::vector<uint8_t> marks2);
 
 private:
     size_t index(int lx, int ly, int lz) const {
@@ -183,5 +195,12 @@ private:
 
 /// Deterministic 32-bit hash of (world cell, tick, seed) — the only source of "choice".
 uint32_t cellHash(int x, int y, int z, uint64_t tick, uint32_t seed);
+/// The tick's part of cellHash, as the GPU receives it: low word ^ high word * 0xfd7046c5.
+inline uint32_t tickMix(uint64_t tick) {
+    return static_cast<uint32_t>(tick) ^ (static_cast<uint32_t>(tick >> 32) * 0xfd7046c5u);
+}
+/// Rule 3's drop threshold in fill units: tan(theta) x distance x FULL, integer, exactly as the
+/// CPU applies it. The GPU's material table is filled from this, so the two cannot drift.
+uint32_t slideThreshold(uint8_t material, uint32_t full, bool diagonal);
 
 } // namespace Phyxel::Core::MatSim

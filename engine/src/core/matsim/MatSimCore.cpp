@@ -81,8 +81,25 @@ uint32_t cellHash(int x, int y, int z, uint64_t tick, uint32_t seed) {
     h = fmix32(h ^ static_cast<uint32_t>(x) * 0x27d4eb2du);
     h = fmix32(h ^ static_cast<uint32_t>(y) * 0x165667b1u);
     h = fmix32(h ^ static_cast<uint32_t>(z) * 0xd3a2646cu);
-    h = fmix32(h ^ static_cast<uint32_t>(tick) ^ static_cast<uint32_t>(tick >> 32) * 0xfd7046c5u);
+    h = fmix32(h ^ tickMix(tick));
     return h;
+}
+
+uint32_t slideThreshold(uint8_t m, uint32_t full, bool diag) {
+    return static_cast<uint32_t>(uint64_t(materialTable()[m].reposeTanMilli) * (diag ? 1414u : 1000u) *
+                                 uint64_t(full) / 1000000u);
+}
+
+bool MatSimCore::adoptStepped(std::vector<Cell> cells, uint64_t tick, std::vector<uint8_t> m1,
+                              std::vector<uint8_t> m2) {
+    if (!created_ || cells.size() != cur_.size() || m1.size() != marks1_.size() || m2.size() != marks2_.size())
+        return false;
+    cur_ = std::move(cells);
+    nxt_ = cur_;
+    tick_ = tick;
+    marks1_ = std::move(m1);
+    marks2_ = std::move(m2);
+    return true;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -598,7 +615,7 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
             if (!(reach & (1u << bit(bxx, ty, bzz)))) continue;
         }
         const bool diag = (ax != bxx) && (az != bzz);
-        const uint64_t thr = uint64_t(materialTable()[m].reposeTanMilli) * (diag ? 1414u : 1000u) * F / 1000000u;
+        const uint64_t thr = slideThreshold(m, F, diag);
         const uint64_t drop = sa - sb;
         if (drop <= thr) continue;
         uint64_t mv = (drop - thr) / 2;

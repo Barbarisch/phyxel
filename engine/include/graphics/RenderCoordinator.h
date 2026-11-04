@@ -611,6 +611,8 @@ public:
     /// Phase B2 debug draw: FLIP particles as water-shaded cubes of their cell size through the dynamic
     /// voxel pipeline (docs/WaterCore.md §15.9). Null or empty = nothing drawn.
     void setWaterCoreParticles(const std::vector<glm::vec4>* particles) { m_waterCoreParticles = particles; }
+    /// MatSim P1b raw-cell view (docs/MaterialSimPlan.md): exposed cell faces, drawn by the dynamic voxel pipeline. nullptr = off.
+    void setMatSimFaces(const std::vector<Phyxel::DynamicSubcubeInstanceData>* faces) { m_matSimFaces = faces; }
 
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
     // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
@@ -1468,6 +1470,11 @@ private:
     void*          m_flipDebugMapped = nullptr;
     static constexpr uint32_t kFlipDebugMaxParticles = 32768;            // 12.6 MB of faces; the draw subsamples above it
     void renderFlipParticlesDebug();
+    const std::vector<Phyxel::DynamicSubcubeInstanceData>* m_matSimFaces = nullptr;   // MatSim P1b raw-cell view
+    VkBuffer       m_matSimBuffer = VK_NULL_HANDLE;                      // host-visible, sized for MatSimLab::kMaxFaces
+    VkDeviceMemory m_matSimMemory = VK_NULL_HANDLE;
+    void*          m_matSimMapped = nullptr;
+    void renderMatSimDebug();
     bool  m_waterEnabled = false;
     float m_seaLevel = Core::kSeaLevelY; // shared default (WorldConstants.h) — must match the
                                          // water sim or the plane draws where no water is

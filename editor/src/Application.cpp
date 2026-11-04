@@ -609,6 +609,23 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         else
             LOG_WARN("WaterCore", "GPU backend unavailable: {} (volumes with backend:\"gpu\" will be refused)", gerr);
     }
+    // MatSim lab (docs/MaterialSimPlan.md §6a, P1b): solids from the same three-state micro occupancy
+    // query as the water core (Unknown = solid, counted; create refuses an unknown box). Inert until
+    // /api/matsim/create; never writes WaterCore state.
+    matSimLab = std::make_unique<Core::MatSim::MatSimLab>([this](int mx, int my, int mz) -> Core::MatSim::Occ {
+        const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
+        if (!occ) return Core::MatSim::Occ::Unknown;
+        return static_cast<Core::MatSim::Occ>(occ->stateAtMicro(glm::ivec3(mx, my, mz)));
+    });
+    if (vulkanDevice) {
+        std::string gerr;
+        const std::string spv = Core::AssetManager::instance().resolveShader("matsim_block.comp.spv");
+        const std::string shaderDir = std::filesystem::path(spv).parent_path().string();
+        if (matSimLab->initGpu(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice(), vulkanDevice->getGraphicsQueue(), vulkanDevice->getGraphicsQueueFamily(), shaderDir, &gerr))
+            LOG_INFO("MatSim", "GPU backend ready (kernels from {})", shaderDir);
+        else
+            LOG_WARN("MatSim", "GPU backend unavailable: {} (boxes step on the CPU reference)", gerr);
+    }
     // Keep the water sim's solid mask in sync with terrain edits so water flows into
     // newly-removed voxels (break / spell / blast) without a manual water_sync.
     chunkManager->setVoxelOccupancyCallback([this](int x, int y, int z, bool solid) {
@@ -696,6 +713,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Register CommandRegistry-based API handlers (incrementally replacing the processAPICommands
     // if-chain). Handlers read subsystems (waterManager, …) lazily at dispatch, so order is free.
     registerWaterCommands();
+    registerMatSimCommands();
     registerSettlementCommands();
     registerWorldForgeCommands();
     registerDoorCommands();
@@ -3714,6 +3732,8 @@ void Application::cleanup() {
     
     // Reset game-specific subsystems before engine cleanup
     if (runtime && runtime->getPerfCapture()) runtime->getPerfCapture()->setRenderCoordinator(nullptr);
+    if (renderCoordinator) renderCoordinator->setMatSimFaces(nullptr);
+    matSimLab.reset();   // its GPU buffers and pipelines go while the device still exists
     renderCoordinator.reset();
     voxelInteractionSystem.reset();
     raycastVisualizer.reset();
@@ -3858,6 +3878,13 @@ void Application::update(float deltaTime) {
 
         // Tick the CPU water cellular automaton (fixed-rate internally).
         if (waterManager) waterManager->update(deltaTime);
+        // MatSim lab (docs/MaterialSimPlan.md): inert until /api/matsim/create; realtime is opt-in.
+        if (matSimLab) {
+            // the real frame time: the lab caps itself at 4 ticks a frame and COUNTS the rest as dropped
+            // (a clamp here would hide a slow frame's lag from realtime_ticks_dropped)
+            matSimLab->update(deltaTime);
+            if (renderCoordinator) renderCoordinator->setMatSimFaces(matSimLab->viewOn() ? &matSimLab->faces() : nullptr);
+        }
         // WaterCore active volumes: realtime stepping is opt-in (water_av_realtime); the harness
         // steps explicitly. The debug feed is rebuilt every frame while any volume exists.
         if (waterCore) {
@@ -13241,6 +13268,22 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
 // Water-sim (CPU WaterManager) debug commands — first domain migrated off the processAPICommands
 // if-chain onto the CommandRegistry. Handlers run on the game-loop thread; the dispatcher owns
 // onComplete. Registered once during init.
+// MatSim lab routes (docs/MaterialSimPlan.md §6a): POST /api/matsim/<action> -> "matsim_<action>".
+// The lab is created at init; a handler that runs before it exists, or throws on a mistyped field,
+// answers with an error instead of reaching the legacy dispatch.
+void Application::registerMatSimCommands() {
+    for (const std::string& a : Core::MatSim::MatSimLab::actions()) {
+        m_commandRegistry.on("matsim_" + a, [this, a](const Core::APICommand& cmd, nlohmann::json& r) {
+            if (!matSimLab) { r = {{"error", "MatSim lab not available"}}; return; }
+            try {
+                matSimLab->handle(a, cmd.params, r);
+            } catch (const nlohmann::json::exception& e) {
+                r = {{"error", std::string("bad field type: ") + e.what()}};
+            }
+        });
+    }
+}
+
 void Application::registerWaterCommands() {
     auto& reg = m_commandRegistry;
     auto noWater = [](nlohmann::json& r) { r = {{"error", "WaterManager not available"}}; };

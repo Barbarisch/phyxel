@@ -1,0 +1,266 @@
+#version 450
+// docs/MaterialSimPlan.md §6a/§6c — MatSim P1b: one Margolus 2x2x2 block per invocation.
+// A line-for-line port of MatSimCore::evalBlock (engine/src/core/matsim/MatSimCore.cpp), which is
+// the source of truth: integer only, no atomics on cells, every choice from cellHash. The result
+// must be bit-identical to the CPU (MatSimGpuParity). Change both or neither.
+//
+// Reads the previous grid anywhere, writes only the block's own in-box cells of the next grid.
+// A block whose brick is asleep copies its input (exactly what an ineligible block writes).
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 0) readonly buffer Cur { uint cur[]; };
+layout(std430, binding = 1) writeonly buffer Nxt { uint nxt[]; };
+layout(std430, binding = 2) readonly buffer Proc { uint process[]; };
+layout(std430, binding = 3) buffer Fresh { uint fresh[]; };          // bricks moved this tick (1 = moved)
+layout(std430, binding = 4) readonly buffer Mat { uvec4 mat[]; };    // per material: phase, thrOrtho, thrDiag, 0
+layout(std430, binding = 5) buffer Stats { uint stats[]; };          // per tick slot: eligible, evaluated
+
+layout(push_constant) uniform PC {
+    ivec4 origin;     // box origin (world cells); w = FULL units
+    ivec4 size;       // box size (cells);         w = seed (bits)
+    ivec4 start;      // first block's world cell this tick; w = tickMix (bits)
+    ivec4 nblocks;    // blocks per axis;          w = stats slot
+    ivec4 brickLo;    // brick grid origin (bricks); w = sleep on (1) / off (0)
+    ivec4 brickDim;   // brick grid size;          w = invocation stride of a dispatch row
+} pc;
+
+const uint kSolidCell = 0xFF000000u;
+const uint kFillMask = 0x00FFFFFFu;
+const uint PH_EMPTY = 0u, PH_LIQUID = 1u, PH_POWDER = 2u, PH_SOLID = 3u;
+
+shared uint sEligible;
+shared uint sEvaluated;
+
+uint c[8];      // [dx + 2 dz + 4 dy], this invocation's block (private)
+uint orig[8];
+
+uint cmat(uint cell) { return cell >> 24; }
+uint cfill(uint cell) { return cell & kFillMask; }
+bool isSolid(uint cell) { return cmat(cell) == 255u; }
+uint phaseOf(uint m) { return mat[m].x; }
+bool isMobile(uint m) { uint p = phaseOf(m); return p == PH_LIQUID || p == PH_POWDER; }
+uint makeCell(uint m, uint f) { return f != 0u ? ((m << 24) | (f & kFillMask)) : 0u; }   // setc: empty when f = 0
+
+bool inBox(ivec3 w) {
+    ivec3 l = w - pc.origin.xyz;
+    return l.x >= 0 && l.y >= 0 && l.z >= 0 && l.x < pc.size.x && l.y < pc.size.y && l.z < pc.size.z;
+}
+uint boxIndex(ivec3 w) {
+    ivec3 l = w - pc.origin.xyz;
+    return uint(l.x) + uint(pc.size.x) * (uint(l.z) + uint(pc.size.z) * uint(l.y));
+}
+uint readPrev(ivec3 w) { return inBox(w) ? cur[boxIndex(w)] : kSolidCell; }
+uint brickOf(ivec3 w) {
+    ivec3 b = (w >> 3) - pc.brickLo.xyz;   // arithmetic shift = floor division by 8
+    return uint(b.x) + uint(pc.brickDim.x) * (uint(b.z) + uint(pc.brickDim.z) * uint(b.y));
+}
+
+uint fmix32(uint h) {
+    h ^= h >> 16; h *= 0x85ebca6bu; h ^= h >> 13; h *= 0xc2b2ae35u; h ^= h >> 16;
+    return h;
+}
+uint cellHash(int x, int y, int z, uint seed) {
+    uint h = fmix32(seed ^ 0x9E3779B9u);
+    h = fmix32(h ^ (uint(x) * 0x27d4eb2du));
+    h = fmix32(h ^ (uint(y) * 0x165667b1u));
+    h = fmix32(h ^ (uint(z) * 0xd3a2646cu));
+    h = fmix32(h ^ uint(pc.start.w));
+    return h;
+}
+
+bool evalBlock(ivec3 b) {
+    const uint F = uint(pc.origin.w);
+    const uint seed = uint(pc.size.w);
+    for (int i = 0; i < 8; ++i) {
+        ivec3 d = ivec3(i & 1, (i >> 2) & 1, (i >> 1) & 1);
+        c[i] = readPrev(b + d);
+        orig[i] = c[i];
+    }
+
+    // 1. Gravity, per column, top -> bottom.
+    for (int dz = 0; dz < 2; ++dz)
+        for (int dx = 0; dx < 2; ++dx) {
+            int it = dx + 2 * dz + 4, ib = dx + 2 * dz;
+            uint m = cmat(c[it]);
+            if (!isMobile(m) || isSolid(c[ib])) continue;
+            if (cmat(c[ib]) != 0u && cmat(c[ib]) != m) continue;
+            uint mv = min(cfill(c[it]), F - cfill(c[ib]));
+            if (mv == 0u) continue;
+            c[ib] = makeCell(m, cfill(c[ib]) + mv);
+            c[it] = makeCell(m, cfill(c[it]) - mv);
+        }
+
+    // 2. Liquid level per layer, face-connected groups of supported cells, deadband 1 unit.
+    for (int dy = 0; dy < 2; ++dy) {
+        bool cand[4];
+        for (int k = 0; k < 4; ++k) {
+            cand[k] = false;
+            int dx = k & 1, dz = k >> 1;
+            uint cell = c[k + 4 * dy];
+            if (isSolid(cell)) continue;
+            uint m = cmat(cell);
+            if (m != 0u && phaseOf(m) != PH_LIQUID) continue;
+            uint below = (dy == 1) ? c[k] : readPrev(b + ivec3(dx, -1, dz));
+            if (!(isSolid(below) || cfill(below) == F)) continue;
+            cand[k] = true;
+        }
+        bool done[4] = bool[4](false, false, false, false);
+        for (int sz0 = 0; sz0 < 2; ++sz0)
+            for (int sx0 = 0; sx0 < 2; ++sx0) {
+                if (!cand[sx0 + 2 * sz0] || done[sx0 + 2 * sz0]) continue;
+                int g[4];   // layer index (dx + 2 dz) of each member, in insertion order
+                int n = 0;
+                done[sx0 + 2 * sz0] = true; g[n++] = sx0 + 2 * sz0;
+                bool nx = cand[(1 - sx0) + 2 * sz0], nz = cand[sx0 + 2 * (1 - sz0)];
+                if (nx) { done[(1 - sx0) + 2 * sz0] = true; g[n++] = (1 - sx0) + 2 * sz0; }
+                if (nz) { done[sx0 + 2 * (1 - sz0)] = true; g[n++] = sx0 + 2 * (1 - sz0); }
+                if ((nx || nz) && cand[(1 - sx0) + 2 * (1 - sz0)]) { done[(1 - sx0) + 2 * (1 - sz0)] = true; g[n++] = (1 - sx0) + 2 * (1 - sz0); }
+                uint liquid = 0u;
+                bool mixed = false;
+                for (int i = 0; i < n; ++i) {
+                    uint m = cmat(c[g[i] + 4 * dy]);
+                    if (m == 0u) continue;
+                    if (liquid != 0u && liquid != m) mixed = true;
+                    liquid = m;
+                }
+                if (mixed || liquid == 0u || n < 2) continue;
+                uint mn = F, mx = 0u, total = 0u;   // total <= 4 FULL < 2^32
+                for (int i = 0; i < n; ++i) {
+                    uint f = cfill(c[g[i] + 4 * dy]);
+                    mn = min(mn, f); mx = max(mx, f); total += f;
+                }
+                if (mx - mn <= 1u) continue;
+                uint q = total / uint(n), rem = total % uint(n);
+                uint h[4];
+                int order[4];
+                for (int i = 0; i < n; ++i) {
+                    h[i] = cellHash(b.x + (g[i] & 1), b.y + dy, b.z + (g[i] >> 1), seed);
+                    order[i] = i;
+                }
+                // Insertion sort by (hash desc, member index asc): a strict total order, so the
+                // permutation is the one std::sort gives on the CPU.
+                for (int i = 1; i < n; ++i) {
+                    int v = order[i];
+                    int j = i - 1;
+                    while (j >= 0) {
+                        int a = order[j];
+                        bool after = (h[a] != h[v]) ? (h[a] < h[v]) : (a > v);   // a sorts after v
+                        if (!after) break;
+                        order[j + 1] = a;
+                        --j;
+                    }
+                    order[j + 1] = v;
+                }
+                for (int k = 0; k < n; ++k)
+                    c[g[order[k]] + 4 * dy] = makeCell(liquid, q + (uint(k) < rem ? 1u : 0u));
+            }
+    }
+
+    // 3. Slide (angle of repose; liquids at 0 deg). Pair order hashed per block.
+    const int kPairs[24] = int[24](0, 0, 1, 0,  0, 1, 1, 1,  0, 0, 0, 1,  1, 0, 1, 1,  0, 0, 1, 1,  1, 0, 0, 1);
+    const uint ph = cellHash(b.x, b.y, b.z, seed ^ 0x51DEu);
+    const int startPair = int(ph % 6u);
+    const bool reverse = ((ph >> 8) & 1u) != 0u;
+    for (int k = 0; k < 6; ++k) {
+        int p = reverse ? (startPair + 6 - k) % 6 : (startPair + k) % 6;
+        int ax = kPairs[4 * p], az = kPairs[4 * p + 1], bxx = kPairs[4 * p + 2], bzz = kPairs[4 * p + 3];
+        uint sa = 0u, sb = 0u;
+        for (int dy = 0; dy < 2; ++dy) {
+            uint ca = c[ax + 2 * az + 4 * dy], cb = c[bxx + 2 * bzz + 4 * dy];
+            sa += isSolid(ca) ? F : cfill(ca);
+            sb += isSolid(cb) ? F : cfill(cb);
+        }
+        if (sa == sb) continue;
+        if (sa < sb) {
+            int t = ax; ax = bxx; bxx = t;
+            t = az; az = bzz; bzz = t;
+            uint u = sa; sa = sb; sb = u;
+        }
+        int sy = -1;
+        for (int dy = 1; dy >= 0; --dy) {
+            uint cell = c[ax + 2 * az + 4 * dy];
+            if (isSolid(cell)) break;
+            if (cfill(cell) != 0u) { sy = dy; break; }
+        }
+        if (sy < 0) continue;
+        uint m = cmat(c[ax + 2 * az + 4 * sy]);
+        if (!isMobile(m)) continue;
+        int ty = -1;
+        for (int dy = 0; dy <= sy; ++dy) {
+            uint cell = c[bxx + 2 * bzz + 4 * dy];
+            if (isSolid(cell)) continue;
+            if (cmat(cell) != 0u && cmat(cell) != m) continue;
+            if (cfill(cell) >= F) continue;
+            ty = dy;
+            break;
+        }
+        if (ty < 0) continue;
+        // Face-connected path of non-solid cells inside the block (MatSimWalls).
+        uint open = 0u;
+        for (int i = 0; i < 8; ++i) if (!isSolid(c[i])) open |= 1u << uint(i);
+        uint reach = 1u << uint(ax + 2 * az + 4 * sy);
+        for (int it = 0; it < 4; ++it) {
+            uint grow = reach;
+            for (int i = 0; i < 8; ++i)
+                if ((reach & (1u << uint(i))) != 0u)
+                    grow |= (1u << uint(i ^ 1)) | (1u << uint(i ^ 2)) | (1u << uint(i ^ 4));
+            reach = grow & open;
+        }
+        if ((reach & (1u << uint(bxx + 2 * bzz + 4 * ty))) == 0u) continue;
+        bool diag = (ax != bxx) && (az != bzz);
+        uint thr = diag ? mat[m].z : mat[m].y;
+        uint drop = sa - sb;
+        if (drop <= thr) continue;
+        int si = ax + 2 * az + 4 * sy, di = bxx + 2 * bzz + 4 * ty;
+        uint mv = (drop - thr) / 2u;
+        mv = min(mv, cfill(c[si]));
+        mv = min(mv, F - cfill(c[di]));
+        if (mv == 0u) continue;
+        c[di] = makeCell(m, cfill(c[di]) + mv);
+        c[si] = makeCell(m, cfill(c[si]) - mv);
+    }
+
+    bool changed = false;
+    for (int i = 0; i < 8; ++i) {
+        ivec3 w = b + ivec3(i & 1, (i >> 2) & 1, (i >> 1) & 1);
+        if (!inBox(w)) continue;
+        if (c[i] != orig[i]) changed = true;
+        nxt[boxIndex(w)] = c[i];
+    }
+    return changed;
+}
+
+void main() {
+    if (gl_LocalInvocationIndex == 0u) { sEligible = 0u; sEvaluated = 0u; }
+    barrier();
+    const uint id = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * uint(pc.brickDim.w);
+    const uint total = uint(pc.nblocks.x) * uint(pc.nblocks.y) * uint(pc.nblocks.z);
+    if (id < total) {
+        const uint ix = id % uint(pc.nblocks.x);
+        const uint r = id / uint(pc.nblocks.x);
+        const uint iz = r % uint(pc.nblocks.z);
+        const uint iy = r / uint(pc.nblocks.z);
+        const ivec3 b = pc.start.xyz + 2 * ivec3(int(ix), int(iy), int(iz));
+        if (pc.brickLo.w != 0 && process[brickOf(b)] == 0u) {
+            for (int i = 0; i < 8; ++i) {   // asleep: write the input back
+                ivec3 w = b + ivec3(i & 1, (i >> 2) & 1, (i >> 1) & 1);
+                if (inBox(w)) { uint j = boxIndex(w); nxt[j] = cur[j]; }
+            }
+        } else {
+            atomicAdd(sEvaluated, 1u);
+            if (evalBlock(b)) {
+                atomicAdd(sEligible, 1u);
+                for (int i = 0; i < 8; ++i) {
+                    ivec3 w = b + ivec3(i & 1, (i >> 2) & 1, (i >> 1) & 1);
+                    if (inBox(w)) fresh[brickOf(w)] = 1u;   // every writer stores the same value
+                }
+            }
+        }
+    }
+    barrier();
+    if (gl_LocalInvocationIndex == 0u) {
+        const uint slot = uint(pc.nblocks.w);
+        if (sEligible != 0u) atomicAdd(stats[2u * slot], sEligible);
+        if (sEvaluated != 0u) atomicAdd(stats[2u * slot + 1u], sEvaluated);
+    }
+}

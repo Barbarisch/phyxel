@@ -22,6 +22,7 @@ set(INTEGRATION_TEST_SOURCES
     WaterBodyPressureTest.cpp
     WaterRecordedPondTest.cpp
     WaterTallCellTest.cpp
+    MatSimGpuParityTest.cpp
 )
 
 # Create integration test executable

@@ -809,6 +809,12 @@ RenderCoordinator::~RenderCoordinator() {
     // Explicit, not `= default`: the light-occupancy buffers must be released while the Vulkan
     // device is still alive.
     if (m_lightOccupancy) m_lightOccupancy->cleanup();
+    if (m_matSimBuffer != VK_NULL_HANDLE && vulkanDevice) {   // MatSim P1b raw-cell view buffer
+        vkUnmapMemory(vulkanDevice->getDevice(), m_matSimMemory);
+        vkDestroyBuffer(vulkanDevice->getDevice(), m_matSimBuffer, nullptr);
+        vkFreeMemory(vulkanDevice->getDevice(), m_matSimMemory, nullptr);
+        m_matSimBuffer = VK_NULL_HANDLE; m_matSimMemory = VK_NULL_HANDLE; m_matSimMapped = nullptr;
+    }
     if (m_flipDebugBuffer != VK_NULL_HANDLE && vulkanDevice) {   // WaterCore Phase B2 debug draw buffer
         vkUnmapMemory(vulkanDevice->getDevice(), m_flipDebugMemory);
         vkDestroyBuffer(vulkanDevice->getDevice(), m_flipDebugBuffer, nullptr);
@@ -2415,6 +2421,7 @@ void RenderCoordinator::renderDynamicSubcubes() {
         vkCmdDrawIndirect(cmd, m_gpuParticles->getIndirectDrawBuffer(), 0, 1, 16);
     }
     renderFlipParticlesDebug();
+    renderMatSimDebug();
 }
 
 // WaterCore Phase B2 debug draw (docs/WaterCore.md §15.9): the FLIP particle list, uploaded once per
@@ -2461,6 +2468,38 @@ void RenderCoordinator::renderFlipParticlesDebug() {
     vulkanDevice->bindIndexBuffer(currentFrame);
     vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
     vkCmdDraw(cmd, 6, n * 6, 0, 0);
+}
+
+// MatSim P1b raw-cell view (docs/MaterialSimPlan.md 6a): the lab's exposed-face list, copied into
+// one host-visible buffer in the DynamicSubcubeInstanceData stride and drawn by the dynamic voxel
+// pipeline, exactly as renderFlipParticlesDebug does. Debug only (P2's "blob" baseline); the lab
+// caps the list at kMatSimMaxFaces and reports the cut. One buffer, like the FLIP view, so a frame
+// still in flight can see the next frame's list (debug-view tearing, never a wrong sim state).
+void RenderCoordinator::renderMatSimDebug() {
+    if (!m_matSimFaces || m_matSimFaces->empty() || !dynamicRenderPipeline || !vulkanDevice) return;
+    constexpr size_t kMatSimMaxFaces = 393216;   // = MatSimLab::kMaxFaces
+    const uint32_t n = static_cast<uint32_t>(std::min(m_matSimFaces->size(), kMatSimMaxFaces));
+    const VkDeviceSize capacityBytes = static_cast<VkDeviceSize>(kMatSimMaxFaces) * sizeof(Phyxel::DynamicSubcubeInstanceData);
+    if (m_matSimBuffer == VK_NULL_HANDLE) {
+        vulkanDevice->createBuffer(capacityBytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                   m_matSimBuffer, m_matSimMemory);
+        if (m_matSimBuffer == VK_NULL_HANDLE || m_matSimMemory == VK_NULL_HANDLE ||
+            vkMapMemory(vulkanDevice->getDevice(), m_matSimMemory, 0, capacityBytes, 0, &m_matSimMapped) != VK_SUCCESS) {
+            m_matSimMapped = nullptr;
+            return;   // no raw view (the lab keeps simulating); never maps or draws a null buffer
+        }
+    }
+    if (!m_matSimMapped) return;
+    std::memcpy(m_matSimMapped, m_matSimFaces->data(), size_t(n) * sizeof(Phyxel::DynamicSubcubeInstanceData));
+    VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, dynamicRenderPipeline->getGraphicsPipeline());
+    vulkanDevice->bindVertexBuffers(currentFrame);
+    VkDeviceSize off = 0;
+    vkCmdBindVertexBuffers(cmd, 1, 1, &m_matSimBuffer, &off);
+    vulkanDevice->bindIndexBuffer(currentFrame);
+    vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
+    vkCmdDraw(cmd, 6, n, 0, 0);
 }
 
 // Occlusion culling via the per-chunk visibility graph ("cave culling"). BFS from

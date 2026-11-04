@@ -4412,6 +4412,20 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(m_rpgHandler(action, body).dump(), "application/json");
     });
 
+    // POST /api/matsim/<action> — MatSim lab (docs/MaterialSimPlan.md §6a): create, fill_box, step,
+    // realtime, set_cell_size, resolidify, ledger, stats, view, clear, parity. Main-thread handlers
+    // registered as "matsim_<action>" (Application::registerMatSimCommands).
+    srv.Post(R"(/api/matsim/([a-z_]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (body.is_discarded() || !body.is_object()) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON object"}}.dump(), "application/json");
+            return;
+        }
+        const std::string action = "matsim_" + std::string(req.matches[1]);
+        res.set_content(queueAndWait(action, body).dump(), "application/json");
+    });
+
     // POST /api/combat/attack — Perform an attack (via command queue)
     srv.Post("/api/combat/attack", [this](const httplib::Request& req, httplib::Response& res) {
         json body = json::parse(req.body, nullptr, false);

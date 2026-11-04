@@ -1,6 +1,7 @@
 # Material Simulation Plan — Noita-style voxel materials, alongside WaterCore
 
-**Status: P1a (CPU reference core) BUILT 2026-11-03 — §6b. P1b (GPU port, lab API) not started.** Supersedes the same-day `LiquidCaLab.md`
+**Status: P1 BUILT 2026-11-03 — P1a (CPU reference core) §6b; P1b (GPU port bit-exact, `/api/matsim` lab, raw-cell
+view, live rig) §6c. Two §6a predictions FAILED live (the 1 m front, the U-tube) — owner decisions in §6c. P2 not started.** Supersedes the same-day `LiquidCaLab.md`
 note, folded in here and deleted. Context: [`NoitaGapAnalysis.md`](NoitaGapAnalysis.md) (why: N1–N4,
 Tiers 2–3) and [`WaterCore.md`](WaterCore.md) (the water system this must live beside: §4.2 method
 choice, §30.0b locality, §51 levels).
@@ -527,6 +528,159 @@ is an owner decision, not something to fix silently.
 **Left for P1b:** the dam-break front speed and U-tube times (§6a predictions) are live-rig
 measurements. CPU ms per tick is not recorded as a performance number: the CPU core is the
 reference, not the runtime.
+
+### 6c. P1b built (2026-11-03) — the GPU port, the lab API, the raw-cell view, the live rig
+
+**Code:**
+- `shaders/matsim_block.comp` (the rules, a line-for-line port of `MatSimCore::evalBlock`) and
+  `shaders/matsim_dilate.comp` (the sleep mask); both are in `build_shaders.bat`.
+- `engine/*/core/matsim/MatSimGpu.*` steps a device copy of the core's stepping state (cells, tick,
+  both sleep mark sets): `upload → step(n) → download`.
+- `engine/*/core/matsim/MatSimLab.*` is the lab service.
+- Glue: `/api/matsim/<action>` in `EngineAPIServer.cpp`, `registerMatSimCommands` and the
+  per-frame update in `Application.cpp`, `renderMatSimDebug` in `RenderCoordinator.cpp`.
+- Rig: `tools/matsim_lab.py`, on the `MatSimLab` project (port 8120).
+- Tests: `tests/integration/MatSimGpuParityTest.cpp` (9 tests).
+
+**How the port stays exact:**
+- The CPU core owns the state and every edit: fill, resolidify, cell-size switch, trapped contents,
+  the expected ledger. The GPU only steps.
+- The kernel is integer-only and 32-bit. The slide thresholds come from the CPU's own
+  `slideThreshold()` through a material table. The tick's hash term is the CPU's `tickMix()`, sent as
+  a push constant, so there is no int64 in the shader.
+- The remainder sort is an insertion sort under the same strict order as the CPU's `std::sort`.
+- Cells ping-pong between 2 buffers and marks rotate over 3, so a tick binds one of 6 descriptor sets.
+  There is one submission and one fence per 256 ticks, and timestamps give GPU ms.
+
+**API, beyond §6a's table:**
+- `create` takes `backend` (`gpu` by default when a device exists, else `cpu`), `seed` and `sleep`.
+- `parity {n}` (live L4): runs the same n ticks on the CPU reference and on the device and compares
+  them cell by cell, plus the sleep marks and the per-tick stats. It refuses if the step did not
+  actually run on the device.
+- `slices {axis, min?, size?}` (read-only): m³ per slice per material. The front and level
+  measurements are read from it.
+- A refusal changes nothing (a live test confirms this). Every response echoes `ledger`
+  (units, expected, exact), `cells_per_m` and `box`.
+
+**Departures from §6a, stated:**
+1. **Ledger:** computed on the host after a download, not from per-workgroup partials. That's cheap
+   at lab sizes; P5 revisits it.
+2. **Raw-cell view:** built on the CPU from a download and fed to the dynamic-voxel pipeline. There is
+   no GPU expand pass. At 1/9 m that costs the whole frame (see below), so the view is a debug tool;
+   the GPU expand pass is P2's.
+3. **Water is drawn with the `Ice` texture**, because the voxel shader has no Water material. It's
+   the same stand-in the FLIP debug draw uses.
+4. **Live parity at 1/9 m runs 30 ticks, not 300.** The CPU reference runs on the engine's main
+   thread, and in Debug 300 ticks of 1.49 M cells outlast the API's wait. The integration test
+   covers 300 ticks of that box.
+
+**Red before green:**
+- **Mutation runs.** Each mutant was compiled into the live `.spv` and run against the suite, then the
+  real kernels were restored:
+  - *slide without the face-path check:* caught by 5 of 6 tests;
+  - *sleep dilation reading only tick −1:* caught by 4 of 6 (stats and cells differ by tick 2).
+- **An equivalent mutant.** Flipping the remainder sort's tie-break changes nothing unless two 32-bit
+  hashes in one block collide. Its only "catch" came from a test whose own limit was wrong: a
+  16 × 16 m basin cannot sleep within 600 ticks. That limit is now 9,000 ticks, and the basin sleeps
+  at tick 1,734 (28.9 s), consistent with levelling time growing with width² (4 × 4 m took 3.8 s).
+- **The lab test.** `LabRealtimeViewTracksDevice` compares a GPU-backed lab with a CPU-backed lab
+  across 120 realtime frames with the view on. It was red (frame 2: 126 vs 271 faces), then green
+  after the fix below.
+
+**Audit (independent, read-only, 2026-11-03):**
+- **The kernels:** no way found for them to drift from the CPU. Checked: index mapping, rule order,
+  hash inputs, integer widths, signed shifts, block parity, buffer-role rotation, barriers, stats
+  slots.
+- **Lab defects, all fixed:**
+  - (1) the realtime view rebuilt from a stale host copy;
+  - (2) `parity` could compare CPU against CPU after a failed upload;
+  - (3) a failed download was treated as current, losing device ticks;
+  - (4) no transfer→host barrier before reading staging;
+  - and: an unchecked view-buffer creation.
+- **Test gaps, as reported:**
+  - the lab layer was untested (now `LabRealtimeViewTracksDevice`);
+  - there was no rule-level fault control (the mutation runs above answer it);
+  - some branches are unreachable: mixed liquids (only Water exists), equal-hash ties, and dispatch
+    rows beyond 1 (2.1 M blocks is at most 32.8 k groups).
+
+**Integration results** (Debug build, this laptop's GPU; all 9 pass):
+
+| Test | Result |
+|---|---|
+| `GpuEqualsCpuAfterNTicks` (the lab scene at 1, 1/3 and 1/9 m, odd negative origin) | cells, both mark sets, per-tick stats and ledger identical: 1,500 / 1,500 / 900 ticks |
+| `ControlShiftedRunDiffers` | a one-tick shift and a different seed are both seen |
+| `SleepIsExactAndSkipsOnGpu` | dense on the GPU = CPU; the 16 × 2 × 16 m basin is asleep at 28.9 s and then evaluates 0 blocks |
+| `EditsBetweenRunsStayExact` | resolidify plus fills plus switches 3 → 9 → 3 → 1 → 3 between GPU runs = a pure CPU run; ledger exact |
+| `StressRandomScenes` (6 seeds; odd extents; n > one chunk) / `DegenerateBoxes` (1³, columns, slabs, n = 0) | identical |
+| `LabBoxAtNinthMetre` (144 × 72 × 144 = 1.49 M cells) | identical over 300 ticks |
+| `LabRealtimeViewTracksDevice` | the GPU lab's faces = the CPU lab's every frame; ticks and ledger equal |
+
+**GPU ms per tick** (timestamps; the wall clock agrees):
+
+| Box (16 × 8 × 16 m) | dense (sleep off) | awake (sleep on) | asleep |
+|---|---|---|---|
+| 1 m, 2,048 cells | 0.019 | 0.019 | 0.004 |
+| 1/3 m, 55,296 cells | 0.021 | 0.022 | 0.004 |
+| 1/9 m, 1.49 M cells | 0.028 | 0.028 | 0.011 |
+
+Live inside the running engine (another workload on the GPU), the same boxes measured 0.04 / 0.12 /
+0.26 ms awake.
+
+**Whole frame** (Debug, 1/9 m box in realtime, laptop): view off **71.7 FPS** vs **68.7 FPS** for the
+MatSim-idle control, so the simulation costs nothing measurable. View on: **4.7 FPS, 211 ms CPU
+frame**, all of it the CPU view (a 1.49 M-cell download and about 85 k faces rebuilt per frame).
+- At that frame rate realtime falls behind (4 ticks per frame at most), and it is counted:
+  `realtime_ticks_dropped` = 359 after about 7 s.
+- The first live run read 0 there, because `Application` clamped `dt` to 0.05 s before the lab saw it,
+  which hid the lag. Now the lab gets the real frame time, verified live.
+
+**Live rig** (`tools/matsim_lab.py --run`, evidence `docs/evidence/matsim_p1b_live.json`):
+- The rig is hand-placed (`/api/world/fill`), not generator output: the MatSimLab project, a Stone
+  slab in chunk (0, 0, 0), and a 16 × 8 × 16 m box at (8, 16, 8) holding the dam, the ledge and the
+  U-tube.
+- Verified in the world by voxel probes, and in the sim: 0 m³ crossed the dam before the break.
+- The lab answered `created: false` on a fresh engine (inert until create).
+- All 10 refusal cases were refused with reasons, and the box was unchanged. They were: unknown space
+  (the reason names the first unknown cell), cell size 2, 27 M cells, an off-lattice min, material
+  "Lava", fraction 2, n of 100,001 and −1, a mistyped field, and an unknown action.
+
+| | 1 m | 1/3 m | 1/9 m |
+|---|---|---|---|
+| ledger exact at every sample | ✓ | ✓ | ✓ |
+| live parity (cells, marks, stats) | ✓ 300 ticks | ✓ 300 ticks | ✓ 30 ticks |
+| dam-break front (Ritter 2√(g·3 m) = 10.85 m/s) | **46.7 m/s ✗** (cap 60) | 4.5 m/s ✓ | 0.81 m/s ✓ |
+| U-tube arms (m) after 120 s, from 4.8 / 0 | 4.00 / **1.00**, stuck | 4.32 / 0.67, asleep at 120.7 s | 4.24 / 0.74, still moving |
+| asleep | 120.2 s | 120.7 s | not within 300 s |
+
+**Predictions vs results:**
+- **Ledger exact:** held.
+- **Front slower than Ritter:** held at 1/3 and 1/9 m; **failed at 1 m**. A thin film runs a whole
+  metre per tick, close to the 60 m/s cap.
+- **U-tube levels in more than 10 s:** **wrong in kind**. It never levels. The far arm fills only to
+  the connector's height (exactly 1.00 m at 1 m cells), then the box sleeps with the arms 3 m apart.
+  The CA has no pressure: this is §8's risk, now measured.
+
+**Visual:** the raw-cell view of the dam break with a sand pile on the ledge, at 1/3 m (tick 93) and
+1/9 m (tick 26), from the same pose (16, 34, −6), yaw 90°, pitch −45°. Captures are in
+`screenshots/screenshot_20261103_2200{14_592,41_529}.png`. Water is shown at fill height and the
+sand slumps into terraces. P2 compares the raw view against the shaded one.
+
+**Decisions for the owner (new):**
+1. **Pressure.** Pick one:
+   - (a) a pressure or communicating-vessel rule in the CA;
+   - (b) leave it to P3's particles;
+   - (c) accept MatSim as "spills and materials" with WaterCore owning bodies (M3).
+   Until then a MatSim U-tube or siphon is wrong at every cell size.
+2. **Cell size changes outcomes.** The same dam break runs at 46.7 / 4.5 / 0.81 m/s at 1 / 1/3 /
+   1/9 m. Under the tier rule (tiers change cost and looks, never outcomes), cell size can't be a
+   quality knob as it stands. It needs a speed-normalised rule, or the live switch stays a lab tool.
+3. **Carried over from P1a:** a merge refuses over mixed materials (§6b).
+4. **Carried over from P1a:** whether the tick is world time (it resets on `create`).
+
+**Environment (this clone):** the engine and the test executables need
+`%APPDATA%\uv\python\cpython-3.12-windows-x86_64-none` on PATH (`python312.dll`). Without it,
+`phyxel.exe` exits silently: MCP `launch_engine` "succeeds" with no engine, and `build_project`
+reports failure only at test discovery. Debug only; Release was not built.
 
 ## 7. Working alongside the other sessions
 
