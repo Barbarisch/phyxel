@@ -1,6 +1,6 @@
 # Material Simulation Plan — Noita-style voxel materials, alongside WaterCore
 
-**Status: PLAN, 2026-11-03. Nothing built, nothing run.** Supersedes the same-day `LiquidCaLab.md`
+**Status: P1a (CPU reference core) BUILT 2026-11-03 — §6b. P1b (GPU port, lab API) not started.** Supersedes the same-day `LiquidCaLab.md`
 note, folded in here and deleted. Context: [`NoitaGapAnalysis.md`](NoitaGapAnalysis.md) (why: N1–N4,
 Tiers 2–3) and [`WaterCore.md`](WaterCore.md) (the water system this must live beside: §4.2 method
 choice, §30.0b locality, §51 levels).
@@ -460,6 +460,73 @@ No existing default changes. MatSim does nothing until `create`, pinned by
   later deferred stepping.
 - P1b reports GPU ms per tick for an awake and an asleep box at all three cell sizes, plus the
   whole frame (`engine_timing`, `gpu_timing`) on the laptop.
+
+### 6b. P1a built (2026-11-03) — the CPU reference core
+
+**Code:** `engine/include/core/matsim/MatSimCore.h`, `engine/src/core/matsim/MatSimCore.cpp`
+(pure C++, no engine dependencies, nothing calls it yet). Tests: `tests/core/MatSimCoreTest.cpp`.
+
+**Red before green:** all tests were written first and run against a stub; 14 of 15 failed
+(`InertUntilCreated` passes on a stub by definition). The ledge test (below) was shown red against
+a powders-only slide: 0 % of the water left the ledge.
+
+**Audit (an independent read-only review, 2026-11-03) found one defect, now fixed red→green:**
+- **Matter leaked through edge-touching walls.** Level grouped every supported cell of a block
+  layer, and slide moved fill between diagonal cells, so a staircased diagonal wall leaked: up to
+  65 % of the water crossed it. `MatSimWalls.StaircaseDiagonalWallIsWatertight` (all three cell
+  sizes, water and sand) was red. The fix: level runs per **face-connected** group, and slide needs a
+  face-connected path of non-solid cells inside the block. Mass was exact throughout; the defect
+  was matter crossing a wall.
+- **Tests the audit judged vacuous or weak, now tightened:**
+  - the repose tolerance (±1 cell) couldn't tell sand from snow. It is now ±0.03 on the median
+    per-cell flank drop, for sand, snow and gravel, and the slopes must increase in that order;
+  - one unknown-cell assertion could never fail. It now lifts the fog and checks nothing went in;
+  - sleep vs dense now also runs after an edit to a sleeping corner and through a resolidify that
+    raises and removes a wall mid-run;
+  - the trapped split/merge paths are now round-tripped (`TrappedContentsSurviveRoundTrip`).
+- **The premise behind exact sleep, now written down:** a block that changed nothing two ticks ago
+  changes nothing now, although the tick hash differs. It holds because no current rule's
+  *eligibility* depends on the hash (gravity lowers height, slide lowers the column-height variance,
+  level's test is max − min > 1); the hash only orders remainders and pairs. **A future hashed or
+  probabilistic rule that can be a no-op on some ticks would silently break sleep**, so it must keep
+  that property or drop the two-tick sleep test.
+- **Semantics noted, not changed:** a split frees trapped contents into the newly open children of
+  a solid coarse cell (the finer grid shows room the coarse one hid). `tick_` restarts at 0 on
+  `create`, so two boxes created at different times are not in phase. P1b must decide whether the
+  tick is world time.
+
+**Two departures from §6a's design, both found while building it:**
+1. **Rule 3 (slide) applies to liquids too, at θ = 0.** Rule 2 only levels *supported* cells (so
+   no floating sheets). That means water on a ledge's lip has nowhere to go: it never pours off.
+   Slide with tan θ = 0 is Noita's "diagonal down" rule, and integer halving gives it a natural
+   1-unit deadband. Pinned by `MatSimLiquid.PoursOffLedge` (red: 0 % → green: 100 % below the
+   ledge in 600 ticks).
+2. **"Asleep" means nothing eligible on two consecutive ticks**, one per block offset. One quiet
+   tick says nothing about the other offset's blocks.
+
+**Measured** (standalone CPU harness, Release `/O2`; numbers from the test printouts):
+
+| Test | Result |
+|---|---|
+| `MatSimLedger.ExactOver10kTicks` (water and sand dam break; 1 and 1/3 m × 10k ticks, 1/9 m × 3k) | exact on every tick; the control leak of 1 unit is seen as exactly −1 |
+| `MatSimRemap.RoundTripIsExact` (1 → 3 → 9 → 3 → 1, pillar + 1/9 m shelf) | ledger and every cell bit-identical |
+| `MatSimSleep.StillBasinReachesZeroEligible` (4 × 2 × 4 m, uneven) | asleep at tick 228 = **3.8 s** (prediction: < 10 s); 0 blocks evaluated after; a dropped cell wakes it |
+| `MatSimSleep.SkippingEqualsDense` (40 × 9 × 40 cells, 1500 ticks, then a drop and two resolidifies) | identical every tick; 1.96 M block evaluations skipped |
+| `MatSimDeterminism.TwoRunsBitIdentical` | identical; a different seed differs (control) |
+| `MatSimWorldAlignment.ShiftedBoxesAgreeInWorldSpace` (even and odd offsets, negative coordinates) | identical every tick for 600 ticks; a one-tick shift is seen (control) |
+| `MatSimPowder.PileStandsAtRepose` (4 × 12 × 4-cell column at 1/3 m; median per-cell flank drop) | sand **0.675** (tan 34° = 0.675), snow **0.781** (tan 38° = 0.781), gravel **1.000** (tan 45°); at rest by tick 87–111. Peak-to-toe averages are lower (0.664 / 0.692) because the crest is flat and the toe cell partial; the first one or two steps below the crest are steeper (0.95–1.0), from the 2-cell block window |
+| `MatSimWalls.StaircaseDiagonalWallIsWatertight` | 0 units cross, all three cell sizes, water and sand (red before the fix: up to 1.13 M of 1.74 M units) |
+| `MatSimStress.RandomScenesLedgerSleepAndSwitch` (6 seeds × 720 ticks; water, sand, gravel; live switches 9/3/1) | ledger exact and sleep == dense on every tick; **24 of 36 switches refused** |
+| `MatSimStress.DegenerateInputsAndChurn` | NaN, out-of-box and over-full refused; 1000 create–clear cycles exact |
+
+**Finding — merges refuse once materials mix.** A merge refuses when a coarse cell's children hold
+two materials; in the mixed stress scenes that was 2 of every 3 switches. Refusal is exact (nothing
+changes), but a live coarse switch over mixed matter needs a rule — likely P4's layered cells. That
+is an owner decision, not something to fix silently.
+
+**Left for P1b:** the dam-break front speed and U-tube times (§6a predictions) are live-rig
+measurements. CPU ms per tick is not recorded as a performance number: the CPU core is the
+reference, not the runtime.
 
 ## 7. Working alongside the other sessions
 

@@ -186,8 +186,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     - Waves must **make sense in the world's shape**: refracted to the coast, never inside a solid.
     - Measure on the laptop now and the 4090 later.
     - **One heavy job at a time on the laptop**, since another session may be building or running.
-  - **Status 2026-11-03:** plan only. Next is P1a, a CPU reference cellular automaton plus its unit tests. No MatSim code
-    exists yet.
+  - **Status 2026-11-03:** **P1a built** — the CPU reference cellular automaton (`engine/*/core/matsim/MatSimCore.*`) plus
+    20 tests (`tests/core/MatSimCoreTest.cpp`), red before green, audited (one leak through diagonal walls found and fixed). Results and two design departures are in
+    `MaterialSimPlan.md` §6b. Next is P1b: the GPU port (bit-exact against P1a), the `/api/matsim` lab API and the raw-cell
+    view.
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then
     `git submodule update --init external/glm external/imgui`.
 
