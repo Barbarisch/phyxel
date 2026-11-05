@@ -1,0 +1,652 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = RiverGeometryTest.*:FlowFieldTest.*:TerrainRiverTest.*:LegacyTerrainGoldenTest.*:WorldSheetGeneratorTest.*:BasinRimTest.*:WaterOccupancyTest.*:ColumnCacheTest.*:FinePondTest.*:CoastTest.*:ColumnCostBench.*:WaterBodyIndexTest.*:HydrologyMapTest.*
+[==========] Running 108 tests from 13 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from BasinRimTest
+[ RUN      ] BasinRimTest.NoRimColumnBelowItsBasinLevel
+[32m[14:45:37.469] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:45:38.120] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[14:45:38.120] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[14:45:38.158] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 3360702379361611432); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 13194 bodies[0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 23670 source entries, warp inversions beyond 1 u: 43[0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 3 over 1112 carved reaches, reaches moved per round [152,7,0], cumulative lowering max 2.30532 u, sum 25.2876 u, 0 reaches lowered by more than 8 u; band columns 410327, bank reads 112716, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 5, deepest END lowering 2.30532 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0[0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.305,2.305][0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 356734 base by round [18.808,18.808] natural stations [21.113,20.692,20.272,19.851,19.430,19.009,18.589,18.168,17.747] final [18.808,18.808,17.948,17.614,17.604,17.604,17.604,17.604,17.604][0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 356734 bank (-4140,-5251) local rim 20.6848 at t 0.321503 | winner 355710 env 18.6022 rim 18.2569 perp 12.9949 behind 0.493293 floor 14.6225 penalty 0 | deficit 2.08264[0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 787840 base by round [45.030,45.030] natural stations [47.166,46.899,46.632,46.365,46.098,45.831,45.564,45.297,45.030] final [45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030][0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 787840 bank (-4074,8232) local rim 47.5043 at t 0.120338 | winner 787841 env 45.6254 rim 45.6254 perp 13.1417 behind 0 floor 13.7045 penalty 0 | deficit 1.87895[0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 902804 base by round [15.039,15.039] natural stations [16.626,16.329,16.032,15.735,15.438,15.140,14.843,14.546,14.249] final [15.039,15.039,14.283,14.249,14.249,14.249,14.249,14.249,14.249][0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 902804 bank (4763,11821) local rim 16.4229 at t 0.334412 | winner 902805 env 14.8746 rim 14.8409 perp 13.6592 behind 0 floor 13.611 penalty 0 | deficit 1.5483[0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 372112 base by round [45.159,45.159] natural stations [46.728,46.568,46.408,46.249,46.089,45.929,45.769,45.610,45.450] final [45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159][0m
+[32m[14:45:54.404] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 372112 bank (-3571,-4762) local rim 47.1834 at t 0.136734 | winner 371088 env 45.8016 rim 45.8016 perp 12.5242 behind 0 floor 13.3642 penalty 0 | deficit 1.38176[0m
+[32m[14:45:54.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 777639 base by round [25.603,25.603] natural stations [26.625,26.521,26.417,26.313,26.209,26.105,26.001,25.897,25.793] final [25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603][0m
+[32m[14:45:54.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 777639 bank (-2821,7905) local rim 27.2661 at t 0 | winner 776615 env 26.2437 rim 26.2437 perp 12.6994 behind 0 floor 14.0183 penalty 0 | deficit 1.02241[0m
+[32m[14:45:54.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 356734 (382,348) lowered 2.30532 u over 1 rounds, last driven by source 355710 (382,347) folded 0 deficit 2.08264 u[0m
+[32m[14:45:54.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 787840 (384,769) lowered 2.13599 u over 1 rounds, last driven by source 787841 (385,769) folded 0 deficit 1.87895 u[0m
+[32m[14:45:54.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 902804 (660,881) lowered 1.58697 u over 1 rounds, last driven by source 902805 (661,881) folded 0 deficit 1.5483 u[0m
+[32m[14:45:54.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 372112 (400,363) lowered 1.56827 u over 1 rounds, last driven by source 371088 (400,362) folded 0 deficit 1.38176 u[0m
+[32m[14:45:54.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 777639 (423,759) lowered 1.02241 u over 1 rounds, last driven by source 776615 (423,758) folded 0 deficit 1.02241 u[0m
+[32m[14:45:54.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1[0m
+[32m[14:45:54.405] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2c ] 24 nearest above-sea basins: rim columns 384, leaks 0, worst 0 u; levels lowered 22, dried 21; corrector: 24 computed, 4160 ring columns sampled, max 1 iterations, max drop 17.8 u
+[       OK ] BasinRimTest.NoRimColumnBelowItsBasinLevel (17066 ms)
+[ RUN      ] BasinRimTest.CorrectedLevelsAgreeAcrossGeneratorCopies
+[32m[14:45:54.535] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:45:54.535] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[       OK ] BasinRimTest.CorrectedLevelsAgreeAcrossGeneratorCopies (12 ms)
+[----------] 2 tests from BasinRimTest (17079 ms total)
+
+[----------] 2 tests from CoastTest
+[ RUN      ] CoastTest.BeachFaceIsGentleAndTheNearshoreBedNeverRisesSeaward
+[32m[14:45:54.548] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:45:54.548] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2e-2 ] 60 shoreline transects (0 cliff coasts exempt): beach faces steeper than m0 + 1/3 u: 0, worst face rise per u 0.10; nearshore beds rising seaward by > 1 u: 0, worst rise 0.43 u; Sand on 1863 of 1891 face columns; sea level 16.0, ocean cells 264787
+[       OK ] CoastTest.BeachFaceIsGentleAndTheNearshoreBedNeverRisesSeaward (248 ms)
+[ RUN      ] CoastTest.SignedDistanceCrossesZeroAtTheShoreline
+[32m[14:45:54.796] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:45:54.797] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2e-2 ] coast field: 16384 cells checked, 0 dry cells with a sea-side sign, 0 of 4148 sea-level-body cells on the land side
+[       OK ] CoastTest.SignedDistanceCrossesZeroAtTheShoreline (7 ms)
+[----------] 2 tests from CoastTest (255 ms total)
+
+[----------] 1 test from ColumnCacheTest
+[ RUN      ] ColumnCacheTest.AWorkerStreamingTheGatePoseSamplesFewFreshBlocksPerChunk
+[32m[14:45:54.803] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:46:08.126] [INFO] [WorldForge] [WORLDFORGE] plan baked: 8 sites, 8 roads, 0 bridges, 333 segments in 13318 ms (hash 16364615613792498013)[0m
+[32m[14:46:08.126] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ column cache ] 289 chunks generated by one of three workers: 4.63 fresh column blocks per chunk (analytic floor 4.77)
+[       OK ] ColumnCacheTest.AWorkerStreamingTheGatePoseSamplesFewFreshBlocksPerChunk (59338 ms)
+[----------] 1 test from ColumnCacheTest (59338 ms total)
+
+[----------] 5 tests from ColumnCostBench
+[ RUN      ] ColumnCostBench.InstrumentCountsAndPublicSamplerIsUncached
+[32m[14:46:54.143] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:46:54.792] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[14:46:54.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[       OK ] ColumnCostBench.InstrumentCountsAndPublicSamplerIsUncached (657 ms)
+[ RUN      ] ColumnCostBench.FreshColumnCostsAtMost25EvalsOnTheSheet
+[32m[14:46:54.801] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:46:54.839] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 6301989061899736865); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[14:47:12.535] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 13725 bodies[0m
+[32m[14:47:12.535] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 29919 source entries, warp inversions beyond 1 u: 87[0m
+[32m[14:47:12.535] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 4 over 1349 carved reaches, reaches moved per round [207,9,2,0], cumulative lowering max 2.39114 u, sum 56.4914 u, 0 reaches lowered by more than 8 u; band columns 552021, bank reads 141174, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 9, deepest END lowering 2.39114 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0[0m
+[32m[14:47:12.535] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.391,2.391,2.391][0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 1018976 base by round [40.671,40.671,40.671] natural stations [43.062,42.970,42.879,42.787,42.695,42.604,42.512,42.420,42.328] final [40.671,40.671,40.671,40.671,40.671,40.671,40.671,40.671,40.671][0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 1018976 bank (-13294,15483) local rim 43.8502 at t 0 | winner 1018975 env 41.4591 rim 41.4591 perp 14.2328 behind 0 floor 18.447 penalty 0 | deficit 2.3911[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 372447 base by round [35.343,35.343,35.343] natural stations [37.518,37.246,36.974,36.702,36.430,36.159,35.887,35.615,35.343] final [35.343,35.343,35.343,35.343,35.343,35.343,35.343,35.343,35.343][0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 372447 bank (7153,-4760) local rim 38.1261 at t 0.0933228 | winner 371423 env 36.1536 rim 36.1536 perp 20.0382 behind 0 floor 20.8517 penalty 0 | deficit 1.97244[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 319131 base by round [13.845,13.845,13.845] natural stations [15.667,15.439,15.211,14.984,14.756,14.528,14.300,14.072,13.845] final [13.845,13.845,13.845,13.845,13.845,13.845,13.845,13.845,13.845][0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 319131 bank (4970,-6436) local rim 16.6018 at t 0 | winner 319130 env 14.7795 rim 14.7795 perp 23.4258 behind 0 floor 23.5507 penalty 0 | deficit 1.82232[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 152268 base by round [64.176,64.176,64.176] natural stations [65.972,65.752,65.532,65.312,65.092,64.872,64.652,64.432,64.212] final [64.176,64.176,64.176,64.176,64.176,64.176,64.174,64.174,64.174][0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 152268 bank (6553,-11651) local rim 66.5507 at t 0.0171204 | winner 151244 env 64.91 rim 64.7951 perp 14.0688 behind 0 floor 13.9047 penalty 0 | deficit 1.64066[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 369370 base by round [30.002,30.002,30.002] natural stations [31.755,31.735,31.714,31.693,31.672,31.651,31.630,31.609,31.588] final [30.002,30.002,30.002,30.002,30.002,30.002,30.002,30.002,30.002][0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 369370 bank (6978,-4864) local rim 32.6022 at t 0 | winner 369369 env 30.8484 rim 30.8484 perp 14.0469 behind 0 floor 20.4472 penalty 0 | deficit 1.75388[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 1018976 (96,995) lowered 2.39114 u over 1 rounds, last driven by source 1018975 (95,995) folded 0 deficit 2.3911 u[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 372447 (735,363) lowered 2.17546 u over 1 rounds, last driven by source 371423 (735,362) folded 0 deficit 1.97244 u[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 319131 (667,311) lowered 1.82232 u over 1 rounds, last driven by source 319130 (666,311) folded 0 deficit 1.82232 u[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 152268 (716,148) lowered 1.79588 u over 1 rounds, last driven by source 151244 (716,147) folded 0 deficit 1.64066 u[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 369370 (730,360) lowered 1.75388 u over 1 rounds, last driven by source 369369 (729,360) folded 0 deficit 1.75388 u[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 34 macro inflows), seaLevel=16, maxAccum=45180 maxOrder=5 drainageComplete=1[0m
+[32m[14:47:12.536] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M1 section 9 ] sheet column cost: 18.625 base-noise evals per fresh column (gate <= 25)
+[       OK ] ColumnCostBench.FreshColumnCostsAtMost25EvalsOnTheSheet (17948 ms)
+[ RUN      ] ColumnCostBench.LegacyColumnCostIsFrozen
+[32m[14:47:12.750] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] ColumnCostBench.LegacyColumnCostIsFrozen (6 ms)
+[ RUN      ] ColumnCostBench.PhaseTimingPerFreshColumnAtTheGatePosePrinted
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\ColumnCostBench.cpp(128): Skipped
+timing bench: run the Release test exe for the figure
+
+[  SKIPPED ] ColumnCostBench.PhaseTimingPerFreshColumnAtTheGatePosePrinted (0 ms)
+[ RUN      ] ColumnCostBench.PhaseTimingOverTheStreamingRadiusPrinted
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\ColumnCostBench.cpp(163): Skipped
+timing bench: run the Release test exe for the figure
+
+[  SKIPPED ] ColumnCostBench.PhaseTimingOverTheStreamingRadiusPrinted (0 ms)
+[----------] 5 tests from ColumnCostBench (18613 ms total)
+
+[----------] 5 tests from FinePondTest
+[ RUN      ] FinePondTest.DiscoversABowlAtItsSpillMinusFreeboard
+[       OK ] FinePondTest.DiscoversABowlAtItsSpillMinusFreeboard (1 ms)
+[ RUN      ] FinePondTest.RejectsBorderTouchingShallowTinyAndHugeBasins
+[       OK ] FinePondTest.RejectsBorderTouchingShallowTinyAndHugeBasins (4 ms)
+[ RUN      ] FinePondTest.NestedSubBasinSharesTheParentSpill
+[       OK ] FinePondTest.NestedSubBasinSharesTheParentSpill (1 ms)
+[ RUN      ] FinePondTest.TwoSeparateBowlsAreTwoPonds
+[       OK ] FinePondTest.TwoSeparateBowlsAreTwoPonds (1 ms)
+[ RUN      ] FinePondTest.GeneratorRegistryIsDeterministicAndSelfConsistent
+[32m[14:47:12.766] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:47:13.412] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[14:47:13.412] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[32m[14:47:13.416] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[fineponds] seed7 Mountains: 1 ponds across the scanned cells
+[       OK ] FinePondTest.GeneratorRegistryIsDeterministicAndSelfConsistent (8868 ms)
+[----------] 5 tests from FinePondTest (8877 ms total)
+
+[----------] 16 tests from FlowFieldTest
+[ RUN      ] FlowFieldTest.ValleySectionEnvelope
+[       OK ] FlowFieldTest.ValleySectionEnvelope (0 ms)
+[ RUN      ] FlowFieldTest.ValleyFunnelsAccumulationToItsMouth
+[flow] maxAccum=325/400 mouth=325 ridge=1
+[       OK ] FlowFieldTest.ValleyFunnelsAccumulationToItsMouth (0 ms)
+[ RUN      ] FlowFieldTest.EveryInteriorCellHasAtLeastOneUpstream
+[       OK ] FlowFieldTest.EveryInteriorCellHasAtLeastOneUpstream (0 ms)
+[ RUN      ] FlowFieldTest.DrainageGraphIsAcyclic_AllCellsReleased
+[       OK ] FlowFieldTest.DrainageGraphIsAcyclic_AllCellsReleased (0 ms)
+[ RUN      ] FlowFieldTest.StrahlerTwoEqualTributariesMakeNextOrder
+[       OK ] FlowFieldTest.StrahlerTwoEqualTributariesMakeNextOrder (0 ms)
+[ RUN      ] FlowFieldTest.StrahlerSmallTributaryDoesNotBumpTrunk
+[       OK ] FlowFieldTest.StrahlerSmallTributaryDoesNotBumpTrunk (0 ms)
+[ RUN      ] FlowFieldTest.StrahlerThresholdDemotesSubThresholdTributaries
+[       OK ] FlowFieldTest.StrahlerThresholdDemotesSubThresholdTributaries (0 ms)
+[ RUN      ] FlowFieldTest.OrderIsARiverOnTheValleyFloorNotTheRidge
+[       OK ] FlowFieldTest.OrderIsARiverOnTheValleyFloorNotTheRidge (0 ms)
+[ RUN      ] FlowFieldTest.ChannelGeometryTablesAreGrounded
+[       OK ] FlowFieldTest.ChannelGeometryTablesAreGrounded (0 ms)
+[ RUN      ] FlowFieldTest.SegmentChannelGeometryAndOrderGate
+[       OK ] FlowFieldTest.SegmentChannelGeometryAndOrderGate (0 ms)
+[ RUN      ] FlowFieldTest.ChannelAtCarvesAnOrder3RiverAtItsCentreline
+[       OK ] FlowFieldTest.ChannelAtCarvesAnOrder3RiverAtItsCentreline (0 ms)
+[ RUN      ] FlowFieldTest.NearestChannelMinOrderSeesCreeks
+[       OK ] FlowFieldTest.NearestChannelMinOrderSeesCreeks (0 ms)
+[ RUN      ] FlowFieldTest.ChannelAtReportsFractionalCreeksAtOrder1And2
+[       OK ] FlowFieldTest.ChannelAtReportsFractionalCreeksAtOrder1And2 (0 ms)
+[ RUN      ] FlowFieldTest.Deterministic
+[       OK ] FlowFieldTest.Deterministic (0 ms)
+[ RUN      ] FlowFieldTest.InflowsAddUpstreamCellsThatRideDownstream
+[       OK ] FlowFieldTest.InflowsAddUpstreamCellsThatRideDownstream (0 ms)
+[ RUN      ] FlowFieldTest.AreaLawServesWidthAndDepthFromDrainageArea
+[       OK ] FlowFieldTest.AreaLawServesWidthAndDepthFromDrainageArea (1 ms)
+[----------] 16 tests from FlowFieldTest (4 ms total)
+
+[----------] 6 tests from HydrologyMapTest
+[ RUN      ] HydrologyMapTest.OceanFillsSubSeaColumnsToSeaLevel
+[       OK ] HydrologyMapTest.OceanFillsSubSeaColumnsToSeaLevel (0 ms)
+[ RUN      ] HydrologyMapTest.InlandLakeIsFlatAndContained
+[       OK ] HydrologyMapTest.InlandLakeIsFlatAndContained (0 ms)
+[ RUN      ] HydrologyMapTest.InlandBasinBehindSubSeaOutletDrainsToSeaNotBorder
+[       OK ] HydrologyMapTest.InlandBasinBehindSubSeaOutletDrainsToSeaNotBorder (0 ms)
+[ RUN      ] HydrologyMapTest.DrainingSlopeHasNoSpuriousLakes
+[       OK ] HydrologyMapTest.DrainingSlopeHasNoSpuriousLakes (0 ms)
+[ RUN      ] HydrologyMapTest.ReportsOutletAndMinTerrain
+[       OK ] HydrologyMapTest.ReportsOutletAndMinTerrain (0 ms)
+[ RUN      ] HydrologyMapTest.Deterministic
+[       OK ] HydrologyMapTest.Deterministic (0 ms)
+[----------] 6 tests from HydrologyMapTest (1 ms total)
+
+[----------] 2 tests from LegacyTerrainGoldenTest
+[ RUN      ] LegacyTerrainGoldenTest.PerlinColumnsAreByteIdenticalToThePreM1Golden
+[32m[14:47:21.641] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[ D10 golden ] Perlin 4242 x 2000 columns: 11413304086647064455
+[       OK ] LegacyTerrainGoldenTest.PerlinColumnsAreByteIdenticalToThePreM1Golden (93 ms)
+[ RUN      ] LegacyTerrainGoldenTest.MountainsColumnsAreByteIdenticalToThePreM1Golden
+[32m[14:47:21.735] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:47:22.384] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[14:47:22.384] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[ D10 golden ] Mountains 4242 x 2000 columns: 5521812291101006622
+[       OK ] LegacyTerrainGoldenTest.MountainsColumnsAreByteIdenticalToThePreM1Golden (743 ms)
+[----------] 2 tests from LegacyTerrainGoldenTest (837 ms total)
+
+[----------] 8 tests from RiverGeometryTest
+[ RUN      ] RiverGeometryTest.NetworkMeanJunctionAngleIsInTheObservedBand
+[32m[14:47:22.478] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:47:22.479] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2d ] control, raw D8 grid: mean angle 51.5 deg, within 5 deg of 90: 271 (22.5 %)
+[ M2d ] world space (through the meander warp, 4 u tangents): mean angle 57.6 deg, within 5 deg of 90: 81 (6.7 %) - reported, the warp rotates short tangents at creek wavelengths
+[ M2d ] 1207 junctions (1207 fillets baked), bake space (the construction): mean angle 52.8 deg, within 5 deg of 90: 0 (0.0 %); histogram: 10-20:3 20-30:1 30-40:361 40-50:52 50-60:423 60-70:182 70-80:184 90-100:1
+[       OK ] RiverGeometryTest.NetworkMeanJunctionAngleIsInTheObservedBand (426 ms)
+[ RUN      ] RiverGeometryTest.BedIsMonotoneAlongTheLongestChannel
+[32m[14:47:22.906] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:47:22.906] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2d ] longest channel: 217 cells (accum 17548 at the mouth), carved reach: 91 profile steps checked, 0 rise downstream, worst rise 0.00 u (raw bed steps up by more than 1/3 u: 0, the section at the column's offset); creek reach: 25 steps, 8 rise (dips left as pond basins)
+[       OK ] RiverGeometryTest.BedIsMonotoneAlongTheLongestChannel (433 ms)
+[ RUN      ] RiverGeometryTest.ChannelsAreNotEntrenchedBeyondOneCellsSideDrop
+[32m[14:47:23.339] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:47:23.986] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[14:47:23.986] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[32m[14:47:24.024] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 15500923736854453177); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[14:47:46.305] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 23753 bodies[0m
+[32m[14:47:46.305] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 57946 source entries, warp inversions beyond 1 u: 243[0m
+[32m[14:47:46.305] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 10 over 1984 carved reaches, reaches moved per round [499,92,20,9,4,2,1,1,1,0], cumulative lowering max 20.84 u, sum 837.341 u, 19 reaches lowered by more than 8 u; band columns 1203517, bank reads 276854, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 87, deepest END lowering 13.188 u; D38 cascades 12, lip pairs in the cell lists 3503, source lists beyond the cap 0[0m
+[32m[14:47:46.305] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [20.84,20.84,20.84,20.84,20.84,20.84,20.84,20.84,20.84][0m
+[32m[14:47:46.305] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 402148 base by round [176.69,176.69,176.69,176.69,176.69,176.69,176.69,176.69,176.69] natural stations [197.53,191.90,186.27,180.65,175.02,169.40,163.77,158.14,152.52] final [176.69,173.09,170.02,167.02,162.26,156.86,153.70,153.70,152.52][0m
+[32m[14:47:46.305] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 402148 bank (7322,-3821) local rim 196.645 at t 0.0366745 | winner 401124 env 177.456 rim 153.285 perp 19.2137 behind 1.74528 floor 18.4842 penalty 22.4939 | deficit 19.1893[0m
+[32m[14:47:46.305] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 569629 base by round [245.87,233.68,233.68,233.68,233.68,233.68,233.68,233.68,233.68] natural stations [253.26,250.65,248.05,245.44,242.83,240.23,237.62,235.02,232.41] final [233.68,233.68,233.68,233.68,233.30,230.41,229.50,226.65,226.33][0m
+[32m[14:47:46.305] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 569629 bank (-7242,1427) local rim 246.429 at t 0 | winner 570654 env 234.245 rim 224.756 perp 26.157 behind 0 floor 12.6012 penalty 0 | deficit 12.1836[0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 570654 base by round [224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20] natural stations [237.38,237.38,237.38,237.38,237.38,237.38,237.38,237.38,237.38] final [224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20][0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 571678 base by round [224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20] natural stations [237.38,237.38,237.38,237.38,237.38,237.38,237.38,237.38,237.38] final [224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20][0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 571678 bank (-7223,1494) local rim 237.944 at t 0 | winner 574750 env 224.756 rim 198.985 perp 49.3555 behind 0 floor 12.5404 penalty 0 | deficit 13.188[0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 401854 base by round [216.29,216.29,216.29,216.29,216.29,216.29,216.29,216.29,216.29] natural stations [229.47,228.99,228.52,228.04,227.56,227.08,226.61,226.13,225.65] final [216.29,216.29,215.39,215.15,215.15,215.07,215.07,215.07,215.07][0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 401854 bank (-2100,-3825) local rim 229.885 at t 0.0341187 | winner 401852 env 216.832 rim 192.648 perp 46.6106 behind 0 floor 12.0612 penalty 0 | deficit 13.0531[0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 402148 (740,392) lowered 20.84 u over 1 rounds, last driven by source 401124 (740,391) folded 0 deficit 19.1893 u[0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 569629 (285,556) lowered 19.5748 u over 2 rounds, last driven by source 570654 (286,557) folded 0 deficit 12.1836 u[0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 570654 (286,557) lowered 13.188 u over 0 rounds, last driven by source -1 folded 0 deficit 0 u[0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 571678 (286,558) lowered 13.188 u over 1 rounds, last driven by source 574750 (286,561) folded 0 deficit 13.188 u[0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 401854 (446,392) lowered 13.1833 u over 1 rounds, last driven by source 401852 (444,392) folded 0 deficit 13.0531 u[0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 34 macro inflows), seaLevel=16, maxAccum=78515 maxOrder=5 drainageComplete=1[0m
+[32m[14:47:46.306] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ D38 ] Mountains 424242: perch rounds 10 over 1984 carved reaches, cumulative BASE lowering max 20.8 u (one cell's side drop 22.4 u), sum 837 u, 19 reaches lowered by more than 8 u; knees (the end lowered more than 1 u beyond the base) 87, deepest END lowering 13.2 u (reported); cascades 12, lip pairs 3503, source lists beyond the cap 0
+[ D38 ]   cell 402148 (740,392) base lowered 20.8 u (end 0.0 u) over 1 rounds, last driven by source 401124 (740,391) folded 0, deficit 19.2 u
+[ D38 ]   cell 569629 (285,556) base lowered 19.6 u (end 6.1 u) over 2 rounds, last driven by source 570654 (286,557) folded 0, deficit 12.2 u
+[ D38 ]   cell 570654 (286,557) base lowered 13.2 u (end 13.2 u) over 0 rounds, last driven by source -1 (-1,-1) folded 0, deficit 0.0 u
+[ D38 ]   cell 571678 (286,558) base lowered 13.2 u (end 13.2 u) over 1 rounds, last driven by source 574750 (286,561) folded 0, deficit 13.2 u
+[ D38 ]   cell 401854 (446,392) base lowered 13.2 u (end 10.6 u) over 1 rounds, last driven by source 401852 (444,392) folded 0, deficit 13.1 u
+[       OK ] RiverGeometryTest.ChannelsAreNotEntrenchedBeyondOneCellsSideDrop (22971 ms)
+[ RUN      ] RiverGeometryTest.NaturalGroundMatchesTheSamplerOffChannel
+[32m[14:47:46.310] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:47:46.311] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2d-4 ] Perlin 20260816: naturalGroundAt vs sampleSurface().bedHeight: 2779 columns checked, 0 differ (worst 0.000 u)
+[32m[14:47:46.415] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:47:46.415] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2d-4 ] Mountains 424242: naturalGroundAt vs sampleSurface().bedHeight: 2144 columns checked, 0 differ (worst 0.000 u)
+[       OK ] RiverGeometryTest.NaturalGroundMatchesTheSamplerOffChannel (188 ms)
+[ RUN      ] RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope
+[32m[14:47:46.499] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:47:46.499] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2d-4 ] Mountains 424242: 0 warp inversions beyond 1 u at the bake
+[ M2d-4 ] Mountains 424242: 1981 carved cells outside basins sectioned; EMBANKMENTS (rim above the bank by > 1 u) 2 (0.1 %), worst 1.5 u at (-6925,-12178); LIPS (bank above the rim by > 1 u) 6 (0.3 %), worst 1.8 u at (12818,-5083); WALLS the shaping made 0 of 73394 lateral steps (0.0 %) on 0 cells (0.0 %), worst 0.0 u per column at (0,0); natural steps beyond 0.70: 1479 (2.0 %), worst 6.2
+[ M2d-4 ] Mountains 424242: CASCADES (bed slope > 0.70 along the reach) 4 cells + FOLDED reaches (the warp folds the channel) 46 cells of 1981: 26 embankments (worst 4.3 u), 9 lips (worst 5.2 u), 0 walls there - reported, not asserted (a waterfall step; a fold of the M2d-3 warp)
+[ M2d-4 ] Mountains 424242: CORNER CUTS (a bank below its reach's rim because it lies on a LOWER reach's floodplain - the inner corner of a bend on a sloping river) 0 bank sides, worst 0.0 u - reported, not asserted
+[ M2d-4 ] Mountains 424242: SECOND BRANCHES (the sectioned column lies off the envelope's world polyline by more than the band: the warp has two preimages here) 19 cells - counted with the cascades, reported; sections that ran ALONG the channel (skipped) 207 sides
+[ M2d-4 ] Mountains 424242: JUNCTION CORNERS (bank columns within the band's measured half-width + 2 u of a reach's end vertex; cascade and fold cells' corners counted with that class): 87 lips, worst 4.6 u at (-7805,-11364), 0 beyond the derived bound 0.70 x radius + 1 - asserted; 46 embankments, worst 1.6 u (the levee bound, asserted)
+[ M2d-4 ] Mountains 424242: ROCK FACES (D38 cliff allowance: the winning envelope carries the lip penalty at either column) 0 of 73394 lateral steps on 0 cells, worst 0.00 u per column at (0,0); bound 4.00 per u (+ the natural, + the rim's step): 0 steps beyond it - asserted
+[ M2d-4-diag ] Mountains 424242: EMBANKMENT 1.5 u (local): centre hit profile 158.7 + depth 0.84 (cell 134439, hw 4.13) | bank (-6925,-12178) emitted 155.3 natural 161.9 env 155.31 order 0 carved 0 cell (295,131) sources[ 134438(294,131):168.8/rim151.4/perp28.4/floor14.3 135462(294,132):177.5/rim144.6/perp55.8/floor17.8 134439(295,131):155.3/rim155.3/perp2.6/floor13.2 136486(294,133):200.7/rim141.4/perp75.3/floor18.5 136485(293,133):213.5/rim139.1/perp89.8/floor20.7 ] | centre col (-6918,-12182) emitted 158.6 natural 162.4 env 159.36 order 3 carved 1 cell (295,131) sources[ 134438(294,131):174.1/rim151.4/perp35.3/floor14.3 135462(294,132):183.7/rim144.6/perp63.8/floor17.8 134439(295,131):159.4/rim159.4/perp0.2/floor13.2 136486(294,133):205.3/rim141.4/perp81.6/floor18.5 136485(293,133):221.0/rim139.1/perp97.5/floor20.7 ] | footprint naturals min 159.6 max 162.8 (centreline stations: 162 162 161 160 159) fillet 0 down yes
+[ M2d-4-diag ] Mountains 424242: EMBANKMENT 1.1 u (local): centre hit profile 90.6 + depth 0.66 (cell 91817, hw 3.12) | bank (5411,-13532) emitted 86.9 natural 95.5 env 86.861 order 0 carved 0 cell (681,89) sources[ 90793(681,88):88.9/rim82.6/perp9.4/floor11.1 91817(681,89):86.9/rim86.9/perp1.5/floor9.6 92841(681,90):91.2/rim91.2/perp6.2/floor13.7 89769(681,87):117.8/rim76.1/perp54.6/floor12.3 93865(681,91):99.8/rim94.0/perp23.9/floor15.6 88745(681,86):141.7/rim71.3/perp83.4/floor13.4 94889(681,92):139.9/rim94.0/perp81.1/floor15.6 ] | centre col (5413,-13526) emitted 90.4 natural 96.7 env 90.982 order 4 carved 1 cell (681,89) sources[ 90793(681,88):93.4/rim82.6/perp15.6/floor11.1 91817(681,89):91.0/rim91.0/perp0.6/floor9.6 92841(681,90):91.2/rim91.2/perp0.6/floor13.7 89769(681,87):123.9/rim76.1/perp60.1/floor12.3 93865(681,91):95.4/rim94.0/perp17.5/floor15.6 88745(681,86):145.7/rim71.3/perp88.6/floor13.4 94889(681,92):135.4/rim94.0/perp74.8/floor15.6 ] | footprint naturals min 92.9 max 96.7 (centreline stations: 96 95 95 93 93) fillet 0 down yes
+[ M2d-4-diag ] Mountains 424242: LIP 1.8 u (local): centre hit profile 198.5 + depth 0.57 (cell 362384, hw 2.59) | bank (12818,-5083) emitted 196.1 natural 209.5 env 196.12 order 0 carved 0 cell (912,353) sources[ 362385(913,353):203.1/rim183.0/perp29.2/floor19.9 362384(912,353):196.1/rim196.1/perp2.7/floor9.9 362386(914,353):226.7/rim172.5/perp65.1/floor12.9 362383(911,353):201.0/rim199.0/perp9.9/floor7.2 362382(910,353):226.1/rim209.5/perp36.8/floor12.9 362387(915,353):251.5/rim168.1/perp100.5/floor12.3 362388(916,353):251.3/rim167.1/perp120.7/floor11.6 362381(909,353):249.5/rim209.5/perp70.2/floor12.9 ] | centre col (12814,-5079) emitted 198.5 natural 210.0 env 199.04 order 4 carved 1 cell (912,353) sources[ 362385(913,353):204.1/rim183.0/perp32.1/floor19.9 362384(912,353):199.0/rim199.0/perp5.2/floor9.9 362386(914,353):230.4/rim172.5/perp68.2/floor12.9 362383(911,353):199.0/rim199.0/perp4.3/floor7.2 362382(910,353):223.4/rim209.5/perp32.8/floor12.9 362387(915,353):256.5/rim168.1/perp104.4/floor12.3 362388(916,353):255.2/rim167.1/perp124.3/floor11.6 362381(909,353):246.0/rim209.5/perp65.1/floor12.9 ] | footprint naturals min 205.9 max 210.7 (centreline stations: 210 209 208 207 206) fillet 0 down yes
+[ M2d-4-diag ] Mountains 424242: LIP 1.5 u (local): centre hit profile 78.0 + depth 0.87 (cell 165127, hw 4.33) | bank (-7945,-11219) emitted 78.9 natural 83.9 env 78.932 order 0 carved 0 cell (263,161) sources[ 166151(263,162):69.2/rim60.3/perp17.3/floor19.8 165127(263,161):78.9/rim78.9/perp4.3/floor5.0 164104(264,160):87.3/rim85.9/perp23.7/floor21.6 164105(265,160):91.6/rim85.9/perp28.2/floor20.1 167175(263,163):127.1/rim58.4/perp98.2/floor21.6 168199(263,164):153.0/rim58.4/perp110.6/floor20.4 169223(263,165):141.8/rim57.2/perp120.3/floor17.4F 164106(266,160):118.4/rim88.4/perp59.3/floor16.3 ] | centre col (-7952,-11219) emitted 78.1 natural 85.0 env 78.932 order 4 carved 1 cell (263,161) sources[ 166151(263,162):67.3/rim60.3/perp20.7/floor19.8 165127(263,161):78.9/rim78.9/perp0.3/floor5.0 164104(264,160):86.3/rim85.9/perp22.2/floor21.6 164105(265,160):96.0/rim85.9/perp34.6/floor20.1 167175(263,163):125.7/rim58.4/perp96.8/floor21.6 168199(263,164):152.5/rim58.4/perp109.6/floor20.4 169223(263,165):146.4/rim57.2/perp121.3/floor17.4F 164106(266,160):122.7/rim88.4/perp65.5/floor16.3 ] | footprint naturals min 80.4 max 86.5 (centreline stations: 85 83 82 81 80) fillet 0 down yes
+[ M2d-4-diag ] Mountains 424242: LIP 1.2 u (local): centre hit profile 186.2 + depth 0.52 (cell 692643, hw 2.32) | bank (-2963,5271) emitted 184.8 natural 195.2 env 184.78 order 0 carved 0 cell (419,676) sources[ 692643(419,676):184.8/rim184.8/perp1.9/floor5.8 692644(420,676):190.3/rim175.6/perp32.7/floor11.6 692642(418,676):186.7/rim186.7/perp6.2/floor11.1 693669(421,677):232.0/rim169.8/perp72.8/floor6.5 693670(422,677):250.9/rim159.9/perp108.1/floor8.2 ] | centre col (-2968,5275) emitted 186.4 natural 193.5 env 186.71 order 3 carved 1 cell (419,676) sources[ 692643(419,676):186.9/rim186.7/perp0.4/floor5.8 692644(420,676):192.9/rim175.6/perp36.4/floor11.6 692642(418,676):186.7/rim186.7/perp0.2/floor11.1 693669(421,677):234.2/rim169.8/perp76.8/floor6.5 693670(422,677):256.6/rim159.9/perp112.2/floor8.2 ] | footprint naturals min 192.7 max 197.8 (centreline stations: 193 195 195 196 197) fillet 0 down yes
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\RiverGeometryTest.cpp(664): error: Expected equality of these values:
+  s.lips
+    Which is: 6
+  0
+a lip at the channel edge: the land at the bank stands above the rim
+
+[32m[14:48:04.763] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:04.763] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2d-4 ] Perlin 20260816 (control: small relief): 0 warp inversions beyond 1 u at the bake
+[ M2d-4 ] Perlin 20260816 (control: small relief): 1111 carved cells outside basins sectioned; EMBANKMENTS (rim above the bank by > 1 u) 0 (0.0 %), worst 0.0 u at (0,0); LIPS (bank above the rim by > 1 u) 0 (0.0 %), worst 0.0 u at (0,0); WALLS the shaping made 0 of 35526 lateral steps (0.0 %) on 0 cells (0.0 %), worst 0.0 u per column at (0,0); natural steps beyond 0.70: 7 (0.0 %), worst 1.8
+[ M2d-4 ] Perlin 20260816 (control: small relief): CASCADES (bed slope > 0.70 along the reach) 0 cells + FOLDED reaches (the warp folds the channel) 16 cells of 1111: 1 embankments (worst 1.0 u), 0 lips (worst 0.0 u), 0 walls there - reported, not asserted (a waterfall step; a fold of the M2d-3 warp)
+[ M2d-4 ] Perlin 20260816 (control: small relief): CORNER CUTS (a bank below its reach's rim because it lies on a LOWER reach's floodplain - the inner corner of a bend on a sloping river) 0 bank sides, worst 0.0 u - reported, not asserted
+[ M2d-4 ] Perlin 20260816 (control: small relief): SECOND BRANCHES (the sectioned column lies off the envelope's world polyline by more than the band: the warp has two preimages here) 12 cells - counted with the cascades, reported; sections that ran ALONG the channel (skipped) 116 sides
+[ M2d-4 ] Perlin 20260816 (control: small relief): JUNCTION CORNERS (bank columns within the band's measured half-width + 2 u of a reach's end vertex; cascade and fold cells' corners counted with that class): 5 lips, worst 1.4 u at (6598,-12556), 0 beyond the derived bound 0.70 x radius + 1 - asserted; 7 embankments, worst 1.2 u (the levee bound, asserted)
+[ M2d-4 ] Perlin 20260816 (control: small relief): ROCK FACES (D38 cliff allowance: the winning envelope carries the lip penalty at either column) 0 of 35526 lateral steps on 0 cells, worst 0.00 u per column at (0,0); bound 4.00 per u (+ the natural, + the rim's step): 0 steps beyond it - asserted
+[  FAILED  ] RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope (26240 ms)
+[ RUN      ] RiverGeometryTest.MeanderWavelengthFollowsChannelWidth
+[32m[14:48:12.740] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:12.740] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2d-3 ] zero-crossing spacing of the lateral warp: w = 1.0 u -> 6.1 u (law lambda 7.3), w = 6.3 u -> 53.3 u (law lambda 55.3); ratio 0.114 vs law 0.132
+[ M2d-3 ] local half-width field: max 3.27 u (the law's widest channel in the box is 3.35 u)
+[       OK ] RiverGeometryTest.MeanderWavelengthFollowsChannelWidth (16 ms)
+[ RUN      ] RiverGeometryTest.SpringSitesMarkEveryCreekHeadAndBasinFeed
+[32m[14:48:12.755] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:12.756] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2e ] spring sites: 1203 heads (expected 1203), 3864 basin feeds (expected 3864), 3461 basin outlets; runoff 500 mm/yr, largest discharge 0.285 m3/s
+[       OK ] RiverGeometryTest.SpringSitesMarkEveryCreekHeadAndBasinFeed (428 ms)
+[ RUN      ] RiverGeometryTest.PrintCarvedConfluencesNearOrigin
+[32m[14:48:13.184] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:13.185] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2d probe ] 139 carved confluences in the box; nearest the origin:
+    cell (-3248,-4144) accum 7019 order 3: carved column (-3242,-4152) bed 52.59 surfaceY 52 shelf 0; bank 12 u away surfaceY 53; inflows 2
+    cell (-3376,-4144) accum 7474 order 3: carved column (-3375,-4148) bed 56.18 surfaceY 55 shelf 0; bank 12 u away surfaceY 58; inflows 2
+    cell (-3408,-4144) accum 11577 order 4: carved column (-3412,-4141) bed 52.78 surfaceY 52 shelf 0; bank 12 u away surfaceY 54; inflows 2
+    cell (528,-5712) accum 16365 order 4: carved column (538,-5718) bed 33.41 surfaceY 33 shelf 1; bank 12 u away surfaceY 33; inflows 2
+    cell (-3472,-4592) accum 11834 order 4: carved column (-3477,-4574) bed 50.68 surfaceY 50 shelf 1; bank 12 u away surfaceY 51; inflows 2
+    cell (880,-5712) accum 16937 order 4: carved column (881,-5722) bed 28.19 surfaceY 28 shelf 1; bank 12 u away surfaceY 28; inflows 2
+[       OK ] RiverGeometryTest.PrintCarvedConfluencesNearOrigin (417 ms)
+[----------] 8 tests from RiverGeometryTest (51121 ms total)
+
+[----------] 13 tests from TerrainRiverTest
+[ RUN      ] TerrainRiverTest.HigherOrderRiversExist
+[32m[14:48:13.601] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=7 region=256x256 maxAccum=7834 maxOrder=6
+[32m[14:48:13.606] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:14.257] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2836 bodies[0m
+[32m[14:48:14.257] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=5797 maxOrder=5 drainageComplete=1[0m
+[river] seed=99 region=256x256 maxAccum=5797 maxOrder=5
+[32m[14:48:14.262] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=4242 region=256x256 maxAccum=4932 maxOrder=5
+[32m[14:48:14.266] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:14.915] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2886 bodies[0m
+[32m[14:48:14.915] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=4932 maxOrder=5 drainageComplete=1[0m
+[river] seed=1234 region=256x256 maxAccum=4932 maxOrder=5
+[32m[14:48:14.919] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:15.566] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2721 bodies[0m
+[32m[14:48:15.566] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=5631 maxOrder=6 drainageComplete=1[0m
+[river] seed=2026 region=256x256 maxAccum=5631 maxOrder=6
+[       OK ] TerrainRiverTest.HigherOrderRiversExist (1968 ms)
+[ RUN      ] TerrainRiverTest.CarvingIsNonVacuous
+[32m[14:48:15.570] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed=7 anchor box: 8 river cells, 2819 carved channel columns
+[       OK ] TerrainRiverTest.CarvingIsNonVacuous (760 ms)
+[ RUN      ] TerrainRiverTest.RiversMeander
+[32m[14:48:16.331] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] river-cell centres still on the carved channel = 0.50 (4/8) — low ⇒ meandered
+[       OK ] TerrainRiverTest.RiversMeander (6 ms)
+[ RUN      ] TerrainRiverTest.RiversAreSinuous
+[32m[14:48:16.337] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] channel sinuosity (arc/straight) = 1.197 over 921 centreline points
+[       OK ] TerrainRiverTest.RiversAreSinuous (10319 ms)
+[ RUN      ] TerrainRiverTest.BedsSitInValleysNotOnRidges
+[32m[14:48:26.657] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] beds in a cross-channel trough: 2339/2819 (0.83)
+[       OK ] TerrainRiverTest.BedsSitInValleysNotOnRidges (1382 ms)
+[ RUN      ] TerrainRiverTest.DrainageIsAcyclicFlowsToSinks
+[32m[14:48:28.040] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:28.044] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:28.048] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] TerrainRiverTest.DrainageIsAcyclicFlowsToSinks (12 ms)
+[ RUN      ] TerrainRiverTest.DeterministicCarve
+[32m[14:48:28.052] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:28.850] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:29.490] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2758 bodies[0m
+[32m[14:48:29.490] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=7834 maxOrder=6 drainageComplete=1[0m
+[river] deterministic over 2819 carved columns
+[       OK ] TerrainRiverTest.DeterministicCarve (1687 ms)
+[ RUN      ] TerrainRiverTest.HydroBakeCacheKeyDiscriminates
+[32m[14:48:29.740] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:29.745] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:29.749] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:30.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 2876 bodies[0m
+[32m[14:48:30.405] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=5108 maxOrder=5 drainageComplete=1[0m
+[32m[14:48:30.409] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:48:31.059] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 874 bodies[0m
+[32m[14:48:31.059] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=2263 maxOrder=5 drainageComplete=1[0m
+[       OK ] TerrainRiverTest.HydroBakeCacheKeyDiscriminates (1322 ms)
+[ RUN      ] TerrainRiverTest.PrintRiverCellsSeed7
+[32m[14:48:31.063] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] seed7 has 2739 order>=3 cells; nearest-to-origin + highest-order:
+[river]   near #0 (832,64) order=4 accum=812
+[river]   near #1 (832,-64) order=4 accum=797
+[river]   near #2 (832,-192) order=4 accum=782
+[river]   near #3 (832,192) order=4 accum=826
+[river]   near #4 (832,-320) order=4 accum=767
+[river]   near #5 (832,320) order=4 accum=847
+[river]   TRUNK (-5184,-5696) order=6 accum=4716
+[       OK ] TerrainRiverTest.PrintRiverCellsSeed7 (6 ms)
+[ RUN      ] TerrainRiverTest.CreeksSitInASwale
+[32m[14:48:31.070] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[creek] swale: mean(bank - creek) = 1.503 voxels over 291 columns
+[       OK ] TerrainRiverTest.CreeksSitInASwale (266 ms)
+[ RUN      ] TerrainRiverTest.RuntimeChannelQueryFollowsTheMeanderedCarve
+[32m[14:48:31.336] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[river] carved columns: 2819; warped-query hits 100.0%, raw-query hits 33.4%
+[       OK ] TerrainRiverTest.RuntimeChannelQueryFollowsTheMeanderedCarve (775 ms)
+[ RUN      ] TerrainRiverTest.CreekBedIsARecessedSubcubeShelf
+[32m[14:48:32.111] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] TerrainRiverTest.CreekBedIsARecessedSubcubeShelf (13310 ms)
+[ RUN      ] TerrainRiverTest.CreekBedCarvedToAThirdByRoundingDown
+[32m[14:48:45.422] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+  creek bed columns checked 300 (on a chunk seam: 162); carve layers 0/1/2: 98 / 94 / 108
+[32m[14:50:53.353] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+  carve off: 306 creek-bed columns in 8 windows, corner-only joins 57
+[32m[14:50:53.587] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+  carve on : 423 creek-bed columns in 8 windows, corner-only joins 0
+[       OK ] TerrainRiverTest.CreekBedCarvedToAThirdByRoundingDown (128441 ms)
+[----------] 13 tests from TerrainRiverTest (160260 ms total)
+
+[----------] 5 tests from WaterBodyIndexTest
+[ RUN      ] WaterBodyIndexTest.LabelsDistinctBasinsAsDistinctBodies
+[       OK ] WaterBodyIndexTest.LabelsDistinctBasinsAsDistinctBodies (0 ms)
+[ RUN      ] WaterBodyIndexTest.ClassifiesOceanLakePondByBoundaryAndArea
+[       OK ] WaterBodyIndexTest.ClassifiesOceanLakePondByBoundaryAndArea (0 ms)
+[ RUN      ] WaterBodyIndexTest.VolumeEstimateMatchesAnalyticBasin
+[       OK ] WaterBodyIndexTest.VolumeEstimateMatchesAnalyticBasin (0 ms)
+[ RUN      ] WaterBodyIndexTest.SameLevelBasinsAcrossDryGroundStayDistinct
+[       OK ] WaterBodyIndexTest.SameLevelBasinsAcrossDryGroundStayDistinct (0 ms)
+[ RUN      ] WaterBodyIndexTest.DeterministicAcrossRebuilds
+[       OK ] WaterBodyIndexTest.DeterministicAcrossRebuilds (0 ms)
+[----------] 5 tests from WaterBodyIndexTest (0 ms total)
+
+[----------] 29 tests from WaterOccupancyTest
+[ RUN      ] WaterOccupancyTest.SpanRestsExactlyOnTheTerrainSurface
+[       OK ] WaterOccupancyTest.SpanRestsExactlyOnTheTerrainSurface (0 ms)
+[ RUN      ] WaterOccupancyTest.TerrainAboveTheLevelGetsNoWater
+[       OK ] WaterOccupancyTest.TerrainAboveTheLevelGetsNoWater (0 ms)
+[ RUN      ] WaterOccupancyTest.WaterCanNeverStartBelowTheGround
+[       OK ] WaterOccupancyTest.WaterCanNeverStartBelowTheGround (0 ms)
+[ RUN      ] WaterOccupancyTest.ExtremeSurfaceYCannotOverflowIntoAFloatingSpan
+[       OK ] WaterOccupancyTest.ExtremeSurfaceYCannotOverflowIntoAFloatingSpan (0 ms)
+[ RUN      ] WaterOccupancyTest.AFilmThinnerThanTheHoldIsNotABody
+[       OK ] WaterOccupancyTest.AFilmThinnerThanTheHoldIsNotABody (0 ms)
+[ RUN      ] WaterOccupancyTest.NonFiniteLevelIsRejectedNotPropagated
+[       OK ] WaterOccupancyTest.NonFiniteLevelIsRejectedNotPropagated (0 ms)
+[ RUN      ] WaterOccupancyTest.DeeperTerrainGivesDeeperWaterAtTheSameLevel
+[       OK ] WaterOccupancyTest.DeeperTerrainGivesDeeperWaterAtTheSameLevel (0 ms)
+[ RUN      ] WaterOccupancyTest.SubmergedGroundBesideTheBodyJoinsIt
+[       OK ] WaterOccupancyTest.SubmergedGroundBesideTheBodyJoinsIt (0 ms)
+[ RUN      ] WaterOccupancyTest.GroundAboveTheWaterlineIsShoreNotWater
+[       OK ] WaterOccupancyTest.GroundAboveTheWaterlineIsShoreNotWater (0 ms)
+[ RUN      ] WaterOccupancyTest.ARidgeBlocksFloodingTheValleyBehindIt
+[       OK ] WaterOccupancyTest.ARidgeBlocksFloodingTheValleyBehindIt (5 ms)
+[ RUN      ] WaterOccupancyTest.ConnectivityIsBoundedAndReportsHonestlyBeyondIt
+[       OK ] WaterOccupancyTest.ConnectivityIsBoundedAndReportsHonestlyBeyondIt (0 ms)
+[ RUN      ] WaterOccupancyTest.ConnectivityIsIndependentOfWhoAsks
+[       OK ] WaterOccupancyTest.ConnectivityIsIndependentOfWhoAsks (0 ms)
+[ RUN      ] WaterOccupancyTest.ConnectivityHandlesMissingCallbacksAndZeroBudget
+[       OK ] WaterOccupancyTest.ConnectivityHandlesMissingCallbacksAndZeroBudget (0 ms)
+[ RUN      ] WaterOccupancyTest.FlatGroundHoldsNoWater
+[       OK ] WaterOccupancyTest.FlatGroundHoldsNoWater (0 ms)
+[ RUN      ] WaterOccupancyTest.ASlopeHoldsNoWater
+[       OK ] WaterOccupancyTest.ASlopeHoldsNoWater (0 ms)
+[ RUN      ] WaterOccupancyTest.ABasinFillsExactlyToItsRim
+[       OK ] WaterOccupancyTest.ABasinFillsExactlyToItsRim (0 ms)
+[ RUN      ] WaterOccupancyTest.ALowNotchInTheRimSetsTheLevelNotTheHighestWall
+[       OK ] WaterOccupancyTest.ALowNotchInTheRimSetsTheLevelNotTheHighestWall (0 ms)
+[ RUN      ] WaterOccupancyTest.DeeperBasinHoldsMoreWaterAtTheSameRim
+[       OK ] WaterOccupancyTest.DeeperBasinHoldsMoreWaterAtTheSameRim (1 ms)
+[ RUN      ] WaterOccupancyTest.BasinFillIsIndependentOfWhichColumnAsks
+[       OK ] WaterOccupancyTest.BasinFillIsIndependentOfWhichColumnAsks (1 ms)
+[ RUN      ] WaterOccupancyTest.BatchFloodIsIndependentOfTheWindowItWasComputedIn
+[       OK ] WaterOccupancyTest.BatchFloodIsIndependentOfTheWindowItWasComputedIn (2 ms)
+[ RUN      ] WaterOccupancyTest.BatchFloodRespectsItsStepBudget
+[       OK ] WaterOccupancyTest.BatchFloodRespectsItsStepBudget (0 ms)
+[ RUN      ] WaterOccupancyTest.BatchFloodStopsAtARidgeLikeTheSingleColumnPathDoes
+[       OK ] WaterOccupancyTest.BatchFloodStopsAtARidgeLikeTheSingleColumnPathDoes (0 ms)
+[ RUN      ] WaterOccupancyTest.BatchFloodGivesEachBodyItsOwnSurface
+[       OK ] WaterOccupancyTest.BatchFloodGivesEachBodyItsOwnSurface (0 ms)
+[ RUN      ] WaterOccupancyTest.BatchFloodLeavesADryWorldDry
+[       OK ] WaterOccupancyTest.BatchFloodLeavesADryWorldDry (0 ms)
+[ RUN      ] WaterOccupancyTest.GeneratedChunksHoldTheirWaterSpans
+[32m[14:50:53.880] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] WaterOccupancyTest.GeneratedChunksHoldTheirWaterSpans (16118 ms)
+[ RUN      ] WaterOccupancyTest.StoredSpansAgreeWithThePerColumnQueryAcrossAWholeChunk
+[32m[14:51:09.998] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[       OK ] WaterOccupancyTest.StoredSpansAgreeWithThePerColumnQueryAcrossAWholeChunk (43332 ms)
+[ RUN      ] WaterOccupancyTest.DownhillOfTheOutletStaysDryHoweverLargeTheBudget
+[       OK ] WaterOccupancyTest.DownhillOfTheOutletStaysDryHoweverLargeTheBudget (0 ms)
+[ RUN      ] WaterOccupancyTest.RiverColumnsAreNeverPaintedByALake
+[       OK ] WaterOccupancyTest.RiverColumnsAreNeverPaintedByALake (0 ms)
+[ RUN      ] WaterOccupancyTest.BatchFloodHandlesDegenerateGrids
+[       OK ] WaterOccupancyTest.BatchFloodHandlesDegenerateGrids (0 ms)
+[----------] 29 tests from WaterOccupancyTest (59465 ms total)
+
+[----------] 14 tests from WorldSheetGeneratorTest
+[ RUN      ] WorldSheetGeneratorTest.VersionTwoRecipeEnablesTheSheetAndVersionOneDoesNot
+[32m[14:51:53.333] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:51:53.975] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1087 bodies[0m
+[32m[14:51:53.975] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=2485 maxOrder=4 drainageComplete=1[0m
+[32m[14:51:53.976] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[14:51:53.979] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 13725 bodies[0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 29919 source entries, warp inversions beyond 1 u: 87[0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 4 over 1349 carved reaches, reaches moved per round [207,9,2,0], cumulative lowering max 2.39114 u, sum 56.4914 u, 0 reaches lowered by more than 8 u; band columns 552021, bank reads 141174, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 9, deepest END lowering 2.39114 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0[0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.391,2.391,2.391][0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 1018976 base by round [40.671,40.671,40.671] natural stations [43.062,42.970,42.879,42.787,42.695,42.604,42.512,42.420,42.328] final [40.671,40.671,40.671,40.671,40.671,40.671,40.671,40.671,40.671][0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 1018976 bank (-13294,15483) local rim 43.8502 at t 0 | winner 1018975 env 41.4591 rim 41.4591 perp 14.2328 behind 0 floor 18.447 penalty 0 | deficit 2.3911[0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 372447 base by round [35.343,35.343,35.343] natural stations [37.518,37.246,36.974,36.702,36.430,36.159,35.887,35.615,35.343] final [35.343,35.343,35.343,35.343,35.343,35.343,35.343,35.343,35.343][0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 372447 bank (7153,-4760) local rim 38.1261 at t 0.0933228 | winner 371423 env 36.1536 rim 36.1536 perp 20.0382 behind 0 floor 20.8517 penalty 0 | deficit 1.97244[0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 319131 base by round [13.845,13.845,13.845] natural stations [15.667,15.439,15.211,14.984,14.756,14.528,14.300,14.072,13.845] final [13.845,13.845,13.845,13.845,13.845,13.845,13.845,13.845,13.845][0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 319131 bank (4970,-6436) local rim 16.6018 at t 0 | winner 319130 env 14.7795 rim 14.7795 perp 23.4258 behind 0 floor 23.5507 penalty 0 | deficit 1.82232[0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 152268 base by round [64.176,64.176,64.176] natural stations [65.972,65.752,65.532,65.312,65.092,64.872,64.652,64.432,64.212] final [64.176,64.176,64.176,64.176,64.176,64.176,64.174,64.174,64.174][0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 152268 bank (6553,-11651) local rim 66.5507 at t 0.0171204 | winner 151244 env 64.91 rim 64.7951 perp 14.0688 behind 0 floor 13.9047 penalty 0 | deficit 1.64066[0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 369370 base by round [30.002,30.002,30.002] natural stations [31.755,31.735,31.714,31.693,31.672,31.651,31.630,31.609,31.588] final [30.002,30.002,30.002,30.002,30.002,30.002,30.002,30.002,30.002][0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 369370 bank (6978,-4864) local rim 32.6022 at t 0 | winner 369369 env 30.8484 rim 30.8484 perp 14.0469 behind 0 floor 20.4472 penalty 0 | deficit 1.75388[0m
+[32m[14:52:06.473] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 1018976 (96,995) lowered 2.39114 u over 1 rounds, last driven by source 1018975 (95,995) folded 0 deficit 2.3911 u[0m
+[32m[14:52:06.474] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 372447 (735,363) lowered 2.17546 u over 1 rounds, last driven by source 371423 (735,362) folded 0 deficit 1.97244 u[0m
+[32m[14:52:06.474] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 319131 (667,311) lowered 1.82232 u over 1 rounds, last driven by source 319130 (666,311) folded 0 deficit 1.82232 u[0m
+[32m[14:52:06.474] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 152268 (716,148) lowered 1.79588 u over 1 rounds, last driven by source 151244 (716,147) folded 0 deficit 1.64066 u[0m
+[32m[14:52:06.474] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 369370 (730,360) lowered 1.75388 u over 1 rounds, last driven by source 369369 (729,360) folded 0 deficit 1.75388 u[0m
+[32m[14:52:06.474] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 34 macro inflows), seaLevel=16, maxAccum=45180 maxOrder=5 drainageComplete=1[0m
+[32m[14:52:06.474] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[       OK ] WorldSheetGeneratorTest.VersionTwoRecipeEnablesTheSheetAndVersionOneDoesNot (13145 ms)
+[ RUN      ] WorldSheetGeneratorTest.GeneratorCopySamplesIdenticalColumnsAcrossATileSeam
+[32m[14:52:06.478] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:06.478] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[       OK ] WorldSheetGeneratorTest.GeneratorCopySamplesIdenticalColumnsAcrossATileSeam (12 ms)
+[ RUN      ] WorldSheetGeneratorTest.BaseHeightFnReadsTheSheet
+[32m[14:52:06.490] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:06.490] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[       OK ] WorldSheetGeneratorTest.BaseHeightFnReadsTheSheet (5 ms)
+[ RUN      ] WorldSheetGeneratorTest.SetGenerationTypeAfterRecipeRebuildsTheSheet
+[32m[14:52:06.495] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:06.495] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[14:52:06.534] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 17396655183301918443); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[14:52:28.792] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 23753 bodies[0m
+[32m[14:52:28.792] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 57946 source entries, warp inversions beyond 1 u: 243[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 10 over 1984 carved reaches, reaches moved per round [499,92,20,9,4,2,1,1,1,0], cumulative lowering max 20.84 u, sum 837.341 u, 19 reaches lowered by more than 8 u; band columns 1203517, bank reads 276854, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 87, deepest END lowering 13.188 u; D38 cascades 12, lip pairs in the cell lists 3503, source lists beyond the cap 0[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [20.84,20.84,20.84,20.84,20.84,20.84,20.84,20.84,20.84][0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 402148 base by round [176.69,176.69,176.69,176.69,176.69,176.69,176.69,176.69,176.69] natural stations [197.53,191.90,186.27,180.65,175.02,169.40,163.77,158.14,152.52] final [176.69,173.09,170.02,167.02,162.26,156.86,153.70,153.70,152.52][0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 402148 bank (7322,-3821) local rim 196.645 at t 0.0366745 | winner 401124 env 177.456 rim 153.285 perp 19.2137 behind 1.74528 floor 18.4842 penalty 22.4939 | deficit 19.1893[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 569629 base by round [245.87,233.68,233.68,233.68,233.68,233.68,233.68,233.68,233.68] natural stations [253.26,250.65,248.05,245.44,242.83,240.23,237.62,235.02,232.41] final [233.68,233.68,233.68,233.68,233.30,230.41,229.50,226.65,226.33][0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 569629 bank (-7242,1427) local rim 246.429 at t 0 | winner 570654 env 234.245 rim 224.756 perp 26.157 behind 0 floor 12.6012 penalty 0 | deficit 12.1836[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 570654 base by round [224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20] natural stations [237.38,237.38,237.38,237.38,237.38,237.38,237.38,237.38,237.38] final [224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20][0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 571678 base by round [224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20] natural stations [237.38,237.38,237.38,237.38,237.38,237.38,237.38,237.38,237.38] final [224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20,224.20][0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 571678 bank (-7223,1494) local rim 237.944 at t 0 | winner 574750 env 224.756 rim 198.985 perp 49.3555 behind 0 floor 12.5404 penalty 0 | deficit 13.188[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 401854 base by round [216.29,216.29,216.29,216.29,216.29,216.29,216.29,216.29,216.29] natural stations [229.47,228.99,228.52,228.04,227.56,227.08,226.61,226.13,225.65] final [216.29,216.29,215.39,215.15,215.15,215.07,215.07,215.07,215.07][0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 401854 bank (-2100,-3825) local rim 229.885 at t 0.0341187 | winner 401852 env 216.832 rim 192.648 perp 46.6106 behind 0 floor 12.0612 penalty 0 | deficit 13.0531[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 402148 (740,392) lowered 20.84 u over 1 rounds, last driven by source 401124 (740,391) folded 0 deficit 19.1893 u[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 569629 (285,556) lowered 19.5748 u over 2 rounds, last driven by source 570654 (286,557) folded 0 deficit 12.1836 u[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 570654 (286,557) lowered 13.188 u over 0 rounds, last driven by source -1 folded 0 deficit 0 u[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 571678 (286,558) lowered 13.188 u over 1 rounds, last driven by source 574750 (286,561) folded 0 deficit 13.188 u[0m
+[32m[14:52:28.793] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 401854 (446,392) lowered 13.1833 u over 1 rounds, last driven by source 401852 (444,392) folded 0 deficit 13.0531 u[0m
+[32m[14:52:28.794] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 34 macro inflows), seaLevel=16, maxAccum=78515 maxOrder=5 drainageComplete=1[0m
+[       OK ] WorldSheetGeneratorTest.SetGenerationTypeAfterRecipeRebuildsTheSheet (22302 ms)
+[ RUN      ] WorldSheetGeneratorTest.MesoTileBakeTimeRecorded
+[32m[14:52:28.798] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:28.798] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M1 §9 ] meso tile 256x256 (+apron 6) bake: 203.3 ms (this build config)
+[       OK ] WorldSheetGeneratorTest.MesoTileBakeTimeRecorded (208 ms)
+[ RUN      ] WorldSheetGeneratorTest.FlatVersionTwoWorldGetsATrivialSheetAndStaysFlat
+[32m[14:52:29.006] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:29.046] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 2140007939566562926); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[14:52:29.046] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[       OK ] WorldSheetGeneratorTest.FlatVersionTwoWorldGetsATrivialSheetAndStaysFlat (260 ms)
+[ RUN      ] WorldSheetGeneratorTest.Layer0EpochMovesOnEveryRebuildPathAndCopiesCarryIt
+[32m[14:52:29.266] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:29.266] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[       OK ] WorldSheetGeneratorTest.Layer0EpochMovesOnEveryRebuildPathAndCopiesCarryIt (4 ms)
+[ RUN      ] WorldSheetGeneratorTest.MacroSheetCarriesTheMacroDrainage
+[32m[14:52:29.270] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:29.271] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2 prereq ] macro drainage: 9372 base-level cells, 677 lake cells (filled > base) of 40000
+[       OK ] WorldSheetGeneratorTest.MacroSheetCarriesTheMacroDrainage (7 ms)
+[ RUN      ] WorldSheetGeneratorTest.PaintedUpliftRaisesTheBaseWhereItIsPaintedAndRoundTrips
+[32m[14:52:29.279] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:29.279] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[14:52:29.283] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:29.324] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 11703865564780879431); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[14:52:46.969] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 13454 bodies[0m
+[32m[14:52:46.969] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 30133 source entries, warp inversions beyond 1 u: 92[0m
+[32m[14:52:46.969] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 4 over 1344 carved reaches, reaches moved per round [212,13,2,0], cumulative lowering max 2.39114 u, sum 51.4905 u, 0 reaches lowered by more than 8 u; band columns 589870, bank reads 145087, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 4, deepest END lowering 2.39114 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0[0m
+[32m[14:52:46.969] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.391,2.391,2.391][0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 1018976 base by round [40.671,40.671,40.671] natural stations [43.062,42.970,42.879,42.787,42.695,42.604,42.512,42.420,42.328] final [40.671,40.671,40.671,40.671,40.671,40.671,40.671,40.671,40.671][0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 1018976 bank (-13294,15483) local rim 43.8502 at t 0 | winner 1018975 env 41.4591 rim 41.4591 perp 14.2328 behind 0 floor 18.447 penalty 0 | deficit 2.3911[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 372451 base by round [36.317,36.317,36.317] natural stations [38.287,38.042,37.797,37.551,37.306,37.060,36.815,36.570,36.324] final [36.317,36.317,36.317,36.317,36.317,36.317,36.317,36.317,36.317][0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 372451 bank (7264,-4740) local rim 38.6881 at t 0.227844 | winner 372450 env 37.1657 rim 37.1657 perp 20.2992 behind 0 floor 20.9009 penalty 0 | deficit 1.52241[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 373475 base by round [36.317,36.317,36.317] natural stations [38.288,38.288,38.288,38.288,38.288,38.288,38.288,38.288,38.288] final [36.317,36.317,36.317,36.317,36.317,36.317,36.317,36.317,36.317][0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 373475 bank (7272,-4729) local rim 39.1354 at t 0.373367 | winner 372451 env 37.1648 rim 37.1648 perp 10.4339 behind 0 floor 19.0993 penalty 0 | deficit 1.97055[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 152268 base by round [64.176,64.176,64.176] natural stations [65.972,65.752,65.532,65.312,65.092,64.872,64.652,64.432,64.212] final [64.176,64.176,64.176,64.176,64.176,64.176,64.174,64.174,64.174][0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 152268 bank (6553,-11651) local rim 66.5507 at t 0.0171204 | winner 151244 env 64.91 rim 64.7951 perp 14.0688 behind 0 floor 13.9047 penalty 0 | deficit 1.64066[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 1018975 base by round [40.671,40.671,40.671] natural stations [42.328,42.222,42.115,42.009,41.902,41.796,41.689,41.583,41.476] final [40.671,40.671,40.670,40.670,40.669,40.669,40.669,40.669,40.669][0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 1018975 bank (-13311,15480) local rim 42.9162 at t 0.235077 | winner 1019999 env 41.4592 rim 41.4592 perp 18.0438 behind 0 floor 18.5606 penalty 0 | deficit 1.45695[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 1018976 (96,995) lowered 2.39114 u over 1 rounds, last driven by source 1018975 (95,995) folded 0 deficit 2.3911 u[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 372451 (739,363) lowered 1.97055 u over 1 rounds, last driven by source 372450 (738,363) folded 0 deficit 1.52241 u[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 373475 (739,364) lowered 1.97055 u over 1 rounds, last driven by source 372451 (739,363) folded 0 deficit 1.97055 u[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 152268 (716,148) lowered 1.79588 u over 1 rounds, last driven by source 151244 (716,147) folded 0 deficit 1.64066 u[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 1018975 (95,995) lowered 1.65746 u over 1 rounds, last driven by source 1019999 (95,996) folded 0 deficit 1.45695 u[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 34 macro inflows), seaLevel=16, maxAccum=51090 maxOrder=5 drainageComplete=1[0m
+[32m[14:52:46.970] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[       OK ] WorldSheetGeneratorTest.PaintedUpliftRaisesTheBaseWhereItIsPaintedAndRoundTrips (17695 ms)
+[ RUN      ] WorldSheetGeneratorTest.V2BakesHydrologyAtTheMesoCell
+[32m[14:52:46.974] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:47.633] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[14:52:47.633] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[14:52:47.633] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[14:52:47.638] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:52:48.295] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1050 bodies[0m
+[32m[14:52:48.295] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=6372 maxOrder=5 drainageComplete=1[0m
+[32m[14:52:48.335] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 353298013667080999); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[14:53:05.225] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 14943 bodies[0m
+[32m[14:53:05.225] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 33672 source entries, warp inversions beyond 1 u: 69[0m
+[32m[14:53:05.225] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 3 over 1477 carved reaches, reaches moved per round [190,12,0], cumulative lowering max 3.6833 u, sum 77.1397 u, 0 reaches lowered by more than 8 u; band columns 620236, bank reads 147876, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 8, deepest END lowering 3.6833 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.646,3.683][0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 681678 base by round [71.869,68.523] natural stations [72.207,71.881,71.555,71.230,70.904,70.578,70.253,69.927,69.601] final [68.523,68.523,66.807,65.967,65.967,65.967,65.967,65.967,65.967][0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 681678 bank (6611,4915) local rim 71.3604 at t 0.312332 | winner 682702 env 67.4037 rim 66.5732 perp 15.854 behind 0 floor 14.6675 penalty 0 | deficit 3.95673[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 682702 base by round [68.450,65.967] natural stations [69.601,69.162,68.724,68.285,67.846,67.407,66.969,66.530,66.091] final [65.967,65.967,65.967,65.967,65.967,65.967,65.967,65.967,65.967][0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 682702 bank (6611,4937) local rim 69.0472 at t 0 | winner 682701 env 66.5732 rim 66.5732 perp 25.7185 behind 0 floor 25.8273 penalty 0 | deficit 2.47401[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 290325 base by round [54.475,54.475] natural stations [57.121,57.085,57.049,57.012,56.976,56.940,56.904,56.867,56.831] final [54.475,54.475,54.475,54.475,54.475,54.475,54.475,54.475,54.475][0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 290325 bank (691,-7311) local rim 57.7365 at t 0.0377884 | winner 290327 env 55.1014 rim 55.1014 perp 14.2745 behind 0 floor 14.5475 penalty 0 | deficit 2.63513[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 258777 base by round [13.771,13.771] natural stations [16.227,16.193,16.158,16.123,16.089,16.054,16.019,15.984,15.950] final [13.771,13.771,13.771,13.771,13.771,13.771,13.771,13.771,13.771][0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 258777 bank (6966,-8306) local rim 17.4214 at t 0.0100403 | winner 258776 env 14.9681 rim 14.9681 perp 18.1336 behind 0 floor 31.6338 penalty 0 | deficit 2.45333[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 259801 base by round [13.771,13.771] natural stations [16.228,16.228,16.228,16.228,16.228,16.228,16.228,16.228,16.228] final [13.771,13.771,13.771,13.771,13.771,13.771,13.771,13.771,13.771][0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 259801 bank (6954,-8269) local rim 17.4242 at t 0 | winner 258777 env 14.9681 rim 14.9681 perp 30.1185 behind 0 floor 31.2713 penalty 0 | deficit 2.45612[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 681678 (718,665) lowered 3.6833 u over 2 rounds, last driven by source 682702 (718,666) folded 0 deficit 3.95673 u[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 682702 (718,666) lowered 3.63436 u over 2 rounds, last driven by source 682701 (717,666) folded 1 deficit 2.47401 u[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 290325 (533,283) lowered 2.64609 u over 1 rounds, last driven by source 290327 (535,283) folded 0 deficit 2.63513 u[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 258777 (729,252) lowered 2.45612 u over 1 rounds, last driven by source 258776 (728,252) folded 0 deficit 2.45333 u[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 259801 (729,253) lowered 2.45612 u over 1 rounds, last driven by source 258777 (729,252) folded 0 deficit 2.45612 u[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 73 macro inflows), seaLevel=16, maxAccum=103217 maxOrder=5 drainageComplete=1[0m
+[32m[14:53:05.226] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2b ] v2 recipe bake incl. 1024x1024-cell hydrology: 16931 ms (this build config); maxOrder 5, maxAccum 103217
+[       OK ] WorldSheetGeneratorTest.V2BakesHydrologyAtTheMesoCell (18255 ms)
+[ RUN      ] WorldSheetGeneratorTest.MacroInflowEntersTheBoxAtTheBorder
+[32m[14:53:05.231] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 13194 bodies[0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 23670 source entries, warp inversions beyond 1 u: 43[0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 3 over 1112 carved reaches, reaches moved per round [152,7,0], cumulative lowering max 2.30532 u, sum 25.2876 u, 0 reaches lowered by more than 8 u; band columns 410327, bank reads 112716, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 5, deepest END lowering 2.30532 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0[0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.305,2.305][0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 356734 base by round [18.808,18.808] natural stations [21.113,20.692,20.272,19.851,19.430,19.009,18.589,18.168,17.747] final [18.808,18.808,17.948,17.614,17.604,17.604,17.604,17.604,17.604][0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 356734 bank (-4140,-5251) local rim 20.6848 at t 0.321503 | winner 355710 env 18.6022 rim 18.2569 perp 12.9949 behind 0.493293 floor 14.6225 penalty 0 | deficit 2.08264[0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 787840 base by round [45.030,45.030] natural stations [47.166,46.899,46.632,46.365,46.098,45.831,45.564,45.297,45.030] final [45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030][0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 787840 bank (-4074,8232) local rim 47.5043 at t 0.120338 | winner 787841 env 45.6254 rim 45.6254 perp 13.1417 behind 0 floor 13.7045 penalty 0 | deficit 1.87895[0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 902804 base by round [15.039,15.039] natural stations [16.626,16.329,16.032,15.735,15.438,15.140,14.843,14.546,14.249] final [15.039,15.039,14.283,14.249,14.249,14.249,14.249,14.249,14.249][0m
+[32m[14:53:16.957] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 902804 bank (4763,11821) local rim 16.4229 at t 0.334412 | winner 902805 env 14.8746 rim 14.8409 perp 13.6592 behind 0 floor 13.611 penalty 0 | deficit 1.5483[0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 372112 base by round [45.159,45.159] natural stations [46.728,46.568,46.408,46.249,46.089,45.929,45.769,45.610,45.450] final [45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159][0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 372112 bank (-3571,-4762) local rim 47.1834 at t 0.136734 | winner 371088 env 45.8016 rim 45.8016 perp 12.5242 behind 0 floor 13.3642 penalty 0 | deficit 1.38176[0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 777639 base by round [25.603,25.603] natural stations [26.625,26.521,26.417,26.313,26.209,26.105,26.001,25.897,25.793] final [25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603][0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 777639 bank (-2821,7905) local rim 27.2661 at t 0 | winner 776615 env 26.2437 rim 26.2437 perp 12.6994 behind 0 floor 14.0183 penalty 0 | deficit 1.02241[0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 356734 (382,348) lowered 2.30532 u over 1 rounds, last driven by source 355710 (382,347) folded 0 deficit 2.08264 u[0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 787840 (384,769) lowered 2.13599 u over 1 rounds, last driven by source 787841 (385,769) folded 0 deficit 1.87895 u[0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 902804 (660,881) lowered 1.58697 u over 1 rounds, last driven by source 902805 (661,881) folded 0 deficit 1.5483 u[0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 372112 (400,363) lowered 1.56827 u over 1 rounds, last driven by source 371088 (400,362) folded 0 deficit 1.38176 u[0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 777639 (423,759) lowered 1.02241 u over 1 rounds, last driven by source 776615 (423,758) folded 0 deficit 1.02241 u[0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1[0m
+[32m[14:53:16.958] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2b ] macro inflows: 56 entry cells, 62.7 km2 injected, 51 propagate downstream
+[       OK ] WorldSheetGeneratorTest.MacroInflowEntersTheBoxAtTheBorder (11731 ms)
+[ RUN      ] WorldSheetGeneratorTest.LakeVsPondSplitIsAnAreaNotACellCount
+[       OK ] WorldSheetGeneratorTest.LakeVsPondSplitIsAnAreaNotACellCount (0 ms)
+[ RUN      ] WorldSheetGeneratorTest.V2ChannelGeometryFollowsTheGroundedLaw
+[32m[14:53:16.962] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:53:16.963] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2b-2 ] v2 law: 73637 river cells, 1265 carved (depth >= 0.5 u), widest half 3.35 u, deepest 0.70 u; off-law 0, off-class 0
+[       OK ] WorldSheetGeneratorTest.V2ChannelGeometryFollowsTheGroundedLaw (27 ms)
+[ RUN      ] WorldSheetGeneratorTest.CreekVsRiverIsADepthNotAnOrder
+[32m[14:53:16.990] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[14:53:16.991] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M2b-2 ] shallow order>=3 columns checked 200, misclassified 0
+[       OK ] WorldSheetGeneratorTest.CreekVsRiverIsADepthNotAnOrder (146 ms)
+[----------] 14 tests from WorldSheetGeneratorTest (83803 ms total)
+
+[----------] Global test environment tear-down
+[==========] 108 tests from 13 test suites ran. (459662 ms total)
+[  PASSED  ] 105 tests.
+[  SKIPPED ] 2 tests, listed below:
+[  SKIPPED ] ColumnCostBench.PhaseTimingPerFreshColumnAtTheGatePosePrinted
+[  SKIPPED ] ColumnCostBench.PhaseTimingOverTheStreamingRadiusPrinted
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope
+
+ 1 FAILED TEST
+EXIT 1 2026-11-04 14:53:17

@@ -28,6 +28,63 @@ using namespace Phyxel;
 // ============================================================================
 namespace {
 
+// A cut bank's PHYSICAL slope: the realized surface sampled at 1 u from the road's EDGE column outward until it
+// meets the natural surface - the rise over the RUN WALKED (the columns are 1 u apart: run = columns - 1), with
+// NO rounding allowance, and the largest adjacent step. Audit 7 (2026-11-04): the first walk started one column
+// OUTSIDE the edge and took a 1-cube allowance - it read 0.20 for the bank at (-14784,4359) that climbs 3 cubes
+// over 6 u (0.50) and would pass a 5-cube bank over the same run (0.83) at 0.60. The second walk (chain 55)
+// divided the rise by the DESIGN shoulder (5.5 u) while walking 6 u - a 4-cube bank read 0.73 instead of 0.67
+// (PM3c.41 missed: 35 banks flagged, 31 of them by that divisor). Pinned on arrays by BankWalkReadsTheRiseOverTheRun.
+// Audit 8 (2026-11-05): the raw rise over run of an INTEGER staircase overstates a ramp - a design at exactly 0.70 emitted
+// as cubes reads 0.75 / 0.80 / 0.71 (3 / 4 / 5 cubes, first touch of the ground), so a perfect generator fails a raw bound.
+// The integer-aware bound, DERIVED: two rounded surfaces differ from their true difference by less than 1 cube, so the true
+// slope s over a run r satisfies rise - 1 < s r, so a design at or below repose always passes (rise - 1) / r <= repose -
+// `bounded`. What it can catch (audit 9, 2026-11-05): a fail needs rise - 1 > 0.7 r, i.e. rise >= 6 on a 6 u run, a true rise
+// above 5 - a design slope above 0.83 at the earliest (0.92 with the road edge on a cube) and GUARANTEED only at 1.0; on a 4 u
+// run above 0.75 / 0.875, guaranteed at 1.0. A bank between 0.70 and that band cannot be told from rounding on 1-cube voxels
+// and is REPORTED (the raw figure), not asserted.
+struct BankWalk { int first = INT_MIN, last = INT_MIN, cols = 0, maxStep = 0; float slope = 0.0f, bounded = 0.0f; };
+BankWalk walkBank(const std::vector<int>& ys) {
+    BankWalk w;
+    for (int y : ys) {
+        if (w.first == INT_MIN) w.first = y;
+        else w.maxStep = std::max(w.maxStep, std::abs(y - w.last));
+        w.last = y; ++w.cols;
+    }
+    if (w.cols >= 2) {
+        const float rise = std::fabs(static_cast<float>(w.last - w.first)), run = static_cast<float>(w.cols - 1);
+        w.slope = rise / run;
+        w.bounded = std::max(0.0f, rise - 1.0f) / run;
+    }
+    return w;
+}
+// a design bank rounded to cubes, the generator's model (gradeBlendAt: the road grade blended into the natural across a
+// shoulder widened to cut / repose, so the bank is at repose RELATIVE to the natural): the surface at d is the ground
+// there minus the cut's remainder, cut x (1 - d / shoulder), to the shoulder's end and the ground beyond; the ground is
+// `cut` cubes above the road's edge and drifts `naturalDrift` cubes across the shoulder (positive = uphill). `slope` is the
+// design's cut / shoulder. Rounded to the NEAREST cube: chain 59 (2026-11-05) showed floored ramps do not reproduce the
+// chain-58 clusters (first touch 0.60 / 0.67 / 0.67) and nearest does (0.75 / 0.80 / 0.71 - audit 8's derivation), so nearest
+// is the generator's rounding as observed. The columns are the real walk's: the edge to the shoulder + 0.5 u, 1 u apart.
+int rampColumns(float shoulder) { return static_cast<int>(std::floor(shoulder + 0.5f)) + 1; }
+std::vector<int> quantisedRamp(int road, float slope, int cut, float shoulder, int naturalDrift = 0) {
+    std::vector<int> ys;
+    for (int i = 0; i < rampColumns(shoulder); ++i) {
+        const float d = static_cast<float>(i);
+        const float ground = static_cast<float>(road + cut) + static_cast<float>(naturalDrift) * d / shoulder;
+        const float remainder = d < shoulder ? static_cast<float>(cut) * (1.0f - d / shoulder) : 0.0f;
+        const float bank = ground - remainder;   // = road + slope x d on a flat natural
+        (void)slope;
+        ys.push_back(static_cast<int>(std::lround(bank)));
+    }
+    return ys;
+}
+// the first column where the emitted surface meets the ground (the chain 57-58 stop rule), for the record
+BankWalk walkToFirstTouch(const std::vector<int>& ys, int road, int cut) {
+    std::vector<int> cutYs;
+    for (int y : ys) { cutYs.push_back(y); if (cutYs.size() > 1 && y >= road + cut) break; }
+    return walkBank(cutYs);
+}
+
 WorldRecipe civRecipe(uint32_t seed, const char* type = "Perlin") {
     WorldRecipe r;
     r.version = 2;
@@ -368,6 +425,68 @@ TEST(RouteFieldTest, RealizedSurfaceKeepsTheClassCapOutsidePitches) {
 // 1.4), twice the repose slope the cut limit was named after. The shoulder now widens to
 // C / 0.70: at the deepest cuts the surface drop across the shoulder, measured perpendicular to
 // the road, must not exceed the repose slope (plus one cube of rounding over the span).
+// The measurement itself, on arrays. Audit 7 (2026-11-04) rejected the first walk (a column out, a 1-cube allowance: 0.20
+// for a 3-cube bank over 6 u); audit 8 (2026-11-05) showed the replacement's raw rise-over-run to first touch of the ground
+// is red on a PERFECT generator: a 0.70 ramp floored to cubes reads 0.75 / 0.80 / 0.71 for cuts of 3 / 4 / 5 - the 39 "steep"
+// banks of chain 58 (14 at 0.75, 7 at 0.80, 9 at 0.71) are that artefact. This pin feeds the exact walk a ramp quantised
+// through the generator's rounding: the 0.70 ramps must pass the integer-aware bound, a 1.0 ramp must still fail it, and the
+// raw first-touch figures are shown for the record.
+TEST(RouteFieldTest, BankWalkReadsTheRiseOverTheRun) {
+    const float repose = WorldForgePlan::kReposeSlope;
+    const float firstTouchExpected[3] = {0.75f, 0.80f, 5.0f / 7.0f};   // audit 8's derivation: 3 / 4, 4 / 5, 5 / 7
+    int k = 0;
+    for (int cut : {3, 4, 5}) {
+        const float shoulder = static_cast<float>(cut) / repose;
+        const std::vector<int> ys = quantisedRamp(100, repose, cut, shoulder);
+        const BankWalk w = walkBank(ys), t = walkToFirstTouch(ys, 100, cut);
+        std::printf("[ M4b ] bank walk, a 0.70 ramp cut %d over %.1f u rounded to cubes (%d columns): raw %.2f, bounded %.2f; first touch %d cubes over %d u = %.2f (the chain 57-58 measure)\n",
+                    cut, shoulder, rampColumns(shoulder), w.slope, w.bounded, t.last - t.first, t.cols - 1, t.slope);
+        EXPECT_NEAR(t.slope, firstTouchExpected[k++], 1e-3f) << "the first-touch artefact of cut " << cut << " did not reproduce";
+        EXPECT_GT(t.slope, repose) << "(the record: the first-touch measure reads a perfect ramp as steep)";
+        EXPECT_LE(w.bounded, repose) << "a perfect ramp of cut " << cut << " fails the integer-aware bound";
+        EXPECT_LE(w.maxStep, 1);
+    }
+    // the UPHILL side (audit 9): the generator's bank is at repose relative to the natural, so where the natural climbs
+    // across the shoulder the absolute bank is cut + climb over the shoulder. A 4-cube cut with the natural climbing 1:
+    // 5 cubes over the 6 u window = raw 0.83, a PHYSICAL slope over repose that the bound cannot see (bounded 0.67) - the
+    // baseline's four raw-0.83 banks (chains 59-60) are this case, not rounding; stated, an owner design item (absolute vs
+    // relative repose). With the natural climbing 2 the absolute bank is 1.0 and the bound catches it.
+    const BankWalk w1 = walkBank(quantisedRamp(100, repose, 4, 4.0f / repose, 1)), w2 = walkBank(quantisedRamp(100, repose, 4, 4.0f / repose, 2));
+    std::printf("[ M4b ] bank walk, a 0.70 bank cut 4 with the natural climbing 1 across the shoulder: raw %.2f, bounded %.2f, largest step %d (the blind band); climbing 2: raw %.2f, bounded %.2f (caught)\n",
+                w1.slope, w1.bounded, w1.maxStep, w2.slope, w2.bounded);
+    EXPECT_GT(w1.slope, repose) << "the uphill bank with the natural climbing 1 is physically over repose";
+    EXPECT_LE(w1.bounded, repose) << "(the record: the bound cannot see a 0.83 uphill bank on 6 u)";
+    EXPECT_GT(w2.bounded, repose) << "an uphill bank at 1.0 absolute passed the bound";
+    // a bank at 1.0 - 6 cubes over its 6 u shoulder: the bound must catch it (chain 59: a 5-cube 1.0 ramp walked over a
+    // 6 u window read 0.83 raw / 0.67 bounded and PASSED - the control's window must be the ramp's own shoulder)
+    const std::vector<int> steep = quantisedRamp(100, 1.0f, 6, 6.0f);
+    const BankWalk ws = walkBank(steep);
+    std::printf("[ M4b ] bank walk, a 1.00 bank cut 6 over 6 u: raw %.2f, bounded %.2f (the bound first fails at a design slope between 0.83 and 1.0 on 6 u, by phase; guaranteed at 1.0)\n", ws.slope, ws.bounded);
+    EXPECT_GT(ws.bounded, repose) << "a 1.0 ramp passed the integer-aware bound";
+    // a 0.90 bank (cut 6 over 6.7 u: 8 columns, a 7 u run - 6 cubes rounded, 5 / 7 raw): inside the phase band, shown
+    const BankWalk wr = walkBank(quantisedRamp(100, 0.9f, 6, 6.0f / 0.9f));
+    std::printf("[ M4b ] bank walk, a 0.90 bank cut 6 over 6.7 u (%d columns): raw %.2f, bounded %.2f (reported)\n", rampColumns(6.0f / 0.9f), wr.slope, wr.bounded);
+    EXPECT_NEAR(walkBank({165, 166, 167, 168, 168, 168, 168}).slope, 0.5f, 1e-4f);
+    EXPECT_EQ(walkBank({165, 166, 169, 169}).maxStep, 3);
+    EXPECT_EQ(walkBank({}).cols, 0);
+    EXPECT_EQ(walkBank({165}).slope, 0.0f);
+}
+
+// STATUS 2026-11-05 (chains 53-61, m3c_red_green.txt; the figures below from chains 59-61): the plain-shoulder claim is the INTEGER-AWARE bound - no cut bank
+// steeper than repose by more than the 1-cube rounding of the emitted surface over its shoulder window (the bound first
+// fails at a design slope between 0.83 and 1.0 on a 6 u run, by phase; guaranteed at 1.0 - see walkBank), and no step of
+// 3+ cubes; the raw rise over run of every bank is REPORTED. The window is the edge column to the column past the
+// shoulder's end (7 columns, a 6 u run, for the 5.5 u shoulder of a 3.9 u cut). TWO DESIGN ITEMS for the owner (not reds):
+// (a) the shoulder is cut / repose - a design at EXACTLY the repose slope - so on 1-cube voxels about half of the baseline's
+// 69 single-road banks emit as stairs whose raw slope lands at 0.71-0.80 (rounding; a margin in the shoulder, e.g. sizing
+// it for the cut rounded UP, would put them under 0.70 raw); (b) the bank is at repose RELATIVE to the natural (gradeBlendAt
+// blends the road grade into the natural across the shoulder), so on the uphill side the absolute slope is repose plus the
+// natural's own: four baseline banks read raw 0.83 (5 cubes over the 6 u window = the 3.9 u cut plus the natural's climb of
+// ~1) - a physical slope the bound cannot see on 6 u, and 0.73 over the 5.5 u design shoulder (they pass only on the 6 u
+// run and the 1-cube allowance). Absolute or relative repose is the owner's call; an earthwork item under the hold.
+// The measure was corrected five times after runs (chains 53, 55, 57, 58, 59) and its array control twice (chains 60-61),
+// each stated post-hoc and recorded. Chains 59-61 on the baseline: 0 of 69 banks over the bound (worst 0.67), 4 banks
+// raw-over-repose (0.83), largest step 1 everywhere, 12 sides beside a falling natural (reported apart).
 TEST(RouteFieldTest, CutBanksStandAtTheReposeSlope) {
     WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
     g.applyRecipe(civRecipe(20260816u));
@@ -388,7 +507,7 @@ TEST(RouteFieldTest, CutBanksStandAtTheReposeSlope) {
     std::sort(deepest.begin(), deepest.end(), [](const Deep& a, const Deep& b) { return a.cut > b.cut; });
     // the deepest cuts sit on shared trunks (all 40 of the first census were bundled): walk the
     // list from the deepest down and measure the 40 deepest SINGLE-road cuts
-    int banks = 0, steep = 0, bundled = 0, sectioned = 0, measuredCuts = 0; float worstSlope = 0.0f, deepestMeasured = 0.0f;
+    int banks = 0, steep = 0, bundled = 0, sectioned = 0, measuredCuts = 0, fallingSides = 0, rawOver = 0; float worstSlope = 0.0f, worstRaw = 0.0f, deepestMeasured = 0.0f;
     for (const Deep& d : deepest) {
         if (measuredCuts >= 40) break;
         std::vector<int> rhere;
@@ -441,9 +560,9 @@ TEST(RouteFieldTest, CutBanksStandAtTheReposeSlope) {
                 if (cols >= 6) {
                     const float absSlope = (std::fabs(static_cast<float>(last - first)) - 1.0f) / static_cast<float>(cols - 1);
                     worstSlope = std::max(worstSlope, absSlope);
-                    if (absSlope > WorldForgePlan::kReposeSlope + 0.05f + 1e-3f) ++steep;
+                    if (absSlope > WorldForgePlan::kReposeSlope + 0.05f + 1e-3f) { ++steep; std::printf("[ M4b ] STEEP section at (%.0f,%.0f) side %+.0f cls %d cut %.1f: abs slope %.2f over %d columns (%d -> %d)\n", d.p.x, d.p.y, side, d.cls, d.cut, absSlope, cols, first, last); }
                 }
-                if (maxStep > 2) ++steep;
+                if (maxStep > 2) { ++steep; std::printf("[ M4b ] STEEP section at (%.0f,%.0f) side %+.0f cls %d cut %.1f: a step of %d cubes along the bank\n", d.p.x, d.p.y, side, d.cls, d.cut, maxStep); }
                 continue;
             }
             ++banks;
@@ -453,13 +572,40 @@ TEST(RouteFieldTest, CutBanksStandAtTheReposeSlope) {
             const float natOut = static_cast<float>(natural->sampleSurface(static_cast<int>(std::lround(outer.x)), static_cast<int>(std::lround(outer.y))).surfaceY);
             const float realizedRise = static_cast<float>(b.surfaceY - a.surfaceY);
             const float naturalRise = natOut - natIn;
-            const float slope = (std::fabs(realizedRise - naturalRise) - 1.0f) / shoulder;   // - 1 cube of rounding
-            worstSlope = std::max(worstSlope, slope);
-            if (slope > WorldForgePlan::kReposeSlope + 1e-3f) ++steep;
+            const float twoPoint = (std::fabs(realizedRise - naturalRise) - 1.0f) / shoulder;   // - 1 cube of rounding (REPORTED)
+            // the claim (walkBank, see its comment and the pin above): the emitted surface from the road's edge column across
+            // the DESIGN shoulder at 1 u - the integer-aware bound (rise - 1) / run against repose, and the largest adjacent
+            // step; the raw rise over run is reported. The measure's history, each step stated post-hoc in m3c_red_green.txt:
+            // the two-point formula (to chain 52) subtracted the natural's rise and read 0.73 for a 0.50 bank; the first walk
+            // (chain 53) started a column out with a 1-cube allowance (0.20); the second (chain 55) divided by the design
+            // shoulder while walking 6 u (0.73 for 4 cubes over 6 u); the third and fourth (chains 57-58, the same stop rule
+            // twice - "within a cube" of an integer IS equality) stopped at the first touch of the ground, which audit 8 showed
+            // reads 0.75 / 0.80 / 0.71 on a PERFECT 0.70 ramp; this one is the derived bound over the design run.
+            std::vector<int> ys;
+            for (float dd = half; dd <= half + shoulder + 0.5f; dd += 1.0f) {
+                const glm::vec2 q = d.p + d.n * (side * dd);
+                const auto col = g.sampleSurface(static_cast<int>(std::lround(q.x)), static_cast<int>(std::lround(q.y)));
+                if (col.riverOrder > 0) break;
+                ys.push_back(col.surfaceY);
+            }
+            const BankWalk w = walkBank(ys);
+            const bool falling = naturalRise < -1.0f;   // the ground falls away from the road beyond the edge: reported apart
+            if (falling) ++fallingSides;
+            worstSlope = std::max(worstSlope, w.bounded);
+            worstRaw = std::max(worstRaw, w.slope);
+            if (w.slope > WorldForgePlan::kReposeSlope + 1e-3f) ++rawOver;
+            const bool steepHere = w.bounded > WorldForgePlan::kReposeSlope + 1e-3f || w.maxStep > 2;
+            if (steepHere || w.slope > WorldForgePlan::kReposeSlope + 1e-3f || twoPoint > WorldForgePlan::kReposeSlope + 1e-3f) {
+                if (steepHere) ++steep;
+                std::printf("[ M4b ] %s bank at (%.0f,%.0f) side %+.0f cls %d cut %.1f shoulder %.1f%s: walked from the edge %d -> %d over %d columns (%d u run): raw %.2f, bounded %.2f, largest step %d; two-point: realized rise %.0f, natural rise %.0f -> %.2f (inner (%.0f,%.0f) y %d, outer (%.0f,%.0f) y %d; roads in reach at the inner %zu / outer %zu)\n",
+                            steepHere ? "STEEP" : (w.slope > WorldForgePlan::kReposeSlope + 1e-3f ? "raw-over-repose" : "two-point-only"), d.p.x, d.p.y, side, d.cls, d.cut, shoulder, falling ? " (falling natural)" : "",
+                            w.first, w.last, w.cols, w.cols - 1, w.slope, w.bounded, w.maxStep,
+                            realizedRise, naturalRise, twoPoint, inner.x, inner.y, a.surfaceY, outer.x, outer.y, b.surfaceY, rin.size(), rout.size());
+            }
         }
     }
-    std::printf("[ M4b ] cut banks: %zu cut vertices scanned, the deepest single-road cut %.1f u: %d single-road banks measured (%d bundled cuts skipped, %d earthwork sections measured by EarthworkTest's rule), %d steeper than repose (worst %.2f vs %.2f)\n",
-                deepest.size(), deepestMeasured, banks, bundled, sectioned, steep, worstSlope, WorldForgePlan::kReposeSlope);
+    std::printf("[ M4b ] cut banks: %zu cut vertices scanned, the deepest single-road cut %.1f u: %d single-road banks measured (%d bundled cuts skipped, %d earthwork sections measured by EarthworkTest's rule), %d steeper than repose by the integer-aware bound (worst %.2f vs %.2f); raw rise over run above repose on %d banks (worst raw %.2f, REPORTED - the 1-cube rounding of a design at exactly repose); %d sides beside a falling natural\n",
+                deepest.size(), deepestMeasured, banks, bundled, sectioned, steep, worstSlope, WorldForgePlan::kReposeSlope, rawOver, worstRaw, fallingSides);
     EXPECT_GT(banks, 4);
     EXPECT_EQ(steep, 0) << "a cut bank stands steeper than the repose slope";
 }
@@ -566,40 +712,41 @@ WorldGenerator& waterWorld(bool mountains) {
 // its footprint's edge; the first pond at (512,512) with radius 40 was 50-64 u off that line and the
 // rig measured nothing): it runs through the pond cell, so the centre-only routing detours through
 // the neighbours' wet strips (the red) and the corner-sampling routing goes one ring further (green).
-float pondPlain(float x, float z, float depth) {
-    const float dx = x - 528.0f, dz = z - 560.0f;
-    const float r2 = (dx * dx + dz * dz) / (34.0f * 34.0f);
+float bowlPlain(float x, float z, float cx, float cz, float r, float depth) {   // the same bowl at any centre / radius
+    const float dx = x - cx, dz = z - cz;
+    const float r2 = (dx * dx + dz * dz) / (r * r);
     if (r2 >= 1.0f) return 30.0f;
     const float k = 1.0f - r2;
     return 30.0f - depth * k * k;
 }
+float pondPlain(float x, float z, float depth) { return bowlPlain(x, z, 528.0f, 560.0f, 34.0f, depth); }
 
 struct PondRig {
-    float depth;
+    float depth, cx = 528.0f, cz = 560.0f, r = 34.0f;
     HydrologyMap hydro;
     FlowField flow;
     WaterBodyIndex bodies;
-    explicit PondRig(float d)
-        : depth(d),
-          hydro([d](float x, float z) { return pondPlain(x, z, d); }, 0.0f, 0.0f, 32, 32, 32.0f, 16.0f),
-          flow([d](float x, float z) { return pondPlain(x, z, d); }, 0.0f, 0.0f, 32, 32, 32.0f, 16.0f, 12),
-          bodies(hydro, [d](float x, float z) { return pondPlain(x, z, d); }) {}
+    explicit PondRig(float d, float px = 528.0f, float pz = 560.0f, float pr = 34.0f)
+        : depth(d), cx(px), cz(pz), r(pr),
+          hydro([=](float x, float z) { return bowlPlain(x, z, px, pz, pr, d); }, 0.0f, 0.0f, 32, 32, 32.0f, 16.0f),
+          flow([=](float x, float z) { return bowlPlain(x, z, px, pz, pr, d); }, 0.0f, 0.0f, 32, 32, 32.0f, 16.0f, 12),
+          bodies(hydro, [=](float x, float z) { return bowlPlain(x, z, px, pz, pr, d); }) {}
     std::shared_ptr<const WorldForgePlan> bake() const {
         WorldForgeParams p;
         p.enabled = true; p.siteCount = 2; p.regionRadius = 480.0f; p.minSpacing = 100.0f; p.maxSpacing = 800.0f;
         p.sitePins = {glm::ivec2(384, 540), glm::ivec2(640, 540)};
         std::vector<WorldForgePlan::DemandEdge> demand(1);
         demand[0].a = 0; demand[0].b = 1; demand[0].cls = 1;
-        const float d = depth;
-        return WorldForgePlan::bake(p, 7, [d](float x, float z) { return pondPlain(x, z, d); }, hydro, flow, bodies,
+        const float d = depth, px = cx, pz = cz, pr = r;
+        return WorldForgePlan::bake(p, 7, [=](float x, float z) { return bowlPlain(x, z, px, pz, pr, d); }, hydro, flow, bodies,
                                     [](int, int) { return std::string("Grass"); },
-                                    [d](int x, int z) { return static_cast<int>(std::floor(pondPlain(static_cast<float>(x), static_cast<float>(z), d))); },
+                                    [=](int x, int z) { return static_cast<int>(std::floor(bowlPlain(static_cast<float>(x), static_cast<float>(z), px, pz, pr, d))); },
                                     [this](float x, float z) { return flow.channelAt(x, z); }, nullptr, nullptr, &demand);
     }
     // the realization's own test, with the raw hydrology level (no rim corrector in the rig)
     int wetAt(int x, int z, float& depthOut) const {
         const float wl = hydro.waterLevelAt(static_cast<float>(x), static_cast<float>(z));
-        const int surf = static_cast<int>(std::floor(pondPlain(static_cast<float>(x), static_cast<float>(z), depth)));
+        const int surf = static_cast<int>(std::floor(bowlPlain(static_cast<float>(x), static_cast<float>(z), cx, cz, r, depth)));
         depthOut = wl - static_cast<float>(surf);
         return wl > static_cast<float>(surf) ? 1 : 0;
     }
@@ -635,7 +782,44 @@ TEST(RouteFieldTest, RoadsStayOutOfStandingWater) {
         EXPECT_EQ(c.wet, 0) << (mountains ? "Mountains" : "baseline") << ": a road column under standing water - the road vanishes under the lake with no deck and no ford";
         // audit 2026-11-02: the census must not pass by losing roads - a floor on the columns walked (the red walked
         // 673 346 / 717 484; a plan that dropped a quarter of its roads would fail here) and no demand refused for water
-        EXPECT_GT(c.roadCols, 500000) << (mountains ? "Mountains" : "baseline") << ": too few road columns walked - roads were lost, not routed";
+        // the floor: a quarter below the M3c network's DISTINCT column counts (555 928 / 489 914, chains 51-53, 2026-11-04; the
+        // 500 000 of 2026-11-02 was set on the pre-M3c network's 673 346 / 717 484). Re-based post-hoc, stated. What it
+        // measures: the SHAPE of the network (distinct columns under the centrelines of plan->roads()) - this census walks the
+        // road polylines, never the raster, so it cannot see a raster loss: chain 50 read 489 914 Mountains columns WITH 54 632
+        // segments truncated and chains 52-53 read 489 914 with 0 (audit 7 corrected the earlier comment that said the
+        // floor had caught the truncation; its chain-50 red was the lattice network's shape, which led to the find). The
+        // only raster-loss guard is the rasterTruncatedSegments assertion above. Why the lattice network walks fewer
+        // distinct columns on 3.5x the road length is UNMEASURED here (trunk sharing is the hypothesis; no control varies
+        // the reuse fraction on the box plan).
+        const int floorCols = mountains ? 367000 : 417000;
+        EXPECT_GT(c.roadCols, floorCols) << (mountains ? "Mountains" : "baseline") << ": too few road columns walked - roads were lost, not routed";
+        // M3c ripple (2026-11-04, chain 50): the raster's uint16 segment index overflowed on the lattice network (12435 / 54632
+        // segments invisible to roadAt; this census walked 489 914 Mountains columns against its 500 000 floor) - uint32 now, asserted
+        EXPECT_EQ(box->rasterTruncatedSegments(), 0u) << (mountains ? "Mountains" : "baseline") << ": road segments past the raster cap are invisible to roadAt";
+        // every water refusal's geometry from the generator (the M4c refusal dump's idea): the endpoint site, the hit's
+        // distance from it, the dry bearings at that radius (is the site approachable dry from some side?) and the columns
+        // from the hit to the site (~ wet, . dry)
+        for (const auto& r : box->refusedDemands()) {
+            if (r.reason.rfind("a line crosses standing water", 0) != 0) continue;
+            const int sb = r.b >= 0 ? r.b : r.a;
+            if (sb < 0 || sb >= static_cast<int>(box->sites().size())) { std::printf("[ M4w ] %s water refusal %d -> %d at (%.0f,%.0f): no site endpoint\n", mountains ? "Mountains" : "baseline", r.a, r.b, r.pos.x, r.pos.y); continue; }
+            const glm::vec2 sp(box->sites()[static_cast<size_t>(sb)].pos);
+            const float dist = glm::length(r.pos - sp);
+            auto wetCol = [&](const glm::vec2& q) {
+                const auto col = g.sampleSurface(static_cast<int>(std::floor(q.x)), static_cast<int>(std::floor(q.y)));
+                return g.waterLevelAt(q.x, q.y) > static_cast<float>(col.surfaceY);
+            };
+            int dryBearings = 0;
+            for (int k = 0; k < 36; ++k) {
+                const float ang = static_cast<float>(k) * 3.14159265f / 18.0f;
+                if (!wetCol(sp + glm::vec2(std::cos(ang), std::sin(ang)) * std::max(dist, 1.0f))) ++dryBearings;
+            }
+            std::string along;
+            const glm::vec2 dir = dist > 1e-3f ? (sp - r.pos) / dist : glm::vec2(0.0f);
+            for (float t = 0.0f; t <= dist + 0.5f && along.size() < 120; t += 1.0f) along += wetCol(r.pos + dir * t) ? '~' : '.';
+            std::printf("[ M4w ] %s water refusal %d -> %d: the hit (%.1f,%.1f) is %.1f u from site %d at (%.0f,%.0f); at that radius %d of 36 bearings are dry; hit -> site columns: %s\n",
+                        mountains ? "Mountains 424242" : "baseline Perlin", r.a, r.b, r.pos.x, r.pos.y, dist, sb, sp.x, sp.y, dryBearings, along.c_str());
+        }
         EXPECT_EQ(box->waterRefused(), 0) << (mountains ? "Mountains" : "baseline") << ": a demand refused for standing water";
         int waterReasons = 0;
         for (const auto& r : box->refusedDemands()) if (r.reason.rfind("a line crosses standing water", 0) == 0) ++waterReasons;
@@ -694,7 +878,72 @@ TEST(RouteFieldTest, ShoreCellIsRoutedAround) {
     EXPECT_EQ(c.wet, 0) << "the road crosses the pond's shore strip";
     // the detour: longer than the same demand's line with the rule off, reported with the JSON counts
     std::printf("[ M4w ] rig depth 5: road length %.1f u (rule off: %.1f u); water_rerouted %d (fine detours %d), water_refused %d\n", roadLength(*plan), roadLength(*before), plan->waterRerouted(), plan->waterFineDetours(), plan->waterRefused());
-    EXPECT_GT(roadLength(*plan), roadLength(*before)) << "no detour: the road is not longer than the rule-off line";
+    // the detour, measured as CLEARANCE: no road column inside the pond's wet disc (r 34 u about (528,560)). The first
+    // measure here was "longer than the rule-off line" - a premise of the coarse-centre routing, whose rule-off line
+    // itself bent up to z 576; the M3c-ripple fine detour routes pin to pin and its dry line is SHORTER (191.8 vs
+    // 250.8 u, chain 51, 2026-11-04). Stated post-hoc; the lengths stay reported.
+    // audit 7 (2026-11-04): the clearance is the distance from the pond centre to the nearest point of the centreline's
+    // SEGMENTS (not its 16 u vertices), and the rule-off line is held to the same measure: it crosses the pond (186 wet
+    // columns above), so its clearance must fall INSIDE the disc - the red side of this measure in the same run
+    auto clearance = [](const WorldForgePlan& pl) {
+        const glm::vec2 c(528.0f, 560.0f); float best = 1e30f;
+        for (const auto& r : pl.roads())
+            for (size_t k = 0; k + 1 < r.centerline.size(); ++k) {
+                const glm::vec2 a = r.centerline[k], b = r.centerline[k + 1], ab = b - a;
+                const float t = glm::dot(ab, ab) > 0.0f ? std::clamp(glm::dot(c - a, ab) / glm::dot(ab, ab), 0.0f, 1.0f) : 0.0f;
+                best = std::min(best, glm::length(c - (a + ab * t)));
+            }
+        return best;
+    };
+    const float nearestToPond = clearance(*plan), nearestBefore = clearance(*before);
+    std::printf("[ M4w ] rig depth 5: the road's nearest point to the pond centre %.1f u (rule off: %.1f u; the wet disc's radius 34 u + the half-width %.1f)\n",
+                nearestToPond, nearestBefore, WorldForgePlan::roadHalfWidth(1));
+    EXPECT_LT(nearestBefore, 34.0f + WorldForgePlan::roadHalfWidth(1)) << "the rule-off line does not enter the disc: the clearance measure cannot tell the two lines apart";
+    EXPECT_GT(nearestToPond, 34.0f + WorldForgePlan::roadHalfWidth(1)) << "the road runs inside the pond's wet disc";
+}
+
+// M3c ripple (2026-11-04, m3c_red_green.txt chain 50): the baseline's demand -1 -> 0 was refused for standing
+// water at (9406,271) on every attempt - the fine detour ended at the site's COARSE cell centre and the last leg
+// from there to the pinned site, never routed, crossed the lake's fringe each time (the coarse block cannot close
+// an endpoint's cell). The rig: the same plain, a small bowl (r 14 u, depth 4 u) at (680,552). The hydrology samples
+// a cell at its world CORNER (HydrologyMap.cpp:17; a first bowl at (684,560) r 12 contained no corner and never
+// filled, chain 51), so the lake is the one cell whose corner (672,544) lies in the bowl, [672,704) x [544,576), and
+// the wet columns are the bowl's part of it (x 672..694, z 544..566). DERIVED on the rig's geometry: the leg from the
+// coarse centre (704,576) to the pin (640,540) crosses it (at x 672..680 it runs within 10-11 u of the bowl's centre),
+// so does the control's leg from its fine stretch end (720,592); the leg along z 576 keeps 22 u clear, the coarse
+// centre 34 u, the pin's own fine cell is not a lake cell. The CONTROL: the mechanism as built on 2026-11-02 (the
+// stretch ends at the coarse centres, one fine attempt) refuses the demand; the shipped one routes the approach
+// through the pin's own fine cell: 1 road, 0 refused, 0 wet columns, the road reaching site 1's footprint.
+TEST(RouteFieldTest, ApproachToAPinnedSiteDetoursThePond) {
+    PondRig rig(4.0f, 680.0f, 552.0f, 14.0f);
+    ASSERT_GT(rig.hydro.waterLevelAt(680.0f, 552.0f), 29.5f) << "the pond did not fill (no hydrology corner sample inside the bowl?)";
+    ASSERT_LT(rig.hydro.waterLevelAt(680.0f, 552.0f), 30.5f) << "the pond filled above the plain";
+    ASSERT_LT(rig.hydro.waterLevelAt(704.0f, 576.0f), 0.0f) << "the coarse centre's cell is a lake cell: the coarse grid would close the endpoint";
+    ASSERT_LT(rig.hydro.waterLevelAt(640.0f, 540.0f), 0.0f) << "the pin's cell is a lake cell: the pin itself is wet";
+    struct Restore { ~Restore() { WorldForgePlan::setFineDetourToEndpointsForTesting(true); } } restore;
+    WorldForgePlan::setFineDetourToEndpointsForTesting(false);
+    auto before = rig.bake();
+    ASSERT_TRUE(before);
+    printLine("endpoint-control", *before);
+    for (const auto& r : before->refusedDemands()) std::printf("[ M4w ] endpoint-control refusal: %d -> %d at (%.0f,%.0f): %s\n", r.a, r.b, r.pos.x, r.pos.y, r.reason.c_str());
+    std::printf("[ M4w ] endpoint rig CONTROL (the stretch ends at the coarse centres, one fine attempt): %zu roads, %zu refused, water_refused %d, re-routed %d (fine %d)\n",
+                before->roads().size(), before->refusedDemands().size(), before->waterRefused(), before->waterRerouted(), before->waterFineDetours());
+    EXPECT_EQ(before->waterRefused(), 1) << "the control did not reproduce the lakeshore refusal: the rig measures nothing";
+    WorldForgePlan::setFineDetourToEndpointsForTesting(true);
+    auto plan = rig.bake();
+    ASSERT_TRUE(plan);
+    printLine("endpoint", *plan);
+    for (const auto& r : plan->refusedDemands()) std::printf("[ M4w ] endpoint refusal: %d -> %d at (%.0f,%.0f): %s\n", r.a, r.b, r.pos.x, r.pos.y, r.reason.c_str());
+    std::printf("[ M4w ] endpoint rig: %zu roads, %zu refused, water_refused %d, re-routed %d (fine %d), road length %.1f u\n",
+                plan->roads().size(), plan->refusedDemands().size(), plan->waterRefused(), plan->waterRerouted(), plan->waterFineDetours(), roadLength(*plan));
+    ASSERT_EQ(plan->roads().size(), 1u) << "the demand must be realized: the pin's own fine cell is dry and a dry approach exists";
+    EXPECT_EQ(plan->waterRefused(), 0);
+    const WetCensus c = censusRoads(*plan, [&](int x, int z, float& depth) { return rig.wetAt(x, z, depth); });
+    std::printf("[ M4w ] endpoint rig: %d road columns, %d under water (worst %.2f u at (%d,%d)); first: %s\n", c.roadCols, c.wet, c.worstDepth, c.worstAt.x, c.worstAt.y,
+                c.first.empty() ? "-" : c.first[0].c_str());
+    EXPECT_EQ(c.wet, 0) << "the approach crosses the pond";
+    const glm::vec2 last = plan->roads()[0].centerline.back();
+    EXPECT_LT(glm::length(last - glm::vec2(640.0f, 540.0f)), 48.0f) << "the road does not reach site 1's footprint (last vertex " << last.x << "," << last.y << ")";
 }
 
 // The control: the same rig with no pond - the road runs straight and dry before and after, so the

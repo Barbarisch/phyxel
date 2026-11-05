@@ -1,0 +1,273 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = RouteFieldTest.BankWalkReadsTheRiseOverTheShoulder:RouteFieldTest.CutBanksStandAtTheReposeSlope:RouteFieldTest.ShoreCellIsRoutedAround:RouteFieldTest.ShoreRigControlRunsStraight:RouteGraphTest.ReuseDiscountMergesRoutesIntoTrunks
+[==========] Running 5 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from RouteFieldTest
+[ RUN      ] RouteFieldTest.BankWalkReadsTheRiseOverTheShoulder
+[ M4b ] bank walk: 3 cubes / 5.5 u -> 0.55 (old formula 0.20), 4 cubes / 5.5 u -> 0.73 (old 0.40); repose 0.70
+[       OK ] RouteFieldTest.BankWalkReadsTheRiseOverTheShoulder (0 ms)
+[ RUN      ] RouteFieldTest.CutBanksStandAtTheReposeSlope
+[32m[16:59:34.191] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[16:59:34.847] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 1091 bodies[0m
+[32m[16:59:34.847] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 256x256 cells at 128 u (0 macro inflows), seaLevel=16, maxAccum=1184 maxOrder=4 drainageComplete=1[0m
+[32m[16:59:34.885] [INFO] [WorldGenerator] [WORLD_SHEET] macro 200x200 @ 512 u baked (hash 3360702379361611432); meso tiles 256 @ 32 u, apron 6, LRU 64[0m
+[32m[16:59:51.254] [INFO] [WorldGenerator] [WORLD_GENERATOR] Water bodies labeled: 13194 bodies[0m
+[32m[16:59:51.254] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 valley envelope: 23670 source entries, warp inversions beyond 1 u: 43[0m
+[32m[16:59:51.254] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch rounds: 3 over 1112 carved reaches, reaches moved per round [152,7,0], cumulative lowering max 2.30532 u, sum 25.2876 u, 0 reaches lowered by more than 8 u; band columns 410327, bank reads 112716, band overflows 0, last round's worst deficit 0 u; knees (end lowered more than 1 u beyond the base) 5, deepest END lowering 2.30532 u; D38 cascades 0, lip pairs in the cell lists 0, source lists beyond the cap 0[0m
+[32m[16:59:51.254] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest base lowering after each round [2.305,2.305][0m
+[32m[16:59:51.254] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 356734 base by round [18.808,18.808] natural stations [21.113,20.692,20.272,19.851,19.430,19.009,18.589,18.168,17.747] final [18.808,18.808,17.948,17.614,17.604,17.604,17.604,17.604,17.604][0m
+[32m[16:59:51.254] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 356734 bank (-4140,-5251) local rim 20.6848 at t 0.321503 | winner 355710 env 18.6022 rim 18.2569 perp 12.9949 behind 0.493293 floor 14.6225 penalty 0 | deficit 2.08264[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 787840 base by round [45.030,45.030] natural stations [47.166,46.899,46.632,46.365,46.098,45.831,45.564,45.297,45.030] final [45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030,45.030][0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 787840 bank (-4074,8232) local rim 47.5043 at t 0.120338 | winner 787841 env 45.6254 rim 45.6254 perp 13.1417 behind 0 floor 13.7045 penalty 0 | deficit 1.87895[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 902804 base by round [15.039,15.039] natural stations [16.626,16.329,16.032,15.735,15.438,15.140,14.843,14.546,14.249] final [15.039,15.039,14.283,14.249,14.249,14.249,14.249,14.249,14.249][0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 902804 bank (4763,11821) local rim 16.4229 at t 0.334412 | winner 902805 env 14.8746 rim 14.8409 perp 13.6592 behind 0 floor 13.611 penalty 0 | deficit 1.5483[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 372112 base by round [45.159,45.159] natural stations [46.728,46.568,46.408,46.249,46.089,45.929,45.769,45.610,45.450] final [45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159,45.159][0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 372112 bank (-3571,-4762) local rim 47.1834 at t 0.136734 | winner 371088 env 45.8016 rim 45.8016 perp 12.5242 behind 0 floor 13.3642 penalty 0 | deficit 1.38176[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest detail: cell 777639 base by round [25.603,25.603] natural stations [26.625,26.521,26.417,26.313,26.209,26.105,26.001,25.897,25.793] final [25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603,25.603][0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest drive: cell 777639 bank (-2821,7905) local rim 27.2661 at t 0 | winner 776615 env 26.2437 rim 26.2437 perp 12.6994 behind 0 floor 14.0183 penalty 0 | deficit 1.02241[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 356734 (382,348) lowered 2.30532 u over 1 rounds, last driven by source 355710 (382,347) folded 0 deficit 2.08264 u[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 787840 (384,769) lowered 2.13599 u over 1 rounds, last driven by source 787841 (385,769) folded 0 deficit 1.87895 u[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 902804 (660,881) lowered 1.58697 u over 1 rounds, last driven by source 902805 (661,881) folded 0 deficit 1.5483 u[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 372112 (400,363) lowered 1.56827 u over 1 rounds, last driven by source 371088 (400,362) folded 0 deficit 1.38176 u[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] M2d-4 perch deepest: cell 777639 (423,759) lowered 1.02241 u over 1 rounds, last driven by source 776615 (423,758) folded 0 deficit 1.02241 u[0m
+[32m[16:59:51.255] [INFO] [WorldGenerator] [WORLD_GENERATOR] Hydrology baked: 1024x1024 cells at 32 u (meso, centre-sampled, 56 macro inflows), seaLevel=16, maxAccum=17548 maxOrder=4 drainageComplete=1[0m
+[32m[16:59:51.390] [INFO] [CivPlan] [M3C-LATTICE] basis (14,0) (7,12) for s0 13.67: level-0 shortest 13.89 (96 % of the hex ceiling)[0m
+[32m[16:59:51.399] [INFO] [CivPlan] [M3C-LATTICE] city: s 121.09 cells (s0 13.67, level 4, level shortest 125.03), phase (0,8): 2 points, 0 taken, 1 off, 0 no viable cell, 0 blocked by spacing, 2 seated of 2 needed[0m
+[32m[16:59:51.399] [INFO] [CivPlan] [M3C-LATTICE] town: s 70.31 cells (s0 13.67, level 3, level shortest 72.00), phase (0,8): 4 points, 2 taken, 2 off, 0 no viable cell, 0 blocked by spacing, 4 seated of 4 needed[0m
+[32m[16:59:51.399] [INFO] [CivPlan] [M3C-LATTICE] village: s 41.02 cells (s0 13.67, level 2, level shortest 41.68), phase (0,8): 14 points, 6 taken, 14 off, 0 no viable cell, 0 blocked by spacing, 14 seated of 14 needed[0m
+[32m[16:59:51.399] [INFO] [CivPlan] [M3C-LATTICE] hamlet: s 23.44 cells (s0 13.67, level 1, level shortest 24.00), phase (0,8): 50 points, 20 taken, 67 off, 3 no viable cell, 5 blocked by spacing, 42 seated of 42 needed[0m
+[32m[16:59:51.400] [INFO] [CivPlan] [M3C-LATTICE] outpost: s 13.67 cells (s0 13.67, level 0, level shortest 13.89), phase (0,8): 183 points, 62 taken, 247 off, 6 no viable cell, 57 blocked by spacing, 120 seated of 120 needed[0m
+[32m[16:59:51.431] [INFO] [WorldGenerator] [CIV] continent plan: 182 sites over 7750.29 km2 of land in 172.036 ms; refusals 0[0m
+[32m[16:59:51.937] [INFO] [WorldGenerator] [CORRIDORS] 180 routes, 8818.41 km, shared cells 1712, junction cells 419, unroutable 2 in 505.886 ms[0m
+[32m[16:59:51.938] [INFO] [WorldGenerator] [CORRIDORS] box demand: 78 edges from 180 corridors[0m
+[32m[17:00:42.283] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:00:42.392] [INFO] [WorldForge] [CROSSINGS] demand 0 -> -1 refused at (14388.6,-9546.05): a line crosses standing water at (14388.599609,-9546.052734): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:00:43.482] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:00:43.580] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:00:44.615] [INFO] [WorldForge] [CROSSINGS] demand 2 -> 0 refused at (9404.77,270.534): a line crosses standing water at (9404.774414,270.534271): 4 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:00:44.984] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:00:45.587] [INFO] [WorldForge] [CROSSINGS] demand 3 -> -1 refused at (-3714.53,-4064.41): a line crosses standing water at (-3714.532227,-4064.410889): 165 columns under a level of 55.900002 u - a fine detour inside the band[0m
+[32m[17:00:46.610] [INFO] [WorldForge] [CROSSINGS] demand 4 -> 0 refused at (9405.69,270.793): a line crosses standing water at (9405.690430,270.792908): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:00:47.547] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:00:48.348] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:00:49.200] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:00:49.960] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:00:51.005] [INFO] [WorldForge] [CROSSINGS] demand -1 -> -1 refused at (-3714.86,-4064.25): a line crosses standing water at (-3714.856201,-4064.248779): 167 columns under a level of 55.900002 u - a fine detour inside the band[0m
+[32m[17:00:52.290] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9405.76,270.8): a line crosses standing water at (9405.756836,270.799805): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:00:53.203] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 40 columns under a level of 90.910789 u - a fine detour inside the band[0m
+[32m[17:00:53.842] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.65,13118.5): a line crosses standing water at (-9309.646484,13118.500000): 14 columns under a level of 40.307476 u - routing again[0m
+[32m[17:00:54.548] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 27 columns under a level of 90.910789 u - routing again[0m
+[32m[17:00:56.821] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.5,270.855): a line crosses standing water at (9406.500000,270.854889): 2 columns under a level of 96.468163 u - routing again[0m
+[32m[17:00:58.362] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:00:59.063] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:00:59.919] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:01:00.598] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again[0m
+[32m[17:01:01.623] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:02.387] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:03.339] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:01:04.015] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again[0m
+[32m[17:01:05.148] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:01:05.838] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again[0m
+[32m[17:01:06.856] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:07.804] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:01:08.482] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again[0m
+[32m[17:01:09.607] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:01:10.287] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again[0m
+[32m[17:01:11.438] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 16 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:01:12.122] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.33,270.726): a line crosses standing water at (9406.331055,270.725677): 2 columns under a level of 96.468163 u - routing again[0m
+[32m[17:01:13.142] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:13.847] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:14.492] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:15.140] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:15.928] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:16.695] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.32,270.822): a line crosses standing water at (9406.316406,270.821655): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:17.393] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:18.043] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (9406.15,270.668): a line crosses standing water at (9406.146484,270.667786): 2 columns under a level of 96.468163 u - a fine detour inside the band[0m
+[32m[17:01:18.449] [INFO] [WorldForge] [CROSSINGS] fords 326, bridges 3, crossings refused and re-routed 43, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 43 (34 by a fine detour inside the band), demands refused for it 0[0m
+[32m[17:01:18.449] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)[0m
+[32m[17:02:34.471] [INFO] [WorldForge] [WORLDFORGE] plan baked: 6 sites, 78 roads, 3 bridges, 80937 segments in 99855 ms (hash 3980644565422672701)[0m
+[32m[17:02:34.471] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[17:02:34.481] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[17:02:34.482] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M4b ] STEEP bank at (-9961,-1455) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 168 -> 172 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-9960,-1453) y 168, outer (-9957,-1448) y 172; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (14364,-9508) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 145 -> 149 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (14363,-9506) y 145, outer (14359,-9502) y 149; roads in reach at the inner 1 / outer 0)
+[ M4b ] STEEP bank at (14376,-9497) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 143 -> 147 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (14375,-9495) y 143, outer (14372,-9490) y 147; roads in reach at the inner 1 / outer 0)
+[ M4b ] STEEP bank at (-15396,5412) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 128 -> 132 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-15398,5410) y 128, outer (-15402,5406) y 132; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-15385,5401) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 129 -> 133 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-15386,5399) y 129, outer (-15390,5395) y 133; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-15238,5254) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 132 -> 136 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 3 -> 0.00 (inner (-15239,5252) y 132, outer (-15243,5248) y 136; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-15215,5231) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 136 -> 140 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 4 -> -0.18 (inner (-15217,5229) y 136, outer (-15221,5225) y 140; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-15192,5208) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 142 -> 146 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-15191,5210) y 142, outer (-15187,5214) y 146; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-15181,5197) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 140 -> 144 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 2 -> 0.18 (inner (-15179,5199) y 140, outer (-15175,5203) y 144; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14809,4484) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 150 -> 154 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14807,4485) y 150, outer (-14802,4486) y 154; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14805,4469) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 156 -> 160 over 7 columns = 0.73, largest step 1; two-point: realized rise 3, natural rise -1 -> 0.55 (inner (-14808,4468) y 156, outer (-14813,4467) y 159; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14805,4469) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 156 -> 160 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14803,4469) y 156, outer (-14797,4471) y 160; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14801,4453) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 159 -> 163 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14799,4454) y 159, outer (-14794,4455) y 163; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14797,4438) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 156 -> 161 over 7 columns = 0.91, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14795,4438) y 156, outer (-14790,4439) y 160; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14794,4422) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 154 -> 158 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14796,4421) y 154, outer (-14801,4420) y 158; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14794,4422) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 154 -> 159 over 7 columns = 0.91, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14791,4423) y 154, outer (-14786,4424) y 158; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14790,4406) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 155 -> 159 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14793,4406) y 155, outer (-14798,4405) y 159; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14788,4391) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 158 -> 162 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14790,4390) y 158, outer (-14796,4389) y 162; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14784,4359) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 165 -> 169 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14786,4359) y 165, outer (-14792,4359) y 169; roads in reach at the inner 1 / outer 0)
+[ M4b ] two-point-only bank at (-14784,4359) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 165 -> 168 over 7 columns = 0.55, largest step 1; two-point: realized rise 3, natural rise -2 -> 0.73 (inner (-14782,4359) y 165, outer (-14776,4359) y 168; roads in reach at the inner 1 / outer 0)
+[ M4b ] STEEP bank at (-14784,4343) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 169 -> 173 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14782,4343) y 169, outer (-14776,4343) y 173; roads in reach at the inner 1 / outer 0)
+[ M4b ] STEEP bank at (-14784,4327) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 170 -> 174 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14782,4327) y 170, outer (-14776,4327) y 174; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14784,4311) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 164 -> 168 over 7 columns = 0.73, largest step 1; two-point: realized rise 3, natural rise 2 -> 0.00 (inner (-14786,4311) y 164, outer (-14792,4311) y 167; roads in reach at the inner 1 / outer 0)
+[ M4b ] STEEP bank at (-14784,4311) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 162 -> 166 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14782,4311) y 162, outer (-14776,4311) y 166; roads in reach at the inner 1 / outer 0)
+[ M4b ] STEEP bank at (-14784,4295) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 162 -> 167 over 7 columns = 0.91, largest step 1; two-point: realized rise 4, natural rise 2 -> 0.18 (inner (-14786,4295) y 162, outer (-14792,4295) y 166; roads in reach at the inner 1 / outer 0)
+[ M4b ] STEEP bank at (-14784,4231) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 157 -> 161 over 7 columns = 0.73, largest step 1; two-point: realized rise 3, natural rise 2 -> 0.00 (inner (-14786,4231) y 157, outer (-14792,4231) y 160; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14784,4231) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 156 -> 160 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14782,4231) y 156, outer (-14776,4231) y 160; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14784,4087) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 154 -> 158 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14782,4087) y 154, outer (-14776,4087) y 158; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14782,4071) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 155 -> 160 over 7 columns = 0.91, largest step 1; two-point: realized rise 4, natural rise 2 -> 0.18 (inner (-14779,4072) y 155, outer (-14774,4073) y 159; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14241,3489) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 135 -> 139 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14239,3491) y 135, outer (-14235,3494) y 139; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14229,3477) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 137 -> 141 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 1 -> 0.36 (inner (-14228,3479) y 137, outer (-14224,3483) y 141; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14218,3466) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 138 -> 142 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14220,3464) y 138, outer (-14224,3460) y 142; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14218,3466) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 138 -> 142 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14216,3468) y 138, outer (-14212,3472) y 142; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14207,3455) side -1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 138 -> 142 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14209,3453) y 138, outer (-14212,3449) y 142; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14207,3455) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 138 -> 142 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14205,3457) y 138, outer (-14201,3460) y 142; roads in reach at the inner 1 / outer 1)
+[ M4b ] STEEP bank at (-14195,3443) side +1 cls 2 cut 3.9 shoulder 5.5: walked from the edge 137 -> 141 over 7 columns = 0.73, largest step 1; two-point: realized rise 4, natural rise 0 -> 0.55 (inner (-14194,3445) y 137, outer (-14190,3449) y 141; roads in reach at the inner 1 / outer 1)
+[ M4b ] cut banks: 10203 cut vertices scanned, the deepest single-road cut 9.8 u: 69 single-road banks measured (265 bundled cuts skipped, 4 earthwork sections measured by EarthworkTest's rule), 35 steeper than repose (worst 0.91 vs 0.70)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\RouteFieldTest.cpp(523): error: Expected equality of these values:
+  steep
+    Which is: 35
+  0
+a cut bank stands steeper than the repose slope
+
+[  FAILED  ] RouteFieldTest.CutBanksStandAtTheReposeSlope (180336 ms)
+[ RUN      ] RouteFieldTest.ShoreCellIsRoutedAround
+[32m[17:02:34.533] [INFO] [WorldForge] [CROSSINGS] fords 0, bridges 0, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 0 (0 by a fine detour inside the band), demands refused for it 0[0m
+[32m[17:02:34.533] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)[0m
+[32m[17:02:34.535] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 1 roads, 0 bridges, 16 segments in 9 ms (hash 3210588302482851498)[0m
+[ M4w ] before road 0 -> 1: 17 vertices from (441,568) to (677,561), z 561..576, length 250.8 u
+[ M4w ] before site 0 at (384,540)
+[ M4w ] before site 1 at (640,540)
+[ M4w ] before site 2 at (360,24)
+[ M4w ] rig depth 5 BEFORE (water-aware routing off): 1 roads, 0 refused, 996 road columns, 186 under water (worst 4.00 u at (520,574))
+[32m[17:02:34.545] [INFO] [WorldForge] [CROSSINGS] demand 0 -> 1 refused at (512.489,574.5): a line crosses standing water at (512.489258,574.500000): 186 columns under a level of 30.000000 u - a fine detour inside the band[0m
+[32m[17:02:34.546] [INFO] [WorldForge] [CROSSINGS] fords 0, bridges 0, crossings refused and re-routed 1, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 1 (1 by a fine detour inside the band), demands refused for it 0[0m
+[32m[17:02:34.546] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)[0m
+[32m[17:02:34.547] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 1 roads, 0 bridges, 12 segments in 9 ms (hash 14769818874951531596)[0m
+[ M4w ] after road 0 -> 1: 13 vertices from (444,523) to (629,520), z 497..523, length 191.8 u
+[ M4w ] after site 0 at (384,540)
+[ M4w ] after site 1 at (640,540)
+[ M4w ] after site 2 at (360,24)
+[ M4w ] rig depth 5: 3 sites, 1 roads, 0 refused; road length 191.8 u (straight 256 u); pond level 30.00 u, edge-neighbour-centre ground 29.935 u, second-ring level -1000000015047466219876688855040.0 (no water = -1e30)
+[ M4w ] rig depth 5: 733 road columns, 0 under water (worst 0.00 u at (0,0)); first: -
+[ M4w ] rig depth 5: road length 191.8 u (rule off: 250.8 u); water_rerouted 1 (fine detours 1), water_refused 0
+[ M4w ] rig depth 5: the road's nearest point to the pond centre 60.0 u (rule off: 16.0 u; the wet disc's radius 34 u + the half-width 1.5)
+[       OK ] RouteFieldTest.ShoreCellIsRoutedAround (24 ms)
+[ RUN      ] RouteFieldTest.ShoreRigControlRunsStraight
+[32m[17:02:34.557] [INFO] [WorldForge] [CROSSINGS] fords 0, bridges 0, crossings refused and re-routed 0, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 0 (0 by a fine detour inside the band), demands refused for it 0[0m
+[32m[17:02:34.558] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)[0m
+[32m[17:02:34.559] [INFO] [WorldForge] [WORLDFORGE] plan baked: 3 sites, 1 roads, 0 bridges, 18 segments in 9 ms (hash 2082836766851776183)[0m
+[ M4w ] control depth 0: 1116 road columns, 0 under water; road length 282.7 u (straight 256 u)
+[ M4w ] control reference length 282.7 u
+[       OK ] RouteFieldTest.ShoreRigControlRunsStraight (12 ms)
+[----------] 4 tests from RouteFieldTest (180373 ms total)
+
+[----------] 1 test from RouteGraphTest
+[ RUN      ] RouteGraphTest.ReuseDiscountMergesRoutesIntoTrunks
+[32m[17:02:34.564] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[17:02:34.568] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[17:02:34.700] [INFO] [CivPlan] [M3C-LATTICE] basis (14,0) (7,12) for s0 13.67: level-0 shortest 13.89 (96 % of the hex ceiling)[0m
+[32m[17:02:34.709] [INFO] [CivPlan] [M3C-LATTICE] city: s 121.09 cells (s0 13.67, level 4, level shortest 125.03), phase (0,8): 2 points, 0 taken, 1 off, 0 no viable cell, 0 blocked by spacing, 2 seated of 2 needed[0m
+[32m[17:02:34.709] [INFO] [CivPlan] [M3C-LATTICE] town: s 70.31 cells (s0 13.67, level 3, level shortest 72.00), phase (0,8): 4 points, 2 taken, 2 off, 0 no viable cell, 0 blocked by spacing, 4 seated of 4 needed[0m
+[32m[17:02:34.709] [INFO] [CivPlan] [M3C-LATTICE] village: s 41.02 cells (s0 13.67, level 2, level shortest 41.68), phase (0,8): 14 points, 6 taken, 14 off, 0 no viable cell, 0 blocked by spacing, 14 seated of 14 needed[0m
+[32m[17:02:34.709] [INFO] [CivPlan] [M3C-LATTICE] hamlet: s 23.44 cells (s0 13.67, level 1, level shortest 24.00), phase (0,8): 50 points, 20 taken, 67 off, 3 no viable cell, 5 blocked by spacing, 42 seated of 42 needed[0m
+[32m[17:02:34.710] [INFO] [CivPlan] [M3C-LATTICE] outpost: s 13.67 cells (s0 13.67, level 0, level shortest 13.89), phase (0,8): 183 points, 62 taken, 247 off, 6 no viable cell, 57 blocked by spacing, 120 seated of 120 needed[0m
+[32m[17:02:34.741] [INFO] [WorldGenerator] [CIV] continent plan: 182 sites over 7750.29 km2 of land in 168 ms; refusals 0[0m
+[32m[17:02:35.197] [INFO] [WorldGenerator] [CORRIDORS] 180 routes, 9264.46 km, shared cells 1687, junction cells 350, unroutable 2 in 456.068 ms[0m
+[32m[17:02:35.197] [INFO] [WorldGenerator] [CORRIDORS] box demand: 77 edges from 180 corridors[0m
+[32m[17:02:50.884] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:02:50.986] [INFO] [WorldForge] [CROSSINGS] demand 0 -> -1 refused at (14388.6,-9546.05): a line crosses standing water at (14388.599609,-9546.052734): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:02:51.227] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:02:51.326] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:02:51.762] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (14394.3,-9547.63): a line crosses standing water at (14394.331055,-9547.632812): 6 columns under a level of 147.172043 u - a fine detour inside the band[0m
+[32m[17:02:55.183] [INFO] [WorldForge] [CROSSINGS] demand -1 -> -1 refused at (-3714.86,-4064.25): a line crosses standing water at (-3714.856201,-4064.248779): 167 columns under a level of 55.900002 u - a fine detour inside the band[0m
+[32m[17:02:57.151] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 39 columns under a level of 90.910789 u - a fine detour inside the band[0m
+[32m[17:02:57.689] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.65,13118.5): a line crosses standing water at (-9309.646484,13118.500000): 14 columns under a level of 40.307476 u - routing again[0m
+[32m[17:02:58.337] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13471.3,15166.5): a line crosses standing water at (-13471.292969,15166.500000): 25 columns under a level of 90.910789 u - routing again[0m
+[32m[17:03:00.711] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 14 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:03:02.603] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 14 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:03:03.582] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 14 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:03:05.037] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 14 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:03:06.013] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 14 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:03:06.988] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-9309.38,13118.5): a line crosses standing water at (-9309.380859,13118.500000): 14 columns under a level of 40.307476 u - a fine detour inside the band[0m
+[32m[17:03:10.752] [INFO] [WorldForge] [CROSSINGS] fords 278, bridges 1, crossings refused and re-routed 15, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 15 (13 by a fine detour inside the band), demands refused for it 0[0m
+[32m[17:03:10.752] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)[0m
+[32m[17:04:29.734] [INFO] [WorldForge] [WORLDFORGE] plan baked: 6 sites, 77 roads, 1 bridges, 79976 segments in 49309 ms (hash 2177279962109292043)[0m
+[32m[17:04:29.734] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[32m[17:04:29.867] [INFO] [CivPlan] [M3C-LATTICE] basis (14,0) (7,12) for s0 13.67: level-0 shortest 13.89 (96 % of the hex ceiling)[0m
+[32m[17:04:29.876] [INFO] [CivPlan] [M3C-LATTICE] city: s 121.09 cells (s0 13.67, level 4, level shortest 125.03), phase (0,8): 2 points, 0 taken, 1 off, 0 no viable cell, 0 blocked by spacing, 2 seated of 2 needed[0m
+[32m[17:04:29.876] [INFO] [CivPlan] [M3C-LATTICE] town: s 70.31 cells (s0 13.67, level 3, level shortest 72.00), phase (0,8): 4 points, 2 taken, 2 off, 0 no viable cell, 0 blocked by spacing, 4 seated of 4 needed[0m
+[32m[17:04:29.876] [INFO] [CivPlan] [M3C-LATTICE] village: s 41.02 cells (s0 13.67, level 2, level shortest 41.68), phase (0,8): 14 points, 6 taken, 14 off, 0 no viable cell, 0 blocked by spacing, 14 seated of 14 needed[0m
+[32m[17:04:29.877] [INFO] [CivPlan] [M3C-LATTICE] hamlet: s 23.44 cells (s0 13.67, level 1, level shortest 24.00), phase (0,8): 50 points, 20 taken, 67 off, 3 no viable cell, 5 blocked by spacing, 42 seated of 42 needed[0m
+[32m[17:04:29.877] [INFO] [CivPlan] [M3C-LATTICE] outpost: s 13.67 cells (s0 13.67, level 0, level shortest 13.89), phase (0,8): 183 points, 62 taken, 247 off, 6 no viable cell, 57 blocked by spacing, 120 seated of 120 needed[0m
+[32m[17:04:29.908] [INFO] [WorldGenerator] [CIV] continent plan: 182 sites over 7750.29 km2 of land in 170.128 ms; refusals 0[0m
+[32m[17:04:30.549] [INFO] [WorldGenerator] [CORRIDORS] 180 routes, 8182.07 km, shared cells 1687, junction cells 819, unroutable 2 in 640.708 ms[0m
+[32m[17:04:30.550] [INFO] [WorldGenerator] [CORRIDORS] box demand: 72 edges from 180 corridors[0m
+[32m[17:04:48.059] [INFO] [WorldForge] [CROSSINGS] demand -1 -> -1 refused at (-3741.74,-4085.56): a line crosses standing water at (-3741.742188,-4085.558838): 263 columns under a level of 55.900002 u - routing again[0m
+[32m[17:04:49.240] [INFO] [WorldForge] [CROSSINGS] demand 2 -> 0 refused at (13648.7,-8401.38): a line crosses standing water at (13648.669922,-8401.376953): 25 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:50.054] [INFO] [WorldForge] [CROSSINGS] demand 3 -> 0 refused at (-3741.85,-4087.63): a line crosses standing water at (-3741.848633,-4087.631836): 171 columns under a level of 55.900002 u - routing again[0m
+[32m[17:04:50.489] [INFO] [WorldForge] [CROSSINGS] demand 3 -> 0 refused at (-2209.09,-5345.03): a line crosses standing water at (-2209.094971,-5345.025879): 2 columns under a level of 77.900002 u - routing again[0m
+[32m[17:04:51.347] [INFO] [WorldForge] [CROSSINGS] demand 4 -> 0 refused at (13648.4,-8401.09): a line crosses standing water at (13648.378906,-8401.085938): 16 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:51.956] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (11326.5,8586.94): a line crosses standing water at (11326.500000,8586.944336): 31 columns under a level of 105.100510 u - a fine detour inside the band[0m
+[32m[17:04:52.411] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.6,-8401.3): a line crosses standing water at (13648.591797,-8401.298828): 16 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:52.954] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:53.518] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:54.012] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:55.029] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-3714.47,-4064.44): a line crosses standing water at (-3714.472900,-4064.440430): 170 columns under a level of 55.900002 u - a fine detour inside the band[0m
+[32m[17:04:55.240] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-2208.88,-5345.24): a line crosses standing water at (-2208.879639,-5345.241699): 2 columns under a level of 77.900002 u - a fine detour inside the band[0m
+[32m[17:04:55.561] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.1,-8402.27): a line crosses standing water at (13648.147461,-8402.268555): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:55.855] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.3,-8402.41): a line crosses standing water at (13648.288086,-8402.409180): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:56.325] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.5,-8401.21): a line crosses standing water at (13648.503906,-8401.210938): 16 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:56.731] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.6,-8401.28): a line crosses standing water at (13648.568359,-8401.275391): 16 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:04:57.366] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-12781.5,14096.4): a line crosses standing water at (-12781.479492,14096.399414): 112 columns under a level of 63.407471 u - a fine detour inside the band[0m
+[32m[17:04:57.701] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-12293.6,14083.4): a line crosses standing water at (-12293.551758,14083.430664): 36 columns under a level of 61.900002 u - a fine detour inside the band[0m
+[32m[17:04:58.813] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.4,-8401.09): a line crosses standing water at (13648.387695,-8401.094727): 16 columns under a level of 123.599068 u - routing again[0m
+[32m[17:04:59.532] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-12781.5,14096.4): a line crosses standing water at (-12781.479492,14096.399414): 96 columns under a level of 63.407471 u - routing again[0m
+[32m[17:05:00.253] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (-13025.8,14240.3): a line crosses standing water at (-13025.798828,14240.322266): 4 columns under a level of 74.900002 u - routing again[0m
+[32m[17:05:01.057] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.3,-8401.01): a line crosses standing water at (13648.307617,-8401.014648): 19 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:01.590] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:02.065] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (11326.5,8586.94): a line crosses standing water at (11326.500000,8586.944336): 31 columns under a level of 105.100510 u - a fine detour inside the band[0m
+[32m[17:05:02.352] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.6,-8401.3): a line crosses standing water at (13648.591797,-8401.298828): 16 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:02.929] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648,-8402.16): a line crosses standing water at (13648.035156,-8402.156250): 18 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:03.484] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:03.977] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:04.602] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648,-8402.16): a line crosses standing water at (13648.035156,-8402.156250): 18 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:05.167] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:05.674] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:06.304] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648,-8402.16): a line crosses standing water at (13648.035156,-8402.156250): 18 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:06.867] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:07.370] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:07.865] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:08.337] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (11326.5,8586.94): a line crosses standing water at (11326.500000,8586.944336): 31 columns under a level of 105.100510 u - a fine detour inside the band[0m
+[32m[17:05:08.621] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.6,-8401.3): a line crosses standing water at (13648.591797,-8401.298828): 16 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:09.076] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (11326.5,8586.94): a line crosses standing water at (11326.500000,8586.944336): 31 columns under a level of 105.100510 u - a fine detour inside the band[0m
+[32m[17:05:09.361] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.6,-8401.3): a line crosses standing water at (13648.591797,-8401.298828): 16 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:09.930] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:10.423] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.2,-8402.37): a line crosses standing water at (13648.244141,-8402.365234): 17 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:10.897] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (11326.5,8586.94): a line crosses standing water at (11326.500000,8586.944336): 31 columns under a level of 105.100510 u - a fine detour inside the band[0m
+[32m[17:05:11.185] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.6,-8401.3): a line crosses standing water at (13648.591797,-8401.298828): 16 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:11.650] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (11326.5,8586.94): a line crosses standing water at (11326.500000,8586.944336): 31 columns under a level of 105.100510 u - a fine detour inside the band[0m
+[32m[17:05:11.937] [INFO] [WorldForge] [CROSSINGS] demand -1 -> 0 refused at (13648.6,-8401.3): a line crosses standing water at (13648.591797,-8401.298828): 16 columns under a level of 123.599068 u - a fine detour inside the band[0m
+[32m[17:05:12.224] [INFO] [WorldForge] [CROSSINGS] fords 779, bridges 62, crossings refused and re-routed 45, demands refused 0 (span <= 25 u, ford depth < 0.5 u); [EARTHWORK] lines refused for a cut beyond 47.4 u: 0; [WATER] lines re-routed for standing water 45 (39 by a fine detour inside the band), demands refused for it 0[0m
+[32m[17:05:12.224] [INFO] [WorldForge] [SWITCHBACKS] pitched stretches 0, replaced 0 (climb 0 u), kept straight: water 0, too short 0 (climb kept 0 u)[0m
+[32m[17:05:59.788] [INFO] [WorldForge] [WORLDFORGE] plan baked: 6 sites, 72 roads, 62 bridges, 73581 segments in 50792 ms (hash 14992445932301613989)[0m
+[32m[17:05:59.788] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 0 biome tunings)[0m
+[ M4a ] reuse 1/3: 180 routes, 9264.5 km, shared cells 1687, junction cells 350, unroutable 2, bake 456.1 ms
+[ M4a ] reuse 1 (none): 180 routes, 8182.1 km, shared cells 1687, junction cells 819, unroutable 2, bake 640.7 ms
+[ M4a ] distinct network cells: 2858 with reuse, 3186 without
+[ M4a ] shared cells: 1687 with reuse, 1687 without (reported)
+[ M4a ] reuse 1/3: distinct 2858, shared 1687 (use 2: 376, 3: 241, 4+: 1070, max 70), total overlap 12431
+[ M4a ] reuse 1 (none): distinct 3186, shared 1687 (use 2: 377, 3: 265, 4+: 1045, max 70), total overlap 10416
+[       OK ] RouteGraphTest.ReuseDiscountMergesRoutesIntoTrunks (205264 ms)
+[----------] 1 test from RouteGraphTest (205264 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 2 test suites ran. (385638 ms total)
+[  PASSED  ] 4 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] RouteFieldTest.CutBanksStandAtTheReposeSlope
+
+ 1 FAILED TEST
+EXIT 1 2026-11-04 17:05:59

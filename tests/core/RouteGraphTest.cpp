@@ -13,6 +13,7 @@
 #include <cmath>
 #include <climits>
 #include <cstdio>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -163,7 +164,40 @@ TEST(RouteGraphTest, ReuseDiscountMergesRoutesIntoTrunks) {
     const int da = distinctCells(*a.corridors()), db = distinctCells(*b.corridors());
     std::printf("[ M4a ] distinct network cells: %d with reuse, %d without\n", da, db);
     EXPECT_LT(da, db) << "the reuse discount did not shrink the network";
-    EXPECT_GT(a.corridors()->sharedCells(), b.corridors()->sharedCells());
+    // shared cells REPORTED, not bounded (post-hoc, 2026-11-04, like the distinct-cell finding of
+    // D27): on the M3c sites the two networks measured EQUAL (1687 = 1687) while the junction count
+    // fell 819 -> 350 and the distinct cells 3186 -> 2858 - the count mixes merging with path
+    // length (the discounted routes are 13 % longer, 9264 vs 8182 km)
+    std::printf("[ M4a ] shared cells: %d with reuse, %d without (reported)\n", a.corridors()->sharedCells(), b.corridors()->sharedCells());
+    // audit 7 (2026-11-04): the two counts measured EQUAL (1687 = 1687) on networks whose distinct cells (2858 / 3186)
+    // and junctions (350 / 819) differ - a data-bug tell until the sharing is seen in full. The use-count histogram
+    // and the total overlap (sum of use - 1 over the shared cells) of each network, side by side.
+    std::set<int> sharedA, sharedB;
+    auto histogram = [](const CorridorGraph& cg, const char* tag, std::set<int>& sharedSet) {
+        std::map<int, int> use;
+        for (const auto& r : cg.routes()) for (int c : r.cells) ++use[c];
+        int h2 = 0, h3 = 0, h4 = 0, overlap = 0, shared = 0, maxUse = 0;
+        for (const auto& [cell, n] : use) {
+            if (n >= 2) { ++shared; overlap += n - 1; maxUse = std::max(maxUse, n); sharedSet.insert(cell); }
+            if (n == 2) ++h2; else if (n == 3) ++h3; else if (n >= 4) ++h4;
+        }
+        std::printf("[ M4a ] %s: distinct %zu, shared %d (use 2: %d, 3: %d, 4+: %d, max %d), total overlap %d\n", tag, use.size(), shared, h2, h3, h4, maxUse, overlap);
+        return std::make_pair(shared, overlap);
+    };
+    const auto ha = histogram(*a.corridors(), "reuse 1/3", sharedA), hb = histogram(*b.corridors(), "reuse 1 (none)", sharedB);
+    // audit 8 (2026-11-05): is the tie structural (the SAME cells shared in both networks - the seat approaches, invariant to
+    // the discount) or a coincidence of two different sets? The intersection says which; reported.
+    int both = 0;
+    for (int c : sharedA) if (sharedB.count(c)) ++both;
+    std::printf("[ M4a ] shared-cell SETS: %zu with reuse, %zu without, %d in both (%.0f %% of the smaller)\n", sharedA.size(), sharedB.size(), both,
+                100.0f * static_cast<float>(both) / static_cast<float>(std::max<size_t>(1, std::min(sharedA.size(), sharedB.size()))));
+    EXPECT_EQ(ha.first, a.corridors()->sharedCells()) << "the test's own count disagrees with CorridorGraph::sharedCells";
+    EXPECT_EQ(hb.first, b.corridors()->sharedCells());
+    // chain 55 (2026-11-04): the histograms DIFFER (use 3: 241 vs 265, 4+: 1070 vs 1045, max 70 on both) and the total
+    // overlap is 12 431 with the discount vs 10 416 without - the ">= 2" count is saturated by the seat approaches that
+    // every member route shares (up to 70 routes in one cell) and happens to tie; the discount's merging shows in the
+    // overlap. A pin of that MEASURED ordering, stated as such (not red-before-green), like the junction bound above.
+    EXPECT_GT(ha.second, hb.second) << "the reuse discount did not raise the network's total overlap";
     EXPECT_EQ(a.corridors()->routes().size(), b.corridors()->routes().size());
     // the effect that matters (measured 295 vs 636 = 0.46): merged junctions, not a shorter network
     EXPECT_LE(a.corridors()->junctionCells(), b.corridors()->junctionCells() * 7 / 10)

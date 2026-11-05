@@ -1,0 +1,7 @@
+START 2026-11-04 10:18:24 shas: RouteFieldTest.cpp 4929c96ea02f88f7 WorldForgePlan.cpp 6dc5b57f40b583a2 WorldForgePlan.h 832b00d22c608fad WorldGenerator.cpp c8cf858f830b936d EarthworkTest.cpp 94f52137c62f08c3
+BUILD EXIT 0 2026-11-04 10:18:46 errors: 0
+exe 2026-11-04_10:18:42
+RUN r50_earth START 2026-11-04 10:18:46
+RUN r50_earth EXIT 1 2026-11-04 10:41:51 9 ok, 1 failed
+RUN r50_forge START 2026-11-04 10:41:51
+RUN r50_forge EXIT 1 2026-11-04 11:50:21 91 ok, 5 failed

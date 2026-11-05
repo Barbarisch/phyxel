@@ -429,7 +429,8 @@ TEST(WorldForgePlanTest, UnviableRegionYieldsFewerSitesHonestly) {
 }
 
 // ── M0 (docs/WorldForgeV2Plan.md §5 M0): the road-raster segment cap is LOUD ─────────
-// The 8 u raster indexes segments with a uint16; past 0xFFFE segments the bake silently
+// The 8 u raster indexes segments with a uint32 (a uint16 until the M3c ripple of 2026-11-04, when the
+// lattice network's 78k-120k segments overflowed it); past the cap the bake silently
 // `break`s (its comment promised a log that did not exist) and every later road is invisible
 // to roadAt - the terrain never stamps it. RED: with the cap lowered below the fixture's
 // segment count, the plan JSON carries no truncation record.

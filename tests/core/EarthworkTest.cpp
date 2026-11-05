@@ -599,13 +599,18 @@ TEST(EarthworkTest, EarthworkFieldsIdenticalAcrossGenerators) {
     EXPECT_EQ(diff, 0) << "the earthwork is not a pure function of world position";
 }
 
-// D27 ripple (2026-11-02/03): the hairpin blind spot, pinned at the real site that exposed it. Road 3 of
-// the Mountains world folds back on itself at (6302,15942) (legs ~20 u apart); with ONE raster hint per
-// (cell, road) the bank's columns past lateral 9 on the SW side fell in a cell whose hint was on the other
-// leg, gradeBlendAt's +-3 window never reached the point's own segment, and the bank ended in a 3-cube
-// step (m4b4r_r33_diag.txt). The pin: the largest adjacent step across the section on both sides <= 2
-// cubes. The CONTROL (audit 7): the same world baked with the raster capped at 1 hint per (cell, road)
-// reproduces the step (>= 3) - red on the pre-fix mechanism, green on the shipped one, same seed.
+// D27 ripple (2026-11-02/03): the hairpin blind spot. Road 3 of the D27 Mountains network folded back on
+// itself at (6302,15942) (legs ~20 u apart); with ONE raster hint per (cell, road) the bank's columns past
+// lateral 9 on the SW side fell in a cell whose hint was on the other leg, gradeBlendAt's +-3 window never
+// reached the point's own segment, and the bank ended in a 3-cube step (m4b4r_r33_diag.txt). The pin was
+// that fixed point until M3c moved the network and no road passed there any more (the control caught it:
+// "the pin measures nothing", m4b4r_r50_earth.txt, 2026-11-04). Now: EVERY hairpin apex of the network
+// (a centerline vertex with another vertex of the same road, more than 3 vertices away along the line,
+// within 24 u - nearOtherLeg's rule) is measured; the pin: the largest adjacent step across the bank on
+// both sides <= 2 cubes at every apex (the walk stops at another road's surface - a far leg's retaining
+// wall is a wall, not a bank). The CONTROL (audit 7): the same world baked with the raster capped at 1
+// hint per (cell, road) reproduces a 3+ step at some apex - red on the pre-fix mechanism, green on the
+// shipped one, same seed, same apexes (the plan hash is identical; the cap is realization).
 namespace {
 int maxStepAcross(WorldGenerator& g, const WorldForgePlan& box, const glm::vec2& at, bool print) {
     int road = -1; size_t vi = 0; float bd = 1e30f;
@@ -627,6 +632,10 @@ int maxStepAcross(WorldGenerator& g, const WorldForgePlan& box, const glm::vec2&
             const glm::vec2 q = at + nrm * (side * dd);
             const auto col = g.sampleSurface(roundI(q.x), roundI(q.y));
             if (col.riverOrder > 0 || col.bridgeDeckY != INT_MIN) break;
+            if (col.roadClass > 0 && dd > half + 1.5f) break;   // the far leg's own surface: its wall drop is a wall, not this bank
+            // a retaining wall or a rock face is a DESIGNED vertical (M4b-4 / D33), not a bank: the walk ends there
+            // (chain 51, 2026-11-04: the sweep over every apex counted 22-cube rock faces as bank steps)
+            if (col.wallTopY != INT_MIN || col.rockTopY != INT_MIN) break;
             if (print) {
                 int nearest = -1;
                 const auto cellRoads = box.rasterRoadsAt(q.x, q.y, &nearest);
@@ -642,17 +651,55 @@ int maxStepAcross(WorldGenerator& g, const WorldForgePlan& box, const glm::vec2&
     }
     return worst;
 }
+// every hairpin apex of the network: a centerline vertex with another vertex of the SAME road, more
+// than 3 vertices away along the line, within 24 u (nearOtherLeg's rule - the legs fold through one cell)
+std::vector<std::pair<int, size_t>> hairpinApexes(const WorldForgePlan& box) {
+    std::vector<std::pair<int, size_t>> out;
+    for (size_t r = 0; r < box.roads().size(); ++r) {
+        const auto& cl = box.roads()[r].centerline;
+        for (size_t i = 0; i < cl.size(); ++i) {
+            bool fold = false;
+            for (size_t j = 0; j < cl.size() && !fold; ++j) {
+                if (j + 3 >= i && j <= i + 3) continue;
+                if (glm::length(cl[j] - cl[i]) < 24.0f) fold = true;
+            }
+            if (fold) out.emplace_back(static_cast<int>(r), i);
+        }
+    }
+    return out;
+}
 }  // namespace
 
+// STATUS 2026-11-04 (chain 52, m3c_red_green.txt): RED BY MEASUREMENT, left for the owner. With walls and rock faces
+// excluded, 15 of the 73 apex banks of the M3c Mountains network have a 3-cube step on the SHIPPED raster and 14 on the
+// control - 13 of them on both (control-only 1, shipped-only 2; worst 3 vs 4). The steps are not the hint blind spot:
+// at road 0 vertex 401 side -1 the blend weight falls from 0.50 to 0 between d 10 and 11 (emitted 166 -> natural 169) -
+// the shoulder's outer reach ends 3 u short of the natural on a three-road bundle. An earthwork item under the owner's
+// hold (nothing retuned; the pin as written stands so the finding stays visible).
 TEST(EarthworkTest, HairpinBankHasNoCliffStepWithItsControl) {
     WorldGenerator& g = mountainsWorld();
     const WorldForgePlan* box = g.worldForge();
     ASSERT_TRUE(box && g.corridors());
-    const glm::vec2 at(6302.0f, 15942.0f);
-    const int shipped = maxStepAcross(g, *box, at, true);
-    std::printf("[ hairpin ] shipped raster (%d hints per cell-road max): largest adjacent step across the section %d cubes; (cell, road) entries at the hint cap: %d\n",
-                WorldForgePlan::kLegsPerCellMax, shipped, box->rasterHintCapHits());
-    // the control: ONE hint per (cell, road) - the pre-fix mechanism - on the same world
+    const auto apexes = hairpinApexes(*box);
+    int roadsWithApexes = 0;
+    { std::vector<int> seen; for (const auto& a : apexes) if (std::find(seen.begin(), seen.end(), a.first) == seen.end()) { seen.push_back(a.first); ++roadsWithApexes; } }
+    std::printf("[ hairpin ] Mountains network: %zu hairpin apex vertices on %d roads (of %zu)\n", apexes.size(), roadsWithApexes, box->roads().size());
+    ASSERT_FALSE(apexes.empty()) << "no hairpin on the Mountains network - nothing to pin";
+    int shippedCliffs = 0, shippedWorst = 0;
+    std::vector<int> shippedSteps;   // per apex, for the shipped-vs-control table
+    for (const auto& a : apexes) {
+        const glm::vec2 at = box->roads()[static_cast<size_t>(a.first)].centerline[a.second];
+        const int step = maxStepAcross(g, *box, at, false);
+        shippedSteps.push_back(step);
+        shippedWorst = std::max(shippedWorst, step);
+        if (step >= 3 && ++shippedCliffs <= 3) {
+            std::printf("[ hairpin ] shipped cliff step %d at road %d vertex %zu (%.0f,%.0f):\n", step, a.first, a.second, at.x, at.y);
+            maxStepAcross(g, *box, at, true);
+        }
+    }
+    std::printf("[ hairpin ] shipped raster (%d hints per cell-road max): worst adjacent step across the bank over every apex %d cubes, %d apexes with a 3+ step; (cell, road) entries at the hint cap: %d\n",
+                WorldForgePlan::kLegsPerCellMax, shippedWorst, shippedCliffs, box->rasterHintCapHits());
+    // the control: ONE hint per (cell, road) - the pre-fix mechanism - on the same world, the same apexes
     WorldForgePlan::setLegsPerCellForTesting(1);
     WorldGenerator h(WorldGenerator::GenerationType::Mountains, 424242u);
     WorldRecipe r = civRecipe(424242u, "Mountains");
@@ -661,9 +708,27 @@ TEST(EarthworkTest, HairpinBankHasNoCliffStepWithItsControl) {
     const WorldForgePlan* one = h.worldForge();
     ASSERT_TRUE(one && h.corridors());
     EXPECT_EQ(one->planHash(), box->planHash()) << "the hint cap is realization, not plan identity";
-    const int control = maxStepAcross(h, *one, at, false);
-    std::printf("[ hairpin ] control (1 hint per cell-road): largest adjacent step %d cubes; entries at the cap: %d\n", control, one->rasterHintCapHits());
-    EXPECT_GE(control, 3) << "the control did not reproduce the hairpin step - the pin measures nothing";
-    EXPECT_LE(shipped, 2) << "a cliff step across the hairpin's bank on the shipped raster";
+    int controlCliffs = 0, controlWorst = 0; glm::vec2 controlAt(0.0f);
+    int hist[4][4] = {};   // [shipped step class][control step class]: 0, 1, 2, 3+
+    int onlyControl = 0, onlyShipped = 0, both = 0;
+    for (size_t k = 0; k < apexes.size(); ++k) {
+        const auto& a = apexes[k];
+        const glm::vec2 at = one->roads()[static_cast<size_t>(a.first)].centerline[a.second];
+        const int step = maxStepAcross(h, *one, at, false);
+        if (step > controlWorst) { controlWorst = step; controlAt = at; }
+        if (step >= 3) ++controlCliffs;
+        const int sc = std::min(3, std::max(0, shippedSteps[k])), cc = std::min(3, std::max(0, step));
+        ++hist[sc][cc];
+        if (step >= 3 && shippedSteps[k] < 3) ++onlyControl;
+        else if (step < 3 && shippedSteps[k] >= 3) { ++onlyShipped; if (onlyShipped <= 3) std::printf("[ hairpin ] cliff on the SHIPPED raster only: road %d vertex %zu (%.0f,%.0f) shipped %d control %d\n", a.first, a.second, at.x, at.y, shippedSteps[k], step); }
+        else if (step >= 3) ++both;
+    }
+    std::printf("[ hairpin ] control (1 hint per cell-road): worst adjacent step %d cubes (at %.0f,%.0f), %d of %zu apexes with a 3+ step; entries at the cap: %d\n",
+                controlWorst, controlAt.x, controlAt.y, controlCliffs, apexes.size(), one->rasterHintCapHits());
+    std::printf("[ hairpin ] apexes with a 3+ step: control only %d, shipped only %d, both %d; step table shipped(rows 0,1,2,3+) x control(cols): [%d %d %d %d] [%d %d %d %d] [%d %d %d %d] [%d %d %d %d]\n",
+                onlyControl, onlyShipped, both, hist[0][0], hist[0][1], hist[0][2], hist[0][3], hist[1][0], hist[1][1], hist[1][2], hist[1][3],
+                hist[2][0], hist[2][1], hist[2][2], hist[2][3], hist[3][0], hist[3][1], hist[3][2], hist[3][3]);
+    EXPECT_GE(controlWorst, 3) << "the control did not reproduce a hairpin step at any apex - the pin measures nothing";
+    EXPECT_EQ(shippedCliffs, 0) << "a cliff step across a hairpin's bank on the shipped raster (worst " << shippedWorst << " cubes)";
     EXPECT_EQ(box->rasterHintCapHits(), 0) << "a (cell, road) entry hit the hint cap on the Mountains plan: a leg may be lost there";
 }

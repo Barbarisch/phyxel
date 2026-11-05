@@ -269,7 +269,8 @@ TEST(CivPlanStressTest, LadderIsMetOnTheFertilePlain) {
         if (civ->target(t) < 5) continue;   // a tier with a handful of targets is all rounding
         ++tiersWithTarget;
         const float ratio = static_cast<float>(civ->count(t)) / static_cast<float>(civ->target(t));
-        std::printf("[ M3c ] plain %s: %d of %d = %.0f %% of the hex ceiling\n", CivPlan::tierName(t), civ->count(t), civ->target(t), 100.0f * ratio);
+        std::printf("[ M3c ] plain %s: %d of %d = %.0f %% of the hex ceiling (lattice %d, greedy %d; mean score %.3f)\n", CivPlan::tierName(t), civ->count(t), civ->target(t), 100.0f * ratio,
+                    civ->latticeSeated(t), civ->greedySeated(t), civ->meanScore(t));
         if (ratio >= 0.9f) ++tiersMet;
         EXPECT_GE(ratio, 0.9f) << CivPlan::tierName(t) << ": the greedy pick leaves the ladder short on a plain where every cell is viable";
     }
@@ -290,7 +291,8 @@ TEST(CivPlanStressTest, LadderRatioOnTheRealWorldsReported) {
         ASSERT_TRUE(civ) << "no civ plan";
         std::printf("[ M3c ] %s: land %.0f km2, %zu sites;", mountains ? "Mountains 424242" : "baseline Perlin", civ->landKm2(), civ->sites().size());
         for (int t = 0; t < CivPlan::kTiers; ++t)
-            std::printf(" %s %d/%d (%.0f %%)", CivPlan::tierName(t), civ->count(t), civ->target(t), civ->target(t) > 0 ? 100.0f * civ->count(t) / civ->target(t) : 0.0f);
+            std::printf(" %s %d/%d (%.0f %%; lattice %d greedy %d; mean score %.3f)", CivPlan::tierName(t), civ->count(t), civ->target(t), civ->target(t) > 0 ? 100.0f * civ->count(t) / civ->target(t) : 0.0f,
+                        civ->latticeSeated(t), civ->greedySeated(t), civ->meanScore(t));
         std::printf("; refusals %zu\n", civ->refusals().size());
     }
 }

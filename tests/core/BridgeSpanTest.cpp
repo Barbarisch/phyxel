@@ -410,7 +410,7 @@ TEST(BridgeSpanTest, RefusalsMatchTheEmittedTerrain) {
         const WorldForgePlan* box = g.worldForge();
         ASSERT_TRUE(box && g.corridors());
         for (const auto& rd : box->refusedDemands()) {
-            if (glm::length(rd.tangent) < 0.5f) { std::printf("[ M4c-refusal ] %s: demand %d -> %d at (%.0f,%.0f) refused before a deck line existed: %s\n", pair.first, rd.a, rd.b, rd.pos.x, rd.pos.y, rd.reason.c_str()); continue; }
+            if (glm::length(rd.tangent) < 0.5f) { std::printf("[ M4c-refusal ] %s: demand %d -> %d at (%.0f,%.0f) refused with no deck line (a cut or water refusal, or before a line existed): %s\n", pair.first, rd.a, rd.b, rd.pos.x, rd.pos.y, rd.reason.c_str()); continue; }
             float hitMax = -1e30f, dryMin = 1e30f, dryMax = -1e30f;
             int shoulderHits = 0;
             if (rd.spanAU > -1e29f && rd.spanBU > -1e29f)   // the shoulders on a HALF-UNIT lattice (not the rule's sample points)

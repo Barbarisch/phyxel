@@ -30,9 +30,12 @@ class MacroSheet;
 // near but not in (a macro river, basin or the sea within a few cells), food (temperate, moist
 // climate), forest (moisture), a mining band, trade (coast or a large river), biome hostility
 // (the treeline/snow rule on the lapse-corrected temperature). Water, basin and sub-sea cells are
-// never sites. The pick is greedy per tier from the city down, strictly by score with index ties,
-// so the plan is a pure function of (sheet, params, seed). Pins that break a hard rule are
-// REFUSED with the reason, never nudged. History, growth and ruins are M3b (D20).
+// never sites. Each tier is seated from the city down (M3c, D24 ruled): FIRST on a hexagonal
+// lattice of the tier's spacing - every lattice point snapped to the nearest viable cell within a
+// quarter spacing that keeps every spacing, the lattice phase chosen by a dry run - THEN by the
+// greedy pick, strictly by score with index ties, for the remainder (rugged ground, where the
+// snaps fail). The plan is a pure function of (sheet, params, seed). Pins that break a hard rule
+// are REFUSED with the reason, never nudged. History, growth and ruins are M3b (D20).
 class CivPlan {
 public:
     enum Tier : int { City = 0, Town = 1, Village = 2, Hamlet = 3, Outpost = 4, kTiers = 5 };
@@ -85,6 +88,10 @@ public:
     int   count(int tier) const { return m_count[tier]; }
     float landKm2() const { return m_landKm2; }
     float spacingCells(int tier) const { return m_spacingCells[tier]; }
+    // M3c (D24 ruled 2026-11-02; the mechanism of 2026-11-03): how each tier was seated
+    int   latticeSeated(int tier) const { return m_latticeSeated[tier]; }   // seats taken on the tier's hex lattice (open ground)
+    int   greedySeated(int tier) const { return m_greedySeated[tier]; }     // seats taken by the greedy fill after it (rugged ground, the lattice's gaps)
+    float meanScore(int tier) const { return m_meanScore[tier]; }           // the mean suitability of the tier's sites (reported)
     const std::vector<std::string>& refusals() const { return m_refusals; }
     const std::vector<Province>& provinces() const { return m_provinces; }   // M3b
     int   epochs() const { return m_epochs; }                                 // M3b: 0 = no history
@@ -96,6 +103,8 @@ private:
     int   m_target[kTiers] = {0, 0, 0, 0, 0};
     int   m_count[kTiers] = {0, 0, 0, 0, 0};
     float m_spacingCells[kTiers] = {0, 0, 0, 0, 0};
+    int   m_latticeSeated[kTiers] = {0, 0, 0, 0, 0}, m_greedySeated[kTiers] = {0, 0, 0, 0, 0};   // M3c
+    float m_meanScore[kTiers] = {0, 0, 0, 0, 0};
     float m_landKm2 = 0.0f;
     float m_bakeMs = 0.0f;
     std::vector<std::string> m_refusals;

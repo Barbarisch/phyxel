@@ -1,0 +1,6 @@
+START 2026-11-04 14:59:32 shas: RouteFieldTest.cpp 773313907fc0a184 WorldForgePlan.cpp 3e810dfeec34452d WorldForgePlan.h 6ef3fd952699bb65 WorldGenerator.cpp c8cf858f830b936d EarthworkTest.cpp 29e284aba34a01eb
+BUILD EXIT 0 2026-11-04 14:59:37 errors: 0
+exe 2026-11-04_13:12:48
+RUN r54_civall START 2026-11-04 14:59:37
+RUN r54_civall EXIT 0 2026-11-04 16:47:13 38 ok, 0 failed
+CHAIN DONE 2026-11-04 16:47:13

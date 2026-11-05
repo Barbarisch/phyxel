@@ -335,10 +335,12 @@ TEST(CivHistoryTest, AbandonShareIsTheLeverAndRuinsAreNotJustTheYoungest) {
 }
 
 // Audit 2026-10-22: a cross-build pin. The civEpochs-0 plan must equal, site for site (cell, tier,
-// x, z, score), the civ list the pre-M3b Release engine wrote for the same recipe
-// (docs/evidence/worldforge_v2/m3a_l4_green3_civ.json, commit 77d320cf, 2026-10-22).
-TEST(CivHistoryTest, EpochsZeroMatchesThePreM3bEngineRecord) {
-    std::ifstream f("docs/evidence/worldforge_v2/m3a_l4_green3_civ.json");
+// x, z, score), the civ list the RELEASE engine wrote for the same recipe. The record was the
+// pre-M3b engine's (m3a_l4_green3_civ.json, commit 77d320cf: the 154-site greedy plan) until M3c
+// moved the plan by design (the nested lattice, 182 sites - RED 182 vs 154 on 2026-11-04, predicted
+// PM3c.12); re-recorded from the Release engine after M3c (m3a_l4_m3c_civ.json, 2026-11-04).
+TEST(CivHistoryTest, EpochsZeroMatchesTheReleaseEngineRecord) {
+    std::ifstream f("docs/evidence/worldforge_v2/m3a_l4_m3c_civ.json");
     ASSERT_TRUE(f.good()) << "run from the repo root";
     nlohmann::json rec = nlohmann::json::parse(f);
     WorldGenerator g(WorldGenerator::GenerationType::Perlin, 20260816u);
@@ -352,8 +354,8 @@ TEST(CivHistoryTest, EpochsZeroMatchesThePreM3bEngineRecord) {
         if (std::string(CivPlan::tierName(a.tier)) != b["tier"].get<std::string>() || std::fabs(a.pos.x - b["x"].get<float>()) > 0.01f ||
             std::fabs(a.pos.y - b["z"].get<float>()) > 0.01f || std::fabs(a.score - b["score"].get<float>()) > 1e-5f) ++mismatches;
     }
-    std::printf("[ M3b ] civEpochs 0 vs the pre-M3b engine record: %zu sites, %d mismatches\n", sites.size(), mismatches);
-    EXPECT_EQ(mismatches, 0) << "M3b moved the civEpochs-0 plan away from M3a";
+    std::printf("[ M3b ] civEpochs 0 vs the Release engine record: %zu sites, %d mismatches\n", sites.size(), mismatches);
+    EXPECT_EQ(mismatches, 0) << "the Debug civEpochs-0 plan differs from the Release engine's record";
 }
 
 // Audit 2026-10-22: on the history path the box plan is still seeded by the LIVE civ sites inside

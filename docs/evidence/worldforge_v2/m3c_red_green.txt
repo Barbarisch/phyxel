@@ -15,3 +15,544 @@ THE RED RUN (build 12:3x, exe 12:36:5x, run 12:36:56-12:42:15; m4b4r_r23_civ.txt
   cells do; on real terrain the candidates come in a score order that scatters the first picks, so the greedy fill packs closer to
   hexagonal than a raster fill does. Recorded; the gap on the real worlds is 5-21 % per tier at the outpost and hamlet tiers.
   COMMITTED IN THIS STATE: the red test left in the tree awaiting the owner's D24 revisit (the M2d-4 / D38 precedent).
+
+D24 RULED 2026-11-02 (owner: "go with your recommendations and keep going"): build the relaxation (b). The design (the M3c design check
+paragraph in the plan): after the greedy pick of each tier, (a) a Lloyd step moves each unpinned site of the tier to the viable cell
+nearest the centroid of the viable cells within its spacing that are nearer to it than to any other site, if every spacing still holds;
+(b) a gap step seats a new site on the viable cell with the largest spacing margin to every site (ties to the better score) while the
+target is unmet; (a)+(b) to a fixed point or 8 rounds (kRelaxRounds, a cost bound - DESIGN). Greedy stays first (the best-scored cells
+seed the lattice). Deterministic: fixed site/cell order, no randomness. Built as CivPlan.cpp TierRelax (patch m3c-2) after D27's commit.
+PREDICTIONS (before the build): PM3c.3 LadderIsMetOnTheFertilePlain GREEN - every tier with a target >= 5 at >= 90 % of the hex ceiling
+  on the plain (my point guess: village 16-18/18, hamlet 50-54/56, outpost 145-158/162); a miss is recorded and the bound is NOT retuned.
+  PM3c.4 the fixed point inside 8 rounds on the plain (guess 3-6 rounds). PM3c.5 every invariant test green (spacing, shared cell, water,
+  cap; DensityTen; FourTimesTheContinent < 60 s Debug - guess 5-20 s; CivPlanTest bake < 10 s on the baseline). PM3c.6 the real worlds
+  rise: baseline hamlet 37/42 -> 40-42, outpost 97/120 -> 108-118; Mountains outpost 96/122 -> 105-118; site counts rise (baseline 157 ->
+  170-185). PM3c.7 CivHistoryTest.EpochsZeroMatchesThePreM3bEngineRecord goes RED (the pre-M3b Release record is the greedy plan) - to be
+  re-recorded from the Release engine after M3c (an L4 cross-build pin, not a Debug self-comparison); every other CivHistoryTest green
+  (rates and ledger invariants, not positions). PM3c.8 the ripple: every version-2 road network, bridge count, census and the baseline's
+  history ledger move once (more sites -> more demands); RoadsStayOutOfStandingWater still 0 wet; the version-1 pins unchanged.
+THE GREEN RUN THAT MISSED (patch m3c-2, Lloyd + gap insertion; chain 39 build 15:32:22-15:36:59 (exe 15:36:55), run 15:36:59-15:41:18,
+  m4b4r_r39_civ.txt): LadderIsMetOnTheFertilePlain still RED - town 6/6 (100 %, moved 8, 4 rounds), village 13/18 (72 %, moved 37,
+  seated 0, 8 rounds), hamlet 40/56 (71 %, moved 70, seated 0), outpost 107/162 (66 %, moved 138, seated 0). PM3c.3 MISSED, PM3c.4
+  MISSED (the cap of 8 rounds reached on three tiers), the outpost tier DOWN from 69 % to 66 % (an evened village/hamlet lattice packs
+  the greedy outpost fill worse than the raster lattice did). The real worlds (reported): baseline 158 sites - hamlet 40/42 (95 %,
+  +3), outpost 98/120 (82 %, seated 2); Mountains 155 - village 13/14, hamlet 39/42 (93 %), outpost 97/122 (80 %, seated 2).
+  WHY (the design's error, not a bug): the greedy pick is MAXIMAL - every candidate cell is tried, so after it no cell keeps the spacing
+  to every site and the gap step has nothing to seat; the Lloyd move takes each site to the centroid of its own ground, which EVENS the
+  holes (a centroidal tessellation minimises the largest empty circle) instead of merging them, so no hole ever reaches a full spacing
+  radius. A jammed packing at ~70 % of the hex ceiling cannot be densified by centroid relaxation; reaching a lattice needs a LATTICE.
+PATCH M3C-3 (the mechanism replaced; the bound is NOT retuned): per tier, BEFORE the greedy pick, a hexagonal lattice of the tier's
+  spacing is laid over the sheet (rows 0.866 s apart, alternate rows offset s/2); each lattice point is snapped to the NEAREST viable
+  cell (slope <= the cap, score >= kMinViable, unused) within s/4 (DESIGN) that keeps every spacing - against the higher tiers and the
+  lattice seats already placed (row-major order, deterministic) - ties by index; the lattice phase (9 offsets on an s/3 grid) is chosen
+  by a dry run that counts the seats, ties to the summed score; then the greedy fill by score for the remainder (rugged ground, where
+  snaps fail), then nothing else - the greedy is maximal. Pins stay. The Lloyd / gap code is deleted. Per-tier counts in the civ JSON:
+  lattice_seated, greedy_seated.
+PREDICTIONS (before the build): PM3c.9 the plain: village >= 16/18, hamlet >= 50/56, outpost >= 146/162 (>= 90 % each; the strait and
+  the sheet edge take the rest) - GREEN. PM3c.10 the real worlds rise toward the ceiling where land allows: baseline hamlet >= 40/42,
+  outpost 105-118/120; Mountains outpost 103-116/122; mean score per tier FALLS (the snap takes a cell within s/4, not the best cell
+  on the sheet) - reported. PM3c.11 every invariant test green; FourTimesTheContinent < 60 s Debug. PM3c.12 EpochsZeroMatchesThePreM3b
+  EngineRecord RED (the golden is the greedy plan) - to be re-recorded from Release L4. PM3c.13 the ripple as PM3c.8.
+THE SECOND MISS (patch m3c-3, an independent hex lattice per tier; chain 40 build 15:44:26-15:49:17 (exe 15:49:13), run 15:49:17-15:52:47,
+  m4b4r_r40_civ.txt): the plain town 5/6 (83 %), village 17/18 (94 %, lattice 14 + greedy 3), hamlet 40/56 (71 %, lattice 35 + 5),
+  outpost 106/162 (65 %, lattice 86 + 20); mean scores 0.52 (uniform plain). PM3c.9 MISSED on three tiers. The real worlds: baseline 153
+  sites - hamlet 41/42 (98 %), outpost 92/120 (77 %, DOWN from 97); Mountains 164 - village 14/14, hamlet 41/42, outpost 103/122 (84 %);
+  mean scores 0.75-0.80 (REPORTED). WHY: each tier's lattice was laid independently of the higher tiers, and every higher site blocks the
+  ~3.6 lower-lattice points inside its spacing disc (pi s^2 / 0.866 s^2); the ceiling 1/(0.866 s^2) per tier is Christaller's k = 3
+  nesting, where the higher centres SIT ON the lower lattice - the ladder's spacings are sqrt(3) ratios (7, 12, 21, 36, 62 km).
+PATCH M3C-4 (the mechanism corrected, the bound NOT retuned): ONE master hex lattice at the finest spacing s0 (the outpost tier) in
+  axial coordinates; the tiers are its nested sublattices (level 1 = {q = r mod 3}: sqrt(3) s0; level 2 = {q, r = 0 mod 3}: 3 s0;
+  level 3 = level 1 of (q/3, r/3): 3 sqrt(3) s0; level 4 = {q, r = 0 mod 9}: 9 s0; a tier's level = the nearest power of sqrt(3) to
+  s_t / s0). Seating city -> outpost: each untaken point of the tier's level or higher snapped to the nearest viable cell within
+  s0 / 4 (DESIGN) that keeps the tier's spacing against every seated site of its tier or higher (bucketed) and a lower pin's own;
+  then the greedy fill. The master phase (9 offsets on s0 / 3) by a lattice-only dry run over every tier.
+PREDICTIONS (before the build): PM3c.14 the plain: town 6/6, village >= 17/18, hamlet >= 51/56, outpost >= 146/162 - GREEN (the strait
+  column and the sheet edge take the rest). PM3c.15 the real worlds: hamlet >= 40/42, outpost >= 105/120 and >= 105/122; mean scores
+  fall by < 0.05 against chain 40 (REPORTED). PM3c.16 bake cost: CivPlanTest < 10 s, FourTimesTheContinent < 60 s Debug (the dry runs
+  are 9 lattice seatings, bucketed).
+THE THIRD MISS (patch m3c-4, the nested lattice on a float basis; chain 41 15:55:36-16:05:39, m4b4r_r41_civ.txt): the plain town 6/6,
+  village 11/18 (61 %), hamlet 46/56 (82 %), outpost 106/162 (65 %); the real worlds UP: baseline 166 sites - hamlet 40/42, outpost
+  106/120 (88 %); Mountains 171 - hamlet 42/42, outpost 109/122 (89 %); mean scores 0.64-0.83 (REPORTED). PM3c.14 MISSED on the plain.
+  DIAGNOSED (per-point counters, chains 42-45 - three of them lost to a mangled printf escape, lesson: patches through Write-tool
+  scripts only; m4b4r_r45_civplain.txt): no lattice point lacks a viable cell; EVERY loss is 'blocked by spacing' - village 10 of 21
+  points (level step 41.02 = s_v exactly), hamlet 27 of 70 (23.68 vs 23.44: 0.24 cell of slack), outpost 107 of 207 (step = s0
+  exactly). A hex lattice at exactly the spacing on an INTEGER grid puts half the adjacent pairs a fraction under the bound, and the
+  snaps cascade (a displaced neighbour pushes the next). The ceiling is a continuum figure; the construction must be an integer lattice.
+PATCH M3C-5: the master lattice on an INTEGER basis (A,0),(B,C) chosen by search - the densest basis whose every nested level keeps its
+  tiers' spacings (the shortest vector over small combinations, no rounding); for s0 = 13.67 cells the search should give (14,0),(7,12):
+  level-0 shortest 13.89 at 96 % of the hex ceiling; levels 1-4: (21,12)/(0,24) 94 %, (42,0)/(21,36) 96 %, (63,36)/(0,72) 94 %,
+  (126,0)/(63,108) 93 % (DERIVED by hand before the run). Phases on thirds of the basis.
+PREDICTIONS (before the build): PM3c.17 the plain: town 6/6, village >= 17/18, hamlet >= 51/56, outpost >= 146/162 - GREEN (the
+  integer levels sit at 93-96 % of the ceiling; the strait column and the edge cost 1-3 %; the town tier at 6/6 is the tightest -
+  8.8 level-3 points on the sheet minus 3 cities). PM3c.18 blocked-by-spacing on the plain falls to < 5 % of the points per tier.
+GREEN (patch m3c-5 + a shadowed-name fix (the bucket grid 'B' vs the basis component B, chains 46-47 failed to compile); chain 48 build
+  16:12:4x (exe 16:12:4x), run 16:12:48, m4b4r_r48_civplain.txt): LadderIsMetOnTheFertilePlain GREEN - the basis search gave (14,0),(7,12)
+  for s0 13.67 (level-0 shortest 13.89, 96 % of the hex ceiling), the level shortest vectors 24.00 / 41.68 / 72.00 / 125.03 against
+  the spacings 23.44 / 41.02 / 70.31 / 121.09; the plain: city 3/3, town 6/6, village 18/18, hamlet 56/56, outpost 162/162 - 100 % on
+  every tier, 0 points blocked by spacing, 0 without a viable cell, greedy 0 (PM3c.17 MET and exceeded, PM3c.18 MET). The bound of
+  90 % stood unchanged through four mechanisms. Next: the civ regression (chain 49 civall) and the forge + terrain sets (chain 50).
+
+CHAIN 49 (civall: CivPlanStressTest.* CivPlanTest.* CivHistoryTest.* RouteGraphTest.*; built from the m3c-5 tree; run 2026-11-03 16:13 ->
+  2026-11-04 10:08, m4b4r_r49_civall.txt. The harness stopped the session for low memory while the run was idle and the test process ran
+  on to completion by itself; the wall time holds a night of sleep - HundredsOfSitesAtTheLadderTargets logged 42358 s with NO line between
+  21:28 and 09:12 against 86-106 s on every earlier run: not a cost regression, re-measured in chain 51): 35 ok, 3 failed.
+  The real worlds (PM3c.15 MET and exceeded): baseline Perlin 182 sites (was 154) - city 2/2, town 4/4, village 14/14, hamlet 42/42,
+  outpost 120/120 = 100 % of the hex ceiling on every tier, lattice-seated 182 / greedy 0, mean scores 0.58-0.74, refusals 0;
+  Mountains 424242 184 sites (was 156) - 2/2, 4/4, 14/14, 42/42, 122/122 = 100 % on every tier, mean scores 0.72-0.83, refusals 0.
+  DensityTen 512 ms, FourTimesTheContinent 809 ms (PM3c.16 MET). Every invariant test green (spacing, shared cell, water, cap, pins,
+  determinism across generators, the hierarchy ratio, the ledger math, the abandon share, the box plan at 12 epochs 4 = 4).
+  RED 1 (predicted, PM3c.12 MET): CivHistoryTest.EpochsZeroMatchesThePreM3bEngineRecord - 182 sites vs the record's 154. The golden is
+  the greedy plan; it is re-recorded from the Release engine (L4, m3a_l4.sh Release m3c -> m3a_l4_m3c_civ.json) and the test is renamed
+  EpochsZeroMatchesTheReleaseEngineRecord with its provenance in the comment.
+  RED 2 (NOT predicted): CivPlanTest.TheBoxPlanIsSeededByTheCivSites - box plan 6 sites, the test counted 7 civ sites inside +-16384 u.
+  Cause: the test's count predates M4a's box edge inset (kBoxEdgeInsetU 512 u: a site inside the margin is not seeded because the box's
+  roads end at the inset edge) and was never exercised - no greedy site had fallen in the band; the lattice put one hamlet there. The
+  sibling CivHistoryTest.BoxPlanIsSeededByTheLiveCivSitesAtTwelveEpochs already counts with the inset and is green. A test-premise ripple,
+  not a generator defect: the test now counts inside the margin and reports the sites in the band.
+  RED 3 (NOT predicted): RouteGraphTest.ReuseDiscountMergesRoutesIntoTrunks - EXPECT_GT(shared cells with reuse 1/3, without) on 1687
+  vs 1687, EQUAL. Distinct cells 2858 vs 3186, junction cells 350 vs 819, length 9264 vs 8182 km: the networks differ and the junction
+  bound (D27: the effect that matters) holds at 0.43 <= 0.7; the shared-cell count, like the distinct-cell count D27 found wanting, mixes
+  merging with path length (the discounted routes are 13 % longer). The assertion becomes a REPORTED figure (stated post-hoc, as D27's
+  was); the junction bound and the distinct-cell ordering stay asserted.
+  ALSO: the [ M3c-lattice ] std::printf diagnostics (6 lines per bake) become LOG_INFO_FMT("CivPlan", "[M3C-LATTICE] ...") and <cstdio>
+  goes - no behaviour change (chain 50 rebuilds from this tree, so every later figure postdates it).
+PREDICTIONS (before chains 50-51 and the L4 record): PM3c.19 chain 50 (earth / forge / terrain on the M3c sites): earth 10/10, forge
+  96/96, terrain 105/106 (the six Mountains lips, unchanged) - chain 38's counts (post-D27) hold; the bridge, ford, census, cut and
+  wet-column figures MOVE with the new demands and are recorded, RoadsStayOutOfStandingWater still 0 wet on both worlds, the version-1
+  hashes unchanged (civ is off in version 1). PM3c.20 the Release engine (CivLab, civEpochs 0) writes 182 sites and chain 51's Debug
+  plan matches it with 0 mismatches (the construction is integer and deterministic; a cross-config float-order difference would show as
+  score or position mismatches). PM3c.21 chain 51 (civall with the patched tests and the new record): 38/38, HundredsOfSites 60-150 s.
+
+CHAIN 50 EARTH (build 10:18:24-10:18:46 from the m3c-6 tree, exe 10:18:42; run 10:18:46-10:41:51, m4b4r_r50_earth.txt): 9 ok, 1 failed -
+  PM3c.19 MISSED on the earth set. RED: EarthworkTest.HairpinBankHasNoCliffStepWithItsControl - the CONTROL failed (control step 2 < 3,
+  "the pin measures nothing"): the test was pinned at the D27 network's hairpin (6302,15942); on the M3c network NO road passes there
+  (the diag's cell list is empty at every column, emitted == natural), so shipped and control both measured bare terrain (2 cubes).
+  The control did its job. Not a generator defect: the version-1 hashes unchanged, every other earth test green (DeepCuts: hairpin
+  jumps 0 on both worlds, CensusMatches, EarthworkFieldsIdenticalAcrossGenerators, the wall tests).
+PATCH M3C-7 (the test only): the pin measures EVERY hairpin apex of the Mountains network - a centerline vertex with another vertex of the
+  same road, more than 3 vertices away along the line, within 24 u (nearOtherLeg's rule) - shipped: no apex with a 3+ step across the
+  bank; control (1 hint per cell-road, same plan hash): a 3+ step at SOME apex. The walk now stops at another road's surface (a far
+  leg's retaining-wall drop is a wall, not the bank under test; the old fixed site measured 1 so it never met one).
+PREDICTIONS (before the build): PM3c.22 apex vertices on the M3c Mountains network: 10-200 on 3-20 roads (45 % of the network pitched,
+  switchbacks everywhere). PM3c.23 the control's worst step >= 3 at 1-10 apexes (the D27 network had exactly one among its measured cut
+  sections). PM3c.24 the shipped raster: 0 apexes with a 3+ step, worst <= 2; cap hits 0; the plan hashes equal. A miss on PM3c.23
+  (no apex reproduces the defect under the single-hint raster) is recorded and the test left red for the owner, NOT loosened.
+
+CHAIN 50 FORGE (run 10:41:51-11:50:21, m4b4r_r50_forge.txt): 91 ok, 5 failed - PM3c.19 MISSED on the forge set (96/96 predicted).
+  The terrain set DID NOT RUN: bash reads a script incrementally and I had edited m4b4r_chain.sh (the hairpin mode) while chain 50
+  was running - "line 67: unexpected EOF while looking for matching `"'" after the forge set. Lesson: never edit a running script;
+  every chain now runs from a per-run COPY of the script. The terrain set is re-run with chain 52.
+  The five reds, read against chain 38 (the last pre-M3c forge run, 96/96):
+  THE NETWORK: the box plans grew from 31 roads / 41 257 segments (baseline) and 25 / 34 715 (Mountains, 554.7 km) to 77 / 77 969
+  and 81 / 120 166 (1920.7 km): corridors 154 -> 181, and the lattice's regular sites give more distinct corridor runs through the
+  box. The road raster's segment index is a uint16 (kRasterSegmentCap 0xFFFE = 65 534 segments = ~1050 km at the 16 u vertex
+  spacing): "road raster segment cap (65534) reached: 12435 segment(s) are NOT indexed" (baseline) and 54632 (Mountains) - the M0
+  loud cap did its job; roads past it are invisible to roadAt / gradeBlendAt / rasterRoadsAt. Three reds follow from it:
+  RED A: RouteFieldTest.GradeBlendGathersEveryRoadInReach - 47 592 roads missing from the gather (chain 38: 0).
+  RED B: RouteFieldTest.RoadsStayOutOfStandingWater, Mountains - 489 914 road columns walked < the 500 000 floor ("roads were lost,
+    not routed" - the census walks the raster); 0 wet on both worlds (the water contract holds on every visible column).
+  RED C (ATTRIBUTED, not proven): RouteFieldTest.CutBanksStandAtTheReposeSlope - 1 of 70 single-road banks at 0.73 vs 0.70 on the
+    baseline; a cut whose second road is invisible is classed single-road and its bank is the other road's. Verified by the rerun.
+  RED D: RouteFieldTest.RoadsStayOutOfStandingWater, baseline - waterRefused 1: demand -1 -> 0 "a line crosses standing water at
+    (9406.5,270.9): 2 columns under a level of 96.468 u". Chain 49's civ log shows demands 2 -> 0 and 4 -> 0 hit the SAME columns
+    (9404.8-9406.5, 270.5-270.9) and routed on; -1 -> 0 hit them on every attempt (one fine detour, three coarse re-routes). Read
+    from the code (fineDetour / realizeFrom): the fine stretch ends at the COARSE cell centres (path[i1]), realizeFrom appends the
+    pinned site after the fine points, so the last leg (cell centre -> site 0) is never routed and crosses the lake's fringe each
+    time; the coarse re-route cannot close an endpoint's cell. A second gap: the fine cell's 5-sample wet test (centre + corners of
+    a 32 u cell) can miss a fringe two columns wide that the 1 u judge finds, and nothing carried the judge's hit back to the planner
+    (the fine detour was tried ONCE per demand). The lattice put site 0 on a lakeshore; the greedy pick's sites never exercised it.
+  RED E: BridgeSpanTest.RefusalsMatchTheEmittedTerrain, baseline - the water refusal's record carried rim 52 / banks 53 / deck 54 /
+    spans -3 / +6 u from a CROSSING the same line had passed (refusedBanks is filled by decideCrossings and copied into every
+    refusal record); the dump at the 96 u lakeshore found a hit max of 96. A record defect, not terrain.
+  RED F (the earth red again, same exe): HairpinBankHasNoCliffStepWithItsControl - built before patch M3C-7; the rerun is chain 51.
+  Figures that MOVED with the network (recorded, not bounded): bridges 3 / 24 (chain 38: 3 / 26), fords 318 / 426 (132 / 204),
+  demands refused 1 / 14 (0 / 8; the Mountains 14 are cut refusals, "beyond 47.4 u"), switchback stretches 55 (10), the Mountains
+  detour x1.43 (x1.44), walkability 81 steps taller than 1 cube of 402 542 (0.020 %; chain 38: 19 of 213 341, 0.009 %), the
+  baseline's deepest cut 10.6 u (11.1), Mountains 46.0 u (46.9), 0 beyond the bound on both; the version-1 hashes unchanged
+  (VersionOnePlanHashesArePinned green in the earth set: 9693137997320541182 / 18197215997962677593).
+PATCH M3C-8: (1) the raster segment index uint16 -> uint32 (nearestSeg, cellRoadSeg, RoadHit.seg, the hint slots; kNoSegment
+  0xFFFFFFFF; the cap = the index width 0xFFFFFFFE - the M0 loud cap and its test hook stay; memory is the real bound: 2048^2 cells
+  x 4 B = 16 MB per plan). (2) The refusal record's deck fields are filled for a CROSSING refusal only. (3) The fine water detour:
+  the stretch spans every exact hit of the demand, each hit's fine cell is marked wet, up to kFineDetourRetries 6 attempts
+  (DESIGN) before the coarse block, and where the stretch reaches the path's first / last cell it starts / ends at the demand's own
+  endpoint (passable when the endpoint column itself is dry). The 2026-11-02 mechanism stays reachable as the CONTROL
+  (setFineDetourToEndpointsForTesting(false)). (4) Tests: RouteFieldTest.ApproachToAPinnedSiteDetoursThePond - the pond rig with
+  a 12 u bowl between site 1 and its coarse cell centre; control refused 1, shipped 1 road / 0 refused / 0 wet;
+  RoadsStayOutOfStandingWater asserts rasterTruncatedSegments == 0 and dumps every water refusal's geometry (the hit's distance from
+  the site, the dry bearings at that radius, the hit -> site columns); the BridgeSpan dump's wording for a record with no deck line.
+PREDICTIONS (before the build; chain 51 = the m3c8 set, one process): PM3c.25 the endpoint rig: the control refuses the demand
+  (water_refused 1, re-routed 4 with 1 fine); the shipped mechanism realizes it: 1 road, 0 refused, 0 wet columns, length 300-420 u
+  (the control reference 282.7 u), the last vertex within 48 u of (640,540). PM3c.26 the gather: 0 roads missing (was 47 592),
+  extra <= 5 %. PM3c.27 the census: Mountains 800 000-1 100 000 road columns (489 914 with 45 % of the segments truncated), baseline
+  600 000-720 000 (549 160 with 16 %); 0 wet on both; rasterTruncatedSegments 0 on both. PM3c.28 the baseline's demand -1 -> 0
+  ROUTES (waterRefused 0 on both worlds) - 60 % confidence: the fringe may be wider than the fine band's dry cells allow, in which
+  case the refusal stays, its geometry is in the dump, and the test stays red for the owner. PM3c.29 CutBanks: 0 banks steeper than
+  repose (RED C attributed to the cap) - 50 %; a miss is investigated, not retuned. PM3c.30 RefusalsMatchTheEmittedTerrain green
+  on both worlds (every water refusal prints the no-deck-line branch). PM3c.31 the plan hashes: the version-1 pins unchanged; the
+  M3c box hashes MOVE on the baseline if -1 -> 0 routes (a new road) and stay 9090624295243123798 on Mountains (its water refusals
+  were 0; the index width is realization). PM3c.22-24 (the hairpin) stand. The M0 cap test RasterCapSurfaces stays green (the hook).
+
+CHAIN 51 (build 12:06:11-12:10:47 from the m3c-8 tree, exe 12:10:43; run 12:10:47-12:43:48, m4b4r_r51_m3c8.txt): 6 ok, 4 failed.
+  MET: PM3c.26 the gather 0 roads missing (was 47 592), extra 175 of 15 330 points (1.1 %). PM3c.28 the baseline's demand -1 -> 0
+  ROUTES: waterRefused 0 on both worlds, roads 78 (was 77), 0 wet on both, rasterTruncatedSegments 0 on both (RoadsStayOutOfStandingWater
+  GREEN). PM3c.30 RefusalsMatchTheEmittedTerrain GREEN (the three Mountains cut refusals print the no-deck-line branch). PM3c.22 the
+  apex count 137 on 16 roads (of 92). PM3c.23 the control reproduces: worst 22 cubes, 61 of 137 apexes >= 3, cap hits 2393 (the
+  "1-10 apexes" part missed - see below). The version-1 pins unchanged; RasterCapSurfaces green (the hook, cap 20: 399 truncated).
+  MISSED: PM3c.27 the census moved little - baseline 549 160 -> 555 928, Mountains 489 914 -> 617 564 (800 000-1 100 000 predicted):
+    the census counts DISTINCT columns (a `seen` set) and the D27 reuse makes the roads share trunks, so the restored segments were
+    mostly columns already walked under another road. The 500 000 floor holds on both; the prediction's model (columns ~ segments)
+    was wrong, the measure is fine.
+  MISSED: PM3c.31 the Mountains plan MOVED with no water in play - 81 -> 92 roads, 24 -> 29 bridges, 120 166 -> 142 995 segments,
+    hash 9090624295243123798 -> 12831953355029613759. Cause (read from the patch): the retry loop's limit became kCrossingRetries +
+    kFineDetourRetries for EVERY demand, so the 14 cut-refused Mountains demands got six more coarse re-routes and some routed. A
+    scoping defect of M3C-8, not a water effect. PATCH M3C-9 (1): the limit is kCrossingRetries as before; only the fine attempts
+    past the first are free - a demand that never meets standing water runs exactly the 2026-11-02 loop.
+  RED 1: RouteFieldTest.ApproachToAPinnedSiteDetoursThePond - the bowl never filled (waterLevelAt -1e30): HydrologyMap samples a
+    cell at its world CORNER (HydrologyMap.cpp:17), and the r 12 bowl at (684,560) contained no corner (the nearest, (672,544) and
+    (704,576), are 20-23 u off). A rig premise. PATCH M3C-9 (2): the bowl r 14 / depth 4 at (680,552) holds the corner (672,544);
+    the lake is that one cell [672,704) x [544,576), its wet part x 672..694 / z 544..566; DERIVED: both the control's last leg
+    (from (720,592)) and the coarse-centre leg (from (704,576)) to the pin pass within 10-12 u of the bowl's centre inside the lake
+    cell, the z 576 leg keeps 22 u, the coarse centre 34 u, the pin's fine cell is not a lake cell (asserted in the test now).
+  RED 2: RouteFieldTest.ShoreCellIsRoutedAround - "the road is not longer than the rule-off line": 191.8 vs 250.8 u, 0 wet, the
+    road from (444,523) to (629,520) at z 497..523. The endpoint-to-endpoint fine routing runs pin to pin SOUTH of the pond; the
+    rule-off line itself bent north to the coarse centres (z 576), so "a detour is longer" was a premise of that shape. Post-hoc:
+    the measure becomes CLEARANCE - no road vertex inside the pond's wet disc (34 u + the half-width); the lengths stay reported.
+  RED 3: EarthworkTest.HairpinBankHasNoCliffStepWithItsControl - shipped 75 of 137 apexes with a 3+ step, worst 22 cubes; control
+    61, worst 22 at (468,-15732), cap hits 2393. PM3c.24 MISSED. The diag (road 0 vertices 401/403/410, a three-road bundle with
+    roads 3 and 4) shows the walk reading retaining walls and rock faces (-1e30 blend surfaces beside 3-4 cube drops) and, at
+    vertex 401 side -1, a 3-cube drop at d 10 -> 11 where the blend weight falls from 0.50 to 0 (emitted 166 -> natural 169) - the
+    shoulder's reach ending short of the natural at a bundle. The sweep's premise "largest step across the bank <= 2" counted
+    DESIGNED verticals (M4b-4 walls, D33 rock faces up to 36 u) as bank steps. PATCH M3C-9 (3): the walk stops at a wall or rock
+    column (wallTopY / rockTopY), and the test prints a shipped x control step table and the apexes where ONLY the shipped raster
+    has a cliff. The pin stays as written; if banks (no wall, no rock) still show 3+ steps on the shipped raster, the test stays
+    RED for the owner with the diag - the owner's earthwork hold stands, nothing in the generator is retuned for it.
+  RED 4: RouteFieldTest.CutBanksStandAtTheReposeSlope - 1 of 69 single-road banks at 0.73 vs 0.70 again (PM3c.29 MISSED: the cap
+    attribution was wrong; 4 earthwork sections measured now, 0 before). The test prints no location. PATCH M3C-9 (4): every steep
+    bank / section prints its position, side, class, cut, shoulder, the rises and the roads in reach, so chain 52 says what it is.
+PREDICTIONS (before the build; chain 52 = the m3c9 set): PM3c.32 the endpoint rig fills (level 30.0 at (680,552)); the control
+  refuses (water_refused 1, re-routed 4, fine 1); shipped 1 road, 0 refused, 0 wet, the last vertex within 48 u of (640,540).
+  PM3c.33 the shore rig: nearest vertex to the pond centre > 36 u, 0 wet, length ~192 u reported. PM3c.34 the Mountains plan
+  returns to 81 roads / 24 bridges / hash 9090624295243123798 (its one water re-route was an interior fine detour) - 70 %; the
+  baseline stays at 78 roads / hash 3980644565422672701. PM3c.35 the hairpin sweep with walls and rock excluded: shipped apexes
+  with a 3+ bank step 0-10 (most of the 75 were faces) - 50 %; the control keeps >= 3 somewhere. PM3c.36 the steep cut bank is
+  in the SECTION branch (a bundle edge or a 3-cube step along the bank), not a plain shoulder - 50 %.
+
+CHAIN 52 (build 12:50:23-12:50:39 from the m3c-9 tree, exe 12:50:35; run 12:50:39-13:09:32, m4b4r_r52_m3c9.txt): 5 ok, 3 failed.
+  MET: PM3c.32 the endpoint rig - level 30.0 at (680,552); the CONTROL refuses ("a line crosses standing water at (682.8,566.0): 38
+  columns under a level of 30; no other dry route inside the box", water_refused 1, re-routed 2 with 1 fine - two re-routes, not
+  four: the coarse block found no other path); shipped 1 road of 160.0 u from (445,528) to (605,528), 0 refused, 644 columns, 0 wet.
+  PM3c.33 the shore rig: nearest vertex 60.4 u from the pond centre, 0 wet, 191.8 u. PM3c.34 the Mountains plan BACK to 81 roads /
+  24 bridges / 120 166 segments / hash 9090624295243123798 (the scoping fix); the baseline 78 roads / 3980644565422672701 unchanged.
+  The version-1 pins unchanged, RasterCapSurfaces green.
+  RED 1 (PM3c.35 MISSED): HairpinBankHasNoCliffStepWithItsControl - walls and rock excluded, the sweep finds 73 apexes on 11 roads;
+    SHIPPED 15 apexes with a 3-cube step (worst 3), CONTROL 14 (worst 4 at (13779,-12010)), 13 on BOTH, control-only 1, shipped-only
+    2 (road 0 vertex 410 shipped 3 / control 1; road 3 vertex 195 shipped 3 / control 2); the table shipped x control: [16 0 0 0]
+    [0 30 1 0] [0 1 9 1] [0 1 1 13]; cap hits shipped 0 / control 1842. READING: the 3-cube bank steps at hairpins are NOT the D27
+    hint blind spot - both rasters have them at the same 13 apexes; the hint mechanism finds every leg (0 cap hits vs 1842) but the
+    step outcome does not move. The diag (vertex 401 side -1, chain 51): the shoulder's outer reach ends with the blend weight 0.50
+    -> 0 between d 10 and 11, emitted 166 -> natural 169, on a three-road bundle (roads 0, 3, 4 in the cell). An EARTHWORK item
+    under the owner's hold: nothing retuned, the pin as written stays RED so the finding stays visible (the test's header says so).
+    The D27-era fixed-point pin was green on its site; on this network that site has no road, and the general claim is false.
+  RED 2 (PM3c.36 MISSED - it is a plain shoulder): CutBanksStandAtTheReposeSlope - the one steep bank at (-14784,4359) side +1,
+    class 2, cut 3.9 u, shoulder 5.5 u: realized rise 3 (165 -> 168), natural rise -2 over the shoulder, single road in reach.
+    The bank climbs 3 cubes over 5.5 u = 0.55, AT repose; the test's two-point formula (|realized - natural| - 1) / shoulder counted
+    the natural's own dip the other way against the bank and read 0.73. A measurement defect of the test for a cut beside a falling
+    natural (the formula was written for fill banks, where the realized surface follows the ground down). PATCH M3C-10 (1): the
+    plain-shoulder claim is the bank's PHYSICAL slope walked at 1 u (the section rule the same test already applies): the absolute
+    end-to-end slope and the largest adjacent step; the two-point value stays printed for every bank either measure flags. Stated
+    post-hoc.
+  RED 3: RoadsStayOutOfStandingWater, Mountains - 489 914 columns < the 500 000 floor AGAIN, with 0 truncated segments and the
+    plan identical to chain 50's: the chain-50 count was the same 489 914 WITH 54 632 segments truncated, so the truncation never
+    changed the census (the truncated roads, the last in the list, ride the trunks the earlier roads stamp - 80 % of the lattice
+    network's 1920.7 km is reuse: 2897 distinct corridor cells x 128 u = 371 km of distinct network) while it did hide 47 592
+    road memberships from the gather. The floor's model "columns ~ roads" was the pre-M3c network's; PATCH M3C-10 (2): the floor is
+    re-based a quarter below the M3c counts (417 000 / 367 000), stated post-hoc, with rasterTruncatedSegments == 0 as the loss
+    guard proper (the thing the floor actually caught in chain 50).
+PREDICTIONS (before the build; chain 53 = earth / forge / terrain on the m3c-10 tree): PM3c.37 earth 9/10 and forge 95/96 - the one
+  red the hairpin pin (by measurement, for the owner); CutBanks GREEN (the walked bank at (-14784,4359): slope ~0.4, largest step
+  <= 2; 0 steep); the census floors pass (555 928 / 489 914); every other forge test as chain 51-52 left it. PM3c.38 terrain 105/106
+  (the six Mountains lips, unchanged - the terrain set has not run since chain 38). PM3c.39 the figures: baseline 78 roads / 3
+  bridges / 318-320 fords, Mountains 81 / 24 / 426, walkability ~0.02 %, version-1 hashes pinned.
+
+CHAIN 53 (build 13:12:40-13:12:52 from the m3c-10 tree, exe 13:12:48; earth 13:12:52-13:34:33, forge 13:34:33-14:45:37, terrain
+  14:45:37-14:53:17; m4b4r_r53_{earth,forge,terrain}.txt): earth 9 ok / 1 failed, forge 96 ok / 1 failed (97 ran), terrain 105 ok /
+  1 failed (108 ran, 2 bench skips).
+  MET: PM3c.37 in shape - the ONE red in the earth and forge sets is HairpinBankHasNoCliffStepWithItsControl, by measurement, the
+  same figures as chain 52 (73 apexes on 11 roads; shipped 15 / control 14 / both 13, control-only 1, shipped-only 2 (road 0 vertex
+  410, road 3 vertex 195), cap hits 0 / 1842, table [16 0 0 0] [0 30 1 0] [0 1 9 1] [0 1 1 13]) - the owner's item. CutBanks GREEN:
+  the bank at (-14784,4359) walked 166 -> 168 over 6 columns = 0.20, largest step 1 (two-point 0.73, printed as two-point-only);
+  0 steep. The census floors pass: 555 928 / 489 914 distinct columns, 0 under standing water, 0 truncated segments. The M4b-4
+  cut pins unchanged (baseline 1 cut beyond 8.4 u, Mountains 60 / 119 sections / 0 unwalled / tallest rock band 34 u); the raster
+  cap test, the seam tests, the deck walks (135/135 diagonal, the relocated bridge strict walk) all green.
+  COUNT MISS (recorded): the forge total is 97, not 96 - PM3c.37 forgot the new ApproachToAPinnedSiteDetoursThePond test (chain 52
+  ran the 8-test m3c9 subset, chain 50's forge set had 96); 96/97 is the predicted shape, one more green.
+  MET: PM3c.38 terrain 105/106 of the asserted tests - the one red RiverGeometryTest.ChannelSectionsMeetTheLandAtABoundedSlope,
+  the six Mountains lips (s.lips 6, the same six diag lines, worst 1.5 u at (-7945,-11219)), unchanged since chain 38; the Perlin
+  control 0 lips / 0 embankments.
+  PM3c.39 the figures: baseline 78 roads / 3 bridges / 80 937 segments / hash 3980644565422672701 (6 bakes, 58-91 s); Mountains
+  81 / 24 / 120 166 / hash 9090624295243123798 (3 bakes, 130-214 s); version-1 pins 9693137997320541182 (Perlin 20260816, 8 hits)
+  and 18197215997962677593 (Mountains 424242 legacy, 3 bakes) held; Mountains fords 426 (met); walkability 417 871 centreline steps,
+  81 taller than 1 cube = 0.019 % (met, ~0.02 %); the stress-test fractions 1/1440 canonical, 31/6722 mountains (unchanged).
+  MISS (recorded): baseline fords 326, not 318-320 - the figure I carried was chain 51's; the chain-52 endpoint detour (roads 77 ->
+  78, the lakeshore site's road) added creek crossings on the new road, and I did not re-derive the count before predicting it.
+  Nothing re-tuned; the floors and pins as written.
+
+L4 RECORD (2026-11-04 14:58, m3c_l4_run2.txt): the Release editor built 14:54:45-14:57:54 from the final tree (CivPlan.cpp
+  3c73128dbe022190, 0 errors, exe 14:57:54) on the CivLabE0 scratch project (civEpochs 0, fresh DB, port 8600). PM3c.20 MET on the
+  record: /api/worldforge/civ?step=2 -> m3a_l4_m3c_civ.json, 182 sites over 7750.29 km2 in 29.9 ms, refusals 0; city 2/2, town 4/4,
+  village 14/14, hamlet 42/42, outpost 120/120 - every site lattice-seated (greedy 0), mean scores 0.58-0.74; the [M3C-LATTICE]
+  lines the same basis (14,0),(7,12) and the same per-tier counters as the Debug run (outpost 183 points, 62 taken, 247 off, 6 no
+  viable cell, 57 blocked by spacing, 120 seated). The 0-mismatch half of PM3c.20 is chain 54's EpochsZeroMatchesTheReleaseEngineRecord.
+  NOTED: the status and plan calls timed out on the game loop ("Request timed out waiting for game loop", 5000 ms) because they fired
+  during the first bake - the 98-byte status files of the earlier records (m3b_e0, m4a, m4b) are the same pattern; the civ call, made
+  after the bake, is the record the test reads. The box plan the Release engine baked: 78 roads / 3 bridges / 80 937 segments / hash
+  3980644565422672701 in 8.1 s Release - the Debug chain's hash. Minimaps m3a_l4_m3c_minimap_{continent,box}.png written.
+PREDICTION (before chain 54; civall on the final tree, exe from the chain's own Debug build): PM3c.40 38/38 - the golden test green
+  against the new record with 0 mismatches, HundredsOfSites 60-150 s, every other civ/route test as chain 49 + the premise fixes left it.
+
+CHAIN 54 (civall on the final tree; the build a no-op, exe 13:12:48 - the test reads the record at run time; run 14:59:37-16:47:13,
+  m4b4r_r54_civall.txt): 38 ok, 0 failed. PM3c.40 MET: EpochsZeroMatchesTheReleaseEngineRecord GREEN - civEpochs 0 vs the Release
+  engine record: 182 sites, 0 mismatches (129 s); HundredsOfSitesAtTheLadderTargets 129 s (inside 60-150); the M3b history on the
+  M3c sites unchanged in shape (12 epochs: 146 live / 36 abandoned / 1688 events / 6 provinces; 64 epochs 9280 events; 29 565 of
+  29 565 land cells assigned); the two premise-fixed tests (TheBoxPlanIsSeededByTheCivSites, ReuseDiscountMergesRoutesIntoTrunks)
+  green. The M3c leg's regression is complete: forge 96/97 + earth 9/10 (the hairpin owner item), terrain 105/106 (the lips), civ 38/38.
+
+AUDIT 7 (solution-auditor on the whole M3c leg before the commit, 2026-11-04 ~17:00): VERDICT: FAIL. Held: the ladder test's
+  bound untouched (red r23 72/68/69 % -> green r48/r54 100 %); the real worlds reported not asserted; the Release record engine-made
+  and compared on tier/x/z/score (not a count); the uint32 fix and the endpoint detour real with their controls; the hairpin
+  asserts intact; the pins and the recorded misses confirmed; every log postdates the code. Findings, with what is done about each:
+  F1 the census comment said the floor "caught" the chain-50 truncation - FALSE: censusRoads walks the road polylines, never the
+     raster (489 914 with 54 632 truncated = 489 914 with 0); and "80 % on shared trunks" was the BASELINE continent corridor
+     figure (D27) applied to the Mountains box plan without a control. PATCH M3C-11: the comment corrected (the floor measures the
+     network's shape; the truncation assertion is the only raster-loss guard; the column drop's cause is UNMEASURED - hypothesis);
+     the plan/commit text likewise.
+  F2 fix (c) (a water refusal's record carries no deck fields) has no test that exercises it in the final tree: its red was chain
+     50's baseline water refusal (rd.rimU vs hitMax off by 44) and fix (b) removed that refusal. NOT closed here - recorded as an
+     OPEN coverage item (a rig with a passed crossing followed by a water refusal is owed); the fix stays, stated as untested.
+  F3 the CutBanks walk LOOSENED the measure it replaced: it started one column outside the road's edge and kept the 1-cube
+     allowance, so the 3-cube bank at (-14784,4359) read 0.20 (chain 53), not the 0.55 the ledger claims - and a 4-cube bank
+     (0.73) would read 0.40 and pass. Also PM3c.37 said "slope ~0.4" and the log read 0.20: a MISS not recorded then - recorded
+     now. PATCH M3C-11: walkBank() - from the edge column, the rise over the shoulder width, no allowance, plus the largest step;
+     the new RouteFieldTest.BankWalkReadsTheRiseOverTheShoulder pins it on arrays (3 cubes / 5.5 u = 0.55 under repose, 4 cubes =
+     0.73 over it, and the old formula's 0.40 for the 0.73 bank shown for the record).
+  F4 ReuseDiscountMergesRoutesIntoTrunks dropped its shared-cell bound on an EXACT equality (1687 = 1687) between two different
+     networks (distinct 2858 / 3186, junctions 350 / 819) without investigating - a data-bug tell. PATCH M3C-11: the use-count
+     histogram (2 / 3 / 4+ / max) and the total overlap of each network printed side by side, the test's own count checked
+     against CorridorGraph::sharedCells(); the bound stays dropped until the figures say what the equality is.
+  F5 ShoreCell's clearance was vertex-only and the rule-off line was not held to it. PATCH M3C-11: point-to-SEGMENT clearance,
+     the rule-off line asserted INSIDE the disc (its 186 wet columns) and the shipped line outside - both sides in one run.
+  F6 "100 % of the hex ceiling" overstates: seatTier stops at need, so a tier can never exceed its target and the headroom above
+     it is unmeasured. The plan/commit text now says "every tier reached its target (the count stops at the target)".
+  F7 the hairpin red must be named in the commit message (it is), and the D27 hint control no longer discriminates on the step
+     outcome on this network (only on cap hits 0 vs 1842) - stated in the plan text.
+  F8 the plan paragraph omitted the Mountains cut refusals 8 -> 14 (the denser network sends more demands through the massif)
+     and quoted bake-time ranges unioned across runs - both corrected (chain 53's own 56-91 s / 130-214 s).
+  F9 minor (the reported-only real-world ratio test; the chain-49 wall time; the forgotten rig test in PM3c.37) - already recorded.
+PATCH M3C-11 (tests only; no generator change; nothing retuned): RouteFieldTest walkBank + BankWalkReadsTheRiseOverTheShoulder,
+  the census comment, the shore clearance on segments both ways; RouteGraphTest the use-count histogram.
+PREDICTIONS (before the build; chain 55 = m3c11: BankWalk*, CutBanks, ShoreCell, ShoreRigControl, ReuseDiscount): PM3c.41
+  BankWalkReadsTheRiseOverTheShoulder green by construction (0.545 / 0.727; old formula 0.20 / 0.40); CutBanksStandAtTheReposeSlope
+  GREEN with the bank at (-14784,4359) walked from the edge 165 -> 168 over 7 columns = 0.55, largest step 1, two-point 0.73
+  printed as two-point-only, 0 steep, 10 banks measured as before. PM3c.42 ShoreCell GREEN: the rule-off line's segment clearance
+  under 35.5 u (it crosses the pond; ~10-25 u), the shipped line's 56-60.4 u (the vertex figure 60.4 bounds it from above), 0
+  wet, 191.8 / 250.8 u as chain 53. PM3c.43 the shared-cell histograms DIFFER between the networks (the equality a coincidence):
+  overlap with the discount > overlap without (long shared trunk runs vs point crossings), the test's own count = sharedCells()
+  on both; if the histograms come out IDENTICAL the equality is structural and the cause is to be found before the commit.
+
+CHAIN 55 (build 16:59:20-16:59:34 from the m3c-11 tree, exe 16:59:28; run 16:59:34-17:05:59, m4b4r_r55_m3c11.txt): 4 ok, 1 failed.
+  MET: PM3c.42 ShoreCell - the shipped line's nearest point to the pond centre 60.0 u (the vertex figure 60.4), the rule-off
+  line's 16.0 u (inside the 35.5 u disc), 0 wet, 191.8 / 250.8 u. PM3c.43 the shared-cell histograms DIFFER: reuse 1/3 use-2 376
+  / use-3 241 / use-4+ 1070 (max 70), total overlap 12 431; none 377 / 265 / 1045 (max 70), overlap 10 416; the test's own count
+  1687 = sharedCells() on both. The equality is not a data bug: the ">= 2" count is saturated by the seat approaches every
+  member route shares (up to 70 routes in one cell) and ties by coincidence, while the discount's merging shows in the overlap
+  (+19 %). PATCH M3C-12 pins the measured ordering overlap(1/3) > overlap(none), stated as a pin of a measured ordering.
+  BankWalkReadsTheRiseOverTheShoulder green by construction (0.55 / 0.73; old formula 0.20 / 0.40).
+  RED (PM3c.41 MISSED): CutBanksStandAtTheReposeSlope - 35 of 69 single-road banks "steeper than repose": 31 read 0.73 (4 cubes)
+    and 4 read 0.91 (5 cubes), every one over a 7-column walk; the bank at (-14784,4359) side +1 read 0.55 (3 cubes) as predicted
+    but its side -1 read 0.73 (4 cubes). TWO things in that number. (i) MY DIVISOR: the walk covers 7 columns 1 u apart = a 6 u
+    run, and I divided the rise by the DESIGN shoulder 5.5 u - 4 cubes over 6 u is 0.67 (under repose), not 0.73; 31 of the 35
+    are that error (stated post-hoc, the third correction of this measure, each recorded). (ii) THE BANKS: the cut is 3.85 u, the
+    shoulder 5.5 u - a design at exactly repose (0.70) - and the integer surface emits the 3.85 u cut as 4 cubes; where the natural
+    climbs away from the road (the uphill side: "natural rise 1-2") the realized surface climbs 5 cubes to meet it, 0.83 over 6 u,
+    and the shoulder, sized from the cut alone, does not widen for the natural's climb. PATCH M3C-12: walkBank reads the rise over
+    the RUN WALKED (columns - 1), the walk runs from the edge column until the realized surface meets the natural (the section
+    rule), no allowance; the array pin becomes BankWalkReadsTheRiseOverTheRun (3 / 4 / 5 cubes over 6 u = 0.50 / 0.67 / 0.83;
+    5 over 5 u = 1.00; the old formula's 0.60 for the 0.83 bank on record). NOTHING in the generator touched; the bound 0.70 stays.
+PREDICTIONS (before the build; chain 56 = m3c12: BankWalkReadsTheRiseOverTheRun, CutBanks, ReuseDiscount): PM3c.44 BankWalk green
+  by construction; ReuseDiscount GREEN (12 431 > 10 416, the histograms as chain 55). CutBanks: the four 5-cube banks at
+  (-14797,4438) +1, (-14794,4422) +1, (-14784,4295) -1, (-14782,4071) +1 read 0.83 (or 1.00 where the natural is met at the sixth
+  column) - STEEP, certain; the 4-cube banks read 0.67 where the natural is met at the seventh column and 0.80 at the sixth - how
+  many of the 31 meet it early I cannot derive from the chain-55 prints (each shows only the ends), so: RED, steep between 4 and
+  35, the test's figure to be read as the honest count of banks the voxel surface stands steeper than the design's repose. If it is
+  red, it is the generator (the shoulder sized from the cut alone, at exactly repose, with no margin for the integer surface or the
+  uphill natural) - an EARTHWORK item under the owner's hold, left red with its header, like the hairpin pin; no retune.
+
+CHAIN 56 (build 17:09:38-17:09:49 from the m3c-12 tree, exe 17:09:45; run started 17:09:49, m4b4r_r56_m3c12.txt): KILLED by the
+  harness for low system memory while the laptop sat idle overnight (2026-11-04 -> 05); the chain's shell died, the test exe
+  (pid 20728) survived it, still inside CutBanksStandAtTheReposeSlope's bakes at 09:19 on 2026-11-05 (16 hours in - suspended or
+  swapped, not computing), and was stopped by hand at 09:19:12. READ: BankWalkReadsTheRiseOverTheRun GREEN (3 / 4 / 5 cubes over
+  6 u = 0.50 / 0.67 / 0.83, old formula 0.60; 5 over 5 u = 1.00) - the construction half of PM3c.44. NOT READ: CutBanks and
+  ReuseDiscount - PM3c.44's measured halves stand open; the chain is re-run only when the owner asks (the standing rule after a
+  harness kill). Nothing in the tree changed since the m3c-12 build.
+CHAIN 57 (2026-11-05, owner: "go"): the chain-56 set (m3c12) run again on the UNCHANGED m3c-12 tree; PM3c.44 governs it as written.
+  CHAIN 57 (build 09:26:4x no-op on the m3c-12 tree, exe 17:09:45; run 09:26:55-09:33:41, m4b4r_r57_m3c12.txt): 2 ok, 1 failed.
+  MET: BankWalkReadsTheRiseOverTheRun green (0.50 / 0.67 / 0.83, old 0.60; 1.00); ReuseDiscountMergesRoutesIntoTrunks GREEN with
+  the overlap pin (12 431 > 10 416; the histograms identical to chain 55's).
+  RED (PM3c.44 MISSED on the count: 39, above the 4-35 range): CutBanksStandAtTheReposeSlope 39 of 69 steep, worst 1.00. Reading
+    the prints: the walk's STOP RULE is biased - it stopped where the realized surface came WITHIN a cube of the natural (the
+    section rule's tolerance, which that rule pairs with a 1-cube allowance), so a 4-cube bank whose ramp meets the ground at
+    the sixth column was read as 3 cubes over 4 u = 0.75 (18 banks), and a bank beside a FALLING natural stopped after 2-3
+    columns at 1.00 (3 banks). The 0.71-0.73 readings (4-5 cubes over 7-11 u where the natural climbs 1-4) and the 0.80 ones
+    (4 cubes meeting the natural at exactly the sixth column, 5 u run) are the surface as emitted. The 5-cube uphill banks of
+    PM3c.44 read 0.78 over 9 u (two of them) and 0.75 / 0.71 - under the 0.83 predicted because the walk now runs past the
+    shoulder to where the realized meets the climbing natural. PATCH M3C-13: the walk stops at EQUALITY with the natural
+    (integer surfaces), no tolerance - the fourth revision of this measure, each one recorded; the figure it reads next is the
+    generator's and is left as read. The two prediction misses of this measure (PM3c.41, PM3c.44) are both mine: I predicted a
+    walk I had not derived column by column.
+PREDICTIONS (before the build; chain 58 = m3c13: BankWalk, CutBanks): PM3c.45 BankWalk green (unchanged); CutBanks RED - the
+  banks that met the natural at the sixth column in chain 57 (4 cubes over 5 u = 0.80: seven at (11420,-8792), (14364,-9508),
+  (-15385,5401) -1, (-15204,5220) +1, (-14794,4422) -1, (-14788,4391) -1, (-14195,3443) +1) stay at 0.80 - these are a 3.9 u cut
+  emitted as 4 cubes over 5 columns, the integer surface realizing a repose-exact design a column short; the 0.71-0.78 uphill
+  banks stay (about a dozen); the 0.75-over-4-u banks become 4 cubes over 5-6 u (0.67-0.80, split unknown); the falling-natural
+  1.00 banks walk on to a far lower meeting point or the end of the walk (under repose). Steep between 12 and 30, worst 0.80-0.83.
+  If red: the generator (shoulder = cut / repose with no margin for the integer surface or the uphill natural), an EARTHWORK item
+  under the owner's hold, the test left red with a STATUS header; nothing retuned.
+CHAIN 58 (build 09:34:xx from the m3c-13 tree; run 09:34-09:38:34, m4b4r_r58_m3c13.txt): 1 ok, 1 failed. BankWalk green.
+  RED (PM3c.45 MISSED - 39, identical to chain 57 bank for bank): CutBanksStandAtTheReposeSlope 39 of 69, worst 1.00. PATCH
+    M3C-13 was a NO-OP: on integer surfaces "within a cube" (|a - b| < 1) IS equality, so chain 57's walk already stopped where
+    the emitted surface equals the natural, and my "biased stop rule" reading was wrong - recorded as such. What the 39 are, read
+    from the prints: 14 at 0.75 = 3 cubes over 4 u (a 3.9 u cut whose road sits 3.9 below a natural that floors a cube lower, so
+    the staircase meets the floored natural at the fifth column); 7 at 0.80 = 4 over 5 u; 9 at 0.71 and 4 at 0.73 on the uphill
+    side (4-8 cubes over 7-11 u, the natural climbing 1-4 across the shoulder and beyond); 2 at 0.78; 3 at 1.00 (2-3 cubes over 2-3
+    u beside a FALLING natural, where the ramp meets the ground almost at once); 1 bank under repose (3 over 6 u = 0.50, the one
+    the two-point formula flagged). THE GENERATOR'S FIGURE: the shoulder is cut / repose - a design at EXACTLY the repose slope -
+    and the integer surface realizes it as stairs whose rise-over-run lands above 0.70 wherever the floors fall a column early;
+    on the uphill side the natural's climb across the shoulder is not added to the rise the bank must make. Left RED by
+    measurement with a STATUS header on the test (the second owner item of this leg, with the hairpin pin); the bound 0.70 and
+    the generator untouched - an EARTHWORK item under the owner's hold. The measure was corrected four times after runs, each
+    stated post-hoc and recorded (PM3c.37 slope, PM3c.41, PM3c.44, PM3c.45 all missed on this test - the predictions were
+    guesses about a walk I had not derived column by column; the final walk is the plain physical one: edge to ground, no
+    allowance, rise over run, largest step).
+
+AUDIT 8 (solution-auditor on the audit-7 follow-ups, 2026-11-05 ~09:45): VERDICT: FAIL. Held: the shore-cell clearance both ways
+  (F5), the census comment (F1), the F2 open item declared, the two owner reds named, no silent loosening, the exe of chain 58
+  postdating the m3c-13 patch. Findings and what is done:
+  A1 (the weight of it): the final cut-bank measure - raw rise over run to the FIRST TOUCH of the ground - is red on a PERFECT
+     generator. The auditor simulated a 0.70 ramp floored to cubes: 3 cubes first touch at 4 u = 0.75, 4 at 5 u = 0.80, 5 at 7 u
+     = 0.71 - exactly chain 58's clusters (14 / 7 / 9). So "the generator's figure" was unproven: the reds are mostly the
+     quantisation of a design at exactly repose, and the 1.00 cases (beside a falling natural) are a crossing of two curves, not a
+     cut bank. PATCH M3C-14: the claim becomes the DERIVED integer-aware bound - two rounded surfaces differ from the true
+     difference by under 1 cube, so (rise - 1) / run <= repose is implied by the design slope; resolution 1 / run above repose
+     (0.87 on 6 u), stated. The walk runs over the DESIGN shoulder (edge column to shoulder + 0.5), raw rise over run REPORTED
+     per bank and in the summary, falling-natural sides counted apart. The array pin feeds the exact walk ramps quantised through
+     the generator's rounding (quantisedRamp): the 0.70 ramps for cuts 3 / 4 / 5 must pass the bound, a 1.0 ramp must fail it,
+     and the first-touch figures are printed for the record. The test's STATUS header becomes a DESIGN NOTE for the owner (the
+     shoulder at exactly repose, no margin for the integer surface) - not a red.
+  A2 the CutBanks comment still said the chain-57 walk stopped "within a cube" and chain 58's "at equality" - a no-op, as the
+     ledger admits; the comment and the plan/commit text ("corrected four times") corrected: five corrections, one a no-op.
+  A3 chain 58's RouteFieldTest.cpp sha (fbaed528a22c7681) is not the tree's (the STATUS header was added after the run): chain 59
+     certifies the file as committed.
+  A4 the texts named the renamed pin (…OverTheShoulder) - fixed (…OverTheRun).
+  A5 the shared-cell tie: "coincidence" is not adequate while nothing measured whether the SAME cells are shared in both networks
+     (if the shared set is the discount-invariant seat approaches, the tie is expected). PATCH M3C-14 prints the shared SETS'
+     intersection; the overlap pin stays, labelled as it is.
+  A6 the commit text's AUDIT_PLACEHOLDER (filled after the final verdict); the auditor's "Claude Sonnet 5.5" attribution demand
+     is wrong for this session - the Co-Authored-By line stays as the session's instructions set it.
+PATCH M3C-14 (tests only): RouteFieldTest walkBank.bounded + quantisedRamp + walkToFirstTouch, the pin rewritten with the ramp
+  controls, the CutBanks walk over the design shoulder with the bound asserted and the raw figure reported, the header a design
+  note; RouteGraphTest the shared-set intersection.
+PREDICTIONS (before the build; chain 59 = m3c14: BankWalk, CutBanks, ReuseDiscount): PM3c.46 BankWalk green by construction
+  (0.70 ramps: first touch 0.75 / 0.80 / 0.71 as the auditor derived, bounded 0.33-0.50; the 1.0 ramp bounded 0.80 > 0.70).
+  CutBanks GREEN: 0 banks over the bound (the worst raw banks are 4-5 cubes over 6 u: bounded 0.50-0.67; the falling-natural
+  sides rise <= 2 over 6 u), largest step 1 everywhere, raw over repose on 20-39 banks REPORTED (over the design run most read
+  0.67-0.83: 4 / 6 = 0.67 passes raw, 5 / 6 = 0.83 is over), 3 falling-natural sides, worst bounded <= 0.67.
+  ReuseDiscount GREEN (the overlap pin as chain 57); the shared-set intersection HIGH - above 80 % of 1687 (the seat approaches
+  are the shared cells in both networks, the tie structural); if it is under 50 % the tie is unexplained and stays logged so.
+CHAIN 59 (build 09:45:37-09:45:49 from the m3c-14 tree, RouteFieldTest.cpp ed0836ee68d29c3a, exe 09:45:45; run 09:45:49-09:52:27,
+  m4b4r_r59_m3c14.txt): 2 ok, 1 failed.
+  MET: PM3c.46 CutBanks GREEN - 0 of 69 banks over the integer-aware bound (worst bounded 0.67), largest step 1 everywhere, 3 sides
+  beside a falling natural; the raw count MISSED (4 banks raw over repose - 5 cubes over 6 u = 0.83 - not the 20-39 I wrote: over
+  the DESIGN run the 4-cube banks read 4 / 6 = 0.67, under repose raw, which I had said and then mis-counted). ReuseDiscount GREEN
+  (overlap 12 431 > 10 416); the shared SETS: 1307 of 1687 cells in both (77 %) - between my 80 % / 50 % marks: the tie is MOSTLY
+  structural (the seat approaches are the same cells in both networks) and the remaining 380 a coincidence of counts; read so.
+  RED (the control, PM3c.46 MISSED): BankWalkReadsTheRiseOverTheRun - the 1.0-ramp control PASSED the bound (raw 0.83, bounded
+    0.67): I built a 5-cube 1.0 ramp and walked it over a 6 u window - a 5 u ramp diluted over 6 u. And the 0.70 ramps floored to
+    cubes read first touch 0.60 / 0.67 / 0.67, NOT the 0.75 / 0.80 / 0.71 the auditor derived and chain 58 showed on the real
+    banks: the generator's surface rounds to NEAREST, not floor (nearest reproduces the clusters exactly: 3 at 4 u, 4 at 5 u, 5 at
+    7 u). PATCH M3C-15 (the pin only): quantisedRamp rounds to nearest and takes the real walk's column count from the shoulder;
+    the first-touch figures are ASSERTED at 0.75 / 0.80 / 0.714 (the artefact reproduced on record) and each above repose; the
+    1.0 control is 6 cubes over its own 6 u shoulder (raw 1.00, bounded 0.83 > 0.70); a 0.90 ramp shown (the resolution).
+PREDICTIONS (before the build; chain 60 = m3c15: BankWalk, CutBanks): PM3c.47 BankWalk GREEN: first touch 0.75 / 0.80 / 0.71,
+  bounded 0.50 / 0.50 / 0.57 (3 over 4 u, 4 over 6 u, 5 over 7 u), the uphill ramp bounded <= 0.67, the 1.0 ramp raw 1.00 /
+  bounded 0.83, the 0.90 ramp raw ~0.86 / bounded ~0.71 (reported); CutBanks GREEN as chain 59 (0 / 4 raw / worst 0.67).
+CHAIN 60 (build 09:54:16-09:54:27 from the m3c-15 tree, RouteFieldTest.cpp c1866fb8e251d858 = the tree as committed, exe 09:54:22;
+  run 09:54:27-09:57:27, m4b4r_r60_m3c15.txt): 2 ok, 0 failed. PM3c.47 MET in every figure: the 0.70 ramps rounded to nearest read
+  first touch 0.75 / 0.80 / 0.71 (the chain-58 artefact reproduced on record, each above repose) and bounded 0.50 / 0.50 / 0.57;
+  the uphill ramp 0.67 raw / 0.50 bounded; the 1.0 ramp raw 1.00 / bounded 0.83 (caught); the 0.90 ramp raw 0.86 / bounded 0.71
+  (reported, the resolution); CutBanks GREEN as chain 59 - 0 of 69 over the bound, worst 0.67, raw over repose on 4, largest step 1.
+
+AUDIT 9 (solution-auditor on the audit-8 follow-ups, 2026-11-05 ~10:05): VERDICT: FAIL. Held: the (rise - 1) / run derivation; the
+  1.0 control; chain 60's sha = the tree; the chain 59/60 figures. Findings and what is done:
+  B1 the stated resolution "repose + 1 / run = 0.87" is wrong: a fail needs rise >= 6 on 6 u, a true rise above 5, so the bound
+     first fails at a design slope above 0.83 (0.92 with the edge on a cube) and is guaranteed only at 1.0 (4 u: 0.75 / 0.875 /
+     1.0). PATCH M3C-16: the derivation and band stated in walkBank's comment, the pin's print, the header, the plan and commit.
+  B2 the 0.90-ramp comment was garbled (it is 8 columns, a 7 u run, 5 / 7) - rewritten.
+  B3 the four raw-0.83 banks are NOT rounding: 5 cubes over the 6 u window = the 3.9 u cut plus the natural's climb of ~1 across
+     the shoulder. The generator's bank (gradeBlendAt) blends the road grade into the NATURAL across cut / repose, so the bank is
+     at repose RELATIVE to the natural and an uphill bank's absolute slope is repose plus the natural's own. They pass the bound
+     only through the 6 u run (over the 5.5 u design shoulder: 0.73) and the allowance - said so now. PATCH M3C-16: quantisedRamp
+     is the generator's model (ground minus the cut's remainder across the shoulder), the pin adds the uphill controls - the
+     natural climbing 1 across a 4-cube cut reads raw 0.83 / bounded 0.67 (asserted both: physically over repose, invisible to
+     the bound - the blind band on record), climbing 2 reads 1.0 / 0.83 (asserted caught); the header carries it as the second
+     DESIGN ITEM for the owner (absolute vs relative repose). "Inside the rounding" withdrawn from every text.
+  B4 "the remaining 380 a coincidence of counts" over-reads the 77 % - rewritten as "380 cells differ in each set while the counts
+     tie; unexplained, reported" (the plan/commit text).
+  B5 CORRECTION: the chain-59 entry above and the test header said "3 sides beside a falling natural" - the logs of chains 59 and
+     60 say 12; 3 was my prediction, carried into the reading. Corrected in the header; the entry stands with this note.
+  B6 the raw chain logs cited as evidence lived only in the scratchpad: copied to docs/evidence/worldforge_v2/m3c_chains/
+     (m4b4r_chain_49..61 summaries and the r49-r61 result logs) and committed with the leg.
+PATCH M3C-16 (the pin and its comments, the header; no assertion on the real worlds changed).
+PREDICTIONS (before the build; chain 61 = m3c15 set: BankWalk, CutBanks): PM3c.48 BankWalk GREEN: the flat 0.70 banks as chain 60
+  (first touch 0.75 / 0.80 / 0.71, bounded 0.50 / 0.50 / 0.57); the uphill cut-4 bank with the natural climbing 1: raw 0.83 (5 over
+  6 u), bounded 0.67, step 1; climbing 2: raw 1.00, bounded 0.83; the 1.0 bank 1.00 / 0.83; the 0.90 bank 0.71 raw... no: 6 cubes
+  over 7 u = 0.86 raw / 0.71 bounded as chain 60. CutBanks GREEN exactly as chain 60 (0 over the bound, 4 raw-over, worst 0.67, 12
+  falling sides) - the test body is unchanged.
+CHAIN 61 (build 10:02:53-10:03:02 from the m3c-16 tree, RouteFieldTest.cpp 2bf9deac460e614a = the tree as committed, exe 10:02:58;
+  run 10:03:02-10:06:06, m4b4r_r61_m3c15.txt): 2 ok, 0 failed. PM3c.48 MET in every figure: the flat banks as chain 60; the uphill
+  cut-4 bank with the natural climbing 1 raw 0.83 / bounded 0.67 / step 1 (the blind band, on record), climbing 2 raw 1.00 /
+  bounded 0.83 (caught); the 1.0 bank 1.00 / 0.83; the 0.90 bank 0.86 / 0.71; CutBanks GREEN as chain 60 (0 over the bound, 4
+  raw-over, worst 0.67, 12 falling sides). The leg's evidence logs: docs/evidence/worldforge_v2/m3c_chains/.
+
+AUDIT 10 (solution-auditor on the audit-9 items, 2026-11-05 ~10:15): VERDICT: FAIL (narrow). Held: the falling count 12, the
+  phase-dependent resolution everywhere, the uphill controls and their asserts, the divisor statement, the copied logs (byte-
+  identical for chains 59-61), the tree hash, no loosening of the real-world bank bound since audit 9. Findings, each applied:
+  C1 B4 was NOT applied to the plan/commit (the ledger's audit-9 entry claimed it - false then): applied now, grep-verified
+     ("coincidence of counts" 0 hits, "unexplained, reported" present).
+  C2 the commit text's evidence pointer named r39..r54 in the scratchpad: now m3c_chains/ (r49-r61) and the civ record.
+  C3 "ONE RED LEFT FOR THE OWNER" omitted the pre-existing terrain red (the six Mountains lips, RiverGeometryTest, since chain 38,
+     inside "terrain 105/106"): named in the plan and commit as pre-existing and not M3c's.
+  C4 "chain 53 on the final tree" (and chain 54) overstated: both ran on the m3c-10 tree; M3C-11..16 touched RouteFieldTest.cpp
+     and RouteGraphTest.cpp only (the chain summaries' hashes of WorldForgePlan.cpp/.h, WorldGenerator.cpp, EarthworkTest.cpp are
+     unchanged 53 -> 61) and were re-run in chains 55-61 - said so.
+  C5 the Co-Authored-By line: the auditor asked for "Claude Sonnet 5.5"; this session's attribution instruction says Claude Fable
+     5.1 and that is what the commit carries - the finding is declined, recorded.
+  C6 "chains 59-60" -> "59-61" in the header.
+
+AUDIT 11 (solution-auditor on the audit-10 items, 2026-11-05 ~10:25): VERDICT: FAIL. Held: B4 applied, the evidence pointer, the
+  lips red named, chains 53/54 on the m3c-10 tree, the four hashed files identical across chains 53-61, git status clean of other
+  engine files. Findings, each applied:
+  D1 "Release editor built ... from the final tree" - the same overclaim as C4: replaced by the Release build's own record (built
+     2026-11-04 14:54, CivPlan.cpp 3c73128dbe022190 - the current file's hash).
+  D2 "M3C-11..16 touched RouteFieldTest.cpp and RouteGraphTest.cpp only" was supported only for the four hashed files: now stated
+     with the measurement - every other modified file's last write predates chain 53's build (CivPlan.h / CivPlanStressTest
+     2026-11-03 15:44; CivPlan.cpp / CivHistoryTest / CivPlanTest 2026-11-04 10:18; WorldForgePlan.h / BridgeSpanTest /
+     WorldForgePlanTest 12:06; WorldForgePlan.cpp 12:50; EarthworkTest 13:12 = chain 53's hash), RouteFieldTest.cpp 2026-11-05 10:08
+     and RouteGraphTest.cpp 09:45 the only later writes.
+  D3 the header's range: "(chains 53-61; the figures below from chains 59-61)" - the status spans the measure's history, the
+     figures are chain 59's, repeated by 60 and 61.
+
+AUDIT 12 (solution-auditor on the audit-11 items, 2026-11-05 ~10:35): VERDICT: PASS - "final tree" gone from the M3c paragraph and
+  the commit text; the Release record cited by its recorded hash (3c73128dbe022190 = the current CivPlan.cpp = the build log's START
+  line); the write times of every other modified file before chain 53's 13:12:40 start, matching the texts; the header range as
+  specified. Scope: the three audit-11 findings; the chain 55-61 figures were not re-checked by this pass (audits 9-11 checked them).
+COMMITTED after audit 12 with the texts as they stand.

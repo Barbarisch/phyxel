@@ -173,10 +173,18 @@ TEST(CivPlanTest, TheBoxPlanIsSeededByTheCivSites) {
     ASSERT_TRUE(civ);
     const WorldForgePlan* box = g.worldForge();
     ASSERT_TRUE(box);
-    const float half = 16384.0f;
-    int civInBox = 0;
-    for (const auto& s : civ->sites())
-        if (s.tier <= CivPlan::Hamlet && std::fabs(s.pos.x) < half && std::fabs(s.pos.y) < half) ++civInBox;
+    // M4a: a civ site inside the box edge's 512 u pin margin (kBoxEdgeInsetU, WorldGenerator.cpp) is
+    // not seeded - the box's roads end at the inset edge. The count predated that rule and was never
+    // exercised until the M3c lattice put a hamlet in the band (red 2026-11-04: 7 inside the box,
+    // 6 inside the margin, 6 seeded); CivHistoryTest.BoxPlanIsSeededByTheLiveCivSitesAtTwelveEpochs
+    // already counts with the inset.
+    const float half = 16384.0f - 512.0f;
+    int civInBox = 0, inMargin = 0;
+    for (const auto& s : civ->sites()) {
+        if (s.tier > CivPlan::Hamlet) continue;
+        if (std::fabs(s.pos.x) < half && std::fabs(s.pos.y) < half) ++civInBox;
+        else if (std::fabs(s.pos.x) < 16384.0f && std::fabs(s.pos.y) < 16384.0f) ++inMargin;
+    }
     int matched = 0;
     for (const auto& bs : box->sites()) {
         bool found = false;
@@ -184,10 +192,11 @@ TEST(CivPlanTest, TheBoxPlanIsSeededByTheCivSites) {
             if (std::fabs(s.pos.x - bs.pos.x) <= 512.0f && std::fabs(s.pos.y - bs.pos.y) <= 512.0f) { found = true; break; }
         if (found) ++matched;
     }
-    std::printf("[ M3a ] civ sites in the box (city..hamlet): %d; box plan sites %zu, %d within a macro cell of a civ site\n",
-                civInBox, box->sites().size(), matched);
-    // the box plan is EXACTLY the civ sites inside the box (the baseline box holds a tenth of the
-    // continent's land: 6 of the 157 sites), and the V1 3-8 clamp no longer applies when civ is on
+    std::printf("[ M3a ] civ sites in the box (city..hamlet): %d inside the 512 u margin, %d in the margin (not seeded); box plan sites %zu, %d within a macro cell of a civ site\n",
+                civInBox, inMargin, box->sites().size(), matched);
+    // the box plan is EXACTLY the civ sites inside the box's margin (the baseline box holds a tenth
+    // of the continent's land: 6 of the 182 M3c sites, one more in the margin), and the V1 3-8
+    // clamp no longer applies when civ is on
     EXPECT_EQ(static_cast<int>(box->sites().size()), civInBox) << "the box plan is not the civ sites inside the box";
     EXPECT_EQ(matched, static_cast<int>(box->sites().size())) << "a box-plan site is not a civ site";
     // D18 local refinement actually RUNS on the civ seeds: the box plan's 16 u offset grid never

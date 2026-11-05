@@ -311,9 +311,10 @@ public:
     /// Full plan as JSON: sites + scores, road polylines (decimated), crossings, clamped
     /// params. The determinism contract is defined over this string.
     nlohmann::json toJson() const;
-    /// M0: road segments the 8 u raster could NOT index (uint16 segment table). Roads past the
-    /// cap exist in the plan but `roadAt` cannot see them - a loud WARN at bake and this count
-    /// (also in toJson as "raster_truncated_segments") replace the silent `break` the code had.
+    /// M0: road segments the 8 u raster could NOT index (the cap is the index width: uint32 since
+    /// M3c, uint16 before). Roads past the cap exist in the plan but `roadAt` cannot see them - a loud
+    /// WARN at bake and this count (also in toJson as "raster_truncated_segments") replace the silent
+    /// `break` the code had.
     size_t rasterTruncatedSegments() const { return m_rasterTruncatedSegments; }
     // M4 water-aware routing (2026-11-02): lines that crossed standing water (neither a carved channel
     // nor a creek) and were routed again, and demands refused for it (reported, never hashed)
@@ -321,12 +322,17 @@ public:
     int waterRefused() const { return m_waterRefused; }
     int waterFineDetours() const { return m_waterFineDetours; }   // of the re-routes, those solved by a 32 u detour inside a band around the hit
     /// TEST-ONLY: lower the road-raster segment cap so a small fixture can exercise the
-    /// truncation path (the real cap is 0xFFFE). 0 resets to the real cap.
+    /// truncation path (the real cap is 0xFFFFFFFE). 0 resets to the real cap.
     static void setRasterSegmentCapForTesting(size_t cap);
     /// M4 water-aware routing, TESTS ONLY: off = the routing as it was before 2026-11-02 (a fine cell
     /// wet at its centre only, no water scan of the realized line), so a rig can show its red and its
     /// green on the same pond in one run. Default on; never read outside the bake.
     static void setWaterAwareRoutingForTesting(bool on);
+    /// M3c ripple (2026-11-04), TESTS ONLY: off = the fine water detour as built on 2026-11-02 (the stretch ends
+    /// at the coarse cell centres, one fine attempt, the judge's exact hits never mark a fine cell) - the control
+    /// that reproduces the lakeshore refusal; on (default) = the stretch reaches the demand's own endpoints, up to
+    /// kFineDetourRetries attempts, every exact hit's fine cell marked wet.
+    static void setFineDetourToEndpointsForTesting(bool on);
     /// Audit 7 (2026-11-03): the raster's hints per (cell, road) - 1 reproduces the pre-fix blind spot at a hairpin (the control).
     static void setLegsPerCellForTesting(int legs);
     static constexpr int kLegsPerCellMax = 8;
@@ -347,17 +353,21 @@ private:
     std::vector<WorldForgeRefusedDemand> m_refused;   // M4c
 
     // Road raster: 8 u cells over the road-network bbox. Per cell the nearest global segment
-    // index (0xFFFF = none within reach) — roadAt refines with exact segment distances.
+    // index (kNoSegment = none within reach) — roadAt refines with exact segment distances.
+    // M3c ripple (2026-11-04): the index is uint32. The uint16 it was (65534 segments = ~1050 km of
+    // road at the 16 u vertex spacing) overflowed on the lattice network - 12435 of 77969 baseline and
+    // 54632 of 120166 Mountains segments were invisible to roadAt (m3c_red_green.txt, chain 50).
+    static constexpr uint32_t kNoSegment = 0xFFFFFFFFu;
     struct Raster {
         float originX = 0.0f, originZ = 0.0f;
         float cellSize = 8.0f;
         int cellsX = 0, cellsZ = 0;
-        std::vector<uint16_t> nearestSeg;
+        std::vector<uint32_t> nearestSeg;
         // M4b-2 audit: EVERY road within reach of a cell, with that road's nearest segment to the
         // cell centre (compressed rows: cellRoadsStart[cell]..cellRoadsStart[cell+1] index
         // cellRoadSeg) - two slots could not hold the 3-6 roads that bundle on a shared trunk.
         std::vector<uint32_t> cellRoadsStart;
-        std::vector<uint16_t> cellRoadSeg;
+        std::vector<uint32_t> cellRoadSeg;
     } m_raster;
     int m_rasterHintCapHits = 0;   // audit 7 (2026-11-03): (cell, road) entries that hit the hint cap - a leg could be lost there; reported
     // Global segment table (all roads concatenated; raster values index this).
@@ -369,7 +379,7 @@ private:
     };
     std::vector<Segment> m_segments;
     bool m_blendGrades = false;   // M4b-2: set for corridor-driven plans
-    size_t m_rasterTruncatedSegments = 0;   ///< M0: segments dropped at the raster's uint16 cap (0 = none)
+    size_t m_rasterTruncatedSegments = 0;   ///< M0: segments dropped at the raster's cap (the uint32 index width; 0 = none)
     int m_waterRerouted = 0, m_waterRefused = 0, m_waterFineDetours = 0;   ///< M4 water-aware routing: lines re-routed / demands refused for standing water / fine detours
 };
 
