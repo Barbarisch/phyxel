@@ -103,7 +103,7 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
 
     px_.resize(n); py_.resize(n); pz_.resize(n); lambda_.resize(n); rho_.resize(n);
     const int R = int(std::ceil(h));
-    std::vector<float> bx, by, bz;   // boundary (solid cell centre) offsets, per particle, rebuilt per iteration
+    std::vector<float> denom(n, 1.f);   // the density constraint's denominator, reused by the divergence solve
 
     // Visit the fluid neighbours j of particle i (positions px_/py_/pz_) and the solid cells
     // within h; f(dx, dy, dz, r2, j) with j = -1 for a boundary particle.
@@ -182,9 +182,10 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
                     if (j >= 0) sum2 += (mj * mj) * (gw[0] * gw[0] + gw[1] * gw[1] + gw[2] * gw[2]) / (rho0_ * rho0_);
                 });
                 rho_[i] = rho;
-                const float C = std::max(rho / rho0_ - 1.f, 0.f);   // unilateral: no pull at the free surface
+                const float C = std::max(rho / rho0_ - 1.f, cfg_.minC);   // minC 0 = unilateral: no pull at the free surface
                 sum2 += (gi[0] * gi[0] + gi[1] * gi[1] + gi[2] * gi[2]) / (rho0_ * rho0_);
-                lambda_[i] = -C / (sum2 + cfg_.relaxation);
+                denom[i] = sum2 + cfg_.relaxation;
+                lambda_[i] = -C / denom[i];
             }
             std::vector<float> dxs(n), dys(n), dzs(n);
             for (size_t i = 0; i < n; ++i) {
@@ -214,6 +215,44 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
         for (size_t i = 0; i < n; ++i) {
             vx[i] = (px_[i] - p_[i].x) / dt; vy[i] = (py_[i] - p_[i].y) / dt; vz[i] = (pz_[i] - p_[i].z) / dt;
         }
+        // Divergence solve (Bender & Koschier 2015, DFSPH, in PBF form): remove the rate of density
+        // change D_i = sum m_j (v_i - v_j) . gradW_ij / rho0 from the velocities. A projected
+        // position jump at rest is a compress/expand velocity; this cancels it, real flow keeps its
+        // divergence-free part. At the free surface (rho < rho0) only compression is removed.
+        std::vector<float> kap(n);
+        for (int it = 0; it < cfg_.divergenceIterations; ++it) {
+            for (size_t i = 0; i < n; ++i) {
+                float D = 0.f;
+                forNeighbours(i, [&](float ex, float ey, float ez, float r2, int j) {
+                    if (j == int(i)) return;
+                    float gw[3];
+                    gradW(ex, ey, ez, r2, gw);
+                    const float mj = j < 0 ? 1.f : float(p_[size_t(j)].units) / float(full_);
+                    const float rvx = j < 0 ? vx[i] : vx[i] - vx[size_t(j)];
+                    const float rvy = j < 0 ? vy[i] : vy[i] - vy[size_t(j)];
+                    const float rvz = j < 0 ? vz[i] : vz[i] - vz[size_t(j)];
+                    D += mj * (rvx * gw[0] + rvy * gw[1] + rvz * gw[2]);
+                });
+                D /= rho0_;
+                if (rho_[i] < rho0_) D = std::max(D, 0.f);
+                kap[i] = -D / denom[i];
+            }
+            std::vector<float> dvx(n), dvy(n), dvz(n);
+            for (size_t i = 0; i < n; ++i) {
+                float d[3] = {0, 0, 0};
+                forNeighbours(i, [&](float ex, float ey, float ez, float r2, int j) {
+                    if (j == int(i)) return;
+                    float gw[3];
+                    gradW(ex, ey, ez, r2, gw);
+                    const float mj = j < 0 ? 1.f : float(p_[size_t(j)].units) / float(full_);
+                    const float kj = j < 0 ? kap[i] : kap[size_t(j)];
+                    const float k = mj * (kap[i] + kj) / rho0_;
+                    d[0] += k * gw[0]; d[1] += k * gw[1]; d[2] += k * gw[2];
+                });
+                dvx[i] = d[0]; dvy[i] = d[1]; dvz[i] = d[2];
+            }
+            for (size_t i = 0; i < n; ++i) { vx[i] += dvx[i]; vy[i] += dvy[i]; vz[i] += dvz[i]; }
+        }
         for (size_t i = 0; i < n; ++i) {
             float a[3] = {0, 0, 0};
             if (cfg_.viscosity > 0.f)
@@ -226,6 +265,41 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
             q.vx = vx[i] + cfg_.viscosity * a[0]; q.vy = vy[i] + cfg_.viscosity * a[1]; q.vz = vz[i] + cfg_.viscosity * a[2];
             q.x = px_[i]; q.y = py_[i]; q.z = pz_[i];
         }
+    }
+}
+
+void MatSimParticles::densityError(const MatSimCore& core, float& meanAbsC, float& maxC) {
+    // Run a zero-length step's density evaluation: reuse step() with no iterations would move
+    // particles, so evaluate directly with the same kernel.
+    if (!full_) full_ = core.full();
+    const float h = cfg_.kernelCells, h2 = h * h;
+    const float poly6 = 315.f / (64.f * kPi * std::pow(h, 9.f));
+    auto W = [&](float r2) { if (r2 >= h2) return 0.f; const float d = h2 - r2; return poly6 * d * d * d; };
+    if (rho0_ == 0.f) {
+        const int R = int(std::ceil(h));
+        for (int a = -R; a <= R; ++a)
+            for (int b = -R; b <= R; ++b)
+                for (int c = -R; c <= R; ++c) rho0_ += W(float(a * a + b * b + c * c));
+    }
+    const int R = int(std::ceil(h));
+    meanAbsC = 0.f; maxC = -1e9f;
+    for (const Particle& pi : p_) {
+        float rho = 0.f;
+        for (const Particle& pj : p_) {
+            const float ex = pi.x - pj.x, ey = pi.y - pj.y, ez = pi.z - pj.z;
+            rho += float(pj.units) / float(full_) * W(ex * ex + ey * ey + ez * ez);
+        }
+        const int ix = floorI(pi.x), iy = floorI(pi.y), iz = floorI(pi.z);
+        for (int y = iy - R; y <= iy + R; ++y)
+            for (int z = iz - R; z <= iz + R; ++z)
+                for (int x = ix - R; x <= ix + R; ++x) {
+                    if (cellMaterial(core.at({x, y, z})) != kSolid) continue;
+                    const float ex = pi.x - (x + 0.5f), ey = pi.y - (y + 0.5f), ez = pi.z - (z + 0.5f);
+                    rho += W(ex * ex + ey * ey + ez * ez);
+                }
+        const float C = rho / rho0_ - 1.f;
+        meanAbsC += std::fabs(C) / float(p_.size());
+        maxC = std::max(maxC, C);
     }
 }
 

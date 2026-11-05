@@ -29,6 +29,11 @@ struct ParticleConfig {
     float cflCells = 0.4f;         ///< the fastest particle moves at most this many cells per substep
     int maxSubsteps = 16;
     float omega = 1.0f;            ///< Jacobi under-relaxation of each iteration's correction (1 = none)
+    /// DFSPH-style velocity divergence solve per substep (Bender & Koschier 2015). 2 (measured,
+    /// 6f): halves the resting churn (still tank median 1.0 -> 0.64 m/s at c 0.01; 0.29 -> 0.22 at
+    /// c 0.1) with the U-tube surge and period unchanged (3.07 m, ~4.5 s).
+    int divergenceIterations = 2;
+    float minC = 0.0f;             ///< lower clamp of C = rho/rho0 - 1 (0 = unilateral: push only; -1 = bilateral)
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
 };
 
@@ -53,6 +58,10 @@ public:
     uint64_t deposit(MatSimCore& core);
 
     const std::vector<Particle>& particles() const { return p_; }
+    /// Test hooks: add a particle directly; density error C = rho/rho0 - 1 over all particles
+    /// (fluid + boundary neighbours, same kernel as the solver) at the current positions.
+    void addParticle(const Particle& p) { p_.push_back(p); }
+    void densityError(const MatSimCore& core, float& meanAbsC, float& maxC);
     uint64_t units(uint8_t mat) const;
     float maxSpeed() const;          ///< cells per second
     int lastSubsteps() const { return lastSubsteps_; }

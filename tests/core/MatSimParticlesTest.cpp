@@ -133,8 +133,11 @@ TEST(MatSimParticles, UTubeLevelsAtOneThirdMetre) {
 TEST(MatSimParticles, ControlWithoutDensityConstraintDoesNotLevel) {
     // No density iterations = no pressure: no particle ever rises into the far arm (measured on the
     // particles; the deposit's overflow search would spread a collapsed pile into both arms).
+    // Both incompressibility solves off: the velocity (divergence) solve alone also carries
+    // pressure (measured: with only it on, the far arm reached 1.22 m).
     ParticleConfig pc;
     pc.iterations = 0;
+    pc.divergenceIterations = 0;
     const UTubeRun r = runUTube(3, pc, 4.0);
     print("control (0 iterations)", 3, r);
     EXPECT_TRUE(r.ledgerExact);
@@ -161,6 +164,7 @@ TEST(MatSimParticles, DISABLED_SloshTimeSeries) {
     const char* visc = std::getenv("MATSIM_VISC");
     ParticleConfig pc;
     if (visc) pc.viscosity = float(std::atof(visc));
+    if (const char* e = std::getenv("MATSIM_DIV")) pc.divergenceIterations = std::atoi(e);
     MatSimCore s = uTube(cpm);
     MatSimParticles ps(pc);
     ps.lift(s, s.origin(), s.size());
@@ -293,5 +297,63 @@ TEST(MatSimParticles, DISABLED_LayerHeights) {
         double m = 0, lo = 1e9, hi = -1e9;
         for (size_t k = l * 45; k < (l + 1) * 45; ++k) { m += ys[k]; lo = std::min<double>(lo, ys[k]); hi = std::max<double>(hi, ys[k]); }
         std::printf("[layers] iter %d layer %zu: mean y %.3f cells (min %.3f max %.3f), lattice %.1f\n", pc.iterations, l, m / 45, lo, hi, l + 0.5);
+    }
+}
+
+TEST(MatSimParticles, DISABLED_JitterVsDepthAndGravity) {
+    // Still tank 15 x 18 x 3 cells at 1/3 m, water H cells deep; median and p90 speed (m/s) after
+    // 10 s. Depth-dependence points at pressure propagation; gravity-scaling at the per-substep kick.
+    for (float g : {9.81f, 2.45f})
+        for (int H : {2, 4, 8}) {
+            const int cpm = 3;
+            std::string why;
+            Config cfg;
+            cfg.pressure = false;
+            MatSimCore s;
+            s.create({0, 0, 0}, {15, 18, 3}, cpm, [](int, int, int) { return Occ::Empty; }, &why, cfg);
+            s.fillBox(Mat::Water, {0, 0, 0}, {15, H, 3}, 1.0);
+            ParticleConfig pc;
+            pc.gravity = g;
+            pc.viscosity = std::getenv("MATSIM_VISC") ? float(std::atof(std::getenv("MATSIM_VISC"))) : 0.01f;
+            if (const char* e = std::getenv("MATSIM_MINC")) pc.minC = float(std::atof(e));
+            if (const char* e = std::getenv("MATSIM_DIV")) pc.divergenceIterations = std::atoi(e);
+            if (const char* e = std::getenv("MATSIM_TENSILE")) pc.tensileK = float(std::atof(e));
+            MatSimParticles ps(pc);
+            ps.lift(s, s.origin(), s.size());
+            for (int f = 0; f < 600; ++f) ps.step(s, 1.0 / 60.0);
+            std::vector<float> v;
+            for (const Particle& p : ps.particles()) v.push_back(std::sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) / cpm);
+            std::sort(v.begin(), v.end());
+            double top = 0;
+            for (const Particle& p : ps.particles()) top = std::max<double>(top, p.y);
+            std::printf("[jitter] div %d minC %.2f top %.2f (filled to %d) g %.2f H %d cells: median %.3f p90 %.3f m/s (substeps %d)\n", pc.divergenceIterations, pc.minC, top, H, g, H, v[v.size() / 2],
+                        v[v.size() * 9 / 10], ps.lastSubsteps());
+        }
+}
+
+TEST(MatSimParticles, DISABLED_ProjectionConverges) {
+    // A 6x6x6 cube of particles at 0.9-cell spacing (compressed) in the middle of an empty box,
+    // gravity 0: one frame (one substep) with N iterations. A correct projection lowers max C.
+    std::string why;
+    Config cfg;
+    cfg.pressure = false;
+    MatSimCore s;
+    s.create({0, 0, 0}, {30, 30, 30}, 3, [](int, int, int) { return Occ::Empty; }, &why, cfg);
+    for (int it : {0, 1, 2, 4, 8, 16}) {
+        ParticleConfig pc;
+        pc.gravity = 0.f;
+        pc.viscosity = 0.f;
+        pc.iterations = it;
+        MatSimParticles ps(pc);
+        for (int a = 0; a < 6; ++a)
+            for (int b = 0; b < 6; ++b)
+                for (int c = 0; c < 6; ++c)
+                    ps.addParticle({12.f + 0.9f * a, 12.f + 0.9f * b, 12.f + 0.9f * c, 0, 0, 0, s.full(), Mat::Water});
+        float m0, x0, m1, x1;
+        ps.densityError(s, m0, x0);
+        ps.step(s, 1.0 / 60.0);
+        ps.densityError(s, m1, x1);
+        std::printf("[proj] iterations %2d: max C %.4f -> %.4f, mean |C| %.4f -> %.4f, max speed after %.2f cells/s\n", it, x0,
+                    x1, m0, m1, ps.maxSpeed());
     }
 }
