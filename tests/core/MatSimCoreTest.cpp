@@ -951,3 +951,186 @@ TEST(MatSimPressure, WideUTubeRestsLevelAtEverySize) {
         EXPECT_EQ(s.ledger(), s.expectedLedger());
     }
 }
+
+// DIAGNOSTIC (disabled; run with --gtest_also_run_disabled_tests): where the pressure rule's
+// throughput goes in the 2|2 U-tube at 1/3 m. Per sample: right arm height, pressurised holes,
+// free-surface cells and how many of them stand within the deadband of the head (the absorbers
+// holes are routed to), distinct route sources.
+TEST(MatSimDiag, DISABLED_UTubeThroughput) {
+    for (int cpm : {1, 3}) {
+        MatSimCore s = uTube({2, 2}, cpm, 4.0);
+        const IVec3 n = s.size();
+        const uint32_t F = s.full(), db = s.pressureDeadband();
+        std::printf("[diag] cpm %d F %u db %u K %u\n", cpm, F, db, s.orificeK());
+        for (int t = 0; t <= 2000; ++t) {
+            if (t % (cpm == 1 ? 5 : 25) == 0) {
+                int holes = 0, surf = 0, absorb = 0, partialClosed = 0;
+                uint32_t headMax = 0;
+                std::vector<uint32_t> srcs;
+                for (size_t i = 0; i < s.head().size(); ++i) headMax = std::max(headMax, s.head()[i] & kHeadMask);
+                const auto& Q = s.headPtr();
+                const auto& Hh = s.head();
+                const auto& M = s.headMaxPtr();
+                for (size_t i = 0; i < Q.size(); ++i) {
+                    const uint32_t hv = Hh[i];
+                    if (M[i] != kNoHead && (M[i] >> 8) == i) {   // a free surface
+                        ++surf;
+                        if (Q[i] == (uint32_t(i) << 8)) ++absorb;   // its own route source = an absorber
+                    }
+                    if (Q[i] != kNoHead && std::find(srcs.begin(), srcs.end(), Q[i] >> 8) == srcs.end()) srcs.push_back(Q[i] >> 8);
+                    (void)hv;
+                }
+                for (int y = 0; y < n.y; ++y)
+                    for (int z = 0; z < n.z; ++z)
+                        for (int x = 0; x < n.x; ++x) {
+                            const Cell c = s.at({x, y, z});
+                            if (cellMaterial(c) == kSolid || cellFill(c) >= F) continue;
+                            // closed above: solid or liquid over it
+                            const Cell up = y + 1 < n.y ? s.at({x, y + 1, z}) : makeCell(kSolid, 0);
+                            if (cellFill(c) > 0 && (cellMaterial(up) == kSolid || cellFill(up) > 0)) ++partialClosed;
+                        }
+                (void)holes; (void)headMax;
+                std::printf("[diag] t %4d right %.3f left %.3f surf %d absorbers %d routeSrcs %zu partialClosed %d\n", t,
+                            armHeight(s, 3 * cpm, 5 * cpm), armHeight(s, 0, 2 * cpm), surf, absorb, srcs.size(), partialClosed);
+            }
+            if (s.step(1).lastTickQuiet() && t > 10) { std::printf("[diag] quiet at %d\n", t); break; }
+        }
+    }
+}
+
+TEST(MatSimDiag, DISABLED_UTubeSlice) {
+    // Prints the z = 1 slice of the 2|2 U-tube at 1/3 m: fill in tenths ('#' full, '.' empty,
+    // 'S' solid) and the route hops of each cell, on four consecutive ticks.
+    const char* env = std::getenv("MATSIM_DIAG_CPM");
+    const int cpm = env ? std::atoi(env) : 3;
+    MatSimCore s = uTube({2, 2}, cpm, 4.0);
+    const IVec3 n = s.size();
+    const uint32_t F = s.full();
+    const int zs = cpm / 2;
+    for (int t = 0; t <= 303; ++t) {
+        if (t >= 300) {
+            std::printf("[slice] tick %d (z=1): fill tenths | route hops\n", t);
+            for (int y = n.y - 1; y >= 0; --y) {
+                std::string a, b;
+                for (int x = 0; x < n.x; ++x) {
+                    const Cell cell = s.at({x, y, zs});
+                    const size_t i = size_t(x) + size_t(n.x) * (size_t(zs) + size_t(n.z) * size_t(y));
+                    if (cellMaterial(cell) == kSolid) { a += 'S'; b += "  S"; continue; }
+                    const uint32_t f = cellFill(cell);
+                    a += f == 0 ? '.' : (f >= F ? '#' : char('0' + std::min<uint32_t>(9, f * 10 / F)));
+                    if (cpm == 1) std::printf("[slice]   x%d y%d fill %u/%u head %u closed %d\n", x, y, f, F, s.head()[i] & kHeadMask, (s.head()[i] & kHeadClosed) ? 1 : 0);
+                    const uint32_t q = s.headPtr()[i];
+                    char buf[8];
+                    std::snprintf(buf, sizeof buf, "%3d", q == kNoHead ? -1 : int(q & 0xFFu));
+                    b += buf;
+                }
+                std::printf("[slice] y%2d %s   %s\n", y, a.c_str(), b.c_str());
+            }
+        }
+        s.step(1);
+    }
+}
+
+TEST(MatSimDiag, DISABLED_AbsorberBandSweep) {
+    // 2|2 U-tube; prints ticks to 50% / 90% of the transfer, the arm gap at the end, rest tick.
+    const char* only = std::getenv("MATSIM_DIAG_CPM");
+    for (int cpm : {3, 9}) {
+        if (only && std::atoi(only) != cpm) continue;
+        MatSimCore s = uTube({2, 2}, cpm, 4.0);
+        int t50 = -1, t90 = -1, rest = -1;
+        bool prev = false;
+        const int limit = cpm == 9 ? 12000 : 4000;
+        int t = 1;
+        for (; t <= limit; ++t) {
+            const bool q = s.step(1).lastTickQuiet();
+            if (t % 10 == 0 || q) {
+                const double hr = armHeight(s, 3 * cpm, 5 * cpm);
+                if (t50 < 0 && hr >= 1.0) t50 = t;
+                if (t90 < 0 && hr >= 1.8) t90 = t;
+            }
+            if (q && prev) { rest = t; break; }
+            prev = q;
+        }
+        const double hl = armHeight(s, 0, 2 * cpm), hr = armHeight(s, 3 * cpm, 5 * cpm);
+        std::printf("[sweep] band %s cpm %d: t50 %d t90 %d rest %d (ran %d) left %.4f right %.4f gap %.4f m\n",
+                    std::getenv("MATSIM_ABS_DIV") ? std::getenv("MATSIM_ABS_DIV") : "db", cpm, t50, t90, rest,
+                    t > limit ? limit : t, hl, hr, hl - hr);
+    }
+}
+
+TEST(MatSimDiag, DISABLED_HoleStallCauses) {
+    // Every closed, non-full liquid cell (a hole) classified by its 6 face neighbours, block parity
+    // ignored: A no full same-liquid neighbour; B full neighbours, none with fewer route hops;
+    // C a full neighbour with fewer hops but the head excess too small; D a valid donor exists.
+    const char* env = std::getenv("MATSIM_DIAG_CPM");
+    const int cpm = env ? std::atoi(env) : 3;
+    MatSimCore s = uTube({2, 2}, cpm, 4.0);
+    const IVec3 n = s.size();
+    const uint32_t F = s.full(), db = s.pressureDeadband();
+    auto idx = [&](int x, int y, int z) { return size_t(x) + size_t(n.x) * (size_t(z) + size_t(n.z) * size_t(y)); };
+    const int every = cpm == 9 ? 250 : 50;
+    for (int t = 0; t <= (cpm == 9 ? 3000 : 600); ++t) {
+        if (t % every == 0 && t > 0) {
+            int A = 0, B = 0, C = 0, D = 0;
+            uint64_t deficit = 0;
+            for (int y = 0; y < n.y; ++y)
+                for (int z = 0; z < n.z; ++z)
+                    for (int x = 0; x < n.x; ++x) {
+                        const Cell c = s.at({x, y, z});
+                        if (cellMaterial(c) == kSolid || cellFill(c) == 0 || cellFill(c) >= F) continue;
+                        const size_t i = idx(x, y, z);
+                        if (!(s.head()[i] & kHeadClosed)) continue;
+                        deficit += F - cellFill(c);
+                        const uint32_t ag = s.headPtr()[i] & 0xFFu;
+                        const uint32_t ex = uint32_t(y) * F + cellFill(c);
+                        bool full = false, fewer = false, valid = false;
+                        const int d[6][3] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+                        for (auto& o : d) {
+                            const int X = x + o[0], Y = y + o[1], Z = z + o[2];
+                            if (X < 0 || Y < 0 || Z < 0 || X >= n.x || Y >= n.y || Z >= n.z) continue;
+                            const Cell nc = s.at({X, Y, Z});
+                            if (cellMaterial(nc) != cellMaterial(c) || cellFill(nc) + db < F) continue;
+                            full = true;
+                            const size_t j = idx(X, Y, Z);
+                            if ((s.headPtr()[j] & 0xFFu) >= ag) continue;
+                            fewer = true;
+                            const uint32_t hd = s.head()[j] & kHeadMask;
+                            if (hd == 0 || hd - 1 <= ex + 2 * db) continue;
+                            valid = true;
+                        }
+                        (valid ? D : fewer ? C : full ? B : A)++;
+                    }
+            std::printf("[stall] cpm %d t %4d right %.3f holes %d (deficit %.1f cells): A nofull %d B nofewer %d C noexcess %d D canmove %d\n",
+                        cpm, t, armHeight(s, 3 * cpm, 5 * cpm), A + B + C + D, double(deficit) / F, A, B, C, D);
+        }
+        s.step(1);
+    }
+}
+
+TEST(MatSimDiag, DISABLED_WhatStillMoves) {
+    // 2|2 U-tube at 1/9 m: after 9000 ticks, every cell that changes over 4 ticks, with its state.
+    const int cpm = 9;
+    MatSimCore s = uTube({2, 2}, cpm, 4.0);
+    const IVec3 n = s.size();
+    const uint32_t F = s.full();
+    s.step(9000);
+    for (int t = 0; t < 4; ++t) {
+        std::vector<Cell> before(size_t(n.x) * n.y * n.z);
+        for (int y = 0; y < n.y; ++y) for (int z = 0; z < n.z; ++z) for (int x = 0; x < n.x; ++x)
+            before[size_t(x) + size_t(n.x) * (size_t(z) + size_t(n.z) * size_t(y))] = s.at({x, y, z});
+        const StepStats st = s.step(1);
+        int shown = 0, changed = 0;
+        for (int y = 0; y < n.y; ++y) for (int z = 0; z < n.z; ++z) for (int x = 0; x < n.x; ++x) {
+            const size_t i = size_t(x) + size_t(n.x) * (size_t(z) + size_t(n.z) * size_t(y));
+            const Cell c = s.at({x, y, z});
+            if (c == before[i]) continue;
+            ++changed;
+            if (shown++ < 12)
+                std::printf("[moves] tick %d x%d y%d z%d fill %u -> %u /%u closed %d hops %u head %u E %u\n", 9001 + t, x, y, z,
+                            cellFill(before[i]), cellFill(c), F, (s.head()[i] & kHeadClosed) ? 1 : 0, s.headPtr()[i] & 0xFFu,
+                            s.head()[i] & kHeadMask, uint32_t(y) * F + cellFill(c));
+        }
+        std::printf("[moves] tick %d: %d cells changed, eligible %llu, head changes %llu\n", 9001 + t, changed,
+                    (unsigned long long)st.lastTickEligible, (unsigned long long)st.lastTickHeadChanges);
+    }
+}

@@ -199,8 +199,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     - **P1c (2026-11-04), the pressure rule** (§6d): a two-pointer head field (`shaders/matsim_pressure.comp`) and
       pressure-driven flow. U-tubes and communicating vessels now level at every cell size, and the GPU is bit-exact. The
       plan was re-audited against Noita's principles plus realism (§0b).
-    - **Next:** the P1d owner decision (flow speed is still capped at one cell per tick, so it depends on the cell size),
-      then P2.
+    - **§6e (2026-11-04):** the CA's pressure rule is too slow at fine cell sizes, because its hole routing never converges.
+      Eight variants were measured, all reverted. P1c as committed stays.
+    - **§6f E1 (2026-11-04), MatSim's own particle fluid** (`MatSimParticles`, Position Based Fluids, CPU reference). The
+      U-tube levels in 1.1 s and sloshes at its theoretical period (4.35 s against 4.49 s), the same at 1/3 and 1/9 m.
+      The ledger is exact. Owner direction: MatSim is its own experiment, independent of WaterCore.
+    - **Next:** the resting-jitter cause (open, §6f), then settle and deposit into cells, the dam break, and the GPU port.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
     - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then

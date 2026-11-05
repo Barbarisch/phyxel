@@ -3,7 +3,9 @@
 **Status: P1 BUILT 2026-11-03 — P1a (CPU reference core) §6b; P1b (GPU port bit-exact, `/api/matsim` lab, raw-cell
 view, live rig) §6c. P1c PRESSURE BUILT 2026-11-04 (§6d): U-tubes and communicating vessels level at every cell size,
 GPU bit-exact. Plan re-audited against Noita's principles + realism (§0b): new P1d (speed ∝ cell size, owner
-decision), P4 density/viscosity, P4b world-as-material, P8 reactions. P2 not started.** Supersedes the same-day `LiquidCaLab.md`
+decision), P4 density/viscosity, P4b world-as-material, P8 reactions. P2 not started. 2026-11-04: §6e
+shows the CA cannot carry pressure at physical speed (routing never converges); §6f experiment E1, MatSim's
+own particle fluid (PBF), levels the U-tube at physical speed and period at 1/3 and 1/9 m.** Supersedes the same-day `LiquidCaLab.md`
 note, folded in here and deleted. Context: [`NoitaGapAnalysis.md`](NoitaGapAnalysis.md) (why: N1–N4,
 Tiers 2–3) and [`WaterCore.md`](WaterCore.md) (the water system this must live beside: §4.2 method
 choice, §30.0b locality, §51 levels).
@@ -880,8 +882,8 @@ The refusals all refuse, with the box unchanged.
 1/9 m U-tube in the unit tests rests in 170 s. Throughput through the 1 m gap is far below what the
 per-face Torricelli cap and one-hole-per-two-ticks would allow, and the cause is not yet found.
 The candidates are hole routing to the nearest absorber and the push/absorb thresholds. That
-investigation belongs with P1d: there is no point tuning throughput at a tick rate the owner may
-change. The dam-break front is unchanged by pressure, as expected: pressure moves no water across
+investigation was run next: **§6e**. The cause is the route field (count-to-infinity toward a
+moving absorber set), not the tick rate. The dam-break front is unchanged by pressure, as expected: pressure moves no water across
 an open floor.
 
 **Stated limits:**
@@ -893,6 +895,160 @@ an open floor.
 - A falling full column carries a head, as if it were standing water. It is harmless in the tests;
   P3's particles replace free fall.
 - Mixed liquids share no head (only Water exists).
+
+### 6e. Experiment: why pressure is slow (2026-11-04, after P1c; no rule change shipped)
+
+**Question.** Is P1c's slow levelling (2|2 U-tube: 191 / 1,746 / 10,204 ticks at 1 / 1/3 / 1/9 m)
+the one-cell-per-tick cap (P1d), or the rule? **Physical reference:** two 2 m² tanks through a
+1 m² orifice (Cd 0.65), Δh₀ = 4 m, equalise in t ≈ 2·A_eff·√Δh₀ / (Cd·A·√(2g)) ≈ 1.4 s (84 ticks
+at 60 Hz) — real water also overshoots and sloshes, which no CA rule here can.
+
+**Rule time, not tick time.** Ticks to rest grow ~9× then ~6× per 3× finer cell. P1d (ticks ∝
+cells/m) only rescales time — the CA is tick-based, only the orifice constant reads `tickHz` — so
+at 60·cpm Hz the same runs would take 3.2 / 9.7 / 18.9 s. Better, still size-dependent and 2-13×
+slower than water. **The rule is the bigger lever; P1d stays a separate, later question.**
+
+All diagnostics are `MatSimDiag.DISABLED_*` in `tests/core/MatSimCoreTest.cpp`
+(`--gtest_also_run_disabled_tests`); experiments were env-gated CPU builds, all reverted.
+
+| # | Hypothesis / variant | Result (2\|2 U-tube) | Verdict |
+|---|---|---|---|
+| 1 | Torricelli cap on interior pushes fragments holes → fill a closed hole whole | 1/3 m rest 1,753 vs 1,746 | no effect alone |
+| 2 | Slice dump, 1/3 m tick 300 | route hops a checkerboard of `-1` and 59/60 **rising 1 per tick** in the connector (count-to-infinity); absorbers = only surface cells within db (1/64 cell) of the max, while the surface ripples by tenths of a cell | **cause found**: holes descend a field that never converges |
+| 3 | Absorber band sweep (route accepts surfaces within F/k of the head) | table below | band trades speed for a final gap; best bulk only 2.7× faster |
+| 4 | Stall classes (1/3 m): 60-80% of holes have full neighbours but none nearer the source; holes average 0.2 cell and never merge | — | holes queue single file |
+| 5 | Holes MERGE (closed X takes from any liquid nearer the source) | 1/3 m rest 874; 1/9 m rest 6,097 (gap 0.8 mm) — **but 1 m never moves**: a thin far-arm surface pours back into the outlet's hole every tick | 2× faster, broke 1 m |
+| 6 | Surface decides itself whether it absorbs (one consistent field) | alone: deadlock 2.77 m apart; with merge: rest 1,064 | worse |
+| 7 | Merge only closed→closed | 1 m 123, 1/3 m 1,214, four vessels 146 / 1,292, wide 714 / 5,597 (all faster, all level) — **1/9 m never rests**: ~1,300 cells/tick of 1-2-unit holes fizz in the connector, hops rising 1/tick, ~10 k head changes/tick | closest; fails rest at 1/9 m |
+| 8 | + a closed cell within db of full counts as full | 5 runs never rest (1 m, 1/3 m): it contradicts gravity/level's pressurised test | worse; reverted |
+
+Absorber band sweep (#3; band = surfaces within F/k of the head are route targets):
+
+| band | 1/3 m t90 | 1/3 m rest | 1/3 m gap | 1/9 m t90 | 1/9 m rest | 1/9 m gap |
+|---|---|---|---|---|---|---|
+| F/64 (= db, P1c) | 1,340 | 1,755 | 5.5 mm | 9,090 | none by 12,000 | 0.9 mm |
+| F/16 | 730 | none | 27 mm | 5,020 | none | 4.8 mm |
+| F/8 | 530 | 726 | 0.9 mm | 4,560 | none | 7.9 mm |
+| F/4 | 710 | none | 67 mm | 4,540 | none | 6.9 mm |
+| F/2 | 530 | none | 172 mm | 4,000 | none | 36 mm |
+| F | 610 | none | 349 mm | 3,310 | none | 39 mm |
+
+(The 1/9 m baseline here ran with #1 in place; P1c as committed rests at 10,204.)
+
+**What the data says.**
+1. The crawl's throughput is bounded by a routing field that propagates one hop per tick toward
+   a target set (the highest surface cells) that moves every few ticks. On short paths (1 m) it
+   converges; on long paths (1/3, 1/9 m: 30-100+ hops) it never does. Every local fix tried moved
+   the failure (a cycle, a stall, a final gap) somewhere else.
+2. Even the best variant is ~15× (1/3 m) to ~40× (1/9 m) slower than the physical reference in
+   ticks, before P1d.
+3. A **perfectly** routed crawl would be near-physical in bulk (a 9×9-cell connector carries ~40
+   cells/tick at one hole per cell per 2 ticks vs the Torricelli ~70), so the mechanism is not
+   hopeless — its routing is.
+
+**Candidate next experiments (none chosen; more data first):**
+- **(a) Non-local transfer through the connected body** (prior art: Dwarf Fortress's water
+  pressure teleports water through full cells to a lower outlet). Fast and size-independent, but
+  ignores constrictions (a 1-cell pipe would carry as much as its outlet surface).
+- **(b) A stable routing potential**: hops to surfaces chosen with hysteresis or bucketed by E,
+  plus a separate exact-final-approach rule; #3/#7 suggest the final < 1-band approach needs its
+  own mechanism.
+- **(c) Flux / virtual pipes** (Mei, Decaudin, Hu 2007, heightfield water: per-face flux
+  accelerated by head difference) — the only option with momentum (sloshing, wave speed √(gh)),
+  and the most realistic; open-surface water is 2.5-D-friendly, closed pipes need a 3-D extension.
+- Each must be judged on the same harness: the 2|2 / 1|3 / wide U-tubes and four vessels at all
+  three sizes, rest + level + ledger, against the 1.4 s reference.
+
+### 6f. Experiment E1: MatSim's own particle fluid (2026-11-04)
+
+**Why.** §6e: the CA cannot carry pressure at physical speed. Noita's own split is cells for
+resting matter and particles for moving matter (P3). Realism adds what Noita skips:
+incompressibility, so moving water must be particles **with a pressure solve**. The engine's debris
+solver is rigid bodies with contacts: 10 k cubes in a U-tube pile like gravel. The owner's direction
+(2026-11-04): MatSim is its own experiment and builds its own solver, independent of WaterCore.
+
+**Method: Position Based Fluids** (Macklin & Müller, "Position Based Fluids", SIGGRAPH 2013). Per
+substep: gravity → predict → neighbour grid → N iterations of the density constraint
+C_i = ρ_i/ρ₀ − 1 (poly6 density, spiky gradient, λ with relaxation ε, tensile s_corr) → solid
+collision → velocity from positions → XSPH viscosity. Chosen because it is position-based like the
+engine's AVBD debris solver, unconditionally stable at large steps, and maps to one GPU pass per
+iteration later.
+
+**Ground rules of E1:**
+- One particle per lifted cell, at the cell centre, carrying that cell's fill as **integer units**
+  (mass = units / FULL). The ledger is cells + particles, exact at every step.
+- Kernel radius h = 2 cells; ρ₀ = the density of a particle inside a perfect lattice.
+- Solid cells within h act as static boundary particles at their centres (Akinci et al. 2012, voxel
+  form), so a particle at a wall sees the same density as one inside the body. The box outside is
+  solid.
+- Substeps: CFL, the fastest particle moves ≤ 0.4 cell per substep.
+- Deposit: each particle's units go into its cell; overflow passes upward (then sideways), so the
+  deposit is integer-exact.
+- E1 lifts the whole body explicitly (`lift`), so it tests the solver alone. Automatic wake/settle
+  (E2) comes after the solver is shown to work.
+- CPU reference first (deterministic, sequential); a GPU port is judged on tolerances, not bit
+  equality (float reduction order).
+
+**Predictions (written before the code):**
+- 2|2 U-tube (4 m in the left arm, 1 m connector) at 1/3 and 1/9 m: arm heights within
+  max(½ cell, 3 cm) of each other and of 2.000 m once at rest; the right arm reaches 90 % of its
+  final height in **≤ 3 s** of simulated time (physical reference 1.4 s; overshoot and sloshing are
+  expected and correct).
+- 1 m: SPH needs several particles across the narrowest passage; at 1 m the connector is one
+  particle tall. **Prediction: 1 m fails or is crude.** That is a resolution floor, not a bug.
+- Ledger exact (cells + particles) at every frame and after the deposit.
+- **Control:** zero density iterations → no pressure; the particles collapse into a dense layer and
+  the right arm stays far below level (< 50 % of 2 m).
+- Cost: measured, CPU Debug and Release, per particle per frame.
+
+**E1 results (CPU reference, Debug, 2026-11-04; `tests/core/MatSimParticlesTest.cpp`):**
+
+| | 1 m | 1/3 m | 1/9 m | reference |
+|---|---|---|---|---|
+| particles | 13 | 351 | 9,477 | |
+| far arm at 90 % | 2.85 s | **1.17 s** | **1.10 s** | ~1.1-1.4 s (quarter period / Torricelli) |
+| slosh period | no slosh | **4.23 s** | **4.35 s** | 4.49 s (T = 2π√(L_eff/2g), L_eff 10 m) |
+| first surge | 2.00 m | 3.06 m | 3.19 m | (undamped ideal: 4 m) |
+| mean far arm, last 4 s | 2.000 m | 1.965 m | 1.996 m | 2.000 m |
+| ledger (cells + particles), every frame and after deposit | exact | exact | exact | |
+| CPU Debug cost | 0.5 ms/frame | 21.5 ms/frame | 1,424 ms/frame (4 substeps; ~150 µs per particle-frame) | |
+
+The CA's best (§6e) needed 874-10,204 ticks (15-170 s) and grew with every finer cell; the
+particles' timing is the same at 1/3 and 1/9 m and matches U-tube theory to 3-6 %. **Speed no
+longer depends on cell size**, which is the §0b realism gap P1d was created for. The particles also
+have momentum: the U-tube surges past level and sloshes at its natural period, which no CA rule did.
+
+**Predictions vs results:**
+- Level within max(½ cell, 3 cm): **held** at 1/3 and 1/9 m (time-averaged; the arms are still
+  sloshing at 10-20 s, as real water would).
+- 90 % within 3 s: **held** (1.17 / 1.10 s).
+- "At rest within 10 s": **failed, and was wrong physics.** A real U-tube of this size sloshes for
+  many periods; the test now checks the period instead (within 20 % of theory).
+- 1 m crude: **held** (a one-particle connector: it creeps level with no slosh).
+- Control (0 iterations): **held on the particles** (no particle ever enters the far arm). The
+  first version measured after the deposit and failed (1.19 m): the deposit's overflow search
+  spread the collapsed pile into both arms. Lesson: deposit only water that has settled.
+
+**Defects found and fixed:**
+1. The tensile term (s_corr) pushes fluid pairs apart even at exact rest density, with no
+   counterpart at walls: a full box at rest with gravity 0 accelerated from frame 1 (max speed
+   4.8e-3 → 0.135 cells/s over 40 frames, linear); with it off the lattice stays at exactly 0. Off by
+   default; the unilateral constraint already prevents the free-surface clumping it exists for.
+2. A first reading of "11 % compression" was a measuring artifact (the arm measure counts
+   particles above 1 m; the top layer straddles it). Layer means sit within 3 % of the lattice.
+
+**Open defect: resting jitter.** With gravity, a still tank's particles churn: median 1.0 m/s at
+c = 0.01, drifting ~1.7 cells/s. It does not fall with iterations (4 → 30), Jacobi
+under-relaxation (ω 0.25-1), or relaxation ε (which only makes the water compressible), and it
+grows with smaller substeps (a fixed position error per substep). Zero gravity is still; it is not
+a wall effect (interior particles of a 3 m-deep tank churn too). XSPH c = 0.1 (now the default)
+cuts it 4× without changing the period or the surge; c = 0.3 cuts it 13× but lowers the first
+surge 10 %. **Cause not yet found.** It matters for E2: water has to settle before it deposits
+back into cells, and instantaneous speed cannot be the rest test while it persists.
+
+**Next (E2 onward, in order):** find the jitter's cause; settle → deposit (displacement-window and
+density test, then automatic wake on a disturbance); the dam break against Ritter; the GPU port
+(the CPU cost above is the reason; one pass per iteration); then the hybrid with the resting CA.
 
 ## 7. Working alongside the other sessions
 
