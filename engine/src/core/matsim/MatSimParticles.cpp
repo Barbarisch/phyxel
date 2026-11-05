@@ -312,66 +312,358 @@ void MatSimParticles::densityError(const MatSimCore& core, float& meanAbsC, floa
     }
 }
 
-size_t MatSimParticles::settle(MatSimCore& core) {
-    // E2: a particle whose time-averaged speed is under settleSpeed and that is SUPPORTED (the cell
-    // below its cell is solid or full water) deposits its units into its cell (overflow up first,
-    // then sideways), lowest first. Integer-exact; the deposited cells become boundary mass for the
-    // particles that remain, and the CA moves them from then on.
-    if (cfg_.settleSpeed <= 0.f || p_.empty()) return 0;
+// E2 (6f), body rule: a connected body of water is either all cells or all particles, never
+// split along a moving seam. (The first E2 rules worked per particle / per cell: slow water
+// settled at a slosh's turning points and woke again, cell water the CA moved under a particle was
+// counted as boundary mass and blasted it out, and absorbing it made heavy particles that skew
+// PBF's density. Known limit: a disturbance wakes its whole body, so a large lake needs a
+// region-limited wake later.)
+
+// Put `u` units of material m into cell w and, if it does not fit, the nearest open room
+// (breadth-first over non-solid cells, up first, then the sides, then down). Returns what found no room.
+static uint64_t putUnits(MatSimCore& core, IVec3 w0, uint8_t m, uint64_t u) {
     const uint32_t F = core.full();
-    const float vs = cfg_.settleSpeed * float(core.cellsPerM());   // cells/s
-    std::vector<size_t> cand;
-    for (size_t i = 0; i < p_.size(); ++i) {
-        const Particle& q = p_[i];
-        if (q.age >= cfg_.settleTau && q.ax * q.ax + q.ay * q.ay + q.az * q.az < vs * vs) cand.push_back(i);
-    }
-    std::sort(cand.begin(), cand.end(), [&](size_t a, size_t b) {
-        const Particle &A = p_[a], &B = p_[b];
-        const int ay = floorI(A.y), by = floorI(B.y);
-        if (ay != by) return ay < by;
-        return a < b;
-    });
-    auto room = [&](IVec3 w, uint8_t m) -> uint32_t {
+    auto room = [&](IVec3 w) -> uint32_t {
         if (!core.inBox(w)) return 0;
         const Cell c = core.at(w);
         const uint8_t cm = cellMaterial(c);
         if (cm == kSolid || (cm != kEmpty && cm != m)) return 0;
         return F - cellFill(c);
     };
-    std::vector<uint8_t> gone(p_.size(), 0);
-    size_t n = 0;
-    for (size_t i : cand) {
-        Particle& q = p_[i];
-        const IVec3 w{floorI(q.x), floorI(q.y), floorI(q.z)};
-        const Cell below = core.at({w.x, w.y - 1, w.z});
-        const bool supported = cellMaterial(below) == kSolid || (cellMaterial(below) == q.mat && cellFill(below) == F);
-        if (!supported) continue;
-        uint64_t u = q.units;
-        auto put = [&](IVec3 c) {
-            const uint32_t k = uint32_t(std::min<uint64_t>(room(c, q.mat), u));
-            if (!k) return;
-            core.setCell(c, q.mat, cellFill(core.at(c)) + k);
-            u -= k;
-        };
-        put(w);
-        // Overflow: straight up through open cells, then the four sides of the cell (deterministic).
-        for (int y = w.y + 1; u && y < core.origin().y + core.size().y; ++y) {
-            const IVec3 c{w.x, y, w.z};
-            if (cellMaterial(core.at(c)) == kSolid) break;
-            put(c);
+    auto put = [&](IVec3 w) {
+        const uint32_t k = uint32_t(std::min<uint64_t>(room(w), u));
+        if (!k) return;
+        core.setCell(w, m, cellFill(core.at(w)) + k);
+        u -= k;
+    };
+    put(w0);
+    if (!u) return 0;
+    static const int kOrder[6][3] = {{0, 1, 0}, {1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {0, -1, 0}};
+    std::deque<IVec3> q{w0};
+    std::map<std::tuple<int, int, int>, bool> seen{{{w0.y, w0.z, w0.x}, true}};
+    while (u && !q.empty()) {
+        const IVec3 w = q.front();
+        q.pop_front();
+        for (const auto& d : kOrder) {
+            const IVec3 nw{w.x + d[0], w.y + d[1], w.z + d[2]};
+            if (!core.inBox(nw) || cellMaterial(core.at(nw)) == kSolid) continue;
+            if (!seen.emplace(std::make_tuple(nw.y, nw.z, nw.x), true).second) continue;
+            put(nw);
+            if (!u) break;
+            q.push_back(nw);
         }
-        static const int kSide[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-        for (const auto& d : kSide) if (u) put({w.x + d[0], w.y, w.z + d[1]});
-        if (u) { q.units = uint32_t(u); continue; }   // no room: keeps the remainder and stays a particle
-        gone[i] = 1;
-        ++n;
     }
-    if (n) {
-        size_t k = 0;
-        for (size_t i = 0; i < p_.size(); ++i) if (!gone[i]) p_[k++] = p_[i];
-        p_.resize(k);
+    return u;
+}
+
+// Connected particle groups: particles closer than the kernel radius are joined (union-find).
+std::vector<uint32_t> MatSimParticles::groups(const MatSimCore& core) {
+    const size_t n = p_.size();
+    std::vector<uint32_t> parent(n);
+    for (size_t i = 0; i < n; ++i) parent[i] = uint32_t(i);
+    auto find = [&](uint32_t a) { while (parent[a] != a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+    px_.resize(n); py_.resize(n); pz_.resize(n);
+    for (size_t i = 0; i < n; ++i) { px_[i] = p_[i].x; py_[i] = p_[i].y; pz_[i] = p_[i].z; }
+    buildGrid(core);
+    const float h = cfg_.kernelCells, h2 = h * h;
+    for (size_t i = 0; i < n; ++i) {
+        const int gx = floorI(px_[i] / h) - gLo_.x, gy = floorI(py_[i] / h) - gLo_.y, gz = floorI(pz_[i] / h) - gLo_.z;
+        for (int dy = -1; dy <= 1; ++dy)
+            for (int dz = -1; dz <= 1; ++dz)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    const int cx = gx + dx, cy = gy + dy, cz = gz + dz;
+                    if (cx < 0 || cy < 0 || cz < 0 || cx >= gDim_.x || cy >= gDim_.y || cz >= gDim_.z) continue;
+                    const size_t c = size_t(cx) + gDim_.x * (size_t(cz) + gDim_.z * size_t(cy));
+                    for (uint32_t k = cellStart_[c]; k < cellStart_[c + 1]; ++k) {
+                        const uint32_t j = sorted_[k];
+                        const float ex = px_[i] - px_[j], ey = py_[i] - py_[j], ez = pz_[i] - pz_[j];
+                        if (ex * ex + ey * ey + ez * ez < h2) {
+                            const uint32_t a = find(uint32_t(i)), b = find(j);
+                            if (a != b) parent[std::max(a, b)] = std::min(a, b);
+                        }
+                    }
+                }
     }
-    return n;
+    for (size_t i = 0; i < n; ++i) parent[i] = find(uint32_t(i));
+    return parent;
+}
+
+size_t MatSimParticles::settle(MatSimCore& core) {
+    // A GROUP settles when every member is at least settleTau old and slower than settleSpeed
+    // (time-averaged): all its particles deposit, lowest first, integer-exact.
+    if (cfg_.settleSpeed <= 0.f || p_.empty()) return 0;
+    const float vs = cfg_.settleSpeed * float(core.cellsPerM());
+    const std::vector<uint32_t> g = groups(core);
+    const size_t n = p_.size();
+    // A group is at rest when at least settleFraction of its members are slow: the resting residual
+    // keeps a tail at ~0.3 m/s (p99), so "every member" never held (299 of 354 slow, 40 s busy).
+    std::vector<uint32_t> members(n, 0), slowCount(n, 0);
+    for (size_t i = 0; i < n; ++i) {
+        const Particle& q = p_[i];
+        ++members[g[i]];
+        if (q.age >= cfg_.settleTau && q.ax * q.ax + q.ay * q.ay + q.az * q.az < vs * vs) ++slowCount[g[i]];
+    }
+    std::vector<uint8_t> groupBusy(n, 0);
+    for (size_t r = 0; r < n; ++r)
+        if (members[r] && float(slowCount[r]) < cfg_.settleFraction * float(members[r])) groupBusy[r] = 1;
+    // Agree with wake(): a group settles only if its free surface is level to within
+    // settleLevelCells (below the wake threshold), or the deposited cells are woken straight back (measured: a U-tube settled
+    // at a slosh turning point with the arms ~0.3 m apart, woke, ... 390 particles at 40 s).
+    // Surface of a column = its base (lowest open cell) + the group's water volume in it (cells):
+    // a volume sum, so it is smooth (single particles jitter +-0.5 cell). Columns capped by a solid
+    // above that surface (under a divider) are not free surfaces.
+    {
+        const uint32_t F = core.full();
+        std::map<std::pair<uint32_t, int64_t>, uint64_t> vol;   // (group, column) -> units
+        for (size_t i = 0; i < n; ++i) {
+            if (groupBusy[g[i]]) continue;
+            const Particle& q = p_[i];
+            const int64_t col = (int64_t(floorI(q.x)) << 32) ^ int64_t(uint32_t(floorI(q.z)));
+            vol[{g[i], col}] += q.units;
+        }
+        std::vector<float> lo(n, 1e30f), hi(n, -1e30f);
+        const int y0 = core.origin().y, y1 = core.origin().y + core.size().y;
+        std::map<std::pair<uint32_t, int64_t>, float> surfOf;   // open-topped columns only
+        for (const auto& [key, u] : vol) {
+            const int x = int(key.second >> 32), z = int(int32_t(uint32_t(key.second & 0xFFFFFFFFu)));
+            int base = y0;
+            while (base < y1 && cellMaterial(core.at({x, base, z})) == kSolid) ++base;
+            float surf = float(base);
+            for (int y = base; y < y1 && cellMaterial(core.at({x, y, z})) != kSolid; ++y)   // cell water under the particles counts too
+                if (isLiquid(cellMaterial(core.at({x, y, z})))) surf += float(cellFill(core.at({x, y, z}))) / float(F);
+            surf += float(u) / float(F);
+            bool capped = false;
+            for (int y = int(std::floor(surf)) + 1; y < y1 && !capped; ++y) capped = cellMaterial(core.at({x, y, z})) == kSolid;
+            if (capped) continue;
+            surfOf[key] = surf;
+        }
+        // A single column gains or loses whole particles (+-1 cell); average each over the open
+        // columns of its group in the 3 x 3 patch around it.
+        for (const auto& [key, sv] : surfOf) {
+            const int x = int(key.second >> 32), z = int(int32_t(uint32_t(key.second & 0xFFFFFFFFu)));
+            float sum = 0.f;
+            int cnt = 0;
+            for (int dz = -1; dz <= 1; ++dz)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    const int64_t c2 = (int64_t(x + dx) << 32) ^ int64_t(uint32_t(z + dz));
+                    auto it = surfOf.find({key.first, c2});
+                    if (it != surfOf.end()) { sum += it->second; ++cnt; }
+                }
+            const float avg = sum / float(cnt);
+            lo[key.first] = std::min(lo[key.first], avg);
+            hi[key.first] = std::max(hi[key.first], avg);
+            (void)sv;
+        }
+        for (size_t r = 0; r < n; ++r)
+            if (!groupBusy[r] && members[r] && hi[r] > lo[r] && hi[r] - lo[r] > cfg_.settleLevelCells) groupBusy[r] = 1;
+    }
+    // Level deposit: each settling group's water (its particles plus any cell water already in its
+    // space) is laid down as resting water would sit: filled bottom-up, layer by layer, over the
+    // cells its particles occupy and the open cells beneath them, so the surface is flat to one
+    // unit. Depositing particle by particle left a surface rough to ~1 cell (whole particles per
+    // column) and the CA's head field woke the body straight back (1-12 trigger cells a cycle,
+    // WakeUTubeFromCells). The settle check above already holds the surface within 0.8 cell, so
+    // flattening moves at most a fraction of a cell. Integer-exact.
+    const uint32_t Fd = core.full();
+    const int yTop = core.origin().y + core.size().y;
+    std::vector<uint8_t> gone(n, 0);
+    size_t removed = 0;
+    for (size_t r = 0; r < n; ++r) {
+        if (groupBusy[r] || !members[r]) continue;
+        uint8_t mat = 0;
+        uint64_t total = 0;
+        std::map<std::tuple<int, int, int>, bool> T;   // (y, z, x)
+        std::map<std::pair<int, int>, int> colTop;      // (x, z) -> highest y in T
+        for (size_t i = 0; i < n; ++i) {
+            if (g[i] != r) continue;
+            const Particle& q = p_[i];
+            mat = q.mat;
+            total += q.units;
+            const int x = floorI(q.x), y = floorI(q.y), z = floorI(q.z);
+            for (int yy = y; yy >= core.origin().y; --yy) {   // the particle's cell and the open cells below
+                const Cell c = core.at({x, yy, z});
+                const uint8_t cm = cellMaterial(c);
+                if (cm == kSolid || (cm != kEmpty && cm != q.mat)) break;
+                if (!T.emplace(std::make_tuple(yy, z, x), true).second && yy < y) break;   // the rest is already in
+            }
+            auto it = colTop.find({x, z});
+            if (it == colTop.end() || it->second < y) colTop[{x, z}] = y;
+        }
+        // Complete the footprint: every column reaches the same top layer, or edge columns with
+        // fewer particles end a layer or two low and the step reads as pressure to wake().
+        int yMax = core.origin().y;
+        for (const auto& [k, v] : T) { yMax = std::max(yMax, std::get<0>(k)); (void)v; }
+        for (auto& [col, top] : colTop) {
+            for (int y = top + 1; y <= yMax; ++y) {
+                const Cell c = core.at({col.first, y, col.second});
+                if (cellMaterial(c) == kSolid || (cellMaterial(c) != kEmpty && cellMaterial(c) != mat)) break;
+                T.emplace(std::make_tuple(y, col.second, col.first), true);
+                top = y;
+            }
+        }
+        for (const auto& [k, v] : T) {   // existing cell water in the space joins the deposit
+            const Cell c = core.at({std::get<2>(k), std::get<0>(k), std::get<1>(k)});
+            if (cellMaterial(c) == mat) total += cellFill(c);
+            (void)v;
+        }
+        // Room: add cells above each column's top until the space holds the water.
+        while (uint64_t(T.size()) * Fd < total) {
+            bool added = false;
+            for (auto& [col, top] : colTop) {
+                const int y = top + 1;
+                if (y >= yTop) continue;
+                const Cell c = core.at({col.first, y, col.second});
+                if (cellMaterial(c) == kSolid || (cellMaterial(c) != kEmpty && cellMaterial(c) != mat)) continue;
+                T.emplace(std::make_tuple(y, col.second, col.first), true);
+                top = y;
+                added = true;
+                if (uint64_t(T.size()) * Fd >= total) break;
+            }
+            if (!added) break;
+        }
+        // Fill layer by layer (T is ordered by y, then z, x).
+        std::vector<IVec3> cells;
+        for (const auto& [k, v] : T) { cells.push_back({std::get<2>(k), std::get<0>(k), std::get<1>(k)}); (void)v; }
+        uint64_t left = total;
+        size_t a = 0;
+        while (a < cells.size()) {
+            size_t b = a;
+            while (b < cells.size() && cells[b].y == cells[a].y) ++b;
+            const uint64_t cnt = b - a, cap = cnt * Fd;
+            if (left >= cap) {
+                for (size_t k = a; k < b; ++k) core.setCell(cells[k], mat, Fd);
+                left -= cap;
+            } else {
+                const uint64_t q = left / cnt, rem = left % cnt;
+                for (size_t k = a; k < b; ++k) core.setCell(cells[k], mat, uint32_t(q + (k - a < rem ? 1 : 0)));
+                left = 0;
+            }
+            a = b;
+        }
+        if (left) left = putUnits(core, cells.empty() ? IVec3{floorI(p_[r].x), floorI(p_[r].y), floorI(p_[r].z)} : cells.back(), mat, left);
+        if (left) {   // no room anywhere: the remainder stays a particle (the group's root)
+            p_[r].units = uint32_t(left);
+            for (size_t i = 0; i < n; ++i) if (g[i] == r && i != r) gone[i] = 1;
+            continue;
+        }
+        for (size_t i = 0; i < n; ++i) if (g[i] == r) gone[i] = 1;
+    }
+    size_t k = 0;
+    for (size_t i = 0; i < n; ++i) { if (gone[i]) { ++removed; continue; } p_[k++] = p_[i]; }
+    p_.resize(k);
+    return removed;
+}
+
+void MatSimParticles::settleBlockers(const MatSimCore& core, size_t& slow, size_t& groupsBusy) {
+    const float vs = cfg_.settleSpeed * float(core.cellsPerM());
+    slow = groupsBusy = 0;
+    if (p_.empty()) return;
+    const std::vector<uint32_t> g = groups(core);
+    std::vector<uint32_t> members(p_.size(), 0), sl(p_.size(), 0);
+    for (size_t i = 0; i < p_.size(); ++i) {
+        const Particle& q = p_[i];
+        ++members[g[i]];
+        if (q.age >= cfg_.settleTau && q.ax * q.ax + q.ay * q.ay + q.az * q.az < vs * vs) { ++slow; ++sl[g[i]]; }
+    }
+    for (size_t r = 0; r < p_.size(); ++r)
+        if (members[r] && float(sl[r]) < cfg_.settleFraction * float(members[r])) ++groupsBusy;
+}
+
+size_t MatSimParticles::wake(MatSimCore& core) {
+    // A cell-water BODY (face-connected cells of one liquid) wakes whole when any of its cells is
+    // about to move (head excess over an open / part-empty neighbour > wakeHeadCells, or at least a
+    // quarter cell over a non-full space) or touches a particle (within one cell).
+    wakeStats_ = {};
+    if (cfg_.wakeHeadCells <= 0.f) return 0;
+    full_ = core.full();
+    const uint32_t F = core.full();
+    const IVec3 o = core.origin(), n = core.size();
+    const auto& head = core.head();
+    const uint32_t thr = uint32_t(cfg_.wakeHeadCells * float(F));
+    auto idx = [&](int lx, int ly, int lz) { return size_t(lx) + size_t(n.x) * (size_t(lz) + size_t(n.z) * size_t(ly)); };
+    const size_t N = size_t(n.x) * n.y * n.z;
+    static const int kD[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    std::vector<uint8_t> nearP(N, 0);
+    for (const Particle& q : p_) {
+        const int cx = floorI(q.x) - o.x, cy = floorI(q.y) - o.y, cz = floorI(q.z) - o.z;
+        for (int dy = -1; dy <= 1; ++dy)
+            for (int dz = -1; dz <= 1; ++dz)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    const int x = cx + dx, y = cy + dy, z = cz + dz;
+                    if (x >= 0 && y >= 0 && z >= 0 && x < n.x && y < n.y && z < n.z) nearP[idx(x, y, z)] = 1;
+                }
+    }
+    std::vector<uint8_t> trig(N, 0);
+    bool any = false;
+    for (int ly = 0; ly < n.y; ++ly)
+        for (int lz = 0; lz < n.z; ++lz)
+            for (int lx = 0; lx < n.x; ++lx) {
+                const IVec3 w{o.x + lx, o.y + ly, o.z + lz};
+                const Cell c = core.at(w);
+                const uint8_t m = cellMaterial(c);
+                if (!isLiquid(m) || cellFill(c) == 0) continue;
+                bool go = nearP[idx(lx, ly, lz)] != 0;
+                if (go) ++wakeStats_.contact;
+                const Cell b = core.at({w.x, w.y - 1, w.z});
+                // Falling: at least half a cell over an EMPTY cell. A cell over a part-filled one is
+                // the CA's one-tick gravity job; counting it re-woke settled bodies every ~1 s
+                // (4-18 trigger cells per cycle, WakeUTubeFromCells timeline).
+                if (!go && cellFill(c) >= F / 2 && cellMaterial(b) == kEmpty) {
+                    go = true;
+                    ++wakeStats_.falling;
+                }
+                const uint32_t hw = head.empty() ? 0u : (head[idx(lx, ly, lz)] & kHeadMask);
+                if (!go && hw != 0)
+                    for (const auto& d : kD) {
+                        const IVec3 nw{w.x + d[0], w.y + d[1], w.z + d[2]};
+                        if (!core.inBox(nw)) continue;
+                        const Cell x = core.at(nw);
+                        const uint8_t xm = cellMaterial(x);
+                        if (xm == kSolid || (xm != kEmpty && xm != m) || cellFill(x) >= F) continue;
+                        // An EMPTY neighbour counts from its top: a one-cell step in a settled surface
+                        // is the CA level rule's job, and reading it as a cell of excess re-woke
+                        // settled bodies (1-12 trigger cells a cycle, WakeUTubeFromCells timeline).
+                        const uint32_t ex = uint32_t(nw.y - o.y) * F + (xm == kEmpty ? F : cellFill(x));
+                        if (hw - 1 > ex + thr) { go = true; ++wakeStats_.pressure; break; }
+                    }
+                if (go) { trig[idx(lx, ly, lz)] = 1; any = true; }
+            }
+    if (!any) return 0;
+    // Flood each triggered body (face-connected, same liquid) and lift all of it, in index order.
+    std::vector<uint8_t> lift(N, 0);
+    std::vector<IVec3> stack;
+    for (int ly = 0; ly < n.y; ++ly)
+        for (int lz = 0; lz < n.z; ++lz)
+            for (int lx = 0; lx < n.x; ++lx) {
+                if (!trig[idx(lx, ly, lz)] || lift[idx(lx, ly, lz)]) continue;
+                const uint8_t m = cellMaterial(core.at({o.x + lx, o.y + ly, o.z + lz}));
+                stack.assign(1, {lx, ly, lz});
+                lift[idx(lx, ly, lz)] = 1;
+                while (!stack.empty()) {
+                    const IVec3 l = stack.back();
+                    stack.pop_back();
+                    for (const auto& d : kD) {
+                        const int x = l.x + d[0], y = l.y + d[1], z = l.z + d[2];
+                        if (x < 0 || y < 0 || z < 0 || x >= n.x || y >= n.y || z >= n.z || lift[idx(x, y, z)]) continue;
+                        const Cell c = core.at({o.x + x, o.y + y, o.z + z});
+                        if (cellMaterial(c) != m || cellFill(c) == 0) continue;
+                        lift[idx(x, y, z)] = 1;
+                        stack.push_back({x, y, z});
+                    }
+                }
+            }
+    size_t lifted = 0;
+    for (int ly = 0; ly < n.y; ++ly)
+        for (int lz = 0; lz < n.z; ++lz)
+            for (int lx = 0; lx < n.x; ++lx) {
+                if (!lift[idx(lx, ly, lz)]) continue;
+                const IVec3 w{o.x + lx, o.y + ly, o.z + lz};
+                const Cell c = core.at(w);
+                p_.push_back({w.x + 0.5f, w.y + 0.5f, w.z + 0.5f, 0.f, 0.f, 0.f, cellFill(c), cellMaterial(c), 0.f, 0.f, 0.f, 0.f});
+                core.setCell(w, kEmpty, 0);
+                ++lifted;
+            }
+    return lifted;
 }
 
 uint64_t MatSimParticles::deposit(MatSimCore& core) {

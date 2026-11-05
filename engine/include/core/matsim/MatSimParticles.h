@@ -39,6 +39,15 @@ struct ParticleConfig {
     float settleTau = 1.0f;
     /// E2: settle() deposits supported particles slower than this (m/s, averaged) into cells. 0 = off.
     float settleSpeed = 0.0f;
+    /// E2: a group settles when at least this fraction of its members is slow. 0.8 with settleSpeed
+    /// 0.35 m/s (measured, 6f): a resting U-tube's averaged speed has p90 0.34 m/s, a sloshing one at
+    /// 5 s p90 0.44 m/s. Empirical; a body's centre-of-mass height going still would be principled.
+    float settleFraction = 0.8f;
+    /// E2: a group settles only if its free surface (3 x 3-column averages) is level to within this
+    /// many cells; keep it below wakeHeadCells so deposited water is not woken straight back.
+    float settleLevelCells = 0.8f;
+    /// E2: wake() lifts cell water whose head excess over a neighbour exceeds this many cells. 0 = off.
+    float wakeHeadCells = 0.0f;
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
 };
 
@@ -63,9 +72,19 @@ public:
     /// Put every particle's units back into cells (overflow carried to the nearest open room,
     /// deterministic), then clear. Returns units that found no room (0 unless the box is full).
     uint64_t deposit(MatSimCore& core);
-    /// E2: deposit every settled, supported particle into its cell (see ParticleConfig::settleSpeed).
-    /// Returns the number deposited. Call after step(); cell water then moves by the CA.
+    /// E2: deposit every particle GROUP (particles within h of each other) whose members are all
+    /// slow and old enough (ParticleConfig::settleSpeed / settleTau), lowest first. Returns the
+    /// number deposited. Call after step(); cell water then moves by the CA.
     size_t settle(MatSimCore& core);
+    /// E2: wake a whole cell-water BODY (face-connected cells of one liquid) into particles when any
+    /// of its cells is about to move (head over an open / part-empty neighbour by > wakeHeadCells,
+    /// or at least a quarter cell over a non-full space) or touches a particle. Uses the core's head
+    /// field (pressure must be on). Returns the number of cells lifted.
+    size_t wake(MatSimCore& core);
+    struct WakeStats { size_t contact = 0, falling = 0, pressure = 0; };   ///< trigger cells in the last wake()
+    const WakeStats& lastWakeStats() const { return wakeStats_; }
+    /// Diagnostics: particles slow and old enough to settle, and the groups still busy.
+    void settleBlockers(const MatSimCore& core, size_t& slow, size_t& groupsBusy);
 
     const std::vector<Particle>& particles() const { return p_; }
     /// Test hooks: add a particle directly; density error C = rho/rho0 - 1 over all particles
@@ -79,11 +98,13 @@ public:
 
 private:
     void buildGrid(const MatSimCore& core);
+    std::vector<uint32_t> groups(const MatSimCore& core);   ///< group root per particle (within h)
     bool solidAt(const MatSimCore& core, float x, float y, float z) const;
 
     ParticleConfig cfg_;
     std::vector<Particle> p_;
     int lastSubsteps_ = 0;
+    WakeStats wakeStats_;
     // Work arrays (per substep).
     std::vector<float> px_, py_, pz_, lambda_, rho_;
     std::vector<uint32_t> cellStart_, cellCount_, sorted_;

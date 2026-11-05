@@ -5,7 +5,8 @@ view, live rig) §6c. P1c PRESSURE BUILT 2026-11-04 (§6d): U-tubes and communic
 GPU bit-exact. Plan re-audited against Noita's principles + realism (§0b): new P1d (speed ∝ cell size, owner
 decision), P4 density/viscosity, P4b world-as-material, P8 reactions. P2 not started. 2026-11-04: §6e
 shows the CA cannot carry pressure at physical speed (routing never converges); §6f experiment E1, MatSim's
-own particle fluid (PBF), levels the U-tube at physical speed and period at 1/3 and 1/9 m.** Supersedes the same-day `LiquidCaLab.md`
+own particle fluid (PBF), levels the U-tube at physical speed and period at 1/3 and 1/9 m. 2026-11-05: §6g
+experiment E2, the hybrid (resting cells, moving particles, whole-body wake/settle) works at 1/3 m.** Supersedes the same-day `LiquidCaLab.md`
 note, folded in here and deleted. Context: [`NoitaGapAnalysis.md`](NoitaGapAnalysis.md) (why: N1–N4,
 Tiers 2–3) and [`WaterCore.md`](WaterCore.md) (the water system this must live beside: §4.2 method
 choice, §30.0b locality, §51 levels).
@@ -1080,9 +1081,69 @@ resolution floor again. **Not yet validated:** an experimental front speed for t
 (bed friction lowers it below Ritter); 75 % is plausible but unsourced. Cost at 1/9 m (6,561
 particles, Debug CPU): 1.9 s per frame.
 
-**Next (E2 onward, in order):** ~~find the jitter's cause~~ (done, above); settle → deposit (displacement-window and
+**Next (E2 onward, in order):** ~~find the jitter's cause~~ (done, above); ~~settle → deposit~~ (§6g) (displacement-window and
 density test, then automatic wake on a disturbance); ~~the dam break against Ritter~~ (done, above); the GPU port
 (the CPU cost above is the reason; one pass per iteration); then the hybrid with the resting CA.
+
+### 6g. Experiment E2: the hybrid, cells at rest and particles in motion (2026-11-05)
+
+**Goal.** Noita's split, made realistic: resting water is cheap CA cells, moving water is the §6f
+particle fluid. Water must **settle** from particles into cells and **wake** from cells into
+particles, with the ledger exact across every conversion, and no flapping between the two.
+
+**The rule that held: a body is all cells or all particles.** A connected body of water is never
+split along a moving seam:
+- **Wake** (`MatSimParticles::wake`, before each particle step): a face-connected cell-water body
+  wakes whole when any of its cells has a head excess over an open or part-empty neighbour of more
+  than `wakeHeadCells` (1 cell; an empty neighbour counts from its top), holds at least half a cell
+  over an empty cell (falling), or touches a particle.
+- **Settle** (`settle`, after each particle step): particles within h of each other form a group. A
+  group settles when ≥ `settleFraction` (80 %) of its members are ≥ 1 s old with a 1 s-averaged
+  speed < `settleSpeed` (0.35 m/s), **and** its free surface (3×3-column volume averages, columns
+  capped by a solid excluded) is level to within `settleLevelCells` (0.8 cell, below the wake
+  threshold).
+- **Level deposit**: a settling group's water is laid down as resting water sits, bottom-up and
+  layer by layer over its footprint (completed to one top layer), flat to one unit,
+  integer-exact.
+- Frame order: wake → particle step → settle → CA step (pressure on). Cell water counts as
+  boundary mass (fill/FULL) for the particles.
+
+**What failed on the way (each measured, each fixed by a rule above):**
+
+| # | First rule | Failure, measured | Fix |
+|---|---|---|---|
+| 1 | per-particle settle, average starts at 0 | everything settled on frame 1, so the CA levelled the U-tube alone (the test passed for the wrong reason, caught by the 0.02 s settle time) | 1 s age gate; test requires ≥ 1.8 m at 3 s |
+| 2 | per-cell wake | slow water settled at slosh turning points and re-woke; partial cells became light particles (705 from 351 cells of water) | wake only ≥ ½ full; then the body rule |
+| 3 | no pressure wake next to particles | the CA moved cell water into particle cells; boundary mass blasted particles out (a 112 m/s "front") | cells and particles never share a cell; the body rule |
+| 4 | absorb cell water into particles | heavy particles skewed PBF density; arms 0.27 m off | the body rule |
+| 5 | a group settles when every member is slow | the resting tail at ~0.3 m/s kept 354 particles busy for 40 s | 80 % of members |
+| 6 | no surface check | settled at a turning point with the arms ~0.3 m apart, woken straight back | free surface level within 0.8 cell |
+| 7 | surface from the top particle per column | ±0.5 cell jitter per column | 3×3 volume averages |
+| 8 | deposit into each particle's own cell | a cell over an empty one tripped the falling trigger (4-18 cells a cycle) | land / level deposit; falling needs an empty cell below |
+| 9 | per-particle deposit | ~1-cell surface roughness read as pressure (13-19 trigger cells a cycle) | level deposit over a completed footprint |
+
+**Results** (`tests/core/MatSimParticlesTest.cpp`, 1/3 m, CPU Debug):
+
+| test | result |
+|---|---|
+| `StillTankSettlesIntoCells` | all cells at 1.02 s, surface flat to 0.000 cell, ledger exact |
+| `UTubeSettlesLevel` (lifted, settle only) | far arm 2.48 m at 3 s; all cells at 13.7 s; arms 2.000 / 2.000 m |
+| `WakeDamBreakFromCells` | front 8.04 m/s (all-particle 8.18; control, CA only, 2.42) |
+| `WakeUTubeFromCells` | wakes at 1 s (6 pressure triggers lift 354 cells), far arm 2.74 m at 3 s (control 0.42 m), all cells at 8 s, **no re-wake to 40 s**, arms 2.000 / 2.000 m, ledger exact every frame |
+
+**Stated limits (known, not yet tested):**
+- **A disturbance wakes its whole body.** Fine for these rigs; a pebble in a lake would lift the
+  lake. Scale needs a region-limited wake and a clean particle/cell interface, the hard part this
+  rule avoided.
+- The settle thresholds (0.35 m/s, 80 %, 0.8 cell) are fitted to measured distributions at 1/3 m,
+  not derived. A principled rest test (a body's centre-of-mass height going still) is open.
+- The last cell of levelling is the CA's (P1c pressure rule), which is cell-size dependent:
+  0.33 m at 1/3 m, 0.11 m at 1/9 m.
+- Only 1/3 m is tested for E2. 1/9 m (CPU Debug ~1.4 s a frame) waits for the GPU port.
+- Whole-box scans per frame (wake, groups): O(cells + particles), CPU only.
+
+**Next:** the GPU port of the particle step (the cost is the blocker for 1/9 m and for live
+runs), then E2 at 1/9 m and live in the lab rig; region-limited wake.
 
 ## 7. Working alongside the other sessions
 

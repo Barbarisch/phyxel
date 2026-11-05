@@ -426,13 +426,15 @@ TEST(MatSimParticles, DISABLED_AveragedSpeedAtRest) {
     MatSimCore s;
     s.create({0, 0, 0}, {15, 18, 3}, cpm, [](int, int, int) { return Occ::Empty; }, &why, cfg);
     s.fillBox(Mat::Water, {0, 0, 0}, {15, 4, 3}, 1.0);
+    if (std::getenv("MATSIM_UTUBE")) s = uTube(cpm);   // the 2|2 U-tube instead (sloshing settles by ~30 s)
     ParticleConfig pc;
     if (const char* e = std::getenv("MATSIM_TAU")) pc.settleTau = float(std::atof(e));
     MatSimParticles ps(pc);
     ps.lift(s, s.origin(), s.size());
-    for (int f = 1; f <= 1200; ++f) {
+    const int last = std::getenv("MATSIM_UTUBE") ? 2400 : 1200;
+    for (int f = 1; f <= last; ++f) {
         ps.step(s, 1.0 / 60.0);
-        if (f == 300 || f == 600 || f == 1200) {
+        if (f == 300 || f == 600 || f == 1200 || f == 2400) {
             std::vector<float> v, a;
             for (const Particle& p : ps.particles()) {
                 v.push_back(std::sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) / cpm);
@@ -498,7 +500,7 @@ TEST(MatSimParticles, StillTankSettlesIntoCells) {
     ASSERT_TRUE(s.create({0, 0, 0}, {15, 18, 3}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
     s.fillBox(Mat::Water, {0, 0, 0}, {15, 4, 3}, 1.0);
     ParticleConfig pc;
-    pc.settleSpeed = 0.3f;
+    pc.settleSpeed = 0.35f;
     MatSimParticles ps(pc);
     ps.lift(s, s.origin(), s.size());
     const SettleRun r = runSettle(s, ps, 8.0);
@@ -518,7 +520,7 @@ TEST(MatSimParticles, UTubeSettlesLevel) {
     MatSimCore s = uTube(cpm);
     s.config().pressure = true;   // cell water keeps the P1c pressure rule
     ParticleConfig pc;
-    pc.settleSpeed = 0.3f;
+    pc.settleSpeed = 0.35f;
     MatSimParticles ps(pc);
     ps.lift(s, s.origin(), s.size());
     const SettleRun r = runSettle(s, ps, 40.0);
@@ -532,4 +534,122 @@ TEST(MatSimParticles, UTubeSettlesLevel) {
     EXPECT_GT(r.allSettledAt, 0.0);
     EXPECT_NEAR(hl, hr, tol);
     EXPECT_NEAR(hr, 2.0, tol);
+}
+
+// E2 (6f): wake. Water starts as CELLS; wake() lifts cell water that is about to move (head
+// excess > 1/2 cell over an open neighbour, or falling), the particles move it, settle() puts it
+// back. Predictions, written first: the dam break's front runs within 10 % of the all-particle
+// 8.18 m/s at 1/3 m (control, wake off = the CA alone: ~4.5 m/s); the U-tube's far arm reaches
+// >= 1.8 m by 3 s (control: the CA, ~0.2 m) and ends level; ledger exact every frame.
+namespace {
+ParticleConfig hybridConfig(bool wakeOn) {
+    ParticleConfig pc;
+    pc.settleSpeed = 0.35f;
+    pc.wakeHeadCells = wakeOn ? 1.0f : 0.f;   // one cell of head excess; settle needs a surface level to 0.8 cell
+    return pc;
+}
+// One hybrid frame: wake -> particles -> settle -> CA.
+void hybridFrame(MatSimCore& s, MatSimParticles& ps) {
+    ps.wake(s);
+    ps.step(s, 1.0 / 60.0);
+    ps.settle(s);
+    s.step(1);
+}
+double hybridDamFront(bool wakeOn, bool* ledgerExact, size_t* peakParticles) {
+    const int cpm = 3;
+    std::string why;
+    MatSimCore s;
+    EXPECT_TRUE(s.create({0, 0, 0}, {16 * cpm, 8 * cpm, cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+    s.fillBox(Mat::Water, {0, 0, 0}, {3 * cpm, 3 * cpm, cpm}, 1.0);
+    MatSimParticles ps(hybridConfig(wakeOn));
+    const uint64_t total = s.ledger()[Mat::Water];
+    const uint32_t F = s.full();
+    const double thr = 0.01 * 8.0 * (1.0 / cpm) * double(F) * cpm * cpm * cpm;
+    double ta = -1, tb = -1;
+    *ledgerExact = true;
+    *peakParticles = 0;
+    for (int f = 0; f < 240 && tb < 0; ++f) {
+        hybridFrame(s, ps);
+        *peakParticles = std::max(*peakParticles, ps.particles().size());
+        if (s.ledger()[Mat::Water] + ps.units(Mat::Water) != total) *ledgerExact = false;
+        std::vector<uint64_t> col(size_t(16 * cpm), 0);
+        for (const Particle& p : ps.particles()) {
+            const int c = int(std::floor(p.x));
+            if (c >= 0 && c < 16 * cpm) col[size_t(c)] += p.units;
+        }
+        for (int x = 0; x < 16 * cpm; ++x)
+            for (int y = 0; y < 8 * cpm; ++y)
+                for (int z = 0; z < cpm; ++z) {
+                    const Cell c = s.at({x, y, z});
+                    if (cellMaterial(c) == Mat::Water) col[size_t(x)] += cellFill(c);
+                }
+        int front = 0;
+        for (int c = 0; c < 16 * cpm; ++c) if (double(col[size_t(c)]) > thr) front = c + 1;
+        const double fx = double(front) / cpm, t = (f + 1) / 60.0;
+        if (ta < 0 && fx >= 4.5) ta = t;
+        if (tb < 0 && fx >= 12.0) tb = t;
+    }
+    return (ta > 0 && tb > ta) ? 7.5 / (tb - ta) : -1.0;
+}
+} // namespace
+
+TEST(MatSimParticles, WakeDamBreakFromCells) {
+    bool exact = false, exactOff = false;
+    size_t peak = 0, peakOff = 0;
+    const double v = hybridDamFront(true, &exact, &peak);
+    const double vOff = hybridDamFront(false, &exactOff, &peakOff);
+    std::printf("[MatSimParticles] dam break from cells 1/3 m: wake on %.2f m/s (peak %zu particles), wake off (CA) %.2f m/s; "
+                "all-particle reference 8.18; ledger %s / %s\n", v, peak, vOff, exact ? "exact" : "BROKEN", exactOff ? "exact" : "BROKEN");
+    EXPECT_TRUE(exact);
+    EXPECT_TRUE(exactOff);
+    EXPECT_NEAR(v, 8.18, 0.1 * 8.18);
+    EXPECT_LT(vOff, 0.7 * 8.18) << "control: the CA alone must be clearly slower";
+}
+
+TEST(MatSimParticles, WakeUTubeFromCells) {
+    for (bool wakeOn : {true, false}) {
+        const int cpm = 3;
+        MatSimCore s = uTube(cpm);
+        s.config().pressure = true;
+        MatSimParticles ps(hybridConfig(wakeOn));
+        const uint64_t total = s.ledger()[Mat::Water];
+        bool exact = true;
+        double at3 = -1;
+        size_t peak = 0;
+        size_t trigC = 0, trigF = 0, trigP = 0, lifted = 0, settled = 0;
+        for (int f = 0; f < 40 * 60; ++f) {
+            lifted += ps.wake(s);
+            trigC += ps.lastWakeStats().contact; trigF += ps.lastWakeStats().falling; trigP += ps.lastWakeStats().pressure;
+            ps.step(s, 1.0 / 60.0);
+            settled += ps.settle(s);
+            s.step(1);
+            if (wakeOn && (f + 1) % 60 == 0 && f < 20 * 60) {
+                std::printf("[wake] t %2d s: %zu particles; this second lifted %zu cells, settled %zu; trigger cells contact %zu falling %zu pressure %zu\n",
+                            (f + 1) / 60, ps.particles().size(), lifted, settled, trigC, trigF, trigP);
+                trigC = trigF = trigP = lifted = settled = 0;
+            }
+            peak = std::max(peak, ps.particles().size());
+            if (s.ledger()[Mat::Water] + ps.units(Mat::Water) != total) exact = false;
+            if (f + 1 == 180) at3 = armFromCells(s, 9, 15) + armFromParticles(ps, cpm, s.full(), 9, 15);
+        }
+        size_t slow = 0, slowUnsup = 0;
+        ps.settleBlockers(s, slow, slowUnsup);   // slowUnsup = groups still busy
+        std::printf("[MatSimParticles]   at 40 s: %zu particles, %zu slow enough to settle, %zu groups busy\n",
+                    ps.particles().size(), slow, slowUnsup);
+        const double hl = armFromCells(s, 0, 6) + armFromParticles(ps, cpm, s.full(), 0, 6);
+        const double hr = armFromCells(s, 9, 15) + armFromParticles(ps, cpm, s.full(), 9, 15);
+        std::printf("[MatSimParticles] U-tube from cells 1/3 m, wake %s: right %.3f m at 3 s, at 40 s arms %.3f / %.3f m, "
+                    "%zu particles left (peak %zu), ledger %s\n", wakeOn ? "on" : "off", at3, hl, hr, ps.particles().size(), peak,
+                    exact ? "exact" : "BROKEN");
+        EXPECT_TRUE(exact);
+        if (wakeOn) {
+            const double tol = std::max(0.5 / cpm, 0.03);
+            EXPECT_GE(at3, 1.8);
+            EXPECT_EQ(ps.particles().size(), 0u) << "the body must settle back into cells";
+            EXPECT_NEAR(hl, hr, tol);
+            EXPECT_NEAR(hr, 2.0, tol);
+        } else {
+            EXPECT_LT(at3, 1.0) << "control: the CA alone";
+        }
+    }
 }

@@ -204,7 +204,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     - **§6f E1 (2026-11-04), MatSim's own particle fluid** (`MatSimParticles`, Position Based Fluids, CPU reference). The
       U-tube levels in 1.1 s and sloshes at its theoretical period (4.35 s against 4.49 s), the same at 1/3 and 1/9 m.
       The ledger is exact. Owner direction: MatSim is its own experiment, independent of WaterCore.
-    - **Next:** the resting-jitter cause (open, §6f), then settle and deposit into cells, the dam break, and the GPU port.
+    - **§6f (2026-11-05):** the resting churn was diagnosed. A divergence solve plus viscosity cuts it 4.5x. The dam-break
+      front runs 8.18 m/s at both 1/3 and 1/9 m.
+    - **§6g E2 (2026-11-05), the hybrid:** resting water is cells, moving water is particles, and a body is always all one or
+      all the other. Whole-body wake and settle, with a level deposit. A U-tube starting as cells wakes, sloshes, settles and
+      ends at 2.000 / 2.000 m; the ledger is exact. Tested at 1/3 m only. Limit: a disturbance wakes its whole body.
+    - **Next:** the GPU port of the particle step (needed for 1/9 m and for live runs), then a region-limited wake.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
     - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then
