@@ -357,3 +357,61 @@ TEST(MatSimParticles, DISABLED_ProjectionConverges) {
                     x1, m0, m1, ps.maxSpeed());
     }
 }
+
+// Dam break (the live rig's, 1 m deep): a 16 x 8 x 1 m channel, a 3 m wide x 3 m deep reservoir
+// at x in [0, 3) m released at t = 0. Front = the furthest 1-cell x slice holding > 1 % of an
+// 8 m x 1 m x 1-cell slice of water; speed timed from x 4.5 m to 12 m (the rig's 12.5 -> 20 m).
+// Ritter (frictionless) 2 sqrt(g h0) = 10.85 m/s is an upper bound; prediction (6f): 70-105 % of
+// Ritter, and 1/3 and 1/9 m within 10 % of each other (speed independent of cell size).
+namespace {
+double damBreakFront(int cpm, double* msPerFrame) {
+    std::string why;
+    Config cfg;
+    cfg.pressure = false;
+    MatSimCore s;
+    EXPECT_TRUE(s.create({0, 0, 0}, {16 * cpm, 8 * cpm, cpm}, cpm, [](int, int, int) { return Occ::Empty; }, &why, cfg)) << why;
+    s.fillBox(Mat::Water, {0, 0, 0}, {3 * cpm, 3 * cpm, cpm}, 1.0);
+    MatSimParticles ps;
+    ps.lift(s, s.origin(), s.size());
+    const uint32_t F = s.full();
+    const double thr = 0.01 * 8.0 * 1.0 * (1.0 / cpm) * double(F) * cpm * cpm * cpm;   // units in 1 % of the slice
+    double ta = -1, tb = -1;
+    const auto t0 = std::chrono::steady_clock::now();
+    int frames = 0;
+    for (; frames < 180 && tb < 0; ++frames) {
+        ps.step(s, 1.0 / 60.0);
+        std::vector<uint64_t> col(size_t(16 * cpm), 0);
+        for (const Particle& p : ps.particles()) {
+            const int c = int(std::floor(p.x));
+            if (c >= 0 && c < 16 * cpm) col[size_t(c)] += p.units;
+        }
+        int front = 0;
+        for (int c = 0; c < 16 * cpm; ++c) if (double(col[size_t(c)]) > thr) front = c + 1;
+        const double fx = double(front) / cpm, t = (frames + 1) / 60.0;
+        if (ta < 0 && fx >= 4.5) ta = t;
+        if (tb < 0 && fx >= 12.0) tb = t;
+    }
+    *msPerFrame = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / frames;
+    return (ta > 0 && tb > ta) ? 7.5 / (tb - ta) : -1.0;
+}
+} // namespace
+
+TEST(MatSimParticles, DamBreakFrontAtOneThirdMetre) {
+    double ms = 0;
+    const double v = damBreakFront(3, &ms);
+    const double ritter = 2.0 * std::sqrt(9.81 * 3.0);
+    std::printf("[MatSimParticles] dam break 1/3 m: front %.2f m/s (Ritter %.2f, %.0f %%), %.1f ms/frame\n", v, ritter,
+                100.0 * v / ritter, ms);
+    EXPECT_GE(v, 0.70 * ritter);
+    EXPECT_LE(v, 1.05 * ritter);
+}
+
+TEST(MatSimParticles, DISABLED_DamBreakOtherSizes) {
+    const double ritter = 2.0 * std::sqrt(9.81 * 3.0);
+    for (int cpm : {1, 9}) {
+        double ms = 0;
+        const double v = damBreakFront(cpm, &ms);
+        std::printf("[MatSimParticles] dam break 1/%d m: front %.2f m/s (Ritter %.2f, %.0f %%), %.1f ms/frame\n", cpm, v, ritter,
+                    100.0 * v / ritter, ms);
+    }
+}

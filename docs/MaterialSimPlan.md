@@ -1046,8 +1046,42 @@ cuts it 4× without changing the period or the surge; c = 0.3 cuts it 13× but l
 surge 10 %. **Cause not yet found.** It matters for E2: water has to settle before it deposits
 back into cells, and instantaneous speed cannot be the rest test while it persists.
 
-**Next (E2 onward, in order):** find the jitter's cause; settle → deposit (displacement-window and
-density test, then automatic wake on a disturbance); the dam break against Ritter; the GPU port
+**E1, day 2 (2026-11-05): the resting churn, diagnosed; the dam break.**
+
+Resting churn, ruled out one by one (diagnostics `MatSimParticles.DISABLED_*`):
+- not walls (interior particles of a 3 m-deep tank churn as much);
+- not pressure propagating down the column (median 1.0-1.4 m/s at 2, 4 and 8 layers alike);
+- not one substep's gravity kick (≈ 0.08 m/s; quartering g changes the churn only ~1.5×);
+- not voids in the one-sided constraint (two-sided is worse: 2.0-4.6 m/s);
+- not the projection: a cube compressed 10 % goes from worst C 0.376 to 0.004 in one iteration.
+
+**Cause:** PBF constrains positions, never velocities. Each substep the stiff projection picks one
+of many nearby rest arrangements of a disordered packing, and that jump becomes velocity
+(jump / dt), so the noise grows as the substep shrinks. **Fix:** a velocity-level divergence solve
+after the position solve (DFSPH, Bender & Koschier 2015), 2 passes by default. It halves the churn;
+with XSPH c = 0.1 the still-tank median goes 1.0 → 0.22 m/s, and the U-tube surge (3.07 m) and
+period (~4.5 s) are unchanged. c = 0.3 would cut it to ~0.1 m/s but over-damps the slosh (second
+surge 2.07 m), so it is not the default. The residual is volume-preserving swirl; a speed-only rest
+test still cannot work, so E2's settle test must average over time.
+The velocity solve alone also carries pressure (density iterations 0, divergence on: the far arm
+reached 1.22 m), so the no-pressure control now turns both off.
+
+**Dam break** (`DamBreakFrontAtOneThirdMetre`, the rig's geometry 1 m deep: 3 m deep reservoir,
+front timed x 4.5 → 12 m; prediction 70-105 % of Ritter, 1/3 and 1/9 m within 10 %):
+
+| | 1 m | 1/3 m | 1/9 m |
+|---|---|---|---|
+| CA (P1, §6c) | 46.7 m/s | 4.5 m/s | 0.87 m/s |
+| **particles (E1)** | 6.82 m/s (63 %) | **8.18 m/s (75 %)** | **8.18 m/s (75 %)** |
+
+Ritter 2√(g·3 m) = 10.85 m/s is frictionless, an upper bound. The 1/3 and 1/9 m fronts agree to
+the measurement's resolution (frame-quantised timing: ±1 frame ≈ ±2 %). 1 m is below the
+resolution floor again. **Not yet validated:** an experimental front speed for this geometry
+(bed friction lowers it below Ritter); 75 % is plausible but unsourced. Cost at 1/9 m (6,561
+particles, Debug CPU): 1.9 s per frame.
+
+**Next (E2 onward, in order):** ~~find the jitter's cause~~ (done, above); settle → deposit (displacement-window and
+density test, then automatic wake on a disturbance); ~~the dam break against Ritter~~ (done, above); the GPU port
 (the CPU cost above is the reason; one pass per iteration); then the hybrid with the resting CA.
 
 ## 7. Working alongside the other sessions
