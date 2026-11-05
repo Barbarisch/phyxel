@@ -1,4 +1,5 @@
 #include "core/SettlementBuildService.h"
+#include "core/SettlementMapPlanner.h"
 
 #include <algorithm>
 #include <chrono>
@@ -435,8 +436,116 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         Core::SettlementLayout layout;
         Core::MainStreetLayout msl;   // program main-street plan (used when mainStreetMode)
         int droppedPlots = 0;         // main-street plots dropped on unbuildable terrain (surfaced)
-        if (terrain) {
+        std::vector<Core::PlacedBuilding> buildings;
+        // ── M5a (WorldForgeV2Plan §M5, 2026-11-05): EVERY program tier is realized from the settlement MAP
+        // (D41). The headless planner bakes it from injected samplers - the generator's columns when the
+        // world has one (chunk-independent: a pure function of world position), the ground scan on a loaded
+        // world without a generator, a flat field headless - and the roads arriving at the site (`entries`,
+        // site-local, from WorldForgeBuildService); the units consume its projection (lots -> plots and
+        // assigned plots, axis-aligned ways -> street rects, the market area -> the square). The legacy
+        // non-program path (no era/tier) keeps the grid below.
+        Core::SettlementMap siteMap;
+        std::string mapSampler = "flat";
+        std::vector<std::vector<glm::ivec2>> mapWayCells;   // the ways' node cells (WORLD cubes) for the paths unit
+        // {"legacy_layout": true}: the layout AS BUILT before M5a for a program tier - the CONTROL of the L4
+        // A/B (the same site, seed and terrain through the grid, so a gate refusal can be attributed)
+        const bool legacyLayout = p.value("legacy_layout", false);
+        const bool mapLots = (tierP != nullptr) && !legacyLayout;
+        if (mapLots) {
+            // the standing contract (SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused, chain 66
+            // caught its loss): terrain mode without a world is refused, not planned on a flat stand-in
+            if (terrain && !chunkManager) { res.error = {{"error", "terrain mode needs a loaded world (no ChunkManager)"}}; return res; }
+            Core::SettlementMapInput mi;
+            mi.tier = tierP; mi.rooms = &roomReg; mi.era = era; mi.seed = seed;
+            mi.W = W; mi.D = D; mi.originX = ox; mi.originY = oy; mi.originZ = oz;
+            WorldGenerator* mapGen = (chunkManager && terrain) ? chunkManager->getStreamingGenerator() : nullptr;
+            if (mapGen && mapGen->hydrology()) {
+                // L4 runs 1-2 (2026-11-05): sampleSurface is the FULL column (~7 ms each on Release: 9.4 s for a
+                // 40 x 32 hamlet); naturalGroundAt is the natural emitted ground (phases 0-2, pinned equal to the
+                // sampler's bed height off channels, coasts and roads) - the field the box plan was routed on
+                mapSampler = "generator";
+                mi.heightAt = [mapGen, ox, oz](int x, int z) { return static_cast<int>(std::floor(mapGen->naturalGroundAt(ox + x, oz + z))); };
+            } else if (chunkManager && terrain) {
+                mapSampler = "chunks";
+                mi.heightAt = [terrainTopAt, ox, oz](int x, int z) { return terrainTopAt(ox + x, oz + z); };
+            } else {
+                mi.heightAt = [oy](int, int) { return oy; };
+            }
+            if (mapGen && mapGen->hydrology()) {
+                // L4 run 3: the build service's waterAt calls waterSpanAt (a bounded basin flood, ~7 ms a
+                // column) - 1280 calls were the 9 s bake. The planner's water is the generator's own: a
+                // carved channel under the column, or the hydrology's (rim-corrected) standing level above
+                // the natural ground. The chunks' PLACED water spans (an edited world) are not consulted
+                // by the planner; the realizer's units still are (waterAt below).
+                mi.waterAt = [mapGen, ox, oz](int x, int z) {
+                    const int wx = ox + x, wz = oz + z;
+                    if (mapGen->channelHitAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f).hit) return true;
+                    const float level = mapGen->waterLevelAt(static_cast<float>(wx), static_cast<float>(wz));
+                    return level > mapGen->naturalGroundAt(wx, wz);
+                };
+            } else if (chunkManager && terrain) {
+                mi.waterAt = [waterAt, ox, oz](int x, int z) { return waterAt(ox + x, oz + z); };
+            }
+            if (p.contains("entries") && p["entries"].is_array())
+                for (const auto& e : p["entries"]) if (e.is_object()) mi.entries.push_back({e.value("x", 0), e.value("z", 0), e.value("cls", 1)});
+            mi.maxRelief = p.value("max_relief", 6);
+            mi.reuse = p.value("route_reuse", 0.5f);
+            if (p.value("map_water_check", false) && mi.waterAt && chunkManager && terrain) {   // (also run below the legacy branch)
+                // audit E8: the planner's water (channelHitAt + the hydrology level above the natural ground) against
+                // the realizer's waterAt (placed spans + channel + waterSpanAt's flood) over every cell of the site
+                int disagree = 0, plannerWet = 0, realizerWet = 0;
+                for (int z = 0; z < D; ++z) for (int x = 0; x < W; ++x) {
+                    const bool a = mi.waterAt(x, z), b = waterAt(ox + x, oz + z);
+                    plannerWet += a ? 1 : 0; realizerWet += b ? 1 : 0; disagree += (a != b) ? 1 : 0;
+                }
+                LOG_INFO_FMT("Settlement", "[M5A-WATER-CHECK] (map branch: mi.waterAt vs the realizer's waterAt) " << W << " x " << D << ": planner wet "
+                             << plannerWet << ", realizer wet " << realizerWet << ", cells that disagree " << disagree);
+            }
+            siteMap = Core::planSettlementMap(mi);
+            if (!siteMap.ok()) {
+                res.error = {{"error", siteMap.refusal}, {"map_sampler", mapSampler}, {"dropped_lots", siteMap.droppedLots}};
+                res.map = siteMap.toJson();   // the partial map stays on record (L4 run 2: a planner refusal left none)
+                return res;
+            }
+            const Core::MapProjection proj = Core::projectMap(siteMap);
+            layout = proj.layout;
+            msl = proj.msl;
+            droppedPlots = siteMap.droppedLots;
+            for (const auto& l : siteMap.lots) {
+                Core::PlacedBuilding b;
+                b.plotIndex = l.id;
+                b.footprint = l.footprint;
+                b.typology = l.typology;
+                buildings.push_back(b);
+            }
+            for (const auto& w : siteMap.ways) {
+                std::vector<glm::ivec2> cells;
+                for (int nid : w.nodes) if (const Core::MapNode* n = siteMap.node(nid)) cells.push_back({ox + n->x, oz + n->z});
+                if (cells.size() >= 2) mapWayCells.push_back(std::move(cells));
+            }
+            LOG_INFO_FMT("Settlement", "[M5A-MAP] " << era << "/" << tierName << " seed " << seed << ": " << siteMap.lots.size() << " lots, "
+                         << siteMap.ways.size() << " ways, " << siteMap.nodes.size() << " nodes, entry " << siteMap.entryNode
+                         << ", sampler " << mapSampler << ", " << siteMap.droppedLots << " dropped, bake " << siteMap.bakeMs << " ms");
+            if (buildings.empty()) {
+                res.error = {{"error", "the settlement map carries no lot"}, {"map", siteMap.toJson()}};
+                return res;
+            }
+        } else if (terrain) {
             if (!chunkManager) { res.error = {{"error", "terrain mode needs a loaded world (no ChunkManager)"}}; return res; }
+            if (p.value("map_water_check", false)) {   // audit E8, on the legacy branch too (the L4 control runs here)
+                if (WorldGenerator* wg = chunkManager->getStreamingGenerator(); wg && wg->hydrology()) {
+                    int disagree = 0, plannerWet = 0, realizerWet = 0;
+                    for (int z = 0; z < D; ++z) for (int x = 0; x < W; ++x) {
+                        const int wx = ox + x, wz = oz + z;
+                        const bool a = wg->channelHitAt(static_cast<float>(wx) + 0.5f, static_cast<float>(wz) + 0.5f).hit
+                                    || wg->waterLevelAt(static_cast<float>(wx), static_cast<float>(wz)) > wg->naturalGroundAt(wx, wz);
+                        const bool b = waterAt(wx, wz);
+                        plannerWet += a ? 1 : 0; realizerWet += b ? 1 : 0; disagree += (a != b) ? 1 : 0;
+                    }
+                    LOG_INFO_FMT("Settlement", "[M5A-WATER-CHECK] (legacy branch: a COPY of the planner's predicate vs the realizer's waterAt) " << W << " x " << D
+                                 << ": planner wet " << plannerWet << ", realizer wet " << realizerWet << ", cells that disagree " << disagree);
+                }
+            }
             const int plotSize  = p.value("plot_size", 12);
             const int maxRelief = p.value("max_relief", 6);
             const int maxPlots  = p.value("max_plots", 25);
@@ -522,11 +631,12 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 return res;
             }
         }
-        // Buildings: main-street mode already assigned + sized every building from its typology
-        // (footprint = natural size, front at the drawn setback); legacy mode sites one per plot
-        // and sizes it in the queue loop below.
-        std::vector<Core::PlacedBuilding> buildings;
-        if (mainStreetMode) {
+        // Buildings (the legacy non-program path; a program tier's come from the map above): main-street
+        // mode already assigned + sized every building from its typology (footprint = natural size, front
+        // at the drawn setback); legacy mode sites one per plot and sizes it in the queue loop below.
+        if (mapLots) {
+            // from the map
+        } else if (mainStreetMode) {
             for (size_t i = 0; i < msl.assigned.size(); ++i) {
                 Core::PlacedBuilding b;
                 b.plotIndex = static_cast<int>(i);
@@ -740,8 +850,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // Deterministic per-building variation: typology + style (material/roof) + footprint shape.
             // Main-street mode pins the ASSIGNED typology (the plot was sized from it); style/shape
             // still vary per plot.
+            // M5a audit E1 (2026-11-05): a MAP lot pins its typology too - the cluster tier drew from the mix
+            // cycle and built three of five croft lots as longhouses and a hall house squeezed into 6 x 8
+            // (TheQueuedBuildingsAreTheMapsLots, red on chain 69)
             const auto variantMix =
-                mainStreetMode ? std::vector<std::string>{b.typology} : mix;
+                (mainStreetMode || mapLots) ? std::vector<std::string>{b.typology} : mix;
             const Core::BuildingVariant var =
                 Core::pickBuildingVariant(static_cast<int>(i), variantMix, styles, varietySeed);
             // M3 repair-then-refuse: the plan-time FALLBACK variant for this lot — a
@@ -755,7 +868,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // planMainStreetLayout sized the plot from the typology, so no resize here.)
             auto naturalRect = [&](const Core::BuildingVariant& v) {
                 int w = plotW, d = plotD;
-                if (!mainStreetMode) {
+                if (!mainStreetMode && !mapLots) {   // a map lot's footprint IS the typology's natural, oriented size
                     if (const Core::RoomProgram* rp = roomReg.get(v.typology)) {
                         const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
                         const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
@@ -781,8 +894,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // the plot's street side. The building rect is axis-aligned in settlement coords, so
             // 'S' (street at -z) = its local z0 wall, etc. No street (terrain mode) = no hint.
             std::string front;
-            const char fside = mainStreetMode
-                ? msl.assigned[i].streetSide   // explicit: the side this plot ABUTS the main street
+            const char fside = (mainStreetMode || (mapLots && i < msl.assigned.size()))
+                ? msl.assigned[i].streetSide   // explicit: the side this plot ABUTS its way (the map, M5a) / the main street
                 : ((b.plotIndex >= 0 && b.plotIndex < (int)layout.plots.size())
                        ? Core::streetSideForPlot(layout, layout.plots[b.plotIndex].rect)
                        : (char)0);
@@ -985,10 +1098,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             (*pathsJsonP)["spur_columns"] = static_cast<long>(pave.columns.size());
             (*pathsJsonP)["spur_doors"] = static_cast<long>(doors.size());
             }});
-        } else if (terrain && chunkManager && doorCenters.size() >= 2) {
+        } else if (terrain && chunkManager && (doorCenters.size() >= 2 || !mapWayCells.empty())) {
             // MST door-to-door path network (cluster/legacy morphology), as ONE work unit.
             postBuildUnits.push_back({"grading + paving paths",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, sharedFrontDoors, bFoot, ox, oy, groundMicro, surfMicro, fl9, emitMicro, abox, pathMat,
+                [mapWayCells, chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, sharedFrontDoors, bFoot, ox, oy, groundMicro, surfMicro, fl9, emitMicro, abox, pathMat,
                  pathsJsonP, sharedPaved]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
@@ -1003,12 +1116,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 doors.push_back({da.outside.x * 9 + 4, da.outside.y * 9 + 4,
                                  (settlementTopScan(chunkManager, oy, da.outside.x, da.outside.y, true) + 1) * 9});
             }
-            if (doors.size() < 2) {
+            if (doors.size() < 2 && mapWayCells.empty()) {
                 LOG_INFO_FMT("Settlement", "paths: " << doors.size() << " realized door(s) - no network to grade");
                 pathsJson = {{"edges", 0}, {"connected", 0}, {"doors", static_cast<long>(doors.size())}};
                 return;
             }
-            const Core::SettlementPaths net = Core::planSettlementPaths(doors, groundMicro, abox);
+            // M5a: the MAP's ways are what is paved (a terrain path per node pair + a spur per realized
+            // door); the door-to-door MST stays for a plan without a map (the legacy path)
+            const Core::SettlementPaths net = mapWayCells.empty()
+                ? Core::planSettlementPaths(doors, groundMicro, abox)
+                : Core::pathsForMapWays(mapWayCells, doors, groundMicro, abox);
             LOG_INFO_FMT("Settlement", "paths: " << net.connected << "/" << net.edges
                          << " edges graded, " << net.failedEdges.size() << " too steep");
 
@@ -1080,7 +1197,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // settlement centre (scatter). Runs for terrain scatter AND any main-street settlement.
         if ((terrain || mainStreetMode) && chunkManager && !layout.plots.empty()) {
             postBuildUnits.push_back({"fencing parcels",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, layout, msl, doorCenters, ox, oz, terrainTopAt, mainStreetMode,
+                [mapLots, chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, layout, msl, doorCenters, ox, oz, terrainTopAt, mainStreetMode,
                  fl9, rem9, emitMicro, pathsJsonP, sharedPaved, seed, lotFailuresP = res.lotFailures, lotToPlot, fenceMat,
                  fenceFraction = (programMode && tierP ? tierP->fenceFraction : 1.0),
                  coreRing = (programMode && tierP ? tierP->coreRing : 0)]() {
@@ -1127,9 +1244,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // a scatter parcel faces the settlement centroid / path network.
                 char gate;
                 int doorRunMicroX = -1, doorRunMicroZ = -1;   // front-door midpoint (local micro)
-                if (mainStreetMode && pi < msl.assigned.size()) {
+                if ((mainStreetMode || mapLots) && pi < msl.assigned.size()) {
                     const auto& ap = msl.assigned[pi];
-                    gate = ap.streetSide;
+                    gate = ap.streetSide;   // M5a: a map lot's gate opens onto ITS way (the side the path arrives on)
                     if (!Core::shouldFencePlot(static_cast<int>(pi), seed, pr, ap.footprint,
                                                fencePol)) { ++unfenced; continue; }
                     // The gate must land on the FRONT DOOR: the paver's spur anchor is the
@@ -2006,6 +2123,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         res.settlement["site_prep_skipped_reason"] =
             "no ChunkManager: clearing / terracing / paving / fencing / yard-prop units were "
             "not planned; this plan places buildings only";
+    }
+    if (mapLots) {
+        programJson["map_sampler"] = mapSampler;
+        res.map = siteMap.toJson();
+        res.settlement["map"] = {{"lots", siteMap.lots.size()}, {"ways", siteMap.ways.size()}, {"nodes", siteMap.nodes.size()}, {"entry_node", siteMap.entryNode}};
     }
     res.program      = programJson;
     res.queuedBuilds = queued;

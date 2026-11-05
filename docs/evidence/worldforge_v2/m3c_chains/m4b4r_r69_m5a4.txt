@@ -1,0 +1,207 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementBuildServiceTest.*
+[==========] Running 20 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 20 tests from SettlementBuildServiceTest
+[ RUN      ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan
+[32m[11:55:22.135] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.141] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.191] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 8 nodes, entry 1, sampler flat, 0 dropped, bake 48.3037 ms[0m
+[32m[11:55:22.193] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (5 streets)[0m
+[32m[11:55:22.198] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.202] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.207] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 4.089 ms[0m
+[32m[11:55:22.209] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[11:55:22.212] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.216] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.220] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3: 8 lots, 8 ways, 16 nodes, entry -1, sampler flat, 0 dropped, bake 3.3691 ms[0m
+[32m[11:55:22.222] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (8 streets)[0m
+[32m[11:55:22.226] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.230] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.235] [INFO] [Settlement] [M5A-MAP] medieval/city seed 3: 12 lots, 3 ways, 6 nodes, entry -1, sampler flat, 0 dropped, bake 4.1966 ms[0m
+[32m[11:55:22.237] [INFO] [Settlement] build_settlement: 12 plots, 12 buildings queued (3 streets)[0m
+[       OK ] SettlementBuildServiceTest.EveryShippedTierProducesABuildablePlan (111 ms)
+[ RUN      ] SettlementBuildServiceTest.EveryProgramTierPlansFromTheSettlementMap
+[32m[11:55:22.241] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.246] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.288] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 8 nodes, entry 1, sampler flat, 0 dropped, bake 41.9413 ms[0m
+[32m[11:55:22.289] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (5 streets)[0m
+[ M5a ] hamlet headless: 6 lots, 6 ways (sampler flat)
+[32m[11:55:22.293] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.298] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.301] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.301 ms[0m
+[32m[11:55:22.303] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[ M5a ] village headless: 9 lots, 1 ways (sampler flat)
+[32m[11:55:22.307] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.312] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.315] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3: 8 lots, 8 ways, 16 nodes, entry -1, sampler flat, 0 dropped, bake 3.4341 ms[0m
+[32m[11:55:22.317] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (8 streets)[0m
+[ M5a ] town headless: 8 lots, 8 ways (sampler flat)
+[32m[11:55:22.321] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.326] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.330] [INFO] [Settlement] [M5A-MAP] medieval/city seed 3: 12 lots, 3 ways, 6 nodes, entry -1, sampler flat, 0 dropped, bake 3.4197 ms[0m
+[32m[11:55:22.332] [INFO] [Settlement] build_settlement: 12 plots, 12 buildings queued (3 streets)[0m
+[ M5a ] city headless: 12 lots, 3 ways (sampler flat)
+[32m[11:55:22.339] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.340] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)[0m
+[       OK ] SettlementBuildServiceTest.EveryProgramTierPlansFromTheSettlementMap (101 ms)
+[ RUN      ] SettlementBuildServiceTest.TheQueuedBuildingsAreTheMapsLots
+[32m[11:55:22.344] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.349] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.393] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 3: 6 lots, 6 ways, 8 nodes, entry 1, sampler flat, 0 dropped, bake 43.713 ms[0m
+[32m[11:55:22.394] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (5 streets)[0m
+[ M5a ] hamlet: 6 lots - typology mismatches 3, footprint 1, position 1
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(118): error: Expected equality of these values:
+  typologyMismatch
+    Which is: 3
+  0
+hamlet: a building is not its lot's typology
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(119): error: Expected equality of these values:
+  footprintMismatch
+    Which is: 1
+  0
+hamlet: a building's footprint is not its lot's
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementBuildServiceTest.cpp(120): error: Expected equality of these values:
+  positionMismatch
+    Which is: 1
+  0
+hamlet: a building is not where its lot puts it
+
+[32m[11:55:22.400] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.404] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.408] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.5752 ms[0m
+[32m[11:55:22.410] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[ M5a ] village: 9 lots - typology mismatches 0, footprint 0, position 0
+[32m[11:55:22.414] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.418] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.422] [INFO] [Settlement] [M5A-MAP] medieval/town seed 3: 8 lots, 8 ways, 16 nodes, entry -1, sampler flat, 0 dropped, bake 3.3359 ms[0m
+[32m[11:55:22.424] [INFO] [Settlement] build_settlement: 8 plots, 8 buildings queued (8 streets)[0m
+[ M5a ] town: 8 lots - typology mismatches 0, footprint 0, position 0
+[32m[11:55:22.428] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.432] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.436] [INFO] [Settlement] [M5A-MAP] medieval/city seed 3: 12 lots, 3 ways, 6 nodes, entry -1, sampler flat, 0 dropped, bake 3.3948 ms[0m
+[32m[11:55:22.438] [INFO] [Settlement] build_settlement: 12 plots, 12 buildings queued (3 streets)[0m
+[ M5a ] city: 12 lots - typology mismatches 0, footprint 0, position 0
+[  FAILED  ] SettlementBuildServiceTest.TheQueuedBuildingsAreTheMapsLots (99 ms)
+[ RUN      ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans
+[32m[11:55:22.445] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.446] [INFO] [Settlement] build_settlement: 4 plots, 4 buildings queued (6 streets)[0m
+[       OK ] SettlementBuildServiceTest.TheLegacyNonProgramPathStillPlans (5 ms)
+[ RUN      ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist
+[32m[11:55:22.448] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.453] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.456] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.3111 ms[0m
+[32m[11:55:22.458] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.NavIsRebuiltAfterTheBuildingsExist (13 ms)
+[ RUN      ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped
+[32m[11:55:22.462] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.466] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.470] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.4238 ms[0m
+[32m[11:55:22.472] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.AWorldFreePlanSurfacesThatSitePrepWasSkipped (13 ms)
+[ RUN      ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty
+[32m[11:55:22.475] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.479] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.483] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.4635 ms[0m
+[32m[11:55:22.485] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.PerPhaseResultHandlesExistAndStartEmpty (13 ms)
+[ RUN      ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted
+[32m[11:55:22.489] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.493] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[       OK ] SettlementBuildServiceTest.AnUnknownEraOrTierIsRefusedNotSilentlyDefaulted (6 ms)
+[ RUN      ] SettlementBuildServiceTest.AKnownEraWithoutARoomProgramPackIsRefusedNamingThePack
+[32m[11:55:22.528] [INFO] [SettlementProgram] Loaded 5 settlement tiers from test_georgian_settlement_program.json[0m
+[32m[11:55:22.534] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementBuildServiceTest.AKnownEraWithoutARoomProgramPackIsRefusedNamingThePack (42 ms)
+[ RUN      ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused
+[32m[11:55:22.537] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.542] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementBuildServiceTest.AFootprintTooSmallForTheTierIsRefused (6 ms)
+[ RUN      ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused
+[32m[11:55:22.544] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.549] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[       OK ] SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused (6 ms)
+[ RUN      ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed
+[32m[11:55:22.551] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.555] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.559] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.3863 ms[0m
+[32m[11:55:22.561] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[11:55:22.564] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.568] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.572] [INFO] [Settlement] [M5A-MAP] medieval/village seed 3: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.2395 ms[0m
+[32m[11:55:22.573] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[32m[11:55:22.576] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.581] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.584] [INFO] [Settlement] [M5A-MAP] medieval/village seed 4: 9 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.3824 ms[0m
+[32m[11:55:22.586] [INFO] [Settlement] build_settlement: 9 plots, 9 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.PlanningIsDeterministicInTheSeed (39 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav
+[32m[11:55:22.595] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.600] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.603] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 10 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.3674 ms[0m
+[32m[11:55:22.606] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav (20 ms)
+[ RUN      ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology
+[32m[11:55:22.611] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.616] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.745] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 7: 6 lots, 6 ways, 16 nodes, entry 1, sampler flat, 0 dropped, bake 127.616 ms[0m
+[32m[11:55:22.746] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (1 streets)[0m
+[32m[11:55:22.750] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.755] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.778] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 14 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 22.9563 ms[0m
+[32m[11:55:22.781] [INFO] [Settlement] build_settlement: 14 plots, 14 buildings queued (1 streets)[0m
+[32m[11:55:22.785] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.789] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.813] [INFO] [Settlement] [M5A-MAP] medieval/town seed 7: 28 lots, 8 ways, 16 nodes, entry -1, sampler flat, 0 dropped, bake 23.1149 ms[0m
+[32m[11:55:22.818] [INFO] [Settlement] build_settlement: 28 plots, 28 buildings queued (8 streets)[0m
+[32m[11:55:22.825] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.830] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:22.855] [INFO] [Settlement] [M5A-MAP] medieval/city seed 7: 48 lots, 17 ways, 34 nodes, entry -1, sampler flat, 0 dropped, bake 24.4325 ms[0m
+[32m[11:55:22.864] [INFO] [Settlement] build_settlement: 48 plots, 48 buildings queued (17 streets)[0m
+[       OK ] SettlementBuildServiceTest.TheWalkabilityGateRunsForEveryMorphology (261 ms)
+[ RUN      ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden
+[       OK ] SettlementBuildServiceTest.GateOutcomeBlocksUnlessOverridden (0 ms)
+[ RUN      ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology
+[32m[11:55:22.873] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:22.877] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:23.987] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 7: 6 lots, 6 ways, 16 nodes, entry 1, sampler chunks, 0 dropped, bake 1108.8 ms[0m
+[32m[11:55:23.988] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (1 streets)[0m
+[32m[11:55:23.993] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:23.997] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:25.026] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 14 lots, 1 ways, 2 nodes, entry -1, sampler chunks, 0 dropped, bake 1027.72 ms[0m
+[32m[11:55:25.029] [INFO] [Settlement] build_settlement: 14 plots, 14 buildings queued (1 streets)[0m
+[32m[11:55:25.033] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:25.037] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:26.001] [INFO] [Settlement] [M5A-MAP] medieval/town seed 7: 28 lots, 8 ways, 16 nodes, entry -1, sampler chunks, 0 dropped, bake 962.517 ms[0m
+[32m[11:55:26.007] [INFO] [Settlement] build_settlement: 28 plots, 28 buildings queued (8 streets)[0m
+[32m[11:55:26.013] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:26.018] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:26.976] [INFO] [Settlement] [M5A-MAP] medieval/city seed 7: 48 lots, 17 ways, 34 nodes, entry -1, sampler chunks, 0 dropped, bake 956.987 ms[0m
+[32m[11:55:26.987] [INFO] [Settlement] build_settlement: 48 plots, 48 buildings queued (17 streets)[0m
+[       OK ] SettlementBuildServiceTest.LotDressingRunsAfterTheBuildingsForEveryMorphology (4122 ms)
+[ RUN      ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices
+[       OK ] SettlementBuildServiceTest.FailedPlotsMapLotFailuresToPlotIndices (1 ms)
+[ RUN      ] SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall
+[       OK ] SettlementBuildServiceTest.DoorApproachFindsTheDoorAlongTheMarkersWall (0 ms)
+[ RUN      ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod
+[32m[11:55:26.997] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[11:55:27.002] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[32m[11:55:27.006] [INFO] [Settlement] [M5A-MAP] medieval/village seed 7: 10 lots, 1 ways, 2 nodes, entry -1, sampler flat, 0 dropped, bake 3.3052 ms[0m
+[32m[11:55:27.008] [INFO] [Settlement] build_settlement: 10 plots, 10 buildings queued (1 streets)[0m
+[       OK ] SettlementBuildServiceTest.BuildingsCarryTheEraPeriod (13 ms)
+[ RUN      ] SettlementBuildServiceTest.MissingRoomProgramRefuses
+[32m[11:55:27.011] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[33m[11:55:27.012] [WARN] [RoomProgram] room_program not found at resources/does_not_exist_room_program.json[0m
+[       OK ] SettlementBuildServiceTest.MissingRoomProgramRefuses (2 ms)
+[----------] 20 tests from SettlementBuildServiceTest (4884 ms total)
+
+[----------] Global test environment tear-down
+[==========] 20 tests from 1 test suite ran. (4885 ms total)
+[  PASSED  ] 19 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] SettlementBuildServiceTest.TheQueuedBuildingsAreTheMapsLots
+
+ 1 FAILED TEST
+EXIT 1 2026-11-05 11:55:27

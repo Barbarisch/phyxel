@@ -1,0 +1,6 @@
+START 2026-11-05 11:57:16 shas: RouteFieldTest.cpp f21a4555870de073 WorldForgePlan.cpp 3e810dfeec34452d WorldForgePlan.h 6ef3fd952699bb65 WorldGenerator.cpp c8cf858f830b936d EarthworkTest.cpp 29e284aba34a01eb SettlementMapPlanner.cpp 977a8a00849c8d67 SettlementBuildService.cpp 45e6a9afe3cd06de SettlementMapTest.cpp cba63118e297f28c
+BUILD EXIT 0 2026-11-05 11:57:35 errors: 0
+exe 2026-11-05_11:57:31
+RUN r70_m5a3 START 2026-11-05 11:57:35
+RUN r70_m5a3 EXIT 1 2026-11-05 12:09:27 121 ok, 1 failed
+CHAIN DONE 2026-11-05 12:09:27

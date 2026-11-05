@@ -82,6 +82,23 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         t.plot.depthMax = p.value("depth_max", t.plot.depthMax);
         t.plot.sideGap = p.value("side_gap", t.plot.sideGap);
     }
+    if (rec.contains("bells") && rec["bells"].is_object()) {   // M5a
+        const auto& b = rec["bells"];
+        if (b.contains("road_access") && b["road_access"].is_object()) {
+            t.bells.roadPreferredU = b["road_access"].value("preferred_u", t.bells.roadPreferredU);
+            t.bells.roadSpreadU = b["road_access"].value("spread_u", t.bells.roadSpreadU);
+        }
+        if (b.contains("slope") && b["slope"].is_object()) t.bells.reliefHalfU = b["slope"].value("relief_half_u", t.bells.reliefHalfU);
+        if (b.contains("water") && b["water"].is_object()) {
+            t.bells.waterPreferredU = b["water"].value("preferred_u", t.bells.waterPreferredU);
+            t.bells.waterSpreadU = b["water"].value("spread_u", t.bells.waterSpreadU);
+            t.bells.waterFloor = b["water"].value("floor", t.bells.waterFloor);
+        }
+        if (b.contains("sociability") && b["sociability"].is_object()) {
+            t.bells.socialGapU = b["sociability"].value("gap_u", t.bells.socialGapU);
+            t.bells.socialSpreadU = b["sociability"].value("spread_u", t.bells.socialSpreadU);
+        }
+    }
     if (rec.contains("setback") && rec["setback"].is_object()) {
         t.setback.min = rec["setback"].value("min", t.setback.min);
         t.setback.max = rec["setback"].value("max", t.setback.max);

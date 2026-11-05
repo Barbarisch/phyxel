@@ -1,0 +1,55 @@
+CivLabE0 game.json: worldforge {'siteCount': 8, 'regionRadius': 2048, 'minSpacing': 400, 'civ': True, 'civEpochs': 0}
+exe: C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Release/phyxel.exe 2026-11-05_12:49:03  commit: 93e763e5 (+ the uncommitted M5a tree: SettlementMapPlanner.cpp 977a8a00849c8d67 SettlementBuildService.cpp 65e824853cd40ad3)  config: Release
+--- status (before)
+{"applied":true,"enabled":true,"plan_hash":"3980644565422672701","roads":78,"site_list":[{"depth":60,"id":0,"score":{"biome":0.5,"relief":0.6279822587966919,"total":0.48259198665618896,"water":0.25},"seed":3066084745,"surface":"SnowGrass","surfaceY":171.4202880859375,"tier":"town","width":140,"x":13
+--- CONTROL FIRST: focus on site 3 at -7976 2280 (fresh world), build_settlement legacy_layout + map_water_check
+{"focused":true,"holder":"worldforge_focus","success":true,"surface_y":53,"x":-7976,"z":2280}
+
+--- CONTROL engine log (saved to m5a_l4_m5a_control_log.txt)
+[12:51:17.538] [INFO] [Settlement] [M5A-WATER-CHECK] (legacy branch: a COPY of the planner's predicate vs the realizer's waterAt) 40 x 32: planner wet 0, realizer wet 0, cells that disagree 0
+[12:51:25.581] [INFO] [Settlement] terrain analyse 40x32: buildable=1 -> 3 plots
+[12:51:25.581] [INFO] [Settlement] build_settlement: 3 plots, 3 buildings queued (0 streets)
+[12:51:32.593] [INFO] [Settlement] paths: 2/2 edges graded, 0 too steep
+[12:51:32.632] [INFO] [Settlement] paths: paved 1474 microcubes (1112 level caps, 362 fill), 111 cut cells owed; stamp 37 ms
+[12:51:32.755] [INFO] [Settlement] fences: 3 parcels fenced, 0 unfenced by policy, 0 runs dropped (alley < 2 cells to a neighbour wall), 7244 micros (picket, 8-micro tall, posts @16)
+[12:51:52.033] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+--- a FRESH engine and DB for the map job
+hamlet 3 at -7976 2280 surfaceY 54.1 GrassForest
+hamlet 4 at -7928 14600 surfaceY 18.2 Grass
+hamlet 5 at 14568 15592 surfaceY 18.0 Grass
+--- building the hamlets 3,4,5 (up to three; the first one the gate passes is the record)
+{"job_id":1000000,"plan_hash":"3980644565422672701","sites_queued":3,"success":true}
+job 1000000
+--- job
+{"elapsed_seconds":59.296,"id":1000000,"label":"worldforge: 3 sites","main_thread":true,"message":"complete","progress":1.0,"result":{"plan_hash":"3980644565422672701","sites":[{"error":"unwalkable: 1 of 10 street->door routes blocked, 0 front door(s) unseated (walkability gate)","gate":{"blocked":1,"error":"unwalkable: 1 of 10 street->door routes blocked, 0 front door(s) unseated (walkability gate)","fails_build":true,"gate":"blocked","skipped":0,"walkable":9},"id":3,"status":"refused","tier":"hamlet","walkability":{"blocked":1,"failed":1,"routes":[{"label":"croft @-7982,2265: street -> door","walkable":true},{"label":"croft @-7982,2265: door -> living","walkable":true},{"label":"croft @-7986,2277: street -> door","walkable":true},{"label":"croft @-7986,2277: door -> living","walkable":true},{"label":"croft @-7969,2270: street -> door","walkable":true},{"goal_unsupported":false,"label":"croft @-7969,2270: door -> living","one_way":false,"pinch_from":[-71708,489,20470],"pinch_gap_micro":1,"pinch_to":[-71707,489,20470],"reached_from_goal":26055,"reached_from_start":25851,"start_unsupported":false,"walkable":false},{"label":"croft @-7993,2265: street -> door","walkable":true},{"label":"croft @-7993,2265: door -> living","walkable":true},{"label":"croft @-7973,2284: street -> door","walkable":true},{"label":"croft @-7973,2284: door -> living","walkable":true}],"skipped":0,"walkable":9}},{"buildings":3,"id":4,"lot_failures":0,"residents":0,"status":"built","tier":"hamlet"},{"erro
+ledger entries 3 planHash 3980644565422672701
+site 3 status refused buildings 0 lotFailures 0 error unwalkable: 1 of 10 street->door routes blocked, 0 front door(s) unseated (walkability gate)
+   MAP: tier hamlet lots 5 ways 5 nodes 10 entry 1 bake_ms 5.9 origin {'x': -7996, 'y': 54, 'z': 2264}
+site 4 status built buildings 3 lotFailures 0 error 
+   MAP: tier hamlet lots 3 ways 3 nodes 4 entry 1 bake_ms 7.3 origin {'x': -7948, 'y': 18, 'z': 14584}
+site 5 status refused buildings 0 lotFailures 0 error no buildable, connectable lot for the tier's minimum (2 of 3 seated)
+   MAP: tier hamlet lots 2 ways 2 nodes 6 entry 2 bake_ms 9.0 origin {'x': 14548, 'y': 18, 'z': 15576}
+record: site 4 built
+{"focused":true,"holder":"worldforge_focus","success":true,"surface_y":19,"x":-7928,"z":14600}
+
+first probe raw: {"source": "generator", "spawn_y": 19, "surface_y": 18, "x": -7920, "z": 14611} | {"damage_tracked": false, "exists": true, "position": {"x": -7920, "y": 19, "z": 14611}}
+way-node columns probed 6 paved (Dirt/Gravel/Cobblestone) 2 materials {'Grass': 4, 'Dirt': 2}
+minimap centre -7928 14600
+{"legend":"terrain biome colors + NW hillshade | blue water (depth-shaded) | tan/gray roads | brown bridge decks | squares: magenta-red city, red town, orange village, yellow hamlet, light grey outpos
+
+--- engine log: the map, the paths, the gate
+[12:51:32.632] [INFO] [Settlement] paths: paved 1474 microcubes (1112 level caps, 362 fill), 111 cut cells owed; stamp 37 ms
+[12:51:52.033] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[12:52:56.526] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 939730262: 5 lots, 5 ways, 10 nodes, entry 1, sampler generator, 0 dropped, bake 5.8689 ms
+[12:53:10.773] [INFO] [Settlement] paths: 14/14 edges graded, 0 too steep
+[12:53:10.832] [INFO] [Settlement] paths: paved 2030 microcubes (1924 level caps, 106 fill), 6 cut cells owed; stamp 57 ms
+[12:53:14.221] [INFO] [Settlement] walkability gate: 9 walkable, 1 blocked over 10 routes (5 front doors, 0 skipped)
+[12:53:14.228] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes, 0 front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome
+[12:53:14.292] [WARN] [WorldForge] [WORLDFORGE] site 3 (hamlet) REFUSED: unwalkable: 1 of 10 street->door routes blocked, 0 front door(s) unseated (walkability gate) - not checkpointed
+[12:53:18.040] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 934952212: 3 lots, 3 ways, 4 nodes, entry 1, sampler generator, 0 dropped, bake 7.294 ms
+[12:53:36.036] [INFO] [Settlement] paths: 6/6 edges graded, 0 too steep
+[12:53:36.073] [INFO] [Settlement] paths: paved 1582 microcubes (1482 level caps, 100 fill), 0 cut cells owed; stamp 35 ms
+[12:53:37.711] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+[12:53:38.126] [INFO] [WorldForge] [WORLDFORGE] site 4 (hamlet) BUILT: 3 buildings, 0 residents, 0 lot failures
+[12:53:46.521] [WARN] [WorldForge] [WORLDFORGE] site 5 (hamlet) REFUSED: no buildable, connectable lot for the tier's minimum (2 of 3 seated)
+engines left: 0

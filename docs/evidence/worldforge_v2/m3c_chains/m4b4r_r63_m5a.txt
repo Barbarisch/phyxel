@@ -1,0 +1,76 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementMapTest.*
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from SettlementMapTest
+[ RUN      ] SettlementMapTest.EveryLotTouchesAWay
+[32m[10:34:53.324] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[10:34:53.350] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[ M5a ] CONTROL (as built): hamlet/cluster (as built) 4 lots, 0 ways, 0 nodes, entry -1, bake 0.00 ms | no way 4, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] planner: hamlet/cluster 4 lots, 0 ways, 0 nodes, entry -1, bake 1.61 ms | no way 4, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(166): error: Expected equality of these values:
+  v.lotNoWay
+    Which is: 4
+  0
+a lot fronts no way
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(168): error: Expected: (m.entryNode) >= (0), actual: -1 vs 0
+no entry node: the network does not reach the arriving road
+
+[  FAILED  ] SettlementMapTest.EveryLotTouchesAWay (32 ms)
+[ RUN      ] SettlementMapTest.MapInvariantsHoldOnEveryTier
+[ M5a ] hill: hamlet/cluster 4 lots, 0 ways, 0 nodes, entry -1, bake 1.74 ms | no way 4, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: hamlet/cluster 4 lots, 0 ways, 0 nodes, entry -1, bake 1.55 ms | no way 4, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: village/main_street 9 lots, 1 ways, 2 nodes, entry 0, bake 3.82 ms | no way 0, door off its way 9, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: village/main_street 10 lots, 1 ways, 2 nodes, entry 0, bake 3.67 ms | no way 0, door off its way 10, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: town/main_street 23 lots, 8 ways, 16 nodes, entry 0, bake 8.17 ms | no way 0, door off its way 23, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: town/main_street 25 lots, 8 ways, 16 nodes, entry 0, bake 9.24 ms | no way 0, door off its way 25, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: city/semi_organic 42 lots, 14 ways, 29 nodes, entry 28, bake 20.21 ms | no way 0, door off its way 42, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: city/semi_organic 48 lots, 14 ways, 29 nodes, entry 28, bake 19.89 ms | no way 0, door off its way 48, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[       OK ] SettlementMapTest.MapInvariantsHoldOnEveryTier (70 ms)
+[ RUN      ] SettlementMapTest.MapIsIdenticalFromPlanTwice
+[       OK ] SettlementMapTest.MapIsIdenticalFromPlanTwice (34 ms)
+[ RUN      ] SettlementMapTest.MapIsTheSameFromTwoSamplersOfOneField
+[ M5a ] two samplers: 4 lots / 0 ways each; the tiled cache touched 20 tiles
+[       OK ] SettlementMapTest.MapIsTheSameFromTwoSamplersOfOneField (4 ms)
+[ RUN      ] SettlementMapTest.WaysAvoidTheSteepBand
+[ M5a ] band: hamlet/cluster 4 lots, 0 ways, 0 nodes, entry -1, bake 1.64 ms | no way 4, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] band: 4 lots (2 east of the bench), 0 ways; steepest cube step along the ways 0, along the straight door -> entry lines 4 (the control)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(256): error: Expected: (m.ways.size()) > (0u), actual: 0 vs 0
+no ways to measure
+
+[  FAILED  ] SettlementMapTest.WaysAvoidTheSteepBand (1 ms)
+[ RUN      ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn
+[ M5a ] stand-in: 0 walkable, 0 blocked of 4 lots (entry node -1)
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(274): error: Expected equality of these values:
+  static_cast<size_t>(rep.walkable)
+    Which is: 0
+  m.lots.size()
+    Which is: 4
+0 walkable / 0 BLOCKED
+
+[ M5a ] stand-in CONTROL (sealed): 0 walkable, 0 blocked
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(282): error: Expected: (sealedRep.blocked) > (0), actual: 0 vs 0
+the sealed control walks: the stand-in measures nothing
+
+[  FAILED  ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn (1 ms)
+[ RUN      ] SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots
+[ M5a ] hamlet bake 1.53 ms (4 lots)
+[ M5a ] stress (200 x 160 flat, target 400): 25 lots, 0 ways in 48.0 ms
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(298): error: Expected: (s.lots.size()) >= (100u), actual: 25 vs 100
+the growth seats too few lots on an open site
+
+[  FAILED  ] SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots (49 ms)
+[----------] 7 tests from SettlementMapTest (195 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (195 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 4 tests, listed below:
+[  FAILED  ] SettlementMapTest.EveryLotTouchesAWay
+[  FAILED  ] SettlementMapTest.WaysAvoidTheSteepBand
+[  FAILED  ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn
+[  FAILED  ] SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots
+
+ 4 FAILED TESTS
+EXIT 1 2026-11-05 10:34:53

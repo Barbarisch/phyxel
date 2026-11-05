@@ -46,6 +46,20 @@ struct SetbackSpec {
     int max = 2;
 };
 
+/// M5a: the interest-map bells of the settlement planner (Emilien 2012 gives the FORMS - a bell per factor,
+/// multiplied; the parameters are the tier's data, each with a `sources` entry: GROUNDED where the program
+/// already carried the number, REASONED where not). Units: cubes. Absent block = the defaults below.
+struct BellSpec {
+    int   roadPreferredU = 3;    ///< the door's preferred distance to its way (the front yard: setback.max)
+    int   roadSpreadU = 14;      ///< the bell's spread (a toft's depth: plot.depth_max)
+    int   reliefHalfU = 3;       ///< the slope bell's half-width in relief cubes over the lot (half the buildable cap)
+    int   waterPreferredU = 16;  ///< the water bell's centre (near, not in)
+    int   waterSpreadU = 16;
+    float waterFloor = 0.3f;     ///< the water factor never drops below this (a croft far from water still builds)
+    int   socialGapU = 3;        ///< the preferred gap to the nearest seated lot (plot.side_gap + 2)
+    int   socialSpreadU = 14;
+};
+
 /// Public/communal features a tier provides (assets land in later phases).
 struct PublicSpec {
     bool well = false;
@@ -72,6 +86,7 @@ struct SettlementTierPreset {
     StreetSpec  street;
     PlotSpec    plot;
     SetbackSpec setback;
+    BellSpec    bells;       ///< M5a: the planner's interest bells (absent block = defaults)
 
     /// typology -> weight for the deterministic per-plot draw. Keys must exist in
     /// room_program.json (referential integrity, gated by SettlementProgramTest).

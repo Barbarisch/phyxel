@@ -60,6 +60,10 @@ struct WorldForgeParams {
     // network cell as a fraction of a fresh one, the bracket is the nearest grounded quantity.
     // Was 1/3 (Veloren) from M4a 2026-10-22 to 2026-11-02; a persisted recipe keeps its own value.
     float routeReuseFraction = 0.5f;
+    /// M5a (D9 / D39): the era whose settlement program every site is planned with (settlement_program.json
+    /// eras.<era>). "medieval" is the shipped default; serialized inside the civ block ONLY when it differs, so
+    /// the version-1 recipes and the civ plan hashes of 2026-11-04 stay pinned (the routeReuseFraction precedent).
+    std::string era = "medieval";
     // ── M4b (D26): the per-class grade caps, rise/run, index = road class (1 track, 2 road,
     // 3 highway). GROUNDED (section 10): track 0.15 (USFS pack-animal ruling grade), road 0.08
     // (Moreno 6-8 % cart roads), highway 0.05 (Lawton: wagons seldom above 5 %; Telford 1 in 30).
@@ -94,6 +98,7 @@ struct WorldForgeParams {
         if (civ != o.civ || civDensityScale != o.civDensityScale || pinTiers != o.pinTiers || pinRefine != o.pinRefine) return false;
         if (civEpochs != o.civEpochs || civShockEpoch != o.civShockEpoch || civShockFraction != o.civShockFraction || civAbandonShare != o.civAbandonShare) return false;
         if (routeReuseFraction != o.routeReuseFraction) return false;
+        if (era != o.era) return false;
         for (int c = 1; c < 4; ++c) if (gradeCap[c] != o.gradeCap[c]) return false;
         if (bridgeMaxSpanU != o.bridgeMaxSpanU || bridgeSingleSpanU != o.bridgeSingleSpanU || pierSpacingU != o.pierSpacingU || fordMaxDepthU != o.fordMaxDepthU) return false;
         if (wallTierU != o.wallTierU || rockCutMaxU != o.rockCutMaxU) return false;
@@ -151,6 +156,7 @@ struct WorldForgeParams {
             j["civShockFraction"] = civShockFraction;
             j["civAbandonShare"] = civAbandonShare;
             j["routeReuseFraction"] = routeReuseFraction;
+            if (era != "medieval") j["era"] = era;   // absent = the shipped default (M5a): the hashes stay
             j["gradeCap"] = nlohmann::json::array({gradeCap[1], gradeCap[2], gradeCap[3]});   // track, road, highway
             j["bridgeMaxSpanU"] = bridgeMaxSpanU;
             j["bridgeSingleSpanU"] = bridgeSingleSpanU;
@@ -191,6 +197,7 @@ struct WorldForgeParams {
         p.civShockFraction = j.value("civShockFraction", 0.45f);
         p.civAbandonShare = j.value("civAbandonShare", 0.20f);
         p.routeReuseFraction = j.value("routeReuseFraction", p.routeReuseFraction);   // absent = the shipped default (D27)
+        p.era = j.value("era", std::string("medieval"));
         if (j.contains("gradeCap") && j["gradeCap"].is_array() && j["gradeCap"].size() == 3)
             for (int c = 0; c < 3; ++c) p.gradeCap[c + 1] = j["gradeCap"][c].get<float>();
         p.bridgeMaxSpanU = j.value("bridgeMaxSpanU", 25.0f);

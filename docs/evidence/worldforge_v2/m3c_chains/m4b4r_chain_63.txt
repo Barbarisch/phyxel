@@ -1,0 +1,6 @@
+START 2026-11-05 10:34:37 shas: RouteFieldTest.cpp f21a4555870de073 WorldForgePlan.cpp 3e810dfeec34452d WorldForgePlan.h 6ef3fd952699bb65 WorldGenerator.cpp c8cf858f830b936d EarthworkTest.cpp 29e284aba34a01eb
+BUILD EXIT 0 2026-11-05 10:34:53 errors: 0
+exe 2026-11-05_10:34:49
+RUN r63_m5a START 2026-11-05 10:34:53
+RUN r63_m5a EXIT 1 2026-11-05 10:34:53 3 ok, 4 failed
+CHAIN DONE 2026-11-05 10:34:53

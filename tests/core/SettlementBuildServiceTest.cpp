@@ -73,6 +73,54 @@ TEST(SettlementBuildServiceTest, EveryShippedTierProducesABuildablePlan) {
     }
 }
 
+// M5a (WorldForgeV2Plan §M5, D41): every program tier plans FROM the settlement map - the plan carries it
+// (nodes, ways, lots) and the queued buildings are its lots, one each; the legacy path carries none.
+TEST(SettlementBuildServiceTest, EveryProgramTierPlansFromTheSettlementMap) {
+    for (const char* tier : {"hamlet", "village", "town", "city"}) {
+        const auto plan = planTier(tier);
+        ASSERT_TRUE(plan.ok()) << tier << ": " << plan.error.dump();
+        ASSERT_TRUE(plan.map.is_object()) << tier << " planned without a map";
+        const size_t lots = plan.map.value("lots", nlohmann::json::array()).size();
+        EXPECT_GT(lots, 0u) << tier;
+        EXPECT_EQ(plan.settlement.value("buildings", 0), static_cast<int>(lots)) << tier << ": the queued buildings are not the map's lots";
+        EXPECT_EQ(plan.map.value("tier", std::string()), tier);
+        EXPECT_GT(plan.map.value("ways", nlohmann::json::array()).size(), 0u) << tier << ": a map with no way";
+        std::printf("[ M5a ] %s headless: %zu lots, %zu ways (sampler %s)\n", tier, lots, plan.map.value("ways", nlohmann::json::array()).size(),
+                    plan.program.value("map_sampler", std::string("?")).c_str());
+    }
+    nlohmann::json legacy = {{"width", 52}, {"depth", 36}, {"cols", 2}, {"rows", 2}, {"position", {{"x", 0}, {"y", 16}, {"z", 0}}}};
+    SettlementBuildService::Deps deps;
+    EXPECT_TRUE(SettlementBuildService::plan(legacy, deps).map.is_null()) << "the legacy path fabricated a map";
+}
+
+// M5a audit (2026-11-05): the map must be a FAITHFUL record of what is built - every queued building
+// carries its lot's typology, footprint size and position. RED on the hamlet before the fix: the
+// cluster tier drew its typology from the weight-expanded mix cycle and ignored the lot's (L4 site 3
+// built three of five croft lots as longhouses and a hall house squeezed into a croft's 6 x 8).
+TEST(SettlementBuildServiceTest, TheQueuedBuildingsAreTheMapsLots) {
+    for (const char* tier : {"hamlet", "village", "town", "city"}) {
+        const auto plan = planTier(tier);
+        ASSERT_TRUE(plan.ok()) << tier << ": " << plan.error.dump();
+        ASSERT_TRUE(plan.map.is_object()) << tier;
+        const auto& lots = plan.map["lots"];
+        const auto origin = plan.map["origin"];
+        ASSERT_EQ(plan.queuedBuilds.size(), lots.size()) << tier;
+        int typologyMismatch = 0, footprintMismatch = 0, positionMismatch = 0;
+        for (size_t i = 0; i < lots.size(); ++i) {
+            const auto& q = plan.queuedBuilds[i];
+            const auto& l = lots[i];
+            const auto fp = l["footprint"];   // [x, z, w, d] settlement-local
+            if (q.value("typology", std::string()) != l.value("typology", std::string())) ++typologyMismatch;
+            if (q["footprint"][0].get<int>() != fp[2].get<int>() || q["footprint"][1].get<int>() != fp[3].get<int>()) ++footprintMismatch;
+            if (q["position"].value("x", -1) != origin.value("x", 0) + fp[0].get<int>() || q["position"].value("z", -1) != origin.value("z", 0) + fp[1].get<int>()) ++positionMismatch;
+        }
+        std::printf("[ M5a ] %s: %zu lots - typology mismatches %d, footprint %d, position %d\n", tier, lots.size(), typologyMismatch, footprintMismatch, positionMismatch);
+        EXPECT_EQ(typologyMismatch, 0) << tier << ": a building is not its lot's typology";
+        EXPECT_EQ(footprintMismatch, 0) << tier << ": a building's footprint is not its lot's";
+        EXPECT_EQ(positionMismatch, 0) << tier << ": a building is not where its lot puts it";
+    }
+}
+
 // The legacy (no era/tier) path must keep working -- it is a different branch of
 // plan() and the live run never touched it.
 TEST(SettlementBuildServiceTest, TheLegacyNonProgramPathStillPlans) {

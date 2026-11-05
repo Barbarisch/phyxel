@@ -111,6 +111,10 @@ public:
         nlohmann::json error;          ///< non-null => planning FAILED; units is empty
         nlohmann::json settlement;     ///< {plots, streets, buildings, origin}
         nlohmann::json program;        ///< {era, tier, seed, morphology, ...} when program mode
+        /// M5a (WorldForgeV2Plan §M5): the settlement MAP the plan was realized from (SettlementMap::toJson -
+        /// nodes, ways, lots, areas, settlement-local cubes + origin), for every program tier (D41); null on
+        /// the legacy non-program path. The ledger stores it per site, out of the plan hash.
+        nlohmann::json map;
         nlohmann::json queuedBuilds;   ///< array: one entry per building to be built
         std::string jobLabel;          ///< human label for the caller's job/progress system
         std::vector<WorkUnit> units;   ///< run IN ORDER (site prep precedes buildings)

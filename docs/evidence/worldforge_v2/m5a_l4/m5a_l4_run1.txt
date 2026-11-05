@@ -1,0 +1,32 @@
+CivLabE0 game.json: worldforge {'siteCount': 8, 'regionRadius': 2048, 'minSpacing': 400, 'civ': True, 'civEpochs': 0}
+exe: C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Release/phyxel.exe 2026-11-05_11:13:07  commit: 93e763e5 (+ the uncommitted M5a tree: SettlementMapPlanner.cpp c427a5dde33f7ada SettlementBuildService.cpp c599158463f9e904)  config: Release
+--- status (before)
+{"applied":true,"enabled":true,"plan_hash":"3980644565422672701","roads":78,"site_list":[{"depth":60,"id":0,"score":{"biome":0.5,"relief":0.6279822587966919,"total":0.48259198665618896,"water":0.25},"seed":3066084745,"surface":"SnowGrass","surfaceY":171.4202880859375,"tier":"town","width":140,"x":13
+site {'depth': 32, 'id': 3, 'score': {'biome': 1.0, 'relief': 0.9884451627731323, 'total': 0.7698003053665161, 'water': 0.25}, 'seed': 939730262, 'surface': 'GrassForest', 'surfaceY': 54.073360443115234, 'tier': 'hamlet', 'width': 40, 'x': -7976, 'z': 2280}
+--- building site 3
+{"job_id":1000000,"plan_hash":"3980644565422672701","sites_queued":1,"success":true}
+job 1000000
+--- job
+{"elapsed_seconds":64.537,"id":1000000,"label":"worldforge: 1 sites","main_thread":true,"message":"complete","progress":1.0,"result":{"plan_hash":"3980644565422672701","sites":[{"error":"unwalkable: 1 of 16 street->door routes blocked, 0 front door(s) unseated (walkability gate)","gate":{"blocked":1,"error":"unwalkable: 1 of 16 street->door routes blocked, 0 front door(s) unseated (walkability gate)","fails_build":true,"gate":"blocked","skipped":0,"walkable":15},"id":3,"status":"refused","tier":"hamlet","walkability":{"blocked":1,"failed":1,"routes":[{"label":"longhouse @-7982,2265: street -> door","walkable":true},{"label":"longhouse @-7982,2265: door -> bedchamber","walkable":true},{"label":"longhouse @-7982,2265: door -> living","walkable":true},{"label":"longhouse @-7982,2265: door -> byre","walkable":true},{"label":"longhouse @-7986,2277: street -> door","walkable":true},{"label":"longhouse @-7986,2277: door -> bedchamber","walkable":true},{"label":"longhouse @-7986,2277: door -> living","walkable":true},{"label":"longhouse @-7986,2277: door -> byre","walkable":true},{"label":"croft @-7969,2270: street -> door","walkable":true},{"goal_unsupported":false,"label":"croft @-7969,2270: door -> living","one_way":false,"pinch_from":[-71708,489,20470],"pinch_gap_micro":1,"pinch_to":[-71707,489,20470],"reached_from_goal":26055,"reached_from_start":25851,"start_unsupported":false,"walkable":false},{"label":"hall_house @-7993,2265: street -> door","walkable":true},{"label":"hall_ho
+ledger entries 1 planHash 3980644565422672701
+site 3 status refused buildings 0 lotFailures 0 error unwalkable: 1 of 16 street->door routes blocked, 0 front door(s) unseated (walkability gate)
+NO MAP in the ledger entry
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+    m=json.load(open(sys.argv[1])); api=sys.argv[2]
+                ~~~~^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'C:/Users/bpete/Documents/GitHub/phyxel/docs/evidence/worldforge_v2/m5a_l4_m5a_map.json'
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+    m=json.load(open(sys.argv[1])); o=m['origin']; s=m['size']
+                ~~~~^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'C:/Users/bpete/Documents/GitHub/phyxel/docs/evidence/worldforge_v2/m5a_l4_m5a_map.json'
+
+--- engine log: the map, the paths, the gate
+[11:14:28.523] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 939730262: 5 lots, 5 ways, 10 nodes, entry 1, sampler generator, 0 dropped, bake 9394.7 ms
+[11:14:41.556] [INFO] [Settlement] paths: 14/14 edges graded, 0 too steep
+[11:14:41.606] [INFO] [Settlement] paths: paved 1801 microcubes (1683 level caps, 118 fill), 5 cut cells owed; stamp 47 ms
+[11:15:12.837] [INFO] [Settlement] walkability gate: 15 walkable, 1 blocked over 16 routes (5 front doors, 0 skipped)
+[11:15:12.855] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes, 0 front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome
+[11:15:12.898] [WARN] [WorldForge] [WORLDFORGE] site 3 (hamlet) REFUSED: unwalkable: 1 of 16 street->door routes blocked, 0 front door(s) unseated (walkability gate) - not checkpointed
+engines left: 0

@@ -1,0 +1,6 @@
+START 2026-11-05 12:18:17 shas: RouteFieldTest.cpp f21a4555870de073 WorldForgePlan.cpp 3e810dfeec34452d WorldForgePlan.h 6ef3fd952699bb65 WorldGenerator.cpp c8cf858f830b936d EarthworkTest.cpp 29e284aba34a01eb SettlementMapPlanner.cpp 977a8a00849c8d67 SettlementBuildService.cpp b3c07d88eeb5a468 SettlementMapTest.cpp 92052cb9e06bb16e
+BUILD EXIT 1 2026-11-05 12:18:28 errors: 4
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(237,21): error C2001: newline in constant [C:\Users\bpete\Documents\GitHub\phyxel\build\tests\phyxel_tests.vcxproj]
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(238,1): error C2001: newline in constant [C:\Users\bpete\Documents\GitHub\phyxel\build\tests\phyxel_tests.vcxproj]
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(239,9): error C2143: syntax error: missing ')' before 'switch' [C:\Users\bpete\Documents\GitHub\phyxel\build\tests\phyxel_tests.vcxproj]
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(239,9): error C2143: syntax error: missing ';' before 'switch' [C:\Users\bpete\Documents\GitHub\phyxel\build\tests\phyxel_tests.vcxproj]

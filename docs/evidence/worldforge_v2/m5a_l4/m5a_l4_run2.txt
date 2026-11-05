@@ -1,0 +1,39 @@
+CivLabE0 game.json: worldforge {'siteCount': 8, 'regionRadius': 2048, 'minSpacing': 400, 'civ': True, 'civEpochs': 0}
+exe: C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Release/phyxel.exe 2026-11-05_11:17:01  commit: 93e763e5 (+ the uncommitted M5a tree: SettlementMapPlanner.cpp 8010588108334c68 SettlementBuildService.cpp c599158463f9e904)  config: Release
+--- status (before)
+{"applied":true,"enabled":true,"plan_hash":"3980644565422672701","roads":78,"site_list":[{"depth":60,"id":0,"score":{"biome":0.5,"relief":0.6279822587966919,"total":0.48259198665618896,"water":0.25},"seed":3066084745,"surface":"SnowGrass","surfaceY":171.4202880859375,"tier":"town","width":140,"x":13
+hamlet 3 at -7976 2280 surfaceY 54.1 GrassForest
+hamlet 4 at -7928 14600 surfaceY 18.2 Grass
+hamlet 5 at 14568 15592 surfaceY 18.0 Grass
+--- building the hamlets 3,4,5 (up to three; the first one the gate passes is the record)
+{"job_id":1000000,"plan_hash":"3980644565422672701","sites_queued":3,"success":true}
+job 1000000
+--- job
+{"elapsed_seconds":112.427,"id":1000000,"label":"worldforge: 3 sites","main_thread":true,"message":"complete","progress":1.0,"result":{"plan_hash":"3980644565422672701","sites":[{"error":"unwalkable: 1 of 16 street->door routes blocked, 0 front door(s) unseated (walkability gate)","gate":{"blocked":1,"error":"unwalkable: 1 of 16 street->door routes blocked, 0 front door(s) unseated (walkability gate)","fails_build":true,"gate":"blocked","skipped":0,"walkable":15},"id":3,"status":"refused","tier":"hamlet","walkability":{"blocked":1,"failed":1,"routes":[{"label":"longhouse @-7982,2265: street -> door","walkable":true},{"label":"longhouse @-7982,2265: door -> bedchamber","walkable":true},{"label":"longhouse @-7982,2265: door -> living","walkable":true},{"label":"longhouse @-7982,2265: door -> byre","walkable":true},{"label":"longhouse @-7986,2277: street -> door","walkable":true},{"label":"longhouse @-7986,2277: door -> bedchamber","walkable":true},{"label":"longhouse @-7986,2277: door -> living","walkable":true},{"label":"longhouse @-7986,2277: door -> byre","walkable":true},{"label":"croft @-7969,2270: street -> door","walkable":true},{"goal_unsupported":false,"label":"croft @-7969,2270: door -> living","one_way":false,"pinch_from":[-71708,489,20470],"pinch_gap_micro":1,"pinch_to":[-71707,489,20470],"reached_from_goal":26055,"reached_from_start":25851,"start_unsupported":false,"walkable":false},{"label":"hall_house @-7993,2265: street -> door","walkable":true},{"label":"hall_h
+ledger entries 3 planHash 3980644565422672701
+site 3 status refused buildings 0 lotFailures 0 error unwalkable: 1 of 16 street->door routes blocked, 0 front door(s) unseated (walkability gate)
+   MAP: tier hamlet lots 5 ways 5 nodes 10 entry 1 bake_ms 9374.1 origin {'x': -7996, 'y': 54, 'z': 2264}
+site 4 status refused buildings 0 lotFailures 0 error unwalkable: 1 of 10 street->door routes blocked, 0 front door(s) unseated (walkability gate)
+   MAP: tier hamlet lots 3 ways 3 nodes 12 entry 1 bake_ms 10421.7 origin {'x': -7948, 'y': 18, 'z': 14584}
+site 5 status refused buildings 0 lotFailures 0 error no buildable, connectable lot for the tier's minimum (2 of 3 seated)
+   NO MAP in the ledger entry
+record: site 3 refused
+first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7984, "z": 2269} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7984, "z": 2266} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7982, "z": 2274} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7983, "z": 2274} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7984, "z": 2273} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7973, "z": 2274} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7982, "z": 2274} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7986, "z": 2269} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7984, "z": 2269} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7969, "z": 2281} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7972, "z": 2281} | first probe raw: {"max_y": 255, "message": "No terrain found (resident chunks only; try source=generator)", "source": "chunks", "spawn_y": null, "surface_y": null, "x": -7973, "z": 2280} | way-node columns probed 0 materials {'err:HTTP Error 500: Internal Server Error': 12}
+minimap centre -7976 2280
+{"legend":"terrain biome colors + NW hillshade | blue water (depth-shaded) | tan/gray roads | brown bridge decks | squares: magenta-red city, red town, orange village, yellow hamlet, light grey outpos
+
+--- engine log: the map, the paths, the gate
+[11:18:23.560] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 939730262: 5 lots, 5 ways, 10 nodes, entry 1, sampler generator, 0 dropped, bake 9374.05 ms
+[11:18:36.539] [INFO] [Settlement] paths: 14/14 edges graded, 0 too steep
+[11:18:36.589] [INFO] [Settlement] paths: paved 1801 microcubes (1683 level caps, 118 fill), 5 cut cells owed; stamp 47 ms
+[11:19:07.676] [INFO] [Settlement] walkability gate: 15 walkable, 1 blocked over 16 routes (5 front doors, 0 skipped)
+[11:19:08.031] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes, 0 front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome
+[11:19:08.051] [WARN] [WorldForge] [WORLDFORGE] site 3 (hamlet) REFUSED: unwalkable: 1 of 16 street->door routes blocked, 0 front door(s) unseated (walkability gate) - not checkpointed
+[11:19:27.123] [INFO] [Settlement] [M5A-MAP] medieval/hamlet seed 934952212: 3 lots, 3 ways, 12 nodes, entry 1, sampler generator, 0 dropped, bake 10421.7 ms
+[11:19:36.819] [INFO] [Settlement] paths: 13/13 edges graded, 0 too steep
+[11:19:36.849] [INFO] [Settlement] paths: paved 2320 microcubes (2109 level caps, 211 fill), 37 cut cells owed; stamp 27 ms
+[11:19:38.410] [INFO] [Settlement] walkability gate: 9 walkable, 1 blocked over 10 routes (3 front doors, 0 skipped)
+[11:19:38.432] [WARN] [Settlement] walkability gate BLOCKED the build (1 blocked routes, 0 front door(s) unseated) - nav rebuild skipped; the settlement is a refused outcome
+[11:19:38.452] [WARN] [WorldForge] [WORLDFORGE] site 4 (hamlet) REFUSED: unwalkable: 1 of 10 street->door routes blocked, 0 front door(s) unseated (walkability gate) - not checkpointed
+[11:19:54.915] [WARN] [WorldForge] [WORLDFORGE] site 5 (hamlet) REFUSED: no buildable, connectable lot for the tier's minimum (2 of 3 seated)
+engines left: 0

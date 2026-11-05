@@ -1,0 +1,10 @@
+exe: C:/Users/bpete/Documents/GitHub/phyxel/build/editor/Release/phyxel.exe 2026-11-05_12:32:47  SettlementBuildService.cpp b3c07d88eeb5a468
+--- focus on hamlet 3 at -7976 2280, then build_settlement (legacy layout + map_water_check)
+{"focused":true,"holder":"worldforge_focus","success":true,"surface_y":53,"x":-7976,"z":2280}
+
+--- the water check (saved to m5a_l4_m5a_watercheck_log.txt)
+[12:34:47.791] [INFO] [Settlement] [M5A-WATER-CHECK] 40 x 32: planner wet 0, realizer wet 0, cells that disagree 0
+[12:34:57.417] [INFO] [Settlement] terrain analyse 40x32: buildable=1 -> 3 plots
+[12:34:57.417] [INFO] [Settlement] build_settlement: 3 plots, 3 buildings queued (0 streets)
+[12:35:27.636] [INFO] [Settlement] walkability gate: 10 walkable, 0 blocked over 10 routes (3 front doors, 0 skipped)
+engines left: 0

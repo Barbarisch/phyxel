@@ -1,0 +1,51 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementMapTest.*
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from SettlementMapTest
+[ RUN      ] SettlementMapTest.EveryLotTouchesAWay
+[32m[10:36:44.229] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json[0m
+[32m[10:36:44.237] [INFO] [RoomProgram] Loaded 13 room programs from resources/room_program.json[0m
+[ M5a ] CONTROL (as built): hamlet/cluster (as built) 4 lots, 0 ways, 0 nodes, entry -1, bake 0.00 ms | no way 4, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] planner: hamlet/cluster 3 lots, 3 ways, 15 nodes, entry 1, bake 7.39 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[       OK ] SettlementMapTest.EveryLotTouchesAWay (20 ms)
+[ RUN      ] SettlementMapTest.MapInvariantsHoldOnEveryTier
+[ M5a ] hill: hamlet/cluster 3 lots, 3 ways, 15 nodes, entry 1, bake 7.22 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: hamlet/cluster 4 lots, 4 ways, 15 nodes, entry 1, bake 8.76 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: village/main_street 9 lots, 1 ways, 2 nodes, entry 0, bake 3.62 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: village/main_street 10 lots, 1 ways, 2 nodes, entry 0, bake 3.44 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: town/main_street 23 lots, 8 ways, 16 nodes, entry 0, bake 8.02 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: town/main_street 25 lots, 8 ways, 16 nodes, entry 0, bake 8.00 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] hill: city/semi_organic 42 lots, 14 ways, 29 nodes, entry 28, bake 20.45 ms | no way 0, door off its way 23, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] flat: city/semi_organic 48 lots, 14 ways, 29 nodes, entry 28, bake 20.53 ms | no way 0, door off its way 29, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[       OK ] SettlementMapTest.MapInvariantsHoldOnEveryTier (81 ms)
+[ RUN      ] SettlementMapTest.MapIsIdenticalFromPlanTwice
+[       OK ] SettlementMapTest.MapIsIdenticalFromPlanTwice (47 ms)
+[ RUN      ] SettlementMapTest.MapIsTheSameFromTwoSamplersOfOneField
+[ M5a ] two samplers: 3 lots / 3 ways each; the tiled cache touched 20 tiles
+[       OK ] SettlementMapTest.MapIsTheSameFromTwoSamplersOfOneField (16 ms)
+[ RUN      ] SettlementMapTest.WaysAvoidTheSteepBand
+[ M5a ] band: hamlet/cluster 4 lots, 4 ways, 12 nodes, entry 1, bake 9.99 ms | no way 0, door off its way 0, overlaps 0, way through a footprint 0, outside 0, relief over cap 0, bad ways 0
+[ M5a ] band: 4 lots (2 east of the bench), 4 ways; steepest cube step along the ways 0, along the straight door -> entry lines 4 (the control)
+[       OK ] SettlementMapTest.WaysAvoidTheSteepBand (10 ms)
+[ RUN      ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn
+[ M5a ] stand-in: 3 walkable, 0 blocked of 3 lots (entry node 1)
+[ M5a ] stand-in CONTROL (sealed): 4 walkable, 0 blocked
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\SettlementMapTest.cpp(291): error: Expected: (sealedRep.blocked) > (0), actual: 0 vs 0
+the sealed control walks: the stand-in measures nothing
+
+[  FAILED  ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn (12268 ms)
+[ RUN      ] SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots
+[ M5a ] hamlet bake 7.70 ms (3 lots)
+[ M5a ] stress (200 x 160 flat, target 400): 119 lots, 119 ways in 2109.3 ms (no buildable, connectable lot for the tier's minimum (119 of 400 seated))
+[       OK ] SettlementMapTest.BakeTimeIsReportedAndTheGrowthReachesManyLots (2117 ms)
+[----------] 7 tests from SettlementMapTest (14563 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (14564 ms total)
+[  PASSED  ] 6 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] SettlementMapTest.DoorsReachTheEntryOnTheMapStandIn
+
+ 1 FAILED TEST
+EXIT 1 2026-11-05 10:36:58

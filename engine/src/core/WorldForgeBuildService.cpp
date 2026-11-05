@@ -14,7 +14,7 @@ nlohmann::json WorldForgeBuildService::settlementParamsFor(const WorldForgePlan&
     // Position is the site CENTRE in the plan but SettlementBuildService takes the MIN
     // corner; convert. Y is a nominal base — terrain mode re-grounds per column.
     nlohmann::json params{
-        {"era", "medieval"},
+        {"era", plan.params().era},   // M5a: the recipe's era (D9 hook; "medieval" shipped)
         {"tier", site.tier},
         {"seed", site.seed},
         {"position", {{"x", site.pos.x - site.width / 2},
@@ -31,6 +31,20 @@ nlohmann::json WorldForgeBuildService::settlementParamsFor(const WorldForgePlan&
         // run), respawned identically on return or reload.
         {"residents", false},
     };
+    // M5a: EVERY road arriving at this site, as the planner's entries - the road's end clamped into the
+    // site rect, site-local cubes, with its class (the box plan trims the line at the rect edge).
+    nlohmann::json entries = nlohmann::json::array();
+    for (const auto& r : plan.roads()) {
+        if (r.a != site.id && r.b != site.id) continue;
+        const auto& cl = r.centerline;
+        if (cl.empty()) continue;
+        const glm::vec2 end = (r.a == site.id) ? cl.front() : cl.back();
+        const int lx = std::clamp(static_cast<int>(std::lround(end.x)) - (site.pos.x - site.width / 2), 0, site.width - 1);
+        const int lz = std::clamp(static_cast<int>(std::lround(end.y)) - (site.pos.y - site.depth / 2), 0, site.depth - 1);
+        entries.push_back({{"x", lx}, {"z", lz}, {"cls", r.cls}});
+    }
+    params["entries"] = entries;
+    params["route_reuse"] = plan.params().routeReuseFraction;
     // Street axis follows the FIRST road arriving at this site (road order — deterministic):
     // the main street should MEET the through-road, per the row-village morphology. Terrain
     // can still override inside chooseStreetAxis (the bias is bounded).
@@ -137,6 +151,7 @@ void queuePlanAndBuild(const std::shared_ptr<BuildState>& s) {
             const std::string err = plan->error.is_object()
                 ? plan->error.value("error", plan->error.dump())
                 : plan->error.dump();
+            s->ledger.ensure(site.id, site.tier).map = plan->map;   // M5a: a planner refusal keeps its partial map on record (L4 run 3)
             refuseSite(s, site, err);
             return;
         }
@@ -172,6 +187,7 @@ void queuePlanAndBuild(const std::shared_ptr<BuildState>& s) {
                 auto& re = s->ledger.ensure(st.id, st.tier);
                 re.status = "refused";
                 re.error = err;
+                re.map = plan->map;   // M5a: the map the refused site was planned from stays on record (L4 run 1 lost it)
                 persistLedger(*s);
                 s->outcomes.push_back({{"id", st.id}, {"tier", st.tier}, {"status", "refused"},
                                        {"error", err}, {"walkability", walk}, {"gate", gate}});
@@ -187,6 +203,7 @@ void queuePlanAndBuild(const std::shared_ptr<BuildState>& s) {
                 ? static_cast<int>(plan->queuedBuilds.size()) : 0;
             e.lotFailures = countOf(plan->lotFailures);
             e.residents = countOf(plan->residents);
+            e.map = plan->map;   // M5a: the settlement map the site was realized from (out of the plan hash)
             persistLedger(*s);
             if (s->deps.checkpointWorld) s->deps.checkpointWorld();
             s->outcomes.push_back({{"id", st.id}, {"tier", st.tier}, {"status", "built"},

@@ -79,6 +79,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/LodChunkMesh.h"
 #include "core/WorldGenerator.h"
 #include "core/WorldForgeBuildService.h"
+#include "core/SettlementMap.h"
 #include "core/WorldForgeLedger.h"
 #include "core/WorldForgePlan.h"
 #include "core/WorldRecipe.h"
@@ -15036,6 +15037,17 @@ void Application::registerWorldForgeCommands() {
             return;
         }
         const int step = std::max(1, cmd.params.value("step", 4));  // bake cells per char
+        // M5a: the settlement maps of the built sites (the ledger's), summarized; the full record is in
+        // worldforge_status's ledger
+        if (Phyxel::WorldStorage* storage = chunkManager->getWorldStorage())
+            if (storage->hasMeta("worldforge_ledger")) {
+                nlohmann::json maps = nlohmann::json::array();
+                for (const auto& e : Phyxel::WorldForgeLedger::fromJson(storage->getMeta("worldforge_ledger")).sites)
+                    if (!e.map.is_null())
+                        maps.push_back({{"id", e.id}, {"tier", e.tier}, {"lots", e.map.value("lots", nlohmann::json::array()).size()},
+                                        {"ways", e.map.value("ways", nlohmann::json::array()).size()}, {"entry_node", e.map.value("entry_node", -1)}});
+                r["site_maps"] = maps;
+            }
         std::vector<std::string> lines;
         for (int cz = 0; cz < hydro->cellsZ(); cz += step) {
             std::string line;
@@ -15296,6 +15308,37 @@ bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
             else drawSquare(mx, mz, 2, {240, 220, 60});
         }
     }
+    // M5a: the built sites' settlement maps (the ledger's) - lots as filled rects, ways as lines - at any
+    // scale fine enough to show them (a cube per 4 px or finer)
+    if (stepU <= 4.0f)
+        if (Phyxel::WorldStorage* storage = chunkManager->getWorldStorage())
+            if (storage->hasMeta("worldforge_ledger"))
+                for (const auto& e : Phyxel::WorldForgeLedger::fromJson(storage->getMeta("worldforge_ledger")).sites) {
+                    if (e.map.is_null()) continue;
+                    const Phyxel::Core::SettlementMap m = Phyxel::Core::SettlementMap::fromJson(e.map);
+                    auto toPx = [&](float wx, float wz, int& mx, int& mz) { mx = static_cast<int>((wx - x0) / stepU); mz = static_cast<int>((wz - z0) / stepU); return mx >= 0 && mz >= 0 && mx < px && mz < px; };
+                    for (const auto& l : m.lots) {
+                        int ax, az, bx, bz;
+                        toPx(static_cast<float>(m.originX + l.footprint.x), static_cast<float>(m.originZ + l.footprint.z), ax, az);
+                        toPx(static_cast<float>(m.originX + l.footprint.x1()), static_cast<float>(m.originZ + l.footprint.z1()), bx, bz);
+                        for (int z = std::max(0, az); z < std::min(px, bz); ++z)
+                            for (int x = std::max(0, ax); x < std::min(px, bx); ++x) { const size_t i = (static_cast<size_t>(z) * px + x) * 3; img[i] = 90; img[i + 1] = 70; img[i + 2] = 60; }
+                    }
+                    for (const auto& w : m.ways)
+                        for (size_t k = 0; k + 1 < w.nodes.size(); ++k) {
+                            const Phyxel::Core::MapNode* a = m.node(w.nodes[k]); const Phyxel::Core::MapNode* b = m.node(w.nodes[k + 1]);
+                            if (!a || !b) continue;
+                            int ax, az, bx, bz;
+                            toPx(static_cast<float>(m.originX + a->x) + 0.5f, static_cast<float>(m.originZ + a->z) + 0.5f, ax, az);
+                            toPx(static_cast<float>(m.originX + b->x) + 0.5f, static_cast<float>(m.originZ + b->z) + 0.5f, bx, bz);
+                            const int n = std::max(1, std::max(std::abs(bx - ax), std::abs(bz - az)));
+                            for (int t = 0; t <= n; ++t) {
+                                const int x = ax + (bx - ax) * t / n, z = az + (bz - az) * t / n;
+                                if (x < 0 || z < 0 || x >= px || z >= px) continue;
+                                const size_t i = (static_cast<size_t>(z) * px + x) * 3; img[i] = 200; img[i + 1] = 170; img[i + 2] = 110;
+                            }
+                        }
+                }
     // M4a: the continent corridors as 1 px lines by class, under the site markers.
     if (const Phyxel::CorridorGraph* cg = g->corridors()) {
         auto plot = [&](int qx, int qz, glm::ivec3 c) {

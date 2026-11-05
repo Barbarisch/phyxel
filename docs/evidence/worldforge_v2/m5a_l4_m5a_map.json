@@ -1,0 +1,150 @@
+{
+ "areas": [],
+ "bake_ms": 7.294000148773193,
+ "dropped_lots": 0,
+ "entry_node": 1,
+ "era": "medieval",
+ "lots": [
+  {
+   "footprint": [
+    20,
+    16,
+    16,
+    8
+   ],
+   "ground": "graded",
+   "id": 0,
+   "interest": 1.0,
+   "orientation": 0,
+   "rect": [
+    17,
+    15,
+    22,
+    12
+   ],
+   "setback": 3,
+   "stories": 1,
+   "typology": "hall_house",
+   "way": 0
+  },
+  {
+   "footprint": [
+    9,
+    23,
+    6,
+    8
+   ],
+   "ground": "graded",
+   "id": 1,
+   "interest": 0.6521777510643005,
+   "orientation": 1,
+   "rect": [
+    6,
+    22,
+    10,
+    10
+   ],
+   "setback": 1,
+   "stories": 1,
+   "typology": "croft",
+   "way": 1
+  },
+  {
+   "footprint": [
+    8,
+    6,
+    16,
+    6
+   ],
+   "ground": "graded",
+   "id": 2,
+   "interest": 0.5296768546104431,
+   "orientation": 0,
+   "rect": [
+    6,
+    4,
+    20,
+    10
+   ],
+   "setback": 2,
+   "stories": 1,
+   "typology": "longhouse",
+   "way": 2
+  }
+ ],
+ "morphology": "cluster",
+ "nodes": [
+  {
+   "id": 0,
+   "x": 28,
+   "y": 18,
+   "z": 27
+  },
+  {
+   "id": 1,
+   "x": 31,
+   "y": 18,
+   "z": 27
+  },
+  {
+   "id": 2,
+   "x": 16,
+   "y": 18,
+   "z": 27
+  },
+  {
+   "id": 3,
+   "x": 16,
+   "y": 18,
+   "z": 14
+  }
+ ],
+ "origin": {
+  "x": -7948,
+  "y": 18,
+  "z": 14584
+ },
+ "refusal": "",
+ "seed": 934952212,
+ "size": {
+  "d": 32,
+  "w": 40
+ },
+ "target_lots": 3,
+ "tier": "hamlet",
+ "ways": [
+  {
+   "cls": 0,
+   "grade": 0.0,
+   "highway": "path",
+   "id": 0,
+   "nodes": [
+    0,
+    1
+   ],
+   "width": 1.0
+  },
+  {
+   "cls": 0,
+   "grade": 0.0,
+   "highway": "path",
+   "id": 1,
+   "nodes": [
+    2,
+    0
+   ],
+   "width": 1.0
+  },
+  {
+   "cls": 0,
+   "grade": 0.0,
+   "highway": "path",
+   "id": 2,
+   "nodes": [
+    3,
+    2
+   ],
+   "width": 1.0
+  }
+ ]
+}

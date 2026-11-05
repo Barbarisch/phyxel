@@ -1,0 +1,6 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SettlementMapTest.*
+[==========] Running 0 tests from 0 test suites.
+[==========] 0 tests from 0 test suites ran. (1 ms total)
+[  PASSED  ] 0 tests.
+EXIT 0 2026-11-05 10:34:02

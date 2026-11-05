@@ -1,0 +1,344 @@
+M5a - the headless settlement planner's skeleton: the map as data, interest-map growth on the hamlet, every tier through the planner
+(docs/WorldForgeV2Plan.md §M5; owner rulings D39 Roman insula for M5f, D40 bells REASONED-labelled, D41 every tier; owner "do it" 2026-11-05).
+DESIGN CHECK (2026-11-05, the Feature Design Keys gate, in the session before the first line of code): READY. Voxel aesthetic: the map is
+  data, nothing new reaches voxels. Chunk independence: today's layout branch samples the world through chunk column scans
+  (SettlementBuildService.cpp 444-447, terrainTopAt / waterAt) - the planner takes injected samplers (the sheet column headless, the
+  ground scan in a loaded world) and is a pure function of site, seed, samplers and arriving roads; the pin at the planner's boundary is
+  SettlementMapTest.MapIsTheSameFromTwoSamplersOfOneField (a direct sampler vs a tiled cache touched in another order), the
+  realized-columns-equal-the-map half is L4. Pipeline: structures after M4 roads; consumes tier (era hard-coded "medieval" at
+  WorldForgeBuildService.cpp:17 - M5a adds `era` to WorldForgeParams, serialized inside the civ block only when not the default so the
+  version-1 and the civ plan hashes stay pinned), the arriving roads, the hydrology level, the program presets (bell parameters in the
+  JSON with `sources` entries - SettlementProgramTest.EveryTierIsSourced). API: the ledger's SiteEntry gains the map (out of the plan
+  hash - identityHash hashes WorldForgePlan::toJson, the ledger is not in it), status/map export it, the minimap draws it; units in the
+  SettlementMap.h header comment; lots capped at 400 (the M5 stress cap) with the reason at the clamp. Pins to update in the same
+  commit: SettlementBuildServiceTest (:62, :286, :351), WorldForgeBuildFlowTest (:95, :115, :174, :192); to stay green untouched:
+  VersionOnePlanHashesArePinned, RoadFieldSeamTest. Visual test plan: L2 SettlementMapTest (the invariants; EveryLotTouchesAWay RED
+  on the hamlet as built; the terrain-following red in M5a's form WaysAvoidTheSteepBand - the hamlet's ways route round a 4-cube bench
+  where the straight door -> entry control crosses it; CityAxesFollowTerrain proper is M5b's, on the street tiers' axes), L3 the
+  walkability gate on the rasterized map before voxels (DoorsReachTheEntryOnTheMapStandIn, the control a sealed entry), L4 one hamlet
+  built live through worldforge_build on Release with the map in the ledger. Perf: hamlet ms reported; 400-lot growth Debug bounded,
+  the Release city figure from L4. Rigs: in-process fields (a 5 % hill + a creek along the south edge; the flat control; the bench).
+
+STEP 2 (2026-11-05): the data type (SettlementMap.h/.cpp), the planner (SettlementMapPlanner.h/.cpp) with the cluster tier AS BUILT
+  (kClusterGrowth = false: selectBuildablePlots 12 x 12 / spacing 4 / max 25, the natural footprint centred, facing +Z, no ways -
+  today's hamlet) and the street tiers as the main-street scenario emitted as the map; the growth planner written but off; the
+  stand-in gate; the projection; SettlementMapTest (7 tests). The hamlet count as built: the cluster branch takes max_plots 25 and
+  ignores the program's 3-6 band - noted as a pre-existing deviation; the growth uses the band.
+PREDICTIONS (before the build; chain 62 = m5a: SettlementMapTest.*): PM5a.1 RED on four: EveryLotTouchesAWay (every lot no-way, the
+  control's assert green since it IS the as-built), WaysAvoidTheSteepBand (no ways: the "ways exist" assert), DoorsReachTheEntry (no
+  entry, no ways: 0 routes - walkable 0 != lots), BakeTime (the as-built seats <= 25 lots on the 200 x 160 site: the >= 100 assert).
+  PM5a.2 GREEN on three: MapInvariantsHoldOnEveryTier (the street tiers' converted main street: no overlaps - the burgage rows do not
+  overlap by construction; no way through a footprint - the spine runs between the rows; every lot inside; relief under the cap on
+  the 5 % hill, 0 on the flat), MapIsIdenticalFromPlanTwice, MapIsTheSameFromTwoSamplersOfOneField. Risk named: the city tier on
+  160 x 120 may refuse ("footprint too small") or drop lots on the hill - a refusal is a red of the rig, not the planner, and is
+  read as such.
+CHAIN 62 (build 10:33:28-10:34:02, 0 errors; run 10:34:02): 0 tests ran - the new test file (and the two new engine files) were not in
+  the build: the test and engine CMake globs are CONFIGURE_DEPENDS, but building the single phyxel_tests target does not run the
+  re-glob (cmake-new-file-needs-two-builds). Reconfigured by hand (cmake -B build -S .); chain 63 is the red run, PM5a.1-2 govern it.
+CHAIN 63 (build 10:34:2x-10:34:49, 0 errors - the two engine files and the test compiled first time; run 10:34:53, m4b4r_r63_m5a.txt):
+  3 ok, 4 failed. PM5a.1 MET: RED exactly the four - EveryLotTouchesAWay (4 lots, 4 with no way, entry -1; the control's assert green),
+  WaysAvoidTheSteepBand (0 ways to measure; the straight-line control crosses the bench at 4 cubes, 2 lots east of it), DoorsReach
+  (0 routes: no entry), BakeTime (the as-built seats 25 on 200 x 160 - its max_plots cap - against the >= 100 assert). PM5a.2 MET:
+  GREEN the invariants on every tier (hamlet 4 lots; village 9-10 lots / 1 way; town 23-25 / 8 ways; city 42-48 / 14 ways / entry
+  28 - no overlaps, no way through a footprint, all inside, relief under the cap), plan-twice identical, two samplers identical
+  (20 tiles touched). OBSERVED, not predicted: "door off its way" = every street-tier lot - the measure checked the door-approach
+  cell against the way's NODES, and the converted spine has two; a measurement defect of the test (point-to-segment now, within
+  1.5 u + the way's half width of its centre line). Noted as a pre-run fix, not a loosening: the assertion on it runs only in
+  EveryLotTouchesAWay (the hamlet) and is unchanged there.
+STEP 3: kClusterGrowth = true; the candidate scan O(1) per candidate (a summed-area table of unusable cells - steep, water, a seated
+  lot, a WAY: chain 63's code would have let a lot seat across an existing path - and the window relief at the lot's centre).
+PREDICTIONS (before the build; chain 64 = m5a): PM5a.3 GREEN on all seven: EveryLotTouchesAWay - the hamlet seats 3-6 lots
+  (the program's band by seed 7: 7 % 4 = 3 -> 3 + 3 = 6 lots), every lot with a way whose first node is its door approach, entry >= 0;
+  the invariants on every tier (the hamlet's ways never cross a footprint: lot rects are blocked in the cost grid, and candidates
+  never cover a way cell); WaysAvoidTheSteepBand - the worst cube step along the ways <= 1 (a 4-cube bench costs (1 + 60)^2 = 3721 a
+  step; the detour round its south end costs tens), the control 4; DoorsReach - walkable = lots, blocked 0, the sealed control blocked
+  >= 1; BakeTime - the stress site seats 100-220 lots (12 x 10-14 lots with a 1 u gap on 200 x 160) in 1-15 s Debug; plan-twice and
+  two-samplers identical. Risk named: the growth may stop early when the candidates' interest falls under 1e-6 far from the net (the
+  road-access bell with s0 = 14 u: exp(-((d - 3) / 14)^2) is 1e-6 at d ~ 55 u) - on the 200 x 160 site lots beyond ~55 u of the
+  network would score 0 and the growth would seat under 100; if so, that is the bell's spread, to be stated and widened for large
+  sites as a REASONED parameter, not a hidden retune.
+CHAIN 64 (build 10:36:xx, 0 errors; run 10:36:44-10:36:58, m4b4r_r64_m5a.txt): 6 ok, 1 failed. PM5a.3 MET on six: EveryLotTouchesAWay
+  GREEN (the hill hamlet 3 lots / 3 ways / 15 nodes, entry 1, no lot off its way; the as-built control 4 lots / 0 ways), the invariants
+  on every tier, plan-twice, two-samplers, WaysAvoidTheSteepBand (4 lots, 2 east of the bench, worst step along the ways 0 vs 4 on the
+  straight control), BakeTime (the stress site 119 lots / 119 ways in 2.1 s Debug - inside 1-15 s and over 100; the refusal string is
+  the rig's: it asked 400 as the MINIMUM and the site holds 119). MISSED: DoorsReachTheEntry - the lots walked (3 / 3, blocked 0) but
+  the SEALED CONTROL walked too (4 walkable): my wall spanned the site rect only and the stand-in's bound is a cube wider, so the probe
+  went round its ends - a defect of the control, not the measure (the wall now spans the bound). OBSERVED: the city tier read "door
+  off its way" on 23-29 of 42-48 lots - the conversion gave every lot the main street while the city's rows also front the cross and
+  secondary streets; fixed (each lot takes the way nearest its door-approach cell) and the door-on-way invariant is now asserted on
+  EVERY tier, not only the hamlet. OBSERVED: the hill hamlet seats 3 lots for a target of 6 - the 40 x 32 footprint (WorldForgePlan's
+  REASONED hamlet preset) holds 3-4 crofts with the program's 10-14 u tofts and a 1 u gap; the flat one seats 4. A finding for the
+  footprint preset (D-item: the box's hamlet rect vs the program's 3-6 band), reported, not M5a's to retune.
+PREDICTIONS (before the build; chain 65 = m5a): PM5a.4 7/7 GREEN: DoorsReach walkable 3 / blocked 0, the sealed control blocked >= 3;
+  the invariants with the door-on-way assert on every tier - city door-off 0 (risk: a city row fronting a street the layout does not
+  list in msl.base.streets would still read off; if so, the count and the street are the finding); every other figure as chain 64.
+CHAIN 65 (build 10:38:xx, 0 errors; run 10:38:2x-10:38:40, m4b4r_r65_m5a.txt): 7 ok, 0 failed. PM5a.4 MET: DoorsReach 3 walkable / 0
+  blocked, the sealed control 1 walkable (the wall's own route) / 3 blocked; the city 42 / 48 lots with 0 off their way after the
+  nearest-way assignment (every street the rows front is in the layout's street list); every other figure as chain 64 (the stress
+  site 119 lots in 2.13 s Debug). The planner's L2 and L3 are green on the real output; the realizer integration (D41) is step 4.
+STEP 4 (PATCH M5A-4, 2026-11-05): the integration. WorldForgeParams.era (serialized inside the civ block only when not "medieval");
+  BellSpec in the tier preset, parsed from a `bells` block, the hamlet's in settlement_program.json with four `sources` entries
+  (road_access GROUNDED from the program's own setback / depth; slope, water, sociability REASONED, NEEDS-RESEARCH per tier - D40);
+  the planner reads the bells; pathsForMapWays (a terrain path per way node pair + a spur per realized door) for the cluster paths
+  unit; SettlementBuildService: every program tier plans FROM the map (the generator's columns when the world has one, the ground scan
+  without, a flat field headless; the arriving roads as entries), the layout and the assigned plots are the map's projection, the
+  queued buildings its lots, Plan.map the record; the legacy non-program path keeps the grid; WorldForgeBuildService passes era,
+  entries (every arriving road, site-local, in the rect) and route_reuse, and writes the map into the ledger's SiteEntry at the
+  checkpoint (toJson/fromJson carry it); worldforge_map summarizes site_maps; worldforge_minimap draws lots and ways at a cube per
+  4 px or finer. Pins: SettlementBuildServiceTest.EveryProgramTierPlansFromTheSettlementMap (new), WorldForgeBuildFlowTest
+  .SettlementParamsDerivedFromSite (era + entries asserted).
+PREDICTIONS (before the build; chain 66 = m5a2: SettlementMapTest.*, SettlementBuildServiceTest.*, WorldForgeBuildFlowTest.*,
+  SettlementProgramTest.*, SettlementLayoutTest.*, MainStreetLayoutTest.*, CityLayoutTest.*, SettlementWalkabilityTest.*,
+  WorldForgeStressTest.VersionOnePlanHashesArePinned, RouteGraphTest.DeterministicAcrossGenerators): PM5a.5 everything GREEN except
+  what the map changes in the headless plans and is NOT yet re-pinned: SettlementBuildServiceTest's unit-label ORDER test (:351) and
+  the per-morphology gate test (:286) may differ in the hamlet's unit set (the map gives the hamlet ways -> the "grading + paving
+  paths" unit is planned only with a world, unchanged) - predicted GREEN; the hamlet's headless plan now carries 3-6 buildings where
+  the grid gave up to 25 - any test pinning the hamlet's count turns RED and is read as the program's band asserting itself. The
+  version-1 hashes and the civ hashes unchanged (era absent from every recipe). The program's new `bells` keys pass
+  EveryTierIsSourced (sources present). Risk: a compile error in the editor's minimap block (first build of that code).
+CHAIN 66 (build 10:43:50-10:49:1x, 0 errors; run 10:49:19-10:59:37, m4b4r_r66_m5a2.txt): 93 ok, 1 failed of 94. PM5a.5 MET in the
+  main: every settlement test, the layout tests, the walkability tests, SettlementProgramTest (the bells sourced), the version-1
+  hashes and the civ hashes unchanged, the new pins green (headless: hamlet 6 lots / 6 ways, village 9 / 1, town 8 / 8, city 12 / 3,
+  sampler flat; era + entries on the build params). MISSED (not predicted): SettlementBuildServiceTest.TerrainModeWithoutAWorldIsRefused
+  RED - the standing contract "terrain mode without a world is refused" was lost: my map branch planned on the flat stand-in when
+  terrain was asked with no ChunkManager. A regression the pin caught; fixed in the branch (the refusal precedes the planner), the
+  pin untouched. The unit-label order and the per-morphology gate pins: GREEN as predicted; no hamlet-count pin existed.
+PREDICTIONS (before the build; chain 67 = m5a2): PM5a.6 94/94 GREEN, the figures as chain 66.
+CHAIN 67 (build 11:00:xx, 0 errors; run 11:00:37-11:09:42, m4b4r_r67_m5a2.txt): 94 ok, 0 failed. PM5a.6 MET: the settlement set green
+  with the refusal contract restored. Next: the Release editor build (the minimap / map-summary code compiles there first), then
+  the L4 hamlet on CivLabE0.
+PREDICTIONS (before the L4 run; m5a_l4.sh Release m5a): PM5a.7 the Release editor builds with 0 errors; the job builds the picked
+  hamlet (status "built", 3-6 buildings, lot failures 0-1, the gate passed); the ledger's entry carries the map (lots = buildings
+  queued, ways = lots, entry >= 0, sampler "generator" in the engine log's [M5A-MAP] line); the paths unit reports edges = the ways'
+  node pairs + the doors, connected >= 80 % (a terrain path can refuse a steep pair - reported); of 12 probed way-node columns at
+  least 8 carry the path material (Dirt, the hamlet's street material) rather than grass; the site minimap (radius 96 u, 512 px =
+  0.375 u/px) shows lots and ways. Risk: the box plan's hamlet sites sit on terrain the planner refuses (no connectable lot) - a
+  refusal is recorded with its reason and read as the finding.
+L4 RUN 1 (2026-11-05 11:13-11:15, Release exe 11:13:07, CivLabE0 fresh DB, m5a_l4_run1.txt; the site: hamlet 3 at (-7976, 2280),
+  GrassForest, surfaceY 54): PM5a.7 in part. MET: the Release editor 0 errors; the hamlet planned FROM the map on the generator's
+  columns ([M5A-MAP] 5 lots, 5 ways, 10 nodes, entry 1, sampler generator, 0 dropped); the paths unit graded 14 / 14 edges (10 way
+  node pairs + 5 door spurs - 1: a way with one node pair) and paved 1801 microcubes; the gate walked all five street -> door routes
+  (15 of 16 routes walkable). MISSED: (a) the site was REFUSED by the M0 gate on ONE interior route - "croft @-7969,2270: door ->
+  living", a 1-micro pinch at micro (-71708, 489, 20470) inside the croft at seed 939730262 - the structure forge's interior at this
+  seed, not the map (the map's routes all walked); the gate refusing it is the M0 contract working; a pre-existing forge finding,
+  recorded; (b) the ledger's refused entry carried NO map (the refusal branch never wrote it) - fixed: the map is on record either
+  way; (c) the bake took 9394.7 ms on RELEASE - analyzeSite's 13 x 13 relief window called the generator's column sampler 169 times
+  per cell (216k column samples for 1280 cells); the samplers are now read once per cell into a cache (the map identical by
+  construction: the same values at the same cells). The way-node probe and the minimap did not run (no map file) - run 2.
+PREDICTIONS (before L4 run 2; the Release rebuilt, up to three hamlets in one job): PM5a.8 the bake per hamlet under 100 ms Release
+  (1280 column samples + the growth's 5 connections); every hamlet's entry carries its map, built or refused; hamlet 3 refuses again
+  on the same croft pinch (deterministic); of the other hamlets at least one is BUILT (the gate passed) unless its crofts hit an
+  interior pinch of their own - then the finding grows; the probe of the built hamlet's way nodes finds the path material on >= 8
+  of 12; the site minimap written.
+L4 RUN 2 (2026-11-05 11:17-11:20, Release exe 11:17:01, three hamlets in one job, m5a_l4_run2.txt): PM5a.8 in part. MET: every
+  built-or-refused entry carries its map (hamlet 3: 5 lots / 5 ways; hamlet 4: 3 lots / 3 ways / 12 nodes, both sampler generator);
+  hamlet 3 refused again on the same croft interior route (deterministic). MISSED: (a) the bake STILL 9.4-10.4 s on Release: the
+  cache did not help because sampleSurface is the FULL column (~7 ms each) and 1280 of them is the 9 s - analyzeSite had been
+  caching internally all along, my reading of run 1 was wrong; the sampler is now naturalGroundAt (the natural emitted ground,
+  phases 0-2, pinned equal to the sampler's bed height off channels, coasts and roads - the field the box plan routes on); (b)
+  hamlet 4 refused on a STREET -> DOOR route ("longhouse @-7921,14593", a 1-micro pinch at micro (-71249, 176, 131440)): the
+  scatter fence rule gates a parcel toward the settlement CENTROID while the map's path arrives on the lot's own side - the gate now
+  opens onto the lot's way for map lots (the main-street rule); (c) hamlet 5 refused by the PLANNER ("2 of 3 seated" at (14568,
+  15592), surfaceY 18 beside the sea) with no map on record - the partial map is recorded now; the site itself is a finding for the
+  picker (a hamlet rect the water rule leaves 2 connectable lots in); (d) the way-node probe read no terrain (resident chunks only;
+  a refused site is not checkpointed and its chunks go on release) - the probe reads the generator's height now and the voxel
+  probe is reported as what it is: resident-only. A CONTROL is added to the run: the first hamlet again through the layout AS BUILT
+  ({"legacy_layout": true} via build_settlement at the same position and seed after focusing residency) - if its gate refuses the
+  same croft interior route, the pinch is the forge's and pre-existing; if it builds, the map's placement provokes it.
+PREDICTIONS (before L4 run 3): PM5a.9 the bake per hamlet under 50 ms Release; hamlet 3 refused on the croft interior route and
+  the CONTROL (legacy layout, same site and seed) refused on a croft interior route too (the forge's seating at this hillside seed,
+  not the map's) - if the control BUILDS, the attribution flips to M5a and is recorded so; hamlet 4 BUILT (the gate passed with the
+  fence gate on the way side); hamlet 5 refused by the planner with its partial map on record (2 lots); the minimap written for
+  the record site.
+L4 RUN 3 (2026-11-05 11:24-11:29, Release exe 11:24:54, m5a_l4_run3.txt): PM5a.9 in part. MET: hamlet 4 BUILT - 3 buildings, 0 lot
+  failures, the map on record (3 lots / 3 ways / 4 nodes, entry 1, sampler generator), the paths unit 6 / 6 edges graded and 1640
+  microcubes paved, the gate 10 / 10 walkable (the fence gate on the way side closed run 2's pinch); hamlet 3 refused on the same
+  croft interior route; hamlet 5 refused by the planner. MISSED: (a) the bake STILL 9.1-10.1 s - naturalGroundAt was not the cost
+  either: the build service's waterAt calls waterSpanAt, a bounded basin flood at ~7 ms a column (its own comment: "3.4 ms/column")
+  - 1280 calls; the planner's water predicate is now the generator's channelHitAt + the hydrology's standing level above the
+  natural ground (the chunks' placed spans not consulted by the planner, stated); (b) hamlet 5's partial map still absent from the
+  ledger - the planner refusal returns before the checkpoint... the refusal branch writes plan->map, which the build service set;
+  to be read in run 4 (the engine of run 3 was built before that part of the patch? No - same patch; the job's refusal path for a
+  PLAN error may bypass the checkpoint unit entirely: to be found); (c) the control (legacy layout via build_settlement) ran inline
+  past the API's 5 s timeout and the script killed the engine before its gate line - the script now waits for it; (d) the
+  way-node probe: the generator height reads, the voxel query answers exists=false for every node (the chunks were released) -
+  the realized-paving evidence is the paths unit's own log and the gate's street -> door routes on the realized voxels.
+PREDICTIONS (before L4 run 4): PM5a.10 the bake per hamlet under 100 ms Release; hamlet 4 BUILT as run 3; hamlet 3 refused on the
+  croft interior route; the CONTROL on site 3 (legacy layout) refuses on a croft interior route too - or builds, and the attribution
+  flips to the map's placement (recorded either way); hamlet 5 refused by the planner, its partial map's presence in the ledger
+  read and the path that drops it found if absent.
+L4 RUN 4 (2026-11-05 11:31-11:35, Release exe 11:31:22, m5a_l4_run4.txt; the record): PM5a.10 MET: the bake 6.4 / 6.6 / 7.4 ms
+  per hamlet on Release (the water predicate was the 9 s: waterSpanAt's bounded flood per column); hamlet 4 at (-7928, 14600) BUILT -
+  3 buildings, 0 lot failures, 0 residents by design, the map in the ledger (3 lots / 3 ways / 4 nodes, entry 1, sampler
+  generator), the paths unit 6 / 6 edges graded and 1640 microcubes paved as the map's ways, the gate 10 / 10 walkable on the
+  realized voxels; hamlet 5 at (14568, 15592) refused by the planner with its partial map on record (2 lots / 2 ways: a hamlet rect
+  beside the sea in which the water rule leaves two connectable lots - a finding for the picker); hamlet 3 at (-7976, 2280) refused
+  by the M0 gate on ONE interior route ("croft @-7969,2270: door -> living", a 1-micro pinch at the floor just inside the west door,
+  micro (-71708, 489, 20470)). MISSED, and it matters: the CONTROL - the same site, seed and terrain through the layout AS BUILT
+  (legacy_layout via build_settlement after focusing residency) - BUILT: 3 plots, 3 buildings, paths 2 / 2, fences 3, the gate
+  10 / 10 walkable. So the croft pinch is provoked by the map's placement on this site, not pre-existing: the map seats 5 lots
+  (the program's band) with explicit door sides (lot 2: a croft at local (24, 3), footprint (27, 6, 6 x 8), door facing -X, setback 3,
+  on the hillside), where the legacy layout seated 3 centred crofts with no door side (the forge's default wall). OPEN ITEM M5a-1
+  (for the owner / M5b): the forge's croft interior with an explicit x-facing door on a sloped lot - a threshold-to-floor 1-micro
+  step - to be reproduced on the StructGenTest flat tester with front "x0" and a terraced parcel; the M0 gate refusing it is the
+  contract working. The way-node voxel probe stays resident-only (exists=false after release) - the realized-paving evidence is the
+  paths unit's log and the gate's street -> door routes on the realized voxels (5 / 5 on hamlet 3, 3 / 3 on hamlet 4). The site
+  minimap m5a_l4_m5a_minimap_site.png (hamlet 4, radius 96 u, 0.375 u / px) is the record's picture.
+PREDICTIONS (before the build; chain 68 = m5a3: the settlement set + WorldForgeStressTest.* + the Release-record civ pin +
+  WorldForgePlanTest.*): PM5a.11 all GREEN - the four source edits since chain 67 (the water predicate and the natural-ground sampler
+  take the generator path, which the headless tests never enter; the legacy_layout toggle defaults off; the fence gate rule for map
+  lots runs only with a world; the refusal-map writes) change no headless figure; the version-1 and civ hashes unchanged (no recipe
+  carries an era key).
+CHAIN 68 (build 11:36:xx, 0 errors; run 11:36:41-11:48:19, m4b4r_r68_m5a3.txt): 121 ok, 0 failed. PM5a.11 MET: the settlement set,
+  WorldForgeStressTest (the version-1 hashes 9693137997320541182 / 18197215997962677593 pinned), the Release civ record pin,
+  WorldForgePlanTest, all green on the final M5a tree. The leg's evidence logs: docs/evidence/worldforge_v2/m3c_chains/ (chains 62-68).
+
+AUDIT 13 (solution-auditor on the whole M5a leg before the commit, 2026-11-05 ~11:55): VERDICT: FAIL. Held: the era key (no pinned hash
+  moved), the TerrainModeWithoutAWorld red/green, the bake-time retractions, the timeliness of chain 68 and L4 run 4. Findings and
+  what is done, in order of weight:
+  E1 THE MAP IS NOT WHAT GETS BUILT on cluster tiers: the building loop draws the typology from the weight-expanded mix cycle
+     (variantMix = mainStreetMode ? {b.typology} : mix) and recomputes the natural footprint, so on L4 site 3 three of five croft
+     lots were built as longhouses and a hall house squeezed into a croft's 6 x 8 - the ledger's "the queued buildings are its
+     lots" was a COUNT proxy (EveryProgramTierPlansFromTheSettlementMap asserts counts), and it confounds the croft-pinch
+     attribution. RED FIRST: SettlementBuildServiceTest.TheQueuedBuildingsAreTheMapsLots (typology, footprint size and position per
+     lot) on the current tree; then the fix (map lots pin the typology and keep the map's footprint, like main-street mode).
+  E2 EveryLotTouchesAWay's red is definitional (the as-built map carries no ways by construction) - stated so; WaysAvoidTheSteepBand's
+     discriminating assert was never shown able to fail on a planner output: a testing hook sets the path slope aversion to 0 and
+     the test asserts the ways then climb the bench (4) while the shipped 15 reads 0. The door-on-way measure loosened after chain 63
+     for every tier (1.5 u + half the width): the growth's way STARTS at the door - asserted exactly for the cluster tier; the
+     polyline tolerance only for a street-tier spine. A way-in-water check added to the measure.
+  E3 MapIsTheSameFromTwoSamplersOfOneField is order-independence of the planner given its samplers, not chunk independence - renamed
+     and stated; the realized half (the map's way cells paved on the live voxels) was never measured (the probe read released
+     chunks): L4 run 5 focuses residency on the built hamlet and probes its way nodes while resident.
+  E4 the control's record in the repo is a 5 s timeout; its evidence lived in the engine log; and it ran on a site the refused map
+     build had already cleared and terraced. L4 run 5 runs the control FIRST on a fresh engine and DB, saves its engine-log lines to
+     docs/evidence, then the map job on another fresh DB; the attribution is worded as what it is (map-driven build refused, legacy
+     build passed, N = 1), and E1 is a confounder until the re-run.
+  E5 "the 40 x 32 rect holds 3-4 crofts" overgeneralized one headless seed: L4 seated 5 / 3 / 2 - reworded; the silent
+     under-delivery against the target: the map records target_lots.
+  E6 the bells: road_access relabelled REASONED (derived from program values that measure a different quantity); the sociability
+     centre's hidden + depth / 2 stated in its sources entry; the candidate stride is 1 everywhere (a stride of 2 above 4096 cells
+     changed lot positions by site size - a cost bound that touched appearance); the JSON rewrite and re-encoding stated in the
+     commit.
+  E8 the water predicate changed semantics unmeasured: build_settlement gains {"map_water_check": true} - counts the cells where
+     the planner's predicate and the realizer's waterAt disagree over the site and logs it; the L4 control passes it.
+  E9 L4 covered hamlets only - stated; the street tiers on live voxels are open until M5b.
+  E10 the chain summaries hash the M4 files: the M5a sources added to the START line.
+  E11 the new pins' reds were compile-only - stated.
+PREDICTIONS (before the build; chain 69 = m5a4: SettlementBuildServiceTest.* on the tree WITHOUT the E1 fix): PM5a.12 RED on
+  TheQueuedBuildingsAreTheMapsLots for the hamlet (typology mismatches > 0 - the mix cycle; footprint mismatches where a drawn
+  typology's natural size differs from the croft's) and GREEN for village / town / city (main-street mode pins the assigned
+  typology); every other test as chain 68.
+CHAIN 69 (build 11:55:10-11:55:2x, 0 errors; m4b4r_r69_m5a4.txt): 19 ok, 1 failed. PM5a.12 MET: TheQueuedBuildingsAreTheMapsLots RED on the
+  hamlet - 6 lots, 3 typology mismatches, 1 footprint, 1 position (the mix cycle and the recomputed natural footprint); village / town /
+  city 0 / 0 / 0. PATCH M5A-6: map lots pin their typology and keep the map's footprint (E1); the slope-aversion testing hook and
+  WaysAvoidTheSteepBand's planner control (E2); the cluster door-on-way measure exact (the way starts at the door), a way-in-water
+  count asserted on the hill rigs (E2); the two-samplers test renamed MapIsOrderIndependentOfItsSamplers and stated (E3); target_lots
+  in the map and reported (E5); stride 1 everywhere, road_access relabelled REASONED, the sociability centre stated in its sources
+  entry (E6); {"map_water_check": true} on build_settlement (E8); the chain START line hashes the M5a sources (E10); the L4 script runs
+  the control FIRST on a fresh engine and DB with the water check, saves its log lines to docs/evidence, then a fresh engine for the
+  map job, then focuses the record site and probes its way nodes while resident (E3, E4).
+PREDICTIONS (before the build; chain 70 = m5a3): PM5a.13 all GREEN (122 tests): TheQueuedBuildingsAreTheMapsLots 0 / 0 / 0 on every
+  tier; WaysAvoidTheSteepBand's control with slope aversion 0 reads a steepest step of 4 (the straight connection over the bench)
+  while the shipped reads 0; the hill hamlet's ways cross no water; the cluster lots' ways start at their doors (0 off); the stress
+  site at stride 1 seats 110-140 lots in 2-8 s Debug (more candidates per iteration); every other figure as chain 68.
+CHAIN 70 (build 11:57:xx, 0 errors; run 11:57:35-12:09:27, m4b4r_r70_m5a3.txt): 121 ok, 1 failed of 122. PM5a.13 MET in the main:
+  TheQueuedBuildingsAreTheMapsLots 0 / 0 / 0 on every tier (the hamlet 6 lots, no mismatch); WaysAvoidTheSteepBand's PLANNER control
+  with the slope aversion at 0 reads a steepest step of 4 against the shipped 0 (the discriminating assert can fail on a planner
+  output now); the hill hamlet's ways cross no water, its ways start at their doors (0 off), target 6 / seated 3 reported; the
+  stress site at stride 1 136 lots in 6.7 s Debug. MISSED - a FINDING: the new way-in-water count is 2 on the town and 3 on the city
+  (0 on the hamlet and the village): the street tiers' maps are the main-street scenario as built, whose spine and lanes run
+  straight across the hill rig's creek - the layout drops plots on water, not streets. Not loosened: the assertion moves into its
+  own test, WaysStayOutOfWater, asserted on every tier and left RED BY MEASUREMENT on the street tiers with a STATUS header (an
+  M5b item: the street tiers' growth; the owner's to rule on); MapInvariantsHoldOnEveryTier keeps every other invariant.
+PREDICTIONS (before the builds; the Release editor, then L4 run 5, then chain 71 = m5a3): PM5a.14 chain 71 122 of 123 - the one red
+  WaysStayOutOfWater (town 2, city 3; hamlet and village 0), everything else as chain 70. PM5a.15 L4 run 5: the CONTROL on a fresh
+  world builds hamlet 3 through the legacy layout (3 plots, the gate 10 / 10 as run 4) and [M5A-WATER-CHECK] reads 0-5 cells that
+  disagree of 1280 (the realizer's waterSpanAt flood can mark a shore cell the hydrology level does not); the map job on a fresh
+  world: hamlet 3 with its five lots built as CROFTS now (the typology pinned) - BUILT, the gate passing, if the croft pinch was the
+  squeezed typologies' doing, or refused again on the same croft route if it is the forge's x-facing door on the terraced lot
+  (either outcome recorded as the attribution); hamlet 4 BUILT; hamlet 5 refused by the planner (2 of 3); the resident probe of the
+  record site's way nodes finds Dirt on at least 8 of 12.
+L4 RUN 5 (2026-11-05 12:11-12:16, Release exe 12:10:59, m5a_l4_run5.txt): the CONTROL FIRST on a fresh world - hamlet 3 through the
+  layout as built: 3 plots, 3 buildings, paths 2 / 2, fences 3, the gate 10 / 10 walkable (m5a_l4_m5a_control_log.txt, saved);
+  then a FRESH engine and DB for the map job: hamlet 3 with its five lots as CROFTS now (the typology pinned) REFUSED again on the
+  SAME croft route ("croft @-7969,2270: door -> living", the same 1-micro pinch at micro (-71708, 489, 20470); 9 of 10 routes
+  walkable, every street -> door walkable) - so the squeezed typologies were not the cause; lots 0 and 3, crofts with x-facing
+  doors too, walk; lot 2 (local (24, 3), a 10 x 14 toft on the hillside, the footprint (27, 6) 6 x 8, the door facing -X, setback 3)
+  pinches at the floor just inside its door. The attribution as it can be stated: on this site (N = 1), the map-driven build is
+  refused by the M0 gate at one croft's interior and the legacy build on a fresh world passes - OPEN ITEM M5a-1 for the owner / the
+  forge, with the lot's record above to reproduce it on the flat tester (an explicit x-facing door on a terraced hillside lot).
+  Hamlet 4 BUILT (3 buildings, paths 6 / 6, 1582 microcubes, the gate 10 / 10, bake 4.6 ms); hamlet 5 refused by the planner, its
+  partial map on record (2 lots). The resident probe of hamlet 4's way nodes (focused, chunks resident): 6 nodes exist; the cube
+  above the surface is occupied at every probed node (the paving ribbon's microcubes) but the cube query reports a material only for
+  a full cube - 2 nodes read Dirt (the path material) at the surface, 4 read the surface Grass under an occupied cube above. The
+  realized-paving evidence is therefore: the paths unit's own count (6 / 6 edges, 1582 microcubes), the gate's street -> door routes
+  on the realized voxels (3 / 3), and the occupied cubes above the way nodes - a micro-level material probe is owed (open).
+  PM5a.15 MISSED on two: the typology pin did not change hamlet 3's outcome, and [M5A-WATER-CHECK] did not run - the control takes
+  the legacy branch, where the check was not placed; placed there too, run 6 (control only) reads it.
+CHAIN 71 (12:18:17): BUILD FAILED - a heredoc-written printf in WaysStayOutOfWater carried a literal newline (the inline-heredoc
+  gotcha, again; the test file is repaired with the Edit tool). Chain 72 = the same set; PM5a.14 governs it.
+CHAIN 72 (build 12:18:xx, 0 errors; run 12:19:04-12:32:07, m4b4r_r72_m5a3.txt): 122 ok, 1 failed of 123. PM5a.14 MET exactly: the
+  one red WaysStayOutOfWater - hamlet 0, village 0, town 2, city 3 segments cross the creek (left red by measurement for the owner /
+  M5b); every other test green on the final tree. Next: the Release rebuild (the water check on the legacy branch), run 6.
+L4 RUN 6 (2026-11-05 12:32-12:35, Release exe 12:32:47, control only, m5a_l4_run6.txt, m5a_l4_m5a_watercheck_log.txt): [M5A-WATER-
+  CHECK] 40 x 32 on hamlet 3: planner wet 0, realizer wet 0, 0 cells disagree - EQUAL, but on a site with no water at all, so it
+  says nothing about the two predicates' difference where water IS; the legacy control built again (3 plots, the gate 10 / 10).
+  Run 7: the same check on hamlet 5 (the rect beside the sea, where the planner refused 2 of 3) through the map branch.
+PREDICTION (before run 7): PM5a.16 on hamlet 5 the realizer's waterAt marks MORE cells than the planner's predicate (waterSpanAt's
+  flood reaches shore cells the hydrology's rim-corrected level does not) - between 0 and 40 cells disagree of 1280, every one a
+  realizer-wet / planner-dry shore cell; the planner refuses the site again (2 of 3).
+L4 RUN 7 (2026-11-05 12:36-12:38, Release exe 12:32:47, the water check on hamlet 5 - the rect beside the sea - through the map
+  branch, m5a_l4_run7.txt, m5a_l4_m5a_watercheck_log.txt): [M5A-WATER-CHECK] 40 x 32: planner wet 39, realizer wet 39, 0 cells
+  disagree. PM5a.16 MISSED in the direction that matters least: the two predicates agree EXACTLY on a wet site (I predicted the
+  realizer's flood marking 0-40 shore cells more); with run 6's dry site, the planner's water (channelHitAt + the hydrology level
+  above naturalGroundAt) and the realizer's waterAt (placed spans + channel + waterSpanAt) agree on 2560 of 2560 cells over the two
+  sites measured - the audit-E8 statement "disclosed, not verified" is now measured on one dry and one wet hamlet rect (N = 2).
+  The run transcripts of runs 1-7 are copied to docs/evidence/worldforge_v2/m5a_l4/.
+
+AUDIT 14 (solution-auditor on the audit-13 responses, 2026-11-05 ~12:45): VERDICT: FAIL. Held: chain 72's timeliness, E1 red -> green,
+  E2's planner control and the honest split of WaysStayOutOfWater, E3, E4, E5. Findings, each applied:
+  F1 run 7 is not shown to have gone through the map branch (its header echoes "legacy layout"; no [M5A-MAP] line follows - the planner
+     REFUSES hamlet 5 before that line is logged, so the record is ambiguous), and the legacy-branch check compares a COPY of the
+     predicate, not mi.waterAt: the two log lines now name their branch, and run 9 runs {"map_water_check": true} without
+     legacy_layout on hamlet 5 on the final Release exe - the map-branch line, mi.waterAt itself, is the measurement.
+  F2 the stress figure in the texts was stale (119 / 2.1 s): now chain 72's 136 lots / 7.2 s at stride 1, with the refusal stated.
+  F3 the L4 map job (run 5) ran on an exe older than the committed source (SettlementBuildService.cpp 45e6a9af vs b3c07d88 - the
+     legacy-branch water check added after): run 8 re-runs the full L4 (the control first, then the map job) on the final Release
+     build so the record is of the tree committed.
+  F4 the "compile-only" and JSON-rewrite statements had been lost from the commit text by the L4 paragraph rewrite (the sentence
+     shared the line) - restored to the commit and added to the plan.
+  F5 the overlap counter in measure() was duplicated (the == 0 asserts unaffected) - fixed; the chain START line hashes
+     SettlementBuildServiceTest.cpp, SettlementMap.cpp and WorldForgeBuildService.cpp too; the Evidence line says chains 62-72; the
+     resident probe's wording stays as it is (2 of 6 Dirt, the occupied cubes, the counts).
+PREDICTIONS (before the Release build): PM5a.17 run 8 (the full L4 on the final exe): the control builds hamlet 3 (3 plots, the gate
+  10 / 10); the job: hamlet 3 refused on the croft route, hamlet 4 BUILT (the gate 10 / 10, the map in the ledger, bake under 20 ms),
+  hamlet 5 refused by the planner (2 of 3) with its partial map. PM5a.18 run 9 (hamlet 5, the map branch, map_water_check): the
+  "(map branch: mi.waterAt ...)" line reads planner wet 39, realizer wet 39, 0 disagree, then the planner's refusal. PM5a.19 chain
+  73 (m5a3, the test file with the overlap fix): 122 of 123 as chain 72, the one red WaysStayOutOfWater; the overlaps column 0 as before.
+  F5 CORRECTION: the overlap counter in measure() is NOT duplicated - one i < j pair loop (SettlementMapTest.cpp lines 97-101, one
+  "++v.overlaps" in the file); the patch found one occurrence and changed nothing. The finding is declined with that reading.
+L4 RUN 8 (2026-11-05 12:49-12:54, Release exe 12:49:03 = the committed source: SettlementBuildService.cpp 65e824853cd40ad3,
+  SettlementMapPlanner.cpp 977a8a00849c8d67; m5a_l4/m5a_l4_run8.txt; the RECORD run): PM5a.17 MET - the control first on a fresh
+  world builds hamlet 3 through the legacy layout (3 plots, paths 2 / 2, the gate 10 / 10; m5a_l4_m5a_control_log.txt); the map job
+  on another fresh world: hamlet 3 REFUSED by the gate on the croft route (9 of 10 walkable, every street -> door walkable, bake
+  5.9 ms), hamlet 4 BUILT (3 buildings, the map in the ledger - 3 lots / 3 ways / 4 nodes, paths 6 / 6, 1582 microcubes, the gate
+  10 / 10, bake 7.3 ms), hamlet 5 refused by the planner (2 of 3) with its partial map (bake 9.0 ms); the resident probe as run 5
+  (6 nodes, an occupied cube above each, Dirt at 2 surfaces). The records m5a_l4_m5a_{status0,build,job,status,map}.json and the
+  site minimap are run 8's.
+L4 RUN 9 (12:55-12:57, the same exe; m5a_l4/m5a_l4_run9.txt): PM5a.18 MET - hamlet 5 through the MAP branch with map_water_check:
+  "[M5A-WATER-CHECK] (map branch: mi.waterAt vs the realizer's waterAt) 40 x 32: planner wet 39, realizer wet 39, cells that
+  disagree 0" - the planner's own predicate, not a copy, agrees with the realizer's on the wet rect (and the legacy-branch copy
+  read 0 / 0 / 0 on the dry hamlet 3 rect in run 6, 39 / 39 / 0 on hamlet 5 in run 7); then the planner's refusal (2 of 3).
+CHAIN 73 (build 13:02:xx, 0 errors; run -13:15:58, m4b4r_r73_m5a3.txt; the START line hashes the six M5a files = the tree as
+  committed: SettlementMapPlanner.cpp 977a8a00849c8d67, SettlementBuildService.cpp 65e824853cd40ad3, SettlementMapTest.cpp
+  8a515319b87f4cbb, SettlementBuildServiceTest.cpp d7b9c79b41ed8968, SettlementMap.cpp 152a0b2962de389b, WorldForgeBuildService.cpp
+  4dc40622df1f89f9): 122 ok, 1 failed of 123. PM5a.19 MET: the one red WaysStayOutOfWater (town 2, city 3; hamlet and village 0),
+  TheQueuedBuildingsAreTheMapsLots 0 / 0 / 0, the band control 4, the stress site 136 lots in 6.8 s Debug, every other test green.
+
+AUDIT 15 (solution-auditor on the audit-14 responses, 2026-11-05 ~13:20): VERDICT: FAIL - on one stale citation: the plan and commit
+  named chain 72 as the final tree's run where chain 73 is (chain 72 ran before the 12:48 edits - the log-string tags in the build
+  service and the test file's last touch); fixed in both texts (chain 73 cited as the final run, chain 72 as the run before those
+  edits; the stress figure as the 6.8-7.2 s range of chains 72-73; the Evidence line chains 62-73), grep-verified. Held: chain 73's
+  hashes and exe time, run 8's exe and records, run 9's map-branch line, the probe figures, the stress figure, the F5 decline, the red
+  named in both texts. The auditor's closing statement: "After fix 1, I would PASS this leg." COMMITTED with the texts as they stand.

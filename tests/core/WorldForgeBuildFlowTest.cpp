@@ -107,6 +107,17 @@ TEST(WorldForgeBuildFlowTest, SettlementParamsDerivedFromSite) {
     EXPECT_FALSE(params.value("residents", true))
         << "remote sites spawn NO residents (they fall through evicted chunks and don't "
            "persist — measured live 2026-08-16; see StructurePipelineGaps)";
+    // M5a: the recipe's era and every arriving road as a site-local entry inside the rect
+    EXPECT_EQ(params.value("era", std::string()), plan->params().era);
+    ASSERT_TRUE(params.contains("entries") && params["entries"].is_array());
+    int arriving = 0;
+    for (const auto& r : plan->roads()) if (r.a == s.id || r.b == s.id) ++arriving;
+    EXPECT_EQ(static_cast<int>(params["entries"].size()), arriving) << "one entry per arriving road";
+    for (const auto& e : params["entries"]) {
+        EXPECT_GE(e.value("x", -1), 0); EXPECT_LT(e.value("x", 1 << 30), s.width);
+        EXPECT_GE(e.value("z", -1), 0); EXPECT_LT(e.value("z", 1 << 30), s.depth);
+        EXPECT_GE(e.value("cls", 0), 1);
+    }
 }
 
 // Road-arrival orientation: the settlement's street axis follows the FIRST road arriving

@@ -23,6 +23,9 @@ struct WorldForgeLedger {
         int buildings = 0;                // queued building count from the settlement plan
         int lotFailures = 0;
         int residents = 0;
+        /// M5a: the settlement map the site was realized from (SettlementMap::toJson); null until built.
+        /// Bookkeeping like the rest of the entry: never part of the plan hash.
+        nlohmann::json map;
     };
 
     uint64_t planHash = 0;
@@ -49,10 +52,13 @@ struct WorldForgeLedger {
         nlohmann::json root;
         root["planHash"] = planHash;
         nlohmann::json arr = nlohmann::json::array();
-        for (const auto& s : sites)
-            arr.push_back({{"id", s.id}, {"tier", s.tier}, {"status", s.status},
-                           {"error", s.error}, {"buildings", s.buildings},
-                           {"lotFailures", s.lotFailures}, {"residents", s.residents}});
+        for (const auto& s : sites) {
+            nlohmann::json e = {{"id", s.id}, {"tier", s.tier}, {"status", s.status},
+                                {"error", s.error}, {"buildings", s.buildings},
+                                {"lotFailures", s.lotFailures}, {"residents", s.residents}};
+            if (!s.map.is_null()) e["map"] = s.map;
+            arr.push_back(std::move(e));
+        }
         root["sites"] = arr;
         return root.dump();
     }
@@ -72,6 +78,7 @@ struct WorldForgeLedger {
                     se.buildings = e.value("buildings", 0);
                     se.lotFailures = e.value("lotFailures", 0);
                     se.residents = e.value("residents", 0);
+                    if (e.contains("map") && e["map"].is_object()) se.map = e["map"];
                     l.sites.push_back(std::move(se));
                 }
         } catch (...) {

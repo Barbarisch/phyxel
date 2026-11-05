@@ -8,30 +8,97 @@
         "hamlet": {
           "description": "A loose farming cluster — a handful of dwellings with no formal street; paths connect the crofts.",
           "morphology": "cluster",
-          "buildings": { "min": 3, "max": 6 },
-          "street": { "main_width": 0, "lane_width": 0, "material": "Dirt" },
-          "plot": { "frontage": "from_typology", "depth_min": 10, "depth_max": 14, "side_gap": 1 },
-          "setback": { "min": 1, "max": 3 },
-          "typology_weights": { "croft": 4, "longhouse": 3, "hall_house": 1 },
+          "buildings": {
+            "min": 3,
+            "max": 6
+          },
+          "street": {
+            "main_width": 0,
+            "lane_width": 0,
+            "material": "Dirt"
+          },
+          "plot": {
+            "frontage": "from_typology",
+            "depth_min": 10,
+            "depth_max": 14,
+            "side_gap": 1
+          },
+          "setback": {
+            "min": 1,
+            "max": 3
+          },
+          "typology_weights": {
+            "croft": 4,
+            "longhouse": 3,
+            "hall_house": 1
+          },
           "public": {},
           "sources": {
             "morphology": "dispersed hamlet / farm-cluster settlement form: Roberts, Rural Settlement in Britain (1977) — 'hamlet' = a cluster lacking the row/green plan-form of a village; matches the shipped terrain-scatter placement",
             "buildings": "REASONED: 'a few households' — no hard count in the sources consulted; 3-6 chosen so a hamlet reads smaller than the smallest row village. NEEDS-RESEARCH (Roberts & Wrathmell, An Atlas of Rural Settlement in England, 2000)",
             "typology_weights": "peasant-dominated mix: crofts + longhouses are the excavated dwelling stock at Wharram Percy (Beresford & Hurst); a lone hall_house = the yeoman holding. Ratio REASONED, not counted from a specific site plan",
             "plot.depth": "toft (house-yard) depths 'tens of metres', scale-compressed to the settlement footprint — DESIGN DECISION disclosed; burgage/toft depth cite: Tait, PSAS 138 (2009) via room_program.json shop entries",
-            "street.material": "unpaved rural tracks — paving in rural hamlets is unattested; Dirt is the honest surface (REASONED)"
+            "street.material": "unpaved rural tracks — paving in rural hamlets is unattested; Dirt is the honest surface (REASONED)",
+            "bells.road_access": "REASONED, derived from this program's values: preferred_u = setback.max (the front yard's depth, read as the door-approach cell's preferred distance to its way - a different quantity, the lot edge to the way, which the growth makes 0 by construction), spread_u = plot.depth_max; the FORM (a bell per factor, multiplied) is Emilien et al. 2012 'Procedural generation of villages' (interest maps). NEEDS-RESEARCH per tier (D40)",
+            "bells.slope": "REASONED: relief_half_u = half the buildable relief cap (analyzeSite max_relief 6) - Flat (<= 1) preferred, SlopeOk tolerated; the cap itself is the shipped terrain-mode rule",
+            "bells.water": "REASONED: near, not in - the same bell idea as the WorldForge site score's water term; 16 u = a toft's depth beyond the creek bank; floor 0.3 so a dry site still seats its crofts. NEEDS-RESEARCH per tier (D40: a grounding pass as its own task)",
+            "bells.sociability": "REASONED: gap_u = plot.side_gap + 2 (a handful of dwellings a gap apart - the cluster morphology's own description), spread_u = plot.depth_max; the distance is measured from the candidate's CENTRE to the nearest seated lot's edge, so the code's preferred value is gap_u + half the toft's depth. NEEDS-RESEARCH per tier (D40)"
+          },
+          "bells": {
+            "road_access": {
+              "preferred_u": 3,
+              "spread_u": 14
+            },
+            "slope": {
+              "relief_half_u": 3
+            },
+            "water": {
+              "preferred_u": 16,
+              "spread_u": 16,
+              "floor": 0.3
+            },
+            "sociability": {
+              "gap_u": 3,
+              "spread_u": 14
+            }
           }
         },
         "village": {
           "description": "A row/street village — dwellings front a single main street on both sides (toft-and-croft rows), with the tavern and smith among them.",
           "morphology": "main_street",
-          "buildings": { "min": 6, "max": 14 },
-          "street": { "main_width": 5, "lane_width": 3, "material": "Gravel" },
-          "plot": { "frontage": "from_typology", "depth_min": 12, "depth_max": 20, "side_gap": 1 },
-          "setback": { "min": 1, "max": 2 },
-          "typology_weights": { "croft": 3, "longhouse": 2, "hall_house": 2, "tavern": 1, "blacksmith": 1 },
-          "public": { "well": true },
-          "fences": { "fraction": 0.85, "material": "Log" },
+          "buildings": {
+            "min": 6,
+            "max": 14
+          },
+          "street": {
+            "main_width": 5,
+            "lane_width": 3,
+            "material": "Gravel"
+          },
+          "plot": {
+            "frontage": "from_typology",
+            "depth_min": 12,
+            "depth_max": 20,
+            "side_gap": 1
+          },
+          "setback": {
+            "min": 1,
+            "max": 2
+          },
+          "typology_weights": {
+            "croft": 3,
+            "longhouse": 2,
+            "hall_house": 2,
+            "tavern": 1,
+            "blacksmith": 1
+          },
+          "public": {
+            "well": true
+          },
+          "fences": {
+            "fraction": 0.85,
+            "material": "Log"
+          },
           "sources": {
             "fences.fraction": "REASONED: most village tofts enclosed (stock + garden), a few open — variety, not a censused rate; eligibility (core ring, wall clearance) lives in shouldFencePlot",
             "morphology": "row/street village plan-form: Wharram Percy itself is a two-row village of tofts fronting a street (Beresford & Hurst, Wharram Percy: Deserted Medieval Village) — the same source that grounds the croft/longhouse typologies",
@@ -48,13 +115,48 @@
         "town": {
           "description": "A market town — cobbled main street widening into a market square, burgage rows with back lanes, shops among the dwellings.",
           "morphology": "main_street",
-          "buildings": { "min": 15, "max": 30 },
-          "street": { "main_width": 6, "lane_width": 3, "material": "Cobblestone", "back_lanes": true },
-          "plot": { "frontage": "from_typology", "depth_min": 14, "depth_max": 24, "side_gap": 0 },
-          "setback": { "min": 0, "max": 1 },
-          "typology_weights": { "hall_house": 2, "croft": 2, "tavern": 1, "blacksmith": 1, "general_store": 1, "bakery": 1, "apothecary": 1, "butcher": 1 },
-          "public": { "well": true, "market_square": { "w": 12, "d": 12, "stalls": 4 } },
-          "fences": { "fraction": 0.7, "material": "Log" },
+          "buildings": {
+            "min": 15,
+            "max": 30
+          },
+          "street": {
+            "main_width": 6,
+            "lane_width": 3,
+            "material": "Cobblestone",
+            "back_lanes": true
+          },
+          "plot": {
+            "frontage": "from_typology",
+            "depth_min": 14,
+            "depth_max": 24,
+            "side_gap": 0
+          },
+          "setback": {
+            "min": 0,
+            "max": 1
+          },
+          "typology_weights": {
+            "hall_house": 2,
+            "croft": 2,
+            "tavern": 1,
+            "blacksmith": 1,
+            "general_store": 1,
+            "bakery": 1,
+            "apothecary": 1,
+            "butcher": 1
+          },
+          "public": {
+            "well": true,
+            "market_square": {
+              "w": 12,
+              "d": 12,
+              "stalls": 4
+            }
+          },
+          "fences": {
+            "fraction": 0.7,
+            "material": "Log"
+          },
           "sources": {
             "fences.fraction": "REASONED: town burgages mix enclosed rear tofts with open yards; urban rows build flush and go unfenced via the clearance rule",
             "morphology": "market town = main street + market place, burgage series with back lanes: Tait, PSAS 138 (2009) burgage-plot morphology; market places commonly a WIDENED main street (Schofield & Vince, Medieval Towns) — the Phase-4 square straddles the street per that form",
@@ -71,26 +173,98 @@
         "city": {
           "description": "A walled-city quarter — crossroads axes meeting at a market square, jittered secondary streets slicing irregular blocks, trades clustered near the square. Slightly organized, a little chaotic.",
           "morphology": "semi_organic",
-          "buildings": { "min": 20, "max": 48 },
-          "reference_site": { "w": 160, "d": 160 },
-          "street": { "main_width": 7, "lane_width": 3, "material": "Cobblestone" },
-          "plot": { "frontage": "from_typology", "depth_min": 12, "depth_max": 18, "side_gap": 0 },
-          "setback": { "min": 0, "max": 1 },
-          "blocks": { "min": 18, "max": 30 },
-          "typology_weights": { "hall_house": 3, "croft": 2, "longhouse": 1, "tenement": 3, "tavern": 1, "blacksmith": 1, "manor_hall": 1 },
-          "core_typology_weights": { "tavern": 2, "general_store": 2, "bakery": 1, "apothecary": 1, "butcher": 1, "hall_house": 2, "tenement": 4, "town_hall": 1 },
-          "typology_caps": { "tavern": 3, "blacksmith": 2, "bakery": 2, "apothecary": 2, "butcher": 2, "general_store": 3, "manor_hall": 1, "town_hall": 1 },
+          "buildings": {
+            "min": 20,
+            "max": 48
+          },
+          "reference_site": {
+            "w": 160,
+            "d": 160
+          },
+          "street": {
+            "main_width": 7,
+            "lane_width": 3,
+            "material": "Cobblestone"
+          },
+          "plot": {
+            "frontage": "from_typology",
+            "depth_min": 12,
+            "depth_max": 18,
+            "side_gap": 0
+          },
+          "setback": {
+            "min": 0,
+            "max": 1
+          },
+          "blocks": {
+            "min": 18,
+            "max": 30
+          },
+          "typology_weights": {
+            "hall_house": 3,
+            "croft": 2,
+            "longhouse": 1,
+            "tenement": 3,
+            "tavern": 1,
+            "blacksmith": 1,
+            "manor_hall": 1
+          },
+          "core_typology_weights": {
+            "tavern": 2,
+            "general_store": 2,
+            "bakery": 1,
+            "apothecary": 1,
+            "butcher": 1,
+            "hall_house": 2,
+            "tenement": 4,
+            "town_hall": 1
+          },
+          "typology_caps": {
+            "tavern": 3,
+            "blacksmith": 2,
+            "bakery": 2,
+            "apothecary": 2,
+            "butcher": 2,
+            "general_store": 3,
+            "manor_hall": 1,
+            "town_hall": 1
+          },
           "core_ring": 24,
-          "public": { "well": true, "market_square": { "w": 16, "d": 16, "stalls": 6, "statue": true } },
-          "fences": { "fraction": 0.5, "material": "Log" },
-          "walls": { "enabled": true, "height": 7, "thickness": 2, "gate_width": 7, "margin": 2, "towers": true, "tower_shape": "round", "tower_cap": "parapet", "tower_size": 9, "tower_extra_height": 3, "crenellations": true, "material": "StoneBricks" },
+          "public": {
+            "well": true,
+            "market_square": {
+              "w": 16,
+              "d": 16,
+              "stalls": 6,
+              "statue": true
+            }
+          },
+          "fences": {
+            "fraction": 0.5,
+            "material": "Log"
+          },
+          "walls": {
+            "enabled": true,
+            "height": 7,
+            "thickness": 2,
+            "gate_width": 7,
+            "margin": 2,
+            "towers": true,
+            "tower_shape": "round",
+            "tower_cap": "parapet",
+            "tower_size": 9,
+            "tower_extra_height": 3,
+            "crenellations": true,
+            "material": "StoneBricks"
+          },
           "sources": {
             "walls": "town/city defences: tower_size 9 = a ~9 m drum, Conwy's own scale, and the smallest that holds a wall, a spiral stair AND a room to arrive in (a 6 m drum refuses: the stair eats the whole interior). Conwy (1283-87) survives as a complete circuit - 1.3 km, 21 towers, three twin-towered gateways; York keeps the longest English circuit with its four principal bars. Height 7 / thickness 2 cubes sit inside the attested medieval band (~6-10 m tall, ~1.5-3 m thick) but are REASONED picks, not measured from one wall. Corner towers + crenellated parapet are the type's signature; gate width follows the STREET it serves so a road is never pinched",
             "fences.fraction": "REASONED: city fringe only (the core ring is never fenced — shouldFencePlot rule 1); half the fringe crofts keep enclosures",
             "public.market_square.stalls": "as town — trestle 'standings' on the place; count REASONED for a 16x16 square",
             "public.market_square.statue": "DESIGN DECISION (fantasy setting): civic statue at the market-cross spot — the period-strict centrepiece is the market cross (docs/CityForgePlan.md M1)",
             "morphology": "organic-accretion city form (pre-planned medieval growth): Schofield & Vince, Medieval Towns — street networks accreted from AXES + infill, not surveyed grids. Implementation: crossroads axes meeting at the market square + secondary streets at seeded-JITTERED intervals (the bounded chaos) — DESIGN DECISION disclosed",
-            "reference_site": "MEASURED: the building range above was tuned and L4-verified on a 160x160 site (docs/CityForgePlan.md M4: 72 buildings at density 1.5). A larger site scales buildings.max by site area / reference area (SettlementProgram scaleForSite; scale-UP only, bounded at 400) - without it a 192x192 city stopped at the same 72 (docs/PerfProgram2026-09.md section 16)", "buildings": "REASONED: a city QUARTER at this engine's buildable scale, not a whole city",
+            "reference_site": "MEASURED: the building range above was tuned and L4-verified on a 160x160 site (docs/CityForgePlan.md M4: 72 buildings at density 1.5). A larger site scales buildings.max by site area / reference area (SettlementProgram scaleForSite; scale-UP only, bounded at 400) - without it a 192x192 city stopped at the same 72 (docs/PerfProgram2026-09.md section 16)",
+            "buildings": "REASONED: a city QUARTER at this engine's buildable scale, not a whole city",
             "street.main_width": "NEEDS-RESEARCH — principal city streets carried through-traffic + encroachment; wider than town main streets",
             "blocks": "REASONED 18-30 m secondary-street spacing: burgage depth (12-18) + circulation; no measured medieval block-spacing source consulted yet (candidate: Conzen town-plan analysis, Alnwick) — NEEDS-RESEARCH",
             "core_typology_weights": "market-adjacency of trades: shops/inns cluster on the market place and principal streets (Schofield & Vince; standard burgage-rent gradient reasoning) — ratios REASONED; tenement heavy in the core (urban rental rows pack the dense quarter — Our Lady's Row form, docs/structure-generation/archetypes/tenement.md)",
