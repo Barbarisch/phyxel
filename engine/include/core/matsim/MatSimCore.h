@@ -86,6 +86,10 @@ struct StepStats {
     uint64_t eligibleBlocks = 0;   ///< blocks that moved anything, summed over the ticks
     uint64_t evaluatedBlocks = 0;  ///< blocks actually evaluated (not skipped by sleep)
     uint64_t lastTickEligible = 0; ///< eligible blocks on the final tick
+    uint64_t headChanges = 0;      ///< §6d: cells whose head word changed, summed over the ticks
+    uint64_t lastTickHeadChanges = 0;
+    /// At rest on the final tick: nothing moved and no head changed.
+    bool lastTickQuiet() const { return lastTickEligible == 0 && lastTickHeadChanges == 0; }
 };
 
 struct FillResult {
@@ -97,6 +101,11 @@ struct FillResult {
 struct Config {
     uint32_t seed = 1;
     bool sleep = true;
+    /// §6d: the hydrostatic pressure rule (head field + pressure-driven flow). Off reproduces the
+    /// P1 rules exactly (the A/B control: a U-tube never levels without it).
+    bool pressure = true;
+    /// Ticks per second the box is stepped at; only the orifice flow cap (Torricelli) uses it.
+    uint32_t tickHz = 60;
     /// TEST-ONLY control: the first gravity move after arming drops exactly one unit, so the
     /// ledger test can prove it sees a loss. Never set outside tests.
     bool testLeakOneUnit = false;
@@ -161,7 +170,24 @@ public:
     /// match this box (false and no change otherwise). Trapped contents and the expected ledger
     /// are untouched: stepping never reads or writes a solid cell.
     bool adoptStepped(std::vector<Cell> cells, uint64_t tick, std::vector<uint8_t> marks1,
-                      std::vector<uint8_t> marks2);
+                      std::vector<uint8_t> marks2, std::vector<uint32_t> headPtr,
+                      std::vector<uint32_t> head, std::vector<uint32_t> maxPtr);
+
+    // --- §6d: the pressure field (three words per cell, recomputed every tick). ---
+    /// ROUTE pointer: (source box index << 8) | hops, or kNoHead. The nearest free surface this
+    /// cell reaches through liquid that stands within the deadband of its head: where a hole
+    /// travelling upstream is absorbed. Hole routing uses its hops.
+    const std::vector<uint32_t>& headPtr() const { return q_; }
+    /// MAX pointer, same packing: the HIGHEST free surface this cell reaches (ties: fewest hops,
+    /// then lowest index). Its elevation is the head, the same through a whole connected body.
+    const std::vector<uint32_t>& headMaxPtr() const { return m_; }
+    /// bit 31 = closed above (liquid or solid over it), bit 30 = has a full liquid face
+    /// neighbour, bits 0..29 = head + 1 (0 = none), in fill units above the box floor:
+    /// (y - origin.y) * FULL + fill of the source cell.
+    const std::vector<uint32_t>& head() const { return h_; }
+    uint32_t pressureDeadband() const { return full_ >= 128 ? full_ / 64 : 2; }
+    /// Orifice cap constant: units per tick = (K * isqrt(head difference)) >> 10.
+    uint32_t orificeK() const { return orificeK_; }
 
 private:
     size_t index(int lx, int ly, int lz) const {
@@ -170,6 +196,8 @@ private:
     }
     Cell readPrev(int wx, int wy, int wz) const;
     bool evalBlock(int bx, int by, int bz, int parity);   ///< reads cur_, writes nxt_; returns eligible
+    uint64_t pressurePass(std::vector<uint8_t>& fresh);   ///< q_/h_ for this tick; marks changed bricks; returns changed cells
+    void resetPressure();
     void copyBlock(int bx, int by, int bz);
     void markBricksOfBlock(int bx, int by, int bz, std::vector<uint8_t>& marks) const;
     int brickOf(int wx, int wy, int wz) const;            ///< index into brick arrays
@@ -191,7 +219,22 @@ private:
     // that start one cell outside the box).
     IVec3 brickLo_{}, brickDim_{};
     std::vector<uint8_t> marks1_, marks2_;   ///< moved on tick-1 / tick-2
+    std::vector<uint32_t> q_, qn_, h_;       ///< §6d route pointers (q_ ping-pongs with qn_), head words
+    std::vector<uint32_t> m_, mn_;           ///< §6d max pointers (ping-pong)
+    uint32_t orificeK_ = 0;
 };
+
+constexpr uint32_t kNoHead = 0xFFFFFFFFu;
+constexpr uint32_t kHeadClosed = 0x80000000u;
+constexpr uint32_t kHeadFullNbr = 0x40000000u;
+constexpr uint32_t kHeadMask = 0x3FFFFFFFu;
+/// Floor integer square root, bit by bit: the CPU and the GPU run this exact algorithm.
+uint32_t isqrt32(uint32_t v);
+/// Discharge coefficient of an opening in a tank wall, x1000. Wikipedia "Torricelli's law"
+/// (citing tec-science 2019): "in the order of 0.65" for round holes, up to 0.67 for
+/// rectangular ones. Fetched 2026-11-04.
+constexpr uint32_t kDischargeMilli = 650;
+uint32_t orificeConstant(uint32_t full, int cellsPerM, uint32_t tickHz);
 
 /// Deterministic 32-bit hash of (world cell, tick, seed) — the only source of "choice".
 uint32_t cellHash(int x, int y, int z, uint64_t tick, uint32_t seed);

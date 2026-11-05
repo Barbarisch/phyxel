@@ -90,16 +90,54 @@ uint32_t slideThreshold(uint8_t m, uint32_t full, bool diag) {
                                  uint64_t(full) / 1000000u);
 }
 
+uint32_t isqrt32(uint32_t v) {
+    uint32_t r = 0, bit = 1u << 30;
+    while (bit > v) bit >>= 2;
+    while (bit != 0) {
+        if (v >= r + bit) { v -= r + bit; r = (r >> 1) + bit; }
+        else r >>= 1;
+        bit >>= 2;
+    }
+    return r;
+}
+
+uint32_t orificeConstant(uint32_t full, int cpm, uint32_t tickHz) {
+    // Torricelli through one cell face: v = Cd sqrt(2 g dh). Per tick that face passes
+    // v * dt * h^2 m^3 = Cd * sqrt(2 g F cpm) / tickHz * sqrt(dU) fill units, where dU is the head
+    // difference in fill units (F units = one cell height). x1024 fixed point, computed once.
+    if (!full || cpm <= 0 || !tickHz) return 0;
+    const double k = 1024.0 * (kDischargeMilli / 1000.0) * std::sqrt(2.0 * 9.81 * double(full) * double(cpm)) /
+                     double(tickHz);
+    return static_cast<uint32_t>(std::llround(k));
+}
+
 bool MatSimCore::adoptStepped(std::vector<Cell> cells, uint64_t tick, std::vector<uint8_t> m1,
-                              std::vector<uint8_t> m2) {
-    if (!created_ || cells.size() != cur_.size() || m1.size() != marks1_.size() || m2.size() != marks2_.size())
+                              std::vector<uint8_t> m2, std::vector<uint32_t> q, std::vector<uint32_t> h,
+                              std::vector<uint32_t> mx) {
+    if (!created_ || cells.size() != cur_.size() || m1.size() != marks1_.size() || m2.size() != marks2_.size() ||
+        q.size() != q_.size() || h.size() != h_.size() || mx.size() != m_.size())
         return false;
+    for (const auto* v : {&q, &mx})   // audit R3: a pointer from elsewhere must name a cell of this box
+        for (uint32_t p : *v)
+            if (p != kNoHead && ((p >> 8) >= v->size() || (p & 0xFFu) >= 255u)) return false;
     cur_ = std::move(cells);
     nxt_ = cur_;
     tick_ = tick;
     marks1_ = std::move(m1);
     marks2_ = std::move(m2);
+    q_ = std::move(q);
+    h_ = std::move(h);
+    m_ = std::move(mx);
     return true;
+}
+
+void MatSimCore::resetPressure() {
+    q_.assign(cur_.size(), kNoHead);
+    qn_.assign(cur_.size(), kNoHead);
+    m_.assign(cur_.size(), kNoHead);
+    mn_.assign(cur_.size(), kNoHead);
+    h_.assign(cur_.size(), 0u);
+    orificeK_ = orificeConstant(full_, cpm_, cfg_.tickHz);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -131,6 +169,11 @@ bool MatSimCore::create(IVec3 o, IVec3 sz, int cpm, const MicroSolidFn& solid, s
                         (long long)o.x + sz.x, (long long)o.y + sz.y, (long long)o.z + sz.z})
         if (v < -kLim || v > kLim) return refuse("box coordinates out of range (|cell| <= " + std::to_string(kLim) + ")");
     if (!solid) return refuse("no occupancy source");
+    // Audit R1: the Torricelli cap's 32-bit product (K x isqrt(head)) stays in range for 30-960 Hz.
+    if (cfg.tickHz < 30 || cfg.tickHz > 960) return refuse("tickHz must be within 30-960");
+    if (uint64_t(sz.y + 1) * fullUnits(cpm) >= kHeadMask)
+        return refuse("box is " + std::to_string(sz.y) + " cells tall; the pressure head field needs "
+                      "(height + 1) x FULL < 2^30");
 
     std::vector<Cell> cells(n, makeCell(kEmpty, 0));
     for (int y = 0; y < sz.y; ++y)
@@ -152,6 +195,7 @@ bool MatSimCore::create(IVec3 o, IVec3 sz, int cpm, const MicroSolidFn& solid, s
     size_ = sz;
     cur_ = std::move(cells);
     nxt_ = cur_;
+    resetPressure();
     wakeAll();
     if (reason) reason->clear();
     return true;
@@ -192,6 +236,12 @@ void MatSimCore::clear() {
     brickDim_ = {};
     marks1_.clear();
     marks2_.clear();
+    q_.clear();
+    qn_.clear();
+    m_.clear();
+    mn_.clear();
+    h_.clear();
+    orificeK_ = 0;
 }
 
 bool MatSimCore::inBox(IVec3 w) const {
@@ -294,6 +344,8 @@ bool MatSimCore::setCellSize(int ncpm, const MicroSolidFn& fn, std::string* reas
     }
     const uint64_t n = uint64_t(nsz[0]) * uint64_t(nsz[1]) * uint64_t(nsz[2]);
     if (n > kMaxCells) return refuse("the switch would make " + std::to_string(n) + " cells; the limit is 16,777,216");
+    if (uint64_t(nsz[1] + 1) * fullUnits(ncpm) >= kHeadMask)
+        return refuse("the switch would make the box too tall for the pressure head field");
 
     const uint32_t nfull = fullUnits(ncpm);
     auto nidx = [&](int x, int y, int z) {
@@ -399,6 +451,7 @@ bool MatSimCore::setCellSize(int ncpm, const MicroSolidFn& fn, std::string* reas
     nxt_ = cur_;
     trapped_ = std::move(trapped);
     unknownCells_ = 0;
+    resetPressure();
     wakeAll();
     if (reason) reason->clear();
     return true;
@@ -467,7 +520,120 @@ void MatSimCore::copyBlock(int bx, int by, int bz) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The block rules (§6a): gravity, liquid level, slide (angle of repose; liquids at 0 deg).
+// §6d — the pressure (head) field. Every cell, every tick, a gather from the previous tick:
+//  - A liquid cell open above (no liquid, no solid over it) is a FREE SURFACE at elevation
+//    E = (y - box floor) * FULL + fill and offers itself (hops 0). A partial free surface is
+//    atmospheric: it adopts nothing. Every other liquid cell (full, or closed above) and every
+//    air cell adopts its liquid neighbours' sources (hops + 1); air cells never pass them on.
+//  - The source's E is read NOW from the source cell (valid only if it was a free surface last
+//    tick), so a dropping surface is never stale.
+//  - Two pointers. MAX: highest E, then fewest hops, then lowest box index (= world (y, z, x)
+//    order); its E is the cell's head, uniform through a connected body. ROUTE: among the
+//    candidates whose E stands within the deadband of that head (the surfaces that can absorb a
+//    hole), the fewest hops, then lowest index. Pushes and the pressurised test use the head;
+//    hole routing uses the route's hops.
+//  - Flags: closed above (bit 31), a liquid face neighbour full to within the deadband (bit 30).
+//  - A cell whose pointer or head word changed marks its brick, so sleep wakes on a far change.
+uint64_t MatSimCore::pressurePass(std::vector<uint8_t>& fresh) {
+    const uint32_t F = full_;
+    uint64_t changedCells = 0;
+    const size_t layer = size_t(size_.x) * size_t(size_.z);
+    auto liquidCell = [](Cell c) {
+        const uint8_t m = cellMaterial(c);
+        return m != kSolid && m != kEmpty && phaseOf(m) == Phase::Liquid && cellFill(c) > 0;
+    };
+    static const int kD[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    for (int ly = 0; ly < size_.y; ++ly)
+        for (int lz = 0; lz < size_.z; ++lz)
+            for (int lx = 0; lx < size_.x; ++lx) {
+                const size_t i = index(lx, ly, lz);
+                const IVec3 w{origin_.x + lx, origin_.y + ly, origin_.z + lz};
+                const Cell c = cur_[i];
+                uint32_t qv = kNoHead, hv = 0, mv = kNoHead;
+                const uint8_t m = cellMaterial(c);
+                const bool liq = liquidCell(c);
+                if (liq || m == kEmpty) {
+                    const uint32_t f = cellFill(c);
+                    const Cell above = at({w.x, w.y + 1, w.z});
+                    const bool solidAbove = isSolid(above), liqAbove = liquidCell(above);
+                    const bool openAbove = !solidAbove && !liqAbove;
+                    bool fullNbr = false;
+                    for (const auto& d : kD) {
+                        const Cell n = at({w.x + d[0], w.y + d[1], w.z + d[2]});
+                        // "Full" here = within the deadband of full: level's remainders leave such cells.
+                        if (liquidCell(n) && cellFill(n) + pressureDeadband() >= F && (!liq || cellMaterial(n) == m)) {
+                            fullNbr = true;
+                            break;
+                        }
+                    }
+                    // Free surfaces (liquid, open above) offer themselves; a PARTIAL one is atmospheric
+                    // and adopts nothing. Everything else that is liquid or air carries heads.
+                    const bool surface = liq && openAbove;
+                    const bool adopts = !(surface && f < F);
+                    // 1. MAX: the highest surface reachable (ties: fewest hops, lowest index).
+                    const uint32_t db = pressureDeadband();
+                    bool have = false;
+                    uint32_t bE = 0, bAge = 0, bPtr = 0;
+                    auto offerMax = [&](uint32_t e, uint32_t age, uint32_t ptr) {
+                        if (!have || e > bE || (e == bE && (age < bAge || (age == bAge && ptr < bPtr)))) {
+                            have = true; bE = e; bAge = age; bPtr = ptr;
+                        }
+                    };
+                    // 2. ROUTE: the nearest surface standing within the deadband of that max.
+                    bool haveR = false;
+                    uint32_t rAge = 0, rPtr = 0;
+                    struct Cand { uint32_t e, age, ptr; };
+                    Cand rc[7];
+                    int nrc = 0;
+                    const uint32_t selfE = uint32_t(ly) * F + f;
+                    if (surface) { offerMax(selfE, 0, uint32_t(i)); rc[nrc++] = {selfE, 0, uint32_t(i)}; }
+                    if (adopts) {
+                        for (const auto& d : kD) {
+                            const IVec3 nw{w.x + d[0], w.y + d[1], w.z + d[2]};
+                            if (!inBox(nw)) continue;
+                            const size_t ni = index(nw.x - origin_.x, nw.y - origin_.y, nw.z - origin_.z);
+                            const Cell n = cur_[ni];
+                            if (!liquidCell(n) || (liq && cellMaterial(n) != m)) continue;
+                            for (int field = 0; field < 2; ++field) {
+                                const uint32_t qn = field == 0 ? m_[ni] : q_[ni];
+                                if (qn == kNoHead) continue;
+                                const uint32_t age = qn & 0xFFu;
+                                if (age + 1 >= 255u) continue;
+                                const uint32_t src = qn >> 8;
+                                // The source was a free surface last tick (it pointed at itself in this field).
+                                if ((field == 0 ? m_[src] : q_[src]) != (src << 8)) continue;
+                                const Cell sc = cur_[src];
+                                if (!liquidCell(sc) || cellMaterial(sc) != cellMaterial(n)) continue;
+                                const uint32_t e = uint32_t(src / layer) * F + cellFill(sc);
+                                if (field == 0) offerMax(e, age + 1, src);
+                                else rc[nrc++] = {e, age + 1, src};
+                            }
+                        }
+                    }
+                    for (int k = 0; k < nrc; ++k) {
+                        if (!have || rc[k].e + db < bE) continue;   // not an absorber for this head
+                        if (!haveR || rc[k].age < rAge || (rc[k].age == rAge && rc[k].ptr < rPtr)) {
+                            haveR = true; rAge = rc[k].age; rPtr = rc[k].ptr;
+                        }
+                    }
+                    if (have) { mv = (bPtr << 8) | bAge; hv = bE + 1; }
+                    if (haveR) qv = (rPtr << 8) | rAge;
+                    if (!openAbove) hv |= kHeadClosed;
+                    if (fullNbr) hv |= kHeadFullNbr;
+                }
+                qn_[i] = qv;
+                mn_[i] = mv;
+                if (qv != q_[i] || mv != m_[i] || hv != h_[i]) { fresh[brickOf(w.x, w.y, w.z)] = 1; ++changedCells; }
+                h_[i] = hv;   // no other cell reads h_ in this pass
+            }
+    q_.swap(qn_);
+    m_.swap(mn_);
+    return changedCells;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The block rules (§6a): gravity, liquid level, slide (angle of repose; liquids at 0 deg), and
+// (§6d) pressure: flow from a full cell to a neighbour whose surface is below the full cell's head.
 
 bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
     Cell c[2][2][2];   // [dy][dz][dx]
@@ -479,7 +645,32 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
     const uint32_t F = full_;
     auto setc = [](Cell& cell, uint8_t m, uint32_t f) { cell = f ? makeCell(m, f) : makeCell(kEmpty, 0); };
 
+    // §6d: this tick's head field for the block's cells (bit i = dx + 2 dz + 4 dy).
+    const bool P = cfg_.pressure;
+    const uint32_t db = pressureDeadband();
+    uint32_t hd[8] = {}, ag[8] = {};
+    bool inb[8] = {}, intr[8] = {}, fnb[8] = {};
+    if (P)
+        for (int i = 0; i < 8; ++i) {
+            const IVec3 w{bx + (i & 1), by + (i >> 2), bz + ((i >> 1) & 1)};
+            if (!inBox(w)) { ag[i] = 255; continue; }
+            const size_t j = index(w.x - origin_.x, w.y - origin_.y, w.z - origin_.z);
+            inb[i] = true;
+            hd[i] = h_[j] & kHeadMask;
+            intr[i] = (h_[j] & kHeadClosed) != 0;   // closed above: liquid or solid over it
+            fnb[i] = (h_[j] & kHeadFullNbr) != 0;   // a full liquid face neighbour: a possible donor
+            ag[i] = q_[j] & 0xFFu;
+        }
+    auto cellRef = [&](int i) -> Cell& { return c[i >> 2][(i >> 1) & 1][i & 1]; };
+    auto elev = [&](int i) { return uint32_t(by + (i >> 2) - origin_.y) * F + cellFill(cellRef(i)); };
+    // A pressurised hole: a closed, not-full cell beside a full one, whose head stands above
+    // `e` + deadband. Only such holes leave gravity / level / slide to the pressure rule.
+    auto pressurised = [&](int i, uint32_t e) {
+        return P && inb[i] && intr[i] && fnb[i] && hd[i] != 0 && hd[i] - 1 > e + db;
+    };
+
     // 1. Gravity, per column, top -> bottom.
+    bool fell[4] = {};   // §6d: a liquid fall in this column this evaluation (the pressure rule never undoes it)
     for (int dz = 0; dz < 2; ++dz)
         for (int dx = 0; dx < 2; ++dx) {
             Cell& top = c[1][dz][dx];
@@ -487,12 +678,15 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
             const uint8_t m = cellMaterial(top);
             if (!isMobile(m) || isSolid(bot)) continue;
             if (cellMaterial(bot) != kEmpty && cellMaterial(bot) != m) continue;
+            // §6d: under pressure from elsewhere, a hole is filled by the pressure rule, not by a fall.
+            if (phaseOf(m) == Phase::Liquid && pressurised(dx + 2 * dz, elev(dx + 2 * dz + 4))) continue;
             const uint32_t mv = std::min(cellFill(top), F - cellFill(bot));
             if (!mv) continue;
             uint32_t land = mv;
             if (cfg_.testLeakOneUnit) { land -= 1; cfg_.testLeakOneUnit = false; }   // TEST-ONLY control
             setc(bot, m, cellFill(bot) + land);
             setc(top, m, cellFill(top) - mv);
+            if (phaseOf(m) == Phase::Liquid) fell[dx + 2 * dz] = true;
         }
 
     // 2. Liquid level, per layer, over supported cells of one liquid (or empty), deadband 1 unit.
@@ -508,6 +702,8 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
                 if (m != kEmpty && phaseOf(m) != Phase::Liquid) continue;
                 const Cell below = dy ? c[0][dz][dx] : readPrev(bx + dx, by - 1, bz + dz);
                 if (!(isSolid(below) || cellFill(below) == F)) continue;   // unsupported
+                const int bi = dx + 2 * dz + 4 * dy;
+                if (cellFill(cell) < F && pressurised(bi, elev(bi))) continue;   // §6d: a hole under pressure
                 cand[dz][dx] = true;
             }
         // Face-connected components of the 2x2 layer: a cell's face neighbours differ in exactly
@@ -592,6 +788,8 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
             if (isSolid(cell)) continue;
             if (cellMaterial(cell) != kEmpty && cellMaterial(cell) != m) continue;
             if (cellFill(cell) >= F) continue;
+            const int di = bxx + 2 * bzz + 4 * dy;
+            if (phaseOf(m) == Phase::Liquid && pressurised(di, elev(di))) continue;   // §6d
             ty = dy;
             break;
         }
@@ -628,6 +826,64 @@ bool MatSimCore::evalBlock(int bx, int by, int bz, int /*parity*/) {
         setc(src, m, cellFill(src) - uint32_t(mv));
     }
 
+    // 4. Pressure (§6d). For each not-full cell X in fixed order, a full liquid face neighbour Y in
+    //    the block whose head stands above X's surface by more than the deadband pushes fill into X:
+    //  - into an INTERIOR X (a hole under water or in a pipe) only from a Y nearer the source
+    //    (fewer hops): holes travel upstream to the high surface instead of diffusing;
+    //  - into an OPEN X from below (a rising column, an outlet), or sideways if X is unsupported
+    //    (a jet from a wall); open X sideways and supported is the level rule's;
+    //  - from above: everything that fits (a fall). Otherwise half the head excess, capped by
+    //    Torricelli through one face (orificeK_).
+    //  Ties between donors: fewest hops, then vertical, x, z.
+    if (P)
+        for (int i = 0; i < 8; ++i) {
+            if (!inb[i]) continue;
+            Cell& X = cellRef(i);
+            if (isSolid(X)) continue;
+            const uint8_t mx = cellMaterial(X);
+            if (mx != kEmpty && phaseOf(mx) != Phase::Liquid) continue;
+            const uint32_t fx = cellFill(X);
+            if (fx >= F) continue;
+            const uint32_t ex = elev(i);
+            const int dy = i >> 2;
+            int best = -1;
+            for (int k = 0; k < 3; ++k) {
+                const int j = i ^ (k == 0 ? 4 : (k == 1 ? 1 : 2));
+                if (!inb[j]) continue;
+                const Cell Y = cellRef(j);
+                const uint8_t my = cellMaterial(Y);
+                // A donor is full to within the deadband.
+                if (my == kEmpty || my == kSolid || phaseOf(my) != Phase::Liquid || cellFill(Y) + db < F) continue;
+                if (mx != kEmpty && my != mx) continue;
+                const bool fromAbove = (k == 0 && dy == 0);
+                // A fall needs head > surface + deadband; any other push needs > 2 deadbands, so
+                // the excess left after a half-step push still keeps gravity off (no push/fall cycle).
+                if (hd[j] == 0 || hd[j] - 1 <= ex + (fromAbove ? db : 2 * db)) continue;
+                if (k == 0 && dy == 1 && fell[i & 3]) continue;   // never push back what just fell
+                if (intr[i]) {
+                    if (ag[j] >= ag[i]) continue;
+                } else {
+                    if (k == 0 && dy == 0) continue;   // Y above an open X cannot happen; keep it out
+                    if (k != 0 && fx + db < F) {   // open, sideways: only unsupported, or a top-off
+                        const Cell below = dy ? cellRef(i - 4) : readPrev(bx + (i & 1), by - 1, bz + ((i >> 1) & 1));
+                        if (isSolid(below) || cellFill(below) == F) continue;
+                    }
+                }
+                if (best < 0 || ag[j] < ag[best]) best = j;
+            }
+            if (best < 0) continue;
+            const uint32_t fy = cellFill(cellRef(best));
+            uint32_t mv = std::min(F - fx, fy);
+            if (!(best == (i ^ 4) && dy == 0)) {
+                const uint32_t d = hd[best] - 1 - ex;
+                mv = std::min(mv, std::max(1u, d / 2));
+                mv = std::min(mv, std::max(1u, (orificeK_ * isqrt32(d)) >> 10));
+            }
+            const uint8_t mm = cellMaterial(cellRef(best));
+            setc(cellRef(best), mm, fy - mv);
+            setc(X, mm, fx + mv);
+        }
+
     bool changed = false;
     for (int dy = 0; dy < 2; ++dy)
         for (int dz = 0; dz < 2; ++dz)
@@ -647,14 +903,18 @@ StepStats MatSimCore::step(int n) {
     std::vector<uint8_t> process(nb), fresh(nb);
     for (int t = 0; t < n; ++t) {
         const int p = int(tick_ & 1u);
-        // Process mask: bricks with a moved brick (tick-1 or tick-2) in their 3^3 neighbourhood.
+        // §6d: the head field first; a cell whose head changed marks its brick in this tick's set.
+        std::fill(fresh.begin(), fresh.end(), uint8_t(0));
+        const uint64_t headChanged = cfg_.pressure ? pressurePass(fresh) : 0;
+        // Process mask: bricks with a moved brick (tick-1, tick-2, or a head change now) in their
+        // 3^3 neighbourhood.
         if (cfg_.sleep) {
             std::fill(process.begin(), process.end(), uint8_t(0));
             for (int y = 0; y < brickDim_.y; ++y)
                 for (int z = 0; z < brickDim_.z; ++z)
                     for (int x = 0; x < brickDim_.x; ++x) {
                         const size_t i = size_t(x) + size_t(brickDim_.x) * (size_t(z) + size_t(brickDim_.z) * size_t(y));
-                        if (!(marks1_[i] | marks2_[i])) continue;
+                        if (!(marks1_[i] | marks2_[i] | fresh[i])) continue;
                         for (int dy = -1; dy <= 1; ++dy)
                             for (int dz = -1; dz <= 1; ++dz)
                                 for (int dx = -1; dx <= 1; ++dx) {
@@ -664,7 +924,6 @@ StepStats MatSimCore::step(int n) {
                                 }
                     }
         }
-        std::fill(fresh.begin(), fresh.end(), uint8_t(0));
         uint64_t eligible = 0;
         // World-aligned parity: blocks start where (world cell - p) is even.
         const int x0 = origin_.x - ((origin_.x - p) & 1);
@@ -687,6 +946,8 @@ StepStats MatSimCore::step(int n) {
         ++st.ticks;
         st.eligibleBlocks += eligible;
         st.lastTickEligible = eligible;
+        st.headChanges += headChanged;
+        st.lastTickHeadChanges = headChanged;
     }
     return st;
 }

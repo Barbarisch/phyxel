@@ -7,9 +7,10 @@
 // The kernels (shaders/matsim_block.comp, matsim_dilate.comp) are a line-for-line port and must
 // stay bit-identical to the CPU — pinned by MatSimGpuParity (tests/integration).
 //
-// Per tick: dilate (the brick process mask, and clear this tick's marks) then block (the rules).
-// Cells ping-pong between two buffers and marks rotate over three, so each tick binds one of six
-// descriptor sets (tick mod 6). One submission and one fence per chunk of up to 256 ticks.
+// Per tick: clear this tick's marks, pressure (§6d head field; marks head changes), dilate (the
+// brick process mask) then block (the rules). Cells and head pointers ping-pong between two
+// buffers and marks rotate over three, so each tick binds one of six descriptor sets (tick mod 6).
+// One submission and one fence per chunk of up to 256 ticks.
 
 #include "core/matsim/MatSimCore.h"
 #include <vulkan/vulkan.h>
@@ -41,8 +42,8 @@ public:
 
     /// Step n ticks on the device. Stats as MatSimCore::step reports them.
     StepStats step(int n);
-    /// Bring the stepped state back into the core (cells, tick, marks). The core must hold the
-    /// box that was uploaded.
+    /// Bring the stepped state back into the core (cells, tick, marks, head field). The core must
+    /// hold the box that was uploaded.
     bool download(MatSimCore& core, std::string* err);
 
     uint64_t tick() const { return m_tick; }
@@ -72,16 +73,20 @@ private:
     VkFence m_fence = VK_NULL_HANDLE;
     VkQueryPool m_queries = VK_NULL_HANDLE;
     double m_timestampMs = 0.0;   ///< ms per timestamp tick; 0 = no timestamps on this queue
-    std::unique_ptr<Vulkan::ComputePipeline> m_block, m_dilate;
+    std::unique_ptr<Vulkan::ComputePipeline> m_block, m_dilate, m_pressure;
 
     // The box (from the core at upload).
     IVec3 m_origin{}, m_size{}, m_brickLo{}, m_brickDim{};
     uint32_t m_full = 0, m_seed = 0;
     bool m_sleep = true;
+    bool m_pressureOn = true;                                  ///< §6d
+    uint32_t m_deadband = 0, m_orificeK = 0;   ///< §6d, from the core
     size_t m_cells = 0, m_bricks = 0;
     uint64_t m_tick = 0;   ///< the simulation tick (the core's clock)
     uint64_t m_g = 0;      ///< ticks stepped since upload: selects the buffer roles
     Buffer m_cellBuf[2], m_marks[3], m_process, m_mat, m_stats, m_staging;
+    Buffer m_q[2], m_head;   ///< §6d route pointers (ping-pong with the cells) and head words
+    Buffer m_mx[2];          ///< §6d max pointers (ping-pong)
     double m_lastMsPerTick = -1.0;
 };
 

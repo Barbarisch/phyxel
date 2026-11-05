@@ -14,13 +14,18 @@ constexpr int kSets = 6;      // lcm(2 cell buffers, 3 mark buffers)
 constexpr uint32_t kGroup = 64;
 
 struct BlockPC {
-    int32_t origin[4], size[4], start[4], nblocks[4], brickLo[4], brickDim[4];
+    int32_t origin[4], size[4], start[4], nblocks[4], brickLo[4], brickDim[4], press[4];
 };
 struct DilatePC {
     int32_t brickDim[4], stride[4];
 };
-static_assert(sizeof(BlockPC) == 96, "matsim_block.comp push constants");
+struct PressurePC {
+    int32_t origin[4], size[4], brickLo[4], brickDim[4], extra[4];
+};
+static_assert(sizeof(BlockPC) == 112, "matsim_block.comp push constants");
 static_assert(sizeof(DilatePC) == 32, "matsim_dilate.comp push constants");
+static_assert(sizeof(PressurePC) == 80, "matsim_pressure.comp push constants");
+constexpr int kStatsPerTick = 3;   // eligible, evaluated, head changes
 
 // Dispatch geometry for `count` invocations: rows of at most 65,535 groups.
 void geometry(uint64_t count, uint32_t& gx, uint32_t& gy, uint32_t& stride) {
@@ -30,9 +35,9 @@ void geometry(uint64_t count, uint32_t& gx, uint32_t& gy, uint32_t& stride) {
     stride = gx * kGroup;
 }
 
-// Staging layout: [cells | marks1 | marks2 | stats | material table].
+// Staging layout: [cells | marks1 | marks2 | stats | material table | route ptrs | heads | max ptrs].
 struct Layout {
-    VkDeviceSize cells, m1, m2, stats, mat, total;
+    VkDeviceSize cells, m1, m2, stats, mat, q, head, mx, total;
 };
 Layout layoutFor(size_t cells, size_t bricks) {
     Layout l{};
@@ -40,8 +45,11 @@ Layout layoutFor(size_t cells, size_t bricks) {
     l.m1 = l.cells + cells * 4;
     l.m2 = l.m1 + bricks * 4;
     l.stats = l.m2 + bricks * 4;
-    l.mat = l.stats + kChunk * 2 * 4;
-    l.total = l.mat + 256 * 16;
+    l.mat = l.stats + kChunk * kStatsPerTick * 4;
+    l.q = l.mat + 256 * 16;
+    l.head = l.q + cells * 4;
+    l.mx = l.head + cells * 4;
+    l.total = l.mx + cells * 4;
     return l;
 }
 } // namespace
@@ -84,10 +92,12 @@ bool MatSimGpu::init(VkDevice device, VkPhysicalDevice physical, VkQueue queue, 
     }
     m_block = std::make_unique<Vulkan::ComputePipeline>();
     m_dilate = std::make_unique<Vulkan::ComputePipeline>();
-    if (!m_block->create(device, shaderDir + "/matsim_block.comp.spv", 6, sizeof(BlockPC), kSets) ||
-        !m_dilate->create(device, shaderDir + "/matsim_dilate.comp.spv", 4, sizeof(DilatePC), kSets)) {
+    m_pressure = std::make_unique<Vulkan::ComputePipeline>();
+    if (!m_block->create(device, shaderDir + "/matsim_block.comp.spv", 8, sizeof(BlockPC), kSets) ||
+        !m_dilate->create(device, shaderDir + "/matsim_dilate.comp.spv", 4, sizeof(DilatePC), kSets) ||
+        !m_pressure->create(device, shaderDir + "/matsim_pressure.comp.spv", 9, sizeof(PressurePC), kSets)) {
         if (err) *err = "MatSimGpu: cannot create the compute pipelines from " + shaderDir +
-                        "/matsim_{block,dilate}.comp.spv (run build_shaders.bat?)";
+                        "/matsim_{block,dilate,pressure}.comp.spv (run build_shaders.bat?)";
         shutdown();
         return false;
     }
@@ -100,8 +110,10 @@ void MatSimGpu::shutdown() {
     release();
     if (m_block) m_block->cleanup();
     if (m_dilate) m_dilate->cleanup();
+    if (m_pressure) m_pressure->cleanup();
     m_block.reset();
     m_dilate.reset();
+    m_pressure.reset();
     if (m_queries) vkDestroyQueryPool(m_device, m_queries, nullptr);
     if (m_fence) vkDestroyFence(m_device, m_fence, nullptr);
     if (m_pool) vkDestroyCommandPool(m_device, m_pool, nullptr);
@@ -117,6 +129,9 @@ void MatSimGpu::release() {
     vkDeviceWaitIdle(m_device);
     for (Buffer& b : m_cellBuf) destroyBuffer(b);
     for (Buffer& b : m_marks) destroyBuffer(b);
+    for (Buffer& b : m_q) destroyBuffer(b);
+    for (Buffer& b : m_mx) destroyBuffer(b);
+    destroyBuffer(m_head);
     destroyBuffer(m_process);
     destroyBuffer(m_mat);
     destroyBuffer(m_stats);
@@ -225,6 +240,19 @@ void MatSimGpu::bindSets() {
         m_block->bindBufferInSet(s, 3, fresh.buf, fresh.bytes);
         m_block->bindBufferInSet(s, 4, m_mat.buf, m_mat.bytes);
         m_block->bindBufferInSet(s, 5, m_stats.buf, m_stats.bytes);
+        const Buffer& qPrev = m_q[s % 2];
+        const Buffer& qNow = m_q[(s + 1) % 2];
+        m_block->bindBufferInSet(s, 6, qNow.buf, qNow.bytes);
+        m_block->bindBufferInSet(s, 7, m_head.buf, m_head.bytes);
+        m_pressure->bindBufferInSet(s, 0, cur.buf, cur.bytes);
+        m_pressure->bindBufferInSet(s, 1, qPrev.buf, qPrev.bytes);
+        m_pressure->bindBufferInSet(s, 2, qNow.buf, qNow.bytes);
+        m_pressure->bindBufferInSet(s, 3, m_head.buf, m_head.bytes);
+        m_pressure->bindBufferInSet(s, 4, fresh.buf, fresh.bytes);
+        m_pressure->bindBufferInSet(s, 5, m_mat.buf, m_mat.bytes);
+        m_pressure->bindBufferInSet(s, 6, m_stats.buf, m_stats.bytes);
+        m_pressure->bindBufferInSet(s, 7, m_mx[s % 2].buf, m_mx[s % 2].bytes);
+        m_pressure->bindBufferInSet(s, 8, m_mx[(s + 1) % 2].buf, m_mx[(s + 1) % 2].bytes);
         m_dilate->bindBufferInSet(s, 0, m1.buf, m1.bytes);
         m_dilate->bindBufferInSet(s, 1, m2.buf, m2.bytes);
         m_dilate->bindBufferInSet(s, 2, m_process.buf, m_process.bytes);
@@ -232,6 +260,7 @@ void MatSimGpu::bindSets() {
     }
     m_block->updateDescriptors();
     m_dilate->updateDescriptors();
+    m_pressure->updateDescriptors();
 }
 
 bool MatSimGpu::upload(const MatSimCore& core, std::string* err) {
@@ -244,8 +273,11 @@ bool MatSimGpu::upload(const MatSimCore& core, std::string* err) {
         const Layout l = layoutFor(n, nb);
         bool ok = createBuffer(m_cellBuf[0], n * 4, false, err) && createBuffer(m_cellBuf[1], n * 4, false, err);
         for (Buffer& b : m_marks) ok = ok && createBuffer(b, nb * 4, false, err);
+        for (Buffer& b : m_q) ok = ok && createBuffer(b, n * 4, false, err);
+        for (Buffer& b : m_mx) ok = ok && createBuffer(b, n * 4, false, err);
+        ok = ok && createBuffer(m_head, n * 4, false, err);
         ok = ok && createBuffer(m_process, nb * 4, false, err) && createBuffer(m_mat, 256 * 16, false, err) &&
-             createBuffer(m_stats, kChunk * 2 * 4, false, err) && createBuffer(m_staging, l.total, true, err);
+             createBuffer(m_stats, kChunk * kStatsPerTick * 4, false, err) && createBuffer(m_staging, l.total, true, err);
         if (!ok) { release(); return false; }
         m_cells = n;
         m_bricks = nb;
@@ -258,6 +290,9 @@ bool MatSimGpu::upload(const MatSimCore& core, std::string* err) {
     m_full = core.full();
     m_seed = core.config().seed;
     m_sleep = core.config().sleep;
+    m_pressureOn = core.config().pressure;
+    m_deadband = core.pressureDeadband();
+    m_orificeK = core.orificeK();
     m_tick = core.tick();
     m_g = 0;
 
@@ -267,6 +302,9 @@ bool MatSimGpu::upload(const MatSimCore& core, std::string* err) {
     auto* m1 = reinterpret_cast<uint32_t*>(base + l.m1);
     auto* m2 = reinterpret_cast<uint32_t*>(base + l.m2);
     for (size_t i = 0; i < nb; ++i) { m1[i] = core.marksTick1()[i]; m2[i] = core.marksTick2()[i]; }
+    std::memcpy(base + l.q, core.headPtr().data(), n * 4);
+    std::memcpy(base + l.head, core.head().data(), n * 4);
+    std::memcpy(base + l.mx, core.headMaxPtr().data(), n * 4);
     auto* mt = reinterpret_cast<uint32_t*>(base + l.mat);
     for (int m = 0; m < 256; ++m) {
         mt[4 * m + 0] = static_cast<uint32_t>(materialTable()[m].phase);
@@ -283,6 +321,11 @@ bool MatSimGpu::upload(const MatSimCore& core, std::string* err) {
     copy(m_marks[2], l.m1, nb * 4);
     copy(m_marks[1], l.m2, nb * 4);
     copy(m_mat, l.mat, 256 * 16);
+    copy(m_q[0], l.q, n * 4);   // g = 0: qPrev = q[0]
+    copy(m_q[1], l.q, n * 4);   // audit D1: with pressure off nothing writes q[1], and download reads q[g % 2]
+    copy(m_head, l.head, n * 4);
+    copy(m_mx[0], l.mx, n * 4);
+    copy(m_mx[1], l.mx, n * 4);
     submitAndWait(cmd);
     return true;
 }
@@ -296,6 +339,13 @@ StepStats MatSimGpu::step(int n) {
     uint32_t dgx, dgy, dstride;
     geometry(m_bricks, dgx, dgy, dstride);
     DilatePC dpc{{m_brickDim.x, m_brickDim.y, m_brickDim.z, int32_t(m_bricks)}, {int32_t(dstride), 0, 0, 0}};
+    uint32_t pgx, pgy, pstride;
+    geometry(m_cells, pgx, pgy, pstride);
+    PressurePC ppc{{m_origin.x, m_origin.y, m_origin.z, int32_t(m_full)},
+                   {m_size.x, m_size.y, m_size.z, int32_t(m_deadband)},
+                   {m_brickLo.x, m_brickLo.y, m_brickLo.z, 0},
+                   {m_brickDim.x, m_brickDim.y, m_brickDim.z, int32_t(pstride)},
+                   {0, int32_t(m_cells), 0, 0}};
 
     for (int done = 0; done < n;) {
         const int k = std::min(kChunk, n - done);
@@ -324,7 +374,21 @@ StepStats MatSimGpu::step(int n) {
             pc.nblocks[0] = nbk[0]; pc.nblocks[1] = nbk[1]; pc.nblocks[2] = nbk[2]; pc.nblocks[3] = t;
             pc.brickLo[0] = m_brickLo.x; pc.brickLo[1] = m_brickLo.y; pc.brickLo[2] = m_brickLo.z; pc.brickLo[3] = m_sleep ? 1 : 0;
             pc.brickDim[0] = m_brickDim.x; pc.brickDim[1] = m_brickDim.y; pc.brickDim[2] = m_brickDim.z; pc.brickDim[3] = int32_t(stride);
+            pc.press[0] = m_pressureOn ? 1 : 0; pc.press[1] = int32_t(m_deadband); pc.press[2] = int32_t(m_orificeK); pc.press[3] = 0;
 
+            // This tick's marks start empty; the pressure pass adds head changes, the block pass moves.
+            const Buffer& fresh = m_marks[set % 3];
+            vkCmdFillBuffer(cmd, fresh.buf, 0, VK_WHOLE_SIZE, 0);
+            barrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+            if (m_pressureOn) {
+                ppc.extra[0] = t;
+                m_pressure->bind(cmd, set);
+                m_pressure->pushConstants(cmd, &ppc, sizeof(ppc));
+                m_pressure->dispatch(cmd, pgx, pgy);
+                barrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+            }
             m_dilate->bind(cmd, set);
             m_dilate->pushConstants(cmd, &dpc, sizeof(dpc));
             m_dilate->dispatch(cmd, dgx, dgy);
@@ -333,13 +397,16 @@ StepStats MatSimGpu::step(int n) {
             m_block->bind(cmd, set);
             m_block->pushConstants(cmd, &pc, sizeof(pc));
             m_block->dispatch(cmd, gx, gy);
-            barrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+            // Audit D2: the next tick starts with a TRANSFER fill of a mark buffer this tick's dilate
+            // read, so the end-of-tick dependency must cover the transfer stage too.
+            barrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
         }
         if (timed) vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_queries, 1);
         barrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
                 VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
-        VkBufferCopy r{0, l.stats, VkDeviceSize(kChunk) * 2 * 4};
+        VkBufferCopy r{0, l.stats, VkDeviceSize(kChunk) * kStatsPerTick * 4};
         vkCmdCopyBuffer(cmd, m_stats.buf, m_staging.buf, 1, &r);
         barrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT,
                 VK_ACCESS_HOST_READ_BIT);   // the host reads staging after the fence
@@ -347,10 +414,12 @@ StepStats MatSimGpu::step(int n) {
 
         const auto* s = reinterpret_cast<const uint32_t*>(static_cast<const uint8_t*>(m_staging.mapped) + l.stats);
         for (int t = 0; t < k; ++t) {
-            st.eligibleBlocks += s[2 * t];
-            st.evaluatedBlocks += s[2 * t + 1];
+            st.eligibleBlocks += s[kStatsPerTick * t];
+            st.evaluatedBlocks += s[kStatsPerTick * t + 1];
+            st.headChanges += s[kStatsPerTick * t + 2];
         }
-        st.lastTickEligible = s[2 * (k - 1)];
+        st.lastTickEligible = s[kStatsPerTick * (k - 1)];
+        st.lastTickHeadChanges = s[kStatsPerTick * (k - 1) + 2];
         if (timed) {
             uint64_t ts[2] = {0, 0};
             if (vkGetQueryPoolResults(m_device, m_queries, 0, 2, sizeof(ts), ts, sizeof(uint64_t),
@@ -384,6 +453,9 @@ bool MatSimGpu::download(MatSimCore& core, std::string* err) {
     copy(m_cellBuf[m_g % 2], l.cells, m_cells * 4);
     copy(m_marks[(m_g + 2) % 3], l.m1, m_bricks * 4);
     copy(m_marks[(m_g + 1) % 3], l.m2, m_bricks * 4);
+    copy(m_q[m_g % 2], l.q, m_cells * 4);
+    copy(m_head, l.head, m_cells * 4);
+    copy(m_mx[m_g % 2], l.mx, m_cells * 4);
     barrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT,
             VK_ACCESS_HOST_READ_BIT);
     submitAndWait(cmd);
@@ -394,7 +466,13 @@ bool MatSimGpu::download(MatSimCore& core, std::string* err) {
     const auto* a = reinterpret_cast<const uint32_t*>(base + l.m1);
     const auto* b = reinterpret_cast<const uint32_t*>(base + l.m2);
     for (size_t i = 0; i < m_bricks; ++i) { m1[i] = a[i] ? 1 : 0; m2[i] = b[i] ? 1 : 0; }
-    if (!core.adoptStepped(std::move(cells), m_tick, std::move(m1), std::move(m2))) {
+    std::vector<uint32_t> q(m_cells), h(m_cells);
+    std::memcpy(q.data(), base + l.q, m_cells * 4);
+    std::memcpy(h.data(), base + l.head, m_cells * 4);
+    std::vector<uint32_t> mx(m_cells);
+    std::memcpy(mx.data(), base + l.mx, m_cells * 4);
+    if (!core.adoptStepped(std::move(cells), m_tick, std::move(m1), std::move(m2), std::move(q), std::move(h),
+                           std::move(mx))) {
         if (err) *err = "MatSimGpu: the core refused the stepped state";
         return false;
     }

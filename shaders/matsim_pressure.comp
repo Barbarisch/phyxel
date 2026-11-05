@@ -1,0 +1,140 @@
+#version 450
+// docs/MaterialSimPlan.md §6d — MatSim pressure: the head field, one cell per invocation.
+// A line-for-line port of MatSimCore::pressurePass (engine/src/core/matsim/MatSimCore.cpp), the
+// source of truth: integer only, a gather from the previous tick (cur cells, qPrev), writes only
+// this cell's qNext and head word. Must be bit-identical to the CPU (MatSimGpuParity).
+//
+// Head word: bit 31 = closed above, bit 30 = a full (to within the deadband) liquid neighbour,
+// bits 0..29 = head + 1 (0 = none). Pointer words: (source box index << 8) | hops, or 0xFFFFFFFF;
+// MAX = the highest reachable surface (its E is the head), ROUTE = the nearest surface within the
+// deadband of that head (where a hole is absorbed).
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 0) readonly buffer Cur { uint cur[]; };
+layout(std430, binding = 1) readonly buffer QPrev { uint qPrev[]; };
+layout(std430, binding = 2) writeonly buffer QNext { uint qNext[]; };
+layout(std430, binding = 3) buffer Head { uint head[]; };          // read last tick's, write this tick's
+layout(std430, binding = 4) buffer Fresh { uint fresh[]; };        // bricks changed this tick (1)
+layout(std430, binding = 5) readonly buffer Mat { uvec4 mat[]; };  // per material: phase, ...
+layout(std430, binding = 6) buffer Stats { uint stats[]; };        // per tick slot: eligible, evaluated, head changes
+layout(std430, binding = 7) readonly buffer MPrev { uint mPrev[]; };  // max pointers, last tick
+layout(std430, binding = 8) writeonly buffer MNext { uint mNext[]; }; // max pointers, this tick
+
+layout(push_constant) uniform PC {
+    ivec4 origin;     // box origin (world cells); w = FULL units
+    ivec4 size;       // box size (cells);         w = pressure deadband (units)
+    ivec4 brickLo;    // brick grid origin;        w = unused
+    ivec4 brickDim;   // brick grid size;          w = invocation stride of a dispatch row
+    ivec4 extra;      // x = stats slot, y = cell count
+} pc;
+
+const uint kSolidCell = 0xFF000000u;
+const uint kFillMask = 0x00FFFFFFu;
+const uint kNoHead = 0xFFFFFFFFu;
+const uint PH_LIQUID = 1u;
+
+shared uint sChanged;
+
+uint cmat(uint cell) { return cell >> 24; }
+uint cfill(uint cell) { return cell & kFillMask; }
+bool isSolid(uint cell) { return cmat(cell) == 255u; }
+bool liquidCell(uint cell) {
+    uint m = cmat(cell);
+    return m != 255u && m != 0u && mat[m].x == PH_LIQUID && cfill(cell) > 0u;
+}
+bool inBoxL(ivec3 l) { return l.x >= 0 && l.y >= 0 && l.z >= 0 && l.x < pc.size.x && l.y < pc.size.y && l.z < pc.size.z; }
+uint indexL(ivec3 l) { return uint(l.x) + uint(pc.size.x) * (uint(l.z) + uint(pc.size.z) * uint(l.y)); }
+uint atL(ivec3 l) { return inBoxL(l) ? cur[indexL(l)] : kSolidCell; }
+uint brickOfW(ivec3 w) {
+    ivec3 b = (w >> 3) - pc.brickLo.xyz;
+    return uint(b.x) + uint(pc.brickDim.x) * (uint(b.z) + uint(pc.brickDim.z) * uint(b.y));
+}
+
+const ivec3 kD[6] = ivec3[6](ivec3(1, 0, 0), ivec3(-1, 0, 0), ivec3(0, 1, 0), ivec3(0, -1, 0), ivec3(0, 0, 1), ivec3(0, 0, -1));
+
+// Candidate state (private).
+bool have;
+uint bE, bAge, bPtr;
+void offerMax(uint e, uint age, uint ptr) {
+    if (!have || e > bE || (e == bE && (age < bAge || (age == bAge && ptr < bPtr)))) { have = true; bE = e; bAge = age; bPtr = ptr; }
+}
+uint rcE[7], rcAge[7], rcPtr[7];
+int nrc;
+
+void main() {
+    if (gl_LocalInvocationIndex == 0u) sChanged = 0u;
+    barrier();
+    const uint i = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * uint(pc.brickDim.w);
+    const uint n = uint(pc.extra.y);
+    if (i < n) {
+        const uint F = uint(pc.origin.w);
+        const uint db = uint(pc.size.w);
+        const uint sx = uint(pc.size.x), sz = uint(pc.size.z);
+        const uint layer = sx * sz;
+        const ivec3 l = ivec3(int(i % sx), int(i / layer), int((i / sx) % sz));
+        const uint c = cur[i];
+        const uint qOld = qPrev[i];
+        const uint mOld = mPrev[i];
+        uint qv = kNoHead, hv = 0u, mv = kNoHead;
+        const uint m = cmat(c);
+        const bool liq = liquidCell(c);
+        if (liq || m == 0u) {
+            const uint f = cfill(c);
+            const uint above = atL(l + ivec3(0, 1, 0));
+            const bool solidAbove = isSolid(above), liqAbove = liquidCell(above);
+            const bool openAbove = !solidAbove && !liqAbove;
+            bool fullNbr = false;
+            for (int k = 0; k < 6; ++k) {
+                const uint nc = atL(l + kD[k]);
+                if (liquidCell(nc) && cfill(nc) + db >= F && (!liq || cmat(nc) == m)) { fullNbr = true; break; }
+            }
+            const bool surface = liq && openAbove;
+            const bool adopts = !(surface && f < F);
+            have = false; bE = 0u; bAge = 0u; bPtr = 0u;
+            nrc = 0;
+            const uint selfE = uint(l.y) * F + f;
+            if (surface) { offerMax(selfE, 0u, i); rcE[0] = selfE; rcAge[0] = 0u; rcPtr[0] = i; nrc = 1; }
+            if (adopts) {
+                for (int k = 0; k < 6; ++k) {
+                    const ivec3 nl = l + kD[k];
+                    if (!inBoxL(nl)) continue;
+                    const uint ni = indexL(nl);
+                    const uint nc = cur[ni];
+                    if (!liquidCell(nc) || (liq && cmat(nc) != m)) continue;
+                    for (int field = 0; field < 2; ++field) {
+                        const uint qn = field == 0 ? mPrev[ni] : qPrev[ni];
+                        if (qn == kNoHead) continue;
+                        const uint age = qn & 0xFFu;
+                        if (age + 1u >= 255u) continue;
+                        const uint src = qn >> 8;
+                        if ((field == 0 ? mPrev[src] : qPrev[src]) != (src << 8)) continue;
+                        const uint sc = cur[src];
+                        if (!liquidCell(sc) || cmat(sc) != cmat(nc)) continue;
+                        const uint e = (src / layer) * F + cfill(sc);
+                        if (field == 0) offerMax(e, age + 1u, src);
+                        else { rcE[nrc] = e; rcAge[nrc] = age + 1u; rcPtr[nrc] = src; ++nrc; }
+                    }
+                }
+            }
+            bool haveR = false;
+            uint rAge = 0u, rPtr = 0u;
+            for (int k = 0; k < nrc; ++k) {
+                if (!have || rcE[k] + db < bE) continue;
+                if (!haveR || rcAge[k] < rAge || (rcAge[k] == rAge && rcPtr[k] < rPtr)) { haveR = true; rAge = rcAge[k]; rPtr = rcPtr[k]; }
+            }
+            if (have) { mv = (bPtr << 8) | bAge; hv = bE + 1u; }
+            if (haveR) qv = (rPtr << 8) | rAge;
+            if (!openAbove) hv |= 0x80000000u;
+            if (fullNbr) hv |= 0x40000000u;
+        }
+        qNext[i] = qv;
+        mNext[i] = mv;
+        if (qv != qOld || mv != mOld || hv != head[i]) {
+            fresh[brickOfW(l + pc.origin.xyz)] = 1u;   // every writer stores the same value
+            atomicAdd(sChanged, 1u);
+        }
+        head[i] = hv;   // no other invocation reads head[] in this pass
+    }
+    barrier();
+    if (gl_LocalInvocationIndex == 0u && sChanged != 0u) atomicAdd(stats[3u * uint(pc.extra.x) + 2u], sChanged);
+}

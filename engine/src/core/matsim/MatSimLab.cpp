@@ -82,6 +82,7 @@ StepStats MatSimLab::doStep(int n) {
     }
     lastWallMsPerTick_ = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / n;
     lastEligible_ = st.lastTickEligible;
+    lastHeadChanges_ = st.lastTickHeadChanges;
     if (st.eligibleBlocks > 0) facesDirty_ = true;
     return st;
 }
@@ -166,6 +167,7 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         Config cfg;
         cfg.seed = p.value("seed", 1u);
         cfg.sleep = p.value("sleep", true);
+        cfg.pressure = p.value("pressure", true);   // §6d; false = the P1 rules (A/B control)
         const std::string backend = p.value("backend", std::string(gpu_ ? "gpu" : "cpu"));
         if (backend != "gpu" && backend != "cpu") return refuse("backend must be \"gpu\" or \"cpu\"");
         if (backend == "gpu" && !gpu_) return refuse("backend gpu unavailable: " + (gpuError_.empty() ? std::string("no device") : gpuError_));
@@ -183,12 +185,14 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         acc_ = 0.0;
         droppedTicks_ = 0;
         lastEligible_ = 0;
+        lastHeadChanges_ = 0;
         facesDirty_ = true;
         gpuError_.clear();
         out["created"] = true;
         out["backend"] = useGpu_ ? "gpu" : "cpu";
         out["seed"] = cfg.seed;
         out["sleep"] = cfg.sleep;
+        out["pressure"] = cfg.pressure;
     } else if (action == "fill_box") {
         uint8_t mat = 0;
         const std::string name = p.value("material", std::string());
@@ -219,6 +223,9 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         out["eligible_blocks"] = st.eligibleBlocks;
         out["evaluated_blocks"] = st.evaluatedBlocks;
         out["last_tick_eligible"] = st.lastTickEligible;
+        out["head_changes"] = st.headChanges;
+        out["last_tick_head_changes"] = st.lastTickHeadChanges;
+        out["quiet"] = st.ticks > 0 && st.lastTickQuiet();
         out["gpu_ms_per_tick"] = lastGpuMsPerTick_;
         out["wall_ms_per_tick"] = lastWallMsPerTick_;
         if (!ensureHost()) return refuse("the device state could not be read back: " + gpuError_);
@@ -259,6 +266,7 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         out["tick"] = core_.tick();
         out["sim_seconds"] = double(core_.tick()) * kTick;
         out["last_tick_eligible"] = lastEligible_;
+        out["last_tick_head_changes"] = lastHeadChanges_;
         out["unknown_cells"] = core_.unknownCells();
         out["trapped_units"] = core_.trappedUnits();
         out["gpu_ms_per_tick"] = lastGpuMsPerTick_;
@@ -270,6 +278,7 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
         out["view_faces_cut"] = facesCut_;
         out["seed"] = core_.config().seed;
         out["sleep"] = core_.config().sleep;
+        out["pressure"] = core_.config().pressure;
         if (!gpuError_.empty()) out["gpu_error"] = gpuError_;
     } else if (action == "view") {
         if (!p.contains("on") || !p["on"].is_boolean()) return refuse("on (bool) is required");
@@ -351,9 +360,14 @@ void MatSimLab::handle(const std::string& action, const Json& p, Json& out) {
                     ++differing;
                 }
         const bool marks = ref.marksTick1() == core_.marksTick1() && ref.marksTick2() == core_.marksTick2();
+        const bool heads = ref.headPtr() == core_.headPtr() && ref.head() == core_.head() &&
+                           ref.headMaxPtr() == core_.headMaxPtr();   // §6d
         out["ticks"] = n;
-        out["identical"] = differing == 0 && marks && sc.eligibleBlocks == sg.eligibleBlocks &&
-                           sc.evaluatedBlocks == sg.evaluatedBlocks && ref.tick() == core_.tick();
+        out["identical"] = differing == 0 && marks && heads && sc.eligibleBlocks == sg.eligibleBlocks &&
+                           sc.evaluatedBlocks == sg.evaluatedBlocks && sc.headChanges == sg.headChanges &&
+                           ref.tick() == core_.tick();
+        out["heads_identical"] = heads;
+        out["head_changes_cpu_gpu"] = {sc.headChanges, sg.headChanges};
         out["differing_cells"] = differing;
         out["first_difference"] = first;
         out["marks_identical"] = marks;

@@ -235,13 +235,17 @@ MatSimCore unevenBasin(Config cfg = {}) {
 TEST(MatSimSleep, StillBasinReachesZeroEligible) {
     MatSimCore s = unevenBasin();
     const int limit = 600;   // prediction: asleep within 10 s of simulated time at 60 Hz
-    // Asleep = nothing eligible on two consecutive ticks (both block offsets).
+    // Asleep = quiet (nothing moved, no head changed) on two consecutive ticks (both block offsets).
+    // §6d: before the pressure rule this counted moves only; the head field can still be settling
+    // on a tick that moves nothing.
     int asleepAt = -1;
-    uint64_t lastEligible = 0, prevEligible = 1;
+    uint64_t lastEligible = 0;
+    bool prevQuiet = false;
     for (int t = 1; t <= limit; ++t) {
-        lastEligible = s.step(1).lastTickEligible;
-        if (lastEligible == 0 && prevEligible == 0) { asleepAt = t; break; }
-        prevEligible = lastEligible;
+        const StepStats st = s.step(1);
+        lastEligible = st.lastTickEligible;
+        if (st.lastTickQuiet() && prevQuiet) { asleepAt = t; break; }
+        prevQuiet = st.lastTickQuiet();
     }
     ASSERT_NE(asleepAt, -1) << "still " << lastEligible << " eligible blocks at tick " << limit;
     std::printf("[MatSimSleep] uneven basin asleep at tick %d (%.2f s at 60 Hz)\n", asleepAt, asleepAt / 60.0);
@@ -249,9 +253,10 @@ TEST(MatSimSleep, StillBasinReachesZeroEligible) {
     const StepStats after = s.step(100);
     EXPECT_EQ(after.eligibleBlocks, 0u);
     EXPECT_EQ(after.evaluatedBlocks, 0u) << "asleep basin still evaluated blocks";
-    // Control: a perturbation must wake it.
+    // Control: a perturbation must wake it. Two ticks: the dropped cell sits in the box's top
+    // layer, so on one of the two block offsets its block reaches outside the box and cannot move.
     s.setCell({6, 5, 6}, Mat::Water, s.full());
-    EXPECT_GT(s.step(1).lastTickEligible, 0u) << "a dropped cell did not wake the basin";
+    EXPECT_GT(s.step(2).eligibleBlocks, 0u) << "a dropped cell did not wake the basin";
 }
 
 namespace {
@@ -718,4 +723,231 @@ TEST(MatSimRemap, TrappedContentsSurviveRoundTrip) {
         ASSERT_EQ(s.ledger(), l0) << "stepping at " << cpm << " changed the ledger";
     }
     EXPECT_EQ(s.ledger(), s.expectedLedger());
+}
+
+// ---------------------------------------------------------------------------------------------
+// L2 - pressure (§6d). Communicating vessels: water in a U-tube stands at ONE level in both arms.
+// P1 measured the opposite live (the far arm stuck at the connector's height, the box asleep with
+// the arms 3 m apart). Prediction, written before the rule existed: with pressure on, both arms
+// end within max(1/4 cell, 3 cm) of each other and of the volume-derived level, at every cell
+// size, and the box comes to rest; with pressure off (the control) the far arm stays empty.
+
+namespace {
+struct UTube {
+    int leftW, rightW;   // arm widths (m); the divider is 1 m thick
+    int totalW() const { return leftW + 1 + rightW; }
+};
+// Micro-coordinate world: closed box x 0..W, y 0..6, z 0..1 m; divider x in [leftW, leftW+1),
+// y in [1, 6) m, leaving a 1 m connector along the floor.
+MatSimCore uTube(const UTube& u, int cpm, double leftFill, Config cfg = {}) {
+    auto world = [u](int mx, int my, int) {
+        return (mx >= 9 * u.leftW && mx < 9 * (u.leftW + 1) && my >= 9) ? Occ::Solid : Occ::Empty;
+    };
+    MatSimCore s;
+    std::string why;
+    EXPECT_TRUE(s.create({0, 0, 0}, {u.totalW() * cpm, 6 * cpm, cpm}, cpm, world, &why, cfg)) << why;
+    s.fillBox(Mat::Water, {0, 0, 0}, {u.totalW() * cpm, cpm, cpm}, 1.0);                  // connector
+    s.fillBox(Mat::Water, {0, cpm, 0}, {u.leftW * cpm, int(leftFill * cpm), cpm}, 1.0);   // left arm
+    return s;
+}
+// Water height (m) above the connector in the arm spanning world-cell x in [x0, x1); 1 m deep.
+double armHeight(const MatSimCore& s, int x0, int x1) {
+    const int cpm = s.cellsPerM();
+    uint64_t units = 0;
+    for (int y = cpm; y < s.size().y; ++y)
+        for (int z = 0; z < s.size().z; ++z)
+            for (int x = x0; x < x1; ++x) {
+                const Cell c = s.at({x, y, z});
+                if (cellMaterial(c) == Mat::Water) units += cellFill(c);
+            }
+    const double m3 = double(units) / double(s.full()) / double(cpm * cpm * cpm);
+    return m3 / (double(x1 - x0) / cpm);
+}
+// At rest = nothing moved and no head changed on two consecutive ticks (both block offsets).
+int runToRest(MatSimCore& s, int limit) {
+    bool prev = false;
+    for (int t = 1; t <= limit; ++t) {
+        const bool q = s.step(1).lastTickQuiet();
+        if (q && prev) return t;
+        prev = q;
+    }
+    return -1;
+}
+} // namespace
+
+TEST(MatSimPressure, UTubeArmsLevel) {
+    const UTube tubes[] = {{2, 2}, {1, 3}};
+    for (const UTube& u : tubes)
+        for (int cpm : {1, 3, 9}) {
+            MatSimCore s = uTube(u, cpm, 4.0);
+            const double want = 4.0 * u.leftW / double(u.leftW + u.rightW);   // m above the connector
+            const int limit = cpm == 9 ? 12000 : 9000;
+            const int restAt = runToRest(s, limit);
+            const double hl = armHeight(s, 0, u.leftW * cpm);
+            const double hr = armHeight(s, (u.leftW + 1) * cpm, u.totalW() * cpm);
+            const double tol = std::max(0.25 / cpm, 0.03);
+            std::printf("[MatSimPressure] U-tube %d|%d m at 1/%d m: left %.3f m, right %.3f m (level %.3f), "
+                        "rest at tick %d (%.1f s)\n",
+                        u.leftW, u.rightW, cpm, hl, hr, want, restAt, restAt / 60.0);
+            EXPECT_NE(restAt, -1) << "never came to rest in " << limit << " ticks";
+            EXPECT_NEAR(hl, hr, tol) << "arms not level at 1/" << cpm << " m";
+            EXPECT_NEAR(hr, want, tol) << "right arm off the volume level at 1/" << cpm << " m";
+            EXPECT_EQ(s.ledger(), s.expectedLedger());
+        }
+}
+
+TEST(MatSimPressure, ControlWithoutPressureTheFarArmStaysEmpty) {
+    Config off;
+    off.pressure = false;
+    MatSimCore s = uTube({2, 2}, 3, 4.0, off);
+    runToRest(s, 9000);
+    const double hr = armHeight(s, 9, 15);
+    std::printf("[MatSimPressure] control (pressure off) at 1/3 m: right arm %.3f m\n", hr);
+    EXPECT_LT(hr, 0.05) << "without the pressure rule the far arm should not rise (P1's failure)";
+}
+
+TEST(MatSimPressure, SleepEqualsDenseInAUTube) {
+    // The head is read from a far source, so a sleeping brick must wake when the far surface
+    // moves. Dense and sleeping runs must agree on every tick, including the head field.
+    Config dense;
+    dense.sleep = false;
+    MatSimCore a = uTube({2, 2}, 3, 4.0, dense);
+    MatSimCore b = uTube({2, 2}, 3, 4.0);
+    const IVec3 lo{0, 0, 0};
+    const IVec3 hi{a.size().x - 1, a.size().y - 1, a.size().z - 1};
+    uint64_t skipped = 0;
+    for (int t = 1; t <= 2400; ++t) {
+        const StepStats sa = a.step(1);
+        const StepStats sb = b.step(1);
+        skipped += sa.evaluatedBlocks - sb.evaluatedBlocks;
+        IVec3 w;
+        ASSERT_FALSE(firstDiff(a, b, lo, hi, w))
+            << "tick " << t << " world cell (" << w.x << "," << w.y << "," << w.z << "): dense "
+            << cellStr(a.at(w)) << " vs sleep " << cellStr(b.at(w));
+        ASSERT_EQ(a.headPtr(), b.headPtr()) << "head pointers differ at tick " << t;
+        ASSERT_EQ(a.head(), b.head()) << "heads differ at tick " << t;
+    }
+    std::printf("[MatSimPressure] U-tube dense == sleep for 2400 ticks; %llu block evaluations skipped\n",
+                (unsigned long long)skipped);
+}
+
+TEST(MatSimPressure, FourVesselsShareOneLevel) {
+    // Stress (count): four chambers of widths 1, 2, 1, 3 m, joined by one 1 m floor connector
+    // under 1 m dividers; only the first is filled, 5 m tall. Every chamber must end at the one
+    // volume-derived level, at 1 and 1/3 m.
+    const int widths[4] = {1, 2, 1, 3};
+    int x0[4], W = 0;
+    for (int k = 0; k < 4; ++k) { x0[k] = W; W += widths[k] + (k < 3 ? 1 : 0); }
+    auto world = [&](int mx, int my, int) {
+        if (my < 9) return Occ::Empty;
+        for (int k = 0; k < 3; ++k) {
+            const int d = 9 * (x0[k] + widths[k]);
+            if (mx >= d && mx < d + 9) return Occ::Solid;
+        }
+        return Occ::Empty;
+    };
+    for (int cpm : {1, 3}) {
+        MatSimCore s;
+        std::string why;
+        ASSERT_TRUE(s.create({0, 0, 0}, {W * cpm, 7 * cpm, cpm}, cpm, world, &why)) << why;
+        s.fillBox(Mat::Water, {0, 0, 0}, {W * cpm, cpm, cpm}, 1.0);
+        s.fillBox(Mat::Water, {0, cpm, 0}, {widths[0] * cpm, 5 * cpm, cpm}, 1.0);
+        const double want = 5.0 * widths[0] / 7.0;
+        const int restAt = runToRest(s, 20000);
+        const double tol = std::max(0.25 / cpm, 0.03);
+        std::string line;
+        for (int k = 0; k < 4; ++k) {
+            const double h = armHeight(s, x0[k] * cpm, (x0[k] + widths[k]) * cpm);
+            char b[48];
+            std::snprintf(b, sizeof(b), " %.3f", h);
+            line += b;
+            EXPECT_NEAR(h, want, tol) << "chamber " << k << " at 1/" << cpm << " m";
+        }
+        std::printf("[MatSimPressure] four vessels at 1/%d m:%s m (level %.3f), rest at tick %d (%.1f s)\n", cpm,
+                    line.c_str(), want, restAt, restAt / 60.0);
+        EXPECT_NE(restAt, -1);
+        EXPECT_EQ(s.ledger(), s.expectedLedger());
+    }
+}
+
+TEST(MatSimPressure, BoxTooTallForTheHeadFieldIsRefused) {
+    // Boundary: the head word holds (height + 1) x FULL below 2^30 - 1. At 1 m cells that is
+    // 5,752 cells (5,753 x 186,624 = 1,073,647,872); one more must be refused, at create and by a
+    // switch, never wrap.
+    MatSimCore s;
+    std::string why;
+    EXPECT_TRUE(s.create({0, 0, 0}, {1, 5752, 1}, 1, openAir, &why)) << why;
+    EXPECT_FALSE(s.create({0, 0, 0}, {1, 5753, 1}, 1, openAir, &why)) << "a box too tall for the head field was accepted";
+    EXPECT_NE(why.find("pressure"), std::string::npos) << why;
+    ASSERT_TRUE(s.create({0, 0, 0}, {3, 17256, 3}, 3, openAir, &why)) << why;   // 5,752 m at 1/3 m
+    EXPECT_TRUE(s.setCellSize(1, openAir, &why)) << why;
+    ASSERT_TRUE(s.create({0, 0, 0}, {3, 17259, 3}, 3, openAir, &why)) << why;   // 5,753 m at 1/3 m
+    EXPECT_FALSE(s.setCellSize(1, openAir, &why)) << "a switch to a box too tall for the head field was accepted";
+    EXPECT_NE(why.find("pressure"), std::string::npos) << why;
+    EXPECT_EQ(s.cellsPerM(), 3) << "a refused switch changed the box";
+}
+
+TEST(MatSimPressure, HoleUnderWaterFills) {
+    // Audit R2: a hole (an emptied cell) deep in still water, or an air pocket under a ceiling
+    // beside it, must fill; the box must never come to rest with water hanging over a not-full
+    // cell. At every cell size, in a 3 x 4 x 3 m basin filled 3 m deep.
+    for (int cpm : {1, 3, 9}) {
+        auto shelf = [](int mx, int my, int mz) {   // a 1 m shelf (ceiling) at 1-2 m height over one corner
+            return (my >= 9 && my < 18 && mx < 9 && mz < 9) ? Occ::Solid : Occ::Empty;
+        };
+        MatSimCore s;
+        std::string why;
+        ASSERT_TRUE(s.create({0, 0, 0}, {3 * cpm, 4 * cpm, 3 * cpm}, cpm, shelf, &why)) << why;
+        s.fillBox(Mat::Water, {0, 0, 0}, {3 * cpm, 3 * cpm, 3 * cpm}, 1.0);
+        s.setCell({2 * cpm, cpm / 2, 2 * cpm}, kEmpty, 0);                     // a hole near the floor
+        s.setCell({2 * cpm - 1, 2 * cpm, cpm}, Mat::Water, s.full() / 3);       // a part-full cell mid-depth
+        s.setCell({cpm / 2, cpm - 1, cpm / 2}, kEmpty, 0);                     // an air pocket under the shelf
+        const int restAt = runToRest(s, 12000);
+        EXPECT_NE(restAt, -1) << "cpm " << cpm << ": never came to rest";
+        int hanging = 0;
+        IVec3 first{-1, -1, -1};
+        for (int y = 0; y + 1 < s.size().y; ++y)
+            for (int z = 0; z < s.size().z; ++z)
+                for (int x = 0; x < s.size().x; ++x) {
+                    const Cell c = s.at({x, y, z}), up = s.at({x, y + 1, z});
+                    if (cellMaterial(c) == kSolid || cellMaterial(up) != Mat::Water) continue;
+                    if (cellFill(c) + s.pressureDeadband() < s.full()) {
+                        if (!hanging) first = {x, y, z};
+                        ++hanging;
+                    }
+                }
+        std::printf("[MatSimPressure] hole under water at 1/%d m: rest at tick %d, %d cells under water not full\n",
+                    cpm, restAt, hanging);
+        EXPECT_EQ(hanging, 0) << "cpm " << cpm << ": water hangs over a not-full cell, first at (" << first.x
+                              << "," << first.y << "," << first.z << ") fill " << cellFill(s.at(first));
+        EXPECT_EQ(s.ledger(), s.expectedLedger());
+    }
+}
+
+TEST(MatSimPressure, WideUTubeRestsLevelAtEverySize) {
+    // The live rig's U-tube half (found live 2026-11-04): a 16 x 8 x 7 m box, a 1 m divider at x 8 m
+    // open below 1 m, the 8 m-wide left arm filled 5 m deep, the 7 m right arm empty. The first
+    // pressure rule (one source per cell, chosen with a per-hop cost) left the arms 2-3 cm apart at
+    // every size (a bias that grows with vessel width) and never came to rest at 1/3 m: a full cell
+    // that saw the far, higher arm pushed up while its neighbour saw only the surface above it, so
+    // water circulated. Prediction: both arms at the volume level within two deadbands + 3 mm, and
+    // at rest, at 1 and 1/3 m (1/9 m is the integration test's: 1.4 M cell-ticks per second here).
+    auto world = [](int mx, int my, int) { return (mx >= 72 && mx < 81 && my >= 9) ? Occ::Solid : Occ::Empty; };
+    for (int cpm : {1, 3}) {
+        MatSimCore s;
+        std::string why;
+        ASSERT_TRUE(s.create({0, 0, 0}, {16 * cpm, 8 * cpm, 7 * cpm}, cpm, world, &why)) << why;
+        s.fillBox(Mat::Water, {0, 0, 0}, {8 * cpm, 5 * cpm, 7 * cpm}, 1.0);
+        const int restAt = runToRest(s, 24000);
+        // Heights above the floor, the connector row included, 7 m deep arms.
+        const double hl = armHeight(s, 0, 8 * cpm) / 7.0 + 1.0, hr = armHeight(s, 9 * cpm, 16 * cpm) / 7.0 + 1.0;
+        const double want = (8.0 * 5.0 * 7.0 - 7.0) / (15.0 * 7.0) + 0.0;   // minus the connector cell under the divider
+        const double tol = 1.0 / (32.0 * cpm) + 0.003;   // two deadbands (FULL/32) + 3 mm: no width-dependent bias
+        std::printf("[MatSimPressure] wide U-tube at 1/%d m: left %.3f m, right %.3f m (level %.3f), rest at tick %d (%.1f s)\n",
+                    cpm, hl, hr, want, restAt, restAt / 60.0);
+        EXPECT_NE(restAt, -1) << "never came to rest at 1/" << cpm << " m";
+        EXPECT_NEAR(hl, hr, tol) << "arms not level at 1/" << cpm << " m";
+        EXPECT_NEAR(hr, want, tol);
+        EXPECT_EQ(s.ledger(), s.expectedLedger());
+    }
 }

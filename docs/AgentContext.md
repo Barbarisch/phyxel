@@ -196,8 +196,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     - **Measured live:** ledger exact and live parity identical at 1, 1/3 and 1/9 m.
     - **Two predictions failed:** the U-tube never levels (no pressure in the CA), and the dam-break front depends on the
       cell size (46.7 / 4.5 / 0.81 m/s).
-    - **Next:** owner decisions in §6c, then P2.
+    - **P1c (2026-11-04), the pressure rule** (§6d): a two-pointer head field (`shaders/matsim_pressure.comp`) and
+      pressure-driven flow. U-tubes and communicating vessels now level at every cell size, and the GPU is bit-exact. The
+      plan was re-audited against Noita's principles plus realism (§0b).
+    - **Next:** the P1d owner decision (flow speed is still capped at one cell per tick, so it depends on the cell size),
+      then P2.
     - ⚠️ In a fresh clone, put uv's `cpython-3.12` folder on PATH, or `phyxel.exe` exits silently (`python312.dll`).
+    - ⚠️ Launch the lab engine with `--port 8120`. `--project` alone came up on 8090, the port reserved on this laptop.
   - **On a fresh checkout:** `git worktree add ../phyxel-matsim feat/matsim-lab`, or a plain checkout of the branch. Then
     `git submodule update --init external/glm external/imgui`.
 

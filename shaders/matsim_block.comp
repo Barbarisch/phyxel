@@ -6,6 +6,7 @@
 //
 // Reads the previous grid anywhere, writes only the block's own in-box cells of the next grid.
 // A block whose brick is asleep copies its input (exactly what an ineligible block writes).
+// §6d: reads this tick's head field (matsim_pressure.comp ran first) for the pressure rule.
 layout(local_size_x = 64) in;
 
 layout(std430, binding = 0) readonly buffer Cur { uint cur[]; };
@@ -13,7 +14,9 @@ layout(std430, binding = 1) writeonly buffer Nxt { uint nxt[]; };
 layout(std430, binding = 2) readonly buffer Proc { uint process[]; };
 layout(std430, binding = 3) buffer Fresh { uint fresh[]; };          // bricks moved this tick (1 = moved)
 layout(std430, binding = 4) readonly buffer Mat { uvec4 mat[]; };    // per material: phase, thrOrtho, thrDiag, 0
-layout(std430, binding = 5) buffer Stats { uint stats[]; };          // per tick slot: eligible, evaluated
+layout(std430, binding = 5) buffer Stats { uint stats[]; };          // per tick slot: eligible, evaluated, head changes
+layout(std430, binding = 6) readonly buffer QNow { uint qNow[]; };   // §6d this tick's (source << 8) | hops
+layout(std430, binding = 7) readonly buffer Head { uint head[]; };   // §6d this tick's head word
 
 layout(push_constant) uniform PC {
     ivec4 origin;     // box origin (world cells); w = FULL units
@@ -22,6 +25,7 @@ layout(push_constant) uniform PC {
     ivec4 nblocks;    // blocks per axis;          w = stats slot
     ivec4 brickLo;    // brick grid origin (bricks); w = sleep on (1) / off (0)
     ivec4 brickDim;   // brick grid size;          w = invocation stride of a dispatch row
+    ivec4 press;      // §6d: x = pressure on, y = deadband (units), z = orifice K (x1024)
 } pc;
 
 const uint kSolidCell = 0xFF000000u;
@@ -33,6 +37,9 @@ shared uint sEvaluated;
 
 uint c[8];      // [dx + 2 dz + 4 dy], this invocation's block (private)
 uint orig[8];
+// §6d per-cell head field for the block.
+uint hd[8], ag[8];
+bool inb[8], intr[8], fnb[8];
 
 uint cmat(uint cell) { return cell >> 24; }
 uint cfill(uint cell) { return cell & kFillMask; }
@@ -55,6 +62,17 @@ uint brickOf(ivec3 w) {
     return uint(b.x) + uint(pc.brickDim.x) * (uint(b.z) + uint(pc.brickDim.z) * uint(b.y));
 }
 
+uint isqrt32(uint v) {   // MatSimCore isqrt32, bit by bit
+    uint r = 0u, bit = 1u << 30;
+    while (bit > v) bit >>= 2;
+    while (bit != 0u) {
+        if (v >= r + bit) { v -= r + bit; r = (r >> 1) + bit; }
+        else r >>= 1;
+        bit >>= 2;
+    }
+    return r;
+}
+
 uint fmix32(uint h) {
     h ^= h >> 16; h *= 0x85ebca6bu; h ^= h >> 13; h *= 0xc2b2ae35u; h ^= h >> 16;
     return h;
@@ -68,26 +86,47 @@ uint cellHash(int x, int y, int z, uint seed) {
     return h;
 }
 
+// §6d helpers (MatSimCore::evalBlock's elev / pressurised lambdas).
+uint elev(int i, ivec3 b) { return uint(b.y + (i >> 2) - pc.origin.y) * uint(pc.origin.w) + cfill(c[i]); }
+bool pressurised(int i, uint e) {
+    return pc.press.x != 0 && inb[i] && intr[i] && fnb[i] && hd[i] != 0u && hd[i] - 1u > e + uint(pc.press.y);
+}
 bool evalBlock(ivec3 b) {
     const uint F = uint(pc.origin.w);
     const uint seed = uint(pc.size.w);
+    const bool P = pc.press.x != 0;
+    const uint db = uint(pc.press.y);
     for (int i = 0; i < 8; ++i) {
         ivec3 d = ivec3(i & 1, (i >> 2) & 1, (i >> 1) & 1);
         c[i] = readPrev(b + d);
         orig[i] = c[i];
+        hd[i] = 0u; ag[i] = 0u; inb[i] = false; intr[i] = false; fnb[i] = false;
+        if (P) {
+            if (!inBox(b + d)) { ag[i] = 255u; continue; }
+            const uint j = boxIndex(b + d);
+            const uint hw = head[j];
+            inb[i] = true;
+            hd[i] = hw & 0x3FFFFFFFu;
+            intr[i] = (hw & 0x80000000u) != 0u;
+            fnb[i] = (hw & 0x40000000u) != 0u;
+            ag[i] = qNow[j] & 0xFFu;
+        }
     }
 
     // 1. Gravity, per column, top -> bottom.
+    bool fell[4] = bool[4](false, false, false, false);
     for (int dz = 0; dz < 2; ++dz)
         for (int dx = 0; dx < 2; ++dx) {
             int it = dx + 2 * dz + 4, ib = dx + 2 * dz;
             uint m = cmat(c[it]);
             if (!isMobile(m) || isSolid(c[ib])) continue;
             if (cmat(c[ib]) != 0u && cmat(c[ib]) != m) continue;
+            if (phaseOf(m) == PH_LIQUID && pressurised(ib, elev(it, b))) continue;   // §6d
             uint mv = min(cfill(c[it]), F - cfill(c[ib]));
             if (mv == 0u) continue;
             c[ib] = makeCell(m, cfill(c[ib]) + mv);
             c[it] = makeCell(m, cfill(c[it]) - mv);
+            if (phaseOf(m) == PH_LIQUID) fell[ib] = true;
         }
 
     // 2. Liquid level per layer, face-connected groups of supported cells, deadband 1 unit.
@@ -102,6 +141,7 @@ bool evalBlock(ivec3 b) {
             if (m != 0u && phaseOf(m) != PH_LIQUID) continue;
             uint below = (dy == 1) ? c[k] : readPrev(b + ivec3(dx, -1, dz));
             if (!(isSolid(below) || cfill(below) == F)) continue;
+            if (cfill(cell) < F && pressurised(k + 4 * dy, elev(k + 4 * dy, b))) continue;   // §6d
             cand[k] = true;
         }
         bool done[4] = bool[4](false, false, false, false);
@@ -191,6 +231,8 @@ bool evalBlock(ivec3 b) {
             if (isSolid(cell)) continue;
             if (cmat(cell) != 0u && cmat(cell) != m) continue;
             if (cfill(cell) >= F) continue;
+            const int dI = bxx + 2 * bzz + 4 * dy;
+            if (phaseOf(m) == PH_LIQUID && pressurised(dI, elev(dI, b))) continue;   // §6d
             ty = dy;
             break;
         }
@@ -219,6 +261,51 @@ bool evalBlock(ivec3 b) {
         c[di] = makeCell(m, cfill(c[di]) + mv);
         c[si] = makeCell(m, cfill(c[si]) - mv);
     }
+
+    // 4. Pressure (§6d) — MatSimCore::evalBlock rule 4, line for line.
+    if (P)
+        for (int i = 0; i < 8; ++i) {
+            if (!inb[i]) continue;
+            if (isSolid(c[i])) continue;
+            const uint mx = cmat(c[i]);
+            if (mx != 0u && phaseOf(mx) != PH_LIQUID) continue;
+            const uint fx = cfill(c[i]);
+            if (fx >= F) continue;
+            const uint ex = elev(i, b);
+            const int dy = i >> 2;
+            int best = -1;
+            for (int k = 0; k < 3; ++k) {
+                const int j = i ^ (k == 0 ? 4 : (k == 1 ? 1 : 2));
+                if (!inb[j]) continue;
+                const uint my = cmat(c[j]);
+                if (my == 0u || my == 255u || phaseOf(my) != PH_LIQUID || cfill(c[j]) + db < F) continue;
+                if (mx != 0u && my != mx) continue;
+                const bool fromAbove = (k == 0 && dy == 0);
+                if (hd[j] == 0u || hd[j] - 1u <= ex + (fromAbove ? db : 2u * db)) continue;
+                if (k == 0 && dy == 1 && fell[i & 3]) continue;
+                if (intr[i]) {
+                    if (ag[j] >= ag[i]) continue;
+                } else {
+                    if (k == 0 && dy == 0) continue;
+                    if (k != 0 && fx + db < F) {
+                        const uint below = (dy != 0) ? c[i - 4] : readPrev(b + ivec3(i & 1, -1, (i >> 1) & 1));
+                        if (isSolid(below) || cfill(below) == F) continue;
+                    }
+                }
+                if (best < 0 || ag[j] < ag[best]) best = j;
+            }
+            if (best < 0) continue;
+            const uint fy = cfill(c[best]);
+            uint mv = min(F - fx, fy);
+            if (!(best == (i ^ 4) && dy == 0)) {
+                const uint dd = hd[best] - 1u - ex;
+                mv = min(mv, max(1u, dd / 2u));
+                mv = min(mv, max(1u, (uint(pc.press.z) * isqrt32(dd)) >> 10));
+            }
+            const uint mm = cmat(c[best]);
+            c[best] = makeCell(mm, fy - mv);
+            c[i] = makeCell(mm, fx + mv);
+        }
 
     bool changed = false;
     for (int i = 0; i < 8; ++i) {
@@ -260,7 +347,7 @@ void main() {
     barrier();
     if (gl_LocalInvocationIndex == 0u) {
         const uint slot = uint(pc.nblocks.w);
-        if (sEligible != 0u) atomicAdd(stats[2u * slot], sEligible);
-        if (sEvaluated != 0u) atomicAdd(stats[2u * slot + 1u], sEvaluated);
+        if (sEligible != 0u) atomicAdd(stats[3u * slot], sEligible);
+        if (sEvaluated != 0u) atomicAdd(stats[3u * slot + 1u], sEvaluated);
     }
 }

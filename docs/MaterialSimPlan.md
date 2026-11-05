@@ -1,7 +1,9 @@
 # Material Simulation Plan — Noita-style voxel materials, alongside WaterCore
 
 **Status: P1 BUILT 2026-11-03 — P1a (CPU reference core) §6b; P1b (GPU port bit-exact, `/api/matsim` lab, raw-cell
-view, live rig) §6c. Two §6a predictions FAILED live (the 1 m front, the U-tube) — owner decisions in §6c. P2 not started.** Supersedes the same-day `LiquidCaLab.md`
+view, live rig) §6c. P1c PRESSURE BUILT 2026-11-04 (§6d): U-tubes and communicating vessels level at every cell size,
+GPU bit-exact. Plan re-audited against Noita's principles + realism (§0b): new P1d (speed ∝ cell size, owner
+decision), P4 density/viscosity, P4b world-as-material, P8 reactions. P2 not started.** Supersedes the same-day `LiquidCaLab.md`
 note, folded in here and deleted. Context: [`NoitaGapAnalysis.md`](NoitaGapAnalysis.md) (why: N1–N4,
 Tiers 2–3) and [`WaterCore.md`](WaterCore.md) (the water system this must live beside: §4.2 method
 choice, §30.0b locality, §51 levels).
@@ -21,6 +23,28 @@ choice, §30.0b locality, §51 levels).
   waves. waves eminating from no where and just clipping through voxels is not acceptable."*
 - **Plan first, no coding.** Measurements are allowed if needed, but a WorldForge session is
   running.
+
+## 0b. The bar: Noita's principles, in 3D, made realistic (owner, 2026-11-04)
+
+*"remember we should be trying to recreate Noita design principals in 3D (were realistic). if the
+plan doesnt live up to that, then we need to make sure the plan is being updated accordingly"*
+
+The principles are `NoitaGapAnalysis.md` §1, N1–N9. **Realistic** adds a bar Noita doesn't need:
+where Noita's rules are a 2D game's approximation, MatSim's must match measured physics, with
+grounded constants and an analytic check.
+
+| | Principle | Where this plan meets it | Gap found 2026-11-04 → change |
+|---|---|---|---|
+| N1 | Local rules are the core | the Margolus CA (§6a), P1 built | Noita's liquid rules (down, diagonal, sideways) never push water *up*. Realistic water must: communicating vessels, siphons, fountains. **→ P1c, the pressure rule, built (§6d).** |
+| N2 | Every material has a phase and properties | phases + a material table; repose angles grounded | Viscosity is missing (lava, oil, mud flow at different rates), and so is per-material density. **→ P4 gets density and viscosity rows, grounded like the repose angles.** |
+| N3 | Materials react | "later, their own plans" | That's too vague for Noita's defining feature. **→ named phase P8 (heat, fire, reactions) on this grid, with the reaction table as data.** |
+| N4 | Matter is conserved | R5, exact integer ledger, in-flight particles counted | none; holds |
+| N5/N6 | Bodies are material; one shared grid, two-way coupling | P4: debris displaces cells | The world itself is only a read-only solid mask. In Noita the terrain *is* the simulated material: dig it and it falls, dissolve it, burn it. **→ P4b (new): disturbed world voxels become MatSim matter (undercut sand and gravel terrain slumps), and matter at rest re-bakes into voxels (`NoitaGapAnalysis` Tier 1).** |
+| N7 | Only simulate what changes; the world keeps going off-screen | sleep (exact); F2 "deferred, never skipped" | none in design; P5 proves it |
+| N8 | Readable, consistent rules | determinism, A/B knobs | none |
+| N9 | Creatures and objects are material | not in scope | stays with `NoitaGapAnalysis` Tier 4 |
+| real | **Speeds are physical and do not depend on cell size** | — | **The biggest realism gap.** Matter moves at most one cell per tick, so a fixed 60 Hz tick caps flow at h × 60 m/s, from 60 m/s at 1 m down to 6.7 m/s at 1/9 m. Measured: the dam-break front runs 46.7 / 4.5 / 0.81 m/s by cell size, and U-tube levelling takes 2.6 / 18.5 / 81 s (§6d). It also breaks R2: cell size can't be a tier while it changes outcomes. **→ P1d (new, owner decision): ticks per second ∝ cells per metre, the CFL condition every grid fluid solver obeys, so the cap is the same in m/s at every size, then measure what is left. Fast matter as P3 particles is Noita's answer for momentum and stays.** |
+| real | Hydrostatics | — | built, §6d |
 
 ---
 
@@ -293,13 +317,16 @@ and materials only), or neither. Numbers first, owner decides.
 |---|---|---|
 | **P0** | this plan; M0 desk table; owner decisions §8 | owner sign-off |
 | **P1** | the CA core on the GPU: phases static/powder/liquid; checkerboard or Margolus passes; integer fill; per-brick sleep; solids from occupancy. Lab world, one chunk | mass exact; a still basin fully asleep; R4 seam-equality test; determinism (two runs bit-identical) |
+| **P1c** (§0b, built §6d) | pressure: a hydrostatic head field and pressure-driven flow | U-tube and four-vessel levels = the volume level at every cell size; sleep exact; GPU bit-exact |
+| **P1d** (§0b, owner decision) | speed: ticks per second ∝ cells per metre (CFL), so flow speeds are the same in m/s at every cell size | dam-break front vs Ritter and U-tube levelling time agree across 1, 1/3, 1/9 m; whole-frame cost of the extra ticks per tier |
 | **P2** | the look: MatSim writes the surface-field layout; shaded by `water_common.glsl`; raw-cell debug view | owner compares raw vs shaded, MatSim 1/3 m vs WaterCore 1/9 m, same pose |
 | **P3** | momentum: the particle layer (eject over a threshold, land into fill) | pour arcs, a stone throws a crown; mass exact including in flight |
-| **P4** | materials: oil on water (density swap), sand plus water, a GPU debris body displacing cells | 100 % of columns layered; displaced volume = submerged volume |
+| **P4** | materials: oil on water (density swap), sand sinking in water, per-material density and viscosity (grounded), sand plus water, a GPU debris body displacing cells | 100 % of columns layered; displaced volume = submerged volume; lava/oil/water flow rates in the order their viscosities predict |
+| **P4b** (§0b) | the world is material: disturbed world voxels (undercut sand/gravel terrain, a blast crater rim) become MatSim matter; matter at rest re-bakes into static voxels | ledger exact across world ↔ MatSim; an undercut bank slumps to its repose angle; a re-baked pile renders and collides as world |
 | **P5** | scale: F2 deferred stepping, look-ahead, residency; M2 ladder | deferred end state = live end state (bit-exact); the tier table filled |
 | **P6** | grounded waves (§4) on MatSim liquids, in the lab | wave-in-solid = 0; the fetch test; owner's eye |
 | **P7** | **marriage design** with the water session: seams (a)–(d); M3's answer | joint design-check; owner approval (R7) |
-| later | gases, heat, fire, reactions (NoitaGapAnalysis Tier 3) on the same grid | their own plans |
+| **P8** (§0b) | gases, heat, fire, reactions (NoitaGapAnalysis Tier 3) on the same grid; the reaction table is data | its own design-check; grounded ignition/boiling points; mass exact through every reaction |
 
 ### 6a. P1 detailed design (2026-11-03) — the CA core
 
@@ -681,6 +708,191 @@ sand slumps into terraces. P2 compares the raw view against the shaded one.
 `%APPDATA%\uv\python\cpython-3.12-windows-x86_64-none` on PATH (`python312.dll`). Without it,
 `phyxel.exe` exits silently: MCP `launch_engine` "succeeds" with no engine, and `build_project`
 reports failure only at test discovery. Debug only; Release was not built.
+
+### 6d. P1c built (2026-11-04) — the pressure rule
+
+Owner, 2026-11-04: *"add a pressure rule to the CA"*. This answers §6c decision 1 with (a).
+
+**Why not the textbook compression trick.** The usual CA pressure stores pressure as extra mass,
+with water slightly compressible. That was rejected on arithmetic before any code was written:
+- level accuracy needs the per-cell compression C to be far larger than the column depth in cells;
+- an invisible volume loss needs C ≪ FULL / depth.
+
+At 1/9 m, FULL = 256 in a 24-bit fill, and no C satisfies both. An 8 m column would stand about
+0.3 m low, or the arms would differ by about a metre.
+
+**What was built: a head field plus flow from high head to low head.** Water stays
+incompressible, and volume = mass / FULL exactly.
+
+*The head pass.* Every cell, every tick, a gather from the previous tick.
+- Each liquid cell open above is a **free surface** at elevation E = (y − box floor) × FULL + fill.
+- Full cells, cells closed above, and air cells carry **two pointers** to surfaces they reach
+  through liquid. Partial free surfaces are atmospheric and pass nothing on.
+  - **Max:** the highest surface (ties: fewest hops, then lowest index). Its E is the cell's
+    **head**, the same through a connected body. Every push and every "pressurised" test uses it.
+  - **Route:** the nearest surface (fewest hops) among those within the deadband (FULL/64) of that
+    head, i.e. the surfaces that can absorb a hole. Hole routing uses its hops.
+- Each source's E is read from the source cell itself that tick, so a falling surface is never
+  stale.
+- Hops are capped at 254, the reach of the pressure (28 m of path at 1/9 m, 254 m at 1 m).
+- Shaders: `matsim_pressure.comp`, line for line with `MatSimCore::pressurePass`.
+- The first version had one pointer chosen by E − hop cost × hops, plus hysteresis. The live rig
+  broke it (defect 9 below).
+
+*Rule 4 (pressure), in the block.* A full cell (full to within the deadband) whose head exceeds a
+neighbour's surface pushes fill into it:
+- **into a hole** (a cell closed above): only from the side nearer the source (fewer hops). Holes
+  travel upstream to the high surface instead of diffusing;
+- **into an open cell:** from below (a rising arm, a fountain); sideways only if the cell is
+  unsupported (a jet out of a wall) or within the deadband of full (a top-off);
+- **amount:** half the excess, capped by Torricelli through one face, v = Cd √(2 g Δh), with
+  Cd = 0.65 (Wikipedia, *Torricelli's law*, citing tec-science 2019, fetched 2026-11-04). A non-fall
+  push needs more than twice the deadband.
+
+*Existing rules defer to pressure.* A closed hole beside a full cell, under a head higher than its
+surface by more than the deadband, is skipped by gravity, level and slide. The pressure rule
+fills it instead. In the same block, pressure never pushes back what gravity just dropped.
+
+*Sleep.* It stays exact: a cell whose pointer or head word changes marks its brick in this tick's
+set, which this tick's process mask dilates. A far surface that moves wakes everything that
+points at it. "At rest" now means no cell moved and no head changed (`StepStats::lastTickQuiet`).
+
+*Knobs and limits.*
+- `create {pressure: false}` gives exactly the P1 rules (the A/B control). A pressure-off parity
+  test confirms they are unchanged on the GPU.
+- The head word has 30 bits, so a box taller than 5,752 cells at 1 m is refused (more at finer
+  sizes).
+
+**Red before green** (`tests/core/MatSimCoreTest.cpp`, `MatSimPressure.*`):
+- the U-tube test against the rules without pressure: at rest at tick 2 with the arms 4 m apart, at
+  all three sizes, for both arm ratios;
+- the pressure-off control keeps that failure: the far arm holds 0.000 m.
+
+**Defects found while building it, each shown by a test, then fixed:**
+1. **"At rest" fired while heads were still propagating.** It is now defined on moves and head
+   changes. The still-basin P1 test had the same blind spot; it was fixed the same way. Its wake
+   control steps two ticks, because at the box top one block offset reaches outside the box.
+2. **Every hole routed to one highest cell, so one column drained the whole arm.** At 1/9 m the
+   U-tube had not levelled after 200 s. The hop cost spreads holes to their nearest surface.
+   - Banding equal heights instead caused a limit cycle at the band edges.
+   - Hop costs of FULL/64 and FULL/16 left the arms 3–15 cm apart.
+3. **Pointer jitter between near-equal surfaces kept holes wandering sideways forever** (1/3 m
+   never rested). Fixed by the hysteresis.
+4. **A connector cell one unit short of full counted as atmospheric and cut the pipe.** Level's
+   remainders leave such cells. Fixed by the top-off.
+5. **A first fix for 4 hid a real near-full surface; reverted.**
+6. **A partial cell under the divider, with no full neighbour, cut the pipe.** Fixed: every cell
+   closed above carries heads.
+7. **Holes flagged as pressurised that had no possible donor deadlocked.** Fixed: only holes
+   beside a full cell are deferred to pressure.
+8. **Gravity and pressure undid each other inside one block.** Fixed by the 2-deadband push
+   threshold and the never-undo-a-fall rule.
+
+Defects 6–8 were found only by the four-vessel stress test: one far chamber stayed at 0.44 m
+while the others reached 0.95 m.
+
+9. **Found live, not by the unit tests: the single hop-cost pointer.** The rig's U-tube is
+   16 × 7 m in plan, against 5 × 1 m in the unit tests. There:
+   - the arms ended 2–3 cm apart at every size (left 2.61 m, right 2.58–2.59 m, level 2.60 m);
+   - the box never came to rest at 1/3 m or 1/9 m;
+   - the dam half alone rested in 10 s.
+
+   The CPU reference reproduced it exactly (2.610 / 2.589). The trace showed:
+   - two neighbouring cells under the right surface held different sources, one the far left arm
+     (13 hops, about 2 cm higher), the other the surface directly above (1 hop);
+   - one pushed up, the other let the water fall back, and level carried it between them, so the
+     water circulated forever;
+   - the same discontinuity gave a level bias of about path difference / 256 m, which **grows
+     with vessel size** (about 0.4 m at 100 m).
+
+   Fix: the two pointers above. `MatSimPressure.WideUTubeRestsLevelAtEverySize` was red with the
+   live numbers, then green: rest at 27.7 s and 153 s, the arms 1.1 cm and 4 mm apart at 1 and
+   1/3 m. It also cost something: the narrow U-tube at 1/9 m now rests at 170 s (was 81 s).
+
+**Audit (independent, read-only, 2026-11-04).** No CPU/GPU drift was found in the rules. It found:
+- **D1, fixed:** with pressure off, the GPU downloaded a pointer buffer it never wrote. The
+  pressure-off parity test was red ("head pointer of box cell 0: cpu 4294967295 gpu 0"), then
+  green.
+- **D2, fixed:** a missing dependency between a tick's mark clear (a transfer) and the previous
+  tick's dilate reading those marks.
+- **R1, fixed:** `tickHz` is validated (30–960), so the Torricelli product can't wrap.
+- **R2, tested:** a hole or air pocket under water must fill. `HoleUnderWaterFills` passes at all
+  three sizes; a mutant with no hole routing fails it, leaving 5, 27 and 18 cells hanging.
+- **R3, fixed:** `adoptStepped` range-checks pointers.
+- **Test gaps:** the 1/9 m GPU U-tube parity now runs 5,200 ticks, past rest.
+- **Still untested:**
+  - the Torricelli rate itself, since any K passes;
+  - jets out of a wall;
+  - a sealed pipe;
+  - a non-default `tickHz`.
+
+**Results** (final two-pointer rule). All 27 MatSim unit tests pass in the CPU Release `/O2`
+harness. All 10 GPU parity tests pass in the engine's Debug build.
+
+| Scene | 1 m | 1/3 m | 1/9 m |
+|---|---|---|---|
+| U-tube 2 \| 2 m arms, 4 m in the left (level 2.000 m) | 2.000 / 2.000, rest 3.2 s | 2.003 / 1.997, rest 29.1 s | 1.999 / 2.001, rest 170 s |
+| U-tube 1 \| 3 m (level 1.000 m) | 0.987 / 1.004, rest 2.4 s | 1.000 / 1.000, rest 19.5 s | 1.000 / 1.000, rest 159 s |
+| four vessels 1, 2, 1, 3 m (level 0.714 m) | 0.713 0.726 0.707 0.709, rest 8.2 s | 0.716 0.710 0.715 0.717, rest 39.9 s | — |
+| the live rig's U-tube, 16 × 8 × 7 m (level 2.600 m) | 2.605 / 2.594, rest 27.7 s | 2.602 / 2.598, rest 153 s | (integration and live) |
+
+GPU (Debug, laptop, a 16 × 8 × 16 m awake box), in ms per tick:
+
+| | 1 m | 1/3 m | 1/9 m |
+|---|---|---|---|
+| pressure off | 0.026 | 0.029 | 0.033 |
+| pressure on | 0.043 | 0.052 | 0.098 |
+
+The head pass runs over every cell every tick, asleep or not.
+
+The P1 tests still pass with pressure on by default:
+- ledger exact for 10 k ticks;
+- sleep equals dense, including after edits and resolidify;
+- determinism, world alignment and watertight staircase walls;
+- the repose angles (sand 0.675, snow 0.781, gravel 1.000);
+- the random stress scenes, with 24 of 36 merges still refused as before.
+
+The new tests add:
+- sleep equals dense in a U-tube, cells **and** the head field, every tick for 2,400 ticks;
+- the box-height refusal at create and at a switch.
+
+**Predictions vs results:**
+- **Levels within max(1/4 cell, 3 cm): held.** The largest error is 1.8 cm (1 m cells, unequal arms).
+- **At rest at every size: held.**
+- **Levelling time (no number was predicted):** it scales with the cell size. That is the
+  one-cell-per-tick cap again (§0b, the P1d decision). A real U-tube of this size sloshes with a
+  period of a few seconds (T = 2π√(L/2g)); here it is overdamped. At 1 m it settles in about 2.5 s;
+  at 1/9 m it takes about 81 s.
+
+**Live rig** (`tools/matsim_lab.py --run`, final rule, Debug, evidence `docs/evidence/matsim_p1c_live.json`):
+
+| | 1 m | 1/3 m | 1/9 m |
+|---|---|---|---|
+| ledger exact at every sample; dam holds (0 m³ past it) | ✓ | ✓ | ✓ |
+| live parity: cells, marks, both pointers, head words, stats (in 50-tick or 5-tick calls) | ✓ 300 ticks | ✓ 300 ticks | ✓ 30 ticks |
+| U-tube arms (m) at the end, level 2.600 | 2.607 / 2.592, rest at 28.2 s | 2.601 / 2.599, rest at 148.7 s | **3.47 / 1.61 at 300 s, still moving** |
+| dam-break front (Ritter 10.85 m/s) | 46.7 m/s | 4.5 m/s | 0.87 m/s |
+
+The refusals all refuse, with the box unchanged.
+
+**Open:** at 1/9 m the wide U-tube levels in the right direction but slowly. The gap went from
+4.7 m to 1.86 m in 300 s, roughly exponential with a time constant of about 5 minutes. The small
+1/9 m U-tube in the unit tests rests in 170 s. Throughput through the 1 m gap is far below what the
+per-face Torricelli cap and one-hole-per-two-ticks would allow, and the cause is not yet found.
+The candidates are hole routing to the nearest absorber and the push/absorb thresholds. That
+investigation belongs with P1d: there is no point tuning throughput at a tick rate the owner may
+change. The dam-break front is unchanged by pressure, as expected: pressure moves no water across
+an open floor.
+
+**Stated limits:**
+- Pressure reaches 254 hops.
+- The equilibrium mismatch is bounded by about two deadbands (FULL/32), whatever the vessel size:
+  3 cm at 1 m, 1 cm at 1/3 m, 3.5 mm at 1/9 m.
+- The head pass costs every cell every tick, asleep or not, about 3× the asleep cost at 1/9 m.
+  Restricting it to liquid regions is P5's.
+- A falling full column carries a head, as if it were standing water. It is harmless in the tests;
+  P3's particles replace free fall.
+- Mixed liquids share no head (only Water exists).
 
 ## 7. Working alongside the other sessions
 

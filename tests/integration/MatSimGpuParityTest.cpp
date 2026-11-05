@@ -1,7 +1,8 @@
 // MatSimGpuParityTest — docs/MaterialSimPlan.md §6a/§6c: the GPU port (MatSimGpu) is accepted only
 // on BIT-EXACT parity with the CPU reference (MatSimCore), red first. Needs a Vulkan device: the
 // fixture GTEST_SKIPs without one (never a pass). Every comparison covers the cells, both sleep
-// mark sets, the tick, and per-tick eligible/evaluated block counts.
+// mark sets, the tick, per-tick eligible/evaluated block counts, and (§6d) the pressure head field:
+// both words per cell and the per-tick head-change count.
 #include <gtest/gtest.h>
 #include "IntegrationTestFixture.h"
 #include "core/matsim/MatSimCore.h"
@@ -52,6 +53,16 @@ std::string diff(const MatSimCore& a, const MatSimCore& b) {
             }
     if (a.marksTick1() != b.marksTick1()) return "sleep marks (tick-1) differ";
     if (a.marksTick2() != b.marksTick2()) return "sleep marks (tick-2) differ";
+    for (size_t i = 0; i < a.headPtr().size() && i < b.headPtr().size(); ++i) {
+        if (a.headPtr()[i] != b.headPtr()[i])
+            return "head pointer of box cell " + std::to_string(i) + ": cpu " + std::to_string(a.headPtr()[i]) +
+                   " gpu " + std::to_string(b.headPtr()[i]);
+        if (a.head()[i] != b.head()[i])
+            return "head word of box cell " + std::to_string(i) + ": cpu " + std::to_string(a.head()[i]) + " gpu " +
+                   std::to_string(b.head()[i]);
+    }
+    if (a.headPtr().size() != b.headPtr().size() || a.head().size() != b.head().size()) return "head field sizes differ";
+    if (a.headMaxPtr() != b.headMaxPtr()) return "max-head pointers differ";
     return "";
 }
 
@@ -115,10 +126,12 @@ protected:
             const std::string d = diff(cpu, viaGpu);
             if (!d.empty()) return "after tick " + std::to_string(cpu.tick()) + ": " + d;
             if (sc.eligibleBlocks != sg.eligibleBlocks || sc.evaluatedBlocks != sg.evaluatedBlocks ||
-                sc.lastTickEligible != sg.lastTickEligible)
+                sc.lastTickEligible != sg.lastTickEligible || sc.headChanges != sg.headChanges ||
+                sc.lastTickHeadChanges != sg.lastTickHeadChanges)
                 return "stats differ after tick " + std::to_string(cpu.tick()) + ": eligible " +
                        std::to_string(sc.eligibleBlocks) + "/" + std::to_string(sg.eligibleBlocks) + ", evaluated " +
-                       std::to_string(sc.evaluatedBlocks) + "/" + std::to_string(sg.evaluatedBlocks);
+                       std::to_string(sc.evaluatedBlocks) + "/" + std::to_string(sg.evaluatedBlocks) +
+                       ", head changes " + std::to_string(sc.headChanges) + "/" + std::to_string(sg.headChanges);
             if (!ledgerExact(viaGpu, err)) return "gpu ledger at tick " + std::to_string(cpu.tick()) + ": " + err;
         }
         return "";
@@ -176,12 +189,13 @@ TEST_F(MatSimGpuParity, SleepIsExactAndSkipsOnGpu) {
     ASSERT_TRUE(gpu.upload(g, &why)) << why;
     // 9,000 ticks = 150 s: levelling is diffusive (time ~ width^2, §6a), and the 4 x 4 m CPU basin
     // took 3.8 s, so 16 x 16 m needs tens of seconds. (600 ticks was too short: the first run never slept.)
+    // Asleep = quiet (nothing moved, no head changed) on two consecutive ticks (§6d).
     int asleepAt = -1;
-    uint64_t prev = 1;
+    bool prev = false;
     for (int t = 1; t <= 9000 && asleepAt < 0; ++t) {
-        const uint64_t e = gpu.step(1).lastTickEligible;
-        if (e == 0 && prev == 0) asleepAt = t;
-        prev = e;
+        const bool q = gpu.step(1).lastTickQuiet();
+        if (q && prev) asleepAt = t;
+        prev = q;
     }
     ASSERT_NE(asleepAt, -1) << "the GPU basin never slept";
     const StepStats after = gpu.step(100);
@@ -282,6 +296,30 @@ TEST_F(MatSimGpuParity, DegenerateBoxes) {
     EXPECT_EQ(diff(cpu, g), "");
 }
 
+// §6d: the pressure rule on the GPU. The U-tube (2 m arms, 1 m divider, 4 m in the left arm)
+// stepped through levelling at every cell size, identical to the CPU every tick for the first 64
+// and at every chunk after; then the pressure-off rules (P1) on the lab scene, also identical.
+TEST_F(MatSimGpuParity, PressureUTubeAndPressureOff) {
+    auto uWorld = [](int mx, int my, int) { return (mx >= 18 && mx < 27 && my >= 9) ? Occ::Solid : Occ::Empty; };
+    for (int cpm : {1, 3, 9}) {
+        MatSimCore cpu;
+        std::string why;
+        ASSERT_TRUE(cpu.create({-5 * cpm, cpm, 3 * cpm}, {5 * cpm, 6 * cpm, cpm}, cpm,
+                               [uWorld](int mx, int my, int mz) { return uWorld(mx + 45, my - 9, mz - 27); }, &why)) << why;
+        const IVec3 o = cpu.origin();
+        cpu.fillBox(Mat::Water, o, {5 * cpm, cpm, cpm}, 1.0);
+        cpu.fillBox(Mat::Water, {o.x, o.y + cpm, o.z}, {2 * cpm, 4 * cpm, cpm}, 1.0);
+        const int ticks = cpm == 9 ? 5200 : (cpm == 3 ? 1300 : 400);   // each past its CPU rest tick (6d)
+        const std::string d = runParity(cpu, ticks, 64, 113);
+        EXPECT_EQ(d, "") << "U-tube, cells_per_m " << cpm;
+        std::printf("[MatSimGpuParity] U-tube cpm %d: %d ticks identical incl. the head field\n", cpm, ticks);
+    }
+    Config off;
+    off.pressure = false;
+    MatSimCore p1 = labScene(3, {0, 0, 0}, off);
+    EXPECT_EQ(runParity(p1, 600, 16, 128), "") << "pressure off";
+}
+
 // Scale: the plan's 16 x 8 x 16 m lab box at 1/9 m (1.49 M cells) through more than one chunk.
 TEST_F(MatSimGpuParity, LabBoxAtNinthMetre) {
     MatSimCore cpu;
@@ -371,6 +409,18 @@ TEST_F(MatSimGpuParity, TimingAwakeVsAsleep) {
         const StepStats sd = gpu.step(60);
         std::printf("[MatSimGpuTiming] cpm %d dense (sleep off): %.3f ms/tick GPU, %llu blocks evaluated/tick\n", cpm,
                     gpu.lastGpuMsPerTick(), static_cast<unsigned long long>(sd.evaluatedBlocks / 60));
+        // §6d: the same awake box with the pressure rule off, for the pressure pass's cost.
+        Config noP;
+        noP.pressure = false;
+        MatSimCore awakeNoP;
+        ASSERT_TRUE(awakeNoP.create({0, 0, 0}, {16 * cpm, 8 * cpm, 16 * cpm}, cpm, labWorld, &why, noP)) << why;
+        awakeNoP.fillBox(Mat::Water, {0, 0, 0}, {2 * cpm, 3 * cpm, 4 * cpm}, 1.0);
+        awakeNoP.fillBox(Mat::Water, {7 * cpm, 0, 0}, {3 * cpm, 4 * cpm, 16 * cpm}, 1.0);
+        ASSERT_TRUE(gpu.upload(awakeNoP, &why)) << why;
+        gpu.step(4);
+        gpu.step(60);
+        std::printf("[MatSimGpuTiming] cpm %d awake, pressure OFF: %.3f ms/tick GPU (pressure on: %.3f)\n", cpm,
+                    gpu.lastGpuMsPerTick(), msAwake);
 
         MatSimCore still;
         ASSERT_TRUE(still.create({0, 0, 0}, {16 * cpm, 8 * cpm, 16 * cpm}, cpm, labWorld, &why)) << why;

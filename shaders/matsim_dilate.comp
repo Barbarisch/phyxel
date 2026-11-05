@@ -1,13 +1,14 @@
 #version 450
-// docs/MaterialSimPlan.md §6c — MatSim P1b sleep mask: a brick is processed this tick when any
-// brick in its 3^3 neighbourhood moved on tick-1 or tick-2 (MatSimCore::step's dilation, as a
-// gather). Also clears this tick's "moved" marks, which no other pass of this tick reads.
+// docs/MaterialSimPlan.md §6c/§6d — MatSim sleep mask: a brick is processed this tick when any
+// brick in its 3^3 neighbourhood moved on tick-1 or tick-2, or had a head change NOW (the
+// pressure pass marked it in this tick's set, which the host cleared before that pass) —
+// MatSimCore::step's dilation, as a gather. This tick's set is left for the block pass to add to.
 layout(local_size_x = 64) in;
 
 layout(std430, binding = 0) readonly buffer M1 { uint marks1[]; };   // moved on tick-1
 layout(std430, binding = 1) readonly buffer M2 { uint marks2[]; };   // moved on tick-2
 layout(std430, binding = 2) writeonly buffer Proc { uint process[]; };
-layout(std430, binding = 3) writeonly buffer Fresh { uint fresh[]; };
+layout(std430, binding = 3) readonly buffer Fresh { uint fresh[]; };   // this tick: head changes so far
 
 layout(push_constant) uniform PC {
     ivec4 brickDim;   // xyz; w = brick count
@@ -28,8 +29,7 @@ void main() {
                 const int a = x + dx, b = y + dy, c = z + dz;
                 if (a < 0 || b < 0 || c < 0 || a >= X || b >= Y || c >= Z) continue;
                 const uint j = uint(a) + uint(X) * (uint(c) + uint(Z) * uint(b));
-                any |= marks1[j] | marks2[j];
+                any |= marks1[j] | marks2[j] | fresh[j];
             }
     process[i] = any != 0u ? 1u : 0u;
-    fresh[i] = 0u;
 }

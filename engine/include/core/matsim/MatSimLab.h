@@ -69,6 +69,7 @@ private:
     double acc_ = 0.0;
     uint64_t droppedTicks_ = 0;
     uint64_t lastEligible_ = 0;
+    uint64_t lastHeadChanges_ = 0;   ///< §6d
     double lastGpuMsPerTick_ = -1.0;
     double lastWallMsPerTick_ = -1.0;
     std::vector<DynamicSubcubeInstanceData> faces_;
