@@ -348,7 +348,7 @@ TEST(MatSimParticles, DISABLED_ProjectionConverges) {
         for (int a = 0; a < 6; ++a)
             for (int b = 0; b < 6; ++b)
                 for (int c = 0; c < 6; ++c)
-                    ps.addParticle({12.f + 0.9f * a, 12.f + 0.9f * b, 12.f + 0.9f * c, 0, 0, 0, s.full(), Mat::Water});
+                    ps.addParticle({12.f + 0.9f * a, 12.f + 0.9f * b, 12.f + 0.9f * c, 0, 0, 0, s.full(), Mat::Water, 0, 0, 0, 0});
         float m0, x0, m1, x1;
         ps.densityError(s, m0, x0);
         ps.step(s, 1.0 / 60.0);
@@ -414,4 +414,122 @@ TEST(MatSimParticles, DISABLED_DamBreakOtherSizes) {
         std::printf("[MatSimParticles] dam break 1/%d m: front %.2f m/s (Ritter %.2f, %.0f %%), %.1f ms/frame\n", cpm, v, ritter,
                     100.0 * v / ritter, ms);
     }
+}
+
+TEST(MatSimParticles, DISABLED_AveragedSpeedAtRest) {
+    // Still tank (15 x 18 x 3 cells, 4 cells of water) at 1/3 m, defaults: the distribution of
+    // instantaneous vs time-averaged speed (m/s) at 5, 10, 20 s. Sets the settle threshold.
+    const int cpm = 3;
+    std::string why;
+    Config cfg;
+    cfg.pressure = false;
+    MatSimCore s;
+    s.create({0, 0, 0}, {15, 18, 3}, cpm, [](int, int, int) { return Occ::Empty; }, &why, cfg);
+    s.fillBox(Mat::Water, {0, 0, 0}, {15, 4, 3}, 1.0);
+    ParticleConfig pc;
+    if (const char* e = std::getenv("MATSIM_TAU")) pc.settleTau = float(std::atof(e));
+    MatSimParticles ps(pc);
+    ps.lift(s, s.origin(), s.size());
+    for (int f = 1; f <= 1200; ++f) {
+        ps.step(s, 1.0 / 60.0);
+        if (f == 300 || f == 600 || f == 1200) {
+            std::vector<float> v, a;
+            for (const Particle& p : ps.particles()) {
+                v.push_back(std::sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) / cpm);
+                a.push_back(std::sqrt(p.ax * p.ax + p.ay * p.ay + p.az * p.az) / cpm);
+            }
+            std::sort(v.begin(), v.end());
+            std::sort(a.begin(), a.end());
+            const size_t n = v.size();
+            std::printf("[avg] tau %.2f t %2d s: instant median %.3f p90 %.3f max %.3f | averaged median %.3f p90 %.3f p99 %.3f max %.3f m/s\n",
+                        pc.settleTau, f / 60, v[n / 2], v[n * 9 / 10], v.back(), a[n / 2], a[n * 9 / 10], a[n * 99 / 100], a.back());
+        }
+    }
+}
+
+// E2 (6f): settle. Particles slower than 0.3 m/s (averaged over 1 s) and supported deposit into
+// cells; the CA (pressure on) moves cell water from then on. Predictions, written first: a still
+// tank is all cells within 5 s, ledger exact every frame, surface flat within 1/2 cell; the U-tube
+// ends level within max(1/2 cell, 3 cm) with every particle settled.
+namespace {
+struct SettleRun {
+    double allSettledAt = -1, rightAt3s = -1;
+    bool ledgerExact = true;
+    size_t left = 0;
+};
+SettleRun runSettle(MatSimCore& s, MatSimParticles& ps, double seconds) {
+    SettleRun r;
+    const uint64_t total = s.ledger()[Mat::Water] + ps.units(Mat::Water);
+    for (int f = 0; f < int(seconds * 60); ++f) {
+        ps.step(s, 1.0 / 60.0);
+        ps.settle(s);
+        s.step(1);
+        if (s.ledger()[Mat::Water] + ps.units(Mat::Water) != total) r.ledgerExact = false;
+        if (r.allSettledAt < 0 && ps.particles().empty()) r.allSettledAt = (f + 1) / 60.0;
+        if (f + 1 == 180 && s.size().x == 15 && s.size().y == 18 && s.size().z == 3 && s.cellsPerM() == 3)   // the 2|2 U-tube box
+            r.rightAt3s = armFromCells(s, 9, 15) + armFromParticles(ps, 3, s.full(), 9, 15);
+    }
+    r.left = ps.particles().size();
+    return r;
+}
+// Per-column water height (cells) over the box; returns max - min over columns that hold water.
+double surfaceSpread(const MatSimCore& s, int x0, int x1, double* mean) {
+    double mn = 1e9, mx = -1e9, sum = 0;
+    int n = 0;
+    for (int z = 0; z < s.size().z; ++z)
+        for (int x = x0; x < x1; ++x) {
+            uint64_t u = 0;
+            for (int y = 0; y < s.size().y; ++y) {
+                const Cell c = s.at({x, y, z});
+                if (cellMaterial(c) == Mat::Water) u += cellFill(c);
+            }
+            const double h = double(u) / s.full();
+            mn = std::min(mn, h); mx = std::max(mx, h); sum += h; ++n;
+        }
+    *mean = sum / n;
+    return mx - mn;
+}
+} // namespace
+
+TEST(MatSimParticles, StillTankSettlesIntoCells) {
+    const int cpm = 3;
+    std::string why;
+    MatSimCore s;
+    ASSERT_TRUE(s.create({0, 0, 0}, {15, 18, 3}, cpm, [](int, int, int) { return Occ::Empty; }, &why)) << why;
+    s.fillBox(Mat::Water, {0, 0, 0}, {15, 4, 3}, 1.0);
+    ParticleConfig pc;
+    pc.settleSpeed = 0.3f;
+    MatSimParticles ps(pc);
+    ps.lift(s, s.origin(), s.size());
+    const SettleRun r = runSettle(s, ps, 8.0);
+    double mean = 0;
+    const double spread = surfaceSpread(s, 0, 15, &mean);
+    std::printf("[MatSimParticles] still tank settle 1/3 m: all cells at %.2f s (%zu particles left), column height mean %.3f "
+                "cells, spread %.3f cells, ledger %s\n", r.allSettledAt, r.left, mean, spread, r.ledgerExact ? "exact" : "BROKEN");
+    EXPECT_TRUE(r.ledgerExact);
+    EXPECT_GT(r.allSettledAt, 0.0);
+    EXPECT_LE(r.allSettledAt, 5.0);
+    EXPECT_NEAR(mean, 4.0, 1e-9);
+    EXPECT_LE(spread, 0.5);
+}
+
+TEST(MatSimParticles, UTubeSettlesLevel) {
+    const int cpm = 3;
+    MatSimCore s = uTube(cpm);
+    s.config().pressure = true;   // cell water keeps the P1c pressure rule
+    ParticleConfig pc;
+    pc.settleSpeed = 0.3f;
+    MatSimParticles ps(pc);
+    ps.lift(s, s.origin(), s.size());
+    const SettleRun r = runSettle(s, ps, 40.0);
+    const double hl = armFromCells(s, 0, 2 * cpm), hr = armFromCells(s, 3 * cpm, 5 * cpm);
+    std::printf("[MatSimParticles] U-tube settle 1/3 m: right arm %.3f m at 3 s (cells + particles), all cells at %.2f s (%zu left), "
+                "arms %.3f / %.3f m (level 2.000), ledger %s\n",
+                r.rightAt3s, r.allSettledAt, r.left, hl, hr, r.ledgerExact ? "exact" : "BROKEN");
+    EXPECT_GE(r.rightAt3s, 1.8) << "the particles, not the CA, must move the water (the CA alone took 29 s)";
+    const double tol = std::max(0.5 / cpm, 0.03);
+    EXPECT_TRUE(r.ledgerExact);
+    EXPECT_GT(r.allSettledAt, 0.0);
+    EXPECT_NEAR(hl, hr, tol);
+    EXPECT_NEAR(hr, 2.0, tol);
 }

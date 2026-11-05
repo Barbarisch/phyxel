@@ -28,7 +28,7 @@ size_t MatSimParticles::lift(MatSimCore& core, IVec3 lo, IVec3 size) {
                 const Cell c = core.at({x, y, z});
                 const uint8_t m = cellMaterial(c);
                 if (!isLiquid(m) || cellFill(c) == 0) continue;
-                p_.push_back({x + 0.5f, y + 0.5f, z + 0.5f, 0.f, 0.f, 0.f, cellFill(c), m});
+                p_.push_back({x + 0.5f, y + 0.5f, z + 0.5f, 0.f, 0.f, 0.f, cellFill(c), m, 0.f, 0.f, 0.f, 0.f});
                 core.setCell({x, y, z}, kEmpty, 0);
                 ++n;
             }
@@ -107,6 +107,7 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
 
     // Visit the fluid neighbours j of particle i (positions px_/py_/pz_) and the solid cells
     // within h; f(dx, dy, dz, r2, j) with j = -1 for a boundary particle.
+    float bmass = 1.f;   // mass of the boundary particle being visited (j = -1)
     auto forNeighbours = [&](size_t i, auto&& f) {
         const float xi = px_[i], yi = py_[i], zi = pz_[i];
         const int gx = floorI(xi / h) - gLo_.x, gy = floorI(yi / h) - gLo_.y, gz = floorI(zi / h) - gLo_.z;
@@ -130,7 +131,12 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
                     const float ex = xi - (x + 0.5f), ey = yi - (y + 0.5f), ez = zi - (z + 0.5f);
                     const float r2 = ex * ex + ey * ey + ez * ez;
                     if (r2 >= h2) continue;
-                    if (cellMaterial(core.at({x, y, z})) != kSolid) continue;
+                    // Boundary: a solid cell (mass 1), or CELL water (settled, E2) with mass fill/FULL.
+                    const Cell bc = core.at({x, y, z});
+                    const uint8_t bm = cellMaterial(bc);
+                    if (bm == kSolid) bmass = 1.f;
+                    else if (isLiquid(bm) && cellFill(bc) > 0) bmass = float(cellFill(bc)) / float(full_);
+                    else continue;
                     f(ex, ey, ez, r2, -1);
                 }
     };
@@ -173,7 +179,7 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
             for (size_t i = 0; i < n; ++i) {
                 float rho = 0.f, gi[3] = {0, 0, 0}, sum2 = 0.f;
                 forNeighbours(i, [&](float ex, float ey, float ez, float r2, int j) {
-                    const float mj = j < 0 ? 1.f : float(p_[size_t(j)].units) / float(full_);
+                    const float mj = j < 0 ? bmass : float(p_[size_t(j)].units) / float(full_);
                     rho += mj * W(r2);
                     if (j == int(i)) return;
                     float gw[3];
@@ -192,7 +198,7 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
                 float d[3] = {0, 0, 0};
                 forNeighbours(i, [&](float ex, float ey, float ez, float r2, int j) {
                     if (j == int(i)) return;
-                    const float mj = j < 0 ? 1.f : float(p_[size_t(j)].units) / float(full_);
+                    const float mj = j < 0 ? bmass : float(p_[size_t(j)].units) / float(full_);
                     const float lj = j < 0 ? lambda_[i] : lambda_[size_t(j)];
                     float sc = 0.f;
                     if (cfg_.tensileK > 0.f && j >= 0) { const float w = W(r2) / wdq; sc = -cfg_.tensileK * w * w * w * w; }
@@ -227,7 +233,7 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
                     if (j == int(i)) return;
                     float gw[3];
                     gradW(ex, ey, ez, r2, gw);
-                    const float mj = j < 0 ? 1.f : float(p_[size_t(j)].units) / float(full_);
+                    const float mj = j < 0 ? bmass : float(p_[size_t(j)].units) / float(full_);
                     const float rvx = j < 0 ? vx[i] : vx[i] - vx[size_t(j)];
                     const float rvy = j < 0 ? vy[i] : vy[i] - vy[size_t(j)];
                     const float rvz = j < 0 ? vz[i] : vz[i] - vz[size_t(j)];
@@ -244,7 +250,7 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
                     if (j == int(i)) return;
                     float gw[3];
                     gradW(ex, ey, ez, r2, gw);
-                    const float mj = j < 0 ? 1.f : float(p_[size_t(j)].units) / float(full_);
+                    const float mj = j < 0 ? bmass : float(p_[size_t(j)].units) / float(full_);
                     const float kj = j < 0 ? kap[i] : kap[size_t(j)];
                     const float k = mj * (kap[i] + kj) / rho0_;
                     d[0] += k * gw[0]; d[1] += k * gw[1]; d[2] += k * gw[2];
@@ -266,6 +272,9 @@ void MatSimParticles::step(const MatSimCore& core, double dtFrame) {
             q.x = px_[i]; q.y = py_[i]; q.z = pz_[i];
         }
     }
+    // Time-averaged velocity (one update per frame).
+    const float k = std::min(1.f, float(dtFrame) / std::max(1e-3f, cfg_.settleTau));
+    for (Particle& q : p_) { q.ax += (q.vx - q.ax) * k; q.ay += (q.vy - q.ay) * k; q.az += (q.vz - q.az) * k; q.age += float(dtFrame); }
 }
 
 void MatSimParticles::densityError(const MatSimCore& core, float& meanAbsC, float& maxC) {
@@ -301,6 +310,68 @@ void MatSimParticles::densityError(const MatSimCore& core, float& meanAbsC, floa
         meanAbsC += std::fabs(C) / float(p_.size());
         maxC = std::max(maxC, C);
     }
+}
+
+size_t MatSimParticles::settle(MatSimCore& core) {
+    // E2: a particle whose time-averaged speed is under settleSpeed and that is SUPPORTED (the cell
+    // below its cell is solid or full water) deposits its units into its cell (overflow up first,
+    // then sideways), lowest first. Integer-exact; the deposited cells become boundary mass for the
+    // particles that remain, and the CA moves them from then on.
+    if (cfg_.settleSpeed <= 0.f || p_.empty()) return 0;
+    const uint32_t F = core.full();
+    const float vs = cfg_.settleSpeed * float(core.cellsPerM());   // cells/s
+    std::vector<size_t> cand;
+    for (size_t i = 0; i < p_.size(); ++i) {
+        const Particle& q = p_[i];
+        if (q.age >= cfg_.settleTau && q.ax * q.ax + q.ay * q.ay + q.az * q.az < vs * vs) cand.push_back(i);
+    }
+    std::sort(cand.begin(), cand.end(), [&](size_t a, size_t b) {
+        const Particle &A = p_[a], &B = p_[b];
+        const int ay = floorI(A.y), by = floorI(B.y);
+        if (ay != by) return ay < by;
+        return a < b;
+    });
+    auto room = [&](IVec3 w, uint8_t m) -> uint32_t {
+        if (!core.inBox(w)) return 0;
+        const Cell c = core.at(w);
+        const uint8_t cm = cellMaterial(c);
+        if (cm == kSolid || (cm != kEmpty && cm != m)) return 0;
+        return F - cellFill(c);
+    };
+    std::vector<uint8_t> gone(p_.size(), 0);
+    size_t n = 0;
+    for (size_t i : cand) {
+        Particle& q = p_[i];
+        const IVec3 w{floorI(q.x), floorI(q.y), floorI(q.z)};
+        const Cell below = core.at({w.x, w.y - 1, w.z});
+        const bool supported = cellMaterial(below) == kSolid || (cellMaterial(below) == q.mat && cellFill(below) == F);
+        if (!supported) continue;
+        uint64_t u = q.units;
+        auto put = [&](IVec3 c) {
+            const uint32_t k = uint32_t(std::min<uint64_t>(room(c, q.mat), u));
+            if (!k) return;
+            core.setCell(c, q.mat, cellFill(core.at(c)) + k);
+            u -= k;
+        };
+        put(w);
+        // Overflow: straight up through open cells, then the four sides of the cell (deterministic).
+        for (int y = w.y + 1; u && y < core.origin().y + core.size().y; ++y) {
+            const IVec3 c{w.x, y, w.z};
+            if (cellMaterial(core.at(c)) == kSolid) break;
+            put(c);
+        }
+        static const int kSide[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (const auto& d : kSide) if (u) put({w.x + d[0], w.y, w.z + d[1]});
+        if (u) { q.units = uint32_t(u); continue; }   // no room: keeps the remainder and stays a particle
+        gone[i] = 1;
+        ++n;
+    }
+    if (n) {
+        size_t k = 0;
+        for (size_t i = 0; i < p_.size(); ++i) if (!gone[i]) p_[k++] = p_[i];
+        p_.resize(k);
+    }
+    return n;
 }
 
 uint64_t MatSimParticles::deposit(MatSimCore& core) {

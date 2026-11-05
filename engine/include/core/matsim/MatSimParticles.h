@@ -34,6 +34,11 @@ struct ParticleConfig {
     /// c 0.1) with the U-tube surge and period unchanged (3.07 m, ~4.5 s).
     int divergenceIterations = 2;
     float minC = 0.0f;             ///< lower clamp of C = rho/rho0 - 1 (0 = unilateral: push only; -1 = bilateral)
+    /// s, time constant of the averaged velocity used by settle(). 1 s (measured, 6f): at rest the
+    /// averaged speed's p99 is ~0.25-0.3 m/s (residual swirl); real flows (slosh, dam break) run 1-3+ m/s.
+    float settleTau = 1.0f;
+    /// E2: settle() deposits supported particles slower than this (m/s, averaged) into cells. 0 = off.
+    float settleSpeed = 0.0f;
     float gravity = 9.81f;         ///< m/s^2 (tests set 0 to check that a lattice at rest stays at rest)
 };
 
@@ -42,6 +47,8 @@ struct Particle {
     float vx, vy, vz;    ///< cells per second
     uint32_t units;      ///< fill units carried (exact)
     uint8_t mat;
+    float ax = 0.f, ay = 0.f, az = 0.f;   ///< time-averaged velocity (EMA, settleTau), cells/s: in-place swirl cancels
+    float age = 0.f;     ///< seconds as a particle; settle() needs age >= settleTau (the average starts at 0)
 };
 
 class MatSimParticles {
@@ -56,6 +63,9 @@ public:
     /// Put every particle's units back into cells (overflow carried to the nearest open room,
     /// deterministic), then clear. Returns units that found no room (0 unless the box is full).
     uint64_t deposit(MatSimCore& core);
+    /// E2: deposit every settled, supported particle into its cell (see ParticleConfig::settleSpeed).
+    /// Returns the number deposited. Call after step(); cell water then moves by the CA.
+    size_t settle(MatSimCore& core);
 
     const std::vector<Particle>& particles() const { return p_; }
     /// Test hooks: add a particle directly; density error C = rho/rho0 - 1 over all particles
